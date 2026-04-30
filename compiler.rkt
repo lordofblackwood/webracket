@@ -10642,7 +10642,8 @@
        (free-ref x i)))
   (CExpr (ce)
     (- (closedapp s ab ae1 ...))
-    (+ (closedapp s ca ae1 ...) => (closedapp ca ae1 ...)))
+    (+ (closedapp s ca ae1 ...) => (closedapp ca ae1 ...)
+       (directapp s l ae1 ...)  => (directapp l ae1 ...)))
   (ConvertedAbstraction (cab)
     (+ (λ s ar f e) => (λ f e)))
   #;(ConvertedCaseAbstraction (ccab)
@@ -10675,6 +10676,12 @@
                      [(formals (,x ...))            (length x)]
                      [(formals (,x0 ,x1 ... . ,xd)) (- (+ 2 (length x1)))]
                      [(formals ,x)                  -1]))
+    (define (source-formals->arity f)
+      ; Same arity encoding as above, but over source-language formals.
+      (nanopass-case (LANF Formals) f
+                     [(formals (,x ...))            (length x)]
+                     [(formals (,x0 ,x1 ... . ,xd)) (- (+ 2 (length x1)))]
+                     [(formals ,x)                  -1]))
     (define (lift! s label formals body)       
       (record-label-map! label s)
       (define cab
@@ -10698,16 +10705,154 @@
          (eq? (syntax-e #'inferred-name?) 'inferred-name)
          (syntax-e #'x)]
         [_ #f]))
-    (define current-free (make-parameter '())))
+    (define current-free (make-parameter '()))
+
+    ;; env-empty : -> free-id-table?
+    ;;   Build an empty environment for direct-callable local lambdas.
+    (define (env-empty)
+      (make-immutable-free-id-table))
+
+    ;; env-ref : free-id-table? variable? -> (or/c any/c #f)
+    ;;   Look up the abstraction bound to variable x in environment ρ.
+    (define (env-ref ρ x)
+      (free-id-table-ref ρ (variable-id x) #f))
+
+    ;; env-bind : free-id-table? variable? any/c -> free-id-table?
+    ;;   Extend environment ρ so x maps to abstraction ab.
+    (define (env-bind ρ x ab)
+      (free-id-table-set ρ (variable-id x) ab))
+
+    ;; env-bind* : free-id-table? (listof variable?) (listof any/c) -> free-id-table?
+    ;;   Extend environment ρ with parallel variable/abstraction bindings.
+    (define (env-bind* ρ xs abs)
+      (for/fold ([ρ ρ]) ([x  (in-list xs)]
+                         [ab (in-list abs)])
+        (env-bind ρ x ab)))
+
+    ;; env-shadow* : free-id-table? (listof variable?) -> free-id-table?
+    ;;   Shadow variables xs so outer direct-call bindings are hidden.
+    (define (env-shadow* ρ xs)
+      (for/fold ([ρ ρ]) ([x (in-list xs)])
+        (free-id-table-set ρ (variable-id x) #f)))
+
+    ;; formals->variables : LANF Formals -> (listof variable?)
+    ;;   Collect the variables bound by formals f.
+    (define (formals->variables f)
+      (nanopass-case (LANF Formals) f
+        [(formals (,x ...))            x]
+        [(formals (,x0 ,x1 ... . ,xd)) (cons x0 (append x1 (list xd)))]
+        [(formals ,x)                  (list x)]))
+
+    ;; clause-bound-abstraction : LANF CExpr -> (or/c any/c #f)
+    ;;   Recognize the simple local binding pattern x = λ or x = case-lambda.
+    (define (clause-bound-abstraction ce)
+      (nanopass-case (LANF CExpr) ce
+        [,ae
+         (nanopass-case (LANF AExpr) ae
+           [,ab  ab]
+           [,cab cab]
+           [else #f])]
+        [else #f]))
+
+    ;; clause-direct-binding : (listof variable?) LANF CExpr -> (or/c (cons variable? any/c) #f)
+    ;;   Recognize a single-variable clause bound to a fixed-arity direct lambda.
+    (define (clause-direct-binding xs ce)
+      (match xs
+        [(list x)
+         (define ab (clause-bound-abstraction ce))
+         (and ab
+              (eq? (kind-of ab) 'direct)
+              (let ([ar (source-formals->arity (abstraction-formals ab))])
+                (and (integer? ar)
+                     (>= ar 0)
+                     (cons x ab))))]
+        [_ #f]))
+
+    ;; clause-direct-bindings : (listof (listof variable?)) (listof LANF CExpr)
+    ;;                      -> (listof (cons variable? any/c))
+    ;;   Collect the direct-call bindings introduced by a let or letrec group.
+    (define (clause-direct-bindings xss ces)
+      (for/fold ([pairs '()]) ([xs (in-list xss)]
+                               [ce (in-list ces)])
+        (define pair (clause-direct-binding xs ce))
+        (if pair
+            (cons pair pairs)
+            pairs)))
+
+    ;; direct-binding-of : variable? -> (or/c any/c #f)
+    ;;   Return the direct-callable abstraction bound to x, if any.
+    (define (direct-binding-of x)
+      (env-ref (current-direct-env) x))
+
+    ;; current-direct-env : (parameter/c free-id-table?)
+    ;;   Direct-callable local lambdas in lexical scope.
+    (define current-direct-env
+      (make-parameter (env-empty))))
   (TopLevelForm    : TopLevelForm    (T) -> TopLevelForm      ())
   (ModuleLevelForm : ModuleLevelForm (M) -> ModuleLevelForm   ())
-  (Expr            : Expr            (E) -> Expr              ())
+  (CExpr : CExpr (CE) -> CExpr ()
+    [,ae
+     (AExpr ae)]
+    [(set! ,s ,x ,ae)
+     `(set! ,s ,x ,(AExpr ae))]
+    [(if ,s ,ae0 ,e1 ,e2)
+     `(if ,s ,(AExpr ae0) ,(Expr e1) ,(Expr e2))]
+    [(wcm ,s ,ae0 ,ae1 ,e)
+     `(wcm ,s ,(AExpr ae0) ,(AExpr ae1) ,(Expr e))]
+    [(app ,s ,x ,ae1 ...)
+     (guard (direct-binding-of x))
+     (define ab (direct-binding-of x))
+     (define ae* (map AExpr ae1))
+     `(directapp ,s ,(label-of ab) ,ae* ...)]
+    [(app ,s ,ae ,ae1 ...)
+     (define ae* (map AExpr ae1))
+     `(app ,s ,(AExpr ae) ,ae* ...)]
+    [(primapp ,s ,pr ,ae1 ...)
+     (define ae* (map AExpr ae1))
+     `(primapp ,s ,pr ,ae* ...)]
+    [(closedapp ,s ,ab ,ae1 ...)
+     (define ae* (map AExpr ae1))
+     `(closedapp ,s ,(Abstraction ab) ,ae* ...)]
+    [(begin ,s ,e0 ,e1 ...)
+     (match (map Expr (cons e0 e1))
+       [(list e0* e1* ...)
+        `(begin ,s ,e0* ,e1* ...)])]
+    [(begin0 ,s ,e0 ,e1 ...)
+     (match (map Expr (cons e0 e1))
+       [(list e0* e1* ...)
+        `(begin0 ,s ,e0* ,e1* ...)])])
+  (Expr : Expr (E) -> Expr ()
+    [,ce
+     (CExpr ce)]
+    [(let-values ,s (((,x ...) ,ce*) ...) ,e)
+     (define ce**  (map CExpr ce*))
+     (define pairs (reverse (clause-direct-bindings x ce*)))
+     (define xs    (map car pairs))
+     (define abs   (map cdr pairs))
+     `(let-values ,s
+        ([(,x ...) ,ce**] ...)
+        ,(parameterize ([current-direct-env
+                         (env-bind* (current-direct-env) xs abs)])
+           (Expr e)))]
+    [(letrec-values ,s (((,x ...) ,ce*) ...) ,e)
+     (define ce**  (map CExpr ce*))
+     (define pairs (reverse (clause-direct-bindings x ce*)))
+     (define xs    (map car pairs))
+     (define abs   (map cdr pairs))
+     (parameterize ([current-direct-env
+                     (env-bind* (current-direct-env) xs abs)])
+       `(letrec-values ,s
+          ([(,x ...) ,ce**] ...)
+          ,(Expr e)))])
   (Abstraction     : Abstraction    (AB) -> ClosureAllocation ()
     [(λ ,s ,[f] ,e)
      (define l  (label-of AB))
      (define k  (kind-of AB))
      (let ([xs (map AExpr (free-of AB))]
-           [e  (parameterize ([current-free (free-of AB)])
+           [e  (parameterize ([current-free (free-of AB)]
+                              [current-direct-env
+                               (env-shadow* (current-direct-env)
+                                            (formals->variables (abstraction-formals AB)))])
                  (Expr e))])
        (lift! s l f e)
        (define name (inferred-name s))
@@ -10777,7 +10922,7 @@
                 (nanopass-case (LANF+closure TopLevelForm) t
                   [(topbegin ,s ,t0  ...) t0]
                   [else                   (list t)])))
-            (loop (append* tss))]
+           (loop (append* tss))]
            [else
             `(topbegin ,s ,(map TopLevelForm ts) ...)])))])
 
@@ -10807,7 +10952,8 @@
                 `(begin ,s
                         ,(Expr (car es))
                         ,(map Expr (cdr es)) ...))])))]))
-            
+
+
 ;;;
 ;;; SIMPLIFY FORMALS 
 ;;;
@@ -10935,6 +11081,7 @@
     [(if  ,s ,ae0 ,e1  ,e2)        (AExpr ae0) (Expr e1)   (Expr e2)]
     [(wcm ,s ,ae0 ,ae1 ,e)         (AExpr ae0) (AExpr ae1) (Expr e)]
     [(app ,s ,ae  ,ae1 ...)        (AExpr* (cons ae ae1))]
+    [(directapp ,s ,l ,ae1 ...)    (AExpr* ae1)]
     [(primapp   ,s ,pr ,ae1 ...)   (AExpr* ae1)]
     [(closedapp ,s ,ca ,ae1 ...)   (ClosureAllocation ca) (AExpr* ae1)]
     [(begin     ,s ,e0 ,e1 ...)    (Expr* (cons e0 e1))]
@@ -12291,6 +12438,25 @@
                                         ['<expr>             work]
                                         ['<stat>             work])]
             [y                        (Store! y work)])]))]
+    [(directapp ,s ,l ,ae2 ...)
+     (define tc (eq? cd '<return>))
+     (define args
+       `(array.new_fixed $Args ,(length ae2)
+                         ,@(for/list ([ae (in-list ae2)])
+                             (AExpr3 ae <value>))))
+     (define work
+       (if tc
+           `(return_call ,(Label l) (global.get $dummy-closure) ,args)
+           (cond
+             [(eq? dd <value>)  `(call ,(Label l) (global.get $dummy-closure) ,args)]
+             [(eq? dd <effect>) `(drop (call ,(Label l) (global.get $dummy-closure) ,args))]
+             [else              `(call ,(Label l) (global.get $dummy-closure) ,args)])))
+     (match dd
+       [(or '<effect> '<value>)  (match cd
+                                   ['<return> `(return ,work)]
+                                   ['<expr>             work]
+                                   ['<stat>             work])]
+       [y                        (Store! y work)])]
     [(wcm ,s ,ae0 ,ae1 ,e)
      ;(displayln (list 'wcm 'dd dd 'cd cd s))
      (define-values (dest dest-declaration)
@@ -12445,6 +12611,39 @@
                                (array.new $Array (global.get $null) (i32.const ,n))))]
          [else (error 'AllocateClosure "internal error, got: ~a" ca)]))
 
+     (define direct-letrec-vars
+       (for/list ([xs x**]
+                  [ce ce*]
+                  #:when
+                  (nanopass-case (LANF+closure AExpr) ce
+                    [(closure ,s ,k ,in ,l ,ar ,ae1 ...)
+                     (and (eq? k 'direct)
+                          (integer? ar)
+                          (>= ar 0))]
+                    [else #f]))
+         (first xs)))
+
+     ;; direct-letrec-var? : any/c -> boolean?
+     ;;   Check whether x is a direct helper in the current letrec group.
+     (define (direct-letrec-var? x)
+       (for/or ([y (in-list direct-letrec-vars)])
+         (id=? x y)))
+
+     ;; direct-letrec-closure? : LANF+closure AExpr -> boolean?
+     ;;   Check whether ca is a fixed-arity direct helper whose free variables
+     ;;   are all other direct helpers in the same letrec group.
+     (define (direct-letrec-closure? ca)
+       (nanopass-case (LANF+closure AExpr) ca
+         [(closure ,s ,k ,in ,l ,ar ,ae1 ...)
+          (and (eq? k 'direct)
+               (integer? ar)
+               (>= ar 0)
+               (for/and ([ae (in-list ae1)])
+                 (nanopass-case (LANF+closure AExpr) ae
+                   [,x   (direct-letrec-var? x)]
+                   [else #f])))]
+         [else #f]))
+
      (define (FillClosure ca dd)
        ; Fill in the $free array
        (nanopass-case (LANF+closure AExpr) ca
@@ -12490,8 +12689,16 @@
                    [x         (list)])
                ,@(for/list ([x x*] [u u*])
                    (Store! x u))
-               ,@(map AllocateClosure ce* x*) 
-               ,@(append* (map FillClosure ce* x*))
+               ,@(append*
+                  (for/list ([ce ce*] [x x*])
+                    (if (direct-letrec-closure? ce)
+                        '()
+                        (list (AllocateClosure ce x)))))
+               ,@(append*
+                  (for/list ([ce ce*] [x x*])
+                    (if (direct-letrec-closure? ce)
+                        '()
+                        (FillClosure ce x))))
                ,e))])
      
   (ConvertedAbstraction : ConvertedAbstraction (cab) -> * ()
@@ -13228,6 +13435,41 @@
   (define (report-ref report key)
     (cdr (assq key report)))
 
+  (define (sexp-any? pred x)
+    (or (pred x)
+        (cond
+          [(pair? x)
+           (or (sexp-any? pred (car x))
+               (sexp-any? pred (cdr x)))]
+          [(vector? x)
+           (for/or ([e (in-vector x)])
+             (sexp-any? pred e))]
+          [else
+           #f])))
+
+  (define (module-has-direct-dummy-closure-call? mod)
+    (define (direct-dummy-closure-call? x)
+      (match x
+        [(list 'call label '(global.get $dummy-closure) args)
+         (and (symbol? label)
+              (regexp-match? #rx"^\\$label\\." (symbol->string label))
+              (pair? args)
+              (eq? (car args) 'array.new_fixed))]
+        [(list 'return_call label '(global.get $dummy-closure) args)
+         (and (symbol? label)
+              (regexp-match? #rx"^\\$label\\." (symbol->string label))
+              (pair? args)
+              (eq? (car args) 'array.new_fixed))]
+        [_ #f]))
+    (sexp-any? direct-dummy-closure-call? mod))
+
+  (define (module-has-local-closure-shell-allocation? mod)
+    (define (local-closure-shell-allocation? x)
+      (match x
+        [(list 'local.set _ (list 'struct.new '$Closure _ ...)) #t]
+        [_ #f]))
+    (sexp-any? local-closure-shell-allocation? mod))
+
   (define (compile/primitive-report stx)
     (define dump-dir (make-temporary-file "webracket-tree-shaker~a" 'directory))
     (define mod
@@ -13312,6 +13554,18 @@
       (λ ()
         (run (comp #'(letrec-values ([(f) (begin 0 (lambda () 1))])
                        f)))))))
+
+  (check-true
+   (module-has-direct-dummy-closure-call?
+    (comp #'((lambda (x) x) 1))))
+
+  (let ([mod (comp #'(letrec ([loop (lambda (n)
+                                      (if (zero? n)
+                                          0
+                                          (loop (- n 1))))])
+                       (loop 2)))])
+    (check-true  (module-has-direct-dummy-closure-call? mod))
+    (check-false (module-has-local-closure-shell-allocation? mod)))
 
   (let-values ([(mod report)
                 (compile/primitive-report/ffi
