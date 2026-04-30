@@ -25,6 +25,7 @@
 (define timings?        (make-parameter #f))
 (define pretty-wat?     (make-parameter #f))
 (define list-primitives? (make-parameter #f))
+(define enable-cc-analysis? (make-parameter #f))
 (define enable-simplify? (make-parameter #f))
 (define tree-shake?     (make-parameter #t))
 (define tree-shake-report (make-parameter #f))
@@ -167,6 +168,8 @@
                         (pretty-wat? #f)]
    [("--list-primitives") "Print the list of all primitives and exit"
                           (list-primitives? #t)]
+   [("--enable-cc-analysis") "Enable the new closure-conversion analysis"
+                             (enable-cc-analysis? #t)]
    [("--enable-simplify") "Run the early simplify-LFE pass"
                           (enable-simplify? #t)]
    [("--tree-shake") "Tree shake runtime primitives (default)"
@@ -270,6 +273,7 @@
                      #:browser?      (browser)
                      #:node?         (nodejs)
                      #:letrec-strategy (letrec-strategy)
+                     #:enable-cc-analysis? (enable-cc-analysis?)
                      #:enable-simplify? (enable-simplify?)
                      #:tree-shake?   (tree-shake?)
                      #:tree-shake-report (tree-shake-report)

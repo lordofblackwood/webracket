@@ -3,6 +3,7 @@
          current-ffi-imports-wat
          current-ffi-funcs-wat
          current-browser?
+         current-enable-cc-analysis?
          current-console-bridge?
          current-enable-simplify?
          current-letrec-strategy
@@ -17,6 +18,8 @@
 (define current-ffi-imports-wat (make-parameter '())) ; list of s-exprs
 (define current-ffi-funcs-wat   (make-parameter '())) ; list of s-exprs
 (define current-browser?        (make-parameter #f))  ; boolean? browser mode flag
+(define current-enable-cc-analysis?
+  (make-parameter #f))                                 ; boolean? enable new closure-conversion analysis
 (define current-console-bridge? (make-parameter #f))  ; boolean? install browser console bridge
 (define current-enable-simplify? (make-parameter #f)) ; boolean? run early simplify-LFE pass
 (define current-letrec-strategy (make-parameter 'scc)) ; 'basic, 'waddell, or 'scc

@@ -10466,7 +10466,22 @@
 (define (closure-conversion-analysis T)
   (letv ((T free-ht abs) (determine-free-variables T))
     (define-values (kind-ht direct-sites-ht direct-candidate-ht disqualified-ht)
-      (classify-lambdas! T free-ht abs))
+      (if (current-enable-cc-analysis?)
+          (classify-lambdas! T free-ht abs)
+          (let ()
+            (define kind-ht             (make-hasheq))
+            (define direct-sites-ht     (make-hasheq))
+            (define direct-candidate-ht (make-hasheq))
+            (define disqualified-ht     (make-hasheq))
+            (for ([ab (in-list abs)])
+              (hash-set! kind-ht ab
+                         (if (set-empty? (hash-ref free-ht ab empty-set))
+                             'trivial-closed
+                             'closed))
+              (hash-set! direct-sites-ht ab '())
+              (hash-set! direct-candidate-ht ab #f)
+              (hash-set! disqualified-ht ab #f))
+            (values kind-ht direct-sites-ht direct-candidate-ht disqualified-ht))))
     (values T free-ht abs kind-ht direct-sites-ht direct-candidate-ht disqualified-ht)))
 
 ;; summarize-closure-conversion-analysis : LANF
@@ -10518,7 +10533,8 @@
                   (assignment-conversion lr)))
     (define ca  (categorize-applications ac))
     (define an  (anormalize ca))
-    (summarize-closure-conversion-analysis an))
+    (parameterize ([current-enable-cc-analysis? #t])
+      (summarize-closure-conversion-analysis an)))
 
   ;; summary-kinds : (listof list?) -> (listof symbol?)
   ;;   Extract the classification kinds from a summary.
@@ -13557,13 +13573,15 @@
 
   (check-true
    (module-has-direct-dummy-closure-call?
-    (comp #'((lambda (x) x) 1))))
+    (parameterize ([current-enable-cc-analysis? #t])
+      (comp #'((lambda (x) x) 1)))))
 
-  (let ([mod (comp #'(letrec ([loop (lambda (n)
-                                      (if (zero? n)
-                                          0
-                                          (loop (- n 1))))])
-                       (loop 2)))])
+  (let ([mod (parameterize ([current-enable-cc-analysis? #t])
+               (comp #'(letrec ([loop (lambda (n)
+                                        (if (zero? n)
+                                            0
+                                            (loop (- n 1))))])
+                         (loop 2))))])
     (check-true  (module-has-direct-dummy-closure-call? mod))
     (check-false (module-has-local-closure-shell-allocation? mod)))
 

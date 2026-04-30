@@ -42,6 +42,7 @@
                                     current-ffi-imports-wat
                                     current-ffi-funcs-wat
                                     current-browser?
+                                    current-enable-cc-analysis?
                                     current-console-bridge?
                                     current-enable-simplify?
                                     current-letrec-strategy
@@ -279,6 +280,7 @@
          ;; Compiler strategy
          #:letrec-strategy   letrec-strategy
          ;; Optimization
+         #:enable-cc-analysis? enable-cc-analysis?
          #:enable-simplify?  enable-simplify?
          #:tree-shake?       tree-shake?        ; remove dead code from the wat-file
          #:tree-shake-report tree-shake-report
@@ -301,6 +303,7 @@
   (define t-driver-start (now-ms))
 
   (current-browser? browser?)
+  (current-enable-cc-analysis? enable-cc-analysis?)
   (current-console-bridge? console-bridge?)
   (current-tree-shake? tree-shake?)
   (current-runtime-primitive-report-path tree-shake-report)
@@ -423,6 +426,7 @@
                                  (error 'drive-compilation
                                         (~a "compile failed: " (exn-message e))))])
       (parameterize ([current-browser? browser?]
+                     [current-enable-cc-analysis? enable-cc-analysis?]
                      [current-letrec-strategy letrec-strategy]
                      [current-enable-simplify? enable-simplify?]
                      [current-print-top-level-results? print-top-level-results?])
