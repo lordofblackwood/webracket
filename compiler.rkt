@@ -10607,6 +10607,9 @@
 
 (define (natural? v) (and (integer? v) (not (negative? v))))
 
+(define (lambda-kind? v)
+  (memq v '(closed trivial-closed direct)))
+
 (define (inferred-name? v)
   ; either #f or a variable
   (or (not v) (variable? v)))
@@ -10617,6 +10620,7 @@
   (terminals
    (- (primitive (pr)))
    (+ (closure+primitive (pr)))
+   (+ (lambda-kind (k)))
    (+ (arity (ar)))
    (- (variable (x xd)))
    (+ (variable (x xd l)) => unparse-variable)  ; l for label
@@ -10627,7 +10631,7 @@
   (CaseAbstraction (cab)
     (- (case-lambda s ab ...)))
   (ClosureAllocation (ca)
-    (+ (closure s in l ar ae1 ...)    => (closure in l ae1 ...))) ; x is the inferred name
+    (+ (closure s k in l ar ae1 ...)    => (closure k in l ae1 ...))) ; x is the inferred name
   (CaseClosureAllocation (cca)
     (+ (case-closure s in l [ar ca] ...) => (case-closure in [ar ca] ...)))
   (AExpr (ae)
@@ -10701,12 +10705,13 @@
   (Abstraction     : Abstraction    (AB) -> ClosureAllocation ()
     [(λ ,s ,[f] ,e)
      (define l  (label-of AB))
+     (define k  (kind-of AB))
      (let ([xs (map AExpr (free-of AB))]
            [e  (parameterize ([current-free (free-of AB)])
                  (Expr e))])
        (lift! s l f e)
        (define name (inferred-name s))
-       `(closure ,h ,name ,l ,(formals->arity f) ,xs ...))])
+       `(closure ,h ,k ,name ,l ,(formals->arity f) ,xs ...))])
   (CaseAbstraction : CaseAbstraction (CAB) -> CaseClosureAllocation ()
     [(case-lambda ,s ,ab ...)
      (define (formals->arity f)
@@ -10941,7 +10946,7 @@
      [,ce (CExpr ce)])
 
   (ClosureAllocation : ClosureAllocation (CA) -> * ()
-    [(closure ,s ,in ,l ,ar ,ae ...) (AExpr* ae)])
+    [(closure ,s ,k ,in ,l ,ar ,ae ...) (AExpr* ae)])
 
   (CaseClosureAllocation : CaseClosureAllocation (CCA) -> * ()
     [(case-closure ,s ,in ,l [,ar ,ca] ...) (ClosureAllocation* ca)])
@@ -11418,7 +11423,7 @@
     )
 
   (ClosureAllocation : ClosureAllocation (ca dd) -> * ()
-    [(closure ,s ,in ,l ,ar ,ae1 ...)
+    [(closure ,s ,k ,in ,l ,ar ,ae1 ...)
      ; Note: We need to allocate the closure and then fill the free slots
      ;       in order to handle recursive references to the closure.
      ; If one of the ae1 ... are equal to dd,
@@ -12208,9 +12213,10 @@
      ;;                           (result (ref eq)))))
      (let (#;[ae2 (AExpr* ae2)]) ; for effect
        (nanopass-case (LANF+closure ClosureAllocation) ca
-         [(closure ,s ,in ,l ,ar ,ae1 ...)
+         [(closure ,s ,k ,in ,l ,ar ,ae1 ...)
          (define tc (eq? cd '<return>))
-         (define tc-flag (if tc (Imm #t) (Imm #f)))
+         (define trivial-closed? (eq? k 'trivial-closed))
+         (define fixed-arity?    (and (integer? ar) (>= ar 0)))
 
           ; Package arguments in an $Args array.
           (define args
@@ -12256,41 +12262,29 @@
                 invoke-via-procedure
                 invoke-direct))
 
-          ;; TODO:
-          ;;  - There is a potential for optimization here.
-          ;;    If there is no free variables, then we
-          ;;    can jump directly to the label, without allocating
-          ;;    a closure. [See the commented out definition below.]
-         
-          (define work            
-            `(block ,@(cond
-                        [(eq? dd <value>)  (list `(result (ref eq)))]
-                        [(eq? dd <effect>) (list)]
-                        ; otherwise, the data destination is a variable
-                        [else              (list `(result (ref eq)))])  ; <--
-              ; 1. Allocate closure and store it in $closedapp-clos
-              ,(ClosureAllocation ca #'$closedapp-clos)
-              ; 2. Call it.
-              ,invoke))
-
-          #;(define work
-            (match ae1
-              [(list) ; no free variable => no need to actually allocate a closure, just jump to label
+          ;; Narrow optimization:
+          ;; For fixed-arity lambdas classified as trivial-closed, the body
+          ;; does not use any closure environment. We can therefore jump
+          ;; directly to the lifted label and pass a dummy closure.
+          (define work
+            (cond
+              [(and trivial-closed? fixed-arity?)
                (if tc
-                   `(return_call ,(Label l) (global.get $undefined) ,tc-flag ,@ae2)   ; undefined due to no closure
-                   `(call        ,(Label l) (global.get $undefined) ,tc-flag ,@ae2))]
-
-              ; TODO: Only the no-free-variables case has been updated
-              [_ (match dd
-                   [(or '<effect> '<value>)
-                    (let ([f (Var (new-var 'f))])
-                      `(let ([,f (global.get $undefined)])
-                         (body ,(ClosureAllocation ca f)
-                               (app ,(Label l) ,f ,tc-flag ,ae2 ...))))]
-                   [y
-                    `(begin
-                       ,(ClosureAllocation ca dd) ; use dest as temporary
-                       (app ,(Label l) ,dd ,tc-flag ,ae2 ...))])]))
+                   `(return_call ,(Label l) (global.get $dummy-closure) ,args)
+                   (cond
+                     [(eq? dd <value>)  `(call ,(Label l) (global.get $dummy-closure) ,args)]
+                     [(eq? dd <effect>) `(drop (call ,(Label l) (global.get $dummy-closure) ,args))]
+                     [else              `(call ,(Label l) (global.get $dummy-closure) ,args)]))]
+              [else
+               `(block ,@(cond
+                           [(eq? dd <value>)  (list `(result (ref eq)))]
+                           [(eq? dd <effect>) (list)]
+                           ; otherwise, the data destination is a variable
+                           [else              (list `(result (ref eq)))])
+                  ; 1. Allocate closure and store it in $closedapp-clos
+                  ,(ClosureAllocation ca #'$closedapp-clos)
+                  ; 2. Call it.
+                  ,invoke)]))
           (match dd
             [(or '<effect> '<value>)  (match cd
                                         ['<return> `(return ,work)]
@@ -12422,7 +12416,7 @@
      (define (AllocateClosure ca dest) ; called by letrec-values
        ; Allocates a closure in which the $free array contains zeros only.
        (nanopass-case (LANF+closure AExpr) ca
-         [(closure ,s ,in ,l ,ar ,ae1 ...)
+         [(closure ,s ,k ,in ,l ,ar ,ae1 ...)
           (let ([us (make-list (length ae1) (Undefined))])
             (Store! dest `(struct.new $Closure
                                (i32.const 0)               ; hash
@@ -12454,7 +12448,7 @@
      (define (FillClosure ca dd)
        ; Fill in the $free array
        (nanopass-case (LANF+closure AExpr) ca
-         [(closure ,s ,in ,l ,ar ,ae1 ...)
+         [(closure ,s ,k ,in ,l ,ar ,ae1 ...)
           ; This will be sliced into a `block` so we don't need another one.
           (for/list ([ae (AExpr* ae1)]
                      [i  (in-naturals)])
