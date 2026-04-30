@@ -10127,6 +10127,453 @@
 
 
 ;;;
+;;; CLASSIFY LAMBDAS
+;;;
+
+;; classify-lambdas! : LANF (hasheq/c any/c id-set?) (listof any/c)
+;;                  -> (values (hasheq/c any/c symbol?)
+;;                             (hasheq/c any/c (listof syntax?))
+;;                             (hasheq/c any/c boolean?)
+;;                             (hasheq/c any/c boolean?))
+;;   Compute classification metadata for abstractions without rewriting the AST.
+;;
+;; Initial conservative policy:
+;; - default kind is 'closed
+;; - abstractions with an empty free-variable set start as 'trivial-closed
+;; - an abstraction is upgraded to 'direct only if
+;;   1. it is bound to a local variable, and
+;;   2. every observed use of that variable is in operator position
+;;
+;; The pass records direct call sites using the application syntax object for
+;; now. Later analyses can replace these with labels or richer metadata.
+(define (classify-lambdas! T free-ht abs)
+  (define kind-ht         (make-hasheq)) ; hasheq: abstraction -> symbol, current lambda kind
+  (define direct-sites-ht (make-hasheq)) ; hasheq: abstraction -> (listof syntax?), recorded direct call sites
+  (define disqualified-ht (make-hasheq)) ; hasheq: abstraction -> boolean, seen in a non-operator use
+  (define direct-candidate-ht
+    (make-hasheq))                      ; hasheq: abstraction -> boolean, bound in a direct-eligible local binding
+
+  ;; free-set-of : any/c -> id-set?
+  ;;   Return the free-variable set recorded for abstraction ab.
+  (define (free-set-of ab)
+    (hash-ref free-ht ab empty-set))
+
+  ;; free-of : any/c -> (listof variable?)
+  ;;   Return the free variables recorded for abstraction ab.
+  (define (free-of ab)
+    (id-set->list (free-set-of ab)))
+
+  ;; empty-free? : any/c -> boolean?
+  ;;   Check whether abstraction ab has no free variables.
+  (define (empty-free? ab)
+    (set-empty? (free-set-of ab)))
+
+  ;; initialize-kind! : any/c -> void?
+  ;;   Seed kind table with the conservative initial classification.
+  (define (initialize-kind! ab)
+    (hash-set! kind-ht ab (if (empty-free? ab) 'trivial-closed 'closed))
+    (hash-set! direct-sites-ht ab '())
+    (hash-set! direct-candidate-ht ab #f))
+
+  ;; kind-of : any/c -> symbol?
+  ;;   Read the current kind for abstraction ab.
+  (define (kind-of ab)
+    (hash-ref kind-ht ab 'closed))
+
+  ;; mark-kind! : any/c symbol? -> void?
+  ;;   Overwrite the current kind recorded for abstraction ab.
+  (define (mark-kind! ab kind)
+    (hash-set! kind-ht ab kind))
+
+  ;; note-direct-call! : any/c syntax? -> void?
+  ;;   Record one direct call site for abstraction ab.
+  (define (note-direct-call! ab s)
+    (hash-set! direct-sites-ht ab
+               (cons s (hash-ref direct-sites-ht ab '()))))
+
+  ;; disqualify-direct! : any/c -> void?
+  ;;   Mark abstraction ab as ineligible for the 'direct classification.
+  (define (disqualify-direct! ab)
+    (hash-set! disqualified-ht ab #t))
+
+  ;; direct-disqualified? : any/c -> boolean?
+  ;;   Check whether abstraction ab has been seen in a non-operator use.
+  (define (direct-disqualified? ab)
+    (hash-ref disqualified-ht ab #f))
+
+  ;; direct-candidate? : any/c -> boolean?
+  ;;   Check whether abstraction ab is still eligible for the 'direct classification.
+  (define (direct-candidate? ab)
+    (and (hash-ref direct-candidate-ht ab #f)
+         (not (direct-disqualified? ab))
+         (pair? (hash-ref direct-sites-ht ab '()))))
+
+  ;; mark-direct-candidate! : any/c -> void?
+  ;;   Mark abstraction ab as eligible for the conservative 'direct classification.
+  (define (mark-direct-candidate! ab)
+    (hash-set! direct-candidate-ht ab #t))
+
+  ;; finalize-kind! : any/c -> void?
+  ;;   Upgrade abstraction ab to 'direct when the conservative checks pass.
+  (define (finalize-kind! ab)
+    (when (direct-candidate? ab)
+      (mark-kind! ab 'direct)))
+
+  ;; env-empty : -> free-id-table?
+  ;;   Build an empty lexical environment for lambda-bound abstractions.
+  (define (env-empty)
+    (make-immutable-free-id-table))
+
+  ;; env-ref : free-id-table? variable? -> (or/c any/c #f)
+  ;;   Look up the abstraction bound to variable x in environment ρ.
+  (define (env-ref ρ x)
+    (free-id-table-ref ρ (variable-id x) #f))
+
+  ;; env-bind : free-id-table? variable? any/c -> free-id-table?
+  ;;   Extend environment ρ so x maps to abstraction ab.
+  (define (env-bind ρ x ab)
+    (free-id-table-set ρ (variable-id x) ab))
+
+  ;; env-bind* : free-id-table? (listof variable?) (listof any/c) -> free-id-table?
+  ;;   Extend environment ρ with parallel variable/abstraction bindings.
+  (define (env-bind* ρ xs abs)
+    (for/fold ([ρ ρ]) ([x  (in-list xs)]
+                       [ab (in-list abs)])
+      (env-bind ρ x ab)))
+
+  ;; env-shadow* : free-id-table? (listof variable?) -> free-id-table?
+  ;;   Shadow variables xs so outer lambda bindings are hidden.
+  (define (env-shadow* ρ xs)
+    (for/fold ([ρ ρ]) ([x (in-list xs)])
+      (free-id-table-set ρ (variable-id x) #f)))
+
+  (define current-lambda-env
+    (make-parameter (env-empty)))
+  (define current-use-context
+    (make-parameter 'value))
+  (define current-call-site
+    (make-parameter #f))
+
+  ;; formals->variables : LANF Formals -> (listof variable?)
+  ;;   Collect the variables bound by formals f.
+  (define (formals->variables f)
+    (nanopass-case (LANF Formals) f
+      [(formals (,x ...))            x]
+      [(formals (,x0 ,x1 ... . ,xd)) (cons x0 (append x1 (list xd)))]
+      [(formals ,x)                  (list x)]))
+
+  ;; abstraction-formals : LANF Abstraction -> LANF Formals
+  ;;   Extract the formals of abstraction ab.
+  (define (abstraction-formals ab)
+    (nanopass-case (LANF Abstraction) ab
+      [(λ ,s ,f ,e) f]))
+
+  ;; case-abstraction-formals* : LANF CaseAbstraction -> (listof LANF Formals)
+  ;;   Extract the formals of each clause in case abstraction cab.
+  (define (case-abstraction-formals* cab)
+    (nanopass-case (LANF CaseAbstraction) cab
+      [(case-lambda ,s ,ab* ...)
+       (map abstraction-formals ab*)]))
+
+  ;; clause-bound-abstraction : LANF Expr/CExpr/AExpr -> (or/c any/c #f)
+  ;;   Recognize the simple local binding pattern x = λ or x = case-lambda.
+  (define (clause-bound-abstraction ce)
+    (nanopass-case (LANF CExpr) ce
+      [,ae
+       (nanopass-case (LANF AExpr) ae
+         [,ab  ab]
+         [,cab cab]
+         [else #f])]
+      [else #f]))
+
+  ;; clause-local-binding : (listof variable?) LANF CExpr -> (or/c (cons variable? any/c) #f)
+  ;;   Recognize a single-variable clause whose rhs is a lambda-like expression.
+  (define (clause-local-binding xs ce)
+    (match xs
+      [(list x)
+       (define ab (clause-bound-abstraction ce))
+       (and ab (cons x ab))]
+      [_ #f]))
+
+  ;; direct-binding-candidate? : (listof variable?) LANF CExpr -> boolean?
+  ;;   Check whether clause xs = ce is eligible for the conservative 'direct classification.
+  (define (direct-binding-candidate? xs ce)
+    (and (clause-local-binding xs ce) #t))
+
+  ;; clause-local-bindings : (listof (listof variable?)) (listof LANF CExpr)
+  ;;                      -> (listof (cons variable? any/c))
+  ;;   Collect the local lambda bindings introduced by a let or letrec group.
+  (define (clause-local-bindings xss ces)
+    (for/fold ([pairs '()]) ([xs (in-list xss)]
+                             [ce (in-list ces)])
+      (define pair (clause-local-binding xs ce))
+      (if pair
+          (cons pair pairs)
+          pairs)))
+
+  ;; use-as-value! : variable? free-id-table? -> void?
+  ;;   A reference to x in value position rules out the 'direct classification.
+  (define (use-as-value! x)
+    (match (env-ref (current-lambda-env) x)
+      [#f (void)]
+      [ab (disqualify-direct! ab)]))
+
+  ;; use-as-operator! : syntax? variable? free-id-table? -> void?
+  ;;   A reference to x in operator position counts as a direct call site.
+  (define (use-as-operator! s x)
+    (match (env-ref (current-lambda-env) x)
+      [#f (void)]
+      [ab (note-direct-call! ab s)]))
+
+  (for ([ab (in-list abs)])
+    (initialize-kind! ab))
+
+  (define-pass classify : LANF (T) -> * ()
+    (TopLevelForm : TopLevelForm (T) -> * ()
+      [(topbegin ,s ,t ...)
+       (for ([t (in-list t)])
+         (TopLevelForm t))]
+      [(topmodule ,s ,mn ,mp ,mf ...)
+       (for ([m (in-list mf)])
+         (ModuleLevelForm m))]
+      [(#%expression ,s ,e)
+       (Expr e)]
+      [,g
+       (GeneralTopLevelForm g)])
+    (ModuleLevelForm : ModuleLevelForm (M) -> * ()
+      [(#%provide ,rps ...)
+       (void)]
+      [,g
+       (GeneralTopLevelForm g)])
+    (GeneralTopLevelForm : GeneralTopLevelForm (G) -> * ()
+      [(define-values ,s (,x ...) ,e)
+       (Expr e)]
+      [(define-syntaxes ,s (,x ...) ,e)
+       (Expr e)]
+      [(#%require ,s ,rrs ...)
+       (void)]
+      [,e
+       (Expr e)])
+    (Abstraction : Abstraction (AB) -> * ()
+      [(λ ,s ,f ,e)
+       (define ρ* (env-shadow* (current-lambda-env) (formals->variables f)))
+       (parameterize ([current-lambda-env ρ*])
+         (Expr e))])
+    (CaseAbstraction : CaseAbstraction (CAB) -> * ()
+      [(case-lambda ,s ,ab* ...)
+       (for ([ab (in-list ab*)])
+         (Abstraction ab))])
+    (AExpr : AExpr (AE) -> * ()
+      [,x
+       (case (current-use-context)
+         [(operator) (use-as-operator! (current-call-site) x)]
+         [else       (use-as-value! x)])]
+      [,ab
+       (Abstraction ab)]
+      [,cab
+       (CaseAbstraction cab)]
+      [(quote ,s ,d)
+       (void)]
+      [(quote-syntax ,s ,d)
+       (void)]
+      [(top ,s ,x)
+       (void)]
+      [(variable-reference ,s ,vrx)
+       (void)])
+    (CExpr : CExpr (CE) -> * ()
+      [,ae
+       (AExpr ae)]
+      [(set! ,s ,x ,ae)
+       (AExpr ae)]
+      [(if ,s ,ae0 ,e1 ,e2)
+       (AExpr ae0)
+       (Expr e1)
+       (Expr e2)]
+      [(wcm ,s ,ae0 ,ae1 ,e)
+       (AExpr ae0)
+       (AExpr ae1)
+       (Expr e)]
+      [(app ,s ,ae ,ae1 ...)
+       (parameterize ([current-use-context 'operator]
+                      [current-call-site s])
+         (AExpr ae))
+       (for ([ae1 (in-list ae1)])
+         (AExpr ae1))]
+      [(primapp ,s ,pr ,ae1 ...)
+       (for ([ae1 (in-list ae1)])
+         (AExpr ae1))]
+      [(closedapp ,s ,ab ,ae1 ...)
+       (Abstraction ab)
+       (for ([ae1 (in-list ae1)])
+         (AExpr ae1))]
+      [(begin ,s ,e0 ,e1 ...)
+       (Expr e0)
+       (for ([e (in-list e1)])
+         (Expr e))]
+      [(begin0 ,s ,e0 ,e1 ...)
+       (Expr e0)
+       (for ([e (in-list e1)])
+         (Expr e))])
+    (Expr : Expr (E) -> * ()
+      [,ce
+       (CExpr ce)]
+      [(let-values ,s (((,x ...) ,ce*) ...) ,e)
+       (for ([ce (in-list ce*)])
+         (CExpr ce))
+       (for ([xs (in-list x)]
+             [ce (in-list ce*)]
+             #:when (direct-binding-candidate? xs ce))
+         (match (clause-local-binding xs ce)
+           [(cons _ ab) (mark-direct-candidate! ab)]
+           [_           (void)]))
+       (define pairs (reverse (clause-local-bindings x ce*)))
+       (define xs    (map car pairs))
+       (define abs   (map cdr pairs))
+       (parameterize ([current-lambda-env
+                       (env-bind* (current-lambda-env) xs abs)])
+         (Expr e))]
+      [(letrec-values ,s (((,x ...) ,ce*) ...) ,e)
+       (for ([xs (in-list x)]
+             [ce (in-list ce*)]
+             #:when (direct-binding-candidate? xs ce))
+         (match (clause-local-binding xs ce)
+           [(cons _ ab) (mark-direct-candidate! ab)]
+           [_           (void)]))
+       (define pairs (reverse (clause-local-bindings x ce*)))
+       (define xs    (map car pairs))
+       (define abs   (map cdr pairs))
+       (parameterize ([current-lambda-env
+                       (env-bind* (current-lambda-env) xs abs)])
+         (for ([ce (in-list ce*)])
+           (CExpr ce))
+         (Expr e))]))
+
+  (parameterize ([current-lambda-env (env-empty)])
+    (classify T))
+  (for ([ab (in-list abs)])
+    (finalize-kind! ab))
+  (values kind-ht direct-sites-ht direct-candidate-ht disqualified-ht))
+
+;; closure-conversion-analysis : LANF
+;;                            -> (values LANF
+;;                                       (hasheq/c any/c id-set?)
+;;                                       (listof any/c)
+;;                                       (hasheq/c any/c symbol?)
+;;                                       (hasheq/c any/c (listof syntax?))
+;;                                       (hasheq/c any/c boolean?)
+;;                                       (hasheq/c any/c boolean?))
+;;   Run the analysis stages used by closure conversion without rewriting the AST.
+(define (closure-conversion-analysis T)
+  (letv ((T free-ht abs) (determine-free-variables T))
+    (define-values (kind-ht direct-sites-ht direct-candidate-ht disqualified-ht)
+      (classify-lambdas! T free-ht abs))
+    (values T free-ht abs kind-ht direct-sites-ht direct-candidate-ht disqualified-ht)))
+
+;; summarize-closure-conversion-analysis : LANF
+;;                                     -> (listof list?)
+;;   Return a compact summary of closure-conversion analysis results for inspection.
+(define (summarize-closure-conversion-analysis T)
+  (define (label-name labels-ht ab)
+    (syntax-e (variable-id (hash-ref labels-ht ab))))
+  (define (site-source s)
+    (cond
+      [(syntax? s)
+       (or (syntax-line s)
+           (syntax-position s)
+           'unknown)]
+      [else
+       s]))
+  (letv ((T free-ht abs kind-ht direct-sites-ht direct-candidate-ht disqualified-ht)
+         (closure-conversion-analysis T))
+    (define labels-ht (make-hasheq))
+    (for ([ab (in-list abs)])
+      (hash-set! labels-ht ab (new-var "label")))
+    (for/list ([ab (in-list abs)])
+      (list (label-name labels-ht ab)
+            (hash-ref kind-ht ab 'closed)
+            (hash-ref direct-candidate-ht ab #f)
+            (hash-ref disqualified-ht ab #f)
+            (map syntax-e (map variable-id (id-set->list (hash-ref free-ht ab empty-set))))
+            (map site-source (hash-ref direct-sites-ht ab '()))))))
+
+(module+ test
+  (require "expander.rkt")
+
+  ;; closure-analysis-summary : syntax? -> (listof list?)
+  ;;   Run the pipeline up to LANF and summarize closure-conversion analysis.
+  (define (closure-analysis-summary stx)
+    (reset-counter!)
+    (define p0  (parse (unexpand (topexpand stx))))
+    (define s0  (simplify-LFE p0))
+    (define ft  (flatten-topbegin s0))
+    (define in  (infer-names ft))
+    (define cq  (convert-quotations in))
+    (define eb  (explicit-begin cq))
+    (define ecl (explicit-case-lambda eb))
+    (define ar  (α-rename ecl))
+    (define ua  (uncover-assigned! ar))
+    (define lr  (parameterize ([current-assigned-analysis ua])
+                  (lower-letrec-values ar)))
+    (define ac  (parameterize ([current-assigned-analysis ua])
+                  (assignment-conversion lr)))
+    (define ca  (categorize-applications ac))
+    (define an  (anormalize ca))
+    (summarize-closure-conversion-analysis an))
+
+  ;; summary-kinds : (listof list?) -> (listof symbol?)
+  ;;   Extract the classification kinds from a summary.
+  (define (summary-kinds summary)
+    (map second summary))
+
+  ;; summary-has-entry? : (listof list?) symbol? boolean? boolean? (listof symbol?) -> boolean?
+  ;;   Check whether summary contains an entry with the given core fields.
+  (define (summary-has-entry? summary kind candidate? disqualified? free-vars)
+    (for/or ([entry (in-list summary)])
+      (match entry
+        [(list _label kind0 candidate0 disqualified0 free-vars0 _sites)
+         (and (eq? kind0 kind)
+              (equal? candidate0 candidate?)
+              (equal? disqualified0 disqualified?)
+              (equal? free-vars0 free-vars))]
+        [_ #f])))
+
+  (check-true
+   (summary-has-entry? (closure-analysis-summary #'(letrec ([loop (lambda (n)
+                                                                   (if (zero? n)
+                                                                       0
+                                                                       (loop (- n 1))))])
+                                                    (loop 10)))
+                       'direct
+                       #t
+                       #f
+                       '(loop.1)))
+
+  (check-true
+   (summary-has-entry? (closure-analysis-summary #'(let ([f (lambda (x) x)])
+                                                     (list f)))
+                       'trivial-closed
+                       #t
+                       #t
+                       '()))
+
+  (check-true
+   (summary-has-entry? (closure-analysis-summary #'(let ([f (lambda (x) x)])
+                                                     (begin (f 1) f)))
+                       'trivial-closed
+                       #t
+                       #t
+                       '()))
+
+  (check-true
+   (summary-has-entry? (closure-analysis-summary #'(let ([y 10])
+                                                     (lambda (x) (+ x y))))
+                       'closed
+                       #f
+                       #f
+                       '(y.1))))
+
+
+;;;
 ;;; FINISH CLOSURE CONVERSION
 ;;;
 
@@ -10147,11 +10594,12 @@
 (define (closure-conversion T)
   (define labels-ht (make-hasheq))
   (define (add-label! ab) (hash-set! labels-ht ab (new-var "label")))
-  (letv ((T free-ht abs) (determine-free-variables T))
+  (letv ((T free-ht abs kind-ht _direct-sites-ht _direct-candidate-ht _disqualified-ht)
+         (closure-conversion-analysis T))
     #;(pretty-print free-ht)
     (for ([ab abs])
       (add-label! ab))
-    (finish-closure-conversion T free-ht labels-ht)))
+    (finish-closure-conversion T free-ht kind-ht labels-ht)))
 
 (define (closure+primitive? v)
   (or (eq? v 'closure)
@@ -10201,11 +10649,12 @@
     (+ (define-label l cab))))
 
 
-(define-pass finish-closure-conversion : LANF (T free-ht labels-ht) -> LANF+closure ()
+(define-pass finish-closure-conversion : LANF (T free-ht kind-ht labels-ht) -> LANF+closure ()
   (definitions
     (define h #'fcc)
     (define (label-of ab) (hash-ref labels-ht ab))
     (define (free-of ab)  (id-set->list (hash-ref free-ht ab)))
+    (define (kind-of ab)  (hash-ref kind-ht ab 'closed))
     (define (index-of x free)
       (define (x? y) (id=? x y))
       (index-where free x?))
