@@ -2135,6 +2135,8 @@
           (type $ClosureCode  (func (param $clos (ref $Closure))
                                     (param $args (ref $Args))
                                     (result (ref eq))))
+          (type $KnownCode0   (func (param $args (ref $Args))
+                                    (result (ref eq))))
           (type $Closure   
                 (sub $Procedure
                      (struct
