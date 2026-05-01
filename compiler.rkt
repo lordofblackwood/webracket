@@ -10901,14 +10901,32 @@
          [#f #f]
          [x  (not (nested-binder-capture-present? ab (syntax-e (variable-id x))))])))
 
+;; direct-helper-layout-free-vars : any/c
+;;                                  (hasheq/c any/c id-set?)
+;;                                  (hasheq/c any/c symbol?)
+;;                                  (hasheq/c any/c (or/c variable? #f))
+;;                               -> (listof symbol?)
+;;   Return the current closure-layout free variables for abstraction ab.
+(define (direct-helper-layout-free-vars ab free-ht kind-ht binder-ht)
+  (define xs
+    (map syntax-e
+         (map variable-id
+              (id-set->list (hash-ref free-ht ab empty-set)))))
+  (cond
+    [(direct-self-binder-removable? ab kind-ht binder-ht)
+     (match (hash-ref binder-ht ab #f)
+       [#f xs]
+       [x  (filter (λ (y) (not (equal? y (syntax-e (variable-id x)))))
+                   xs)])]
+    [else
+     xs]))
+
 ;; summarize-direct-self-binder-closure-conversion-analysis : LANF
 ;;                                                        -> (listof list?)
 ;;   Return a compact summary of direct helpers that can drop their own binder.
 (define (summarize-direct-self-binder-closure-conversion-analysis T)
   (define (label-name labels-ht ab)
     (syntax-e (variable-id (hash-ref labels-ht ab))))
-  (define (vars-of xs)
-    (map syntax-e (map variable-id (id-set->list xs))))
   (letv ((T free-ht abs kind-ht _direct-sites-ht _direct-candidate-ht _disqualified-ht
             binder-ht
             _extended-ht _direct-callees-ht)
@@ -10924,8 +10942,135 @@
           [x  (syntax-e (variable-id x))]))
       (list (label-name labels-ht ab)
             binder
-            (vars-of (hash-ref free-ht ab empty-set))
+            (direct-helper-layout-free-vars ab free-ht kind-ht binder-ht)
             (direct-self-binder-removable? ab kind-ht binder-ht)))))
+
+;; summarize-direct-letrec-allocation-closure-conversion-analysis : LANF
+;;                                                             -> (listof list?)
+;;   Return a compact summary of current direct-letrec allocation eligibility.
+(define (summarize-direct-letrec-allocation-closure-conversion-analysis T)
+  (define (label-name labels-ht ab)
+    (syntax-e (variable-id (hash-ref labels-ht ab))))
+  (letv ((T free-ht abs kind-ht _direct-sites-ht _direct-candidate-ht _disqualified-ht
+            binder-ht
+            _extended-ht _direct-callees-ht)
+         (closure-conversion-analysis T))
+    (define labels-ht (make-hasheq))
+    (for ([ab (in-list abs)])
+      (hash-set! labels-ht ab (new-var "label")))
+    (define entries '())
+    (define (record-letrec-entry! x ab letrec-binders)
+      (define binder-sym (syntax-e (variable-id x)))
+      (define free-vars  (direct-helper-layout-free-vars ab free-ht kind-ht binder-ht))
+      (define eligible?
+        (and (eq? (hash-ref kind-ht ab 'closed) 'direct)
+             (not (for/or ([y (in-list free-vars)])
+                    (member y letrec-binders)))))
+      (set! entries
+            (cons (list binder-sym
+                        (label-name labels-ht ab)
+                        (hash-ref kind-ht ab 'closed)
+                        free-vars
+                        eligible?)
+                  entries)))
+    (define-pass collect : LANF (T) -> * ()
+      (TopLevelForm : TopLevelForm (T) -> * ()
+        [(topbegin ,s ,t ...)
+         (for ([t (in-list t)])
+           (TopLevelForm t))]
+        [(topmodule ,s ,mn ,mp ,mf ...)
+         (for ([m (in-list mf)])
+           (ModuleLevelForm m))]
+        [(#%expression ,s ,e)
+         (Expr e)]
+        [,g
+         (GeneralTopLevelForm g)])
+      (ModuleLevelForm : ModuleLevelForm (M) -> * ()
+        [(#%provide ,rps ...)
+         (void)]
+        [,g
+         (GeneralTopLevelForm g)])
+      (GeneralTopLevelForm : GeneralTopLevelForm (G) -> * ()
+        [(define-values ,s (,x ...) ,e)
+         (Expr e)]
+        [(define-syntaxes ,s (,x ...) ,e)
+         (Expr e)]
+        [(#%require ,s ,rrs ...)
+         (void)]
+        [,e
+         (Expr e)])
+      (Abstraction : Abstraction (AB) -> * ()
+        [(λ ,s ,f ,e)
+         (Expr e)])
+      (CaseAbstraction : CaseAbstraction (CAB) -> * ()
+        [(case-lambda ,s ,ab* ...)
+         (for ([ab (in-list ab*)])
+           (Abstraction ab))])
+      (AExpr : AExpr (AE) -> * ()
+        [,ab
+         (Abstraction ab)]
+        [,cab
+         (CaseAbstraction cab)]
+        [else
+         (void)])
+      (CExpr : CExpr (CE) -> * ()
+        [,ae
+         (AExpr ae)]
+        [(set! ,s ,x ,ae)
+         (AExpr ae)]
+        [(if ,s ,ae0 ,e1 ,e2)
+         (AExpr ae0)
+         (Expr e1)
+         (Expr e2)]
+        [(wcm ,s ,ae0 ,ae1 ,e)
+         (AExpr ae0)
+         (AExpr ae1)
+         (Expr e)]
+        [(app ,s ,ae ,ae1 ...)
+         (AExpr ae)
+         (for ([ae1 (in-list ae1)])
+           (AExpr ae1))]
+        [(primapp ,s ,pr ,ae1 ...)
+         (for ([ae1 (in-list ae1)])
+           (AExpr ae1))]
+        [(closedapp ,s ,ab ,ae1 ...)
+         (Abstraction ab)
+         (for ([ae1 (in-list ae1)])
+           (AExpr ae1))]
+        [(begin ,s ,e0 ,e1 ...)
+         (Expr e0)
+         (for ([e (in-list e1)])
+           (Expr e))]
+        [(begin0 ,s ,e0 ,e1 ...)
+         (Expr e0)
+         (for ([e (in-list e1)])
+           (Expr e))])
+      (Expr : Expr (E) -> * ()
+        [,ce
+         (CExpr ce)]
+        [(let-values ,s (((,x ...) ,ce*) ...) ,e)
+         (for ([ce (in-list ce*)])
+           (CExpr ce))
+         (Expr e)]
+        [(letrec-values ,s (((,x ...) ,ce*) ...) ,e)
+         (define letrec-binders
+           (for/list ([xs (in-list x)]
+                      #:when (= (length xs) 1))
+             (syntax-e (variable-id (car xs)))))
+         (for ([xs (in-list x)]
+               [ce (in-list ce*)]
+               #:when (= (length xs) 1))
+           (nanopass-case (LANF CExpr) ce
+             [,ae
+              (nanopass-case (LANF AExpr) ae
+                [,ab  (record-letrec-entry! (car xs) ab letrec-binders)]
+                [else (void)])]
+             [else (void)]))
+         (for ([ce (in-list ce*)])
+           (CExpr ce))
+         (Expr e)]))
+    (collect T)
+    (reverse entries)))
 
 (module+ test
   (require rackunit
@@ -11019,6 +11164,28 @@
     (parameterize ([current-enable-cc-analysis? #t])
       (summarize-direct-self-binder-closure-conversion-analysis an)))
 
+  ;; direct-letrec-allocation-analysis-summary : syntax? -> (listof list?)
+  ;;   Run the pipeline up to LANF and summarize direct-letrec allocation eligibility.
+  (define (direct-letrec-allocation-analysis-summary stx)
+    (reset-counter!)
+    (define p0  (parse (unexpand (topexpand stx))))
+    (define s0  (simplify-LFE p0))
+    (define ft  (flatten-topbegin s0))
+    (define in  (infer-names ft))
+    (define cq  (convert-quotations in))
+    (define eb  (explicit-begin cq))
+    (define ecl (explicit-case-lambda eb))
+    (define ar  (α-rename ecl))
+    (define ua  (uncover-assigned! ar))
+    (define lr  (parameterize ([current-assigned-analysis ua])
+                  (lower-letrec-values ar)))
+    (define ac  (parameterize ([current-assigned-analysis ua])
+                  (assignment-conversion lr)))
+    (define ca  (categorize-applications ac))
+    (define an  (anormalize ca))
+    (parameterize ([current-enable-cc-analysis? #t])
+      (summarize-direct-letrec-allocation-closure-conversion-analysis an)))
+
   ;; summary-kinds : (listof list?) -> (listof symbol?)
   ;;   Extract the classification kinds from a summary.
   (define (summary-kinds summary)
@@ -11068,6 +11235,18 @@
          (and (equal? binder0 binder)
               (equal? free-vars0 free-vars)
               (equal? removable0 removable?))]
+        [_ #f])))
+
+  ;; direct-letrec-allocation-summary-has-entry? : (listof list?) symbol? symbol? (listof symbol?) boolean? -> boolean?
+  ;;   Check whether the letrec-allocation summary contains an entry with the given fields.
+  (define (direct-letrec-allocation-summary-has-entry? summary binder kind free-vars eligible?)
+    (for/or ([entry (in-list summary)])
+      (match entry
+        [(list binder0 _label kind0 free-vars0 eligible0)
+         (and (equal? binder0 binder)
+              (eq? kind0 kind)
+              (equal? free-vars0 free-vars)
+              (equal? eligible0 eligible?))]
         [_ #f])))
 
   (check-true
@@ -11163,7 +11342,7 @@
                                                                 (loop (- n 1))))])
                                             (loop 10)))
     'loop.1
-    '(loop.1)
+    '()
     #t))
 
   (check-true
@@ -11176,7 +11355,7 @@
                               (loop (- n 1)))))])
          (loop 10)))
     'loop.1
-    '(loop.1)
+    '()
     #t))
 
   (check-equal?
@@ -11188,6 +11367,36 @@
                              (loop (- n 1)))))])
         (loop 10)))
    '())
+
+  (check-true
+   (direct-letrec-allocation-summary-has-entry?
+    (direct-letrec-allocation-analysis-summary
+     #'(letrec ([loop (lambda (n)
+                        (if (zero? n)
+                            0
+                            (loop (- n 1))))])
+         (loop 10)))
+    'loop.1
+    'direct
+    '()
+    #t))
+
+  (check-true
+   (direct-letrec-allocation-summary-has-entry?
+    (direct-letrec-allocation-analysis-summary
+     #'(letrec ([even? (lambda (n)
+                         (if (zero? n)
+                             #t
+                             (odd? (- n 1))))]
+                [odd?  (lambda (n)
+                         (if (zero? n)
+                             #f
+                             (even? (- n 1))))])
+         (even? 4)))
+    'even?.1
+    'direct
+    '(odd?.2)
+    #f))
   )
 
 
@@ -11302,19 +11511,25 @@
     (define (direct-self-binder-removable/local? ab)
       (direct-self-binder-removable? ab kind-ht binder-ht))
 
+    ;; layout-free-of : any/c -> (listof variable?)
+    ;;   Return the current closure-layout free variables for ab.
+    (define (layout-free-of ab)
+      (define syms
+        (direct-helper-layout-free-vars ab free-ht kind-ht binder-ht))
+      (filter-map (λ (x)
+                    (for/or ([y (in-list (free-of ab))])
+                      (and (equal? (syntax-e (variable-id y)) x) y)))
+                  syms))
+
     ;; body-layout-of : any/c -> (listof variable?)
     ;;   Return the environment layout currently used by the lifted body of ab.
     (define (body-layout-of ab)
-      (if (direct-self-binder-removable/local? ab)
-          (self-binder-free-of ab)
-          (free-of ab)))
+      (layout-free-of ab))
 
     ;; closure-env-of : any/c -> (listof variable?)
     ;;   Return the variables stored in ab's closure record.
     (define (closure-env-of ab)
-      (if (direct-self-binder-removable/local? ab)
-          (self-binder-free-of ab)
-          (free-of ab)))
+      (layout-free-of ab))
 
     ;; closure-env-aexprs-of : any/c -> (listof any/c)
     ;;   Convert ab's closure environment variables to closure-converted aexprs.
