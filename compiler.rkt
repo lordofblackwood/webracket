@@ -11237,6 +11237,158 @@
              representable?
              allocation-mode)])))
 
+;; direct-letrec-dependency-kind : (listof symbol?) (listof (list/c symbol? symbol?)) -> symbol?
+;;   Classify one direct-letrec group's current recursive dependency shape.
+(define (direct-letrec-dependency-kind binders edges)
+  (define distinct-binders (remove-duplicates binders))
+  (define self-edge?       (λ (edge) (equal? (first edge) (second edge))))
+  (define cross-edges      (filter (λ (edge) (not (self-edge? edge))) edges))
+  (cond
+    [(null? edges)
+     'none]
+    [(andmap self-edge? edges)
+     'self-only]
+    [(and (= (length distinct-binders) 2)
+          (= (length cross-edges) 2)
+          (let* ([a (first distinct-binders)]
+                 [b (second distinct-binders)])
+            (and (member (list a b) cross-edges)
+                 (member (list b a) cross-edges))))
+     'mutual]
+    [else
+     'complex]))
+
+;; summarize-direct-letrec-dependency-closure-conversion-analysis : LANF
+;;                                                             -> (listof list?)
+;;   Return a compact summary of current direct-letrec dependency graphs, using
+;;   current closure-layout links inside each letrec group.
+(define (summarize-direct-letrec-dependency-closure-conversion-analysis T)
+  (letv ((T free-ht abs kind-ht _direct-sites-ht _direct-candidate-ht _disqualified-ht
+            binder-ht
+            _extended-ht _direct-callees-ht)
+         (closure-conversion-analysis T))
+    (define (direct-entry xs ce)
+      (and (= (length xs) 1)
+           (let ([x (car xs)])
+             (nanopass-case (LANF CExpr) ce
+               [,ae
+                (nanopass-case (LANF AExpr) ae
+                  [,ab
+                   (define kind (hash-ref kind-ht ab 'closed))
+                   (and (eq? kind 'direct)
+                        (list (syntax-e (variable-id x))
+                              (direct-helper-layout-free-vars ab free-ht kind-ht binder-ht)))]
+                  [else #f])]
+               [else #f]))))
+    (define entries '())
+    (define-pass collect : LANF (T) -> * ()
+      (TopLevelForm : TopLevelForm (T) -> * ()
+        [(topbegin ,s ,t ...)
+         (for ([t (in-list t)])
+           (TopLevelForm t))]
+        [(topmodule ,s ,mn ,mp ,mf ...)
+         (for ([m (in-list mf)])
+           (ModuleLevelForm m))]
+        [(#%expression ,s ,e)
+         (Expr e)]
+        [,g
+         (GeneralTopLevelForm g)])
+      (ModuleLevelForm : ModuleLevelForm (M) -> * ()
+        [(#%provide ,rps ...)
+         (void)]
+        [,g
+         (GeneralTopLevelForm g)])
+      (GeneralTopLevelForm : GeneralTopLevelForm (G) -> * ()
+        [(define-values ,s (,x ...) ,e)
+         (Expr e)]
+        [(define-syntaxes ,s (,x ...) ,e)
+         (Expr e)]
+        [(#%require ,s ,rrs ...)
+         (void)]
+        [,e
+         (Expr e)])
+      (Abstraction : Abstraction (AB) -> * ()
+        [(λ ,s ,f ,e)
+         (Expr e)])
+      (CaseAbstraction : CaseAbstraction (CAB) -> * ()
+        [(case-lambda ,s ,ab* ...)
+         (for ([ab (in-list ab*)])
+           (Abstraction ab))])
+      (AExpr : AExpr (AE) -> * ()
+        [,ab
+         (Abstraction ab)]
+        [,cab
+         (CaseAbstraction cab)]
+        [else
+         (void)])
+      (CExpr : CExpr (CE) -> * ()
+        [,ae
+         (AExpr ae)]
+        [(set! ,s ,x ,ae)
+         (AExpr ae)]
+        [(if ,s ,ae0 ,e1 ,e2)
+         (AExpr ae0)
+         (Expr e1)
+         (Expr e2)]
+        [(wcm ,s ,ae0 ,ae1 ,e)
+         (AExpr ae0)
+         (AExpr ae1)
+         (Expr e)]
+        [(app ,s ,ae ,ae1 ...)
+         (AExpr ae)
+         (for ([ae1 (in-list ae1)])
+           (AExpr ae1))]
+        [(primapp ,s ,pr ,ae1 ...)
+         (for ([ae1 (in-list ae1)])
+           (AExpr ae1))]
+        [(closedapp ,s ,ab ,ae1 ...)
+         (Abstraction ab)
+         (for ([ae1 (in-list ae1)])
+           (AExpr ae1))]
+        [(begin ,s ,e0 ,e1 ...)
+         (Expr e0)
+         (for ([e (in-list e1)])
+           (Expr e))]
+        [(begin0 ,s ,e0 ,e1 ...)
+         (Expr e0)
+         (for ([e (in-list e1)])
+           (Expr e))])
+      (Expr : Expr (E) -> * ()
+        [,ce
+         (CExpr ce)]
+        [(let-values ,s (((,x ...) ,ce*) ...) ,e)
+         (for ([ce (in-list ce*)])
+           (CExpr ce))
+         (Expr e)]
+        [(letrec-values ,s (((,x ...) ,ce*) ...) ,e)
+         (define direct-entries
+           (for/list ([xs (in-list x)]
+                      [ce (in-list ce*)]
+                      #:do [(define entry (direct-entry xs ce))]
+                      #:when entry)
+             entry))
+         (unless (null? direct-entries)
+           (define binders
+             (map first direct-entries))
+           (define edges
+             (append*
+              (for/list ([entry (in-list direct-entries)])
+                (match entry
+                  [(list from free-vars)
+                   (for/list ([to (in-list free-vars)]
+                              #:when (member to binders))
+                     (list from to))]))))
+           (set! entries
+                 (cons (list binders
+                             edges
+                             (direct-letrec-dependency-kind binders edges))
+                       entries)))
+         (for ([ce (in-list ce*)])
+           (CExpr ce))
+         (Expr e)]))
+    (collect T)
+    (reverse entries)))
+
 (module+ test
   (require rackunit
            "expander.rkt")
@@ -11304,6 +11456,12 @@
   (define (direct-letrec-representation-analysis-summary stx)
     (analyze-with-cc-summary stx
       summarize-direct-letrec-representation-closure-conversion-analysis))
+
+  ;; direct-letrec-dependency-analysis-summary : syntax? -> (listof list?)
+  ;;   Run the pipeline up to LANF and summarize direct-letrec dependency graphs.
+  (define (direct-letrec-dependency-analysis-summary stx)
+    (analyze-with-cc-summary stx
+      summarize-direct-letrec-dependency-closure-conversion-analysis))
 
   ;; letrec-final-allocation-analysis-summary : syntax? -> (listof list?)
   ;;   Run the pipeline up to LANF and summarize final letrec closure allocation.
@@ -11464,6 +11622,18 @@
               final-allocate?
               (not representable?)
               (eq? allocation-mode 'final-only))]
+        [_ #f])))
+
+  ;; direct-letrec-dependency-summary-has-entry?
+  ;;   : (listof list?) (listof symbol?) (listof list?) symbol? -> boolean?
+  ;;   Check whether the dependency summary contains an entry with the given fields.
+  (define (direct-letrec-dependency-summary-has-entry? summary binders edges dependency-kind)
+    (for/or ([entry (in-list summary)])
+      (match entry
+        [(list binders0 edges0 dependency-kind0)
+         (and (equal? binders0 binders)
+              (equal? edges0 edges)
+              (eq? dependency-kind0 dependency-kind))]
         [_ #f])))
 
   (check-true
@@ -11832,6 +12002,48 @@
     #t
     #t
     'representation))
+
+  (check-true
+   (direct-letrec-dependency-summary-has-entry?
+    (direct-letrec-dependency-analysis-summary
+     #'(letrec ([loop (lambda (n)
+                        (if (zero? n)
+                            0
+                            (loop (- n 1))))])
+         (loop 10)))
+    '(loop.1)
+    '()
+    'none))
+
+  (check-true
+   (direct-letrec-dependency-summary-has-entry?
+    (direct-letrec-dependency-analysis-summary
+     #'(letrec ([even? (lambda (n)
+                         (if (zero? n)
+                             #t
+                             (odd? (- n 1))))]
+                [odd?  (lambda (n)
+                         (if (zero? n)
+                             #f
+                             (even? (- n 1))))])
+         (even? 4)))
+    '(even?.1 odd?.2)
+    '((even?.1 odd?.2)
+      (odd?.2 even?.1))
+    'mutual))
+
+  (check-true
+   (direct-letrec-dependency-summary-has-entry?
+    (direct-letrec-dependency-analysis-summary
+     #'(letrec ([a (lambda () (b))]
+                [b (lambda () (c))]
+                [c (lambda () (a))])
+         (a)))
+    '(a.1 b.2 c.3)
+    '((a.1 b.2)
+      (b.2 c.3)
+      (c.3 a.1))
+    'complex))
 
   (check-false
    (direct-letrec-representation-summary-has-entry?
