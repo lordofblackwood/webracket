@@ -13311,6 +13311,10 @@
         => (λ (match)
              (match-define (list ab i ar) match)
              `(casearmapp ,s ,(label-of ab) ,ar ,i ,ae0 ,ae* ...))]
+       [(nanopass-case (LANF CaseAbstraction) target
+          [(case-lambda ,s ,ab* ...) #t]
+          [else #f])
+        `(app ,s ,ae0 ,ae* ...)]
        [else
         (define ab target)
         (define ar (source-formals->arity (abstraction-formals ab)))
