@@ -10150,6 +10150,7 @@
   (define kind-ht         (make-hasheq)) ; hasheq: abstraction -> symbol, current lambda kind
   (define direct-sites-ht (make-hasheq)) ; hasheq: abstraction -> (listof syntax?), recorded direct call sites
   (define disqualified-ht (make-hasheq)) ; hasheq: abstraction -> boolean, seen in a non-operator use
+  (define binder-ht       (make-hasheq)) ; hasheq: abstraction -> (or/c variable? #f), local binder when known
   (define direct-candidate-ht
     (make-hasheq))                      ; hasheq: abstraction -> boolean, bound in a direct-eligible local binding
 
@@ -10173,6 +10174,7 @@
   (define (initialize-kind! ab)
     (hash-set! kind-ht ab (if (empty-free? ab) 'trivial-closed 'closed))
     (hash-set! direct-sites-ht ab '())
+    (hash-set! binder-ht ab #f)
     (hash-set! direct-candidate-ht ab #f))
 
   ;; kind-of : any/c -> symbol?
@@ -10210,7 +10212,8 @@
 
   ;; mark-direct-candidate! : any/c -> void?
   ;;   Mark abstraction ab as eligible for the conservative 'direct classification.
-  (define (mark-direct-candidate! ab)
+  (define (mark-direct-candidate! x ab)
+    (hash-set! binder-ht ab x)
     (hash-set! direct-candidate-ht ab #t))
 
   ;; finalize-kind! : any/c -> void?
@@ -10419,12 +10422,12 @@
        (CExpr ce)]
       [(let-values ,s (((,x ...) ,ce*) ...) ,e)
        (for ([ce (in-list ce*)])
-         (CExpr ce))
+           (CExpr ce))
        (for ([xs (in-list x)]
              [ce (in-list ce*)]
              #:when (direct-binding-candidate? xs ce))
          (match (clause-local-binding xs ce)
-           [(cons _ ab) (mark-direct-candidate! ab)]
+           [(cons x ab) (mark-direct-candidate! x ab)]
            [_           (void)]))
        (define pairs (reverse (clause-local-bindings x ce*)))
        (define xs    (map car pairs))
@@ -10437,7 +10440,7 @@
              [ce (in-list ce*)]
              #:when (direct-binding-candidate? xs ce))
          (match (clause-local-binding xs ce)
-           [(cons _ ab) (mark-direct-candidate! ab)]
+           [(cons x ab) (mark-direct-candidate! x ab)]
            [_           (void)]))
        (define pairs (reverse (clause-local-bindings x ce*)))
        (define xs    (map car pairs))
@@ -10452,7 +10455,7 @@
     (classify T))
   (for ([ab (in-list abs)])
     (finalize-kind! ab))
-  (values kind-ht direct-sites-ht direct-candidate-ht disqualified-ht))
+  (values kind-ht direct-sites-ht direct-candidate-ht disqualified-ht binder-ht))
 
 ;; determine-extended-free-variables! : LANF
 ;;                                   (hasheq/c any/c id-set?)
@@ -10751,12 +10754,13 @@
 ;;                                       (hasheq/c any/c (listof syntax?))
 ;;                                       (hasheq/c any/c boolean?)
 ;;                                       (hasheq/c any/c boolean?)
+;;                                       (hasheq/c any/c (or/c variable? #f))
 ;;                                       (hasheq/c any/c id-set?)
 ;;                                       (hasheq/c any/c (listof any/c)))
 ;;   Run the analysis stages used by closure conversion without rewriting the AST.
 (define (closure-conversion-analysis T)
   (letv ((T free-ht abs) (determine-free-variables T))
-    (define-values (kind-ht direct-sites-ht direct-candidate-ht disqualified-ht)
+    (define-values (kind-ht direct-sites-ht direct-candidate-ht disqualified-ht binder-ht)
       (if (current-enable-cc-analysis?)
           (classify-lambdas! T free-ht abs)
           (let ()
@@ -10764,6 +10768,7 @@
             (define direct-sites-ht     (make-hasheq))
             (define direct-candidate-ht (make-hasheq))
             (define disqualified-ht     (make-hasheq))
+            (define binder-ht           (make-hasheq))
             (for ([ab (in-list abs)])
               (hash-set! kind-ht ab
                          (if (set-empty? (hash-ref free-ht ab empty-set))
@@ -10771,8 +10776,9 @@
                              'closed))
               (hash-set! direct-sites-ht ab '())
               (hash-set! direct-candidate-ht ab #f)
-              (hash-set! disqualified-ht ab #f))
-            (values kind-ht direct-sites-ht direct-candidate-ht disqualified-ht))))
+              (hash-set! disqualified-ht ab #f)
+              (hash-set! binder-ht ab #f))
+            (values kind-ht direct-sites-ht direct-candidate-ht disqualified-ht binder-ht))))
     (define-values (extended-ht direct-callees-ht)
       (if (current-enable-cc-analysis?)
           (determine-extended-free-variables! T free-ht abs kind-ht)
@@ -10783,7 +10789,7 @@
               (hash-set! extended-ht ab (hash-ref free-ht ab empty-set))
               (hash-set! direct-callees-ht ab '()))
             (values extended-ht direct-callees-ht))))
-    (values T free-ht abs kind-ht direct-sites-ht direct-candidate-ht disqualified-ht
+    (values T free-ht abs kind-ht direct-sites-ht direct-candidate-ht disqualified-ht binder-ht
             extended-ht direct-callees-ht)))
 
 ;; summarize-closure-conversion-analysis : LANF
@@ -10801,6 +10807,7 @@
       [else
        s]))
   (letv ((T free-ht abs kind-ht direct-sites-ht direct-candidate-ht disqualified-ht
+            binder-ht
             _extended-ht _direct-callees-ht)
          (closure-conversion-analysis T))
     (define labels-ht (make-hasheq))
@@ -10811,6 +10818,9 @@
             (hash-ref kind-ht ab 'closed)
             (hash-ref direct-candidate-ht ab #f)
             (hash-ref disqualified-ht ab #f)
+            (match (hash-ref binder-ht ab #f)
+              [#f #f]
+              [x  (syntax-e (variable-id x))])
             (map syntax-e (map variable-id (id-set->list (hash-ref free-ht ab empty-set))))
             (map site-source (hash-ref direct-sites-ht ab '()))))))
 
@@ -10821,6 +10831,7 @@
   (define (label-name labels-ht ab)
     (syntax-e (variable-id (hash-ref labels-ht ab))))
   (letv ((T free-ht abs kind-ht _direct-sites-ht _direct-candidate-ht _disqualified-ht
+            _binder-ht
             extended-ht direct-callees-ht)
          (closure-conversion-analysis T))
     (define labels-ht (make-hasheq))
@@ -10843,6 +10854,7 @@
   (define (vars-of xs)
     (map syntax-e (map variable-id (id-set->list xs))))
   (letv ((T free-ht abs kind-ht _direct-sites-ht _direct-candidate-ht _disqualified-ht
+            _binder-ht
             extended-ht _direct-callees-ht)
          (closure-conversion-analysis T))
     (define labels-ht (make-hasheq))
@@ -10932,15 +10944,16 @@
   (define (summary-kinds summary)
     (map second summary))
 
-  ;; summary-has-entry? : (listof list?) symbol? boolean? boolean? (listof symbol?) -> boolean?
+  ;; summary-has-entry? : (listof list?) symbol? boolean? boolean? (or/c symbol? #f) (listof symbol?) -> boolean?
   ;;   Check whether summary contains an entry with the given core fields.
-  (define (summary-has-entry? summary kind candidate? disqualified? free-vars)
+  (define (summary-has-entry? summary kind candidate? disqualified? binder free-vars)
     (for/or ([entry (in-list summary)])
       (match entry
-        [(list _label kind0 candidate0 disqualified0 free-vars0 _sites)
+        [(list _label kind0 candidate0 disqualified0 binder0 free-vars0 _sites)
          (and (eq? kind0 kind)
               (equal? candidate0 candidate?)
               (equal? disqualified0 disqualified?)
+              (equal? binder0 binder)
               (equal? free-vars0 free-vars))]
         [_ #f])))
 
@@ -10975,6 +10988,7 @@
                        'direct
                        #t
                        #f
+                       'loop.1
                        '(loop.1)))
 
   (check-true
@@ -10983,6 +10997,7 @@
                        'trivial-closed
                        #t
                        #t
+                       'f.2
                        '()))
 
   (check-true
@@ -10991,12 +11006,14 @@
                        'trivial-closed
                        #t
                        #t
+                       'f.2
                        '()))
 
   (check-true
    (summary-has-entry? (closure-analysis-summary #'(let ([y 10])
                                                      (lambda (x) (+ x y))))
                        'closed
+                       #f
                        #f
                        #f
                        '(y.1)))
@@ -11071,6 +11088,7 @@
   (define labels-ht (make-hasheq))
   (define (add-label! ab) (hash-set! labels-ht ab (new-var "label")))
   (letv ((T free-ht abs kind-ht _direct-sites-ht _direct-candidate-ht _disqualified-ht
+            _binder-ht
             extended-ht _direct-callees-ht)
          (closure-conversion-analysis T))
     #;(pretty-print free-ht)
