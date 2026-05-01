@@ -13037,8 +13037,8 @@
   (CExpr (ce)
     (- (closedapp s ab ae1 ...))
     (+ (closedapp s ca ae1 ...) => (closedapp ca ae1 ...)
-       (directapp s l ae0 ae1 ...)  => (directapp l ae0 ae1 ...)
-       (selfapp s l ae1 ...)        => (selfapp l ae1 ...)))
+       (directapp s l ar ae0 ae1 ...)  => (directapp l ar ae0 ae1 ...)
+       (selfapp s l ar ae1 ...)        => (selfapp l ar ae1 ...)))
   (ConvertedAbstraction (cab)
     (+ (λ s ar f e) => (λ f e)))
   #;(ConvertedCaseAbstraction (ccab)
@@ -13206,7 +13206,7 @@
         [else #f]))
 
     ;; clause-direct-binding : (listof variable?) LANF CExpr -> (or/c (cons variable? any/c) #f)
-    ;;   Recognize a single-variable clause bound to a fixed-arity direct lambda.
+    ;;   Recognize a single-variable clause bound to a direct lambda.
     ;;
     ;; Direct calls currently reuse the existing lifted-body layout by passing
     ;; the closure value bound to x directly to the lifted label.
@@ -13216,10 +13216,7 @@
          (define ab (clause-bound-abstraction ce))
          (and ab
               (eq? (kind-of ab) 'direct)
-              (let ([ar (source-formals->arity (abstraction-formals ab))])
-                (and (integer? ar)
-                     (>= ar 0)
-                     (cons x ab))))]
+              (cons x ab))]
         [_ #f]))
 
     ;; clause-direct-bindings : (listof (listof variable?)) (listof LANF CExpr)
@@ -13261,11 +13258,12 @@
     [(app ,s ,x ,ae1 ...)
      (guard (direct-binding-of x))
      (define ab (direct-binding-of x))
+     (define ar (source-formals->arity (abstraction-formals ab)))
      (define ae0 (AExpr x))
      (define ae* (map AExpr ae1))
      (if (eq? ab (current-direct-abstraction))
-         `(selfapp ,s ,(label-of ab) ,ae* ...)
-         `(directapp ,s ,(label-of ab) ,ae0 ,ae* ...))]
+         `(selfapp ,s ,(label-of ab) ,ar ,ae* ...)
+         `(directapp ,s ,(label-of ab) ,ar ,ae0 ,ae* ...))]
     [(app ,s ,ae ,ae1 ...)
      (define ae* (map AExpr ae1))
      `(app ,s ,(AExpr ae) ,ae* ...)]
@@ -13549,8 +13547,8 @@
     [(if  ,s ,ae0 ,e1  ,e2)        (AExpr ae0) (Expr e1)   (Expr e2)]
     [(wcm ,s ,ae0 ,ae1 ,e)         (AExpr ae0) (AExpr ae1) (Expr e)]
     [(app ,s ,ae  ,ae1 ...)        (AExpr* (cons ae ae1))]
-    [(directapp ,s ,l ,ae0 ,ae1 ...) (AExpr* (cons ae0 ae1))]
-    [(selfapp ,s ,l ,ae1 ...)        (AExpr* ae1)]
+    [(directapp ,s ,l ,ar ,ae0 ,ae1 ...) (AExpr* (cons ae0 ae1))]
+    [(selfapp ,s ,l ,ar ,ae1 ...)        (AExpr* ae1)]
     [(primapp   ,s ,pr ,ae1 ...)   (AExpr* ae1)]
     [(closedapp ,s ,ca ,ae1 ...)   (ClosureAllocation ca) (AExpr* ae1)]
     [(begin     ,s ,e0 ,e1 ...)    (Expr* (cons e0 e1))]
@@ -14908,14 +14906,18 @@
                                         ['<expr>             work]
                                         ['<stat>             work])]
             [y                        (Store! y work)])]))]
-    [(directapp ,s ,l ,ae0 ,ae2 ...)
+    [(directapp ,s ,l ,ar ,ae0 ,ae2 ...)
      (define tc (eq? cd '<return>))
      (define clos
        `(ref.cast (ref $Closure) ,(AExpr3 ae0 <value>)))
-     (define args
+     (define raw-args
        `(array.new_fixed $Args ,(length ae2)
                          ,@(for/list ([ae (in-list ae2)])
                              (AExpr3 ae <value>))))
+     (define args
+       (if (negative? ar)
+           `(call $repack-arguments ,raw-args (i32.const ,ar))
+           raw-args))
      (define work
        (if tc
            `(return_call ,(Label l) ,clos ,args)
@@ -14929,12 +14931,16 @@
                                    ['<expr>             work]
                                    ['<stat>             work])]
        [y                        (Store! y work)])]
-    [(selfapp ,s ,l ,ae2 ...)
+    [(selfapp ,s ,l ,ar ,ae2 ...)
      (define tc (eq? cd '<return>))
-     (define args
+     (define raw-args
        `(array.new_fixed $Args ,(length ae2)
                          ,@(for/list ([ae (in-list ae2)])
                              (AExpr3 ae <value>))))
+     (define args
+       (if (negative? ar)
+           `(call $repack-arguments ,raw-args (i32.const ,ar))
+           raw-args))
      (define work
        (if tc
            `(return_call ,(Label l) (local.get $clos) ,args)
@@ -16182,11 +16188,11 @@
        (AExpr ca)
        (for ([ae1 (in-list ae1)])
          (AExpr ae1))]
-      [(directapp ,s ,l ,ae0 ,ae1 ...)
+      [(directapp ,s ,l ,ar ,ae0 ,ae1 ...)
        (AExpr ae0)
        (for ([ae1 (in-list ae1)])
          (AExpr ae1))]
-      [(selfapp ,s ,l ,ae1 ...)
+      [(selfapp ,s ,l ,ar ,ae1 ...)
        (for ([ae1 (in-list ae1)])
          (AExpr ae1))]
       [(primapp ,s ,pr ,ae1 ...)
@@ -16279,19 +16285,23 @@
     (sexp-any? direct-dummy-closure-call? mod))
 
   (define (module-has-direct-label-call? mod)
+    (define (direct-call-args? x)
+      (match x
+        [(list 'array.new_fixed '$Args _ ...) #t]
+        [(list 'call '$repack-arguments inner _)
+         (direct-call-args? inner)]
+        [_ #f]))
     (define (direct-label-call? x)
       (match x
         [(list 'call label clos args)
          (and (symbol? label)
               (regexp-match? #rx"^\\$label\\." (symbol->string label))
-              (pair? args)
-              (eq? (car args) 'array.new_fixed)
+              (direct-call-args? args)
               (not (eq? clos #f)))]
         [(list 'return_call label clos args)
          (and (symbol? label)
               (regexp-match? #rx"^\\$label\\." (symbol->string label))
-              (pair? args)
-              (eq? (car args) 'array.new_fixed)
+              (direct-call-args? args)
               (not (eq? clos #f)))]
         [_ #f]))
     (sexp-any? direct-label-call? mod))
@@ -16516,11 +16526,11 @@
          (AExpr ca)
          (for ([ae1 (in-list ae1)])
            (AExpr ae1))]
-        [(directapp ,s ,l ,ae0 ,ae1 ...)
+        [(directapp ,s ,l ,ar ,ae0 ,ae1 ...)
          (AExpr ae0)
          (for ([ae1 (in-list ae1)])
            (AExpr ae1))]
-        [(selfapp ,s ,l ,ae1 ...)
+        [(selfapp ,s ,l ,ar ,ae1 ...)
          (for ([ae1 (in-list ae1)])
            (AExpr ae1))]
         [(primapp ,s ,pr ,ae1 ...)
@@ -16627,11 +16637,11 @@
          (AExpr ca)
          (for ([ae1 (in-list ae1)])
            (AExpr ae1))]
-        [(directapp ,s ,l ,ae0 ,ae1 ...)
+        [(directapp ,s ,l ,ar ,ae0 ,ae1 ...)
          (AExpr ae0)
          (for ([ae1 (in-list ae1)])
            (AExpr ae1))]
-        [(selfapp ,s ,l ,ae1 ...)
+        [(selfapp ,s ,l ,ar ,ae1 ...)
          (for ([ae1 (in-list ae1)])
            (AExpr ae1))]
         [(primapp ,s ,pr ,ae1 ...)
@@ -16741,11 +16751,11 @@
          (AExpr ca)
          (for ([ae1 (in-list ae1)])
            (AExpr ae1))]
-        [(directapp ,s ,l ,ae0 ,ae1 ...)
+        [(directapp ,s ,l ,ar ,ae0 ,ae1 ...)
          (AExpr ae0)
          (for ([ae1 (in-list ae1)])
            (AExpr ae1))]
-        [(selfapp ,s ,l ,ae1 ...)
+        [(selfapp ,s ,l ,ar ,ae1 ...)
          (for ([ae1 (in-list ae1)])
            (AExpr ae1))]
         [(primapp ,s ,pr ,ae1 ...)
@@ -16863,6 +16873,20 @@
                                                           (loop (- n 1))))])
                                      (loop 2))))
 
+  (check-true
+   (closure-converted-has-directapp? #'(letrec ([loop (lambda xs
+                                                        (if (null? xs)
+                                                            0
+                                                            (loop)))])
+                                     (loop 1))))
+
+  (check-true
+   (closure-converted-has-selfapp? #'(letrec ([loop (lambda xs
+                                                      (if (null? xs)
+                                                          0
+                                                          (loop)))])
+                                     (loop 1))))
+
   (let ([mod (parameterize ([current-enable-cc-analysis? #t])
                (comp #'(letrec ([loop (lambda (n)
                                         (if (zero? n)
@@ -16927,19 +16951,23 @@
     (sexp-any? direct-dummy-closure-call? mod))
 
   (define (module-has-direct-label-call? mod)
+    (define (direct-call-args? x)
+      (match x
+        [(list 'array.new_fixed '$Args _ ...) #t]
+        [(list 'call '$repack-arguments inner _)
+         (direct-call-args? inner)]
+        [_ #f]))
     (define (direct-label-call? x)
       (match x
         [(list 'call label clos args)
          (and (symbol? label)
               (regexp-match? #rx"^\\$label\\." (symbol->string label))
-              (pair? args)
-              (eq? (car args) 'array.new_fixed)
+              (direct-call-args? args)
               (not (eq? clos #f)))]
         [(list 'return_call label clos args)
          (and (symbol? label)
               (regexp-match? #rx"^\\$label\\." (symbol->string label))
-              (pair? args)
-              (eq? (car args) 'array.new_fixed)
+              (direct-call-args? args)
               (not (eq? clos #f)))]
         [_ #f]))
     (sexp-any? direct-label-call? mod))
@@ -17162,7 +17190,7 @@
                                             0
                                             (loop)))])
                          (loop 1))))])
-    (check-false (module-has-direct-label-call? mod))
+    (check-true  (module-has-direct-label-call? mod))
     (check-true  (module-has-local-closure-allocation? mod))
     (check-false (module-has-local-closure-shell-allocation? mod))))
   
