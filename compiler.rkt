@@ -10955,6 +10955,12 @@
 (define (direct-letrec-allocation-eligible? kind binder links)
   (eq? (direct-letrec-patching-kind kind binder links) 'none))
 
+;; letrec-final-closure-allocation-eligible? : (listof symbol?) -> boolean?
+;;   Check whether a letrec closure can be allocated directly with its final
+;;   payload, without shell allocation and later patching.
+(define (letrec-final-closure-allocation-eligible? links)
+  (null? links))
+
 ;; direct-letrec-shell-allocation-needed? : symbol? (or/c symbol? #f) (listof symbol?) -> boolean?
 ;;   Check whether a direct letrec helper still needs shell allocation and patching.
 (define (direct-letrec-shell-allocation-needed? kind binder links)
@@ -11183,6 +11189,26 @@
              eligible?
              (direct-letrec-representation-candidate? kind fixed-arity? free-vars patching-kind))])))
 
+;; summarize-letrec-final-allocation-closure-conversion-analysis : LANF
+;;                                                             -> (listof list?)
+;;   Return a compact summary of letrec helpers that can allocate their final
+;;   closure directly, along with whether they also qualify for the active
+;;   direct-letrec representation.
+(define (summarize-letrec-final-allocation-closure-conversion-analysis T)
+  (for/list ([entry (in-list (collect-direct-letrec-summary-entries T))])
+    (match entry
+      [(list binder label kind fixed-arity? free-vars links patching-kind eligible?)
+       (define final-allocate?
+         (letrec-final-closure-allocation-eligible? links))
+       (list binder
+             label
+             kind
+             fixed-arity?
+             free-vars
+             links
+             final-allocate?
+             (direct-letrec-representation-candidate? kind fixed-arity? free-vars patching-kind))])))
+
 (module+ test
   (require rackunit
            "expander.rkt")
@@ -11250,6 +11276,12 @@
   (define (direct-letrec-representation-analysis-summary stx)
     (analyze-with-cc-summary stx
       summarize-direct-letrec-representation-closure-conversion-analysis))
+
+  ;; letrec-final-allocation-analysis-summary : syntax? -> (listof list?)
+  ;;   Run the pipeline up to LANF and summarize final letrec closure allocation.
+  (define (letrec-final-allocation-analysis-summary stx)
+    (analyze-with-cc-summary stx
+      summarize-letrec-final-allocation-closure-conversion-analysis))
 
   ;; summary-kinds : (listof list?) -> (listof symbol?)
   ;;   Extract the classification kinds from a summary.
@@ -11363,8 +11395,32 @@
               (equal? free-vars0 free-vars)
               (equal? links0 links)
               (eq? patching-kind0 patching-kind)
-              (equal? eligible0 eligible?)
-              (equal? candidate0 candidate?))]
+             (equal? eligible0 eligible?)
+             (equal? candidate0 candidate?))]
+        [_ #f])))
+
+  ;; letrec-final-allocation-summary-has-entry?
+  ;;   : (listof list?) symbol? symbol? boolean? (listof symbol?) (listof symbol?) boolean? boolean?
+  ;;  -> boolean?
+  ;;   Check whether the final-allocation summary contains an entry with the given fields.
+  (define (letrec-final-allocation-summary-has-entry? summary
+                                                      binder
+                                                      kind
+                                                      fixed-arity?
+                                                      free-vars
+                                                      links
+                                                      final-allocate?
+                                                      representable?)
+    (for/or ([entry (in-list summary)])
+      (match entry
+        [(list binder0 _label kind0 fixed-arity0 free-vars0 links0 final-allocate0 representable0)
+         (and (equal? binder0 binder)
+              (eq? kind0 kind)
+              (equal? fixed-arity0 fixed-arity?)
+              (equal? free-vars0 free-vars)
+              (equal? links0 links)
+              (equal? final-allocate0 final-allocate?)
+              (equal? representable0 representable?))]
         [_ #f])))
 
   (check-true
@@ -11585,6 +11641,10 @@
 
   (check-false (direct-letrec-allocation-eligible? 'closed 'f.1 '()))
 
+  (check-true  (letrec-final-closure-allocation-eligible? '()))
+
+  (check-false (letrec-final-closure-allocation-eligible? '(loop.1)))
+
   (check-true  (direct-letrec-representation-candidate? 'direct #t '() 'none))
 
   (check-false (direct-letrec-representation-candidate? 'direct #f '() 'none))
@@ -11657,6 +11717,42 @@
     '()
     'none
     #t
+    #f))
+
+  (check-true
+   (letrec-final-allocation-summary-has-entry?
+    (letrec-final-allocation-analysis-summary
+     #'(letrec ([loop (lambda xs
+                        (if (null? xs)
+                            0
+                            (loop)))])
+         (loop 1)))
+    'loop.1
+    'direct
+    #f
+    '()
+    '()
+    #t
+    #f))
+
+  (check-true
+   (letrec-final-allocation-summary-has-entry?
+    (letrec-final-allocation-analysis-summary
+     #'(letrec ([even? (lambda (n)
+                         (if (zero? n)
+                             #t
+                             (odd? (- n 1))))]
+                [odd?  (lambda (n)
+                         (if (zero? n)
+                             #f
+                             (even? (- n 1))))])
+         (even? 4)))
+    'even?.1
+    'direct
+    #t
+    '(odd?.2)
+    '(odd?.2)
+    #f
     #f))
 
   (check-false
@@ -13821,18 +13917,19 @@
         (letrec-local-free-vars ae*)
         letrec-binders))
 
-     ;; direct-allocate-letrec-closure? : LANF+closure AExpr variable? -> boolean?
-     ;;   Check whether ca can be allocated directly for binder x.
+     ;; final-allocate-letrec-closure? : LANF+closure AExpr variable? -> boolean?
+     ;;   Check whether ca can be allocated directly as its final closure for
+     ;;   binder x, without shell allocation and later patching.
      ;;
      ;; This is safe exactly when the current letrec allocation info says the
      ;; helper has no remaining recursive-group links to patch.
-     (define (direct-allocate-letrec-closure? ca x)
+     (define (final-allocate-letrec-closure? ca x)
        (nanopass-case (LANF+closure AExpr) ca
          [(closure ,s ,k ,in ,l ,ar ,ae1 ...)
-          (define-values (_links _patching-kind eligible?)
+          (define-values (links _patching-kind _eligible?)
             (letrec-closure-allocation-info k x ae1))
           (and (current-enable-cc-analysis?)
-               eligible?)]
+               (letrec-final-closure-allocation-eligible? links))]
          [else
           #f]))
 
@@ -13952,7 +14049,7 @@
                     (cond
                       [(direct-letrec-representation? ce x)
                        '()]
-                      [(direct-allocate-letrec-closure? ce x)
+                      [(final-allocate-letrec-closure? ce x)
                        (list (ClosureAllocation ce x))]
                       [else
                        (list (AllocateClosure ce x))])))
@@ -13961,7 +14058,7 @@
                     (cond
                       [(direct-letrec-representation? ce x)
                        '()]
-                      [(direct-allocate-letrec-closure? ce x)
+                      [(final-allocate-letrec-closure? ce x)
                        '()]
                       [else
                        (FillClosure ce x)])))
@@ -15583,7 +15680,8 @@
                                 [f (lambda () x)])
                          (f))))])
     (check-true (module-has-direct-label-call? mod))
-    (check-true (module-has-local-closure-allocation? mod)))
+    (check-true (module-has-local-closure-allocation? mod))
+    (check-false (module-has-local-closure-shell-allocation? mod)))
 
   (let ([mod (parameterize ([current-enable-cc-analysis? #t])
                (comp #'(letrec ([a (letrec ([b (lambda () (lambda () c))]
@@ -15592,7 +15690,8 @@
                                 [c (cons 1 2)])
                          (a))))])
     (check-true (module-has-direct-label-call? mod))
-    (check-true (module-has-local-closure-allocation? mod)))
+    (check-true (module-has-local-closure-allocation? mod))
+    (check-false (module-has-local-closure-shell-allocation? mod)))
 
   (let ([mod (parameterize ([current-enable-cc-analysis? #t])
                (comp #'(letrec ([even? (lambda (n)
@@ -15614,7 +15713,8 @@
                                             (loop)))])
                          (loop 1))))])
     (check-false (module-has-direct-label-call? mod))
-    (check-true  (module-has-local-closure-allocation? mod))))
+    (check-true  (module-has-local-closure-allocation? mod))
+    (check-false (module-has-local-closure-shell-allocation? mod))))
   
 (define (comp-- stx)
   (reset-counter!)
