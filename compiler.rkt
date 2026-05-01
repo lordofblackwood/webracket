@@ -10921,6 +10921,13 @@
     [else
      xs]))
 
+;; direct-letrec-allocation-eligible? : symbol? (listof symbol?) (listof symbol?) -> boolean?
+;;   Check whether a direct letrec helper with free-vars can skip shell allocation.
+(define (direct-letrec-allocation-eligible? kind free-vars letrec-binders)
+  (and (eq? kind 'direct)
+       (not (for/or ([y (in-list free-vars)])
+              (member y letrec-binders)))))
+
 ;; summarize-direct-self-binder-closure-conversion-analysis : LANF
 ;;                                                        -> (listof list?)
 ;;   Return a compact summary of direct helpers that can drop their own binder.
@@ -10962,14 +10969,13 @@
     (define (record-letrec-entry! x ab letrec-binders)
       (define binder-sym (syntax-e (variable-id x)))
       (define free-vars  (direct-helper-layout-free-vars ab free-ht kind-ht binder-ht))
+      (define kind (hash-ref kind-ht ab 'closed))
       (define eligible?
-        (and (eq? (hash-ref kind-ht ab 'closed) 'direct)
-             (not (for/or ([y (in-list free-vars)])
-                    (member y letrec-binders)))))
+        (direct-letrec-allocation-eligible? kind free-vars letrec-binders))
       (set! entries
             (cons (list binder-sym
                         (label-name labels-ht ab)
-                        (hash-ref kind-ht ab 'closed)
+                        kind
                         free-vars
                         eligible?)
                   entries)))
@@ -13477,6 +13483,8 @@
        (error 'generate-code "TODO support multiple values in letrec-values"))
 
      (define x* (map first x**)) ; assumes single value
+     (define letrec-binders
+       (map (λ (x) (syntax-e (variable-id x))) x*))
 
      ;; letrec-local-var? : variable? -> boolean?
      ;;   Check whether ae is one of this letrec group's local variables.
@@ -13494,10 +13502,12 @@
      (define (direct-allocate-letrec-closure? ca x)
        (nanopass-case (LANF+closure AExpr) ca
          [(closure ,s ,k ,in ,l ,ar ,ae1 ...)
+          (define free-vars
+            (for/list ([ae (in-list ae1)]
+                       #:when (letrec-local-var? ae))
+              (syntax-e (variable-id ae))))
           (and (current-enable-cc-analysis?)
-               (eq? k 'direct)
-               (for/and ([ae (in-list ae1)])
-                 (not (letrec-local-var? ae))))]
+               (direct-letrec-allocation-eligible? k free-vars letrec-binders))]
          [else
           #f]))
      
