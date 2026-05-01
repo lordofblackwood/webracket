@@ -10912,9 +10912,9 @@
             layout-vars
             layout-vars))))
 
-;; direct-self-binder-removable? : any/c (hasheq/c any/c symbol?) (hasheq/c any/c (or/c variable? #f)) -> boolean?
-;;   Check whether direct helper ab can drop its own binder from closure layout.
-(define (direct-self-binder-removable? ab kind-ht binder-ht)
+;; nested-variable-capture-present? : any/c symbol? -> boolean?
+;;   Check whether a nested lambda or case-lambda inside ab captures var-sym.
+(define (nested-variable-capture-present? ab var-sym)
   (define (sexp-any? pred x)
     (or (pred x)
         (cond
@@ -10926,21 +10926,24 @@
              (sexp-any? pred e))]
           [else
            #f])))
-  (define (nested-variable-capture-present? ab var-sym)
-    (define (variable-appears? x)
-      (equal? x var-sym))
-    (define (captures-binder? x)
-      (match x
-        [(list 'λ _ body ...)
-         (sexp-any? variable-appears? body)]
-        [(list 'case-lambda arms ...)
-         (sexp-any? variable-appears? arms)]
-        [_ #f]))
-    (nanopass-case (LANF AExpr) ab
-      [(λ ,s ,f ,e)
-       (sexp-any? captures-binder? (unparse-all (unparse-LANF e)))]
-      [else
-       #f]))
+  (define (variable-appears? x)
+    (equal? x var-sym))
+  (define (captures-binder? x)
+    (match x
+      [(list 'λ _ body ...)
+       (sexp-any? variable-appears? body)]
+      [(list 'case-lambda arms ...)
+       (sexp-any? variable-appears? arms)]
+      [_ #f]))
+  (nanopass-case (LANF AExpr) ab
+    [(λ ,s ,f ,e)
+     (sexp-any? captures-binder? (unparse-all (unparse-LANF e)))]
+    [else
+     #f]))
+
+;; direct-self-binder-removable? : any/c (hasheq/c any/c symbol?) (hasheq/c any/c (or/c variable? #f)) -> boolean?
+;;   Check whether direct helper ab can drop its own binder from closure layout.
+(define (direct-self-binder-removable? ab kind-ht binder-ht)
   (and (eq? (hash-ref kind-ht ab 'closed) 'direct)
        (match (hash-ref binder-ht ab #f)
          [#f #f]
@@ -10984,7 +10987,8 @@
             (null? (direct-helper-layout-base-free-vars callee free-ht kind-ht binder-ht))
             (match (hash-ref binder-ht callee #f)
               [#f #f]
-              [x  (syntax-e (variable-id x))]))]
+              [x  (and (not (nested-variable-capture-present? ab (syntax-e (variable-id x))))
+                       (syntax-e (variable-id x))) ]))]
       [else
        #f]))
   (define removable-syms
