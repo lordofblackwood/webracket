@@ -10760,24 +10760,25 @@
         [(formals ,x)                  (list x)]))
 
     ;; clause-bound-abstraction : LANF CExpr -> (or/c any/c #f)
-    ;;   Recognize the simple local binding pattern x = λ or x = case-lambda.
+    ;;   Recognize the simple local binding pattern x = λ.
     (define (clause-bound-abstraction ce)
       (nanopass-case (LANF CExpr) ce
         [,ae
          (nanopass-case (LANF AExpr) ae
            [,ab  ab]
-           [,cab cab]
            [else #f])]
         [else #f]))
 
     ;; clause-direct-binding : (listof variable?) LANF CExpr -> (or/c (cons variable? any/c) #f)
-    ;;   Recognize a single-variable clause bound to a fixed-arity direct lambda.
+    ;;   Recognize a single-variable clause bound to a fixed-arity direct lambda
+    ;;   with no free variables.
     (define (clause-direct-binding xs ce)
       (match xs
         [(list x)
          (define ab (clause-bound-abstraction ce))
          (and ab
               (eq? (kind-of ab) 'direct)
+              (null? (free-of ab))
               (let ([ar (source-formals->arity (abstraction-formals ab))])
                 (and (integer? ar)
                      (>= ar 0)
@@ -12627,38 +12628,15 @@
                                (array.new $Array (global.get $null) (i32.const ,n))))]
          [else (error 'AllocateClosure "internal error, got: ~a" ca)]))
 
-     (define direct-letrec-vars
-       (for/list ([xs x**]
-                  [ce ce*]
-                  #:when
-                  (nanopass-case (LANF+closure AExpr) ce
-                    [(closure ,s ,k ,in ,l ,ar ,ae1 ...)
-                     (and (eq? k 'direct)
-                          (integer? ar)
-                          (>= ar 0))]
-                    [else #f]))
-         (first xs)))
-
-     ;; direct-letrec-var? : any/c -> boolean?
-     ;;   Check whether x is a direct helper in the current letrec group.
-     (define (direct-letrec-var? x)
-       (for/or ([y (in-list direct-letrec-vars)])
-         (id=? x y)))
-
      ;; direct-letrec-closure? : LANF+closure AExpr -> boolean?
-     ;;   Check whether ca is a fixed-arity direct helper whose free variables
-     ;;   are all other direct helpers in the same letrec group.
+     ;;   Return #f for now.
+     ;;
+     ;; We can compile some letrec helper calls with `directapp`, but skipping
+     ;; shell allocation also requires proving that every use site is covered.
+     ;; Until we add that stronger analysis, keep letrec allocation behavior
+     ;; conservative.
      (define (direct-letrec-closure? ca)
-       (nanopass-case (LANF+closure AExpr) ca
-         [(closure ,s ,k ,in ,l ,ar ,ae1 ...)
-          (and (eq? k 'direct)
-               (integer? ar)
-               (>= ar 0)
-               (for/and ([ae (in-list ae1)])
-                 (nanopass-case (LANF+closure AExpr) ae
-                   [,x   (direct-letrec-var? x)]
-                   [else #f])))]
-         [else #f]))
+       #f)
 
      (define (FillClosure ca dd)
        ; Fill in the $free array
@@ -13577,13 +13555,9 @@
       (comp #'((lambda (x) x) 1)))))
 
   (let ([mod (parameterize ([current-enable-cc-analysis? #t])
-               (comp #'(letrec ([loop (lambda (n)
-                                        (if (zero? n)
-                                            0
-                                            (loop (- n 1))))])
-                         (loop 2))))])
-    (check-true  (module-has-direct-dummy-closure-call? mod))
-    (check-false (module-has-local-closure-shell-allocation? mod)))
+               (comp #'(let ([f (lambda (x) x)])
+                         (f 2))))])
+    (check-true (module-has-direct-dummy-closure-call? mod)))
 
   (let-values ([(mod report)
                 (compile/primitive-report/ffi
