@@ -10953,6 +10953,71 @@
   (for/list ([bucket '(0 1 2 3 4+)])
     (list bucket (hash-ref counts bucket 0))))
 
+;; summarize-known-helper-abi-plan-closure-conversion-analysis : LANF -> (listof list?)
+;;   Return a conservative ABI-plan summary for known direct helpers.
+(define (summarize-known-helper-abi-plan-closure-conversion-analysis T)
+  (define (label-name labels-ht ab)
+    (syntax-e (variable-id (hash-ref labels-ht ab))))
+  (define (vars-of xs)
+    (map syntax-e (map variable-id (id-set->list xs))))
+  (define (plan-of kind fixed-arity? layout-vars extended-vars self-recursive?)
+    (define blockers
+      (append
+       (if fixed-arity?
+           '()
+           '(non-fixed-arity))
+       (if (equal? layout-vars extended-vars)
+           '()
+           '(layout-extended-mismatch))
+       (if self-recursive?
+           '(self-recursive)
+           '())
+       (if (<= (length layout-vars) 2)
+           '()
+           '(env-too-large))))
+    (cond
+      [(not (eq? kind 'direct))
+       (values 'generic-closure '(non-direct))]
+      [(pair? blockers)
+       (values 'not-eligible blockers)]
+      [else
+       (values (case (length layout-vars)
+                 [(0) 'known/env0]
+                 [(1) 'known/env1]
+                 [(2) 'known/env2]
+                 [else 'not-eligible])
+               '())]))
+  (letv ((T free-ht abs kind-ht _direct-sites-ht _direct-candidate-ht _disqualified-ht
+            binder-ht
+            extended-ht direct-callees-ht)
+         (closure-conversion-analysis T))
+    (define labels-ht (make-hasheq))
+    (for ([ab (in-list abs)])
+      (hash-set! labels-ht ab (new-var "label")))
+    (for/list ([ab (in-list abs)])
+      (define kind (hash-ref kind-ht ab 'closed))
+      (define fixed-arity? (abstraction-fixed-arity? ab))
+      (define layout-vars
+        (if (eq? kind 'direct)
+            (direct-helper-layout-free-vars ab free-ht kind-ht binder-ht direct-callees-ht)
+            (vars-of (hash-ref free-ht ab empty-set))))
+      (define extended-vars (vars-of (hash-ref extended-ht ab empty-set)))
+      (define self-recursive?
+        (and (eq? kind 'direct)
+             (direct-self-recursive? ab free-ht binder-ht)))
+      (define-values (plan blockers)
+        (plan-of kind fixed-arity? layout-vars extended-vars self-recursive?))
+      (list (label-name labels-ht ab)
+            (match (hash-ref binder-ht ab #f)
+              [#f #f]
+              [x  (syntax-e (variable-id x))])
+            kind
+            fixed-arity?
+            layout-vars
+            extended-vars
+            plan
+            blockers))))
+
 ;; nested-variable-capture-present? : any/c symbol? -> boolean?
 ;;   Check whether a nested lambda or case-lambda inside ab captures var-sym.
 (define (nested-variable-capture-present? ab var-sym)
@@ -12037,6 +12102,12 @@
     (analyze-with-cc-summary stx
       summarize-closure-layout-arity-counts-closure-conversion-analysis))
 
+  ;; known-helper-abi-plan-analysis-summary : syntax? -> (listof list?)
+  ;;   Run the pipeline up to LANF and summarize conservative known-helper ABI plans.
+  (define (known-helper-abi-plan-analysis-summary stx)
+    (analyze-with-cc-summary stx
+      summarize-known-helper-abi-plan-closure-conversion-analysis))
+
   ;; direct-self-binder-analysis-summary : syntax? -> (listof list?)
   ;;   Run the pipeline up to LANF and summarize self-binder removal eligibility.
   (define (direct-self-binder-analysis-summary stx)
@@ -12204,6 +12275,23 @@
           (match entry
             [(list _bucket count) count]))
         0))
+
+  ;; known-helper-abi-plan-summary-has-entry?
+  ;;   : (listof list?) symbol? symbol? boolean? (listof symbol?) (listof symbol?) symbol? (listof symbol?) -> boolean?
+  ;;   Check whether the known-helper ABI-plan summary contains an entry with the given fields.
+  (define (known-helper-abi-plan-summary-has-entry?
+           summary binder kind fixed-arity? layout-vars extended-vars plan blockers)
+    (for/or ([entry (in-list summary)])
+      (match entry
+        [(list _label binder0 kind0 fixed-arity0 layout-vars0 extended-vars0 plan0 blockers0)
+         (and (equal? binder0 binder)
+              (eq? kind0 kind)
+              (equal? fixed-arity0 fixed-arity?)
+              (equal? layout-vars0 layout-vars)
+              (equal? extended-vars0 extended-vars)
+              (eq? plan0 plan)
+              (equal? blockers0 blockers))]
+        [_ #f])))
 
   ;; direct-letrec-summary-base-entry-matches? : list? symbol? symbol? (listof symbol?) (listof symbol?) symbol? -> boolean?
   ;;   Check whether one direct-letrec summary entry matches the shared core fields.
@@ -12586,6 +12674,93 @@
     (check-true (<= 1 (closure-layout-arity-counts-summary-count summary 0)))
     (check-true (<= 1 (closure-layout-arity-counts-summary-count summary 1)))
     (check-true (<= 1 (closure-layout-arity-counts-summary-count summary 2))))
+
+  (check-true
+   (known-helper-abi-plan-summary-has-entry?
+    (known-helper-abi-plan-analysis-summary
+     #'(let ([f (lambda (x) x)])
+         (let ([g (lambda (y) (f y))])
+           (g 1))))
+    'g.4
+    'direct
+    #t
+    '()
+    '()
+    'known/env0
+    '()))
+
+  (check-true
+   (known-helper-abi-plan-summary-has-entry?
+    (known-helper-abi-plan-analysis-summary
+     #'(let ([x 1])
+         (let ([g (lambda () x)])
+           (g))))
+    'g.2
+    'direct
+    #t
+    '(x.1)
+    '(x.1)
+    'known/env1
+    '()))
+
+  (check-true
+   (known-helper-abi-plan-summary-has-entry?
+    (known-helper-abi-plan-analysis-summary
+     #'(let ([x 1]
+             [y 2])
+         (let ([h (lambda () (+ x y))])
+           (h))))
+    'h.3
+    'direct
+    #t
+    '(y.2 x.1)
+    '(y.2 x.1)
+    'known/env2
+    '()))
+
+  (check-true
+   (known-helper-abi-plan-summary-has-entry?
+    (known-helper-abi-plan-analysis-summary
+     #'(letrec ([loop (lambda (n)
+                        (if (zero? n)
+                            0
+                            (loop (- n 1))))])
+         (loop 10)))
+    'loop.1
+    'direct
+    #t
+    '()
+    '()
+    'not-eligible
+    '(self-recursive)))
+
+  (check-true
+   (known-helper-abi-plan-summary-has-entry?
+    (known-helper-abi-plan-analysis-summary
+     #'(let ([xs '(1 2 3)])
+         (let ([f (lambda ys xs)])
+           (f 1))))
+    'f.3
+    'direct
+    #f
+    '(xs.1)
+    '(xs.1)
+    'not-eligible
+    '(non-fixed-arity)))
+
+  (check-true
+   (known-helper-abi-plan-summary-has-entry?
+    (known-helper-abi-plan-analysis-summary
+     #'(let ([y 10])
+         (let ([f (lambda (x) (+ x y))])
+           f)))
+    #f
+    'closed
+    #t
+    '(y.1)
+    '(y.1)
+    'generic-closure
+    '(non-direct)))
 
   (check-true
    (direct-self-binder-summary-has-entry?
