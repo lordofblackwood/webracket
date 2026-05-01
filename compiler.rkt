@@ -11088,13 +11088,13 @@
   (define labels-ht (make-hasheq))
   (define (add-label! ab) (hash-set! labels-ht ab (new-var "label")))
   (letv ((T free-ht abs kind-ht _direct-sites-ht _direct-candidate-ht _disqualified-ht
-            _binder-ht
+            binder-ht
             extended-ht _direct-callees-ht)
          (closure-conversion-analysis T))
     #;(pretty-print free-ht)
     (for ([ab abs])
       (add-label! ab))
-    (finish-closure-conversion T free-ht kind-ht extended-ht labels-ht)))
+    (finish-closure-conversion T free-ht kind-ht binder-ht extended-ht labels-ht)))
 
 (define (closure+primitive? v)
   (or (eq? v 'closure)
@@ -11150,24 +11150,75 @@
     (+ (define-label l cab))))
 
 
-(define-pass finish-closure-conversion : LANF (T free-ht kind-ht extended-ht labels-ht) -> LANF+closure ()
+(define-pass finish-closure-conversion : LANF (T free-ht kind-ht binder-ht extended-ht labels-ht) -> LANF+closure ()
   (definitions
     (define h #'fcc)
     (define (label-of ab) (hash-ref labels-ht ab))
     (define (free-of ab)  (id-set->list (hash-ref free-ht ab)))
     (define (kind-of ab)  (hash-ref kind-ht ab 'closed))
+    (define (binder-of ab) (hash-ref binder-ht ab #f))
     (define (extended-of ab)
       (id-set->list (hash-ref extended-ht ab empty-set)))
+
+    ;; remove-variable : (listof variable?) variable? -> (listof variable?)
+    ;;   Remove x from xs using identifier equality.
+    (define (remove-variable xs x)
+      (filter (λ (y) (not (id=? x y))) xs))
+
+    ;; self-binder-free-of : any/c -> (listof variable?)
+    ;;   Return ab's free variables, excluding its own direct binder when known.
+    (define (self-binder-free-of ab)
+      (match (binder-of ab)
+        [#f (free-of ab)]
+        [x  (remove-variable (free-of ab) x)]))
+
+    ;; sexp-any? : (any/c -> boolean?) any/c -> boolean?
+    ;;   Check whether pred holds anywhere in the s-expression x.
+    (define (sexp-any? pred x)
+      (or (pred x)
+          (cond
+            [(pair? x)
+             (or (sexp-any? pred (car x))
+                 (sexp-any? pred (cdr x)))]
+            [(vector? x)
+             (for/or ([e (in-vector x)])
+               (sexp-any? pred e))]
+            [else
+             #f])))
+
+    ;; nested-abstraction-present? : any/c -> boolean?
+    ;;   Check whether ab's body contains a nested λ or case-lambda.
+    (define (nested-abstraction-present? ab)
+      (nanopass-case (LANF Abstraction) ab
+        [(λ ,s ,f ,e)
+         (define body-sexp (unparse-all (unparse-LANF e)))
+         (define (nested-abstraction-form? x)
+           (match x
+             [(list 'λ _ ...)           #t]
+             [(list 'case-lambda _ ...) #t]
+             [_                         #f]))
+         (sexp-any? nested-abstraction-form? body-sexp)]))
+
+    ;; direct-self-binder-removable? : any/c -> boolean?
+    ;;   Check whether ab can drop its own binder from the closure layout.
+    (define (direct-self-binder-removable? ab)
+      (and (eq? (kind-of ab) 'direct)
+           (binder-of ab)
+           (not (nested-abstraction-present? ab))))
 
     ;; body-layout-of : any/c -> (listof variable?)
     ;;   Return the environment layout currently used by the lifted body of ab.
     (define (body-layout-of ab)
-      (free-of ab))
+      (if (direct-self-binder-removable? ab)
+          (self-binder-free-of ab)
+          (free-of ab)))
 
     ;; closure-env-of : any/c -> (listof variable?)
     ;;   Return the variables stored in ab's closure record.
     (define (closure-env-of ab)
-      (free-of ab))
+      (if (direct-self-binder-removable? ab)
+          (self-binder-free-of ab)
+          (free-of ab)))
 
     ;; closure-env-aexprs-of : any/c -> (listof any/c)
     ;;   Convert ab's closure environment variables to closure-converted aexprs.
