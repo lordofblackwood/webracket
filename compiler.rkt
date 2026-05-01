@@ -11673,6 +11673,23 @@
     'cross-linked
     #f
     #f))
+
+  (check-false
+   (direct-letrec-representation-summary-has-entry?
+    (direct-letrec-representation-analysis-summary
+     #'(letrec ([a (letrec ([b (lambda () (lambda () c))]
+                            [d (b)])
+                     d)]
+                [c (cons 1 2)])
+         (a)))
+    'b.2
+    'direct
+    #t
+    '()
+    '()
+    'none
+    #t
+    #t))
   )
 
 
@@ -15559,7 +15576,45 @@
                                              #f
                                              (even? (- n 1))))])
                          (even? 4))))])
-    (check-true (module-has-direct-label-call? mod))))
+    (check-true (module-has-direct-label-call? mod)))
+
+  (let ([mod (parameterize ([current-enable-cc-analysis? #t])
+               (comp #'(letrec ([x 12]
+                                [f (lambda () x)])
+                         (f))))])
+    (check-true (module-has-direct-label-call? mod))
+    (check-true (module-has-local-closure-allocation? mod)))
+
+  (let ([mod (parameterize ([current-enable-cc-analysis? #t])
+               (comp #'(letrec ([a (letrec ([b (lambda () (lambda () c))]
+                                            [d (b)])
+                                     d)]
+                                [c (cons 1 2)])
+                         (a))))])
+    (check-true (module-has-direct-label-call? mod))
+    (check-true (module-has-local-closure-allocation? mod)))
+
+  (let ([mod (parameterize ([current-enable-cc-analysis? #t])
+               (comp #'(letrec ([even? (lambda (n)
+                                         (if (zero? n)
+                                             #t
+                                             (odd? (- n 1))))]
+                                [odd?  (lambda (n)
+                                         (if (zero? n)
+                                             #f
+                                             (even? (- n 1))))])
+                         (even? 4))))])
+    (check-true (module-has-direct-label-call? mod))
+    (check-true (module-has-local-closure-allocation? mod)))
+
+  (let ([mod (parameterize ([current-enable-cc-analysis? #t])
+               (comp #'(letrec ([loop (lambda xs
+                                        (if (null? xs)
+                                            0
+                                            (loop)))])
+                         (loop 1))))])
+    (check-false (module-has-direct-label-call? mod))
+    (check-true  (module-has-local-closure-allocation? mod))))
   
 (define (comp-- stx)
   (reset-counter!)
