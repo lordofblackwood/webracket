@@ -1,5 +1,10 @@
 #lang racket/base
 
+;; Tip:
+;;   Prebuild the command-line driver before running this benchmark:
+;;     raco make webracket.rkt
+;;   This keeps the reported compile times focused on the benchmarked runs.
+
 (require racket/file
          racket/format
          racket/list
