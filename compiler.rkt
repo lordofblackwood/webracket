@@ -5383,6 +5383,9 @@
           (values `(λ ,s ,f ,e0 ,e1 ...)
                   (κ-block-all κ))]))]
 
+    [(case-lambda ,s (,f ,e0 ,e1 ...))
+     (Expr `(λ ,s ,f ,e0 ,e1 ...) κ)]
+
     [(case-lambda ,s (,f ,e0 ,e1 ...) ...)
      (values `(case-lambda ,s (,f ,e0 ,e1 ...) ...)
              (κ-block-all κ))]
@@ -5468,6 +5471,10 @@
                   ''5)
     (check-equal? (test #'((lambda () 1 2)))
                   ''2)
+    (check-equal? (test #'(case-lambda [() 1]))
+                  '(#%expression
+                    (λ ()
+                      '1)))
     (check-equal? (test #'((lambda (x . y) y) 1 2 3))
                   '((λ (x y) y) '1 (list '2 '3)))
     (check-equal? (test #'(list))
@@ -13038,7 +13045,8 @@
     (- (closedapp s ab ae1 ...))
     (+ (closedapp s ca ae1 ...) => (closedapp ca ae1 ...)
        (directapp s l ar ae0 ae1 ...)  => (directapp l ar ae0 ae1 ...)
-       (selfapp s l ar ae1 ...)        => (selfapp l ar ae1 ...)))
+       (selfapp s l ar ae1 ...)        => (selfapp l ar ae1 ...)
+       (casearmapp s l ar i ae0 ae1 ...) => (casearmapp l ar i ae0 ae1 ...)))
   (ConvertedAbstraction (cab)
     (+ (λ s ar f e) => (λ f e)))
   #;(ConvertedCaseAbstraction (ccab)
@@ -13196,27 +13204,57 @@
         [(formals ,x)                  (list x)]))
 
     ;; clause-bound-abstraction : LANF CExpr -> (or/c any/c #f)
-    ;;   Recognize the simple local binding pattern x = λ.
+    ;;   Recognize the simple local binding pattern x = λ or x = case-lambda.
     (define (clause-bound-abstraction ce)
       (nanopass-case (LANF CExpr) ce
         [,ae
          (nanopass-case (LANF AExpr) ae
            [,ab  ab]
+           [,cab cab]
            [else #f])]
         [else #f]))
 
+    ;; case-abstraction-arms : LANF CaseAbstraction -> (listof LANF Abstraction)
+    ;;   Return the arms of case abstraction cab.
+    (define (case-abstraction-arms cab)
+      (nanopass-case (LANF CaseAbstraction) cab
+        [(case-lambda ,s ,ab* ...)
+         ab*]))
+
+    ;; arity-accepts-count? : integer? natural? -> boolean?
+    ;;   Check whether encoded arity ar accepts argc arguments.
+    (define (arity-accepts-count? ar argc)
+      (if (>= ar 0)
+          (= ar argc)
+          (>= argc (- (- ar) 1))))
+
+    ;; unique-case-arm-match : LANF CaseAbstraction natural?
+    ;;                      -> (or/c (list any/c natural? integer?) #f)
+    ;;   Return the uniquely matching arm, its index, and arity marker for argc,
+    ;;   or `#f` when no arm or multiple arms match.
+    (define (unique-case-arm-match cab argc)
+      (define matches
+        (for/list ([ab (in-list (case-abstraction-arms cab))]
+                   [i  (in-naturals)]
+                   #:do [(define ar (source-formals->arity (abstraction-formals ab)))]
+                   #:when (arity-accepts-count? ar argc))
+          (list ab i ar)))
+      (match matches
+        [(list match) match]
+        [_ #f]))
+
     ;; clause-direct-binding : (listof variable?) LANF CExpr -> (or/c (cons variable? any/c) #f)
-    ;;   Recognize a single-variable clause bound to a direct lambda.
+    ;;   Recognize a single-variable clause bound to a direct lambda-like helper.
     ;;
     ;; Direct calls currently reuse the existing lifted-body layout by passing
     ;; the closure value bound to x directly to the lifted label.
     (define (clause-direct-binding xs ce)
       (match xs
         [(list x)
-         (define ab (clause-bound-abstraction ce))
-         (and ab
-              (eq? (kind-of ab) 'direct)
-              (cons x ab))]
+         (define target (clause-bound-abstraction ce))
+         (and target
+              (eq? (kind-of target) 'direct)
+              (cons x target))]
         [_ #f]))
 
     ;; clause-direct-bindings : (listof (listof variable?)) (listof LANF CExpr)
@@ -13243,6 +13281,11 @@
     ;; current-direct-abstraction : (parameter/c (or/c any/c #f))
     ;;   The direct helper currently being closure-converted, if any.
     (define current-direct-abstraction
+      (make-parameter #f))
+
+    ;; current-direct-case-abstraction : (parameter/c (or/c any/c #f))
+    ;;   The direct case-lambda currently being closure-converted, if any.
+    (define current-direct-case-abstraction
       (make-parameter #f)))
   (TopLevelForm    : TopLevelForm    (T) -> TopLevelForm      ())
   (ModuleLevelForm : ModuleLevelForm (M) -> ModuleLevelForm   ())
@@ -13257,13 +13300,24 @@
      `(wcm ,s ,(AExpr ae0) ,(AExpr ae1) ,(Expr e))]
     [(app ,s ,x ,ae1 ...)
      (guard (direct-binding-of x))
-     (define ab (direct-binding-of x))
-     (define ar (source-formals->arity (abstraction-formals ab)))
+     (define target (direct-binding-of x))
      (define ae0 (AExpr x))
      (define ae* (map AExpr ae1))
-     (if (eq? ab (current-direct-abstraction))
-         `(selfapp ,s ,(label-of ab) ,ar ,ae* ...)
-         `(directapp ,s ,(label-of ab) ,ar ,ae0 ,ae* ...))]
+     (cond
+       [(and (not (eq? target (current-direct-case-abstraction)))
+             (nanopass-case (LANF CaseAbstraction) target
+               [(case-lambda ,s ,ab* ...)
+                (unique-case-arm-match target (length ae1))]
+               [else #f]))
+        => (λ (match)
+             (match-define (list ab i ar) match)
+             `(casearmapp ,s ,(label-of ab) ,ar ,i ,ae0 ,ae* ...))]
+       [else
+        (define ab target)
+        (define ar (source-formals->arity (abstraction-formals ab)))
+        (if (eq? ab (current-direct-abstraction))
+            `(selfapp ,s ,(label-of ab) ,ar ,ae* ...)
+            `(directapp ,s ,(label-of ab) ,ar ,ae0 ,ae* ...))])]
     [(app ,s ,ae ,ae1 ...)
      (define ae* (map AExpr ae1))
      `(app ,s ,(AExpr ae) ,ae* ...)]
@@ -13340,7 +13394,9 @@
      (define l  (label-of CAB))
      (let* ([fs*  (map abstraction-formals ab)]
             [ar   (map formals->arity fs*)]
-            [ab   (map Abstraction ab)]           
+            [ab   (parameterize ([current-direct-case-abstraction
+                                  (and (eq? (kind-of CAB) 'direct) CAB)])
+                    (map Abstraction ab))]           
             [E    (with-output-language (LANF+closure AExpr)
                     `(quote ,#'h ,(datum #'42 42)))]) ; TODO TODO 
        #;(case-lift! l fs* E)  ; TODO <---- is uncommenting this correct?
@@ -13547,8 +13603,9 @@
     [(if  ,s ,ae0 ,e1  ,e2)        (AExpr ae0) (Expr e1)   (Expr e2)]
     [(wcm ,s ,ae0 ,ae1 ,e)         (AExpr ae0) (AExpr ae1) (Expr e)]
     [(app ,s ,ae  ,ae1 ...)        (AExpr* (cons ae ae1))]
-    [(directapp ,s ,l ,ar ,ae0 ,ae1 ...) (AExpr* (cons ae0 ae1))]
-    [(selfapp ,s ,l ,ar ,ae1 ...)        (AExpr* ae1)]
+    [(directapp ,s ,l ,ar ,ae0 ,ae1 ...)  (AExpr* (cons ae0 ae1))]
+    [(selfapp ,s ,l ,ar ,ae1 ...)         (AExpr* ae1)]
+    [(casearmapp ,s ,l ,ar ,i ,ae0 ,ae1 ...) (AExpr* (cons ae0 ae1))]
     [(primapp   ,s ,pr ,ae1 ...)   (AExpr* ae1)]
     [(closedapp ,s ,ca ,ae1 ...)   (ClosureAllocation ca) (AExpr* ae1)]
     [(begin     ,s ,e0 ,e1 ...)    (Expr* (cons e0 e1))]
@@ -14954,6 +15011,36 @@
                                    ['<expr>             work]
                                    ['<stat>             work])]
        [y                        (Store! y work)])]
+    [(casearmapp ,s ,l ,ar ,i ,ae0 ,ae2 ...)
+     (define tc (eq? cd '<return>))
+     (define cclos
+       `(ref.cast (ref $CaseClosure) ,(AExpr3 ae0 <value>)))
+     (define clos
+       `(ref.cast (ref $Closure)
+                  (array.get $Array
+                             (struct.get $CaseClosure $arms ,cclos)
+                             (i32.const ,i))))
+     (define raw-args
+       `(array.new_fixed $Args ,(length ae2)
+                         ,@(for/list ([ae (in-list ae2)])
+                             (AExpr3 ae <value>))))
+     (define args
+       (if (negative? ar)
+           `(call $repack-arguments ,raw-args (i32.const ,ar))
+           raw-args))
+     (define work
+       (if tc
+           `(return_call ,(Label l) ,clos ,args)
+           (cond
+             [(eq? dd <value>)  `(call ,(Label l) ,clos ,args)]
+             [(eq? dd <effect>) `(drop (call ,(Label l) ,clos ,args))]
+             [else              `(call ,(Label l) ,clos ,args)])))
+     (match dd
+       [(or '<effect> '<value>)  (match cd
+                                   ['<return>           work]
+                                   ['<expr>             work]
+                                   ['<stat>             work])]
+       [y                        (Store! y work)])]
     [(wcm ,s ,ae0 ,ae1 ,e)
      ;(displayln (list 'wcm 'dd dd 'cd cd s))
      (define-values (dest dest-declaration)
@@ -16193,6 +16280,10 @@
        (for ([ae1 (in-list ae1)])
          (AExpr ae1))]
       [(selfapp ,s ,l ,ar ,ae1 ...)
+        (for ([ae1 (in-list ae1)])
+          (AExpr ae1))]
+      [(casearmapp ,s ,l ,ar ,i ,ae0 ,ae1 ...)
+       (AExpr ae0)
        (for ([ae1 (in-list ae1)])
          (AExpr ae1))]
       [(primapp ,s ,pr ,ae1 ...)
@@ -16459,6 +16550,15 @@
         [_ #f]))
     (sexp-any? selfapp-form? cc-sexp))
 
+  (define (closure-converted-has-casearmapp? stx)
+    (define cc-sexp
+      (unparse-all (unparse-LANF+closure (closure-converted stx))))
+    (define (casearmapp-form? x)
+      (match x
+        [(list 'casearmapp _ ...) #t]
+        [_ #f]))
+    (sexp-any? casearmapp-form? cc-sexp))
+
   ;; closure-converted-direct-letrec-closure-summary : syntax? -> (listof list?)
   ;;   Summarize direct letrec closures after closure conversion.
   #;(define (closure-converted-direct-letrec-closure-summary stx)
@@ -16531,6 +16631,18 @@
          (for ([ae1 (in-list ae1)])
            (AExpr ae1))]
         [(selfapp ,s ,l ,ar ,ae1 ...)
+         (for ([ae1 (in-list ae1)])
+           (AExpr ae1))]
+        [(casearmapp ,s ,l ,ar ,i ,ae0 ,ae1 ...)
+         (AExpr ae0)
+         (for ([ae1 (in-list ae1)])
+           (AExpr ae1))]
+        [(casearmapp ,s ,l ,ar ,i ,ae0 ,ae1 ...)
+         (AExpr ae0)
+         (for ([ae1 (in-list ae1)])
+           (AExpr ae1))]
+        [(casearmapp ,s ,l ,ar ,i ,ae0 ,ae1 ...)
+         (AExpr ae0)
          (for ([ae1 (in-list ae1)])
            (AExpr ae1))]
         [(primapp ,s ,pr ,ae1 ...)
@@ -16854,10 +16966,47 @@
    (closure-converted-has-directapp? #'(let ([f (lambda (x) x)])
                                      (f 2))))
 
+  (check-true
+   (closure-converted-has-casearmapp? #'(let ([f (case-lambda
+                                                   [() 1]
+                                                   [(x) x])])
+                                       (f 2))))
+
+  (check-true
+   (closure-converted-has-casearmapp? #'(let ([f (case-lambda
+                                                   [xs xs])])
+                                       (f 1 2 3))))
+
+  (check-false
+   (closure-converted-has-casearmapp? #'(let ([f (case-lambda
+                                                   [(x) x]
+                                                   [xs xs])])
+                                       (f 2))))
+
   (let ([mod (parameterize ([current-enable-cc-analysis? #t])
                (comp #'(let ([f (lambda (x) x)])
                          (f 2))))])
     (check-true (module-has-direct-label-call? mod)))
+
+  (let ([mod (parameterize ([current-enable-cc-analysis? #t])
+               (comp #'(let ([f (case-lambda
+                                  [() 1]
+                                  [(x) x])])
+                         (f 2))))])
+    (check-true (module-has-direct-label-call? mod)))
+
+  (let ([mod (parameterize ([current-enable-cc-analysis? #t])
+               (comp #'(let ([f (case-lambda
+                                  [xs xs])])
+                         (f 1 2 3))))])
+    (check-true (module-has-direct-label-call? mod)))
+
+  (let ([mod (parameterize ([current-enable-cc-analysis? #t])
+               (comp #'(let ([f (case-lambda
+                                  [(x) x]
+                                  [xs xs])])
+                         (f 2))))])
+    (check-false (module-has-direct-label-call? mod)))
 
   (check-true
    (closure-converted-has-directapp? #'(letrec ([loop (lambda (n)
