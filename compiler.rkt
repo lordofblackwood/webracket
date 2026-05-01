@@ -11120,7 +11120,8 @@
   (CExpr (ce)
     (- (closedapp s ab ae1 ...))
     (+ (closedapp s ca ae1 ...) => (closedapp ca ae1 ...)
-       (directapp s l ae0 ae1 ...)  => (directapp l ae0 ae1 ...)))
+       (directapp s l ae0 ae1 ...)  => (directapp l ae0 ae1 ...)
+       (selfapp s l ae1 ...)        => (selfapp l ae1 ...)))
   (ConvertedAbstraction (cab)
     (+ (λ s ar f e) => (λ f e)))
   #;(ConvertedCaseAbstraction (ccab)
@@ -11284,7 +11285,12 @@
     ;; current-direct-env : (parameter/c free-id-table?)
     ;;   Direct-callable local lambdas in lexical scope.
     (define current-direct-env
-      (make-parameter (env-empty))))
+      (make-parameter (env-empty)))
+
+    ;; current-direct-abstraction : (parameter/c (or/c any/c #f))
+    ;;   The direct helper currently being closure-converted, if any.
+    (define current-direct-abstraction
+      (make-parameter #f)))
   (TopLevelForm    : TopLevelForm    (T) -> TopLevelForm      ())
   (ModuleLevelForm : ModuleLevelForm (M) -> ModuleLevelForm   ())
   (CExpr : CExpr (CE) -> CExpr ()
@@ -11301,7 +11307,9 @@
      (define ab (direct-binding-of x))
      (define ae0 (AExpr x))
      (define ae* (map AExpr ae1))
-     `(directapp ,s ,(label-of ab) ,ae0 ,ae* ...)]
+     (if (eq? ab (current-direct-abstraction))
+         `(selfapp ,s ,(label-of ab) ,ae* ...)
+         `(directapp ,s ,(label-of ab) ,ae0 ,ae* ...))]
     [(app ,s ,ae ,ae1 ...)
      (define ae* (map AExpr ae1))
      `(app ,s ,(AExpr ae) ,ae* ...)]
@@ -11333,12 +11341,12 @@
                          (env-bind* (current-direct-env) xs abs)])
            (Expr e)))]
     [(letrec-values ,s (((,x ...) ,ce*) ...) ,e)
-     (define ce**  (map CExpr ce*))
      (define pairs (reverse (clause-direct-bindings x ce*)))
      (define xs    (map car pairs))
      (define abs   (map cdr pairs))
      (parameterize ([current-direct-env
                      (env-bind* (current-direct-env) xs abs)])
+       (define ce**  (map CExpr ce*))
        `(letrec-values ,s
           ([(,x ...) ,ce**] ...)
           ,(Expr e)))])
@@ -11348,6 +11356,8 @@
      (define k  (kind-of AB))
      (let ([xs (closure-env-aexprs-of AB)]
            [e  (parameterize ([current-free (body-layout-of AB)]
+                              [current-direct-abstraction
+                               (and (eq? k 'direct) AB)]
                               [current-direct-env
                                (env-shadow* (current-direct-env)
                                             (formals->variables (abstraction-formals AB)))])
@@ -11580,6 +11590,7 @@
     [(wcm ,s ,ae0 ,ae1 ,e)         (AExpr ae0) (AExpr ae1) (Expr e)]
     [(app ,s ,ae  ,ae1 ...)        (AExpr* (cons ae ae1))]
     [(directapp ,s ,l ,ae0 ,ae1 ...) (AExpr* (cons ae0 ae1))]
+    [(selfapp ,s ,l ,ae1 ...)        (AExpr* ae1)]
     [(primapp   ,s ,pr ,ae1 ...)   (AExpr* ae1)]
     [(closedapp ,s ,ca ,ae1 ...)   (ClosureAllocation ca) (AExpr* ae1)]
     [(begin     ,s ,e0 ,e1 ...)    (Expr* (cons e0 e1))]
@@ -12957,6 +12968,25 @@
                                    ['<expr>             work]
                                    ['<stat>             work])]
        [y                        (Store! y work)])]
+    [(selfapp ,s ,l ,ae2 ...)
+     (define tc (eq? cd '<return>))
+     (define args
+       `(array.new_fixed $Args ,(length ae2)
+                         ,@(for/list ([ae (in-list ae2)])
+                             (AExpr3 ae <value>))))
+     (define work
+       (if tc
+           `(return_call ,(Label l) (local.get $clos) ,args)
+           (cond
+             [(eq? dd <value>)  `(call ,(Label l) (local.get $clos) ,args)]
+             [(eq? dd <effect>) `(drop (call ,(Label l) (local.get $clos) ,args))]
+             [else              `(call ,(Label l) (local.get $clos) ,args)])))
+     (match dd
+       [(or '<effect> '<value>)  (match cd
+                                   ['<return> `(return ,work)]
+                                   ['<expr>             work]
+                                   ['<stat>             work])]
+       [y                        (Store! y work)])]
     [(wcm ,s ,ae0 ,ae1 ,e)
      ;(displayln (list 'wcm 'dd dd 'cd cd s))
      (define-values (dest dest-declaration)
@@ -14029,6 +14059,15 @@
         [_ #f]))
     (sexp-any? directapp-form? cc-sexp))
 
+  (define (closure-converted-has-selfapp? stx)
+    (define cc-sexp
+      (unparse-all (unparse-LANF+closure (closure-converted stx))))
+    (define (selfapp-form? x)
+      (match x
+        [(list 'selfapp _ ...) #t]
+        [_ #f]))
+    (sexp-any? selfapp-form? cc-sexp))
+
   (let-values ([(mod report)
                 (compile/primitive-report #'(module tree-shake-acos webracket
                                                    (acos 0.0)))])
@@ -14098,6 +14137,13 @@
                                                         (if (zero? n)
                                                             0
                                                             (loop (- n 1))))])
+                                     (loop 2))))
+
+  (check-true
+   (closure-converted-has-selfapp? #'(letrec ([loop (lambda (n)
+                                                      (if (zero? n)
+                                                          0
+                                                          (loop (- n 1))))])
                                      (loop 2))))
 
   (let ([mod (parameterize ([current-enable-cc-analysis? #t])
