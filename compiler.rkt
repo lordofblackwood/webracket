@@ -11335,6 +11335,77 @@
     [else
      'multiple-nontrivial]))
 
+;; direct-letrec-allocation-order : (listof symbol?) (listof (list/c symbol? symbol?))
+;;                               -> (listof symbol?)
+;;   Return a source-stable SCC-aware allocation order that places dependency
+;;   providers before helpers that store links to them.
+(define (direct-letrec-allocation-order binders edges)
+  (define binder-rank-ht
+    (for/hasheq ([binder (in-list binders)]
+                 [i (in-naturals)])
+      (values binder i)))
+  (define sccs
+    (direct-letrec-sccs binders edges))
+  (define scc-index-ht
+    (for*/hasheq ([(scc i) (in-indexed (in-list sccs))]
+                  [binder (in-list scc)])
+      (values binder i)))
+  (define scc-rank
+    (for/vector #:length (length sccs) ([scc (in-list sccs)])
+      (apply min
+             (for/list ([binder (in-list scc)])
+               (hash-ref binder-rank-ht binder)))))
+  (define precedence-edges
+    (remove-duplicates
+     (for/list ([edge (in-list edges)]
+                #:do [(define from-i (hash-ref scc-index-ht (first edge)))
+                      (define to-i   (hash-ref scc-index-ht (second edge)))]
+                #:when (not (= from-i to-i)))
+       (list to-i from-i))))
+  (define indegree
+    (make-vector (length sccs) 0))
+  (for ([edge (in-list precedence-edges)])
+    (vector-set! indegree
+                 (second edge)
+                 (add1 (vector-ref indegree (second edge)))))
+  (define ordered-sccs '())
+  (define ready
+    (sort
+     (for/list ([i (in-range (length sccs))]
+                #:when (zero? (vector-ref indegree i)))
+       i)
+     <
+     #:key (λ (i) (vector-ref scc-rank i))))
+  (let loop ([ready ready]
+             [seen  0]
+             [ordered-sccs '()])
+    (cond
+      [(null? ready)
+       (unless (= seen (length sccs))
+         (error 'direct-letrec-allocation-order
+                "internal error: cyclic SCC condensation graph"))
+       (append*
+        (for/list ([scc-i (in-list (reverse ordered-sccs))])
+          (sort (list-ref sccs scc-i)
+                <
+                #:key (λ (binder) (hash-ref binder-rank-ht binder)))))]
+      [else
+       (define i (car ready))
+       (define ready-rest (cdr ready))
+       (define newly-ready
+         (for/list ([edge (in-list precedence-edges)]
+                    #:when (= (first edge) i)
+                    #:do [(define j (second edge))
+                          (define new-degree (sub1 (vector-ref indegree j)))
+                          (vector-set! indegree j new-degree)]
+                    #:when (zero? (vector-ref indegree (second edge))))
+           (second edge)))
+       (loop (sort (remove-duplicates (append ready-rest newly-ready))
+                   <
+                   #:key (λ (idx) (vector-ref scc-rank idx)))
+             (add1 seen)
+             (cons i ordered-sccs))])))
+
 ;; summarize-direct-letrec-dependency-closure-conversion-analysis : LANF
 ;;                                                             -> (listof list?)
 ;;   Return a compact summary of current direct-letrec dependency graphs, using
@@ -12214,6 +12285,11 @@
   (check-equal? (letrec-allocation-mode #t  #f)  'final-only)
 
   (check-equal? (letrec-allocation-mode #f #f)  'patched)
+
+  (check-equal?
+   (direct-letrec-allocation-order '(a b c)
+                                   '((a b) (b c) (c b)))
+   '(b c a))
 
   (check-true  (direct-letrec-representation-candidate? 'direct #t '() 'none))
 
@@ -14663,10 +14739,6 @@
      (define x* (map first x**)) ; assumes single value
      (define letrec-binders
        (map (λ (x) (syntax-e (variable-id x))) x*))
-     (define letrec-binder-index-ht
-       (for/hasheq ([x (in-list x*)]
-                    [i (in-naturals)])
-         (values (syntax-e (variable-id x)) i)))
 
      ;; letrec-binder-index : variable? -> natural?
      ;;   Return the allocation order index of x in the current letrec group.
@@ -14703,6 +14775,39 @@
        (for/list ([ae (in-list ae*)]
                   #:when (letrec-local-var? ae))
          (syntax-e (variable-id ae))))
+
+     (define (letrec-closure-links/closure ca)
+       (nanopass-case (LANF+closure AExpr) ca
+         [(closure ,s ,k ,in ,l ,ar ,ae1 ...)
+          (letrec-local-free-vars ae1)]
+         [else
+          '()]))
+
+     (define letrec-edges
+       (append*
+        (for/list ([x  (in-list x*)]
+                   [ce (in-list ce*)])
+          (define from (syntax-e (variable-id x)))
+          (for/list ([to (in-list (letrec-closure-links/closure ce))])
+            (list from to)))))
+
+     (define letrec-allocation-binders
+       (direct-letrec-allocation-order letrec-binders letrec-edges))
+
+     (define binder->clause
+       (for/hasheq ([x (in-list x*)]
+                    [ce (in-list ce*)])
+         (values (syntax-e (variable-id x))
+                 (list x ce))))
+
+     (define ordered-clauses
+       (for/list ([binder (in-list letrec-allocation-binders)])
+         (hash-ref binder->clause binder)))
+
+     (define letrec-binder-index-ht
+       (for/hasheq ([binder (in-list letrec-allocation-binders)]
+                    [i (in-naturals)])
+         (values binder i)))
 
      ;; closure-payload-vars : (listof any/c) -> (listof symbol?)
      ;;   Extract all variable payload entries stored in a closure environment.
@@ -14920,7 +15025,8 @@
                      [else
                       (Store! x u)]))
                ,@(append*
-                   (for/list ([ce ce*] [x x*])
+                   (for/list ([clause (in-list ordered-clauses)])
+                    (match-define (list x ce) clause)
                     (define allocation-mode
                       (active-letrec-closure-allocation-mode/closure ce x))
                     (cond
@@ -14931,7 +15037,8 @@
                       [else
                        (list (AllocateClosure ce x))])))
                ,@(append*
-                   (for/list ([ce ce*] [x x*])
+                   (for/list ([clause (in-list ordered-clauses)])
+                    (match-define (list x ce) clause)
                     (define allocation-mode
                       (active-letrec-closure-allocation-mode/closure ce x))
                     (cond
@@ -16693,6 +16800,16 @@
                                                y
                                                (even? (- n 1))))])
                            (even? 4)))))])
+    (check-true (module-has-direct-label-call? mod))
+    (check-true (module-has-local-closure-allocation? mod))
+    (check-equal? (module-count-local-closure-shell-allocations mod) 0)
+    (check-equal? (module-count-free-patch-writes mod) 1))
+
+  (let ([mod (parameterize ([current-enable-cc-analysis? #t])
+               (comp #'(letrec ([a (lambda () (b))]
+                                [b (lambda () (c))]
+                                [c (lambda () (b))])
+                         (a))))])
     (check-true (module-has-direct-label-call? mod))
     (check-true (module-has-local-closure-allocation? mod))
     (check-equal? (module-count-local-closure-shell-allocations mod) 0)
