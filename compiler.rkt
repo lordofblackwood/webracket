@@ -10921,6 +10921,17 @@
     [else
      xs]))
 
+;; direct-self-recursive? : any/c (hasheq/c any/c id-set?) (hasheq/c any/c (or/c variable? #f)) -> boolean?
+;;   Check whether ab's own binder occurs in its raw free-variable set.
+(define (direct-self-recursive? ab free-ht binder-ht)
+  (match (hash-ref binder-ht ab #f)
+    [#f #f]
+    [x  (define binder-sym (syntax-e (variable-id x)))
+        (member binder-sym
+                (map syntax-e
+                     (map variable-id
+                          (id-set->list (hash-ref free-ht ab empty-set)))))]))
+
 ;; direct-letrec-layout-links : (listof symbol?) (listof symbol?) -> (listof symbol?)
 ;;   Return the current closure-layout links from a helper back into its letrec group.
 (define (direct-letrec-layout-links free-vars letrec-binders)
@@ -11647,6 +11658,21 @@
     'none
     #t
     #f))
+
+  (check-false
+   (direct-letrec-representation-summary-has-entry?
+    (direct-letrec-representation-analysis-summary
+     #'(letrec ([x 12]
+                [f (lambda () x)])
+         (f)))
+    'f.2
+    'direct
+    #t
+    '(x.1)
+    '(x.1)
+    'cross-linked
+    #f
+    #f))
   )
 
 
@@ -11675,6 +11701,7 @@
             binder-ht
             extended-ht _direct-callees-ht)
          (closure-conversion-analysis T))
+    (current-direct-letrec-representation-labels (make-hasheq))
     #;(pretty-print free-ht)
     (for ([ab abs])
       (add-label! ab))
@@ -11785,6 +11812,17 @@
     ;;   Convert ab's closure environment variables to closure-converted aexprs.
     (define (closure-env-aexprs-of ab)
       (map AExpr (closure-env-of ab)))
+
+    ;; direct-letrec-representation-eligible/local? : any/c -> boolean?
+    ;;   Check whether ab fits the currently enabled tiny direct-letrec
+    ;;   representation: fixed-arity, direct, self-recursive, and empty layout.
+    (define (direct-letrec-representation-eligible/local? ab)
+      (and (current-enable-cc-analysis?)
+           (eq? (kind-of ab) 'direct)
+           (abstraction-fixed-arity? ab)
+           (direct-self-recursive? ab free-ht binder-ht)
+           (direct-self-binder-removable/local? ab)
+           (null? (body-layout-of ab))))
 
     (define (index-of x free)
       (define (x? y) (id=? x y))
@@ -11984,6 +12022,10 @@
     [(λ ,s ,[f] ,e)
      (define l  (label-of AB))
      (define k  (kind-of AB))
+     (when (direct-letrec-representation-eligible/local? AB)
+       (hash-set! (current-direct-letrec-representation-labels)
+                  (syntax-e (variable-id l))
+                  #t))
      (let ([xs (closure-env-aexprs-of AB)]
            [e  (parameterize ([current-free (body-layout-of AB)]
                               [current-direct-abstraction
@@ -12400,6 +12442,7 @@
 (define current-label-map (make-parameter '()))
 (define current-label-form-ht (make-parameter (make-hash)))
 (define current-label-map-include-form? (make-parameter #t))
+(define current-direct-letrec-representation-labels (make-parameter (make-hasheq)))
 (define (reset-label-map!)
   (current-label-map '())
   (current-label-form-ht (make-hash))
@@ -13573,7 +13616,7 @@
                   ,invoke)]))
           (match dd
             [(or '<effect> '<value>)  (match cd
-                                        ['<return> `(return ,work)]
+                                        ['<return>           work]
                                         ['<expr>             work]
                                         ['<stat>             work])]
             [y                        (Store! y work)])]))]
@@ -13594,7 +13637,7 @@
              [else              `(call ,(Label l) ,clos ,args)])))
      (match dd
        [(or '<effect> '<value>)  (match cd
-                                   ['<return> `(return ,work)]
+                                   ['<return>           work]
                                    ['<expr>             work]
                                    ['<stat>             work])]
        [y                        (Store! y work)])]
@@ -13613,7 +13656,7 @@
              [else              `(call ,(Label l) (local.get $clos) ,args)])))
      (match dd
        [(or '<effect> '<value>)  (match cd
-                                   ['<return> `(return ,work)]
+                                   ['<return>           work]
                                    ['<expr>             work]
                                    ['<stat>             work])]
        [y                        (Store! y work)])]
@@ -13744,6 +13787,13 @@
                   #:when (letrec-local-var? ae))
          (syntax-e (variable-id ae))))
 
+     ;; closure-payload-vars : (listof any/c) -> (listof symbol?)
+     ;;   Extract all variable payload entries stored in a closure environment.
+     (define (closure-payload-vars ae*)
+       (for/list ([ae (in-list ae*)]
+                  #:when (variable? ae))
+         (syntax-e (variable-id ae))))
+
      ;; letrec-closure-allocation-info : symbol? variable? (listof any/c)
      ;;                                -> (values (listof symbol?) symbol? boolean?)
      ;;   Compute letrec allocation info for one closure payload in this letrec group.
@@ -13820,21 +13870,17 @@
      (define (direct-letrec-representation-candidate/closure? ca x)
        (nanopass-case (LANF+closure AExpr) ca
          [(closure ,s ,k ,in ,l ,ar ,ae1 ...)
-          (define free-vars
-            (letrec-local-free-vars ae1))
-          (define-values (_links patching-kind _eligible?)
-            (letrec-closure-allocation-info k x ae1))
-          (and (current-enable-cc-analysis?)
-               (direct-letrec-representation-candidate? k (and (integer? ar) (>= ar 0)) free-vars patching-kind))]
+          (hash-ref (current-direct-letrec-representation-labels)
+                    (syntax-e (variable-id l))
+                    #f)]
          [else
           #f]))
 
      ;; direct-letrec-representation? : LANF+closure AExpr variable? -> boolean?
-     ;;   Reserved hook for a future letrec helper representation that bypasses
-     ;;   ordinary closure allocation entirely. No such representation is emitted yet.
+     ;;   Check whether ca can reuse `$dummy-closure` instead of allocating a
+     ;;   local closure object in this letrec group.
      (define (direct-letrec-representation? ca x)
-       (and #f
-            (direct-letrec-representation-candidate/closure? ca x)))
+       (direct-letrec-representation-candidate/closure? ca x))
 
      (define (FillClosure ca dd)
        ; Fill in the $free array
@@ -13878,8 +13924,12 @@
                    ['<effect> (list)]
                    ['<value>  (list '(result (ref eq)))]
                    [x         (list)])
-               ,@(for/list ([x x*] [u u*])
-                   (Store! x u))
+               ,@(for/list ([ce ce*] [x x*] [u u*])
+                   (cond
+                     [(direct-letrec-representation? ce x)
+                      (Store! x '(global.get $dummy-closure))]
+                     [else
+                      (Store! x u)]))
                ,@(append*
                    (for/list ([ce ce*] [x x*])
                     (cond
@@ -14826,6 +14876,15 @@
         [_ #f]))
     (sexp-any? local-closure-shell-allocation? mod))
 
+  (define (module-has-local-closure-allocation? mod)
+    (define (local-closure-allocation? x)
+      (match x
+        [(list 'local.set _
+               (list 'struct.new '$Closure _ ...))
+         #t]
+        [_ #f]))
+    (sexp-any? local-closure-allocation? mod))
+
   (define (compile/primitive-report stx)
     (define dump-dir (make-temporary-file "webracket-tree-shaker~a" 'directory))
     (define mod
@@ -14898,117 +14957,6 @@
         [(list 'selfapp _ ...) #t]
         [_ #f]))
     (sexp-any? selfapp-form? cc-sexp))
-
-  ;; closure-converted-direct-letrec-closure-summary : syntax? -> (listof list?)
-  ;;   Summarize direct letrec closures after closure conversion.
-  #;(define (closure-converted-direct-letrec-closure-summary stx)
-    (define entries '())
-    (define cc (closure-converted stx))
-    (define-pass collect : LANF+closure (T) -> * ()
-      (TopLevelForm : TopLevelForm (T) -> * ()
-        [(topbegin ,s ,t ...)
-         (for ([t (in-list t)])
-           (TopLevelForm t))]
-        [(topmodule ,s ,mn ,mp ,mf ...)
-         (for ([m (in-list mf)])
-           (ModuleLevelForm m))]
-        [(#%expression ,s ,e)
-         (Expr e)]
-        [,g
-         (GeneralTopLevelForm g)])
-      (ModuleLevelForm : ModuleLevelForm (M) -> * ()
-        [(#%provide ,rps ...)
-         (void)]
-        [,g
-         (GeneralTopLevelForm g)])
-      (GeneralTopLevelForm : GeneralTopLevelForm (G) -> * ()
-        [(define-values ,s (,x ...) ,e)
-         (Expr e)]
-        [(define-syntaxes ,s (,x ...) ,e)
-         (Expr e)]
-        [(#%require ,s ,rrs ...)
-         (void)]
-        [,e
-         (Expr e)])
-      (ClosureAllocation : ClosureAllocation (CA x) -> * ()
-        [(closure ,s ,k ,in ,l ,ar ,ae1 ...)
-         (when (eq? k 'direct)
-           (set! entries
-                 (cons (list (syntax-e (variable-id x))
-                             k
-                             ar
-                             (length ae1))
-                       entries)))]
-        [(case-closure ,s ,in ,l [,ar ,ca] ...)
-         (for ([ca (in-list ca)])
-           (ClosureAllocation ca x))])
-      (AExpr : AExpr (AE) -> * ()
-        [else
-         (void)])
-      (CExpr : CExpr (CE) -> * ()
-        [,ae
-         (AExpr ae)]
-        [(set! ,s ,x ,ae)
-         (AExpr ae)]
-        [(if ,s ,ae0 ,e1 ,e2)
-         (AExpr ae0)
-         (Expr e1)
-         (Expr e2)]
-        [(wcm ,s ,ae0 ,ae1 ,e)
-         (AExpr ae0)
-         (AExpr ae1)
-         (Expr e)]
-        [(app ,s ,ae ,ae1 ...)
-         (AExpr ae)
-         (for ([ae1 (in-list ae1)])
-           (AExpr ae1))]
-        [(closedapp ,s ,ca ,ae1 ...)
-         (AExpr ca)
-         (for ([ae1 (in-list ae1)])
-           (AExpr ae1))]
-        [(directapp ,s ,l ,ae0 ,ae1 ...)
-         (AExpr ae0)
-         (for ([ae1 (in-list ae1)])
-           (AExpr ae1))]
-        [(selfapp ,s ,l ,ae1 ...)
-         (for ([ae1 (in-list ae1)])
-           (AExpr ae1))]
-        [(primapp ,s ,pr ,ae1 ...)
-         (for ([ae1 (in-list ae1)])
-           (AExpr ae1))]
-        [(begin ,s ,e0 ,e1 ...)
-         (Expr e0)
-         (for ([e (in-list e1)])
-           (Expr e))]
-        [(begin0 ,s ,e0 ,e1 ...)
-         (Expr e0)
-         (for ([e (in-list e1)])
-           (Expr e))])
-      (Expr : Expr (E) -> * ()
-        [,ce
-         (CExpr ce)]
-        [(let-values ,s (((,x ...) ,ce*) ...) ,e)
-         (for ([ce (in-list ce*)])
-           (CExpr ce))
-         (Expr e)]
-        [(letrec-values ,s (((,x ...) ,ce*) ...) ,e)
-         (for ([xs (in-list x)]
-               [ce (in-list ce*)]
-               #:when (= (length xs) 1))
-           (nanopass-case (LANF+closure CExpr) ce
-             [,ca
-              (nanopass-case (LANF+closure AExpr) ca
-                [,clos
-                 (ClosureAllocation clos (car xs))]
-                [else
-                 (void)])]
-             [else
-              (void)]))
-         (for ([ce (in-list ce*)])
-           (CExpr ce))
-         (Expr e)]))
-    (collect cc)
-    (reverse entries)))
 
   ;; closure-converted-direct-letrec-closure-summary : syntax? -> (listof list?)
   ;;   Summarize direct letrec closures after closure conversion.
@@ -15431,6 +15379,7 @@
                                             (loop (- n 1))))])
                          (loop 2))))])
     (check-true  (module-has-direct-label-call? mod))
+    (check-false (module-has-local-closure-allocation? mod))
     (check-false (module-has-local-closure-shell-allocation? mod)))
 
   (let ([mod (parameterize ([current-enable-cc-analysis? #t])
@@ -15515,6 +15464,15 @@
         [_ #f]))
     (sexp-any? local-closure-shell-allocation? mod))
 
+  (define (module-has-local-closure-allocation? mod)
+    (define (local-closure-allocation? x)
+      (match x
+        [(list 'local.set _
+               (list 'struct.new '$Closure _ ...))
+         #t]
+        [_ #f]))
+    (sexp-any? local-closure-allocation? mod))
+
   (define (closure-converted stx)
     (reset-counter!)
     (define p0  (parse (unexpand (topexpand stx))))
@@ -15588,6 +15546,7 @@
                                             (loop (- n 1))))])
                          (loop 2))))])
     (check-true  (module-has-direct-label-call? mod))
+    (check-false (module-has-local-closure-allocation? mod))
     (check-false (module-has-local-closure-shell-allocation? mod)))
 
   (let ([mod (parameterize ([current-enable-cc-analysis? #t])
