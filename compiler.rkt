@@ -11064,6 +11064,31 @@
     (define (kind-of ab)  (hash-ref kind-ht ab 'closed))
     (define (extended-of ab)
       (id-set->list (hash-ref extended-ht ab empty-set)))
+
+    ;; body-layout-of : any/c -> (listof variable?)
+    ;;   Return the environment layout currently used by the lifted body of ab.
+    ;;   Today this is still ordinary free variables. A future step can change
+    ;;   this helper to use extended-layout information for direct helpers.
+    (define (body-layout-of ab)
+      (free-of ab))
+
+    ;; closure-env-of : any/c -> (listof variable?)
+    ;;   Return the variables stored in ab's closure record.
+    (define (closure-env-of ab)
+      (free-of ab))
+
+    ;; closure-env-aexprs-of : any/c -> (listof any/c)
+    ;;   Convert ab's closure environment variables to closure-converted aexprs.
+    (define (closure-env-aexprs-of ab)
+      (map AExpr (closure-env-of ab)))
+
+    ;; direct-layout-compatible? : any/c -> boolean?
+    ;;   Check whether ab can safely reuse the current lifted-body layout in a
+    ;;   dummy-closure direct call.
+    (define (direct-layout-compatible? ab)
+      (and (null? (body-layout-of ab))
+           (null? (closure-env-of ab))))
+
     (define (index-of x free)
       (define (x? y) (id=? x y))
       (index-where free x?))
@@ -11162,15 +11187,15 @@
     ;;   with no free variables.
     ;;
     ;; The stronger `extended-of` analysis is available now, but direct calls
-    ;; still share closure-converted bodies that are laid out using `free-of`.
-    ;; Until those two views are reconciled, keep this rewrite conservative.
+    ;; still share closure-converted bodies whose environment layout comes from
+    ;; `body-layout-of`. Until that layout changes, keep this rewrite conservative.
     (define (clause-direct-binding xs ce)
       (match xs
         [(list x)
          (define ab (clause-bound-abstraction ce))
          (and ab
               (eq? (kind-of ab) 'direct)
-              (null? (free-of ab))
+              (direct-layout-compatible? ab)
               (let ([ar (source-formals->arity (abstraction-formals ab))])
                 (and (integer? ar)
                      (>= ar 0)
@@ -11257,8 +11282,8 @@
     [(λ ,s ,[f] ,e)
      (define l  (label-of AB))
      (define k  (kind-of AB))
-     (let ([xs (map AExpr (free-of AB))]
-           [e  (parameterize ([current-free (free-of AB)]
+     (let ([xs (closure-env-aexprs-of AB)]
+           [e  (parameterize ([current-free (body-layout-of AB)]
                               [current-direct-env
                                (env-shadow* (current-direct-env)
                                             (formals->variables (abstraction-formals AB)))])
