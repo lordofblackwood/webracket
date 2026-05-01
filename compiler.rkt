@@ -10934,6 +10934,18 @@
   (filter (λ (y) (member y letrec-binders))
           free-vars))
 
+;; direct-letrec-patching-kind : symbol? (or/c symbol? #f) (listof symbol?) -> symbol?
+;;   Classify the current letrec patching need for one helper.
+(define (direct-letrec-patching-kind kind binder links)
+  (cond
+    [(not (eq? kind 'direct)) 'non-direct]
+    [(null? links)            'none]
+    [(and binder
+          (equal? links (list binder)))
+     'self-only]
+    [else
+     'cross-linked]))
+
 ;; summarize-direct-self-binder-closure-conversion-analysis : LANF
 ;;                                                        -> (listof list?)
 ;;   Return a compact summary of direct helpers that can drop their own binder.
@@ -10976,13 +10988,19 @@
       (define binder-sym (syntax-e (variable-id x)))
       (define free-vars  (direct-helper-layout-free-vars ab free-ht kind-ht binder-ht))
       (define kind (hash-ref kind-ht ab 'closed))
+      (define links
+        (direct-letrec-layout-links free-vars letrec-binders))
+      (define patching-kind
+        (direct-letrec-patching-kind kind binder-sym links))
       (define eligible?
-        (direct-letrec-allocation-eligible? kind free-vars letrec-binders))
+        (eq? patching-kind 'none))
       (set! entries
             (cons (list binder-sym
                         (label-name labels-ht ab)
                         kind
                         free-vars
+                        links
+                        patching-kind
                         eligible?)
                   entries)))
     (define-pass collect : LANF (T) -> * ()
@@ -11104,12 +11122,15 @@
       (define kind (hash-ref kind-ht ab 'closed))
       (define links
         (direct-letrec-layout-links free-vars letrec-binders))
+      (define patching-kind
+        (direct-letrec-patching-kind kind binder-sym links))
       (set! entries
             (cons (list binder-sym
                         (label-name labels-ht ab)
                         kind
                         free-vars
-                        links)
+                        links
+                        patching-kind)
                   entries)))
     (define-pass collect : LANF (T) -> * ()
       (TopLevelForm : TopLevelForm (T) -> * ()
@@ -11214,9 +11235,9 @@
   (require rackunit
            "expander.rkt")
 
-  ;; closure-analysis-summary : syntax? -> (listof list?)
-  ;;   Run the pipeline up to LANF and summarize closure-conversion analysis.
-  (define (closure-analysis-summary stx)
+  ;; analyze-with-cc-summary : syntax? (LANF -> any/c) -> any/c
+  ;;   Run the frontend pipeline up to LANF with cc-analysis enabled, then summarize.
+  (define (analyze-with-cc-summary stx summarize)
     (reset-counter!)
     (define p0  (parse (unexpand (topexpand stx))))
     (define s0  (simplify-LFE p0))
@@ -11234,117 +11255,43 @@
     (define ca  (categorize-applications ac))
     (define an  (anormalize ca))
     (parameterize ([current-enable-cc-analysis? #t])
-      (summarize-closure-conversion-analysis an)))
+      (summarize an)))
+
+  ;; closure-analysis-summary : syntax? -> (listof list?)
+  ;;   Run the pipeline up to LANF and summarize closure-conversion analysis.
+  (define (closure-analysis-summary stx)
+    (analyze-with-cc-summary stx
+      summarize-closure-conversion-analysis))
 
   ;; extended-closure-analysis-summary : syntax? -> (listof list?)
   ;;   Run the pipeline up to LANF and summarize extended free-variable analysis.
   (define (extended-closure-analysis-summary stx)
-    (reset-counter!)
-    (define p0  (parse (unexpand (topexpand stx))))
-    (define s0  (simplify-LFE p0))
-    (define ft  (flatten-topbegin s0))
-    (define in  (infer-names ft))
-    (define cq  (convert-quotations in))
-    (define eb  (explicit-begin cq))
-    (define ecl (explicit-case-lambda eb))
-    (define ar  (α-rename ecl))
-    (define ua  (uncover-assigned! ar))
-    (define lr  (parameterize ([current-assigned-analysis ua])
-                  (lower-letrec-values ar)))
-    (define ac  (parameterize ([current-assigned-analysis ua])
-                  (assignment-conversion lr)))
-    (define ca  (categorize-applications ac))
-    (define an  (anormalize ca))
-    (parameterize ([current-enable-cc-analysis? #t])
-      (summarize-extended-closure-conversion-analysis an)))
+    (analyze-with-cc-summary stx
+      summarize-extended-closure-conversion-analysis))
 
   ;; direct-layout-analysis-summary : syntax? -> (listof list?)
   ;;   Run the pipeline up to LANF and summarize direct-helper layout compatibility.
   (define (direct-layout-analysis-summary stx)
-    (reset-counter!)
-    (define p0  (parse (unexpand (topexpand stx))))
-    (define s0  (simplify-LFE p0))
-    (define ft  (flatten-topbegin s0))
-    (define in  (infer-names ft))
-    (define cq  (convert-quotations in))
-    (define eb  (explicit-begin cq))
-    (define ecl (explicit-case-lambda eb))
-    (define ar  (α-rename ecl))
-    (define ua  (uncover-assigned! ar))
-    (define lr  (parameterize ([current-assigned-analysis ua])
-                  (lower-letrec-values ar)))
-    (define ac  (parameterize ([current-assigned-analysis ua])
-                  (assignment-conversion lr)))
-    (define ca  (categorize-applications ac))
-    (define an  (anormalize ca))
-    (parameterize ([current-enable-cc-analysis? #t])
-      (summarize-direct-layout-closure-conversion-analysis an)))
+    (analyze-with-cc-summary stx
+      summarize-direct-layout-closure-conversion-analysis))
 
   ;; direct-self-binder-analysis-summary : syntax? -> (listof list?)
   ;;   Run the pipeline up to LANF and summarize self-binder removal eligibility.
   (define (direct-self-binder-analysis-summary stx)
-    (reset-counter!)
-    (define p0  (parse (unexpand (topexpand stx))))
-    (define s0  (simplify-LFE p0))
-    (define ft  (flatten-topbegin s0))
-    (define in  (infer-names ft))
-    (define cq  (convert-quotations in))
-    (define eb  (explicit-begin cq))
-    (define ecl (explicit-case-lambda eb))
-    (define ar  (α-rename ecl))
-    (define ua  (uncover-assigned! ar))
-    (define lr  (parameterize ([current-assigned-analysis ua])
-                  (lower-letrec-values ar)))
-    (define ac  (parameterize ([current-assigned-analysis ua])
-                  (assignment-conversion lr)))
-    (define ca  (categorize-applications ac))
-    (define an  (anormalize ca))
-    (parameterize ([current-enable-cc-analysis? #t])
-      (summarize-direct-self-binder-closure-conversion-analysis an)))
+    (analyze-with-cc-summary stx
+      summarize-direct-self-binder-closure-conversion-analysis))
 
   ;; direct-letrec-allocation-analysis-summary : syntax? -> (listof list?)
   ;;   Run the pipeline up to LANF and summarize direct-letrec allocation eligibility.
   (define (direct-letrec-allocation-analysis-summary stx)
-    (reset-counter!)
-    (define p0  (parse (unexpand (topexpand stx))))
-    (define s0  (simplify-LFE p0))
-    (define ft  (flatten-topbegin s0))
-    (define in  (infer-names ft))
-    (define cq  (convert-quotations in))
-    (define eb  (explicit-begin cq))
-    (define ecl (explicit-case-lambda eb))
-    (define ar  (α-rename ecl))
-    (define ua  (uncover-assigned! ar))
-    (define lr  (parameterize ([current-assigned-analysis ua])
-                  (lower-letrec-values ar)))
-    (define ac  (parameterize ([current-assigned-analysis ua])
-                  (assignment-conversion lr)))
-    (define ca  (categorize-applications ac))
-    (define an  (anormalize ca))
-    (parameterize ([current-enable-cc-analysis? #t])
-      (summarize-direct-letrec-allocation-closure-conversion-analysis an)))
+    (analyze-with-cc-summary stx
+      summarize-direct-letrec-allocation-closure-conversion-analysis))
 
   ;; direct-letrec-patching-analysis-summary : syntax? -> (listof list?)
   ;;   Run the pipeline up to LANF and summarize remaining letrec patching links.
   (define (direct-letrec-patching-analysis-summary stx)
-    (reset-counter!)
-    (define p0  (parse (unexpand (topexpand stx))))
-    (define s0  (simplify-LFE p0))
-    (define ft  (flatten-topbegin s0))
-    (define in  (infer-names ft))
-    (define cq  (convert-quotations in))
-    (define eb  (explicit-begin cq))
-    (define ecl (explicit-case-lambda eb))
-    (define ar  (α-rename ecl))
-    (define ua  (uncover-assigned! ar))
-    (define lr  (parameterize ([current-assigned-analysis ua])
-                  (lower-letrec-values ar)))
-    (define ac  (parameterize ([current-assigned-analysis ua])
-                  (assignment-conversion lr)))
-    (define ca  (categorize-applications ac))
-    (define an  (anormalize ca))
-    (parameterize ([current-enable-cc-analysis? #t])
-      (summarize-direct-letrec-patching-closure-conversion-analysis an)))
+    (analyze-with-cc-summary stx
+      summarize-direct-letrec-patching-closure-conversion-analysis))
 
   ;; summary-kinds : (listof list?) -> (listof symbol?)
   ;;   Extract the classification kinds from a summary.
@@ -11397,28 +11344,31 @@
               (equal? removable0 removable?))]
         [_ #f])))
 
-  ;; direct-letrec-allocation-summary-has-entry? : (listof list?) symbol? symbol? (listof symbol?) boolean? -> boolean?
+  ;; direct-letrec-allocation-summary-has-entry? : (listof list?) symbol? symbol? (listof symbol?) (listof symbol?) symbol? boolean? -> boolean?
   ;;   Check whether the letrec-allocation summary contains an entry with the given fields.
-  (define (direct-letrec-allocation-summary-has-entry? summary binder kind free-vars eligible?)
+  (define (direct-letrec-allocation-summary-has-entry? summary binder kind free-vars links patching-kind eligible?)
     (for/or ([entry (in-list summary)])
       (match entry
-        [(list binder0 _label kind0 free-vars0 eligible0)
+        [(list binder0 _label kind0 free-vars0 links0 patching-kind0 eligible0)
          (and (equal? binder0 binder)
               (eq? kind0 kind)
               (equal? free-vars0 free-vars)
+              (equal? links0 links)
+              (eq? patching-kind0 patching-kind)
               (equal? eligible0 eligible?))]
         [_ #f])))
 
-  ;; direct-letrec-patching-summary-has-entry? : (listof list?) symbol? symbol? (listof symbol?) (listof symbol?) -> boolean?
+  ;; direct-letrec-patching-summary-has-entry? : (listof list?) symbol? symbol? (listof symbol?) (listof symbol?) symbol? -> boolean?
   ;;   Check whether the letrec-patching summary contains an entry with the given fields.
-  (define (direct-letrec-patching-summary-has-entry? summary binder kind free-vars links)
+  (define (direct-letrec-patching-summary-has-entry? summary binder kind free-vars links patching-kind)
     (for/or ([entry (in-list summary)])
       (match entry
-        [(list binder0 _label kind0 free-vars0 links0)
+        [(list binder0 _label kind0 free-vars0 links0 patching-kind0)
          (and (equal? binder0 binder)
               (eq? kind0 kind)
               (equal? free-vars0 free-vars)
-              (equal? links0 links))]
+              (equal? links0 links)
+              (eq? patching-kind0 patching-kind))]
         [_ #f])))
 
   (check-true
@@ -11551,6 +11501,8 @@
     'loop.1
     'direct
     '()
+    '()
+    'none
     #t))
 
   (check-true
@@ -11568,6 +11520,8 @@
     'even?.1
     'direct
     '(odd?.2)
+    '(odd?.2)
+    'cross-linked
     #f))
 
   (check-true
@@ -11581,7 +11535,8 @@
     'loop.1
     'direct
     '()
-    '()))
+    '()
+    'none))
 
   (check-true
    (direct-letrec-patching-summary-has-entry?
@@ -11598,7 +11553,8 @@
     'even?.1
     'direct
     '(odd?.2)
-    '(odd?.2)))
+    '(odd?.2)
+    'cross-linked))
   )
 
 
@@ -13702,8 +13658,12 @@
             (for/list ([ae (in-list ae1)]
                        #:when (letrec-local-var? ae))
               (syntax-e (variable-id ae))))
+          (define links
+            (direct-letrec-layout-links free-vars letrec-binders))
+          (define patching-kind
+            (direct-letrec-patching-kind k (syntax-e (variable-id x)) links))
           (and (current-enable-cc-analysis?)
-               (direct-letrec-allocation-eligible? k free-vars letrec-binders))]
+               (eq? patching-kind 'none))]
          [else
           #f]))
      
