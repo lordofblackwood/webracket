@@ -11344,6 +11344,60 @@
     (for/hasheq ([binder (in-list binders)]
                  [i (in-naturals)])
       (values binder i)))
+  (define (source-stable-order bs)
+    (sort bs < #:key (λ (binder) (hash-ref binder-rank-ht binder))))
+  (define (permutations xs)
+    (cond
+      [(null? xs) '(())]
+      [else
+       (append*
+        (for/list ([x (in-list xs)])
+          (for/list ([rest (in-list (permutations (remove x xs)))])
+            (cons x rest))))]))
+  (define (scc-order-cost order scc-edges)
+    (define index-ht
+      (for/hasheq ([binder (in-list order)]
+                   [i      (in-naturals)])
+        (values binder i)))
+    (for/sum ([edge (in-list scc-edges)])
+      (if (<= (hash-ref index-ht (first edge))
+              (hash-ref index-ht (second edge)))
+          1
+          0)))
+  (define (optimize-scc-order scc)
+    (define source-order
+      (source-stable-order scc))
+    (cond
+      [(<= (length source-order) 1)
+       source-order]
+      [(> (length source-order) 6)
+       source-order]
+      [else
+       (define scc-set source-order)
+       (define scc-edges
+         (for/list ([edge (in-list edges)]
+                    #:when (and (member (first edge) scc-set)
+                                (member (second edge) scc-set)))
+           edge))
+       (define (order-key order)
+         (list (scc-order-cost order scc-edges)
+               (for/list ([binder (in-list order)])
+                 (hash-ref binder-rank-ht binder))))
+       (let loop ([best-order source-order]
+                  [best-key   (order-key source-order)]
+                  [rest       (cdr (permutations source-order))])
+         (cond
+           [(null? rest)
+            best-order]
+           [else
+            (define order (car rest))
+            (define key   (order-key order))
+            (if (or (< (first key) (first best-key))
+                    (and (= (first key) (first best-key))
+                         (string<? (format "~s" (second key))
+                                   (format "~s" (second best-key)))))
+                (loop order key (cdr rest))
+                (loop best-order best-key (cdr rest)))]))]))
   (define sccs
     (direct-letrec-sccs binders edges))
   (define scc-index-ht
@@ -11386,9 +11440,7 @@
                 "internal error: cyclic SCC condensation graph"))
        (append*
         (for/list ([scc-i (in-list (reverse ordered-sccs))])
-          (sort (list-ref sccs scc-i)
-                <
-                #:key (λ (binder) (hash-ref binder-rank-ht binder)))))]
+          (optimize-scc-order (list-ref sccs scc-i))))]
       [else
        (define i (car ready))
        (define ready-rest (cdr ready))
@@ -12374,6 +12426,11 @@
                                    '((a b) (b c) (c b)))
    '(b c a))
 
+  (check-equal?
+   (direct-letrec-allocation-order '(a b c)
+                                   '((a b) (a c) (b c) (c a)))
+   '(c b a))
+
   (check-true  (direct-letrec-representation-candidate? 'direct #t '() 'none))
 
   (check-false (direct-letrec-representation-candidate? 'direct #f '() 'none))
@@ -12730,6 +12787,26 @@
     '(b.2 c.3)
     '((b.2 () (c.3) patched)
       (c.3 (b.2) () patched))))
+
+  (check-true
+   (direct-letrec-scc-patch-plan-summary-has-entry?
+    (direct-letrec-scc-patch-plan-analysis-summary
+     #'(letrec ([a (lambda () (begin (b) (c)))]
+                [b (lambda () (c))]
+                [c (lambda () (a))])
+         (a)))
+    '(a.1 b.2 c.3)
+    '((a.1 b.2)
+      (a.1 c.3)
+      (b.2 c.3)
+      (c.3 a.1))
+    'complex
+    '((a.1 b.2 c.3))
+    'single-nontrivial
+    '(c.3 b.2 a.1)
+    '((c.3 () (a.1) patched)
+      (b.2 (c.3) () patched)
+      (a.1 (b.2 c.3) () patched))))
 
   (check-false
    (direct-letrec-representation-summary-has-entry?
