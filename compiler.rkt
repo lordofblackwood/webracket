@@ -10921,13 +10921,6 @@
     [else
      xs]))
 
-;; direct-letrec-allocation-eligible? : symbol? (listof symbol?) (listof symbol?) -> boolean?
-;;   Check whether a direct letrec helper with free-vars can skip shell allocation.
-(define (direct-letrec-allocation-eligible? kind free-vars letrec-binders)
-  (and (eq? kind 'direct)
-       (not (for/or ([y (in-list free-vars)])
-              (member y letrec-binders)))))
-
 ;; direct-letrec-layout-links : (listof symbol?) (listof symbol?) -> (listof symbol?)
 ;;   Return the current closure-layout links from a helper back into its letrec group.
 (define (direct-letrec-layout-links free-vars letrec-binders)
@@ -10945,6 +10938,36 @@
      'self-only]
     [else
      'cross-linked]))
+
+;; direct-letrec-patching-kind/free-vars : symbol? (or/c symbol? #f) (listof symbol?) (listof symbol?) -> symbol?
+;;   Classify the current letrec patching need from layout free vars and letrec binders.
+(define (direct-letrec-patching-kind/free-vars kind binder free-vars letrec-binders)
+  (direct-letrec-patching-kind kind
+                               binder
+                               (direct-letrec-layout-links free-vars letrec-binders)))
+
+;; direct-letrec-allocation-eligible? : symbol? (or/c symbol? #f) (listof symbol?) -> boolean?
+;;   Check whether a direct letrec helper can skip shell allocation.
+(define (direct-letrec-allocation-eligible? kind binder links)
+  (eq? (direct-letrec-patching-kind kind binder links) 'none))
+
+;; direct-letrec-shell-allocation-needed? : symbol? (or/c symbol? #f) (listof symbol?) -> boolean?
+;;   Check whether a direct letrec helper still needs shell allocation and patching.
+(define (direct-letrec-shell-allocation-needed? kind binder links)
+  (not (direct-letrec-allocation-eligible? kind binder links)))
+
+;; direct-letrec-allocation-info/free-vars
+;;   : symbol? (or/c symbol? #f) (listof symbol?) (listof symbol?)
+;;  -> (values (listof symbol?) symbol? boolean?)
+;;   Compute letrec layout links, patching kind, and allocation eligibility.
+(define (direct-letrec-allocation-info/free-vars kind binder free-vars letrec-binders)
+  (define links
+    (direct-letrec-layout-links free-vars letrec-binders))
+  (define patching-kind
+    (direct-letrec-patching-kind/free-vars kind binder free-vars letrec-binders))
+  (define eligible?
+    (direct-letrec-allocation-eligible? kind binder links))
+  (values links patching-kind eligible?))
 
 ;; summarize-direct-self-binder-closure-conversion-analysis : LANF
 ;;                                                        -> (listof list?)
@@ -10970,10 +10993,9 @@
             (direct-helper-layout-free-vars ab free-ht kind-ht binder-ht)
             (direct-self-binder-removable? ab kind-ht binder-ht)))))
 
-;; summarize-direct-letrec-allocation-closure-conversion-analysis : LANF
-;;                                                             -> (listof list?)
-;;   Return a compact summary of current direct-letrec allocation eligibility.
-(define (summarize-direct-letrec-allocation-closure-conversion-analysis T)
+;; collect-direct-letrec-summary-entries : LANF -> (listof list?)
+;;   Collect direct-letrec summary entries with allocation and patching fields.
+(define (collect-direct-letrec-summary-entries T)
   (define (label-name labels-ht ab)
     (syntax-e (variable-id (hash-ref labels-ht ab))))
   (letv ((T free-ht abs kind-ht _direct-sites-ht _direct-candidate-ht _disqualified-ht
@@ -10988,12 +11010,8 @@
       (define binder-sym (syntax-e (variable-id x)))
       (define free-vars  (direct-helper-layout-free-vars ab free-ht kind-ht binder-ht))
       (define kind (hash-ref kind-ht ab 'closed))
-      (define links
-        (direct-letrec-layout-links free-vars letrec-binders))
-      (define patching-kind
-        (direct-letrec-patching-kind kind binder-sym links))
-      (define eligible?
-        (eq? patching-kind 'none))
+      (define-values (links patching-kind eligible?)
+        (direct-letrec-allocation-info/free-vars kind binder-sym free-vars letrec-binders))
       (set! entries
             (cons (list binder-sym
                         (label-name labels-ht ab)
@@ -11102,134 +11120,20 @@
     (collect T)
     (reverse entries)))
 
+;; summarize-direct-letrec-allocation-closure-conversion-analysis : LANF
+;;                                                             -> (listof list?)
+;;   Return a compact summary of current direct-letrec allocation eligibility.
+(define (summarize-direct-letrec-allocation-closure-conversion-analysis T)
+  (collect-direct-letrec-summary-entries T))
+
 ;; summarize-direct-letrec-patching-closure-conversion-analysis : LANF
 ;;                                                           -> (listof list?)
 ;;   Return a compact summary of current letrec cross-links that still need patching.
 (define (summarize-direct-letrec-patching-closure-conversion-analysis T)
-  (define (label-name labels-ht ab)
-    (syntax-e (variable-id (hash-ref labels-ht ab))))
-  (letv ((T free-ht abs kind-ht _direct-sites-ht _direct-candidate-ht _disqualified-ht
-            binder-ht
-            _extended-ht _direct-callees-ht)
-         (closure-conversion-analysis T))
-    (define labels-ht (make-hasheq))
-    (for ([ab (in-list abs)])
-      (hash-set! labels-ht ab (new-var "label")))
-    (define entries '())
-    (define (record-letrec-entry! x ab letrec-binders)
-      (define binder-sym (syntax-e (variable-id x)))
-      (define free-vars  (direct-helper-layout-free-vars ab free-ht kind-ht binder-ht))
-      (define kind (hash-ref kind-ht ab 'closed))
-      (define links
-        (direct-letrec-layout-links free-vars letrec-binders))
-      (define patching-kind
-        (direct-letrec-patching-kind kind binder-sym links))
-      (set! entries
-            (cons (list binder-sym
-                        (label-name labels-ht ab)
-                        kind
-                        free-vars
-                        links
-                        patching-kind)
-                  entries)))
-    (define-pass collect : LANF (T) -> * ()
-      (TopLevelForm : TopLevelForm (T) -> * ()
-        [(topbegin ,s ,t ...)
-         (for ([t (in-list t)])
-           (TopLevelForm t))]
-        [(topmodule ,s ,mn ,mp ,mf ...)
-         (for ([m (in-list mf)])
-           (ModuleLevelForm m))]
-        [(#%expression ,s ,e)
-         (Expr e)]
-        [,g
-         (GeneralTopLevelForm g)])
-      (ModuleLevelForm : ModuleLevelForm (M) -> * ()
-        [(#%provide ,rps ...)
-         (void)]
-        [,g
-         (GeneralTopLevelForm g)])
-      (GeneralTopLevelForm : GeneralTopLevelForm (G) -> * ()
-        [(define-values ,s (,x ...) ,e)
-         (Expr e)]
-        [(define-syntaxes ,s (,x ...) ,e)
-         (Expr e)]
-        [(#%require ,s ,rrs ...)
-         (void)]
-        [,e
-         (Expr e)])
-      (Abstraction : Abstraction (AB) -> * ()
-        [(λ ,s ,f ,e)
-         (Expr e)])
-      (CaseAbstraction : CaseAbstraction (CAB) -> * ()
-        [(case-lambda ,s ,ab* ...)
-         (for ([ab (in-list ab*)])
-           (Abstraction ab))])
-      (AExpr : AExpr (AE) -> * ()
-        [,ab
-         (Abstraction ab)]
-        [,cab
-         (CaseAbstraction cab)]
-        [else
-         (void)])
-      (CExpr : CExpr (CE) -> * ()
-        [,ae
-         (AExpr ae)]
-        [(set! ,s ,x ,ae)
-         (AExpr ae)]
-        [(if ,s ,ae0 ,e1 ,e2)
-         (AExpr ae0)
-         (Expr e1)
-         (Expr e2)]
-        [(wcm ,s ,ae0 ,ae1 ,e)
-         (AExpr ae0)
-         (AExpr ae1)
-         (Expr e)]
-        [(app ,s ,ae ,ae1 ...)
-         (AExpr ae)
-         (for ([ae (in-list ae1)])
-           (AExpr ae))]
-        [(primapp ,s ,pr ,ae1 ...)
-         (for ([ae (in-list ae1)])
-           (AExpr ae))]
-        [(closedapp ,s ,ab ,ae1 ...)
-         (Abstraction ab)
-         (for ([ae (in-list ae1)])
-           (AExpr ae))]
-        [(begin ,s ,e0 ,e1 ...)
-         (Expr e0)
-         (for ([e (in-list e1)])
-           (Expr e))]
-        [(begin0 ,s ,e0 ,e1 ...)
-         (Expr e0)
-         (for ([e (in-list e1)])
-           (Expr e))])
-      (Expr : Expr (E) -> * ()
-        [,ce
-         (CExpr ce)]
-        [(let-values ,s (((,x ...) ,ce*) ...) ,e)
-         (for ([ce (in-list ce*)])
-           (CExpr ce))
-         (Expr e)]
-        [(letrec-values ,s (((,x ...) ,ce*) ...) ,e)
-         (define letrec-binders
-           (for/list ([xs (in-list x)]
-                      #:when (= (length xs) 1))
-             (syntax-e (variable-id (car xs)))))
-         (for ([xs (in-list x)]
-               [ce (in-list ce*)]
-               #:when (= (length xs) 1))
-           (nanopass-case (LANF CExpr) ce
-             [,ae
-              (nanopass-case (LANF AExpr) ae
-                [,ab  (record-letrec-entry! (car xs) ab letrec-binders)]
-                [else (void)])]
-             [else (void)]))
-         (for ([ce (in-list ce*)])
-           (CExpr ce))
-         (Expr e)]))
-    (collect T)
-    (reverse entries)))
+  (for/list ([entry (in-list (collect-direct-letrec-summary-entries T))])
+    (match entry
+      [(list binder label kind free-vars links patching-kind _eligible?)
+       (list binder label kind free-vars links patching-kind)])))
 
 (module+ test
   (require rackunit
@@ -11537,6 +11441,39 @@
     '()
     '()
     'none))
+
+  (check-equal? (direct-letrec-patching-kind 'direct 'loop.1 '())
+                'none)
+
+  (check-equal? (direct-letrec-patching-kind 'direct 'loop.1 '(loop.1))
+                'self-only)
+
+  (check-equal? (direct-letrec-patching-kind 'direct 'even?.1 '(odd?.2))
+                'cross-linked)
+
+  (check-equal? (direct-letrec-patching-kind 'closed 'f.1 '())
+                'non-direct)
+
+  (check-equal? (direct-letrec-patching-kind/free-vars 'direct 'loop.1 '() '(loop.1))
+                'none)
+
+  (check-equal? (direct-letrec-patching-kind/free-vars 'direct 'even?.1 '(odd?.2) '(even?.1 odd?.2))
+                'cross-linked)
+
+  (let-values ([(links patching-kind eligible?)
+                (direct-letrec-allocation-info/free-vars
+                 'direct 'loop.1 '() '(loop.1))])
+    (check-equal? links '())
+    (check-equal? patching-kind 'none)
+    (check-true eligible?))
+
+  (check-false (direct-letrec-shell-allocation-needed? 'direct 'loop.1 '()))
+
+  (check-true (direct-letrec-shell-allocation-needed? 'direct 'loop.1 '(loop.1)))
+
+  (check-true (direct-letrec-shell-allocation-needed? 'direct 'even?.1 '(odd?.2)))
+
+  (check-true (direct-letrec-shell-allocation-needed? 'closed 'f.1 '()))
 
   (check-true
    (direct-letrec-patching-summary-has-entry?
@@ -13645,27 +13582,52 @@
             (for/or ([y (in-list x*)])
               (id=? ae y))))
 
+     ;; letrec-local-free-vars : (listof any/c) -> (listof symbol?)
+     ;;   Extract the closure-layout free variables that belong to this letrec group.
+     (define (letrec-local-free-vars ae*)
+       (for/list ([ae (in-list ae*)]
+                  #:when (letrec-local-var? ae))
+         (syntax-e (variable-id ae))))
+
+     ;; letrec-closure-allocation-info : symbol? variable? (listof any/c)
+     ;;                                -> (values (listof symbol?) symbol? boolean?)
+     ;;   Compute letrec allocation info for one closure payload in this letrec group.
+     (define (letrec-closure-allocation-info k x ae*)
+       (direct-letrec-allocation-info/free-vars
+        k
+        (syntax-e (variable-id x))
+        (letrec-local-free-vars ae*)
+        letrec-binders))
+
      ;; direct-allocate-letrec-closure? : LANF+closure AExpr variable? -> boolean?
      ;;   Check whether ca can be allocated directly for binder x.
      ;;
-     ;; This is safe when the closure payload refers to no letrec locals at all.
-     ;; After self-binder removal, this still covers the simple direct recursive
-     ;; helper cases we care about here.
+     ;; This is safe exactly when the current letrec allocation info says the
+     ;; helper has no remaining recursive-group links to patch.
      (define (direct-allocate-letrec-closure? ca x)
        (nanopass-case (LANF+closure AExpr) ca
          [(closure ,s ,k ,in ,l ,ar ,ae1 ...)
-          (define free-vars
-            (for/list ([ae (in-list ae1)]
-                       #:when (letrec-local-var? ae))
-              (syntax-e (variable-id ae))))
-          (define links
-            (direct-letrec-layout-links free-vars letrec-binders))
-          (define patching-kind
-            (direct-letrec-patching-kind k (syntax-e (variable-id x)) links))
+          (define-values (_links _patching-kind eligible?)
+            (letrec-closure-allocation-info k x ae1))
           (and (current-enable-cc-analysis?)
-               (eq? patching-kind 'none))]
+               eligible?)]
          [else
           #f]))
+
+     ;; shell-allocate-letrec-closure? : LANF+closure AExpr variable? -> boolean?
+     ;;   Check whether ca still needs shell allocation and later patching.
+     (define (shell-allocate-letrec-closure? ca x)
+       (nanopass-case (LANF+closure AExpr) ca
+         [(closure ,s ,k ,in ,l ,ar ,ae1 ...)
+          (define-values (links _patching-kind _eligible?)
+            (letrec-closure-allocation-info k x ae1))
+          (and (current-enable-cc-analysis?)
+               (direct-letrec-shell-allocation-needed?
+                k
+                (syntax-e (variable-id x))
+                links))]
+         [else
+          #t]))
      
      (define (closure-debug-id-expr l)
        (define debug-id (syntax-e (variable-id l)))
@@ -13773,6 +13735,8 @@
                        '()]
                       [(direct-allocate-letrec-closure? ce x)
                        (list (ClosureAllocation ce x))]
+                      [(shell-allocate-letrec-closure? ce x)
+                       (list (AllocateClosure ce x))]
                       [else
                        (list (AllocateClosure ce x))])))
                ,@(append*
@@ -13782,6 +13746,8 @@
                        '()]
                       [(direct-allocate-letrec-closure? ce x)
                        '()]
+                      [(shell-allocate-letrec-closure? ce x)
+                       (FillClosure ce x)]
                       [else
                        (FillClosure ce x)])))
                ,e))])
