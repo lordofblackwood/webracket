@@ -10869,6 +10869,53 @@
             extended-vars
             (equal? free-vars extended-vars)))))
 
+;; summarize-direct-self-binder-closure-conversion-analysis : LANF
+;;                                                        -> (listof list?)
+;;   Return a compact summary of direct helpers that can drop their own binder.
+(define (summarize-direct-self-binder-closure-conversion-analysis T)
+  (define (label-name labels-ht ab)
+    (syntax-e (variable-id (hash-ref labels-ht ab))))
+  (define (vars-of xs)
+    (map syntax-e (map variable-id (id-set->list xs))))
+  (define (sexp-any? pred x)
+    (or (pred x)
+        (cond
+          [(pair? x)
+           (or (sexp-any? pred (car x))
+               (sexp-any? pred (cdr x)))]
+          [(vector? x)
+           (for/or ([e (in-vector x)])
+             (sexp-any? pred e))]
+          [else
+           #f])))
+  (define (nested-abstraction-present? ab)
+    (nanopass-case (LANF Abstraction) ab
+      [(λ ,s ,f ,e)
+       (define body-sexp (unparse-all (unparse-LANF e)))
+       (define (nested-abstraction-form? x)
+         (match x
+           [(list 'λ _ ...)           #t]
+           [(list 'case-lambda _ ...) #t]
+           [_                         #f]))
+       (sexp-any? nested-abstraction-form? body-sexp)]))
+  (letv ((T free-ht abs kind-ht _direct-sites-ht _direct-candidate-ht _disqualified-ht
+            binder-ht
+            _extended-ht _direct-callees-ht)
+         (closure-conversion-analysis T))
+    (define labels-ht (make-hasheq))
+    (for ([ab (in-list abs)])
+      (hash-set! labels-ht ab (new-var "label")))
+    (for/list ([ab (in-list abs)]
+               #:when (eq? (hash-ref kind-ht ab 'closed) 'direct))
+      (define binder
+        (match (hash-ref binder-ht ab #f)
+          [#f #f]
+          [x  (syntax-e (variable-id x))]))
+      (list (label-name labels-ht ab)
+            binder
+            (vars-of (hash-ref free-ht ab empty-set))
+            (not (nested-abstraction-present? ab))))))
+
 (module+ test
   (require rackunit
            "expander.rkt")
@@ -10939,6 +10986,28 @@
     (parameterize ([current-enable-cc-analysis? #t])
       (summarize-direct-layout-closure-conversion-analysis an)))
 
+  ;; direct-self-binder-analysis-summary : syntax? -> (listof list?)
+  ;;   Run the pipeline up to LANF and summarize self-binder removal eligibility.
+  (define (direct-self-binder-analysis-summary stx)
+    (reset-counter!)
+    (define p0  (parse (unexpand (topexpand stx))))
+    (define s0  (simplify-LFE p0))
+    (define ft  (flatten-topbegin s0))
+    (define in  (infer-names ft))
+    (define cq  (convert-quotations in))
+    (define eb  (explicit-begin cq))
+    (define ecl (explicit-case-lambda eb))
+    (define ar  (α-rename ecl))
+    (define ua  (uncover-assigned! ar))
+    (define lr  (parameterize ([current-assigned-analysis ua])
+                  (lower-letrec-values ar)))
+    (define ac  (parameterize ([current-assigned-analysis ua])
+                  (assignment-conversion lr)))
+    (define ca  (categorize-applications ac))
+    (define an  (anormalize ca))
+    (parameterize ([current-enable-cc-analysis? #t])
+      (summarize-direct-self-binder-closure-conversion-analysis an)))
+
   ;; summary-kinds : (listof list?) -> (listof symbol?)
   ;;   Extract the classification kinds from a summary.
   (define (summary-kinds summary)
@@ -10977,6 +11046,17 @@
          (and (equal? free-vars0 free-vars)
               (equal? extended-free-vars0 extended-free-vars)
               (equal? compatible0 compatible?))]
+        [_ #f])))
+
+  ;; direct-self-binder-summary-has-entry? : (listof list?) symbol? (listof symbol?) boolean? -> boolean?
+  ;;   Check whether the self-binder summary contains an entry with the given fields.
+  (define (direct-self-binder-summary-has-entry? summary binder free-vars removable?)
+    (for/or ([entry (in-list summary)])
+      (match entry
+        [(list _label binder0 free-vars0 removable0)
+         (and (equal? binder0 binder)
+              (equal? free-vars0 free-vars)
+              (equal? removable0 removable?))]
         [_ #f])))
 
   (check-true
@@ -11063,6 +11143,17 @@
     '(loop.1)
     '()
     #f))
+
+  (check-true
+   (direct-self-binder-summary-has-entry?
+    (direct-self-binder-analysis-summary #'(letrec ([loop (lambda (n)
+                                                            (if (zero? n)
+                                                                0
+                                                                (loop (- n 1))))])
+                                            (loop 10)))
+    'loop.1
+    '(loop.1)
+    #t))
   )
 
 
