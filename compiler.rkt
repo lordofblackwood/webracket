@@ -11047,6 +11047,71 @@
     [else
      #f]))
 
+;; nested-lift-sensitive-form-present? : any/c -> boolean?
+;;   Check whether ab contains nested forms that can introduce additional
+;;   lifted code with their own environment expectations.
+(define (nested-lift-sensitive-form-present? ab)
+  (define (sexp-any? pred x)
+    (or (pred x)
+        (cond
+          [(pair? x)
+           (or (sexp-any? pred (car x))
+               (sexp-any? pred (cdr x)))]
+          [(vector? x)
+           (for/or ([e (in-vector x)])
+             (sexp-any? pred e))]
+          [else
+           #f])))
+  (define (sensitive-form? x)
+    (match x
+      [(list 'λ _ _ ...) #t]
+      [(list 'case-lambda _ ...) #t]
+      [(list 'letrec-values _ _ _ ...) #t]
+      [_ #f]))
+  (nanopass-case (LANF AExpr) ab
+    [(λ ,s ,f ,e)
+     (sexp-any? sensitive-form? (unparse-all (unparse-LANF e)))]
+    [else
+     #f]))
+
+;; known-helper-complex-body-present? : any/c -> boolean?
+;;   Check whether ab contains control/binding forms that currently make the
+;;   known-helper env ABI too fragile to use safely.
+(define (known-helper-complex-body-present? ab)
+  (define (sexp-any? pred x)
+    (or (pred x)
+        (cond
+          [(pair? x)
+           (or (sexp-any? pred (car x))
+               (sexp-any? pred (cdr x)))]
+          [(vector? x)
+           (for/or ([e (in-vector x)])
+             (sexp-any? pred e))]
+          [else
+           #f])))
+  (define (complex-form? x)
+    (match x
+      [(list 'let-values _ _ ...) #t]
+      [(list 'letrec-values _ _ _ ...) #t]
+      [(list 'set! _ _ _) #t]
+      [(list 'begin0 _ _ ...) #t]
+      [(list 'wcm _ _ _ _) #t]
+      [_ #f]))
+  (nanopass-case (LANF AExpr) ab
+    [(λ ,s ,f ,e)
+     (sexp-any? complex-form? (unparse-all (unparse-LANF e)))]
+    [else
+     #f]))
+
+;; known1-body-is-direct-env-ref-only? : any/c symbol? -> boolean?
+;;   Check whether ab's body is just a direct reference to the captured env var.
+(define (known1-body-is-direct-env-ref-only? ab var-sym)
+  (nanopass-case (LANF AExpr) ab
+    [(λ ,s ,f ,e)
+     (equal? (unparse-all (unparse-LANF e)) var-sym)]
+    [else
+     #f]))
+
 ;; direct-self-binder-removable? : any/c (hasheq/c any/c symbol?) (hasheq/c any/c (or/c variable? #f)) -> boolean?
 ;;   Check whether direct helper ab can drop its own binder from closure layout.
 (define (direct-self-binder-removable? ab kind-ht binder-ht)
@@ -13412,6 +13477,8 @@
     (current-direct-letrec-representation-labels (make-hasheq))
     (current-inline-small-closure-arities (make-hasheq))
     (current-known0-direct-labels (make-hasheq))
+    (current-known1-direct-labels (make-hasheq))
+    (current-known1-direct-labels (make-hasheq))
     #;(pretty-print free-ht)
     (for ([ab abs])
       (add-label! ab))
@@ -13461,6 +13528,7 @@
     (+ (closedapp s ca ae1 ...) => (closedapp ca ae1 ...)
        (directapp s l ar ae0 ae1 ...)  => (directapp l ar ae0 ae1 ...)
        (known0app s l ar ae1 ...)      => (known0app l ar ae1 ...)
+       (known1app s l ar ae0 ae1 ...)  => (known1app l ar ae0 ae1 ...)
        (direct0app s l ar ae1 ...)     => (direct0app l ar ae1 ...)
        (selfapp s l ar ae1 ...)        => (selfapp l ar ae1 ...)
        (casearmapp s l ar i ae0 ae1 ...) => (casearmapp l ar i ae0 ae1 ...)))
@@ -13542,6 +13610,23 @@
            (abstraction-fixed-arity? ab)
            (not (direct-self-recursive? ab free-ht binder-ht))
            (null? (body-layout-of ab))))
+
+    ;; known1-target-eligible/local? : any/c -> boolean?
+    ;;   Check whether ab fits the unary known-helper ABI bucket:
+    ;;   fixed-arity direct helper with exactly one environment value.
+    (define (known1-target-eligible/local? ab)
+      (and (current-enable-cc-analysis?)
+           (eq? (kind-of ab) 'direct)
+           (abstraction-fixed-arity? ab)
+           (not (direct-self-recursive? ab free-ht binder-ht))
+           (= (length (body-layout-of ab)) 1)
+           (not (nested-lift-sensitive-form-present? ab))
+           (not (known-helper-complex-body-present? ab))
+           (let ([x (car (body-layout-of ab))])
+             (and (not (nested-variable-capture-present? ab
+                                                         (syntax-e (variable-id x))))
+                  (known1-body-is-direct-env-ref-only? ab
+                                                       (syntax-e (variable-id x)))))))
 
     ;; direct-letrec-representation-eligible/local? : any/c -> boolean?
     ;;   Check whether ab fits the currently enabled tiny direct-letrec
@@ -13724,6 +13809,11 @@
     (define (known0-binding-of x)
       (env-ref (current-known0-env) x))
 
+    ;; known1-binding-of : variable? -> (or/c any/c #f)
+    ;;   Return the env1-known direct helper bound to x, if any.
+    (define (known1-binding-of x)
+      (env-ref (current-known1-env) x))
+
     ;; current-direct-env : (parameter/c free-id-table?)
     ;;   Direct-callable local lambdas in lexical scope.
     (define current-direct-env
@@ -13732,6 +13822,11 @@
     ;; current-known0-env : (parameter/c free-id-table?)
     ;;   Known env0 helpers introduced by non-recursive local bindings.
     (define current-known0-env
+      (make-parameter (env-empty)))
+
+    ;; current-known1-env : (parameter/c free-id-table?)
+    ;;   Known env1 helpers introduced by non-recursive local bindings.
+    (define current-known1-env
       (make-parameter (env-empty)))
 
     ;; current-direct-abstraction : (parameter/c (or/c any/c #f))
@@ -13777,6 +13872,9 @@
         (cond
           [(known0-binding-of x)
            `(known0app ,s ,(label-of ab) ,ar ,ae* ...)]
+          [(known1-binding-of x)
+           (define env0 (AExpr (car (body-layout-of ab))))
+           `(known1app ,s ,(label-of ab) ,ar ,env0 ,ae* ...)]
           [(eq? ab (current-direct-abstraction))
            `(selfapp ,s ,(label-of ab) ,ar ,ae* ...)]
           [(direct-target-uses-dummy-closure/local? ab)
@@ -13814,12 +13912,20 @@
          pair))
      (define known0-xs  (map car known0-pairs))
      (define known0-abs (map cdr known0-pairs))
+     (define known1-pairs
+       (for/list ([pair (in-list pairs)]
+                  #:when (known1-target-eligible/local? (cdr pair)))
+         pair))
+     (define known1-xs  (map car known1-pairs))
+     (define known1-abs (map cdr known1-pairs))
      `(let-values ,s
         ([(,x ...) ,ce**] ...)
         ,(parameterize ([current-direct-env
                          (env-bind* (current-direct-env) xs abs)]
                         [current-known0-env
-                         (env-bind* (current-known0-env) known0-xs known0-abs)])
+                         (env-bind* (current-known0-env) known0-xs known0-abs)]
+                        [current-known1-env
+                         (env-bind* (current-known1-env) known1-xs known1-abs)])
            (Expr e)))]
     [(letrec-values ,s (((,x ...) ,ce*) ...) ,e)
      (define pairs (reverse (clause-direct-bindings x ce*)))
@@ -13841,6 +13947,10 @@
                   #t))
      (when (known0-target-eligible/local? AB)
        (hash-set! (current-known0-direct-labels)
+                  (syntax-e (variable-id l))
+                  #t))
+     (when (known1-target-eligible/local? AB)
+       (hash-set! (current-known1-direct-labels)
                   (syntax-e (variable-id l))
                   #t))
      (define inline-small-arity
@@ -14088,6 +14198,7 @@
     [(app ,s ,ae  ,ae1 ...)        (AExpr* (cons ae ae1))]
     [(directapp ,s ,l ,ar ,ae0 ,ae1 ...)  (AExpr* (cons ae0 ae1))]
     [(known0app ,s ,l ,ar ,ae1 ...)       (AExpr* ae1)]
+    [(known1app ,s ,l ,ar ,ae0 ,ae1 ...)  (AExpr* (cons ae0 ae1))]
     [(direct0app ,s ,l ,ar ,ae1 ...)      (AExpr* ae1)]
     [(selfapp ,s ,l ,ar ,ae1 ...)         (AExpr* ae1)]
     [(casearmapp ,s ,l ,ar ,i ,ae0 ,ae1 ...) (AExpr* (cons ae0 ae1))]
@@ -14273,6 +14384,7 @@
 (define current-direct-letrec-representation-labels (make-parameter (make-hasheq)))
 (define current-inline-small-closure-arities (make-parameter (make-hasheq)))
 (define current-known0-direct-labels (make-parameter (make-hasheq)))
+(define current-known1-direct-labels (make-parameter (make-hasheq)))
 (define (reset-label-map!)
   (current-label-map '())
   (current-label-form-ht (make-hash))
@@ -14333,7 +14445,7 @@
   (definitions
     (define current-inline-small-closure-arity
       (make-parameter #f))
-    (define current-known0-direct-label?
+    (define current-known-direct-env-arity
       (make-parameter #f))
     (define (inline-small-closure-arity-label l)
       (hash-ref (current-inline-small-closure-arities)
@@ -14343,8 +14455,14 @@
       (hash-ref (current-known0-direct-labels)
                 (syntax-e (variable-id l))
                 #f))
+    (define (known1-direct-label? l)
+      (hash-ref (current-known1-direct-labels)
+                (syntax-e (variable-id l))
+                #f))
     (define (known0-code-label l)
       (string->symbol (~a (Label l) ".known0")))
+    (define (known1-code-label l)
+      (string->symbol (~a (Label l) ".known1")))
     (define (flatten-func-forms xs)
       (append*
        (for/list ([x (in-list xs)])
@@ -14774,7 +14892,13 @@
                             (PrimRef x)) ; reference to primitive
                           (Reference x))] ; reference to non-free variable
     [(free-ref ,x ,i)
-     (match (current-inline-small-closure-arity)
+     (cond
+       [(eq? (current-known-direct-env-arity) 1)
+        (if (zero? i)
+            '(local.get $env0)
+            (error 'AExpr3 "known1 helper expected only one free-ref"))]
+       [else
+        (match (current-inline-small-closure-arity)
        [1
         (if (zero? i)
             `(struct.get $Closure1 $free0
@@ -14796,7 +14920,7 @@
           [2 `(struct.get $Closure3 $free2
                           (ref.cast (ref $Closure3) (local.get $clos)))]
           [_ `(array.get $Free (local.get $free) (i32.const ,i))])]
-       [_ `(array.get $Free (local.get $free) (i32.const ,i))])] ; x is the name
+       [_ `(array.get $Free (local.get $free) (i32.const ,i))])]) ] ; x is the name
     [,ca              (ClosureAllocation ca dd)]
     [(quote ,s ,d)    (cond
                         [(eq? dd '<effect>)
@@ -15589,6 +15713,31 @@
                                    ['<expr>             work]
                                    ['<stat>             work])]
        [y                        (Store! y work)])]
+    [(known1app ,s ,l ,ar ,ae0 ,ae2 ...)
+     (define tc (eq? cd '<return>))
+     (define env0
+       (AExpr3 ae0 <value>))
+     (define raw-args
+       `(array.new_fixed $Args ,(length ae2)
+                         ,@(for/list ([ae (in-list ae2)])
+                             (AExpr3 ae <value>))))
+     (define args
+       (if (negative? ar)
+           `(call $repack-arguments ,raw-args (i32.const ,ar))
+           raw-args))
+     (define work
+       (if tc
+           `(return_call ,(known1-code-label l) ,env0 ,args)
+           (cond
+             [(eq? dd <value>)  `(call ,(known1-code-label l) ,env0 ,args)]
+             [(eq? dd <effect>) `(drop (call ,(known1-code-label l) ,env0 ,args))]
+             [else              `(call ,(known1-code-label l) ,env0 ,args)])))
+     (match dd
+       [(or '<effect> '<value>)  (match cd
+                                   ['<return>           work]
+                                   ['<expr>             work]
+                                   ['<stat>             work])]
+       [y                        (Store! y work)])]
     [(selfapp ,s ,l ,ar ,ae2 ...)
      (define tc (eq? cd '<return>))
      (define raw-args
@@ -16128,7 +16277,7 @@
          ; 1. For each argument, we make an WebAssembly parameter.
          (define (Formal  x) `(param ,x (ref eq)))
          (define (Formal* xs) (map Formal xs))
-         (define known0-direct? (current-known0-direct-label?))
+         (define known-direct-env-arity (current-known-direct-env-arity))
          ; 2. 
          (define (Local  x)  (match x
                                [(list v t)      `(local ,(if (symbol? v) v (Var v)) ,t)]   ; let bound 
@@ -16151,13 +16300,16 @@
          ; This list (whose head is 'converted-abstraction) will be turned into a
          ; a (func ...) by `define-label`.
          `(converted-abstraction ; ,(Formal* (list* '$free '$tc x)) ; arguments
-                                 ; the parameter matches the type $ClosureCode or $KnownCode0
-                                 ,(if known0-direct?
-                                      '((param $args (ref $Args)))
-                                      '((param $clos (ref $Closure))
-                                        (param $args (ref $Args))))
+                                 ; the parameter matches the type $ClosureCode, $KnownCode0, or $KnownCode1
+                                 ,(case known-direct-env-arity
+                                    [(0) '((param $args (ref $Args)))]
+                                    [(1) '((param $env0 (ref eq))
+                                           (param $args (ref $Args)))]
+                                    [else
+                                     '((param $clos (ref $Closure))
+                                       (param $args (ref $Args)))])
                                  ,(append
-                                   (if (or known0-direct?
+                                   (if (or known-direct-env-arity
                                            (current-inline-small-closure-arity))
                                        '()
                                        '((local $free (ref $Free))))            ; array of free variables
@@ -16171,7 +16323,7 @@
                                               `(if (i32.eqz (i32.eq (array.len (local.get $args))
                                                                     (i32.const ,ar)))
                                                    (then (call $raise-arity-mismatch/proc
-                                                               ,(if known0-direct?
+                                                               ,(if known-direct-env-arity
                                                                     '(global.get $dummy-closure)
                                                                     '(local.get $clos))
                                                                (array.len (local.get $args)))
@@ -16182,13 +16334,13 @@
                                              `(if (i32.lt_u (array.len (local.get $args))
                                                              (i32.const ,n))
                                                    (then (call $raise-arity-mismatch/proc
-                                                               ,(if known0-direct?
+                                                               ,(if known-direct-env-arity
                                                                     '(global.get $dummy-closure)
                                                                     '(local.get $clos))
                                                                (array.len (local.get $args)))
                                                          (unreachable)))])
                                            )
-                                          (if (or known0-direct?
+                                          (if (or known-direct-env-arity
                                                   (current-inline-small-closure-arity))
                                               '()
                                               '((local.set $free (struct.get $Closure $free (local.get $clos)))))
@@ -16305,19 +16457,29 @@
      (define base-converted
        (parameterize ([current-inline-small-closure-arity
                        (inline-small-closure-arity-label l)]
-                      [current-known0-direct-label? #f])
+                      [current-known-direct-env-arity #f])
          (ConvertedAbstraction cab)))
      (define base-func
        (converted->func (Label l) '$ClosureCode (~a (syntax-e (variable-id l))) base-converted))
-     (if (known0-direct-label? l)
-         (let* ([known0-converted
-                 (parameterize ([current-inline-small-closure-arity #f]
-                                [current-known0-direct-label? #t])
-                   (ConvertedAbstraction cab))]
-                [known0-func
-                 (converted->func (known0-code-label l) '$KnownCode0 #f known0-converted)])
-           `(func-group ,base-func ,known0-func))
-         base-func)]
+     (cond
+       [(known0-direct-label? l)
+        (let* ([known0-converted
+                (parameterize ([current-inline-small-closure-arity #f]
+                               [current-known-direct-env-arity 0])
+                  (ConvertedAbstraction cab))]
+               [known0-func
+                (converted->func (known0-code-label l) '$KnownCode0 #f known0-converted)])
+          `(func-group ,base-func ,known0-func))]
+       [(known1-direct-label? l)
+        (let* ([known1-converted
+                (parameterize ([current-inline-small-closure-arity #f]
+                               [current-known-direct-env-arity 1])
+                  (ConvertedAbstraction cab))]
+               [known1-func
+                (converted->func (known1-code-label l) '$KnownCode1 #f known1-converted)])
+          `(func-group ,base-func ,known1-func))]
+       [else
+        base-func])]
     [(topmodule ,s ,mn ,mp ,mf ...) (let ([mf (map (λ (m) (ModuleLevelForm m dd)) mf)])
                                       `(topmodule ,mn ,mp ,mf ...))]
     [(topbegin ,s ,t ...)
@@ -17092,6 +17254,28 @@
         [_ #f]))
     (sexp-any? known0-label-call? mod))
 
+  (define (module-has-known1-label-call? mod)
+    (define (direct-call-args? x)
+      (match x
+        [(list 'array.new_fixed '$Args _ ...) #t]
+        [(list 'call '$repack-arguments inner _)
+         (direct-call-args? inner)]
+        [_ #f]))
+    (define (known1-label-call? x)
+      (match x
+        [(list 'call label env0 args)
+         (and (symbol? label)
+              (regexp-match? #rx"^\\$label\\..*\\.known1$" (symbol->string label))
+              (direct-call-args? args)
+              (not (equal? env0 #f)))]
+        [(list 'return_call label env0 args)
+         (and (symbol? label)
+              (regexp-match? #rx"^\\$label\\..*\\.known1$" (symbol->string label))
+              (direct-call-args? args)
+              (not (equal? env0 #f)))]
+        [_ #f]))
+    (sexp-any? known1-label-call? mod))
+
   (define (module-has-local-closure-shell-allocation? mod)
     (define (undefined-slot? x)
       (or (equal? x '(global.get $undefined))
@@ -17369,6 +17553,15 @@
         [(list 'known0app _ ...) #t]
         [_ #f]))
     (sexp-any? known0app-form? cc-sexp))
+
+  (define (closure-converted-has-known1app? stx [simplify? #t])
+    (define cc-sexp
+      (unparse-all (unparse-LANF+closure (closure-converted stx simplify?))))
+    (define (known1app-form? x)
+      (match x
+        [(list 'known1app _ ...) #t]
+        [_ #f]))
+    (sexp-any? known1app-form? cc-sexp))
 
   (define (closure-converted-has-selfapp? stx [simplify? #t])
     (define cc-sexp
@@ -17885,6 +18078,17 @@
     (check-true (module-has-known0-label-call? mod))
     (check-false (module-has-direct-dummy-closure-call? mod)))
 
+  (check-true
+   (closure-converted-has-known1app? #'(let ([x 1])
+                                         (let ([f (lambda () x)])
+                                           (f)))))
+
+  (let ([mod (parameterize ([current-enable-cc-analysis? #t])
+               (comp #'(let ([x 1])
+                         (let ([f (lambda () x)])
+                           (f)))))])
+    (check-true (module-has-known1-label-call? mod)))
+
   (let ([mod (parameterize ([current-enable-cc-analysis? #t])
                (comp #'(let ([x 1])
                          ((lambda () x)))))])
@@ -18213,6 +18417,15 @@
         [_ #f]))
     (sexp-any? known0app-form? cc-sexp))
 
+  (define (closure-converted-has-known1app? stx)
+    (define cc-sexp
+      (unparse-all (unparse-LANF+closure (closure-converted stx))))
+    (define (known1app-form? x)
+      (match x
+        [(list 'known1app _ ...) #t]
+        [_ #f]))
+    (sexp-any? known1app-form? cc-sexp))
+
   (define (module-has-known0-label-call? mod)
     (define (direct-call-args? x)
       (match x
@@ -18232,6 +18445,28 @@
               (direct-call-args? args))]
         [_ #f]))
     (sexp-any? known0-label-call? mod))
+
+  (define (module-has-known1-label-call? mod)
+    (define (direct-call-args? x)
+      (match x
+        [(list 'array.new_fixed '$Args _ ...) #t]
+        [(list 'call '$repack-arguments inner _)
+         (direct-call-args? inner)]
+        [_ #f]))
+    (define (known1-label-call? x)
+      (match x
+        [(list 'call label env0 args)
+         (and (symbol? label)
+              (regexp-match? #rx"^\\$label\\..*\\.known1$" (symbol->string label))
+              (direct-call-args? args)
+              (not (equal? env0 #f)))]
+        [(list 'return_call label env0 args)
+         (and (symbol? label)
+              (regexp-match? #rx"^\\$label\\..*\\.known1$" (symbol->string label))
+              (direct-call-args? args)
+              (not (equal? env0 #f)))]
+        [_ #f]))
+    (sexp-any? known1-label-call? mod))
 
   (define (closure-converted-has-selfapp? stx)
     (define cc-sexp
@@ -18260,6 +18495,17 @@
                          (f 2))))])
     (check-true (module-has-known0-label-call? mod))
     (check-false (module-has-direct-dummy-closure-call? mod)))
+
+  (check-true
+   (closure-converted-has-known1app? #'(let ([x 1])
+                                         (let ([f (lambda () x)])
+                                           (f)))))
+
+  (let ([mod (parameterize ([current-enable-cc-analysis? #t])
+               (comp #'(let ([x 1])
+                         (let ([f (lambda () x)])
+                           (f)))))])
+    (check-true (module-has-known1-label-call? mod)))
 
   (check-true
    (closure-converted-has-direct0app? #'(letrec ([loop (lambda (n)

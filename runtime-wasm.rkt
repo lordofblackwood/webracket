@@ -2137,6 +2137,9 @@
                                     (result (ref eq))))
           (type $KnownCode0   (func (param $args (ref $Args))
                                     (result (ref eq))))
+          (type $KnownCode1   (func (param $env0 (ref eq))
+                                    (param $args (ref $Args))
+                                    (result (ref eq))))
           (type $Closure   
                 (sub $Procedure
                      (struct
