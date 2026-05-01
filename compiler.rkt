@@ -10939,13 +10939,6 @@
     [else
      'cross-linked]))
 
-;; direct-letrec-patching-kind/free-vars : symbol? (or/c symbol? #f) (listof symbol?) (listof symbol?) -> symbol?
-;;   Classify the current letrec patching need from layout free vars and letrec binders.
-(define (direct-letrec-patching-kind/free-vars kind binder free-vars letrec-binders)
-  (direct-letrec-patching-kind kind
-                               binder
-                               (direct-letrec-layout-links free-vars letrec-binders)))
-
 ;; direct-letrec-allocation-eligible? : symbol? (or/c symbol? #f) (listof symbol?) -> boolean?
 ;;   Check whether a direct letrec helper can skip shell allocation.
 (define (direct-letrec-allocation-eligible? kind binder links)
@@ -10964,7 +10957,7 @@
   (define links
     (direct-letrec-layout-links free-vars letrec-binders))
   (define patching-kind
-    (direct-letrec-patching-kind/free-vars kind binder free-vars letrec-binders))
+    (direct-letrec-patching-kind kind binder links))
   (define eligible?
     (direct-letrec-allocation-eligible? kind binder links))
   (values links patching-kind eligible?))
@@ -11454,18 +11447,19 @@
   (check-equal? (direct-letrec-patching-kind 'closed 'f.1 '())
                 'non-direct)
 
-  (check-equal? (direct-letrec-patching-kind/free-vars 'direct 'loop.1 '() '(loop.1))
-                'none)
-
-  (check-equal? (direct-letrec-patching-kind/free-vars 'direct 'even?.1 '(odd?.2) '(even?.1 odd?.2))
-                'cross-linked)
-
   (let-values ([(links patching-kind eligible?)
                 (direct-letrec-allocation-info/free-vars
                  'direct 'loop.1 '() '(loop.1))])
     (check-equal? links '())
     (check-equal? patching-kind 'none)
     (check-true eligible?))
+
+  (let-values ([(links patching-kind eligible?)
+                (direct-letrec-allocation-info/free-vars
+                 'direct 'even?.1 '(odd?.2) '(even?.1 odd?.2))])
+    (check-equal? links '(odd?.2))
+    (check-equal? patching-kind 'cross-linked)
+    (check-false eligible?))
 
   (check-false (direct-letrec-shell-allocation-needed? 'direct 'loop.1 '()))
 
