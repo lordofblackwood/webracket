@@ -11120,7 +11120,7 @@
   (CExpr (ce)
     (- (closedapp s ab ae1 ...))
     (+ (closedapp s ca ae1 ...) => (closedapp ca ae1 ...)
-       (directapp s l ae1 ...)  => (directapp l ae1 ...)))
+       (directapp s l ae0 ae1 ...)  => (directapp l ae0 ae1 ...)))
   (ConvertedAbstraction (cab)
     (+ (λ s ar f e) => (λ f e)))
   #;(ConvertedCaseAbstraction (ccab)
@@ -11154,12 +11154,6 @@
     ;;   Convert ab's closure environment variables to closure-converted aexprs.
     (define (closure-env-aexprs-of ab)
       (map AExpr (closure-env-of ab)))
-
-    ;; direct-layout-compatible? : any/c -> boolean?
-    ;;   Check whether ab can safely reuse the current lifted-body layout in a
-    ;;   dummy-closure direct call.
-    (define (direct-layout-compatible? ab)
-      (null? (body-layout-of ab)))
 
     (define (index-of x free)
       (define (x? y) (id=? x y))
@@ -11255,19 +11249,16 @@
         [else #f]))
 
     ;; clause-direct-binding : (listof variable?) LANF CExpr -> (or/c (cons variable? any/c) #f)
-    ;;   Recognize a single-variable clause bound to a fixed-arity direct lambda
-    ;;   with no free variables.
+    ;;   Recognize a single-variable clause bound to a fixed-arity direct lambda.
     ;;
-    ;; The stronger `extended-of` analysis is available now, but direct calls
-    ;; still share closure-converted bodies whose environment layout comes from
-    ;; `body-layout-of`. Until that layout changes, keep this rewrite conservative.
+    ;; Direct calls currently reuse the existing lifted-body layout by passing
+    ;; the closure value bound to x directly to the lifted label.
     (define (clause-direct-binding xs ce)
       (match xs
         [(list x)
          (define ab (clause-bound-abstraction ce))
          (and ab
               (eq? (kind-of ab) 'direct)
-              (direct-layout-compatible? ab)
               (let ([ar (source-formals->arity (abstraction-formals ab))])
                 (and (integer? ar)
                      (>= ar 0)
@@ -11308,8 +11299,9 @@
     [(app ,s ,x ,ae1 ...)
      (guard (direct-binding-of x))
      (define ab (direct-binding-of x))
+     (define ae0 (AExpr x))
      (define ae* (map AExpr ae1))
-     `(directapp ,s ,(label-of ab) ,ae* ...)]
+     `(directapp ,s ,(label-of ab) ,ae0 ,ae* ...)]
     [(app ,s ,ae ,ae1 ...)
      (define ae* (map AExpr ae1))
      `(app ,s ,(AExpr ae) ,ae* ...)]
@@ -11587,7 +11579,7 @@
     [(if  ,s ,ae0 ,e1  ,e2)        (AExpr ae0) (Expr e1)   (Expr e2)]
     [(wcm ,s ,ae0 ,ae1 ,e)         (AExpr ae0) (AExpr ae1) (Expr e)]
     [(app ,s ,ae  ,ae1 ...)        (AExpr* (cons ae ae1))]
-    [(directapp ,s ,l ,ae1 ...)    (AExpr* ae1)]
+    [(directapp ,s ,l ,ae0 ,ae1 ...) (AExpr* (cons ae0 ae1))]
     [(primapp   ,s ,pr ,ae1 ...)   (AExpr* ae1)]
     [(closedapp ,s ,ca ,ae1 ...)   (ClosureAllocation ca) (AExpr* ae1)]
     [(begin     ,s ,e0 ,e1 ...)    (Expr* (cons e0 e1))]
@@ -12944,19 +12936,21 @@
                                         ['<expr>             work]
                                         ['<stat>             work])]
             [y                        (Store! y work)])]))]
-    [(directapp ,s ,l ,ae2 ...)
+    [(directapp ,s ,l ,ae0 ,ae2 ...)
      (define tc (eq? cd '<return>))
+     (define clos
+       `(ref.cast (ref $Closure) ,(AExpr3 ae0 <value>)))
      (define args
        `(array.new_fixed $Args ,(length ae2)
                          ,@(for/list ([ae (in-list ae2)])
                              (AExpr3 ae <value>))))
      (define work
        (if tc
-           `(return_call ,(Label l) (global.get $dummy-closure) ,args)
+           `(return_call ,(Label l) ,clos ,args)
            (cond
-             [(eq? dd <value>)  `(call ,(Label l) (global.get $dummy-closure) ,args)]
-             [(eq? dd <effect>) `(drop (call ,(Label l) (global.get $dummy-closure) ,args))]
-             [else              `(call ,(Label l) (global.get $dummy-closure) ,args)])))
+             [(eq? dd <value>)  `(call ,(Label l) ,clos ,args)]
+             [(eq? dd <effect>) `(drop (call ,(Label l) ,clos ,args))]
+             [else              `(call ,(Label l) ,clos ,args)])))
      (match dd
        [(or '<effect> '<value>)  (match cd
                                    ['<return> `(return ,work)]
@@ -13946,6 +13940,24 @@
         [_ #f]))
     (sexp-any? direct-dummy-closure-call? mod))
 
+  (define (module-has-direct-label-call? mod)
+    (define (direct-label-call? x)
+      (match x
+        [(list 'call label clos args)
+         (and (symbol? label)
+              (regexp-match? #rx"^\\$label\\." (symbol->string label))
+              (pair? args)
+              (eq? (car args) 'array.new_fixed)
+              (not (eq? clos #f)))]
+        [(list 'return_call label clos args)
+         (and (symbol? label)
+              (regexp-match? #rx"^\\$label\\." (symbol->string label))
+              (pair? args)
+              (eq? (car args) 'array.new_fixed)
+              (not (eq? clos #f)))]
+        [_ #f]))
+    (sexp-any? direct-label-call? mod))
+
   (define (module-has-local-closure-shell-allocation? mod)
     (define (local-closure-shell-allocation? x)
       (match x
@@ -13987,6 +13999,35 @@
                    [current-ffi-funcs-wat '()])
       (reset-ffi-primitives))
     (values mod report))
+
+  (define (closure-converted stx)
+    (reset-counter!)
+    (define p0  (parse (unexpand (topexpand stx))))
+    (define s0  (simplify-LFE p0))
+    (define ft  (flatten-topbegin s0))
+    (define in  (infer-names ft))
+    (define cq  (convert-quotations in))
+    (define eb  (explicit-begin cq))
+    (define ecl (explicit-case-lambda eb))
+    (define ar  (α-rename ecl))
+    (define ua  (uncover-assigned! ar))
+    (define lr  (parameterize ([current-assigned-analysis ua])
+                  (lower-letrec-values ar)))
+    (define ac  (parameterize ([current-assigned-analysis ua])
+                  (assignment-conversion lr)))
+    (define ca  (categorize-applications ac))
+    (define an  (anormalize ca))
+    (parameterize ([current-enable-cc-analysis? #t])
+      (closure-conversion an)))
+
+  (define (closure-converted-has-directapp? stx)
+    (define cc-sexp
+      (unparse-all (unparse-LANF+closure (closure-converted stx))))
+    (define (directapp-form? x)
+      (match x
+        [(list 'directapp _ ...) #t]
+        [_ #f]))
+    (sexp-any? directapp-form? cc-sexp))
 
   (let-values ([(mod report)
                 (compile/primitive-report #'(module tree-shake-acos webracket
@@ -14043,10 +14084,29 @@
     (parameterize ([current-enable-cc-analysis? #t])
       (comp #'((lambda (x) x) 1)))))
 
+  (check-true
+   (closure-converted-has-directapp? #'(let ([f (lambda (x) x)])
+                                     (f 2))))
+
   (let ([mod (parameterize ([current-enable-cc-analysis? #t])
                (comp #'(let ([f (lambda (x) x)])
                          (f 2))))])
-    (check-true (module-has-direct-dummy-closure-call? mod)))
+    (check-true (module-has-direct-label-call? mod)))
+
+  (check-true
+   (closure-converted-has-directapp? #'(letrec ([loop (lambda (n)
+                                                        (if (zero? n)
+                                                            0
+                                                            (loop (- n 1))))])
+                                     (loop 2))))
+
+  (let ([mod (parameterize ([current-enable-cc-analysis? #t])
+               (comp #'(letrec ([loop (lambda (n)
+                                        (if (zero? n)
+                                            0
+                                            (loop (- n 1))))])
+                         (loop 2))))])
+    (check-true (module-has-direct-label-call? mod)))
 
   (let-values ([(mod report)
                 (compile/primitive-report/ffi
