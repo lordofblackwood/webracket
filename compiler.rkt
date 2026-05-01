@@ -10876,6 +10876,42 @@
             extended-vars
             (equal? free-vars extended-vars)))))
 
+;; summarize-direct-helper-environment-closure-conversion-analysis : LANF
+;;                                                                -> (listof list?)
+;;   Return a compact summary of the environment views for direct helpers:
+;;   raw free vars, extended vars, current body layout, and current closure
+;;   layout.
+;;
+;; The current body/closure layout may still keep some direct-helper bindings
+;; that `extended-vars` has dropped. Today `directapp` still passes the
+;; callee's closure value explicitly, so callers must retain helper bindings
+;; whose closures are still needed as call operands.
+(define (summarize-direct-helper-environment-closure-conversion-analysis T)
+  (define (label-name labels-ht ab)
+    (syntax-e (variable-id (hash-ref labels-ht ab))))
+  (define (vars-of xs)
+    (map syntax-e (map variable-id (id-set->list xs))))
+  (letv ((T free-ht abs kind-ht _direct-sites-ht _direct-candidate-ht _disqualified-ht
+            binder-ht
+            extended-ht direct-callees-ht)
+         (closure-conversion-analysis T))
+    (define labels-ht (make-hasheq))
+    (for ([ab (in-list abs)])
+      (hash-set! labels-ht ab (new-var "label")))
+    (for/list ([ab (in-list abs)]
+               #:when (eq? (hash-ref kind-ht ab 'closed) 'direct))
+      (define raw-free-vars (vars-of (hash-ref free-ht ab empty-set)))
+      (define extended-vars (vars-of (hash-ref extended-ht ab empty-set)))
+      (define layout-vars   (direct-helper-layout-free-vars ab free-ht kind-ht binder-ht direct-callees-ht))
+      (list (label-name labels-ht ab)
+            (match (hash-ref binder-ht ab #f)
+              [#f #f]
+              [x  (syntax-e (variable-id x))])
+            raw-free-vars
+            extended-vars
+            layout-vars
+            layout-vars))))
+
 ;; direct-self-binder-removable? : any/c (hasheq/c any/c symbol?) (hasheq/c any/c (or/c variable? #f)) -> boolean?
 ;;   Check whether direct helper ab can drop its own binder from closure layout.
 (define (direct-self-binder-removable? ab kind-ht binder-ht)
@@ -10890,31 +10926,34 @@
              (sexp-any? pred e))]
           [else
            #f])))
-  (define (nested-binder-capture-present? ab binder-sym)
-    (define (binder-appears? x)
-      (equal? x binder-sym))
+  (define (nested-variable-capture-present? ab var-sym)
+    (define (variable-appears? x)
+      (equal? x var-sym))
     (define (captures-binder? x)
       (match x
         [(list 'λ _ body ...)
-         (sexp-any? binder-appears? body)]
+         (sexp-any? variable-appears? body)]
         [(list 'case-lambda arms ...)
-         (sexp-any? binder-appears? arms)]
+         (sexp-any? variable-appears? arms)]
         [_ #f]))
-    (nanopass-case (LANF Abstraction) ab
+    (nanopass-case (LANF AExpr) ab
       [(λ ,s ,f ,e)
-       (sexp-any? captures-binder? (unparse-all (unparse-LANF e)))]))
+       (sexp-any? captures-binder? (unparse-all (unparse-LANF e)))]
+      [else
+       #f]))
   (and (eq? (hash-ref kind-ht ab 'closed) 'direct)
        (match (hash-ref binder-ht ab #f)
          [#f #f]
-         [x  (not (nested-binder-capture-present? ab (syntax-e (variable-id x))))])))
+         [x  (not (nested-variable-capture-present? ab (syntax-e (variable-id x))))])))
 
-;; direct-helper-layout-free-vars : any/c
-;;                                  (hasheq/c any/c id-set?)
-;;                                  (hasheq/c any/c symbol?)
-;;                                  (hasheq/c any/c (or/c variable? #f))
-;;                               -> (listof symbol?)
-;;   Return the current closure-layout free variables for abstraction ab.
-(define (direct-helper-layout-free-vars ab free-ht kind-ht binder-ht)
+;; direct-helper-layout-base-free-vars : any/c
+;;                                       (hasheq/c any/c id-set?)
+;;                                       (hasheq/c any/c symbol?)
+;;                                       (hasheq/c any/c (or/c variable? #f))
+;;                                    -> (listof symbol?)
+;;   Return the current direct-helper layout before label-only direct-call
+;;   reductions for empty-layout direct callees.
+(define (direct-helper-layout-base-free-vars ab free-ht kind-ht binder-ht)
   (define xs
     (map syntax-e
          (map variable-id
@@ -10927,6 +10966,33 @@
                    xs)])]
     [else
      xs]))
+
+;; direct-helper-layout-free-vars : any/c
+;;                                  (hasheq/c any/c id-set?)
+;;                                  (hasheq/c any/c symbol?)
+;;                                  (hasheq/c any/c (or/c variable? #f))
+;;                                  (hasheq/c any/c (listof any/c))
+;;                               -> (listof symbol?)
+;;   Return the current closure-layout free variables for abstraction ab.
+(define (direct-helper-layout-free-vars ab free-ht kind-ht binder-ht direct-callees-ht)
+  (define xs
+    (direct-helper-layout-base-free-vars ab free-ht kind-ht binder-ht))
+  (define (callee-direct0-binder-sym callee)
+    (nanopass-case (LANF AExpr) callee
+      [(λ ,s ,f ,e)
+       (and (eq? (hash-ref kind-ht callee 'closed) 'direct)
+            (null? (direct-helper-layout-base-free-vars callee free-ht kind-ht binder-ht))
+            (match (hash-ref binder-ht callee #f)
+              [#f #f]
+              [x  (syntax-e (variable-id x))]))]
+      [else
+       #f]))
+  (define removable-syms
+    (filter values
+            (map callee-direct0-binder-sym
+                 (hash-ref direct-callees-ht ab '()))))
+  (filter (λ (y) (not (member y removable-syms)))
+          xs))
 
 ;; direct-self-recursive? : any/c (hasheq/c any/c id-set?) (hasheq/c any/c (or/c variable? #f)) -> boolean?
 ;;   Check whether ab's own binder occurs in its raw free-variable set.
@@ -11064,7 +11130,7 @@
     (syntax-e (variable-id (hash-ref labels-ht ab))))
   (letv ((T free-ht abs kind-ht _direct-sites-ht _direct-candidate-ht _disqualified-ht
             binder-ht
-            _extended-ht _direct-callees-ht)
+            _extended-ht direct-callees-ht)
          (closure-conversion-analysis T))
     (define labels-ht (make-hasheq))
     (for ([ab (in-list abs)])
@@ -11077,7 +11143,7 @@
           [x  (syntax-e (variable-id x))]))
       (list (label-name labels-ht ab)
             binder
-            (direct-helper-layout-free-vars ab free-ht kind-ht binder-ht)
+            (direct-helper-layout-free-vars ab free-ht kind-ht binder-ht direct-callees-ht)
             (direct-self-binder-removable? ab kind-ht binder-ht)))))
 
 ;; collect-direct-letrec-summary-entries : LANF -> (listof list?)
@@ -11087,7 +11153,7 @@
     (syntax-e (variable-id (hash-ref labels-ht ab))))
   (letv ((T free-ht abs kind-ht _direct-sites-ht _direct-candidate-ht _disqualified-ht
             binder-ht
-            _extended-ht _direct-callees-ht)
+            _extended-ht direct-callees-ht)
          (closure-conversion-analysis T))
     (define labels-ht (make-hasheq))
     (for ([ab (in-list abs)])
@@ -11095,7 +11161,7 @@
     (define entries '())
     (define (record-letrec-entry! x ab letrec-binders)
       (define binder-sym (syntax-e (variable-id x)))
-      (define free-vars  (direct-helper-layout-free-vars ab free-ht kind-ht binder-ht))
+      (define free-vars  (direct-helper-layout-free-vars ab free-ht kind-ht binder-ht direct-callees-ht))
       (define fixed-arity? (abstraction-fixed-arity? ab))
       (define kind (hash-ref kind-ht ab 'closed))
       (define-values (links patching-kind final-allocate? representable? allocation-mode)
@@ -11493,7 +11559,7 @@
 (define (summarize-direct-letrec-dependency-closure-conversion-analysis T)
   (letv ((T free-ht abs kind-ht _direct-sites-ht _direct-candidate-ht _disqualified-ht
             binder-ht
-            _extended-ht _direct-callees-ht)
+            _extended-ht direct-callees-ht)
          (closure-conversion-analysis T))
     (define (direct-entry xs ce)
       (and (= (length xs) 1)
@@ -11505,7 +11571,7 @@
                    (define kind (hash-ref kind-ht ab 'closed))
                    (and (eq? kind 'direct)
                         (list (syntax-e (variable-id x))
-                              (direct-helper-layout-free-vars ab free-ht kind-ht binder-ht)))]
+                              (direct-helper-layout-free-vars ab free-ht kind-ht binder-ht direct-callees-ht)))]
                   [else #f])]
                [else #f]))))
     (define entries '())
@@ -11624,7 +11690,7 @@
 (define (summarize-direct-letrec-group-allocation-closure-conversion-analysis T)
   (letv ((T free-ht abs kind-ht _direct-sites-ht _direct-candidate-ht _disqualified-ht
             binder-ht
-            _extended-ht _direct-callees-ht)
+            _extended-ht direct-callees-ht)
          (closure-conversion-analysis T))
     (define (direct-entry xs ce)
       (and (= (length xs) 1)
@@ -11636,7 +11702,7 @@
                    (define kind (hash-ref kind-ht ab 'closed))
                    (and (eq? kind 'direct)
                         (let* ([binder-sym   (syntax-e (variable-id x))]
-                               [free-vars     (direct-helper-layout-free-vars ab free-ht kind-ht binder-ht)]
+                               [free-vars     (direct-helper-layout-free-vars ab free-ht kind-ht binder-ht direct-callees-ht)]
                                [fixed-arity?  (abstraction-fixed-arity? ab)])
                           (list binder-sym free-vars fixed-arity? kind)))]
                   [else #f])]
@@ -11908,6 +11974,12 @@
     (analyze-with-cc-summary stx
       summarize-direct-layout-closure-conversion-analysis))
 
+  ;; direct-helper-environment-analysis-summary : syntax? -> (listof list?)
+  ;;   Run the pipeline up to LANF and summarize direct-helper environment views.
+  (define (direct-helper-environment-analysis-summary stx)
+    (analyze-with-cc-summary stx
+      summarize-direct-helper-environment-closure-conversion-analysis))
+
   ;; direct-self-binder-analysis-summary : syntax? -> (listof list?)
   ;;   Run the pipeline up to LANF and summarize self-binder removal eligibility.
   (define (direct-self-binder-analysis-summary stx)
@@ -12023,6 +12095,22 @@
          (and (equal? binder0 binder)
               (equal? free-vars0 free-vars)
               (equal? removable0 removable?))]
+        [_ #f])))
+
+  ;; direct-helper-environment-summary-has-entry?
+  ;;   : (listof list?) symbol? (listof symbol?) (listof symbol?) (listof symbol?) (listof symbol?) -> boolean?
+  ;;   Check whether the direct-helper environment summary contains an entry
+  ;;   with the given fields.
+  (define (direct-helper-environment-summary-has-entry?
+           summary binder raw-free-vars extended-vars body-layout-vars closure-layout-vars)
+    (for/or ([entry (in-list summary)])
+      (match entry
+        [(list _label binder0 raw-free-vars0 extended-vars0 body-layout-vars0 closure-layout-vars0)
+         (and (equal? binder0 binder)
+              (equal? raw-free-vars0 raw-free-vars)
+              (equal? extended-vars0 extended-vars)
+              (equal? body-layout-vars0 body-layout-vars)
+              (equal? closure-layout-vars0 closure-layout-vars))]
         [_ #f])))
 
   ;; direct-letrec-summary-base-entry-matches? : list? symbol? symbol? (listof symbol?) (listof symbol?) symbol? -> boolean?
@@ -12350,8 +12438,43 @@
     #f))
 
   (check-true
+   (direct-helper-environment-summary-has-entry?
+    (direct-helper-environment-analysis-summary #'(let ([f (lambda (x) x)])
+                                                    (f 1)))
+    'f.2
+    '()
+    '()
+    '()
+    '()))
+
+  (check-true
+   (direct-helper-environment-summary-has-entry?
+    (direct-helper-environment-analysis-summary #'(letrec ([loop (lambda (n)
+                                                                   (if (zero? n)
+                                                                       0
+                                                                       (loop (- n 1))))])
+                                                    (loop 10)))
+    'loop.1
+    '(loop.1)
+    '()
+    '()
+    '()))
+
+  (check-true
+   (direct-helper-environment-summary-has-entry?
+    (direct-helper-environment-analysis-summary
+     #'(let ([f (lambda (x) x)])
+         (let ([g (lambda (y) (f y))])
+           (g 1))))
+    'g.4
+    '(f.2)
+    '()
+    '()
+    '()))
+
+  (check-true
    (direct-self-binder-summary-has-entry?
-    (direct-self-binder-analysis-summary #'(letrec ([loop (lambda (n)
+   (direct-self-binder-analysis-summary #'(letrec ([loop (lambda (n)
                                                             (if (zero? n)
                                                                 0
                                                                 (loop (- n 1))))])
@@ -12994,13 +13117,13 @@
   (define (add-label! ab) (hash-set! labels-ht ab (new-var "label")))
   (letv ((T free-ht abs kind-ht _direct-sites-ht _direct-candidate-ht _disqualified-ht
             binder-ht
-            extended-ht _direct-callees-ht)
+            extended-ht direct-callees-ht)
          (closure-conversion-analysis T))
     (current-direct-letrec-representation-labels (make-hasheq))
     #;(pretty-print free-ht)
     (for ([ab abs])
       (add-label! ab))
-    (finish-closure-conversion T free-ht kind-ht binder-ht extended-ht labels-ht)))
+    (finish-closure-conversion T free-ht kind-ht binder-ht extended-ht direct-callees-ht labels-ht)))
 
 (define (closure+primitive? v)
   (or (eq? v 'closure)
@@ -13045,6 +13168,7 @@
     (- (closedapp s ab ae1 ...))
     (+ (closedapp s ca ae1 ...) => (closedapp ca ae1 ...)
        (directapp s l ar ae0 ae1 ...)  => (directapp l ar ae0 ae1 ...)
+       (direct0app s l ar ae1 ...)     => (direct0app l ar ae1 ...)
        (selfapp s l ar ae1 ...)        => (selfapp l ar ae1 ...)
        (casearmapp s l ar i ae0 ae1 ...) => (casearmapp l ar i ae0 ae1 ...)))
   (ConvertedAbstraction (cab)
@@ -13057,7 +13181,7 @@
     (+ (define-label l cab))))
 
 
-(define-pass finish-closure-conversion : LANF (T free-ht kind-ht binder-ht extended-ht labels-ht) -> LANF+closure ()
+(define-pass finish-closure-conversion : LANF (T free-ht kind-ht binder-ht extended-ht direct-callees-ht labels-ht) -> LANF+closure ()
   (definitions
     (define h #'fcc)
     (define (label-of ab) (hash-ref labels-ht ab))
@@ -13088,7 +13212,7 @@
     ;;   Return the current closure-layout free variables for ab.
     (define (layout-free-of ab)
       (define syms
-        (direct-helper-layout-free-vars ab free-ht kind-ht binder-ht))
+        (direct-helper-layout-free-vars ab free-ht kind-ht binder-ht direct-callees-ht))
       (filter-map (λ (x)
                     (for/or ([y (in-list (free-of ab))])
                       (and (equal? (syntax-e (variable-id y)) x) y)))
@@ -13108,6 +13232,13 @@
     ;;   Convert ab's closure environment variables to closure-converted aexprs.
     (define (closure-env-aexprs-of ab)
       (map AExpr (closure-env-of ab)))
+
+    ;; direct-target-uses-dummy-closure/local? : any/c -> boolean?
+    ;;   Check whether direct calls to ab can pass `$dummy-closure` because the
+    ;;   lifted body currently uses no closure environment.
+    (define (direct-target-uses-dummy-closure/local? ab)
+      (and (eq? (kind-of ab) 'direct)
+           (null? (body-layout-of ab))))
 
     ;; direct-letrec-representation-eligible/local? : any/c -> boolean?
     ;;   Check whether ab fits the currently enabled tiny direct-letrec
@@ -13318,9 +13449,13 @@
        [else
         (define ab target)
         (define ar (source-formals->arity (abstraction-formals ab)))
-        (if (eq? ab (current-direct-abstraction))
-            `(selfapp ,s ,(label-of ab) ,ar ,ae* ...)
-            `(directapp ,s ,(label-of ab) ,ar ,ae0 ,ae* ...))])]
+        (cond
+          [(eq? ab (current-direct-abstraction))
+           `(selfapp ,s ,(label-of ab) ,ar ,ae* ...)]
+          [(direct-target-uses-dummy-closure/local? ab)
+           `(direct0app ,s ,(label-of ab) ,ar ,ae* ...)]
+          [else
+           `(directapp ,s ,(label-of ab) ,ar ,ae0 ,ae* ...)])])]
     [(app ,s ,ae ,ae1 ...)
      (define ae* (map AExpr ae1))
      `(app ,s ,(AExpr ae) ,ae* ...)]
@@ -13607,6 +13742,7 @@
     [(wcm ,s ,ae0 ,ae1 ,e)         (AExpr ae0) (AExpr ae1) (Expr e)]
     [(app ,s ,ae  ,ae1 ...)        (AExpr* (cons ae ae1))]
     [(directapp ,s ,l ,ar ,ae0 ,ae1 ...)  (AExpr* (cons ae0 ae1))]
+    [(direct0app ,s ,l ,ar ,ae1 ...)      (AExpr* ae1)]
     [(selfapp ,s ,l ,ar ,ae1 ...)         (AExpr* ae1)]
     [(casearmapp ,s ,l ,ar ,i ,ae0 ,ae1 ...) (AExpr* (cons ae0 ae1))]
     [(primapp   ,s ,pr ,ae1 ...)   (AExpr* ae1)]
@@ -14991,6 +15127,29 @@
                                    ['<expr>             work]
                                    ['<stat>             work])]
        [y                        (Store! y work)])]
+    [(direct0app ,s ,l ,ar ,ae2 ...)
+     (define tc (eq? cd '<return>))
+     (define raw-args
+       `(array.new_fixed $Args ,(length ae2)
+                         ,@(for/list ([ae (in-list ae2)])
+                             (AExpr3 ae <value>))))
+     (define args
+       (if (negative? ar)
+           `(call $repack-arguments ,raw-args (i32.const ,ar))
+           raw-args))
+     (define work
+       (if tc
+           `(return_call ,(Label l) (global.get $dummy-closure) ,args)
+           (cond
+             [(eq? dd <value>)  `(call ,(Label l) (global.get $dummy-closure) ,args)]
+             [(eq? dd <effect>) `(drop (call ,(Label l) (global.get $dummy-closure) ,args))]
+             [else              `(call ,(Label l) (global.get $dummy-closure) ,args)])))
+     (match dd
+       [(or '<effect> '<value>)  (match cd
+                                   ['<return>           work]
+                                   ['<expr>             work]
+                                   ['<stat>             work])]
+       [y                        (Store! y work)])]
     [(selfapp ,s ,l ,ar ,ae2 ...)
      (define tc (eq? cd '<return>))
      (define raw-args
@@ -16284,6 +16443,9 @@
        (AExpr ae0)
        (for ([ae1 (in-list ae1)])
          (AExpr ae1))]
+      [(direct0app ,s ,l ,ar ,ae1 ...)
+       (for ([ae1 (in-list ae1)])
+         (AExpr ae1))]
       [(selfapp ,s ,l ,ar ,ae1 ...)
         (for ([ae1 (in-list ae1)])
           (AExpr ae1))]
@@ -16546,6 +16708,15 @@
         [_ #f]))
     (sexp-any? directapp-form? cc-sexp))
 
+  (define (closure-converted-has-direct0app? stx [simplify? #t])
+    (define cc-sexp
+      (unparse-all (unparse-LANF+closure (closure-converted stx simplify?))))
+    (define (direct0app-form? x)
+      (match x
+        [(list 'direct0app _ ...) #t]
+        [_ #f]))
+    (sexp-any? direct0app-form? cc-sexp))
+
   (define (closure-converted-has-selfapp? stx [simplify? #t])
     (define cc-sexp
       (unparse-all (unparse-LANF+closure (closure-converted stx simplify?))))
@@ -16633,6 +16804,9 @@
            (AExpr ae1))]
         [(directapp ,s ,l ,ar ,ae0 ,ae1 ...)
          (AExpr ae0)
+         (for ([ae1 (in-list ae1)])
+           (AExpr ae1))]
+        [(direct0app ,s ,l ,ar ,ae1 ...)
          (for ([ae1 (in-list ae1)])
            (AExpr ae1))]
         [(selfapp ,s ,l ,ar ,ae1 ...)
@@ -16758,7 +16932,14 @@
          (AExpr ae0)
          (for ([ae1 (in-list ae1)])
            (AExpr ae1))]
+        [(direct0app ,s ,l ,ar ,ae1 ...)
+         (for ([ae1 (in-list ae1)])
+           (AExpr ae1))]
         [(selfapp ,s ,l ,ar ,ae1 ...)
+         (for ([ae1 (in-list ae1)])
+           (AExpr ae1))]
+        [(casearmapp ,s ,l ,ar ,i ,ae0 ,ae1 ...)
+         (AExpr ae0)
          (for ([ae1 (in-list ae1)])
            (AExpr ae1))]
         [(primapp ,s ,pr ,ae1 ...)
@@ -16872,7 +17053,14 @@
          (AExpr ae0)
          (for ([ae1 (in-list ae1)])
            (AExpr ae1))]
+        [(direct0app ,s ,l ,ar ,ae1 ...)
+         (for ([ae1 (in-list ae1)])
+           (AExpr ae1))]
         [(selfapp ,s ,l ,ar ,ae1 ...)
+         (for ([ae1 (in-list ae1)])
+           (AExpr ae1))]
+        [(casearmapp ,s ,l ,ar ,i ,ae0 ,ae1 ...)
+         (AExpr ae0)
          (for ([ae1 (in-list ae1)])
            (AExpr ae1))]
         [(primapp ,s ,pr ,ae1 ...)
@@ -16968,8 +17156,8 @@
       (comp #'((lambda (x) x) 1)))))
 
   (check-true
-   (closure-converted-has-directapp? #'(let ([f (lambda (x) x)])
-                                     (f 2))))
+   (closure-converted-has-direct0app? #'(let ([f (lambda (x) x)])
+                                      (f 2))))
 
   (check-true
    (closure-converted-has-directapp? #'(let ([f (case-lambda
@@ -17032,6 +17220,12 @@
                          (f 2))))])
     (check-true (module-has-direct-label-call? mod)))
 
+  (let ([mod (parameterize ([current-enable-cc-analysis? #t])
+               (comp #'(let ([f (lambda (x) x)])
+                         (let ([g (lambda (y) (f y))])
+                           (g 1)))))])
+    (check-true (module-has-direct-dummy-closure-call? mod)))
+
   (let ([mod (parameterize ([current-enable-cc-analysis? #t]
                             [current-enable-simplify? #f])
                (comp #'(let ([f (case-lambda
@@ -17080,11 +17274,11 @@
     (check-false (module-has-direct-label-call? mod)))
 
   (check-true
-   (closure-converted-has-directapp? #'(letrec ([loop (lambda (n)
-                                                        (if (zero? n)
-                                                            0
-                                                            (loop (- n 1))))])
-                                     (loop 2))))
+   (closure-converted-has-direct0app? #'(letrec ([loop (lambda (n)
+                                                         (if (zero? n)
+                                                             0
+                                                             (loop (- n 1))))])
+                                      (loop 2))))
 
   (check-true
    (closure-converted-has-selfapp? #'(letrec ([loop (lambda (n)
@@ -17094,11 +17288,11 @@
                                      (loop 2))))
 
   (check-true
-   (closure-converted-has-directapp? #'(letrec ([loop (lambda xs
-                                                        (if (null? xs)
-                                                            0
-                                                            (loop)))])
-                                     (loop 1))))
+   (closure-converted-has-direct0app? #'(letrec ([loop (lambda xs
+                                                         (if (null? xs)
+                                                             0
+                                                             (loop)))])
+                                      (loop 1))))
 
   (check-true
    (closure-converted-has-selfapp? #'(letrec ([loop (lambda xs
@@ -17278,6 +17472,15 @@
         [_ #f]))
     (sexp-any? directapp-form? cc-sexp))
 
+  (define (closure-converted-has-direct0app? stx)
+    (define cc-sexp
+      (unparse-all (unparse-LANF+closure (closure-converted stx))))
+    (define (direct0app-form? x)
+      (match x
+        [(list 'direct0app _ ...) #t]
+        [_ #f]))
+    (sexp-any? direct0app-form? cc-sexp))
+
   (define (closure-converted-has-selfapp? stx)
     (define cc-sexp
       (unparse-all (unparse-LANF+closure (closure-converted stx))))
@@ -17293,8 +17496,8 @@
       (comp #'((lambda (x) x) 1)))))
 
   (check-true
-   (closure-converted-has-directapp? #'(let ([f (lambda (x) x)])
-                                     (f 2))))
+   (closure-converted-has-direct0app? #'(let ([f (lambda (x) x)])
+                                      (f 2))))
 
   (let ([mod (parameterize ([current-enable-cc-analysis? #t])
                (comp #'(let ([f (lambda (x) x)])
@@ -17302,11 +17505,11 @@
     (check-true (module-has-direct-label-call? mod)))
 
   (check-true
-   (closure-converted-has-directapp? #'(letrec ([loop (lambda (n)
-                                                        (if (zero? n)
-                                                            0
-                                                            (loop (- n 1))))])
-                                     (loop 2))))
+   (closure-converted-has-direct0app? #'(letrec ([loop (lambda (n)
+                                                         (if (zero? n)
+                                                             0
+                                                             (loop (- n 1))))])
+                                      (loop 2))))
 
   (check-true
    (closure-converted-has-selfapp? #'(letrec ([loop (lambda (n)
