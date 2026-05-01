@@ -11717,6 +11717,51 @@
           scc-kind
           patched-binders)))
 
+;; summarize-direct-letrec-scc-patch-plan-closure-conversion-analysis : LANF
+;;                                                                  -> (listof list?)
+;;   Return a compact summary of the current SCC-aware patch plan for each
+;;   direct-letrec group. Each per-binder plan splits same-group links into
+;;   `immediate-links` and `recursive-links` according to the current
+;;   allocation order.
+(define (summarize-direct-letrec-scc-patch-plan-closure-conversion-analysis T)
+  (define entry-table
+    (for/hasheq ([entry (in-list (collect-direct-letrec-summary-entries T))])
+      (match entry
+        [(list binder _label kind fixed-arity? free-vars links patching-kind final-allocate? representable? allocation-mode)
+         (values binder
+                 (list kind fixed-arity? free-vars links patching-kind final-allocate? representable? allocation-mode))])))
+  (for/list ([group (in-list (summarize-direct-letrec-scc-closure-conversion-analysis T))])
+    (match group
+      [(list binders edges dependency-kind sccs scc-kind)
+       (define allocation-order
+         (direct-letrec-allocation-order binders edges))
+       (define binder-index-ht
+         (for/hasheq ([binder (in-list allocation-order)]
+                      [i      (in-naturals)])
+           (values binder i)))
+       (define plans
+         (for/list ([binder (in-list allocation-order)])
+           (match-define (list _kind _fixed-arity? _free-vars links _patching-kind _final-allocate? _representable? allocation-mode)
+             (hash-ref entry-table binder))
+           (define immediate-links
+             (for/list ([to (in-list links)]
+                        #:when (< (hash-ref binder-index-ht to)
+                                  (hash-ref binder-index-ht binder)))
+               to))
+           (define recursive-links
+             (for/list ([to (in-list links)]
+                        #:unless (< (hash-ref binder-index-ht to)
+                                    (hash-ref binder-index-ht binder)))
+               to))
+           (list binder immediate-links recursive-links allocation-mode)))
+       (list binders
+             edges
+             dependency-kind
+             sccs
+             scc-kind
+             allocation-order
+             plans)])))
+
 (module+ test
   (require rackunit
            "expander.rkt")
@@ -11808,6 +11853,12 @@
   (define (direct-letrec-patching-target-analysis-summary stx)
     (analyze-with-cc-summary stx
       summarize-direct-letrec-patching-target-closure-conversion-analysis))
+
+  ;; direct-letrec-scc-patch-plan-analysis-summary : syntax? -> (listof list?)
+  ;;   Run the pipeline up to LANF and summarize SCC-aware direct-letrec patch plans.
+  (define (direct-letrec-scc-patch-plan-analysis-summary stx)
+    (analyze-with-cc-summary stx
+      summarize-direct-letrec-scc-patch-plan-closure-conversion-analysis))
 
   ;; letrec-final-allocation-analysis-summary : syntax? -> (listof list?)
   ;;   Run the pipeline up to LANF and summarize final letrec closure allocation.
@@ -12045,6 +12096,38 @@
               (equal? (sort-sccs sccs0) (sort-sccs sccs))
               (eq? scc-kind0 scc-kind)
               (equal? (sort-symbols patched-binders0) (sort-symbols patched-binders)))]
+        [_ #f])))
+
+  ;; direct-letrec-scc-patch-plan-summary-has-entry?
+  ;;   : (listof list?) (listof symbol?) (listof list?) symbol? (listof list?) symbol?
+  ;;     (listof symbol?) (listof list?) -> boolean?
+  ;;   Check whether the SCC patch-plan summary contains an entry with the given fields.
+  (define (direct-letrec-scc-patch-plan-summary-has-entry? summary
+                                                           binders
+                                                           edges
+                                                           dependency-kind
+                                                           sccs
+                                                           scc-kind
+                                                           allocation-order
+                                                           plans)
+    (define (normalize-plan-entry entry)
+      (match entry
+        [(list binder immediate-links recursive-links allocation-mode)
+         (list binder
+               (sort-symbols immediate-links)
+               (sort-symbols recursive-links)
+               allocation-mode)]))
+    (for/or ([entry (in-list summary)])
+      (match entry
+        [(list binders0 edges0 dependency-kind0 sccs0 scc-kind0 allocation-order0 plans0)
+         (and (equal? (sort-symbols binders0) (sort-symbols binders))
+              (equal? (sort-edges edges0) (sort-edges edges))
+              (eq? dependency-kind0 dependency-kind)
+              (equal? (sort-sccs sccs0) (sort-sccs sccs))
+              (eq? scc-kind0 scc-kind)
+              (equal? allocation-order0 allocation-order)
+              (equal? (map normalize-plan-entry plans0)
+                      (map normalize-plan-entry plans)))]
         [_ #f])))
 
   (check-true
@@ -12608,6 +12691,45 @@
     '((even?.1 odd?.2))
     'single-nontrivial
     '(even?.1 odd?.2)))
+
+  (check-true
+   (direct-letrec-scc-patch-plan-summary-has-entry?
+    (direct-letrec-scc-patch-plan-analysis-summary
+     #'(letrec ([even? (lambda (n)
+                         (if (zero? n)
+                             #t
+                             (odd? (- n 1))))]
+                [odd?  (lambda (n)
+                         (if (zero? n)
+                             #f
+                             (even? (- n 1))))])
+         (even? 4)))
+    '(even?.1 odd?.2)
+    '((even?.1 odd?.2)
+      (odd?.2 even?.1))
+    'mutual
+    '((even?.1 odd?.2))
+    'single-nontrivial
+    '(even?.1 odd?.2)
+    '((even?.1 () (odd?.2) patched)
+      (odd?.2 (even?.1) () patched))))
+
+  (check-true
+   (direct-letrec-scc-patch-plan-summary-has-entry?
+    (direct-letrec-scc-patch-plan-analysis-summary
+     #'(letrec ([a (lambda () (b))]
+                [b (lambda () (c))]
+                [c (lambda () (b))])
+         (a)))
+    '(b.2 c.3)
+    '((b.2 c.3)
+      (c.3 b.2))
+    'mutual
+    '((b.2 c.3))
+    'single-nontrivial
+    '(b.2 c.3)
+    '((b.2 () (c.3) patched)
+      (c.3 (b.2) () patched))))
 
   (check-false
    (direct-letrec-representation-summary-has-entry?
@@ -14976,15 +15098,25 @@
        ; Fill only the recursive link slots in the $free array.
        (nanopass-case (LANF+closure AExpr) ca
          [(closure ,s ,k ,in ,l ,ar ,ae1 ...)
-          ; This will be sliced into a `block` so we don't need another one.
-          (for/list ([entry (in-list (letrec-closure-payload-plan ca dd))]
-                     #:when (eq? (second entry) 'recursive))
-            (match entry
-              [(list i _kind v)
-               `(array.set $Free
-                           (struct.get $Closure $free (ref.cast (ref $Closure) ,(Reference dd)))
-                           (i32.const ,i)
-                           ,v)]))]
+          (define recursive-entries
+            (for/list ([entry (in-list (letrec-closure-payload-plan ca dd))]
+                       #:when (eq? (second entry) 'recursive))
+              entry))
+          (cond
+            [(null? recursive-entries)
+             '()]
+            [else
+             (define free-arr (emit-fresh-local 'free '(ref $Free) #f))
+             (cons
+              (Store! free-arr
+                      `(struct.get $Closure $free (ref.cast (ref $Closure) ,(Reference dd))))
+              (for/list ([entry (in-list recursive-entries)])
+                (match entry
+                  [(list i _kind v)
+                   `(array.set $Free
+                               ,(Reference free-arr)
+                               (i32.const ,i)
+                               ,v)])))])]
          [(case-closure ,s ,in ,l [,ar ,ca*] ...)
          (append*
           (for/list ([m  ar]
