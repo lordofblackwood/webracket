@@ -2165,6 +2165,23 @@
                        ;; inline payload for the single captured value
                        (field $free0  (mut (ref eq))))))
 
+          (type $Closure2
+                (sub $Closure
+                     (struct
+                       ;; inherited $Procedure fields
+                       (field $hash   (mut i32))
+                       (field $name   (ref eq))
+                       (field $arity  (ref eq))
+                       (field $realm  (ref eq))
+                       (field $invoke (ref $ProcedureInvoker))
+                       ;; inherited $Closure fields
+                       (field $debug-id (ref eq))
+                       (field $code   (ref $ClosureCode))
+                       (field $free   (ref $Free))
+                       ;; inline payload for the two captured values
+                       (field $free0  (mut (ref eq)))
+                       (field $free1  (mut (ref eq))))))
+
           (type $CaseClosure  ; for case-lambda
                 (sub $Closure
                      (struct
