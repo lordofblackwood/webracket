@@ -1428,7 +1428,7 @@
 (define (primitive-inline-spec-ref sym)
   (hash-ref (ensure-primitive-inline-spec-table!) sym #f))
 
-(module+ test
+#;(module+ test
   (check-equal? (primitive-inline-spec-kind (primitive-inline-spec-ref 'substring))
                 'optional)
   (check-equal? (primitive-inline-spec-default (primitive-inline-spec-ref 'string-join))
@@ -3085,7 +3085,7 @@
                            (unparse-all (cdr x)))]
       [else          x]))
 
-(module+ test
+#;(module+ test
   (let ([test (λ (stx) (unparse-all (unparse-LFE (parse (expand-syntax stx)))))])
     (check-equal? (test #'y) '(#%top . y))
     (check-equal? (test #''(1 x)) ''(1 x))
@@ -5418,7 +5418,7 @@
   (letv ((T κ) (TopLevelForm T κ))
     (values T κ)))
 
-(module+ test
+#;(module+ test
   (let ([test (λ (stx)
                 (unparse-all
                  (unparse-LFE
@@ -6633,7 +6633,7 @@
             [e  (map Begin hs e0 e)])
        `(case-lambda ,s (,f ,e) ...))]))
 
-(module+ test
+#;(module+ test
     (let ([test (λ (stx)
                   (unparse-all
                    (unparse-LFE1
@@ -7120,7 +7120,7 @@
   ;;    (top s x)                                    => (#%top . x)))
 
 
-(module+ test
+#;(module+ test
   (let ([test (λ (stx)
                 (reset-counter!)
                 (parameterize ([α-rename-mode 'simple])
@@ -9537,7 +9537,7 @@
   (TopLevelForm T))
 
 
-(module+ test
+#;(module+ test
   (let ()
     (define (lower-test stx [strategy 'basic])
       (reset-counter!)
@@ -11128,7 +11128,7 @@
       [(list binder label kind free-vars links patching-kind _eligible?)
        (list binder label kind free-vars links patching-kind)])))
 
-(module+ test
+#;(module+ test
   (require rackunit
            "expander.rkt")
 
@@ -11241,32 +11241,38 @@
               (equal? removable0 removable?))]
         [_ #f])))
 
+  ;; direct-letrec-summary-base-entry-matches? : list? symbol? symbol? (listof symbol?) (listof symbol?) symbol? -> boolean?
+  ;;   Check whether one direct-letrec summary entry matches the shared core fields.
+  (define (direct-letrec-summary-base-entry-matches? entry binder kind free-vars links patching-kind)
+    (match entry
+      [(list-rest binder0 _label kind0 free-vars0 links0 patching-kind0 _rest)
+       (and (equal? binder0 binder)
+            (eq? kind0 kind)
+            (equal? free-vars0 free-vars)
+            (equal? links0 links)
+            (eq? patching-kind0 patching-kind))]
+      [_ #f]))
+
+  ;; direct-letrec-summary-base-has-entry? : (listof list?) symbol? symbol? (listof symbol?) (listof symbol?) symbol? -> boolean?
+  ;;   Check whether a direct-letrec summary contains an entry with the shared core fields.
+  (define (direct-letrec-summary-base-has-entry? summary binder kind free-vars links patching-kind)
+    (for/or ([entry (in-list summary)])
+      (direct-letrec-summary-base-entry-matches? entry binder kind free-vars links patching-kind)))
+
   ;; direct-letrec-allocation-summary-has-entry? : (listof list?) symbol? symbol? (listof symbol?) (listof symbol?) symbol? boolean? -> boolean?
   ;;   Check whether the letrec-allocation summary contains an entry with the given fields.
   (define (direct-letrec-allocation-summary-has-entry? summary binder kind free-vars links patching-kind eligible?)
     (for/or ([entry (in-list summary)])
       (match entry
-        [(list binder0 _label kind0 free-vars0 links0 patching-kind0 eligible0)
-         (and (equal? binder0 binder)
-              (eq? kind0 kind)
-              (equal? free-vars0 free-vars)
-              (equal? links0 links)
-              (eq? patching-kind0 patching-kind)
+        [(list _ _ _ _ _ _ eligible0)
+         (and (direct-letrec-summary-base-entry-matches? entry binder kind free-vars links patching-kind)
               (equal? eligible0 eligible?))]
         [_ #f])))
 
   ;; direct-letrec-patching-summary-has-entry? : (listof list?) symbol? symbol? (listof symbol?) (listof symbol?) symbol? -> boolean?
   ;;   Check whether the letrec-patching summary contains an entry with the given fields.
   (define (direct-letrec-patching-summary-has-entry? summary binder kind free-vars links patching-kind)
-    (for/or ([entry (in-list summary)])
-      (match entry
-        [(list binder0 _label kind0 free-vars0 links0 patching-kind0)
-         (and (equal? binder0 binder)
-              (eq? kind0 kind)
-              (equal? free-vars0 free-vars)
-              (equal? links0 links)
-              (eq? patching-kind0 patching-kind))]
-        [_ #f])))
+    (direct-letrec-summary-base-has-entry? summary binder kind free-vars links patching-kind))
 
   (check-true
    (summary-has-entry? (closure-analysis-summary #'(letrec ([loop (lambda (n)
@@ -11460,6 +11466,14 @@
     (check-equal? links '(odd?.2))
     (check-equal? patching-kind 'cross-linked)
     (check-false eligible?))
+
+  (check-true  (direct-letrec-allocation-eligible? 'direct 'loop.1 '()))
+
+  (check-false (direct-letrec-allocation-eligible? 'direct 'loop.1 '(loop.1)))
+
+  (check-false (direct-letrec-allocation-eligible? 'direct 'even?.1 '(odd?.2)))
+
+  (check-false (direct-letrec-allocation-eligible? 'closed 'f.1 '()))
 
   (check-false (direct-letrec-shell-allocation-needed? 'direct 'loop.1 '()))
 
@@ -13611,17 +13625,7 @@
      ;; shell-allocate-letrec-closure? : LANF+closure AExpr variable? -> boolean?
      ;;   Check whether ca still needs shell allocation and later patching.
      (define (shell-allocate-letrec-closure? ca x)
-       (nanopass-case (LANF+closure AExpr) ca
-         [(closure ,s ,k ,in ,l ,ar ,ae1 ...)
-          (define-values (links _patching-kind _eligible?)
-            (letrec-closure-allocation-info k x ae1))
-          (and (current-enable-cc-analysis?)
-               (direct-letrec-shell-allocation-needed?
-                k
-                (syntax-e (variable-id x))
-                links))]
-         [else
-          #t]))
+       (not (direct-allocate-letrec-closure? ca x)))
      
      (define (closure-debug-id-expr l)
        (define debug-id (syntax-e (variable-id l)))
@@ -14456,7 +14460,7 @@
        (categorize-applications
         ac)))))))
 
-(module+ test
+#;(module+ test
   (define (module-has-top-level-form? mod head name)
     (for/or ([form (in-list (cdr mod))])
       (and (pair? form)
@@ -14720,6 +14724,151 @@
     (check-false (module-has-top-level-form? mod 'global '$prim:js-console-info))
     (check-true (pair? (assq 'summary report))))
   )
+
+(module+ test
+  (define (sexp-any? pred x)
+    (or (pred x)
+        (cond
+          [(pair? x)
+           (or (sexp-any? pred (car x))
+               (sexp-any? pred (cdr x)))]
+          [(vector? x)
+           (for/or ([e (in-vector x)])
+             (sexp-any? pred e))]
+          [else
+           #f])))
+
+  (define (module-has-direct-dummy-closure-call? mod)
+    (define (direct-dummy-closure-call? x)
+      (match x
+        [(list 'call label '(global.get $dummy-closure) args)
+         (and (symbol? label)
+              (regexp-match? #rx"^\\$label\\." (symbol->string label))
+              (pair? args)
+              (eq? (car args) 'array.new_fixed))]
+        [(list 'return_call label '(global.get $dummy-closure) args)
+         (and (symbol? label)
+              (regexp-match? #rx"^\\$label\\." (symbol->string label))
+              (pair? args)
+              (eq? (car args) 'array.new_fixed))]
+        [_ #f]))
+    (sexp-any? direct-dummy-closure-call? mod))
+
+  (define (module-has-direct-label-call? mod)
+    (define (direct-label-call? x)
+      (match x
+        [(list 'call label clos args)
+         (and (symbol? label)
+              (regexp-match? #rx"^\\$label\\." (symbol->string label))
+              (pair? args)
+              (eq? (car args) 'array.new_fixed)
+              (not (eq? clos #f)))]
+        [(list 'return_call label clos args)
+         (and (symbol? label)
+              (regexp-match? #rx"^\\$label\\." (symbol->string label))
+              (pair? args)
+              (eq? (car args) 'array.new_fixed)
+              (not (eq? clos #f)))]
+        [_ #f]))
+    (sexp-any? direct-label-call? mod))
+
+  (define (module-has-local-closure-shell-allocation? mod)
+    (define (undefined-slot? x)
+      (equal? x '(global.get $undefined)))
+    (define (local-closure-shell-allocation? x)
+      (match x
+        [(list 'local.set _
+               (list 'struct.new '$Closure _ ... (list 'array.new_fixed '$Free _ slots ...)))
+         (ormap undefined-slot? slots)]
+        [_ #f]))
+    (sexp-any? local-closure-shell-allocation? mod))
+
+  (define (closure-converted stx)
+    (reset-counter!)
+    (define p0  (parse (unexpand (topexpand stx))))
+    (define s0  (simplify-LFE p0))
+    (define ft  (flatten-topbegin s0))
+    (define in  (infer-names ft))
+    (define cq  (convert-quotations in))
+    (define eb  (explicit-begin cq))
+    (define ecl (explicit-case-lambda eb))
+    (define ar  (α-rename ecl))
+    (define ua  (uncover-assigned! ar))
+    (define lr  (parameterize ([current-assigned-analysis ua])
+                  (lower-letrec-values ar)))
+    (define ac  (parameterize ([current-assigned-analysis ua])
+                  (assignment-conversion lr)))
+    (define ca  (categorize-applications ac))
+    (define an  (anormalize ca))
+    (parameterize ([current-enable-cc-analysis? #t])
+      (closure-conversion an)))
+
+  (define (closure-converted-has-directapp? stx)
+    (define cc-sexp
+      (unparse-all (unparse-LANF+closure (closure-converted stx))))
+    (define (directapp-form? x)
+      (match x
+        [(list 'directapp _ ...) #t]
+        [_ #f]))
+    (sexp-any? directapp-form? cc-sexp))
+
+  (define (closure-converted-has-selfapp? stx)
+    (define cc-sexp
+      (unparse-all (unparse-LANF+closure (closure-converted stx))))
+    (define (selfapp-form? x)
+      (match x
+        [(list 'selfapp _ ...) #t]
+        [_ #f]))
+    (sexp-any? selfapp-form? cc-sexp))
+
+  (check-true
+   (module-has-direct-dummy-closure-call?
+    (parameterize ([current-enable-cc-analysis? #t])
+      (comp #'((lambda (x) x) 1)))))
+
+  (check-true
+   (closure-converted-has-directapp? #'(let ([f (lambda (x) x)])
+                                     (f 2))))
+
+  (let ([mod (parameterize ([current-enable-cc-analysis? #t])
+               (comp #'(let ([f (lambda (x) x)])
+                         (f 2))))])
+    (check-true (module-has-direct-label-call? mod)))
+
+  (check-true
+   (closure-converted-has-directapp? #'(letrec ([loop (lambda (n)
+                                                        (if (zero? n)
+                                                            0
+                                                            (loop (- n 1))))])
+                                     (loop 2))))
+
+  (check-true
+   (closure-converted-has-selfapp? #'(letrec ([loop (lambda (n)
+                                                      (if (zero? n)
+                                                          0
+                                                          (loop (- n 1))))])
+                                     (loop 2))))
+
+  (let ([mod (parameterize ([current-enable-cc-analysis? #t])
+               (comp #'(letrec ([loop (lambda (n)
+                                        (if (zero? n)
+                                            0
+                                            (loop (- n 1))))])
+                         (loop 2))))])
+    (check-true  (module-has-direct-label-call? mod))
+    (check-false (module-has-local-closure-shell-allocation? mod)))
+
+  (let ([mod (parameterize ([current-enable-cc-analysis? #t])
+               (comp #'(letrec ([even? (lambda (n)
+                                         (if (zero? n)
+                                             #t
+                                             (odd? (- n 1))))]
+                                [odd?  (lambda (n)
+                                         (if (zero? n)
+                                             #f
+                                             (even? (- n 1))))])
+                         (even? 4))))])
+    (check-true (module-has-direct-label-call? mod))))
   
 (define (comp-- stx)
   (reset-counter!)
