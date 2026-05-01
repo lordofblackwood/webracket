@@ -10834,6 +10834,29 @@
             (map (λ (callee) (label-name labels-ht callee))
                  (hash-ref direct-callees-ht ab '()))))))
 
+;; summarize-direct-layout-closure-conversion-analysis : LANF
+;;                                                   -> (listof list?)
+;;   Return a compact summary of direct-helper layout compatibility.
+(define (summarize-direct-layout-closure-conversion-analysis T)
+  (define (label-name labels-ht ab)
+    (syntax-e (variable-id (hash-ref labels-ht ab))))
+  (define (vars-of xs)
+    (map syntax-e (map variable-id (id-set->list xs))))
+  (letv ((T free-ht abs kind-ht _direct-sites-ht _direct-candidate-ht _disqualified-ht
+            extended-ht _direct-callees-ht)
+         (closure-conversion-analysis T))
+    (define labels-ht (make-hasheq))
+    (for ([ab (in-list abs)])
+      (hash-set! labels-ht ab (new-var "label")))
+    (for/list ([ab (in-list abs)]
+               #:when (eq? (hash-ref kind-ht ab 'closed) 'direct))
+      (define free-vars     (vars-of (hash-ref free-ht ab empty-set)))
+      (define extended-vars (vars-of (hash-ref extended-ht ab empty-set)))
+      (list (label-name labels-ht ab)
+            free-vars
+            extended-vars
+            (equal? free-vars extended-vars)))))
+
 (module+ test
   (require rackunit
            "expander.rkt")
@@ -10882,6 +10905,28 @@
     (parameterize ([current-enable-cc-analysis? #t])
       (summarize-extended-closure-conversion-analysis an)))
 
+  ;; direct-layout-analysis-summary : syntax? -> (listof list?)
+  ;;   Run the pipeline up to LANF and summarize direct-helper layout compatibility.
+  (define (direct-layout-analysis-summary stx)
+    (reset-counter!)
+    (define p0  (parse (unexpand (topexpand stx))))
+    (define s0  (simplify-LFE p0))
+    (define ft  (flatten-topbegin s0))
+    (define in  (infer-names ft))
+    (define cq  (convert-quotations in))
+    (define eb  (explicit-begin cq))
+    (define ecl (explicit-case-lambda eb))
+    (define ar  (α-rename ecl))
+    (define ua  (uncover-assigned! ar))
+    (define lr  (parameterize ([current-assigned-analysis ua])
+                  (lower-letrec-values ar)))
+    (define ac  (parameterize ([current-assigned-analysis ua])
+                  (assignment-conversion lr)))
+    (define ca  (categorize-applications ac))
+    (define an  (anormalize ca))
+    (parameterize ([current-enable-cc-analysis? #t])
+      (summarize-direct-layout-closure-conversion-analysis an)))
+
   ;; summary-kinds : (listof list?) -> (listof symbol?)
   ;;   Extract the classification kinds from a summary.
   (define (summary-kinds summary)
@@ -10908,6 +10953,17 @@
          (and (eq? kind0 kind)
               (equal? free-vars0 free-vars)
               (equal? extended-free-vars0 extended-free-vars))]
+        [_ #f])))
+
+  ;; direct-layout-summary-has-entry? : (listof list?) (listof symbol?) (listof symbol?) boolean? -> boolean?
+  ;;   Check whether the direct-layout summary contains an entry with the given fields.
+  (define (direct-layout-summary-has-entry? summary free-vars extended-free-vars compatible?)
+    (for/or ([entry (in-list summary)])
+      (match entry
+        [(list _label free-vars0 extended-free-vars0 compatible0)
+         (and (equal? free-vars0 free-vars)
+              (equal? extended-free-vars0 extended-free-vars)
+              (equal? compatible0 compatible?))]
         [_ #f])))
 
   (check-true
@@ -10971,6 +11027,25 @@
     'closed
     '(f.2)
     '()))
+
+  (check-true
+   (direct-layout-summary-has-entry?
+    (direct-layout-analysis-summary #'(let ([f (lambda (x) x)])
+                                        (f 1)))
+    '()
+    '()
+    #t))
+
+  (check-true
+   (direct-layout-summary-has-entry?
+    (direct-layout-analysis-summary #'(letrec ([loop (lambda (n)
+                                                       (if (zero? n)
+                                                           0
+                                                           (loop (- n 1))))])
+                                        (loop 10)))
+    '(loop.1)
+    '()
+    #f))
   )
 
 
@@ -11067,8 +11142,6 @@
 
     ;; body-layout-of : any/c -> (listof variable?)
     ;;   Return the environment layout currently used by the lifted body of ab.
-    ;;   Today this is still ordinary free variables. A future step can change
-    ;;   this helper to use extended-layout information for direct helpers.
     (define (body-layout-of ab)
       (free-of ab))
 
@@ -11086,8 +11159,7 @@
     ;;   Check whether ab can safely reuse the current lifted-body layout in a
     ;;   dummy-closure direct call.
     (define (direct-layout-compatible? ab)
-      (and (null? (body-layout-of ab))
-           (null? (closure-env-of ab))))
+      (null? (body-layout-of ab)))
 
     (define (index-of x free)
       (define (x? y) (id=? x y))
