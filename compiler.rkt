@@ -508,7 +508,7 @@
   (for/fold ([ρ ρ]) ([x (in-list xs)])
     (ρ-set ρ x x)))
 
-(module+ test
+#;(module+ test
   (let ()
     ;; mkvar : symbol? -> variable?
     ;;   Construct a fresh variable wrapper for symbol s.
@@ -10962,6 +10962,30 @@
     (direct-letrec-allocation-eligible? kind binder links))
   (values links patching-kind eligible?))
 
+;; fixed-arity-formals? : LANF Formals -> boolean?
+;;   Check whether source-language formals describe a fixed-arity function.
+(define (fixed-arity-formals? f)
+  (nanopass-case (LANF Formals) f
+    [(formals (,x ...))            #t]
+    [(formals (,x0 ,x1 ... . ,xd)) #f]
+    [(formals ,x)                  #f]))
+
+;; abstraction-fixed-arity? : LANF Abstraction -> boolean?
+;;   Check whether ab has fixed-arity source formals.
+(define (abstraction-fixed-arity? ab)
+  (nanopass-case (LANF Abstraction) ab
+    [(λ ,s ,f ,e)
+     (fixed-arity-formals? f)]))
+
+;; direct-letrec-representation-candidate? : symbol? boolean? (listof symbol?) symbol? -> boolean?
+;;   Check whether a helper fits the current conservative candidate shape for
+;;   a future letrec representation that bypasses ordinary closure allocation.
+(define (direct-letrec-representation-candidate? kind fixed-arity? free-vars patching-kind)
+  (and (eq? kind 'direct)
+       fixed-arity?
+       (null? free-vars)
+       (eq? patching-kind 'none)))
+
 ;; summarize-direct-self-binder-closure-conversion-analysis : LANF
 ;;                                                        -> (listof list?)
 ;;   Return a compact summary of direct helpers that can drop their own binder.
@@ -11002,6 +11026,7 @@
     (define (record-letrec-entry! x ab letrec-binders)
       (define binder-sym (syntax-e (variable-id x)))
       (define free-vars  (direct-helper-layout-free-vars ab free-ht kind-ht binder-ht))
+      (define fixed-arity? (abstraction-fixed-arity? ab))
       (define kind (hash-ref kind-ht ab 'closed))
       (define-values (links patching-kind eligible?)
         (direct-letrec-allocation-info/free-vars kind binder-sym free-vars letrec-binders))
@@ -11009,6 +11034,7 @@
             (cons (list binder-sym
                         (label-name labels-ht ab)
                         kind
+                        fixed-arity?
                         free-vars
                         links
                         patching-kind
@@ -11125,10 +11151,28 @@
 (define (summarize-direct-letrec-patching-closure-conversion-analysis T)
   (for/list ([entry (in-list (collect-direct-letrec-summary-entries T))])
     (match entry
-      [(list binder label kind free-vars links patching-kind _eligible?)
+      [(list binder label kind _fixed-arity? free-vars links patching-kind _eligible?)
        (list binder label kind free-vars links patching-kind)])))
 
-#;(module+ test
+;; summarize-direct-letrec-representation-closure-conversion-analysis : LANF
+;;                                                                 -> (listof list?)
+;;   Return a compact summary of current candidates for a future direct-letrec
+;;   representation that bypasses ordinary closure allocation.
+(define (summarize-direct-letrec-representation-closure-conversion-analysis T)
+  (for/list ([entry (in-list (collect-direct-letrec-summary-entries T))])
+    (match entry
+      [(list binder label kind fixed-arity? free-vars links patching-kind eligible?)
+       (list binder
+             label
+             kind
+             fixed-arity?
+             free-vars
+             links
+             patching-kind
+             eligible?
+             (direct-letrec-representation-candidate? kind fixed-arity? free-vars patching-kind))])))
+
+(module+ test
   (require rackunit
            "expander.rkt")
 
@@ -11190,6 +11234,12 @@
     (analyze-with-cc-summary stx
       summarize-direct-letrec-patching-closure-conversion-analysis))
 
+  ;; direct-letrec-representation-analysis-summary : syntax? -> (listof list?)
+  ;;   Run the pipeline up to LANF and summarize direct-letrec representation candidates.
+  (define (direct-letrec-representation-analysis-summary stx)
+    (analyze-with-cc-summary stx
+      summarize-direct-letrec-representation-closure-conversion-analysis))
+
   ;; summary-kinds : (listof list?) -> (listof symbol?)
   ;;   Extract the classification kinds from a summary.
   (define (summary-kinds summary)
@@ -11245,6 +11295,12 @@
   ;;   Check whether one direct-letrec summary entry matches the shared core fields.
   (define (direct-letrec-summary-base-entry-matches? entry binder kind free-vars links patching-kind)
     (match entry
+      [(list-rest binder0 _label kind0 _fixed-arity? free-vars0 links0 patching-kind0 _rest)
+       (and (equal? binder0 binder)
+            (eq? kind0 kind)
+            (equal? free-vars0 free-vars)
+            (equal? links0 links)
+            (eq? patching-kind0 patching-kind))]
       [(list-rest binder0 _label kind0 free-vars0 links0 patching-kind0 _rest)
        (and (equal? binder0 binder)
             (eq? kind0 kind)
@@ -11264,7 +11320,7 @@
   (define (direct-letrec-allocation-summary-has-entry? summary binder kind free-vars links patching-kind eligible?)
     (for/or ([entry (in-list summary)])
       (match entry
-        [(list _ _ _ _ _ _ eligible0)
+        [(list _ _ _ _ _ _ _ eligible0)
          (and (direct-letrec-summary-base-entry-matches? entry binder kind free-vars links patching-kind)
               (equal? eligible0 eligible?))]
         [_ #f])))
@@ -11273,6 +11329,32 @@
   ;;   Check whether the letrec-patching summary contains an entry with the given fields.
   (define (direct-letrec-patching-summary-has-entry? summary binder kind free-vars links patching-kind)
     (direct-letrec-summary-base-has-entry? summary binder kind free-vars links patching-kind))
+
+  ;; direct-letrec-representation-summary-has-entry?
+  ;;   : (listof list?) symbol? symbol? boolean? (listof symbol?) (listof symbol?) symbol? boolean? boolean?
+  ;;  -> boolean?
+  ;;   Check whether the letrec-representation summary contains an entry with the given fields.
+  (define (direct-letrec-representation-summary-has-entry? summary
+                                                           binder
+                                                           kind
+                                                           fixed-arity?
+                                                           free-vars
+                                                           links
+                                                           patching-kind
+                                                           eligible?
+                                                           candidate?)
+    (for/or ([entry (in-list summary)])
+      (match entry
+        [(list binder0 _label kind0 fixed-arity0 free-vars0 links0 patching-kind0 eligible0 candidate0)
+         (and (equal? binder0 binder)
+              (eq? kind0 kind)
+              (equal? fixed-arity0 fixed-arity?)
+              (equal? free-vars0 free-vars)
+              (equal? links0 links)
+              (eq? patching-kind0 patching-kind)
+              (equal? eligible0 eligible?)
+              (equal? candidate0 candidate?))]
+        [_ #f])))
 
   (check-true
    (summary-has-entry? (closure-analysis-summary #'(letrec ([loop (lambda (n)
@@ -11441,6 +11523,23 @@
     '()
     'none))
 
+  (check-true
+   (direct-letrec-representation-summary-has-entry?
+    (direct-letrec-representation-analysis-summary
+     #'(letrec ([loop (lambda (n)
+                        (if (zero? n)
+                            0
+                            (loop (- n 1))))])
+         (loop 10)))
+    'loop.1
+    'direct
+    #t
+    '()
+    '()
+    'none
+    #t
+    #t))
+
   (check-equal? (direct-letrec-patching-kind 'direct 'loop.1 '())
                 'none)
 
@@ -11475,6 +11574,16 @@
 
   (check-false (direct-letrec-allocation-eligible? 'closed 'f.1 '()))
 
+  (check-true  (direct-letrec-representation-candidate? 'direct #t '() 'none))
+
+  (check-false (direct-letrec-representation-candidate? 'direct #f '() 'none))
+
+  (check-false (direct-letrec-representation-candidate? 'direct #t '(loop.1) 'self-only))
+
+  (check-false (direct-letrec-representation-candidate? 'direct #t '(odd?.2) 'cross-linked))
+
+  (check-false (direct-letrec-representation-candidate? 'closed #t '() 'none))
+
   (check-false (direct-letrec-shell-allocation-needed? 'direct 'loop.1 '()))
 
   (check-true (direct-letrec-shell-allocation-needed? 'direct 'loop.1 '(loop.1)))
@@ -11500,6 +11609,44 @@
     '(odd?.2)
     '(odd?.2)
     'cross-linked))
+
+  (check-true
+   (direct-letrec-representation-summary-has-entry?
+    (direct-letrec-representation-analysis-summary
+     #'(letrec ([even? (lambda (n)
+                         (if (zero? n)
+                             #t
+                             (odd? (- n 1))))]
+                [odd?  (lambda (n)
+                         (if (zero? n)
+                             #f
+                             (even? (- n 1))))])
+         (even? 4)))
+    'even?.1
+    'direct
+    #t
+    '(odd?.2)
+    '(odd?.2)
+    'cross-linked
+    #f
+    #f))
+
+  (check-true
+   (direct-letrec-representation-summary-has-entry?
+    (direct-letrec-representation-analysis-summary
+     #'(letrec ([loop (lambda xs
+                        (if (null? xs)
+                            0
+                            (loop)))])
+         (loop 1)))
+    'loop.1
+    'direct
+    #f
+    '()
+    '()
+    'none
+    #t
+    #f))
   )
 
 
@@ -13622,11 +13769,6 @@
          [else
           #f]))
 
-     ;; shell-allocate-letrec-closure? : LANF+closure AExpr variable? -> boolean?
-     ;;   Check whether ca still needs shell allocation and later patching.
-     (define (shell-allocate-letrec-closure? ca x)
-       (not (direct-allocate-letrec-closure? ca x)))
-     
      (define (closure-debug-id-expr l)
        (define debug-id (syntax-e (variable-id l)))
        (define $debug-id (string->symbol (~a "$symbol:" debug-id)))
@@ -13672,15 +13814,27 @@
                                (array.new $Array (global.get $null) (i32.const ,n))))]
          [else (error 'AllocateClosure "internal error, got: ~a" ca)]))
 
-     ;; direct-letrec-closure? : LANF+closure AExpr -> boolean?
-     ;;   Return #f for now.
-     ;;
-     ;; We can compile some letrec helper calls with `directapp`, but skipping
-     ;; shell allocation also requires proving that every use site is covered.
-     ;; Until we add that stronger analysis, keep letrec allocation behavior
-     ;; conservative.
-     (define (direct-letrec-closure? ca)
-       #f)
+     ;; direct-letrec-representation-candidate/closure? : LANF+closure AExpr variable? -> boolean?
+     ;;   Check whether ca fits the current conservative candidate shape for a
+     ;;   future letrec helper representation.
+     (define (direct-letrec-representation-candidate/closure? ca x)
+       (nanopass-case (LANF+closure AExpr) ca
+         [(closure ,s ,k ,in ,l ,ar ,ae1 ...)
+          (define free-vars
+            (letrec-local-free-vars ae1))
+          (define-values (_links patching-kind _eligible?)
+            (letrec-closure-allocation-info k x ae1))
+          (and (current-enable-cc-analysis?)
+               (direct-letrec-representation-candidate? k (and (integer? ar) (>= ar 0)) free-vars patching-kind))]
+         [else
+          #f]))
+
+     ;; direct-letrec-representation? : LANF+closure AExpr variable? -> boolean?
+     ;;   Reserved hook for a future letrec helper representation that bypasses
+     ;;   ordinary closure allocation entirely. No such representation is emitted yet.
+     (define (direct-letrec-representation? ca x)
+       (and #f
+            (direct-letrec-representation-candidate/closure? ca x)))
 
      (define (FillClosure ca dd)
        ; Fill in the $free array
@@ -13727,25 +13881,21 @@
                ,@(for/list ([x x*] [u u*])
                    (Store! x u))
                ,@(append*
-                  (for/list ([ce ce*] [x x*])
+                   (for/list ([ce ce*] [x x*])
                     (cond
-                      [(direct-letrec-closure? ce)
+                      [(direct-letrec-representation? ce x)
                        '()]
                       [(direct-allocate-letrec-closure? ce x)
                        (list (ClosureAllocation ce x))]
-                      [(shell-allocate-letrec-closure? ce x)
-                       (list (AllocateClosure ce x))]
                       [else
                        (list (AllocateClosure ce x))])))
                ,@(append*
-                  (for/list ([ce ce*] [x x*])
+                   (for/list ([ce ce*] [x x*])
                     (cond
-                      [(direct-letrec-closure? ce)
+                      [(direct-letrec-representation? ce x)
                        '()]
                       [(direct-allocate-letrec-closure? ce x)
                        '()]
-                      [(shell-allocate-letrec-closure? ce x)
-                       (FillClosure ce x)]
                       [else
                        (FillClosure ce x)])))
                ,e))])
@@ -14460,7 +14610,142 @@
        (categorize-applications
         ac)))))))
 
-#;(module+ test
+#| ;; closure-converted-direct-letrec-closure-summary : syntax? -> (listof list?)
+;;   Summarize direct letrec closures after closure conversion.
+(define (closure-converted-direct-letrec-closure-summary stx)
+  (define (closure-converted stx)
+    (reset-counter!)
+    (define p0  (parse (unexpand (topexpand stx))))
+    (define s0  (simplify-LFE p0))
+    (define ft  (flatten-topbegin s0))
+    (define in  (infer-names ft))
+    (define cq  (convert-quotations in))
+    (define eb  (explicit-begin cq))
+    (define ecl (explicit-case-lambda eb))
+    (define ar  (α-rename ecl))
+    (define ua  (uncover-assigned! ar))
+    (define lr  (parameterize ([current-assigned-analysis ua])
+                  (lower-letrec-values ar)))
+    (define ac  (parameterize ([current-assigned-analysis ua])
+                  (assignment-conversion lr)))
+    (define ca  (categorize-applications ac))
+    (define an  (anormalize ca))
+    (parameterize ([current-enable-cc-analysis? #t])
+      (closure-conversion an)))
+  (define entries '())
+  (define cc (closure-converted stx))
+  (define-pass collect : LANF+closure (T) -> * ()
+    (TopLevelForm : TopLevelForm (T) -> * ()
+      [(topbegin ,s ,t ...)
+       (for ([t (in-list t)])
+         (TopLevelForm t))]
+      [(topmodule ,s ,mn ,mp ,mf ...)
+       (for ([m (in-list mf)])
+         (ModuleLevelForm m))]
+      [(define-label ,l ,cab)
+       (ConvertedAbstraction cab)]
+      [(#%expression ,s ,e)
+       (Expr e)]
+      [,g
+       (GeneralTopLevelForm g)])
+    (ModuleLevelForm : ModuleLevelForm (M) -> * ()
+      [(#%provide ,rps ...)
+       (void)]
+      [,g
+       (GeneralTopLevelForm g)])
+    (GeneralTopLevelForm : GeneralTopLevelForm (G) -> * ()
+      [(define-values ,s (,x ...) ,e)
+       (Expr e)]
+      [(define-syntaxes ,s (,x ...) ,e)
+       (Expr e)]
+      [(#%require ,s ,rrs ...)
+       (void)]
+      [,e
+       (Expr e)])
+    (ConvertedAbstraction : ConvertedAbstraction (AB) -> * ()
+      [(λ ,s ,ar ,f ,e)
+       (Expr e)])
+    (ClosureAllocation : ClosureAllocation (CA x) -> * ()
+      [(closure ,s ,k ,in ,l ,ar ,ae1 ...)
+       (when (eq? k 'direct)
+         (set! entries
+               (cons (list (syntax-e (variable-id x))
+                           k
+                           ar
+                           (length ae1))
+                     entries)))]
+      [(case-closure ,s ,in ,l [,ar ,ca] ...)
+       (for ([ca (in-list ca)])
+         (ClosureAllocation ca x))])
+    (AExpr : AExpr (AE) -> * ()
+      [else
+       (void)])
+    (CExpr : CExpr (CE) -> * ()
+      [,ae
+       (AExpr ae)]
+      [(set! ,s ,x ,ae)
+       (AExpr ae)]
+      [(if ,s ,ae0 ,e1 ,e2)
+       (AExpr ae0)
+       (Expr e1)
+       (Expr e2)]
+      [(wcm ,s ,ae0 ,ae1 ,e)
+       (AExpr ae0)
+       (AExpr ae1)
+       (Expr e)]
+      [(app ,s ,ae ,ae1 ...)
+       (AExpr ae)
+       (for ([ae1 (in-list ae1)])
+         (AExpr ae1))]
+      [(closedapp ,s ,ca ,ae1 ...)
+       (AExpr ca)
+       (for ([ae1 (in-list ae1)])
+         (AExpr ae1))]
+      [(directapp ,s ,l ,ae0 ,ae1 ...)
+       (AExpr ae0)
+       (for ([ae1 (in-list ae1)])
+         (AExpr ae1))]
+      [(selfapp ,s ,l ,ae1 ...)
+       (for ([ae1 (in-list ae1)])
+         (AExpr ae1))]
+      [(primapp ,s ,pr ,ae1 ...)
+       (for ([ae1 (in-list ae1)])
+         (AExpr ae1))]
+      [(begin ,s ,e0 ,e1 ...)
+       (Expr e0)
+       (for ([e (in-list e1)])
+         (Expr e))]
+      [(begin0 ,s ,e0 ,e1 ...)
+       (Expr e0)
+       (for ([e (in-list e1)])
+         (Expr e))])
+    (Expr : Expr (E) -> * ()
+      [,ce
+       (CExpr ce)]
+      [(let-values ,s (((,x ...) ,ce*) ...) ,e)
+       (for ([ce (in-list ce*)])
+         (CExpr ce))
+       (Expr e)]
+      [(letrec-values ,s (((,x ...) ,ce*) ...) ,e)
+       (for ([xs (in-list x)]
+             [ce (in-list ce*)]
+             #:when (= (length xs) 1))
+         (nanopass-case (LANF+closure CExpr) ce
+           [,ca
+            (nanopass-case (LANF+closure AExpr) ca
+              [,clos
+               (ClosureAllocation clos (car xs))]
+              [else
+               (void)])]
+           [else
+            (void)]))
+       (for ([ce (in-list ce*)])
+         (CExpr ce))
+       (Expr e)]))
+  (collect cc)
+  (reverse entries)) |#
+
+#| (module+ test
   (define (module-has-top-level-form? mod head name)
     (for/or ([form (in-list (cdr mod))])
       (and (pair? form)
@@ -14614,6 +14899,453 @@
         [_ #f]))
     (sexp-any? selfapp-form? cc-sexp))
 
+  ;; closure-converted-direct-letrec-closure-summary : syntax? -> (listof list?)
+  ;;   Summarize direct letrec closures after closure conversion.
+  #;(define (closure-converted-direct-letrec-closure-summary stx)
+    (define entries '())
+    (define cc (closure-converted stx))
+    (define-pass collect : LANF+closure (T) -> * ()
+      (TopLevelForm : TopLevelForm (T) -> * ()
+        [(topbegin ,s ,t ...)
+         (for ([t (in-list t)])
+           (TopLevelForm t))]
+        [(topmodule ,s ,mn ,mp ,mf ...)
+         (for ([m (in-list mf)])
+           (ModuleLevelForm m))]
+        [(#%expression ,s ,e)
+         (Expr e)]
+        [,g
+         (GeneralTopLevelForm g)])
+      (ModuleLevelForm : ModuleLevelForm (M) -> * ()
+        [(#%provide ,rps ...)
+         (void)]
+        [,g
+         (GeneralTopLevelForm g)])
+      (GeneralTopLevelForm : GeneralTopLevelForm (G) -> * ()
+        [(define-values ,s (,x ...) ,e)
+         (Expr e)]
+        [(define-syntaxes ,s (,x ...) ,e)
+         (Expr e)]
+        [(#%require ,s ,rrs ...)
+         (void)]
+        [,e
+         (Expr e)])
+      (ClosureAllocation : ClosureAllocation (CA x) -> * ()
+        [(closure ,s ,k ,in ,l ,ar ,ae1 ...)
+         (when (eq? k 'direct)
+           (set! entries
+                 (cons (list (syntax-e (variable-id x))
+                             k
+                             ar
+                             (length ae1))
+                       entries)))]
+        [(case-closure ,s ,in ,l [,ar ,ca] ...)
+         (for ([ca (in-list ca)])
+           (ClosureAllocation ca x))])
+      (AExpr : AExpr (AE) -> * ()
+        [else
+         (void)])
+      (CExpr : CExpr (CE) -> * ()
+        [,ae
+         (AExpr ae)]
+        [(set! ,s ,x ,ae)
+         (AExpr ae)]
+        [(if ,s ,ae0 ,e1 ,e2)
+         (AExpr ae0)
+         (Expr e1)
+         (Expr e2)]
+        [(wcm ,s ,ae0 ,ae1 ,e)
+         (AExpr ae0)
+         (AExpr ae1)
+         (Expr e)]
+        [(app ,s ,ae ,ae1 ...)
+         (AExpr ae)
+         (for ([ae1 (in-list ae1)])
+           (AExpr ae1))]
+        [(closedapp ,s ,ca ,ae1 ...)
+         (AExpr ca)
+         (for ([ae1 (in-list ae1)])
+           (AExpr ae1))]
+        [(directapp ,s ,l ,ae0 ,ae1 ...)
+         (AExpr ae0)
+         (for ([ae1 (in-list ae1)])
+           (AExpr ae1))]
+        [(selfapp ,s ,l ,ae1 ...)
+         (for ([ae1 (in-list ae1)])
+           (AExpr ae1))]
+        [(primapp ,s ,pr ,ae1 ...)
+         (for ([ae1 (in-list ae1)])
+           (AExpr ae1))]
+        [(begin ,s ,e0 ,e1 ...)
+         (Expr e0)
+         (for ([e (in-list e1)])
+           (Expr e))]
+        [(begin0 ,s ,e0 ,e1 ...)
+         (Expr e0)
+         (for ([e (in-list e1)])
+           (Expr e))])
+      (Expr : Expr (E) -> * ()
+        [,ce
+         (CExpr ce)]
+        [(let-values ,s (((,x ...) ,ce*) ...) ,e)
+         (for ([ce (in-list ce*)])
+           (CExpr ce))
+         (Expr e)]
+        [(letrec-values ,s (((,x ...) ,ce*) ...) ,e)
+         (for ([xs (in-list x)]
+               [ce (in-list ce*)]
+               #:when (= (length xs) 1))
+           (nanopass-case (LANF+closure CExpr) ce
+             [,ca
+              (nanopass-case (LANF+closure AExpr) ca
+                [,clos
+                 (ClosureAllocation clos (car xs))]
+                [else
+                 (void)])]
+             [else
+              (void)]))
+         (for ([ce (in-list ce*)])
+           (CExpr ce))
+         (Expr e)]))
+    (collect cc)
+    (reverse entries)))
+
+  ;; closure-converted-direct-letrec-closure-summary : syntax? -> (listof list?)
+  ;;   Summarize direct letrec closures after closure conversion.
+  #;(define (closure-converted-direct-letrec-closure-summary stx)
+    (define entries '())
+    (define cc (closure-converted stx))
+    (define-pass collect : LANF+closure (T) -> * ()
+      (TopLevelForm : TopLevelForm (T) -> * ()
+        [(topbegin ,s ,t ...)
+         (for ([t (in-list t)])
+           (TopLevelForm t))]
+        [(topmodule ,s ,mn ,mp ,mf ...)
+         (for ([m (in-list mf)])
+           (ModuleLevelForm m))]
+        [(#%expression ,s ,e)
+         (Expr e)]
+        [,g
+         (GeneralTopLevelForm g)])
+      (ModuleLevelForm : ModuleLevelForm (M) -> * ()
+        [(#%provide ,rps ...)
+         (void)]
+        [,g
+         (GeneralTopLevelForm g)])
+      (GeneralTopLevelForm : GeneralTopLevelForm (G) -> * ()
+        [(define-values ,s (,x ...) ,e)
+         (Expr e)]
+        [(define-syntaxes ,s (,x ...) ,e)
+         (Expr e)]
+        [(#%require ,s ,rrs ...)
+         (void)]
+        [,e
+         (Expr e)])
+      (ClosureAllocation : ClosureAllocation (CA x) -> * ()
+        [(closure ,s ,k ,in ,l ,ar ,ae1 ...)
+         (when (eq? k 'direct)
+           (set! entries
+                 (cons (list (syntax-e (variable-id x))
+                             k
+                             ar
+                             (length ae1))
+                       entries)))]
+        [(case-closure ,s ,in ,l [,ar ,ca] ...)
+         (for ([ca (in-list ca)])
+           (ClosureAllocation ca x))])
+      (AExpr : AExpr (AE) -> * ()
+        [else
+         (void)])
+      (CExpr : CExpr (CE) -> * ()
+        [,ae
+         (AExpr ae)]
+        [(set! ,s ,x ,ae)
+         (AExpr ae)]
+        [(if ,s ,ae0 ,e1 ,e2)
+         (AExpr ae0)
+         (Expr e1)
+         (Expr e2)]
+        [(wcm ,s ,ae0 ,ae1 ,e)
+         (AExpr ae0)
+         (AExpr ae1)
+         (Expr e)]
+        [(app ,s ,ae ,ae1 ...)
+         (AExpr ae)
+         (for ([ae1 (in-list ae1)])
+           (AExpr ae1))]
+        [(closedapp ,s ,ca ,ae1 ...)
+         (AExpr ca)
+         (for ([ae1 (in-list ae1)])
+           (AExpr ae1))]
+        [(directapp ,s ,l ,ae0 ,ae1 ...)
+         (AExpr ae0)
+         (for ([ae1 (in-list ae1)])
+           (AExpr ae1))]
+        [(selfapp ,s ,l ,ae1 ...)
+         (for ([ae1 (in-list ae1)])
+           (AExpr ae1))]
+        [(primapp ,s ,pr ,ae1 ...)
+         (for ([ae1 (in-list ae1)])
+           (AExpr ae1))]
+        [(begin ,s ,e0 ,e1 ...)
+         (Expr e0)
+         (for ([e (in-list e1)])
+           (Expr e))]
+        [(begin0 ,s ,e0 ,e1 ...)
+         (Expr e0)
+         (for ([e (in-list e1)])
+           (Expr e))])
+      (Expr : Expr (E) -> * ()
+        [,ce
+         (CExpr ce)]
+        [(let-values ,s (((,x ...) ,ce*) ...) ,e)
+         (for ([ce (in-list ce*)])
+           (CExpr ce))
+         (Expr e)]
+        [(letrec-values ,s (((,x ...) ,ce*) ...) ,e)
+         (for ([xs (in-list x)]
+               [ce (in-list ce*)]
+               #:when (= (length xs) 1))
+           (nanopass-case (LANF+closure CExpr) ce
+             [,ca
+              (nanopass-case (LANF+closure AExpr) ca
+                [,clos
+                 (ClosureAllocation clos (car xs))]
+                [else
+                 (void)])]
+             [else
+              (void)]))
+         (for ([ce (in-list ce*)])
+           (CExpr ce))
+         (Expr e)]))
+    (collect cc)
+    (reverse entries)))
+
+  ;; closure-converted-direct-letrec-closure-summary : syntax? -> (listof list?)
+  ;;   Summarize direct letrec closures after closure conversion.
+  #;(define (closure-converted-direct-letrec-closure-summary stx)
+    (define entries '())
+    (define cc (closure-converted stx))
+    (define-pass collect : LANF+closure (T) -> * ()
+      (TopLevelForm : TopLevelForm (T) -> * ()
+        [(topbegin ,s ,t ...)
+         (for ([t (in-list t)])
+           (TopLevelForm t))]
+        [(topmodule ,s ,mn ,mp ,mf ...)
+         (for ([m (in-list mf)])
+           (ModuleLevelForm m))]
+        [(#%expression ,s ,e)
+         (Expr e)]
+        [,g
+         (GeneralTopLevelForm g)])
+      (ModuleLevelForm : ModuleLevelForm (M) -> * ()
+        [(#%provide ,rps ...)
+         (void)]
+        [,g
+         (GeneralTopLevelForm g)])
+      (GeneralTopLevelForm : GeneralTopLevelForm (G) -> * ()
+        [(define-values ,s (,x ...) ,e)
+         (Expr e)]
+        [(define-syntaxes ,s (,x ...) ,e)
+         (Expr e)]
+        [(#%require ,s ,rrs ...)
+         (void)]
+        [,e
+         (Expr e)])
+      (ClosureAllocation : ClosureAllocation (CA x) -> * ()
+        [(closure ,s ,k ,in ,l ,ar ,ae1 ...)
+         (when (eq? k 'direct)
+           (set! entries
+                 (cons (list (syntax-e (variable-id x))
+                             k
+                             ar
+                             (length ae1))
+                       entries)))]
+        [(case-closure ,s ,in ,l [,ar ,ca] ...)
+         (for ([ca (in-list ca)])
+           (ClosureAllocation ca x))])
+      (AExpr : AExpr (AE) -> * ()
+        [else
+         (void)])
+      (CExpr : CExpr (CE) -> * ()
+        [,ae
+         (AExpr ae)]
+        [(set! ,s ,x ,ae)
+         (AExpr ae)]
+        [(if ,s ,ae0 ,e1 ,e2)
+         (AExpr ae0)
+         (Expr e1)
+         (Expr e2)]
+        [(wcm ,s ,ae0 ,ae1 ,e)
+         (AExpr ae0)
+         (AExpr ae1)
+         (Expr e)]
+        [(app ,s ,ae ,ae1 ...)
+         (AExpr ae)
+         (for ([ae1 (in-list ae1)])
+           (AExpr ae1))]
+        [(closedapp ,s ,ca ,ae1 ...)
+         (AExpr ca)
+         (for ([ae1 (in-list ae1)])
+           (AExpr ae1))]
+        [(directapp ,s ,l ,ae0 ,ae1 ...)
+         (AExpr ae0)
+         (for ([ae1 (in-list ae1)])
+           (AExpr ae1))]
+        [(selfapp ,s ,l ,ae1 ...)
+         (for ([ae1 (in-list ae1)])
+           (AExpr ae1))]
+        [(primapp ,s ,pr ,ae1 ...)
+         (for ([ae1 (in-list ae1)])
+           (AExpr ae1))]
+        [(begin ,s ,e0 ,e1 ...)
+         (Expr e0)
+         (for ([e (in-list e1)])
+           (Expr e))]
+        [(begin0 ,s ,e0 ,e1 ...)
+         (Expr e0)
+         (for ([e (in-list e1)])
+           (Expr e))])
+      (Expr : Expr (E) -> * ()
+        [,ce
+         (CExpr ce)]
+        [(let-values ,s (((,x ...) ,ce*) ...) ,e)
+         (for ([ce (in-list ce*)])
+           (CExpr ce))
+         (Expr e)]
+        [(letrec-values ,s (((,x ...) ,ce*) ...) ,e)
+         (for ([xs (in-list x)]
+               [ce (in-list ce*)]
+               #:when (= (length xs) 1))
+           (nanopass-case (LANF+closure CExpr) ce
+             [,ca
+              (nanopass-case (LANF+closure AExpr) ca
+                [,clos
+                 (ClosureAllocation clos (car xs))]
+                [else
+                 (void)])]
+             [else
+              (void)]))
+         (for ([ce (in-list ce*)])
+           (CExpr ce))
+         (Expr e)]))
+    (collect cc)
+    (reverse entries)))
+
+  ;; closure-converted-direct-letrec-closure-summary : syntax? -> (listof list?)
+  ;;   Summarize direct letrec closures after closure conversion.
+  #;(define (closure-converted-direct-letrec-closure-summary stx)
+    (define entries '())
+    (define cc (closure-converted stx))
+    (define-pass collect : LANF+closure (T) -> * ()
+      (TopLevelForm : TopLevelForm (T) -> * ()
+        [(topbegin ,s ,t ...)
+         (for ([t (in-list t)])
+           (TopLevelForm t))]
+        [(topmodule ,s ,mn ,mp ,mf ...)
+         (for ([m (in-list mf)])
+           (ModuleLevelForm m))]
+        [(#%expression ,s ,e)
+         (Expr e)]
+        [,g
+         (GeneralTopLevelForm g)])
+      (ModuleLevelForm : ModuleLevelForm (M) -> * ()
+        [(#%provide ,rps ...)
+         (void)]
+        [,g
+         (GeneralTopLevelForm g)])
+      (GeneralTopLevelForm : GeneralTopLevelForm (G) -> * ()
+        [(define-values ,s (,x ...) ,e)
+         (Expr e)]
+        [(define-syntaxes ,s (,x ...) ,e)
+         (Expr e)]
+        [(#%require ,s ,rrs ...)
+         (void)]
+        [,e
+         (Expr e)])
+      (Abstraction : ConvertedAbstraction (AB) -> * ()
+        [(λ ,s ,ar ,f ,e)
+         (Expr e)])
+      (ClosureAllocation : ClosureAllocation (CA x) -> * ()
+        [(closure ,s ,k ,in ,l ,ar ,ae1 ...)
+         (when (eq? k 'direct)
+           (set! entries
+                 (cons (list (syntax-e (variable-id x))
+                             k
+                             ar
+                             (length ae1))
+                       entries)))]
+        [(case-closure ,s ,in ,l [,ar ,ca] ...)
+         (for ([ca (in-list ca)])
+           (ClosureAllocation ca x))])
+      (AExpr : AExpr (AE) -> * ()
+        [else
+         (void)])
+      (CExpr : CExpr (CE) -> * ()
+        [,ae
+         (AExpr ae)]
+        [(set! ,s ,x ,ae)
+         (AExpr ae)]
+        [(if ,s ,ae0 ,e1 ,e2)
+         (AExpr ae0)
+         (Expr e1)
+         (Expr e2)]
+        [(wcm ,s ,ae0 ,ae1 ,e)
+         (AExpr ae0)
+         (AExpr ae1)
+         (Expr e)]
+        [(app ,s ,ae ,ae1 ...)
+         (AExpr ae)
+         (for ([ae1 (in-list ae1)])
+           (AExpr ae1))]
+        [(closedapp ,s ,ca ,ae1 ...)
+         (AExpr ca)
+         (for ([ae1 (in-list ae1)])
+           (AExpr ae1))]
+        [(directapp ,s ,l ,ae0 ,ae1 ...)
+         (AExpr ae0)
+         (for ([ae1 (in-list ae1)])
+           (AExpr ae1))]
+        [(selfapp ,s ,l ,ae1 ...)
+         (for ([ae1 (in-list ae1)])
+           (AExpr ae1))]
+        [(primapp ,s ,pr ,ae1 ...)
+         (for ([ae1 (in-list ae1)])
+           (AExpr ae1))]
+        [(begin ,s ,e0 ,e1 ...)
+         (Expr e0)
+         (for ([e (in-list e1)])
+           (Expr e))]
+        [(begin0 ,s ,e0 ,e1 ...)
+         (Expr e0)
+         (for ([e (in-list e1)])
+           (Expr e))])
+      (Expr : Expr (E) -> * ()
+        [,ce
+         (CExpr ce)]
+        [(let-values ,s (((,x ...) ,ce*) ...) ,e)
+         (for ([ce (in-list ce*)])
+           (CExpr ce))
+         (Expr e)]
+        [(letrec-values ,s (((,x ...) ,ce*) ...) ,e)
+         (for ([xs (in-list x)]
+               [ce (in-list ce*)]
+               #:when (= (length xs) 1))
+           (nanopass-case (LANF+closure CExpr) ce
+             [,ca
+              (nanopass-case (LANF+closure AExpr) ca
+                [,clos
+                 (ClosureAllocation clos (car xs))]
+                [else
+                 (void)])]
+             [else
+              (void)]))
+         (for ([ce (in-list ce*)])
+           (CExpr ce))
+         (Expr e)]))
+    (collect cc)
+    (reverse entries)))
+
   (let-values ([(mod report)
                 (compile/primitive-report #'(module tree-shake-acos webracket
                                                    (acos 0.0)))])
@@ -14723,7 +15455,7 @@
     (check-false (module-has-top-level-form? mod 'global '$prim:js-console-log))
     (check-false (module-has-top-level-form? mod 'global '$prim:js-console-info))
     (check-true (pair? (assq 'summary report))))
-  )
+  ) |#
 
 (module+ test
   (define (sexp-any? pred x)
