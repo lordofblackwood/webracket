@@ -13304,8 +13304,7 @@
      (define ae0 (AExpr x))
      (define ae* (map AExpr ae1))
      (cond
-       [(and (not (eq? target (current-direct-case-abstraction)))
-             (nanopass-case (LANF CaseAbstraction) target
+       [(and (nanopass-case (LANF CaseAbstraction) target
                [(case-lambda ,s ,ab* ...)
                 (unique-case-arm-match target (length ae1))]
                [else #f]))
@@ -17000,6 +16999,23 @@
                                        (f 1 2 3))
                                      #f))
 
+  (check-true
+   (closure-converted-has-casearmapp? #'(letrec ([f (case-lambda
+                                                      [() 0]
+                                                      [(x) (f 0)])])
+                                       (f 2))
+                                     #f))
+
+  (check-true
+   (closure-converted-has-casearmapp? #'(letrec ([f (case-lambda
+                                                      [() 0]
+                                                      [(x) (g)])]
+                                                 [g (case-lambda
+                                                      [() 1]
+                                                      [(x) (f 0)])])
+                                       (f 2))
+                                     #f))
+
   (let ([mod (parameterize ([current-enable-cc-analysis? #t])
                (comp #'(let ([f (lambda (x) x)])
                          (f 2))))])
@@ -17031,6 +17047,25 @@
                (comp #'(let ([f (case-lambda
                                   [xs xs])])
                          (f 1 2 3))))])
+    (check-true (module-has-direct-label-call? mod)))
+
+  (let ([mod (parameterize ([current-enable-cc-analysis? #t]
+                            [current-enable-simplify? #f])
+               (comp #'(letrec ([f (case-lambda
+                                      [() 0]
+                                      [(x) (f 0)])])
+                         (f 2))))])
+    (check-true (module-has-direct-label-call? mod)))
+
+  (let ([mod (parameterize ([current-enable-cc-analysis? #t]
+                            [current-enable-simplify? #f])
+               (comp #'(letrec ([f (case-lambda
+                                      [() 0]
+                                      [(x) (g)])]
+                                 [g (case-lambda
+                                      [() 1]
+                                      [(x) (f 0)])])
+                         (f 2))))])
     (check-true (module-has-direct-label-call? mod)))
 
   (let ([mod (parameterize ([current-enable-cc-analysis? #t])
