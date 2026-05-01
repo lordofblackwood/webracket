@@ -11458,6 +11458,27 @@
              (add1 seen)
              (cons i ordered-sccs))])))
 
+;; direct-letrec-recursive-edges : (listof symbol?) (listof (list/c symbol? symbol?))
+;;                              -> (listof (list/c symbol? symbol?))
+;;   Return the edges that still point to the current or a later binder in the
+;;   given allocation order, and therefore still require post-allocation patching.
+(define (direct-letrec-recursive-edges allocation-order edges)
+  (define binder-index-ht
+    (for/hasheq ([binder (in-list allocation-order)]
+                 [i      (in-naturals)])
+      (values binder i)))
+  (for/list ([edge (in-list edges)]
+             #:when (<= (hash-ref binder-index-ht (first edge))
+                        (hash-ref binder-index-ht (second edge))))
+    edge))
+
+;; direct-letrec-allocation-order-proven-optimal? : (listof (listof symbol?)) -> boolean?
+;;   Check whether the current SCC-order search proves optimality for all SCCs
+;;   in the group under the current brute-force size cap.
+(define (direct-letrec-allocation-order-proven-optimal? sccs)
+  (for/and ([scc (in-list sccs)])
+    (<= (length scc) 6)))
+
 ;; summarize-direct-letrec-dependency-closure-conversion-analysis : LANF
 ;;                                                             -> (listof list?)
 ;;   Return a compact summary of current direct-letrec dependency graphs, using
@@ -11814,6 +11835,28 @@
              allocation-order
              plans)])))
 
+;; summarize-direct-letrec-scc-core-closure-conversion-analysis : LANF
+;;                                                             -> (listof list?)
+;;   Return a compact summary of the remaining SCC-core patch edges after the
+;;   current allocation-order optimization.
+(define (summarize-direct-letrec-scc-core-closure-conversion-analysis T)
+  (for/list ([group (in-list (summarize-direct-letrec-scc-closure-conversion-analysis T))])
+    (match group
+      [(list binders edges dependency-kind sccs scc-kind)
+       (define allocation-order
+         (direct-letrec-allocation-order binders edges))
+       (define recursive-edges
+         (direct-letrec-recursive-edges allocation-order edges))
+       (list binders
+             edges
+             dependency-kind
+             sccs
+             scc-kind
+             allocation-order
+             recursive-edges
+             (length recursive-edges)
+             (direct-letrec-allocation-order-proven-optimal? sccs))])))
+
 (module+ test
   (require rackunit
            "expander.rkt")
@@ -11911,6 +11954,12 @@
   (define (direct-letrec-scc-patch-plan-analysis-summary stx)
     (analyze-with-cc-summary stx
       summarize-direct-letrec-scc-patch-plan-closure-conversion-analysis))
+
+  ;; direct-letrec-scc-core-analysis-summary : syntax? -> (listof list?)
+  ;;   Run the pipeline up to LANF and summarize the remaining SCC-core patch edges.
+  (define (direct-letrec-scc-core-analysis-summary stx)
+    (analyze-with-cc-summary stx
+      summarize-direct-letrec-scc-core-closure-conversion-analysis))
 
   ;; letrec-final-allocation-analysis-summary : syntax? -> (listof list?)
   ;;   Run the pipeline up to LANF and summarize final letrec closure allocation.
@@ -12180,6 +12229,32 @@
               (equal? allocation-order0 allocation-order)
               (equal? (map normalize-plan-entry plans0)
                       (map normalize-plan-entry plans)))]
+        [_ #f])))
+
+  ;; direct-letrec-scc-core-summary-has-entry?
+  ;;   Check whether the SCC-core summary contains an entry with the given fields.
+  (define (direct-letrec-scc-core-summary-has-entry? summary
+                                                     binders
+                                                     edges
+                                                     dependency-kind
+                                                     sccs
+                                                     scc-kind
+                                                     allocation-order
+                                                     recursive-edges
+                                                     recursive-edge-count
+                                                     proven-optimal?)
+    (for/or ([entry (in-list summary)])
+      (match entry
+        [(list binders0 edges0 dependency-kind0 sccs0 scc-kind0 allocation-order0 recursive-edges0 recursive-edge-count0 proven-optimal?0)
+         (and (equal? (sort-symbols binders0) (sort-symbols binders))
+              (equal? (sort-edges edges0) (sort-edges edges))
+              (eq? dependency-kind0 dependency-kind)
+              (equal? (sort-sccs sccs0) (sort-sccs sccs))
+              (eq? scc-kind0 scc-kind)
+              (equal? allocation-order0 allocation-order)
+              (equal? (sort-edges recursive-edges0) (sort-edges recursive-edges))
+              (= recursive-edge-count0 recursive-edge-count)
+              (equal? proven-optimal?0 proven-optimal?))]
         [_ #f])))
 
   (check-true
@@ -12772,6 +12847,29 @@
       (odd?.2 (even?.1) () patched))))
 
   (check-true
+   (direct-letrec-scc-core-summary-has-entry?
+    (direct-letrec-scc-core-analysis-summary
+     #'(letrec ([even? (lambda (n)
+                         (if (zero? n)
+                             #t
+                             (odd? (- n 1))))]
+                [odd?  (lambda (n)
+                         (if (zero? n)
+                             #f
+                             (even? (- n 1))))])
+         (even? 4)))
+    '(even?.1 odd?.2)
+    '((even?.1 odd?.2)
+      (odd?.2 even?.1))
+    'mutual
+    '((even?.1 odd?.2))
+    'single-nontrivial
+    '(even?.1 odd?.2)
+    '((even?.1 odd?.2))
+    1
+    #t))
+
+  (check-true
    (direct-letrec-scc-patch-plan-summary-has-entry?
     (direct-letrec-scc-patch-plan-analysis-summary
      #'(letrec ([a (lambda () (b))]
@@ -12807,6 +12905,30 @@
     '((c.3 () (a.1) patched)
       (b.2 (c.3) () patched)
       (a.1 (b.2 c.3) () patched))))
+
+  (check-true
+   (direct-letrec-scc-core-summary-has-entry?
+    (direct-letrec-scc-core-analysis-summary
+     #'(letrec ([a (lambda () (begin (b) (c)))]
+                [b (lambda () (begin (c) (a)))]
+                [c (lambda () (begin (a) (b)))])
+         (a)))
+    '(a.1 b.2 c.3)
+    '((a.1 c.3)
+      (a.1 b.2)
+      (b.2 a.1)
+      (b.2 c.3)
+      (c.3 b.2)
+      (c.3 a.1))
+    'complex
+    '((a.1 b.2 c.3))
+    'single-nontrivial
+    '(a.1 b.2 c.3)
+    '((a.1 c.3)
+      (a.1 b.2)
+      (b.2 c.3))
+    3
+    #t))
 
   (check-false
    (direct-letrec-representation-summary-has-entry?
@@ -17023,6 +17145,16 @@
     (check-true (module-has-local-closure-allocation? mod))
     (check-equal? (module-count-local-closure-shell-allocations mod) 0)
     (check-equal? (module-count-free-patch-writes mod) 1))
+
+  (let ([mod (parameterize ([current-enable-cc-analysis? #t])
+               (comp #'(letrec ([a (lambda () (begin (b) (c)))]
+                                [b (lambda () (begin (c) (a)))]
+                                [c (lambda () (begin (a) (b)))])
+                         (a))))])
+    (check-true (module-has-direct-label-call? mod))
+    (check-true (module-has-local-closure-allocation? mod))
+    (check-equal? (module-count-local-closure-shell-allocations mod) 0)
+    (check-equal? (module-count-free-patch-writes mod) 3))
 
   (let ([mod (parameterize ([current-enable-cc-analysis? #t])
                (comp #'(letrec ([loop (lambda xs
