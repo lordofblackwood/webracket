@@ -10961,6 +10961,26 @@
 (define (letrec-final-closure-allocation-eligible? links)
   (null? links))
 
+;; letrec-immediate-payload/free-vars : (listof symbol?) (listof symbol?) -> (listof symbol?)
+;;   Return the payload entries that can be installed immediately, preserving
+;;   the current closure-layout order.
+(define (letrec-immediate-payload/free-vars free-vars links)
+  (for/list ([x (in-list free-vars)]
+             #:unless (member x links))
+    x))
+
+;; letrec-recursive-payload/free-vars : (listof symbol?) (listof symbol?) -> (listof symbol?)
+;;   Return the payload entries that still require recursive-group patching.
+(define (letrec-recursive-payload/free-vars free-vars links)
+  links)
+
+;; letrec-closure-payload-split/free-vars : (listof symbol?) (listof symbol?)
+;;                                       -> (values (listof symbol?) (listof symbol?))
+;;   Split the current closure-layout payload into immediate and recursive parts.
+(define (letrec-closure-payload-split/free-vars free-vars links)
+  (values (letrec-immediate-payload/free-vars free-vars links)
+          (letrec-recursive-payload/free-vars free-vars links)))
+
 ;; letrec-allocation-mode : boolean? boolean? -> symbol?
 ;;   Classify the current letrec closure-allocation strategy.
 (define (letrec-allocation-mode final-allocate? representable?)
@@ -11258,6 +11278,63 @@
     [else
      'complex]))
 
+;; direct-letrec-neighbors : symbol? (listof (list/c symbol? symbol?)) -> (listof symbol?)
+;;   Return the direct successors of binder in the dependency edge set.
+(define (direct-letrec-neighbors binder edges)
+  (for/list ([edge (in-list edges)]
+             #:when (equal? (first edge) binder))
+    (second edge)))
+
+;; direct-letrec-reachable : symbol? (listof (list/c symbol? symbol?)) -> (listof symbol?)
+;;   Return the binders reachable from start in the dependency graph.
+(define (direct-letrec-reachable start edges)
+  (define seen '())
+  (define (visit x)
+    (unless (member x seen)
+      (set! seen (cons x seen))
+      (for ([y (in-list (direct-letrec-neighbors x edges))])
+        (visit y))))
+  (visit start)
+  (reverse seen))
+
+;; direct-letrec-sccs : (listof symbol?) (listof (list/c symbol? symbol?)) -> (listof (listof symbol?))
+;;   Compute strongly connected components of the direct-letrec dependency graph.
+(define (direct-letrec-sccs binders edges)
+  (define reverse-edges
+    (for/list ([edge (in-list edges)])
+      (list (second edge) (first edge))))
+  (define components '())
+  (define remaining binders)
+  (let loop ()
+    (unless (null? remaining)
+      (define start   (car remaining))
+      (define forward (direct-letrec-reachable start edges))
+      (define back    (direct-letrec-reachable start reverse-edges))
+      (define scc
+        (for/list ([x (in-list binders)]
+                   #:when (and (member x forward)
+                               (member x back)))
+          x))
+      (set! components (cons scc components))
+      (set! remaining
+            (filter (λ (x) (not (member x scc)))
+                    remaining))
+      (loop)))
+  (reverse components))
+
+;; direct-letrec-scc-kind : (listof (listof symbol?)) -> symbol?
+;;   Classify the SCC structure of one direct-letrec dependency graph.
+(define (direct-letrec-scc-kind sccs)
+  (define nontrivial-sccs
+    (filter (λ (scc) (> (length scc) 1)) sccs))
+  (cond
+    [(null? nontrivial-sccs)
+     'trivial]
+    [(= (length nontrivial-sccs) 1)
+     'single-nontrivial]
+    [else
+     'multiple-nontrivial]))
+
 ;; summarize-direct-letrec-dependency-closure-conversion-analysis : LANF
 ;;                                                             -> (listof list?)
 ;;   Return a compact summary of current direct-letrec dependency graphs, using
@@ -11389,6 +11466,186 @@
     (collect T)
     (reverse entries)))
 
+;; summarize-direct-letrec-group-allocation-closure-conversion-analysis : LANF
+;;                                                                   -> (listof list?)
+;;   Return a compact summary of direct-letrec groups, including the current
+;;   dependency shape and each helper's allocation mode.
+(define (summarize-direct-letrec-group-allocation-closure-conversion-analysis T)
+  (letv ((T free-ht abs kind-ht _direct-sites-ht _direct-candidate-ht _disqualified-ht
+            binder-ht
+            _extended-ht _direct-callees-ht)
+         (closure-conversion-analysis T))
+    (define (direct-entry xs ce)
+      (and (= (length xs) 1)
+           (let ([x (car xs)])
+             (nanopass-case (LANF CExpr) ce
+               [,ae
+                (nanopass-case (LANF AExpr) ae
+                  [,ab
+                   (define kind (hash-ref kind-ht ab 'closed))
+                   (and (eq? kind 'direct)
+                        (let* ([binder-sym   (syntax-e (variable-id x))]
+                               [free-vars     (direct-helper-layout-free-vars ab free-ht kind-ht binder-ht)]
+                               [fixed-arity?  (abstraction-fixed-arity? ab)])
+                          (list binder-sym free-vars fixed-arity? kind)))]
+                  [else #f])]
+               [else #f]))))
+    (define entries '())
+    (define-pass collect : LANF (T) -> * ()
+      (TopLevelForm : TopLevelForm (T) -> * ()
+        [(topbegin ,s ,t ...)
+         (for ([t (in-list t)])
+           (TopLevelForm t))]
+        [(topmodule ,s ,mn ,mp ,mf ...)
+         (for ([m (in-list mf)])
+           (ModuleLevelForm m))]
+        [(#%expression ,s ,e)
+         (Expr e)]
+        [,g
+         (GeneralTopLevelForm g)])
+      (ModuleLevelForm : ModuleLevelForm (M) -> * ()
+        [(#%provide ,rps ...)
+         (void)]
+        [,g
+         (GeneralTopLevelForm g)])
+      (GeneralTopLevelForm : GeneralTopLevelForm (G) -> * ()
+        [(define-values ,s (,x ...) ,e)
+         (Expr e)]
+        [(define-syntaxes ,s (,x ...) ,e)
+         (Expr e)]
+        [(#%require ,s ,rrs ...)
+         (void)]
+        [,e
+         (Expr e)])
+      (Abstraction : Abstraction (AB) -> * ()
+        [(λ ,s ,f ,e)
+         (Expr e)])
+      (CaseAbstraction : CaseAbstraction (CAB) -> * ()
+        [(case-lambda ,s ,ab* ...)
+         (for ([ab (in-list ab*)])
+           (Abstraction ab))])
+      (AExpr : AExpr (AE) -> * ()
+        [,ab
+         (Abstraction ab)]
+        [,cab
+         (CaseAbstraction cab)]
+        [else
+         (void)])
+      (CExpr : CExpr (CE) -> * ()
+        [,ae
+         (AExpr ae)]
+        [(set! ,s ,x ,ae)
+         (AExpr ae)]
+        [(if ,s ,ae0 ,e1 ,e2)
+         (AExpr ae0)
+         (Expr e1)
+         (Expr e2)]
+        [(wcm ,s ,ae0 ,ae1 ,e)
+         (AExpr ae0)
+         (AExpr ae1)
+         (Expr e)]
+        [(app ,s ,ae ,ae1 ...)
+         (AExpr ae)
+         (for ([ae1 (in-list ae1)])
+           (AExpr ae1))]
+        [(primapp ,s ,pr ,ae1 ...)
+         (for ([ae1 (in-list ae1)])
+           (AExpr ae1))]
+        [(closedapp ,s ,ab ,ae1 ...)
+         (Abstraction ab)
+         (for ([ae1 (in-list ae1)])
+           (AExpr ae1))]
+        [(begin ,s ,e0 ,e1 ...)
+         (Expr e0)
+         (for ([e (in-list e1)])
+           (Expr e))]
+        [(begin0 ,s ,e0 ,e1 ...)
+         (Expr e0)
+         (for ([e (in-list e1)])
+           (Expr e))])
+      (Expr : Expr (E) -> * ()
+        [,ce
+         (CExpr ce)]
+        [(let-values ,s (((,x ...) ,ce*) ...) ,e)
+         (for ([ce (in-list ce*)])
+           (CExpr ce))
+         (Expr e)]
+        [(letrec-values ,s (((,x ...) ,ce*) ...) ,e)
+         (define direct-entries
+           (for/list ([xs (in-list x)]
+                      [ce (in-list ce*)]
+                      #:do [(define entry (direct-entry xs ce))]
+                      #:when entry)
+             entry))
+         (unless (null? direct-entries)
+           (define binders
+             (map first direct-entries))
+           (define edges
+             (append*
+              (for/list ([entry (in-list direct-entries)])
+                (match entry
+                  [(list from free-vars _fixed-arity? _kind)
+                   (for/list ([to (in-list free-vars)]
+                              #:when (member to binders))
+                     (list from to))]))))
+           (define modes
+             (for/list ([entry (in-list direct-entries)])
+               (match entry
+                 [(list binder-sym free-vars fixed-arity? kind)
+                  (define-values (_links _patching-kind _final-allocate? _representable? allocation-mode)
+                    (letrec-allocation-info/free-vars kind binder-sym fixed-arity? free-vars binders))
+                  (list binder-sym allocation-mode)])))
+           (set! entries
+                 (cons (list binders
+                             edges
+                             (direct-letrec-dependency-kind binders edges)
+                             modes)
+                       entries)))
+         (for ([ce (in-list ce*)])
+           (CExpr ce))
+         (Expr e)]))
+    (collect T)
+    (reverse entries)))
+
+;; summarize-direct-letrec-scc-closure-conversion-analysis : LANF -> (listof list?)
+;;   Return a compact summary of direct-letrec SCC structure.
+(define (summarize-direct-letrec-scc-closure-conversion-analysis T)
+  (for/list ([entry (in-list (summarize-direct-letrec-dependency-closure-conversion-analysis T))])
+    (match entry
+      [(list binders edges dependency-kind)
+       (define sccs
+         (direct-letrec-sccs binders edges))
+       (list binders
+             edges
+             dependency-kind
+             sccs
+             (direct-letrec-scc-kind sccs))])))
+
+;; summarize-direct-letrec-patching-target-closure-conversion-analysis : LANF
+;;                                                                   -> (listof list?)
+;;   Return a compact summary of direct-letrec groups that still contain
+;;   patched helpers after the current closure-allocation simplifications.
+(define (summarize-direct-letrec-patching-target-closure-conversion-analysis T)
+  (define scc-summary
+    (summarize-direct-letrec-scc-closure-conversion-analysis T))
+  (define group-summary
+    (summarize-direct-letrec-group-allocation-closure-conversion-analysis T))
+  (for/list ([scc-entry   (in-list scc-summary)]
+             [group-entry (in-list group-summary)]
+             #:do [(match-define (list binders edges dependency-kind sccs scc-kind) scc-entry)
+                   (match-define (list _binders _edges _dependency-kind modes) group-entry)
+                   (define patched-binders
+                     (for/list ([mode-entry (in-list modes)]
+                                #:when (eq? (second mode-entry) 'patched))
+                       (first mode-entry)))]
+             #:when (pair? patched-binders))
+    (list binders
+          edges
+          dependency-kind
+          sccs
+          scc-kind
+          patched-binders)))
+
 (module+ test
   (require rackunit
            "expander.rkt")
@@ -11462,6 +11719,24 @@
   (define (direct-letrec-dependency-analysis-summary stx)
     (analyze-with-cc-summary stx
       summarize-direct-letrec-dependency-closure-conversion-analysis))
+
+  ;; direct-letrec-group-allocation-analysis-summary : syntax? -> (listof list?)
+  ;;   Run the pipeline up to LANF and summarize direct-letrec group allocation modes.
+  (define (direct-letrec-group-allocation-analysis-summary stx)
+    (analyze-with-cc-summary stx
+      summarize-direct-letrec-group-allocation-closure-conversion-analysis))
+
+  ;; direct-letrec-scc-analysis-summary : syntax? -> (listof list?)
+  ;;   Run the pipeline up to LANF and summarize direct-letrec SCC structure.
+  (define (direct-letrec-scc-analysis-summary stx)
+    (analyze-with-cc-summary stx
+      summarize-direct-letrec-scc-closure-conversion-analysis))
+
+  ;; direct-letrec-patching-target-analysis-summary : syntax? -> (listof list?)
+  ;;   Run the pipeline up to LANF and summarize remaining patched direct-letrec groups.
+  (define (direct-letrec-patching-target-analysis-summary stx)
+    (analyze-with-cc-summary stx
+      summarize-direct-letrec-patching-target-closure-conversion-analysis))
 
   ;; letrec-final-allocation-analysis-summary : syntax? -> (listof list?)
   ;;   Run the pipeline up to LANF and summarize final letrec closure allocation.
@@ -11627,13 +11902,78 @@
   ;; direct-letrec-dependency-summary-has-entry?
   ;;   : (listof list?) (listof symbol?) (listof list?) symbol? -> boolean?
   ;;   Check whether the dependency summary contains an entry with the given fields.
+  (define (sort-symbols syms)
+    (sort syms string<? #:key symbol->string))
+
+  (define (sort-edges edges)
+    (sort (map sort-symbols edges)
+          string<?
+          #:key (λ (edge)
+                  (~a (symbol->string (first edge))
+                      "->"
+                      (symbol->string (second edge))))))
+
+  (define (sort-sccs sccs)
+    (sort (map sort-symbols sccs)
+          string<?
+          #:key (λ (scc)
+                  (format "~s" scc))))
+
   (define (direct-letrec-dependency-summary-has-entry? summary binders edges dependency-kind)
     (for/or ([entry (in-list summary)])
       (match entry
         [(list binders0 edges0 dependency-kind0)
-         (and (equal? binders0 binders)
-              (equal? edges0 edges)
+         (and (equal? (sort-symbols binders0) (sort-symbols binders))
+              (equal? (sort-edges edges0) (sort-edges edges))
               (eq? dependency-kind0 dependency-kind))]
+        [_ #f])))
+
+  ;; direct-letrec-group-allocation-summary-has-entry?
+  ;;   : (listof list?) (listof symbol?) (listof list?) symbol? (listof list?) -> boolean?
+  ;;   Check whether the group-allocation summary contains an entry with the given fields.
+  (define (direct-letrec-group-allocation-summary-has-entry? summary binders edges dependency-kind modes)
+    (for/or ([entry (in-list summary)])
+      (match entry
+        [(list binders0 edges0 dependency-kind0 modes0)
+         (and (equal? (sort-symbols binders0) (sort-symbols binders))
+              (equal? (sort-edges edges0) (sort-edges edges))
+              (eq? dependency-kind0 dependency-kind)
+              (equal? (sort-edges modes0) (sort-edges modes)))]
+        [_ #f])))
+
+  ;; direct-letrec-scc-summary-has-entry?
+  ;;   : (listof list?) (listof symbol?) (listof list?) symbol? (listof list?) symbol? -> boolean?
+  ;;   Check whether the SCC summary contains an entry with the given fields.
+  (define (direct-letrec-scc-summary-has-entry? summary binders edges dependency-kind sccs scc-kind)
+    (for/or ([entry (in-list summary)])
+      (match entry
+        [(list binders0 edges0 dependency-kind0 sccs0 scc-kind0)
+         (and (equal? (sort-symbols binders0) (sort-symbols binders))
+              (equal? (sort-edges edges0) (sort-edges edges))
+              (eq? dependency-kind0 dependency-kind)
+              (equal? (sort-sccs sccs0) (sort-sccs sccs))
+              (eq? scc-kind0 scc-kind))]
+        [_ #f])))
+
+  ;; direct-letrec-patching-target-summary-has-entry?
+  ;;   : (listof list?) (listof symbol?) (listof list?) symbol? (listof list?) symbol? (listof symbol?) -> boolean?
+  ;;   Check whether the patching-target summary contains an entry with the given fields.
+  (define (direct-letrec-patching-target-summary-has-entry? summary
+                                                            binders
+                                                            edges
+                                                            dependency-kind
+                                                            sccs
+                                                            scc-kind
+                                                            patched-binders)
+    (for/or ([entry (in-list summary)])
+      (match entry
+        [(list binders0 edges0 dependency-kind0 sccs0 scc-kind0 patched-binders0)
+         (and (equal? (sort-symbols binders0) (sort-symbols binders))
+              (equal? (sort-edges edges0) (sort-edges edges))
+              (eq? dependency-kind0 dependency-kind)
+              (equal? (sort-sccs sccs0) (sort-sccs sccs))
+              (eq? scc-kind0 scc-kind)
+              (equal? (sort-symbols patched-binders0) (sort-symbols patched-binders)))]
         [_ #f])))
 
   (check-true
@@ -11858,6 +12198,17 @@
 
   (check-false (letrec-final-closure-allocation-eligible? '(loop.1)))
 
+  (check-equal? (letrec-immediate-payload/free-vars '(y.1 odd?.2) '(odd?.2))
+                '(y.1))
+
+  (check-equal? (letrec-recursive-payload/free-vars '(y.1 odd?.2) '(odd?.2))
+                '(odd?.2))
+
+  (let-values ([(immediate recursive)
+                (letrec-closure-payload-split/free-vars '(y.1 odd?.2) '(odd?.2))])
+    (check-equal? immediate '(y.1))
+    (check-equal? recursive '(odd?.2)))
+
   (check-equal? (letrec-allocation-mode #t  #t)  'representation)
 
   (check-equal? (letrec-allocation-mode #t  #f)  'final-only)
@@ -12044,6 +12395,143 @@
       (b.2 c.3)
       (c.3 a.1))
     'complex))
+
+  (check-true
+   (direct-letrec-group-allocation-summary-has-entry?
+    (direct-letrec-group-allocation-analysis-summary
+     #'(letrec ([loop (lambda (n)
+                        (if (zero? n)
+                            0
+                            (loop (- n 1))))])
+         (loop 10)))
+    '(loop.1)
+    '()
+    'none
+    '((loop.1 representation))))
+
+  (check-true
+   (direct-letrec-group-allocation-summary-has-entry?
+    (direct-letrec-group-allocation-analysis-summary
+     #'(letrec ([loop (lambda xs
+                        (if (null? xs)
+                            0
+                            (loop)))])
+         (loop 1)))
+    '(loop.1)
+    '()
+    'none
+    '((loop.1 final-only))))
+
+  (check-true
+   (direct-letrec-group-allocation-summary-has-entry?
+    (direct-letrec-group-allocation-analysis-summary
+     #'(letrec ([even? (lambda (n)
+                         (if (zero? n)
+                             #t
+                             (odd? (- n 1))))]
+                [odd?  (lambda (n)
+                         (if (zero? n)
+                             #f
+                             (even? (- n 1))))])
+         (even? 4)))
+    '(even?.1 odd?.2)
+    '((even?.1 odd?.2)
+      (odd?.2 even?.1))
+    'mutual
+    '((even?.1 patched)
+      (odd?.2 patched))))
+
+  (check-true
+   (direct-letrec-scc-summary-has-entry?
+    (direct-letrec-scc-analysis-summary
+     #'(letrec ([loop (lambda (n)
+                        (if (zero? n)
+                            0
+                            (loop (- n 1))))])
+         (loop 10)))
+    '(loop.1)
+    '()
+    'none
+    '((loop.1))
+    'trivial))
+
+  (check-true
+   (direct-letrec-scc-summary-has-entry?
+    (direct-letrec-scc-analysis-summary
+     #'(letrec ([even? (lambda (n)
+                         (if (zero? n)
+                             #t
+                             (odd? (- n 1))))]
+                [odd?  (lambda (n)
+                         (if (zero? n)
+                             #f
+                             (even? (- n 1))))])
+         (even? 4)))
+    '(even?.1 odd?.2)
+    '((even?.1 odd?.2)
+      (odd?.2 even?.1))
+    'mutual
+    '((even?.1 odd?.2))
+    'single-nontrivial))
+
+  (check-true
+   (direct-letrec-scc-summary-has-entry?
+    (direct-letrec-scc-analysis-summary
+     #'(letrec ([a (lambda () (b))]
+                [b (lambda () (a))]
+                [c (lambda () (d))]
+                [d (lambda () (c))])
+         (cons (a) (c))))
+    '(a.1 b.2)
+    '((a.1 b.2)
+      (b.2 a.1))
+    'mutual
+    '((a.1 b.2))
+    'single-nontrivial))
+
+  (check-true
+   (direct-letrec-scc-summary-has-entry?
+    (direct-letrec-scc-analysis-summary
+     #'(letrec ([a (lambda () (b))]
+                [b (lambda () (a))]
+                [c (lambda () (d))]
+                [d (lambda () (c))])
+         (cons (a) (c))))
+    '(c.3 d.4)
+    '((c.3 d.4)
+      (d.4 c.3))
+    'mutual
+    '((c.3 d.4))
+    'single-nontrivial))
+
+  (check-equal?
+   (direct-letrec-patching-target-analysis-summary
+    #'(letrec ([loop (lambda (n)
+                       (if (zero? n)
+                           0
+                           (loop (- n 1))))])
+        (loop 10)))
+   '())
+
+  (check-true
+   (direct-letrec-patching-target-summary-has-entry?
+    (direct-letrec-patching-target-analysis-summary
+     #'(letrec ([even? (lambda (n)
+                         (if (zero? n)
+                             #t
+                             (odd? (- n 1))))]
+                [odd?  (lambda (n)
+                         (if (zero? n)
+                             #f
+                             (even? (- n 1))))])
+         (even? 4)))
+    '(even?.1 odd?.2)
+    '((even?.1 odd?.2)
+      (odd?.2 even?.1))
+    'mutual
+    '((even?.1 odd?.2))
+    'single-nontrivial
+    '(even?.1 odd?.2)))
 
   (check-false
    (direct-letrec-representation-summary-has-entry?
@@ -14264,11 +14752,40 @@
              `(global.get ,$name)]
          [else
           `(global.get $false)]))
-     (define (AllocateClosure ca dest) ; called by letrec-values
-       ; Allocates a closure in which the $free array contains zeros only.
+
+     ;; letrec-local-link-aexpr? : AExpr -> boolean?
+     ;;   Check whether ae is a current letrec-group link that still needs patching.
+     (define (letrec-local-link-aexpr? ae)
+       (and (variable? ae)
+            (letrec-local-var? ae)))
+
+     ;; letrec-closure-payload-plan : LANF+closure AExpr -> (listof list?)
+     ;;   Return `(index kind value)` entries for the current closure payload,
+     ;;   where `kind` is `immediate` or `recursive`.
+     (define (letrec-closure-payload-plan ca)
        (nanopass-case (LANF+closure AExpr) ca
          [(closure ,s ,k ,in ,l ,ar ,ae1 ...)
-          (let ([us (make-list (length ae1) (Undefined))])
+          (for/list ([ae (in-list ae1)]
+                     [v  (in-list (AExpr* ae1))]
+                     [i  (in-naturals)])
+            (list i
+                  (if (letrec-local-link-aexpr? ae) 'recursive 'immediate)
+                  v))]
+         [else
+          '()]))
+
+     (define (AllocateClosure ca dest) ; called by letrec-values
+       ; Allocates a closure shell. For patched letrec closures, immediate
+       ; payload entries are installed now and only recursive link slots are
+       ; left as `undefined` for later patching.
+       (nanopass-case (LANF+closure AExpr) ca
+         [(closure ,s ,k ,in ,l ,ar ,ae1 ...)
+          (define payload
+            (for/list ([entry (in-list (letrec-closure-payload-plan ca))])
+              (match entry
+                [(list _i 'immediate v) v]
+                [(list _i 'recursive _v) (Undefined)])))
+          (let ([us payload])
             (Store! dest `(struct.new $Closure
                                (i32.const 0)               ; hash
                                ,(closure-name-expr in)     ; name:  #f or $Symbol
@@ -14316,16 +14833,18 @@
        (direct-letrec-representation-candidate/closure? ca x))
 
      (define (FillClosure ca dd)
-       ; Fill in the $free array
+       ; Fill only the recursive link slots in the $free array.
        (nanopass-case (LANF+closure AExpr) ca
          [(closure ,s ,k ,in ,l ,ar ,ae1 ...)
           ; This will be sliced into a `block` so we don't need another one.
-          (for/list ([ae (AExpr* ae1)]
-                     [i  (in-naturals)])
-            `(array.set $Free
-                        (struct.get $Closure $free (ref.cast (ref $Closure) ,(Reference dd)))
-                        (i32.const ,i)
-                        ,ae))]
+          (for/list ([entry (in-list (letrec-closure-payload-plan ca))]
+                     #:when (eq? (second entry) 'recursive))
+            (match entry
+              [(list i _kind v)
+               `(array.set $Free
+                           (struct.get $Closure $free (ref.cast (ref $Closure) ,(Reference dd)))
+                           (i32.const ,i)
+                           ,v)]))]
          [(case-closure ,s ,in ,l [,ar ,ca*] ...)
          (append*
           (for/list ([m  ar]
@@ -15324,6 +15843,22 @@
         [_ #f]))
     (sexp-any? local-closure-allocation? mod))
 
+  (define (module-count-free-patch-writes mod)
+    (define (count-free-patch-writes x)
+      (cond
+        [(pair? x)
+         (+ (match x
+              [(list 'array.set '$Free _ _ _) 1]
+              [_ 0])
+            (count-free-patch-writes (car x))
+            (count-free-patch-writes (cdr x)))]
+        [(vector? x)
+         (for/sum ([e (in-vector x)])
+           (count-free-patch-writes e))]
+        [else
+         0]))
+    (count-free-patch-writes mod))
+
   (define (compile/primitive-report stx)
     (define dump-dir (make-temporary-file "webracket-tree-shaker~a" 'directory))
     (define mod
@@ -15912,6 +16447,22 @@
         [_ #f]))
     (sexp-any? local-closure-allocation? mod))
 
+  (define (module-count-free-patch-writes mod)
+    (define (count-free-patch-writes x)
+      (cond
+        [(pair? x)
+         (+ (match x
+              [(list 'array.set '$Free _ _ _) 1]
+              [_ 0])
+            (count-free-patch-writes (car x))
+            (count-free-patch-writes (cdr x)))]
+        [(vector? x)
+         (for/sum ([e (in-vector x)])
+           (count-free-patch-writes e))]
+        [else
+         0]))
+    (count-free-patch-writes mod))
+
   (define (closure-converted stx)
     (reset-counter!)
     (define p0  (parse (unexpand (topexpand stx))))
@@ -16030,6 +16581,21 @@
                          (even? 4))))])
     (check-true (module-has-direct-label-call? mod))
     (check-true (module-has-local-closure-allocation? mod)))
+
+  (let ([mod (parameterize ([current-enable-cc-analysis? #t])
+               (comp #'(let ([y 10])
+                         (letrec ([even? (lambda (n)
+                                           (if (zero? n)
+                                               y
+                                               (odd? (- n 1))))]
+                                  [odd?  (lambda (n)
+                                           (if (zero? n)
+                                               y
+                                               (even? (- n 1))))])
+                           (even? 4)))))])
+    (check-true (module-has-direct-label-call? mod))
+    (check-true (module-has-local-closure-allocation? mod))
+    (check-equal? (module-count-free-patch-writes mod) 2))
 
   (let ([mod (parameterize ([current-enable-cc-analysis? #t])
                (comp #'(letrec ([loop (lambda xs
