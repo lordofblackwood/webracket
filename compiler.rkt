@@ -10912,6 +10912,47 @@
             layout-vars
             layout-vars))))
 
+;; summarize-closure-layout-arity-closure-conversion-analysis : LANF -> (listof list?)
+;;   Return a compact summary of current closure-layout payload sizes.
+(define (summarize-closure-layout-arity-closure-conversion-analysis T)
+  (define (label-name labels-ht ab)
+    (syntax-e (variable-id (hash-ref labels-ht ab))))
+  (letv ((T free-ht abs kind-ht _direct-sites-ht _direct-candidate-ht _disqualified-ht
+            binder-ht
+            _extended-ht direct-callees-ht)
+         (closure-conversion-analysis T))
+    (define labels-ht (make-hasheq))
+    (for ([ab (in-list abs)])
+      (hash-set! labels-ht ab (new-var "label")))
+    (for/list ([ab (in-list abs)])
+      (define kind (hash-ref kind-ht ab 'closed))
+      (define closure-layout-vars
+        (if (eq? kind 'direct)
+            (direct-helper-layout-free-vars ab free-ht kind-ht binder-ht direct-callees-ht)
+            (id-set->list (hash-ref free-ht ab empty-set))))
+      (define closure-layout-arity (length closure-layout-vars))
+      (list (label-name labels-ht ab)
+            (match (hash-ref binder-ht ab #f)
+              [#f #f]
+              [x  (syntax-e (variable-id x))])
+            kind
+            closure-layout-arity
+            (cond
+              [(<= closure-layout-arity 3) closure-layout-arity]
+              [else                        '4+])))))
+
+;; summarize-closure-layout-arity-counts-closure-conversion-analysis : LANF -> (listof list?)
+;;   Return histogram counts for current closure-layout payload sizes.
+(define (summarize-closure-layout-arity-counts-closure-conversion-analysis T)
+  (define counts
+    (make-hasheq '((0 . 0) (1 . 0) (2 . 0) (3 . 0) (4+ . 0))))
+  (for ([entry (in-list (summarize-closure-layout-arity-closure-conversion-analysis T))])
+    (match entry
+      [(list _label _binder _kind _arity bucket)
+       (hash-set! counts bucket (add1 (hash-ref counts bucket 0)))]))
+  (for/list ([bucket '(0 1 2 3 4+)])
+    (list bucket (hash-ref counts bucket 0))))
+
 ;; nested-variable-capture-present? : any/c symbol? -> boolean?
 ;;   Check whether a nested lambda or case-lambda inside ab captures var-sym.
 (define (nested-variable-capture-present? ab var-sym)
@@ -11984,6 +12025,18 @@
     (analyze-with-cc-summary stx
       summarize-direct-helper-environment-closure-conversion-analysis))
 
+  ;; closure-layout-arity-analysis-summary : syntax? -> (listof list?)
+  ;;   Run the pipeline up to LANF and summarize closure-layout payload sizes.
+  (define (closure-layout-arity-analysis-summary stx)
+    (analyze-with-cc-summary stx
+      summarize-closure-layout-arity-closure-conversion-analysis))
+
+  ;; closure-layout-arity-counts-analysis-summary : syntax? -> (listof list?)
+  ;;   Run the pipeline up to LANF and summarize closure-layout payload-size counts.
+  (define (closure-layout-arity-counts-analysis-summary stx)
+    (analyze-with-cc-summary stx
+      summarize-closure-layout-arity-counts-closure-conversion-analysis))
+
   ;; direct-self-binder-analysis-summary : syntax? -> (listof list?)
   ;;   Run the pipeline up to LANF and summarize self-binder removal eligibility.
   (define (direct-self-binder-analysis-summary stx)
@@ -12116,6 +12169,41 @@
               (equal? body-layout-vars0 body-layout-vars)
               (equal? closure-layout-vars0 closure-layout-vars))]
         [_ #f])))
+
+  ;; closure-layout-arity-summary-has-entry?
+  ;;   : (listof list?) symbol? symbol? exact-nonnegative-integer? (or/c exact-nonnegative-integer? '4+) -> boolean?
+  ;;   Check whether the closure-layout-arity summary contains an entry with the given fields.
+  (define (closure-layout-arity-summary-has-entry? summary binder kind arity bucket)
+    (for/or ([entry (in-list summary)])
+      (match entry
+        [(list _label binder0 kind0 arity0 bucket0)
+         (and (equal? binder0 binder)
+              (eq? kind0 kind)
+              (equal? arity0 arity)
+              (equal? bucket0 bucket))]
+        [_ #f])))
+
+  ;; closure-layout-arity-counts-summary-has-entry? : (listof list?) (or/c exact-nonnegative-integer? '4+) exact-nonnegative-integer? -> boolean?
+  ;;   Check whether the payload-size histogram contains the given bucket/count pair.
+  (define (closure-layout-arity-counts-summary-has-entry? summary bucket count)
+    (for/or ([entry (in-list summary)])
+      (match entry
+        [(list bucket0 count0)
+         (and (equal? bucket0 bucket)
+              (equal? count0 count))]
+        [_ #f])))
+
+  ;; closure-layout-arity-counts-summary-count : (listof list?) (or/c exact-nonnegative-integer? '4+) -> exact-nonnegative-integer?
+  ;;   Return the histogram count for one payload-size bucket.
+  (define (closure-layout-arity-counts-summary-count summary bucket)
+    (or (for/first ([entry (in-list summary)]
+                    #:when (match entry
+                             [(list bucket0 _count0)
+                              (equal? bucket0 bucket)]
+                             [_ #f]))
+          (match entry
+            [(list _bucket count) count]))
+        0))
 
   ;; direct-letrec-summary-base-entry-matches? : list? symbol? symbol? (listof symbol?) (listof symbol?) symbol? -> boolean?
   ;;   Check whether one direct-letrec summary entry matches the shared core fields.
@@ -12475,6 +12563,29 @@
     '()
     '()
     '()))
+
+  (check-true
+   (closure-layout-arity-summary-has-entry?
+    (closure-layout-arity-analysis-summary
+     #'(let ([x 1])
+         (let ([g (lambda () x)])
+           (g))))
+    'g.2
+    'direct
+    1
+    1))
+
+  (let ([summary
+         (closure-layout-arity-counts-analysis-summary
+          #'(let ([x 1]
+                  [y 2])
+              (let ([f (lambda (z) z)]
+                    [g (lambda () x)]
+                    [h (lambda () (+ x y))])
+                (list (f 0) (g) (h)))))])
+    (check-true (<= 1 (closure-layout-arity-counts-summary-count summary 0)))
+    (check-true (<= 1 (closure-layout-arity-counts-summary-count summary 1)))
+    (check-true (<= 1 (closure-layout-arity-counts-summary-count summary 2))))
 
   (check-true
    (direct-self-binder-summary-has-entry?
@@ -13256,7 +13367,7 @@
            (direct-self-binder-removable/local? ab)
            (null? (body-layout-of ab))))
 
-    ;; inline-small-closure-arity/local : any/c -> (or/c 1 2 #f)
+    ;; inline-small-closure-arity/local : any/c -> (or/c 1 2 3 #f)
     ;;   Return the small inline closure arity for ab when it can use the
     ;;   narrow flat representation, otherwise `#f`.
     (define (inline-small-closure-arity/local ab)
@@ -13265,6 +13376,7 @@
            (match (length (closure-env-of ab))
              [1 1]
              [2 2]
+             [3 3]
              [_ #f])))
 
     (define (index-of x free)
@@ -14298,6 +14410,7 @@
        (match inline-small-arity
          [1 '$Closure1]
          [2 '$Closure2]
+         [3 '$Closure3]
          [_ '$Closure]))
      
      ; If there is no self-reference then allocation is simple.
@@ -14446,6 +14559,15 @@
                           (ref.cast (ref $Closure2) (local.get $clos)))]
           [1 `(struct.get $Closure2 $free1
                           (ref.cast (ref $Closure2) (local.get $clos)))]
+          [_ `(array.get $Free (local.get $free) (i32.const ,i))])]
+       [3
+        (match i
+          [0 `(struct.get $Closure3 $free0
+                          (ref.cast (ref $Closure3) (local.get $clos)))]
+          [1 `(struct.get $Closure3 $free1
+                          (ref.cast (ref $Closure3) (local.get $clos)))]
+          [2 `(struct.get $Closure3 $free2
+                          (ref.cast (ref $Closure3) (local.get $clos)))]
           [_ `(array.get $Free (local.get $free) (i32.const ,i))])]
        [_ `(array.get $Free (local.get $free) (i32.const ,i))])] ; x is the name
     [,ca              (ClosureAllocation ca dd)]
@@ -15573,11 +15695,12 @@
                 [(list _i 'recursive _v) (Undefined)])))
           (let ([us payload])
             (Store! dest
-                    (if inline-small-arity
-                        `(struct.new ,(match inline-small-arity
-                                        [1 '$Closure1]
-                                        [2 '$Closure2])
-                                     (i32.const 0)
+	                    (if inline-small-arity
+	                        `(struct.new ,(match inline-small-arity
+	                                        [1 '$Closure1]
+	                                        [2 '$Closure2]
+	                                        [3 '$Closure3])
+	                                     (i32.const 0)
                                      ,(closure-name-expr in)
                                      ,(Imm ar)
                                      (global.get $false)
@@ -15647,16 +15770,18 @@
             [inline-small-arity
              (for/list ([entry (in-list recursive-entries)])
                (match entry
-                 [(list i _kind v)
-                  `(struct.set ,(match inline-small-arity
-                                  [1 '$Closure1]
-                                  [2 '$Closure2])
-                               ,(string->symbol (~a "$free" i))
-                               (ref.cast (ref ,(match inline-small-arity
-                                                 [1 '$Closure1]
-                                                 [2 '$Closure2]))
-                                         ,(Reference dd))
-                               ,v)]))]
+	                 [(list i _kind v)
+	                  `(struct.set ,(match inline-small-arity
+	                                  [1 '$Closure1]
+	                                  [2 '$Closure2]
+	                                  [3 '$Closure3])
+	                               ,(string->symbol (~a "$free" i))
+	                               (ref.cast (ref ,(match inline-small-arity
+	                                                 [1 '$Closure1]
+	                                                 [2 '$Closure2]
+	                                                 [3 '$Closure3]))
+	                                         ,(Reference dd))
+	                               ,v)]))]
             [else
              (define free-arr (emit-fresh-local 'free '(ref $Free) #f))
              (cons
@@ -15776,7 +15901,7 @@
          ; a (func ...) by `define-label`.
          `(converted-abstraction ; ,(Formal* (list* '$free '$tc x)) ; arguments
                                  ; the parameter matches the type $ClosureCode
-                                 ((param $clos (ref $Closure)) (param $args (ref $Args)))                                                     
+                                 ((param $clos (ref $Closure)) (param $args (ref $Args)))
                                  ,(append
                                    (if (current-inline-small-closure-arity)
                                        '()
@@ -15907,7 +16032,7 @@
        [(list 'converted-abstraction formals locals init-locals body-expr)
         `(func ,(Label l)
                (export ,(~a (syntax-e (variable-id l))))
-               (type $ClosureCode)                                              
+               (type $ClosureCode)
                ,@formals
                (result (ref eq))
                ,@locals
@@ -16685,6 +16810,11 @@
                (list 'struct.new '$Closure2 _ ... slot0 slot1))
          (or (undefined-slot? slot0)
              (undefined-slot? slot1))]
+        [(list 'local.set _
+               (list 'struct.new '$Closure3 _ ... slot0 slot1 slot2))
+         (or (undefined-slot? slot0)
+             (undefined-slot? slot1)
+             (undefined-slot? slot2))]
         [_ #f]))
     (sexp-any? local-closure-shell-allocation? mod))
 
@@ -16709,6 +16839,13 @@
                        (undefined-slot? slot1))
                    1
                    0)]
+              [(list 'local.set _
+                     (list 'struct.new '$Closure3 _ ... slot0 slot1 slot2))
+               (if (or (undefined-slot? slot0)
+                       (undefined-slot? slot1)
+                       (undefined-slot? slot2))
+                   1
+                   0)]
               [_ 0])
             (count-shell-allocations (car x))
             (count-shell-allocations (cdr x)))]
@@ -16730,6 +16867,9 @@
          #t]
         [(list 'local.set _
                (list 'struct.new '$Closure2 _ ...))
+         #t]
+        [(list 'local.set _
+               (list 'struct.new '$Closure3 _ ...))
          #t]
         [_ #f]))
     (sexp-any? local-closure-allocation? mod))
@@ -16754,6 +16894,13 @@
                        (undefined-slot? slot1))
                    1
                    0)]
+              [(list 'local.set _
+                     (list 'struct.new '$Closure3 _ ... slot0 slot1 slot2))
+               (if (or (undefined-slot? slot0)
+                       (undefined-slot? slot1)
+                       (undefined-slot? slot2))
+                   1
+                   0)]
               [_ 0])
             (count-shell-allocations (car x))
             (count-shell-allocations (cdr x)))]
@@ -16773,6 +16920,9 @@
               [(list 'struct.set '$Closure1 '$free0 _ _) 1]
               [(list 'struct.set '$Closure2 '$free0 _ _) 1]
               [(list 'struct.set '$Closure2 '$free1 _ _) 1]
+              [(list 'struct.set '$Closure3 '$free0 _ _) 1]
+              [(list 'struct.set '$Closure3 '$free1 _ _) 1]
+              [(list 'struct.set '$Closure3 '$free2 _ _) 1]
               [_ 0])
             (count-free-patch-writes (car x))
             (count-free-patch-writes (cdr x)))]
@@ -16819,6 +16969,26 @@
         [(list 'struct.get '$Closure2 '$free1 _) #t]
         [_ #f]))
     (sexp-any? binary-inline-closure-read? mod))
+
+  (define (module-has-ternary-inline-closure-allocation? mod)
+    (define (ternary-inline-closure-allocation? x)
+      (match x
+        [(list 'local.set _
+               (list 'struct.new '$Closure3 _ ...))
+         #t]
+        [(list 'struct.new '$Closure3 _ ...)
+         #t]
+        [_ #f]))
+    (sexp-any? ternary-inline-closure-allocation? mod))
+
+  (define (module-has-ternary-inline-closure-read? mod)
+    (define (ternary-inline-closure-read? x)
+      (match x
+        [(list 'struct.get '$Closure3 '$free0 _) #t]
+        [(list 'struct.get '$Closure3 '$free1 _) #t]
+        [(list 'struct.get '$Closure3 '$free2 _) #t]
+        [_ #f]))
+    (sexp-any? ternary-inline-closure-read? mod))
 
   (define (compile/primitive-report stx)
     (define dump-dir (make-temporary-file "webracket-tree-shaker~a" 'directory))
@@ -17415,6 +17585,14 @@
     (check-true (module-has-binary-inline-closure-allocation? mod))
     (check-true (module-has-binary-inline-closure-read? mod)))
 
+  (let ([mod (parameterize ([current-enable-cc-analysis? #t])
+               (comp #'(let ([x 1]
+                             [y 2]
+                             [z 3])
+                         ((lambda () (+ x y z))))))])
+    (check-true (module-has-ternary-inline-closure-allocation? mod))
+    (check-true (module-has-ternary-inline-closure-read? mod)))
+
   (let ([mod (parameterize ([current-enable-cc-analysis? #t]
                             [current-enable-simplify? #f])
                (comp #'(let ([f (case-lambda
@@ -17476,7 +17654,7 @@
                                                           (loop (- n 1))))])
                                      (loop 2))))
 
-  (check-true
+  (check-false
    (closure-converted-has-direct0app? #'(letrec ([loop (lambda xs
                                                          (if (null? xs)
                                                              0
@@ -17590,6 +17768,11 @@
                (list 'struct.new '$Closure2 _ ... slot0 slot1))
          (or (undefined-slot? slot0)
              (undefined-slot? slot1))]
+        [(list 'local.set _
+               (list 'struct.new '$Closure3 _ ... slot0 slot1 slot2))
+         (or (undefined-slot? slot0)
+             (undefined-slot? slot1)
+             (undefined-slot? slot2))]
         [_ #f]))
     (sexp-any? local-closure-shell-allocation? mod))
 
@@ -17604,6 +17787,9 @@
          #t]
         [(list 'local.set _
                (list 'struct.new '$Closure2 _ ...))
+         #t]
+        [(list 'local.set _
+               (list 'struct.new '$Closure3 _ ...))
          #t]
         [_ #f]))
     (sexp-any? local-closure-allocation? mod))
@@ -17628,6 +17814,13 @@
                        (undefined-slot? slot1))
                    1
                    0)]
+              [(list 'local.set _
+                     (list 'struct.new '$Closure3 _ ... slot0 slot1 slot2))
+               (if (or (undefined-slot? slot0)
+                       (undefined-slot? slot1)
+                       (undefined-slot? slot2))
+                   1
+                   0)]
               [_ 0])
             (count-shell-allocations (car x))
             (count-shell-allocations (cdr x)))]
@@ -17647,6 +17840,9 @@
               [(list 'struct.set '$Closure1 '$free0 _ _) 1]
               [(list 'struct.set '$Closure2 '$free0 _ _) 1]
               [(list 'struct.set '$Closure2 '$free1 _ _) 1]
+              [(list 'struct.set '$Closure3 '$free0 _ _) 1]
+              [(list 'struct.set '$Closure3 '$free1 _ _) 1]
+              [(list 'struct.set '$Closure3 '$free2 _ _) 1]
               [_ 0])
             (count-free-patch-writes (car x))
             (count-free-patch-writes (cdr x)))]
