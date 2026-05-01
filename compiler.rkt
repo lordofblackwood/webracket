@@ -11160,6 +11160,10 @@
     ;; clause-direct-binding : (listof variable?) LANF CExpr -> (or/c (cons variable? any/c) #f)
     ;;   Recognize a single-variable clause bound to a fixed-arity direct lambda
     ;;   with no free variables.
+    ;;
+    ;; The stronger `extended-of` analysis is available now, but direct calls
+    ;; still share closure-converted bodies that are laid out using `free-of`.
+    ;; Until those two views are reconciled, keep this rewrite conservative.
     (define (clause-direct-binding xs ce)
       (match xs
         [(list x)
