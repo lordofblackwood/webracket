@@ -13124,6 +13124,7 @@
             extended-ht direct-callees-ht)
          (closure-conversion-analysis T))
     (current-direct-letrec-representation-labels (make-hasheq))
+    (current-inline-unary-closure-labels (make-hasheq))
     #;(pretty-print free-ht)
     (for ([ab abs])
       (add-label! ab))
@@ -13254,6 +13255,13 @@
            (direct-self-recursive? ab free-ht binder-ht)
            (direct-self-binder-removable/local? ab)
            (null? (body-layout-of ab))))
+
+    ;; inline-unary-closure-eligible/local? : any/c -> boolean?
+    ;;   Check whether ab can use the narrow `$Closure1` representation.
+    (define (inline-unary-closure-eligible/local? ab)
+      (and (current-enable-cc-analysis?)
+           (not (eq? (kind-of ab) 'trivial-closed))
+           (= 1 (length (closure-env-of ab)))))
 
     (define (index-of x free)
       (define (x? y) (id=? x y))
@@ -13506,6 +13514,10 @@
      (define k  (kind-of AB))
      (when (direct-letrec-representation-eligible/local? AB)
        (hash-set! (current-direct-letrec-representation-labels)
+                  (syntax-e (variable-id l))
+                  #t))
+     (when (inline-unary-closure-eligible/local? AB)
+       (hash-set! (current-inline-unary-closure-labels)
                   (syntax-e (variable-id l))
                   #t))
      (let ([xs (closure-env-aexprs-of AB)]
@@ -13929,6 +13941,7 @@
 (define current-label-form-ht (make-parameter (make-hash)))
 (define current-label-map-include-form? (make-parameter #t))
 (define current-direct-letrec-representation-labels (make-parameter (make-hasheq)))
+(define current-inline-unary-closure-labels (make-parameter (make-hasheq)))
 (define (reset-label-map!)
   (current-label-map '())
   (current-label-form-ht (make-hash))
@@ -13987,6 +14000,12 @@
 
 (define-pass generate-code : LANF+closure (T) -> * ()
   (definitions
+    (define current-inline-unary-closure?
+      (make-parameter #f))
+    (define (inline-unary-closure-label? l)
+      (hash-ref (current-inline-unary-closure-labels)
+                (syntax-e (variable-id l))
+                #f))
     (define gen-times '())
     (define (time-gen label thunk)
       (if (current-pass-timings?)
@@ -14268,6 +14287,8 @@
          (define $debug-id (string->symbol (~a "$symbol:" debug-id)))
          (add-symbol-constant debug-id debug-id)
          `(global.get ,$debug-id)))
+     (define unary-inline? (inline-unary-closure-label? l))
+     (define closure-type (if unary-inline? '$Closure1 '$Closure))
      
      ; If there is no self-reference then allocation is simple.
      ; If there is a  self-reference we first need to allocate the closure,
@@ -14293,7 +14314,7 @@
      (maybe-store-in-dest
       (match self-reference-indices
         ; no self-references
-        ['() `(struct.new $Closure
+        ['() `(struct.new ,closure-type
                 (i32.const 0)                  ; hash
                 ,get-name                      ; name:  #f or $Symbol
                 ,(Imm ar)                      ; arity: fixnum
@@ -14301,16 +14322,19 @@
                 (ref.func $invoke-closure)     ; invoke (used by apply, map, etc.)
                 ,debug-id-expr                 ; debug-id
                 (ref.func ,(Label l)) 
-                (array.new_fixed $Free ,(length ae1)
-                                 ,@(for/list ([ae ae1])
-                                     (AExpr3 ae <value>))))]
+                ,@(if unary-inline?
+                      (list '(global.get $empty-free)
+                            (AExpr3 (car ae1) <value>))
+                      (list `(array.new_fixed $Free ,(length ae1)
+                                              ,@(for/list ([ae ae1])
+                                                  (AExpr3 ae <value>))))))]
         [(list is)
          (define this (new-var #'$this))
          (emit-local this '(ref $Closure))
          `(block (result (ref eq))
                  ; 1. Allocate closure with dummy array of free variables.
                  (local.set ,this
-                            `(struct.new $Closure    
+                            `(struct.new ,closure-type
                                (i32.const 0)               ; hash
                                ,get-name                   ; name:  #f or $Symbol
                                ,(Imm ar)                   ; arity: todo
@@ -14318,14 +14342,26 @@
                                (ref.func $invoke-closure)  ; invoke (used by apply, map, etc.)
                                ,debug-id-expr              ; debug-id
                                (ref.func ,(Label l))
-                               (global.get $empty-free)))
+                               (global.get $empty-free)
+                               ,@(if unary-inline?
+                                     (list (Undefined))
+                                     '())))
                  ; 2. Fill in the correct array of free variables.
-                 (struct.set $Closure $free
-                   (array.new_fixed $Free ,(length ae1)
-                     ,@(for/list ([ae ae1] [i (in-naturals)])
-                         (if (member i is)
-                             `(local.get ,this)
-                             (AExpr3 ae <value>)))))
+                 ,@(if unary-inline?
+                       (list
+                        `(struct.set $Closure1 $free0
+                                     (ref.cast (ref $Closure1) (local.get ,this))
+                                     ,(if (member 0 is)
+                                          `(local.get ,this)
+                                          (AExpr3 (car ae1) <value>))))
+                       (list
+                        `(struct.set $Closure $free
+                                     (ref.cast (ref $Closure) (local.get ,this))
+                                     (array.new_fixed $Free ,(length ae1)
+                                                      ,@(for/list ([ae ae1] [i (in-naturals)])
+                                                          (if (member i is)
+                                                              `(local.get ,this)
+                                                              (AExpr3 ae <value>)))))))
                  ; 3. Return the closure.
                  (local.get ,this))]
 
@@ -14384,7 +14420,12 @@
                             (record-used-primitive! (syntax-e (variable-id x)))
                             (PrimRef x)) ; reference to primitive
                           (Reference x))] ; reference to non-free variable
-    [(free-ref ,x ,i) `(array.get $Free (local.get $free) (i32.const ,i))] ; x is the name
+    [(free-ref ,x ,i)
+     (if (and (current-inline-unary-closure?)
+              (zero? i))
+         `(struct.get $Closure1 $free0
+                      (ref.cast (ref $Closure1) (local.get $clos)))
+         `(array.get $Free (local.get $free) (i32.const ,i)))] ; x is the name
     [,ca              (ClosureAllocation ca dd)]
     [(quote ,s ,d)    (cond
                         [(eq? dd '<effect>)
@@ -15439,6 +15480,8 @@
        (define $debug-id (string->symbol (~a "$symbol:" debug-id)))
        (add-symbol-constant debug-id debug-id)
        `(global.get ,$debug-id))
+     (define (inline-unary-letrec-closure-label? l)
+       (inline-unary-closure-label? l))
      (define (closure-name-expr in)
        (cond
          [in (define name  (syntax-e (variable-id in)))
@@ -15500,21 +15543,34 @@
        ; left as `undefined` for later patching.
        (nanopass-case (LANF+closure AExpr) ca
          [(closure ,s ,k ,in ,l ,ar ,ae1 ...)
+          (define unary-inline? (inline-unary-letrec-closure-label? l))
           (define payload
             (for/list ([entry (in-list (letrec-closure-payload-plan ca dest))])
               (match entry
                 [(list _i 'immediate v) v]
                 [(list _i 'recursive _v) (Undefined)])))
           (let ([us payload])
-            (Store! dest `(struct.new $Closure
-                               (i32.const 0)               ; hash
-                               ,(closure-name-expr in)     ; name:  #f or $Symbol
-                               ,(Imm ar)                   ; arity:
-                               (global.get $false)         ; realm: #f or $Symbol
-                               (ref.func $invoke-closure)  ; invoke (used by apply, map, etc.)
-                               ,(closure-debug-id-expr l)  ; debug-id
-                               (ref.func ,(Label l))
-                               (array.new_fixed $Free ,(length ae1) ,@us))))]
+            (Store! dest
+                    (if unary-inline?
+                        `(struct.new $Closure1
+                                     (i32.const 0)
+                                     ,(closure-name-expr in)
+                                     ,(Imm ar)
+                                     (global.get $false)
+                                     (ref.func $invoke-closure)
+                                     ,(closure-debug-id-expr l)
+                                     (ref.func ,(Label l))
+                                     (global.get $empty-free)
+                                     ,(car us))
+                        `(struct.new $Closure
+                                     (i32.const 0)               ; hash
+                                     ,(closure-name-expr in)     ; name:  #f or $Symbol
+                                     ,(Imm ar)                   ; arity:
+                                     (global.get $false)         ; realm: #f or $Symbol
+                                     (ref.func $invoke-closure)  ; invoke (used by apply, map, etc.)
+                                     ,(closure-debug-id-expr l)  ; debug-id
+                                     (ref.func ,(Label l))
+                                     (array.new_fixed $Free ,(length ae1) ,@us)))))]
          [(case-closure ,s ,in ,l [,ar ,ca*] ...)
           (define n (length ca*))
           (define ar* (canonicalize-arity-markers ar))
@@ -15556,6 +15612,7 @@
        ; Fill only the recursive link slots in the $free array.
        (nanopass-case (LANF+closure AExpr) ca
          [(closure ,s ,k ,in ,l ,ar ,ae1 ...)
+          (define unary-inline? (inline-unary-letrec-closure-label? l))
           (define recursive-entries
             (for/list ([entry (in-list (letrec-closure-payload-plan ca dd))]
                        #:when (eq? (second entry) 'recursive))
@@ -15563,6 +15620,13 @@
           (cond
             [(null? recursive-entries)
              '()]
+            [unary-inline?
+             (for/list ([entry (in-list recursive-entries)])
+               (match entry
+                 [(list _i _kind v)
+                  `(struct.set $Closure1 $free0
+                               (ref.cast (ref $Closure1) ,(Reference dd))
+                               ,v)]))]
             [else
              (define free-arr (emit-fresh-local 'free '(ref $Free) #f))
              (cons
@@ -15683,8 +15747,10 @@
          `(converted-abstraction ; ,(Formal* (list* '$free '$tc x)) ; arguments
                                  ; the parameter matches the type $ClosureCode
                                  ((param $clos (ref $Closure)) (param $args (ref $Args)))                                                     
-                                 ,(cons
-                                   '(local $free (ref $Free))                   ; array of free variables
+                                 ,(append
+                                   (if (current-inline-unary-closure?)
+                                       '()
+                                       '((local $free (ref $Free))))            ; array of free variables
                                    (Local* (append x                            ; argument
                                                    (reverse (*locals*)))))      ; declarations
                                  ,(append (list
@@ -15701,14 +15767,16 @@
                                              [else
                                               ; at least n expected
                                               (define n (- (- ar) 1))
-                                              `(if (i32.lt_u (array.len (local.get $args))
+                                             `(if (i32.lt_u (array.len (local.get $args))
                                                              (i32.const ,n))
                                                    (then (call $raise-arity-mismatch/proc
                                                                (local.get $clos)
                                                                (array.len (local.get $args)))
                                                          (unreachable)))])
-                                           
-                                           `(local.set $free (struct.get $Closure $free (local.get $clos))))
+                                           )
+                                          (if (current-inline-unary-closure?)
+                                              '()
+                                              '((local.set $free (struct.get $Closure $free (local.get $clos)))))
                                           (Init* (*locals*))               ; initialization
                                           (InitArgs* x))
                                  ,σ)))
@@ -15802,18 +15870,21 @@
   (TopLevelForm : TopLevelForm (t dd) -> * ()
     [,g                             (GeneralTopLevelForm g dd)]
     [(#%expression ,s ,e)           (Expr e dd <stat>)]
-    [(define-label ,l ,cab)         (match (ConvertedAbstraction cab)
-                                      [(list 'converted-abstraction formals locals init-locals body-expr)
-                                       `(func ,(Label l)
-                                              (export ,(~a (syntax-e (variable-id l))))
-                                              (type $ClosureCode)                                              
-                                              ,@formals
-                                              (result (ref eq))
-                                              ,@locals
-                                              ,@init-locals
-                                              ,body-expr)]
-                                      [x (pretty-print x)
-                                         (error 'generate-code-Top "got: ~a" x)])]
+    [(define-label ,l ,cab)
+     (match (parameterize ([current-inline-unary-closure?
+                            (inline-unary-closure-label? l)])
+              (ConvertedAbstraction cab))
+       [(list 'converted-abstraction formals locals init-locals body-expr)
+        `(func ,(Label l)
+               (export ,(~a (syntax-e (variable-id l))))
+               (type $ClosureCode)                                              
+               ,@formals
+               (result (ref eq))
+               ,@locals
+               ,@init-locals
+               ,body-expr)]
+       [x (pretty-print x)
+          (error 'generate-code-Top "got: ~a" x)])]
     [(topmodule ,s ,mn ,mp ,mf ...) (let ([mf (map (λ (m) (ModuleLevelForm m dd)) mf)])
                                       `(topmodule ,mn ,mp ,mf ...))]
     [(topbegin ,s ,t ...)
@@ -16577,6 +16648,9 @@
         [(list 'local.set _
                (list 'struct.new '$Closure _ ... (list 'array.new_fixed '$Free _ slots ...) ))
          (ormap undefined-slot? slots)]
+        [(list 'local.set _
+               (list 'struct.new '$Closure1 _ ... slot))
+         (undefined-slot? slot)]
         [_ #f]))
     (sexp-any? local-closure-shell-allocation? mod))
 
@@ -16592,6 +16666,9 @@
                      (list 'struct.new '$Closure _ ...
                            (list 'array.new_fixed '$Free _ slots ...)))
                (if (ormap undefined-slot? slots) 1 0)]
+              [(list 'local.set _
+                     (list 'struct.new '$Closure1 _ ... slot))
+               (if (undefined-slot? slot) 1 0)]
               [_ 0])
             (count-shell-allocations (car x))
             (count-shell-allocations (cdr x)))]
@@ -16608,6 +16685,9 @@
         [(list 'local.set _
                (list 'struct.new '$Closure _ ...))
          #t]
+        [(list 'local.set _
+               (list 'struct.new '$Closure1 _ ...))
+         #t]
         [_ #f]))
     (sexp-any? local-closure-allocation? mod))
 
@@ -16622,6 +16702,9 @@
                      (list 'struct.new '$Closure _ ...
                            (list 'array.new_fixed '$Free _ slots ...)))
                (if (ormap undefined-slot? slots) 1 0)]
+              [(list 'local.set _
+                     (list 'struct.new '$Closure1 _ ... slot))
+               (if (undefined-slot? slot) 1 0)]
               [_ 0])
             (count-shell-allocations (car x))
             (count-shell-allocations (cdr x)))]
@@ -16638,6 +16721,7 @@
         [(pair? x)
          (+ (match x
               [(list 'array.set '$Free _ _ _) 1]
+              [(list 'struct.set '$Closure1 '$free0 _ _) 1]
               [_ 0])
             (count-free-patch-writes (car x))
             (count-free-patch-writes (cdr x)))]
@@ -16647,6 +16731,24 @@
         [else
          0]))
     (count-free-patch-writes mod))
+
+  (define (module-has-unary-inline-closure-allocation? mod)
+    (define (unary-inline-closure-allocation? x)
+      (match x
+        [(list 'local.set _
+               (list 'struct.new '$Closure1 _ ...))
+         #t]
+        [(list 'struct.new '$Closure1 _ ...)
+         #t]
+        [_ #f]))
+    (sexp-any? unary-inline-closure-allocation? mod))
+
+  (define (module-has-unary-inline-closure-read? mod)
+    (define (unary-inline-closure-read? x)
+      (match x
+        [(list 'struct.get '$Closure1 '$free0 _) #t]
+        [_ #f]))
+    (sexp-any? unary-inline-closure-read? mod))
 
   (define (compile/primitive-report stx)
     (define dump-dir (make-temporary-file "webracket-tree-shaker~a" 'directory))
@@ -17230,6 +17332,12 @@
                            (g 1)))))])
     (check-true (module-has-direct-dummy-closure-call? mod)))
 
+  (let ([mod (parameterize ([current-enable-cc-analysis? #t])
+               (comp #'(let ([x 1])
+                         ((lambda () x)))))])
+    (check-true (module-has-unary-inline-closure-allocation? mod))
+    (check-true (module-has-unary-inline-closure-read? mod)))
+
   (let ([mod (parameterize ([current-enable-cc-analysis? #t]
                             [current-enable-simplify? #f])
                (comp #'(let ([f (case-lambda
@@ -17398,6 +17506,9 @@
         [(list 'local.set _
                (list 'struct.new '$Closure _ ... (list 'array.new_fixed '$Free _ slots ...)))
          (ormap undefined-slot? slots)]
+        [(list 'local.set _
+               (list 'struct.new '$Closure1 _ ... slot))
+         (undefined-slot? slot)]
         [_ #f]))
     (sexp-any? local-closure-shell-allocation? mod))
 
@@ -17406,6 +17517,9 @@
       (match x
         [(list 'local.set _
                (list 'struct.new '$Closure _ ...))
+         #t]
+        [(list 'local.set _
+               (list 'struct.new '$Closure1 _ ...))
          #t]
         [_ #f]))
     (sexp-any? local-closure-allocation? mod))
@@ -17421,6 +17535,9 @@
                      (list 'struct.new '$Closure _ ...
                            (list 'array.new_fixed '$Free _ slots ...)))
                (if (ormap undefined-slot? slots) 1 0)]
+              [(list 'local.set _
+                     (list 'struct.new '$Closure1 _ ... slot))
+               (if (undefined-slot? slot) 1 0)]
               [_ 0])
             (count-shell-allocations (car x))
             (count-shell-allocations (cdr x)))]
@@ -17437,6 +17554,7 @@
         [(pair? x)
          (+ (match x
               [(list 'array.set '$Free _ _ _) 1]
+              [(list 'struct.set '$Closure1 '$free0 _ _) 1]
               [_ 0])
             (count-free-patch-writes (car x))
             (count-free-patch-writes (cdr x)))]
