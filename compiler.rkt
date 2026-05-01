@@ -14663,13 +14663,39 @@
      (define x* (map first x**)) ; assumes single value
      (define letrec-binders
        (map (λ (x) (syntax-e (variable-id x))) x*))
+     (define letrec-binder-index-ht
+       (for/hasheq ([x (in-list x*)]
+                    [i (in-naturals)])
+         (values (syntax-e (variable-id x)) i)))
+
+     ;; letrec-binder-index : variable? -> natural?
+     ;;   Return the allocation order index of x in the current letrec group.
+     (define (letrec-binder-index x)
+       (hash-ref letrec-binder-index-ht
+                 (syntax-e (variable-id x))
+                 #f))
 
      ;; letrec-local-var? : variable? -> boolean?
      ;;   Check whether ae is one of this letrec group's local variables.
      (define (letrec-local-var? ae)
        (and (variable? ae)
-            (for/or ([y (in-list x*)])
+           (for/or ([y (in-list x*)])
               (id=? ae y))))
+
+     ;; letrec-link-needs-patch? : variable? AExpr -> boolean?
+     ;;   Check whether ae is a recursive-group link that still needs patching
+     ;;   when allocating the closure bound to current-x.
+     ;;
+     ;; Links to earlier group members can be installed immediately because
+     ;; their closure shells have already been allocated. Links to the current
+     ;; binder and to later group members must still be patched afterward.
+     (define (letrec-link-needs-patch? current-x ae)
+       (and (letrec-local-var? ae)
+            (let ([current-i (and (variable? current-x)
+                                  (letrec-binder-index current-x))]
+                  [ae-i      (letrec-binder-index ae)])
+              (or (not current-i)
+                  (>= ae-i current-i)))))
 
      ;; letrec-local-free-vars : (listof any/c) -> (listof symbol?)
      ;;   Extract the closure-layout free variables that belong to this letrec group.
@@ -14753,23 +14779,17 @@
          [else
           `(global.get $false)]))
 
-     ;; letrec-local-link-aexpr? : AExpr -> boolean?
-     ;;   Check whether ae is a current letrec-group link that still needs patching.
-     (define (letrec-local-link-aexpr? ae)
-       (and (variable? ae)
-            (letrec-local-var? ae)))
-
-     ;; letrec-closure-payload-plan : LANF+closure AExpr -> (listof list?)
+     ;; letrec-closure-payload-plan : LANF+closure AExpr variable? -> (listof list?)
      ;;   Return `(index kind value)` entries for the current closure payload,
      ;;   where `kind` is `immediate` or `recursive`.
-     (define (letrec-closure-payload-plan ca)
+     (define (letrec-closure-payload-plan ca current-x)
        (nanopass-case (LANF+closure AExpr) ca
          [(closure ,s ,k ,in ,l ,ar ,ae1 ...)
           (for/list ([ae (in-list ae1)]
                      [v  (in-list (AExpr* ae1))]
                      [i  (in-naturals)])
             (list i
-                  (if (letrec-local-link-aexpr? ae) 'recursive 'immediate)
+                  (if (letrec-link-needs-patch? current-x ae) 'recursive 'immediate)
                   v))]
          [else
           '()]))
@@ -14781,7 +14801,7 @@
        (nanopass-case (LANF+closure AExpr) ca
          [(closure ,s ,k ,in ,l ,ar ,ae1 ...)
           (define payload
-            (for/list ([entry (in-list (letrec-closure-payload-plan ca))])
+            (for/list ([entry (in-list (letrec-closure-payload-plan ca dest))])
               (match entry
                 [(list _i 'immediate v) v]
                 [(list _i 'recursive _v) (Undefined)])))
@@ -14837,7 +14857,7 @@
        (nanopass-case (LANF+closure AExpr) ca
          [(closure ,s ,k ,in ,l ,ar ,ae1 ...)
           ; This will be sliced into a `block` so we don't need another one.
-          (for/list ([entry (in-list (letrec-closure-payload-plan ca))]
+          (for/list ([entry (in-list (letrec-closure-payload-plan ca dd))]
                      #:when (eq? (second entry) 'recursive))
             (match entry
               [(list i _kind v)
@@ -16595,7 +16615,7 @@
                            (even? 4)))))])
     (check-true (module-has-direct-label-call? mod))
     (check-true (module-has-local-closure-allocation? mod))
-    (check-equal? (module-count-free-patch-writes mod) 2))
+    (check-equal? (module-count-free-patch-writes mod) 1))
 
   (let ([mod (parameterize ([current-enable-cc-analysis? #t])
                (comp #'(letrec ([loop (lambda xs
