@@ -10869,14 +10869,9 @@
             extended-vars
             (equal? free-vars extended-vars)))))
 
-;; summarize-direct-self-binder-closure-conversion-analysis : LANF
-;;                                                        -> (listof list?)
-;;   Return a compact summary of direct helpers that can drop their own binder.
-(define (summarize-direct-self-binder-closure-conversion-analysis T)
-  (define (label-name labels-ht ab)
-    (syntax-e (variable-id (hash-ref labels-ht ab))))
-  (define (vars-of xs)
-    (map syntax-e (map variable-id (id-set->list xs))))
+;; direct-self-binder-removable? : any/c (hasheq/c any/c symbol?) (hasheq/c any/c (or/c variable? #f)) -> boolean?
+;;   Check whether direct helper ab can drop its own binder from closure layout.
+(define (direct-self-binder-removable? ab kind-ht binder-ht)
   (define (sexp-any? pred x)
     (or (pred x)
         (cond
@@ -10901,6 +10896,19 @@
     (nanopass-case (LANF Abstraction) ab
       [(λ ,s ,f ,e)
        (sexp-any? captures-binder? (unparse-all (unparse-LANF e)))]))
+  (and (eq? (hash-ref kind-ht ab 'closed) 'direct)
+       (match (hash-ref binder-ht ab #f)
+         [#f #f]
+         [x  (not (nested-binder-capture-present? ab (syntax-e (variable-id x))))])))
+
+;; summarize-direct-self-binder-closure-conversion-analysis : LANF
+;;                                                        -> (listof list?)
+;;   Return a compact summary of direct helpers that can drop their own binder.
+(define (summarize-direct-self-binder-closure-conversion-analysis T)
+  (define (label-name labels-ht ab)
+    (syntax-e (variable-id (hash-ref labels-ht ab))))
+  (define (vars-of xs)
+    (map syntax-e (map variable-id (id-set->list xs))))
   (letv ((T free-ht abs kind-ht _direct-sites-ht _direct-candidate-ht _disqualified-ht
             binder-ht
             _extended-ht _direct-callees-ht)
@@ -10914,14 +10922,10 @@
         (match (hash-ref binder-ht ab #f)
           [#f #f]
           [x  (syntax-e (variable-id x))]))
-      (define removable?
-        (match (hash-ref binder-ht ab #f)
-          [#f #f]
-          [x  (not (nested-binder-capture-present? ab (syntax-e (variable-id x))))]))
       (list (label-name labels-ht ab)
             binder
             (vars-of (hash-ref free-ht ab empty-set))
-            removable?))))
+            (direct-self-binder-removable? ab kind-ht binder-ht)))))
 
 (module+ test
   (require rackunit
@@ -11293,55 +11297,22 @@
         [#f (free-of ab)]
         [x  (remove-variable (free-of ab) x)]))
 
-    ;; sexp-any? : (any/c -> boolean?) any/c -> boolean?
-    ;;   Check whether pred holds anywhere in the s-expression x.
-    (define (sexp-any? pred x)
-      (or (pred x)
-          (cond
-            [(pair? x)
-             (or (sexp-any? pred (car x))
-                 (sexp-any? pred (cdr x)))]
-            [(vector? x)
-             (for/or ([e (in-vector x)])
-               (sexp-any? pred e))]
-            [else
-             #f])))
-
-    ;; nested-binder-capture-present? : any/c variable? -> boolean?
-    ;;   Check whether ab contains a nested λ or case-lambda that mentions x.
-    (define (nested-binder-capture-present? ab x)
-      (define binder-sym (syntax-e (variable-id x)))
-      (define (binder-appears? y)
-        (equal? y binder-sym))
-      (define (captures-binder? y)
-        (match y
-          [(list 'λ _ body ...)
-           (sexp-any? binder-appears? body)]
-          [(list 'case-lambda arms ...)
-           (sexp-any? binder-appears? arms)]
-          [_ #f]))
-      (nanopass-case (LANF Abstraction) ab
-        [(λ ,s ,f ,e)
-         (sexp-any? captures-binder? (unparse-all (unparse-LANF e)))]))
-
-    ;; direct-self-binder-removable? : any/c -> boolean?
+    ;; direct-self-binder-removable/local? : any/c -> boolean?
     ;;   Check whether ab can drop its own binder from the closure layout.
-    (define (direct-self-binder-removable? ab)
-      (and (eq? (kind-of ab) 'direct)
-           (binder-of ab)
-           (not (nested-binder-capture-present? ab (binder-of ab)))))
+    (define (direct-self-binder-removable/local? ab)
+      (direct-self-binder-removable? ab kind-ht binder-ht))
 
     ;; body-layout-of : any/c -> (listof variable?)
     ;;   Return the environment layout currently used by the lifted body of ab.
     (define (body-layout-of ab)
-      (if (direct-self-binder-removable? ab)
+      (if (direct-self-binder-removable/local? ab)
           (self-binder-free-of ab)
           (free-of ab)))
 
     ;; closure-env-of : any/c -> (listof variable?)
     ;;   Return the variables stored in ab's closure record.
     (define (closure-env-of ab)
-      (if (direct-self-binder-removable? ab)
+      (if (direct-self-binder-removable/local? ab)
           (self-binder-free-of ab)
           (free-of ab)))
 
@@ -13289,6 +13260,31 @@
 
      (unless (apply = (list* 1 1 (map length x**))) ; all clauses expect one value?
        (error 'generate-code "TODO support multiple values in letrec-values"))
+
+     (define x* (map first x**)) ; assumes single value
+
+     ;; letrec-local-var? : variable? -> boolean?
+     ;;   Check whether ae is one of this letrec group's local variables.
+     (define (letrec-local-var? ae)
+       (and (variable? ae)
+            (for/or ([y (in-list x*)])
+              (id=? ae y))))
+
+     ;; direct-allocate-letrec-closure? : LANF+closure AExpr variable? -> boolean?
+     ;;   Check whether ca can be allocated directly for binder x.
+     ;;
+     ;; This is safe when the closure payload refers to no letrec locals at all.
+     ;; After self-binder removal, this still covers the simple direct recursive
+     ;; helper cases we care about here.
+     (define (direct-allocate-letrec-closure? ca x)
+       (nanopass-case (LANF+closure AExpr) ca
+         [(closure ,s ,k ,in ,l ,ar ,ae1 ...)
+          (and (current-enable-cc-analysis?)
+               (eq? k 'direct)
+               (for/and ([ae (in-list ae1)])
+                 (not (letrec-local-var? ae))))]
+         [else
+          #f]))
      
      (define (closure-debug-id-expr l)
        (define debug-id (syntax-e (variable-id l)))
@@ -13381,8 +13377,7 @@
        (for ([x x*])
          (emit-local x)))
      
-     (let* ([x* (map first x**)]                     ; assumes single value
-            [u* (for/list ([x* x**]) (Undefined))]
+     (let* ([u* (for/list ([x* x**]) (Undefined))]
             [e  (Expr e dd cd)])                     
        `(block ,@(match dd                               ; <--
                    ['<effect> (list)]
@@ -13392,14 +13387,22 @@
                    (Store! x u))
                ,@(append*
                   (for/list ([ce ce*] [x x*])
-                    (if (direct-letrec-closure? ce)
-                        '()
-                        (list (AllocateClosure ce x)))))
+                    (cond
+                      [(direct-letrec-closure? ce)
+                       '()]
+                      [(direct-allocate-letrec-closure? ce x)
+                       (list (ClosureAllocation ce x))]
+                      [else
+                       (list (AllocateClosure ce x))])))
                ,@(append*
                   (for/list ([ce ce*] [x x*])
-                    (if (direct-letrec-closure? ce)
-                        '()
-                        (FillClosure ce x))))
+                    (cond
+                      [(direct-letrec-closure? ce)
+                       '()]
+                      [(direct-allocate-letrec-closure? ce x)
+                       '()]
+                      [else
+                       (FillClosure ce x)])))
                ,e))])
      
   (ConvertedAbstraction : ConvertedAbstraction (cab) -> * ()
@@ -14183,9 +14186,13 @@
     (sexp-any? direct-label-call? mod))
 
   (define (module-has-local-closure-shell-allocation? mod)
+    (define (undefined-slot? x)
+      (equal? x '(global.get $undefined)))
     (define (local-closure-shell-allocation? x)
       (match x
-        [(list 'local.set _ (list 'struct.new '$Closure _ ...)) #t]
+        [(list 'local.set _
+               (list 'struct.new '$Closure _ ... (list 'array.new_fixed '$Free _ slots ...) ))
+         (ormap undefined-slot? slots)]
         [_ #f]))
     (sexp-any? local-closure-shell-allocation? mod))
 
@@ -14346,7 +14353,8 @@
                                             0
                                             (loop (- n 1))))])
                          (loop 2))))])
-    (check-true (module-has-direct-label-call? mod)))
+    (check-true  (module-has-direct-label-call? mod))
+    (check-false (module-has-local-closure-shell-allocation? mod)))
 
   (let-values ([(mod report)
                 (compile/primitive-report/ffi
