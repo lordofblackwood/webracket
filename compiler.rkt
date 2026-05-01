@@ -10996,12 +10996,12 @@
   (define labels-ht (make-hasheq))
   (define (add-label! ab) (hash-set! labels-ht ab (new-var "label")))
   (letv ((T free-ht abs kind-ht _direct-sites-ht _direct-candidate-ht _disqualified-ht
-            _extended-ht _direct-callees-ht)
+            extended-ht _direct-callees-ht)
          (closure-conversion-analysis T))
     #;(pretty-print free-ht)
     (for ([ab abs])
       (add-label! ab))
-    (finish-closure-conversion T free-ht kind-ht labels-ht)))
+    (finish-closure-conversion T free-ht kind-ht extended-ht labels-ht)))
 
 (define (closure+primitive? v)
   (or (eq? v 'closure)
@@ -11056,12 +11056,14 @@
     (+ (define-label l cab))))
 
 
-(define-pass finish-closure-conversion : LANF (T free-ht kind-ht labels-ht) -> LANF+closure ()
+(define-pass finish-closure-conversion : LANF (T free-ht kind-ht extended-ht labels-ht) -> LANF+closure ()
   (definitions
     (define h #'fcc)
     (define (label-of ab) (hash-ref labels-ht ab))
     (define (free-of ab)  (id-set->list (hash-ref free-ht ab)))
     (define (kind-of ab)  (hash-ref kind-ht ab 'closed))
+    (define (extended-of ab)
+      (id-set->list (hash-ref extended-ht ab empty-set)))
     (define (index-of x free)
       (define (x? y) (id=? x y))
       (index-where free x?))
