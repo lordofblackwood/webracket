@@ -16187,10 +16187,12 @@
 #| ;; closure-converted-direct-letrec-closure-summary : syntax? -> (listof list?)
 ;;   Summarize direct letrec closures after closure conversion.
 (define (closure-converted-direct-letrec-closure-summary stx)
-  (define (closure-converted stx)
+  (define (closure-converted stx [simplify? #t])
     (reset-counter!)
     (define p0  (parse (unexpand (topexpand stx))))
-    (define s0  (simplify-LFE p0))
+    (define s0  (if simplify?
+                    (simplify-LFE p0)
+                    p0))
     (define ft  (flatten-topbegin s0))
     (define in  (infer-names ft))
     (define cq  (convert-quotations in))
@@ -16532,27 +16534,27 @@
     (parameterize ([current-enable-cc-analysis? #t])
       (closure-conversion an)))
 
-  (define (closure-converted-has-directapp? stx)
+  (define (closure-converted-has-directapp? stx [simplify? #t])
     (define cc-sexp
-      (unparse-all (unparse-LANF+closure (closure-converted stx))))
+      (unparse-all (unparse-LANF+closure (closure-converted stx simplify?))))
     (define (directapp-form? x)
       (match x
         [(list 'directapp _ ...) #t]
         [_ #f]))
     (sexp-any? directapp-form? cc-sexp))
 
-  (define (closure-converted-has-selfapp? stx)
+  (define (closure-converted-has-selfapp? stx [simplify? #t])
     (define cc-sexp
-      (unparse-all (unparse-LANF+closure (closure-converted stx))))
+      (unparse-all (unparse-LANF+closure (closure-converted stx simplify?))))
     (define (selfapp-form? x)
       (match x
         [(list 'selfapp _ ...) #t]
         [_ #f]))
     (sexp-any? selfapp-form? cc-sexp))
 
-  (define (closure-converted-has-casearmapp? stx)
+  (define (closure-converted-has-casearmapp? stx [simplify? #t])
     (define cc-sexp
-      (unparse-all (unparse-LANF+closure (closure-converted stx))))
+      (unparse-all (unparse-LANF+closure (closure-converted stx simplify?))))
     (define (casearmapp-form? x)
       (match x
         [(list 'casearmapp _ ...) #t]
@@ -16967,21 +16969,36 @@
                                      (f 2))))
 
   (check-true
-   (closure-converted-has-casearmapp? #'(let ([f (case-lambda
-                                                   [() 1]
-                                                   [(x) x])])
-                                       (f 2))))
+   (closure-converted-has-directapp? #'(let ([f (case-lambda
+                                                 [() 1]
+                                                 [(x) x])])
+                                     (f 2))
+                                   #t))
 
   (check-true
    (closure-converted-has-casearmapp? #'(let ([f (case-lambda
-                                                   [xs xs])])
-                                       (f 1 2 3))))
+                                                   [() 1]
+                                                   [(x) x])])
+                                       (f 2))
+                                     #f))
 
   (check-false
    (closure-converted-has-casearmapp? #'(let ([f (case-lambda
                                                    [(x) x]
                                                    [xs xs])])
                                        (f 2))))
+
+  (check-true
+   (closure-converted-has-directapp? #'(let ([f (case-lambda
+                                                 [xs xs])])
+                                     (f 1 2 3))
+                                   #t))
+
+  (check-true
+   (closure-converted-has-casearmapp? #'(let ([f (case-lambda
+                                                   [xs xs])])
+                                       (f 1 2 3))
+                                     #f))
 
   (let ([mod (parameterize ([current-enable-cc-analysis? #t])
                (comp #'(let ([f (lambda (x) x)])
@@ -16995,7 +17012,22 @@
                          (f 2))))])
     (check-true (module-has-direct-label-call? mod)))
 
+  (let ([mod (parameterize ([current-enable-cc-analysis? #t]
+                            [current-enable-simplify? #f])
+               (comp #'(let ([f (case-lambda
+                                  [() 1]
+                                  [(x) x])])
+                         (f 2))))])
+    (check-true (module-has-direct-label-call? mod)))
+
   (let ([mod (parameterize ([current-enable-cc-analysis? #t])
+               (comp #'(let ([f (case-lambda
+                                  [xs xs])])
+                         (f 1 2 3))))])
+    (check-true (module-has-direct-label-call? mod)))
+
+  (let ([mod (parameterize ([current-enable-cc-analysis? #t]
+                            [current-enable-simplify? #f])
                (comp #'(let ([f (case-lambda
                                   [xs xs])])
                          (f 1 2 3))))])
