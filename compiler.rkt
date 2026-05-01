@@ -10888,16 +10888,19 @@
              (sexp-any? pred e))]
           [else
            #f])))
-  (define (nested-abstraction-present? ab)
+  (define (nested-binder-capture-present? ab binder-sym)
+    (define (binder-appears? x)
+      (equal? x binder-sym))
+    (define (captures-binder? x)
+      (match x
+        [(list 'λ _ body ...)
+         (sexp-any? binder-appears? body)]
+        [(list 'case-lambda arms ...)
+         (sexp-any? binder-appears? arms)]
+        [_ #f]))
     (nanopass-case (LANF Abstraction) ab
       [(λ ,s ,f ,e)
-       (define body-sexp (unparse-all (unparse-LANF e)))
-       (define (nested-abstraction-form? x)
-         (match x
-           [(list 'λ _ ...)           #t]
-           [(list 'case-lambda _ ...) #t]
-           [_                         #f]))
-       (sexp-any? nested-abstraction-form? body-sexp)]))
+       (sexp-any? captures-binder? (unparse-all (unparse-LANF e)))]))
   (letv ((T free-ht abs kind-ht _direct-sites-ht _direct-candidate-ht _disqualified-ht
             binder-ht
             _extended-ht _direct-callees-ht)
@@ -10911,10 +10914,14 @@
         (match (hash-ref binder-ht ab #f)
           [#f #f]
           [x  (syntax-e (variable-id x))]))
+      (define removable?
+        (match (hash-ref binder-ht ab #f)
+          [#f #f]
+          [x  (not (nested-binder-capture-present? ab (syntax-e (variable-id x))))]))
       (list (label-name labels-ht ab)
             binder
             (vars-of (hash-ref free-ht ab empty-set))
-            (not (nested-abstraction-present? ab))))))
+            removable?))))
 
 (module+ test
   (require rackunit
@@ -11154,6 +11161,29 @@
     'loop.1
     '(loop.1)
     #t))
+
+  (check-true
+   (direct-self-binder-summary-has-entry?
+    (direct-self-binder-analysis-summary
+     #'(letrec ([loop (lambda (n)
+                        (let ([k (lambda () n)])
+                          (if (zero? n)
+                              k
+                              (loop (- n 1)))))])
+         (loop 10)))
+    'loop.1
+    '(loop.1)
+    #t))
+
+  (check-equal?
+   (direct-self-binder-analysis-summary
+    #'(letrec ([loop (lambda (n)
+                       (let ([k (lambda () loop)])
+                         (if (zero? n)
+                             k
+                             (loop (- n 1)))))])
+        (loop 10)))
+   '())
   )
 
 
@@ -11277,25 +11307,29 @@
             [else
              #f])))
 
-    ;; nested-abstraction-present? : any/c -> boolean?
-    ;;   Check whether ab's body contains a nested λ or case-lambda.
-    (define (nested-abstraction-present? ab)
+    ;; nested-binder-capture-present? : any/c variable? -> boolean?
+    ;;   Check whether ab contains a nested λ or case-lambda that mentions x.
+    (define (nested-binder-capture-present? ab x)
+      (define binder-sym (syntax-e (variable-id x)))
+      (define (binder-appears? y)
+        (equal? y binder-sym))
+      (define (captures-binder? y)
+        (match y
+          [(list 'λ _ body ...)
+           (sexp-any? binder-appears? body)]
+          [(list 'case-lambda arms ...)
+           (sexp-any? binder-appears? arms)]
+          [_ #f]))
       (nanopass-case (LANF Abstraction) ab
         [(λ ,s ,f ,e)
-         (define body-sexp (unparse-all (unparse-LANF e)))
-         (define (nested-abstraction-form? x)
-           (match x
-             [(list 'λ _ ...)           #t]
-             [(list 'case-lambda _ ...) #t]
-             [_                         #f]))
-         (sexp-any? nested-abstraction-form? body-sexp)]))
+         (sexp-any? captures-binder? (unparse-all (unparse-LANF e)))]))
 
     ;; direct-self-binder-removable? : any/c -> boolean?
     ;;   Check whether ab can drop its own binder from the closure layout.
     (define (direct-self-binder-removable? ab)
       (and (eq? (kind-of ab) 'direct)
            (binder-of ab)
-           (not (nested-abstraction-present? ab))))
+           (not (nested-binder-capture-present? ab (binder-of ab)))))
 
     ;; body-layout-of : any/c -> (listof variable?)
     ;;   Return the environment layout currently used by the lifted body of ab.
