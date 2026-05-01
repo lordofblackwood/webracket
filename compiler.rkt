@@ -14739,22 +14739,6 @@
          [else
           #f]))
 
-     ;; active-letrec-closure-allocation-mode/closure : LANF+closure AExpr variable? -> symbol?
-     ;;   Return the currently active lowering mode for one letrec rhs:
-     ;;   `representation`, `final-only`, or `patched`.
-     ;;
-     ;; This is stricter than the analysis-side mode because the active
-     ;; representation path also requires a label-based safety annotation from
-     ;; closure conversion.
-     (define (active-letrec-closure-allocation-mode/closure ca x)
-       (cond
-         [(direct-letrec-representation? ca x)
-          'representation]
-         [(final-allocate-letrec-closure? ca x)
-          'final-only]
-         [else
-          'patched]))
-
      ;; final-allocate-letrec-closure? : LANF+closure AExpr variable? -> boolean?
      ;;   Check whether ca can be allocated directly as its final closure for
      ;;   binder x, without shell allocation and later patching.
@@ -14793,6 +14777,37 @@
                   v))]
          [else
           '()]))
+
+     ;; in-order-final-allocate-letrec-closure? : LANF+closure AExpr variable? -> boolean?
+     ;;   Check whether ca can be allocated directly in the current letrec
+     ;;   lowering order because its remaining payload plan has no recursive
+     ;;   slots left to patch.
+     (define (in-order-final-allocate-letrec-closure? ca x)
+       (and (current-enable-cc-analysis?)
+            (eq? (letrec-closure-allocation-mode/closure ca x) 'patched)
+            (for/and ([entry (in-list (letrec-closure-payload-plan ca x))])
+              (match entry
+                [(list _i kind _v)
+                 (eq? kind 'immediate)]))))
+
+     ;; active-letrec-closure-allocation-mode/closure : LANF+closure AExpr variable? -> symbol?
+     ;;   Return the currently active lowering mode for one letrec rhs:
+     ;;   `representation`, `final-only`, or `patched`.
+     ;;
+     ;; This is stricter than the analysis-side mode because the active
+     ;; representation path also requires a label-based safety annotation from
+     ;; closure conversion, but it may also be more permissive in lowering
+     ;; order when a patched helper's remaining links all point backward.
+     (define (active-letrec-closure-allocation-mode/closure ca x)
+       (cond
+         [(direct-letrec-representation? ca x)
+          'representation]
+         [(final-allocate-letrec-closure? ca x)
+          'final-only]
+         [(in-order-final-allocate-letrec-closure? ca x)
+          'final-only]
+         [else
+          'patched]))
 
      (define (AllocateClosure ca dest) ; called by letrec-values
        ; Allocates a closure shell. For patched letrec closures, immediate
@@ -15845,7 +15860,8 @@
 
   (define (module-has-local-closure-shell-allocation? mod)
     (define (undefined-slot? x)
-      (equal? x '(global.get $undefined)))
+      (or (equal? x '(global.get $undefined))
+          (equal? x '(ref.i31 (i32.const 79)))))
     (define (local-closure-shell-allocation? x)
       (match x
         [(list 'local.set _
@@ -15853,6 +15869,28 @@
          (ormap undefined-slot? slots)]
         [_ #f]))
     (sexp-any? local-closure-shell-allocation? mod))
+
+  (define (module-count-local-closure-shell-allocations mod)
+    (define (undefined-slot? x)
+      (or (equal? x '(global.get $undefined))
+          (equal? x '(ref.i31 (i32.const 79)))))
+    (define (count-shell-allocations x)
+      (cond
+        [(pair? x)
+         (+ (match x
+              [(list 'local.set _
+                     (list 'struct.new '$Closure _ ...
+                           (list 'array.new_fixed '$Free _ slots ...)))
+               (if (ormap undefined-slot? slots) 1 0)]
+              [_ 0])
+            (count-shell-allocations (car x))
+            (count-shell-allocations (cdr x)))]
+        [(vector? x)
+         (for/sum ([e (in-vector x)])
+           (count-shell-allocations e))]
+        [else
+         0]))
+    (count-shell-allocations mod))
 
   (define (module-has-local-closure-allocation? mod)
     (define (local-closure-allocation? x)
@@ -15862,6 +15900,27 @@
          #t]
         [_ #f]))
     (sexp-any? local-closure-allocation? mod))
+
+  (define (module-count-local-closure-shell-allocations mod)
+    (define (undefined-slot? x)
+      (equal? x '(global.get $undefined)))
+    (define (count-shell-allocations x)
+      (cond
+        [(pair? x)
+         (+ (match x
+              [(list 'local.set _
+                     (list 'struct.new '$Closure _ ...
+                           (list 'array.new_fixed '$Free _ slots ...)))
+               (if (ormap undefined-slot? slots) 1 0)]
+              [_ 0])
+            (count-shell-allocations (car x))
+            (count-shell-allocations (cdr x)))]
+        [(vector? x)
+         (for/sum ([e (in-vector x)])
+           (count-shell-allocations e))]
+        [else
+         0]))
+    (count-shell-allocations mod))
 
   (define (module-count-free-patch-writes mod)
     (define (count-free-patch-writes x)
@@ -16467,6 +16526,27 @@
         [_ #f]))
     (sexp-any? local-closure-allocation? mod))
 
+  (define (module-count-local-closure-shell-allocations mod)
+    (define (undefined-slot? x)
+      (equal? x '(global.get $undefined)))
+    (define (count-shell-allocations x)
+      (cond
+        [(pair? x)
+         (+ (match x
+              [(list 'local.set _
+                     (list 'struct.new '$Closure _ ...
+                           (list 'array.new_fixed '$Free _ slots ...)))
+               (if (ormap undefined-slot? slots) 1 0)]
+              [_ 0])
+            (count-shell-allocations (car x))
+            (count-shell-allocations (cdr x)))]
+        [(vector? x)
+         (for/sum ([e (in-vector x)])
+           (count-shell-allocations e))]
+        [else
+         0]))
+    (count-shell-allocations mod))
+
   (define (module-count-free-patch-writes mod)
     (define (count-free-patch-writes x)
       (cond
@@ -16615,6 +16695,7 @@
                            (even? 4)))))])
     (check-true (module-has-direct-label-call? mod))
     (check-true (module-has-local-closure-allocation? mod))
+    (check-equal? (module-count-local-closure-shell-allocations mod) 0)
     (check-equal? (module-count-free-patch-writes mod) 1))
 
   (let ([mod (parameterize ([current-enable-cc-analysis? #t])
