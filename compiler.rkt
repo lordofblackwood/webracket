@@ -11018,6 +11018,277 @@
             plan
             blockers))))
 
+;; determine-direct-helper-base-needs! : LANF
+;;                                      (hasheq/c any/c id-set?)
+;;                                      (listof any/c)
+;;                                      (hasheq/c any/c symbol?)
+;;                                   -> (values (hasheq/c any/c id-set?)
+;;                                              (hasheq/c any/c symbol?))
+;;   Compute analysis-only direct-helper base needs and local-binding origin.
+;;
+;; Base needs are ordinary free variables with locally known direct-helper
+;; binders removed. Origins currently distinguish only `let-values`,
+;; `letrec-values`, and `other`.
+(define (determine-direct-helper-base-needs! T free-ht abs kind-ht)
+  (define base-needs-ht (make-hasheq))
+  (define origin-ht     (make-hasheq))
+
+  (define (free-set-of ab)
+    (hash-ref free-ht ab empty-set))
+
+  (define (kind-of ab)
+    (hash-ref kind-ht ab 'closed))
+
+  (define (direct-helper? ab)
+    (eq? (kind-of ab) 'direct))
+
+  (define (env-empty)
+    (make-immutable-free-id-table))
+
+  (define (env-ref ρ x)
+    (free-id-table-ref ρ (variable-id x) #f))
+
+  (define (env-bind ρ x ab)
+    (free-id-table-set ρ (variable-id x) ab))
+
+  (define (env-bind* ρ xs abs)
+    (for/fold ([ρ ρ]) ([x  (in-list xs)]
+                       [ab (in-list abs)])
+      (env-bind ρ x ab)))
+
+  (define (env-shadow* ρ xs)
+    (for/fold ([ρ ρ]) ([x (in-list xs)])
+      (free-id-table-set ρ (variable-id x) #f)))
+
+  (define (formals->variables f)
+    (nanopass-case (LANF Formals) f
+      [(formals (,x ...))            x]
+      [(formals (,x0 ,x1 ... . ,xd)) (cons x0 (append x1 (list xd)))]
+      [(formals ,x)                  (list x)]))
+
+  (define (clause-bound-abstraction ce)
+    (nanopass-case (LANF CExpr) ce
+      [,ae
+       (nanopass-case (LANF AExpr) ae
+         [,ab  ab]
+         [,cab cab]
+         [else #f])]
+      [else #f]))
+
+  (define (clause-local-binding xs ce)
+    (match xs
+      [(list x)
+       (define ab (clause-bound-abstraction ce))
+       (and ab (cons x ab))]
+      [_ #f]))
+
+  (define (clause-local-bindings xss ces)
+    (for/fold ([pairs '()]) ([xs (in-list xss)]
+                             [ce (in-list ces)])
+      (define pair (clause-local-binding xs ce))
+      (if pair
+          (cons pair pairs)
+          pairs)))
+
+  (define (direct-free-base-of ab ρ)
+    (for/fold ([xs (free-set-of ab)]) ([x (in-list (id-set->list (free-set-of ab)))])
+      (match (env-ref ρ x)
+        [bound-ab (if (and bound-ab (direct-helper? bound-ab))
+                      (set-remove xs x)
+                      xs)]
+        [_ xs])))
+
+  (define current-helper-env
+    (make-parameter (env-empty)))
+
+  (for ([ab (in-list abs)])
+    (hash-set! base-needs-ht ab (free-set-of ab))
+    (hash-set! origin-ht ab 'other))
+
+  (define-pass analyze : LANF (T) -> * ()
+    (TopLevelForm : TopLevelForm (T) -> * ()
+      [(topbegin ,s ,t ...)
+       (for ([t (in-list t)])
+         (TopLevelForm t))]
+      [(topmodule ,s ,mn ,mp ,mf ...)
+       (for ([m (in-list mf)])
+         (ModuleLevelForm m))]
+      [(#%expression ,s ,e)
+       (Expr e)]
+      [,g
+       (GeneralTopLevelForm g)])
+    (ModuleLevelForm : ModuleLevelForm (M) -> * ()
+      [(#%provide ,rps ...)
+       (void)]
+      [,g
+       (GeneralTopLevelForm g)])
+    (GeneralTopLevelForm : GeneralTopLevelForm (G) -> * ()
+      [(define-values ,s (,x ...) ,e)
+       (Expr e)]
+      [(define-syntaxes ,s (,x ...) ,e)
+       (Expr e)]
+      [(#%require ,s ,rrs ...)
+       (void)]
+      [,e
+       (Expr e)])
+    (Abstraction : Abstraction (AB) -> * ()
+      [(λ ,s ,f ,e)
+       (hash-set! base-needs-ht AB
+                  (direct-free-base-of AB (current-helper-env)))
+       (parameterize ([current-helper-env
+                       (env-shadow* (current-helper-env) (formals->variables f))])
+         (Expr e))])
+    (CaseAbstraction : CaseAbstraction (CAB) -> * ()
+      [(case-lambda ,s ,ab* ...)
+       (for ([ab (in-list ab*)])
+         (Abstraction ab))])
+    (AExpr : AExpr (AE) -> * ()
+      [,x (void)]
+      [,ab (Abstraction ab)]
+      [,cab (CaseAbstraction cab)]
+      [(quote ,s ,d) (void)]
+      [(quote-syntax ,s ,d) (void)]
+      [(top ,s ,x) (void)]
+      [(variable-reference ,s ,vrx) (void)])
+    (CExpr : CExpr (CE) -> * ()
+      [,ae
+       (AExpr ae)]
+      [(set! ,s ,x ,ae)
+       (AExpr ae)]
+      [(if ,s ,ae0 ,e1 ,e2)
+       (AExpr ae0)
+       (Expr e1)
+       (Expr e2)]
+      [(wcm ,s ,ae0 ,ae1 ,e)
+       (AExpr ae0)
+       (AExpr ae1)
+       (Expr e)]
+      [(app ,s ,ae ,ae1 ...)
+       (AExpr ae)
+       (for ([ae1 (in-list ae1)])
+         (AExpr ae1))]
+      [(primapp ,s ,pr ,ae1 ...)
+       (for ([ae1 (in-list ae1)])
+         (AExpr ae1))]
+      [(closedapp ,s ,ab ,ae1 ...)
+       (Abstraction ab)
+       (for ([ae1 (in-list ae1)])
+         (AExpr ae1))]
+      [(begin ,s ,e0 ,e1 ...)
+       (Expr e0)
+       (for ([e (in-list e1)])
+         (Expr e))]
+      [(begin0 ,s ,e0 ,e1 ...)
+       (Expr e0)
+       (for ([e (in-list e1)])
+         (Expr e))])
+    (Expr : Expr (E) -> * ()
+      [,ce
+       (CExpr ce)]
+      [(let-values ,s (((,x ...) ,ce*) ...) ,e)
+       (for ([ce (in-list ce*)])
+         (CExpr ce))
+       (define pairs (reverse (clause-local-bindings x ce*)))
+       (define xs    (map car pairs))
+       (define abs   (map cdr pairs))
+       (for ([ab (in-list abs)])
+         (hash-set! origin-ht ab 'let-values))
+       (define direct-pairs
+         (filter (λ (pair) (direct-helper? (cdr pair))) pairs))
+       (define dxs  (map car direct-pairs))
+       (define dabs (map cdr direct-pairs))
+       (parameterize ([current-helper-env
+                       (env-bind* (current-helper-env) dxs dabs)])
+         (Expr e))]
+      [(letrec-values ,s (((,x ...) ,ce*) ...) ,e)
+       (define pairs (reverse (clause-local-bindings x ce*)))
+       (define xs    (map car pairs))
+       (define abs   (map cdr pairs))
+       (for ([ab (in-list abs)])
+         (hash-set! origin-ht ab 'letrec-values))
+       (define direct-pairs
+         (filter (λ (pair) (direct-helper? (cdr pair))) pairs))
+       (define dxs  (map car direct-pairs))
+       (define dabs (map cdr direct-pairs))
+       (parameterize ([current-helper-env
+                       (env-bind* (current-helper-env) dxs dabs)])
+         (for ([ce (in-list ce*)])
+           (CExpr ce))
+         (Expr e))]))
+
+  (parameterize ([current-helper-env (env-empty)])
+    (analyze T))
+  (values base-needs-ht origin-ht))
+
+;; summarize-direct-helper-env-plan-closure-conversion-analysis : LANF -> (listof list?)
+;;   Return an analysis-only summary of direct-helper env propagation.
+(define (summarize-direct-helper-env-plan-closure-conversion-analysis T)
+  (define (label-name labels-ht ab)
+    (syntax-e (variable-id (hash-ref labels-ht ab))))
+  (define (vars-of xs)
+    (sort (map syntax-e (map variable-id (id-set->list xs))) symbol<?))
+  (define (binder-name binder)
+    (match binder
+      [#f #f]
+      [x  (syntax-e (variable-id x))]))
+  (define (callee-binder-names callees binder-ht)
+    (sort
+     (for/list ([callee (in-list callees)])
+       (match (hash-ref binder-ht callee #f)
+         [#f 'anonymous]
+         [x  (syntax-e (variable-id x))]))
+     symbol<?))
+  (define (planned-abi kind fixed-arity? extended-vars)
+    (cond
+      [(not (eq? kind 'direct)) 'generic-closure]
+      [(not fixed-arity?)       'generic-closure]
+      [else
+       (case (length extended-vars)
+         [(0) 'known/env0]
+         [(1) 'known/env1]
+         [(2) 'known/env2]
+         [else 'generic-closure])]))
+  (define (blockers kind candidate? disqualified? fixed-arity? origin extended-vars)
+    (append
+     (if candidate? '() '(not-direct-candidate))
+     (if disqualified? '(value-use) '())
+     (if (eq? kind 'direct) '() '(non-direct))
+     (if fixed-arity? '() '(non-fixed-arity))
+     (if (eq? origin 'letrec-values) '(letrec-origin) '())
+     (if (<= (length extended-vars) 2) '() '(env-too-large))))
+  (letv ((T free-ht abs kind-ht direct-sites-ht direct-candidate-ht disqualified-ht
+            binder-ht
+            extended-ht direct-callees-ht)
+         (closure-conversion-analysis T))
+    (define-values (base-needs-ht origin-ht)
+      (determine-direct-helper-base-needs! T free-ht abs kind-ht))
+    (define labels-ht (make-hasheq))
+    (for ([ab (in-list abs)])
+      (hash-set! labels-ht ab (new-var "label")))
+    (for/list ([ab (in-list abs)])
+      (define kind         (hash-ref kind-ht ab 'closed))
+      (define candidate?   (hash-ref direct-candidate-ht ab #f))
+      (define disqualified? (hash-ref disqualified-ht ab #f))
+      (define fixed-arity? (abstraction-fixed-arity? ab))
+      (define base-vars    (vars-of (hash-ref base-needs-ht ab empty-set)))
+      (define extended-vars (vars-of (hash-ref extended-ht ab empty-set)))
+      (define plan         (planned-abi kind fixed-arity? extended-vars))
+      (define blockers*    (blockers kind candidate? disqualified? fixed-arity?
+                                     (hash-ref origin-ht ab 'other)
+                                     extended-vars))
+      (list (label-name labels-ht ab)
+            (binder-name (hash-ref binder-ht ab #f))
+            kind
+            (hash-ref origin-ht ab 'other)
+            fixed-arity?
+            candidate?
+            disqualified?
+            base-vars
+            extended-vars
+            (callee-binder-names (hash-ref direct-callees-ht ab '()) binder-ht)
+            plan
+            blockers*))))
+
 ;; nested-variable-capture-present? : any/c symbol? -> boolean?
 ;;   Check whether a nested lambda or case-lambda inside ab captures var-sym.
 (define (nested-variable-capture-present? ab var-sym)
@@ -12173,6 +12444,12 @@
     (analyze-with-cc-summary stx
       summarize-known-helper-abi-plan-closure-conversion-analysis))
 
+  ;; direct-helper-env-plan-analysis-summary : syntax? -> (listof list?)
+  ;;   Run the pipeline up to LANF and summarize direct-helper env propagation.
+  (define (direct-helper-env-plan-analysis-summary stx)
+    (analyze-with-cc-summary stx
+      summarize-direct-helper-env-plan-closure-conversion-analysis))
+
   ;; direct-self-binder-analysis-summary : syntax? -> (listof list?)
   ;;   Run the pipeline up to LANF and summarize self-binder removal eligibility.
   (define (direct-self-binder-analysis-summary stx)
@@ -12354,6 +12631,31 @@
               (equal? fixed-arity0 fixed-arity?)
               (equal? layout-vars0 layout-vars)
               (equal? extended-vars0 extended-vars)
+              (eq? plan0 plan)
+              (equal? blockers0 blockers))]
+        [_ #f])))
+
+  ;; direct-helper-env-plan-summary-has-entry?
+  ;;   : (listof list?) (or/c symbol? #f) symbol? symbol? boolean? boolean? boolean?
+  ;;     (listof symbol?) (listof symbol?) (listof symbol?) symbol? (listof symbol?) -> boolean?
+  ;;   Check whether the direct-helper env-plan summary contains an entry
+  ;;   with the given fields.
+  (define (direct-helper-env-plan-summary-has-entry?
+           summary binder kind origin fixed-arity? candidate? disqualified?
+           base-needs extended-needs callees plan blockers)
+    (for/or ([entry (in-list summary)])
+      (match entry
+        [(list _label binder0 kind0 origin0 fixed-arity0 candidate0 disqualified0
+               base-needs0 extended-needs0 callees0 plan0 blockers0)
+         (and (equal? binder0 binder)
+              (eq? kind0 kind)
+              (eq? origin0 origin)
+              (equal? fixed-arity0 fixed-arity?)
+              (equal? candidate0 candidate?)
+              (equal? disqualified0 disqualified?)
+              (equal? base-needs0 base-needs)
+              (equal? extended-needs0 extended-needs)
+              (equal? callees0 callees)
               (eq? plan0 plan)
               (equal? blockers0 blockers))]
         [_ #f])))
@@ -12826,6 +13128,64 @@
     '(y.1)
     'generic-closure
     '(non-direct)))
+
+  (check-true
+   (direct-helper-env-plan-summary-has-entry?
+    (direct-helper-env-plan-analysis-summary
+     #'(let ([x 1])
+         (let ([f (lambda () x)])
+           (let ([g (lambda () (f))])
+             (g)))))
+    'f.2
+    'direct
+    'let-values
+    #t
+    #t
+    #f
+    '(x.1)
+    '(x.1)
+    '()
+    'known/env1
+    '()))
+
+  (check-true
+   (direct-helper-env-plan-summary-has-entry?
+    (direct-helper-env-plan-analysis-summary
+     #'(let ([x 1])
+         (let ([f (lambda () x)])
+           (let ([g (lambda () (f))])
+             (g)))))
+    'g.3
+    'direct
+    'let-values
+    #t
+    #t
+    #f
+    '()
+    '(x.1)
+    '(f.2)
+    'known/env1
+    '()))
+
+  (let ([summary
+         (direct-helper-env-plan-analysis-summary
+          #'(let ([y 10])
+              (let ([f (lambda (x) (+ x y))])
+                f)))])
+    (check-true
+     (direct-helper-env-plan-summary-has-entry?
+      summary
+      #f
+      'closed
+      'other
+      #t
+      #f
+      #f
+      '(y.1)
+      '(y.1)
+      '()
+      'generic-closure
+      '(not-direct-candidate non-direct))))
 
   (check-true
    (direct-self-binder-summary-has-entry?
@@ -13446,8 +13806,8 @@
     'none
     #t
     #t))
-  )
 
+  )
 
 ;;;
 ;;; FINISH CLOSURE CONVERSION
