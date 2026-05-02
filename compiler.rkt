@@ -11386,12 +11386,20 @@
             extended-vars
             (equal? layout-vars extended-vars)))))
 
-;; summarize-direct-helper-payoff-frontier-closure-conversion-analysis : LANF
-;;                                                                  -> (listof list?)
-;;   Return an analysis-only summary of remaining direct-helper frontier
-;;   opportunities, emphasizing whether a migration would delete something
-;;   costly or merely change carried/body-layout shape.
-(define (summarize-direct-helper-payoff-frontier-closure-conversion-analysis T)
+(struct known-helper-summary-state
+  (label binder kind origin fixed-arity? plain-lambda? formals
+         direct-candidate? disqualified?
+         direct-self-recursive? nested-lift-sensitive? nested-capture-vars
+         extended-layout body-layout closure-env
+         incoming-callers outgoing-callees
+         current-known-abi current-known-only env-sourceable-for-known-abi?)
+  #:transparent)
+
+;; compute-known-helper-summary-state : LANF
+;;                                   -> (values (listof any/c)
+;;                                              (hasheq/c any/c known-helper-summary-state?))
+;;   Compute the shared current known-helper view used by analysis summaries.
+(define (compute-known-helper-summary-state T)
   (define (label-name labels-ht ab)
     (syntax-e (variable-id (hash-ref labels-ht ab))))
   (define (binder-name binder)
@@ -11402,11 +11410,8 @@
     (sort xs symbol<?))
   (define (symbols-of-id-set xs)
     (sorted-vars (map syntax-e (map variable-id (id-set->list xs)))))
-  (define (symbols-of-formals f)
-    (sorted-vars
-     (map syntax-e
-          (map variable-id
-               (formals->variables f)))))
+  (define (symbols-of-variables xs)
+    (sorted-vars (map syntax-e (map variable-id xs))))
   (define (index-of x free)
     (index-where free (λ (y) (equal? x y))))
   (define (formals->variables f)
@@ -11414,43 +11419,25 @@
       [(formals (,x ...))            x]
       [(formals (,x0 ,x1 ... . ,xd)) (cons x0 (append x1 (list xd)))]
       [(formals ,x)                  (list x)]))
-  (define (abstraction-formals ab)
+  (define (abstraction-formals ab who)
     (nanopass-case (LANF AExpr) ab
       [(λ ,s ,f ,e) f]
-      [else (error 'summarize-direct-helper-payoff-frontier
-                   "expected abstraction, got ~a" ab)]))
+      [else (error who "expected abstraction, got ~a" ab)]))
   (define (plain-lambda? ab)
     (nanopass-case (LANF AExpr) ab
       [(λ ,s ,f ,e) #t]
       [else #f]))
-  (define (abstraction-formals/safe ab)
+  (define (abstraction-formals/safe ab who)
     (and (plain-lambda? ab)
-         (abstraction-formals ab)))
+         (abstraction-formals ab who)))
   (define (abstraction-fixed-arity?/safe ab)
     (and (plain-lambda? ab)
          (abstraction-fixed-arity? ab)))
-  (define (available-from-caller? caller env-vars current-body-layout-ht)
-    (define caller-formals
-      (match (abstraction-formals/safe caller)
-        [#f '()]
-        [f  (symbols-of-formals f)]))
-    (define available
-      (remove-duplicates
-       (append (hash-ref current-body-layout-ht caller '())
-               caller-formals)
-       equal?))
-    (for/and ([x (in-list env-vars)])
-      (for/or ([y (in-list available)])
-        (equal? x y))))
-  (define (frontier-abstraction? ab kind candidate? disqualified?)
-    (or (eq? kind 'direct)
-        candidate?
-        disqualified?))
   (letv ((T free-ht abs kind-ht _direct-sites-ht direct-candidate-ht disqualified-ht
             binder-ht
             extended-ht direct-callees-ht)
          (closure-conversion-analysis T))
-    (define-values (base-needs-ht origin-ht)
+    (define-values (_base-needs-ht origin-ht)
       (determine-direct-helper-base-needs! T free-ht abs kind-ht))
     (define labels-ht (make-hasheq))
     (for ([ab (in-list abs)])
@@ -11519,100 +11506,175 @@
         (hash-set! incoming-callers-ht
                    callee
                    (cons caller (hash-ref incoming-callers-ht callee '())))))
-    (define (current-known-abi-class ab)
-      (cond
-        [(known0-current? ab) 'known0]
-        [(known1-current? ab) 'known1]
-        [(and (eq? (hash-ref kind-ht ab 'closed) 'direct)
-              (abstraction-fixed-arity?/safe ab)
-              (not (direct-self-recursive? ab))
-              (= (length (extended-layout-of ab)) 2))
-         'possible-known2]
-        [else
-         'generic]))
-    (define (current-known-only-class ab)
-      (cond
-        [(and (known0-current? ab)
-              (plain-lambda? ab)
-              (eq? (hash-ref origin-ht ab 'other) 'let-values)
-              (not (hash-ref disqualified-ht ab #f)))
-         'known0-only]
-        [(and (known1-current? ab)
-              (plain-lambda? ab)
-              (eq? (hash-ref origin-ht ab 'other) 'let-values)
-              (not (hash-ref disqualified-ht ab #f))
-              (not (nested-lift-sensitive-form-present? ab))
-              (let ([x (car (extended-layout-of ab))])
-                (and (not (nested-variable-capture-present? ab x))
-                     (for/and ([caller (in-list (hash-ref incoming-callers-ht ab '()))])
-                       (and (eq? (hash-ref kind-ht caller 'closed) 'direct)
-                            (available-from-caller? caller (list x) current-body-layout-ht))))))
-         'known1-only]
-        [(and (eq? (hash-ref kind-ht ab 'closed) 'direct)
-              (plain-lambda? ab)
-              (eq? (hash-ref origin-ht ab 'other) 'let-values)
-              (not (hash-ref disqualified-ht ab #f))
-              (not (direct-self-recursive? ab))
-              (not (nested-lift-sensitive-form-present? ab))
-              (= (length (extended-layout-of ab)) 2)
-              (for/and ([caller (in-list (hash-ref incoming-callers-ht ab '()))])
-                (and (eq? (hash-ref kind-ht caller 'closed) 'direct)
-                     (available-from-caller? caller (extended-layout-of ab) current-body-layout-ht))))
-         'possible-future-only]
-        [else
-         'none]))
-    (define (blockers-of ab)
-      (append
-       (if (hash-ref disqualified-ht ab #f) '(value-use) '())
-       (if (eq? (hash-ref origin-ht ab 'other) 'letrec-values) '(letrec) '())
-       (if (direct-self-recursive? ab) '(recursive) '())
-       (if (> (length (extended-layout-of ab)) 2) '(env-too-large) '())
-       (if (plain-lambda? ab) '() '(case-lambda))
-       (if (and (positive? (length (extended-layout-of ab)))
-                (for/or ([caller (in-list (hash-ref incoming-callers-ht ab '()))])
+    (define state-ht (make-hasheq))
+    (define (caller-sourceable? caller env-vars)
+      (define caller-state (hash-ref state-ht caller #f))
+      (define caller-formals
+        (if caller-state
+            (known-helper-summary-state-formals caller-state)
+            (match (abstraction-formals/safe caller 'compute-known-helper-summary-state)
+              [#f '()]
+              [f  (symbols-of-variables (formals->variables f))])))
+      (define caller-layout
+        (if caller-state
+            (known-helper-summary-state-body-layout caller-state)
+            (current-body-layout-of caller)))
+      (define available
+        (remove-duplicates
+         (append caller-layout caller-formals)
+         equal?))
+      (for/and ([x (in-list env-vars)])
+        (for/or ([y (in-list available)])
+          (equal? x y))))
+    (for ([ab (in-list abs)])
+      (define plain? (plain-lambda? ab))
+      (define formals
+        (match (abstraction-formals/safe ab 'compute-known-helper-summary-state)
+          [#f '()]
+          [f  (symbols-of-variables (formals->variables f))]))
+      (define extended-layout (extended-layout-of ab))
+      (define current-known-abi
+        (cond
+          [(known0-current? ab) 'known0]
+          [(known1-current? ab) 'known1]
+          [(and (eq? (hash-ref kind-ht ab 'closed) 'direct)
+                (abstraction-fixed-arity?/safe ab)
+                (not (direct-self-recursive? ab))
+                (= (length extended-layout) 2))
+           'possible-known2]
+          [else
+           'generic]))
+      (define env-sourceable-for-known-abi?
+        (cond
+          [(eq? current-known-abi 'known0) #t]
+          [(eq? current-known-abi 'known1)
+           (let ([x (car extended-layout)])
+             (for/and ([caller (in-list (hash-ref incoming-callers-ht ab '()))])
+               (and (eq? (hash-ref kind-ht caller 'closed) 'direct)
+                    (caller-sourceable? caller (list x)))))]
+          [else #f]))
+      (define nested-capture-vars
+        (for/list ([x (in-list extended-layout)]
+                   #:when (nested-variable-capture-present? ab x))
+          x))
+      (define current-known-only
+        (cond
+          [(and (eq? current-known-abi 'known0)
+                plain?
+                (eq? (hash-ref origin-ht ab 'other) 'let-values)
+                (not (hash-ref disqualified-ht ab #f)))
+           'known0-only]
+          [(and (eq? current-known-abi 'known1)
+                plain?
+                (eq? (hash-ref origin-ht ab 'other) 'let-values)
+                (not (hash-ref disqualified-ht ab #f))
+                (not (nested-lift-sensitive-form-present? ab))
+                (let ([x (car extended-layout)])
+                  (and (not (nested-variable-capture-present? ab x))
+                       (for/and ([caller (in-list (hash-ref incoming-callers-ht ab '()))])
+                         (and (eq? (hash-ref kind-ht caller 'closed) 'direct)
+                              (caller-sourceable? caller (list x)))))))
+           'known1-only]
+          [(and (eq? (hash-ref kind-ht ab 'closed) 'direct)
+                plain?
+                (eq? (hash-ref origin-ht ab 'other) 'let-values)
+                (not (hash-ref disqualified-ht ab #f))
+                (not (direct-self-recursive? ab))
+                (not (nested-lift-sensitive-form-present? ab))
+                (= (length extended-layout) 2)
+                (for/and ([caller (in-list (hash-ref incoming-callers-ht ab '()))])
                   (and (eq? (hash-ref kind-ht caller 'closed) 'direct)
-                       (not (available-from-caller? caller
-                                                   (extended-layout-of ab)
-                                                   current-body-layout-ht)))))
+                       (caller-sourceable? caller extended-layout))))
+           'possible-future-only]
+          [else
+           'none]))
+      (hash-set! state-ht ab
+                 (known-helper-summary-state
+                  (label-name labels-ht ab)
+                  (binder-name (hash-ref binder-ht ab #f))
+                  (hash-ref kind-ht ab 'closed)
+                  (hash-ref origin-ht ab 'other)
+                  (abstraction-fixed-arity?/safe ab)
+                  plain?
+                  formals
+                  (hash-ref direct-candidate-ht ab #f)
+                  (hash-ref disqualified-ht ab #f)
+                  (direct-self-recursive? ab)
+                  (nested-lift-sensitive-form-present? ab)
+                  nested-capture-vars
+                  extended-layout
+                  (current-body-layout-of ab)
+                  (closure-env-of ab)
+                  (hash-ref incoming-callers-ht ab '())
+                  (hash-ref direct-callees-ht ab '())
+                  current-known-abi
+                  current-known-only
+                  env-sourceable-for-known-abi?)))
+    (values abs state-ht)))
+
+;; summarize-direct-helper-payoff-frontier-closure-conversion-analysis : LANF
+;;                                                                  -> (listof list?)
+;;   Return an analysis-only summary of remaining direct-helper frontier
+;;   opportunities, emphasizing whether a migration would delete something
+;;   costly or merely change carried/body-layout shape.
+(define (summarize-direct-helper-payoff-frontier-closure-conversion-analysis T)
+  (define (frontier-abstraction? ab kind candidate? disqualified?)
+    (or (eq? kind 'direct)
+        candidate?
+        disqualified?))
+  (define-values (abs state-ht)
+    (compute-known-helper-summary-state T))
+    (define (blockers-of ab)
+      (define state (hash-ref state-ht ab))
+      (append
+       (if (known-helper-summary-state-disqualified? state) '(value-use) '())
+       (if (eq? (known-helper-summary-state-origin state) 'letrec-values) '(letrec) '())
+       (if (known-helper-summary-state-direct-self-recursive? state) '(recursive) '())
+       (if (> (length (known-helper-summary-state-extended-layout state)) 2) '(env-too-large) '())
+       (if (known-helper-summary-state-plain-lambda? state) '() '(case-lambda))
+       (if (and (positive? (length (known-helper-summary-state-extended-layout state)))
+                (not (known-helper-summary-state-env-sourceable-for-known-abi? state))
+                (memq (known-helper-summary-state-current-known-abi state)
+                      '(known0 known1 possible-known2)))
            '(unavailable-env)
            '())
-       (if (for/or ([x (in-list (extended-layout-of ab))])
-             (nested-variable-capture-present? ab x))
+       (if (pair? (known-helper-summary-state-nested-capture-vars state))
            '(nested-capture)
            '())))
     (for/list ([ab (in-list abs)]
                #:when (frontier-abstraction? ab
-                                            (hash-ref kind-ht ab 'closed)
-                                            (hash-ref direct-candidate-ht ab #f)
-                                            (hash-ref disqualified-ht ab #f)))
-      (define current-body-layout-vars    (current-body-layout-of ab))
-      (define current-closure-env-vars    (closure-env-of ab))
-      (define extended-layout-vars        (extended-layout-of ab))
-      (define known-only-class            (current-known-only-class ab))
-      (define direct-out-degree           (length (hash-ref direct-callees-ht ab '())))
-      (define direct-in-degree            (length (hash-ref incoming-callers-ht ab '())))
+                                            (known-helper-summary-state-kind (hash-ref state-ht ab))
+                                            (known-helper-summary-state-direct-candidate? (hash-ref state-ht ab))
+                                            (known-helper-summary-state-disqualified? (hash-ref state-ht ab))))
+      (define state (hash-ref state-ht ab))
+      (define current-body-layout-vars    (known-helper-summary-state-body-layout state))
+      (define current-closure-env-vars    (known-helper-summary-state-closure-env state))
+      (define extended-layout-vars        (known-helper-summary-state-extended-layout state))
+      (define known-only-class            (known-helper-summary-state-current-known-only state))
+      (define direct-out-degree           (length (known-helper-summary-state-outgoing-callees state)))
+      (define direct-in-degree            (length (known-helper-summary-state-incoming-callers state)))
       (define delete-closure-allocation?  (not (eq? known-only-class 'none)))
       (define delete-ordinary-closure-code?
         delete-closure-allocation?)
       (define only-change-body-layout?
         (and (eq? known-only-class 'none)
              (> (length current-body-layout-vars) (length extended-layout-vars))))
-      (list (label-name labels-ht ab)
-            (binder-name (hash-ref binder-ht ab #f))
-            (hash-ref kind-ht ab 'closed)
-            (hash-ref origin-ht ab 'other)
-            (abstraction-fixed-arity?/safe ab)
+      (list (known-helper-summary-state-label state)
+            (known-helper-summary-state-binder state)
+            (known-helper-summary-state-kind state)
+            (known-helper-summary-state-origin state)
+            (known-helper-summary-state-fixed-arity? state)
             (length current-body-layout-vars)
             (length current-closure-env-vars)
             (length extended-layout-vars)
-            (current-known-abi-class ab)
+            (known-helper-summary-state-current-known-abi state)
             known-only-class
             delete-closure-allocation?
             delete-ordinary-closure-code?
             only-change-body-layout?
             direct-in-degree
             direct-out-degree
-            (blockers-of ab)))))
+            (blockers-of ab))))
 
 ;; summarize-known-helper-deletion-opportunities-closure-conversion-analysis : LANF
 ;;                                                                       -> (listof list?)
@@ -11620,397 +11682,129 @@
 ;;   `known1` ABI families, focusing on whether they still pay closure-backed
 ;;   transition tax or already delete allocation and base labels.
 (define (summarize-known-helper-deletion-opportunities-closure-conversion-analysis T)
-  (define (label-name labels-ht ab)
-    (syntax-e (variable-id (hash-ref labels-ht ab))))
-  (define (binder-name binder)
-    (match binder
-      [#f #f]
-      [x  (syntax-e (variable-id x))]))
-  (define (sorted-vars xs)
-    (sort xs symbol<?))
-  (define (symbols-of-id-set xs)
-    (sorted-vars (map syntax-e (map variable-id (id-set->list xs)))))
-  (define (symbols-of-formals f)
-    (sorted-vars
-     (map syntax-e
-          (map variable-id
-               (formals->variables f)))))
-  (define (index-of x free)
-    (index-where free (λ (y) (equal? x y))))
-  (define (formals->variables f)
-    (nanopass-case (LANF Formals) f
-      [(formals (,x ...))            x]
-      [(formals (,x0 ,x1 ... . ,xd)) (cons x0 (append x1 (list xd)))]
-      [(formals ,x)                  (list x)]))
-  (define (abstraction-formals ab)
-    (nanopass-case (LANF AExpr) ab
-      [(λ ,s ,f ,e) f]
-      [else (error 'summarize-known-helper-deletion-opportunities
-                   "expected abstraction, got ~a" ab)]))
-  (define (plain-lambda? ab)
-    (nanopass-case (LANF AExpr) ab
-      [(λ ,s ,f ,e) #t]
-      [else #f]))
-  (define (abstraction-formals/safe ab)
-    (and (plain-lambda? ab)
-         (abstraction-formals ab)))
-  (define (abstraction-fixed-arity?/safe ab)
-    (and (plain-lambda? ab)
-         (abstraction-fixed-arity? ab)))
-  (define (available-from-caller? caller env-vars current-body-layout-ht)
-    (define caller-formals
-      (match (abstraction-formals/safe caller)
-        [#f '()]
-        [f  (symbols-of-formals f)]))
-    (define available
-      (remove-duplicates
-       (append (hash-ref current-body-layout-ht caller '())
-               caller-formals)
-       equal?))
-    (for/and ([x (in-list env-vars)])
-      (for/or ([y (in-list available)])
-        (equal? x y))))
-  (letv ((T free-ht abs kind-ht _direct-sites-ht _direct-candidate-ht disqualified-ht
-            binder-ht
-            extended-ht direct-callees-ht)
-         (closure-conversion-analysis T))
-    (define-values (_base-needs-ht origin-ht)
-      (determine-direct-helper-base-needs! T free-ht abs kind-ht))
-    (define labels-ht (make-hasheq))
-    (for ([ab (in-list abs)])
-      (hash-set! labels-ht ab (new-var "label")))
-    (define closure-env-vars-ht (make-hasheq))
-    (for ([ab (in-list abs)])
-      (hash-set! closure-env-vars-ht
-                 ab
-                 (if (eq? (hash-ref kind-ht ab 'closed) 'direct)
-                     (direct-helper-layout-free-vars ab free-ht kind-ht binder-ht direct-callees-ht)
-                     (id-set->list (hash-ref free-ht ab empty-set)))))
-    (define current-body-layout-ht (make-hasheq))
-    (for ([ab (in-list abs)])
-      (hash-set! current-body-layout-ht ab (hash-ref closure-env-vars-ht ab '())))
-    (define (current-body-layout-of ab)
-      (hash-ref current-body-layout-ht ab '()))
-    (define (closure-env-of ab)
-      (hash-ref closure-env-vars-ht ab '()))
-    (define (extended-layout-of ab)
-      (symbols-of-id-set (hash-ref extended-ht ab empty-set)))
-    (define (direct-self-recursive? ab)
-      (let ([binder (hash-ref binder-ht ab #f)])
-        (and binder
-             (for/or ([x (in-list (symbols-of-id-set (hash-ref free-ht ab empty-set)))])
-               (equal? x (syntax-e (variable-id binder)))))))
-    (define (known0-current? ab)
-      (and (eq? (hash-ref kind-ht ab 'closed) 'direct)
-           (abstraction-fixed-arity?/safe ab)
-           (not (direct-self-recursive? ab))
-           (null? (extended-layout-of ab))
-           (null? (current-body-layout-of ab))))
-    (define (known1-current? ab)
-      (and (eq? (hash-ref kind-ht ab 'closed) 'direct)
-           (abstraction-fixed-arity?/safe ab)
-           (not (direct-self-recursive? ab))
-           (= (length (extended-layout-of ab)) 1)
-           (= (length (current-body-layout-of ab)) 1)
-           (let ([x (car (extended-layout-of ab))])
-             (index-of x (closure-env-of ab)))))
-    (define (callee-known-abi-current? callee)
-      (or (known0-current? callee)
-          (known1-current? callee)))
-    (define changed? #t)
-    (let loop ()
-      (when changed?
-        (set! changed? #f)
-        (for ([ab (in-list abs)]
-              #:when (eq? (hash-ref kind-ht ab 'closed) 'direct))
-          (when (and (current-enable-cc-analysis?)
-                     (abstraction-fixed-arity?/safe ab)
-                     (not (direct-self-recursive? ab))
-                     (not (nested-lift-sensitive-form-present? ab))
-                     (zero? (length (extended-layout-of ab)))
-                     (for/and ([callee (in-list (hash-ref direct-callees-ht ab '()))])
-                       (callee-known-abi-current? callee)))
-            (unless (equal? (current-body-layout-of ab) (extended-layout-of ab))
-              (hash-set! current-body-layout-ht ab (extended-layout-of ab))
-              (set! changed? #t)))))
-        (when changed?
-          (loop)))
-    (define incoming-callers-ht (make-hasheq))
-    (for ([ab (in-list abs)])
-      (hash-set! incoming-callers-ht ab '()))
-    (for ([(caller callees) (in-hash direct-callees-ht)])
-      (for ([callee (in-list callees)])
-        (hash-set! incoming-callers-ht
-                   callee
-                   (cons caller (hash-ref incoming-callers-ht callee '())))))
-    (define (current-known-abi-class ab)
-      (cond
-        [(known0-current? ab) 'known0]
-        [(known1-current? ab) 'known1]
-        [else 'generic]))
-    (define (env-sourceable-for-known-abi? ab)
-      (cond
-        [(known0-current? ab) #t]
-        [(known1-current? ab)
-         (let ([x (car (extended-layout-of ab))])
-           (for/and ([caller (in-list (hash-ref incoming-callers-ht ab '()))])
-             (and (eq? (hash-ref kind-ht caller 'closed) 'direct)
-                  (available-from-caller? caller (list x) current-body-layout-ht))))]
-        [else #f]))
-    (define (nested-capture-vars-of ab)
-      (for/list ([x (in-list (extended-layout-of ab))]
-                 #:when (nested-variable-capture-present? ab x))
-        x))
-    (define (current-known-only-class ab)
-      (cond
-        [(and (known0-current? ab)
-              (plain-lambda? ab)
-              (eq? (hash-ref origin-ht ab 'other) 'let-values)
-              (not (hash-ref disqualified-ht ab #f)))
-         'known0-only]
-        [(and (known1-current? ab)
-              (plain-lambda? ab)
-              (eq? (hash-ref origin-ht ab 'other) 'let-values)
-              (not (hash-ref disqualified-ht ab #f))
-              (not (nested-lift-sensitive-form-present? ab))
-              (let ([x (car (extended-layout-of ab))])
-                (and (not (nested-variable-capture-present? ab x))
-                     (for/and ([caller (in-list (hash-ref incoming-callers-ht ab '()))])
-                       (and (eq? (hash-ref kind-ht caller 'closed) 'direct)
-                            (available-from-caller? caller (list x) current-body-layout-ht))))))
-         'known1-only]
-        [else
-         'none]))
-    (define (blockers-of ab)
-      (append
-       (if (hash-ref disqualified-ht ab #f) '(value-use) '())
-       (if (eq? (hash-ref origin-ht ab 'other) 'letrec-values) '(letrec) '())
-       (if (direct-self-recursive? ab) '(recursive) '())
-       (if (plain-lambda? ab) '() '(case-lambda))
-       (if (nested-lift-sensitive-form-present? ab) '(nested-lift-sensitive) '())
-       (if (null? (nested-capture-vars-of ab)) '() '(nested-capture))
-       (if (env-sourceable-for-known-abi? ab) '() '(unavailable-env))))
-    (for/list ([ab (in-list abs)]
-               #:when (memq (current-known-abi-class ab) '(known0 known1)))
-      (define current-known-only (current-known-only-class ab))
-      (define deletion-produced?
-        (not (eq? current-known-only 'none)))
-      (list (label-name labels-ht ab)
-            (binder-name (hash-ref binder-ht ab #f))
-            (hash-ref origin-ht ab 'other)
-            (current-known-abi-class ab)
-            current-known-only
-            (not deletion-produced?)
-            (not deletion-produced?)
-            (hash-ref disqualified-ht ab #f)
-            (env-sourceable-for-known-abi? ab)
-            (nested-lift-sensitive-form-present? ab)
-            (nested-capture-vars-of ab)
-            (eq? (hash-ref origin-ht ab 'other) 'letrec-values)
-            (direct-self-recursive? ab)
-            deletion-produced?
-            (blockers-of ab)))))
+  (define-values (abs state-ht)
+    (compute-known-helper-summary-state T))
+  (define (blockers-of ab)
+    (define state (hash-ref state-ht ab))
+    (append
+     (if (known-helper-summary-state-disqualified? state) '(value-use) '())
+     (if (eq? (known-helper-summary-state-origin state) 'letrec-values) '(letrec) '())
+     (if (known-helper-summary-state-direct-self-recursive? state) '(recursive) '())
+     (if (known-helper-summary-state-plain-lambda? state) '() '(case-lambda))
+     (if (known-helper-summary-state-nested-lift-sensitive? state) '(nested-lift-sensitive) '())
+     (if (null? (known-helper-summary-state-nested-capture-vars state)) '() '(nested-capture))
+     (if (known-helper-summary-state-env-sourceable-for-known-abi? state) '() '(unavailable-env))))
+  (for/list ([ab (in-list abs)]
+             #:when (memq (known-helper-summary-state-current-known-abi (hash-ref state-ht ab))
+                          '(known0 known1)))
+    (define state (hash-ref state-ht ab))
+    (define current-known-only (known-helper-summary-state-current-known-only state))
+    (define deletion-produced?
+      (not (eq? current-known-only 'none)))
+    (list (known-helper-summary-state-label state)
+          (known-helper-summary-state-binder state)
+          (known-helper-summary-state-origin state)
+          (known-helper-summary-state-current-known-abi state)
+          current-known-only
+          (not deletion-produced?)
+          (not deletion-produced?)
+          (known-helper-summary-state-disqualified? state)
+          (known-helper-summary-state-env-sourceable-for-known-abi? state)
+          (known-helper-summary-state-nested-lift-sensitive? state)
+          (known-helper-summary-state-nested-capture-vars state)
+          (eq? (known-helper-summary-state-origin state) 'letrec-values)
+          (known-helper-summary-state-direct-self-recursive? state)
+          deletion-produced?
+          (blockers-of ab))))
 
 ;; summarize-direct-helper-known2-frontier-closure-conversion-analysis : LANF
 ;;                                                                  -> (listof list?)
 ;;   Return an analysis-only summary of binary-env direct-helper cases,
 ;;   focusing on whether a strictly sibling-only `known2` ABI looks safe.
 (define (summarize-direct-helper-known2-frontier-closure-conversion-analysis T)
-  (define (label-name labels-ht ab)
-    (syntax-e (variable-id (hash-ref labels-ht ab))))
-  (define (binder-name binder)
-    (match binder
-      [#f #f]
-      [x  (syntax-e (variable-id x))]))
-  (define (sorted-vars xs)
-    (sort xs symbol<?))
-  (define (symbols-of-id-set xs)
-    (sorted-vars (map syntax-e (map variable-id (id-set->list xs)))))
-  (define (symbols-of-formals f)
-    (sorted-vars
-     (map syntax-e
-          (map variable-id
-               (formals->variables f)))))
-  (define (index-of x free)
-    (index-where free (λ (y) (equal? x y))))
-  (define (formals->variables f)
-    (nanopass-case (LANF Formals) f
-      [(formals (,x ...))            x]
-      [(formals (,x0 ,x1 ... . ,xd)) (cons x0 (append x1 (list xd)))]
-      [(formals ,x)                  (list x)]))
-  (define (abstraction-formals ab)
-    (nanopass-case (LANF AExpr) ab
-      [(λ ,s ,f ,e) f]
-      [else (error 'summarize-direct-helper-known2-frontier
-                   "expected abstraction, got ~a" ab)]))
-  (define (plain-lambda? ab)
-    (nanopass-case (LANF AExpr) ab
-      [(λ ,s ,f ,e) #t]
-      [else #f]))
-  (define (abstraction-formals/safe ab)
-    (and (plain-lambda? ab)
-         (abstraction-formals ab)))
-  (define (abstraction-fixed-arity?/safe ab)
-    (and (plain-lambda? ab)
-         (abstraction-fixed-arity? ab)))
-  (define (available-from-caller? caller env-vars current-body-layout-ht)
-    (define caller-formals
-      (match (abstraction-formals/safe caller)
-        [#f '()]
-        [f  (symbols-of-formals f)]))
-    (define available
-      (remove-duplicates
-       (append (hash-ref current-body-layout-ht caller '())
-               caller-formals)
-       equal?))
-    (for/and ([x (in-list env-vars)])
-      (for/or ([y (in-list available)])
-        (equal? x y))))
-  (letv ((T free-ht abs kind-ht _direct-sites-ht _direct-candidate-ht disqualified-ht
-            binder-ht
-            extended-ht direct-callees-ht)
-         (closure-conversion-analysis T))
-    (define-values (_base-needs-ht origin-ht)
-      (determine-direct-helper-base-needs! T free-ht abs kind-ht))
-    (define labels-ht (make-hasheq))
-    (for ([ab (in-list abs)])
-      (hash-set! labels-ht ab (new-var "label")))
-    (define closure-env-vars-ht (make-hasheq))
-    (for ([ab (in-list abs)])
-      (hash-set! closure-env-vars-ht
-                 ab
-                 (if (eq? (hash-ref kind-ht ab 'closed) 'direct)
-                     (direct-helper-layout-free-vars ab free-ht kind-ht binder-ht direct-callees-ht)
-                     (id-set->list (hash-ref free-ht ab empty-set)))))
-    (define current-body-layout-ht (make-hasheq))
-    (for ([ab (in-list abs)])
-      (hash-set! current-body-layout-ht ab (hash-ref closure-env-vars-ht ab '())))
-    (define (current-body-layout-of ab)
-      (hash-ref current-body-layout-ht ab '()))
-    (define (closure-env-of ab)
-      (hash-ref closure-env-vars-ht ab '()))
-    (define (extended-layout-of ab)
-      (symbols-of-id-set (hash-ref extended-ht ab empty-set)))
-    (define (direct-self-recursive? ab)
-      (let ([binder (hash-ref binder-ht ab #f)])
-        (and binder
-             (for/or ([x (in-list (symbols-of-id-set (hash-ref free-ht ab empty-set)))])
-               (equal? x (syntax-e (variable-id binder)))))))
-    (define (known0-current? ab)
-      (and (eq? (hash-ref kind-ht ab 'closed) 'direct)
-           (abstraction-fixed-arity?/safe ab)
-           (not (direct-self-recursive? ab))
-           (null? (extended-layout-of ab))
-           (null? (current-body-layout-of ab))))
-    (define (known1-current? ab)
-      (and (eq? (hash-ref kind-ht ab 'closed) 'direct)
-           (abstraction-fixed-arity?/safe ab)
-           (not (direct-self-recursive? ab))
-           (= (length (extended-layout-of ab)) 1)
-           (= (length (current-body-layout-of ab)) 1)
-           (let ([x (car (extended-layout-of ab))])
-             (index-of x (closure-env-of ab)))))
-    (define (callee-known-abi-current? callee)
-      (or (known0-current? callee)
-          (known1-current? callee)))
-    (define changed? #t)
-    (let loop ()
-      (when changed?
-        (set! changed? #f)
-        (for ([ab (in-list abs)]
-              #:when (eq? (hash-ref kind-ht ab 'closed) 'direct))
-          (when (and (current-enable-cc-analysis?)
-                     (abstraction-fixed-arity?/safe ab)
-                     (not (direct-self-recursive? ab))
-                     (not (nested-lift-sensitive-form-present? ab))
-                     (zero? (length (extended-layout-of ab)))
-                     (for/and ([callee (in-list (hash-ref direct-callees-ht ab '()))])
-                       (callee-known-abi-current? callee)))
-            (unless (equal? (current-body-layout-of ab) (extended-layout-of ab))
-              (hash-set! current-body-layout-ht ab (extended-layout-of ab))
-              (set! changed? #t)))))
-        (when changed?
-          (loop)))
-    (define incoming-callers-ht (make-hasheq))
-    (for ([ab (in-list abs)])
-      (hash-set! incoming-callers-ht ab '()))
-    (for ([(caller callees) (in-hash direct-callees-ht)])
-      (for ([callee (in-list callees)])
-        (hash-set! incoming-callers-ht
-                   callee
-                   (cons caller (hash-ref incoming-callers-ht callee '())))))
-    (define (nested-capture-vars-of ab)
-      (for/list ([x (in-list (extended-layout-of ab))]
-                 #:when (nested-variable-capture-present? ab x))
-        x))
-    (define (direct-caller-binders-of ab)
-      (sorted-vars
-       (filter values
-               (map (λ (caller)
-                      (binder-name (hash-ref binder-ht caller #f)))
-                    (hash-ref incoming-callers-ht ab '())))))
-    (define (all-callers-can-source-both-envs? ab)
-      (for/and ([caller (in-list (hash-ref incoming-callers-ht ab '()))])
-        (and (eq? (hash-ref kind-ht caller 'closed) 'direct)
-             (available-from-caller? caller
-                                     (extended-layout-of ab)
-                                     current-body-layout-ht))))
-    (define (extended-needs-in-closure-env? ab)
-      (for/and ([x (in-list (extended-layout-of ab))])
-        (index-of x (closure-env-of ab))))
-    (define (would-be-sibling-only-safe? ab)
-      (and (eq? (hash-ref kind-ht ab 'closed) 'direct)
-           (abstraction-fixed-arity?/safe ab)
-           (not (direct-self-recursive? ab))
-           (not (eq? (hash-ref origin-ht ab 'other) 'letrec-values))
-           (not (hash-ref disqualified-ht ab #f))
-           (plain-lambda? ab)
-           (not (nested-lift-sensitive-form-present? ab))
-           (null? (nested-capture-vars-of ab))
-           (equal? (current-body-layout-of ab) (extended-layout-of ab))
-           (extended-needs-in-closure-env? ab)
-           (all-callers-can-source-both-envs? ab)))
-    (define (blockers-of ab)
-      (append
-       (if (eq? (hash-ref kind-ht ab 'closed) 'direct) '() '(non-direct))
-       (if (abstraction-fixed-arity?/safe ab) '() '(non-fixed-arity))
-       (if (hash-ref disqualified-ht ab #f) '(value-use) '())
-       (if (eq? (hash-ref origin-ht ab 'other) 'letrec-values) '(letrec) '())
-       (if (direct-self-recursive? ab) '(recursive) '())
-       (if (plain-lambda? ab) '() '(case-lambda))
-       (if (nested-lift-sensitive-form-present? ab) '(nested-lift-sensitive) '())
-       (if (null? (nested-capture-vars-of ab)) '() '(nested-capture))
-       (if (equal? (current-body-layout-of ab) (extended-layout-of ab))
-           '()
-           '(layout-mismatch))
-       (if (extended-needs-in-closure-env? ab)
-           '()
-           '(env-not-in-closure))
-       (if (all-callers-can-source-both-envs? ab)
-           '()
-           '(unavailable-env))))
-    (for/list ([ab (in-list abs)]
-               #:when (= (length (extended-layout-of ab)) 2))
-      (list (label-name labels-ht ab)
-            (binder-name (hash-ref binder-ht ab #f))
-            (hash-ref origin-ht ab 'other)
-            (abstraction-fixed-arity?/safe ab)
-            (eq? (hash-ref kind-ht ab 'closed) 'direct)
-            (hash-ref disqualified-ht ab #f)
-            (direct-self-recursive? ab)
-            (eq? (hash-ref origin-ht ab 'other) 'letrec-values)
-            (plain-lambda? ab)
-            (nested-lift-sensitive-form-present? ab)
-            (nested-capture-vars-of ab)
-            (current-body-layout-of ab)
-            (closure-env-of ab)
-            (extended-layout-of ab)
-            (equal? (current-body-layout-of ab) (extended-layout-of ab))
-            (extended-needs-in-closure-env? ab)
-            (direct-caller-binders-of ab)
-            (all-callers-can-source-both-envs? ab)
-            (would-be-sibling-only-safe? ab)
-            (blockers-of ab)))))
+  (define-values (abs state-ht)
+    (compute-known-helper-summary-state T))
+  (define (all-callers-can-source-both-envs? ab)
+    (define state (hash-ref state-ht ab))
+    (for/and ([caller (in-list (known-helper-summary-state-incoming-callers state))])
+      (define caller-state (hash-ref state-ht caller))
+      (and (eq? (known-helper-summary-state-kind caller-state) 'direct)
+           (let ([available
+                  (remove-duplicates
+                   (append (known-helper-summary-state-body-layout caller-state)
+                           (known-helper-summary-state-formals caller-state))
+                   equal?)])
+             (for/and ([x (in-list (known-helper-summary-state-extended-layout state))])
+               (member x available))))))
+  (define (extended-needs-in-closure-env? ab)
+    (define state (hash-ref state-ht ab))
+    (for/and ([x (in-list (known-helper-summary-state-extended-layout state))])
+      (index-where (known-helper-summary-state-closure-env state)
+                   (λ (y) (equal? x y)))))
+  (define (would-be-sibling-only-safe? ab)
+    (define state (hash-ref state-ht ab))
+    (and (eq? (known-helper-summary-state-kind state) 'direct)
+         (known-helper-summary-state-fixed-arity? state)
+         (not (known-helper-summary-state-direct-self-recursive? state))
+         (not (eq? (known-helper-summary-state-origin state) 'letrec-values))
+         (not (known-helper-summary-state-disqualified? state))
+         (known-helper-summary-state-plain-lambda? state)
+         (not (known-helper-summary-state-nested-lift-sensitive? state))
+         (null? (known-helper-summary-state-nested-capture-vars state))
+         (equal? (known-helper-summary-state-body-layout state)
+                 (known-helper-summary-state-extended-layout state))
+         (extended-needs-in-closure-env? ab)
+         (all-callers-can-source-both-envs? ab)))
+  (define (blockers-of ab)
+    (define state (hash-ref state-ht ab))
+    (append
+     (if (eq? (known-helper-summary-state-kind state) 'direct) '() '(non-direct))
+     (if (known-helper-summary-state-fixed-arity? state) '() '(non-fixed-arity))
+     (if (known-helper-summary-state-disqualified? state) '(value-use) '())
+     (if (eq? (known-helper-summary-state-origin state) 'letrec-values) '(letrec) '())
+     (if (known-helper-summary-state-direct-self-recursive? state) '(recursive) '())
+     (if (known-helper-summary-state-plain-lambda? state) '() '(case-lambda))
+     (if (known-helper-summary-state-nested-lift-sensitive? state) '(nested-lift-sensitive) '())
+     (if (null? (known-helper-summary-state-nested-capture-vars state)) '() '(nested-capture))
+     (if (equal? (known-helper-summary-state-body-layout state)
+                 (known-helper-summary-state-extended-layout state))
+         '()
+         '(layout-mismatch))
+     (if (extended-needs-in-closure-env? ab)
+         '()
+         '(env-not-in-closure))
+     (if (all-callers-can-source-both-envs? ab)
+         '()
+         '(unavailable-env))))
+  (for/list ([ab (in-list abs)]
+             #:when (= (length (known-helper-summary-state-extended-layout (hash-ref state-ht ab))) 2))
+    (define state (hash-ref state-ht ab))
+    (list (known-helper-summary-state-label state)
+          (known-helper-summary-state-binder state)
+          (known-helper-summary-state-origin state)
+          (known-helper-summary-state-fixed-arity? state)
+          (eq? (known-helper-summary-state-kind state) 'direct)
+          (known-helper-summary-state-disqualified? state)
+          (known-helper-summary-state-direct-self-recursive? state)
+          (eq? (known-helper-summary-state-origin state) 'letrec-values)
+          (known-helper-summary-state-plain-lambda? state)
+          (known-helper-summary-state-nested-lift-sensitive? state)
+          (known-helper-summary-state-nested-capture-vars state)
+          (known-helper-summary-state-body-layout state)
+          (known-helper-summary-state-closure-env state)
+          (known-helper-summary-state-extended-layout state)
+          (equal? (known-helper-summary-state-body-layout state)
+                  (known-helper-summary-state-extended-layout state))
+          (extended-needs-in-closure-env? ab)
+          (sort (filter values
+                        (map (λ (caller)
+                               (known-helper-summary-state-binder
+                                (hash-ref state-ht caller)))
+                             (known-helper-summary-state-incoming-callers state)))
+                symbol<?)
+          (all-callers-can-source-both-envs? ab)
+          (would-be-sibling-only-safe? ab)
+          (blockers-of ab))))
 
 ;; nested-variable-capture-present? : any/c symbol? -> boolean?
 ;;   Check whether a nested lambda or case-lambda inside ab captures var-sym.
