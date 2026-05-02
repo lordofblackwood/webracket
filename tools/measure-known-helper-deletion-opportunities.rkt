@@ -113,6 +113,19 @@
   (and (entry-clos-remains e)
        (entry-code-remains e)))
 
+(define (pure-unavailable-env-residue? e)
+  (and (eq? (entry-known-abi e) 'known1)
+       (eq? (entry-known-only e) 'none)
+       (remaining-transition-tax? e)
+       (eq? (entry-origin e) 'let-values)
+       (not (entry-value-use e))
+       (not (entry-letrec e))
+       (not (entry-recursive e))
+       (not (entry-nested-lift e))
+       (null? (entry-nested-capture e))
+       (not (entry-callers-source e))
+       (equal? (entry-blockers e) '(unavailable-env))))
+
 (define (entry-has-blocker? blocker e)
   (member blocker (entry-blockers e)))
 
@@ -146,6 +159,15 @@
         (for ([e (in-list (take-up-to matches 3))])
           (print-entry-drilldown e))))))
 
+(define (print-pure-unavailable-env-residue summary)
+  (define residue
+    (filter pure-unavailable-env-residue? summary))
+  (printf "Pure unavailable-env residue: ~a\n" (length residue))
+  (unless (null? residue)
+    (printf "Representative pure unavailable-env residue entries:\n")
+    (for ([e (in-list (take-up-to residue 3))])
+      (print-entry-drilldown e))))
+
 (define (print-summary source-path summary)
   (printf "Source: ~a\n" source-path)
   (printf "Known-family entries: ~a\n" (length summary))
@@ -162,6 +184,7 @@
   (printf "  nested-capture: ~a\n" (count (lambda (e) (not (null? (entry-nested-capture e)))) summary))
   (printf "  letrec: ~a\n" (count entry-letrec summary))
   (printf "  recursive: ~a\n" (count entry-recursive summary))
+  (print-pure-unavailable-env-residue summary)
   (unless (null? summary)
     (print-section "Blockers:" (histogram (append* (map entry-blockers summary)))))
   (print-blocker-drilldown summary)
