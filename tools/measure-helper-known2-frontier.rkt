@@ -84,6 +84,9 @@
       [(cons k v)
        (printf "  ~a: ~a\n" k v)])))
 
+(define (take-up-to xs n)
+  (take xs (min n (length xs))))
+
 ;; Entry shape:
 ;; (list label binder origin fixed-arity? direct? value-use? self-recursive?
 ;;       letrec? plain-lambda? nested-lift-sensitive? nested-capture-vars
@@ -92,9 +95,19 @@
 ;;       incoming-direct-callers all-callers-can-source-both-envs?
 ;;       would-be-sibling-only-safe? blockers)
 (define (entry-origin e)     (list-ref e 2))
+(define (entry-binder e)     (list-ref e 1))
 (define (entry-direct? e)    (list-ref e 4))
 (define (entry-value-use? e) (list-ref e 5))
 (define (entry-letrec? e)    (list-ref e 7))
+(define (entry-plain? e)     (list-ref e 8))
+(define (entry-nested? e)    (list-ref e 9))
+(define (entry-ncapture e)   (list-ref e 10))
+(define (entry-body-layout e)(list-ref e 11))
+(define (entry-closure-env e)(list-ref e 12))
+(define (entry-extended e)   (list-ref e 13))
+(define (entry-layout=? e)   (list-ref e 14))
+(define (entry-env-in-closure e) (list-ref e 15))
+(define (entry-callers-list e) (list-ref e 16))
 (define (entry-body e)       (length (list-ref e 11)))
 (define (entry-closure e)    (length (list-ref e 12)))
 (define (entry-ext e)        (length (list-ref e 13)))
@@ -102,6 +115,53 @@
 (define (entry-can-source e) (list-ref e 17))
 (define (entry-safe? e)      (list-ref e 18))
 (define (entry-blockers e)   (list-ref e 19))
+
+(define (entry-has-blocker? blocker e)
+  (member blocker (entry-blockers e)))
+
+(define (print-entry-drilldown blocker e)
+  (printf "  binder: ~a\n" (entry-binder e))
+  (printf "  origin: ~a\n" (entry-origin e))
+  (printf "  direct?: ~a\n" (entry-direct? e))
+  (printf "  plain-lambda?: ~a\n" (entry-plain? e))
+  (printf "  value-use?: ~a\n" (entry-value-use? e))
+  (printf "  nested-lift-sensitive?: ~a\n" (entry-nested? e))
+  (printf "  nested-capture-vars: ~a\n" (entry-ncapture e))
+  (printf "  incoming-callers: ~a\n" (entry-callers-list e))
+  (printf "  caller-env-sourceable?: ~a\n" (entry-can-source e))
+  (case blocker
+    [(layout-mismatch)
+     (printf "  current-body-layout: ~a\n" (entry-body-layout e))
+     (printf "  extended-needs:      ~a\n" (entry-extended e))
+     (printf "  body-layout=extended?: ~a\n" (entry-layout=? e))]
+    [(env-not-in-closure)
+     (printf "  closure-env:         ~a\n" (entry-closure-env e))
+     (printf "  extended-needs:      ~a\n" (entry-extended e))
+     (printf "  extended-in-closure?: ~a\n" (entry-env-in-closure e))]
+    [(non-direct)
+     (printf "  closure-env: ~a\n" (entry-closure-env e))
+     (printf "  extended-needs: ~a\n" (entry-extended e))
+     (printf "  note: non-direct helpers are usually procedure-identity/value-use candidates under current analysis.\n")]
+    [(unavailable-env)
+     (printf "  incoming-callers: ~a\n" (entry-callers-list e))
+     (printf "  extended-needs:  ~a\n" (entry-extended e))
+     (printf "  note: caller-side available vars are not stored in this summary yet; this entry marks failure of the current caller-availability check.\n")]
+    [else
+     (printf "  closure-env: ~a\n" (entry-closure-env e))
+     (printf "  current-body-layout: ~a\n" (entry-body-layout e))
+     (printf "  extended-needs: ~a\n" (entry-extended e))])
+  (printf "  blockers: ~a\n" (entry-blockers e)))
+
+(define (print-blocker-drilldown summary)
+  (define blockers '(layout-mismatch env-not-in-closure non-direct unavailable-env))
+  (for ([blocker (in-list blockers)])
+    (define matches
+      (filter (lambda (e) (entry-has-blocker? blocker e)) summary))
+    (unless (null? matches)
+      (printf "Representative ~a entries:\n" blocker)
+      (for ([e (in-list (take-up-to matches 3))])
+        (print-entry-drilldown blocker e))
+      (newline))))
 
 (define (print-summary source-path summary)
   (define total (length summary))
@@ -124,6 +184,7 @@
   (print-section "Incoming direct-caller counts:" (histogram (map entry-callers summary)))
   (unless (null? blocker-rows)
     (print-section "Blockers:" blocker-rows))
+  (print-blocker-drilldown summary)
   (newline))
 
 (for ([source-path (in-list source-paths)])
