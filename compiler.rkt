@@ -10775,29 +10775,44 @@
 ;;;
 ;;; The core analysis establishes:
 ;;; - raw free variables for each abstraction
-;;; - lambda classification (`closed`, `trivial-closed`, `direct`)
-;;; - direct-call sites and direct-candidate status
-;;; - value-use disqualification
-;;; - binder/origin information for local helpers
-;;; - extended env needs for direct helpers
-;;; - direct-callee relationships
+;;; - a lambda classification:
+;;;   - `closed`:         not treated as a direct helper
+;;;   - `trivial-closed`: `closed` with an empty ordinary free-variable set
+;;;   - `direct`:         locally bound and used only in operator position, so it is
+;;;                       eligible for direct-helper analysis and lowering
+;;; - direct-call sites:
+;;;   operator-position uses of a `direct` helper binder
+;;; - direct-candidate status:
+;;;   a conservative local-binding shape that may later finalize to `direct`
+;;; - value-use disqualification:
+;;;   the helper binder was seen in a non-operator use, so it cannot be
+;;;   treated as `direct`
+;;; - binder/origin information:
+;;;   which local binder names the helper, and whether it came from
+;;;   `let-values`, `letrec-values`, or another binding context
+;;; - extended env needs:
+;;;   the propagated direct-helper env set, which may be larger than the
+;;;   helper's ordinary free-variable set because it also includes direct
+;;;   callee needs
+;;; - direct-callee relationships:
+;;;   the direct-helper call graph used for that propagation
 ;;;
 ;;; The summaries below are analysis-only reports. They are used for tests,
 ;;; measurement scripts, and migration experiments, and they should describe
 ;;; the current compiler state conservatively instead of predicting future
 ;;; lowering changes.
 
-;; closure-conversion-analysis : LANF
-;;                            -> (values LANF
-;;                                       (hasheq/c any/c id-set?)
-;;                                       (listof any/c)
-;;                                       (hasheq/c any/c symbol?)
-;;                                       (hasheq/c any/c (listof syntax?))
-;;                                       (hasheq/c any/c boolean?)
-;;                                       (hasheq/c any/c boolean?)
-;;                                       (hasheq/c any/c (or/c variable? #f))
-;;                                       (hasheq/c any/c id-set?)
-;;                                       (hasheq/c any/c (listof any/c)))
+;; closure-conversion-analysis :
+;; LANF -> (values LANF
+;;                 (hasheq/c any/c id-set?)             ; free-ht
+;;                 (listof any/c)                       ; abs
+;;                 (hasheq/c any/c symbol?)             ; kind-ht
+;;                 (hasheq/c any/c (listof syntax?))    ; direct-sites-ht
+;;                 (hasheq/c any/c boolean?)            ; direct-candidate-ht
+;;                 (hasheq/c any/c boolean?)            ; disqualified-ht
+;;                 (hasheq/c any/c (or/c variable? #f)) ; binder-ht
+;;                 (hasheq/c any/c id-set?)             ; extended-ht
+;;                 (hasheq/c any/c (listof any/c)))     ; direct-callees-ht
 ;;   Run the analysis stages used by closure conversion without rewriting the AST.
 (define (closure-conversion-analysis T)
   (letv ((T free-ht abs) (determine-free-variables T))
@@ -10833,9 +10848,43 @@
     (values T free-ht abs kind-ht direct-sites-ht direct-candidate-ht disqualified-ht binder-ht
             extended-ht direct-callees-ht)))
 
-;; summarize-closure-conversion-analysis : LANF
-;;                                     -> (listof list?)
-;;   Return a compact summary of closure-conversion analysis results for inspection.
+;; summarize-closure-conversion-analysis
+;; : LANF -> (listof
+;;             (list symbol?          ; label
+;;                   symbol?          ; kind
+;;                   boolean?         ; direct-candidate?
+;;                   boolean?         ; disqualified?
+;;                   (or/c symbol? #f) ; binder
+;;                   (listof symbol?) ; free-vars
+;;                   (listof any/c))) ; direct-sites
+;;   Return one summary row per abstraction.
+;;
+;; Each row has the form:
+;;   (list label kind direct-candidate? disqualified? binder free-vars direct-sites)
+;; where:
+;; - label:             a fresh readable name used only in the summary
+;; - kind:              one of `closed`, `trivial-closed`, or `direct`
+;; - direct-candidate?: whether the abstraction was seen in a binding shape
+;;                      that may later finalize to `direct`
+;; - disqualified?:     whether its binder was also seen in a non-operator use
+;; - binder:            the local binder naming the abstraction, or `#f`
+;; - free-vars:         the ordinary free-variable set of the abstraction
+;; - direct-sites:      the recorded operator-position uses of the binder
+;;
+;; This summary is the compact “what did lambda classification discover?”
+;; view. It reports the basic closure-conversion analysis state before
+;; extended direct-helper env propagation is taken into account.
+;;
+;; Example:
+;;
+;;   (let ([x 10])
+;;     (let ([f (lambda (y) (+ x y))])
+;;       (f 2)))
+;;
+;; Conceptually, the row for `f` is:
+;;
+;;   (list 'label-f 'direct #t #f 'f '(x) '(line-or-position-of-(f 2)))
+
 (define (summarize-closure-conversion-analysis T)
   (define (label-name labels-ht ab)
     (syntax-e (variable-id (hash-ref labels-ht ab))))
@@ -10865,9 +10914,43 @@
             (map syntax-e (map variable-id (id-set->list (hash-ref free-ht ab empty-set))))
             (map site-source (hash-ref direct-sites-ht ab '()))))))
 
-;; summarize-extended-closure-conversion-analysis : LANF
-;;                                              -> (listof list?)
-;;   Return a compact summary of extended free-variable analysis results.
+;; summarize-extended-closure-conversion-analysis
+;; : LANF  -> (listof
+;;              (list symbol?          ; label
+;;                    symbol?          ; kind
+;;                    (listof symbol?) ; free-vars
+;;                    (listof symbol?) ; extended-vars
+;;                    (listof symbol?))) ; direct-callees
+;;   Return one summary row per abstraction.
+;;
+;; Each row has the form:
+;;   (list label kind free-vars extended-vars direct-callees)
+;; where:
+;; - label:          a fresh readable name used only in the summary
+;; - kind:           one of `closed`, `trivial-closed`, or `direct`
+;; - free-vars:      the ordinary free-variable set of the abstraction
+;; - extended-vars:  the propagated direct-helper env set
+;; - direct-callees: the abstractions this helper directly calls, reported by summary label
+;;
+;; This summary is the compact “what did extended-env analysis discover?”
+;; view. It extends the ordinary free-variable summary with the propagated
+;; env needs and the direct-helper call graph used to compute them.
+;;
+;; Example:
+;;
+;;   (let ([x 1])
+;;     (let ([f (lambda () x)])
+;;       (let ([g (lambda () (f))])
+;;         (g))))
+;;
+;; Conceptually, the summary contains rows like:
+;;
+;;   (list 'label-f 'direct '(x) '(x) '())
+;;   (list 'label-g 'direct '()  '(x) '(label-f))
+;;
+;; Here `g` has no ordinary free variables of its own, but its
+;; `extended-vars` still include `x` because `g` directly calls `f`,
+;; and `f` needs `x`.
 (define (summarize-extended-closure-conversion-analysis T)
   (define (label-name labels-ht ab)
     (syntax-e (variable-id (hash-ref labels-ht ab))))
@@ -10886,9 +10969,42 @@
             (map (λ (callee) (label-name labels-ht callee))
                  (hash-ref direct-callees-ht ab '()))))))
 
-;; summarize-direct-layout-closure-conversion-analysis : LANF
-;;                                                   -> (listof list?)
-;;   Return a compact summary of direct-helper layout compatibility.
+;; summarize-direct-layout-closure-conversion-analysis
+;; : LANF -> (listof
+;;             (list symbol?          ; label
+;;                   (listof symbol?) ; free-vars
+;;                   (listof symbol?) ; extended-vars
+;;                   boolean?))       ; same-layout?
+;;   Return one summary row for each abstraction currently classified as `direct`.
+;;
+;; Each row has the form:
+;;   (list label free-vars extended-vars same-layout?)
+;; where:
+;; - label:         a fresh readable name used only in the summary
+;; - free-vars:     the ordinary free-variable set of the direct helper
+;; - extended-vars: the propagated direct-helper env set
+;; - same-layout?:  whether the ordinary free-variable set and the extended
+;;                  env set are equal
+;;
+;; This summary is a compact “does direct-helper env propagation change the
+;; layout?” view. It is useful for spotting helpers where extended env needs
+;; differ from ordinary free variables.
+;;
+;; Example:
+;;
+;;   (let ([x 1])
+;;     (let ([f (lambda () x)])
+;;       (let ([g (lambda () (f))])
+;;         (g))))
+;;
+;; Conceptually, the summary contains rows like:
+;;
+;;   (list 'label-f '(x) '(x) #t)
+;;   (list 'label-g '()  '(x) #f)
+;;
+;; Here `f` has the same ordinary and extended env needs, but `g` does not:
+;; `g` has no ordinary free variables of its own, while its extended env set
+;; still contains `x` because `g` directly calls `f`.
 (define (summarize-direct-layout-closure-conversion-analysis T)
   (define (label-name labels-ht ab)
     (syntax-e (variable-id (hash-ref labels-ht ab))))
@@ -10910,17 +11026,31 @@
             extended-vars
             (equal? free-vars extended-vars)))))
 
-;; summarize-direct-helper-environment-closure-conversion-analysis : LANF
-;;                                                                -> (listof list?)
-;;   Return a compact summary of the environment views for direct helpers:
-;;   raw free vars, extended vars, current body layout, and current closure
-;;   layout.
+;; summarize-direct-helper-environment-closure-conversion-analysis
+;; : LANF -> (listof
+;;             (list symbol?            ; label
+;;                   (or/c symbol? #f)  ; binder
+;;                   (listof symbol?)   ; raw-free-vars
+;;                   (listof symbol?)   ; extended-vars
+;;                   (listof symbol?)   ; body-layout
+;;                   (listof symbol?))) ; closure-env
+;;   Return one summary row for each abstraction currently classified as `direct`.
 ;;
-;; The current body/closure layout may still keep some direct-helper bindings
-;; that `extended-vars` has dropped. This happens because the compiler still
-;; supports ordinary closure-backed direct calls alongside the `known0`,
-;; `known1`, and known-only helper paths, so some callers must continue to
-;; retain helper bindings whose closures are still needed as call operands.
+;; Each row has the form:
+;;   (list label binder raw-free-vars extended-vars body-layout closure-env)
+;; where:
+;; - label:         a fresh readable name used only in the summary
+;; - binder:        the local binder naming the helper, or `#f`
+;; - raw-free-vars: the ordinary free-variable set of the helper
+;; - extended-vars: the propagated direct-helper env set
+;; - body-layout:   the variables currently carried as lifted-body env operands
+;; - closure-env:   the variables currently stored in the closure payload
+;;
+;; This summary makes the environment views explicit for direct helpers.
+;; In the current compiler, `body-layout` and `closure-env` may still keep some
+;; direct-helper bindings that `extended-vars` has dropped, because the
+;; compiler still supports ordinary closure-backed direct calls alongside the
+;; `known0`, `known1`, and known-only helper paths.
 (define (summarize-direct-helper-environment-closure-conversion-analysis T)
   (define (label-name labels-ht ab)
     (syntax-e (variable-id (hash-ref labels-ht ab))))
@@ -10947,8 +11077,29 @@
             layout-vars
             layout-vars))))
 
-;; summarize-closure-layout-arity-closure-conversion-analysis : LANF -> (listof list?)
-;;   Return a compact summary of current closure-layout payload sizes.
+;; summarize-closure-layout-arity-closure-conversion-analysis
+;; : LANF -> (listof
+;;             (list symbol?           ; label
+;;                   (or/c symbol? #f) ; binder
+;;                   symbol?           ; kind
+;;                   exact-nonnegative-integer? ; closure-layout-arity
+;;                   (or/c 0 1 2 3 '4+))) ; bucket
+;;   Return one summary row per abstraction.
+;;
+;; Each row has the form:
+;;   (list label binder kind closure-layout-arity bucket)
+;; where:
+;; - label:                a fresh readable name used only in the summary
+;; - binder:               the local binder naming the abstraction, or `#f`
+;; - kind:                 one of `closed`, `trivial-closed`, or `direct`
+;; - closure-layout-arity: the number of values currently stored in the
+;;                         abstraction's closure payload
+;; - bucket:               the coarse arity bucket `0`, `1`, `2`, `3`, or `4+`
+;;
+;; This summary is the compact “how large are the current closure payloads?”
+;; view. It is useful when comparing ordinary closure storage against
+;; direct-helper env layouts and the inline `$Closure1`/`$Closure2`/`$Closure3`
+;; representations.
 (define (summarize-closure-layout-arity-closure-conversion-analysis T)
   (define (label-name labels-ht ab)
     (syntax-e (variable-id (hash-ref labels-ht ab))))
@@ -10976,8 +11127,18 @@
               [(<= closure-layout-arity 3) closure-layout-arity]
               [else                        '4+])))))
 
-;; summarize-closure-layout-arity-counts-closure-conversion-analysis : LANF -> (listof list?)
+;; summarize-closure-layout-arity-counts-closure-conversion-analysis
+;; : LANF -> (listof
+;;             (list (or/c 0 1 2 3 '4+) ; bucket
+;;                   exact-nonnegative-integer?)) ; count
 ;;   Return histogram counts for current closure-layout payload sizes.
+;;
+;; Each row has the form:
+;;   (list bucket count)
+;; where:
+;; - bucket: one of `0`, `1`, `2`, `3`, or `4+`
+;; - count:  the number of abstractions whose current closure payload arity
+;;           falls into that bucket
 (define (summarize-closure-layout-arity-counts-closure-conversion-analysis T)
   (define counts
     (make-hasheq '((0 . 0) (1 . 0) (2 . 0) (3 . 0) (4+ . 0))))
@@ -10988,8 +11149,34 @@
   (for/list ([bucket '(0 1 2 3 4+)])
     (list bucket (hash-ref counts bucket 0))))
 
-;; summarize-known-helper-abi-plan-closure-conversion-analysis : LANF -> (listof list?)
-;;   Return a conservative ABI-plan summary for known direct helpers.
+;; summarize-known-helper-abi-plan-closure-conversion-analysis
+;; : LANF -> (listof
+;;             (list symbol?            ; label
+;;                   (or/c symbol? #f)  ; binder
+;;                   symbol?            ; kind
+;;                   boolean?           ; fixed-arity?
+;;                   (listof symbol?)   ; layout-vars
+;;                   (listof symbol?)   ; extended-vars
+;;                   symbol?            ; plan
+;;                   (listof symbol?))) ; blockers
+;;   Return one summary row per abstraction.
+;;
+;; Each row has the form:
+;;   (list label binder kind fixed-arity? layout-vars extended-vars plan blockers)
+;; where:
+;; - label:         a fresh readable name used only in the summary
+;; - binder:        the local binder naming the abstraction, or `#f`
+;; - kind:          one of `closed`, `trivial-closed`, or `direct`
+;; - fixed-arity?:  whether the abstraction has fixed-arity source formals
+;; - layout-vars:   the current env layout considered for helper lowering
+;; - extended-vars: the propagated direct-helper env set
+;; - plan:          a conservative ABI plan such as `known/env0`, `known/env1`,
+;;                  `known/env2`, `generic-closure`, or `not-eligible`
+;; - blockers:      reasons the helper cannot currently use the planned ABI
+;;
+;; This summary is the compact “what known-helper ABI shape looks plausible?”
+;; view. It is conservative and is meant for inspection and measurement, not
+;; as a direct promise of current lowering behavior.
 (define (summarize-known-helper-abi-plan-closure-conversion-analysis T)
   (define (label-name labels-ht ab)
     (syntax-e (variable-id (hash-ref labels-ht ab))))
@@ -11053,17 +11240,36 @@
             plan
             blockers))))
 
-;; determine-direct-helper-base-needs! : LANF
-;;                                      (hasheq/c any/c id-set?)
-;;                                      (listof any/c)
-;;                                      (hasheq/c any/c symbol?)
-;;                                   -> (values (hasheq/c any/c id-set?)
-;;                                              (hasheq/c any/c symbol?))
-;;   Compute analysis-only direct-helper base needs and local-binding origin.
+;;;
+;;; Direct-Helper Base Needs And Origin
+;;;
+
+;;; This pass computes two analysis tables for abstractions:
+;;; - base env needs for direct helpers
+;;; - binding origin (`let-values`, `letrec-values`, or `other`)
+;;;
+;;; Base needs are the helper's own env demand before propagated
+;;; direct-callee needs are added by extended-env analysis.
+
+;; determine-direct-helper-base-needs!
+;; : LANF
+;;   (hasheq/c any/c id-set?)   ; free-ht
+;;   (listof any/c)             ; abs
+;;   (hasheq/c any/c symbol?)   ; kind-ht
+;;   -> (values (hasheq/c any/c id-set?)   ; base-needs-ht
+;;              (hasheq/c any/c symbol?))  ; origin-ht
+;;   Compute direct-helper base needs and binding origin, without rewriting
+;;   the program.
 ;;
-;; Base needs are ordinary free variables with locally known direct-helper
-;; binders removed. Origins currently distinguish only `let-values`,
-;; `letrec-values`, and `other`.
+;; The returned tables record:
+;; - base-needs-ht:  abstraction -> base env needs
+;; - origin-ht:      abstraction -> `let-values`, `letrec-values`, or `other`
+;;
+;; A helper's base needs are its ordinary free variables after removing
+;; locally known direct-helper binders from lexical scope. In other words,
+;; this is the helper's own env demand before propagated direct-callee
+;; needs are added by extended-env analysis.
+
 (define (determine-direct-helper-base-needs! T free-ht abs kind-ht)
   (define base-needs-ht (make-hasheq))
   (define origin-ht     (make-hasheq))
@@ -11255,8 +11461,37 @@
     (analyze T))
   (values base-needs-ht origin-ht))
 
-;; summarize-direct-helper-env-plan-closure-conversion-analysis : LANF -> (listof list?)
-;;   Return an analysis-only summary of direct-helper env propagation.
+;; summarize-direct-helper-env-plan-closure-conversion-analysis
+;; : LANF -> (listof
+;;             (list symbol?            ; label
+;;                   (or/c symbol? #f)  ; binder
+;;                   symbol?            ; kind
+;;                   symbol?            ; origin
+;;                   boolean?           ; fixed-arity?
+;;                   boolean?           ; direct-candidate?
+;;                   boolean?           ; disqualified?
+;;                   (listof symbol?)   ; base-vars
+;;                   (listof symbol?)   ; extended-vars
+;;                   (listof symbol?)   ; direct-callees
+;;                   symbol?            ; plan
+;;                   (listof symbol?))) ; blockers
+;;   Return one summary row per abstraction.
+;;
+;; Each row has the form:
+;;   (list label binder kind origin fixed-arity? direct-candidate?
+;;         disqualified? base-vars extended-vars direct-callees plan blockers)
+;; where:
+;; - base-vars:      the abstraction's direct-helper base needs before
+;;                   propagated callee needs are added
+;; - extended-vars:  the propagated direct-helper env set
+;; - direct-callees: the helper's direct callees, reported by binder name when
+;;                   available
+;; - plan/blockers:  a conservative ABI plan together with reasons it may not
+;;                   be usable
+;;
+;; This summary is the compact “what env-propagation shape does each helper
+;; have?” view. It combines the direct-helper base-needs analysis with the
+;; propagated extended env and a conservative ABI plan.
 (define (summarize-direct-helper-env-plan-closure-conversion-analysis T)
   (define (label-name labels-ht ab)
     (syntax-e (variable-id (hash-ref labels-ht ab))))
@@ -11324,13 +11559,34 @@
             plan
             blockers*))))
 
-;; summarize-direct-helper-env-availability-closure-conversion-analysis : LANF -> (listof list?)
-;;   Return an analysis-only summary of current direct-edge env availability.
+;; summarize-direct-helper-env-availability-closure-conversion-analysis
+;; : LANF -> (listof
+;;             (list (or/c symbol? #f) ; caller
+;;                   (or/c symbol? #f) ; callee
+;;                   symbol?           ; caller-kind
+;;                   (listof symbol?)  ; caller-formals
+;;                   (listof symbol?)  ; caller-layout
+;;                   (listof symbol?)  ; available
+;;                   (listof symbol?)  ; needed
+;;                   (listof symbol?)  ; missing
+;;                   boolean?))        ; all-available?
+;;   Return one summary row per direct caller/callee edge.
+;;
+;; Each row has the form:
+;;   (list caller callee caller-kind caller-formals caller-layout
+;;         available needed missing all-available?)
+;; where:
+;; - caller-layout:   the caller's current carried layout
+;; - available:       the variables currently available to the caller from its
+;;                    layout plus formals
+;; - needed:          the callee's extended env needs
+;; - missing:         the subset of `needed` not present in `available`
+;; - all-available?:  whether the caller can currently source every needed env
+;;                    variable for this direct edge
 ;;
 ;; This summary intentionally compares each direct callee's extended needs to
-;; the caller's *current* available vars, not the future ideal layout. That
-;; lets us see exactly which direct edges are still blocked by the current
-;; layout model before any lowering changes are made.
+;; the caller's current available vars, not the future ideal layout. It is the
+;; compact “which direct edges are blocked by current env availability?” view.
 (define (summarize-direct-helper-env-availability-closure-conversion-analysis T)
   (define (label-name labels-ht ab)
     (syntax-e (variable-id (hash-ref labels-ht ab))))
@@ -11388,14 +11644,28 @@
             (sort missing symbol<?)
             (null? missing)))))
 
-;; summarize-direct-helper-layout-concepts-closure-conversion-analysis : LANF -> (listof list?)
-;;   Return an analysis-only summary of the current body-layout and closure-env
-;;   concepts for each abstraction.
+;; summarize-direct-helper-layout-concepts-closure-conversion-analysis
+;; : LANF -> (listof
+;;             (list (or/c symbol? #f) ; binder
+;;                   symbol?           ; kind
+;;                   (listof symbol?)  ; body-layout
+;;                   (listof symbol?)  ; closure-env
+;;                   (listof symbol?)  ; extended-vars
+;;                   boolean?))        ; same-layout?
+;;   Return one summary row per abstraction.
 ;;
-;; This keeps the two layout roles explicit even though they are still backed by
-;; the same current layout computation. The summary also reports each helper's
-;; extended needs so we can see where the current carried layout is already
-;; wider than the Shivers-style target env.
+;; Each row has the form:
+;;   (list binder kind body-layout closure-env extended-vars same-layout?)
+;; where:
+;; - body-layout:   the variables currently carried as lifted-body env operands
+;; - closure-env:   the variables currently stored in the closure payload
+;; - extended-vars: the propagated direct-helper env set
+;; - same-layout?:  whether the current carried layout already matches the
+;;                  propagated direct-helper env set
+;;
+;; This summary keeps the two layout roles explicit even when they are backed
+;; by the same current computation. It is the compact “how do the current body
+;; and closure layouts compare to the propagated env target?” view.
 (define (summarize-direct-helper-layout-concepts-closure-conversion-analysis T)
   (define (binder-name binder)
     (match binder
@@ -11647,11 +11917,29 @@
                   env-sourceable-for-known-abi?)))
     (values abs state-ht)))
 
-;; summarize-direct-helper-payoff-frontier-closure-conversion-analysis : LANF
-;;                                                                  -> (listof list?)
-;;   Return an analysis-only summary of remaining direct-helper frontier
-;;   opportunities, emphasizing whether a migration would delete something
-;;   costly or merely change carried/body-layout shape.
+;; summarize-direct-helper-payoff-frontier-closure-conversion-analysis
+;; : LANF -> (listof
+;;             (list symbol?            ; label
+;;                   (or/c symbol? #f)  ; binder
+;;                   symbol?            ; kind
+;;                   symbol?            ; origin
+;;                   boolean?           ; fixed-arity?
+;;                   exact-nonnegative-integer? ; current-body-layout-size
+;;                   exact-nonnegative-integer? ; current-closure-env-size
+;;                   exact-nonnegative-integer? ; extended-layout-size
+;;                   symbol?            ; current-known-abi
+;;                   symbol?            ; known-only-class
+;;                   boolean?           ; delete-closure-allocation?
+;;                   boolean?           ; delete-ordinary-closure-code?
+;;                   boolean?           ; only-change-body-layout?
+;;                   exact-nonnegative-integer? ; direct-in-degree
+;;                   exact-nonnegative-integer? ; direct-out-degree
+;;                   (listof symbol?))) ; blockers
+;;   Return one summary row for each abstraction on the current helper frontier.
+;;
+;; Each row reports whether a future change would delete something costly
+;; (closure allocation or the ordinary closure-backed entry) or would only
+;; change carried/body-layout shape.
 (define (summarize-direct-helper-payoff-frontier-closure-conversion-analysis T)
   (define (frontier-abstraction? ab kind candidate? disqualified?)
     (or (eq? kind 'direct)
@@ -11711,11 +11999,29 @@
             direct-out-degree
             (blockers-of ab))))
 
-;; summarize-known-helper-deletion-opportunities-closure-conversion-analysis : LANF
-;;                                                                       -> (listof list?)
-;;   Return an analysis-only summary of helpers already in the `known0` /
-;;   `known1` ABI families, focusing on whether they still pay closure-backed
-;;   transition tax or already delete allocation and base labels.
+;; summarize-known-helper-deletion-opportunities-closure-conversion-analysis
+;; : LANF -> (listof
+;;             (list symbol?            ; label
+;;                   (or/c symbol? #f)  ; binder
+;;                   symbol?            ; origin
+;;                   symbol?            ; current-known-abi
+;;                   symbol?            ; current-known-only
+;;                   boolean?           ; closure-allocation-remains?
+;;                   boolean?           ; ordinary-closure-code-remains?
+;;                   boolean?           ; value-use?
+;;                   boolean?           ; env-sourceable?
+;;                   boolean?           ; nested-lift-sensitive?
+;;                   (listof symbol?)   ; nested-capture-vars
+;;                   boolean?           ; letrec?
+;;                   boolean?           ; recursive?
+;;                   boolean?           ; deletion-produced?
+;;                   (listof symbol?))) ; blockers
+;;   Return one summary row for helpers already in the `known0` / `known1`
+;;   ABI families.
+;;
+;; This summary focuses on remaining closure-backed transition tax:
+;; which helpers already delete allocation and base labels, and which helpers
+;; stay in sibling `known0` / `known1` because of specific blockers.
 (define (summarize-known-helper-deletion-opportunities-closure-conversion-analysis T)
   (define-values (abs state-ht)
     (compute-known-helper-summary-state T))
@@ -11752,10 +12058,34 @@
           deletion-produced?
           (blockers-of ab))))
 
-;; summarize-direct-helper-known2-frontier-closure-conversion-analysis : LANF
-;;                                                                  -> (listof list?)
-;;   Return an analysis-only summary of binary-env direct-helper cases,
-;;   focusing on whether a strictly sibling-only `known2` ABI looks safe.
+;; summarize-direct-helper-known2-frontier-closure-conversion-analysis
+;; : LANF -> (listof
+;;             (list symbol?            ; label
+;;                   (or/c symbol? #f)  ; binder
+;;                   symbol?            ; origin
+;;                   boolean?           ; fixed-arity?
+;;                   symbol?            ; kind
+;;                   boolean?           ; value-use?
+;;                   boolean?           ; self-recursive?
+;;                   boolean?           ; letrec?
+;;                   boolean?           ; plain-lambda?
+;;                   boolean?           ; nested-lift-sensitive?
+;;                   (listof symbol?)   ; nested-capture-vars
+;;                   (listof symbol?)   ; body-layout
+;;                   (listof symbol?)   ; closure-env
+;;                   (listof symbol?)   ; extended-layout
+;;                   boolean?           ; body-layout-equals-extended?
+;;                   boolean?           ; extended-needs-in-closure-env?
+;;                   exact-nonnegative-integer? ; incoming-direct-callers
+;;                   boolean?           ; all-callers-can-source-both-envs?
+;;                   boolean?           ; would-be-sibling-only-safe?
+;;                   (listof symbol?))) ; blockers
+;;   Return one summary row for each binary-env helper frontier case.
+;;
+;; This summary is the compact “would a strictly sibling-only `known2` look
+;; safe here?” view. It intentionally avoids making any lowering changes and
+;; instead records why a binary-env helper is or is not a plausible `known2`
+;; candidate under the current representation.
 (define (summarize-direct-helper-known2-frontier-closure-conversion-analysis T)
   (define-values (abs state-ht)
     (compute-known-helper-summary-state T))
@@ -12082,9 +12412,20 @@
        (null? free-vars)
        (eq? patching-kind 'none)))
 
-;; summarize-direct-self-binder-closure-conversion-analysis : LANF
-;;                                                        -> (listof list?)
-;;   Return a compact summary of direct helpers that can drop their own binder.
+;; summarize-direct-self-binder-closure-conversion-analysis
+;; : LANF -> (listof
+;;             (list symbol?            ; label
+;;                   (or/c symbol? #f)  ; binder
+;;                   (listof symbol?)   ; current-layout
+;;                   boolean?))         ; removable?
+;;   Return one summary row for each abstraction currently classified as `direct`.
+;;
+;; Each row has the form:
+;;   (list label binder current-layout removable?)
+;; where:
+;; - current-layout: the current direct-helper layout variables
+;; - removable?:     whether the helper can drop its own binder from that
+;;                   layout without changing the current direct-helper model
 (define (summarize-direct-self-binder-closure-conversion-analysis T)
   (define (label-name labels-ht ab)
     (syntax-e (variable-id (hash-ref labels-ht ab))))
