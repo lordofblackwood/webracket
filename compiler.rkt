@@ -13479,6 +13479,7 @@
     (current-known0-direct-labels (make-hasheq))
     (current-known0-only-labels (make-hasheq))
     (current-known1-direct-labels (make-hasheq))
+    (current-known1-only-labels (make-hasheq))
     #;(pretty-print free-ht)
     (for ([ab abs])
       (add-label! ab))
@@ -13637,6 +13638,13 @@
                                                          (syntax-e (variable-id x))))
                  (known1-body-is-direct-env-ref-only? ab
                                                       (syntax-e (variable-id x)))))))
+
+    ;; known1-only-target-eligible/local? : any/c -> boolean?
+    ;;   Check whether ab fits the first known1-only helper bucket:
+    ;;   a non-recursive, fixed-arity, direct helper whose body is just
+    ;;   the captured environment variable.
+    (define (known1-only-target-eligible/local? ab)
+      (known1-target-eligible/local? ab))
 
     ;; direct-letrec-representation-eligible/local? : any/c -> boolean?
     ;;   Check whether ab fits the currently enabled tiny direct-letrec
@@ -13824,6 +13832,11 @@
     (define (known1-binding-of x)
       (env-ref (current-known1-env) x))
 
+    ;; known1-only-binding-of : variable? -> (or/c any/c #f)
+    ;;   Return the known1-only direct helper bound to x, if any.
+    (define (known1-only-binding-of x)
+      (env-ref (current-known1-only-env) x))
+
     ;; known0-only-binding-of : variable? -> (or/c any/c #f)
     ;;   Return the known0-only direct helper bound to x, if any.
     (define (known0-only-binding-of x)
@@ -13853,6 +13866,23 @@
     ;;   Known env1 helpers introduced by non-recursive local bindings.
     (define current-known1-env
       (make-parameter (env-empty)))
+
+    ;; current-known1-only-env : (parameter/c free-id-table?)
+    ;;   Known1-only helpers introduced by non-recursive local bindings.
+    (define current-known1-only-env
+      (make-parameter (env-empty)))
+
+    ;; current-known1-only-candidates : (parameter/c (listof any/c))
+    ;;   Abstractions currently selected for the known1-only lowering class.
+    (define current-known1-only-candidates
+      (make-parameter '()))
+
+    ;; candidate-abstraction-label-member? : any/c (listof any/c) -> boolean?
+    ;;   Check whether ab has the same lifted label as one of cands.
+    (define (candidate-abstraction-label-member? ab cands)
+      (define l (syntax-e (variable-id (label-of ab))))
+      (for/or ([cand (in-list cands)])
+        (equal? l (syntax-e (variable-id (label-of cand))))))
 
 
     ;; current-direct-abstraction : (parameter/c (or/c any/c #f))
@@ -13898,6 +13928,9 @@
         (cond
           [(known0-only-binding-of x)
            `(known0app ,s ,(label-of ab) ,ar ,ae* ...)]
+          [(known1-only-binding-of x)
+           (define env0 (AExpr (car (body-layout-of ab))))
+           `(known1app ,s ,(label-of ab) ,ar ,env0 ,ae* ...)]
           [(known0-binding-of x)
            `(known0app ,s ,(label-of ab) ,ar ,ae* ...)]
           [(known1-binding-of x)
@@ -13951,6 +13984,12 @@
          pair))
      (define known1-xs  (map car known1-pairs))
      (define known1-abs (map cdr known1-pairs))
+     (define known1-only-pairs
+       (for/list ([pair (in-list pairs)]
+                  #:when (known1-only-target-eligible/local? (cdr pair)))
+         pair))
+     (define known1-only-xs  (map car known1-only-pairs))
+     (define known1-only-abs (map cdr known1-only-pairs))
      (define (known0-only-clause? xs ce)
        (match (clause-direct-binding xs ce)
          [(cons x ab)
@@ -13958,18 +13997,35 @@
                (for/or ([y (in-list known0-only-xs)])
                  (id=? x y)))]
          [_ #f]))
+     (define (known1-only-clause? xs ce)
+       (match (clause-direct-binding xs ce)
+         [(cons x ab)
+          (and (known1-only-target-eligible/local? ab)
+               (for/or ([y (in-list known1-only-xs)])
+                 (id=? x y)))]
+         [_ #f]))
      (define ce**
-       (parameterize ([current-known0-only-candidates known0-only-abs])
+       (parameterize ([current-known0-only-candidates known0-only-abs]
+                      [current-known1-only-candidates known1-only-abs])
          (for/list ([xs (in-list x)]
                     [ce (in-list ce*)])
-           (if (known0-only-clause? xs ce)
-               (begin
-                 (match (clause-direct-binding xs ce)
-                   [(cons _ ab) (Abstraction ab)]
-                   [_ (void)])
-                 (with-output-language (LANF+closure CExpr)
-                   `(quote ,#'h ,(datum #f (void)))))
-               (CExpr ce)))))
+           (cond
+             [(known0-only-clause? xs ce)
+              (begin
+                (match (clause-direct-binding xs ce)
+                  [(cons _ ab) (Abstraction ab)]
+                  [_ (void)])
+                (with-output-language (LANF+closure CExpr)
+                  `(quote ,#'h ,(datum #f (void)))))]
+             [(known1-only-clause? xs ce)
+              (begin
+                (match (clause-direct-binding xs ce)
+                  [(cons _ ab) (Abstraction ab)]
+                  [_ (void)])
+                (with-output-language (LANF+closure CExpr)
+                  `(quote ,#'h ,(datum #f (void)))))]
+             [else
+              (CExpr ce)]))))
      `(let-values ,s
         ([(,x ...) ,ce**] ...)
         ,(parameterize ([current-direct-env
@@ -13978,6 +14034,10 @@
                          (env-bind* (current-known0-only-env)
                                     known0-only-xs
                                     known0-only-abs)]
+                        [current-known1-only-env
+                         (env-bind* (current-known1-only-env)
+                                    known1-only-xs
+                                    known1-only-abs)]
                         [current-known0-env
                          (env-bind* (current-known0-env) known0-xs known0-abs)]
                         [current-known1-env
@@ -14006,12 +14066,19 @@
                   (syntax-e (variable-id l))
                   #t))
      (when (and (known0-only-target-eligible/local? AB)
-                (member AB (current-known0-only-candidates)))
+                (candidate-abstraction-label-member? AB
+                                                    (current-known0-only-candidates)))
        (hash-set! (current-known0-only-labels)
                   (syntax-e (variable-id l))
                   #t))
      (when (known1-target-eligible/local? AB)
        (hash-set! (current-known1-direct-labels)
+                  (syntax-e (variable-id l))
+                  #t))
+     (when (and (known1-only-target-eligible/local? AB)
+                (candidate-abstraction-label-member? AB
+                                                    (current-known1-only-candidates)))
+       (hash-set! (current-known1-only-labels)
                   (syntax-e (variable-id l))
                   #t))
      (define inline-small-arity
@@ -14447,6 +14514,7 @@
 (define current-known0-direct-labels (make-parameter (make-hasheq)))
 (define current-known0-only-labels (make-parameter (make-hasheq)))
 (define current-known1-direct-labels (make-parameter (make-hasheq)))
+(define current-known1-only-labels (make-parameter (make-hasheq)))
 (define (reset-label-map!)
   (current-label-map '())
   (current-label-form-ht (make-hash))
@@ -14523,6 +14591,10 @@
                 #f))
     (define (known1-direct-label? l)
       (hash-ref (current-known1-direct-labels)
+                (syntax-e (variable-id l))
+                #f))
+    (define (known1-only-direct-label? l)
+      (hash-ref (current-known1-only-labels)
                 (syntax-e (variable-id l))
                 #f))
     (define (known0-code-label l)
@@ -14790,6 +14862,10 @@
      (when (known0-only-direct-label? l)
        (error 'ClosureAllocation
               "known0-only helper must not allocate an ordinary closure: ~a"
+              (syntax-e (variable-id l))))
+     (when (known1-only-direct-label? l)
+       (error 'ClosureAllocation
+              "known1-only helper must not allocate an ordinary closure: ~a"
               (syntax-e (variable-id l))))
      ; Note: We need to allocate the closure and then fill the free slots
      ;       in order to handle recursive references to the closure.
@@ -15717,6 +15793,10 @@
        (error 'generate-code
               "known0-only helper must not use ordinary closure ABI directapp: ~a"
               (syntax-e (variable-id l))))
+     (when (known1-only-direct-label? l)
+       (error 'generate-code
+              "known1-only helper must not use ordinary closure ABI directapp: ~a"
+              (syntax-e (variable-id l))))
      (define tc (eq? cd '<return>))
      (define clos
        `(ref.cast (ref $Closure) ,(AExpr3 ae0 <value>)))
@@ -15745,6 +15825,10 @@
      (when (known0-only-direct-label? l)
        (error 'generate-code
               "known0-only helper must not use ordinary closure ABI direct0app: ~a"
+              (syntax-e (variable-id l))))
+     (when (known1-only-direct-label? l)
+       (error 'generate-code
+              "known1-only helper must not use ordinary closure ABI direct0app: ~a"
               (syntax-e (variable-id l))))
      (define tc (eq? cd '<return>))
      (define raw-args
@@ -15821,6 +15905,10 @@
        (error 'generate-code
               "known0-only helper must not use ordinary closure ABI selfapp: ~a"
               (syntax-e (variable-id l))))
+     (when (known1-only-direct-label? l)
+       (error 'generate-code
+              "known1-only helper must not use ordinary closure ABI selfapp: ~a"
+              (syntax-e (variable-id l))))
      (define tc (eq? cd '<return>))
      (define raw-args
        `(array.new_fixed $Args ,(length ae2)
@@ -15847,6 +15935,10 @@
      (when (known0-only-direct-label? l)
        (error 'generate-code
               "known0-only helper must not use ordinary closure ABI casearmapp: ~a"
+              (syntax-e (variable-id l))))
+     (when (known1-only-direct-label? l)
+       (error 'generate-code
+              "known1-only helper must not use ordinary closure ABI casearmapp: ~a"
               (syntax-e (variable-id l))))
      (define tc (eq? cd '<return>))
      (define cclos
@@ -16560,7 +16652,8 @@
               (result (ref eq))
               (return_call ,(known1-code-label l) ,env0 (local.get $args))))
      (define base-func
-       (if (known1-direct-label? l)
+       (if (and (known1-direct-label? l)
+                (not (known1-only-direct-label? l)))
            (known1-wrapper-func)
            (let ([base-converted
                   (parameterize ([current-inline-small-closure-arity
@@ -16570,7 +16663,7 @@
              (converted->func (Label l) '$ClosureCode (~a (syntax-e (variable-id l))) base-converted))))
      (cond
        [(known0-only-direct-label? l)
-        (let* ([known0-converted
+       (let* ([known0-converted
                 (parameterize ([current-inline-small-closure-arity #f]
                                [current-known-direct-env-arity 0])
                   (ConvertedAbstraction cab))]
@@ -16580,6 +16673,17 @@
                                  (~a (syntax-e (variable-id l)))
                                  known0-converted)])
           known0-func)]
+       [(known1-only-direct-label? l)
+        (let* ([known1-converted
+                (parameterize ([current-inline-small-closure-arity #f]
+                               [current-known-direct-env-arity 1])
+                  (ConvertedAbstraction cab))]
+               [known1-func
+                (converted->func (known1-code-label l)
+                                 '$KnownCode1
+                                 (~a (syntax-e (variable-id l)))
+                                 known1-converted)])
+          known1-func)]
        [(known0-direct-label? l)
         (let* ([known0-converted
                 (parameterize ([current-inline-small-closure-arity #f]
@@ -17394,15 +17498,31 @@
         [_ #f]))
     (sexp-any? known1-label-call? mod))
 
-  (define (module-count-base-label-funcs mod)
-    (for/sum ([form (in-list (cdr mod))])
-      (match form
-        [(list 'func label _ ...)
-         (if (and (symbol? label)
-                  (regexp-match? #rx"^\\$label\\.[0-9]+$" (symbol->string label)))
-             1
-             0)]
-        [_ 0])))
+  (define (module-has-known1-base-sibling? mod)
+    (define known1-stems
+      (for/list ([form (in-list (cdr mod))]
+                 #:when
+                 (match form
+                   [(list 'func label (list 'export export-name) _ ...)
+                    (and (symbol? label)
+                         (regexp-match? #rx"^(\\$label\\.[0-9]+)\\.known1$"
+                                        (symbol->string label))
+                         (string? export-name)
+                         (regexp-match? #rx"^label\\.[0-9]+$" export-name))]
+                   [_ #f]))
+        (match form
+          [(list 'func label _ ...)
+           (string->symbol
+            (second
+             (regexp-match #rx"^(\\$label\\.[0-9]+)\\.known1$"
+                           (symbol->string label))))])))
+    (for/or ([stem (in-list known1-stems)])
+      (for/or ([form (in-list (cdr mod))])
+        (match form
+          [(list 'func label _ ...)
+           (and (symbol? label)
+                (eq? label stem))]
+          [_ #f]))))
 
   (define (module-has-local-closure-shell-allocation? mod)
     (define (undefined-slot? x)
@@ -18557,6 +18677,32 @@
         [_ #f]))
     (sexp-any? known1app-form? cc-sexp))
 
+  (define (module-has-known1-base-sibling? mod)
+    (define known1-stems
+      (for/list ([form (in-list (cdr mod))]
+                 #:when
+                 (match form
+                   [(list 'func label (list 'export export-name) _ ...)
+                    (and (symbol? label)
+                         (regexp-match? #rx"^(\\$label\\.[0-9]+)\\.known1$"
+                                        (symbol->string label))
+                         (string? export-name)
+                         (regexp-match? #rx"^label\\.[0-9]+$" export-name))]
+                   [_ #f]))
+        (match form
+          [(list 'func label _ ...)
+           (string->symbol
+            (second
+             (regexp-match #rx"^(\\$label\\.[0-9]+)\\.known1$"
+                           (symbol->string label))))])))
+    (for/or ([stem (in-list known1-stems)])
+      (for/or ([form (in-list (cdr mod))])
+        (match form
+          [(list 'func label _ ...)
+           (and (symbol? label)
+                (eq? label stem))]
+          [_ #f]))))
+
   (define (module-has-known0-label-call? mod)
     (define (direct-call-args? x)
       (match x
@@ -18636,7 +18782,9 @@
                (comp #'(let ([x 1])
                          (let ([f (lambda () x)])
                            (f)))))])
-    (check-true (module-has-known1-label-call? mod)))
+    (check-true (module-has-known1-label-call? mod))
+    (check-false (module-has-local-closure-allocation? mod))
+    (check-false (module-has-known1-base-sibling? mod)))
 
   (check-true
    (closure-converted-has-direct0app? #'(letrec ([loop (lambda (n)
@@ -18679,7 +18827,8 @@
                                 [f (lambda () x)])
                          (f))))])
     (check-true (module-has-direct-label-call? mod))
-    (check-true (module-has-local-closure-allocation? mod))
+    (check-false (module-has-known1-base-sibling? mod))
+    (check-false (module-has-local-closure-allocation? mod))
     (check-false (module-has-local-closure-shell-allocation? mod)))
 
   (let ([mod (parameterize ([current-enable-cc-analysis? #t])
