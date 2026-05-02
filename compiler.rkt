@@ -18989,6 +18989,14 @@
     (check-true (module-has-known0-label-call? mod))
     (check-false (module-has-direct-dummy-closure-call? mod)))
 
+  (let ([mod (parameterize ([current-enable-cc-analysis? #t])
+               (comp #'(let ([f (lambda (x) x)])
+                         (let ([g (lambda () (f 1))])
+                           (g)))))])
+    (check-true (module-has-known0-label-call? mod))
+    (check-true (> (module-count-base-label-funcs mod) 0))
+    (check-true (module-has-local-closure-allocation? mod)))
+
   (check-true
    (closure-converted-has-known1app? #'(let ([x 1])
                                          (let ([f (lambda () x)])
