@@ -13644,7 +13644,13 @@
     ;;   a non-recursive, fixed-arity, direct helper whose body is just
     ;;   the captured environment variable.
     (define (known1-only-target-eligible/local? ab)
-      (known1-target-eligible/local? ab))
+      (and (known1-target-eligible/local? ab)
+           (let ([x (car (body-layout-of ab))])
+             (for/and ([(caller callees) (in-hash direct-callees-ht)]
+                       #:when (for/or ([candidate (in-list callees)])
+                                (eq? candidate ab)))
+               (for/or ([y (in-list (body-layout-of caller))])
+                 (variable=? x y))))))
 
     ;; direct-letrec-representation-eligible/local? : any/c -> boolean?
     ;;   Check whether ab fits the currently enabled tiny direct-letrec
@@ -13895,19 +13901,29 @@
     (define current-direct-case-abstraction
       (make-parameter #f))
 
+    ;; abstraction-carries-variable? : any/c variable? -> boolean?
+    ;;   Check whether ab's current body layout carries x.
+    (define (abstraction-carries-variable? ab x)
+      (for/or ([y (in-list (body-layout-of ab))])
+        (variable=? x y)))
+
     ;; known1-env-variable-of : any/c -> (or/c variable? #f)
     ;;   Return the caller-relative unary env operand for ab when it is
     ;;   obviously available in the current caller context.
     ;;
-    ;; For now, keep this conservative: only non-lifted callers may source the
-    ;; env operand directly from the callee's single layout variable.
+    ;; For now, keep this conservative: non-lifted callers may source the
+    ;; env operand directly, and lifted direct callers may do so only when
+    ;; they already carry that same variable in their own layout.
     (define (known1-env-variable-of ab)
+      (define env-var (car (body-layout-of ab)))
       (cond
-        [(or (current-direct-abstraction)
-             (current-direct-case-abstraction))
-         #f]
-        [else
-         (car (body-layout-of ab))])))
+        [(current-direct-abstraction)
+         (and (abstraction-carries-variable? (current-direct-abstraction) env-var)
+              env-var)]
+        [(current-direct-case-abstraction)
+         (and (abstraction-carries-variable? (current-direct-case-abstraction) env-var)
+              env-var)]
+        [else env-var])))
   (TopLevelForm    : TopLevelForm    (T) -> TopLevelForm      ())
   (ModuleLevelForm : ModuleLevelForm (M) -> ModuleLevelForm   ())
   (CExpr : CExpr (CE) -> CExpr ()
@@ -18807,6 +18823,19 @@
     (check-true (module-has-known1-label-call? mod))
     (check-false (module-has-local-closure-allocation? mod))
     (check-false (module-has-known1-base-sibling? mod)))
+
+  (check-true
+   (closure-converted-has-known1app? #'(let ([x 1])
+                                         (let ([f (lambda () x)])
+                                           (let ([g (lambda () (if #t x (f)))])
+                                             (g))))))
+
+  (let ([mod (parameterize ([current-enable-cc-analysis? #t])
+               (comp #'(let ([x 1])
+                         (let ([f (lambda () x)])
+                           (let ([g (lambda () (if #t x (f)))])
+                             (g))))))])
+    (check-true (module-has-known1-label-call? mod)))
 
   (check-true
    (closure-converted-has-direct0app? #'(letrec ([loop (lambda (n)
