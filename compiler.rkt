@@ -11289,6 +11289,70 @@
             plan
             blockers*))))
 
+;; summarize-direct-helper-env-availability-closure-conversion-analysis : LANF -> (listof list?)
+;;   Return an analysis-only summary of current direct-edge env availability.
+;;
+;; This summary intentionally compares each direct callee's extended needs to
+;; the caller's *current* available vars, not the future ideal layout. That
+;; lets us see exactly which direct edges are still blocked by the current
+;; layout model before any lowering changes are made.
+(define (summarize-direct-helper-env-availability-closure-conversion-analysis T)
+  (define (label-name labels-ht ab)
+    (syntax-e (variable-id (hash-ref labels-ht ab))))
+  (define (binder-name binder)
+    (match binder
+      [#f #f]
+      [x  (syntax-e (variable-id x))]))
+  (define (symbols-of-id-set xs)
+    (sort (map syntax-e (map variable-id (id-set->list xs))) symbol<?))
+  (define (symbols-of-variables xs)
+    (sort (map syntax-e (map variable-id xs)) symbol<?))
+  (define (formals->variables f)
+    (nanopass-case (LANF Formals) f
+      [(formals (,x ...))            x]
+      [(formals (,x0 ,x1 ... . ,xd)) (cons x0 (append x1 (list xd)))]
+      [(formals ,x)                  (list x)]))
+  (define (abstraction-formals ab)
+    (nanopass-case (LANF AExpr) ab
+      [(λ ,s ,f ,e) f]
+      [else (error 'summarize-direct-helper-env-availability
+                   "expected abstraction, got ~a" ab)]))
+  (define (caller-layout-vars ab free-ht kind-ht binder-ht direct-callees-ht)
+    (if (eq? (hash-ref kind-ht ab 'closed) 'direct)
+        (direct-helper-layout-free-vars ab free-ht kind-ht binder-ht direct-callees-ht)
+        (symbols-of-id-set (hash-ref free-ht ab empty-set))))
+  (letv ((T free-ht abs kind-ht _direct-sites-ht _direct-candidate-ht _disqualified-ht
+            binder-ht
+            extended-ht direct-callees-ht)
+         (closure-conversion-analysis T))
+    (define labels-ht (make-hasheq))
+    (for ([ab (in-list abs)])
+      (hash-set! labels-ht ab (new-var "label")))
+    (for*/list ([caller (in-list abs)]
+                [callee (in-list (hash-ref direct-callees-ht caller '()))]
+                #:when (eq? (hash-ref kind-ht callee 'closed) 'direct))
+      (define caller-kind (hash-ref kind-ht caller 'closed))
+      (define caller-layout (caller-layout-vars caller free-ht kind-ht binder-ht direct-callees-ht))
+      (define caller-formals (symbols-of-variables (formals->variables (abstraction-formals caller))))
+      (define available
+        (remove-duplicates
+         (append caller-layout caller-formals)
+         equal?))
+      (define needed (symbols-of-id-set (hash-ref extended-ht callee empty-set)))
+      (define missing
+        (filter (λ (x)
+                  (not (member x available)))
+                needed))
+      (list (binder-name (hash-ref binder-ht caller #f))
+            (binder-name (hash-ref binder-ht callee #f))
+            caller-kind
+            caller-formals
+            (sort caller-layout symbol<?)
+            (sort available symbol<?)
+            needed
+            (sort missing symbol<?)
+            (null? missing)))))
+
 ;; nested-variable-capture-present? : any/c symbol? -> boolean?
 ;;   Check whether a nested lambda or case-lambda inside ab captures var-sym.
 (define (nested-variable-capture-present? ab var-sym)
@@ -12450,6 +12514,12 @@
     (analyze-with-cc-summary stx
       summarize-direct-helper-env-plan-closure-conversion-analysis))
 
+  ;; direct-helper-env-availability-analysis-summary : syntax? -> (listof list?)
+  ;;   Run the pipeline up to LANF and summarize current direct-edge env availability.
+  (define (direct-helper-env-availability-analysis-summary stx)
+    (analyze-with-cc-summary stx
+      summarize-direct-helper-env-availability-closure-conversion-analysis))
+
   ;; direct-self-binder-analysis-summary : syntax? -> (listof list?)
   ;;   Run the pipeline up to LANF and summarize self-binder removal eligibility.
   (define (direct-self-binder-analysis-summary stx)
@@ -12658,6 +12728,29 @@
               (equal? callees0 callees)
               (eq? plan0 plan)
               (equal? blockers0 blockers))]
+        [_ #f])))
+
+  ;; direct-helper-env-availability-summary-has-entry?
+  ;;   : (listof list?) (or/c symbol? #f) (or/c symbol? #f) symbol?
+  ;;     (listof symbol?) (listof symbol?) (listof symbol?) (listof symbol?) (listof symbol?) boolean? -> boolean?
+  ;;   Check whether the direct-helper env-availability summary contains an edge
+  ;;   entry with the given fields.
+  (define (direct-helper-env-availability-summary-has-entry?
+           summary caller callee caller-kind caller-formals caller-layout
+           available needed missing ok?)
+    (for/or ([entry (in-list summary)])
+      (match entry
+        [(list caller0 callee0 caller-kind0 caller-formals0 caller-layout0
+               available0 needed0 missing0 ok0)
+         (and (equal? caller0 caller)
+              (equal? callee0 callee)
+              (eq? caller-kind0 caller-kind)
+              (equal? caller-formals0 caller-formals)
+              (equal? caller-layout0 caller-layout)
+              (equal? available0 available)
+              (equal? needed0 needed)
+              (equal? missing0 missing)
+              (equal? ok0 ok?))]
         [_ #f])))
 
   ;; direct-letrec-summary-base-entry-matches? : list? symbol? symbol? (listof symbol?) (listof symbol?) symbol? -> boolean?
@@ -13186,6 +13279,48 @@
       '()
       'generic-closure
       '(not-direct-candidate non-direct))))
+
+  (let ([summary
+         (direct-helper-env-availability-analysis-summary
+          #'(let ([x 1])
+              (let ([f (lambda () x)])
+                (let ([g (lambda (n)
+                           (if (zero? n)
+                               x
+                               (f)))])
+                  (g 0)))))])
+    (check-true
+     (direct-helper-env-availability-summary-has-entry?
+      summary
+      'g.4
+      'f.2
+      'direct
+      '(n.3)
+      '(f.2 x.1)
+      '(f.2 n.3 x.1)
+      '(x.1)
+      '()
+      #t)))
+
+  (check-true
+   (direct-helper-env-availability-summary-has-entry?
+    (direct-helper-env-availability-analysis-summary
+     #'(let ([x 1])
+         (let ([f (lambda () x)])
+           (let ([g (lambda (n)
+                      (if (zero? n)
+                          0
+                          (f)))])
+             (g 0)))))
+    'g.4
+    'f.2
+    'direct
+    '(n.3)
+    '(f.2)
+    '(f.2 n.3)
+    '(x.1)
+    '(x.1)
+    #f))
 
   (check-true
    (direct-self-binder-summary-has-entry?
