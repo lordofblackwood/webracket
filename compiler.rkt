@@ -15194,10 +15194,12 @@
 (define (closure-conversion T)
   (define labels-ht (make-hasheq))
   (define (add-label! ab) (hash-set! labels-ht ab (new-var "label")))
-  (letv ((T free-ht abs kind-ht _direct-sites-ht _direct-candidate-ht _disqualified-ht
+  (letv ((T free-ht abs kind-ht _direct-sites-ht _direct-candidate-ht disqualified-ht
             binder-ht
             extended-ht direct-callees-ht)
          (closure-conversion-analysis T))
+    (define-values (_base-needs-ht origin-ht)
+      (determine-direct-helper-base-needs! T free-ht abs kind-ht))
     (current-direct-letrec-representation-labels (make-hasheq))
     (current-inline-small-closure-arities (make-hasheq))
     (current-known0-direct-labels (make-hasheq))
@@ -15208,7 +15210,7 @@
     #;(pretty-print free-ht)
     (for ([ab abs])
       (add-label! ab))
-    (finish-closure-conversion T free-ht kind-ht binder-ht extended-ht direct-callees-ht labels-ht)))
+    (finish-closure-conversion T free-ht kind-ht binder-ht extended-ht direct-callees-ht disqualified-ht origin-ht labels-ht)))
 
 (define (closure+primitive? v)
   (or (eq? v 'closure)
@@ -15268,7 +15270,7 @@
     (+ (define-label l cab))))
 
 
-(define-pass finish-closure-conversion : LANF (T free-ht kind-ht binder-ht extended-ht direct-callees-ht labels-ht) -> LANF+closure ()
+(define-pass finish-closure-conversion : LANF (T free-ht kind-ht binder-ht extended-ht direct-callees-ht disqualified-ht origin-ht labels-ht) -> LANF+closure ()
   (definitions
     (define h #'fcc)
     (define (label-of ab) (hash-ref labels-ht ab))
@@ -15422,8 +15424,10 @@
     ;;   Check whether ab fits the first known1-only helper bucket:
     ;;   a non-recursive, fixed-arity, direct helper with one authoritative env
     ;;   value and no remaining closure-identity requirements.
-    (define (known1-only-target-eligible/local? ab)
+    (define (known1-only-deletion-candidate/local? ab)
       (and (known1-target-eligible/local? ab)
+           (eq? (hash-ref origin-ht ab 'other) 'let-values)
+           (not (hash-ref disqualified-ht ab #f))
            (not (nested-lift-sensitive-form-present? ab))
            (let ([x (car (extended-layout-of ab))])
              (and (not (nested-variable-capture-present? ab
@@ -15433,6 +15437,8 @@
                                      (eq? candidate ab)))
                     (and (eq? (kind-of caller) 'direct)
                          (abstraction-provides-variable? caller x)))))))
+    (define (known1-only-target-eligible/local? ab)
+      (known1-only-deletion-candidate/local? ab))
 
     ;; direct-callee-known-abi/local? : any/c -> boolean?
     ;;   Check whether callee can already lower through a known-helper ABI path.
