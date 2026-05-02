@@ -11353,6 +11353,39 @@
             (sort missing symbol<?)
             (null? missing)))))
 
+;; summarize-direct-helper-layout-concepts-closure-conversion-analysis : LANF -> (listof list?)
+;;   Return an analysis-only summary of the current body-layout and closure-env
+;;   concepts for each abstraction.
+;;
+;; This keeps the two layout roles explicit even though they are still backed by
+;; the same current layout computation. The summary also reports each helper's
+;; extended needs so we can see where the current carried layout is already
+;; wider than the Shivers-style target env.
+(define (summarize-direct-helper-layout-concepts-closure-conversion-analysis T)
+  (define (binder-name binder)
+    (match binder
+      [#f #f]
+      [x  (syntax-e (variable-id x))]))
+  (define (symbols-of-id-set xs)
+    (sort (map syntax-e (map variable-id (id-set->list xs))) symbol<?))
+  (define (layout-vars-of ab free-ht kind-ht binder-ht direct-callees-ht)
+    (sort
+     (direct-helper-layout-free-vars ab free-ht kind-ht binder-ht direct-callees-ht)
+     symbol<?))
+  (letv ((T free-ht abs kind-ht _direct-sites-ht _direct-candidate-ht _disqualified-ht
+            binder-ht
+            extended-ht direct-callees-ht)
+         (closure-conversion-analysis T))
+    (for/list ([ab (in-list abs)])
+      (define layout-vars   (layout-vars-of ab free-ht kind-ht binder-ht direct-callees-ht))
+      (define extended-vars (symbols-of-id-set (hash-ref extended-ht ab empty-set)))
+      (list (binder-name (hash-ref binder-ht ab #f))
+            (hash-ref kind-ht ab 'closed)
+            layout-vars    ; current body-layout
+            layout-vars    ; current closure-env
+            extended-vars
+            (equal? layout-vars extended-vars)))))
+
 ;; nested-variable-capture-present? : any/c symbol? -> boolean?
 ;;   Check whether a nested lambda or case-lambda inside ab captures var-sym.
 (define (nested-variable-capture-present? ab var-sym)
@@ -12753,6 +12786,28 @@
               (equal? ok0 ok?))]
         [_ #f])))
 
+  ;; direct-helper-layout-concepts-analysis-summary : syntax? -> (listof list?)
+  ;;   Summarize current body-layout / closure-env concepts for one expression.
+  (define (direct-helper-layout-concepts-analysis-summary stx)
+    (analyze-with-cc-summary stx
+      summarize-direct-helper-layout-concepts-closure-conversion-analysis))
+
+  ;; direct-helper-layout-concepts-summary-has-entry?
+  ;;   : (listof list?) (or/c symbol? #f) symbol? (listof symbol?) (listof symbol?) (listof symbol?) boolean? -> boolean?
+  ;;   Check whether one layout-concepts summary entry matches the given fields.
+  (define (direct-helper-layout-concepts-summary-has-entry?
+           summary binder kind body-layout closure-env extended-needs layout-matches-extended?)
+    (for/or ([entry (in-list summary)])
+      (match entry
+        [(list binder0 kind0 body-layout0 closure-env0 extended-needs0 layout-matches-extended0)
+         (and (equal? binder0 binder)
+              (eq? kind0 kind)
+              (equal? body-layout0 body-layout)
+              (equal? closure-env0 closure-env)
+              (equal? extended-needs0 extended-needs)
+              (equal? layout-matches-extended0 layout-matches-extended?))]
+        [_ #f])))
+
   ;; direct-letrec-summary-base-entry-matches? : list? symbol? symbol? (listof symbol?) (listof symbol?) symbol? -> boolean?
   ;;   Check whether one direct-letrec summary entry matches the shared core fields.
   (define (direct-letrec-summary-base-entry-matches? entry binder kind free-vars links patching-kind)
@@ -13321,6 +13376,34 @@
     '(x.1)
     '(x.1)
     #f))
+
+  (let ([summary
+         (direct-helper-layout-concepts-analysis-summary
+          #'(let ([x 1])
+              (let ([f (lambda () x)])
+                (let ([g (lambda (n)
+                           (if (zero? n)
+                               x
+                               (f)))])
+                  (g 0)))))])
+    (check-true
+     (direct-helper-layout-concepts-summary-has-entry?
+      summary
+      'f.2
+      'direct
+      '(x.1)
+      '(x.1)
+      '(x.1)
+      #t))
+    (check-true
+     (direct-helper-layout-concepts-summary-has-entry?
+      summary
+      'g.4
+      'direct
+      '(f.2 x.1)
+      '(f.2 x.1)
+      '(x.1)
+      #f)))
 
   (check-true
    (direct-self-binder-summary-has-entry?
@@ -14065,9 +14148,10 @@
     (define (direct-self-binder-removable/local? ab)
       (direct-self-binder-removable? ab kind-ht binder-ht))
 
-    ;; layout-free-of : any/c -> (listof variable?)
-    ;;   Return the current closure-layout free variables for ab.
-    (define (layout-free-of ab)
+    ;; current-body-layout-free-of : any/c -> (listof variable?)
+    ;;   Return the variables currently carried as explicit env operands by the
+    ;;   lifted body of ab.
+    (define (current-body-layout-free-of ab)
       (define syms
         (direct-helper-layout-free-vars ab free-ht kind-ht binder-ht direct-callees-ht))
       (filter-map (λ (x)
@@ -14075,15 +14159,23 @@
                       (and (equal? (syntax-e (variable-id y)) x) y)))
                   syms))
 
+    ;; current-closure-env-free-of : any/c -> (listof variable?)
+    ;;   Return the variables currently stored in ab's closure payload.
+    ;;
+    ;; Phase 3 keeps this equal to the lifted body layout on purpose. The
+    ;; concepts are now separate so later phases can let them diverge.
+    (define (current-closure-env-free-of ab)
+      (current-body-layout-free-of ab))
+
     ;; body-layout-of : any/c -> (listof variable?)
     ;;   Return the environment layout currently used by the lifted body of ab.
     (define (body-layout-of ab)
-      (layout-free-of ab))
+      (current-body-layout-free-of ab))
 
     ;; closure-env-of : any/c -> (listof variable?)
     ;;   Return the variables stored in ab's closure record.
     (define (closure-env-of ab)
-      (layout-free-of ab))
+      (current-closure-env-free-of ab))
 
     ;; closure-env-aexprs-of : any/c -> (listof any/c)
     ;;   Convert ab's closure environment variables to closure-converted aexprs.
