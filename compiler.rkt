@@ -15278,27 +15278,31 @@
 
     ;; current-closure-env-free-of : any/c -> (listof variable?)
     ;;   Return the variables currently stored in ab's closure payload.
-    ;;
-    ;; Phase 3 keeps this equal to the lifted body layout on purpose. The
-    ;; concepts are now separate so later phases can let them diverge.
     (define (current-closure-env-free-of ab)
       (current-body-layout-free-of ab))
 
     ;; current-migrated-body-layout-candidates : (parameter/c (listof any/c))
-    ;;   Direct helpers in the current non-recursive group whose lifted body
-    ;;   may use `extended-layout-of` instead of the old carried layout.
+    ;;   Direct helpers in the current non-recursive group whose lifted bodies
+    ;;   use `extended-layout-of` as their carried body layout. This affects
+    ;;   lifted-body free-var indexing only; closure payload layout is still
+    ;;   described separately by `closure-env-of`.
     (define current-migrated-body-layout-candidates
       (make-parameter '()))
 
     ;; migrated-body-layout-candidate? : any/c -> boolean?
-    ;;   Check whether ab is selected for the narrow phase-7 body-layout
-    ;;   migration in the current non-recursive group.
+    ;;   Check whether ab is one of the direct helpers whose lifted body uses
+    ;;   `extended-layout-of` in the current non-recursive group.
     (define (migrated-body-layout-candidate? ab)
       (candidate-abstraction-label-member? ab
                                            (current-migrated-body-layout-candidates)))
 
     ;; body-layout-of : any/c -> (listof variable?)
-    ;;   Return the environment layout currently used by the lifted body of ab.
+    ;;   Return the environment layout used by the lifted body of ab.
+    ;;
+    ;; For most helpers this is the current carried layout. For selected direct
+    ;; helpers it is `extended-layout-of`, so lifted-body env references follow
+    ;; the propagated direct-helper env view instead of the older closure-shaped
+    ;; layout.
     (define (body-layout-of ab)
       (if (migrated-body-layout-candidate? ab)
           (extended-layout-of ab)
@@ -15306,6 +15310,10 @@
 
     ;; closure-env-of : any/c -> (listof variable?)
     ;;   Return the variables stored in ab's closure record.
+    ;;
+    ;; This is the closure payload layout used by closure allocation and the
+    ;; ordinary closure-backed ABI. It is intentionally distinct from
+    ;; `body-layout-of`, which describes the lifted body's env view.
     (define (closure-env-of ab)
       (current-closure-env-free-of ab))
 
@@ -15410,7 +15418,8 @@
 
     ;; migrated-body-layout-target-eligible/raw? : any/c -> boolean?
     ;;   Check whether ab can use `extended-layout-of` as its lifted body
-    ;;   layout in the narrow phase-7 migration.
+    ;;   layout without changing closure payload layout or ordinary closure
+    ;;   calling paths.
     ;;
     ;; We keep this deliberately small:
     ;; - direct, fixed-arity, non-recursive
