@@ -14058,6 +14058,7 @@
     (current-known0-only-labels (make-hasheq))
     (current-known1-direct-labels (make-hasheq))
     (current-known1-only-labels (make-hasheq))
+    (current-known1-wrapper-env-indices (make-hasheq))
     #;(pretty-print free-ht)
     (for ([ab abs])
       (add-label! ab))
@@ -14173,10 +14174,25 @@
     (define (current-closure-env-free-of ab)
       (current-body-layout-free-of ab))
 
+    ;; current-migrated-body-layout-candidates : (parameter/c (listof any/c))
+    ;;   Direct helpers in the current non-recursive group whose lifted body
+    ;;   may use `extended-layout-of` instead of the old carried layout.
+    (define current-migrated-body-layout-candidates
+      (make-parameter '()))
+
+    ;; migrated-body-layout-candidate? : any/c -> boolean?
+    ;;   Check whether ab is selected for the narrow phase-7 body-layout
+    ;;   migration in the current non-recursive group.
+    (define (migrated-body-layout-candidate? ab)
+      (candidate-abstraction-label-member? ab
+                                           (current-migrated-body-layout-candidates)))
+
     ;; body-layout-of : any/c -> (listof variable?)
     ;;   Return the environment layout currently used by the lifted body of ab.
     (define (body-layout-of ab)
-      (current-body-layout-free-of ab))
+      (if (migrated-body-layout-candidate? ab)
+          (extended-layout-of ab)
+          (current-body-layout-free-of ab)))
 
     ;; closure-env-of : any/c -> (listof variable?)
     ;;   Return the variables stored in ab's closure record.
@@ -14244,14 +14260,17 @@
     ;; known1-target-eligible/local? : any/c -> boolean?
     ;;   Check whether ab fits the unary known-helper ABI bucket:
     ;;   fixed-arity direct helper with exactly one authoritative env value and
-    ;;   exactly one currently carried body-layout value.
+    ;;   exactly one currently carried body-layout value, where the ordinary
+    ;;   closure-backed wrapper can still source that env from closure payload.
     (define (known1-target-eligible/local? ab)
       (and (current-enable-cc-analysis?)
            (eq? (kind-of ab) 'direct)
            (abstraction-fixed-arity? ab)
            (not (direct-self-recursive? ab free-ht binder-ht))
            (= (length (extended-layout-of ab)) 1)
-           (= (length (body-layout-of ab)) 1)))
+           (= (length (body-layout-of ab)) 1)
+           (let ([x (car (extended-layout-of ab))])
+             (index-of x (closure-env-of ab)))))
 
     ;; known1-only-target-eligible/local? : any/c -> boolean?
     ;;   Check whether ab fits the first known1-only helper bucket:
@@ -14268,6 +14287,32 @@
                                      (eq? candidate ab)))
                     (and (eq? (kind-of caller) 'direct)
                          (abstraction-provides-variable? caller x)))))))
+
+    ;; direct-callee-known-abi/local? : any/c -> boolean?
+    ;;   Check whether callee can already lower through a known-helper ABI path.
+    (define (direct-callee-known-abi/local? callee)
+      (or (known0-target-eligible/local? callee)
+          (known1-target-eligible/local? callee)))
+
+    ;; migrated-body-layout-target-eligible/raw? : any/c -> boolean?
+    ;;   Check whether ab can use `extended-layout-of` as its lifted body
+    ;;   layout in the narrow phase-7 migration.
+    ;;
+    ;; We keep this deliberately small:
+    ;; - direct, fixed-arity, non-recursive
+    ;; - empty propagated env
+    ;; - no nested lift-sensitive forms
+    ;; - every direct callee already has a known-helper ABI path, so dropping
+    ;;   carried helper binders does not force ordinary `directapp` fallback
+    (define (migrated-body-layout-target-eligible/raw? ab)
+      (and (current-enable-cc-analysis?)
+           (eq? (kind-of ab) 'direct)
+           (abstraction-fixed-arity? ab)
+           (not (direct-self-recursive? ab free-ht binder-ht))
+           (not (nested-lift-sensitive-form-present? ab))
+           (zero? (length (extended-layout-of ab)))
+           (for/and ([callee (in-list (hash-ref direct-callees-ht ab '()))])
+             (direct-callee-known-abi/local? callee))))
 
     ;; direct-letrec-representation-eligible/local? : any/c -> boolean?
     ;;   Check whether ab fits the currently enabled tiny direct-letrec
@@ -14623,28 +14668,41 @@
      (define pairs (reverse (clause-direct-bindings x ce*)))
      (define xs    (map car pairs))
      (define abs   (map cdr pairs))
-     (define known0-only-pairs
+     (define migrated-body-layout-pairs
        (for/list ([pair (in-list pairs)]
-                  #:when (known0-only-target-eligible/local? (cdr pair)))
+                  #:when (migrated-body-layout-target-eligible/raw? (cdr pair)))
          pair))
+     (define migrated-body-layout-abs (map cdr migrated-body-layout-pairs))
+     (define known0-only-pairs
+       (parameterize ([current-migrated-body-layout-candidates
+                       migrated-body-layout-abs])
+         (for/list ([pair (in-list pairs)]
+                    #:when (known0-only-target-eligible/local? (cdr pair)))
+           pair)))
      (define known0-only-xs  (map car known0-only-pairs))
      (define known0-only-abs (map cdr known0-only-pairs))
      (define known0-pairs
-       (for/list ([pair (in-list pairs)]
-                  #:when (known0-target-eligible/local? (cdr pair)))
-         pair))
+       (parameterize ([current-migrated-body-layout-candidates
+                       migrated-body-layout-abs])
+         (for/list ([pair (in-list pairs)]
+                    #:when (known0-target-eligible/local? (cdr pair)))
+           pair)))
      (define known0-xs  (map car known0-pairs))
      (define known0-abs (map cdr known0-pairs))
      (define known1-pairs
-       (for/list ([pair (in-list pairs)]
-                  #:when (known1-target-eligible/local? (cdr pair)))
-         pair))
+       (parameterize ([current-migrated-body-layout-candidates
+                       migrated-body-layout-abs])
+         (for/list ([pair (in-list pairs)]
+                    #:when (known1-target-eligible/local? (cdr pair)))
+           pair)))
      (define known1-xs  (map car known1-pairs))
      (define known1-abs (map cdr known1-pairs))
      (define known1-only-pairs
-       (for/list ([pair (in-list pairs)]
-                  #:when (known1-only-target-eligible/local? (cdr pair)))
-         pair))
+       (parameterize ([current-migrated-body-layout-candidates
+                       migrated-body-layout-abs])
+         (for/list ([pair (in-list pairs)]
+                    #:when (known1-only-target-eligible/local? (cdr pair)))
+           pair)))
      (define known1-only-xs  (map car known1-only-pairs))
      (define known1-only-abs (map cdr known1-only-pairs))
      (define (known0-only-clause? xs ce)
@@ -14662,7 +14720,8 @@
                  (id=? x y)))]
          [_ #f]))
      (define ce**
-       (parameterize ([current-known0-only-candidates known0-only-abs]
+       (parameterize ([current-migrated-body-layout-candidates migrated-body-layout-abs]
+                      [current-known0-only-candidates known0-only-abs]
                       [current-known1-only-candidates known1-only-abs])
          (for/list ([xs (in-list x)]
                     [ce (in-list ce*)])
@@ -14687,6 +14746,8 @@
         ([(,x ...) ,ce**] ...)
         ,(parameterize ([current-direct-env
                          (env-bind* (current-direct-env) xs abs)]
+                        [current-migrated-body-layout-candidates
+                         migrated-body-layout-abs]
                         [current-known0-only-env
                          (env-bind* (current-known0-only-env)
                                     known0-only-xs
@@ -14731,7 +14792,11 @@
      (when (known1-target-eligible/local? AB)
        (hash-set! (current-known1-direct-labels)
                   (syntax-e (variable-id l))
-                  #t))
+                  #t)
+       (define env-var (car (extended-layout-of AB)))
+       (hash-set! (current-known1-wrapper-env-indices)
+                  (syntax-e (variable-id l))
+                  (index-of env-var (closure-env-of AB))))
      (when (and (known1-only-target-eligible/local? AB)
                 (candidate-abstraction-label-member? AB
                                                     (current-known1-only-candidates)))
@@ -15173,6 +15238,7 @@
 (define current-known0-only-labels (make-parameter (make-hasheq)))
 (define current-known1-direct-labels (make-parameter (make-hasheq)))
 (define current-known1-only-labels (make-parameter (make-hasheq)))
+(define current-known1-wrapper-env-indices (make-parameter (make-hasheq)))
 (define (reset-label-map!)
   (current-label-map '())
   (current-label-form-ht (make-hash))
@@ -15255,6 +15321,10 @@
       (hash-ref (current-known1-only-labels)
                 (syntax-e (variable-id l))
                 #f))
+    (define (known1-wrapper-env-index l)
+      (hash-ref (current-known1-wrapper-env-indices)
+                (syntax-e (variable-id l))
+                0))
     (define (known0-code-label l)
       (string->symbol (~a (Label l) ".known0")))
     (define (known1-code-label l)
@@ -17293,15 +17363,32 @@
      (define inline-small-arity
        (inline-small-closure-arity-label l))
      (define (known1-wrapper-func)
+       (define env-index
+         (known1-wrapper-env-index l))
        (define env0
-         (case inline-small-arity
-           [(1)
+         (match (list inline-small-arity env-index)
+           [(list 1 0)
             '(struct.get $Closure1 $free0
                          (ref.cast (ref $Closure1) (local.get $clos)))]
-           [else
-            '(array.get $Free
+           [(list 2 0)
+            '(struct.get $Closure2 $free0
+                         (ref.cast (ref $Closure2) (local.get $clos)))]
+           [(list 2 1)
+            '(struct.get $Closure2 $free1
+                         (ref.cast (ref $Closure2) (local.get $clos)))]
+           [(list 3 0)
+            '(struct.get $Closure3 $free0
+                         (ref.cast (ref $Closure3) (local.get $clos)))]
+           [(list 3 1)
+            '(struct.get $Closure3 $free1
+                         (ref.cast (ref $Closure3) (local.get $clos)))]
+           [(list 3 2)
+            '(struct.get $Closure3 $free2
+                         (ref.cast (ref $Closure3) (local.get $clos)))]
+           [_
+            `(array.get $Free
                         (struct.get $Closure $free (local.get $clos))
-                        (i32.const 0))]))
+                        (i32.const ,env-index))]))
        `(func ,(Label l)
               (export ,(~a (syntax-e (variable-id l))))
               (type $ClosureCode)
@@ -18992,8 +19079,8 @@
                          (let ([g (lambda () (f 1))])
                            (g)))))])
     (check-true (module-has-known0-label-call? mod))
-    (check-true (> (module-count-base-label-funcs mod) 0))
-    (check-true (module-has-local-closure-allocation? mod)))
+    (check-equal? (module-count-base-label-funcs mod) 0)
+    (check-false (module-has-local-closure-allocation? mod)))
 
   (check-true
    (closure-converted-has-known1app? #'(let ([x 1])
