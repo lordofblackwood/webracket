@@ -11614,6 +11614,207 @@
             direct-out-degree
             (blockers-of ab)))))
 
+;; summarize-direct-helper-known2-frontier-closure-conversion-analysis : LANF
+;;                                                                  -> (listof list?)
+;;   Return an analysis-only summary of binary-env direct-helper cases,
+;;   focusing on whether a strictly sibling-only `known2` ABI looks safe.
+(define (summarize-direct-helper-known2-frontier-closure-conversion-analysis T)
+  (define (label-name labels-ht ab)
+    (syntax-e (variable-id (hash-ref labels-ht ab))))
+  (define (binder-name binder)
+    (match binder
+      [#f #f]
+      [x  (syntax-e (variable-id x))]))
+  (define (sorted-vars xs)
+    (sort xs symbol<?))
+  (define (symbols-of-id-set xs)
+    (sorted-vars (map syntax-e (map variable-id (id-set->list xs)))))
+  (define (symbols-of-formals f)
+    (sorted-vars
+     (map syntax-e
+          (map variable-id
+               (formals->variables f)))))
+  (define (index-of x free)
+    (index-where free (λ (y) (equal? x y))))
+  (define (formals->variables f)
+    (nanopass-case (LANF Formals) f
+      [(formals (,x ...))            x]
+      [(formals (,x0 ,x1 ... . ,xd)) (cons x0 (append x1 (list xd)))]
+      [(formals ,x)                  (list x)]))
+  (define (abstraction-formals ab)
+    (nanopass-case (LANF AExpr) ab
+      [(λ ,s ,f ,e) f]
+      [else (error 'summarize-direct-helper-known2-frontier
+                   "expected abstraction, got ~a" ab)]))
+  (define (plain-lambda? ab)
+    (nanopass-case (LANF AExpr) ab
+      [(λ ,s ,f ,e) #t]
+      [else #f]))
+  (define (abstraction-formals/safe ab)
+    (and (plain-lambda? ab)
+         (abstraction-formals ab)))
+  (define (abstraction-fixed-arity?/safe ab)
+    (and (plain-lambda? ab)
+         (abstraction-fixed-arity? ab)))
+  (define (available-from-caller? caller env-vars current-body-layout-ht)
+    (define caller-formals
+      (match (abstraction-formals/safe caller)
+        [#f '()]
+        [f  (symbols-of-formals f)]))
+    (define available
+      (remove-duplicates
+       (append (hash-ref current-body-layout-ht caller '())
+               caller-formals)
+       equal?))
+    (for/and ([x (in-list env-vars)])
+      (for/or ([y (in-list available)])
+        (equal? x y))))
+  (letv ((T free-ht abs kind-ht _direct-sites-ht _direct-candidate-ht disqualified-ht
+            binder-ht
+            extended-ht direct-callees-ht)
+         (closure-conversion-analysis T))
+    (define-values (_base-needs-ht origin-ht)
+      (determine-direct-helper-base-needs! T free-ht abs kind-ht))
+    (define labels-ht (make-hasheq))
+    (for ([ab (in-list abs)])
+      (hash-set! labels-ht ab (new-var "label")))
+    (define closure-env-vars-ht (make-hasheq))
+    (for ([ab (in-list abs)])
+      (hash-set! closure-env-vars-ht
+                 ab
+                 (if (eq? (hash-ref kind-ht ab 'closed) 'direct)
+                     (direct-helper-layout-free-vars ab free-ht kind-ht binder-ht direct-callees-ht)
+                     (id-set->list (hash-ref free-ht ab empty-set)))))
+    (define current-body-layout-ht (make-hasheq))
+    (for ([ab (in-list abs)])
+      (hash-set! current-body-layout-ht ab (hash-ref closure-env-vars-ht ab '())))
+    (define (current-body-layout-of ab)
+      (hash-ref current-body-layout-ht ab '()))
+    (define (closure-env-of ab)
+      (hash-ref closure-env-vars-ht ab '()))
+    (define (extended-layout-of ab)
+      (symbols-of-id-set (hash-ref extended-ht ab empty-set)))
+    (define (direct-self-recursive? ab)
+      (let ([binder (hash-ref binder-ht ab #f)])
+        (and binder
+             (for/or ([x (in-list (symbols-of-id-set (hash-ref free-ht ab empty-set)))])
+               (equal? x (syntax-e (variable-id binder)))))))
+    (define (known0-current? ab)
+      (and (eq? (hash-ref kind-ht ab 'closed) 'direct)
+           (abstraction-fixed-arity?/safe ab)
+           (not (direct-self-recursive? ab))
+           (null? (extended-layout-of ab))
+           (null? (current-body-layout-of ab))))
+    (define (known1-current? ab)
+      (and (eq? (hash-ref kind-ht ab 'closed) 'direct)
+           (abstraction-fixed-arity?/safe ab)
+           (not (direct-self-recursive? ab))
+           (= (length (extended-layout-of ab)) 1)
+           (= (length (current-body-layout-of ab)) 1)
+           (let ([x (car (extended-layout-of ab))])
+             (index-of x (closure-env-of ab)))))
+    (define (callee-known-abi-current? callee)
+      (or (known0-current? callee)
+          (known1-current? callee)))
+    (define changed? #t)
+    (let loop ()
+      (when changed?
+        (set! changed? #f)
+        (for ([ab (in-list abs)]
+              #:when (eq? (hash-ref kind-ht ab 'closed) 'direct))
+          (when (and (current-enable-cc-analysis?)
+                     (abstraction-fixed-arity?/safe ab)
+                     (not (direct-self-recursive? ab))
+                     (not (nested-lift-sensitive-form-present? ab))
+                     (zero? (length (extended-layout-of ab)))
+                     (for/and ([callee (in-list (hash-ref direct-callees-ht ab '()))])
+                       (callee-known-abi-current? callee)))
+            (unless (equal? (current-body-layout-of ab) (extended-layout-of ab))
+              (hash-set! current-body-layout-ht ab (extended-layout-of ab))
+              (set! changed? #t)))))
+        (when changed?
+          (loop)))
+    (define incoming-callers-ht (make-hasheq))
+    (for ([ab (in-list abs)])
+      (hash-set! incoming-callers-ht ab '()))
+    (for ([(caller callees) (in-hash direct-callees-ht)])
+      (for ([callee (in-list callees)])
+        (hash-set! incoming-callers-ht
+                   callee
+                   (cons caller (hash-ref incoming-callers-ht callee '())))))
+    (define (nested-capture-vars-of ab)
+      (for/list ([x (in-list (extended-layout-of ab))]
+                 #:when (nested-variable-capture-present? ab x))
+        x))
+    (define (direct-caller-binders-of ab)
+      (sorted-vars
+       (filter values
+               (map (λ (caller)
+                      (binder-name (hash-ref binder-ht caller #f)))
+                    (hash-ref incoming-callers-ht ab '())))))
+    (define (all-callers-can-source-both-envs? ab)
+      (for/and ([caller (in-list (hash-ref incoming-callers-ht ab '()))])
+        (and (eq? (hash-ref kind-ht caller 'closed) 'direct)
+             (available-from-caller? caller
+                                     (extended-layout-of ab)
+                                     current-body-layout-ht))))
+    (define (extended-needs-in-closure-env? ab)
+      (for/and ([x (in-list (extended-layout-of ab))])
+        (index-of x (closure-env-of ab))))
+    (define (would-be-sibling-only-safe? ab)
+      (and (eq? (hash-ref kind-ht ab 'closed) 'direct)
+           (abstraction-fixed-arity?/safe ab)
+           (not (direct-self-recursive? ab))
+           (not (eq? (hash-ref origin-ht ab 'other) 'letrec-values))
+           (not (hash-ref disqualified-ht ab #f))
+           (plain-lambda? ab)
+           (not (nested-lift-sensitive-form-present? ab))
+           (null? (nested-capture-vars-of ab))
+           (equal? (current-body-layout-of ab) (extended-layout-of ab))
+           (extended-needs-in-closure-env? ab)
+           (all-callers-can-source-both-envs? ab)))
+    (define (blockers-of ab)
+      (append
+       (if (eq? (hash-ref kind-ht ab 'closed) 'direct) '() '(non-direct))
+       (if (abstraction-fixed-arity?/safe ab) '() '(non-fixed-arity))
+       (if (hash-ref disqualified-ht ab #f) '(value-use) '())
+       (if (eq? (hash-ref origin-ht ab 'other) 'letrec-values) '(letrec) '())
+       (if (direct-self-recursive? ab) '(recursive) '())
+       (if (plain-lambda? ab) '() '(case-lambda))
+       (if (nested-lift-sensitive-form-present? ab) '(nested-lift-sensitive) '())
+       (if (null? (nested-capture-vars-of ab)) '() '(nested-capture))
+       (if (equal? (current-body-layout-of ab) (extended-layout-of ab))
+           '()
+           '(layout-mismatch))
+       (if (extended-needs-in-closure-env? ab)
+           '()
+           '(env-not-in-closure))
+       (if (all-callers-can-source-both-envs? ab)
+           '()
+           '(unavailable-env))))
+    (for/list ([ab (in-list abs)]
+               #:when (= (length (extended-layout-of ab)) 2))
+      (list (label-name labels-ht ab)
+            (binder-name (hash-ref binder-ht ab #f))
+            (hash-ref origin-ht ab 'other)
+            (abstraction-fixed-arity?/safe ab)
+            (eq? (hash-ref kind-ht ab 'closed) 'direct)
+            (hash-ref disqualified-ht ab #f)
+            (direct-self-recursive? ab)
+            (eq? (hash-ref origin-ht ab 'other) 'letrec-values)
+            (plain-lambda? ab)
+            (nested-lift-sensitive-form-present? ab)
+            (nested-capture-vars-of ab)
+            (current-body-layout-of ab)
+            (closure-env-of ab)
+            (extended-layout-of ab)
+            (equal? (current-body-layout-of ab) (extended-layout-of ab))
+            (extended-needs-in-closure-env? ab)
+            (direct-caller-binders-of ab)
+            (all-callers-can-source-both-envs? ab)
+            (would-be-sibling-only-safe? ab)
+            (blockers-of ab)))))
+
 ;; nested-variable-capture-present? : any/c symbol? -> boolean?
 ;;   Check whether a nested lambda or case-lambda inside ab captures var-sym.
 (define (nested-variable-capture-present? ab var-sym)
@@ -13026,6 +13227,12 @@
     (analyze-with-cc-summary stx
       summarize-direct-helper-payoff-frontier-closure-conversion-analysis))
 
+  ;; direct-helper-known2-frontier-analysis-summary : syntax? -> (listof list?)
+  ;;   Summarize binary-env helper cases for a strictly sibling-only `known2`.
+  (define (direct-helper-known2-frontier-analysis-summary stx)
+    (analyze-with-cc-summary stx
+      summarize-direct-helper-known2-frontier-closure-conversion-analysis))
+
   ;; direct-helper-layout-concepts-summary-has-entry?
   ;;   : (listof list?) (or/c symbol? #f) symbol? (listof symbol?) (listof symbol?) (listof symbol?) boolean? -> boolean?
   ;;   Check whether one layout-concepts summary entry matches the given fields.
@@ -13076,6 +13283,56 @@
               (equal? in-degree0 in-degree)
               (equal? out-degree0 out-degree)
               (equal? blockers0 blockers))]
+        [_ #f])))
+
+  ;; direct-helper-known2-frontier-summary-has-entry?
+  ;;   : (listof list?) (or/c symbol? #f) symbol? boolean? boolean? boolean?
+  ;;     boolean? boolean? (listof symbol?) (listof symbol?) (listof symbol?)
+  ;;     boolean? boolean? (listof symbol?) boolean? boolean? (listof symbol?) -> boolean?
+  ;;   Check whether one binary-frontier summary entry matches the given fields.
+  (define (direct-helper-known2-frontier-summary-has-entry?
+           summary binder origin fixed-arity? direct? value-use?
+           self-recursive? letrec? nested-capture-vars
+           current-body-layout closure-env extended-needs
+           body-layout-equals-extended? extended-needs-in-closure-env?
+           incoming-direct-callers all-callers-can-source-both-envs?
+           would-be-sibling-only-safe? blockers)
+    (define (symbol-like=? a b)
+      (cond
+        [(and (symbol? a) (symbol? b))
+         (equal? (symbol->string a) (symbol->string b))]
+        [else
+         (equal? a b)]))
+    (define (symbol-like-list=? xs ys)
+      (and (= (length xs) (length ys))
+           (for/and ([x (in-list xs)]
+                     [y (in-list ys)])
+             (symbol-like=? x y))))
+    (for/or ([entry (in-list summary)])
+      (match entry
+        [(list _label binder0 origin0 fixed-arity0 direct0 value-use0
+               self-recursive0 letrec0 _plain-lambda0 _nested-lift-sensitive0 nested-capture-vars0
+               current-body-layout0 closure-env0 extended-needs0
+               body-layout-equals-extended0 extended-needs-in-closure-env0
+               incoming-direct-callers0 all-callers-can-source-both-envs0
+               would-be-sibling-only-safe0 blockers0)
+         (and (symbol-like=? binder0 binder)
+              (eq? origin0 origin)
+              (equal? fixed-arity0 fixed-arity?)
+              (equal? direct0 direct?)
+              (equal? value-use0 value-use?)
+              (equal? self-recursive0 self-recursive?)
+              (equal? letrec0 letrec?)
+              (symbol-like-list=? nested-capture-vars0 nested-capture-vars)
+              (symbol-like-list=? current-body-layout0 current-body-layout)
+              (symbol-like-list=? closure-env0 closure-env)
+              (symbol-like-list=? extended-needs0 extended-needs)
+              (equal? body-layout-equals-extended0 body-layout-equals-extended?)
+              (equal? extended-needs-in-closure-env0 extended-needs-in-closure-env?)
+              (symbol-like-list=? incoming-direct-callers0 incoming-direct-callers)
+              (equal? all-callers-can-source-both-envs0 all-callers-can-source-both-envs?)
+              (equal? would-be-sibling-only-safe0 would-be-sibling-only-safe?)
+              (symbol-like-list=? blockers0 blockers))]
         [_ #f])))
 
   ;; direct-letrec-summary-base-entry-matches? : list? symbol? symbol? (listof symbol?) (listof symbol?) symbol? -> boolean?
@@ -13774,6 +14031,179 @@
     1
     1
     '(letrec recursive))))
+
+  (let ([summary
+         (direct-helper-known2-frontier-analysis-summary
+          #'(let ([x 1]
+                   [z 10])
+              (let ([f (lambda (y) (+ x y z))])
+                (f 2))))])
+    (check-true
+     (direct-helper-known2-frontier-summary-has-entry?
+      summary
+      'f.4
+      'let-values
+      #t
+      #t
+      #f
+      #f
+      #f
+      '()
+      '(z.2 x.1)
+      '(z.2 x.1)
+      '(x.1 z.2)
+      #f
+      0
+      '()
+      #t
+      #f
+      '(layout-mismatch))))
+
+  (let ([summary
+         (direct-helper-known2-frontier-analysis-summary
+          #'(let ([x 1]
+                   [z 10])
+              (let ([f (lambda () (+ x z))])
+                (let ([g (lambda () (f))])
+                  (g)))))])
+    (check-true
+     (direct-helper-known2-frontier-summary-has-entry?
+      summary
+      'f.3
+      'let-values
+      #t
+      #t
+      #f
+      #f
+      #f
+      '()
+      '(z.2 x.1)
+      '(z.2 x.1)
+      '(x.1 z.2)
+      #f
+      0
+      '(g.4)
+      #f
+      #f
+      '(layout-mismatch unavailable-env))))
+
+  (let ([summary
+         (direct-helper-known2-frontier-analysis-summary
+          #'(let ([x 1]
+                   [z 10])
+              (let ([f (lambda (y)
+                         ((lambda () (+ x z y))))])
+                (f 2))))])
+    (check-true
+     (direct-helper-known2-frontier-summary-has-entry?
+      summary
+      'f.4
+      'let-values
+      #t
+      #t
+      #f
+      #f
+      #f
+      '()
+      '(z.2 x.1)
+      '(z.2 x.1)
+      '(x.1 z.2)
+      #f
+      0
+      '()
+      #t
+      #f
+      '(layout-mismatch))))
+
+  (let ([summary
+         (direct-helper-known2-frontier-analysis-summary
+          #'(letrec ([f (lambda (y)
+                          (+ x y z))]
+                     [x 1]
+                     [z 10])
+              (f 2)))])
+    (check-true
+     (direct-helper-known2-frontier-summary-has-entry?
+      summary
+      'f.1
+      'let-values
+      #t
+      #t
+      #f
+      #f
+      #f
+      '()
+      '(z.3 x.2)
+      '(z.3 x.2)
+      '(x.2 z.3)
+      #f
+      0
+      '()
+      #t
+      #f
+      '(layout-mismatch))))
+
+  (let ([summary
+         (direct-helper-known2-frontier-analysis-summary
+          #'(let ([x 1]
+                   [z 10])
+              (let ([f (lambda (y) (+ x y z))])
+                f)))])
+    (check-true
+     (for/or ([entry (in-list summary)])
+       (match entry
+         [(list _ #f 'other #t #f #f #f #f #t #f '()
+                _ _ _ #f #f '() #t #f
+                '(non-direct layout-mismatch env-not-in-closure))
+          #t]
+         [_ #f]))))
+
+  (let ([summary
+         (direct-helper-known2-frontier-analysis-summary
+          #'(let ([x 1]
+                   [z 10])
+              (let ([f (case-lambda
+                         [(y) (+ x y z)]
+                         [() 0])])
+                (f 2))))])
+    (check-true
+     (for/or ([entry (in-list summary)])
+       (match entry
+         [(list _ #f 'other #t #f #f #f #f #t #f '()
+                _ _ _ #f #f '() #t #f
+                '(non-direct layout-mismatch env-not-in-closure))
+          #t]
+         [_ #f]))))
+
+  (let ([summary
+         (direct-helper-known2-frontier-analysis-summary
+          #'(let ([x 1]
+                   [z 10])
+              (let ([f (case-lambda
+                         [() 0]
+                         [(a b) (+ a b)])])
+                (let ([g (lambda (y) (if #t (+ x z y) (f 1 2)))])
+                  (g 3)))) )])
+    (check-true
+     (direct-helper-known2-frontier-summary-has-entry?
+      summary
+      'g.7
+      'let-values
+      #t
+      #t
+      #f
+      #f
+      #f
+      '()
+      '(z.2 x.1)
+      '(z.2 x.1)
+      '(x.1 z.2)
+      #f
+      0
+      '()
+      #t
+      #f
+      '(layout-mismatch))))
 
   (check-true
    (direct-self-binder-summary-has-entry?
