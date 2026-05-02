@@ -11423,11 +11423,21 @@
     (nanopass-case (LANF AExpr) ab
       [(λ ,s ,f ,e) #t]
       [else #f]))
+  (define (abstraction-formals/safe ab)
+    (and (plain-lambda? ab)
+         (abstraction-formals ab)))
+  (define (abstraction-fixed-arity?/safe ab)
+    (and (plain-lambda? ab)
+         (abstraction-fixed-arity? ab)))
   (define (available-from-caller? caller env-vars current-body-layout-ht)
+    (define caller-formals
+      (match (abstraction-formals/safe caller)
+        [#f '()]
+        [f  (symbols-of-formals f)]))
     (define available
       (remove-duplicates
        (append (hash-ref current-body-layout-ht caller '())
-               (symbols-of-formals (abstraction-formals caller)))
+               caller-formals)
        equal?))
     (for/and ([x (in-list env-vars)])
       (for/or ([y (in-list available)])
@@ -11468,13 +11478,13 @@
                (equal? x (syntax-e (variable-id binder)))))))
     (define (known0-current? ab)
       (and (eq? (hash-ref kind-ht ab 'closed) 'direct)
-           (abstraction-fixed-arity? ab)
+           (abstraction-fixed-arity?/safe ab)
            (not (direct-self-recursive? ab))
            (null? (extended-layout-of ab))
            (null? (current-body-layout-of ab))))
     (define (known1-current? ab)
       (and (eq? (hash-ref kind-ht ab 'closed) 'direct)
-           (abstraction-fixed-arity? ab)
+           (abstraction-fixed-arity?/safe ab)
            (not (direct-self-recursive? ab))
            (= (length (extended-layout-of ab)) 1)
            (= (length (current-body-layout-of ab)) 1)
@@ -11490,7 +11500,7 @@
         (for ([ab (in-list abs)]
               #:when (eq? (hash-ref kind-ht ab 'closed) 'direct))
           (when (and (current-enable-cc-analysis?)
-                     (abstraction-fixed-arity? ab)
+                     (abstraction-fixed-arity?/safe ab)
                      (not (direct-self-recursive? ab))
                      (not (nested-lift-sensitive-form-present? ab))
                      (zero? (length (extended-layout-of ab)))
@@ -11514,7 +11524,7 @@
         [(known0-current? ab) 'known0]
         [(known1-current? ab) 'known1]
         [(and (eq? (hash-ref kind-ht ab 'closed) 'direct)
-              (abstraction-fixed-arity? ab)
+              (abstraction-fixed-arity?/safe ab)
               (not (direct-self-recursive? ab))
               (= (length (extended-layout-of ab)) 2))
          'possible-known2]
@@ -11591,7 +11601,7 @@
             (binder-name (hash-ref binder-ht ab #f))
             (hash-ref kind-ht ab 'closed)
             (hash-ref origin-ht ab 'other)
-            (abstraction-fixed-arity? ab)
+            (abstraction-fixed-arity?/safe ab)
             (length current-body-layout-vars)
             (length current-closure-env-vars)
             (length extended-layout-vars)
