@@ -14255,21 +14255,19 @@
 
     ;; known1-only-target-eligible/local? : any/c -> boolean?
     ;;   Check whether ab fits the first known1-only helper bucket:
-    ;;   a non-recursive, fixed-arity, direct helper whose body is just
-    ;;   the captured environment variable.
+    ;;   a non-recursive, fixed-arity, direct helper with one authoritative env
+    ;;   value and no remaining closure-identity requirements.
     (define (known1-only-target-eligible/local? ab)
       (and (known1-target-eligible/local? ab)
            (not (nested-lift-sensitive-form-present? ab))
-           (not (known-helper-complex-body-present? ab))
            (let ([x (car (extended-layout-of ab))])
              (and (not (nested-variable-capture-present? ab
                                                          (syntax-e (variable-id x))))
-                  (known1-body-is-direct-env-ref-only? ab
-                                                       (syntax-e (variable-id x)))
                   (for/and ([(caller callees) (in-hash direct-callees-ht)]
                             #:when (for/or ([candidate (in-list callees)])
                                      (eq? candidate ab)))
-                    (abstraction-provides-variable? caller x))))))
+                    (and (eq? (kind-of caller) 'direct)
+                         (abstraction-provides-variable? caller x)))))))
 
     ;; direct-letrec-representation-eligible/local? : any/c -> boolean?
     ;;   Check whether ab fits the currently enabled tiny direct-letrec
@@ -19476,7 +19474,9 @@
                (comp #'(let ([x 1])
                          (let ([f (lambda (y) (+ x y))])
                            (f 2)))))])
-    (check-true (module-has-known1-label-call? mod)))
+    (check-true (module-has-known1-label-call? mod))
+    (check-false (module-has-local-closure-allocation? mod))
+    (check-false (module-has-known1-base-sibling? mod)))
 
   (check-true
    (closure-converted-has-direct0app? #'(letrec ([loop (lambda (n)
