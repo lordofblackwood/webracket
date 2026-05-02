@@ -12068,44 +12068,6 @@
     [else
      #f]))
 
-;; known-helper-complex-body-present? : any/c -> boolean?
-;;   Check whether ab contains control/binding forms that currently make the
-;;   known-helper env ABI too fragile to use safely.
-(define (known-helper-complex-body-present? ab)
-  (define (sexp-any? pred x)
-    (or (pred x)
-        (cond
-          [(pair? x)
-           (or (sexp-any? pred (car x))
-               (sexp-any? pred (cdr x)))]
-          [(vector? x)
-           (for/or ([e (in-vector x)])
-             (sexp-any? pred e))]
-          [else
-           #f])))
-  (define (complex-form? x)
-    (match x
-      [(list 'let-values _ _ ...) #t]
-      [(list 'letrec-values _ _ _ ...) #t]
-      [(list 'set! _ _ _) #t]
-      [(list 'begin0 _ _ ...) #t]
-      [(list 'wcm _ _ _ _) #t]
-      [_ #f]))
-  (nanopass-case (LANF AExpr) ab
-    [(λ ,s ,f ,e)
-     (sexp-any? complex-form? (unparse-all (unparse-LANF e)))]
-    [else
-     #f]))
-
-;; known1-body-is-direct-env-ref-only? : any/c symbol? -> boolean?
-;;   Check whether ab's body is just a direct reference to the captured env var.
-(define (known1-body-is-direct-env-ref-only? ab var-sym)
-  (nanopass-case (LANF AExpr) ab
-    [(λ ,s ,f ,e)
-     (equal? (unparse-all (unparse-LANF e)) var-sym)]
-    [else
-     #f]))
-
 ;; direct-self-binder-removable? : any/c (hasheq/c any/c symbol?) (hasheq/c any/c (or/c variable? #f)) -> boolean?
 ;;   Check whether direct helper ab can drop its own binder from closure layout.
 (define (direct-self-binder-removable? ab kind-ht binder-ht)
