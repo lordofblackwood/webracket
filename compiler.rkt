@@ -10141,18 +10141,28 @@
 ;;                  -> (values (hasheq/c any/c symbol?)
 ;;                             (hasheq/c any/c (listof syntax?))
 ;;                             (hasheq/c any/c boolean?)
-;;                             (hasheq/c any/c boolean?))
-;;   Compute classification metadata for abstractions without rewriting the AST.
+;;                             (hasheq/c any/c boolean?)
+;;                             (hasheq/c any/c (or/c variable? #f)))
+;;   Compute conservative helper-classification metadata for abstractions
+;;   without rewriting the AST.
 ;;
-;; Initial conservative policy:
-;; - default kind is 'closed
-;; - abstractions with an empty free-variable set start as 'trivial-closed
-;; - an abstraction is upgraded to 'direct only if
-;;   1. it is bound to a local variable, and
-;;   2. every observed use of that variable is in operator position
+;; The returned tables record:
+;; - kind-ht            : abstraction -> 'closed | 'trivial-closed | 'direct
+;; - direct-sites-ht    : abstraction -> recorded direct call sites
+;; - direct-candidate-ht: abstraction -> locally bound in a direct-eligible shape
+;; - disqualified-ht    : abstraction -> seen in a non-operator/value use
+;; - binder-ht          : abstraction -> local binder when known
 ;;
-;; The pass records direct call sites using the application syntax object for
-;; now. Later analyses can replace these with labels or richer metadata.
+;; The classification policy is intentionally conservative:
+;; - every abstraction starts as 'closed, or 'trivial-closed when its
+;;   ordinary free-variable set is empty
+;; - an abstraction is upgraded to 'direct only when it is bound by a
+;;   recognized local binding and every observed use stays in operator
+;;   position
+;;
+;; Later analyses use the binder and direct-site metadata to compute
+;; direct-helper env layouts, extended env needs, and known-helper
+;; summaries.
 (define (classify-lambdas! T free-ht abs)
   (define kind-ht         (make-hasheq)) ; hasheq: abstraction -> symbol, current lambda kind
   (define direct-sites-ht (make-hasheq)) ; hasheq: abstraction -> (listof syntax?), recorded direct call sites
@@ -10470,16 +10480,19 @@
 ;;                                   (hasheq/c any/c symbol?)
 ;;                                -> (values (hasheq/c any/c id-set?)
 ;;                                           (hasheq/c any/c (listof any/c)))
-;;   Compute a first abstraction-level approximation of extended free variables.
+;;   Compute extended env needs for direct helpers together with their
+;;   direct-callee graph.
 ;;
-;; The current skeleton treats direct lambdas as direct helpers and computes:
+;; For abstractions classified as `direct`, this pass computes:
 ;; - base extended free variables for each abstraction, excluding free variables
 ;;   that are themselves direct helper bindings in lexical scope
 ;; - direct callee edges between abstractions
 ;; - a fixed point that propagates extended needs from direct callees to callers
 ;;
-;; This is intentionally analysis-only and conservative. It does not yet model
-;; parent binders or consume the result in closure conversion/code generation.
+;; This pass is still conservative, but its result is part of the current
+;; closure-conversion pipeline: later analyses inspect it, and
+;; `finish-closure-conversion` uses it when choosing lifted-body env layouts
+;; and known-helper lowering paths.
 (define (determine-extended-free-variables! T free-ht abs kind-ht)
   (define extended-ht      (make-hasheq)) ; hasheq: abstraction -> id-set, current extended free-variable set
   (define direct-callees-ht
@@ -10753,6 +10766,27 @@
 
   (values extended-ht direct-callees-ht))
 
+;;;
+;;; Closure-Conversion Analysis And Reports
+;;;
+
+;;; This chapter computes and inspects the analysis state that closure
+;;; conversion uses, without rewriting the program yet.
+;;;
+;;; The core analysis establishes:
+;;; - raw free variables for each abstraction
+;;; - lambda classification (`closed`, `trivial-closed`, `direct`)
+;;; - direct-call sites and direct-candidate status
+;;; - value-use disqualification
+;;; - binder/origin information for local helpers
+;;; - extended env needs for direct helpers
+;;; - direct-callee relationships
+;;;
+;;; The summaries below are analysis-only reports. They are used for tests,
+;;; measurement scripts, and migration experiments, and they should describe
+;;; the current compiler state conservatively instead of predicting future
+;;; lowering changes.
+
 ;; closure-conversion-analysis : LANF
 ;;                            -> (values LANF
 ;;                                       (hasheq/c any/c id-set?)
@@ -10883,9 +10917,10 @@
 ;;   layout.
 ;;
 ;; The current body/closure layout may still keep some direct-helper bindings
-;; that `extended-vars` has dropped. Today `directapp` still passes the
-;; callee's closure value explicitly, so callers must retain helper bindings
-;; whose closures are still needed as call operands.
+;; that `extended-vars` has dropped. This happens because the compiler still
+;; supports ordinary closure-backed direct calls alongside the `known0`,
+;; `known1`, and known-only helper paths, so some callers must continue to
+;; retain helper bindings whose closures are still needed as call operands.
 (define (summarize-direct-helper-environment-closure-conversion-analysis T)
   (define (label-name labels-ht ab)
     (syntax-e (variable-id (hash-ref labels-ht ab))))
@@ -14933,6 +14968,21 @@
 ;;; FINISH CLOSURE CONVERSION
 ;;;
 
+;;; This chapter performs the actual closure-conversion rewrite.
+;;;
+;;; At this point the compiler already knows, for each abstraction:
+;;; - its free variables
+;;; - whether it is an ordinary closure or a direct helper
+;;; - its current lifted-body env layout
+;;; - its closure payload layout
+;;; - any enabled known-helper lowering choices
+;;;
+;;; The pass turns local abstractions into labeled code, rewrites free-variable
+;;; access through the chosen env view, and decides whether each helper remains
+;;; closure-backed or can lower through one of the current known-helper paths.
+;;; The closure-converted tree still preserves the ordinary closure ABI where
+;;; required by procedure identity, generic calls, or unsupported helper cases.
+
 ;;; Step 1: Generate a label for each abstraction
 ;;;   label1:  (λ (x ...) e)
 ;;; Step 2:
@@ -15380,8 +15430,9 @@
     ;; clause-direct-binding : (listof variable?) LANF CExpr -> (or/c (cons variable? any/c) #f)
     ;;   Recognize a single-variable clause bound to a direct lambda-like helper.
     ;;
-    ;; Direct calls currently reuse the existing lifted-body layout by passing
-    ;; the closure value bound to x directly to the lifted label.
+    ;; The recognized binding is enough to put x in the local direct-helper
+    ;; environment. Later lowering decides whether calls through x become
+    ;; `directapp`, `direct0app`, `selfapp`, `known0app`, or `known1app`.
     (define (clause-direct-binding xs ce)
       (match xs
         [(list x)
