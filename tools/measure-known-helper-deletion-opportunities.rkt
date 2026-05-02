@@ -90,6 +90,7 @@
 ;;       value-use? callers-can-source-env? nested-lift-sensitive?
 ;;       nested-capture-vars letrec? recursive?
 ;;       deletes-allocation-and-base-label? blockers)
+(define (entry-label e)           (list-ref e 0))
 (define (entry-binder e)          (list-ref e 1))
 (define (entry-origin e)          (list-ref e 2))
 (define (entry-known-abi e)       (list-ref e 3))
@@ -104,6 +105,46 @@
 (define (entry-recursive e)       (list-ref e 12))
 (define (entry-deletes-both e)    (list-ref e 13))
 (define (entry-blockers e)        (list-ref e 14))
+
+(define blocker-drilldown-order
+  '(unavailable-env nested-lift-sensitive nested-capture letrec recursive value-use))
+
+(define (remaining-transition-tax? e)
+  (and (entry-clos-remains e)
+       (entry-code-remains e)))
+
+(define (entry-has-blocker? blocker e)
+  (member blocker (entry-blockers e)))
+
+(define (take-up-to xs n)
+  (take xs (min n (length xs))))
+
+(define (print-entry-drilldown e)
+  (printf "    ~a (~a)\n"
+          (entry-binder e)
+          (entry-known-abi e))
+  (printf "      label: ~a\n" (entry-label e))
+  (printf "      origin: ~a\n" (entry-origin e))
+  (printf "      known-only: ~a\n" (entry-known-only e))
+  (printf "      callers-can-source-env: ~a\n" (entry-callers-source e))
+  (printf "      nested-lift-sensitive: ~a\n" (entry-nested-lift e))
+  (printf "      nested-capture-vars: ~a\n" (entry-nested-capture e))
+  (printf "      letrec: ~a\n" (entry-letrec e))
+  (printf "      recursive: ~a\n" (entry-recursive e))
+  (printf "      blockers: ~a\n" (entry-blockers e)))
+
+(define (print-blocker-drilldown summary)
+  (define remaining
+    (filter remaining-transition-tax? summary))
+  (unless (null? remaining)
+    (printf "Representative remaining transition-tax entries:\n")
+    (for ([blocker (in-list blocker-drilldown-order)])
+      (define matches
+        (filter (λ (e) (entry-has-blocker? blocker e)) remaining))
+      (unless (null? matches)
+        (printf "  blocker ~a (~a total):\n" blocker (length matches))
+        (for ([e (in-list (take-up-to matches 3))])
+          (print-entry-drilldown e))))))
 
 (define (print-summary source-path summary)
   (printf "Source: ~a\n" source-path)
@@ -123,6 +164,7 @@
   (printf "  recursive: ~a\n" (count entry-recursive summary))
   (unless (null? summary)
     (print-section "Blockers:" (histogram (append* (map entry-blockers summary)))))
+  (print-blocker-drilldown summary)
   (newline))
 
 (for ([source-path (in-list source-paths)])
