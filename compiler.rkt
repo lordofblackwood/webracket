@@ -14131,6 +14131,12 @@
     (define (extended-of ab)
       (id-set->list (hash-ref extended-ht ab empty-set)))
 
+    ;; extended-layout-of : any/c -> (listof variable?)
+    ;;   Return the authoritative direct-helper env layout derived from the
+    ;;   analysis fixed point.
+    (define (extended-layout-of ab)
+      (extended-of ab))
+
     ;; remove-variable : (listof variable?) variable? -> (listof variable?)
     ;;   Remove x from xs using identifier equality.
     (define (remove-variable xs x)
@@ -14189,14 +14195,39 @@
       (and (eq? (kind-of ab) 'direct)
            (null? (body-layout-of ab))))
 
+    ;; abstraction-formals-of : any/c -> LANF Formals
+    ;;   Return the source-level formals for abstraction ab.
+    (define (abstraction-formals-of ab)
+      (nanopass-case (LANF AExpr) ab
+        [(λ ,s ,f ,e) f]
+        [else
+         (error 'finish-closure-conversion
+                "expected abstraction, got ~a"
+                ab)]))
+
+    ;; abstraction-formal-variables-of : any/c -> (listof variable?)
+    ;;   Return the variables bound by ab's formals.
+    (define (abstraction-formal-variables-of ab)
+      (formals->variables (abstraction-formals-of ab)))
+
+    ;; abstraction-provides-variable? : any/c variable? -> boolean?
+    ;;   Check whether ab can source x from its current carried env or formals.
+    (define (abstraction-provides-variable? ab x)
+      (or (for/or ([y (in-list (body-layout-of ab))])
+            (variable=? x y))
+          (for/or ([y (in-list (abstraction-formal-variables-of ab))])
+            (variable=? x y))))
+
     ;; known0-target-eligible/local? : any/c -> boolean?
     ;;   Check whether ab fits the first known-helper ABI bucket:
-    ;;   fixed-arity direct helper with an empty environment layout.
+    ;;   fixed-arity direct helper with no authoritative env needs and no
+    ;;   remaining carried-body layout under the current lowering.
     (define (known0-target-eligible/local? ab)
       (and (current-enable-cc-analysis?)
            (eq? (kind-of ab) 'direct)
            (abstraction-fixed-arity? ab)
            (not (direct-self-recursive? ab free-ht binder-ht))
+           (null? (extended-layout-of ab))
            (null? (body-layout-of ab))))
 
     ;; known0-only-target-eligible/local? : any/c -> boolean?
@@ -14205,26 +14236,22 @@
     ;;   empty environment layout and no closure payload needs.
     (define (known0-only-target-eligible/local? ab)
       (and (known0-target-eligible/local? ab)
+           (null? (body-layout-of ab))
            (nanopass-case (LANF AExpr) ab
              [(λ ,s ,f ,e) #t]
              [else #f])))
 
     ;; known1-target-eligible/local? : any/c -> boolean?
     ;;   Check whether ab fits the unary known-helper ABI bucket:
-    ;;   fixed-arity direct helper with exactly one environment value.
+    ;;   fixed-arity direct helper with exactly one authoritative env value and
+    ;;   exactly one currently carried body-layout value.
     (define (known1-target-eligible/local? ab)
       (and (current-enable-cc-analysis?)
            (eq? (kind-of ab) 'direct)
            (abstraction-fixed-arity? ab)
            (not (direct-self-recursive? ab free-ht binder-ht))
-           (= (length (body-layout-of ab)) 1)
-           (not (nested-lift-sensitive-form-present? ab))
-           (not (known-helper-complex-body-present? ab))
-           (let ([x (car (body-layout-of ab))])
-             (and (not (nested-variable-capture-present? ab
-                                                         (syntax-e (variable-id x))))
-                 (known1-body-is-direct-env-ref-only? ab
-                                                      (syntax-e (variable-id x)))))))
+           (= (length (extended-layout-of ab)) 1)
+           (= (length (body-layout-of ab)) 1)))
 
     ;; known1-only-target-eligible/local? : any/c -> boolean?
     ;;   Check whether ab fits the first known1-only helper bucket:
@@ -14232,12 +14259,17 @@
     ;;   the captured environment variable.
     (define (known1-only-target-eligible/local? ab)
       (and (known1-target-eligible/local? ab)
-           (let ([x (car (body-layout-of ab))])
-             (for/and ([(caller callees) (in-hash direct-callees-ht)]
-                       #:when (for/or ([candidate (in-list callees)])
-                                (eq? candidate ab)))
-               (for/or ([y (in-list (body-layout-of caller))])
-                 (variable=? x y))))))
+           (not (nested-lift-sensitive-form-present? ab))
+           (not (known-helper-complex-body-present? ab))
+           (let ([x (car (extended-layout-of ab))])
+             (and (not (nested-variable-capture-present? ab
+                                                         (syntax-e (variable-id x))))
+                  (known1-body-is-direct-env-ref-only? ab
+                                                       (syntax-e (variable-id x)))
+                  (for/and ([(caller callees) (in-hash direct-callees-ht)]
+                            #:when (for/or ([candidate (in-list callees)])
+                                     (eq? candidate ab)))
+                    (abstraction-provides-variable? caller x))))))
 
     ;; direct-letrec-representation-eligible/local? : any/c -> boolean?
     ;;   Check whether ab fits the currently enabled tiny direct-letrec
@@ -14483,16 +14515,15 @@
     (define current-direct-abstraction
       (make-parameter #f))
 
+    ;; current-abstraction : (parameter/c (or/c any/c #f))
+    ;;   The abstraction currently being closure-converted, if any.
+    (define current-abstraction
+      (make-parameter #f))
+
     ;; current-direct-case-abstraction : (parameter/c (or/c any/c #f))
     ;;   The direct case-lambda currently being closure-converted, if any.
     (define current-direct-case-abstraction
       (make-parameter #f))
-
-    ;; abstraction-carries-variable? : any/c variable? -> boolean?
-    ;;   Check whether ab's current body layout carries x.
-    (define (abstraction-carries-variable? ab x)
-      (for/or ([y (in-list (body-layout-of ab))])
-        (variable=? x y)))
 
     ;; known1-env-variable-of : any/c -> (or/c variable? #f)
     ;;   Return the caller-relative unary env operand for ab when it is
@@ -14500,16 +14531,19 @@
     ;;
     ;; For now, keep this conservative: non-lifted callers may source the
     ;; env operand directly, and lifted direct callers may do so only when
-    ;; they already carry that same variable in their own layout.
+    ;; they already provide that same variable in their current layout or
+    ;; formals.
     (define (known1-env-variable-of ab)
-      (define env-var (car (body-layout-of ab)))
+      (define env-var (car (extended-layout-of ab)))
       (cond
         [(current-direct-abstraction)
-         (and (abstraction-carries-variable? (current-direct-abstraction) env-var)
+         (and (abstraction-provides-variable? (current-direct-abstraction) env-var)
               env-var)]
         [(current-direct-case-abstraction)
-         (and (abstraction-carries-variable? (current-direct-case-abstraction) env-var)
+         (and (abstraction-provides-variable? (current-direct-case-abstraction) env-var)
               env-var)]
+        [(current-abstraction)
+         #f]
         [else env-var])))
   (TopLevelForm    : TopLevelForm    (T) -> TopLevelForm      ())
   (ModuleLevelForm : ModuleLevelForm (M) -> ModuleLevelForm   ())
@@ -14713,7 +14747,8 @@
                   (syntax-e (variable-id l))
                   inline-small-arity))
      (let ([xs (closure-env-aexprs-of AB)]
-           [e  (parameterize ([current-free (body-layout-of AB)]
+            [e  (parameterize ([current-free (body-layout-of AB)]
+                              [current-abstraction AB]
                               [current-direct-abstraction
                                (and (eq? k 'direct) AB)]
                               [current-direct-env
@@ -19422,6 +19457,17 @@
                          (let ([f (lambda () x)])
                            (let ([g (lambda () (if #t x (f)))])
                              (g))))))])
+    (check-true (module-has-known1-label-call? mod)))
+
+  (check-true
+   (closure-converted-has-known1app? #'(let ([x 1])
+                                         (let ([f (lambda (y) (+ x y))])
+                                           (f 2)))))
+
+  (let ([mod (parameterize ([current-enable-cc-analysis? #t])
+               (comp #'(let ([x 1])
+                         (let ([f (lambda (y) (+ x y))])
+                           (f 2)))))])
     (check-true (module-has-known1-label-call? mod)))
 
   (check-true
