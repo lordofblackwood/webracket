@@ -13893,7 +13893,21 @@
     ;; current-direct-case-abstraction : (parameter/c (or/c any/c #f))
     ;;   The direct case-lambda currently being closure-converted, if any.
     (define current-direct-case-abstraction
-      (make-parameter #f)))
+      (make-parameter #f))
+
+    ;; known1-env-variable-of : any/c -> (or/c variable? #f)
+    ;;   Return the caller-relative unary env operand for ab when it is
+    ;;   obviously available in the current caller context.
+    ;;
+    ;; For now, keep this conservative: only non-lifted callers may source the
+    ;; env operand directly from the callee's single layout variable.
+    (define (known1-env-variable-of ab)
+      (cond
+        [(or (current-direct-abstraction)
+             (current-direct-case-abstraction))
+         #f]
+        [else
+         (car (body-layout-of ab))])))
   (TopLevelForm    : TopLevelForm    (T) -> TopLevelForm      ())
   (ModuleLevelForm : ModuleLevelForm (M) -> ModuleLevelForm   ())
   (CExpr : CExpr (CE) -> CExpr ()
@@ -13929,13 +13943,21 @@
           [(known0-only-binding-of x)
            `(known0app ,s ,(label-of ab) ,ar ,ae* ...)]
           [(known1-only-binding-of x)
-           (define env0 (AExpr (car (body-layout-of ab))))
+           (define env-var (known1-env-variable-of ab))
+           (unless env-var
+             (error 'finish-closure-conversion
+                    "known1-only env unavailable in current caller context: ~a"
+                    (syntax-e (variable-id x))))
+           (define env0 (AExpr env-var))
            `(known1app ,s ,(label-of ab) ,ar ,env0 ,ae* ...)]
           [(known0-binding-of x)
            `(known0app ,s ,(label-of ab) ,ar ,ae* ...)]
           [(known1-binding-of x)
-           (define env0 (AExpr (car (body-layout-of ab))))
-           `(known1app ,s ,(label-of ab) ,ar ,env0 ,ae* ...)]
+           (match (known1-env-variable-of ab)
+             [#f `(directapp ,s ,(label-of ab) ,ar ,ae0 ,ae* ...)]
+             [env-var
+              (define env0 (AExpr env-var))
+              `(known1app ,s ,(label-of ab) ,ar ,env0 ,ae* ...)])]
           [(eq? ab (current-direct-abstraction))
            `(selfapp ,s ,(label-of ab) ,ar ,ae* ...)]
           [(direct-target-uses-dummy-closure/local? ab)
