@@ -349,7 +349,195 @@ It specializes it in cases where analysis proves that the full
 closure-backed path is not needed.
 
 
-## 7. Another example
+## 7. Closure representations in the current compiler
+
+Before looking at the implementation details, it helps to separate the
+representations the compiler currently uses.
+
+
+### 7.1 Runtime type definitions
+
+The runtime representation lives in `runtime-wasm.rkt`.
+
+The most important closure-related definitions are:
+
+```wat
+(type $Args      (array (mut (ref eq))))
+(type $Free      (array (mut (ref eq))))
+
+(type $ProcedureInvoker
+      (func (param $proc (ref $Procedure))
+            (param $args (ref $Args))
+            (result (ref eq))))
+
+(type $ClosureCode  (func (param $clos (ref $Closure))
+                          (param $args (ref $Args))
+                          (result (ref eq))))
+(type $KnownCode0   (func (param $args (ref $Args))
+                          (result (ref eq))))
+(type $KnownCode1   (func (param $env0 (ref eq))
+                          (param $args (ref $Args))
+                          (result (ref eq))))
+
+(type $Procedure
+      (sub $Heap
+           (struct
+             (field $hash   (mut i32))
+             (field $name   (ref eq))
+             (field $arity  (ref eq))
+             (field $realm  (ref eq))
+             (field $invoke (ref $ProcedureInvoker)))))
+
+(type $Closure
+      (sub $Procedure
+           (struct
+             (field $hash     (mut i32))
+             (field $name     (ref eq))
+             (field $arity    (ref eq))
+             (field $realm    (ref eq))
+             (field $invoke   (ref $ProcedureInvoker))
+             (field $debug-id (ref eq))
+             (field $code     (ref $ClosureCode))
+             (field $free     (ref $Free)))))
+```
+
+For small closure payloads, the runtime also has specialized inline
+variants:
+
+```wat
+(type $Closure1
+      (sub $Closure
+           (struct ... (field $free0 (mut (ref eq))))))
+
+(type $Closure2
+      (sub $Closure
+           (struct ... (field $free0 (mut (ref eq)))
+                      (field $free1 (mut (ref eq))))))
+
+(type $Closure3
+      (sub $Closure
+           (struct ... (field $free0 (mut (ref eq)))
+                      (field $free1 (mut (ref eq)))
+                      (field $free2 (mut (ref eq))))))
+```
+
+These definitions already show the main representation split:
+
+- ordinary closure-backed calls go through `$ClosureCode`
+- known direct-helper entries use `$KnownCode0` or `$KnownCode1`
+- closure values themselves are still `$Procedure` values
+- captured env payload may live in `$Free` or in the inline
+  `$Closure1`/`$Closure2`/`$Closure3` fields
+
+
+### 7.2 Ordinary closure-backed helpers
+
+This is the full general case.
+
+The helper is represented as:
+
+- a closure value
+- carrying a closure payload
+- pointing to a lifted label
+
+Its lifted code reads captured variables through the closure env view.
+
+This path is needed when the helper must behave like an ordinary
+procedure value:
+
+- it can escape
+- it can be stored or returned
+- it may be called through generic procedure machinery
+- or the specialized helper predicates do not apply
+
+
+### 7.3 Direct helpers with known entries
+
+Some helpers are classified as `direct`.
+
+These helpers may get specialized known-helper entries such as:
+
+- `known0`
+- `known1`
+
+The important point is:
+
+- “direct” does not automatically mean “not closure-backed”
+
+A helper can have:
+
+- a known direct-call entry
+- and still keep an ordinary closure-backed entry
+
+This is the transition-tax case that the analysis scripts have been
+measuring.
+
+
+### 7.4 Known-only helpers
+
+Known-only helpers are the cases where the compiler can delete the
+ordinary closure-backed path entirely.
+
+For these helpers:
+
+- direct calls use the known-helper entry
+- no helper closure allocation remains
+- no ordinary closure-backed entry remains
+
+The currently active known-only buckets are:
+
+- `known0-only`
+- `known1-only`
+
+These are not just ABI classifications.
+They are deletion classifications.
+
+
+### 7.5 Lifted-body env layout versus closure payload layout
+
+The current implementation distinguishes:
+
+- the env layout used by the lifted body
+- the env layout stored in a closure payload
+
+These correspond to:
+
+- `body-layout-of`
+- `closure-env-of`
+
+They may coincide, but they are not the same concept.
+
+This matters because:
+
+- a helper body may use a propagated direct-helper env view
+- while closure allocation still follows the ordinary closure payload
+  layout
+
+So the compiler now treats env access and closure storage as related but
+separate design questions.
+
+
+### 7.6 Why representation matters
+
+Most of the recent work in this area turned out not to be about adding
+another ABI name.
+
+It turned out to be about representation cost:
+
+- can we avoid closure allocation?
+- can we avoid the ordinary closure-backed entry?
+- can we avoid growing closure payload elsewhere?
+
+That is why the current design distinguishes:
+
+- closure-backed helpers
+- known-entry helpers
+- known-only helpers
+
+This representation split is now more important than the older
+“everything is a closure” story.
+
+## 8. Another example
 
 Source:
 
@@ -380,8 +568,26 @@ label:multiply-by-a(clos, args):
   return (* x a)
 ```
 
+Before the next examples, it helps to separate two ideas.
 
-### 7.1 `known0`
+- `known0` and `known1` describe specialized direct-call entries for a
+  helper.
+- `known0-only` and `known1-only` describe deletion: the helper can use
+  the specialized entry and also drop the ordinary closure-backed path.
+
+So:
+
+- `known0` versus `known1` is about how many env operands the known
+  entry takes.
+- the `-only` forms are about whether closure allocation and the
+  ordinary closure-backed entry can be removed.
+
+The exact labels and local names in generated `.wat` are unstable, so
+the snippets below show the shape of the current output rather than a
+byte-for-byte dump of a full module.
+
+
+### 8.1 `known0`
 
 Source:
 
@@ -408,8 +614,25 @@ The point is:
 - the helper can use a specialized direct-call path
 - but the ordinary closure-backed path may still exist
 
+Generated WebAssembly shape:
 
-### 7.2 `known1`
+```wat
+(func $f.known0 (param $args (ref $List)) (result (ref eq))
+  ...)
+
+(func $f (param $clos (ref $Closure)) (param $args (ref $List)) (result (ref eq))
+  (return_call $f.known0
+    (local.get $args)))
+
+...
+(call $f.known0 <args>)
+```
+
+The important point is that the direct call can go to `$f.known0`, even
+though the ordinary closure entry `$f` may still exist.
+
+
+### 8.2 `known1`
 
 Source:
 
@@ -439,8 +662,25 @@ Again, this does not yet imply deletion of the ordinary closure-backed
 path.
 It means the helper qualifies for a specialized unary direct-call entry.
 
+Generated WebAssembly shape:
 
-### 7.3 `known0-only`
+```wat
+(func $f.known1 (param $env0 (ref eq)) (param $args (ref $List)) (result (ref eq))
+  ...)
+
+(func $f (param $clos (ref $Closure)) (param $args (ref $List)) (result (ref eq))
+  ...)
+
+...
+(call $f.known1 <env0> <args>)
+```
+
+Here the direct call passes the single carried env operand explicitly,
+while the ordinary closure entry may still remain for general procedure
+use.
+
+
+### 8.3 `known0-only`
 
 Source:
 
@@ -468,8 +708,21 @@ and keep only the `known0` path.
 This is the first real deletion case.
 It is not just “call a nicer label.”
 
+Generated WebAssembly shape:
 
-### 7.4 `known1-only`
+```wat
+(func $g.known0 (param $args (ref $List)) (result (ref eq))
+  ...)
+
+...
+(call $g.known0 <args>)
+```
+
+In this case there is no ordinary `$g` closure entry and no helper
+closure allocation for `g`.
+
+
+### 8.4 `known1-only`
 
 Source:
 
@@ -498,119 +751,18 @@ So the compiler can keep only the unary known-helper entry and delete:
 This is the most important nontrivial known-only case currently
 supported by the implementation.
 
+Generated WebAssembly shape:
 
-## 8. Closure representations in the current compiler
+```wat
+(func $f.known1 (param $env0 (ref eq)) (param $args (ref $List)) (result (ref eq))
+  ...)
 
-Before looking at the implementation details, it helps to separate the
-representations the compiler currently uses.
+...
+(call $f.known1 <env0> <args>)
+```
 
-
-### 8.1 Ordinary closure-backed helpers
-
-This is the full general case.
-
-The helper is represented as:
-
-- a closure value
-- carrying a closure payload
-- pointing to a lifted label
-
-Its lifted code reads captured variables through the closure env view.
-
-This path is needed when the helper must behave like an ordinary
-procedure value:
-
-- it can escape
-- it can be stored or returned
-- it may be called through generic procedure machinery
-- or the specialized helper predicates do not apply
-
-
-### 8.2 Direct helpers with known entries
-
-Some helpers are classified as `direct`.
-
-These helpers may get specialized known-helper entries such as:
-
-- `known0`
-- `known1`
-
-The important point is:
-
-- “direct” does not automatically mean “not closure-backed”
-
-A helper can have:
-
-- a known direct-call entry
-- and still keep an ordinary closure-backed entry
-
-This is the transition-tax case that the analysis scripts have been
-measuring.
-
-
-### 8.3 Known-only helpers
-
-Known-only helpers are the cases where the compiler can delete the
-ordinary closure-backed path entirely.
-
-For these helpers:
-
-- direct calls use the known-helper entry
-- no helper closure allocation remains
-- no ordinary closure-backed entry remains
-
-The currently active known-only buckets are:
-
-- `known0-only`
-- `known1-only`
-
-These are not just ABI classifications.
-They are deletion classifications.
-
-
-### 8.4 Lifted-body env layout versus closure payload layout
-
-The current implementation distinguishes:
-
-- the env layout used by the lifted body
-- the env layout stored in a closure payload
-
-These correspond to:
-
-- `body-layout-of`
-- `closure-env-of`
-
-They may coincide, but they are not the same concept.
-
-This matters because:
-
-- a helper body may use a propagated direct-helper env view
-- while closure allocation still follows the ordinary closure payload
-  layout
-
-So the compiler now treats env access and closure storage as related but
-separate design questions.
-
-
-### 8.5 Why representation matters
-
-Most of the recent work in this area turned out not to be about adding
-another ABI name.
-
-It turned out to be about representation cost:
-
-- can we avoid closure allocation?
-- can we avoid the ordinary closure-backed entry?
-- can we avoid growing closure payload elsewhere?
-
-That is why the current design distinguishes:
-
-- closure-backed helpers
-- known-entry helpers
-- known-only helpers
-
-This representation split is now more important than the older
-“everything is a closure” story.
+Unlike plain `known1`, this case has no ordinary `$f` closure entry and
+no helper closure allocation.
 
 
 ## 9. What the current implementation does

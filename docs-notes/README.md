@@ -19,5 +19,10 @@ Guidelines:
 - Prefer one topic per file.
 - Prefer stable descriptive filenames.
 
+Rendering:
+
+- To render `closure-conversion.scrbl` locally, run:
+  `raco scribble +m --html --dest html/ closure-conversion.scrbl`
+
 At the moment this directory is an organizational home for such notes.
 Existing root-level note files can be moved here incrementally.
