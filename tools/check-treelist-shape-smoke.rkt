@@ -1,6 +1,7 @@
 #lang racket
 
 (require racket/list
+         racket/file
          racket/match
          racket/port
          racket/string)
@@ -15,42 +16,36 @@
       (error 'check-treelist-shape-smoke "missing tool directory")))
 (define repo-root (simplify-path (build-path tools-dir "..")))
 (define webracket-file (build-path repo-root "webracket.rkt"))
-(define smoke-file (build-path repo-root "tools" "treelist-shape-internal-smoke.rkt"))
-(define smoke-base
-  (path-replace-extension smoke-file #""))
+(define smoke-template (build-path repo-root "tools" "treelist-shape-internal-smoke.rkt"))
 (define racket-bin
   (or (find-executable-path "racket")
       (error 'check-treelist-shape-smoke "could not find racket executable")))
 
-(define generated-smoke-files
-  (list (path-replace-extension smoke-base #".wat")
-        (path-replace-extension smoke-base #".wasm")
-        (path-replace-extension smoke-base #".js")
-        (path-replace-extension smoke-base #".wasm.map.sexp")))
+(define-values (stdout-text stderr-text status)
+  (let* ([temp-dir (make-temporary-file "webracket-treelist-shape-~a" 'directory)]
+         [temp-smoke-file (build-path temp-dir "treelist-shape-internal-smoke.rkt")])
+    (dynamic-wind
+      void
+      (λ ()
+        (copy-file smoke-template temp-smoke-file)
+        (define-values (proc in out err)
+          (parameterize ([current-directory repo-root])
+            (subprocess #f #f #f
+                        racket-bin
+                        "-l" "errortrace"
+                        "-t" (path->string webracket-file)
+                        "--"
+                        "--internal-bind-treelist-debug-shape"
+                        "-r" (path->string temp-smoke-file))))
+        (define stdout-text (port->string in))
+        (define stderr-text (port->string err))
+        (subprocess-wait proc)
+        (values stdout-text stderr-text (subprocess-status proc)))
+      (λ ()
+        (when (directory-exists? temp-dir)
+          (delete-directory/files temp-dir))))))
 
-(for ([p generated-smoke-files])
-  (when (file-exists? p)
-    (with-handlers ([exn:fail:filesystem?
-                     (λ (e)
-                       (unless (regexp-match? #rx"cannot delete file" (exn-message e))
-                         (raise e)))])
-      (delete-file p))))
-
-(define-values (proc in out err)
-  (parameterize ([current-directory repo-root])
-    (subprocess #f #f #f
-                racket-bin
-                "-l" "errortrace"
-                "-t" (path->string webracket-file)
-                "--"
-                "--internal-bind-treelist-debug-shape"
-                "-r" (path->string smoke-file))))
-
-(define stdout-text (port->string in))
-(define stderr-text (port->string err))
 (define combined-text (string-append stdout-text stderr-text))
-(subprocess-wait proc)
-(define status (subprocess-status proc))
 
 (define smoke-rx #px"treelist-shape-smoke: (\\(.*\\))")
 (define smoke-match (regexp-match smoke-rx combined-text))
