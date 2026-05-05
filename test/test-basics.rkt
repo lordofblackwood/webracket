@@ -2884,6 +2884,18 @@
                                 (equal? (vector-ref vec0 (sub1 n)) (sub1 n)))))
                        sizes)))
 
+              (list "treelist-add repeated preserves original"
+                    (let* ([base (treelist 1 2 3)]
+                           [tl   (for/fold ([acc base])
+                                           ([i (in-range 64)])
+                                   (treelist-add acc (+ 10 i)))])
+                      (and (equal? (treelist->list base) '(1 2 3))
+                           (equal? (treelist-length tl) 67)
+                           (equal? (treelist-ref tl 0) 1)
+                           (equal? (treelist-ref tl 2) 3)
+                           (equal? (treelist-ref tl 3) 10)
+                           (equal? (treelist-ref tl 66) 73))))
+
               (list "treelist-set dense sizes"
                     (let ([sizes '(1 31 32 33 1024 1025)])
                       (andmap
@@ -2948,6 +2960,50 @@
                              (list 0 mid n)))))
                        sizes)))
 
+              (list "treelist split relaxed shapes"
+                    (let* ([pieces (list (list->treelist (build-list 20 values))
+                                         (list->treelist (build-list 20 (lambda (i) (+ 20 i))))
+                                         (list->treelist (build-list 20 (lambda (i) (+ 40 i)))))]
+                           [tl (apply treelist-append pieces)]
+                           [xs (build-list 60 values)])
+                      (and (equal? (treelist->list tl) xs)
+                           (andmap
+                            (lambda (pos)
+                              (let-values ([(left right) (treelist-split-at tl pos)])
+                                (and (equal? (treelist->list left) (take xs pos))
+                                     (equal? (treelist->list right) (drop xs pos))
+                                     (equal? (treelist-length left) pos)
+                                     (equal? (treelist-length right) (- 60 pos))
+                                     (or (zero? pos)
+                                         (equal? (treelist-ref left (sub1 pos)) (sub1 pos)))
+                                     (or (= pos 60)
+                                         (equal? (treelist-ref right 0) pos))
+                                     (equal? (treelist->list (treelist-take tl pos))
+                                             (take xs pos))
+                                     (equal? (treelist->list (treelist-drop tl pos))
+                                             (drop xs pos))
+                                     (equal? (treelist->list tl) xs))))
+                            '(0 17 20 37 40 60)))))
+
+              (list "treelist split relaxed boundaries"
+                    (let* ([left  (list->treelist (build-list 32 values))]
+                           [right (list->treelist (build-list 33 (lambda (i) (+ 32 i))))]
+                           [tl    (treelist-append left right)]
+                           [xs    (build-list 65 values)])
+                      (and (equal? (treelist->list tl) xs)
+                           (let-values ([(a b) (treelist-split-at tl 32)])
+                             (and (equal? (treelist->list a) (take xs 32))
+                                  (equal? (treelist->list b) (drop xs 32))
+                                  (equal? (treelist-ref a 31) 31)
+                                  (equal? (treelist-ref b 0) 32)))
+                           (let-values ([(a b) (treelist-split-at tl 33)])
+                             (and (equal? (treelist->list a) (take xs 33))
+                                  (equal? (treelist->list b) (drop xs 33))
+                                  (equal? (treelist-ref a 32) 32)
+                                  (equal? (treelist-ref b 0) 33)))
+                           (equal? (treelist->list (treelist-take tl 33)) (take xs 33))
+                           (equal? (treelist->list (treelist-drop tl 33)) (drop xs 33)))))
+
               (list "treelist-append basics"
                     (and (equal? (treelist->list (treelist-append)) '())
                          (equal? (treelist->list (treelist-append (treelist 1 2))) '(1 2))
@@ -2971,6 +3027,169 @@
                            (equal? (treelist-ref app 32) 100)
                            (equal? (treelist-ref app 65) 232))))
 
+              (list "treelist-append relaxed traversal"
+                    (let* ([left  (make-treelist 17 'a)]
+                           [right (make-treelist 17 'b)]
+                           [app   (treelist-append left right)])
+                      (and (equal? (treelist-length app) 34)
+                           (equal? (treelist-ref app 16) 'a)
+                           (equal? (treelist-ref app 17) 'b)
+                           (equal? (treelist-first app) 'a)
+                           (equal? (treelist-last app) 'b)
+                           (equal? (treelist->list app)
+                                   (append (make-list 17 'a) (make-list 17 'b)))
+                           (equal? (treelist->list left) (make-list 17 'a))
+                           (equal? (treelist->list right) (make-list 17 'b)))))
+
+              (list "treelist-append many medium treelists"
+                    (let* ([piece-count 100]
+                           [piece-size  20]
+                           [pieces
+                            (for/list ([j (in-range piece-count)])
+                              (list->treelist
+                               (build-list piece-size
+                                           (lambda (i) (+ (* j piece-size) i)))))]
+                           [app (apply treelist-append pieces)])
+                      (and (equal? (treelist-length app) (* piece-count piece-size))
+                           (equal? (treelist-ref app 0) 0)
+                           (equal? (treelist-ref app 19) 19)
+                           (equal? (treelist-ref app 20) 20)
+                           (equal? (treelist-ref app 199) 199)
+                           (equal? (treelist-ref app 999) 999)
+                           (equal? (treelist-ref app 1999) 1999)
+                           (equal? (treelist->list app) (build-list 2000 values))
+                           (andmap
+                            (lambda (j tl)
+                              (equal? (treelist->list tl)
+                                      (build-list piece-size
+                                                  (lambda (i) (+ (* j piece-size) i)))))
+                            (build-list piece-count values)
+                            pieces))))
+
+              (list "treelist-append uneven chunk boundaries"
+                    (let* ([chunk-sizes '(17 20 31 32 33 17 20 31 32 33)]
+                           [pieces
+                            (let loop ([sizes chunk-sizes] [start 0])
+                              (if (null? sizes)
+                                  '()
+                                  (let* ([n (car sizes)]
+                                         [xs (build-list n (lambda (i) (+ start i)))])
+                                    (cons (list->treelist xs)
+                                          (loop (cdr sizes) (+ start n))))))]
+                           [app (apply treelist-append pieces)]
+                           [expected
+                            (let loop ([sizes chunk-sizes] [start 0])
+                              (if (null? sizes)
+                                  '()
+                                  (append (build-list (car sizes) (lambda (i) (+ start i)))
+                                          (loop (cdr sizes) (+ start (car sizes))))))])
+                      (and (equal? (treelist-length app) (length expected))
+                           (equal? (treelist-ref app 0) 0)
+                           (equal? (treelist-ref app 16) 16)
+                           (equal? (treelist-ref app 17) 17)
+                           (equal? (treelist-ref app 36) 36)
+                           (equal? (treelist-ref app 68) 68)
+                           (equal? (treelist-ref app (- (length expected) 1))
+                                   (- (length expected) 1))
+                           (equal? (treelist->list app) expected)
+                           (andmap
+                            (lambda (tl start n)
+                              (equal? (treelist->list tl)
+                                      (build-list n (lambda (i) (+ start i)))))
+                            pieces
+                            '(0 17 37 68 100 133 150 170 201 233)
+                            chunk-sizes))))
+
+              (list "treelist-append relaxed boundaries"
+                    (let* ([tl0 (list->treelist (build-list 1025 values))]
+                           [tl1 (treelist 'tail)]
+                           [app (treelist-append tl0 tl1)])
+                      (and (equal? (treelist-length app) 1026)
+                           (equal? (treelist-ref app 1024) 1024)
+                           (equal? (treelist-ref app 1025) 'tail)
+                           (equal? (treelist->list tl0) (build-list 1025 values))
+                           (equal? (treelist->list tl1) '(tail)))))
+
+              (list "treelist-append full-ish boundaries"
+                    (let* ([left  (list->treelist (build-list 1024 values))]
+                           [right (list->treelist (build-list 1025 (lambda (i) (+ 1024 i))))]
+                           [app   (treelist-append left right)]
+                           [xs    (append (build-list 1024 values)
+                                          (build-list 1025 (lambda (i) (+ 1024 i))))])
+                      (and (equal? (treelist-length app) 2049)
+                           (equal? (treelist-ref app 0) 0)
+                           (equal? (treelist-ref app 1023) 1023)
+                           (equal? (treelist-ref app 1024) 1024)
+                           (equal? (treelist-ref app 2048) 2048)
+                           (equal? (treelist->list app) xs)
+                           (equal? (treelist->list left) (build-list 1024 values))
+                           (equal? (treelist->list right)
+                                   (build-list 1025 (lambda (i) (+ 1024 i)))))))
+
+              (list "treelist-append taller-right boundaries"
+                    (let* ([medium (apply treelist-append
+                                          (for/list ([j (in-range 100)])
+                                            (list->treelist
+                                             (build-list 20
+                                                         (lambda (i) (+ (* j 20) i))))))]
+                           [cases
+                            (list (cons (treelist 'x) medium)
+                                  (cons (make-treelist 17 'a) medium)
+                                  (cons (list->treelist (build-list 32 values)) medium)
+                                  (cons (list->treelist (build-list 33 values)) medium)
+                                  (cons (treelist 'front)
+                                        (list->treelist
+                                         (build-list 1025 (lambda (i) (+ 1000 i))))))]
+                           [checks
+                            (for/list ([entry (in-list cases)])
+                              (let* ([left (car entry)]
+                                     [right (cdr entry)]
+                                     [xs (append (treelist->list left)
+                                                 (treelist->list right))]
+                                     [app (treelist-append left right)]
+                                     [len (length xs)])
+                                (and (equal? (treelist-length app) len)
+                                     (equal? (treelist-ref app 0) (car xs))
+                                     (equal? (treelist-ref app (quotient len 2))
+                                             (list-ref xs (quotient len 2)))
+                                     (equal? (treelist-ref app (sub1 len))
+                                             (list-ref xs (sub1 len)))
+                                     (equal? (treelist->list app) xs)
+                                     (equal? (treelist->list left) (take xs (treelist-length left)))
+                                     (equal? (treelist->list right) (drop xs (treelist-length left))))))])
+                      (andmap values checks)))
+
+              (list "treelist-set on relaxed tree"
+                    (let* ([base (treelist-append (make-treelist 17 'a)
+                                                  (make-treelist 17 'b))]
+                           [tl   (treelist-set base 17 'x)])
+                      (and (equal? (treelist-ref tl 16) 'a)
+                           (equal? (treelist-ref tl 17) 'x)
+                           (equal? (treelist-ref tl 18) 'b)
+                           (equal? (treelist-ref base 17) 'b)
+                           (equal? (treelist-length tl) 34)
+                           (equal? (treelist-length base) 34))))
+
+              (list "treelist-add on relaxed tree"
+                    (let* ([base (treelist-append (make-treelist 17 'a)
+                                                  (make-treelist 17 'b))]
+                           [tl   (for/fold ([acc base])
+                                           ([i (in-range 200)])
+                                   (treelist-add acc i))])
+                      (and (equal? (treelist-length base) 34)
+                           (equal? (treelist-length tl) 234)
+                           (equal? (treelist-ref tl 16) 'a)
+                           (equal? (treelist-ref tl 17) 'b)
+                           (equal? (treelist-ref tl 33) 'b)
+                           (equal? (treelist-ref tl 34) 0)
+                           (equal? (treelist-ref tl 134) 100)
+                           (equal? (treelist-ref tl 233) 199)
+                           (equal? (treelist-first tl) 'a)
+                           (equal? (treelist-last tl) 199)
+                           (equal? (treelist-ref base 17) 'b)
+                           (equal? (treelist->list base)
+                                   (append (make-list 17 'a) (make-list 17 'b))))))
+
               (list "treelist-cons boundaries"
                     (let* ([tl31   (list->treelist (build-list 31 values))]
                            [tl32   (list->treelist (build-list 32 values))]
@@ -2988,6 +3207,59 @@
                            (equal? (treelist-length c1024) 1025)
                            (equal? (treelist-ref c1024 0) 'head)
                            (equal? (treelist-ref c1024 1024) 1023))))
+
+              (list "treelist-cons relaxed tree"
+                    (let* ([base (apply treelist-append
+                                        (list (list->treelist (build-list 20 values))
+                                              (list->treelist (build-list 20 (lambda (i) (+ 20 i))))
+                                              (list->treelist (build-list 20 (lambda (i) (+ 40 i))))))]
+                           [tl   (treelist-cons base 'front)])
+                      (and (equal? (treelist-length tl) 61)
+                           (equal? (treelist-ref tl 0) 'front)
+                           (equal? (treelist-ref tl 1) 0)
+                           (equal? (treelist-ref tl 20) 19)
+                           (equal? (treelist-ref tl 21) 20)
+                           (equal? (treelist-ref tl 60) 59)
+                           (equal? (treelist->list base) (build-list 60 values)))))
+
+              (list "treelist-cons repeated boundaries"
+                    (let* ([sizes '(32 33 1024 1025)]
+                           [results
+                            (for/list ([n (in-list sizes)])
+                              (let* ([base (list->treelist (build-list n values))]
+                                     [tl   (for/fold ([acc base])
+                                                     ([i (in-range 64)])
+                                             (treelist-cons acc (- -1 i)))])
+                                (and (equal? (treelist->list base) (build-list n values))
+                                     (equal? (treelist-length tl) (+ n 64))
+                                     (equal? (treelist-ref tl 0) -64)
+                                     (equal? (treelist-ref tl 63) -1)
+                                     (equal? (treelist-ref tl 64) 0)
+                                     (equal? (treelist-ref tl (+ 63 n)) (sub1 n)))) )])
+                      (andmap values results)))
+
+              (list "treelist-cons on relaxed tree"
+                    (let* ([base (apply treelist-append
+                                        (list (list->treelist (build-list 20 values))
+                                              (list->treelist (build-list 20 (lambda (i) (+ 20 i))))
+                                              (list->treelist (build-list 20 (lambda (i) (+ 40 i))))))]
+                           [tl   (for/fold ([acc base])
+                                           ([i (in-range 40)])
+                                   (treelist-cons acc (- -1 i)))])
+                      (and (equal? (treelist-length base) 60)
+                           (equal? (treelist-length tl) 100)
+                           (equal? (treelist-first tl) -40)
+                           (equal? (treelist-ref tl 39) -1)
+                           (equal? (treelist-ref tl 40) 0)
+                           (equal? (treelist-ref tl 59) 19)
+                           (equal? (treelist-ref tl 60) 20)
+                           (equal? (treelist-ref tl 79) 39)
+                           (equal? (treelist-ref tl 80) 40)
+                           (equal? (treelist-last tl) 59)
+                           (equal? (treelist->list base) (build-list 60 values))
+                           (equal? (treelist->list tl)
+                                   (append (build-list 40 (lambda (i) (- i 40)))
+                                           (build-list 60 values))))))
 
               (list "treelist-insert boundaries"
                     (let* ([sizes '(31 32 33 1024 1025)])
@@ -3011,6 +3283,24 @@
                                 (equal? (treelist-ref c n) 'back))))
                        sizes)))
 
+              (list "treelist-insert relaxed tree"
+                    (let* ([tl (apply treelist-append
+                                      (list (list->treelist (build-list 20 values))
+                                            (list->treelist (build-list 20 (lambda (i) (+ 20 i))))
+                                            (list->treelist (build-list 20 (lambda (i) (+ 40 i))))))]
+                           [xs (build-list 60 values)]
+                           [a  (treelist-insert tl 0 'front)]
+                           [b  (treelist-insert tl 17 'mid-a)]
+                           [c  (treelist-insert tl 20 'boundary)]
+                           [d  (treelist-insert tl 33 'mid-b)]
+                           [e  (treelist-insert tl 60 'back)])
+                      (and (equal? (treelist->list tl) xs)
+                           (equal? (treelist->list a) (cons 'front xs))
+                           (equal? (treelist->list b) (append (take xs 17) '(mid-a) (drop xs 17)))
+                           (equal? (treelist->list c) (append (take xs 20) '(boundary) (drop xs 20)))
+                           (equal? (treelist->list d) (append (take xs 33) '(mid-b) (drop xs 33)))
+                           (equal? (treelist->list e) (append xs '(back))))))
+
               (list "treelist-delete boundaries"
                     (let* ([sizes '(1 31 32 33 1024 1025)])
                       (andmap
@@ -3033,6 +3323,24 @@
                                 (or (zero? (sub1 n))
                                     (equal? (treelist-ref c 0) 0)))))
                        sizes)))
+
+              (list "treelist-delete relaxed tree"
+                    (let* ([tl (apply treelist-append
+                                      (list (list->treelist (build-list 20 values))
+                                            (list->treelist (build-list 20 (lambda (i) (+ 20 i))))
+                                            (list->treelist (build-list 20 (lambda (i) (+ 40 i))))))]
+                           [xs (build-list 60 values)]
+                           [a  (treelist-delete tl 0)]
+                           [b  (treelist-delete tl 17)]
+                           [c  (treelist-delete tl 20)]
+                           [d  (treelist-delete tl 33)]
+                           [e  (treelist-delete tl 59)])
+                      (and (equal? (treelist->list tl) xs)
+                           (equal? (treelist->list a) (drop xs 1))
+                           (equal? (treelist->list b) (append (take xs 17) (drop xs 18)))
+                           (equal? (treelist->list c) (append (take xs 20) (drop xs 21)))
+                           (equal? (treelist->list d) (append (take xs 33) (drop xs 34)))
+                           (equal? (treelist->list e) (take xs 59)))))
 
               (list "treelist-take-right/drop-right"
                     (let ([sizes '(0 1 31 32 33 1024 1025)])
@@ -3078,10 +3386,52 @@
                                 [rev (treelist-reverse tl)])
                            (and (equal? (treelist->list rev) (reverse xs))
                                 (equal? (treelist->list tl) xs)
+                                (equal? (treelist->list (treelist-reverse rev)) xs)
                                 (or (zero? n)
                                     (and (equal? (treelist-ref rev 0) (sub1 n))
                                          (equal? (treelist-ref rev (sub1 n)) 0))))))
                        sizes)))
+
+              (list "treelist-reverse relaxed tree"
+                    (let* ([tl (apply treelist-append
+                                      (list (list->treelist (build-list 20 values))
+                                            (list->treelist (build-list 20 (lambda (i) (+ 20 i))))
+                                            (list->treelist (build-list 20 (lambda (i) (+ 40 i))))))]
+                           [xs (build-list 60 values)]
+                           [rev (treelist-reverse tl)])
+                      (and (equal? (treelist->list tl) xs)
+                           (equal? (treelist->list rev) (reverse xs))
+                           (equal? (treelist-length rev) 60)
+                           (equal? (treelist-ref rev 0) 59)
+                           (equal? (treelist-ref rev 19) 40)
+                           (equal? (treelist-ref rev 20) 39)
+                           (equal? (treelist-ref rev 39) 20)
+                           (equal? (treelist-ref rev 40) 19)
+                           (equal? (treelist-ref rev 59) 0)
+                           (equal? (treelist->list (treelist-reverse rev)) xs))))
+
+              (list "treelist-reverse after repeated cons"
+                    (let* ([base (apply treelist-append
+                                        (list (list->treelist (build-list 20 values))
+                                              (list->treelist (build-list 20 (lambda (i) (+ 20 i))))
+                                              (list->treelist (build-list 20 (lambda (i) (+ 40 i))))))]
+                           [tl   (for/fold ([acc base])
+                                           ([i (in-range 40)])
+                                   (treelist-cons acc (- -1 i)))]
+                           [xs   (append (build-list 40 (lambda (i) (- i 40)))
+                                         (build-list 60 values))]
+                           [rev  (treelist-reverse tl)])
+                      (and (equal? (treelist->list tl) xs)
+                           (equal? (treelist->list rev) (reverse xs))
+                           (equal? (treelist-length rev) 100)
+                           (equal? (treelist-ref rev 0) 59)
+                           (equal? (treelist-ref rev 19) 40)
+                           (equal? (treelist-ref rev 20) 39)
+                           (equal? (treelist-ref rev 59) 0)
+                           (equal? (treelist-ref rev 60) -1)
+                           (equal? (treelist-ref rev 99) -40)
+                           (equal? (treelist->list base) (build-list 60 values))
+                           (equal? (treelist->list (treelist-reverse rev)) xs))))
 
               (list "treelist-rest persistence"
                     (let* ([tl0 (treelist 9 8 7 6)]
@@ -3104,6 +3454,34 @@
                                              (list->treelist (build-list 32 values)))))
                                  (append '(1 2 3) (build-list 32 values)))))
 
+              (list "treelist-append* relaxed outer"
+                    (let* ([a (treelist 1 2)]
+                           [b (treelist)]
+                           [c (list->treelist (build-list 20 values))]
+                           [d (treelist 'tail)]
+                           [outer (treelist-append
+                                   (treelist a b)
+                                   (treelist c d))]
+                           [flat (treelist-append* outer)])
+                      (and (equal? (treelist->list flat)
+                                   (append '(1 2) (build-list 20 values) '(tail)))
+                           (equal? (treelist->list outer) (list a b c d))
+                           (equal? (treelist->list a) '(1 2))
+                           (equal? (treelist->list b) '())
+                           (equal? (treelist->list c) (build-list 20 values))
+                           (equal? (treelist->list d) '(tail)))))
+
+              (list "treelist-append* mixed element error"
+                    (with-handlers ([exn:fail?
+                                     (lambda (e)
+                                       (and (string-contains? (exn-message e) "treelist-append*")
+                                            #t))])
+                      (treelist-append*
+                       (treelist-append
+                        (treelist (treelist 1) (treelist 2))
+                        (treelist 0 (treelist 3))))
+                      #f))
+
               (list "treelist-map dense sizes"
                     (let ([sizes '(0 1 31 32 33 1024 1025)])
                       (andmap
@@ -3123,6 +3501,20 @@
                              (equal? (reverse seen) '(1 2 3 4))
                              (equal? (treelist->list tl) '(1 2 3 4))))))
 
+              (list "treelist higher-order relaxed traversal"
+                    (let* ([left  (list->treelist (build-list 20 values))]
+                           [right (list->treelist (build-list 20 (lambda (i) (+ i 20))))]
+                           [tl    (treelist-append left right)]
+                           [seen  '()]
+                           [mapped   (treelist-map tl add1)]
+                           [filtered (treelist-filter even? tl)])
+                      (and (void? (treelist-for-each tl (lambda (x) (set! seen (cons x seen)))))
+                           (equal? (reverse seen) (build-list 40 values))
+                           (equal? (treelist->list mapped) (build-list 40 add1))
+                           (equal? (treelist->list filtered)
+                                   (filter even? (build-list 40 values)))
+                           (equal? (treelist->list tl) (build-list 40 values)))))
+
               (list "treelist-filter basics"
                     (let* ([tl (list->treelist (build-list 33 values))]
                            [evens (treelist-filter even? tl)]
@@ -3133,11 +3525,139 @@
                                    (filter odd? (build-list 33 values)))
                            (equal? (treelist->list tl) (build-list 33 values)))))
 
+              (list "treelist-filter truthy predicates"
+                    (let* ([tl (treelist-append
+                                (treelist #f 0 '() 'keep)
+                                (list->treelist (list (cons 'a 'b) (vector 1 2) 'drop)))]
+                           [keep-0   (treelist-filter (lambda (x) (and (not (eq? x 'drop)) 0)) tl)]
+                           [keep-null (treelist-filter (lambda (x) (and (not (eq? x 'drop)) '())) tl)]
+                           [keep-sym (treelist-filter (lambda (x) (and (not (eq? x 'drop)) 'yes)) tl)]
+                           [expected (list #f 0 '() 'keep (cons 'a 'b) (vector 1 2))])
+                      (and (equal? (treelist->list keep-0) expected)
+                           (equal? (treelist->list keep-null) expected)
+                           (equal? (treelist->list keep-sym) expected)
+                           (equal? (treelist->list tl)
+                                   (list #f 0 '() 'keep (cons 'a 'b) (vector 1 2) 'drop)))))
+
               (list "treelist-find basics"
                     (let ([tl (treelist 7 8 9 10 11)])
                       (and (equal? (treelist-find tl (lambda (x) (> x 9))) 10)
                            (equal? (treelist-find tl (lambda (x) (< x 0))) #f)
-                           (equal? (treelist-find (treelist) odd?) #f))))
+                           (equal? (treelist-find (treelist) odd?) #f)
+                           (let* ([tl2 (list->treelist (append (list #f) (build-list 40 values)))]
+                                  [seen '()]
+                                  [found (treelist-find tl2
+                                                        (lambda (x)
+                                                          (set! seen (cons x seen))
+                                                          #t))])
+                             (and (equal? found #f)
+                                  (equal? (reverse seen) '(#f)))))))
+
+              (list "treelist-find truthy values"
+                    (let* ([pairv (cons 'a 'b)]
+                           [vecv  (vector 1 2)]
+                           [tlv   (treelist 9)]
+                           [tl    (treelist-append
+                                   (treelist #f 0 '() 'sym)
+                                   (list->treelist (list pairv vecv tlv)))])
+                      (and (equal? (treelist-find tl (lambda (x) (equal? x #f))) #f)
+                           (equal? (treelist-find tl (lambda (x) (equal? x 0))) 0)
+                           (equal? (treelist-find tl null?) '())
+                           (equal? (treelist-find tl symbol?) 'sym)
+                           (equal? (treelist-find tl pair?) pairv)
+                           (equal? (treelist-find tl vector?) vecv)
+                           (equal? (treelist->list (treelist-find tl treelist?)) '(9))
+                           (equal? (treelist->list tl)
+                                   (list #f 0 '() 'sym pairv vecv tlv)))))
+
+              (list "treelist-find/member/index early exit"
+                    (let ([seen-find   '()]
+                          [seen-member '()]
+                          [seen-index  '()]
+                          [tl (treelist-append
+                               (list->treelist (build-list 20 values))
+                               (list->treelist (build-list 20 (lambda (i) (+ i 20)))))])
+                      (and (equal? (treelist-find tl
+                                                  (lambda (x)
+                                                    (set! seen-find (cons x seen-find))
+                                                    (= x 5)))
+                                   5)
+                           (equal? (reverse seen-find) '(0 1 2 3 4 5))
+                           (equal? (treelist-member? tl 7
+                                                     (lambda (a b)
+                                                       (set! seen-member (cons b seen-member))
+                                                       (= a b)))
+                                   #t)
+                           (equal? (reverse seen-member) '(0 1 2 3 4 5 6 7))
+                           (equal? (treelist-index-of tl 9
+                                                      (lambda (a b)
+                                                        (set! seen-index (cons b seen-index))
+                                                        (= a b)))
+                                   9)
+                           (equal? (reverse seen-index) '(0 1 2 3 4 5 6 7 8 9))
+                           (equal? (treelist->list tl) (build-list 40 values)))))
+
+              (list "treelist-member/index truthy comparators"
+                    (let* ([tl (treelist-append
+                                (list->treelist (build-list 20 values))
+                                (list->treelist (build-list 20 (lambda (i) (+ i 20)))))]
+                           [seen-null '()]
+                           [seen-zero '()]
+                           [seen-sym '()])
+                      (and (equal? (treelist-member? tl 6
+                                                     (lambda (a b)
+                                                       (set! seen-null (cons b seen-null))
+                                                       (and (= a b) '())))
+                                   #t)
+                           (equal? (reverse seen-null) '(0 1 2 3 4 5 6))
+                           (equal? (treelist-index-of tl 8
+                                                      (lambda (a b)
+                                                        (set! seen-zero (cons b seen-zero))
+                                                        (and (= a b) 0)))
+                                   8)
+                           (equal? (reverse seen-zero) '(0 1 2 3 4 5 6 7 8))
+                           (equal? (treelist-member? tl 10
+                                                     (lambda (a b)
+                                                       (set! seen-sym (cons b seen-sym))
+                                                       (and (= a b) 'match)))
+                                   #t)
+                           (equal? (reverse seen-sym) '(0 1 2 3 4 5 6 7 8 9 10)))))
+
+              (list "treelist higher-order empty no-call"
+                    (let ([calls '()])
+                      (and (equal? (treelist->list
+                                    (treelist-map empty-treelist
+                                                  (lambda (x)
+                                                    (set! calls (cons (list 'map x) calls))
+                                                    x)))
+                                   '())
+                           (void? (treelist-for-each empty-treelist
+                                                     (lambda (x)
+                                                       (set! calls (cons (list 'for-each x) calls)))))
+                           (equal? (treelist->list
+                                    (treelist-filter (lambda (x)
+                                                       (set! calls (cons (list 'filter x) calls))
+                                                       #t)
+                                                     empty-treelist))
+                                   '())
+                           (equal? (treelist-find empty-treelist
+                                                  (lambda (x)
+                                                    (set! calls (cons (list 'find x) calls))
+                                                    #t))
+                                   #f)
+                           (equal? (treelist-member? empty-treelist
+                                                     'x
+                                                     (lambda (a b)
+                                                       (set! calls (cons (list 'member a b) calls))
+                                                       #t))
+                                   #f)
+                           (equal? (treelist-index-of empty-treelist
+                                                      'x
+                                                      (lambda (a b)
+                                                        (set! calls (cons (list 'index a b) calls))
+                                                        #t))
+                                   #f)
+                           (equal? calls '()))))
 
               (list "treelist-member?/index-of"
                     (let* ([s1 (string-append "ab" "c")]
@@ -3164,6 +3684,23 @@
                            (equal? (treelist->list (treelist-flatten 42)) '(42))
                            (equal? (treelist-length nested) 4)
                            (equal? (treelist-ref nested 1) 3))))
+
+              (list "treelist-flatten relaxed nested"
+                    (let* ([pairv   (cons 'a 'b)]
+                           [vecv    (vector 1 2)]
+                           [nested1 (treelist #f 0 '())]
+                           [nested2 (treelist 'sym pairv vecv)]
+                           [nested3 (treelist)]
+                           [nested4 (treelist (treelist 'tail) (treelist))]
+                           [outer   (treelist-append
+                                     (treelist nested1 nested2)
+                                     (treelist nested3 nested4))]
+                           [flat    (treelist-flatten outer)])
+                      (and (equal? (treelist->list flat)
+                                   (list #f 0 '() 'sym pairv vecv 'tail))
+                           (equal? (treelist->list (treelist-flatten pairv)) (list pairv))
+                           (equal? (treelist-length outer) 4)
+                           (equal? (treelist-ref outer 2) nested3))))
 
               (list "treelist-sort basics"
                     (let* ([nums     (treelist 5 1 4 2 3)]
@@ -3201,8 +3738,39 @@
                            (equal? (treelist->list tl2) (make-list 64 0))
                            (equal? (treelist->list tl3) (make-list 65 0)))))
 
+              (list "treelist front insert/delete moderate"
+                    (let* ([tl (for/fold ([tl (treelist)])
+                                         ([i (in-range 128)])
+                                 (treelist-insert tl 0 i))]
+                           [tl2 (for/fold ([tl tl])
+                                          ([_ (in-range 96)])
+                                  (treelist-delete tl 0))])
+                      (and (equal? (treelist-length tl) 128)
+                           (equal? (treelist-length tl2) 32)
+                           (equal? (treelist-ref tl 0) 127)
+                           (equal? (treelist-ref tl 127) 0)
+                           (equal? (treelist-ref tl2 0) 31)
+                           (equal? (treelist-ref tl2 31) 0))))
+
+              (list "treelist-cons front regression moderate"
+                    (let* ([base (apply treelist-append
+                                        (list (list->treelist (build-list 20 values))
+                                              (list->treelist (build-list 20 (lambda (i) (+ 20 i))))
+                                              (list->treelist (build-list 20 (lambda (i) (+ 40 i))))))]
+                           [tl   (for/fold ([acc base])
+                                           ([i (in-range 128)])
+                                   (treelist-cons acc i))])
+                      (and (equal? (treelist-length tl) 188)
+                           (equal? (treelist-ref tl 0) 127)
+                           (equal? (treelist-ref tl 127) 0)
+                           (equal? (treelist-ref tl 128) 0)
+                           (equal? (treelist-ref tl 147) 19)
+                           (equal? (treelist-ref tl 148) 20)
+                           (equal? (treelist-ref tl 187) 59)
+                           (equal? (treelist->list base) (build-list 60 values)))))
+
               (list "treelist-add repeated boundaries"
-                    (let* ([sizes '(32 33 1024 1025)]
+                    (let* ([sizes '(32 33 1024 1025 4096)]
                            [results
                             (for/list ([n (in-list sizes)])
                               (for/fold ([tl (treelist)])

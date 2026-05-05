@@ -1664,9 +1664,10 @@
                   (host-treelist (vector-copy vec i len))))
 
         (define (treelist-append . tls)
-          (for ([tl (in-list tls)])
-            (unless (treelist? tl)
-              (raise-argument-error 'treelist-append "treelist?" tl)))
+          (for-each (lambda (tl)
+                      (unless (treelist? tl)
+                        (raise-argument-error 'treelist-append "treelist?" tl)))
+                    tls)
           (host-treelist
            (list->vector
             (apply append (map treelist->list tls)))))

@@ -269,8 +269,8 @@ Open representation question:
 - That matches Racket's reference implementation and keeps the dense treelist
   shape, height boundaries, and regression tests aligned with the intended
   semantics.
-- The current dense-only implementation therefore uses `BITS = 5`,
-  `MAX_WIDTH = 32`, and `MASK = 31`.
+- The current implementation therefore uses `BITS = 5`, `MAX_WIDTH = 32`, and
+  `MASK = 31` for both dense nodes and conservative relaxed nodes.
 
 ## Current WebRacket Status
 
@@ -331,10 +331,10 @@ WebRacket uses:
 Current invariants:
 
 - The branching factor is `32`, with `BITS = 5` and `MASK = 31`.
-- The representation is dense / leftwise-dense only.
-- All currently constructed nodes use `sizes = null`.
-- `sizes = null` therefore means both "leftwise dense" and "not using relaxed
-  metadata yet".
+- Dense nodes use `sizes = null`.
+- Relaxed nodes use cumulative child sizes in `sizes`.
+- WebRacket still preserves `sizes = null` for truly dense / leftwise-dense
+  nodes where possible.
 - `empty-treelist` is a runtime value exposed directly as a value primitive.
 
 ### Implemented Strategy
@@ -343,10 +343,44 @@ The current implementation intentionally favors correctness and persistence over
 full RRB-tree sophistication.
 
 - Dense multi-level construction is implemented.
-- `treelist-ref` traverses by radix slicing and is structured so relaxed-node
-  traversal can be added later.
+- Relaxed-node traversal is implemented using cumulative child sizes for
+  non-leftwise-dense nodes.
+- `treelist-ref` and `treelist-set` now traverse both dense and relaxed nodes.
 - `treelist-set` and `treelist-add` use persistent path-copying.
-- Many structural operations are implemented as flatten/copy/rebuild helpers.
+- `treelist-add` has a specialized right-spine fast path.
+- `treelist-cons` has a specialized left-spine fast path.
+- `treelist-append` now uses structural same-height boundary packing.
+- When `left-height >= right-height`, append descends the right spine of the
+  left tree to the meeting height, packs same-height siblings there, and then
+  rebuilds upward with exact child sizes.
+- When `right-height > left-height`, append descends the left spine of the
+  right tree to the meeting height, packs same-height siblings there, and then
+  rebuilds upward with exact child sizes.
+- Packing preserves element order, uses exact child sizes, and lets
+  `treelist-node-build/checked` decide whether rebuilt nodes stay dense
+  (`sizes = null`) or become relaxed (cumulative `sizes` table).
+- This conservative append packing materially improves repeated append of
+  medium chunks compared to the earlier root-only approach.
+- `treelist-take`, `treelist-drop`, and `treelist-split-at` now use structural
+  split helpers instead of flatten/copy/rebuild.
+- `treelist-take-right`, `treelist-drop-right`, `treelist-sublist`,
+  `treelist-insert`, `treelist-delete`, `treelist-rest`, and
+  `treelist-reverse` are also structural and preserve dense metadata when valid
+  and cumulative size tables otherwise.
+- Higher-order operations such as `treelist-map`, `treelist-for-each`,
+  `treelist-filter`, `treelist-find`, `treelist-member?`, and
+  `treelist-index-of` now traverse treelist nodes directly in left-to-right
+  order instead of flattening the input treelist first.
+- `treelist-flatten` now traverses nested treelist nodes directly instead of
+  materializing each nested treelist before recursion.
+- `treelist-append*` now traverses the outer treelist directly, validating each
+  element left-to-right before reusing the existing append helper.
+- Treelist formatting now traverses nodes directly into the existing growable
+  string builder instead of materializing the formatted treelist first.
+- Full RRB rebalancing and deep normalization are still not implemented.
+- Conversions such as `treelist->vector` / `treelist->list` still intentionally
+  materialize flat data, and `treelist-sort` still intentionally materializes
+  via the existing list sort.
 - `treelist-sort` is intentionally limited to the two-positional-argument form
   `(treelist-sort tl less-than?)`, and currently reuses list sort machinery via
   conversion.
@@ -386,8 +420,7 @@ Errors:
 
 Still unsupported:
 
-- relaxed treelist nodes and `sizes`-based traversal
-- rebalance-oriented append algorithms
+- full RRB-style rebalancing and deep normalization
 - mutable treelists
 - sequence support, including `in-treelist`, `sequence->treelist`,
   `for/treelist`, and `for*/treelist`
@@ -441,11 +474,12 @@ WebRacket has the relevant primitives.
 The main treelist work that remains is not basic API coverage but fidelity and
 future data-structure breadth:
 
-- relaxed-node support and `sizes` arrays
-- smarter split/append/rebalance algorithms
+- full RRB-style rebalance and deeper normalization of relaxed trees
+- further split/append compaction for long uneven histories
 - mutable treelists
 - sequence/stream integration
 - compatibility layers such as chaperones, contracts, and serialization
 
 Until those land, Racket's implementation remains the semantic reference, while
-WebRacket intentionally ships the dense immutable subset described above.
+WebRacket intentionally ships the immutable treelist subset described above,
+including conservative relaxed-node support but not full RRB sophistication.
