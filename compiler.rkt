@@ -1352,6 +1352,9 @@
        make-struct-field-accessor
        make-struct-field-mutator
        make-struct-type-property
+       make-treelist
+       treelist-member?
+       treelist-index-of
        string-replace)
      'optional/default
      (λ (name)
@@ -1364,7 +1367,8 @@
          [(number->string) 1]
          [(hash-for-each hash-map hash-map/copy correlated-property) 2]
          [(instantiate-linklet inclusive-range inclusive-range-proc) 2]
-         [(struct->list make-struct-type-property) 1]
+         [(struct->list make-struct-type-property make-treelist) 1]
+         [(treelist-member? treelist-index-of) 2]
          [(make-struct-type) 4]
          [(make-struct-field-accessor make-struct-field-mutator) 2]
          [(string-replace) 3]
@@ -1383,15 +1387,18 @@
          [(instantiate-linklet) 4]
          [(datum->correlated correlated-property inclusive-range inclusive-range-proc) 3]
          [(struct->list) 2]
+         [(treelist-member? treelist-index-of) 3]
          [(make-struct-type) 11]
          [(make-struct-field-accessor make-struct-field-mutator) 5]
          [(make-struct-type-property) 7]
+         [(make-treelist) 2]
          [(string-replace) 4]
          [else 3]))
      (λ (_name) #f)
      (λ (name)
        (case name
          [(string-replace) 'true]
+         [(treelist-member? treelist-index-of) 'prim:equal?]
          [(struct->list) 'symbol:error]
          [(string-join) 'string:space]
          [(procedure-reduce-arity bytes->path path->complete-path string->path-element
@@ -1881,6 +1888,43 @@
   vector-split-at vector-split-at-right
   build-vector
   vector-set/copy 
+
+  ;; Treelists
+  treelist?
+  treelist
+  make-treelist
+  treelist-empty?
+  treelist-length
+  treelist-ref
+  treelist-first
+  treelist-last
+  treelist-add
+  treelist-set
+  treelist-take
+  treelist-drop
+  treelist-split-at
+  treelist-append
+  treelist-cons
+  treelist-insert
+  treelist-delete
+  treelist-take-right
+  treelist-drop-right
+  treelist-sublist
+  treelist-reverse
+  treelist-rest
+  treelist-append*
+  treelist-flatten
+  treelist-sort
+  treelist-map
+  treelist-for-each
+  treelist-filter
+  treelist-find
+  treelist-member?
+  treelist-index-of
+  vector->treelist
+  treelist->vector
+  list->treelist
+  treelist->list
   
   bytes?  make-bytes  bytes-ref  bytes-set!  bytes-length  subbytes bytes-copy!
   bytes-copy bytes-fill!
@@ -17069,11 +17113,15 @@
     ) ; CaseClosureAllocation
   
   (AExpr3 : AExpr (ae [dd #f]) -> * ()  ; only ca needs dest
-    [,x               (if (memq (syntax-e (variable-id x)) primitives)
-                          (begin
-                            (record-used-primitive! (syntax-e (variable-id x)))
-                            (PrimRef x)) ; reference to primitive
-                          (Reference x))] ; reference to non-free variable
+    [,x               (let ([sym (syntax-e (variable-id x))])
+                        (cond
+                          [(eq? sym 'empty-treelist)
+                           '(global.get $empty-treelist)]
+                          [(memq sym primitives)
+                           (record-used-primitive! sym)
+                           (PrimRef x)] ; reference to primitive
+                          [else
+                           (Reference x)]))] ; reference to non-free variable
     [(free-ref ,x ,i)
      (cond
        [(eq? (current-known-direct-env-arity) 1)
@@ -17142,11 +17190,24 @@
      ;       Note that if x is present in a top-level define-values
      ;       then (top x) will become x anyway.
      #;(displayln (list 'top (variable-id x)) (current-error-port))
-     (if (top-variable? x)
-         (Reference x)
-         `(block (result (ref eq))
-            (call $raise-unbound-variable-reference
-                  ,(top-reference-symbol-expr x))))
+     (define sym (and (variable? x) (syntax-e (variable-id x))))
+     (cond
+       [(eq? s 'empty-treelist)
+        '(global.get $empty-treelist)]
+       [(eq? sym 'empty-treelist)
+        '(global.get $empty-treelist)]
+       [(memq s primitives)
+        (record-used-primitive! s)
+        (PrimRef x)]
+       [(memq sym primitives)
+        (record-used-primitive! sym)
+        (PrimRef x)]
+       [(top-variable? x)
+        (Reference x)]
+       [else
+        `(block (result (ref eq))
+           (call $raise-unbound-variable-reference
+                 ,(top-reference-symbol-expr x)))])
      #;`(app ,#'namespace-variable-value (app ,#'string->symbol ',(symbol->string (syntax-e (variable-id x)))))
      ; ',#f ; use-mapping? TODO: this should be #t but that isn't implemented yet in runtime
      ]
@@ -17356,10 +17417,11 @@
          [(false)        (Imm #f)]
          [(true)         (Imm #t)]
          [(missing)      '(global.get $missing)]
+         [(prim:equal?)  '(global.get $prim:equal?)]
          [(string:space) '(global.get $string:space)]
          [(symbol:error) '(global.get $symbol:error)]
          [else
-          (error 'inline-prim-default "unknown inline default: ~a" default)]))
+         (error 'inline-prim-default "unknown inline default: ~a" default)]))
 
      (define (inline-prim/spec spec sym ae1)
        (define kind       (primitive-inline-spec-kind spec))
@@ -17389,6 +17451,10 @@
                   (global.get $void))]
          [(eq? sym 'list)
           (build-rest-args (AExpr* ae1))]
+         [(eq? sym 'treelist)
+          `(call $treelist ,(build-rest-args (AExpr* ae1)))]
+         [(eq? sym 'treelist-append)
+          `(call $treelist-append ,(build-rest-args (AExpr* ae1)))]
          [(eq? sym 'values)
           (define n   (length ae1))
           (define aes (AExpr* ae1))

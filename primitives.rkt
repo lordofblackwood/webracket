@@ -753,6 +753,44 @@
  vector-sort! vector-sort
  build-vector
  vector-set/copy
+
+ ;; Treelists
+ treelist?
+ treelist
+ make-treelist
+ empty-treelist
+ treelist-empty?
+ treelist-length
+ treelist-ref
+ treelist-first
+ treelist-last
+ treelist-add
+ treelist-set
+ treelist-take
+ treelist-drop
+ treelist-split-at
+ treelist-append
+ treelist-cons
+ treelist-insert
+ treelist-delete
+ treelist-take-right
+ treelist-drop-right
+ treelist-sublist
+ treelist-reverse
+ treelist-rest
+ treelist-append*
+ treelist-flatten
+ treelist-sort
+ treelist-map
+ treelist-for-each
+ treelist-filter
+ treelist-find
+ treelist-member?
+ treelist-index-of
+ vector->treelist
+ treelist->vector
+ list->treelist
+ treelist->list
  
  ;; 4.14 Boxes
  ; boxed unboxed set-boxed!  ; internal
@@ -1412,6 +1450,446 @@
   (for ([i (in-range old-size)])
     (vector-set! new-vec i (vector-ref vec i)))
   new-vec)
+
+(define (dynamic-require/false mod sym)
+  (with-handlers ([exn:fail? (lambda (_) #f)])
+    (dynamic-require mod sym)))
+
+(define has-racket-treelist?
+  (and (dynamic-require/false 'racket/treelist 'treelist?) #t))
+
+(define-values (empty-treelist
+                treelist?
+                treelist
+                make-treelist
+                treelist-empty?
+                treelist-length
+                treelist-ref
+                treelist-first
+                treelist-last
+                treelist-add
+                treelist-set
+                treelist-take
+                treelist-drop
+                treelist-split-at
+                treelist-append
+                treelist-cons
+                treelist-insert
+                treelist-delete
+                treelist-take-right
+                treelist-drop-right
+                treelist-sublist
+                treelist-reverse
+                treelist-rest
+                treelist-append*
+                treelist-flatten
+                treelist-sort
+                treelist-map
+                treelist-for-each
+                treelist-filter
+                treelist-find
+                treelist-member?
+                treelist-index-of
+                vector->treelist
+                treelist->vector
+                list->treelist
+                treelist->list)
+  (if has-racket-treelist?
+      (let ([real-treelist-sort
+             (dynamic-require 'racket/treelist 'treelist-sort)])
+        ;; Intentionally mirror compiled WebRacket: expose only the
+        ;; positional two-argument treelist-sort form on the host side.
+        (define (treelist-sort tl less-than?)
+          (real-treelist-sort tl less-than?))
+        (values (dynamic-require 'racket/treelist 'empty-treelist)
+                (dynamic-require 'racket/treelist 'treelist?)
+                (dynamic-require 'racket/treelist 'treelist)
+                (dynamic-require 'racket/treelist 'make-treelist)
+                (dynamic-require 'racket/treelist 'treelist-empty?)
+                (dynamic-require 'racket/treelist 'treelist-length)
+                (dynamic-require 'racket/treelist 'treelist-ref)
+                (dynamic-require 'racket/treelist 'treelist-first)
+                (dynamic-require 'racket/treelist 'treelist-last)
+                (dynamic-require 'racket/treelist 'treelist-add)
+                (dynamic-require 'racket/treelist 'treelist-set)
+                (dynamic-require 'racket/treelist 'treelist-take)
+                (dynamic-require 'racket/treelist 'treelist-drop)
+                (dynamic-require 'racket/treelist 'treelist-split-at)
+                (dynamic-require 'racket/treelist 'treelist-append)
+                (dynamic-require 'racket/treelist 'treelist-cons)
+                (dynamic-require 'racket/treelist 'treelist-insert)
+                (dynamic-require 'racket/treelist 'treelist-delete)
+                (dynamic-require 'racket/treelist 'treelist-take-right)
+                (dynamic-require 'racket/treelist 'treelist-drop-right)
+                (dynamic-require 'racket/treelist 'treelist-sublist)
+                (dynamic-require 'racket/treelist 'treelist-reverse)
+                (dynamic-require 'racket/treelist 'treelist-rest)
+                (dynamic-require 'racket/treelist 'treelist-append*)
+                (dynamic-require 'racket/treelist 'treelist-flatten)
+                treelist-sort
+                (dynamic-require 'racket/treelist 'treelist-map)
+                (dynamic-require 'racket/treelist 'treelist-for-each)
+                (dynamic-require 'racket/treelist 'treelist-filter)
+                (dynamic-require 'racket/treelist 'treelist-find)
+                (dynamic-require 'racket/treelist 'treelist-member?)
+                (dynamic-require 'racket/treelist 'treelist-index-of)
+                (dynamic-require 'racket/treelist 'vector->treelist)
+                (dynamic-require 'racket/treelist 'treelist->vector)
+                (dynamic-require 'racket/treelist 'list->treelist)
+                (dynamic-require 'racket/treelist 'treelist->list)))
+      (let ()
+        (struct host-treelist (vec) #:transparent)
+
+        ;; Host fallback for Racket versions without `racket/treelist`.
+        ;; Keep this subset aligned with compiled WebRacket, including the
+        ;; simplified positional treelist-sort API.
+        (define empty-treelist (host-treelist '#()))
+
+        (define (treelist? v)
+          (host-treelist? v))
+
+        (define (treelist . xs)
+          (host-treelist (list->vector xs)))
+
+        (define (make-treelist k [val #f])
+          (unless (exact-nonnegative-integer? k)
+            (raise-argument-error 'make-treelist "exact-nonnegative-integer?" k))
+          (host-treelist (make-vector k val)))
+
+        (define (treelist-empty? tl)
+          (unless (treelist? tl)
+            (raise-argument-error 'treelist-empty? "treelist?" tl))
+          (zero? (vector-length (host-treelist-vec tl))))
+
+        (define (treelist-length tl)
+          (unless (treelist? tl)
+            (raise-argument-error 'treelist-length "treelist?" tl))
+          (vector-length (host-treelist-vec tl)))
+
+        (define (treelist-ref tl i)
+          (unless (treelist? tl)
+            (raise-argument-error 'treelist-ref "treelist?" tl))
+          (unless (exact-nonnegative-integer? i)
+            (raise-argument-error 'treelist-ref "exact-nonnegative-integer?" i))
+          (define vec (host-treelist-vec tl))
+          (when (>= i (vector-length vec))
+            (raise-arguments-error 'treelist-ref
+                                   "index is out of range"
+                                   "index" i
+                                   "length" (vector-length vec)))
+          (vector-ref vec i))
+
+        (define (treelist-first tl)
+          (unless (treelist? tl)
+            (raise-argument-error 'treelist-first "treelist?" tl))
+          (define vec (host-treelist-vec tl))
+          (when (zero? (vector-length vec))
+            (raise-arguments-error 'treelist-first "treelist is empty"))
+          (vector-ref vec 0))
+
+        (define (treelist-last tl)
+          (unless (treelist? tl)
+            (raise-argument-error 'treelist-last "treelist?" tl))
+          (define vec (host-treelist-vec tl))
+          (when (zero? (vector-length vec))
+            (raise-arguments-error 'treelist-last "treelist is empty"))
+          (vector-ref vec (sub1 (vector-length vec))))
+
+        (define (treelist-add tl v)
+          (unless (treelist? tl)
+            (raise-argument-error 'treelist-add "treelist?" tl))
+          (define vec (host-treelist-vec tl))
+          (define len (vector-length vec))
+          (define new-vec (make-vector (add1 len) v))
+          (for ([i (in-range len)])
+            (vector-set! new-vec i (vector-ref vec i)))
+          (host-treelist new-vec))
+
+        (define (treelist-set tl i v)
+          (unless (treelist? tl)
+            (raise-argument-error 'treelist-set "treelist?" tl))
+          (unless (exact-nonnegative-integer? i)
+            (raise-argument-error 'treelist-set "exact-nonnegative-integer?" i))
+          (define vec (host-treelist-vec tl))
+          (when (>= i (vector-length vec))
+            (raise-arguments-error 'treelist-set
+                                   "index is out of range"
+                                   "index" i
+                                   "length" (vector-length vec)))
+          (define new-vec (vector-copy vec))
+          (vector-set! new-vec i v)
+          (host-treelist new-vec))
+
+        (define (treelist-take tl i)
+          (unless (treelist? tl)
+            (raise-argument-error 'treelist-take "treelist?" tl))
+          (unless (exact-nonnegative-integer? i)
+            (raise-argument-error 'treelist-take "exact-nonnegative-integer?" i))
+          (define vec (host-treelist-vec tl))
+          (define len (vector-length vec))
+          (when (> i len)
+            (raise-arguments-error 'treelist-take
+                                   "index is out of range"
+                                   "index" i
+                                   "length" len))
+          (host-treelist (vector-copy vec 0 i)))
+
+        (define (treelist-drop tl i)
+          (unless (treelist? tl)
+            (raise-argument-error 'treelist-drop "treelist?" tl))
+          (unless (exact-nonnegative-integer? i)
+            (raise-argument-error 'treelist-drop "exact-nonnegative-integer?" i))
+          (define vec (host-treelist-vec tl))
+          (define len (vector-length vec))
+          (when (> i len)
+            (raise-arguments-error 'treelist-drop
+                                   "index is out of range"
+                                   "index" i
+                                   "length" len))
+          (host-treelist (vector-copy vec i len)))
+
+        (define (treelist-split-at tl i)
+          (unless (treelist? tl)
+            (raise-argument-error 'treelist-split-at "treelist?" tl))
+          (unless (exact-nonnegative-integer? i)
+            (raise-argument-error 'treelist-split-at "exact-nonnegative-integer?" i))
+          (define vec (host-treelist-vec tl))
+          (define len (vector-length vec))
+          (when (> i len)
+            (raise-arguments-error 'treelist-split-at
+                                   "index is out of range"
+                                   "index" i
+                                   "length" len))
+          (values (host-treelist (vector-copy vec 0 i))
+                  (host-treelist (vector-copy vec i len))))
+
+        (define (treelist-append . tls)
+          (for ([tl (in-list tls)])
+            (unless (treelist? tl)
+              (raise-argument-error 'treelist-append "treelist?" tl)))
+          (host-treelist
+           (list->vector
+            (apply append (map treelist->list tls)))))
+
+        (define (treelist-cons tl v)
+          (unless (treelist? tl)
+            (raise-argument-error 'treelist-cons "treelist?" tl))
+          (host-treelist
+           (list->vector (cons v (treelist->list tl)))))
+
+        (define (treelist-insert tl i v)
+          (unless (treelist? tl)
+            (raise-argument-error 'treelist-insert "treelist?" tl))
+          (unless (exact-nonnegative-integer? i)
+            (raise-argument-error 'treelist-insert "exact-nonnegative-integer?" i))
+          (define xs (treelist->list tl))
+          (define len (length xs))
+          (when (> i len)
+            (raise-arguments-error 'treelist-insert
+                                   "index is out of range"
+                                   "index" i
+                                   "length" len))
+          (host-treelist
+           (list->vector
+            (append (take xs i) (list v) (drop xs i)))))
+
+        (define (treelist-delete tl i)
+          (unless (treelist? tl)
+            (raise-argument-error 'treelist-delete "treelist?" tl))
+          (unless (exact-nonnegative-integer? i)
+            (raise-argument-error 'treelist-delete "exact-nonnegative-integer?" i))
+          (define xs (treelist->list tl))
+          (define len (length xs))
+          (when (>= i len)
+            (raise-arguments-error 'treelist-delete
+                                   "index is out of range"
+                                   "index" i
+                                   "length" len))
+          (host-treelist
+           (list->vector
+            (append (take xs i) (drop xs (add1 i))))))
+
+        (define (treelist-take-right tl n)
+          (unless (treelist? tl)
+            (raise-argument-error 'treelist-take-right "treelist?" tl))
+          (unless (exact-nonnegative-integer? n)
+            (raise-argument-error 'treelist-take-right "exact-nonnegative-integer?" n))
+          (define xs (treelist->list tl))
+          (define len (length xs))
+          (when (> n len)
+            (raise-arguments-error 'treelist-take-right
+                                   "index is out of range"
+                                   "index" n
+                                   "length" len))
+          (host-treelist (list->vector (drop xs (- len n)))))
+
+        (define (treelist-drop-right tl n)
+          (unless (treelist? tl)
+            (raise-argument-error 'treelist-drop-right "treelist?" tl))
+          (unless (exact-nonnegative-integer? n)
+            (raise-argument-error 'treelist-drop-right "exact-nonnegative-integer?" n))
+          (define xs (treelist->list tl))
+          (define len (length xs))
+          (when (> n len)
+            (raise-arguments-error 'treelist-drop-right
+                                   "index is out of range"
+                                   "index" n
+                                   "length" len))
+          (host-treelist (list->vector (take xs (- len n)))))
+
+        (define (treelist-sublist tl start end)
+          (unless (treelist? tl)
+            (raise-argument-error 'treelist-sublist "treelist?" tl))
+          (unless (exact-nonnegative-integer? start)
+            (raise-argument-error 'treelist-sublist "exact-nonnegative-integer?" start))
+          (unless (exact-nonnegative-integer? end)
+            (raise-argument-error 'treelist-sublist "exact-nonnegative-integer?" end))
+          (define xs (treelist->list tl))
+          (define len (length xs))
+          (when (or (> start end) (> end len))
+            (raise-arguments-error 'treelist-sublist
+                                   "indices are out of range"
+                                   "start" start
+                                   "end" end
+                                   "length" len))
+          (host-treelist (list->vector (take (drop xs start) (- end start)))))
+
+        (define (treelist-reverse tl)
+          (unless (treelist? tl)
+            (raise-argument-error 'treelist-reverse "treelist?" tl))
+          (host-treelist (list->vector (reverse (treelist->list tl)))))
+
+        (define (treelist-rest tl)
+          (unless (treelist? tl)
+            (raise-argument-error 'treelist-rest "treelist?" tl))
+          (define xs (treelist->list tl))
+          (when (null? xs)
+            (raise-arguments-error 'treelist-rest "treelist is empty"))
+          (host-treelist (list->vector (cdr xs))))
+
+        (define (treelist-append* tlotl)
+          (unless (treelist? tlotl)
+            (raise-argument-error 'treelist-append* "treelist?" tlotl))
+          (apply treelist-append (treelist->list tlotl)))
+
+        (define (treelist-flatten v)
+          (define (flatten-one x)
+            (if (treelist? x)
+                (apply append (map flatten-one (treelist->list x)))
+                (list x)))
+          (host-treelist (list->vector (flatten-one v))))
+
+        ;; Simplified host fallback: only the positional two-argument form is supported.
+        (define (treelist-sort tl less-than?)
+          (unless (treelist? tl)
+            (raise-argument-error 'treelist-sort "treelist?" tl))
+          (unless (procedure? less-than?)
+            (raise-argument-error 'treelist-sort "procedure?" less-than?))
+          (host-treelist
+           (list->vector (sort (treelist->list tl) less-than?))))
+
+        (define (treelist-map tl proc)
+          (unless (treelist? tl)
+            (raise-argument-error 'treelist-map "treelist?" tl))
+          (unless (procedure? proc)
+            (raise-argument-error 'treelist-map "procedure?" proc))
+          (host-treelist (list->vector (map proc (treelist->list tl)))))
+
+        (define (treelist-for-each tl proc)
+          (unless (treelist? tl)
+            (raise-argument-error 'treelist-for-each "treelist?" tl))
+          (unless (procedure? proc)
+            (raise-argument-error 'treelist-for-each "procedure?" proc))
+          (for-each proc (treelist->list tl)))
+
+        (define (treelist-filter keep tl)
+          (unless (procedure? keep)
+            (raise-argument-error 'treelist-filter "procedure?" keep))
+          (unless (treelist? tl)
+            (raise-argument-error 'treelist-filter "treelist?" tl))
+          (host-treelist (list->vector (filter keep (treelist->list tl)))))
+
+        (define (treelist-find tl pred)
+          (unless (treelist? tl)
+            (raise-argument-error 'treelist-find "treelist?" tl))
+          (unless (procedure? pred)
+            (raise-argument-error 'treelist-find "procedure?" pred))
+          (findf pred (treelist->list tl)))
+
+        (define (treelist-member? tl v [eql? equal?])
+          (unless (treelist? tl)
+            (raise-argument-error 'treelist-member? "treelist?" tl))
+          (unless (procedure? eql?)
+            (raise-argument-error 'treelist-member? "procedure?" eql?))
+          (and (for/or ([elem (in-list (treelist->list tl))])
+                 (eql? v elem))
+               #t))
+
+        (define (treelist-index-of tl v [eql? equal?])
+          (unless (treelist? tl)
+            (raise-argument-error 'treelist-index-of "treelist?" tl))
+          (unless (procedure? eql?)
+            (raise-argument-error 'treelist-index-of "procedure?" eql?))
+          (let loop ([xs (treelist->list tl)] [i 0])
+            (cond
+              [(null? xs) #f]
+              [(eql? v (car xs)) i]
+              [else (loop (cdr xs) (add1 i))])))
+
+        (define (vector->treelist vec)
+          (unless (vector? vec)
+            (raise-argument-error 'vector->treelist "vector?" vec))
+          (host-treelist (vector-copy vec)))
+
+        (define (treelist->vector tl)
+          (unless (treelist? tl)
+            (raise-argument-error 'treelist->vector "treelist?" tl))
+          (vector-copy (host-treelist-vec tl)))
+
+        (define (list->treelist xs)
+          (host-treelist (list->vector xs)))
+
+        (define (treelist->list tl)
+          (unless (treelist? tl)
+            (raise-argument-error 'treelist->list "treelist?" tl))
+          (vector->list (host-treelist-vec tl)))
+
+        (values empty-treelist
+                treelist?
+                treelist
+                make-treelist
+                treelist-empty?
+                treelist-length
+                treelist-ref
+                treelist-first
+                treelist-last
+                treelist-add
+                treelist-set
+                treelist-take
+                treelist-drop
+                treelist-split-at
+                treelist-append
+                treelist-cons
+                treelist-insert
+                treelist-delete
+                treelist-take-right
+                treelist-drop-right
+                treelist-sublist
+                treelist-reverse
+                treelist-rest
+                treelist-append*
+                treelist-flatten
+                treelist-sort
+                treelist-map
+                treelist-for-each
+                treelist-filter
+                treelist-find
+                treelist-member?
+                treelist-index-of
+                vector->treelist
+                treelist->vector
+                list->treelist
+                treelist->list))))
 
 (require (prefix-in racket: racket/vector))
          
