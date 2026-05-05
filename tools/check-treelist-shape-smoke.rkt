@@ -16,9 +16,25 @@
 (define repo-root (simplify-path (build-path tools-dir "..")))
 (define webracket-file (build-path repo-root "webracket.rkt"))
 (define smoke-file (build-path repo-root "tools" "treelist-shape-internal-smoke.rkt"))
+(define smoke-base
+  (path-replace-extension smoke-file #""))
 (define racket-bin
   (or (find-executable-path "racket")
       (error 'check-treelist-shape-smoke "could not find racket executable")))
+
+(define generated-smoke-files
+  (list (path-replace-extension smoke-base #".wat")
+        (path-replace-extension smoke-base #".wasm")
+        (path-replace-extension smoke-base #".js")
+        (path-replace-extension smoke-base #".wasm.map.sexp")))
+
+(for ([p generated-smoke-files])
+  (when (file-exists? p)
+    (with-handlers ([exn:fail:filesystem?
+                     (λ (e)
+                       (unless (regexp-match? #rx"cannot delete file" (exn-message e))
+                         (raise e)))])
+      (delete-file p))))
 
 (define-values (proc in out err)
   (parameterize ([current-directory repo-root])
