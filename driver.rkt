@@ -286,6 +286,7 @@
          #:tree-shake-report tree-shake-report
          ;; Program Debug
          #:print-top-level-results? print-top-level-results?
+         #:internal-bind-treelist-debug-shape? internal-bind-treelist-debug-shape?
          ;; Reflection
          #:console-bridge?   console-bridge?    ; adds WR on the JS side
          ;; Populate the Virtual File System
@@ -429,7 +430,9 @@
                      [current-enable-cc-analysis? enable-cc-analysis?]
                      [current-letrec-strategy letrec-strategy]
                      [current-enable-simplify? enable-simplify?]
-                     [current-print-top-level-results? print-top-level-results?])
+                     [current-print-top-level-results? print-top-level-results?]
+                     [current-internal-treelist-debug-shape?
+                      internal-bind-treelist-debug-shape?])
         (comp stx-with-stdlib))))
   (define t-compile-end (now-ms))
 

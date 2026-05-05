@@ -31,6 +31,7 @@
 (define tree-shake-report (make-parameter #f))
 (define letrec-strategy (make-parameter 'waddell))
 (define print-top-level-results? (make-parameter #f))
+(define internal-bind-treelist-debug-shape? (make-parameter #f))
 (define console-bridge? (make-parameter #f))
 
 (define browser         (make-parameter #f))
@@ -188,6 +189,9 @@
    [("--print-top-level-results")
     "Print each top-level expression result with print; useful for script-style tests"
     (print-top-level-results? #t)]
+   [("--internal-bind-treelist-debug-shape")
+    "Enable compiler recognition of the private treelist shape hook for internal smokes"
+    (internal-bind-treelist-debug-shape? #t)]
    [("--console-bridge") "Install the browser console bridge as globalThis.WR"
                          (console-bridge? #t)]
    [("--no-console-bridge") "Do not install the browser console bridge (default)"
@@ -278,6 +282,8 @@
                      #:tree-shake?   (tree-shake?)
                      #:tree-shake-report (tree-shake-report)
                      #:print-top-level-results? (print-top-level-results?)
+                     #:internal-bind-treelist-debug-shape?
+                     (internal-bind-treelist-debug-shape?)
                      #:console-bridge? (console-bridge?)
                      #:vfs-preloads (reverse (vfs-preloads))
                      #:vfs-mounts   (reverse (vfs-mounts))

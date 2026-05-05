@@ -345,8 +345,13 @@
 
 (define current-top-symbols-needing-defined-check (make-parameter (make-hasheq)))
 (define current-print-top-level-results? (make-parameter #f))
+;; When true, the compiler recognizes one compiler-private identifier and
+;; lowers it directly to the runtime-only treelist shape helper.
+(define current-internal-treelist-debug-shape? (make-parameter #f))
 (define print-top-level-results-sentinel-symbol
   'webracket-print-top-level-results-sentinel)
+(define internal-treelist-debug-shape-symbol
+  'webracket-internal-treelist-debug-shape)
 
 (define letrec-initialization-set-key 'webracket:letrec-initialization-set?)
 
@@ -822,7 +827,8 @@
 (define (primitive-arity sym)
   (hash-ref! primitive-arity-cache sym
              (λ ()
-               (or (ffi-primitive-arity sym)
+               (or (and (eq? sym internal-treelist-debug-shape-symbol) 1)
+                   (ffi-primitive-arity sym)
                    (let ([desc (primitive->description sym)])
                      (and desc (primitive-description-arity desc)))))))
 
@@ -2417,6 +2423,8 @@
 (define (primitive? v)
   (and (or (and (syntax? v)   (primitive? (syntax-e v)))
            (and (variable? v) (primitive? (variable-id v)))
+           (and (current-internal-treelist-debug-shape?)
+                (eq? v internal-treelist-debug-shape-symbol))
            (set-member? primitives-set v))
        #t))
 
@@ -7063,6 +7071,11 @@
                                                                 ρ)]
                                                        [(non-literal-constant? s) ; like prop:object-name
                                                         (values `,x ρ)]
+                                                       [(eq? s internal-treelist-debug-shape-symbol)
+                                                        (raise-syntax-error
+                                                         'α-rename
+                                                         "compiler-private treelist shape hook is unavailable without --internal-bind-treelist-debug-shape"
+                                                         (variable-id x))]
                                                        [(inside-module?)
                                                         (raise-syntax-error
                                                          'α-rename "compiler.rkt: unbound variable"
@@ -17451,6 +17464,8 @@
                   (global.get $void))]
          [(eq? sym 'list)
           (build-rest-args (AExpr* ae1))]
+         [(eq? sym internal-treelist-debug-shape-symbol)
+          (inline-prim/fixed 'treelist-debug-shape ae1 1)]
          [(eq? sym 'treelist)
           `(call $treelist ,(build-rest-args (AExpr* ae1)))]
          [(eq? sym 'treelist-append)
