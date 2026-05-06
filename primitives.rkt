@@ -1466,6 +1466,38 @@
     [(and (list? key)
           (= (length key) 5)
           (symbol? (car key))
+          (symbol? (cadr key))
+          (valid-count? (caddr key))
+          (symbol? (list-ref key 3))
+          (valid-count? (list-ref key 4)))
+     (define pinfo
+       (webracket-simple-prefab-key-info
+        (list (cadr key) (caddr key) (list-ref key 3) (list-ref key 4))
+        #f))
+     (define init-count (and pinfo
+                             (inferred-child-count init-field-count (list-ref pinfo 6))))
+     (and pinfo
+          (or (not init-field-count) init-count)
+          (info (car key) (or init-count 0) 0 #f #() pinfo))]
+    [(and (list? key)
+          (= (length key) 6)
+          (symbol? (car key))
+          (valid-count? (cadr key))
+          (symbol? (list-ref key 2))
+          (valid-count? (list-ref key 3))
+          (symbol? (list-ref key 4))
+          (valid-count? (list-ref key 5))
+          (or (not init-field-count)
+              (= (+ (cadr key) (list-ref key 3) (list-ref key 5)) init-field-count)))
+     (define pinfo
+       (webracket-simple-prefab-key-info
+        (list (list-ref key 2) (list-ref key 3) (list-ref key 4) (list-ref key 5))
+        #f))
+     (and pinfo
+          (info (car key) (cadr key) 0 #f #() pinfo))]
+    [(and (list? key)
+          (= (length key) 5)
+          (symbol? (car key))
           (symbol? (list-ref key 2))
           (valid-count? (list-ref key 3)))
      (define pinfo (parent-info (list-ref key 2)
@@ -1533,18 +1565,21 @@
 (define (make-prefab-struct key . vals)
   (define info (webracket-simple-prefab-key-info key (length vals)))
   (unless info (raise-argument-error 'make-prefab-struct "supported simple prefab key" key))
+  (define (std-from-info info)
+    (define parent-info (list-ref info 5))
+    (define parent-std (and parent-info (std-from-info parent-info)))
+    (let-values ([(std make pred acc mut)
+                  (make-struct-type (list-ref info 0)
+                                    (or parent-std #f)
+                                    (list-ref info 1)
+                                    (list-ref info 2)
+                                    (list-ref info 3)
+                                    #f
+                                    'prefab)])
+      (hash-set! webracket-prefab-type-info std (cons (list-ref info 7) (list-ref info 6)))
+      std))
   (define parent-info (list-ref info 5))
-  (define parent-std
-    (and parent-info
-         (let-values ([(std make pred acc mut)
-                       (make-struct-type (list-ref parent-info 0)
-                                         #f
-                                         (list-ref parent-info 1)
-                                         (list-ref parent-info 2)
-                                         (list-ref parent-info 3)
-                                         #f
-                                         'prefab)])
-           std)))
+  (define parent-std (and parent-info (std-from-info parent-info)))
   (define-values (std make pred acc mut)
     (make-struct-type (list-ref info 0)
                       (or parent-std #f)

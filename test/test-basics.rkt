@@ -4464,6 +4464,12 @@
                         (make-prefab-struct '(prefab-child #(0) prefab-parent 2 #(0 1)) 10 20 30))
                       (define p/child-alias-explicit-mutable
                         (make-prefab-struct '(prefab-child 1 #(0) prefab-parent 2 #(0 1)) 10 20 30))
+                      (define p/grandchild
+                        (make-prefab-struct '(prefab-grandchild prefab-child 1 prefab-parent 2)
+                                            10 20 30 40))
+                      (define p/grandchild-explicit-count
+                        (make-prefab-struct '(prefab-grandchild 1 prefab-child 1 prefab-parent 2)
+                                            10 20 30 40))
                       (define-values (struct:prefab-point make-prefab-point prefab-point?
                                                           prefab-point-ref prefab-point-set!)
                         (make-struct-type 'prefab-point #f 2 0 #f #f 'prefab))
@@ -4515,6 +4521,8 @@
                            (prefab-key? '(prefab-child 1 prefab-parent 2))
                            (prefab-key? '(prefab-child #(0) prefab-parent 2 #(0 1)))
                            (prefab-key? '(prefab-child 1 #(0) prefab-parent 2 #(0 1)))
+                           (prefab-key? '(prefab-grandchild prefab-child 1 prefab-parent 2))
+                           (prefab-key? '(prefab-grandchild 1 prefab-child 1 prefab-parent 2))
                            (not (prefab-key? '(prefab-multi 3 (0 #f) #(0 0))))
                            (equal? (prefab-struct-key p) 'prefab-point)
                            (equal? (prefab-struct-key p/auto) '(prefab-auto 1 (1 #f) #()))
@@ -4534,6 +4542,8 @@
                                    '(prefab-child 1 (0 #f) #(0) prefab-parent 2 (0 #f) #(0 1)))
                            (equal? (prefab-struct-key p/child-alias-explicit-mutable)
                                    '(prefab-child 1 (0 #f) #(0) prefab-parent 2 (0 #f) #(0 1)))
+                           (equal? (prefab-struct-key p/grandchild)
+                                   (prefab-struct-key p/grandchild-explicit-count))
                            (equal? (prefab-point-ref p 0) 11)
                            (equal? (prefab-point-ref p 1) 31)
                            (equal? (prefab-auto-ref p/auto 0) 42)

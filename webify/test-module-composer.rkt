@@ -851,7 +851,8 @@
              'prefab-maker-a
              '(linklet () (a-point auto-point auto-zero auto-one auto-list auto-vector
                          mutable-cell mutable-triple child-point child-point/alias
-                         child-point/alias-count one-point-value)
+                         child-point/alias-count grandchild-point
+                         grandchild-point/count one-point-value)
                 (define-values (struct:prefab-point/one make-prefab-point/one prefab-point/one?
                                                         prefab-point/one-ref prefab-point/one-set!)
                   (make-struct-type 'prefab-point #f 1 0 #f #f 'prefab))
@@ -885,7 +886,13 @@
                 (define-values (child-point/alias)
                   (make-prefab-struct '(prefab-child prefab-parent 2) 10 20 30))
                 (define-values (child-point/alias-count)
-                  (make-prefab-struct '(prefab-child 1 prefab-parent 2) 10 20 30)))
+                  (make-prefab-struct '(prefab-child 1 prefab-parent 2) 10 20 30))
+                (define-values (grandchild-point)
+                  (make-prefab-struct '(prefab-grandchild prefab-child 1 prefab-parent 2)
+                                      10 20 30 40))
+                (define-values (grandchild-point/count)
+                  (make-prefab-struct '(prefab-grandchild 1 prefab-child 1 prefab-parent 2)
+                                      10 20 30 40)))
              '())
             (webify-linklet-slice-spec
              'prefab-maker-b
@@ -899,7 +906,9 @@
                          [mutable-triple mutable-triple]
                          [child-point child-point]
                          [child-point/alias child-point/alias]
-                         [child-point/alias-count child-point/alias-count])) (out)
+                         [child-point/alias-count child-point/alias-count]
+                         [grandchild-point grandchild-point]
+                         [grandchild-point/count grandchild-point/count])) (out)
                 (define-values (struct:prefab-point make-prefab-point prefab-point?
                                                     prefab-point-ref prefab-point-set!)
                   (make-struct-type 'prefab-point #f 2 0 #f #f 'prefab))
@@ -959,6 +968,8 @@
                            (prefab-key? '(prefab-child 1 prefab-parent 2))
                            (prefab-key? '(prefab-child #(0) prefab-parent 2 #(0 1)))
                            (prefab-key? '(prefab-child 1 #(0) prefab-parent 2 #(0 1)))
+                           (prefab-key? '(prefab-grandchild prefab-child 1 prefab-parent 2))
+                           (prefab-key? '(prefab-grandchild 1 prefab-child 1 prefab-parent 2))
                            (not (prefab-key? '(prefab-triple 3 (0 #f) #(0 0))))
                            (eq? (prefab-struct-key a-point) 'prefab-point)
                            (eq? (prefab-struct-key made-here) 'prefab-point)
@@ -984,6 +995,8 @@
                                    '(prefab-child 1 (0 #f) #() prefab-parent 2 (0 #f) #()))
                            (equal? (prefab-struct-key child-point/alias)
                                    (prefab-struct-key child-point))
+                           (equal? (prefab-struct-key grandchild-point)
+                                   (prefab-struct-key grandchild-point/count))
                            (eq? (car type-info) 'prefab-point)
                            (= (cdr type-info) 2)
                            (equal? (car auto-type-info)
@@ -1017,7 +1030,9 @@
                (mutable-triple prefab-maker-a mutable-triple)
                (child-point prefab-maker-a child-point)
                (child-point/alias prefab-maker-a child-point/alias)
-               (child-point/alias-count prefab-maker-a child-point/alias-count))))
+               (child-point/alias-count prefab-maker-a child-point/alias-count)
+               (grandchild-point prefab-maker-a grandchild-point)
+               (grandchild-point/count prefab-maker-a grandchild-point/count))))
            #:tail '((js-log out))))
         (define wat (wat-string (comp (datum->syntax #f combined))))
         (check-true (string-contains? wat "$prefab-struct-type-registry"))
