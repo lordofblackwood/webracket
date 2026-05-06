@@ -207,21 +207,29 @@
 ;; first-slice-unsupported-free? : any/c -> boolean?
 ;;   Check for schemify compatibility forms outside the first module slice.
 (define (first-slice-unsupported-free? v)
+  (not (first-slice-unsupported-rator v)))
+
+;; first-slice-unsupported-rator : any/c -> (or/c symbol? #f)
+;;   Return the first unsupported compatibility form rator, if any.
+(define (first-slice-unsupported-rator v)
   (let loop ([v v])
     (match v
       [`(quote ,_)
-       #t]
+       #f]
       [`(,rator . ,_)
-       (and (not (first-slice-unsupported-rator? (unwrap rator)))
-            (walk-list loop v))]
+       (or (and (first-slice-unsupported-rator? (unwrap rator))
+                (unwrap rator))
+           (for/or ([e (in-list (unwrap v))])
+             (loop e)))]
       [`,_
-       #t])))
+       #f])))
 
 ;; assert-first-slice-unsupported-free : any/c -> any/c
 ;;   Reject known compatibility forms that the first slice cannot lower.
 (define (assert-first-slice-unsupported-free v)
-  (unless (first-slice-unsupported-free? v)
-    (error 'webify "unsupported webify compatibility form remains after lowering"))
+  (define bad (first-slice-unsupported-rator v))
+  (when bad
+    (error 'webify "unsupported webify compatibility form remains after lowering: ~a" bad))
   v)
 
 ;; schemify-module-variable-rator? : any/c -> boolean?

@@ -835,6 +835,96 @@
           (with-handlers ([exn:fail:filesystem? void])
             (delete-directory/files dir)))))))
 
+(unless (or (getenv "WEBIFY_SKIP_CLI_SMOKE")
+            (getenv "WEBIFY_SKIP_RUNTIME_SMOKE"))
+  (test-case "linklet composer interns simple prefab struct type across slices"
+    (define source-dir (make-temporary-file "webracket-prefab-run-src-~a" 'directory))
+    (define dest-dir   (make-temporary-file "webracket-prefab-run-dest-~a" 'directory))
+    (define source-path (build-path source-dir "prefab-run.rkt"))
+    (dynamic-wind
+      void
+      (lambda ()
+        (define-values (combined _fragments _instances _exports-infos)
+          (compose-linklet-first-slices
+           (list
+            (webify-linklet-slice-spec
+             'prefab-maker-a
+             '(linklet () (a-point)
+                (define-values (struct:prefab-point make-prefab-point prefab-point?
+                                                    prefab-point-ref prefab-point-set!)
+                  (make-struct-type 'prefab-point #f 2 0 #f #f 'prefab))
+                (define-values (a-point)
+                  (make-prefab-point 11 31)))
+             '())
+            (webify-linklet-slice-spec
+             'prefab-maker-b
+             '(linklet (([a-point a-point])) (out)
+                (define-values (struct:prefab-point make-prefab-point prefab-point?
+                                                    prefab-point-ref prefab-point-set!)
+                  (make-struct-type 'prefab-point #f 2 0 #f #f 'prefab))
+                (define-values (out)
+                  (+ (prefab-point-ref a-point 0)
+                     (prefab-point-ref a-point 1))))
+             '((a-point prefab-maker-a a-point))))
+           #:tail '((js-log out))))
+        (define wat (wat-string (comp (datum->syntax #f combined))))
+        (check-true (string-contains? wat "$prefab-struct-type-registry"))
+        (check-true (string-contains? wat "$make-struct-type"))
+        (check-false (string-contains? wat "make-record-type-descriptor"))
+        (check-false (string-contains? wat "structure-type-lookup-prefab-uid"))
+        (write-datum-program! source-path combined)
+        (define-values (status output)
+          (run-webracket (list "--no-stdlib"
+                               "-r"
+                               "--dest" (path->string dest-dir)
+                               (path->string source-path))
+                         source-dir))
+        (check-equal? status 0 output)
+        (check-regexp-match #rx"(?m:^42$)" output))
+      (lambda ()
+        (for ([dir (in-list (list source-dir dest-dir))])
+          (with-handlers ([exn:fail:filesystem? void])
+            (delete-directory/files dir)))))))
+
+(unless (or (getenv "WEBIFY_SKIP_CLI_SMOKE")
+            (getenv "WEBIFY_SKIP_RUNTIME_SMOKE"))
+  (test-case "linklet composer rejects unsupported prefab struct shape"
+    (define source-dir (make-temporary-file "webracket-prefab-bad-src-~a" 'directory))
+    (define dest-dir   (make-temporary-file "webracket-prefab-bad-dest-~a" 'directory))
+    (define source-path (build-path source-dir "prefab-bad.rkt"))
+    (dynamic-wind
+      void
+      (lambda ()
+        (define-values (combined _fragments _instances _exports-infos)
+          (compose-linklet-first-slices
+           (list
+            (webify-linklet-slice-spec
+             'bad-prefab
+             '(linklet () (out)
+                (define-values (struct:bad-prefab make-bad-prefab bad-prefab?
+                                                  bad-prefab-ref bad-prefab-set!)
+                  (make-struct-type 'bad-prefab #f 1 1 'auto #f 'prefab))
+                (define-values (out)
+                  (make-bad-prefab 1)))
+             '()))
+           #:tail '((js-log out))))
+        (define wat (wat-string (comp (datum->syntax #f combined))))
+        (check-true (string-contains? wat "$prefab-struct-type-registry"))
+        (check-false (string-contains? wat "make-record-type-descriptor"))
+        (write-datum-program! source-path combined)
+        (define-values (status output)
+          (run-webracket (list "--no-stdlib"
+                               "-r"
+                               "--dest" (path->string dest-dir)
+                               (path->string source-path))
+                         source-dir))
+        (check-not-equal? status 0 output)
+        (check-regexp-match #rx"contract violation|raise-argument-error|RuntimeError" output))
+      (lambda ()
+        (for ([dir (in-list (list source-dir dest-dir))])
+          (with-handlers ([exn:fail:filesystem? void])
+            (delete-directory/files dir)))))))
+
 
 (module+ main
   (void))

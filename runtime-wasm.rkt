@@ -1529,6 +1529,7 @@
 
           prop:sealed
           sealed
+          prefab
           prop:object-name
           object-name
           prop:procedure
@@ -4456,6 +4457,8 @@
          ;; The keyword table from strings to keywords.
          ;; Used to intern keywords.
          (global $the-keyword-table (mut (ref null $SymbolTable)) (ref.null $SymbolTable))
+         ;; Simple prefab struct types are interned by prefab key.
+         (global $prefab-struct-type-registry (mut (ref null $HashEqMutable)) (ref.null $HashEqMutable))
 
          (func $initialize-the-symbol-table
                (if (ref.is_null (global.get $the-symbol-table))
@@ -32093,6 +32096,12 @@
                    (then (local.set $assocs (global.get $null))))
                (call $make-hashalw (local.get $assocs)))
                
+         (func $initialize-prefab-struct-type-registry
+               (if (ref.is_null (global.get $prefab-struct-type-registry))
+                   (then
+                    (global.set $prefab-struct-type-registry
+                                (ref.cast (ref $HashEqMutable)
+                                          (call $make-empty-hasheq))))))
 
 
          (func $raise-hash-ref-key-not-found (param $key (ref eq)) (unreachable))
@@ -39758,8 +39767,8 @@
          ;; TODO
          ;; [x] structure types and super structs
          ;; [x] auto fields
-         ;; [ ] prefab structures
-         ;; [ ] structure guards
+         ;; [/] prefab structures
+         ;; [x] structure guards
          ;; [ ] applicable structures
 
          ;; 5.1 Defining Structure Types: struct
@@ -40413,6 +40422,9 @@
                (local $new-list       (ref eq))
                (local $struct-name    (ref eq))
                (local $guard-checked  (ref eq))
+               (local $prefab?        i32)
+               (local $prefab-key     (ref eq))
+               (local $prefab-existing (ref eq))
 
                ;; --- Type checks ---
                (if (i32.eqz (ref.test (ref $Symbol) (local.get $name)))
@@ -40432,6 +40444,10 @@
                     (i32.eqz (ref.test (ref i31) (local.get $auto-count)))
                     (i32.ne (i32.and (i31.get_u (ref.cast (ref i31) (local.get $auto-count))) (i32.const 1)) (i32.const 0)))
                    (then (call $raise-argument-error (local.get $auto-count))))
+
+               ;; Initialize non-defaultable prefab locals before branching.
+               (local.set $prefab-key (global.get $false))
+               (local.set $prefab-existing (global.get $false))
 
                ;; --- Decode fixnums ---
                (local.set $init (i32.shr_u (i31.get_u (ref.cast (ref i31) (local.get $init-count))) (i32.const 1)))
@@ -40494,21 +40510,86 @@
                                     (call $hasheq->list/plain/checked
                                           (ref.cast (ref $HashEqMutable) (local.get $props-list))))))
 
+               ;; --- Simple prefab support ---
+               ;; WebRacket interns simple prefab types by name and field count.
+               ;; More complex prefab shapes should fail instead of becoming
+               ;; ordinary fresh structure types.
+               (local.set $prefab?
+                          (if (result i32)
+                              (ref.test (ref $Symbol) (local.get $inspector))
+                              (then
+                               (call $symbol=?/i32
+                                     (ref.cast (ref $Symbol) (local.get $inspector))
+                                     (ref.cast (ref $Symbol) (global.get $symbol:prefab))))
+                              (else (i32.const 0))))
+               (if (local.get $prefab?)
+                   (then
+                    (if (i32.or
+                         (local.get $has-super)
+                         (i32.or
+                          (i32.ne (local.get $auto) (i32.const 0))
+                          (i32.or
+                           (i32.eqz (ref.eq (local.get $props-list) (global.get $null)))
+                           (i32.eqz (ref.eq (local.get $guard-checked) (global.get $false))))))
+                        (then (call $raise-argument-error (local.get $inspector))
+                              (unreachable)))))
+
 
                ;; --- Create struct type descriptor ---
                (local.set $std
-                          (call $make-struct-type-descriptor/checked
-                                (ref.cast (ref $Symbol) (local.get $name))
-                                (local.get $super)
-                                (local.get $init)
-                                (local.get $auto)
-                                (local.get $auto-val)
-                                (ref.cast (ref eq) (local.get $props-final))
-                                (local.get $inspector)
-                                (local.get $proc-spec)
-                                (local.get $immutables)
-                                (local.get $guard-checked)
-                                (local.get $constructor-name)))
+                          (if (result (ref $StructType))
+                              (local.get $prefab?)
+                              (then
+                               (local.set $prefab-key
+                                          (call $string->symbol/checked
+                                                (call $string-append/2
+                                                      (call $string-append/2
+                                                            (call $symbol->immutable-string (local.get $name))
+                                                            (global.get $string:colon))
+                                                      (call $number->string
+                                                            (ref.i31 (i32.shl (local.get $field-count) (i32.const 1)))
+                                                            (global.get $missing)))))
+                               (local.set $prefab-existing
+                                          (call $hasheq-ref/plain
+                                                (ref.as_non_null (global.get $prefab-struct-type-registry))
+                                                (local.get $prefab-key)
+                                                (global.get $false)))
+                               (if (result (ref $StructType))
+                                   (ref.test (ref $StructType) (local.get $prefab-existing))
+                                   (then
+                                    (ref.cast (ref $StructType) (local.get $prefab-existing)))
+                                   (else
+                                    (local.set $prefab-existing
+                                               (call $make-struct-type-descriptor/checked
+                                                     (ref.cast (ref $Symbol) (local.get $name))
+                                                     (local.get $super)
+                                                     (local.get $init)
+                                                     (local.get $auto)
+                                                     (local.get $auto-val)
+                                                     (ref.cast (ref eq) (local.get $props-final))
+                                                     (local.get $inspector)
+                                                     (local.get $proc-spec)
+                                                     (local.get $immutables)
+                                                     (local.get $guard-checked)
+                                                     (local.get $constructor-name)))
+                                    (call $hasheq-set!/mutable/checked
+                                          (ref.as_non_null (global.get $prefab-struct-type-registry))
+                                          (local.get $prefab-key)
+                                          (local.get $prefab-existing))
+                                    (ref.cast (ref $StructType) (local.get $prefab-existing)))))
+                              (else
+                               (call $make-struct-type-descriptor/checked
+                                     (ref.cast (ref $Symbol) (local.get $name))
+                                     (local.get $super)
+                                     (local.get $init)
+                                     (local.get $auto)
+                                     (local.get $auto-val)
+                                     (ref.cast (ref eq) (local.get $props-final))
+                                     (local.get $inspector)
+                                     (local.get $proc-spec)
+                                     (local.get $immutables)
+                                     (local.get $guard-checked)
+                                     (local.get $constructor-name)))))
                (local.set $struct-name (struct.get $StructType $name (local.get $std)))
 
                ;; --- Prepare struct-type-info for property guards ---
@@ -55651,6 +55732,7 @@
                      ;; Initialize global state
                      (call $initialize-the-symbol-table)  ; for interning
                      (call $initialize-the-keyword-table) ; for interning
+                     (call $initialize-prefab-struct-type-registry)
 
                      ;; Initialize string constants used in the runtime
                      ,@(initialize-runtime-string-constants)
