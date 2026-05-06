@@ -1025,6 +1025,7 @@
       append-map count for-each foldl foldr vector-map vector-map! filter-map      
       min max flmin flmax fxmin fxmax gcd lcm
       make-instance instance-set-variable-value! instance-variable-value
+      make-prefab-struct
       string-append-immutable string-append* bytes-append*)
     ; - kind
     'variadic
@@ -1042,7 +1043,7 @@
                    string-ci=? string-ci<? string-ci<=? string-ci>? string-ci>=?) 1]
         [(apply) 2]
         [(foldl foldr instance-set-variable-value!) 3]
-        [(make-instance) 1]
+        [(make-instance make-prefab-struct) 1]
         [else 2]))
     ; - max-proc
     (λ (_name) #f)
@@ -1389,6 +1390,7 @@
          [(instantiate-linklet inclusive-range inclusive-range-proc) 2]
          [(struct->list make-struct-type-property make-treelist) 1]
          [(treelist-member? treelist-index-of) 2]
+         [(make-prefab-struct) 1]
          [(make-struct-type) 4]
          [(make-struct-field-accessor make-struct-field-mutator) 2]
          [(string-replace) 3]
@@ -1617,6 +1619,10 @@
   check-vector
   
   ; structures
+  make-prefab-struct
+  prefab-key?
+  prefab-struct-key
+  prefab-struct-type-key+field-count
   make-struct-type
   make-struct-field-accessor
   make-struct-field-mutator

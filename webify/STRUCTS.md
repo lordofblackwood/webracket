@@ -282,25 +282,30 @@ path. When `make-struct-type` receives inspector `'prefab` for a simple
 no-super, no-auto-field, no-property, no-guard shape, the runtime interns the
 resulting `$StructType` by an internal key derived from prefab name and field
 count. The descriptor also stores normalized prefab metadata as the public
-short key plus field count, matching the shape needed by
-`prefab-struct-type-key+field-count` later. The module bridge has a smoke where
-two slices independently create the same two-field prefab type, while a
-same-name one-field prefab type remains distinct. More complex prefab requests
-are rejected instead of silently becoming fresh non-prefab structure types.
+short key plus field count. The module bridge has a smoke where two slices
+independently create the same two-field prefab type, while a same-name
+one-field prefab type remains distinct. More complex prefab requests are
+rejected instead of silently becoming fresh non-prefab structure types.
+
+The first public prefab utility bridge is also in place for that same simple
+subset. `prefab-key?` recognizes symbol keys and the simple list aliases such
+as `'(name)`, `'(name 2)`, and `'(name 2 (0 #f) #())`.
+`make-prefab-struct` constructs instances through the same interned type path
+used by `make-struct-type ... 'prefab`, while `prefab-struct-key` and
+`prefab-struct-type-key+field-count` expose the stored short key metadata.
+Unsupported mutable-field vectors, auto fields, and prefab supertypes remain
+outside the accepted subset.
 
 ## Proposed Next Implementation Milestone
 
-Expose WebRacket-native prefab utility primitives:
+Extend prefab support beyond the simple no-super/no-auto/no-mutable subset:
 
-- Add public prefab utility primitives such as `prefab-struct-key`,
-  `prefab-key?`, and `make-prefab-struct`.
-- Reuse the normalized simple prefab registry path for `make-prefab-struct`.
-- Keep unsupported keys, including mutable-field vectors, auto fields, and
-  prefab supertypes, behind targeted diagnostics until their runtime support
-  exists.
+- Add runtime representation for prefab auto fields.
+- Add mutable-field masks/vectors to prefab metadata and constructor paths.
+- Support prefab supertypes by normalizing and interning the full key chain.
 
 That milestone should include small tests showing:
 
-- `prefab-struct-key` reports keys for supported prefab instances
-- `make-prefab-struct` reuses the same interned runtime type
-- unsupported prefab keys fail with targeted diagnostics
+- `make-prefab-struct` can build a prefab with auto fields.
+- Mutable prefab fields enforce the mutable mask through accessors/mutators.
+- A prefab subtype shares its normalized supertype across slices.

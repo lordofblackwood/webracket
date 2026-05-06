@@ -40401,6 +40401,270 @@
                (call $cons
                      (local.get $name)
                      (ref.i31 (i32.shl (local.get $field-count) (i32.const 1)))))
+
+         ;; prefab-key? : any/c -> boolean?
+         ;;   Recognize the supported simple prefab key subset.
+         (func $prefab-key? (type $Prim1)
+               (param $key (ref eq))
+               (result     (ref eq))
+
+               (if (result (ref eq))
+                   (call $simple-prefab-key?/i32 (local.get $key))
+                   (then (global.get $true))
+                   (else (global.get $false))))
+
+         ;; simple-prefab-key?/i32 : any/c -> i32
+         ;;   Accept symbols and simple list aliases with no auto/mutable/super fields.
+         (func $simple-prefab-key?/i32
+               (param $key (ref eq))
+               (result     i32)
+
+               (local $len        i32)
+               (local $name       (ref eq))
+               (local $count      (ref eq))
+               (local $auto-spec  (ref eq))
+               (local $mutables   (ref eq))
+               (local $auto-count (ref eq))
+               (local $auto-val   (ref eq))
+
+               ;; A symbol key is shorthand for the simple no-super/no-auto shape.
+               (if (ref.test (ref $Symbol) (local.get $key))
+                   (then (return (i32.const 1))))
+
+               (if (ref.eq (call $list? (local.get $key)) (global.get $false))
+                   (then (return (i32.const 0))))
+               (local.set $len (call $length/i32 (local.get $key)))
+               (if (i32.or (i32.lt_u (local.get $len) (i32.const 1))
+                           (i32.gt_u (local.get $len) (i32.const 4)))
+                   (then (return (i32.const 0))))
+
+               (local.set $name (call $list-ref/checked (ref.cast (ref $Pair) (local.get $key)) (i32.const 0)))
+               (if (i32.eqz (ref.test (ref $Symbol) (local.get $name)))
+                   (then (return (i32.const 0))))
+               (if (i32.eq (local.get $len) (i32.const 1))
+                   (then (return (i32.const 1))))
+
+               (local.set $count (call $list-ref/checked (ref.cast (ref $Pair) (local.get $key)) (i32.const 1)))
+               (if (ref.eq (call $exact-nonnegative-integer? (local.get $count)) (global.get $false))
+                   (then (return (i32.const 0))))
+               (if (i32.eq (local.get $len) (i32.const 2))
+                   (then (return (i32.const 1))))
+
+               (local.set $auto-spec (call $list-ref/checked (ref.cast (ref $Pair) (local.get $key)) (i32.const 2)))
+               (if (ref.eq (call $list? (local.get $auto-spec)) (global.get $false))
+                   (then (return (i32.const 0))))
+               (if (i32.ne (call $length/i32 (local.get $auto-spec)) (i32.const 2))
+                   (then (return (i32.const 0))))
+               (local.set $auto-count
+                          (call $list-ref/checked
+                                (ref.cast (ref $Pair) (local.get $auto-spec))
+                                (i32.const 0)))
+               (local.set $auto-val
+                          (call $list-ref/checked
+                                (ref.cast (ref $Pair) (local.get $auto-spec))
+                                (i32.const 1)))
+               (if (ref.eq (call $exact-nonnegative-integer? (local.get $auto-count)) (global.get $false))
+                   (then (return (i32.const 0))))
+               (if (i32.ne (i31.get_s (ref.cast (ref i31) (local.get $auto-count))) (i32.const 0))
+                   (then (return (i32.const 0))))
+               (if (i32.eqz (ref.eq (local.get $auto-val) (global.get $false)))
+                   (then (return (i32.const 0))))
+               (if (i32.eq (local.get $len) (i32.const 3))
+                   (then (return (i32.const 1))))
+
+               (local.set $mutables (call $list-ref/checked (ref.cast (ref $Pair) (local.get $key)) (i32.const 3)))
+               (if (i32.eqz (ref.test (ref $Vector) (local.get $mutables)))
+                   (then (return (i32.const 0))))
+               (if (i32.ne (call $vector-length/checked/i32
+                                 (ref.cast (ref $Vector) (local.get $mutables)))
+                           (i32.const 0))
+                   (then (return (i32.const 0))))
+               (i32.const 1))
+
+         ;; simple-prefab-key-name/checked : prefab-key? -> symbol?
+         ;;   Extract the struct name from a supported simple prefab key.
+         (func $simple-prefab-key-name/checked
+               (param $key (ref eq))
+               (result     (ref $Symbol))
+
+               (if (ref.test (ref $Symbol) (local.get $key))
+                   (then (return (ref.cast (ref $Symbol) (local.get $key)))))
+               (if (i32.eqz (call $simple-prefab-key?/i32 (local.get $key)))
+                   (then (call $raise-argument-error (local.get $key))
+                         (unreachable)))
+               (ref.cast (ref $Symbol)
+                         (call $list-ref/checked
+                               (ref.cast (ref $Pair) (local.get $key))
+                               (i32.const 0))))
+
+         ;; simple-prefab-key-field-count-or-minus-one/checked : prefab-key? -> i32
+         ;;   Return the explicit non-auto count, or -1 when it must be inferred.
+         (func $simple-prefab-key-field-count-or-minus-one/checked
+               (param $key (ref eq))
+               (result     i32)
+
+               (local $len   i32)
+               (local $count (ref eq))
+
+               (if (ref.test (ref $Symbol) (local.get $key))
+                   (then (return (i32.const -1))))
+               (if (i32.eqz (call $simple-prefab-key?/i32 (local.get $key)))
+                   (then (call $raise-argument-error (local.get $key))
+                         (unreachable)))
+               (local.set $len (call $length/i32 (local.get $key)))
+               (if (i32.eq (local.get $len) (i32.const 1))
+                   (then (return (i32.const -1))))
+               (local.set $count (call $list-ref/checked
+                                       (ref.cast (ref $Pair) (local.get $key))
+                                       (i32.const 1)))
+               (i32.shr_s (i31.get_s (ref.cast (ref i31) (local.get $count))) (i32.const 1)))
+
+         ;; simple-prefab-struct-type/checked : symbol? i32 -> struct-type?
+         ;;   Intern or retrieve the simple prefab struct type for name and field count.
+         (func $simple-prefab-struct-type/checked
+               (param $name        (ref $Symbol))
+               (param $field-count i32)
+               (result             (ref $StructType))
+
+               (local $registry-key (ref null $Symbol))
+               (local $existing     (ref eq))
+               (local $metadata     (ref eq))
+               (local $std          (ref $StructType))
+
+               (local.set $existing (global.get $false))
+               (local.set $metadata (global.get $false))
+               (local.set $registry-key
+                          (call $simple-prefab-registry-key
+                                (local.get $name)
+                                (local.get $field-count)))
+               (local.set $existing
+                          (call $hasheq-ref/plain
+                                (ref.as_non_null (global.get $prefab-struct-type-registry))
+                                (ref.as_non_null (local.get $registry-key))
+                                (global.get $false)))
+               (if (ref.test (ref $StructType) (local.get $existing))
+                   (then (return (ref.cast (ref $StructType) (local.get $existing)))))
+               (local.set $metadata
+                          (call $simple-prefab-type-metadata
+                                (local.get $name)
+                                (local.get $field-count)))
+               (local.set $std
+                          (call $make-struct-type-descriptor/checked
+                                (local.get $name)
+                                (global.get $false)
+                                (local.get $field-count)
+                                (i32.const 0)
+                                (global.get $false)
+                                (ref.cast (ref eq) (call $struct-type-property-table-empty))
+                                (ref.cast (ref $Symbol) (global.get $symbol:prefab))
+                                (global.get $false)
+                                (local.get $metadata)
+                                (global.get $false)
+                                (global.get $false)))
+               (call $hasheq-set!/mutable/checked
+                     (ref.as_non_null (global.get $prefab-struct-type-registry))
+                     (ref.as_non_null (local.get $registry-key))
+                     (local.get $std))
+               (local.get $std))
+
+         ;; prefab-metadata? : any/c -> i32
+         ;;   Detect the simple prefab metadata stored in StructType's immutables slot.
+         (func $prefab-metadata?/i32
+               (param $metadata (ref eq))
+               (result          i32)
+
+               (local $cell (ref $Pair))
+               (local $key  (ref eq))
+               (local $cnt  (ref eq))
+
+               (if (i32.eqz (ref.test (ref $Pair) (local.get $metadata)))
+                   (then (return (i32.const 0))))
+               (local.set $cell (ref.cast (ref $Pair) (local.get $metadata)))
+               (local.set $key  (struct.get $Pair $a (local.get $cell)))
+               (local.set $cnt  (struct.get $Pair $d (local.get $cell)))
+               (if (i32.and
+                    (ref.test (ref $Symbol) (local.get $key))
+                    (ref.eq (call $exact-nonnegative-integer? (local.get $cnt)) (global.get $true)))
+                   (then (return (i32.const 1))))
+               (i32.const 0))
+
+         ;; prefab-struct-type-key+field-count : struct-type? -> (or/c pair? #f)
+         ;;   Return stored simple prefab metadata for prefab struct types.
+         (func $prefab-struct-type-key+field-count (type $Prim1)
+               (param $v (ref eq))
+               (result   (ref eq))
+
+               (local $std      (ref $StructType))
+               (local $metadata (ref eq))
+
+               (if (i32.eqz (ref.test (ref $StructType) (local.get $v)))
+                   (then (call $raise-argument-error (local.get $v))
+                         (unreachable)))
+               (local.set $std (ref.cast (ref $StructType) (local.get $v)))
+               (local.set $metadata (struct.get $StructType $immutables (local.get $std)))
+               (if (result (ref eq))
+                   (call $prefab-metadata?/i32 (local.get $metadata))
+                   (then (local.get $metadata))
+                   (else (global.get $false))))
+
+         ;; prefab-struct-key : any/c -> (or/c prefab-key? #f)
+         ;;   Return the shortest supported simple prefab key for prefab instances.
+         (func $prefab-struct-key (type $Prim1)
+               (param $v (ref eq))
+               (result   (ref eq))
+
+               (local $struct   (ref $Struct))
+               (local $metadata (ref eq))
+
+               (if (i32.eqz (ref.test (ref $Struct) (local.get $v)))
+                   (then (return (global.get $false))))
+               (local.set $struct (ref.cast (ref $Struct) (local.get $v)))
+               (local.set $metadata
+                          (struct.get $StructType $immutables
+                                      (struct.get $Struct $type (local.get $struct))))
+               (if (result (ref eq))
+                   (call $prefab-metadata?/i32 (local.get $metadata))
+                   (then (struct.get $Pair $a (ref.cast (ref $Pair) (local.get $metadata))))
+                   (else (global.get $false))))
+
+         ;; make-prefab-struct : prefab-key? any/c ... -> struct?
+         ;;   Construct a simple prefab struct through the shared interned type path.
+         (func $make-prefab-struct (type $Prim>=1)
+               (param $key  (ref eq)) ;; supported prefab key
+               (param $vals (ref eq)) ;; constructor field values
+               (result      (ref eq))
+
+               (local $name           (ref $Symbol))
+               (local $explicit-count i32)
+               (local $field-count    i32)
+               (local $std            (ref $StructType))
+               (local $arr            (ref $Array))
+
+               (if (i32.eqz (call $simple-prefab-key?/i32 (local.get $key)))
+                   (then (call $raise-argument-error (local.get $key))
+                         (unreachable)))
+               (local.set $field-count    (call $length/i32 (local.get $vals)))
+               (local.set $name           (call $simple-prefab-key-name/checked (local.get $key)))
+               (local.set $explicit-count
+                          (call $simple-prefab-key-field-count-or-minus-one/checked
+                                (local.get $key)))
+               (if (i32.and
+                    (i32.ge_s (local.get $explicit-count) (i32.const 0))
+                    (i32.ne (local.get $explicit-count) (local.get $field-count)))
+                   (then (call $raise-argument-error (local.get $key))
+                         (unreachable)))
+               (local.set $std (call $simple-prefab-struct-type/checked
+                                     (local.get $name)
+                                     (local.get $field-count)))
+               (local.set $arr (call $list->array (local.get $vals)))
+               (struct.new $Struct
+                           (i32.const 0)
+                           (struct.get $StructType $name (local.get $std))
+                           ,(Imm 0)
+                           ,(Imm #f)
+                           (ref.func $invoke-struct)
+                           (local.get $std)
+                           (local.get $arr)))
          
          (func $make-struct-type
                ;; Parameters
@@ -40568,42 +40832,9 @@
                           (if (result (ref $StructType))
                               (local.get $prefab?)
                               (then
-                               (local.set $prefab-key
-                                          (call $simple-prefab-registry-key
-                                                (ref.cast (ref $Symbol) (local.get $name))
-                                                (local.get $field-count)))
-                               (local.set $prefab-existing
-                                          (call $hasheq-ref/plain
-                                                (ref.as_non_null (global.get $prefab-struct-type-registry))
-                                                (ref.as_non_null (local.get $prefab-key))
-                                                (global.get $false)))
-                               (if (result (ref $StructType))
-                                   (ref.test (ref $StructType) (local.get $prefab-existing))
-                                   (then
-                                    (ref.cast (ref $StructType) (local.get $prefab-existing)))
-                                   (else
-                                    (local.set $prefab-metadata
-                                               (call $simple-prefab-type-metadata
-                                                     (ref.cast (ref $Symbol) (local.get $name))
-                                                     (local.get $field-count)))
-                                    (local.set $prefab-existing
-                                               (call $make-struct-type-descriptor/checked
-                                                     (ref.cast (ref $Symbol) (local.get $name))
-                                                     (local.get $super)
-                                                     (local.get $init)
-                                                     (local.get $auto)
-                                                     (local.get $auto-val)
-                                                     (ref.cast (ref eq) (local.get $props-final))
-                                                     (local.get $inspector)
-                                                     (local.get $proc-spec)
-                                                     (local.get $prefab-metadata)
-                                                     (local.get $guard-checked)
-                                                     (local.get $constructor-name)))
-                                    (call $hasheq-set!/mutable/checked
-                                          (ref.as_non_null (global.get $prefab-struct-type-registry))
-                                          (ref.as_non_null (local.get $prefab-key))
-                                          (local.get $prefab-existing))
-                                    (ref.cast (ref $StructType) (local.get $prefab-existing)))))
+                               (call $simple-prefab-struct-type/checked
+                                     (ref.cast (ref $Symbol) (local.get $name))
+                                     (local.get $field-count)))
                               (else
                                (call $make-struct-type-descriptor/checked
                                      (ref.cast (ref $Symbol) (local.get $name))

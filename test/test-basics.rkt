@@ -4440,6 +4440,25 @@
               
               ))
 
+       (list "5.2 Prefab Structures"
+             (list
+              (list "prefab utilities/simple"
+                    (let ()
+                      (define p (make-prefab-struct '(prefab-point 2 (0 #f) #()) 11 31))
+                      (define-values (struct:prefab-point make-prefab-point prefab-point?
+                                                          prefab-point-ref prefab-point-set!)
+                        (make-struct-type 'prefab-point #f 2 0 #f #f 'prefab))
+                      (define type-info (prefab-struct-type-key+field-count struct:prefab-point))
+                      (and (prefab-key? 'prefab-point)
+                           (prefab-key? '(prefab-point))
+                           (prefab-key? '(prefab-point 2))
+                           (prefab-key? '(prefab-point 2 (0 #f) #()))
+                           (equal? (prefab-key? '(prefab-point 2 (1 #f) #())) #f)
+                           (equal? (prefab-struct-key p) 'prefab-point)
+                           (equal? (prefab-point-ref p 0) 11)
+                           (equal? (prefab-point-ref p 1) 31)
+                           (equal? type-info '(prefab-point . 2)))))))
+
        (list "5.1 Structure Type Properties"
              (list
               (list "struct-type-authentic?/basic"

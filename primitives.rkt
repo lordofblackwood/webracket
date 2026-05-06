@@ -862,6 +862,10 @@
 
  ;; 5.1 Structures
  prop:sealed
+ make-prefab-struct
+ prefab-key?
+ prefab-struct-key
+ prefab-struct-type-key+field-count
  make-struct-type
  make-struct-field-accessor
  make-struct-field-mutator
@@ -1378,6 +1382,54 @@
 
 (define (js-log x)
   (displayln x))
+
+;; Simple prefab utility fallbacks for host-side `#lang webracket` expansion on
+;; Racket versions that do not provide the newer prefab helpers.
+(define webracket-prefab-instance-keys (make-weak-hasheq))
+(define webracket-prefab-type-info    (make-weak-hasheq))
+
+(define (webracket-simple-prefab-key-info key field-count)
+  (define (valid-count? v) (exact-nonnegative-integer? v))
+  (cond
+    [(symbol? key) (cons key field-count)]
+    [(and (list? key)
+          (or (= (length key) 1)
+              (= (length key) 2)
+              (= (length key) 3)
+              (= (length key) 4))
+          (symbol? (car key))
+          (or (= (length key) 1)
+              (valid-count? (cadr key)))
+          (or (= (length key) 1)
+              (not field-count)
+              (= (cadr key) field-count))
+          (or (< (length key) 3)
+              (equal? (caddr key) '(0 #f)))
+          (or (< (length key) 4)
+              (equal? (cadddr key) #())))
+     (cons (car key) (if (= (length key) 1) field-count (cadr key)))]
+    [else #f]))
+
+(define (prefab-key? key)
+  (and (webracket-simple-prefab-key-info key #f) #t))
+
+(define (make-prefab-struct key . vals)
+  (define info (webracket-simple-prefab-key-info key (length vals)))
+  (unless info (raise-argument-error 'make-prefab-struct "supported simple prefab key" key))
+  (define-values (std make pred acc mut)
+    (make-struct-type (car info) #f (cdr info) 0 #f #f 'prefab))
+  (define instance (racket:apply make vals))
+  (hash-set! webracket-prefab-instance-keys instance (car info))
+  (hash-set! webracket-prefab-type-info std info)
+  instance)
+
+(define (prefab-struct-key v)
+  (hash-ref webracket-prefab-instance-keys v #f))
+
+(define (prefab-struct-type-key+field-count std)
+  (unless (struct-type? std)
+    (raise-argument-error 'prefab-struct-type-key+field-count "struct-type?" std))
+  (hash-ref webracket-prefab-type-info std #f))
 
 
 
