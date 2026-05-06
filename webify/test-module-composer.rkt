@@ -849,10 +849,17 @@
            (list
             (webify-linklet-slice-spec
              'prefab-maker-a
-             '(linklet () (a-point)
+             '(linklet () (a-point one-point-value)
+                (define-values (struct:prefab-point/one make-prefab-point/one prefab-point/one?
+                                                        prefab-point/one-ref prefab-point/one-set!)
+                  (make-struct-type 'prefab-point #f 1 0 #f #f 'prefab))
                 (define-values (struct:prefab-point make-prefab-point prefab-point?
                                                     prefab-point-ref prefab-point-set!)
                   (make-struct-type 'prefab-point #f 2 0 #f #f 'prefab))
+                (define-values (one-point)
+                  (make-prefab-point/one 5))
+                (define-values (one-point-value)
+                  (prefab-point/one-ref one-point 0))
                 (define-values (a-point)
                   (make-prefab-point 11 31)))
              '())
@@ -869,6 +876,8 @@
            #:tail '((js-log out))))
         (define wat (wat-string (comp (datum->syntax #f combined))))
         (check-true (string-contains? wat "$prefab-struct-type-registry"))
+        (check-true (string-contains? wat "$simple-prefab-registry-key"))
+        (check-true (string-contains? wat "$simple-prefab-type-metadata"))
         (check-true (string-contains? wat "$make-struct-type"))
         (check-false (string-contains? wat "make-record-type-descriptor"))
         (check-false (string-contains? wat "structure-type-lookup-prefab-uid"))

@@ -40374,6 +40374,33 @@
                            (call $current-continuation-marks (global.get $missing)))
                      (global.get $true))
                (unreachable))
+
+         ;; simple-prefab-registry-key : symbol? i32 -> symbol?
+         ;;   Build the internal registry key for the supported simple prefab subset.
+         (func $simple-prefab-registry-key
+               (param $name        (ref $Symbol))
+               (param $field-count i32)
+               (result             (ref $Symbol))
+
+               (call $string->symbol/checked
+                     (call $string-append/2
+                           (call $string-append/2
+                                 (call $symbol->immutable-string (local.get $name))
+                                 (global.get $string:colon))
+                           (call $number->string
+                                 (ref.i31 (i32.shl (local.get $field-count) (i32.const 1)))
+                                 (global.get $missing)))))
+
+         ;; simple-prefab-type-metadata : symbol? i32 -> pair?
+         ;;   Store the normalized public prefab key plus total field count.
+         (func $simple-prefab-type-metadata
+               (param $name        (ref $Symbol))
+               (param $field-count i32)
+               (result             (ref eq))
+
+               (call $cons
+                     (local.get $name)
+                     (ref.i31 (i32.shl (local.get $field-count) (i32.const 1)))))
          
          (func $make-struct-type
                ;; Parameters
@@ -40423,8 +40450,9 @@
                (local $struct-name    (ref eq))
                (local $guard-checked  (ref eq))
                (local $prefab?        i32)
-               (local $prefab-key     (ref eq))
+               (local $prefab-key     (ref null $Symbol))
                (local $prefab-existing (ref eq))
+               (local $prefab-metadata (ref eq))
 
                ;; --- Type checks ---
                (if (i32.eqz (ref.test (ref $Symbol) (local.get $name)))
@@ -40446,8 +40474,8 @@
                    (then (call $raise-argument-error (local.get $auto-count))))
 
                ;; Initialize non-defaultable prefab locals before branching.
-               (local.set $prefab-key (global.get $false))
                (local.set $prefab-existing (global.get $false))
+               (local.set $prefab-metadata (global.get $false))
 
                ;; --- Decode fixnums ---
                (local.set $init (i32.shr_u (i31.get_u (ref.cast (ref i31) (local.get $init-count))) (i32.const 1)))
@@ -40541,24 +40569,23 @@
                               (local.get $prefab?)
                               (then
                                (local.set $prefab-key
-                                          (call $string->symbol/checked
-                                                (call $string-append/2
-                                                      (call $string-append/2
-                                                            (call $symbol->immutable-string (local.get $name))
-                                                            (global.get $string:colon))
-                                                      (call $number->string
-                                                            (ref.i31 (i32.shl (local.get $field-count) (i32.const 1)))
-                                                            (global.get $missing)))))
+                                          (call $simple-prefab-registry-key
+                                                (ref.cast (ref $Symbol) (local.get $name))
+                                                (local.get $field-count)))
                                (local.set $prefab-existing
                                           (call $hasheq-ref/plain
                                                 (ref.as_non_null (global.get $prefab-struct-type-registry))
-                                                (local.get $prefab-key)
+                                                (ref.as_non_null (local.get $prefab-key))
                                                 (global.get $false)))
                                (if (result (ref $StructType))
                                    (ref.test (ref $StructType) (local.get $prefab-existing))
                                    (then
                                     (ref.cast (ref $StructType) (local.get $prefab-existing)))
                                    (else
+                                    (local.set $prefab-metadata
+                                               (call $simple-prefab-type-metadata
+                                                     (ref.cast (ref $Symbol) (local.get $name))
+                                                     (local.get $field-count)))
                                     (local.set $prefab-existing
                                                (call $make-struct-type-descriptor/checked
                                                      (ref.cast (ref $Symbol) (local.get $name))
@@ -40569,12 +40596,12 @@
                                                      (ref.cast (ref eq) (local.get $props-final))
                                                      (local.get $inspector)
                                                      (local.get $proc-spec)
-                                                     (local.get $immutables)
+                                                     (local.get $prefab-metadata)
                                                      (local.get $guard-checked)
                                                      (local.get $constructor-name)))
                                     (call $hasheq-set!/mutable/checked
                                           (ref.as_non_null (global.get $prefab-struct-type-registry))
-                                          (local.get $prefab-key)
+                                          (ref.as_non_null (local.get $prefab-key))
                                           (local.get $prefab-existing))
                                     (ref.cast (ref $StructType) (local.get $prefab-existing)))))
                               (else

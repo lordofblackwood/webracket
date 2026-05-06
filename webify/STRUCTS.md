@@ -277,24 +277,27 @@ allocating the struct. The module bridge has positive coverage for a guard that
 transforms fields across slices and negative coverage for a guard that returns
 the wrong number of values.
 
-Simple prefab struct types now have a first WebRacket-native interning path.
-When `make-struct-type` receives inspector `'prefab` for a simple no-super,
-no-auto-field, no-property, no-guard shape, the runtime interns the resulting
-`$StructType` by prefab name and field count. The module bridge has a smoke
-where two slices independently create the same prefab type, and an accessor
-from the second slice can read an instance constructed by the first slice. More
-complex prefab requests are rejected instead of silently becoming fresh
-non-prefab structure types.
+Simple prefab struct types now have a first WebRacket-native normalized-key
+path. When `make-struct-type` receives inspector `'prefab` for a simple
+no-super, no-auto-field, no-property, no-guard shape, the runtime interns the
+resulting `$StructType` by an internal key derived from prefab name and field
+count. The descriptor also stores normalized prefab metadata as the public
+short key plus field count, matching the shape needed by
+`prefab-struct-type-key+field-count` later. The module bridge has a smoke where
+two slices independently create the same two-field prefab type, while a
+same-name one-field prefab type remains distinct. More complex prefab requests
+are rejected instead of silently becoming fresh non-prefab structure types.
 
 ## Proposed Next Implementation Milestone
 
-Expand WebRacket-native prefab struct support:
+Expose WebRacket-native prefab utility primitives:
 
-- Include prefab keys with immutable field metadata.
 - Add public prefab utility primitives such as `prefab-struct-key`,
   `prefab-key?`, and `make-prefab-struct`.
-- Decide how much of prefab supertype/key nesting WebRacket needs for real
-  linklets.
+- Reuse the normalized simple prefab registry path for `make-prefab-struct`.
+- Keep unsupported keys, including mutable-field vectors, auto fields, and
+  prefab supertypes, behind targeted diagnostics until their runtime support
+  exists.
 
 That milestone should include small tests showing:
 
