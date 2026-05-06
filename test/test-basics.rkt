@@ -4445,19 +4445,28 @@
               (list "prefab utilities/simple"
                     (let ()
                       (define p (make-prefab-struct '(prefab-point 2 (0 #f) #()) 11 31))
+                      (define p/auto (make-prefab-struct '(prefab-auto 1 (1 #f) #()) 42))
                       (define-values (struct:prefab-point make-prefab-point prefab-point?
                                                           prefab-point-ref prefab-point-set!)
                         (make-struct-type 'prefab-point #f 2 0 #f #f 'prefab))
+                      (define-values (struct:prefab-auto make-prefab-auto prefab-auto?
+                                                         prefab-auto-ref prefab-auto-set!)
+                        (make-struct-type 'prefab-auto #f 1 1 #f #f 'prefab))
                       (define type-info (prefab-struct-type-key+field-count struct:prefab-point))
+                      (define auto-type-info (prefab-struct-type-key+field-count struct:prefab-auto))
                       (and (prefab-key? 'prefab-point)
                            (prefab-key? '(prefab-point))
                            (prefab-key? '(prefab-point 2))
                            (prefab-key? '(prefab-point 2 (0 #f) #()))
-                           (equal? (prefab-key? '(prefab-point 2 (1 #f) #())) #f)
+                           (prefab-key? '(prefab-auto 1 (1 #f) #()))
                            (equal? (prefab-struct-key p) 'prefab-point)
+                           (equal? (prefab-struct-key p/auto) '(prefab-auto 1 (1 #f) #()))
                            (equal? (prefab-point-ref p 0) 11)
                            (equal? (prefab-point-ref p 1) 31)
-                           (equal? type-info '(prefab-point . 2)))))))
+                           (equal? (prefab-auto-ref p/auto 0) 42)
+                           (equal? (prefab-auto-ref p/auto 1) #f)
+                           (equal? type-info '(prefab-point . 2))
+                           (equal? auto-type-info '((prefab-auto 1 (1 #f) #()) . 2)))))))
 
        (list "5.1 Structure Type Properties"
              (list

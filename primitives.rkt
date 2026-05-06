@@ -1388,10 +1388,22 @@
 (define webracket-prefab-instance-keys (make-weak-hasheq))
 (define webracket-prefab-type-info    (make-weak-hasheq))
 
-(define (webracket-simple-prefab-key-info key field-count)
+(define (webracket-simple-prefab-public-key name init-count auto-count)
+  (if (zero? auto-count)
+      name
+      (list name init-count (list auto-count #f) #())))
+
+(define (webracket-simple-prefab-key-info key init-field-count)
   (define (valid-count? v) (exact-nonnegative-integer? v))
+  (define (info name init-count auto-count)
+    (list name
+          init-count
+          auto-count
+          (+ init-count auto-count)
+          (webracket-simple-prefab-public-key name init-count auto-count)))
   (cond
-    [(symbol? key) (cons key field-count)]
+    [(symbol? key)
+     (info key (or init-field-count 0) 0)]
     [(and (list? key)
           (or (= (length key) 1)
               (= (length key) 2)
@@ -1401,13 +1413,18 @@
           (or (= (length key) 1)
               (valid-count? (cadr key)))
           (or (= (length key) 1)
-              (not field-count)
-              (= (cadr key) field-count))
+              (not init-field-count)
+              (= (cadr key) init-field-count))
           (or (< (length key) 3)
-              (equal? (caddr key) '(0 #f)))
+              (and (list? (caddr key))
+                   (= (length (caddr key)) 2)
+                   (valid-count? (car (caddr key)))
+                   (eq? (cadr (caddr key)) #f)))
           (or (< (length key) 4)
               (equal? (cadddr key) #())))
-     (cons (car key) (if (= (length key) 1) field-count (cadr key)))]
+     (define init-count (if (= (length key) 1) (or init-field-count 0) (cadr key)))
+     (define auto-count (if (< (length key) 3) 0 (car (caddr key))))
+     (and init-count (info (car key) init-count auto-count))]
     [else #f]))
 
 (define (prefab-key? key)
@@ -1417,10 +1434,10 @@
   (define info (webracket-simple-prefab-key-info key (length vals)))
   (unless info (raise-argument-error 'make-prefab-struct "supported simple prefab key" key))
   (define-values (std make pred acc mut)
-    (make-struct-type (car info) #f (cdr info) 0 #f #f 'prefab))
+    (make-struct-type (list-ref info 0) #f (list-ref info 1) (list-ref info 2) #f #f 'prefab))
   (define instance (racket:apply make vals))
-  (hash-set! webracket-prefab-instance-keys instance (car info))
-  (hash-set! webracket-prefab-type-info std info)
+  (hash-set! webracket-prefab-instance-keys instance (list-ref info 4))
+  (hash-set! webracket-prefab-type-info std (cons (list-ref info 4) (list-ref info 3)))
   instance)
 
 (define (prefab-struct-key v)

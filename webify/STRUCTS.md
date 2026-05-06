@@ -293,19 +293,23 @@ as `'(name)`, `'(name 2)`, and `'(name 2 (0 #f) #())`.
 `make-prefab-struct` constructs instances through the same interned type path
 used by `make-struct-type ... 'prefab`, while `prefab-struct-key` and
 `prefab-struct-type-key+field-count` expose the stored short key metadata.
-Unsupported mutable-field vectors, auto fields, and prefab supertypes remain
+That bridge now includes auto-field keys with `#f` auto values, such as
+`'(name 1 (1 #f) #())`; constructor calls provide only the non-auto fields,
+and the generated struct stores `#f` in the auto fields. Unsupported
+mutable-field vectors, non-`#f` auto values, and prefab supertypes remain
 outside the accepted subset.
 
 ## Proposed Next Implementation Milestone
 
-Extend prefab support beyond the simple no-super/no-auto/no-mutable subset:
+Extend prefab support beyond the no-super/no-mutable subset:
 
-- Add runtime representation for prefab auto fields.
 - Add mutable-field masks/vectors to prefab metadata and constructor paths.
+- Decide how to intern prefab keys with arbitrary auto values, then support
+  non-`#f` auto values.
 - Support prefab supertypes by normalizing and interning the full key chain.
 
 That milestone should include small tests showing:
 
-- `make-prefab-struct` can build a prefab with auto fields.
 - Mutable prefab fields enforce the mutable mask through accessors/mutators.
+- Distinct non-`#f` auto values produce distinct prefab types.
 - A prefab subtype shares its normalized supertype across slices.
