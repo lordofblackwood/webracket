@@ -11,7 +11,9 @@
          webify-module-registry-add!
          webify-module-registry-ref
          webify-module-registry-names
-         webify-compose-module-registry)
+         webify-module-registry-plan
+         webify-compose-module-registry
+         webify-compose-module-registry/roots)
 
 (require racket/list
          racket/match
@@ -130,6 +132,58 @@
                                "export" export)))
     (hash-set seen name #t)))
 
+;; entry-dependencies : webify-module-registry-entry? -> (listof symbol?)
+;;   Return unique dependency names from flat import-source metadata.
+(define (entry-dependencies entry)
+  (remove-duplicates
+   (for/list ([source (in-list (webify-module-registry-entry-imports entry))])
+     (match-define (list _import dependency _export) source)
+     dependency)
+   eq?))
+
+;; validate-roots! : symbol? any/c -> void?
+;;   Reject root lists that cannot drive a dependency plan.
+(define (validate-roots! who roots)
+  (unless (and (list? roots)
+               (andmap symbol? roots))
+    (raise-argument-error who "(listof symbol?)" roots))
+  (define duplicate (check-duplicates roots))
+  (when duplicate
+    (raise-arguments-error who
+                           "duplicate module roots are not supported"
+                           "name" duplicate)))
+
+;; webify-module-registry-plan : webify-module-registry? (listof symbol?) -> (listof symbol?)
+;;   Compute a deterministic dependency-first composition order for roots.
+(define (webify-module-registry-plan registry roots)
+  (define who 'webify-module-registry-plan)
+  (validate-registry! who registry)
+  (validate-roots! who roots)
+  (define planned '())
+  (define permanent (hasheq))
+  (define temporary (hasheq))
+  (define (visit name path)
+    (webify-module-registry-ref registry name)
+    (cond
+      [(hash-has-key? permanent name)
+       (void)]
+      [(hash-has-key? temporary name)
+       (raise-arguments-error who
+                              "cyclic module registry dependencies are not supported"
+                              "name" name
+                              "path" (reverse (cons name path)))]
+      [else
+       (set! temporary (hash-set temporary name #t))
+       (define entry (webify-module-registry-ref registry name))
+       (for ([dependency (in-list (entry-dependencies entry))])
+         (visit dependency (cons name path)))
+       (set! temporary (hash-remove temporary name))
+       (set! permanent (hash-set permanent name #t))
+       (set! planned (cons name planned))]))
+  (for ([root (in-list roots)])
+    (visit root '()))
+  (reverse planned))
+
 ;; webify-compose-module-registry : webify-module-registry? (listof symbol?) keyword-args ... -> values
 ;;   Compose named registry entries through the linklet first-slice composer.
 (define (webify-compose-module-registry registry
@@ -154,6 +208,42 @@
   (webify-compose-linklet-first-slices
    (for/list ([name (in-list order)])
      (entry->slice-spec (webify-module-registry-ref registry name)))
+   #:tail                  tail-forms
+   #:serializable?-box     serializable?-box
+   #:datum-intern?         datum-intern?
+   #:target                target
+   #:allow-set!-undefined? allow-set!-undefined?
+   #:unsafe-mode?          unsafe-mode?
+   #:enforce-constant?     enforce-constant?
+   #:allow-inline?         allow-inline?
+   #:no-prompt?            no-prompt?
+   #:prim-knowns           prim-knowns
+   #:primitives            primitives
+   #:compiler-query        compiler-query
+   #:get-import-knowns     get-import-knowns
+   #:import-keys           import-keys))
+
+;; webify-compose-module-registry/roots : webify-module-registry? (listof symbol?) keyword-args ... -> values
+;;   Plan dependencies for roots, then compose named registry entries.
+(define (webify-compose-module-registry/roots registry
+                                              roots
+                                              #:tail                  [tail-forms '((void))]
+                                              #:serializable?-box     serializable?-box
+                                              #:datum-intern?         datum-intern?
+                                              #:target                target
+                                              #:allow-set!-undefined? allow-set!-undefined?
+                                              #:unsafe-mode?          unsafe-mode?
+                                              #:enforce-constant?     enforce-constant?
+                                              #:allow-inline?         allow-inline?
+                                              #:no-prompt?            no-prompt?
+                                              #:prim-knowns           prim-knowns
+                                              #:primitives            primitives
+                                              #:compiler-query        compiler-query
+                                              #:get-import-knowns     get-import-knowns
+                                              #:import-keys           import-keys)
+  (webify-compose-module-registry
+   registry
+   (webify-module-registry-plan registry roots)
    #:tail                  tail-forms
    #:serializable?-box     serializable?-box
    #:datum-intern?         datum-intern?

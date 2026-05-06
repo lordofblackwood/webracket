@@ -107,6 +107,27 @@
    #:get-import-knowns     (lambda (key) (values #f #f #f))
    #:import-keys           #f))
 
+;; compose-module-registry/roots : webify-module-registry? (listof symbol?) #:tail (listof any/c) -> values
+;;   Plan and compose registry roots with the minimal adapter-test compiler context.
+(define (compose-module-registry/roots registry roots #:tail [tail-forms '((void))])
+  (webify-compose-module-registry/roots
+   registry
+   roots
+   #:tail                  tail-forms
+   #:serializable?-box     #f
+   #:datum-intern?         #f
+   #:target                #f
+   #:allow-set!-undefined? #f
+   #:unsafe-mode?          #f
+   #:enforce-constant?     #t
+   #:allow-inline?         #t
+   #:no-prompt?            #f
+   #:prim-knowns           test-prim-knowns
+   #:primitives            test-primitives
+   #:compiler-query        (lambda (v) #f)
+   #:get-import-knowns     (lambda (key) (values #f #f #f))
+   #:import-keys           #f))
+
 ;; wat-string : any/c -> string?
 ;;   Render compiler output into a string for focused smoke assertions.
 (define (wat-string wat)
@@ -730,6 +751,71 @@
   (check-true (string-contains? wat "$module-variable-ref/no-check"))
   (check-true (string-contains? wat "$module-variable-define!")))
 
+(test-case "module registry plans transitive dependencies"
+  (define registry (make-webify-module-registry))
+  (webify-module-registry-add!
+   registry
+   'a
+   '(linklet () (x)
+      (define-values (x) 10)))
+  (webify-module-registry-add!
+   registry
+   'b
+   '(linklet (([ext-x x])) (y)
+      (define-values (y) x))
+   #:imports '((ext-x a x)))
+  (webify-module-registry-add!
+   registry
+   'c
+   '(linklet (([ext-y y])) (z)
+      (define-values (z) y))
+   #:imports '((ext-y b y)))
+  (check-equal? (webify-module-registry-plan registry '(c))
+                '(a b c))
+  (check-equal? (webify-module-registry-plan registry '(b c))
+                '(a b c)))
+
+(test-case "module registry composes planned roots"
+  (define registry (make-webify-module-registry))
+  (webify-module-registry-add!
+   registry
+   'a
+   '(linklet () (x)
+      (define-values (x) 10)))
+  (webify-module-registry-add!
+   registry
+   'b
+   '(linklet (([ext-x x])) (y)
+      (define-values (y) x))
+   #:imports '((ext-x a x)))
+  (define-values (combined fragments instances exports-infos)
+    (compose-module-registry/roots registry '(b)))
+  (match (normalize-symbols combined)
+    [`("begin"
+       ("define" "webify-linklet-proc$0" ,_)
+       ("define" "webify-export-cell0$0" ,_)
+       ("webify-linklet-proc$0" ("quote" "webify-instance") "webify-export-cell0$0")
+       ("define" "x" ("module-variable-ref" "webify-export-cell0$0"))
+       ("void")
+       ("define" "webify-linklet-proc$1" ,_)
+       ("define" "webify-export-cell0$1" ,_)
+       ("webify-linklet-proc$1"
+        ("quote" "webify-instance")
+        "webify-export-cell0$0"
+        "webify-export-cell0$1")
+       ("define" "y" ("module-variable-ref" "webify-export-cell0$1"))
+       ("void")
+       ("void"))
+     (void)]
+    [other
+     (fail-check (format "unexpected planned-registry shape: ~s" other))])
+  (check-equal? (length fragments) 2)
+  (check-equal? (sort (hash-keys instances) symbol<?) '(a b))
+  (check-true (known-constant? (hash-ref (hash-ref exports-infos 'b) 'y)))
+  (define wat (wat-string (comp (datum->syntax #f combined))))
+  (check-true (string-contains? wat "$module-variable-ref/no-check"))
+  (check-true (string-contains? wat "$module-variable-define!")))
+
 (test-case "first-slice adapter wraps imported linklet with explicit cells"
   (define-values (first-stx first-exports _first-exports-info)
     (run-first-slice-top-level '(linklet () (x)
@@ -995,6 +1081,50 @@
          (define-values (y) x))
       #:imports '((ext-x a x) (ext-x c x))))))
 
+(test-case "module registry planner rejects duplicate roots"
+  (define registry (make-webify-module-registry))
+  (webify-module-registry-add!
+   registry
+   'a
+   '(linklet () (x)
+      (define-values (x) 1)))
+  (check-exn
+   #rx"duplicate module roots are not supported"
+   (lambda ()
+     (webify-module-registry-plan registry '(a a)))))
+
+(test-case "module registry planner rejects unknown dependencies"
+  (define registry (make-webify-module-registry))
+  (webify-module-registry-add!
+   registry
+   'b
+   '(linklet (([ext-x x])) (y)
+      (define-values (y) x))
+   #:imports '((ext-x missing x)))
+  (check-exn
+   #rx"unknown module registry entry"
+   (lambda ()
+     (webify-module-registry-plan registry '(b)))))
+
+(test-case "module registry planner rejects dependency cycles"
+  (define registry (make-webify-module-registry))
+  (webify-module-registry-add!
+   registry
+   'a
+   '(linklet (([ext-y y])) (x)
+      (define-values (x) y))
+   #:imports '((ext-y b y)))
+  (webify-module-registry-add!
+   registry
+   'b
+   '(linklet (([ext-x x])) (y)
+      (define-values (y) x))
+   #:imports '((ext-x a x)))
+  (check-exn
+   #rx"cyclic module registry dependencies are not supported"
+   (lambda ()
+     (webify-module-registry-plan registry '(a)))))
+
 (test-case "first-slice adapter rejects non-lambda lowered values"
   (check-exn
    #rx"expected lowered first-slice value to be a lambda"
@@ -1203,6 +1333,43 @@
          #:imports '((ext-x a x)))
         (define-values (combined _fragments _instances _exports-infos)
           (compose-module-registry registry '(a b) #:tail '((js-log y))))
+        (write-datum-program! source-path combined)
+        (define-values (status output)
+          (run-webracket (list "--no-stdlib"
+                               "-r"
+                               "--dest" (path->string dest-dir)
+                               (path->string source-path))
+                         source-dir))
+        (check-equal? status 0 output)
+        (check-regexp-match #rx"(?m:^10$)" output))
+      (lambda ()
+        (for ([dir (in-list (list source-dir dest-dir))])
+          (with-handlers ([exn:fail:filesystem? void])
+            (delete-directory/files dir)))))))
+
+(unless (or (getenv "WEBIFY_SKIP_CLI_SMOKE")
+            (getenv "WEBIFY_SKIP_RUNTIME_SMOKE"))
+  (test-case "module registry planned roots output runs"
+    (define source-dir (make-temporary-file "webracket-registry-roots-run-src-~a" 'directory))
+    (define dest-dir   (make-temporary-file "webracket-registry-roots-run-dest-~a" 'directory))
+    (define source-path (build-path source-dir "registry-roots-run.rkt"))
+    (dynamic-wind
+      void
+      (lambda ()
+        (define registry (make-webify-module-registry))
+        (webify-module-registry-add!
+         registry
+         'a
+         '(linklet () (x)
+            (define-values (x) 10)))
+        (webify-module-registry-add!
+         registry
+         'b
+         '(linklet (([ext-x x])) (y)
+            (define-values (y) x))
+         #:imports '((ext-x a x)))
+        (define-values (combined _fragments _instances _exports-infos)
+          (compose-module-registry/roots registry '(b) #:tail '((js-log y))))
         (write-datum-program! source-path combined)
         (define-values (status output)
           (run-webracket (list "--no-stdlib"

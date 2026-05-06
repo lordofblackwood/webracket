@@ -332,9 +332,31 @@ composition, the linklet composer groups those triples according to the actual
 registry API small while preserving the linklet's grouped import order.
 
 The registry validates duplicate entry names, duplicate flat import names,
-unknown registry entries, and dependencies that are outside the requested
-composition order. Dependency ordering is still explicit: if `b` imports from
-`a`, callers must compose `(a b)`, not `(b a)`.
+unknown registry entries, and explicit composition orders where a dependency
+does not appear before the importing entry. If `b` imports from `a`, explicit
+composition must use `(a b)`, not `(b a)`.
+
+The registry can also plan that order from roots:
+
+```racket
+(webify-module-registry-plan registry '(b))
+;; => '(a b)
+```
+
+The planner follows flat import-source dependency metadata transitively, rejects
+unknown dependencies, and rejects cycles. `webify-compose-module-registry/roots`
+uses the planner and then delegates to `webify-compose-module-registry`:
+
+```racket
+(webify-compose-module-registry/roots
+ registry
+ '(b)
+ #:tail '((js-log y))
+ ...)
+```
+
+For the example above, composing root `b` automatically includes `a` first and
+produces the same top-level WebRacket program as explicit order `(a b)`.
 
 This is the first step from a test harness composer toward a module-instantiation
 pipeline: named module entries now exist, but there is still no `module` form,
