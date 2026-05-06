@@ -57,6 +57,8 @@ lowered before Wasm emission or assigned explicit WebRacket runtime meaning.
 Struct conversion is ported from `schemify`, but its output is still
 Chez/Racket-runtime shaped. These forms need a WebRacket lowering or runtime
 contract before struct-heavy modules can be part of the first supported slice.
+See `STRUCTS.md` for the current WebRacket-specific translation plan; struct
+handling should not be treated as a straight Schemify port.
 
 - Record descriptor operations:
   `make-record-type-descriptor`, `make-record-constructor-descriptor`,

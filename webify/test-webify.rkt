@@ -46,6 +46,17 @@
       [(vector? v) (list->vector (map normalize-symbols (vector->list v)))]
       [else        v])))
 
+;; contains-symbol? : any/c symbol? -> boolean?
+;;   Check whether a normalized term contains symbol spelling s.
+(define (contains-symbol? v s)
+  (define needle (symbol->string s))
+  (let loop ([v (normalize-symbols v)])
+    (cond
+      [(string? v) (equal? v needle)]
+      [(pair? v)   (or (loop (car v)) (loop (cdr v)))]
+      [(vector? v) (for/or ([e (in-vector v)]) (loop e))]
+      [else        #f])))
+
 (test-case "constant export"
   (define-values (webified importss exports import-keys imports-abis exports-info)
     (run-webify '(linklet () (x)
@@ -129,3 +140,30 @@
   (check-false import-keys)
   (check-equal? imports-abis '())
   (check-false (hash-ref exports-info 'x #f)))
+
+(test-case "simple struct primitive flow is preserved"
+  (define-values (webified importss exports import-keys imports-abis exports-info)
+    (run-webify '(linklet () (struct:posn make-posn posn? posn-x posn-y set-posn-y!)
+                   (define-values (struct:posn make-posn posn? posn-ref posn-set!)
+                     (make-struct-type 'posn #f 2 0 #f))
+                   (define-values (posn-x)
+                     (make-struct-field-accessor posn-ref 0 'x))
+                   (define-values (posn-y)
+                     (make-struct-field-accessor posn-ref 1 'y))
+                   (define-values (set-posn-y!)
+                     (make-struct-field-mutator posn-set! 1 'y)))))
+  (check-true (contains-symbol? webified 'make-struct-type))
+  (check-true (contains-symbol? webified 'make-struct-field-accessor))
+  (check-true (contains-symbol? webified 'make-struct-field-mutator))
+  (check-false (contains-symbol? webified 'make-record-type-descriptor))
+  (check-false (contains-symbol? webified 'make-record-constructor-descriptor))
+  (check-false (contains-symbol? webified 'record-constructor))
+  (check-false (contains-symbol? webified 'unsafe-struct*))
+  (check-false (contains-symbol? webified 'unsafe-struct*-ref))
+  (check-false (contains-symbol? webified 'unsafe-struct*-set!))
+  (check-equal? importss '())
+  (check-equal? exports '(struct:posn make-posn posn? posn-x posn-y set-posn-y!))
+  (check-false import-keys)
+  (check-equal? imports-abis '())
+  (check-true (known-constant? (hash-ref exports-info 'posn-x)))
+  (check-true (known-constant? (hash-ref exports-info 'set-posn-y!))))

@@ -19,7 +19,6 @@
          "simple.rkt"
          "infer-name.rkt"
          "maybe-unsafe.rkt"
-         "struct-convert.rkt"
          "literal.rkt"
          "unnest-let.rkt"      ; remove?
          "left-to-right.rkt"   ; todo remove
@@ -485,7 +484,7 @@
 
 ;; ----------------------------------------
 
-;; Schemify `let-values` to `let`, etc., and reorganize struct bindings.
+;; Schemify `let-values` to `let`, etc.
 ;;
 ;; Non-simple `mutated` state overrides bindings in `knowns`; a
 ;; a 'too-early state in `mutated` for a `letrec`-bound variable can be
@@ -513,21 +512,6 @@
                                         [body (in-list bodys)])
                                `[,formals ,@(schemify-body (maybe-unsafe v body) 'tail)]))
              explicit-unnamed?)]
-           [`(define-values (,struct:s ,make-s ,s? ,acc/muts ...)
-               (let-values (((,struct: ,make ,?1 ,-ref ,-set!) ,mk))
-                 (values ,struct:2
-                         ,make2
-                         ,?2
-                         ,make-acc/muts ...)))
-            #:guard (not (or (aim? target 'interp) (aim? target 'cify)))
-            (define new-seq
-              (struct-convert v prim-knowns knowns imports exports mutated
-                              (lambda (v knowns) (schemify/knowns knowns inline-fuel 'fresh unsafe-mode? v))
-                              target no-prompt? #t))
-            (or new-seq
-                (match v
-                  [`(,_ ,ids ,rhs)
-                   `(define-values ,ids ,(schemify rhs 'fresh))]))]
            [`(define-values (,id) ,rhs)
             `(define ,id ,(schemify rhs 'fresh))]
            [`(define-values ,ids ,rhs)
@@ -602,20 +586,15 @@
            [`(let-values ([() (begin ,rhs (values))]) ,bodys ...)
             `(begin ,(schemify rhs 'fresh) ,@(schemify-body bodys wcm-state))]
            [`(let-values ([,idss ,rhss] ...) ,bodys ...)
-            (or (and (not (or (aim? target 'interp) (aim? target 'cify)))
-                     (struct-convert-local v prim-knowns knowns imports mutated simples
-                                           (lambda (v knowns) (schemify/knowns knowns inline-fuel 'fresh unsafe-mode? v))
-                                           #:unsafe-mode? unsafe-mode?
-                                           #:target target))
-                (unnest-let
-                 (left-to-right/let-values idss
-                                           (for/list ([rhs (in-list rhss)])
-                                             (schemify rhs 'fresh))
-                                           (schemify-body bodys wcm-state)
-                                           mutated
-                                           target
-					   unsafe-mode?)
-                 prim-knowns knowns imports mutated simples unsafe-mode?))]
+            (unnest-let
+             (left-to-right/let-values idss
+                                       (for/list ([rhs (in-list rhss)])
+                                         (schemify rhs 'fresh))
+                                       (schemify-body bodys wcm-state)
+                                       mutated
+                                       target
+                                       unsafe-mode?)
+             prim-knowns knowns imports mutated simples unsafe-mode?)]
            [`(letrec-values () ,bodys ...)
             (schemify `(begin . ,bodys) wcm-state)]
            [`(letrec-values ([() (values)]) ,bodys ...)
@@ -645,11 +624,6 @@
              prim-knowns knowns imports mutated simples unsafe-mode?)]
            [`(letrec-values ([,idss ,rhss] ...) ,bodys ...)
             (cond
-              [(struct-convert-local v #:letrec? #t prim-knowns knowns imports mutated simples
-                                     (lambda (v knowns) (schemify/knowns knowns inline-fuel 'fresh unsafe-mode? v))
-                                     #:unsafe-mode? unsafe-mode?
-                                     #:target target)
-               => (lambda (form) form)]
               [(letrec-splitable-values-binding? idss rhss)
                (schemify
                 (letrec-split-values-binding idss rhss bodys)
@@ -1110,4 +1084,3 @@
                (schemify-body (cdr l) wcm-state unsafe-mode?))]))
 
     (schemify v wcm-state)))
-

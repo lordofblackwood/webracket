@@ -1,0 +1,253 @@
+# Webify Struct Translation Inventory
+
+This note records the current struct situation in `webify`.
+
+The short version: Webify struct handling should not be a straight Schemify
+port. Schemify targets Chez/Racket runtime records and helper forms. WebRacket
+already has a Racket-oriented struct runtime and exposes many Racket struct
+primitives directly, so Webify should translate toward that surface instead of
+preserving Chez-specific record-descriptor output.
+
+## Current Webify Struct Passes
+
+### `struct-convert.rkt`
+
+`struct-convert` recognizes the common lowered shape around
+`make-struct-type`:
+
+```racket
+(define-values (struct:s make-s s? acc/muts ...)
+  (let-values (((struct: make ? -ref -set!) mk))
+    (values struct: make ? make-acc/muts ...)))
+```
+
+When the shape is accepted, it rewrites the binding into a sequence that is
+designed for Chez/Schemify:
+
+- `make-record-type-descriptor`
+- `make-record-constructor-descriptor`
+- `record-constructor`
+- `record-predicate`
+- `record-accessor`
+- `record-mutator`
+- `make-struct-type-install-properties`
+- `structure-type-lookup-prefab-uid`
+- `struct-type-constructor-add-guards`
+- `#%nongenerative-uid`
+- `#%struct-constructor`
+- `#%struct-predicate`
+- `#%struct-field-accessor`
+- `#%struct-field-mutator`
+- `unsafe-struct`
+- `unsafe-struct?`
+- `unsafe-sealed-struct?`
+- `unsafe-struct*-ref`
+- `unsafe-struct*-set!`
+- impersonator/error helpers such as `impersonate-ref`,
+  `impersonate-set!`, `#%struct-ref-error`, and `#%struct-set!-error`
+
+These forms are currently recognized as unsupported first-slice compatibility
+forms in `lower.rkt`. That is the right safety behavior for now: generated
+programs should fail early instead of silently targeting Chez-only helpers.
+
+### `struct-type-info.rkt`
+
+`make-struct-type-info` parses a subset of `make-struct-type` forms and records
+facts such as:
+
+- struct name
+- parent type
+- immediate and total field counts
+- whether the constructor is pure
+- authentic and sealed properties
+- prefab immutable fields
+- non-prefab immutable fields
+- constructor-name expression
+- remaining `make-struct-type` arguments
+
+This analysis is useful to Webify, but the downstream translation target should
+change. The facts can guide WebRacket primitive calls and optimization, not only
+Chez record-descriptor generation.
+
+### `webify.rkt`
+
+`webify.rkt` integrates struct analysis in two main ways:
+
+- It calls `struct-convert` for top-level and local struct definitions.
+- It inlines known struct constructors, predicates, accessors, and mutators to
+  Schemify-style unsafe operations:
+
+```racket
+unsafe-struct
+unsafe-struct?
+unsafe-sealed-struct?
+unsafe-struct*-ref
+unsafe-struct*-set!
+```
+
+Those inlinings are another Chez/Schemify-shaped area. WebRacket has
+`unsafe-struct-ref` and `unsafe-struct-set!`, but not the same type-tagged
+`unsafe-struct*` interface as a supported public bridge target.
+
+### `known.rkt`, `infer-known.rkt`, and `constructed-procedure.rkt`
+
+The known-value layer tracks struct-related facts:
+
+- `known-struct-type`
+- `known-struct-constructor`
+- `known-struct-predicate`
+- `known-field-accessor`
+- `known-field-mutator`
+- delayed `.../need-imports` variants
+- `known-struct-type-property/immediate-guard`
+
+`constructed-procedure.rkt` also records that
+`make-struct-field-accessor` produces a one-argument procedure and
+`make-struct-field-mutator` produces a two-argument procedure.
+
+These facts are still valuable. They should survive the port, but the eventual
+rewrites that consume them should emit WebRacket-compatible struct operations.
+
+### `authentic.rkt`
+
+`authentic-valued?` detects expressions known not to produce impersonators. This
+is used by struct/property handling and can remain useful, but any behavior that
+depends on impersonator/chaperone support must be gated by WebRacket runtime
+support.
+
+## WebRacket Struct Surface
+
+WebRacket already exposes a broader Racket struct surface than the Schemify
+record-descriptor output assumes.
+
+`primitives.rkt` exports, among others:
+
+- `make-struct-type`
+- `make-struct-field-accessor`
+- `make-struct-field-mutator`
+- `make-struct-type-property`
+- `struct-constructor-procedure?`
+- `struct-predicate-procedure?`
+- `struct-accessor-procedure?`
+- `struct-mutator-procedure?`
+- `struct?`
+- `struct-type?`
+- `struct-type-property?`
+- `struct-type-property-accessor-procedure?`
+- `struct-type-property-predicate-procedure?`
+- `struct-type-authentic?`
+- `struct->list`
+- `struct->vector`
+- `current-inspector`
+- `unsafe-struct-ref`
+- `unsafe-struct-set!`
+- `prop:authentic`
+
+`primitives-db.rkt` registers these primitives with arities/properties, and
+`runtime-wasm.rkt` contains runtime implementations for the major struct
+operations, including:
+
+- `$make-struct-type`
+- `$make-struct-field-accessor`
+- `$make-struct-field-mutator`
+- `$make-struct-type-property`
+- `$struct-type-authentic?`
+- `$struct->list`
+- `$struct->vector`
+- `$unsafe-struct-ref`
+- `$unsafe-struct-set!`
+
+This means Webify should prefer preserving or translating to Racket struct
+primitive calls where possible.
+
+## Translation Direction
+
+The first supported Webify struct subset should be:
+
+- simple `make-struct-type` with zero auto fields
+- no guard
+- no custom properties except those already implemented in WebRacket
+- no impersonator/chaperone paths
+- no prefab translation unless the WebRacket runtime path is confirmed
+- direct use of `make-struct-field-accessor` and `make-struct-field-mutator`
+- `struct->list`, `struct->vector`, `struct?`, `struct-type?`, and procedure
+  predicate operations preserved as WebRacket primitive calls
+
+For that subset, a likely strategy is:
+
+1. Keep `struct-type-info` as an analysis pass.
+2. Disable or bypass `struct-convert`'s Chez record-descriptor rewrite for the
+   WebRacket target. This gate is now in place for the normal Webify path:
+   `webify.rkt` no longer calls `struct-convert` or `struct-convert-local`.
+3. Preserve `make-struct-type`/accessor/mutator/property calls when WebRacket
+   already supports them.
+4. Rewrite only when the rewrite targets WebRacket primitives or runtime helpers
+   that actually exist.
+5. Keep unsupported Chez compatibility forms in `lower.rkt` until each one has
+   an explicit WebRacket translation.
+
+## Non-Goals For The First Struct Milestone
+
+Do not attempt these in the first implementation slice:
+
+- Chez `make-record-type-descriptor` compatibility
+- `#%struct-constructor` and friends as public bridge targets
+- `unsafe-struct*` type-tagged operations
+- prefab UID lookup
+- struct guards
+- chaperone/impersonator struct access paths
+- full property guard semantics
+- inspector-sensitive opaque printing
+- complete `struct` macro parity
+
+## Open Questions
+
+- Should Webify remove `struct-convert` from the normal WebRacket path, or keep
+  it behind an explicit compatibility flag while the runtime catches up?
+- Which existing runtime struct property descriptors are complete enough for
+  property-preserving translation?
+- Should known-struct inlining target `unsafe-struct-ref`/`unsafe-struct-set!`,
+  or should inlining be disabled until WebRacket has a checked type-specific
+  unsafe interface?
+- How much of prefab support is needed for the first module examples?
+- Which generated linklets from real Racket use struct guards early enough to
+  block useful programs?
+
+## Implemented Gate
+
+The normal Webify path now preserves simple Racket struct primitive flows
+instead of rewriting them to Chez record-descriptor forms. For example, a
+linklet that binds a struct type with `make-struct-type` and creates field
+accessors/mutators keeps:
+
+```racket
+make-struct-type
+make-struct-field-accessor
+make-struct-field-mutator
+```
+
+and does not introduce:
+
+```racket
+make-record-type-descriptor
+make-record-constructor-descriptor
+record-constructor
+unsafe-struct*-ref
+unsafe-struct*-set!
+```
+
+The old `struct-convert.rkt` file is still present as inherited source material,
+but it is no longer part of the normal WebRacket-target Webify pipeline.
+
+## Proposed Next Implementation Milestone
+
+Add a WebRacket-target unsupported-struct diagnostic pass:
+
+- Detect complex struct forms that WebRacket does not yet support, such as
+  guards, prefab UID lookup, and impersonator/chaperone access paths.
+- Fail with a targeted unsupported-struct message before lower/adapter code sees
+  Chez-only helpers or otherwise confusing downstream forms.
+
+That milestone should include small tests showing:
+
+- a guarded/property-heavy struct is still rejected explicitly.
