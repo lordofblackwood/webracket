@@ -3100,6 +3100,28 @@
                             '(0 17 37 68 100 133 150 170 201 233)
                             chunk-sizes))))
 
+              (list "treelist-append balanced redistribution counts"
+                    (let* ([counts '(33 65 100)]
+                           [checks
+                            (for/list ([piece-count (in-list counts)])
+                              (let* ([pieces
+                                      (for/list ([i (in-range piece-count)])
+                                        (treelist i))]
+                                     [app (apply treelist-append pieces)]
+                                     [expected (build-list piece-count values)])
+                                (and (equal? (treelist-length app) piece-count)
+                                     (equal? (treelist-ref app 0) 0)
+                                     (equal? (treelist-ref app (quotient piece-count 2))
+                                             (quotient piece-count 2))
+                                     (equal? (treelist-ref app (sub1 piece-count))
+                                             (sub1 piece-count))
+                                     (equal? (treelist->list app) expected)
+                                     (andmap (lambda (i tl)
+                                               (equal? (treelist->list tl) (list i)))
+                                             expected
+                                             pieces))))])
+                      (andmap values checks)))
+
               (list "treelist-append relaxed boundaries"
                     (let* ([tl0 (list->treelist (build-list 1025 values))]
                            [tl1 (treelist 'tail)]
@@ -3157,6 +3179,41 @@
                                      (equal? (treelist->list app) xs)
                                      (equal? (treelist->list left) (take xs (treelist-length left)))
                                      (equal? (treelist->list right) (drop xs (treelist-length left))))))])
+                      (andmap values checks)))
+
+              (list "treelist-append taller-left boundaries"
+                    (let* ([medium (apply treelist-append
+                                          (for/list ([j (in-range 100)])
+                                            (list->treelist
+                                             (build-list 20
+                                                         (lambda (i) (+ (* j 20) i))))))]
+                           [cases
+                            (list (cons medium (treelist 'x))
+                                  (cons medium (make-treelist 17 'a))
+                                  (cons medium (list->treelist (build-list 32 values)))
+                                  (cons medium (list->treelist (build-list 33 values)))
+                                  (cons (list->treelist
+                                         (build-list 1025 (lambda (i) (+ 1000 i))))
+                                        (treelist 'tail)))]
+                           [checks
+                            (for/list ([entry (in-list cases)])
+                              (let* ([left (car entry)]
+                                     [right (cdr entry)]
+                                     [xs (append (treelist->list left)
+                                                 (treelist->list right))]
+                                     [app (treelist-append left right)]
+                                     [len (length xs)])
+                                (and (equal? (treelist-length app) len)
+                                     (equal? (treelist-ref app 0) (car xs))
+                                     (equal? (treelist-ref app (quotient len 2))
+                                             (list-ref xs (quotient len 2)))
+                                     (equal? (treelist-ref app (sub1 len))
+                                             (list-ref xs (sub1 len)))
+                                     (equal? (treelist->list app) xs)
+                                     (equal? (treelist->list left)
+                                             (take xs (treelist-length left)))
+                                     (equal? (treelist->list right)
+                                             (drop xs (treelist-length left))))))])
                       (andmap values checks)))
 
               (list "treelist-set on relaxed tree"
@@ -3820,6 +3877,34 @@
                            (equal? (treelist->list tail) (build-list 34 (lambda (i) (+ 31 i))))
                            (equal? (treelist->list left) left-xs)
                            (equal? (treelist->list right) right-xs))))
+
+              (list "treelist-append after split/take/drop"
+                    (let* ([base (apply treelist-append
+                                        (for/list ([j (in-range 100)])
+                                          (list->treelist
+                                           (build-list 20
+                                                       (lambda (i) (+ (* j 20) i))))))]
+                           [base-xs (build-list 2000 values)]
+                           [parts   (call-with-values
+                                        (lambda () (treelist-split-at base 777))
+                                      list)]
+                           [left    (first parts)]
+                           [right   (second parts)]
+                           [takep   (treelist-take base 1200)]
+                           [dropp   (treelist-drop base 1200)]
+                           [app1    (treelist-append left right)]
+                           [app2    (treelist-append takep dropp)])
+                      (and (equal? (treelist->list app1) base-xs)
+                           (equal? (treelist->list app2) base-xs)
+                           (equal? (treelist-ref app1 776) 776)
+                           (equal? (treelist-ref app1 777) 777)
+                           (equal? (treelist-ref app2 1199) 1199)
+                           (equal? (treelist-ref app2 1200) 1200)
+                           (equal? (treelist->list left) (take base-xs 777))
+                           (equal? (treelist->list right) (drop base-xs 777))
+                           (equal? (treelist->list takep) (take base-xs 1200))
+                           (equal? (treelist->list dropp) (drop base-xs 1200))
+                           (equal? (treelist->list base) base-xs))))
 
               (list "treelist error paths"
                     (let ([raises? (lambda (thunk)
