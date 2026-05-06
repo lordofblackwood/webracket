@@ -55543,6 +55543,7 @@
                (global $result-bytes             (mut (ref eq)) (ref.i31 (i32.const 0)))
 
                ;; Struct-type properties provided by the runtime
+               (global $prop:sealed                   (mut (ref eq)) (global.get $void))
                (global $prop:object-name              (mut (ref eq)) (global.get $void))
                (global $prop:procedure                (mut (ref eq)) (global.get $void))
                (global $prop:checked-procedure        (mut (ref eq)) (global.get $void))
@@ -55608,6 +55609,15 @@
                      ,@(initialize-runtime-symbol-constants)
 
                      ;; Initialize struct-type properties provided by the runtime
+                     (global.set $prop:sealed
+                                 (ref.cast (ref eq)
+                                           (call $make-struct-type-property-descriptor/checked
+                                                 (ref.cast (ref $Symbol)
+                                                           (global.get $symbol:prop:sealed))
+                                                 (global.get $false)
+                                                 (global.get $null)
+                                                 (global.get $false)
+                                                 (global.get $false))))
                      (global.set $prop:object-name
                                  (ref.cast (ref eq)
                                            (call $make-struct-type-property-descriptor/checked

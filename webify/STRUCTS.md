@@ -142,10 +142,12 @@ record-descriptor output assumes.
 - `unsafe-struct-ref`
 - `unsafe-struct-set!`
 - `prop:authentic`
+- `prop:sealed`
 
-`primitives-db.rkt` registers these primitives with arities/properties, and
-`runtime-wasm.rkt` contains runtime implementations for the major struct
-operations, including:
+`compiler.rkt` treats the property descriptors as non-literal runtime
+constants. `primitives-db.rkt` registers the callable primitives with
+arities/properties, and `runtime-wasm.rkt` contains runtime implementations for
+the major struct operations and property globals, including:
 
 - `$make-struct-type`
 - `$make-struct-field-accessor`
@@ -156,6 +158,7 @@ operations, including:
 - `$struct->vector`
 - `$unsafe-struct-ref`
 - `$unsafe-struct-set!`
+- `$prop:sealed`
 
 This means Webify should prefer preserving or translating to Racket struct
 primitive calls where possible.
@@ -244,6 +247,12 @@ composed slices. One linklet can create a simple struct type and export the
 constructor, accessor, and mutator procedures. A later linklet can import those
 export cells through the composer, construct a value, mutate a field, and read
 the updated field through WebRacket's preserved struct primitives.
+
+The first runtime-driven struct expansion exposes `prop:sealed` through the
+WebRacket compiler/runtime surface. The bridge now has a smoke where one slice
+creates a sealed struct type with `(list (cons prop:sealed #t))`, a later slice
+imports the constructor and predicate, and the compiled program observes the
+public `prop:sealed` value as a struct-type property.
 
 ## Proposed Next Implementation Milestone
 

@@ -519,6 +519,58 @@
           (with-handlers ([exn:fail:filesystem? void])
             (delete-directory/files dir)))))))
 
+(unless (or (getenv "WEBIFY_SKIP_CLI_SMOKE")
+            (getenv "WEBIFY_SKIP_RUNTIME_SMOKE"))
+  (test-case "linklet composer carries sealed struct property across slices"
+    (define source-dir (make-temporary-file "webracket-sealed-struct-run-src-~a" 'directory))
+    (define dest-dir   (make-temporary-file "webracket-sealed-struct-run-dest-~a" 'directory))
+    (define source-path (build-path source-dir "sealed-struct-run.rkt"))
+    (dynamic-wind
+      void
+      (lambda ()
+        (define-values (combined _fragments _instances _exports-infos)
+          (compose-linklet-first-slices
+           (list
+            (webify-linklet-slice-spec
+             'sealed-provider
+             '(linklet () (make-base base?)
+                (define-values (struct:base make-base base? base-ref base-set!)
+                  (make-struct-type 'base #f 1 0 #f (list (cons prop:sealed #t)))))
+             '())
+            (webify-linklet-slice-spec
+             'sealed-user
+             '(linklet (([make-base make-base]
+                         [base? base?])) (out)
+                (define-values (b)
+                  (make-base 41))
+                (define-values (out)
+                  (if (and (struct-type-property? prop:sealed)
+                           (base? b))
+                      42
+                      0)))
+             '((make-base sealed-provider make-base)
+               (base? sealed-provider base?))))
+           #:tail '((js-log out))))
+        (define wat (wat-string (comp (datum->syntax #f combined))))
+        (check-true (string-contains? wat "$prop:sealed"))
+        (check-true (string-contains? wat "$make-struct-type"))
+        (check-true (string-contains? wat "$struct-type-property?"))
+        (check-false (string-contains? wat "make-record-type-descriptor"))
+        (check-false (string-contains? wat "unsafe-struct*"))
+        (write-datum-program! source-path combined)
+        (define-values (status output)
+          (run-webracket (list "--no-stdlib"
+                               "-r"
+                               "--dest" (path->string dest-dir)
+                               (path->string source-path))
+                         source-dir))
+        (check-equal? status 0 output)
+        (check-regexp-match #rx"(?m:^42$)" output))
+      (lambda ()
+        (for ([dir (in-list (list source-dir dest-dir))])
+          (with-handlers ([exn:fail:filesystem? void])
+            (delete-directory/files dir)))))))
+
 
 (module+ main
   (void))

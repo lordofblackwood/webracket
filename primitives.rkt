@@ -861,6 +861,7 @@
  void? make-void void
 
  ;; 5.1 Structures
+ prop:sealed
  make-struct-type
  make-struct-field-accessor
  make-struct-field-mutator

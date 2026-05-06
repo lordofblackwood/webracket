@@ -27,6 +27,7 @@
 ;   [x] peek-bytes-avail!*
 ;   [x] prop:authentic
 ;   [x] prop:custom-write
+;   [x] prop:sealed
 ;   [x] prop:equal+hash
 ;   [x] arity-at-least-value
 ;   [x] arity-at-least?
@@ -710,6 +711,7 @@
     prop:method-arity-error
     prop:object-name
     prop:procedure
+    prop:sealed
     prop:authentic
     prop:custom-write
     prop:equal+hash
@@ -733,6 +735,18 @@
 
 (define (non-literal-constant? x)
   (set-member? non-literal-constants-set x))
+
+;; maybe-console-bridge-non-literal-constant : symbol? -> (or/c symbol? #f)
+;;   Recover runtime constants from top-level placeholder symbols.
+(define (maybe-console-bridge-non-literal-constant x)
+  (and (symbol? x)
+       (let* ([prefix "wr-top-level/"]
+              [s      (symbol->string x)])
+         (and (string-prefix? s prefix)
+              (let ([unwrapped
+                     (string->symbol (substring s (string-length prefix)))])
+                (and (non-literal-constant? unwrapped)
+                     unwrapped))))))
 
 
 
@@ -7087,6 +7101,13 @@
                                                                 ρ)]
                                                        [(non-literal-constant? s) ; like prop:object-name
                                                         (values `,x ρ)]
+                                                       [(maybe-console-bridge-non-literal-constant s)
+                                                        => (lambda (unwrapped)
+                                                             (values `,(variable
+                                                                        (datum->syntax
+                                                                         (variable-id x)
+                                                                         unwrapped))
+                                                                     ρ))]
                                                        [(eq? s internal-treelist-debug-shape-symbol)
                                                         (raise-syntax-error
                                                          'α-rename
@@ -16777,11 +16798,11 @@
       ;; (displayln (list 'ffi (ffi-variable?    v)))
       ;; (displayln (list 'glo (global-variable? v)))
       (cond
+        [(global-variable? v) 'global]
         [(top-variable?    v) 'top]
         [(module-variable? v) 'module]
         [(local-variable?  v) 'local]
         [(ffi-variable?    v) 'ffi]
-        [(global-variable? v) 'global]
         [else
          ;; (displayln (list 'top (map unparse-variable (id-set->list top-vars))))
          ;; (displayln (list 'mod (map unparse-variable module-vars)))
@@ -17225,6 +17246,16 @@
         '(global.get $empty-treelist)]
        [(eq? sym 'empty-treelist)
         '(global.get $empty-treelist)]
+       [(non-literal-constant? s)
+        `(global.get ,($ s))]
+       [(non-literal-constant? sym)
+        `(global.get ,($ sym))]
+       [(maybe-console-bridge-non-literal-constant s)
+        => (lambda (unwrapped)
+             `(global.get ,($ unwrapped)))]
+       [(maybe-console-bridge-non-literal-constant sym)
+        => (lambda (unwrapped)
+             `(global.get ,($ unwrapped)))]
        [(memq s primitives)
         (record-used-primitive! s)
         (PrimRef x)]
