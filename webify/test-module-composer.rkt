@@ -849,7 +849,7 @@
            (list
             (webify-linklet-slice-spec
              'prefab-maker-a
-             '(linklet () (a-point auto-point one-point-value)
+             '(linklet () (a-point auto-point mutable-cell one-point-value)
                 (define-values (struct:prefab-point/one make-prefab-point/one prefab-point/one?
                                                         prefab-point/one-ref prefab-point/one-set!)
                   (make-struct-type 'prefab-point #f 1 0 #f #f 'prefab))
@@ -863,44 +863,60 @@
                 (define-values (a-point)
                   (make-prefab-struct '(prefab-point 2 (0 #f) #()) 11 31))
                 (define-values (auto-point)
-                  (make-prefab-struct '(prefab-auto 1 (1 #f) #()) 42)))
+                  (make-prefab-struct '(prefab-auto 1 (1 #f) #()) 42))
+                (define-values (mutable-cell)
+                  (make-prefab-struct '(prefab-cell 2 (0 #f) #(1)) 10 20)))
              '())
             (webify-linklet-slice-spec
              'prefab-maker-b
              '(linklet (([a-point a-point]
-                         [auto-point auto-point])) (out)
+                         [auto-point auto-point]
+                         [mutable-cell mutable-cell])) (out)
                 (define-values (struct:prefab-point make-prefab-point prefab-point?
                                                     prefab-point-ref prefab-point-set!)
                   (make-struct-type 'prefab-point #f 2 0 #f #f 'prefab))
                 (define-values (struct:prefab-auto make-prefab-auto prefab-auto?
                                                    prefab-auto-ref prefab-auto-set!)
                   (make-struct-type 'prefab-auto #f 1 1 #f #f 'prefab))
+                (define-values (struct:prefab-cell make-prefab-cell prefab-cell?
+                                                   prefab-cell-ref prefab-cell-set!)
+                  (make-struct-type 'prefab-cell #f 2 0 #f #f 'prefab #f '(0)))
                 (define-values (type-info)
                   (prefab-struct-type-key+field-count struct:prefab-point))
                 (define-values (auto-type-info)
                   (prefab-struct-type-key+field-count struct:prefab-auto))
                 (define-values (made-here)
                   (make-prefab-struct '(prefab-point) 6 7))
+                (define-values (mutated)
+                  (begin
+                    (prefab-cell-set! mutable-cell 1 42)
+                    (void)))
                 (define-values (out)
                   (if (and (prefab-key? 'prefab-point)
                            (prefab-key? '(prefab-point))
                            (prefab-key? '(prefab-point 2))
                            (prefab-key? '(prefab-point 2 (0 #f) #()))
                            (prefab-key? '(prefab-auto 1 (1 #f) #()))
+                           (prefab-key? '(prefab-cell 2 (0 #f) #(1)))
                            (eq? (prefab-struct-key a-point) 'prefab-point)
                            (eq? (prefab-struct-key made-here) 'prefab-point)
                            (equal? (prefab-struct-key auto-point)
                                    '(prefab-auto 1 (1 #f) #()))
+                           (equal? (prefab-struct-key mutable-cell)
+                                   '(prefab-cell 2 (0 #f) #(1)))
                            (eq? (car type-info) 'prefab-point)
                            (= (cdr type-info) 2)
                            (equal? (car auto-type-info)
                                    '(prefab-auto 1 (1 #f) #()))
                            (= (cdr auto-type-info) 2)
-                           (eq? (prefab-auto-ref auto-point 1) #f))
+                           (eq? (prefab-auto-ref auto-point 1) #f)
+                           (= (prefab-cell-ref mutable-cell 0) 10)
+                           (= (prefab-cell-ref mutable-cell 1) 42))
                       (prefab-auto-ref auto-point 0)
                       0)))
              '((a-point prefab-maker-a a-point)
-               (auto-point prefab-maker-a auto-point))))
+               (auto-point prefab-maker-a auto-point)
+               (mutable-cell prefab-maker-a mutable-cell))))
            #:tail '((js-log out))))
         (define wat (wat-string (comp (datum->syntax #f combined))))
         (check-true (string-contains? wat "$prefab-struct-type-registry"))
@@ -950,6 +966,48 @@
         (define wat (wat-string (comp (datum->syntax #f combined))))
         (check-true (string-contains? wat "$prefab-struct-type-registry"))
         (check-false (string-contains? wat "make-record-type-descriptor"))
+        (write-datum-program! source-path combined)
+        (define-values (status output)
+          (run-webracket (list "--no-stdlib"
+                               "-r"
+                               "--dest" (path->string dest-dir)
+                               (path->string source-path))
+                         source-dir))
+        (check-not-equal? status 0 output)
+        (check-regexp-match #rx"contract violation|raise-argument-error|RuntimeError" output))
+      (lambda ()
+        (for ([dir (in-list (list source-dir dest-dir))])
+          (with-handlers ([exn:fail:filesystem? void])
+            (delete-directory/files dir)))))))
+
+(unless (or (getenv "WEBIFY_SKIP_CLI_SMOKE")
+            (getenv "WEBIFY_SKIP_RUNTIME_SMOKE"))
+  (test-case "linklet composer rejects immutable prefab field mutation"
+    (define source-dir (make-temporary-file "webracket-prefab-immutable-src-~a" 'directory))
+    (define dest-dir   (make-temporary-file "webracket-prefab-immutable-dest-~a" 'directory))
+    (define source-path (build-path source-dir "prefab-immutable.rkt"))
+    (dynamic-wind
+      void
+      (lambda ()
+        (define-values (combined _fragments _instances _exports-infos)
+          (compose-linklet-first-slices
+           (list
+            (webify-linklet-slice-spec
+             'prefab-immutable
+             '(linklet () (out)
+                (define-values (struct:prefab-cell make-prefab-cell prefab-cell?
+                                                   prefab-cell-ref prefab-cell-set!)
+                  (make-struct-type 'prefab-cell #f 2 0 #f #f 'prefab #f '(0)))
+                (define-values (cell)
+                  (make-prefab-struct '(prefab-cell 2 (0 #f) #(1)) 10 20))
+                (define-values (out)
+                  (begin
+                    (prefab-cell-set! cell 0 99)
+                    (prefab-cell-ref cell 0))))
+             '()))
+           #:tail '((js-log out))))
+        (define wat (wat-string (comp (datum->syntax #f combined))))
+        (check-true (string-contains? wat "$prefab-struct-field-mutable?/i32"))
         (write-datum-program! source-path combined)
         (define-values (status output)
           (run-webracket (list "--no-stdlib"

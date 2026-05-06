@@ -1388,22 +1388,26 @@
 (define webracket-prefab-instance-keys (make-weak-hasheq))
 (define webracket-prefab-type-info    (make-weak-hasheq))
 
-(define (webracket-simple-prefab-public-key name init-count auto-count)
-  (if (zero? auto-count)
+(define (webracket-simple-prefab-public-key name init-count auto-count mutable-index)
+  (if (and (zero? auto-count) (not mutable-index))
       name
-      (list name init-count (list auto-count #f) #())))
+      (list name
+            init-count
+            (list auto-count #f)
+            (if mutable-index (vector mutable-index) #()))))
 
 (define (webracket-simple-prefab-key-info key init-field-count)
   (define (valid-count? v) (exact-nonnegative-integer? v))
-  (define (info name init-count auto-count)
+  (define (info name init-count auto-count mutable-index)
     (list name
           init-count
           auto-count
+          mutable-index
           (+ init-count auto-count)
-          (webracket-simple-prefab-public-key name init-count auto-count)))
+          (webracket-simple-prefab-public-key name init-count auto-count mutable-index)))
   (cond
     [(symbol? key)
-     (info key (or init-field-count 0) 0)]
+     (info key (or init-field-count 0) 0 #f)]
     [(and (list? key)
           (or (= (length key) 1)
               (= (length key) 2)
@@ -1421,10 +1425,19 @@
                    (valid-count? (car (caddr key)))
                    (eq? (cadr (caddr key)) #f)))
           (or (< (length key) 4)
-              (equal? (cadddr key) #())))
+              (and (vector? (cadddr key))
+                   (<= (vector-length (cadddr key)) 1))))
      (define init-count (if (= (length key) 1) (or init-field-count 0) (cadr key)))
      (define auto-count (if (< (length key) 3) 0 (car (caddr key))))
-     (and init-count (info (car key) init-count auto-count))]
+     (define mutable-index
+       (and (= (length key) 4)
+            (= (vector-length (cadddr key)) 1)
+            (vector-ref (cadddr key) 0)))
+     (and init-count
+          (or (not mutable-index)
+              (and (exact-nonnegative-integer? mutable-index)
+                   (< mutable-index (+ init-count auto-count))))
+          (info (car key) init-count auto-count mutable-index))]
     [else #f]))
 
 (define (prefab-key? key)
@@ -1436,8 +1449,8 @@
   (define-values (std make pred acc mut)
     (make-struct-type (list-ref info 0) #f (list-ref info 1) (list-ref info 2) #f #f 'prefab))
   (define instance (racket:apply make vals))
-  (hash-set! webracket-prefab-instance-keys instance (list-ref info 4))
-  (hash-set! webracket-prefab-type-info std (cons (list-ref info 4) (list-ref info 3)))
+  (hash-set! webracket-prefab-instance-keys instance (list-ref info 5))
+  (hash-set! webracket-prefab-type-info std (cons (list-ref info 5) (list-ref info 4)))
   instance)
 
 (define (prefab-struct-key v)
