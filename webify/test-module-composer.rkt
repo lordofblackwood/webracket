@@ -406,6 +406,59 @@
           (with-handlers ([exn:fail:filesystem? void])
             (delete-directory/files dir)))))))
 
+(unless (or (getenv "WEBIFY_SKIP_CLI_SMOKE")
+            (getenv "WEBIFY_SKIP_RUNTIME_SMOKE"))
+  (test-case "linklet composer output runs preserved struct primitives"
+    (define source-dir (make-temporary-file "webracket-struct-composer-run-src-~a" 'directory))
+    (define dest-dir   (make-temporary-file "webracket-struct-composer-run-dest-~a" 'directory))
+    (define source-path (build-path source-dir "struct-composer-run.rkt"))
+    (dynamic-wind
+      void
+      (lambda ()
+        (define-values (combined _fragments _instances _exports-infos)
+          (compose-linklet-first-slices
+           (list
+            (webify-linklet-slice-spec
+             'struct-demo
+             '(linklet () (out)
+                (define-values (struct:posn make-posn posn? posn-ref posn-set!)
+                  (make-struct-type 'posn #f 2 0 #f))
+                (define-values (posn-x)
+                  (make-struct-field-accessor posn-ref 0 'x))
+                (define-values (posn-y)
+                  (make-struct-field-accessor posn-ref 1 'y))
+                (define-values (set-posn-y!)
+                  (make-struct-field-mutator posn-set! 1 'y))
+                (define-values (p)
+                  (make-posn 10 20))
+                (define-values (effect)
+                  (begin
+                    (set-posn-y! p 30)
+                    (void)))
+                (define-values (out)
+                  (posn-y p)))
+             '()))
+           #:tail '((js-log out))))
+        (define wat (wat-string (comp (datum->syntax #f combined))))
+        (check-true (string-contains? wat "$make-struct-type"))
+        (check-true (string-contains? wat "$make-struct-field-accessor"))
+        (check-true (string-contains? wat "$make-struct-field-mutator"))
+        (check-false (string-contains? wat "make-record-type-descriptor"))
+        (check-false (string-contains? wat "unsafe-struct*"))
+        (write-datum-program! source-path combined)
+        (define-values (status output)
+          (run-webracket (list "--no-stdlib"
+                               "-r"
+                               "--dest" (path->string dest-dir)
+                               (path->string source-path))
+                         source-dir))
+        (check-equal? status 0 output)
+        (check-regexp-match #rx"(?m:^30$)" output))
+      (lambda ()
+        (for ([dir (in-list (list source-dir dest-dir))])
+          (with-handlers ([exn:fail:filesystem? void])
+            (delete-directory/files dir)))))))
+
 
 (module+ main
   (void))

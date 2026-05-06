@@ -130,6 +130,41 @@
      ("define" "x" 1)
      ("module-variable-set!" "cell" "x"))))
 
+(test-case "multi-value metadata module prompt lowers to cell defines"
+  (define lowered
+    (lower-module-variable-ops
+     '(call-with-module-prompt
+       (lambda () (values 1 2))
+       '(x y)
+       '(constant consistent)
+       x-cell
+       y-cell)))
+  (define simplified (simplify-trivial-module-prompts lowered))
+  (check-equal? (normalize-symbols simplified)
+                '("let-values" ((("x" "y") ("values" 1 2)))
+                  ("module-variable-define!" "x-cell" "x" ("quote" "constant"))
+                  ("module-variable-define!" "y-cell" "y" ("quote" "consistent"))
+                  ("void")))
+  (check-true (module-prompt-free? simplified))
+  (check-eq? (assert-module-prompt-free simplified) simplified))
+
+(test-case "compatibility app markers are simplified before first-slice rejection"
+  (define lowered
+    (lower-module-first-slice
+     '(lambda (instance-variable-reference x-cell y-cell)
+        (module-call-with-prompt
+         (lambda () (#%app values 1 2))
+         '(x y)
+         '(constant consistent)
+         x-cell
+         y-cell))))
+  (check-equal? (normalize-symbols lowered)
+                '("lambda" ("instance-variable-reference" "x-cell" "y-cell")
+                  ("let-values" ((("x" "y") ("values" 1 2)))
+                    ("module-variable-define!" "x-cell" "x" ("quote" "constant"))
+                    ("module-variable-define!" "y-cell" "y" ("quote" "consistent"))
+                    ("void")))))
+
 (test-case "constant export lowers define operation"
   (define lowered
     (lower-module-variable-ops
@@ -228,4 +263,4 @@
    (lambda ()
      (lower-module-first-slice
       '(lambda (instance-variable-reference)
-         (#%app f x))))))
+         (#%app/value f x))))))

@@ -4,6 +4,7 @@
          "wrap.rkt")
 
 (provide lower-module-variable-ops
+         simplify-compatibility-apps
          simplify-trivial-module-prompts
          lower-module-first-slice
          schemify-module-variable-free?
@@ -38,6 +39,8 @@
         `(module-variable-reference ,(lower instance) ,(lower cell))]
        [`(call-with-module-prompt ,thunk . ,args)
         `(module-call-with-prompt ,(lower thunk) . ,(lower-list args))]
+       [`(#%app ,rator . ,args)
+        `(,(lower rator) . ,(lower-list args))]
        [`(lambda ,formals . ,body)
         `(lambda ,formals . ,(lower-list body))]
        [`(case-lambda [,formalss . ,bodyss] ...)
@@ -62,17 +65,66 @@
 
   (lower v))
 
+;; simplify-compatibility-apps : any/c -> any/c
+;;   Erase Schemify compatibility application markers for normal calls.
+(define (simplify-compatibility-apps v)
+  (define (simplify v)
+    (reannotate
+     v
+     (match v
+       [`(#%app ,rator . ,args)
+        `(,(simplify rator) . ,(simplify-list args))]
+       [`(lambda ,formals . ,body)
+        `(lambda ,formals . ,(simplify-list body))]
+       [`(case-lambda [,formalss . ,bodyss] ...)
+        `(case-lambda ,@(for/list ([formals (in-list formalss)]
+                                   [body (in-list bodyss)])
+                          `[,formals . ,(simplify-list body)]))]
+       [`(quote ,_)
+        v]
+       [`(,_ . ,_)
+        (simplify-list v)]
+       [`,_
+        v])))
+
+  ;; simplify-list : list? -> list?
+  ;;   Simplify each wrapped list element.
+  (define (simplify-list l)
+    (cond
+      [(wrap-null? l) '()]
+      [(wrap-pair? l) (cons (simplify (wrap-car l))
+                            (simplify-list (wrap-cdr l)))]
+      [else (simplify l)]))
+
+  (simplify v))
+
 ;; simplify-trivial-module-prompts : any/c -> any/c
-;;   Erase no-metadata module-prompt markers around a direct thunk.
+;;   Erase direct module-prompt markers that do not need prompt behavior.
 (define (simplify-trivial-module-prompts v)
+  ;; simplify-metadata-prompt : any/c list? list? list? -> any/c
+  ;;   Rewrite direct module-result assignment prompts to explicit cell writes.
+  (define (simplify-metadata-prompt rhs ids constances cells)
+    (unless (= (length ids) (length constances) (length cells))
+      (error 'webify "module prompt metadata arity mismatch"))
+    (if (= (length ids) 1)
+        `(module-variable-define! ,(simplify (car cells)) ,(simplify rhs) ',(car constances))
+        `(let-values ([(,@ids) ,(simplify rhs)])
+           ,@(for/list ([id (in-list ids)]
+                        [constance (in-list constances)]
+                        [cell (in-list cells)])
+               `(module-variable-define! ,(simplify cell) ,id ',constance))
+           (void))))
+
   (define (simplify v)
     (reannotate
      v
      (match v
        [`(module-call-with-prompt (lambda () ,body) '(,id) '(,constance) ,cell)
-        `(module-variable-define! ,(simplify cell) ,(simplify body) ',constance)]
+        (simplify-metadata-prompt body (list id) (list constance) (list cell))]
        [`(module-call-with-prompt (lambda () ,body0 ,bodys ...) '(,id) '(,constance) ,cell)
         `(module-variable-define! ,(simplify cell) (let () ,@(simplify-list (cons body0 bodys))) ',constance)]
+       [`(module-call-with-prompt (lambda () ,body) '(,ids ...) '(,constances ...) ,cells ...)
+        (simplify-metadata-prompt body ids constances cells)]
        [`(module-call-with-prompt (lambda () ,body))
         (simplify body)]
        [`(module-call-with-prompt (lambda () ,body0 ,bodys ...))
@@ -108,7 +160,8 @@
    (assert-schemify-module-variable-free
     (assert-first-slice-unsupported-free
      (simplify-trivial-module-prompts
-      (lower-module-variable-ops v))))))
+      (simplify-compatibility-apps
+       (lower-module-variable-ops v)))))))
 
 ;; schemify-module-variable-free? : any/c -> boolean?
 ;;   Check that schemify-shaped module variable forms have been lowered.
