@@ -4452,6 +4452,10 @@
                       (define p/auto-vector (make-prefab-struct '(prefab-auto-vector 1 (1 #(0 marker)) #()) 42))
                       (define p/mutable (make-prefab-struct '(prefab-cell 2 (0 #f) #(1)) 10 20))
                       (define p/multi (make-prefab-struct '(prefab-multi 3 (0 #f) #(0 2)) 1 2 3))
+                      (define p/child
+                        (make-prefab-struct
+                         '(prefab-child 1 (0 #f) #() prefab-parent 2 (0 #f) #())
+                         10 20 30))
                       (define-values (struct:prefab-point make-prefab-point prefab-point?
                                                           prefab-point-ref prefab-point-set!)
                         (make-struct-type 'prefab-point #f 2 0 #f #f 'prefab))
@@ -4476,6 +4480,12 @@
                       (define-values (struct:prefab-multi make-prefab-multi prefab-multi?
                                                           prefab-multi-ref prefab-multi-set!)
                         (make-struct-type 'prefab-multi #f 3 0 #f #f 'prefab #f '(1)))
+                      (define-values (struct:prefab-parent make-prefab-parent prefab-parent?
+                                                           prefab-parent-ref prefab-parent-set!)
+                        (make-struct-type 'prefab-parent #f 2 0 #f #f 'prefab))
+                      (define-values (struct:prefab-child make-prefab-child prefab-child?
+                                                          prefab-child-ref prefab-child-set!)
+                        (make-struct-type 'prefab-child struct:prefab-parent 1 0 #f #f 'prefab))
                       (define type-info (prefab-struct-type-key+field-count struct:prefab-point))
                       (define auto-type-info (prefab-struct-type-key+field-count struct:prefab-auto))
                       (prefab-cell-set! p/mutable 1 99)
@@ -4492,6 +4502,7 @@
                            (prefab-key? '(prefab-auto-vector 1 (1 #(0 marker)) #()))
                            (prefab-key? '(prefab-cell 2 (0 #f) #(1)))
                            (prefab-key? '(prefab-multi 3 (0 #f) #(0 2)))
+                           (prefab-key? '(prefab-child 1 (0 #f) #() prefab-parent 2 (0 #f) #()))
                            (not (prefab-key? '(prefab-multi 3 (0 #f) #(0 0))))
                            (equal? (prefab-struct-key p) 'prefab-point)
                            (equal? (prefab-struct-key p/auto) '(prefab-auto 1 (1 #f) #()))
@@ -4501,6 +4512,8 @@
                            (equal? (prefab-struct-key p/auto-vector) '(prefab-auto-vector 1 (1 #(0 marker)) #()))
                            (equal? (prefab-struct-key p/mutable) '(prefab-cell 2 (0 #f) #(1)))
                            (equal? (prefab-struct-key p/multi) '(prefab-multi 3 (0 #f) #(0 2)))
+                           (equal? (prefab-struct-key p/child)
+                                   '(prefab-child 1 (0 #f) #() prefab-parent 2 (0 #f) #()))
                            (equal? (prefab-point-ref p 0) 11)
                            (equal? (prefab-point-ref p 1) 31)
                            (equal? (prefab-auto-ref p/auto 0) 42)
@@ -4516,6 +4529,9 @@
                            (equal? (prefab-multi-ref p/multi 0) 10)
                            (equal? (prefab-multi-ref p/multi 1) 2)
                            (equal? (prefab-multi-ref p/multi 2) 30)
+                           (equal? (prefab-parent-ref p/child 0) 10)
+                           (equal? (prefab-parent-ref p/child 1) 20)
+                           (equal? (prefab-child-ref p/child 0) 30)
                            (equal? type-info '(prefab-point . 2))
                            (equal? auto-type-info '((prefab-auto 1 (1 #f) #()) . 2)))))))
 

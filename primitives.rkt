@@ -1420,14 +1420,18 @@
                 (< m total-count)
                 (not (for/or ([seen (in-vector v 0 i)])
                        (= seen m)))))))
-  (define (info name init-count auto-count auto-value mutables)
+  (define (info name init-count auto-count auto-value mutables [parent-info #f])
     (list name
           init-count
           auto-count
           auto-value
           mutables
+          parent-info
           (+ init-count auto-count)
-          (webracket-simple-prefab-public-key name init-count auto-count auto-value mutables)))
+          (if parent-info
+              (append (list name init-count (list auto-count auto-value) mutables)
+                      (list-ref parent-info 7))
+              (webracket-simple-prefab-public-key name init-count auto-count auto-value mutables))))
   (cond
     [(symbol? key)
      (info key (or init-field-count 0) 0 #f #())]
@@ -1435,7 +1439,8 @@
           (or (= (length key) 1)
               (= (length key) 2)
               (= (length key) 3)
-              (= (length key) 4))
+              (= (length key) 4)
+              (= (length key) 8))
           (symbol? (car key))
           (or (= (length key) 1)
               (valid-count? (cadr key)))
@@ -1452,10 +1457,18 @@
      (define init-count (if (= (length key) 1) (or init-field-count 0) (cadr key)))
      (define auto-count (if (< (length key) 3) 0 (car (caddr key))))
      (define auto-value (if (< (length key) 3) #f (cadr (caddr key))))
-     (define mutables (if (= (length key) 4) (cadddr key) #()))
+     (define mutables (if (>= (length key) 4) (cadddr key) #()))
+     (define parent-info
+       (and (= (length key) 8)
+            (webracket-simple-prefab-key-info (list (list-ref key 4)
+                                                    (list-ref key 5)
+                                                    (list-ref key 6)
+                                                    (list-ref key 7))
+                                              #f)))
      (and init-count
           (valid-mutables? mutables (+ init-count auto-count))
-          (info (car key) init-count auto-count auto-value mutables))]
+          (or (not (= (length key) 8)) parent-info)
+          (info (car key) init-count auto-count auto-value mutables parent-info))]
     [else #f]))
 
 (define (prefab-key? key)
@@ -1464,11 +1477,29 @@
 (define (make-prefab-struct key . vals)
   (define info (webracket-simple-prefab-key-info key (length vals)))
   (unless info (raise-argument-error 'make-prefab-struct "supported simple prefab key" key))
+  (define parent-info (list-ref info 5))
+  (define parent-std
+    (and parent-info
+         (let-values ([(std make pred acc mut)
+                       (make-struct-type (list-ref parent-info 0)
+                                         #f
+                                         (list-ref parent-info 1)
+                                         (list-ref parent-info 2)
+                                         (list-ref parent-info 3)
+                                         #f
+                                         'prefab)])
+           std)))
   (define-values (std make pred acc mut)
-    (make-struct-type (list-ref info 0) #f (list-ref info 1) (list-ref info 2) (list-ref info 3) #f 'prefab))
+    (make-struct-type (list-ref info 0)
+                      (or parent-std #f)
+                      (list-ref info 1)
+                      (list-ref info 2)
+                      (list-ref info 3)
+                      #f
+                      'prefab))
   (define instance (racket:apply make vals))
-  (hash-set! webracket-prefab-instance-keys instance (list-ref info 6))
-  (hash-set! webracket-prefab-type-info std (cons (list-ref info 6) (list-ref info 5)))
+  (hash-set! webracket-prefab-instance-keys instance (list-ref info 7))
+  (hash-set! webracket-prefab-type-info std (cons (list-ref info 7) (list-ref info 6)))
   instance)
 
 (define (prefab-struct-key v)
