@@ -1778,6 +1778,7 @@
     (add-runtime-string-constant 'struct-open                "#(struct ")
     (add-runtime-string-constant 'struct?                    "struct?")
     (add-runtime-string-constant 'struct-type?               "struct-type?")
+    (add-runtime-string-constant 'sealed-struct-supertype     "sealed structure type cannot be used as a supertype")
     (add-runtime-string-constant 'custom-write?              "custom-write?")
     (add-runtime-string-constant 'struct->list:on-opaque     "one of 'error, 'return-false, or 'skip")
     (add-runtime-string-constant 'struct:prefix              "struct:")
@@ -40354,6 +40355,16 @@
          ;;     struct-predicate-procedure?
          ;;     struct-accessor-procedure?
          ;;     struct-mutator-procedure?
+
+         ;; raise-sealed-struct-supertype : -> none
+         ;;   Reject attempts to derive a structure type from a sealed parent.
+         (func $raise-sealed-struct-supertype
+               (call $raise
+                     (call $exn:fail:contract/make
+                           (global.get $string:sealed-struct-supertype)
+                           (call $current-continuation-marks (global.get $missing)))
+                     (global.get $true))
+               (unreachable))
          
          (func $make-struct-type
                ;; Parameters
@@ -40456,7 +40467,7 @@
                                         (local.get $props-final)
                                         (ref.cast (ref $Symbol) (global.get $symbol:prop:sealed)))
                                  (i32.const 1))
-                        (then (call $raise-argument-error (local.get $super))
+                        (then (call $raise-sealed-struct-supertype)
                               (unreachable)))))
 
                ;; --- Canonicalize properties specification ---

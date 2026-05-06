@@ -571,6 +571,102 @@
           (with-handlers ([exn:fail:filesystem? void])
             (delete-directory/files dir)))))))
 
+(unless (or (getenv "WEBIFY_SKIP_CLI_SMOKE")
+            (getenv "WEBIFY_SKIP_RUNTIME_SMOKE"))
+  (test-case "linklet composer creates child struct from imported parent type"
+    (define source-dir (make-temporary-file "webracket-child-struct-run-src-~a" 'directory))
+    (define dest-dir   (make-temporary-file "webracket-child-struct-run-dest-~a" 'directory))
+    (define source-path (build-path source-dir "child-struct-run.rkt"))
+    (dynamic-wind
+      void
+      (lambda ()
+        (define-values (combined _fragments _instances _exports-infos)
+          (compose-linklet-first-slices
+           (list
+            (webify-linklet-slice-spec
+             'parent-provider
+             '(linklet () (struct:parent make-parent)
+                (define-values (struct:parent make-parent parent? parent-ref parent-set!)
+                  (make-struct-type 'parent #f 1 0 #f)))
+             '())
+            (webify-linklet-slice-spec
+             'child-user
+             '(linklet (([struct:parent struct:parent])) (out)
+                (define-values (struct:child make-child child? child-ref child-set!)
+                  (make-struct-type 'child struct:parent 1 0 #f))
+                (define-values (c)
+                  (make-child 10 32))
+                (define-values (out)
+                  (if (child? c) 42 0)))
+             '((struct:parent parent-provider struct:parent))))
+           #:tail '((js-log out))))
+        (define wat (wat-string (comp (datum->syntax #f combined))))
+        (check-true (string-contains? wat "$make-struct-type"))
+        (check-true (string-contains? wat "$module-variable-ref/no-check"))
+        (check-false (string-contains? wat "make-record-type-descriptor"))
+        (check-false (string-contains? wat "unsafe-struct*"))
+        (write-datum-program! source-path combined)
+        (define-values (status output)
+          (run-webracket (list "--no-stdlib"
+                               "-r"
+                               "--dest" (path->string dest-dir)
+                               (path->string source-path))
+                         source-dir))
+        (check-equal? status 0 output)
+        (check-regexp-match #rx"(?m:^42$)" output))
+      (lambda ()
+        (for ([dir (in-list (list source-dir dest-dir))])
+          (with-handlers ([exn:fail:filesystem? void])
+            (delete-directory/files dir)))))))
+
+(unless (or (getenv "WEBIFY_SKIP_CLI_SMOKE")
+            (getenv "WEBIFY_SKIP_RUNTIME_SMOKE"))
+  (test-case "linklet composer rejects child struct from imported sealed parent type"
+    (define source-dir (make-temporary-file "webracket-sealed-child-run-src-~a" 'directory))
+    (define dest-dir   (make-temporary-file "webracket-sealed-child-run-dest-~a" 'directory))
+    (define source-path (build-path source-dir "sealed-child-run.rkt"))
+    (dynamic-wind
+      void
+      (lambda ()
+        (define-values (combined _fragments _instances _exports-infos)
+          (compose-linklet-first-slices
+           (list
+            (webify-linklet-slice-spec
+             'sealed-parent-provider
+             '(linklet () (struct:sealed-parent)
+                (define-values (struct:sealed-parent make-sealed-parent sealed-parent?
+                                                     sealed-parent-ref sealed-parent-set!)
+                  (make-struct-type 'sealed-parent #f 1 0 #f
+                                    (list (cons prop:sealed #t)))))
+             '())
+            (webify-linklet-slice-spec
+             'sealed-child-user
+             '(linklet (([struct:sealed-parent struct:sealed-parent])) (out)
+                (define-values (struct:bad-child make-bad-child bad-child?
+                                                 bad-child-ref bad-child-set!)
+                  (make-struct-type 'bad-child struct:sealed-parent 1 0 #f))
+                (define-values (out) 0))
+             '((struct:sealed-parent sealed-parent-provider struct:sealed-parent))))
+           #:tail '((js-log out))))
+        (define wat (wat-string (comp (datum->syntax #f combined))))
+        (check-true (string-contains? wat "$prop:sealed"))
+        (check-true (string-contains? wat "$make-struct-type"))
+        (check-false (string-contains? wat "make-record-type-descriptor"))
+        (check-false (string-contains? wat "unsafe-struct*"))
+        (write-datum-program! source-path combined)
+        (define-values (status output)
+          (run-webracket (list "--no-stdlib"
+                               "-r"
+                               "--dest" (path->string dest-dir)
+                               (path->string source-path))
+                         source-dir))
+        (check-not-equal? status 0 output)
+        (check-regexp-match #rx"sealed structure type cannot be used as a supertype" output))
+      (lambda ()
+        (for ([dir (in-list (list source-dir dest-dir))])
+          (with-handlers ([exn:fail:filesystem? void])
+            (delete-directory/files dir)))))))
+
 
 (module+ main
   (void))

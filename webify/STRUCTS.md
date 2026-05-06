@@ -254,6 +254,12 @@ creates a sealed struct type with `(list (cons prop:sealed #t))`, a later slice
 imports the constructor and predicate, and the compiled program observes the
 public `prop:sealed` value as a struct-type property.
 
+Sealed inheritance is now checked through the same bridge path. An imported
+unsealed parent struct type can be used as the parent of a child struct type in
+a later slice. An imported sealed parent struct type is rejected by the runtime
+with a clear contract message instead of falling through to a formatting trap or
+Chez-style helper path.
+
 ## Proposed Next Implementation Milestone
 
 Add a WebRacket-target unsupported-struct diagnostic pass:
