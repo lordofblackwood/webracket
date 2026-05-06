@@ -293,25 +293,26 @@ as `'(name)`, `'(name 2)`, and `'(name 2 (0 #f) #())`.
 `make-prefab-struct` constructs instances through the same interned type path
 used by `make-struct-type ... 'prefab`, while `prefab-struct-key` and
 `prefab-struct-type-key+field-count` expose the stored short key metadata.
-That bridge now includes auto-field keys with `#f` auto values, such as
-`'(name 1 (1 #f) #())`; constructor calls provide only the non-auto fields,
-and the generated struct stores `#f` in the auto fields. Single-index mutable
-field masks and multi-field mutable masks are supported too, such as
-`'(cell 2 (0 #f) #(1))` and `'(triple 3 (0 #f) #(0 2))`. The mutable mask
-participates in prefab interning and normalized public keys, and the runtime
-mutator rejects writes to prefab fields that are not in the mask. Duplicate
-mutable indexes, out-of-range mutable indexes, non-`#f` auto values, and
-prefab supertypes remain outside the accepted subset.
+That bridge now includes auto-field keys with supported scalar auto values,
+such as `'(name 1 (1 #f) #())` and `'(name 1 (1 0) #())`; constructor calls
+provide only the non-auto fields, and the generated struct stores the key's
+auto value in the auto fields. Single-index mutable field masks and multi-field
+mutable masks are supported too, such as `'(cell 2 (0 #f) #(1))` and
+`'(triple 3 (0 #f) #(0 2))`. Auto values and mutable masks both participate in
+prefab interning and normalized public keys, and the runtime mutator rejects
+writes to prefab fields that are not in the mask. Duplicate mutable indexes,
+out-of-range mutable indexes, compound auto values, and prefab supertypes
+remain outside the accepted subset.
 
 ## Proposed Next Implementation Milestone
 
-Extend prefab support beyond the no-super/`#f`-auto subset:
+Extend prefab support beyond the no-super/scalar-auto subset:
 
-- Decide how to intern prefab keys with arbitrary auto values, then support
-  non-`#f` auto values.
+- Decide how to represent compound datum auto values in registry identity and
+  metadata, then support them.
 - Support prefab supertypes by normalizing and interning the full key chain.
 
 That milestone should include small tests showing:
 
-- Distinct non-`#f` auto values produce distinct prefab types.
+- Compound auto values produce distinct prefab types and fill auto fields.
 - A prefab subtype shares its normalized supertype across slices.

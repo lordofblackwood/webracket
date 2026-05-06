@@ -849,7 +849,7 @@
            (list
             (webify-linklet-slice-spec
              'prefab-maker-a
-             '(linklet () (a-point auto-point mutable-cell mutable-triple one-point-value)
+             '(linklet () (a-point auto-point auto-zero auto-one mutable-cell mutable-triple one-point-value)
                 (define-values (struct:prefab-point/one make-prefab-point/one prefab-point/one?
                                                         prefab-point/one-ref prefab-point/one-set!)
                   (make-struct-type 'prefab-point #f 1 0 #f #f 'prefab))
@@ -864,6 +864,10 @@
                   (make-prefab-struct '(prefab-point 2 (0 #f) #()) 11 31))
                 (define-values (auto-point)
                   (make-prefab-struct '(prefab-auto 1 (1 #f) #()) 42))
+                (define-values (auto-zero)
+                  (make-prefab-struct '(prefab-auto-value 1 (1 0) #()) 42))
+                (define-values (auto-one)
+                  (make-prefab-struct '(prefab-auto-value 1 (1 1) #()) 42))
                 (define-values (mutable-cell)
                   (make-prefab-struct '(prefab-cell 2 (0 #f) #(1)) 10 20))
                 (define-values (mutable-triple)
@@ -873,6 +877,8 @@
              'prefab-maker-b
              '(linklet (([a-point a-point]
                          [auto-point auto-point]
+                         [auto-zero auto-zero]
+                         [auto-one auto-one]
                          [mutable-cell mutable-cell]
                          [mutable-triple mutable-triple])) (out)
                 (define-values (struct:prefab-point make-prefab-point prefab-point?
@@ -881,6 +887,12 @@
                 (define-values (struct:prefab-auto make-prefab-auto prefab-auto?
                                                    prefab-auto-ref prefab-auto-set!)
                   (make-struct-type 'prefab-auto #f 1 1 #f #f 'prefab))
+                (define-values (struct:prefab-auto-value/zero make-prefab-auto-value/zero prefab-auto-value/zero?
+                                                              prefab-auto-value/zero-ref prefab-auto-value/zero-set!)
+                  (make-struct-type 'prefab-auto-value #f 1 1 0 #f 'prefab))
+                (define-values (struct:prefab-auto-value/one make-prefab-auto-value/one prefab-auto-value/one?
+                                                             prefab-auto-value/one-ref prefab-auto-value/one-set!)
+                  (make-struct-type 'prefab-auto-value #f 1 1 1 #f 'prefab))
                 (define-values (struct:prefab-cell make-prefab-cell prefab-cell?
                                                    prefab-cell-ref prefab-cell-set!)
                   (make-struct-type 'prefab-cell #f 2 0 #f #f 'prefab #f '(0)))
@@ -905,6 +917,8 @@
                            (prefab-key? '(prefab-point 2))
                            (prefab-key? '(prefab-point 2 (0 #f) #()))
                            (prefab-key? '(prefab-auto 1 (1 #f) #()))
+                           (prefab-key? '(prefab-auto-value 1 (1 0) #()))
+                           (prefab-key? '(prefab-auto-value 1 (1 1) #()))
                            (prefab-key? '(prefab-cell 2 (0 #f) #(1)))
                            (prefab-key? '(prefab-triple 3 (0 #f) #(0 2)))
                            (not (prefab-key? '(prefab-triple 3 (0 #f) #(0 0))))
@@ -912,6 +926,10 @@
                            (eq? (prefab-struct-key made-here) 'prefab-point)
                            (equal? (prefab-struct-key auto-point)
                                    '(prefab-auto 1 (1 #f) #()))
+                           (equal? (prefab-struct-key auto-zero)
+                                   '(prefab-auto-value 1 (1 0) #()))
+                           (equal? (prefab-struct-key auto-one)
+                                   '(prefab-auto-value 1 (1 1) #()))
                            (equal? (prefab-struct-key mutable-cell)
                                    '(prefab-cell 2 (0 #f) #(1)))
                            (equal? (prefab-struct-key mutable-triple)
@@ -922,6 +940,8 @@
                                    '(prefab-auto 1 (1 #f) #()))
                            (= (cdr auto-type-info) 2)
                            (eq? (prefab-auto-ref auto-point 1) #f)
+                           (= (prefab-auto-value/zero-ref auto-zero 1) 0)
+                           (= (prefab-auto-value/one-ref auto-one 1) 1)
                            (= (prefab-cell-ref mutable-cell 0) 10)
                            (= (prefab-cell-ref mutable-cell 1) 42)
                            (= (prefab-triple-ref mutable-triple 0) 10)
@@ -931,6 +951,8 @@
                       0)))
              '((a-point prefab-maker-a a-point)
                (auto-point prefab-maker-a auto-point)
+               (auto-zero prefab-maker-a auto-zero)
+               (auto-one prefab-maker-a auto-one)
                (mutable-cell prefab-maker-a mutable-cell)
                (mutable-triple prefab-maker-a mutable-triple))))
            #:tail '((js-log out))))
@@ -974,7 +996,7 @@
              '(linklet () (out)
                 (define-values (struct:bad-prefab make-bad-prefab bad-prefab?
                                                   bad-prefab-ref bad-prefab-set!)
-                  (make-struct-type 'bad-prefab #f 1 1 'auto #f 'prefab))
+                  (make-struct-type 'bad-prefab #f 1 1 '(compound auto) #f 'prefab))
                 (define-values (out)
                   (make-bad-prefab 1)))
              '()))

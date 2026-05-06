@@ -40375,12 +40375,125 @@
                      (global.get $true))
                (unreachable))
 
-         ;; simple-prefab-registry-key : symbol? i32 i32 vector? -> symbol?
+         ;; simple-prefab-auto-value-supported?/i32 : any/c -> i32
+         ;;   Accept stable scalar auto values for the supported prefab subset.
+         (func $simple-prefab-auto-value-supported?/i32
+               (param $v (ref eq))
+               (result   i32)
+
+               (local $raw i32)
+
+               (if (ref.eq (local.get $v) (global.get $false))
+                   (then (return (i32.const 1))))
+               (if (ref.eq (local.get $v) (global.get $true))
+                   (then (return (i32.const 1))))
+               (if (ref.eq (local.get $v) (global.get $null))
+                   (then (return (i32.const 1))))
+               (if (ref.eq (local.get $v) (global.get $void))
+                   (then (return (i32.const 1))))
+               (if (ref.test (ref $Symbol) (local.get $v))
+                   (then (return (i32.const 1))))
+               (if (ref.test (ref $String) (local.get $v))
+                   (then (return (i32.const 1))))
+               (if (ref.test (ref i31) (local.get $v))
+                   (then
+                    (local.set $raw (i31.get_u (ref.cast (ref i31) (local.get $v))))
+                    (if (i32.or
+                         (i32.eqz (i32.and (local.get $raw) (i32.const 1)))
+                         (i32.eq (i32.and (local.get $raw) (i32.const ,char-mask))
+                                 (i32.const ,char-tag)))
+                        (then (return (i32.const 1))))))
+               (i32.const 0))
+
+         ;; simple-prefab-auto-value-registry-fragment : any/c -> string?
+         ;;   Build a type-tagged fragment for supported scalar auto values.
+         (func $simple-prefab-auto-value-registry-fragment
+               (param $v (ref eq))
+               (result   (ref $String))
+
+               (local $type-code i32)
+               (local $content   (ref $String))
+               (local $raw       i32)
+
+               (local.set $type-code (i32.const 0))
+               (local.set $content (ref.cast (ref $String) (global.get $string:empty)))
+               (if (ref.eq (local.get $v) (global.get $false))
+                   (then
+                    (local.set $type-code (i32.const 1))
+                    (local.set $content
+                               (ref.cast
+                                (ref $String)
+                                (call $number->string
+                                      (ref.i31 (i32.const 0))
+                                      (global.get $missing))))))
+               (if (ref.eq (local.get $v) (global.get $true))
+                   (then
+                    (local.set $type-code (i32.const 1))
+                    (local.set $content
+                               (ref.cast
+                                (ref $String)
+                                (call $number->string
+                                      (ref.i31 (i32.const 2))
+                                      (global.get $missing))))))
+               (if (ref.eq (local.get $v) (global.get $null))
+                   (then (local.set $type-code (i32.const 2))))
+               (if (ref.eq (local.get $v) (global.get $void))
+                   (then (local.set $type-code (i32.const 3))))
+               (if (ref.test (ref i31) (local.get $v))
+                   (then (local.set $raw (i31.get_u (ref.cast (ref i31) (local.get $v))))))
+               (if (i32.and
+                    (ref.test (ref i31) (local.get $v))
+                    (i32.eqz (i32.and (local.get $raw) (i32.const 1))))
+                   (then
+                    (local.set $type-code (i32.const 4))
+                    (local.set $content
+                               (ref.cast
+                                (ref $String)
+                                (call $number->string
+                                      (local.get $v)
+                                      (global.get $missing))))))
+               (if (i32.and
+                    (ref.test (ref i31) (local.get $v))
+                    (i32.eq (i32.and (local.get $raw) (i32.const ,char-mask))
+                            (i32.const ,char-tag)))
+                   (then
+                    (local.set $type-code (i32.const 5))
+                    (local.set $content
+                               (ref.cast
+                                (ref $String)
+                                (call $number->string
+                                      (ref.i31
+                                       (i32.shl
+                                        (i32.shr_u (local.get $raw) (i32.const ,char-shift))
+                                        (i32.const 1)))
+                                      (global.get $missing))))))
+               (if (ref.test (ref $Symbol) (local.get $v))
+                   (then
+                    (local.set $type-code (i32.const 6))
+                    (local.set $content
+                               (ref.cast
+                                (ref $String)
+                                (call $symbol->immutable-string
+                                      (ref.cast (ref $Symbol) (local.get $v)))))))
+               (if (ref.test (ref $String) (local.get $v))
+                   (then
+                    (local.set $type-code (i32.const 7))
+                    (local.set $content (ref.cast (ref $String) (local.get $v)))))
+               (call $string-append/2
+                     (call $string-append/2
+                           (call $number->string
+                                 (ref.i31 (i32.shl (local.get $type-code) (i32.const 1)))
+                                 (global.get $missing))
+                           (global.get $string:colon))
+                     (local.get $content)))
+
+         ;; simple-prefab-registry-key : symbol? i32 i32 any/c vector? -> symbol?
          ;;   Build the internal registry key for the supported prefab subset.
          (func $simple-prefab-registry-key
                (param $name       (ref $Symbol))
                (param $init-count i32)
                (param $auto-count i32)
+               (param $auto-value (ref eq))
                (param $mutables   (ref $Vector))
                (result            (ref $Symbol))
 
@@ -40403,6 +40516,13 @@
                                 (call $number->string
                                       (ref.i31 (i32.shl (local.get $auto-count) (i32.const 1)))
                                       (global.get $missing))))
+               (local.set $acc
+                          (call $string-append/2
+                                (call $string-append/2
+                                      (local.get $acc)
+                                      (global.get $string:colon))
+                                (call $simple-prefab-auto-value-registry-fragment
+                                      (local.get $auto-value))))
                (local.set $mlen (call $vector-length/checked/i32 (local.get $mutables)))
                (local.set $i (i32.const 0))
                (block $done
@@ -40429,12 +40549,13 @@
                             (br $walk)))
                (call $string->symbol/checked (local.get $acc)))
 
-         ;; simple-prefab-public-key : symbol? i32 i32 vector? -> prefab-key?
+         ;; simple-prefab-public-key : symbol? i32 i32 any/c vector? -> prefab-key?
          ;;   Build the shortest public key for the supported prefab subset.
          (func $simple-prefab-public-key
                (param $name       (ref $Symbol))
                (param $init-count i32)
                (param $auto-count i32)
+               (param $auto-value (ref eq))
                (param $mutables   (ref $Vector))
                (result            (ref eq))
 
@@ -40447,7 +40568,7 @@
                (local.set $auto-spec
                           (call $cons
                                 (ref.i31 (i32.shl (local.get $auto-count) (i32.const 1)))
-                                (call $cons (global.get $false) (global.get $null))))
+                                (call $cons (local.get $auto-value) (global.get $null))))
                (call $cons
                      (local.get $name)
                      (call $cons
@@ -40456,12 +40577,13 @@
                                  (local.get $auto-spec)
                                  (call $cons (local.get $mutables) (global.get $null))))))
 
-         ;; simple-prefab-type-metadata : symbol? i32 i32 vector? -> pair?
+         ;; simple-prefab-type-metadata : symbol? i32 i32 any/c vector? -> pair?
          ;;   Store the normalized public prefab key plus total field count.
          (func $simple-prefab-type-metadata
                (param $name       (ref $Symbol))
                (param $init-count i32)
                (param $auto-count i32)
+               (param $auto-value (ref eq))
                (param $mutables   (ref $Vector))
                (result            (ref eq))
 
@@ -40470,6 +40592,7 @@
                            (local.get $name)
                            (local.get $init-count)
                            (local.get $auto-count)
+                           (local.get $auto-value)
                            (local.get $mutables))
                      (ref.i31 (i32.shl (i32.add (local.get $init-count)
                                                 (local.get $auto-count))
@@ -40487,7 +40610,7 @@
                    (else (global.get $false))))
 
          ;; simple-prefab-key?/i32 : any/c -> i32
-         ;;   Accept symbols and mutable masks with #f auto values.
+         ;;   Accept symbols and mutable masks with supported scalar auto values.
          (func $simple-prefab-key?/i32
                (param $key (ref eq))
                (result     i32)
@@ -40545,7 +40668,8 @@
                                 (i32.const 1)))
                (if (ref.eq (call $exact-nonnegative-integer? (local.get $auto-count)) (global.get $false))
                    (then (return (i32.const 0))))
-               (if (i32.eqz (ref.eq (local.get $auto-val) (global.get $false)))
+               (if (i32.eqz (call $simple-prefab-auto-value-supported?/i32
+                                  (local.get $auto-val)))
                    (then (return (i32.const 0))))
                (if (i32.eq (local.get $len) (i32.const 3))
                    (then (return (i32.const 1))))
@@ -40665,6 +40789,31 @@
                                 (i32.const 0)))
                (i32.shr_s (i31.get_s (ref.cast (ref i31) (local.get $auto-count))) (i32.const 1)))
 
+         ;; simple-prefab-key-auto-value/checked : prefab-key? -> any/c
+         ;;   Return the supported key's scalar auto-field value.
+         (func $simple-prefab-key-auto-value/checked
+               (param $key (ref eq))
+               (result     (ref eq))
+
+               (local $len       i32)
+               (local $auto-spec (ref eq))
+
+               (if (ref.test (ref $Symbol) (local.get $key))
+                   (then (return (global.get $false))))
+               (if (i32.eqz (call $simple-prefab-key?/i32 (local.get $key)))
+                   (then (call $raise-argument-error (local.get $key))
+                         (unreachable)))
+               (local.set $len (call $length/i32 (local.get $key)))
+               (if (i32.lt_u (local.get $len) (i32.const 3))
+                   (then (return (global.get $false))))
+               (local.set $auto-spec
+                          (call $list-ref/checked
+                                (ref.cast (ref $Pair) (local.get $key))
+                                (i32.const 2)))
+               (call $list-ref/checked
+                     (ref.cast (ref $Pair) (local.get $auto-spec))
+                     (i32.const 1)))
+
          ;; simple-prefab-key-mutables/checked : prefab-key? -> vector?
          ;;   Return the supported mutable-field mask vector.
          (func $simple-prefab-key-mutables/checked
@@ -40727,12 +40876,13 @@
                             (br $walk)))
                (i32.const 0))
 
-         ;; simple-prefab-struct-type/checked : symbol? i32 i32 vector? -> struct-type?
+         ;; simple-prefab-struct-type/checked : symbol? i32 i32 any/c vector? -> struct-type?
          ;;   Intern or retrieve the supported prefab struct type.
          (func $simple-prefab-struct-type/checked
                (param $name       (ref $Symbol))
                (param $init-count i32)
                (param $auto-count i32)
+               (param $auto-value (ref eq))
                (param $mutables   (ref $Vector))
                (result            (ref $StructType))
 
@@ -40748,6 +40898,7 @@
                                 (local.get $name)
                                 (local.get $init-count)
                                 (local.get $auto-count)
+                                (local.get $auto-value)
                                 (local.get $mutables)))
                (local.set $existing
                           (call $hasheq-ref/plain
@@ -40761,6 +40912,7 @@
                                 (local.get $name)
                                 (local.get $init-count)
                                 (local.get $auto-count)
+                                (local.get $auto-value)
                                 (local.get $mutables)))
                (local.set $std
                           (call $make-struct-type-descriptor/checked
@@ -40768,7 +40920,7 @@
                                 (global.get $false)
                                 (local.get $init-count)
                                 (local.get $auto-count)
-                                (global.get $false)
+                                (local.get $auto-value)
                                 (ref.cast (ref eq) (call $struct-type-property-table-empty))
                                 (ref.cast (ref $Symbol) (global.get $symbol:prefab))
                                 (global.get $false)
@@ -40986,6 +41138,7 @@
                (local $explicit-count i32)
                (local $field-count    i32)
                (local $auto-count     i32)
+               (local $auto-value     (ref eq))
                (local $mutables       (ref $Vector))
                (local $total-count    i32)
                (local $std            (ref $StructType))
@@ -41004,6 +41157,9 @@
                (local.set $auto-count
                           (call $simple-prefab-key-auto-count/checked
                                 (local.get $key)))
+               (local.set $auto-value
+                          (call $simple-prefab-key-auto-value/checked
+                                (local.get $key)))
                (local.set $mutables
                           (call $simple-prefab-key-mutables/checked
                                 (local.get $key)))
@@ -41018,6 +41174,7 @@
                                      (local.get $name)
                                      (local.get $field-count)
                                      (local.get $auto-count)
+                                     (local.get $auto-value)
                                      (local.get $mutables)))
                (local.set $init-arr (call $list->array (local.get $vals)))
                (local.set $arr (array.new $Array (global.get $false) (local.get $total-count)))
@@ -41029,6 +41186,15 @@
                                        (array.get $Array (local.get $init-arr) (local.get $i)))
                             (local.set $i (i32.add (local.get $i) (i32.const 1)))
                             (br $copy-init)))
+               (block $done-auto-fill
+                      (loop $fill-auto
+                            (br_if $done-auto-fill (i32.ge_u (local.get $i) (local.get $total-count)))
+                            (array.set $Array
+                                       (local.get $arr)
+                                       (local.get $i)
+                                       (local.get $auto-value))
+                            (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                            (br $fill-auto)))
                (struct.new $Struct
                            (i32.const 0)
                            (struct.get $StructType $name (local.get $std))
@@ -41201,7 +41367,8 @@
                     (if (i32.or
                          (local.get $has-super)
                          (i32.or
-                          (i32.eqz (ref.eq (local.get $auto-val) (global.get $false)))
+                          (i32.eqz (call $simple-prefab-auto-value-supported?/i32
+                                         (local.get $auto-val)))
                           (i32.or
                            (i32.eqz (ref.eq (local.get $props-list) (global.get $null)))
                            (i32.eqz (ref.eq (local.get $guard-checked) (global.get $false))))))
@@ -41218,6 +41385,7 @@
                                      (ref.cast (ref $Symbol) (local.get $name))
                                      (local.get $init)
                                      (local.get $auto)
+                                     (local.get $auto-val)
                                      (local.get $prefab-mutables)))
                               (else
                                (call $make-struct-type-descriptor/checked
