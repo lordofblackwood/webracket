@@ -262,6 +262,38 @@ lowered lambda, grouped import names, grouped import sources, and exports:
 The triple `(ext-x a x)` means: satisfy B's import `ext-x` with export `x` from
 the previously adapted instance named `a`.
 
+For actual linklet datums, `webify-compose-linklet-first-slices` removes the
+remaining manual lowering step. Each `webify-linklet-slice-spec` gives a name,
+a linklet datum, and grouped import sources:
+
+```racket
+(webify-compose-linklet-first-slices
+ (list
+  (webify-linklet-slice-spec
+   'a
+   '(linklet () (x)
+      (define-values (x) 10))
+   '())
+  (webify-linklet-slice-spec
+   'b
+   '(linklet (([ext-x x])) (y)
+      (define-values (y) x))
+   '(((ext-x a x)))))
+ ...)
+```
+
+The composer runs `webify-linklet-first-slice`, checks that the resulting
+imports are cell imports, resolves each import source through prior instances,
+adapts the lowered slice to top-level forms, and returns:
+
+```racket
+(values combined-datum fragments instances exports-infos)
+```
+
+This milestone means the bridge can compose real first-slice linklets. The
+caller still supplies the dependency order and import-source mapping explicitly;
+there is still no module registry or namespace lookup.
+
 The composer carries reserved helper ids forward automatically. In the example
 above, A uses `webify-linklet-proc$0` and `webify-export-cell0$0`; B therefore
 gets `webify-linklet-proc$1` and `webify-export-cell0$1` without the caller
