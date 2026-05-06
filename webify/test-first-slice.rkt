@@ -89,9 +89,23 @@
   (check-equal? imports-abis '())
   (check-false (hash-ref exports-info 'x #f)))
 
-(test-case "first-slice wrapper rejects metadata prompt"
-  (check-exn
-   #rx"module prompts are not supported"
-   (lambda ()
-     (run-first-slice '(linklet (([ext-a a])) (x)
-                        (define-values (x) a))))))
+(test-case "first-slice wrapper erases singleton metadata prompt for imported value"
+  (define-values (webified importss exports import-keys imports-abis exports-info)
+    (run-first-slice '(linklet (([ext-a a])) (x)
+                       (define-values (x) a))))
+  (check-equal? (normalize-symbols webified)
+                '("lambda" ("instance-variable-reference" "a1" "x2")
+                  ("define" "effect3"
+                    ("begin"
+                     ("module-variable-define!"
+                      "x2"
+                      ("module-variable-ref/no-check" "a1")
+                      ("quote" "constant"))
+                     ("void")))
+                  ("define" "x" ("module-variable-ref/no-check" "x2"))
+                  ("void")))
+  (check-equal? importss '((ext-a)))
+  (check-equal? exports '(x))
+  (check-false import-keys)
+  (check-equal? imports-abis '((#f)))
+  (check-true (known-constant? (hash-ref exports-info 'x))))

@@ -98,6 +98,27 @@
   (check-equal? imports-abis '())
   (check-false (hash-ref exports-info 'x #f)))
 
+(test-case "execute imported value copied to export first slice"
+  (define-values (webified importss exports import-keys imports-abis exports-info)
+    (run-first-slice '(linklet (([ext-a a])) (x)
+                        (define-values (x) a))))
+  (define-values (ns proc) (eval-first-slice webified))
+  (define module-variable-make (namespace-value ns 'module-variable-make))
+  (define module-variable-define! (namespace-value ns 'module-variable-define!))
+  (define module-variable-ref (namespace-value ns 'module-variable-ref))
+  (define module-variable-constance (namespace-value ns 'module-variable-constance))
+  (define a-cell (module-variable-make 'a))
+  (define x-cell (module-variable-make 'x))
+  (module-variable-define! a-cell 42 'constant)
+  (check-equal? (proc 'instance a-cell x-cell) (void))
+  (check-equal? (module-variable-ref x-cell) 42)
+  (check-equal? (module-variable-constance x-cell) 'constant)
+  (check-equal? importss '((ext-a)))
+  (check-equal? exports '(x))
+  (check-false import-keys)
+  (check-equal? imports-abis '((#f)))
+  (check-true (known-constant? (hash-ref exports-info 'x))))
+
 (test-case "execute lambda export first slice"
   (define-values (webified importss exports import-keys imports-abis exports-info)
     (run-first-slice '(linklet () (f)

@@ -69,6 +69,10 @@
     (reannotate
      v
      (match v
+       [`(module-call-with-prompt (lambda () ,body) '(,id) '(,constance) ,cell)
+        `(module-variable-define! ,(simplify cell) ,(simplify body) ',constance)]
+       [`(module-call-with-prompt (lambda () ,body0 ,bodys ...) '(,id) '(,constance) ,cell)
+        `(module-variable-define! ,(simplify cell) (let () ,@(simplify-list (cons body0 bodys))) ',constance)]
        [`(module-call-with-prompt (lambda () ,body))
         (simplify body)]
        [`(module-call-with-prompt (lambda () ,body0 ,bodys ...))

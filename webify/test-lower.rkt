@@ -171,6 +171,24 @@
      ("define" "x" ("module-variable-ref/no-check" "x2"))
      ("void"))))
 
+(test-case "first-slice helper erases singleton metadata prompt"
+  (define lowered
+    (lower-module-first-slice
+     (run-webify '(linklet (([ext-a a])) (x)
+                    (define-values (x) a)))))
+  (check-equal? (normalize-symbols lowered)
+                '("lambda" ("instance-variable-reference" "a1" "x2")
+                  ("define" "effect3"
+                    ("begin"
+                     ("module-variable-define!"
+                      "x2"
+                      ("module-variable-ref/no-check" "a1")
+                      ("quote" "constant"))
+                     ("void")))
+                  ("define" "x" ("module-variable-ref/no-check" "x2"))
+                  ("void")))
+  (check-true (module-prompt-free? lowered)))
+
 (test-case "mutated export lowers set operation"
   (define lowered
     (lower-module-variable-ops
@@ -203,14 +221,6 @@
      ("define" "x" 1)
      ("module-variable-define!" "x1" "x" ("quote" #f))
      ("module-variable-set!" "x1" 2))))
-
-(test-case "first-slice helper rejects metadata prompt"
-  (check-exn
-   #rx"module prompts are not supported"
-   (lambda ()
-     (lower-module-first-slice
-      (run-webify '(linklet (([ext-a a])) (x)
-                    (define-values (x) a)))))))
 
 (test-case "first-slice helper rejects unsupported compatibility form"
   (check-exn

@@ -9,7 +9,8 @@
          rackunit
          (only-in "../compiler.rkt" comp)
          "known.rkt"
-         "module-adapter.rkt")
+         "module-adapter.rkt"
+         "module-instance.rkt")
 
 (define-runtime-path webracket-rkt "../webracket.rkt")
 
@@ -28,6 +29,27 @@
 (define (run-first-slice-top-level lk)
   (webify-linklet-first-slice-top-level
    lk
+   #:serializable?-box     #f
+   #:datum-intern?         #f
+   #:target                #f
+   #:allow-set!-undefined? #f
+   #:unsafe-mode?          #f
+   #:enforce-constant?     #t
+   #:allow-inline?         #t
+   #:no-prompt?            #f
+   #:prim-knowns           test-prim-knowns
+   #:primitives            test-primitives
+   #:compiler-query        (lambda (v) #f)
+   #:get-import-knowns     (lambda (key) (values #f #f #f))
+   #:import-keys           #f))
+
+;; run-first-slice-top-level/imports : any/c (listof any/c) #:reserved (listof symbol?) -> values
+;;   Webify, lower, and top-level-wrap a hand-written linklet with import cells.
+(define (run-first-slice-top-level/imports lk import-args #:reserved [reserved '()])
+  (webify-linklet-first-slice-top-level/imports
+   lk
+   import-args
+   #:reserved             reserved
    #:serializable?-box     #f
    #:datum-intern?         #f
    #:target                #f
@@ -81,6 +103,16 @@
      `(begin ,@body ,form)]
     [_
      (error 'append-top-level-form
+            "expected generated adapter datum to be a begin form")]))
+
+;; begin-body : any/c -> (listof any/c)
+;;   Extract body forms from a generated top-level begin program.
+(define (begin-body datum)
+  (match datum
+    [`(begin ,body ...)
+     body]
+    [_
+     (error 'begin-body
             "expected generated adapter datum to be a begin form")]))
 
 ;; normalize-symbols : any/c -> any/c
@@ -271,6 +303,247 @@
      (fail-check (format "unexpected deterministic-collision shape: ~s" other))])
   (check-equal? exports '(webify-linklet-proc$0 webify-export-cell0$0)))
 
+(test-case "first-slice adapter exposes helper ids for sequential composition"
+  (check-equal? (first-slice-top-level-helper-ids '(x))
+                '(webify-linklet-proc$0 webify-export-cell0$0))
+  (check-equal? (first-slice-top-level-export-cell-ids '(x))
+                '#hasheq((x . webify-export-cell0$0)))
+  (check-equal? (first-slice-top-level-helper-ids
+                 '(y)
+                 #:reserved '(webify-linklet-proc$0 webify-export-cell0$0))
+                '(webify-linklet-proc$1 webify-export-cell0$1))
+  (check-equal? (first-slice-top-level-export-cell-ids
+                 '(y)
+                 #:reserved '(webify-linklet-proc$0 webify-export-cell0$0))
+                '#hasheq((y . webify-export-cell0$1))))
+
+(test-case "module instance records generated export cells"
+  (define instance (make-webify-module-instance 'a '(x y)))
+  (check-equal? (webify-module-instance-name instance) 'a)
+  (check-equal? (webify-module-instance-exports instance) '(x y))
+  (check-equal? (webify-module-instance-helper-ids instance)
+                '(webify-linklet-proc$0 webify-export-cell0$0 webify-export-cell1$0))
+  (check-equal? (webify-module-instance-export-cell-id instance 'x)
+                'webify-export-cell0$0)
+  (check-equal? (webify-module-instance-export-cell-id instance 'y)
+                'webify-export-cell1$0)
+  (check-equal? (webify-module-instance-reserved-ids instance)
+                '(x y webify-linklet-proc$0 webify-export-cell0$0 webify-export-cell1$0)))
+
+(test-case "module instance builds renamed import cell environments"
+  (define instance (make-webify-module-instance 'a '(x y)))
+  (check-equal? (webify-module-instance-import-env instance
+                                                   '((ext-x . x) y))
+                '#hasheq((ext-x . webify-export-cell0$0)
+                          (y . webify-export-cell1$0))))
+
+(test-case "first-slice adapter composes sequential slices with reserved helpers"
+  (define first-datum
+    (first-slice->top-level-datum '(lambda (instance-variable-reference x1)
+                                     (define x 10)
+                                     (module-variable-define! x1 x 'consistent))
+                                   '(x)))
+  (define first-reserved
+    (append '(x)
+            (first-slice-top-level-helper-ids '(x))))
+  (define second-datum
+    (first-slice->top-level-datum '(lambda (instance-variable-reference y1)
+                                     (define y 20)
+                                     (module-variable-define! y1 y 'consistent))
+                                   '(y)
+                                   #:reserved first-reserved))
+  (define combined
+    `(begin
+       ,@(begin-body first-datum)
+       ,@(begin-body second-datum)
+       (void)))
+  (match (normalize-symbols combined)
+    [`("begin"
+       ("define" "webify-linklet-proc$0" ,_)
+       ("define" "webify-export-cell0$0" ,_)
+       ("webify-linklet-proc$0" ("quote" "webify-instance") "webify-export-cell0$0")
+       ("define" "x" ("module-variable-ref" "webify-export-cell0$0"))
+       ("void")
+       ("define" "webify-linklet-proc$1" ,_)
+       ("define" "webify-export-cell0$1" ,_)
+       ("webify-linklet-proc$1" ("quote" "webify-instance") "webify-export-cell0$1")
+       ("define" "y" ("module-variable-ref" "webify-export-cell0$1"))
+       ("void")
+       ("void"))
+     (void)]
+    [other
+     (fail-check (format "unexpected composed shape: ~s" other))])
+  (define wat (wat-string (comp (datum->syntax #f combined))))
+  (check-true (string-contains? wat "$module-variable-make"))
+  (check-true (string-contains? wat "$module-variable-ref")))
+
+(test-case "first-slice adapter composes explicit import cells"
+  (define first-datum
+    (first-slice->top-level-datum '(lambda (instance-variable-reference x1)
+                                     (define x 10)
+                                     (module-variable-define! x1 x 'consistent))
+                                   '(x)))
+  (define first-helper-ids
+    (first-slice-top-level-helper-ids '(x)))
+  (define first-export-cell-id
+    (hash-ref (first-slice-top-level-export-cell-ids '(x)) 'x))
+  (define second-datum
+    (first-slice->top-level-datum/imports
+     '(lambda (instance-variable-reference imported-x y1)
+        (define effect
+          (begin
+            (module-variable-define!
+             y1
+             (module-variable-ref/no-check imported-x)
+             'constant)
+            (void)))
+        (define y (module-variable-ref/no-check y1))
+        (void))
+     (list first-export-cell-id)
+     '(y)
+     #:reserved (append '(x) first-helper-ids)))
+  (define combined
+    `(begin
+       ,@(begin-body first-datum)
+       ,@(begin-body second-datum)
+       (void)))
+  (match (normalize-symbols combined)
+    [`("begin"
+       ("define" "webify-linklet-proc$0" ,_)
+       ("define" "webify-export-cell0$0" ,_)
+       ("webify-linklet-proc$0" ("quote" "webify-instance") "webify-export-cell0$0")
+       ("define" "x" ("module-variable-ref" "webify-export-cell0$0"))
+       ("void")
+       ("define" "webify-linklet-proc$1" ,_)
+       ("define" "webify-export-cell0$1" ,_)
+       ("webify-linklet-proc$1"
+        ("quote" "webify-instance")
+        "webify-export-cell0$0"
+        "webify-export-cell0$1")
+       ("define" "y" ("module-variable-ref" "webify-export-cell0$1"))
+       ("void")
+       ("void"))
+     (void)]
+    [other
+     (fail-check (format "unexpected explicit-import composition shape: ~s" other))])
+  (define wat (wat-string (comp (datum->syntax #f combined))))
+  (check-true (string-contains? wat "$module-variable-ref/no-check"))
+  (check-true (string-contains? wat "$module-variable-define!")))
+
+(test-case "module instances compose explicit import cells"
+  (define-values (first-datum first-instance)
+    (first-slice->module-instance-datum
+     'a
+     '(lambda (instance-variable-reference x1)
+        (define x 10)
+        (module-variable-define! x1 x 'consistent))
+     '(x)))
+  (define second-import-env
+    (webify-module-instance-import-env first-instance '((ext-x . x))))
+  (define-values (second-datum second-instance)
+    (first-slice->module-instance-datum/imports
+     'b
+     '(lambda (instance-variable-reference imported-x y1)
+        (define effect
+          (begin
+            (module-variable-define!
+             y1
+             (module-variable-ref/no-check imported-x)
+             'constant)
+            (void)))
+        (define y (module-variable-ref/no-check y1))
+        (void))
+     '((ext-x))
+     (list second-import-env)
+     '(y)
+     #:reserved (webify-module-instance-reserved-ids first-instance)))
+  (define combined
+    `(begin
+       ,@(begin-body first-datum)
+       ,@(begin-body second-datum)
+       (void)))
+  (match (normalize-symbols combined)
+    [`("begin"
+       ("define" "webify-linklet-proc$0" ,_)
+       ("define" "webify-export-cell0$0" ,_)
+       ("webify-linklet-proc$0" ("quote" "webify-instance") "webify-export-cell0$0")
+       ("define" "x" ("module-variable-ref" "webify-export-cell0$0"))
+       ("void")
+       ("define" "webify-linklet-proc$1" ,_)
+       ("define" "webify-export-cell0$1" ,_)
+       ("webify-linklet-proc$1"
+        ("quote" "webify-instance")
+        "webify-export-cell0$0"
+        "webify-export-cell0$1")
+       ("define" "y" ("module-variable-ref" "webify-export-cell0$1"))
+       ("void")
+       ("void"))
+     (void)]
+    [other
+     (fail-check (format "unexpected module-instance composition shape: ~s" other))])
+  (check-equal? (webify-module-instance-name second-instance) 'b)
+  (check-equal? (webify-module-instance-export-cell-id second-instance 'y)
+                'webify-export-cell0$1)
+  (define wat (wat-string (comp (datum->syntax #f combined))))
+  (check-true (string-contains? wat "$module-variable-ref/no-check"))
+  (check-true (string-contains? wat "$module-variable-define!")))
+
+(test-case "first-slice adapter wraps imported linklet with explicit cells"
+  (define-values (first-stx first-exports _first-exports-info)
+    (run-first-slice-top-level '(linklet () (x)
+                                  (define-values (x) 10))))
+  (define first-helper-ids
+    (first-slice-top-level-helper-ids first-exports))
+  (define first-export-cell-id
+    (hash-ref (first-slice-top-level-export-cell-ids first-exports) 'x))
+  (define import-args
+    (first-slice-import-cell-args '((ext-x))
+                                  (list (hasheq 'ext-x first-export-cell-id))))
+  (define-values (second-stx importss exports exports-info)
+    (run-first-slice-top-level/imports
+     '(linklet (([ext-x x])) (y)
+        (define-values (y) x))
+     import-args
+     #:reserved (append first-exports first-helper-ids)))
+  (define combined
+    `(begin
+       ,@(begin-body (syntax->datum first-stx))
+       ,@(begin-body (syntax->datum second-stx))
+       (void)))
+  (match (normalize-symbols combined)
+    [`("begin"
+       ("define" "webify-linklet-proc$0" ,_)
+       ("define" "webify-export-cell0$0" ,_)
+       ("webify-linklet-proc$0" ("quote" "webify-instance") "webify-export-cell0$0")
+       ("define" "x" ("module-variable-ref" "webify-export-cell0$0"))
+       ("void")
+       ("define" "webify-linklet-proc$1" ,_)
+       ("define" "webify-export-cell0$1" ,_)
+       ("webify-linklet-proc$1"
+        ("quote" "webify-instance")
+        "webify-export-cell0$0"
+        "webify-export-cell0$1")
+       ("define" "y" ("module-variable-ref" "webify-export-cell0$1"))
+       ("void")
+       ("void"))
+     (void)]
+    [other
+     (fail-check (format "unexpected imported-wrapper composition shape: ~s" other))])
+  (check-equal? importss '((ext-x)))
+  (check-equal? exports '(y))
+  (check-true (known-constant? (hash-ref exports-info 'y)))
+  (define wat (wat-string (comp (datum->syntax #f combined))))
+  (check-true (string-contains? wat "$module-variable-ref/no-check"))
+  (check-true (string-contains? wat "$module-variable-define!")))
+
+(test-case "first-slice import cell resolver preserves grouped order"
+  (check-equal? (first-slice-import-cell-args
+                 '((a b) (a))
+                 (list (hasheq 'a 'a0-cell
+                               'b 'b0-cell)
+                       (hasheq 'a 'a1-cell)))
+                '(a0-cell b0-cell a1-cell)))
+
 (test-case "first-slice adapter rejects duplicate top-level exports"
   (check-exn
    #rx"duplicate exports are not supported"
@@ -286,6 +559,64 @@
      (first-slice->top-level-datum '(lambda (instance-variable-reference x1)
                                       (void))
                                     '(x 1)))))
+
+(test-case "first-slice adapter rejects non-symbol reserved helper ids"
+  (check-exn
+   #rx"\\(listof symbol\\?\\)"
+   (lambda ()
+     (first-slice->top-level-datum '(lambda (instance-variable-reference x1)
+                                      (void))
+                                    '(x)
+                                    #:reserved '(not-a-problem 1)))))
+
+(test-case "first-slice adapter rejects non-list import args"
+  (check-exn
+   #rx"list\\?"
+   (lambda ()
+     (first-slice->top-level-datum/imports
+      '(lambda (instance-variable-reference imported-x x1)
+         (void))
+      'not-a-list
+      '(x)))))
+
+(test-case "first-slice adapter rejects imported linklet import count mismatch"
+  (check-exn
+   #rx"explicit import cell count does not match linklet imports"
+   (lambda ()
+     (run-first-slice-top-level/imports
+      '(linklet (([ext-x x])) (y)
+         (define-values (y) x))
+      '()))))
+
+(test-case "first-slice import cell resolver rejects group count mismatch"
+  (check-exn
+   #rx"import cell environment count does not match import groups"
+   (lambda ()
+     (first-slice-import-cell-args '((a) (b))
+                                   (list (hasheq 'a 'a-cell))))))
+
+(test-case "first-slice import cell resolver rejects missing import cell"
+  (check-exn
+   #rx"missing import cell"
+   (lambda ()
+     (first-slice-import-cell-args '((a b))
+                                   (list (hasheq 'a 'a-cell))))))
+
+(test-case "module instance rejects missing exports"
+  (check-exn
+   #rx"module instance has no such export"
+   (lambda ()
+     (webify-module-instance-export-cell-id
+      (make-webify-module-instance 'a '(x))
+      'missing))))
+
+(test-case "module instance rejects duplicate renamed imports"
+  (check-exn
+   #rx"duplicate import names are not supported"
+   (lambda ()
+     (webify-module-instance-import-env
+      (make-webify-module-instance 'a '(x y))
+      '((same . x) (same . y))))))
 
 (test-case "first-slice adapter rejects non-lambda lowered values"
   (check-exn
@@ -317,7 +648,7 @@
 
 (test-case "first-slice adapter rejects lowered lambda export arity mismatch"
   (check-exn
-   #rx"lowered first-slice lambda arity does not match exports"
+   #rx"lowered first-slice lambda arity does not match imports and exports"
    (lambda ()
      (first-slice->top-level-datum '(lambda (instance-variable-reference)
                                       (void))
@@ -378,6 +709,50 @@
                          source-dir))
         (check-equal? status 0 output)
         (check-regexp-match #rx"(?m:^2$)" output))
+      (lambda ()
+        (for ([dir (in-list (list source-dir dest-dir))])
+          (with-handlers ([exn:fail:filesystem? void])
+            (delete-directory/files dir)))))))
+
+(unless (or (getenv "WEBIFY_SKIP_CLI_SMOKE")
+            (getenv "WEBIFY_SKIP_RUNTIME_SMOKE"))
+  (test-case "first-slice adapter imported composition runs and exposes final export value"
+    (define source-dir (make-temporary-file "webracket-first-slice-import-run-src-~a" 'directory))
+    (define dest-dir   (make-temporary-file "webracket-first-slice-import-run-dest-~a" 'directory))
+    (define source-path (build-path source-dir "first-slice-import-run.rkt"))
+    (dynamic-wind
+      void
+      (lambda ()
+        (define-values (first-stx first-exports _first-exports-info)
+          (run-first-slice-top-level '(linklet () (x)
+                                        (define-values (x) 10))))
+        (define first-helper-ids
+          (first-slice-top-level-helper-ids first-exports))
+        (define first-export-cell-id
+          (hash-ref (first-slice-top-level-export-cell-ids first-exports) 'x))
+        (define import-args
+          (first-slice-import-cell-args '((ext-x))
+                                        (list (hasheq 'ext-x first-export-cell-id))))
+        (define-values (second-stx _importss _exports _exports-info)
+          (run-first-slice-top-level/imports
+           '(linklet (([ext-x x])) (y)
+              (define-values (y) x))
+           import-args
+           #:reserved (append first-exports first-helper-ids)))
+        (define combined
+          `(begin
+             ,@(begin-body (syntax->datum first-stx))
+             ,@(begin-body (syntax->datum second-stx))
+             (js-log y)))
+        (write-datum-program! source-path combined)
+        (define-values (status output)
+          (run-webracket (list "--no-stdlib"
+                               "-r"
+                               "--dest" (path->string dest-dir)
+                               (path->string source-path))
+                         source-dir))
+        (check-equal? status 0 output)
+        (check-regexp-match #rx"(?m:^10$)" output))
       (lambda ()
         (for ([dir (in-list (list source-dir dest-dir))])
           (with-handlers ([exn:fail:filesystem? void])
