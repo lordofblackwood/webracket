@@ -260,6 +260,15 @@ a later slice. An imported sealed parent struct type is rejected by the runtime
 with a clear contract message instead of falling through to a formatting trap or
 Chez-style helper path.
 
+Custom struct properties now have an inheritance smoke through the composed
+module bridge. One slice creates a property with `make-struct-type-property`,
+a second slice attaches it to a parent struct type, a third slice derives a
+child struct type from that imported parent, and a final slice confirms that a
+child instance satisfies the imported property predicate and returns the
+inherited property value through the imported accessor. The compiled program
+continues to use WebRacket-native `$make-struct-type-property` and
+`$make-struct-type`, not Chez record helpers.
+
 ## Proposed Next Implementation Milestone
 
 Add a WebRacket-target unsupported-struct diagnostic pass:

@@ -271,6 +271,7 @@
                                  (eq? rator 'vector)
                                  (eq? rator 'hasheq)
                                  (eq? rator 'make-struct-type-property))
+                             (known-procedure? v)
                              (bitwise-bit-set? (known-procedure-arity-mask v) (length exps))))
                       (for/and ([exp (in-list exps)])
                         (simple? exp prim-knowns knowns imports mutated simples unsafe-mode?

@@ -877,7 +877,8 @@
                   `(let ([,tmp ,e])
                      ,body)))
             (define (inline-struct-constructor k s-rator im args)
-              (define type-id (and (bitwise-bit-set? (known-procedure-arity-mask k) (length args))
+              (define type-id (and (known-procedure? k)
+                                   (bitwise-bit-set? (known-procedure-arity-mask k) (length args))
                                    (inline-type-id k im add-import! mutated imports)))
               (cond
                 [type-id

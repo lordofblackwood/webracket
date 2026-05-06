@@ -667,6 +667,77 @@
           (with-handlers ([exn:fail:filesystem? void])
             (delete-directory/files dir)))))))
 
+(unless (or (getenv "WEBIFY_SKIP_CLI_SMOKE")
+            (getenv "WEBIFY_SKIP_RUNTIME_SMOKE"))
+  (test-case "linklet composer inherits custom struct property across slices"
+    (define source-dir (make-temporary-file "webracket-struct-prop-inherit-run-src-~a" 'directory))
+    (define dest-dir   (make-temporary-file "webracket-struct-prop-inherit-run-dest-~a" 'directory))
+    (define source-path (build-path source-dir "struct-prop-inherit-run.rkt"))
+    (dynamic-wind
+      void
+      (lambda ()
+        (define-values (combined _fragments _instances _exports-infos)
+          (compose-linklet-first-slices
+           (list
+            (webify-linklet-slice-spec
+             'property-provider
+             '(linklet () (prop:tag tag? tag-ref)
+                (define-values (prop:tag tag? tag-ref)
+                  (make-struct-type-property 'tag)))
+             '())
+            (webify-linklet-slice-spec
+             'tagged-parent-provider
+             '(linklet (([prop:tag prop:tag])) (struct:tagged-parent)
+                (define-values (struct:tagged-parent make-tagged-parent tagged-parent?
+                                                     tagged-parent-ref tagged-parent-set!)
+                  (make-struct-type 'tagged-parent #f 1 0 #f
+                                    (list (cons prop:tag 42)))))
+             '((prop:tag property-provider prop:tag)))
+            (webify-linklet-slice-spec
+             'tagged-child-provider
+             '(linklet (([struct:tagged-parent struct:tagged-parent])) (make-tagged-child tagged-child?)
+                (define-values (struct:tagged-child make-tagged-child tagged-child?
+                                                    tagged-child-ref tagged-child-set!)
+                  (make-struct-type 'tagged-child struct:tagged-parent 1 0 #f)))
+             '((struct:tagged-parent tagged-parent-provider struct:tagged-parent)))
+            (webify-linklet-slice-spec
+             'property-user
+             '(linklet (([make-tagged-child make-tagged-child]
+                         [tagged-child? tagged-child?]
+                         [tag? tag?]
+                         [tag-ref tag-ref])) (out)
+                (define-values (child)
+                  (make-tagged-child 10 32))
+                (define-values (out)
+                  (if (and (tagged-child? child)
+                           (tag? child))
+                      (tag-ref child)
+                      0)))
+             '((make-tagged-child tagged-child-provider make-tagged-child)
+               (tagged-child? tagged-child-provider tagged-child?)
+               (tag? property-provider tag?)
+               (tag-ref property-provider tag-ref))))
+           #:tail '((js-log out))))
+        (define wat (wat-string (comp (datum->syntax #f combined))))
+        (check-true (string-contains? wat "$make-struct-type-property"))
+        (check-true (string-contains? wat "$make-struct-type"))
+        (check-true (string-contains? wat "$module-variable-ref/no-check"))
+        (check-false (string-contains? wat "make-record-type-descriptor"))
+        (check-false (string-contains? wat "unsafe-struct*"))
+        (write-datum-program! source-path combined)
+        (define-values (status output)
+          (run-webracket (list "--no-stdlib"
+                               "-r"
+                               "--dest" (path->string dest-dir)
+                               (path->string source-path))
+                         source-dir))
+        (check-equal? status 0 output)
+        (check-regexp-match #rx"(?m:^42$)" output))
+      (lambda ()
+        (for ([dir (in-list (list source-dir dest-dir))])
+          (with-handlers ([exn:fail:filesystem? void])
+            (delete-directory/files dir)))))))
+
 
 (module+ main
   (void))
