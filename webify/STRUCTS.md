@@ -239,6 +239,12 @@ unsafe-struct*-set!
 The old `struct-convert.rkt` file is still present as inherited source material,
 but it is no longer part of the normal WebRacket-target Webify pipeline.
 
+The module bridge also has a runtime smoke for struct-related exports across
+composed slices. One linklet can create a simple struct type and export the
+constructor, accessor, and mutator procedures. A later linklet can import those
+export cells through the composer, construct a value, mutate a field, and read
+the updated field through WebRacket's preserved struct primitives.
+
 ## Proposed Next Implementation Milestone
 
 Add a WebRacket-target unsupported-struct diagnostic pass:

@@ -459,6 +459,66 @@
           (with-handlers ([exn:fail:filesystem? void])
             (delete-directory/files dir)))))))
 
+(unless (or (getenv "WEBIFY_SKIP_CLI_SMOKE")
+            (getenv "WEBIFY_SKIP_RUNTIME_SMOKE"))
+  (test-case "linklet composer carries struct exports across slices"
+    (define source-dir (make-temporary-file "webracket-struct-import-run-src-~a" 'directory))
+    (define dest-dir   (make-temporary-file "webracket-struct-import-run-dest-~a" 'directory))
+    (define source-path (build-path source-dir "struct-import-run.rkt"))
+    (dynamic-wind
+      void
+      (lambda ()
+        (define-values (combined _fragments _instances _exports-infos)
+          (compose-linklet-first-slices
+           (list
+            (webify-linklet-slice-spec
+             'struct-provider
+             '(linklet () (make-posn posn-y set-posn-y!)
+                (define-values (struct:posn make-posn posn? posn-ref posn-set!)
+                  (make-struct-type 'posn #f 2 0 #f))
+                (define-values (posn-y)
+                  (make-struct-field-accessor posn-ref 1 'y))
+                (define-values (set-posn-y!)
+                  (make-struct-field-mutator posn-set! 1 'y)))
+             '())
+            (webify-linklet-slice-spec
+             'struct-user
+             '(linklet (([make-posn make-posn]
+                         [posn-y posn-y]
+                         [set-posn-y! set-posn-y!])) (out)
+                (define-values (p)
+                  (make-posn 10 20))
+                (define-values (effect)
+                  (begin
+                    (set-posn-y! p 30)
+                    (void)))
+                (define-values (out)
+                  (posn-y p)))
+             '((make-posn struct-provider make-posn)
+               (posn-y struct-provider posn-y)
+               (set-posn-y! struct-provider set-posn-y!))))
+           #:tail '((js-log out))))
+        (define wat (wat-string (comp (datum->syntax #f combined))))
+        (check-true (string-contains? wat "$make-struct-type"))
+        (check-true (string-contains? wat "$make-struct-field-accessor"))
+        (check-true (string-contains? wat "$make-struct-field-mutator"))
+        (check-true (string-contains? wat "$module-variable-ref/no-check"))
+        (check-false (string-contains? wat "make-record-type-descriptor"))
+        (check-false (string-contains? wat "unsafe-struct*"))
+        (write-datum-program! source-path combined)
+        (define-values (status output)
+          (run-webracket (list "--no-stdlib"
+                               "-r"
+                               "--dest" (path->string dest-dir)
+                               (path->string source-path))
+                         source-dir))
+        (check-equal? status 0 output)
+        (check-regexp-match #rx"(?m:^30$)" output))
+      (lambda ()
+        (for ([dir (in-list (list source-dir dest-dir))])
+          (with-handlers ([exn:fail:filesystem? void])
+            (delete-directory/files dir)))))))
+
 
 (module+ main
   (void))
