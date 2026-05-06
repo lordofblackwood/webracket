@@ -305,16 +305,19 @@ and the runtime mutator rejects writes to prefab fields that are not in the
 mask. Duplicate mutable indexes, out-of-range mutable indexes, non-datum auto
 values, and nested prefab supertypes remain outside the accepted subset.
 One-level prefab supertypes are supported through the explicit flattened key
-shape, such as `'(child 1 (0 #f) #() parent 2 (0 #f) #())`. The parent type is
-interned before the child type, the full parent key participates in child type
-identity, and parent/child accessors work on instances built from
+shape, such as `'(child 1 (0 #f) #() parent 2 (0 #f) #())`, and the common
+one-level aliases `'(child parent 2)`, `'(child 1 parent 2)`,
+`'(child #(0) parent 2 #(0 1))`, and
+`'(child 1 #(0) parent 2 #(0 1))`. The parent type is interned before the
+child type, aliases normalize to the same full child/parent key identity as
+the explicit form, and parent/child accessors work on instances built from
 `make-prefab-struct`.
 
 ## Proposed Next Implementation Milestone
 
 Extend prefab support beyond the one-level-super/prefab-datum-auto subset:
 
-- Support nested prefab supertype chains and shorter Racket prefab-key aliases.
+- Support nested prefab supertype chains.
 - Broaden prefab-datum validation if more Racket datum cases are needed.
 
 That milestone should include small tests showing:

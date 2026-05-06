@@ -40722,6 +40722,64 @@
                    (then (global.get $true))
                    (else (global.get $false))))
 
+         ;; simple-prefab-mutable-mask-valid?/i32 : any/c i32 -> i32
+         ;;   Validate a mutable-field vector; negative total disables range checks.
+         (func $simple-prefab-mutable-mask-valid?/i32
+               (param $mutables (ref eq))
+               (param $total    i32)
+               (result          i32)
+
+               (local $mlen     i32)
+               (local $midx     (ref eq))
+               (local $midx-i32 i32)
+               (local $seen     (ref eq))
+               (local $i        i32)
+               (local $j        i32)
+
+               (if (i32.eqz (ref.test (ref $Vector) (local.get $mutables)))
+                   (then (return (i32.const 0))))
+               (local.set $mlen (call $vector-length/checked/i32
+                                      (ref.cast (ref $Vector) (local.get $mutables))))
+               (local.set $i (i32.const 0))
+               (block $done
+                      (loop $check
+                            (br_if $done (i32.ge_u (local.get $i) (local.get $mlen)))
+                            (local.set $midx
+                                       (array.get $Array
+                                                  (struct.get $Vector $arr
+                                                              (ref.cast (ref $Vector) (local.get $mutables)))
+                                                  (local.get $i)))
+                            (if (ref.eq (call $exact-nonnegative-integer? (local.get $midx)) (global.get $false))
+                                (then (return (i32.const 0))))
+                            (local.set $midx-i32
+                                       (i32.shr_s
+                                        (i31.get_s (ref.cast (ref i31) (local.get $midx)))
+                                        (i32.const 1)))
+                            (if (i32.and
+                                 (i32.ge_s (local.get $total) (i32.const 0))
+                                 (i32.ge_u (local.get $midx-i32) (local.get $total)))
+                                (then (return (i32.const 0))))
+                            (local.set $j (i32.const 0))
+                            (block $done-duplicates
+                                   (loop $check-duplicate
+                                         (br_if $done-duplicates (i32.ge_u (local.get $j) (local.get $i)))
+                                         (local.set $seen
+                                                    (array.get $Array
+                                                               (struct.get $Vector $arr
+                                                                           (ref.cast (ref $Vector) (local.get $mutables)))
+                                                               (local.get $j)))
+                                         (if (i32.eq
+                                              (i32.shr_s
+                                               (i31.get_s (ref.cast (ref i31) (local.get $seen)))
+                                               (i32.const 1))
+                                              (local.get $midx-i32))
+                                             (then (return (i32.const 0))))
+                                         (local.set $j (i32.add (local.get $j) (i32.const 1)))
+                                         (br $check-duplicate)))
+                            (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                            (br $check)))
+               (i32.const 1))
+
          ;; simple-prefab-key?/i32 : any/c -> i32
          ;;   Accept symbols and mutable masks with supported scalar auto values.
          (func $simple-prefab-key?/i32
@@ -40742,6 +40800,9 @@
                (local $i          i32)
                (local $j          i32)
                (local $seen       (ref eq))
+               (local $parent-count (ref eq))
+               (local $parent-mutables (ref eq))
+               (local $child-mutables  (ref eq))
 
                ;; A symbol key is shorthand for the simple no-super/no-auto shape.
                (if (ref.test (ref $Symbol) (local.get $key))
@@ -40750,10 +40811,10 @@
                (if (ref.eq (call $list? (local.get $key)) (global.get $false))
                    (then (return (i32.const 0))))
                (local.set $len (call $length/i32 (local.get $key)))
-               (if (i32.and
-                    (i32.or (i32.lt_u (local.get $len) (i32.const 1))
-                            (i32.gt_u (local.get $len) (i32.const 4)))
-                    (i32.ne (local.get $len) (i32.const 8)))
+               (if (i32.or
+                    (i32.lt_u (local.get $len) (i32.const 1))
+                    (i32.and (i32.gt_u (local.get $len) (i32.const 6))
+                             (i32.ne (local.get $len) (i32.const 8))))
                    (then (return (i32.const 0))))
 
                (local.set $name (call $list-ref/checked (ref.cast (ref $Pair) (local.get $key)) (i32.const 0)))
@@ -40761,6 +40822,120 @@
                    (then (return (i32.const 0))))
                (if (i32.eq (local.get $len) (i32.const 1))
                    (then (return (i32.const 1))))
+
+               ;; Supertype aliases:
+               ;;   (child parent parent-init)
+               ;;   (child child-init parent parent-init)
+               ;;   (child child-mutables parent parent-init parent-mutables)
+               ;;   (child child-init child-mutables parent parent-init parent-mutables)
+               (if (i32.eq (local.get $len) (i32.const 3))
+                   (then
+                    (local.set $parent-count
+                               (call $list-ref/checked
+                                     (ref.cast (ref $Pair) (local.get $key))
+                                     (i32.const 2)))
+                    (if (i32.and
+                         (ref.test (ref $Symbol)
+                                   (call $list-ref/checked
+                                         (ref.cast (ref $Pair) (local.get $key))
+                                         (i32.const 1)))
+                         (ref.eq (call $exact-nonnegative-integer? (local.get $parent-count))
+                                 (global.get $true)))
+                        (then (return (i32.const 1))))))
+               (if (i32.eq (local.get $len) (i32.const 4))
+                   (then
+                    (local.set $count
+                               (call $list-ref/checked
+                                     (ref.cast (ref $Pair) (local.get $key))
+                                     (i32.const 1)))
+                    (local.set $parent-count
+                               (call $list-ref/checked
+                                     (ref.cast (ref $Pair) (local.get $key))
+                                     (i32.const 3)))
+                    (if (i32.and
+                         (ref.eq (call $exact-nonnegative-integer? (local.get $count))
+                                 (global.get $true))
+                         (i32.and
+                          (ref.test (ref $Symbol)
+                                    (call $list-ref/checked
+                                          (ref.cast (ref $Pair) (local.get $key))
+                                          (i32.const 2)))
+                          (ref.eq (call $exact-nonnegative-integer? (local.get $parent-count))
+                                  (global.get $true))))
+                        (then (return (i32.const 1))))))
+               (if (i32.eq (local.get $len) (i32.const 5))
+                   (then
+                    (local.set $child-mutables
+                               (call $list-ref/checked
+                                     (ref.cast (ref $Pair) (local.get $key))
+                                     (i32.const 1)))
+                    (local.set $parent-count
+                               (call $list-ref/checked
+                                     (ref.cast (ref $Pair) (local.get $key))
+                                     (i32.const 3)))
+                    (local.set $parent-mutables
+                               (call $list-ref/checked
+                                     (ref.cast (ref $Pair) (local.get $key))
+                                     (i32.const 4)))
+                    (if (i32.and
+                         (call $simple-prefab-mutable-mask-valid?/i32
+                               (local.get $child-mutables)
+                               (i32.const -1))
+                         (i32.and
+                          (ref.test (ref $Symbol)
+                                    (call $list-ref/checked
+                                          (ref.cast (ref $Pair) (local.get $key))
+                                          (i32.const 2)))
+                          (i32.and
+                           (ref.eq (call $exact-nonnegative-integer? (local.get $parent-count))
+                                   (global.get $true))
+                           (call $simple-prefab-mutable-mask-valid?/i32
+                                 (local.get $parent-mutables)
+                                 (i32.shr_s
+                                  (i31.get_s (ref.cast (ref i31) (local.get $parent-count)))
+                                  (i32.const 1))))))
+                        (then (return (i32.const 1))))))
+               (if (i32.eq (local.get $len) (i32.const 6))
+                   (then
+                    (local.set $count
+                               (call $list-ref/checked
+                                     (ref.cast (ref $Pair) (local.get $key))
+                                     (i32.const 1)))
+                    (local.set $child-mutables
+                               (call $list-ref/checked
+                                     (ref.cast (ref $Pair) (local.get $key))
+                                     (i32.const 2)))
+                    (local.set $parent-count
+                               (call $list-ref/checked
+                                     (ref.cast (ref $Pair) (local.get $key))
+                                     (i32.const 4)))
+                    (local.set $parent-mutables
+                               (call $list-ref/checked
+                                     (ref.cast (ref $Pair) (local.get $key))
+                                     (i32.const 5)))
+                    (if (i32.and
+                         (ref.eq (call $exact-nonnegative-integer? (local.get $count))
+                                 (global.get $true))
+                         (i32.and
+                          (call $simple-prefab-mutable-mask-valid?/i32
+                                (local.get $child-mutables)
+                                (i32.shr_s
+                                 (i31.get_s (ref.cast (ref i31) (local.get $count)))
+                                 (i32.const 1)))
+                          (i32.and
+                           (ref.test (ref $Symbol)
+                                     (call $list-ref/checked
+                                           (ref.cast (ref $Pair) (local.get $key))
+                                           (i32.const 3)))
+                           (i32.and
+                            (ref.eq (call $exact-nonnegative-integer? (local.get $parent-count))
+                                    (global.get $true))
+                            (call $simple-prefab-mutable-mask-valid?/i32
+                                  (local.get $parent-mutables)
+                                  (i32.shr_s
+                                   (i31.get_s (ref.cast (ref i31) (local.get $parent-count)))
+                                   (i32.const 1)))))))
+                        (then (return (i32.const 1))))))
 
                (local.set $count (call $list-ref/checked (ref.cast (ref $Pair) (local.get $key)) (i32.const 1)))
                (if (ref.eq (call $exact-nonnegative-integer? (local.get $count)) (global.get $false))
@@ -40941,6 +41116,16 @@
                (local.set $len (call $length/i32 (local.get $key)))
                (if (i32.eq (local.get $len) (i32.const 1))
                    (then (return (i32.const -1))))
+               (if (i32.eq (local.get $len) (i32.const 3))
+                   (then
+                    (if (ref.test
+                         (ref $Symbol)
+                         (call $list-ref/checked
+                               (ref.cast (ref $Pair) (local.get $key))
+                               (i32.const 1)))
+                        (then (return (i32.const -1))))))
+               (if (i32.eq (local.get $len) (i32.const 5))
+                   (then (return (i32.const -1))))
                (local.set $count (call $list-ref/checked
                                        (ref.cast (ref $Pair) (local.get $key))
                                        (i32.const 1)))
@@ -40962,6 +41147,25 @@
                    (then (call $raise-argument-error (local.get $key))
                          (unreachable)))
                (local.set $len (call $length/i32 (local.get $key)))
+               (if (i32.eq (local.get $len) (i32.const 3))
+                   (then
+                    (if (ref.test
+                         (ref $Symbol)
+                         (call $list-ref/checked
+                               (ref.cast (ref $Pair) (local.get $key))
+                               (i32.const 1)))
+                        (then (return (i32.const 0))))))
+               (if (i32.eq (local.get $len) (i32.const 4))
+                   (then
+                    (if (ref.test
+                         (ref $Symbol)
+                         (call $list-ref/checked
+                               (ref.cast (ref $Pair) (local.get $key))
+                               (i32.const 2)))
+                        (then (return (i32.const 0))))))
+               (if (i32.and (i32.ge_u (local.get $len) (i32.const 5))
+                            (i32.le_u (local.get $len) (i32.const 6)))
+                   (then (return (i32.const 0))))
                (if (i32.lt_u (local.get $len) (i32.const 3))
                    (then (return (i32.const 0))))
                (local.set $auto-spec
@@ -40989,6 +41193,25 @@
                    (then (call $raise-argument-error (local.get $key))
                          (unreachable)))
                (local.set $len (call $length/i32 (local.get $key)))
+               (if (i32.eq (local.get $len) (i32.const 3))
+                   (then
+                    (if (ref.test
+                         (ref $Symbol)
+                         (call $list-ref/checked
+                               (ref.cast (ref $Pair) (local.get $key))
+                               (i32.const 1)))
+                        (then (return (global.get $false))))))
+               (if (i32.eq (local.get $len) (i32.const 4))
+                   (then
+                    (if (ref.test
+                         (ref $Symbol)
+                         (call $list-ref/checked
+                               (ref.cast (ref $Pair) (local.get $key))
+                               (i32.const 2)))
+                        (then (return (global.get $false))))))
+               (if (i32.and (i32.ge_u (local.get $len) (i32.const 5))
+                            (i32.le_u (local.get $len) (i32.const 6)))
+                   (then (return (global.get $false))))
                (if (i32.lt_u (local.get $len) (i32.const 3))
                    (then (return (global.get $false))))
                (local.set $auto-spec
@@ -41018,6 +41241,33 @@
                    (then (call $raise-argument-error (local.get $key))
                          (unreachable)))
                (local.set $len (call $length/i32 (local.get $key)))
+               (if (i32.eq (local.get $len) (i32.const 5))
+                   (then (return
+                          (ref.cast
+                           (ref $Vector)
+                           (call $list-ref/checked
+                                 (ref.cast (ref $Pair) (local.get $key))
+                                 (i32.const 1))))))
+               (if (i32.eq (local.get $len) (i32.const 6))
+                   (then (return
+                          (ref.cast
+                           (ref $Vector)
+                           (call $list-ref/checked
+                                 (ref.cast (ref $Pair) (local.get $key))
+                                 (i32.const 2))))))
+               (if (i32.eq (local.get $len) (i32.const 4))
+                   (then
+                    (if (ref.test
+                         (ref $Symbol)
+                         (call $list-ref/checked
+                               (ref.cast (ref $Pair) (local.get $key))
+                               (i32.const 2)))
+                        (then
+                         (return
+                          (struct.new $Vector
+                                      (i32.const 0)
+                                      (i32.const 0)
+                                      (array.new $Array (global.get $false) (i32.const 0))))))))
                (if (i32.lt_u (local.get $len) (i32.const 4))
                    (then (return
                           (struct.new $Vector
@@ -41036,12 +41286,37 @@
                (param $key (ref eq))
                (result     i32)
 
+               (local $len i32)
+
                (if (ref.test (ref $Symbol) (local.get $key))
                    (then (return (i32.const 0))))
                (if (i32.eqz (call $simple-prefab-key?/i32 (local.get $key)))
                    (then (call $raise-argument-error (local.get $key))
                          (unreachable)))
-               (i32.eq (call $length/i32 (local.get $key)) (i32.const 8)))
+               (local.set $len (call $length/i32 (local.get $key)))
+               (if (i32.eq (local.get $len) (i32.const 3))
+                   (then
+                    (return
+                     (ref.test
+                      (ref $Symbol)
+                      (call $list-ref/checked
+                            (ref.cast (ref $Pair) (local.get $key))
+                            (i32.const 1))))))
+               (if (i32.eq (local.get $len) (i32.const 4))
+                   (then
+                    (return
+                     (ref.test
+                      (ref $Symbol)
+                      (call $list-ref/checked
+                            (ref.cast (ref $Pair) (local.get $key))
+                            (i32.const 2))))))
+               (if (result i32)
+                   (i32.or
+                    (i32.or (i32.eq (local.get $len) (i32.const 5))
+                            (i32.eq (local.get $len) (i32.const 6)))
+                    (i32.eq (local.get $len) (i32.const 8)))
+                   (then (i32.const 1))
+                   (else (i32.const 0))))
 
          ;; simple-prefab-key-parent-name/checked : prefab-key? -> symbol?
          ;;   Extract the parent name from an explicit flattened super key.
@@ -41049,9 +41324,44 @@
                (param $key (ref eq))
                (result     (ref $Symbol))
 
+               (local $len i32)
+
                (if (i32.eqz (call $simple-prefab-key-has-super?/i32 (local.get $key)))
                    (then (call $raise-argument-error (local.get $key))
                          (unreachable)))
+               (local.set $len (call $length/i32 (local.get $key)))
+               (if (i32.eq (local.get $len) (i32.const 3))
+                   (then
+                    (return
+                     (ref.cast
+                      (ref $Symbol)
+                      (call $list-ref/checked
+                            (ref.cast (ref $Pair) (local.get $key))
+                            (i32.const 1))))))
+               (if (i32.eq (local.get $len) (i32.const 4))
+                   (then
+                    (return
+                     (ref.cast
+                      (ref $Symbol)
+                      (call $list-ref/checked
+                            (ref.cast (ref $Pair) (local.get $key))
+                            (i32.const 2))))))
+               (if (i32.eq (local.get $len) (i32.const 5))
+                   (then
+                    (return
+                     (ref.cast
+                      (ref $Symbol)
+                      (call $list-ref/checked
+                            (ref.cast (ref $Pair) (local.get $key))
+                            (i32.const 2))))))
+               (if (i32.eq (local.get $len) (i32.const 6))
+                   (then
+                    (return
+                     (ref.cast
+                      (ref $Symbol)
+                      (call $list-ref/checked
+                            (ref.cast (ref $Pair) (local.get $key))
+                            (i32.const 3))))))
                (ref.cast (ref $Symbol)
                          (call $list-ref/checked
                                (ref.cast (ref $Pair) (local.get $key))
@@ -41063,15 +41373,32 @@
                (param $key (ref eq))
                (result     i32)
 
+               (local $len   i32)
                (local $count (ref eq))
 
                (if (i32.eqz (call $simple-prefab-key-has-super?/i32 (local.get $key)))
                    (then (call $raise-argument-error (local.get $key))
                          (unreachable)))
+               (local.set $len (call $length/i32 (local.get $key)))
                (local.set $count
                           (call $list-ref/checked
                                 (ref.cast (ref $Pair) (local.get $key))
-                                (i32.const 5)))
+                                (if (result i32)
+                                    (i32.eq (local.get $len) (i32.const 3))
+                                    (then (i32.const 2))
+                                    (else
+                                     (if (result i32)
+                                         (i32.eq (local.get $len) (i32.const 4))
+                                         (then (i32.const 3))
+                                         (else
+                                          (if (result i32)
+                                              (i32.eq (local.get $len) (i32.const 5))
+                                              (then (i32.const 3))
+                                              (else
+                                               (if (result i32)
+                                                   (i32.eq (local.get $len) (i32.const 6))
+                                                   (then (i32.const 4))
+                                                   (else (i32.const 5)))))))))))
                (i32.shr_s (i31.get_s (ref.cast (ref i31) (local.get $count))) (i32.const 1)))
 
          ;; simple-prefab-key-parent-auto-count/checked : prefab-key? -> i32
@@ -41080,12 +41407,16 @@
                (param $key (ref eq))
                (result     i32)
 
+               (local $len         i32)
                (local $auto-spec  (ref eq))
                (local $auto-count (ref eq))
 
                (if (i32.eqz (call $simple-prefab-key-has-super?/i32 (local.get $key)))
                    (then (call $raise-argument-error (local.get $key))
                          (unreachable)))
+               (local.set $len (call $length/i32 (local.get $key)))
+               (if (i32.ne (local.get $len) (i32.const 8))
+                   (then (return (i32.const 0))))
                (local.set $auto-spec
                           (call $list-ref/checked
                                 (ref.cast (ref $Pair) (local.get $key))
@@ -41102,11 +41433,15 @@
                (param $key (ref eq))
                (result     (ref eq))
 
+               (local $len       i32)
                (local $auto-spec (ref eq))
 
                (if (i32.eqz (call $simple-prefab-key-has-super?/i32 (local.get $key)))
                    (then (call $raise-argument-error (local.get $key))
                          (unreachable)))
+               (local.set $len (call $length/i32 (local.get $key)))
+               (if (i32.ne (local.get $len) (i32.const 8))
+                   (then (return (global.get $false))))
                (local.set $auto-spec
                           (call $list-ref/checked
                                 (ref.cast (ref $Pair) (local.get $key))
@@ -41121,9 +41456,34 @@
                (param $key (ref eq))
                (result     (ref $Vector))
 
+               (local $len i32)
+
                (if (i32.eqz (call $simple-prefab-key-has-super?/i32 (local.get $key)))
                    (then (call $raise-argument-error (local.get $key))
                          (unreachable)))
+               (local.set $len (call $length/i32 (local.get $key)))
+               (if (i32.lt_u (local.get $len) (i32.const 5))
+                   (then (return
+                          (struct.new $Vector
+                                      (i32.const 0)
+                                      (i32.const 0)
+                                      (array.new $Array (global.get $false) (i32.const 0))))))
+               (if (i32.eq (local.get $len) (i32.const 5))
+                   (then
+                    (return
+                     (ref.cast
+                      (ref $Vector)
+                      (call $list-ref/checked
+                            (ref.cast (ref $Pair) (local.get $key))
+                            (i32.const 4))))))
+               (if (i32.eq (local.get $len) (i32.const 6))
+                   (then
+                    (return
+                     (ref.cast
+                      (ref $Vector)
+                      (call $list-ref/checked
+                            (ref.cast (ref $Pair) (local.get $key))
+                            (i32.const 5))))))
                (ref.cast (ref $Vector)
                          (call $list-ref/checked
                                (ref.cast (ref $Pair) (local.get $key))
@@ -41609,7 +41969,17 @@
                     (local.set $parent-auto (i32.const 0))
                     (local.set $parent-auto-value (global.get $false))))
                (if (i32.lt_s (local.get $explicit-count) (i32.const 0))
-                   (then (local.set $explicit-count (local.get $field-count))))
+                   (then
+                    (local.set $explicit-count
+                               (if (result i32)
+                                   (local.get $has-super-key)
+                                   (then
+                                    (i32.sub (local.get $field-count)
+                                             (local.get $parent-init)))
+                                   (else (local.get $field-count))))))
+               (if (i32.lt_s (local.get $explicit-count) (i32.const 0))
+                   (then (call $raise-argument-error (local.get $key))
+                         (unreachable)))
                (if (i32.and
                     (i32.ge_s (local.get $explicit-count) (i32.const 0))
                     (i32.ne

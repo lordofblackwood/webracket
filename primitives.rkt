@@ -1417,9 +1417,16 @@
          (for/and ([m (in-vector v)]
                    [i (in-naturals)])
            (and (exact-nonnegative-integer? m)
-                (< m total-count)
+                (or (not total-count) (< m total-count))
                 (not (for/or ([seen (in-vector v 0 i)])
                        (= seen m)))))))
+  (define (empty-mutables) #())
+  (define (parent-info name init-count [mutables (empty-mutables)])
+    (and (valid-count? init-count)
+         (valid-mutables? mutables init-count)
+         (info name init-count 0 #f mutables)))
+  (define (inferred-child-count total parent-total)
+    (and total (>= total parent-total) (- total parent-total)))
   (define (info name init-count auto-count auto-value mutables [parent-info #f])
     (list name
           init-count
@@ -1435,6 +1442,55 @@
   (cond
     [(symbol? key)
      (info key (or init-field-count 0) 0 #f #())]
+    [(and (list? key)
+          (= (length key) 3)
+          (symbol? (car key))
+          (symbol? (cadr key))
+          (valid-count? (caddr key)))
+     (define pinfo (parent-info (cadr key) (caddr key)))
+     (define init-count (inferred-child-count init-field-count (list-ref pinfo 6)))
+     (and pinfo
+          (or (not init-field-count) init-count)
+          (info (car key) (or init-count 0) 0 #f #() pinfo))]
+    [(and (list? key)
+          (= (length key) 4)
+          (symbol? (car key))
+          (valid-count? (cadr key))
+          (symbol? (caddr key))
+          (valid-count? (cadddr key))
+          (or (not init-field-count)
+              (= (+ (cadr key) (cadddr key)) init-field-count)))
+     (define pinfo (parent-info (caddr key) (cadddr key)))
+     (and pinfo
+          (info (car key) (cadr key) 0 #f #() pinfo))]
+    [(and (list? key)
+          (= (length key) 5)
+          (symbol? (car key))
+          (symbol? (list-ref key 2))
+          (valid-count? (list-ref key 3)))
+     (define pinfo (parent-info (list-ref key 2)
+                                (list-ref key 3)
+                                (list-ref key 4)))
+     (define init-count (and pinfo
+                             (inferred-child-count init-field-count (list-ref pinfo 6))))
+     (and pinfo
+          (or (not init-field-count) init-count)
+          (valid-mutables? (cadr key) init-count)
+          (info (car key) (or init-count 0) 0 #f (cadr key) pinfo))]
+    [(and (list? key)
+          (= (length key) 6)
+          (symbol? (car key))
+          (valid-count? (cadr key))
+          (symbol? (list-ref key 3))
+          (valid-count? (list-ref key 4))
+          (or (not init-field-count)
+              (= (+ (cadr key) (list-ref key 4)) init-field-count)))
+     (define pinfo (parent-info (list-ref key 3)
+                                (list-ref key 4)
+                                (list-ref key 5)))
+     (and pinfo
+          (valid-mutables? (list-ref key 2) (cadr key))
+          (info (car key) (cadr key) 0 #f (list-ref key 2) pinfo))]
     [(and (list? key)
           (or (= (length key) 1)
               (= (length key) 2)
