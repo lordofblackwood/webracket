@@ -1,5 +1,5 @@
 #lang racket/base
-(require racket/linklet
+(require racket/private/primitive-table
          (for-syntax racket/base))
 
 (provide unwrap unwrap-list
@@ -13,7 +13,7 @@
          reannotate
          reannotate/new-srcloc)
 
-#;(import-from-primitive-table
+(import-from-primitive-table
  #%kernel
  [syntax? correlated?]
  [syntax-e correlated-e]

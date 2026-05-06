@@ -705,6 +705,7 @@
         vector
         treelist
         treelist-append
+        module-call-with-prompt
         vector-immutable
         values
         void))
@@ -1916,6 +1917,11 @@
     (add-runtime-string-constant 'symbol-or-false               "(or/c symbol? #f)")
     (add-runtime-string-constant 'instance-mode?                "(or/c #f 'constant 'consistent)")
     (add-runtime-string-constant 'instance-or-false             "(or/c instance? #f)")
+    (add-runtime-string-constant 'module-variable?              "module-variable?")
+    (add-runtime-string-constant 'module-variable-reference?    "module-variable-reference?")
+    (add-runtime-string-constant 'module-variable-same-length-vectors
+                                 "value vector with the same length as the cell vector")
+    (add-runtime-string-constant 'module-prompts-unsupported    "module prompts are not supported by WebRacket yet")
     (add-runtime-symbol-constant 'constant)
     (add-runtime-symbol-constant 'consistent)
     (add-runtime-string-constant 'instantiate-linklet:import-count
@@ -2588,17 +2594,30 @@
                        (field $entries  (mut (ref $Array)))  ;; flat array: key0, val0, key1, val1, ...
                        (field $count    (mut i32)))))        ;; number of key/value pairs currently stored
 
-          (type $VariableReference ; opaque value returned by #%variable-reference
-                ; Minimal payload needed by variable-reference predicates.
-                (sub $Heap
-                     (struct
-                       (field $hash (mut i32))
-                       (field $constant?   (ref eq))
-                       (field $from-unsafe? (ref eq))
-                       )))
-          (type $External 
-            (sub $Heap
-              (struct
+	          (type $VariableReference ; opaque value returned by #%variable-reference
+	                ; Minimal payload needed by variable-reference predicates.
+	                (sub $Heap
+	                     (struct
+	                       (field $hash (mut i32))
+	                       (field $constant?   (ref eq))
+	                       (field $from-unsafe? (ref eq))
+	                       )))
+	          (type $ModuleVariable ; lowered module/linklet variable cell
+	                (sub $Heap
+	                     (struct
+	                       (field $hash (mut i32))
+	                       (field $name      (ref eq))
+	                       (field $value     (mut (ref eq)))
+	                       (field $constance (mut (ref eq))))))
+	          (type $ModuleVariableReference
+	                (sub $Heap
+	                     (struct
+	                       (field $hash (mut i32))
+	                       (field $instance (ref eq))
+	                       (field $variable (ref eq)))))
+	          (type $External 
+	            (sub $Heap
+	              (struct
                 (field $hash (mut i32))
                 (field $v    (ref null extern)))))
 
@@ -45067,23 +45086,278 @@
                     (if (i32.eqz (ref.eq (local.get $val) (global.get $undefined)))
                         (then (return (local.get $val))))))
 
-               (if (result (ref eq))
-                   (ref.eq (local.get $fail) (global.get $missing))
-                   (then (call $raise-instance-variable-not-found (local.get $sym))
-                         (unreachable))
-                   (else (if (result (ref eq))
-                             (ref.test (ref $Procedure) (local.get $fail))
-                             (then
-                              (local.set $proc (ref.cast (ref $Procedure) (local.get $fail)))
-                              (local.set $inv (struct.get $Procedure $invoke (local.get $proc)))
-                              (local.set $noargs (array.new $Args (global.get $null) (i32.const 0)))
-                              (return_call_ref $ProcedureInvoker
-                                               (local.get $proc)
-                                               (local.get $noargs)
-                                               (local.get $inv)))
-                             (else (local.get $fail))))))
+	               (if (result (ref eq))
+	                   (ref.eq (local.get $fail) (global.get $missing))
+	                   (then (call $raise-instance-variable-not-found (local.get $sym))
+	                         (unreachable))
+	                   (else (if (result (ref eq))
+	                             (ref.test (ref $Procedure) (local.get $fail))
+	                             (then
+	                              (local.set $proc (ref.cast (ref $Procedure) (local.get $fail)))
+	                              (local.set $inv (struct.get $Procedure $invoke (local.get $proc)))
+	                              (local.set $noargs (array.new $Args (global.get $null) (i32.const 0)))
+	                              (return_call_ref $ProcedureInvoker
+	                                               (local.get $proc)
+	                                               (local.get $noargs)
+	                                               (local.get $inv)))
+	                             (else (local.get $fail))))))
 
-         ;; Linklets
+	         ;; Lowered module-variable cells. These are the Wasm counterpart
+	         ;; of `webify/module-variable.rkt`'s reference implementation.
+
+	         (func $raise-argument-error:module-variable-expected
+	               (param $who (ref eq))  ;; primitive name symbol
+	               (param $got (ref eq))  ;; value that was not a module variable
+
+	               (call $raise-argument-error1
+	                     (local.get $who)
+	                     (global.get $string:module-variable?)
+	                     (local.get $got))
+	               (unreachable))
+
+	         (func $module-variable-cast
+	               (param $who (ref eq))  ;; primitive name symbol
+	               (param $cell (ref eq)) ;; expected module-variable cell
+	               (result (ref $ModuleVariable))
+
+	               (if (i32.eqz (ref.test (ref $ModuleVariable) (local.get $cell)))
+	                   (then (call $raise-argument-error:module-variable-expected
+	                               (local.get $who)
+	                               (local.get $cell))
+	                         (unreachable)))
+	               (ref.cast (ref $ModuleVariable) (local.get $cell)))
+
+	         (func $module-variable? (type $Prim1)
+	               ,@(make-predicate-body '$ModuleVariable))
+
+	         (func $module-variable-name (type $Prim1)
+	               (param $cell (ref eq)) ;; module-variable?
+	               (result (ref eq))
+
+	               (struct.get $ModuleVariable $name
+	                           (call $module-variable-cast
+	                                 (global.get $symbol:module-variable-name)
+	                                 (local.get $cell))))
+
+	         (func $module-variable-constance (type $Prim1)
+	               (param $cell (ref eq)) ;; module-variable?
+	               (result (ref eq))
+
+	               (struct.get $ModuleVariable $constance
+	                           (call $module-variable-cast
+	                                 (global.get $symbol:module-variable-constance)
+	                                 (local.get $cell))))
+
+	         (func $module-variable-initialized? (type $Prim1)
+	               (param $cell (ref eq)) ;; module-variable?
+	               (result (ref eq))
+
+	               (if (result (ref eq))
+	                   (ref.eq (struct.get $ModuleVariable $value
+	                                       (call $module-variable-cast
+	                                             (global.get $symbol:module-variable-initialized?)
+	                                             (local.get $cell)))
+	                           (global.get $undefined))
+	                   (then (global.get $false))
+	                   (else (global.get $true))))
+
+	         (func $module-variable-make (type $Prim1)
+	               (param $name (ref eq)) ;; symbol naming the module variable
+	               (result (ref eq))
+
+	               (if (i32.eqz (ref.test (ref $Symbol) (local.get $name)))
+	                   (then (call $raise-argument-error1
+	                               (global.get $symbol:module-variable-make)
+	                               (global.get $string:symbol?)
+	                               (local.get $name))
+	                         (unreachable)))
+	               (struct.new $ModuleVariable
+	                           (i32.const 0)
+	                           (local.get $name)
+	                           (global.get $undefined)
+	                           (global.get $false)))
+
+	         (func $module-variable-ref (type $Prim1)
+	               (param $cell (ref eq)) ;; module-variable?
+	               (result (ref eq))
+
+	               (local $mv  (ref $ModuleVariable))
+	               (local $val (ref eq))
+
+	               (local.set $mv
+	                          (call $module-variable-cast
+	                                (global.get $symbol:module-variable-ref)
+	                                (local.get $cell)))
+	               (local.set $val (struct.get $ModuleVariable $value (local.get $mv)))
+	               (if (ref.eq (local.get $val) (global.get $undefined))
+	                   (then (drop (call $raise-unbound-variable-reference
+	                                     (struct.get $ModuleVariable $name (local.get $mv))))))
+	               (local.get $val))
+
+	         (func $module-variable-ref/no-check (type $Prim1)
+	               (param $cell (ref eq)) ;; module-variable?
+	               (result (ref eq))
+
+	               (struct.get $ModuleVariable $value
+	                           (call $module-variable-cast
+	                                 (global.get $symbol:module-variable-ref/no-check)
+	                                 (local.get $cell))))
+
+	         (func $module-variable-set! (type $Prim2)
+	               (param $cell (ref eq)) ;; module-variable?
+	               (param $val  (ref eq)) ;; any/c
+	               (result (ref eq))
+
+	               (struct.set $ModuleVariable $value
+	                           (call $module-variable-cast
+	                                 (global.get $symbol:module-variable-set!)
+	                                 (local.get $cell))
+	                           (local.get $val))
+	               (global.get $void))
+
+	         (func $module-variable-set!/check-undefined! (type $Prim2)
+	               (param $cell (ref eq)) ;; module-variable?
+	               (param $val  (ref eq)) ;; any/c
+	               (result (ref eq))
+
+	               (local $mv (ref $ModuleVariable))
+
+	               (local.set $mv
+	                          (call $module-variable-cast
+	                                (global.get $symbol:module-variable-set!/check-undefined!)
+	                                (local.get $cell)))
+	               (if (ref.eq (struct.get $ModuleVariable $value (local.get $mv))
+	                           (global.get $undefined))
+	                   (then (drop (call $raise-unbound-variable-reference
+	                                     (struct.get $ModuleVariable $name (local.get $mv))))))
+	               (struct.set $ModuleVariable $value (local.get $mv) (local.get $val))
+	               (global.get $void))
+
+	         (func $module-variable-define! (type $Prim3)
+	               (param $cell      (ref eq)) ;; module-variable?
+	               (param $val       (ref eq)) ;; any/c
+	               (param $constance (ref eq)) ;; #f, 'constant, or 'consistent
+	               (result (ref eq))
+
+	               (local $mv (ref $ModuleVariable))
+
+	               (local.set $mv
+	                          (call $module-variable-cast
+	                                (global.get $symbol:module-variable-define!)
+	                                (local.get $cell)))
+	               (struct.set $ModuleVariable $value (local.get $mv) (local.get $val))
+	               (struct.set $ModuleVariable $constance (local.get $mv) (local.get $constance))
+	               (global.get $void))
+
+	         (func $module-variables-define-consistent! (type $Prim2)
+	               (param $cells (ref eq)) ;; vectorof module-variable?
+	               (param $vals  (ref eq)) ;; vectorof any/c
+	               (result (ref eq))
+
+	               (local $cell-vec (ref $Vector))
+	               (local $val-vec  (ref $Vector))
+	               (local $cell-arr (ref $Array))
+	               (local $val-arr  (ref $Array))
+	               (local $len      i32)
+	               (local $i        i32)
+
+	               (if (i32.eqz (ref.test (ref $Vector) (local.get $cells)))
+	                   (then (call $raise-check-vector (local.get $cells))
+	                         (unreachable)))
+	               (if (i32.eqz (ref.test (ref $Vector) (local.get $vals)))
+	                   (then (call $raise-check-vector (local.get $vals))
+	                         (unreachable)))
+	               (local.set $cell-vec (ref.cast (ref $Vector) (local.get $cells)))
+	               (local.set $val-vec  (ref.cast (ref $Vector) (local.get $vals)))
+	               (local.set $cell-arr (struct.get $Vector $arr (local.get $cell-vec)))
+	               (local.set $val-arr  (struct.get $Vector $arr (local.get $val-vec)))
+	               (local.set $len (array.len (local.get $cell-arr)))
+	               (if (i32.ne (local.get $len) (array.len (local.get $val-arr)))
+	                   (then (call $raise-argument-error1
+	                               (global.get $symbol:module-variables-define-consistent!)
+	                               (global.get $string:module-variable-same-length-vectors)
+	                               (local.get $vals))
+	                         (unreachable)))
+	               (local.set $i (i32.const 0))
+	               (block $done
+	                      (loop $loop
+	                            (br_if $done (i32.ge_u (local.get $i) (local.get $len)))
+	                            (drop (call $module-variable-define!
+	                                        (array.get $Array (local.get $cell-arr) (local.get $i))
+	                                        (array.get $Array (local.get $val-arr) (local.get $i))
+	                                        (global.get $symbol:consistent)))
+	                            (local.set $i (i32.add (local.get $i) (i32.const 1)))
+	                            (br $loop)))
+	               (global.get $void))
+
+	         (func $module-variable-reference? (type $Prim1)
+	               ,@(make-predicate-body '$ModuleVariableReference))
+
+	         (func $raise-argument-error:module-variable-reference-expected
+	               (param $who (ref eq))  ;; primitive name symbol
+	               (param $got (ref eq))  ;; value that was not a module-variable reference
+
+	               (call $raise-argument-error1
+	                     (local.get $who)
+	                     (global.get $string:module-variable-reference?)
+	                     (local.get $got))
+	               (unreachable))
+
+	         (func $module-variable-reference-cast
+	               (param $who (ref eq)) ;; primitive name symbol
+	               (param $ref (ref eq)) ;; expected module-variable-reference?
+	               (result (ref $ModuleVariableReference))
+
+	               (if (i32.eqz (ref.test (ref $ModuleVariableReference) (local.get $ref)))
+	                   (then (call $raise-argument-error:module-variable-reference-expected
+	                               (local.get $who)
+	                               (local.get $ref))
+	                         (unreachable)))
+	               (ref.cast (ref $ModuleVariableReference) (local.get $ref)))
+
+	         (func $module-variable-reference (type $Prim2)
+	               (param $instance (ref eq)) ;; any/c, usually an instance
+	               (param $cell     (ref eq)) ;; module-variable?
+	               (result (ref eq))
+
+	               (drop (call $module-variable-cast
+	                           (global.get $symbol:module-variable-reference)
+	                           (local.get $cell)))
+	               (struct.new $ModuleVariableReference
+	                           (i32.const 0)
+	                           (local.get $instance)
+	                           (local.get $cell)))
+
+	         (func $module-variable-reference-instance (type $Prim1)
+	               (param $ref (ref eq)) ;; module-variable-reference?
+	               (result (ref eq))
+
+	               (struct.get $ModuleVariableReference $instance
+	                           (call $module-variable-reference-cast
+	                                 (global.get $symbol:module-variable-reference-instance)
+	                                 (local.get $ref))))
+
+	         (func $module-variable-reference-variable (type $Prim1)
+	               (param $ref (ref eq)) ;; module-variable-reference?
+	               (result (ref eq))
+
+	               (struct.get $ModuleVariableReference $variable
+	                           (call $module-variable-reference-cast
+	                                 (global.get $symbol:module-variable-reference-variable)
+	                                 (local.get $ref))))
+
+	         (func $module-call-with-prompt (type $Prim>=1)
+	               (param $thunk (ref eq)) ;; thunk, currently unsupported
+	               (param $rest  (ref eq)) ;; prompt metadata
+	               (result (ref eq))
+
+	               (call $raise-argument-error1
+	                     (global.get $symbol:module-call-with-prompt)
+	                     (global.get $string:module-prompts-unsupported)
+	                     (local.get $thunk))
+	               (unreachable))
+
+	         ;; Linklets
          
          (func $linklet? (type $Prim1)
                (param $v (ref eq))  ;; value to check

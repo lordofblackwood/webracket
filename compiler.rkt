@@ -2189,6 +2189,22 @@
   instance-unset-variable!
   instance-variable-value
   instance-variable-box      ; internal in full Racket
+  module-variable?
+  module-variable-name
+  module-variable-constance
+  module-variable-initialized?
+  module-variable-make
+  module-variable-ref
+  module-variable-ref/no-check
+  module-variable-set!
+  module-variable-set!/check-undefined!
+  module-variable-define!
+  module-variables-define-consistent!
+  module-variable-reference?
+  module-variable-reference-instance
+  module-variable-reference-variable
+  module-variable-reference
+  module-call-with-prompt
 
   linklet?
   linklet-body-reserved-symbol?

@@ -82,7 +82,8 @@
 ;; Example: vector-member gained an optional comparator in Racket 8.15.0.1,
 ;; but older Rackets report arity 2 while docs show (2 3).
 (define arity-overrides
-  (hash 'vector-member '(2 3)))
+  (hash 'make-treelist '(1 2)
+        'vector-member '(2 3)))
 
 
 ;; These WebRacket primitives are not primitives in full Racket,
@@ -116,6 +117,16 @@
                          #t
                          #f
                          'racket/primitive))
+
+(define (webracket-primitive-description name arity)
+  (primitive-description name
+                         arity
+                         1
+                         '()
+                         '()
+                         #f
+                         #f
+                         #f))
 
 (define procedure->external-description
   (primitive-description 'procedure->external
@@ -204,6 +215,22 @@
     [(eq? sym-or-primitive 'procedure->external)     procedure->external-description]
     [(eq? sym-or-primitive 'external-number->flonum) external-number->flonum-description]
     [(eq? sym-or-primitive 'external-string->string) external-string->string-description]
+    [(eq? sym-or-primitive 'module-variable?)                      (webracket-primitive-description sym-or-primitive 1)]
+    [(eq? sym-or-primitive 'module-variable-name)                   (webracket-primitive-description sym-or-primitive 1)]
+    [(eq? sym-or-primitive 'module-variable-constance)              (webracket-primitive-description sym-or-primitive 1)]
+    [(eq? sym-or-primitive 'module-variable-initialized?)           (webracket-primitive-description sym-or-primitive 1)]
+    [(eq? sym-or-primitive 'module-variable-make)                   (webracket-primitive-description sym-or-primitive 1)]
+    [(eq? sym-or-primitive 'module-variable-ref)                    (webracket-primitive-description sym-or-primitive 1)]
+    [(eq? sym-or-primitive 'module-variable-ref/no-check)           (webracket-primitive-description sym-or-primitive 1)]
+    [(eq? sym-or-primitive 'module-variable-set!)                   (webracket-primitive-description sym-or-primitive 2)]
+    [(eq? sym-or-primitive 'module-variable-set!/check-undefined!)  (webracket-primitive-description sym-or-primitive 2)]
+    [(eq? sym-or-primitive 'module-variable-define!)                (webracket-primitive-description sym-or-primitive 3)]
+    [(eq? sym-or-primitive 'module-variables-define-consistent!)    (webracket-primitive-description sym-or-primitive 2)]
+    [(eq? sym-or-primitive 'module-variable-reference?)             (webracket-primitive-description sym-or-primitive 1)]
+    [(eq? sym-or-primitive 'module-variable-reference-instance)     (webracket-primitive-description sym-or-primitive 1)]
+    [(eq? sym-or-primitive 'module-variable-reference-variable)     (webracket-primitive-description sym-or-primitive 1)]
+    [(eq? sym-or-primitive 'module-variable-reference)              (webracket-primitive-description sym-or-primitive 2)]
+    [(eq? sym-or-primitive 'module-call-with-prompt)                (webracket-primitive-description sym-or-primitive (arity-at-least 1))]
     [(exception-constructor? sym-or-primitive)
      (define pr (exception-constructor->primitive sym-or-primitive))
      (define x pr)

@@ -1,0 +1,227 @@
+#lang racket/base
+
+(require "match.rkt"
+         "wrap.rkt")
+
+(provide lower-module-variable-ops
+         simplify-trivial-module-prompts
+         lower-module-first-slice
+         schemify-module-variable-free?
+         assert-schemify-module-variable-free
+         first-slice-unsupported-free?
+         assert-first-slice-unsupported-free
+         module-prompt-free?
+         assert-module-prompt-free)
+
+;; lower-module-variable-ops : any/c -> any/c
+;;   Lower schemify-shaped module variable operations to WebRacket helper forms.
+(define (lower-module-variable-ops v)
+  (define (lower v)
+    (reannotate
+     v
+     (match v
+       [`(make-internal-variable ,name)
+        `(module-variable-make ,(lower name))]
+       [`(variable-ref ,cell)
+        `(module-variable-ref ,(lower cell))]
+       [`(variable-ref/no-check ,cell)
+        `(module-variable-ref/no-check ,(lower cell))]
+       [`(variable-set! ,cell ,rhs)
+        `(module-variable-set! ,(lower cell) ,(lower rhs))]
+       [`(variable-set!/check-undefined ,cell ,rhs)
+        `(module-variable-set!/check-undefined! ,(lower cell) ,(lower rhs))]
+       [`(variable-set!/define ,cell ,rhs ,constance)
+        `(module-variable-define! ,(lower cell) ,(lower rhs) ,(lower constance))]
+       [`(set-consistent-variables!/define ,cells ,rhss)
+        `(module-variables-define-consistent! ,(lower cells) ,(lower rhss))]
+       [`(make-instance-variable-reference ,instance ,cell)
+        `(module-variable-reference ,(lower instance) ,(lower cell))]
+       [`(call-with-module-prompt ,thunk . ,args)
+        `(module-call-with-prompt ,(lower thunk) . ,(lower-list args))]
+       [`(lambda ,formals . ,body)
+        `(lambda ,formals . ,(lower-list body))]
+       [`(case-lambda [,formalss . ,bodyss] ...)
+        `(case-lambda ,@(for/list ([formals (in-list formalss)]
+                                   [body (in-list bodyss)])
+                          `[,formals . ,(lower-list body)]))]
+       [`(quote ,_)
+        v]
+       [`(,_ . ,_)
+        (lower-list v)]
+       [`,_
+        v])))
+
+  ;; lower-list : list? -> list?
+  ;;   Lower each wrapped list element.
+  (define (lower-list l)
+    (cond
+      [(wrap-null? l) '()]
+      [(wrap-pair? l) (cons (lower (wrap-car l))
+                            (lower-list (wrap-cdr l)))]
+      [else (lower l)]))
+
+  (lower v))
+
+;; simplify-trivial-module-prompts : any/c -> any/c
+;;   Erase no-metadata module-prompt markers around a direct thunk.
+(define (simplify-trivial-module-prompts v)
+  (define (simplify v)
+    (reannotate
+     v
+     (match v
+       [`(module-call-with-prompt (lambda () ,body))
+        (simplify body)]
+       [`(module-call-with-prompt (lambda () ,body0 ,bodys ...))
+        `(let () ,@(simplify-list (cons body0 bodys)))]
+       [`(lambda ,formals . ,body)
+        `(lambda ,formals . ,(simplify-list body))]
+       [`(case-lambda [,formalss . ,bodyss] ...)
+        `(case-lambda ,@(for/list ([formals (in-list formalss)]
+                                   [body (in-list bodyss)])
+                          `[,formals . ,(simplify-list body)]))]
+       [`(quote ,_)
+        v]
+       [`(,_ . ,_)
+        (simplify-list v)]
+       [`,_
+        v])))
+
+  ;; simplify-list : list? -> list?
+  ;;   Simplify each wrapped list element.
+  (define (simplify-list l)
+    (cond
+      [(wrap-null? l) '()]
+      [(wrap-pair? l) (cons (simplify (wrap-car l))
+                            (simplify-list (wrap-cdr l)))]
+      [else (simplify l)]))
+
+  (simplify v))
+
+;; lower-module-first-slice : any/c -> any/c
+;;   Lower the currently supported module-variable subset and reject prompts.
+(define (lower-module-first-slice v)
+  (assert-module-prompt-free
+   (assert-schemify-module-variable-free
+    (assert-first-slice-unsupported-free
+     (simplify-trivial-module-prompts
+      (lower-module-variable-ops v))))))
+
+;; schemify-module-variable-free? : any/c -> boolean?
+;;   Check that schemify-shaped module variable forms have been lowered.
+(define (schemify-module-variable-free? v)
+  (let loop ([v v])
+    (match v
+      [`(quote ,_)
+       #t]
+      [`(,rator . ,_)
+       (and (not (schemify-module-variable-rator? (unwrap rator)))
+            (walk-list loop v))]
+      [`,_
+       #t])))
+
+;; assert-schemify-module-variable-free : any/c -> any/c
+;;   Reject output that still contains pre-lowering module variable forms.
+(define (assert-schemify-module-variable-free v)
+  (unless (schemify-module-variable-free? v)
+    (error 'webify "schemify module variable forms remain after lowering"))
+  v)
+
+;; module-prompt-free? : any/c -> boolean?
+;;   Check whether v has no lowered module prompt marker.
+(define (module-prompt-free? v)
+  (let loop ([v v])
+    (match v
+      [`(module-call-with-prompt . ,_)
+       #f]
+      [`(quote ,_)
+       #t]
+      [`(,_ . ,_)
+       (walk-list loop v)]
+      [`,_
+       #t])))
+
+;; assert-module-prompt-free : any/c -> any/c
+;;   Reject lowered output that still requires unsupported prompt semantics.
+(define (assert-module-prompt-free v)
+  (unless (module-prompt-free? v)
+    (error 'webify "module prompts are not supported by WebRacket yet"))
+  v)
+
+;; first-slice-unsupported-free? : any/c -> boolean?
+;;   Check for schemify compatibility forms outside the first module slice.
+(define (first-slice-unsupported-free? v)
+  (let loop ([v v])
+    (match v
+      [`(quote ,_)
+       #t]
+      [`(,rator . ,_)
+       (and (not (first-slice-unsupported-rator? (unwrap rator)))
+            (walk-list loop v))]
+      [`,_
+       #t])))
+
+;; assert-first-slice-unsupported-free : any/c -> any/c
+;;   Reject known compatibility forms that the first slice cannot lower.
+(define (assert-first-slice-unsupported-free v)
+  (unless (first-slice-unsupported-free? v)
+    (error 'webify "unsupported webify compatibility form remains after lowering"))
+  v)
+
+;; schemify-module-variable-rator? : any/c -> boolean?
+;;   Recognize the schemify helper forms handled by this lowering slice.
+(define (schemify-module-variable-rator? v)
+  (memq v '(make-internal-variable
+            variable-ref
+            variable-ref/no-check
+            variable-set!
+            variable-set!/check-undefined
+            variable-set!/define
+            set-consistent-variables!/define
+            make-instance-variable-reference
+            call-with-module-prompt)))
+
+;; first-slice-unsupported-rator? : any/c -> boolean?
+;;   Recognize compatibility forms that need later WebRacket support/lowering.
+(define (first-slice-unsupported-rator? v)
+  (memq v '(#%app
+            #%app/value
+            #%app/no-return
+            with-continuation-mark*
+            check-not-unsafe-undefined
+            check-not-unsafe-undefined/assign
+            raise-definition-result-arity-error
+            raise-binding-result-arity-error
+            make-record-type-descriptor
+            make-record-constructor-descriptor
+            record-constructor
+            record-predicate
+            record-accessor
+            record-mutator
+            make-struct-type-install-properties
+            structure-type-lookup-prefab-uid
+            struct-type-constructor-add-guards
+            #%nongenerative-uid
+            #%struct-constructor
+            #%struct-predicate
+            #%struct-field-accessor
+            #%struct-field-mutator
+            unsafe-struct
+            unsafe-struct?
+            unsafe-sealed-struct?
+            unsafe-struct*-ref
+            unsafe-struct*-set!
+            impersonator?
+            impersonator-val
+            impersonate-ref
+            impersonate-set!
+            #%struct-ref-error
+            #%struct-set!-error)))
+
+;; walk-list : (any/c -> boolean?) any/c -> boolean?
+;;   Apply pred to each element in a wrapped list.
+(define (walk-list pred l)
+  (cond
+    [(wrap-null? l) #t]
+    [(wrap-pair? l) (and (pred (wrap-car l))
+                         (walk-list pred (wrap-cdr l)))]
+    [else (pred l)]))
