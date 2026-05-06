@@ -24,4 +24,7 @@ fi
 
 PLTCOMPILEDROOTS="$PLTCOMPILEDROOTS" \
 PLTCOLLECTS="$PLTCOLLECTS_PREFIX:" \
-"$RACKET92_BIN" "$SCRIPT_DIR/test-module-adapter.rkt"
+"$RACKET92_BIN" "$SCRIPT_DIR/test-module-adapter.rkt" \
+                "$SCRIPT_DIR/test-module-instance.rkt" \
+                "$SCRIPT_DIR/test-module-composer.rkt" \
+                "$SCRIPT_DIR/test-module-registry.rkt"

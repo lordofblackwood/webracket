@@ -1,0 +1,411 @@
+#lang racket/base
+
+(require racket/string
+         racket/match
+         racket/file
+         racket/path
+         rackunit
+         "test-module-support.rkt")
+
+(test-case "first-slice adapter composes sequential slices with reserved helpers"
+  (define first-datum
+    (first-slice->top-level-datum '(lambda (instance-variable-reference x1)
+                                     (define x 10)
+                                     (module-variable-define! x1 x 'consistent))
+                                   '(x)))
+  (define first-reserved
+    (append '(x)
+            (first-slice-top-level-helper-ids '(x))))
+  (define second-datum
+    (first-slice->top-level-datum '(lambda (instance-variable-reference y1)
+                                     (define y 20)
+                                     (module-variable-define! y1 y 'consistent))
+                                   '(y)
+                                   #:reserved first-reserved))
+  (define combined
+    `(begin
+       ,@(begin-body first-datum)
+       ,@(begin-body second-datum)
+       (void)))
+  (match (normalize-symbols combined)
+    [`("begin"
+       ("define" "webify-linklet-proc$0" ,_)
+       ("define" "webify-export-cell0$0" ,_)
+       ("webify-linklet-proc$0" ("quote" "webify-instance") "webify-export-cell0$0")
+       ("define" "x" ("module-variable-ref" "webify-export-cell0$0"))
+       ("void")
+       ("define" "webify-linklet-proc$1" ,_)
+       ("define" "webify-export-cell0$1" ,_)
+       ("webify-linklet-proc$1" ("quote" "webify-instance") "webify-export-cell0$1")
+       ("define" "y" ("module-variable-ref" "webify-export-cell0$1"))
+       ("void")
+       ("void"))
+     (void)]
+    [other
+     (fail-check (format "unexpected composed shape: ~s" other))])
+  (define wat (wat-string (comp (datum->syntax #f combined))))
+  (check-true (string-contains? wat "$module-variable-make"))
+  (check-true (string-contains? wat "$module-variable-ref")))
+
+(test-case "first-slice adapter composes explicit import cells"
+  (define first-datum
+    (first-slice->top-level-datum '(lambda (instance-variable-reference x1)
+                                     (define x 10)
+                                     (module-variable-define! x1 x 'consistent))
+                                   '(x)))
+  (define first-helper-ids
+    (first-slice-top-level-helper-ids '(x)))
+  (define first-export-cell-id
+    (hash-ref (first-slice-top-level-export-cell-ids '(x)) 'x))
+  (define second-datum
+    (first-slice->top-level-datum/imports
+     '(lambda (instance-variable-reference imported-x y1)
+        (define effect
+          (begin
+            (module-variable-define!
+             y1
+             (module-variable-ref/no-check imported-x)
+             'constant)
+            (void)))
+        (define y (module-variable-ref/no-check y1))
+        (void))
+     (list first-export-cell-id)
+     '(y)
+     #:reserved (append '(x) first-helper-ids)))
+  (define combined
+    `(begin
+       ,@(begin-body first-datum)
+       ,@(begin-body second-datum)
+       (void)))
+  (match (normalize-symbols combined)
+    [`("begin"
+       ("define" "webify-linklet-proc$0" ,_)
+       ("define" "webify-export-cell0$0" ,_)
+       ("webify-linklet-proc$0" ("quote" "webify-instance") "webify-export-cell0$0")
+       ("define" "x" ("module-variable-ref" "webify-export-cell0$0"))
+       ("void")
+       ("define" "webify-linklet-proc$1" ,_)
+       ("define" "webify-export-cell0$1" ,_)
+       ("webify-linklet-proc$1"
+        ("quote" "webify-instance")
+        "webify-export-cell0$0"
+        "webify-export-cell0$1")
+       ("define" "y" ("module-variable-ref" "webify-export-cell0$1"))
+       ("void")
+       ("void"))
+     (void)]
+    [other
+     (fail-check (format "unexpected explicit-import composition shape: ~s" other))])
+  (define wat (wat-string (comp (datum->syntax #f combined))))
+  (check-true (string-contains? wat "$module-variable-ref/no-check"))
+  (check-true (string-contains? wat "$module-variable-define!")))
+
+(test-case "module composer splices adapted fragments"
+  (define-values (first-datum first-instance)
+    (first-slice->module-instance-datum
+     'a
+     '(lambda (instance-variable-reference x1)
+        (define x 10)
+        (module-variable-define! x1 x 'consistent))
+     '(x)))
+  (define-values (second-datum second-instance)
+    (first-slice->module-instance-datum
+     'b
+     '(lambda (instance-variable-reference y1)
+        (define y 20)
+        (module-variable-define! y1 y 'consistent))
+     '(y)
+     #:reserved (webify-module-instance-reserved-ids first-instance)))
+  (define combined
+    (webify-compose-module-fragments
+     (list (webify-module-fragment first-datum first-instance)
+           (webify-module-fragment second-datum second-instance))))
+  (match (normalize-symbols combined)
+    [`("begin"
+       ("define" "webify-linklet-proc$0" ,_)
+       ("define" "webify-export-cell0$0" ,_)
+       ("webify-linklet-proc$0" ("quote" "webify-instance") "webify-export-cell0$0")
+       ("define" "x" ("module-variable-ref" "webify-export-cell0$0"))
+       ("void")
+       ("define" "webify-linklet-proc$1" ,_)
+       ("define" "webify-export-cell0$1" ,_)
+       ("webify-linklet-proc$1" ("quote" "webify-instance") "webify-export-cell0$1")
+       ("define" "y" ("module-variable-ref" "webify-export-cell0$1"))
+       ("void")
+       ("void"))
+     (void)]
+    [other
+     (fail-check (format "unexpected composed-fragment shape: ~s" other))])
+  (check-true (string-contains? (wat-string (comp (datum->syntax #f combined)))
+                                "$module-variable-ref"))
+  (check-true (string-contains?
+               (wat-string
+                (comp (webify-compose-module-fragments-syntax
+                       (list (webify-module-fragment first-datum first-instance)
+                             (webify-module-fragment second-datum second-instance)))))
+               "$module-variable-ref")))
+
+(test-case "module composer adapts lowered slices and resolves prior-instance imports"
+  (define-values (combined fragments instances)
+    (webify-compose-lowered-first-slices
+     (list
+      (webify-lowered-slice-spec
+       'a
+       '(lambda (instance-variable-reference x1)
+          (define x 10)
+          (module-variable-define! x1 x 'consistent))
+       '()
+       '()
+       '(x))
+      (webify-lowered-slice-spec
+       'b
+       '(lambda (instance-variable-reference imported-x y1)
+          (define effect
+            (begin
+              (module-variable-define!
+               y1
+               (module-variable-ref/no-check imported-x)
+               'constant)
+              (void)))
+          (define y (module-variable-ref/no-check y1))
+          (void))
+       '((ext-x))
+       '(((ext-x a x)))
+       '(y)))))
+  (match (normalize-symbols combined)
+    [`("begin"
+       ("define" "webify-linklet-proc$0" ,_)
+       ("define" "webify-export-cell0$0" ,_)
+       ("webify-linklet-proc$0" ("quote" "webify-instance") "webify-export-cell0$0")
+       ("define" "x" ("module-variable-ref" "webify-export-cell0$0"))
+       ("void")
+       ("define" "webify-linklet-proc$1" ,_)
+       ("define" "webify-export-cell0$1" ,_)
+       ("webify-linklet-proc$1"
+        ("quote" "webify-instance")
+        "webify-export-cell0$0"
+        "webify-export-cell0$1")
+       ("define" "y" ("module-variable-ref" "webify-export-cell0$1"))
+       ("void")
+       ("void"))
+     (void)]
+    [other
+     (fail-check (format "unexpected lowered-composer shape: ~s" other))])
+  (check-equal? (length fragments) 2)
+  (check-equal? (sort (hash-keys instances) symbol<?) '(a b))
+  (check-equal? (webify-module-instance-export-cell-id (hash-ref instances 'b) 'y)
+                'webify-export-cell0$1)
+  (define wat (wat-string (comp (datum->syntax #f combined))))
+  (check-true (string-contains? wat "$module-variable-ref/no-check"))
+  (check-true (string-contains? wat "$module-variable-define!")))
+
+(test-case "module composer adapts linklet slices and resolves prior-instance imports"
+  (define-values (combined fragments instances exports-infos)
+    (compose-linklet-first-slices
+     (list
+      (webify-linklet-slice-spec
+       'a
+       '(linklet () (x)
+          (define-values (x) 10))
+       '())
+      (webify-linklet-slice-spec
+       'b
+       '(linklet (([ext-x x])) (y)
+          (define-values (y) x))
+       '(((ext-x a x)))))))
+  (match (normalize-symbols combined)
+    [`("begin"
+       ("define" "webify-linklet-proc$0" ,_)
+       ("define" "webify-export-cell0$0" ,_)
+       ("webify-linklet-proc$0" ("quote" "webify-instance") "webify-export-cell0$0")
+       ("define" "x" ("module-variable-ref" "webify-export-cell0$0"))
+       ("void")
+       ("define" "webify-linklet-proc$1" ,_)
+       ("define" "webify-export-cell0$1" ,_)
+       ("webify-linklet-proc$1"
+        ("quote" "webify-instance")
+        "webify-export-cell0$0"
+        "webify-export-cell0$1")
+       ("define" "y" ("module-variable-ref" "webify-export-cell0$1"))
+       ("void")
+       ("void"))
+     (void)]
+    [other
+     (fail-check (format "unexpected linklet-composer shape: ~s" other))])
+  (check-equal? (length fragments) 2)
+  (check-equal? (sort (hash-keys instances) symbol<?) '(a b))
+  (check-true (known-constant? (hash-ref (hash-ref exports-infos 'b) 'y)))
+  (define wat (wat-string (comp (datum->syntax #f combined))))
+  (check-true (string-contains? wat "$module-variable-ref/no-check"))
+  (check-true (string-contains? wat "$module-variable-define!")))
+
+(test-case "module composer rejects unknown import source instances"
+  (check-exn
+   #rx"import source references an unknown instance"
+   (lambda ()
+     (webify-compose-lowered-first-slices
+      (list
+       (webify-lowered-slice-spec
+        'b
+        '(lambda (instance-variable-reference imported-x y1)
+           (void))
+        '((ext-x))
+        '(((ext-x missing x)))
+        '(y)))))))
+
+(test-case "module composer rejects duplicate instance names"
+  (check-exn
+   #rx"duplicate module instance names are not supported"
+   (lambda ()
+     (webify-compose-lowered-first-slices
+      (list
+       (webify-lowered-slice-spec
+        'a
+        '(lambda (instance-variable-reference x1)
+           (void))
+        '()
+        '()
+        '(x))
+       (webify-lowered-slice-spec
+        'a
+        '(lambda (instance-variable-reference y1)
+           (void))
+        '()
+        '()
+        '(y)))))))
+
+(test-case "module composer rejects import sources on import-free slices"
+  (check-exn
+   #rx"import-free slices cannot have import sources"
+   (lambda ()
+     (webify-compose-lowered-first-slices
+      (list
+       (webify-lowered-slice-spec
+        'a
+        '(lambda (instance-variable-reference x1)
+           (void))
+        '()
+        '(((ext-x a x)))
+        '(x)))))))
+
+(test-case "module composer rejects import sources on import-free linklets"
+  (check-exn
+   #rx"import-free linklets cannot have import sources"
+   (lambda ()
+     (compose-linklet-first-slices
+      (list
+       (webify-linklet-slice-spec
+        'a
+        '(linklet () (x)
+           (define-values (x) 1))
+        '(((ext-x a x)))))))))
+
+(test-case "module composer rejects linklet import source group mismatches"
+  (check-exn
+   #rx"import source group count does not match linklet imports"
+   (lambda ()
+     (compose-linklet-first-slices
+      (list
+       (webify-linklet-slice-spec
+        'a
+        '(linklet () (x)
+           (define-values (x) 1))
+        '())
+       (webify-linklet-slice-spec
+        'b
+        '(linklet (([ext-x x])) (y)
+           (define-values (y) x))
+        '()))))))
+
+(unless (or (getenv "WEBIFY_SKIP_CLI_SMOKE")
+            (getenv "WEBIFY_SKIP_RUNTIME_SMOKE"))
+  (test-case "first-slice adapter imported composition runs and exposes final export value"
+    (define source-dir (make-temporary-file "webracket-first-slice-import-run-src-~a" 'directory))
+    (define dest-dir   (make-temporary-file "webracket-first-slice-import-run-dest-~a" 'directory))
+    (define source-path (build-path source-dir "first-slice-import-run.rkt"))
+    (dynamic-wind
+      void
+      (lambda ()
+        (define-values (first-stx first-exports _first-exports-info)
+          (run-first-slice-top-level '(linklet () (x)
+                                        (define-values (x) 10))))
+        (define first-helper-ids
+          (first-slice-top-level-helper-ids first-exports))
+        (define first-export-cell-id
+          (hash-ref (first-slice-top-level-export-cell-ids first-exports) 'x))
+        (define import-args
+          (first-slice-import-cell-args '((ext-x))
+                                        (list (hasheq 'ext-x first-export-cell-id))))
+        (define-values (second-stx _importss _exports _exports-info)
+          (run-first-slice-top-level/imports
+           '(linklet (([ext-x x])) (y)
+              (define-values (y) x))
+           import-args
+           #:reserved (append first-exports first-helper-ids)))
+        (define combined
+          (webify-compose-module-fragments
+           (list
+            (webify-module-fragment
+             (syntax->datum first-stx)
+             (make-webify-module-instance 'a first-exports))
+            (webify-module-fragment
+             (syntax->datum second-stx)
+             (make-webify-module-instance
+              'b
+              '(y)
+              #:reserved (append first-exports first-helper-ids))))
+           #:tail '((js-log y))))
+        (write-datum-program! source-path combined)
+        (define-values (status output)
+          (run-webracket (list "--no-stdlib"
+                               "-r"
+                               "--dest" (path->string dest-dir)
+                               (path->string source-path))
+                         source-dir))
+        (check-equal? status 0 output)
+        (check-regexp-match #rx"(?m:^10$)" output))
+      (lambda ()
+        (for ([dir (in-list (list source-dir dest-dir))])
+          (with-handlers ([exn:fail:filesystem? void])
+            (delete-directory/files dir)))))))
+
+(unless (or (getenv "WEBIFY_SKIP_CLI_SMOKE")
+            (getenv "WEBIFY_SKIP_RUNTIME_SMOKE"))
+  (test-case "linklet composer output runs and exposes imported export value"
+    (define source-dir (make-temporary-file "webracket-linklet-composer-run-src-~a" 'directory))
+    (define dest-dir   (make-temporary-file "webracket-linklet-composer-run-dest-~a" 'directory))
+    (define source-path (build-path source-dir "linklet-composer-run.rkt"))
+    (dynamic-wind
+      void
+      (lambda ()
+        (define-values (combined _fragments _instances _exports-infos)
+          (compose-linklet-first-slices
+           (list
+            (webify-linklet-slice-spec
+             'a
+             '(linklet () (x)
+                (define-values (x) 10))
+             '())
+            (webify-linklet-slice-spec
+             'b
+             '(linklet (([ext-x x])) (y)
+                (define-values (y) x))
+             '(((ext-x a x)))))
+           #:tail '((js-log y))))
+        (write-datum-program! source-path combined)
+        (define-values (status output)
+          (run-webracket (list "--no-stdlib"
+                               "-r"
+                               "--dest" (path->string dest-dir)
+                               (path->string source-path))
+                         source-dir))
+        (check-equal? status 0 output)
+        (check-regexp-match #rx"(?m:^10$)" output))
+      (lambda ()
+        (for ([dir (in-list (list source-dir dest-dir))])
+          (with-handlers ([exn:fail:filesystem? void])
+            (delete-directory/files dir)))))))
+
+
+(module+ main
+  (void))
