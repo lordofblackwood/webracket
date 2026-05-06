@@ -214,6 +214,64 @@ This is the milestone bridge shape: generated top-level code still feeds the
 existing compiler, but imports and exports are now described as module-instance
 cell relationships instead of loose helper-symbol plumbing.
 
+## Module Composer
+
+`webify/module-composer.rkt` turns the instance-plan pattern into an explicit
+composition API.
+
+At the lowest level, `webify-module-fragment` pairs one generated top-level
+datum with its `webify-module-instance`:
+
+```racket
+(webify-module-fragment a-datum a-instance)
+```
+
+`webify-compose-module-fragments` then splices the fragment bodies into one
+top-level `begin`:
+
+```racket
+(webify-compose-module-fragments
+ (list (webify-module-fragment a-datum a-instance)
+       (webify-module-fragment b-datum b-instance))
+ #:tail '((js-log y)))
+```
+
+The result is still plain top-level WebRacket code, not a `module` form.
+
+For lowered first-slice fragments, `webify-compose-lowered-first-slices` also
+performs the adaptation step. Each `webify-lowered-slice-spec` gives a name, a
+lowered lambda, grouped import names, grouped import sources, and exports:
+
+```racket
+(webify-compose-lowered-first-slices
+ (list
+  (webify-lowered-slice-spec
+   'a
+   lowered-a
+   '()
+   '()
+   '(x))
+  (webify-lowered-slice-spec
+   'b
+   lowered-b
+   '((ext-x))
+   '(((ext-x a x)))
+   '(y))))
+```
+
+The triple `(ext-x a x)` means: satisfy B's import `ext-x` with export `x` from
+the previously adapted instance named `a`.
+
+The composer carries reserved helper ids forward automatically. In the example
+above, A uses `webify-linklet-proc$0` and `webify-export-cell0$0`; B therefore
+gets `webify-linklet-proc$1` and `webify-export-cell0$1` without the caller
+manually calculating reserved names.
+
+The composer is intentionally ordered and explicit. It does not discover
+dependencies, instantiate modules lazily, or implement namespaces. Its job is to
+make the current bridge compositional while still targeting the compiler's
+existing top-level-program path.
+
 The adapter tests also run this imported-composition shape through
 `webracket.rkt --no-stdlib -r`: the first adapted slice exports `x = 10`, the
 second adapted slice imports the first slice's `x` cell and exports `y`, and

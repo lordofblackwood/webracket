@@ -10,6 +10,7 @@
          (only-in "../compiler.rkt" comp)
          "known.rkt"
          "module-adapter.rkt"
+         "module-composer.rkt"
          "module-instance.rkt")
 
 (define-runtime-path webracket-rkt "../webracket.rkt")
@@ -488,6 +489,105 @@
   (check-true (string-contains? wat "$module-variable-ref/no-check"))
   (check-true (string-contains? wat "$module-variable-define!")))
 
+(test-case "module composer splices adapted fragments"
+  (define-values (first-datum first-instance)
+    (first-slice->module-instance-datum
+     'a
+     '(lambda (instance-variable-reference x1)
+        (define x 10)
+        (module-variable-define! x1 x 'consistent))
+     '(x)))
+  (define-values (second-datum second-instance)
+    (first-slice->module-instance-datum
+     'b
+     '(lambda (instance-variable-reference y1)
+        (define y 20)
+        (module-variable-define! y1 y 'consistent))
+     '(y)
+     #:reserved (webify-module-instance-reserved-ids first-instance)))
+  (define combined
+    (webify-compose-module-fragments
+     (list (webify-module-fragment first-datum first-instance)
+           (webify-module-fragment second-datum second-instance))))
+  (match (normalize-symbols combined)
+    [`("begin"
+       ("define" "webify-linklet-proc$0" ,_)
+       ("define" "webify-export-cell0$0" ,_)
+       ("webify-linklet-proc$0" ("quote" "webify-instance") "webify-export-cell0$0")
+       ("define" "x" ("module-variable-ref" "webify-export-cell0$0"))
+       ("void")
+       ("define" "webify-linklet-proc$1" ,_)
+       ("define" "webify-export-cell0$1" ,_)
+       ("webify-linklet-proc$1" ("quote" "webify-instance") "webify-export-cell0$1")
+       ("define" "y" ("module-variable-ref" "webify-export-cell0$1"))
+       ("void")
+       ("void"))
+     (void)]
+    [other
+     (fail-check (format "unexpected composed-fragment shape: ~s" other))])
+  (check-true (string-contains? (wat-string (comp (datum->syntax #f combined)))
+                                "$module-variable-ref"))
+  (check-true (string-contains?
+               (wat-string
+                (comp (webify-compose-module-fragments-syntax
+                       (list (webify-module-fragment first-datum first-instance)
+                             (webify-module-fragment second-datum second-instance)))))
+               "$module-variable-ref")))
+
+(test-case "module composer adapts lowered slices and resolves prior-instance imports"
+  (define-values (combined fragments instances)
+    (webify-compose-lowered-first-slices
+     (list
+      (webify-lowered-slice-spec
+       'a
+       '(lambda (instance-variable-reference x1)
+          (define x 10)
+          (module-variable-define! x1 x 'consistent))
+       '()
+       '()
+       '(x))
+      (webify-lowered-slice-spec
+       'b
+       '(lambda (instance-variable-reference imported-x y1)
+          (define effect
+            (begin
+              (module-variable-define!
+               y1
+               (module-variable-ref/no-check imported-x)
+               'constant)
+              (void)))
+          (define y (module-variable-ref/no-check y1))
+          (void))
+       '((ext-x))
+       '(((ext-x a x)))
+       '(y)))))
+  (match (normalize-symbols combined)
+    [`("begin"
+       ("define" "webify-linklet-proc$0" ,_)
+       ("define" "webify-export-cell0$0" ,_)
+       ("webify-linklet-proc$0" ("quote" "webify-instance") "webify-export-cell0$0")
+       ("define" "x" ("module-variable-ref" "webify-export-cell0$0"))
+       ("void")
+       ("define" "webify-linklet-proc$1" ,_)
+       ("define" "webify-export-cell0$1" ,_)
+       ("webify-linklet-proc$1"
+        ("quote" "webify-instance")
+        "webify-export-cell0$0"
+        "webify-export-cell0$1")
+       ("define" "y" ("module-variable-ref" "webify-export-cell0$1"))
+       ("void")
+       ("void"))
+     (void)]
+    [other
+     (fail-check (format "unexpected lowered-composer shape: ~s" other))])
+  (check-equal? (length fragments) 2)
+  (check-equal? (sort (hash-keys instances) symbol<?) '(a b))
+  (check-equal? (webify-module-instance-export-cell-id (hash-ref instances 'b) 'y)
+                'webify-export-cell0$1)
+  (define wat (wat-string (comp (datum->syntax #f combined))))
+  (check-true (string-contains? wat "$module-variable-ref/no-check"))
+  (check-true (string-contains? wat "$module-variable-define!")))
+
 (test-case "first-slice adapter wraps imported linklet with explicit cells"
   (define-values (first-stx first-exports _first-exports-info)
     (run-first-slice-top-level '(linklet () (x)
@@ -618,6 +718,55 @@
       (make-webify-module-instance 'a '(x y))
       '((same . x) (same . y))))))
 
+(test-case "module composer rejects unknown import source instances"
+  (check-exn
+   #rx"import source references an unknown instance"
+   (lambda ()
+     (webify-compose-lowered-first-slices
+      (list
+       (webify-lowered-slice-spec
+        'b
+        '(lambda (instance-variable-reference imported-x y1)
+           (void))
+        '((ext-x))
+        '(((ext-x missing x)))
+        '(y)))))))
+
+(test-case "module composer rejects duplicate instance names"
+  (check-exn
+   #rx"duplicate module instance names are not supported"
+   (lambda ()
+     (webify-compose-lowered-first-slices
+      (list
+       (webify-lowered-slice-spec
+        'a
+        '(lambda (instance-variable-reference x1)
+           (void))
+        '()
+        '()
+        '(x))
+       (webify-lowered-slice-spec
+        'a
+        '(lambda (instance-variable-reference y1)
+           (void))
+        '()
+        '()
+        '(y)))))))
+
+(test-case "module composer rejects import sources on import-free slices"
+  (check-exn
+   #rx"import-free slices cannot have import sources"
+   (lambda ()
+     (webify-compose-lowered-first-slices
+      (list
+       (webify-lowered-slice-spec
+        'a
+        '(lambda (instance-variable-reference x1)
+           (void))
+        '()
+        '(((ext-x a x)))
+        '(x)))))))
+
 (test-case "first-slice adapter rejects non-lambda lowered values"
   (check-exn
    #rx"expected lowered first-slice value to be a lambda"
@@ -740,10 +889,18 @@
            import-args
            #:reserved (append first-exports first-helper-ids)))
         (define combined
-          `(begin
-             ,@(begin-body (syntax->datum first-stx))
-             ,@(begin-body (syntax->datum second-stx))
-             (js-log y)))
+          (webify-compose-module-fragments
+           (list
+            (webify-module-fragment
+             (syntax->datum first-stx)
+             (make-webify-module-instance 'a first-exports))
+            (webify-module-fragment
+             (syntax->datum second-stx)
+             (make-webify-module-instance
+              'b
+              '(y)
+              #:reserved (append first-exports first-helper-ids))))
+           #:tail '((js-log y))))
         (write-datum-program! source-path combined)
         (define-values (status output)
           (run-webracket (list "--no-stdlib"
