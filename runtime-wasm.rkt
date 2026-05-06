@@ -40412,6 +40412,7 @@
                (local $sentinel       (ref eq))
                (local $new-list       (ref eq))
                (local $struct-name    (ref eq))
+               (local $guard-checked  (ref eq))
 
                ;; --- Type checks ---
                (if (i32.eqz (ref.test (ref $Symbol) (local.get $name)))
@@ -40452,6 +40453,17 @@
 
                (local.set $field-count (i32.add (local.get $super-count)
                                                 (i32.add (local.get $init) (local.get $auto))))
+
+               ;; --- Guard ---
+               ;; Optional guard defaults to #f. If present, it must be a procedure.
+               (local.set $guard-checked (local.get $guard))
+               (if (ref.eq (local.get $guard-checked) (global.get $missing))
+                   (then (local.set $guard-checked (global.get $false))))
+               (if (i32.and
+                    (i32.eqz (ref.eq (local.get $guard-checked) (global.get $false)))
+                    (i32.eqz (ref.test (ref $Procedure) (local.get $guard-checked))))
+                   (then (call $raise-argument-error (local.get $guard-checked))
+                         (unreachable)))
 
                ;; --- Initialize property tables ---
                (local.set $props-new   (call $struct-type-property-table-empty))
@@ -40495,7 +40507,7 @@
                                 (local.get $inspector)
                                 (local.get $proc-spec)
                                 (local.get $immutables)
-                                (local.get $guard)
+                                (local.get $guard-checked)
                                 (local.get $constructor-name)))
                (local.set $struct-name (struct.get $StructType $name (local.get $std)))
 
@@ -40684,6 +40696,7 @@
 
         (elem declare funcref
               (ref.func $struct-constructor/no-guard)       ; closure body
+              (ref.func $struct-constructor/with-guard)     ; closure body
               (ref.func $struct-accessor)                   ; closure body
               (ref.func $struct-mutator)                    ; closure body
               (ref.func $struct-predicate)                  ; closure body
@@ -40700,7 +40713,6 @@
               (ref.func $invoke-composed-procedure)
               (ref.func $code:case-lambda-dispatch)
               (ref.func $invoke-case-closure)
-              #;(ref.func $struct-constructor/with-guard)
 
               ;; Primitive invokers for the different shapes
               ,@(for/list ([shape (in-list primitive-shapes)])
@@ -40783,14 +40795,11 @@
                                                 (else (local.get $constructor-name))))
 
                ;; Choose code based on guard
-               ;;  TODO We are ignoring guards for now.
-               #;(local.set $code
+               (local.set $code
                           (if (result (ref $ClosureCode))
                               (ref.eq (local.get $guard) (global.get $false))
                               (then (ref.func $struct-constructor/no-guard))
                               (else (ref.func $struct-constructor/with-guard))))
-
-               (local.set $code (ref.func $struct-constructor/no-guard))
 
                ;; Build free array
                (local.set $free
@@ -41303,8 +41312,8 @@
                ,@(make-predicate-body '$StructMutatorProcedure))
 
 
-         ;; TODO
-         #;(func $struct-constructor/with-guard
+         (func $struct-constructor/with-guard
+               (type $ClosureCode)
                (param $clos (ref $Closure))
                (param $args (ref $Args))
                (result (ref eq))
@@ -41316,52 +41325,83 @@
                (local $auto-values  (ref eq))
                (local $name         (ref eq))
                (local $field-count  i32)
+               (local $init-count   i32)
+               (local $i            i32)
                (local $arr          (ref $Array))
                (local $g-args       (ref $Args))
-               (local $guard        (ref $Closure))
+               (local $init-args    (ref $Args))
+               (local $guard        (ref $Procedure))
+               (local $guard-invoke (ref $ProcedureInvoker))
                (local $result       (ref eq))
+               (local $vals         (ref $Values))
 
-               (local.set $free         (struct.get $Closure 1 (local.get $clos)))
+               (local.set $free         (struct.get $Closure $free (local.get $clos)))
                (local.set $std          (ref.cast (ref $StructType) (array.get $Free (local.get $free) (i32.const 0))))
                (local.set $init-indices (array.get $Free (local.get $free) (i32.const 1)))
                (local.set $auto-indices (array.get $Free (local.get $free) (i32.const 2)))
                (local.set $auto-values  (array.get $Free (local.get $free) (i32.const 3)))
                (local.set $name         (array.get $Free (local.get $free) (i32.const 4)))
                (local.set $field-count  (struct.get $StructType $field-count (local.get $std)))
-               (local.set $guard        (ref.cast (ref $Closure) (struct.get $StructType $guard (local.get $std))))
+               (local.set $init-count   (call $length/i32 (local.get $init-indices)))
+               (local.set $guard        (ref.cast (ref $Procedure) (struct.get $StructType $guard (local.get $std))))
+               (local.set $guard-invoke (struct.get $Procedure $invoke (local.get $guard)))
 
-               ;; Make $arr and fill it
-               (local.set $arr (array.new_default $Array (global.get $false) (local.get $field-count)))
-               (call $fill-fields-from-args (local.get $arr) (local.get $init-indices) (local.get $args))
+               ;; Call guard with all constructor init arguments plus the struct name.
+               (local.set $g-args (array.new $Args (global.get $false)
+                                              (i32.add (local.get $init-count) (i32.const 1))))
+               (local.set $i (i32.const 0))
+               (block $done-copy-guard-args
+                      (loop $copy-guard-args
+                            (br_if $done-copy-guard-args (i32.ge_u (local.get $i) (local.get $init-count)))
+                            (array.set $Args (local.get $g-args) (local.get $i)
+                                       (array.get $Args (local.get $args) (local.get $i)))
+                            (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                            (br $copy-guard-args)))
+               (array.set $Args (local.get $g-args) (local.get $init-count) (local.get $name))
+               (local.set $result
+                          (call_ref $ProcedureInvoker
+                                    (local.get $guard)
+                                    (local.get $g-args)
+                                    (local.get $guard-invoke)))
+
+               ;; The guard returns the replacement init arguments.
+               (local.set $init-args (array.new $Args (global.get $false) (local.get $init-count)))
+               (if (i32.eqz (local.get $init-count))
+                   (then (drop (call $expect-zero-values (local.get $result))))
+                   (else
+                    (if (i32.eq (local.get $init-count) (i32.const 1))
+                        (then
+                         (array.set $Args (local.get $init-args) (i32.const 0)
+                                    (call $expect-one-value (local.get $result))))
+                        (else
+                         (local.set $vals (call $expect-n-values
+                                                (local.get $result)
+                                                (local.get $init-count)))
+                         (local.set $i (i32.const 0))
+                         (block $done-copy-results
+                                (loop $copy-results
+                                      (br_if $done-copy-results (i32.ge_u (local.get $i) (local.get $init-count)))
+                                      (array.set $Args (local.get $init-args) (local.get $i)
+                                                 (array.get $Values (local.get $vals) (local.get $i)))
+                                      (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                                      (br $copy-results)))))))
+
+               ;; Make $arr and fill it from guarded init results.
+               (local.set $arr (array.new $Array (global.get $false) (local.get $field-count)))
+               (call $fill-fields-from-args (local.get $arr) (local.get $init-indices) (local.get $init-args))
                (call $fill-fields-from-values (local.get $arr) (local.get $auto-indices) (local.get $auto-values))
 
-               ;; Build closure call: [clos, #f, ...fields, name]
-               (local.set $g-args (array.new_default $Args (global.get $false) (i32.add (local.get $field-count) (i32.const 2))))
-               (array.set $Args (local.get $g-args) (i32.const 0) (local.get $guard)) ;; closure
-               (array.set $Args (local.get $g-args) (i32.const 1) (global.get $false)) ;; tail-call = #f
-
-               ;; Copy fields into args
-               (local $i i32)
-               (local.set $i (i32.const 0))
-               (block $done
-                      (loop $loop
-                            (br_if $done (i32.ge_u (local.get $i) (local.get $field-count)))
-                            (array.set $Args (local.get $g-args)
-                                       (i32.add (local.get $i) (i32.const 2))
-                                       (array.get $Array (local.get $arr) (local.get $i)))
-                            (local.set $i (i32.add (local.get $i) (i32.const 1)))
-                            (br $loop)))
-
-               ;; Add struct name at the end
-               (array.set $Args (local.get $g-args)
-                          (i32.add (local.get $field-count) (i32.const 2))
-                          (local.get $name))
-
-               ;; Call guard
-               (local.set $result (call_indirect (type $clos-call-type) (local.get $guard) (local.get $g-args)))
-
-               ;; Use returned struct
-               (local.get $result))
+               (struct.new $Struct
+                           ; $Heap
+                           (i32.const 0)             ;; hash
+                           ; $Procedure
+                           (local.get $name)         ;; $false or a $Symbol
+                           ,(Imm 0)                  ;; fixnum (i31 with lsb=0) or (arity-at-least n)
+                           ,(Imm #f)                 ;; $false or $Symbol
+                           (ref.func $invoke-struct)
+                           ; $Struct
+                           (local.get $std)
+                           (local.get $arr)))
 
          ; (call $fill-fields-from-args   (local.get $arr) (local.get $init-indices) (local.get $args))
 

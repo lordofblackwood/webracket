@@ -269,15 +269,25 @@ inherited property value through the imported accessor. The compiled program
 continues to use WebRacket-native `$make-struct-type-property` and
 `$make-struct-type`, not Chez record helpers.
 
+Struct constructor guards now run through the WebRacket-native constructor
+path. The runtime canonicalizes an omitted guard to `#f`, validates an explicit
+guard as a procedure, calls the guard with constructor init fields plus the
+struct name, and uses the returned values as replacement init fields before
+allocating the struct. The module bridge has positive coverage for a guard that
+transforms fields across slices and negative coverage for a guard that returns
+the wrong number of values.
+
 ## Proposed Next Implementation Milestone
 
-Add a WebRacket-target unsupported-struct diagnostic pass:
+Add WebRacket-native prefab struct support:
 
-- Detect complex struct forms that WebRacket does not yet support, such as
-  guards, prefab UID lookup, and impersonator/chaperone access paths.
-- Fail with a targeted unsupported-struct message before lower/adapter code sees
-  Chez-only helpers or otherwise confusing downstream forms.
+- Define the runtime representation and lookup table for prefab keys.
+- Preserve or translate generated prefab struct forms to that runtime support.
+- Add bridge/runtime smokes showing that matching prefab keys share the same
+  struct type identity and field layout.
 
 That milestone should include small tests showing:
 
-- a guarded/property-heavy struct is still rejected explicitly.
+- repeated prefab construction with the same key uses the same type
+- prefab instances work across composed slices
+- unsupported prefab shapes fail with a targeted diagnostic

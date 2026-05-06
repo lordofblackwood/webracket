@@ -239,7 +239,7 @@
 
 ; [x] generating string and symbol constants for use in the runtime
 
-; [ ] Implement guards for structs.
+; [x] Implement guards for structs.
 
 ; [x] String ports.
 

@@ -738,6 +738,103 @@
           (with-handlers ([exn:fail:filesystem? void])
             (delete-directory/files dir)))))))
 
+(unless (or (getenv "WEBIFY_SKIP_CLI_SMOKE")
+            (getenv "WEBIFY_SKIP_RUNTIME_SMOKE"))
+  (test-case "linklet composer runs struct constructor guard across slices"
+    (define source-dir (make-temporary-file "webracket-struct-guard-run-src-~a" 'directory))
+    (define dest-dir   (make-temporary-file "webracket-struct-guard-run-dest-~a" 'directory))
+    (define source-path (build-path source-dir "struct-guard-run.rkt"))
+    (dynamic-wind
+      void
+      (lambda ()
+        (define-values (combined _fragments _instances _exports-infos)
+          (compose-linklet-first-slices
+           (list
+            (webify-linklet-slice-spec
+             'guarded-point-provider
+             '(linklet () (make-guarded-point guarded-point-ref)
+                (define-values (struct:guarded-point make-guarded-point guarded-point?
+                                                     guarded-point-ref guarded-point-set!)
+                  (make-struct-type 'guarded-point #f 2 0 #f null #f #f #f
+                                    (lambda (x y name)
+                                      (values (+ x 1) (+ y 2))))))
+             '())
+            (webify-linklet-slice-spec
+             'guarded-point-user
+             '(linklet (([make-guarded-point make-guarded-point]
+                         [guarded-point-ref guarded-point-ref])) (out)
+                (define-values (p)
+                  (make-guarded-point 3 8))
+                (define-values (out)
+                  (+ (guarded-point-ref p 0)
+                     (guarded-point-ref p 1))))
+             '((make-guarded-point guarded-point-provider make-guarded-point)
+               (guarded-point-ref guarded-point-provider guarded-point-ref))))
+           #:tail '((js-log out))))
+        (define wat (wat-string (comp (datum->syntax #f combined))))
+        (check-true (string-contains? wat "$struct-constructor/with-guard"))
+        (check-true (string-contains? wat "$make-struct-type"))
+        (check-false (string-contains? wat "make-record-type-descriptor"))
+        (check-false (string-contains? wat "unsafe-struct*"))
+        (write-datum-program! source-path combined)
+        (define-values (status output)
+          (run-webracket (list "--no-stdlib"
+                               "-r"
+                               "--dest" (path->string dest-dir)
+                               (path->string source-path))
+                         source-dir))
+        (check-equal? status 0 output)
+        (check-regexp-match #rx"(?m:^14$)" output))
+      (lambda ()
+        (for ([dir (in-list (list source-dir dest-dir))])
+          (with-handlers ([exn:fail:filesystem? void])
+            (delete-directory/files dir)))))))
+
+(unless (or (getenv "WEBIFY_SKIP_CLI_SMOKE")
+            (getenv "WEBIFY_SKIP_RUNTIME_SMOKE"))
+  (test-case "linklet composer rejects wrong arity struct guard results"
+    (define source-dir (make-temporary-file "webracket-struct-guard-bad-src-~a" 'directory))
+    (define dest-dir   (make-temporary-file "webracket-struct-guard-bad-dest-~a" 'directory))
+    (define source-path (build-path source-dir "struct-guard-bad.rkt"))
+    (dynamic-wind
+      void
+      (lambda ()
+        (define-values (combined _fragments _instances _exports-infos)
+          (compose-linklet-first-slices
+           (list
+            (webify-linklet-slice-spec
+             'bad-guard-provider
+             '(linklet () (make-bad-guarded)
+                (define-values (struct:bad-guarded make-bad-guarded bad-guarded?
+                                                   bad-guarded-ref bad-guarded-set!)
+                  (make-struct-type 'bad-guarded #f 2 0 #f null #f #f #f
+                                    (lambda (x y name)
+                                      (values x)))))
+             '())
+            (webify-linklet-slice-spec
+             'bad-guard-user
+             '(linklet (([make-bad-guarded make-bad-guarded])) (out)
+                (define-values (out)
+                  (make-bad-guarded 1 2)))
+             '((make-bad-guarded bad-guard-provider make-bad-guarded))))
+           #:tail '((js-log out))))
+        (define wat (wat-string (comp (datum->syntax #f combined))))
+        (check-true (string-contains? wat "$struct-constructor/with-guard"))
+        (check-false (string-contains? wat "make-record-type-descriptor"))
+        (write-datum-program! source-path combined)
+        (define-values (status output)
+          (run-webracket (list "--no-stdlib"
+                               "-r"
+                               "--dest" (path->string dest-dir)
+                               (path->string source-path))
+                         source-dir))
+        (check-not-equal? status 0 output)
+        (check-regexp-match #rx"expect-n-values|raise-wrong-number-of-values-received" output))
+      (lambda ()
+        (for ([dir (in-list (list source-dir dest-dir))])
+          (with-handlers ([exn:fail:filesystem? void])
+            (delete-directory/files dir)))))))
+
 
 (module+ main
   (void))
