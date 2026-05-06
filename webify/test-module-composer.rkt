@@ -849,7 +849,7 @@
            (list
             (webify-linklet-slice-spec
              'prefab-maker-a
-             '(linklet () (a-point auto-point mutable-cell one-point-value)
+             '(linklet () (a-point auto-point mutable-cell mutable-triple one-point-value)
                 (define-values (struct:prefab-point/one make-prefab-point/one prefab-point/one?
                                                         prefab-point/one-ref prefab-point/one-set!)
                   (make-struct-type 'prefab-point #f 1 0 #f #f 'prefab))
@@ -865,13 +865,16 @@
                 (define-values (auto-point)
                   (make-prefab-struct '(prefab-auto 1 (1 #f) #()) 42))
                 (define-values (mutable-cell)
-                  (make-prefab-struct '(prefab-cell 2 (0 #f) #(1)) 10 20)))
+                  (make-prefab-struct '(prefab-cell 2 (0 #f) #(1)) 10 20))
+                (define-values (mutable-triple)
+                  (make-prefab-struct '(prefab-triple 3 (0 #f) #(0 2)) 1 2 3)))
              '())
             (webify-linklet-slice-spec
              'prefab-maker-b
              '(linklet (([a-point a-point]
                          [auto-point auto-point]
-                         [mutable-cell mutable-cell])) (out)
+                         [mutable-cell mutable-cell]
+                         [mutable-triple mutable-triple])) (out)
                 (define-values (struct:prefab-point make-prefab-point prefab-point?
                                                     prefab-point-ref prefab-point-set!)
                   (make-struct-type 'prefab-point #f 2 0 #f #f 'prefab))
@@ -881,6 +884,9 @@
                 (define-values (struct:prefab-cell make-prefab-cell prefab-cell?
                                                    prefab-cell-ref prefab-cell-set!)
                   (make-struct-type 'prefab-cell #f 2 0 #f #f 'prefab #f '(0)))
+                (define-values (struct:prefab-triple make-prefab-triple prefab-triple?
+                                                     prefab-triple-ref prefab-triple-set!)
+                  (make-struct-type 'prefab-triple #f 3 0 #f #f 'prefab #f '(1)))
                 (define-values (type-info)
                   (prefab-struct-type-key+field-count struct:prefab-point))
                 (define-values (auto-type-info)
@@ -890,6 +896,8 @@
                 (define-values (mutated)
                   (begin
                     (prefab-cell-set! mutable-cell 1 42)
+                    (prefab-triple-set! mutable-triple 0 10)
+                    (prefab-triple-set! mutable-triple 2 30)
                     (void)))
                 (define-values (out)
                   (if (and (prefab-key? 'prefab-point)
@@ -898,12 +906,16 @@
                            (prefab-key? '(prefab-point 2 (0 #f) #()))
                            (prefab-key? '(prefab-auto 1 (1 #f) #()))
                            (prefab-key? '(prefab-cell 2 (0 #f) #(1)))
+                           (prefab-key? '(prefab-triple 3 (0 #f) #(0 2)))
+                           (not (prefab-key? '(prefab-triple 3 (0 #f) #(0 0))))
                            (eq? (prefab-struct-key a-point) 'prefab-point)
                            (eq? (prefab-struct-key made-here) 'prefab-point)
                            (equal? (prefab-struct-key auto-point)
                                    '(prefab-auto 1 (1 #f) #()))
                            (equal? (prefab-struct-key mutable-cell)
                                    '(prefab-cell 2 (0 #f) #(1)))
+                           (equal? (prefab-struct-key mutable-triple)
+                                   '(prefab-triple 3 (0 #f) #(0 2)))
                            (eq? (car type-info) 'prefab-point)
                            (= (cdr type-info) 2)
                            (equal? (car auto-type-info)
@@ -911,12 +923,16 @@
                            (= (cdr auto-type-info) 2)
                            (eq? (prefab-auto-ref auto-point 1) #f)
                            (= (prefab-cell-ref mutable-cell 0) 10)
-                           (= (prefab-cell-ref mutable-cell 1) 42))
+                           (= (prefab-cell-ref mutable-cell 1) 42)
+                           (= (prefab-triple-ref mutable-triple 0) 10)
+                           (= (prefab-triple-ref mutable-triple 1) 2)
+                           (= (prefab-triple-ref mutable-triple 2) 30))
                       (prefab-auto-ref auto-point 0)
                       0)))
              '((a-point prefab-maker-a a-point)
                (auto-point prefab-maker-a auto-point)
-               (mutable-cell prefab-maker-a mutable-cell))))
+               (mutable-cell prefab-maker-a mutable-cell)
+               (mutable-triple prefab-maker-a mutable-triple))))
            #:tail '((js-log out))))
         (define wat (wat-string (comp (datum->syntax #f combined))))
         (check-true (string-contains? wat "$prefab-struct-type-registry"))
@@ -997,13 +1013,13 @@
              '(linklet () (out)
                 (define-values (struct:prefab-cell make-prefab-cell prefab-cell?
                                                    prefab-cell-ref prefab-cell-set!)
-                  (make-struct-type 'prefab-cell #f 2 0 #f #f 'prefab #f '(0)))
+                  (make-struct-type 'prefab-cell #f 3 0 #f #f 'prefab #f '(1)))
                 (define-values (cell)
-                  (make-prefab-struct '(prefab-cell 2 (0 #f) #(1)) 10 20))
+                  (make-prefab-struct '(prefab-cell 3 (0 #f) #(0 2)) 10 20 30))
                 (define-values (out)
                   (begin
-                    (prefab-cell-set! cell 0 99)
-                    (prefab-cell-ref cell 0))))
+                    (prefab-cell-set! cell 1 99)
+                    (prefab-cell-ref cell 1))))
              '()))
            #:tail '((js-log out))))
         (define wat (wat-string (comp (datum->syntax #f combined))))

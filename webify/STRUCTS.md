@@ -296,23 +296,22 @@ used by `make-struct-type ... 'prefab`, while `prefab-struct-key` and
 That bridge now includes auto-field keys with `#f` auto values, such as
 `'(name 1 (1 #f) #())`; constructor calls provide only the non-auto fields,
 and the generated struct stores `#f` in the auto fields. Single-index mutable
-field masks are supported too, such as `'(cell 2 (0 #f) #(1))`. The mutable
-mask participates in prefab interning and normalized public keys, and the
-runtime mutator rejects writes to prefab fields that are not in the supported
-mutable mask. Unsupported multi-index mutable vectors, non-`#f` auto values,
-and prefab supertypes remain outside the accepted subset.
+field masks and multi-field mutable masks are supported too, such as
+`'(cell 2 (0 #f) #(1))` and `'(triple 3 (0 #f) #(0 2))`. The mutable mask
+participates in prefab interning and normalized public keys, and the runtime
+mutator rejects writes to prefab fields that are not in the mask. Duplicate
+mutable indexes, out-of-range mutable indexes, non-`#f` auto values, and
+prefab supertypes remain outside the accepted subset.
 
 ## Proposed Next Implementation Milestone
 
-Extend prefab support beyond the no-super/single-mutable-index subset:
+Extend prefab support beyond the no-super/`#f`-auto subset:
 
-- Generalize mutable-field masks/vectors beyond the single-index case.
 - Decide how to intern prefab keys with arbitrary auto values, then support
   non-`#f` auto values.
 - Support prefab supertypes by normalizing and interning the full key chain.
 
 That milestone should include small tests showing:
 
-- Multiple mutable prefab fields enforce the mutable mask through mutators.
 - Distinct non-`#f` auto values produce distinct prefab types.
 - A prefab subtype shares its normalized supertype across slices.

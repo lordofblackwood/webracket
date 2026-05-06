@@ -1388,26 +1388,34 @@
 (define webracket-prefab-instance-keys (make-weak-hasheq))
 (define webracket-prefab-type-info    (make-weak-hasheq))
 
-(define (webracket-simple-prefab-public-key name init-count auto-count mutable-index)
-  (if (and (zero? auto-count) (not mutable-index))
+(define (webracket-simple-prefab-public-key name init-count auto-count mutables)
+  (if (and (zero? auto-count) (zero? (vector-length mutables)))
       name
       (list name
             init-count
             (list auto-count #f)
-            (if mutable-index (vector mutable-index) #()))))
+            mutables)))
 
 (define (webracket-simple-prefab-key-info key init-field-count)
   (define (valid-count? v) (exact-nonnegative-integer? v))
-  (define (info name init-count auto-count mutable-index)
+  (define (valid-mutables? v total-count)
+    (and (vector? v)
+         (for/and ([m (in-vector v)]
+                   [i (in-naturals)])
+           (and (exact-nonnegative-integer? m)
+                (< m total-count)
+                (not (for/or ([seen (in-vector v 0 i)])
+                       (= seen m)))))))
+  (define (info name init-count auto-count mutables)
     (list name
           init-count
           auto-count
-          mutable-index
+          mutables
           (+ init-count auto-count)
-          (webracket-simple-prefab-public-key name init-count auto-count mutable-index)))
+          (webracket-simple-prefab-public-key name init-count auto-count mutables)))
   (cond
     [(symbol? key)
-     (info key (or init-field-count 0) 0 #f)]
+     (info key (or init-field-count 0) 0 #())]
     [(and (list? key)
           (or (= (length key) 1)
               (= (length key) 2)
@@ -1425,19 +1433,13 @@
                    (valid-count? (car (caddr key)))
                    (eq? (cadr (caddr key)) #f)))
           (or (< (length key) 4)
-              (and (vector? (cadddr key))
-                   (<= (vector-length (cadddr key)) 1))))
+              (vector? (cadddr key))))
      (define init-count (if (= (length key) 1) (or init-field-count 0) (cadr key)))
      (define auto-count (if (< (length key) 3) 0 (car (caddr key))))
-     (define mutable-index
-       (and (= (length key) 4)
-            (= (vector-length (cadddr key)) 1)
-            (vector-ref (cadddr key) 0)))
+     (define mutables (if (= (length key) 4) (cadddr key) #()))
      (and init-count
-          (or (not mutable-index)
-              (and (exact-nonnegative-integer? mutable-index)
-                   (< mutable-index (+ init-count auto-count))))
-          (info (car key) init-count auto-count mutable-index))]
+          (valid-mutables? mutables (+ init-count auto-count))
+          (info (car key) init-count auto-count mutables))]
     [else #f]))
 
 (define (prefab-key? key)
