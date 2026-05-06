@@ -4448,6 +4448,8 @@
                       (define p/auto (make-prefab-struct '(prefab-auto 1 (1 #f) #()) 42))
                       (define p/auto-zero (make-prefab-struct '(prefab-auto-value 1 (1 0) #()) 42))
                       (define p/auto-one (make-prefab-struct '(prefab-auto-value 1 (1 1) #()) 42))
+                      (define p/auto-list (make-prefab-struct '(prefab-auto-list 1 (1 (0 marker)) #()) 42))
+                      (define p/auto-vector (make-prefab-struct '(prefab-auto-vector 1 (1 #(0 marker)) #()) 42))
                       (define p/mutable (make-prefab-struct '(prefab-cell 2 (0 #f) #(1)) 10 20))
                       (define p/multi (make-prefab-struct '(prefab-multi 3 (0 #f) #(0 2)) 1 2 3))
                       (define-values (struct:prefab-point make-prefab-point prefab-point?
@@ -4462,6 +4464,12 @@
                       (define-values (struct:prefab-auto-value/one make-prefab-auto-value/one prefab-auto-value/one?
                                                                    prefab-auto-value/one-ref prefab-auto-value/one-set!)
                         (make-struct-type 'prefab-auto-value #f 1 1 1 #f 'prefab))
+                      (define-values (struct:prefab-auto-list make-prefab-auto-list prefab-auto-list?
+                                                              prefab-auto-list-ref prefab-auto-list-set!)
+                        (make-struct-type 'prefab-auto-list #f 1 1 '(0 marker) #f 'prefab))
+                      (define-values (struct:prefab-auto-vector make-prefab-auto-vector prefab-auto-vector?
+                                                                prefab-auto-vector-ref prefab-auto-vector-set!)
+                        (make-struct-type 'prefab-auto-vector #f 1 1 '#(0 marker) #f 'prefab))
                       (define-values (struct:prefab-cell make-prefab-cell prefab-cell?
                                                          prefab-cell-ref prefab-cell-set!)
                         (make-struct-type 'prefab-cell #f 2 0 #f #f 'prefab #f '(0)))
@@ -4480,6 +4488,8 @@
                            (prefab-key? '(prefab-auto 1 (1 #f) #()))
                            (prefab-key? '(prefab-auto-value 1 (1 0) #()))
                            (prefab-key? '(prefab-auto-value 1 (1 1) #()))
+                           (prefab-key? '(prefab-auto-list 1 (1 (0 marker)) #()))
+                           (prefab-key? '(prefab-auto-vector 1 (1 #(0 marker)) #()))
                            (prefab-key? '(prefab-cell 2 (0 #f) #(1)))
                            (prefab-key? '(prefab-multi 3 (0 #f) #(0 2)))
                            (not (prefab-key? '(prefab-multi 3 (0 #f) #(0 0))))
@@ -4487,6 +4497,8 @@
                            (equal? (prefab-struct-key p/auto) '(prefab-auto 1 (1 #f) #()))
                            (equal? (prefab-struct-key p/auto-zero) '(prefab-auto-value 1 (1 0) #()))
                            (equal? (prefab-struct-key p/auto-one) '(prefab-auto-value 1 (1 1) #()))
+                           (equal? (prefab-struct-key p/auto-list) '(prefab-auto-list 1 (1 (0 marker)) #()))
+                           (equal? (prefab-struct-key p/auto-vector) '(prefab-auto-vector 1 (1 #(0 marker)) #()))
                            (equal? (prefab-struct-key p/mutable) '(prefab-cell 2 (0 #f) #(1)))
                            (equal? (prefab-struct-key p/multi) '(prefab-multi 3 (0 #f) #(0 2)))
                            (equal? (prefab-point-ref p 0) 11)
@@ -4497,6 +4509,8 @@
                            (equal? (prefab-auto-value/zero-ref p/auto-zero 1) 0)
                            (equal? (prefab-auto-value/one-ref p/auto-one 0) 42)
                            (equal? (prefab-auto-value/one-ref p/auto-one 1) 1)
+                           (equal? (prefab-auto-list-ref p/auto-list 1) '(0 marker))
+                           (equal? (prefab-auto-vector-ref p/auto-vector 1) '#(0 marker))
                            (equal? (prefab-cell-ref p/mutable 0) 10)
                            (equal? (prefab-cell-ref p/mutable 1) 99)
                            (equal? (prefab-multi-ref p/multi 0) 10)

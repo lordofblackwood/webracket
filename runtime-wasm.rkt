@@ -40381,7 +40381,12 @@
                (param $v (ref eq))
                (result   i32)
 
-               (local $raw i32)
+               (local $raw    i32)
+               (local $cursor (ref eq))
+               (local $cell   (ref $Pair))
+               (local $vec    (ref $Vector))
+               (local $i      i32)
+               (local $len    i32)
 
                (if (ref.eq (local.get $v) (global.get $false))
                    (then (return (i32.const 1))))
@@ -40400,9 +40405,42 @@
                     (local.set $raw (i31.get_u (ref.cast (ref i31) (local.get $v))))
                     (if (i32.or
                          (i32.eqz (i32.and (local.get $raw) (i32.const 1)))
-                         (i32.eq (i32.and (local.get $raw) (i32.const ,char-mask))
+                        (i32.eq (i32.and (local.get $raw) (i32.const ,char-mask))
                                  (i32.const ,char-tag)))
                         (then (return (i32.const 1))))))
+               (if (i32.and
+                    (ref.test (ref $Pair) (local.get $v))
+                    (ref.eq (call $list? (local.get $v)) (global.get $true)))
+                   (then
+                    (local.set $cursor (local.get $v))
+                    (block $done-list
+                           (loop $check-list
+                                 (br_if $done-list (ref.eq (local.get $cursor) (global.get $null)))
+                                 (local.set $cell (ref.cast (ref $Pair) (local.get $cursor)))
+                                 (if (i32.eqz
+                                      (call $simple-prefab-auto-value-supported?/i32
+                                            (struct.get $Pair $a (local.get $cell))))
+                                     (then (return (i32.const 0))))
+                                 (local.set $cursor (struct.get $Pair $d (local.get $cell)))
+                                 (br $check-list)))
+                    (return (i32.const 1))))
+               (if (ref.test (ref $Vector) (local.get $v))
+                   (then
+                    (local.set $vec (ref.cast (ref $Vector) (local.get $v)))
+                    (local.set $len (call $vector-length/checked/i32 (local.get $vec)))
+                    (local.set $i (i32.const 0))
+                    (block $done-vector
+                           (loop $check-vector
+                                 (br_if $done-vector (i32.ge_u (local.get $i) (local.get $len)))
+                                 (if (i32.eqz
+                                      (call $simple-prefab-auto-value-supported?/i32
+                                            (array.get $Array
+                                                       (struct.get $Vector $arr (local.get $vec))
+                                                       (local.get $i))))
+                                     (then (return (i32.const 0))))
+                                 (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                                 (br $check-vector)))
+                    (return (i32.const 1))))
                (i32.const 0))
 
          ;; simple-prefab-auto-value-registry-fragment : any/c -> string?
@@ -40414,6 +40452,12 @@
                (local $type-code i32)
                (local $content   (ref $String))
                (local $raw       i32)
+               (local $cursor    (ref eq))
+               (local $cell      (ref $Pair))
+               (local $vec       (ref $Vector))
+               (local $i         i32)
+               (local $len       i32)
+               (local $elem      (ref eq))
 
                (local.set $type-code (i32.const 0))
                (local.set $content (ref.cast (ref $String) (global.get $string:empty)))
@@ -40479,11 +40523,80 @@
                    (then
                     (local.set $type-code (i32.const 7))
                     (local.set $content (ref.cast (ref $String) (local.get $v)))))
+               (if (i32.and
+                    (ref.test (ref $Pair) (local.get $v))
+                    (ref.eq (call $list? (local.get $v)) (global.get $true)))
+                   (then
+                    (local.set $type-code (i32.const 8))
+                    (local.set $content
+                               (ref.cast
+                                (ref $String)
+                                (call $number->string
+                                      (ref.i31
+                                       (i32.shl
+                                        (call $length/i32 (local.get $v))
+                                        (i32.const 1)))
+                                      (global.get $missing))))
+                    (local.set $cursor (local.get $v))
+                    (block $done-list
+                           (loop $walk-list
+                                 (br_if $done-list (ref.eq (local.get $cursor) (global.get $null)))
+                                 (local.set $cell (ref.cast (ref $Pair) (local.get $cursor)))
+                                 (local.set $content
+                                            (call $string-append/2
+                                                  (call $string-append/2
+                                                        (local.get $content)
+                                                        (global.get $string:colon))
+                                                  (call $simple-prefab-auto-value-registry-fragment
+                                                        (struct.get $Pair $a (local.get $cell)))))
+                                 (local.set $cursor (struct.get $Pair $d (local.get $cell)))
+                                 (br $walk-list)))))
+               (if (ref.test (ref $Vector) (local.get $v))
+                   (then
+                    (local.set $type-code (i32.const 9))
+                    (local.set $vec (ref.cast (ref $Vector) (local.get $v)))
+                    (local.set $len (call $vector-length/checked/i32 (local.get $vec)))
+                    (local.set $content
+                               (ref.cast
+                                (ref $String)
+                                (call $number->string
+                                      (ref.i31 (i32.shl (local.get $len) (i32.const 1)))
+                                      (global.get $missing))))
+                    (local.set $i (i32.const 0))
+                    (block $done-vector
+                           (loop $walk-vector
+                                 (br_if $done-vector (i32.ge_u (local.get $i) (local.get $len)))
+                                 (local.set $elem
+                                            (array.get $Array
+                                                       (struct.get $Vector $arr (local.get $vec))
+                                                       (local.get $i)))
+                                 (local.set $content
+                                            (call $string-append/2
+                                                  (call $string-append/2
+                                                        (local.get $content)
+                                                        (global.get $string:colon))
+                                                  (call $simple-prefab-auto-value-registry-fragment
+                                                        (local.get $elem))))
+                                 (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                                 (br $walk-vector)))))
                (call $string-append/2
                      (call $string-append/2
-                           (call $number->string
-                                 (ref.i31 (i32.shl (local.get $type-code) (i32.const 1)))
-                                 (global.get $missing))
+                           (call $string-append/2
+                                 (call $string-append/2
+                                       (ref.cast
+                                        (ref $String)
+                                        (call $number->string
+                                              (ref.i31 (i32.shl (local.get $type-code) (i32.const 1)))
+                                              (global.get $missing)))
+                                       (global.get $string:colon))
+                                 (ref.cast
+                                  (ref $String)
+                                  (call $number->string
+                                        (ref.i31
+                                         (i32.shl
+                                          (call $string-length/checked/i32 (local.get $content))
+                                          (i32.const 1)))
+                                        (global.get $missing))))
                            (global.get $string:colon))
                      (local.get $content)))
 

@@ -1395,7 +1395,12 @@
       (exact-integer? v)
       (char? v)
       (symbol? v)
-      (string? v)))
+      (string? v)
+      (and (list? v)
+           (andmap webracket-simple-prefab-auto-value? v))
+      (and (vector? v)
+           (for/and ([elem (in-vector v)])
+             (webracket-simple-prefab-auto-value? elem)))))
 
 (define (webracket-simple-prefab-public-key name init-count auto-count auto-value mutables)
   (if (and (zero? auto-count) (zero? (vector-length mutables)))
