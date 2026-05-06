@@ -294,6 +294,52 @@ This milestone means the bridge can compose real first-slice linklets. The
 caller still supplies the dependency order and import-source mapping explicitly;
 there is still no module registry or namespace lookup.
 
+## Module Registry
+
+`webify/module-registry.rkt` adds a small named-entry layer above the linklet
+composer. It is still not a namespace and it does not load modules lazily. It
+just stores linklet datums and flat import-source metadata next to a symbolic
+name:
+
+```racket
+(define registry
+  (make-webify-module-registry))
+
+(webify-module-registry-add!
+ registry
+ 'a
+ '(linklet () (x)
+    (define-values (x) 10)))
+
+(webify-module-registry-add!
+ registry
+ 'b
+ '(linklet (([ext-x x])) (y)
+    (define-values (y) x))
+ #:imports '((ext-x a x)))
+```
+
+`webify-compose-module-registry` converts the requested entries to linklet
+slice specs and delegates to `webify-compose-linklet-first-slices`:
+
+```racket
+(webify-compose-module-registry registry '(a b) ...)
+```
+
+The registry stores imports in the flat form `((ext-x a x))`. During
+composition, the linklet composer groups those triples according to the actual
+`importss` metadata returned by `webify-linklet-first-slice`. This keeps the
+registry API small while preserving the linklet's grouped import order.
+
+The registry validates duplicate entry names, duplicate flat import names,
+unknown registry entries, and dependencies that are outside the requested
+composition order. Dependency ordering is still explicit: if `b` imports from
+`a`, callers must compose `(a b)`, not `(b a)`.
+
+This is the first step from a test harness composer toward a module-instantiation
+pipeline: named module entries now exist, but there is still no `module` form,
+namespace, `dynamic-require`, lazy instantiation, or struct translation.
+
 The composer carries reserved helper ids forward automatically. In the example
 above, A uses `webify-linklet-proc$0` and `webify-export-cell0$0`; B therefore
 gets `webify-linklet-proc$1` and `webify-export-cell0$1` without the caller

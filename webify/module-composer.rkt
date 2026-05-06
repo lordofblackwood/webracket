@@ -127,6 +127,88 @@
     [_
      (raise-argument-error who "(list/c symbol? symbol? symbol?)" source)]))
 
+;; import-source? : any/c -> boolean?
+;;   Check whether v is one flat import-source triple.
+(define (import-source? v)
+  (match v
+    [(list (? symbol?) (? symbol?) (? symbol?)) #t]
+    [_                                         #f]))
+
+;; grouped-import-sources? : any/c -> boolean?
+;;   Check whether v is a grouped import-source list.
+(define (grouped-import-sources? v)
+  (and (list? v)
+       (for/and ([group (in-list v)])
+         (and (list? group)
+              (andmap import-source? group)))))
+
+;; flat-import-sources? : any/c -> boolean?
+;;   Check whether v is a flat import-source list.
+(define (flat-import-sources? v)
+  (and (list? v)
+       (andmap import-source? v)))
+
+;; flat-import-sources->groups : symbol? symbol? (listof (listof symbol?)) (listof source?) -> (listof (listof source?))
+;;   Group flat source triples according to linklet import metadata.
+(define (flat-import-sources->groups who name importss import-sources)
+  (define imports (apply append importss))
+  (define duplicate-import (check-duplicates imports))
+  (when duplicate-import
+    (raise-arguments-error who
+                           "flat import sources cannot resolve duplicate linklet import names"
+                           "name" name
+                           "import" duplicate-import
+                           "imports" importss))
+  (define entries
+    (for/list ([source (in-list import-sources)])
+      (validate-import-source! who source)
+      (cons (car source) source)))
+  (define duplicate-source (check-duplicates (map car entries)))
+  (when duplicate-source
+    (raise-arguments-error who
+                           "duplicate import source names are not supported"
+                           "name" name
+                           "import" duplicate-source))
+  (define source-table
+    (for/hasheq ([entry (in-list entries)])
+      (values (car entry) (cdr entry))))
+  (define grouped
+    (for/list ([group (in-list importss)])
+      (for/list ([import (in-list group)])
+        (hash-ref source-table
+                  import
+                  (lambda ()
+                    (raise-arguments-error who
+                                           "missing import source"
+                                           "name" name
+                                           "import" import
+                                           "imports" importss
+                                           "available imports" (hash-keys source-table)))))))
+  (define extra-imports
+    (filter (lambda (import) (not (memq import imports)))
+            (hash-keys source-table)))
+  (unless (null? extra-imports)
+    (raise-arguments-error who
+                           "import sources reference names not imported by the linklet"
+                           "name" name
+                           "imports" extra-imports
+                           "linklet imports" importss))
+  grouped)
+
+;; normalize-linklet-import-sources : symbol? symbol? (listof (listof symbol?)) any/c -> (listof (listof source?))
+;;   Accept grouped or flat source metadata and return grouped source triples.
+(define (normalize-linklet-import-sources who name importss import-sources)
+  (cond
+    [(null? import-sources) '()]
+    [(flat-import-sources? import-sources)
+     (flat-import-sources->groups who name importss import-sources)]
+    [(grouped-import-sources? import-sources)
+     import-sources]
+    [else
+     (raise-argument-error who
+                           "(or/c (listof source-triple?) (listof (listof source-triple?)))"
+                           import-sources)]))
+
 ;; import-source->mapping : symbol? hash? any/c -> pair?
 ;;   Resolve one source triple to the mapping expected by instance import-envs.
 (define (import-source->mapping who instances source)
@@ -267,7 +349,9 @@
       (unless (all-cell-import-abis? imports-abis)
         (error who
                "value import ABIs are not supported by the linklet composer yet"))
-      (define import-sources (webify-linklet-slice-spec-import-sources spec))
+      (define raw-import-sources (webify-linklet-slice-spec-import-sources spec))
+      (define import-sources
+        (normalize-linklet-import-sources who name importss raw-import-sources))
       (when (and (null? importss)
                  (not (null? import-sources)))
         (raise-arguments-error who
