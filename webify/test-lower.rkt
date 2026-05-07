@@ -140,6 +140,16 @@
       ("hash-set!" ,table-var "n" "min-size")
       ,table-var))))
 
+(test-case "hash-set bridge records immutable hash semantic gap"
+  (define bridged
+    `(let ([h0 (make-hasheqv)])
+       (let ([h1 ,(lower-hash-iteration-ops '(hash-set h0 'a 1))])
+         (list (eq? h0 h1)
+               (hash-ref h0 'a #f)
+               (hash-ref h1 'a #f)))))
+  (check-equal? (eval bridged (make-base-namespace))
+                '(#t 1 1)))
+
 (test-case "schemify module variable assertion catches missed forms"
   (check-false (schemify-module-variable-free? '(begin (variable-ref x))))
   (check-true (schemify-module-variable-free? '(quote (variable-ref x))))

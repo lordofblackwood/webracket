@@ -11,6 +11,8 @@ See `LOWERING.md` for the first module-variable lowering slice.
 See `BRIDGE.md` for a concrete linklet-to-top-level adapter example.
 See `INSTALLED-COMPATIBILITY.md` for the evidence ladder for installed Racket
 module providers.
+See `HASH.md` for the temporary immutable-hash bridge and the Racket CS
+`intmap` model that should eventually replace it.
 
 Bridge-facing module APIs:
 
