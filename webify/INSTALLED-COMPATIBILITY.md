@@ -21,7 +21,7 @@ provider exports into top-level aliases.
 
 | Module | Current status | First blocker |
 | --- | --- | --- |
-| `racket/list` | Provider graph follows demand-driven re-export metadata and demand-slices unused `racket/private/for` exports; `first` and `rest` pass; `add-between` now gets past `unsafe-struct?` and the no-impersonator predicate path | richer `add-between` path leaves `#%app/no-return` after lowering |
+| `racket/list` | Provider graph follows demand-driven re-export metadata and demand-slices unused `racket/private/for` exports; `first` and `rest` pass; `add-between` now gets past `unsafe-struct?`, the no-impersonator predicate path, and `#%app/no-return` | richer `add-between` path leaves `raise-binding-result-arity-error` after lowering |
 
 The old `racket/list` blockers are no longer first failures:
 

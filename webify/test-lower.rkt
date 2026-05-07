@@ -84,6 +84,7 @@
   (check-false (first-slice-unsupported-free? '(with-continuation-mark* push k v body)))
   (check-false (first-slice-unsupported-free? '(unsafe-struct*-ref s 0)))
   (check-true (first-slice-unsupported-free? '(unsafe-struct? s struct:s)))
+  (check-true (first-slice-unsupported-free? '(#%app/no-return f x)))
   (check-true (first-slice-unsupported-free? '(if (impersonator? v)
                                                   (impersonator-val v)
                                                   #f)))
@@ -168,6 +169,15 @@
                     ("module-variable-define!" "x-cell" "x" ("quote" "constant"))
                     ("module-variable-define!" "y-cell" "y" ("quote" "consistent"))
                     ("void")))))
+
+(test-case "no-return compatibility app marker lowers to ordinary application"
+  (check-equal?
+   (normalize-symbols
+    (lower-module-first-slice
+     '(lambda (instance-variable-reference)
+        (#%app/no-return raise-argument-error 'f "integer?" "x"))))
+   '("lambda" ("instance-variable-reference")
+     ("raise-argument-error" ("quote" "f") "integer?" "x"))))
 
 (test-case "constant export lowers define operation"
   (define lowered

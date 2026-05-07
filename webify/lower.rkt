@@ -74,6 +74,14 @@
      (match v
        [`(#%app ,rator . ,args)
         `(,(simplify rator) . ,(simplify-list args))]
+       [`(#%app/no-return ,rator . ,args)
+        ;; Chez uses #%app/no-return as a control-flow/type-analysis marker:
+        ;; the call is operationally an application, but its result type is
+        ;; bottom. WebRacket does not currently use this marker, so the bridge
+        ;; erases it for now. Reintroduce a real marker/helper if WebRacket grows
+        ;; bottom-aware optimization, better unreachable-code validation, or
+        ;; precise source-location/error reporting for paths expected to abort.
+        `(,(simplify rator) . ,(simplify-list args))]
        [`(lambda ,formals . ,body)
         `(lambda ,formals . ,(simplify-list body))]
        [`(case-lambda [,formalss . ,bodyss] ...)
@@ -250,7 +258,6 @@
 (define (first-slice-unsupported-rator? v)
   (memq v '(#%app
             #%app/value
-            #%app/no-return
             with-continuation-mark*
             check-not-unsafe-undefined
             check-not-unsafe-undefined/assign

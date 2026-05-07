@@ -46,7 +46,9 @@ lowered before Wasm emission or assigned explicit WebRacket runtime meaning.
   `make-instance-variable-reference`, `variable-reference-constant?`, and
   `variable-reference-from-unsafe?`.
 - Application markers:
-  `#%app`, `#%app/value`, and `#%app/no-return`.
+  `#%app` and `#%app/value`. `#%app/no-return` is currently erased to an
+  ordinary application; reinstate a real marker only if WebRacket starts using
+  bottom/no-return information for optimization or unreachable-code validation.
 - Undefined checks:
   `check-not-unsafe-undefined` and `check-not-unsafe-undefined/assign`.
 - Continuation marks:

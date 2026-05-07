@@ -113,7 +113,7 @@
     '((use-list-add-between y))
     #rx"(?m:^,$)"
     '(unsupported-runtime)
-    #rx"#%app/no-return")
+    #rx"raise-binding-result-arity-error")
    (installed-runtime-smoke
     "installed racket/string graph reaches WebRacket runtime smoke"
     '((module use-string racket/base
