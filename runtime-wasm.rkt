@@ -42979,7 +42979,7 @@
                (param $auto-val         (ref eq))  ;; default value for auto fields
                (param $props            (ref eq))  ;; hash table or #f
                (param $inspector        (ref eq))  ;; inspector object or #f
-               (param $proc-spec        (ref eq))  ;; unused
+               (param $proc-spec        (ref eq))  ;; procedure, exact nonnegative integer, or #f
                (param $immutables       (ref eq))  ;; immutable mask or #f
                (param $guard            (ref eq))  ;; closure or #f
                (param $constructor-name (ref eq))  ;; symbol or #f
@@ -43125,6 +43125,21 @@
                    (then (local.set $props-list
                                     (call $hasheq->list/plain/checked
                                           (ref.cast (ref $HashEqMutable) (local.get $props-list))))))
+
+               ;; Racket specifies that a non-#f `proc-spec` is the same as
+               ;; appending `(cons prop:procedure proc-spec)` to the property
+               ;; list. Keyword-procedure support relies on this path via
+               ;; `make-optional-keyword-procedure`.
+               (if (i32.and
+                    (i32.eqz (ref.eq (local.get $proc-spec) (global.get $false)))
+                    (i32.eqz (ref.eq (local.get $proc-spec) (global.get $missing))))
+                   (then
+                    (local.set $props-list
+                               (call $cons
+                                     (call $cons
+                                           (global.get $prop:procedure)
+                                           (local.get $proc-spec))
+                                     (local.get $props-list)))))
 
                ;; --- Simple prefab support ---
                ;; WebRacket interns supported prefab types by name/init/auto shape.

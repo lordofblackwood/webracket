@@ -4451,6 +4451,23 @@
                       (define c (counter 10))
                       (and (equal? (c 5) 15)
                            (equal? (c -2) 13))))
+
+              (list "prop:procedure/proc-spec-field"
+                    (let-values ([(struct:p make-p p? p-ref p-set!)
+                                  (make-struct-type 'p #f 1 0 #f null #f 0 '(0))])
+                      (define p (make-p (lambda (x) (+ x 1))))
+                      (and (procedure? p)
+                           (equal? (p 41) 42))))
+
+              (list "prop:procedure/proc-spec-procedure"
+                    (let-values ([(struct:p make-p p? p-ref p-set!)
+                                  (make-struct-type
+                                   'p #f 1 0 #f null #f
+                                   (lambda (self delta)
+                                     (+ (p-ref self 0) delta)))])
+                      (define p (make-p 10))
+                      (and (procedure? p)
+                           (equal? (p 5) 15))))
               
               ))
 
