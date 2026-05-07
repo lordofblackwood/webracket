@@ -716,6 +716,8 @@
     prop:custom-write
     prop:equal+hash
 
+    empty-treelist
+
     struct:exn
     struct:exn:fail
     struct:exn:fail:contract

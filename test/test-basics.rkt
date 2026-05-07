@@ -3,25 +3,8 @@
 ;; These basic tests needs to work without the standard library.
 ;; Compile this file with `--no-stdlib`.
 ;;
-;; Known failing subtests currently kept enabled (for tracking):
-;;
-;; Arity-related:
-;; - none currently (tracked arity mismatches are fixed)
-;;
-;; Other:
-;; - char-foldcase: (char-foldcase #\u03c2) expected #\u03c3
-;;   at test/test-basics.rkt:1524
-;; - make-struct-type-property/basic: accessor-procedure? checks expected #t
-;;   at test/test-basics.rkt:3016
-;;   at test/test-basics.rkt:3017
-;; - make-struct-type-property/basic 2: accessor-procedure? checks expected #t
-;;   at test/test-basics.rkt:3059
-;;   at test/test-basics.rkt:3060
-;; - correlated->datum: expected correlated? #t for vector element
-;;   at test/test-basics.rkt:4357
-;; - correlated properties: expected key 123 to be present
-;;   at test/test-basics.rkt:4379
-;;   at test/test-basics.rkt:4381
+;; Known failing subtests currently kept enabled:
+;; - none
 
 (list
  (list "3. Syntactic Forms"       
@@ -4460,11 +4443,12 @@
                            (equal? (p 41) 42))))
 
               (list "prop:procedure/proc-spec-procedure"
-                    (let-values ([(struct:p make-p p? p-ref p-set!)
-                                  (make-struct-type
-                                   'p #f 1 0 #f null #f
-                                   (lambda (self delta)
-                                     (+ (p-ref self 0) delta)))])
+                    (let ()
+                      (define-values (struct:p make-p p? p-ref p-set!)
+                        (make-struct-type
+                         'p #f 1 0 #f null #f
+                         (lambda (self delta)
+                           (+ (p-ref self 0) delta))))
                       (define p (make-p 10))
                       (and (procedure? p)
                            (equal? (p 5) 15))))
