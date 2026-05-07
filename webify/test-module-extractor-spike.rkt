@@ -670,5 +670,42 @@
    (or (member 'racket/private/pico required-provider-names)
        (member 'racket/private/reverse required-provider-names))))
 
+(test-case "source-level require rename aliases resolve private list reverse"
+  (define phase0-linklet
+    '(linklet (((reverse 1/reverse))) (uses-reverse)
+       (define-values (uses-reverse) 1/reverse)))
+  (define report
+    (webify-module-extractor-spike
+     'racket/private/list
+     '(#f)
+     '(0)
+     (list (webify-module-bundle-entry 0 'linklet '(((reverse 1/reverse))) '(uses-reverse) phase0-linklet #f))
+     '(((reverse 1/reverse)))
+     '(uses-reverse)
+     phase0-linklet
+     #t
+     '()))
+  (define import-map (webify-module-extractor-spike-import-map report))
+  (match-define (list _local dependency provider-export)
+    (car (webify-module-import-map-require-rename-aliases import-map)))
+  (define provider-report
+    (webify-module-extractor-spike
+     dependency
+     '(#f)
+     '(0)
+     '()
+     '()
+     (list provider-export)
+     `(linklet () (,provider-export)
+        (define-values (,provider-export) 'reverse-proc))
+     #t
+     '()))
+  (define input
+    (webify-module-extractor-spike->resolved-linklet-input/providers
+     report
+     (list provider-report)))
+  (check-equal? (webify-module-linklet-input-imports input)
+                `((1/reverse ,dependency ,provider-export))))
+
 (module+ main
   (void))
