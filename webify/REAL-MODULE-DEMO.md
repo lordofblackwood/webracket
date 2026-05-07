@@ -108,3 +108,6 @@ provider-graph advance: `1/reverse` resolves to `racket/private/pico`'s
 `reverse` export. That does not mean all of `racket/list` is runtime-ready; it
 means the old provider-shape and candidate-overreach blockers are no longer the
 first problems.
+
+See `webify/INSTALLED-COMPATIBILITY.md` for the current installed-module
+compatibility ladder.
