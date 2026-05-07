@@ -7,7 +7,9 @@
          webify-module-registry-entry?
          webify-module-registry-entry-name
          webify-module-registry-entry-linklet
+         webify-module-registry-entry-importss
          webify-module-registry-entry-imports
+         webify-module-registry-entry-exports
          webify-module-registry-add!
          webify-module-registry-ref
          webify-module-registry-names
@@ -27,7 +29,7 @@
          "module-instance.rkt")
 
 (struct webify-module-registry (entries) #:transparent)
-(struct webify-module-registry-entry (name linklet imports) #:transparent)
+(struct webify-module-registry-entry (name linklet importss imports exports) #:transparent)
 (struct webify-module-composition (datum fragments instances exports-infos) #:transparent)
 
 ;; make-webify-module-registry : -> webify-module-registry?
@@ -69,6 +71,73 @@
                            "duplicate registry import names are not supported"
                            "import" duplicate)))
 
+;; linklet-importss+exports : symbol? any/c -> values
+;;   Extract and validate the import groups and exports from a linklet datum.
+(define (linklet-importss+exports who linklet)
+  (match linklet
+    [`(linklet ,importss ,exports . ,_body)
+     (unless (and (list? importss)
+                  (for/and ([group (in-list importss)])
+                    (and (list? group)
+                         (for/and ([binding (in-list group)])
+                           (match binding
+                             [(list (? symbol?) (? symbol?)) #t]
+                             [_                              #f])))))
+       (raise-arguments-error who
+                              "linklet imports must be grouped pairs of symbols"
+                              "linklet" linklet))
+     (unless (and (list? exports)
+                  (andmap symbol? exports))
+       (raise-arguments-error who
+                              "linklet exports must be a list of symbols"
+                              "exports" exports))
+     (define import-names
+       (for*/list ([group   (in-list importss)]
+                   [binding (in-list group)])
+         (car binding)))
+     (define duplicate-import (check-duplicates import-names))
+     (when duplicate-import
+       (raise-arguments-error who
+                              "duplicate linklet import names are not supported"
+                              "import" duplicate-import))
+     (define duplicate-export (check-duplicates exports))
+     (when duplicate-export
+       (raise-arguments-error who
+                              "duplicate linklet exports are not supported"
+                              "export" duplicate-export))
+     (values importss exports)]
+    [_
+     (raise-arguments-error who
+                            "expected a linklet datum"
+                            "linklet" linklet)]))
+
+;; validate-imports-match-linklet! : symbol? (listof group?) (listof source?) -> void?
+;;   Reject registry import metadata that disagrees with the linklet import names.
+(define (validate-imports-match-linklet! who importss imports)
+  (define linklet-imports
+    (apply append
+           (for/list ([group (in-list importss)])
+             (map car group))))
+  (define declared-imports (map car imports))
+  (define missing-imports
+    (filter (lambda (import) (not (memq import declared-imports)))
+            linklet-imports))
+  (define extra-imports
+    (filter (lambda (import) (not (memq import linklet-imports)))
+            declared-imports))
+  (unless (null? missing-imports)
+    (raise-arguments-error who
+                           "registry imports are missing linklet imports"
+                           "imports" missing-imports
+                           "linklet imports" linklet-imports
+                           "registry imports" declared-imports))
+  (unless (null? extra-imports)
+    (raise-arguments-error who
+                           "registry imports reference names not imported by the linklet"
+                           "imports" extra-imports
+                           "linklet imports" linklet-imports
+                           "registry imports" declared-imports)))
+
 ;; webify-module-registry-add! : webify-module-registry? symbol? any/c [#:imports (listof source?)] -> void?
 ;;   Add a named linklet slice and its flat import-source metadata.
 (define (webify-module-registry-add! registry name linklet #:imports [imports '()])
@@ -76,12 +145,15 @@
   (validate-registry! who registry)
   (validate-entry-name! who name)
   (validate-imports! who imports)
+  (define-values (importss exports)
+    (linklet-importss+exports who linklet))
+  (validate-imports-match-linklet! who importss imports)
   (define entries (webify-module-registry-entries registry))
   (when (hash-has-key? entries name)
     (raise-arguments-error who
                            "duplicate module registry entries are not supported"
                            "name" name))
-  (hash-set! entries name (webify-module-registry-entry name linklet imports))
+  (hash-set! entries name (webify-module-registry-entry name linklet importss imports exports))
   (void))
 
 ;; webify-module-registry-ref : webify-module-registry? symbol? -> webify-module-registry-entry?

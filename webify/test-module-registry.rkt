@@ -23,8 +23,12 @@
   (check-equal? (webify-module-registry-names registry) '(a b))
   (define b-entry (webify-module-registry-ref registry 'b))
   (check-equal? (webify-module-registry-entry-name b-entry) 'b)
+  (check-equal? (webify-module-registry-entry-importss b-entry)
+                '(((ext-x x))))
   (check-equal? (webify-module-registry-entry-imports b-entry)
-                '((ext-x a x))))
+                '((ext-x a x)))
+  (check-equal? (webify-module-registry-entry-exports b-entry)
+                '(y)))
 
 (test-case "module registry composes named linklets"
   (define registry (make-webify-module-registry))
@@ -262,6 +266,45 @@
       '(linklet (([ext-x x])) (y)
          (define-values (y) x))
       #:imports '((ext-x a x) (ext-x c x))))))
+
+(test-case "module registry rejects import metadata that mismatches linklet imports"
+  (define registry (make-webify-module-registry))
+  (check-exn
+   #rx"registry imports are missing linklet imports"
+   (lambda ()
+     (webify-module-registry-add!
+      registry
+      'b
+      '(linklet (([ext-x x])) (y)
+         (define-values (y) x)))))
+  (check-exn
+   #rx"registry imports reference names not imported by the linklet"
+   (lambda ()
+     (webify-module-registry-add!
+      registry
+      'c
+      '(linklet () (y)
+         (define-values (y) 1))
+      #:imports '((ext-x a x))))))
+
+(test-case "module registry rejects malformed linklet metadata"
+  (define registry (make-webify-module-registry))
+  (check-exn
+   #rx"expected a linklet datum"
+   (lambda ()
+     (webify-module-registry-add!
+      registry
+      'not-a-linklet
+      '(lambda () 1))))
+  (check-exn
+   #rx"duplicate linklet import names are not supported"
+   (lambda ()
+     (webify-module-registry-add!
+      registry
+      'duplicate-imports
+      '(linklet (([ext-x x] [ext-x y])) (out)
+         (define-values (out) x))
+      #:imports '((ext-x a x))))))
 
 (test-case "module registry planner rejects duplicate roots"
   (define registry (make-webify-module-registry))

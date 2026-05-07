@@ -326,15 +326,20 @@ slice specs and delegates to `webify-compose-linklet-first-slices`:
 (webify-compose-module-registry registry '(a b) ...)
 ```
 
-The registry stores imports in the flat form `((ext-x a x))`. During
-composition, the linklet composer groups those triples according to the actual
-`importss` metadata returned by `webify-linklet-first-slice`. This keeps the
-registry API small while preserving the linklet's grouped import order.
+The registry stores imports in the flat form `((ext-x a x))`, but each entry
+also records the linklet's own grouped import metadata and export list. At
+registration time, the registry checks that every declared flat import matches
+an actual linklet import name and that no linklet import is missing from the
+declaration. During composition, the linklet composer still groups those triples
+according to the actual `importss` metadata returned by
+`webify-linklet-first-slice`. This keeps the registry API small while
+preserving the linklet's grouped import order.
 
-The registry validates duplicate entry names, duplicate flat import names,
-unknown registry entries, and explicit composition orders where a dependency
-does not appear before the importing entry. If `b` imports from `a`, explicit
-composition must use `(a b)`, not `(b a)`.
+The registry validates duplicate entry names, malformed linklet metadata,
+duplicate flat import names, duplicate linklet imports/exports, unknown
+registry entries, mismatched import metadata, and explicit composition orders
+where a dependency does not appear before the importing entry. If `b` imports
+from `a`, explicit composition must use `(a b)`, not `(b a)`.
 
 The registry can also plan that order from roots:
 
