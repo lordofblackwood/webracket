@@ -754,6 +754,17 @@ The candidate decoder can still see that `racket/string` is a required module:
 
 but it cannot safely infer that `string-join.1` or `string-join9.1` correspond
 to the public export `string-join`. In that case the resolver refuses to guess.
+The import map makes that boundary explicit:
+
+```racket
+(webify-module-import-map-import-aliases import-map)
+;; => '()
+
+(webify-module-import-map-missing-alias-import-groups import-map)
+;; => '(((string-join.1 string-join.1)
+;;       (string-join9.1 string-join9.1)))
+```
+
 Callers can still proceed by supplying explicit local-import dependency
 mappings and an export table for the internal names they intend to model:
 

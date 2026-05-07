@@ -21,6 +21,8 @@
          webify-module-import-map-decl-provides-expression
          webify-module-import-map-decl-phase-to-link-modules-expression
          webify-module-import-map-required-module-candidates
+         webify-module-import-map-import-aliases
+         webify-module-import-map-missing-alias-import-groups
          webify-module-import-map-notes
          webify-module-bundle-entry
          webify-module-bundle-entry?
@@ -74,6 +76,8 @@
    decl-provides-expression
    decl-phase-to-link-modules-expression
    required-module-candidates
+   import-aliases
+   missing-alias-import-groups
    notes)
   #:transparent)
 
@@ -308,6 +312,11 @@
          [_ (reverse candidates)]))]
     [_ '()]))
 
+;; generated-import-name? : symbol? -> boolean?
+;;   Heuristically recognize generated internal import names in decompiled linklets.
+(define (generated-import-name? name)
+  (regexp-match? #rx"[.][0-9]+$" (symbol->string name)))
+
 ;; phase0-import-groups : webify-module-extractor-spike? -> import-groups
 ;;   Return normalized phase-0 import groups from metadata.
 (define (phase0-import-groups report)
@@ -319,6 +328,15 @@
 (define (protocol-import-group? group)
   (and (pair? group)
        (andmap module-protocol-import-binding? group)))
+
+;; import-group-needs-alias-evidence? : import-group -> boolean?
+;;   Detect groups whose names look internalized and need deeper decl decoding.
+(define (import-group-needs-alias-evidence? group)
+  (for/or ([binding (in-list group)])
+    (match-define (list local external) binding)
+    (or (not (eq? local external))
+        (generated-import-name? local)
+        (generated-import-name? external))))
 
 ;; webify-module-extractor-spike-import-map : report -> webify-module-import-map?
 ;;   Build an observational import-map report from phase-0, data, and decl linklets.
@@ -346,6 +364,8 @@
     (phase-to-link-modules-candidates
      decl-phase-to-link-modules-expression
      data-module-path-indexes))
+  (define missing-alias-import-groups
+    (filter import-group-needs-alias-evidence? unresolved-groups))
   (webify-module-import-map
    import-groups
    protocol-groups
@@ -355,9 +375,15 @@
    decl-provides-expression
    decl-phase-to-link-modules-expression
    required-module-candidates
+   '()
+   missing-alias-import-groups
    (cond
      [(not decl-linklet)
       '("decl/data metadata is unavailable on this host because linklet decompilation is unavailable")]
+     [(pair? missing-alias-import-groups)
+      '("phase-0 contains internalized non-protocol import groups"
+        "decl/data metadata exposes required-module candidates but not public export aliases"
+        "deeper decl deserialization is needed before resolving these imports automatically")]
      [(and (pair? unresolved-groups) (pair? required-module-candidates))
       '("phase-0 contains non-protocol import groups"
         "decl/data metadata provides simple required-module candidates"

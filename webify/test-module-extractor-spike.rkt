@@ -49,6 +49,10 @@
                 (webify-module-import-map-phase0-import-groups import-map))
   (check-equal? (webify-module-import-map-unresolved-import-groups import-map)
                 '())
+  (check-equal? (webify-module-import-map-import-aliases import-map)
+                '())
+  (check-equal? (webify-module-import-map-missing-alias-import-groups import-map)
+                '())
   (check-equal? (webify-module-extractor-spike-phase0-exports report) '(x))
   (check-not-false
    (member '(.get-syntax-literal!)
@@ -186,6 +190,10 @@
                   `(hasheqv . ,_))
      (check-equal? (webify-module-import-map-required-module-candidates import-map)
                    '((0 racket/list)))
+     (check-equal? (webify-module-import-map-import-aliases import-map)
+                   '())
+     (check-equal? (webify-module-import-map-missing-alias-import-groups import-map)
+                   '())
      (check-not-false
       (member "phase-0 contains non-protocol import groups"
               (webify-module-import-map-notes import-map)))]
@@ -193,6 +201,10 @@
      (check-false (webify-module-import-map-data-module-path-indexes import-map))
      (check-false (webify-module-import-map-decl-requires-expression import-map))
      (check-equal? (webify-module-import-map-required-module-candidates import-map)
+                   '())
+     (check-equal? (webify-module-import-map-import-aliases import-map)
+                   '())
+     (check-equal? (webify-module-import-map-missing-alias-import-groups import-map)
                    '())
      (check-not-false
       (member "decl/data metadata is unavailable on this host because linklet decompilation is unavailable"
@@ -245,6 +257,10 @@
                    '(((first first)) ((sqr sqr))))
      (check-equal? (webify-module-import-map-required-module-candidates import-map)
                    '((0 racket/math) (0 racket/list)))
+     (check-equal? (webify-module-import-map-import-aliases import-map)
+                   '())
+     (check-equal? (webify-module-import-map-missing-alias-import-groups import-map)
+                   '())
      (define input
        (webify-source-module->resolved-linklet-input
         module-datum
@@ -266,6 +282,10 @@
          #:module-protocol-dependency 'module-protocol)))]
     [else
      (check-equal? (webify-module-import-map-required-module-candidates import-map)
+                   '())
+     (check-equal? (webify-module-import-map-import-aliases import-map)
+                   '())
+     (check-equal? (webify-module-import-map-missing-alias-import-groups import-map)
                    '())
      (check-exn
       #rx"source module did not produce a decompilable phase-0 linklet datum"
@@ -292,6 +312,13 @@
      (check-equal? (length unresolved) 1)
      (define string-join-group (car unresolved))
      (check-equal? (length string-join-group) 2)
+     (check-equal? (webify-module-import-map-import-aliases import-map)
+                   '())
+     (check-equal? (webify-module-import-map-missing-alias-import-groups import-map)
+                   (list string-join-group))
+     (check-not-false
+      (member "phase-0 contains internalized non-protocol import groups"
+              (webify-module-import-map-notes import-map)))
      (check-not-false
       (andmap (lambda (binding)
                 (regexp-match? #rx"^string-join"
@@ -320,6 +347,10 @@
     [else
      (check-equal? (webify-module-import-map-required-module-candidates import-map)
                    '())
+     (check-equal? (webify-module-import-map-import-aliases import-map)
+                   '())
+     (check-equal? (length (webify-module-import-map-missing-alias-import-groups import-map))
+                   1)
      (check-exn
       #rx"source module did not produce a decompilable phase-0 linklet datum"
       (lambda ()
