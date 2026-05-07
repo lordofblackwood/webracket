@@ -21,6 +21,7 @@
    webify-module-report->resolved-linklet-input/providers]
   [webify-module-extractor-spikes->resolved-linklet-inputs
    webify-module-reports->resolved-linklet-inputs]
+  [webify-module-path->extractor-spike webify-module-path->report]
   [webify-compile-module-extractor-spike webify-compile-module-report])
  webify-module-reports->registry
  webify-source-module->dependency-exports

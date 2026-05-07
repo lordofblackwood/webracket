@@ -38,6 +38,7 @@
          webify-module-extractor-spike-import-map
          webify-module-extractor-spike-dependency-exports
          webify-module-extractor-spikes-dependency-exports
+         webify-module-path->extractor-spike
          webify-source-module->dependency-exports
          webify-source-modules->dependency-exports
          webify-normalize-linklet-imports
@@ -55,6 +56,7 @@
          racket/list
          racket/match
          racket/string
+         syntax/modcode
          "module-input.rkt")
 
 (struct webify-module-extractor-spike
@@ -291,6 +293,26 @@
        "/"))]
     [(symbol? mpi) mpi]
     [else #f]))
+
+;; module-path->dependency-name : any/c -> symbol?
+;;   Convert a simple module path to the registry dependency name convention.
+(define (module-path->dependency-name module-path)
+  (cond
+    [(symbol? module-path) module-path]
+    [(and (list? module-path)
+          (eq? (car module-path) 'lib)
+          (pair? (cdr module-path))
+          (string? (cadr module-path)))
+     (define path (cadr module-path))
+     (define no-suffix
+       (if (string-suffix? path ".rkt")
+           (substring path 0 (- (string-length path) 4))
+           path))
+     (string->symbol no-suffix)]
+    [else
+     (raise-arguments-error 'webify-module-path->extractor-spike
+                            "expected a simple module path"
+                            "module path" module-path)]))
 
 ;; phase-to-link-modules-candidates : any/c any/c -> (listof (list/c exact-integer? symbol?))
 ;;   Decode simple phase-to-link-modules expressions into candidate dependencies.
@@ -545,15 +567,9 @@
      (match-define (list name exports) row)
      (webify-module-linklet-input name `(linklet () ,exports (void)) '()))))
 
-;; webify-compile-module-extractor-spike : any/c -> webify-module-extractor-spike?
-;;   Probe Racket's compiled-module linklet shape without claiming extraction support.
-(define (webify-compile-module-extractor-spike module-datum)
-  (define who 'webify-compile-module-extractor-spike)
-  (define name (validate-source-module! who module-datum))
-  (define compiled
-    (parameterize ([current-namespace (make-base-namespace)])
-      (parameterize ([current-compile-target-machine #f])
-        (compile (datum->syntax #f module-datum)))))
+;; compiled-module->extractor-spike : symbol? any/c -> webify-module-extractor-spike?
+;;   Convert one machine-independent compiled module to an extractor report.
+(define (compiled-module->extractor-spike who name compiled)
   (unless (linklet-directory? compiled)
     (raise-arguments-error who
                            "compiled module did not produce a linklet directory"
@@ -614,6 +630,36 @@
       '("compiled source modules expose linklet objects and metadata"
         "host Racket does not provide decompile-linklet"
         "use the newer ../racket checkout for the machine-independent decompile spike")])))
+
+;; webify-compile-module-extractor-spike : any/c -> webify-module-extractor-spike?
+;;   Probe Racket's compiled-module linklet shape without claiming extraction support.
+(define (webify-compile-module-extractor-spike module-datum)
+  (define who 'webify-compile-module-extractor-spike)
+  (define name (validate-source-module! who module-datum))
+  (define compiled
+    (parameterize ([current-namespace (make-base-namespace)])
+      (parameterize ([current-compile-target-machine #f])
+        (compile (datum->syntax #f module-datum)))))
+  (compiled-module->extractor-spike who name compiled))
+
+;; webify-module-path->extractor-spike : module-path? -> webify-module-extractor-spike?
+;;   Compile an installed module path as machine-independent code and report its linklets.
+(define (webify-module-path->extractor-spike module-path)
+  (define who 'webify-module-path->extractor-spike)
+  (define name (module-path->dependency-name module-path))
+  (define source-path
+    (resolved-module-path-name
+     (module-path-index-resolve
+      (module-path-index-join module-path #f)
+      #t)))
+  (define compiled
+    (get-module-code
+     source-path
+     #:choose (lambda (_src _zo _so) 'src)
+     #:compile (lambda (stx)
+                 (parameterize ([current-compile-target-machine #f])
+                   (compile stx)))))
+  (compiled-module->extractor-spike who name compiled))
 
 ;; webify-source-module->dependency-exports : module-datum -> dependency-export-row
 ;;   Compile a provider source module and expose its compiled phase-0 exports.
