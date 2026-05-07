@@ -40,6 +40,35 @@ The old `racket/list` blockers are no longer first failures:
 `racket/string` depends on `racket/list` for `add-between`, so progress on
 `racket/list` is expected to move this frontier too.
 
+## Demand Slicer Boundaries
+
+The installed-module path now has a demand slicer, but it is deliberately a
+bridge compatibility tool, not a general optimizer. It keeps only the provider
+exports demanded by the root module graph, and it preserves the original bundle
+metadata needed to decode aliases, declarations, and compiled provide tables.
+That combination is what lets re-exports such as `racket/list`'s
+`hash-update` and raw import aliases such as `1/reverse` survive slicing.
+
+Known supported shapes are the ones exercised by the focused extractor tests:
+plain `define-values` bindings, lambda/case-lambda dependencies, basic
+let/letrec dependency discovery, quoted data, raw import binding orientation,
+and `data`/`decl` metadata preservation. These are enough to avoid unrelated
+provider exports for the current `racket/list` first/rest smokes.
+
+Known limits:
+
+1. The slicer does not prove arbitrary linklet expressions dead. When a shape is
+   outside the dependency walker, it should be treated conservatively or pinned
+   by a focused test before relying on it.
+2. The slicer preserves compiled metadata, but it does not synthesize missing
+   public-name information. A missing provider export still needs real
+   bundle/provider resolution work.
+3. The slicer is phase-0 oriented. Phase-specific syntax and transformer
+   metadata should stay explicit in tests before being treated as supported.
+4. A sliced graph can still expose real runtime/compiler gaps. The current
+   `racket/list` `add-between` smoke reaches WebRacket lowering and fails on
+   `unsafe-struct?`; that is not an installed-provider graph failure.
+
 ## IO-Dependent Frontiers
 
 | Module/export | Current status | Boundary |
