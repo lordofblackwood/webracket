@@ -425,6 +425,47 @@ helper layered over the payload API. It composes roots, resolves requested
 as `js-log`. It is useful for smoke tests, but it is intentionally not a
 replacement for `dynamic-require`, namespaces, phases, or lazy module loading.
 
+## Realistic Linklet Inputs
+
+`webify/module-input.rkt` adds a small boundary for the shape a future module
+extractor should hand to the bridge:
+
+```racket
+(list
+ (webify-module-linklet-input
+  'a
+  '(linklet () (x)
+     (define-values (x) 10))
+  '())
+ (webify-module-linklet-input
+  'b
+  '(linklet (([ext-x x])) (y)
+     (define-values (y) (+ x 1)))
+  '((ext-x a x))))
+```
+
+This is still not source-level Racket module support. The inputs are already
+linklet-shaped, named, and separated into one entry per module-like unit.
+`webify-module-linklet-inputs->registry` registers them in a normal
+`webify-module-registry`, so the existing planner, composer, payload, and
+loader paths are reused unchanged.
+
+The important shift is where tests attach to the bridge. Earlier tests called
+`webify-module-registry-add!` directly with inline linklet literals. The input
+helper models the next seam instead: an extraction step produces a list of
+named linklet inputs, and the bridge consumes that list without knowing how the
+inputs were obtained.
+
+The import-source triples are still explicit:
+
+```racket
+'((ext-x a x))
+```
+
+The triple means: satisfy B's import named `ext-x` from export `x` of input
+`a`. Discovering that mapping from compiled module paths, phases, require
+specs, or namespace state remains future work.
+
 The export `x` is represented by the cell `webify-export-cell0$0`. The lowered
 procedure writes the exported value into that cell with
 `module-variable-define!`. The adapter then exposes the cell value as the
