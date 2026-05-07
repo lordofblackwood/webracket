@@ -2668,6 +2668,17 @@
               (list "unsafe-vector-length"
                     (equal? (unsafe-vector-length '#(1 2 3)) 3))
 
+              (list "unsafe-struct?"
+                    (let-values ([(struct:parent make-parent parent? parent-ref parent-set!)
+                                  (make-struct-type 'unsafe-parent #f 1 0 #f)]
+                                 [(struct:other make-other other? other-ref other-set!)
+                                  (make-struct-type 'unsafe-other #f 1 0 #f)])
+                      (let ([parent (make-parent 1)]
+                            [other  (make-other 3)])
+                        (and (equal? (unsafe-struct? parent struct:parent) #t)
+                             (equal? (unsafe-struct? other struct:parent) #f)
+                             (equal? (unsafe-struct? 10 struct:parent) #f)))))
+
               (list "unsafe-vector-ref"
                     (equal? (unsafe-vector-ref '#(10 20 30) 1) 20))
 

@@ -271,7 +271,6 @@
             #%struct-field-accessor
             #%struct-field-mutator
             unsafe-struct
-            unsafe-struct?
             unsafe-sealed-struct?
             unsafe-struct*-ref
             unsafe-struct*-set!

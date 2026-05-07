@@ -70,8 +70,7 @@ handling should not be treated as a straight Schemify port.
 - Struct wrappers and unsafe operations:
   `#%struct-constructor`, `#%struct-predicate`,
   `#%struct-field-accessor`, `#%struct-field-mutator`, `unsafe-struct`,
-  `unsafe-struct?`, `unsafe-sealed-struct?`, `unsafe-struct*-ref`, and
-  `unsafe-struct*-set!`.
+  `unsafe-sealed-struct?`, `unsafe-struct*-ref`, and `unsafe-struct*-set!`.
 - Impersonator/error paths:
   `impersonator?`, `impersonator-val`, `impersonate-ref`,
   `impersonate-set!`, `#%struct-ref-error`, and `#%struct-set!-error`.

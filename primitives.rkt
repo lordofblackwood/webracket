@@ -1167,7 +1167,7 @@
  unsafe-flmin unsafe-flmax unsafe-flexpt
  unsafe-flrandom 
  unsafe-car unsafe-cdr
- unsafe-struct-ref unsafe-vector-length unsafe-vector-ref
+ unsafe-struct? unsafe-struct-ref unsafe-vector-length unsafe-vector-ref
  unsafe-vector*-length unsafe-vector*-set! unsafe-vector*-ref
  unsafe-vector-length unsafe-vector-set!
  unsafe-struct-set!
@@ -2779,6 +2779,9 @@
 
 (define (webracket-vfs-write-file path bytes)
   (error 'webracket-vfs-write-file "only available in compiled WebRacket"))
+
+(define (unsafe-struct? v std)
+  (error 'unsafe-struct? "only available in compiled WebRacket"))
 
 (define (~r/precision x prec)
   (~r x #:precision prec))

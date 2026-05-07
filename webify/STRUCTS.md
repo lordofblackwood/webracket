@@ -39,7 +39,6 @@ designed for Chez/Schemify:
 - `#%struct-field-accessor`
 - `#%struct-field-mutator`
 - `unsafe-struct`
-- `unsafe-struct?`
 - `unsafe-sealed-struct?`
 - `unsafe-struct*-ref`
 - `unsafe-struct*-set!`
@@ -139,6 +138,7 @@ record-descriptor output assumes.
 - `struct->list`
 - `struct->vector`
 - `current-inspector`
+- `unsafe-struct?`
 - `unsafe-struct-ref`
 - `unsafe-struct-set!`
 - `prop:authentic`
@@ -156,6 +156,7 @@ the major struct operations and property globals, including:
 - `$struct-type-authentic?`
 - `$struct->list`
 - `$struct->vector`
+- `$unsafe-struct?`
 - `$unsafe-struct-ref`
 - `$unsafe-struct-set!`
 - `$prop:sealed`

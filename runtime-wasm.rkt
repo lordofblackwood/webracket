@@ -49823,6 +49823,28 @@
          (func $unsafe-cdr (type $Prim1) (param $v (ref eq)) (result (ref eq))
                (struct.get $Pair $d (ref.cast (ref $Pair) (local.get $v))))
 
+         (func $unsafe-struct? (type $Prim2)
+               (param $v   (ref eq)) ;; candidate struct value
+               (param $std (ref eq)) ;; expected struct type descriptor
+               (result     (ref eq)) ;; boolean
+
+               (local $struct (ref $Struct))
+               (local $type   (ref eq))
+               (local $ok     i32)
+
+               (if (i32.eqz (ref.test (ref $Struct) (local.get $v)))
+                   (then (return (global.get $false))))
+               (if (i32.eqz (ref.test (ref $StructType) (local.get $std)))
+                   (then (return (global.get $false))))
+
+               (local.set $struct (ref.cast (ref $Struct) (local.get $v)))
+               (local.set $type   (struct.get $Struct $type (local.get $struct)))
+               (local.set $ok     (call $struct-type-is-a?/i32 (local.get $type) (local.get $std)))
+               (if (result (ref eq))
+                   (local.get $ok)
+                   (then (global.get $true))
+                   (else (global.get $false))))
+
          (func $unsafe-struct-ref (type $Prim2)
                (param $v (ref eq))
                (param $k (ref eq))

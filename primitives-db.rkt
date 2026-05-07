@@ -961,6 +961,7 @@
 (define-primitive unsafe-fxrshift/logical                   2                   (ordered))
 (define-primitive unsafe-fxxor                              at-least-0          (ordered))
 (define-primitive unsafe-string-length                      1                   (pure restricted))
+(define-primitive unsafe-struct?                           2                   (pure))
 (define-primitive unsafe-struct-ref                         2                   (ordered))
 (define-primitive unsafe-struct-set!                        3                   (ordered))
 (define-primitive unsafe-vector*-length                     1                   (ordered))
