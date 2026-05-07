@@ -39,6 +39,16 @@ The old `racket/list` blockers are no longer first failures:
 `racket/string` depends on `racket/list` for `add-between`, so progress on
 `racket/list` is expected to move this frontier too.
 
+## IO-Dependent Frontiers
+
+| Module/export | Current status | Boundary |
+| --- | --- | --- |
+| `racket/private/for` / `in-port` | Export is present, but its default producer imports `read` and `current-input-port` | Reader/port runtime support |
+
+`in-port` is intentionally tracked separately from `racket/list`: demand slicing
+can avoid it for list-only workloads, while real `in-port` support belongs to a
+future IO/runtime milestone.
+
 ## How To Move A Module
 
 1. Add or update a focused extractor test that pins the graph/name-resolution

@@ -24,6 +24,8 @@
      'compiled-provider-shape]
     [(regexp-match? #rx"cannot open module file[^\n]*\n  module path: racket/for" message)
      'provider-candidate-overreach]
+    [(regexp-match? #rx"import: '(read|current-input-port|read-byte|read-char|read-line|read-bytes-line)" message)
+     'io-dependent]
     [(regexp-match? #rx"could not resolve import dependency|dependency does not export aliased name|unresolved import|ambiguous inferred import dependency" message)
      'unresolved-import]
     [(regexp-match? #rx"[.]get-syntax-literal!" message)

@@ -26,6 +26,14 @@
   (check-equal? (webify-module-failure-category missing-alias-export)
                 'unresolved-import))
 
+(test-case "module diagnostics classify reader and port imports as IO dependent"
+  (define read-import
+    (webify-classify-runtime-output
+     1
+     "webify-resolve-module-linklet-imports: could not resolve import dependency\n  import: 'read\n  export: 'read"))
+  (check-equal? (webify-module-failure-category read-import)
+                'io-dependent))
+
 (test-case "module diagnostics classify runtime output"
   (define primitive-collision
     (webify-classify-runtime-output
