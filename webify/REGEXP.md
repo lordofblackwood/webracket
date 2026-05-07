@@ -97,6 +97,9 @@ startup smoke with (js-log 123)         ; succeeds
 (regexp-match? (byte-regexp #"a") #"cat") ; succeeds
 (regexp-match? (pregexp "a|b") "b")     ; succeeds
 (regexp-match? (regexp "a?") "bbb")     ; succeeds
+(regexp-match-positions (regexp "a") "cat") ; succeeds
+(regexp-replace (regexp "a") "cat" "o") ; succeeds
+(regexp-replace* (regexp "a") "banana" "o") ; succeeds
 ```
 
 That means the regexp layer gets through demod and into Webify's first-slice
@@ -140,6 +143,9 @@ simple character classes, a basic capture group, repetition, and start anchors:
 (regexp-match? (byte-regexp #"a") #"cat")
 (regexp-match? (pregexp "a|b") "b")
 (regexp-match? (regexp "a?") "bbb")
+(regexp-match-positions (regexp "a") "cat")
+(regexp-replace (regexp "a") "cat" "o")
+(regexp-replace* (regexp "a") "banana" "o")
 ```
 
 That exercises parsing, conversion, validation, matcher compilation, and
@@ -149,17 +155,18 @@ case also exercises group-size bookkeeping in the validator. Repetition and
 anchor cases exercise matcher paths that can succeed without consuming input,
 fail after scanning, and respect the start-position condition. The byte and
 pregexp cases show that the exported byte constructors and parse-config variants
-are usable on small examples.
+are usable on small examples. The positions and replacement cases exercise
+non-boolean result construction and string substitution.
 
 ## Immediate Lesson
 
-The next Webify experiment should move from predicate matching to match result
-variants and replacement APIs, starting with:
+The next Webify experiment should move from these first-order smoke tests to
+broader conformance and integration:
 
 ```racket
-(regexp-match-positions (regexp "a") "cat")
-(regexp-replace (regexp "a") "cat" "o")
-(regexp-replace* (regexp "a") "banana" "o")
+(regexp-match (pregexp "(a|b)+") "zzabba")
+(regexp-match? (regexp "\\\\p{Lu}") "A")
+literal regexp compilation through Webify
 ```
 
 Once basic matching works, regexp literals can later be lifted into calls to the
