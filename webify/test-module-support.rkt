@@ -23,6 +23,7 @@
          (all-from-out "module-adapter.rkt")
          (all-from-out "module-composer.rkt")
          (all-from-out "module-instance.rkt")
+         (all-from-out "module-loader.rkt")
          (all-from-out "module-registry.rkt"))
 
 (require racket/match
@@ -35,6 +36,7 @@
          "module-adapter.rkt"
          "module-composer.rkt"
          "module-instance.rkt"
+         "module-loader.rkt"
          "module-registry.rkt")
 
 (define-runtime-path webracket-rkt "../webracket.rkt")
