@@ -984,18 +984,20 @@ mean Webify has recovered a source-level mapping to public `string-join`; it
 means Webify has enough linklet-level information to compose the compiled
 importer and provider safely.
 
-This differs from the `racket/private/list` reverse case. The compiled bundle
-contains provide metadata equivalent to the source rename:
+This differs from the `racket/private/list` reverse case. Earlier bridge
+experiments saw only the importer-side provide metadata and described the
+source-level rename:
 
 ```racket
 (require (rename-in "pico.rkt" [alt-reverse reverse]))
 ```
 
-so Webify can derive an alias from importer name `reverse` to provider export
-`alt-reverse` without reading the source file. For `racket/string`, the current importer-side
-`string-join.1`/`string-join9.1` group is not explained by source-level
-`rename-in` metadata in the same way. The bridge should resolve it from
-compiled provider export rows, not from a fabricated public-name mapping.
+But after faslable provider decoding, Webify resolves against the provider's
+compiled export surface. For `racket/private/pico`, that external provider
+export is `reverse`, even though the source-level require in
+`racket/private/list` mentions `alt-reverse`. For `racket/string`, the same
+rule applies: resolve from compiled provider export rows, not from a fabricated
+public-name mapping.
 
 ## Rename-Aware Resolution
 
@@ -1027,24 +1029,18 @@ local id:            1/reverse
 source require name: reverse
 ```
 
-The compiled `decl` linklet's `provides` metadata supplies the missing
-provider export side:
+The provider module is filled in by matching the importer's external name
+against discovered provider export rows. With faslable decoding enabled,
+`racket/private/pico` exposes `reverse`, so the registry import triple is:
 
 ```racket
-provider export id: alt-reverse
+(1/reverse racket/private/pico reverse)
 ```
 
-The provider module is filled in by matching that provider export against the
-discovered provider export rows. So the registry import triple should be:
-
-```racket
-(1/reverse racket/private/pico alt-reverse)
-```
-
-The provider may implement `alt-reverse` with an internal binding named
-`reverse`, but that implementation detail is not the importer's contract. The
-bridge composes linklets through provider exports, so it must resolve to
-`alt-reverse`.
+This is intentionally a linklet-level answer. The source-level
+`rename-in` spelling is useful context, but the bridge composes extracted
+linklets through the provider export names that are actually present in the
+compiled provider row.
 
 The export `x` is represented by the cell `webify-export-cell0$0`. The lowered
 procedure writes the exported value into that cell with
