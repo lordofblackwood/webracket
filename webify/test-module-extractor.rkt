@@ -1,8 +1,8 @@
 #lang racket/base
 
 (require rackunit
-         "module-extractor.rkt"
-         "module-input.rkt")
+         racket/string
+         "test-module-support.rkt")
 
 (test-case "stable module report API wraps extractor backend"
   (define report
@@ -83,3 +83,61 @@
      (list string-report)))
   (check-equal? (webify-module-linklet-input-imports input)
                 '((string-join.1 racket/string string-join.1))))
+
+(test-case "stable module report graph registers and composes"
+  (define dep-report
+    (webify-module-report
+     'dep
+     '(#f)
+     '(0)
+     '()
+     '()
+     '(x)
+     '(linklet () (x)
+        (define-values (x) 10))
+     #t
+     '()))
+  (define use-report
+    (webify-module-report
+     'use-dep
+     '(#f)
+     '(0)
+     '()
+     '((x))
+     '(y)
+     '(linklet (((x x))) (y)
+        (define-values (y) x))
+     #t
+     '()))
+  (define registry
+    (webify-module-reports->registry (list dep-report use-report)))
+  (check-equal? (webify-module-registry-plan registry '(use-dep))
+                '(dep use-dep))
+  (define loader (make-webify-module-loader registry))
+  (define composition
+    (webify-module-loader-instantiate!
+     loader
+     '(use-dep)
+     #:serializable?-box     #f
+     #:datum-intern?         #f
+     #:target                #f
+     #:allow-set!-undefined? #f
+     #:unsafe-mode?          #f
+     #:enforce-constant?     #t
+     #:allow-inline?         #t
+     #:no-prompt?            #f
+     #:prim-knowns           test-prim-knowns
+     #:primitives            test-primitives
+     #:compiler-query        (lambda (v) #f)
+     #:get-import-knowns     (lambda (key) (values #f #f #f))
+     #:import-keys           #f))
+  (check-true (webify-module-composition? composition))
+  (define y-cell (webify-module-loader-lookup-export-cell loader 'use-dep 'y))
+  (check-equal? y-cell 'webify-export-cell0$1)
+  (define observed
+    (webify-module-loader-observe loader '((use-dep y))))
+  (check-not-false
+   (member '("js-log" ("module-variable-ref" "webify-export-cell0$1"))
+           (normalize-symbols observed)))
+  (check-true (string-contains? (wat-string (comp (datum->syntax #f observed)))
+                                "$module-variable-ref")))

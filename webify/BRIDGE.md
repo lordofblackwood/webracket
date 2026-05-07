@@ -874,6 +874,18 @@ These graph helpers do not discover transitive dependencies yet. They resolve
 only within the supplied set and reject duplicate module names, unresolved
 imports, ambiguous provider exports, and missing module-protocol support.
 
+For callers that want the next bridge step directly, the stable façade can
+register the resolved inputs:
+
+```racket
+(webify-module-reports->registry reports)
+(webify-source-modules->registry module-data)
+```
+
+Those helpers return a `webify-module-registry`, so the existing
+registry/loader path can plan roots, compose the graph, and observe export
+cells.
+
 In other words, the resolver table should describe the provider's compiled
 linklet export surface, not the provider's source-level `provide` surface.
 That matches the schemify/demodularizer shape more closely: import resolution

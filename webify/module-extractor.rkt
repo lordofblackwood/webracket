@@ -22,12 +22,14 @@
   [webify-module-extractor-spikes->resolved-linklet-inputs
    webify-module-reports->resolved-linklet-inputs]
   [webify-compile-module-extractor-spike webify-compile-module-report])
+ webify-module-reports->registry
  webify-source-module->dependency-exports
  webify-source-modules->dependency-exports
  webify-source-module->linklet-input
  webify-source-module->resolved-linklet-input
  webify-source-module->resolved-linklet-input/providers
  webify-source-modules->resolved-linklet-inputs
+ webify-source-modules->registry
  webify-normalize-linklet-imports
  webify-linklet-import-bindings
  webify-module-import-map
@@ -55,4 +57,27 @@
  webify-module-bundle-entry-value
  webify-module-bundle-entry-ref)
 
-(require "module-extractor-spike.rkt")
+(require "module-extractor-spike.rkt"
+         "module-input.rkt")
+
+;; webify-module-reports->registry : (listof webify-module-report?) -> webify-module-registry?
+;;   Resolve extracted module reports and register their bridge-ready linklet inputs.
+(define (webify-module-reports->registry reports
+                                         #:dependencies [dependencies '()]
+                                         #:module-protocol-dependency [module-protocol-dependency #f])
+  (webify-module-linklet-inputs->registry
+   (webify-module-extractor-spikes->resolved-linklet-inputs
+    reports
+    #:dependencies dependencies
+    #:module-protocol-dependency module-protocol-dependency)))
+
+;; webify-source-modules->registry : (listof source-module-datum?) -> webify-module-registry?
+;;   Compile supplied source modules, resolve their imports, and register them.
+(define (webify-source-modules->registry module-data
+                                         #:dependencies [dependencies '()]
+                                         #:module-protocol-dependency [module-protocol-dependency #f])
+  (webify-module-linklet-inputs->registry
+   (webify-source-modules->resolved-linklet-inputs
+    module-data
+    #:dependencies dependencies
+    #:module-protocol-dependency module-protocol-dependency)))
