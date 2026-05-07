@@ -53,6 +53,7 @@
          webify-source-module->dependency-exports
          webify-source-modules->dependency-exports
          webify-normalize-linklet-imports
+         webify-normalize-linklet-exports
          webify-linklet-import-bindings
          webify-source-module->linklet-input
          webify-module-extractor-spike->resolved-linklet-input
@@ -183,15 +184,26 @@
 
 ;; linklet-datum-imports+exports : any/c -> values
 ;;   Extract raw imports and exports from a plain linklet datum.
-(define (linklet-datum-imports+exports datum)
+(define (webify-normalize-linklet-exports exports)
+  (define who 'webify-normalize-linklet-exports)
+  (unless (list? exports)
+    (raise-argument-error who "list?" exports))
   (define (normalize-export export)
     (match export
       [(list _internal (? symbol? external)) external]
       [(? symbol? external) external]
-      [_ export]))
+      [_
+       (raise-arguments-error who
+                              "linklet exports must be symbols or internal/external symbol pairs"
+                              "export" export)]))
+  (map normalize-export exports))
+
+;; linklet-datum-imports+exports : any/c -> values
+;;   Extract raw imports and normalized external exports from a plain linklet datum.
+(define (linklet-datum-imports+exports datum)
   (match datum
     [`(linklet ,imports ,exports . ,_body)
-     (values imports (map normalize-export exports))]
+     (values imports (webify-normalize-linklet-exports exports))]
     [_ (values #f #f)]))
 
 ;; bundle-value->entry : any/c any/c -> webify-module-bundle-entry?

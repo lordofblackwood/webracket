@@ -46,10 +46,11 @@
  webify-module-provider-cache?
  make-webify-module-provider-cache
  webify-module-provider-cache-ref
- webify-module-provider-cache-names
- webify-module-provider-cache-count
- webify-normalize-linklet-imports
- webify-linklet-import-bindings
+webify-module-provider-cache-names
+webify-module-provider-cache-count
+webify-normalize-linklet-imports
+webify-normalize-linklet-exports
+webify-linklet-import-bindings
  webify-module-import-map
  webify-module-import-map?
  webify-module-import-map-phase0-import-groups

@@ -46,7 +46,9 @@
   (check-equal? (webify-module-report-name report) 'racket/private/pico)
   (check-true (webify-module-report-manifest-ready? report))
   (check-not-false
-   (export-name-member? "reverse" (webify-module-report-phase0-exports report))))
+   (export-name-member? "reverse" (webify-module-report-phase0-exports report)))
+  (check-true
+   (andmap symbol? (webify-module-report-phase0-exports report))))
 
 (test-case "Racket 9.2 source use resolves racket/string internal exports"
   (define use-report

@@ -144,9 +144,20 @@
   (check-equal?
    (webify-resolve-module-linklet-imports
     importer-linklet
-    (list (webify-module-extractor-spike-dependency-exports provider-report)))
+     (list (webify-module-extractor-spike-dependency-exports provider-report)))
    '((string-join.1 racket/string string-join.1)
      (string-join9.1 racket/string string-join9.1))))
+
+(test-case "linklet export pairs normalize to external provider names"
+  (check-equal? (webify-normalize-linklet-exports
+                 '((internal-value external-name)
+                   plain-export))
+                '(external-name plain-export))
+  (check-exn
+   #rx"linklet exports must be symbols or internal/external symbol pairs"
+   (lambda ()
+     (webify-normalize-linklet-exports
+      '((not-a-valid-export-shape))))))
 
 (test-case "dependency export tables derive from extractor reports"
   (define dep-report
