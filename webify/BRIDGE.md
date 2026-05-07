@@ -535,10 +535,12 @@ provide an explicit local-import dependency mapping:
  (dependencies ((ext-x a))))
 ```
 
-## Extractor Spike
+## Module Extractor
 
-`webify/module-extractor-spike.rkt` records the current result of probing real
-compiled Racket modules. For a tiny source module:
+`webify/module-extractor.rkt` is the stable bridge-facing module extraction
+API. It wraps the lower-level probe implementation in
+`webify/module-extractor-spike.rkt`, but callers should prefer the
+`module-report` names below. For a tiny source module:
 
 ```racket
 (module a racket/base
@@ -550,7 +552,7 @@ Racket compilation produces a `linklet-directory`. Its main bundle contains a
 phase-0 linklet object whose export metadata includes `x`:
 
 ```racket
-(webify-module-extractor-spike-phase0-exports report)
+(webify-module-report-phase0-exports report)
 ;; => '(x)
 ```
 
@@ -558,7 +560,7 @@ The extractor now also reports every entry in the module's main bundle:
 
 ```racket
 (map webify-module-bundle-entry-key
-     (webify-module-extractor-spike-bundle-entries report))
+     (webify-module-report-bundle-entries report))
 ;; => '(0 data decl name pre side-effects)
 ```
 
@@ -568,7 +570,7 @@ available, and the original value for lower-level probing. This makes `decl`,
 `data`, `stx`, and other bundle entries visible to future bridge stages instead
 of discarding everything except phase 0.
 
-The spike now compiles with `current-compile-target-machine` set to `#f` and,
+The extractor compiles with `current-compile-target-machine` set to `#f` and,
 on Racket versions that provide `decompile-linklet`, recovers the phase-0
 linklet datum:
 
@@ -581,11 +583,10 @@ For the tiny module above, the recovered datum is not quite as small as the
 hand-written example, because it includes module protocol imports such as
 `.get-syntax-literal!` and `.set-transformer!`, but it has the manifest-ready
 `(linklet imports exports body ...)` shape. On older Racket versions without
-`decompile-linklet`, the spike records that limitation and reports
+`decompile-linklet`, the report records that limitation and reports
 `manifest-ready?` as `#f`.
 
-The first concrete bridge API from this spike is
-`webify-source-module->linklet-input`:
+The first concrete bridge API is `webify-source-module->linklet-input`:
 
 ```racket
 (webify-source-module->linklet-input
@@ -656,7 +657,7 @@ The important boundary is intentional: extraction can now normalize and
 classify imports, but Webify still needs an actual module-protocol dependency
 before the result can be instantiated end-to-end.
 
-`webify-module-extractor-spike-import-map` is the current observational bridge
+`webify-module-report-import-map` is the current observational bridge
 between phase-0 imports and bundle metadata. For a module that requires
 `racket/list`:
 
@@ -823,14 +824,14 @@ For source-module extractor reports, the same row is available before a full
 manifest input is assembled:
 
 ```racket
-(webify-module-extractor-spike-dependency-exports string-provider-report)
+(webify-module-report-dependency-exports string-provider-report)
 ;; => '(racket/string (string-join.1 string-join9.1))
 ```
 
 Multiple extracted providers can be turned into the complete resolver table:
 
 ```racket
-(webify-module-extractor-spikes-dependency-exports provider-reports)
+(webify-module-reports-dependency-exports provider-reports)
 ;; => '((racket/string (string-join.1 string-join9.1))
 ;;      (racket/list (first rest)))
 ```
@@ -844,7 +845,7 @@ The manifest-input side has the same table helper:
 Importer resolution can also take provider reports directly:
 
 ```racket
-(webify-module-extractor-spike->resolved-linklet-input/providers
+(webify-module-report->resolved-linklet-input/providers
  importer-report
  provider-reports)
 ```
@@ -855,7 +856,7 @@ resolver used by explicit `#:dependency-exports`.
 The graph-level seam resolves every supplied report against the other reports:
 
 ```racket
-(webify-module-extractor-spikes->resolved-linklet-inputs
+(webify-module-reports->resolved-linklet-inputs
  reports
  #:module-protocol-dependency 'module-protocol)
 ```
