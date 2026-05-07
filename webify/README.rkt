@@ -9,6 +9,8 @@ This is a work in progress.
 See `OUTPUT.md` for the current output-language notes.
 See `LOWERING.md` for the first module-variable lowering slice.
 See `BRIDGE.md` for a concrete linklet-to-top-level adapter example.
+See `INSTALLED-COMPATIBILITY.md` for the evidence ladder for installed Racket
+module providers.
 
 Bridge-facing module APIs:
 
@@ -21,6 +23,19 @@ Bridge-facing module APIs:
 - `module-input.rkt`, `module-registry.rkt`, and `module-loader.rkt` are the
   current handoff path from extracted linklet reports to executable top-level
   WebRacket programs.
+
+Current bridge contract:
+
+- Webify emits top-level WebRacket forms, not Racket `module` forms.
+- Exports are represented as explicit `module-variable` cells.
+- Imports must already be resolved to explicit provider cells before WebRacket
+  compilation.
+- Installed-provider support is demand-sliced and phase-0 oriented.
+- Callable struct instances created through `make-struct-type` `proc-spec` are
+  supported, including the no-keyword procedure field shape used by Racket's
+  optional keyword procedure layer.
+- Direct keyword calls, keyword introspection, regexp literals, broad IO/reader
+  support, and C FFI/foreign-inline are outside the current bridge contract.
 
 Focused checks:
 

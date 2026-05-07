@@ -4,6 +4,41 @@ The first bridge is deliberately small. It does not implement Racket modules.
 It turns an import-free linklet into top-level WebRacket forms that the current
 compiler can already consume.
 
+## Current Contract
+
+The bridge is a compiler-facing composition layer, not a full Racket module
+runtime yet.
+
+Inputs:
+
+1. Phase-0 linklet datums, either hand-written in tests or recovered from
+   installed module bundles.
+2. Import metadata that has already been resolved to explicit module-variable
+   cells.
+3. Demand-sliced installed-provider graphs whose required exports can be named
+   from compiled bundle metadata.
+
+Outputs:
+
+1. Plain top-level WebRacket forms, never a Racket `module` form.
+2. One `module-variable` cell per bridged export.
+3. Deterministic helper identifiers that avoid collisions with user/provider
+   bindings.
+4. Optional observation forms that read exported cells and log their values in
+   runtime smokes.
+
+Boundaries:
+
+1. Phase-0 runtime values are the supported target. Transformer/syntax protocol
+   entries are represented only where explicitly tested.
+2. Imports must become explicit cells before WebRacket compilation. The bridge
+   does not rely on Chez-style ambient linklet instances.
+3. C FFI and foreign-inline support from upstream Schemify is intentionally
+   omitted because WebAssembly does not expose the same native C embedding
+   model.
+4. Unsupported literal/runtime shapes should be classified as bridge/runtime
+   work, not hidden by test workarounds.
+
 ## Input Linklet
 
 ```racket

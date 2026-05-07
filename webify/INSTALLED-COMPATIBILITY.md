@@ -12,6 +12,11 @@ test or smoke demonstrates the new status.
 | `racket/fixnum` | `(fx+ 1 2)` prints `3` | `webify/test-installed-module-runtime.rkt` |
 | `racket/list` | `(first '(#t #f))` prints `#t`/`true` through demand-sliced providers | `webify/test-installed-module-runtime.rkt` |
 | `racket/list` | `(first (rest '(#t #f)))` prints `#f`/`false` | `webify/test-installed-module-runtime.rkt` |
+| `racket/list` | `(car (cdr (add-between '("a" "b") ",")))` prints `,` | `webify/test-installed-module-runtime.rkt` |
+| `racket/list` | `(first (reverse (range 2 7 2)))` prints `6` | `webify/test-installed-module-runtime.rkt` |
+| `racket/string` | `(string-join '("a" "b") ",")` prints `a,b` | `webify/test-installed-module-runtime.rkt` |
+| `racket/string` | `(string-prefix? "abc" "ab")` prints `#t`/`true` | `webify/test-installed-module-runtime.rkt` |
+| `racket/function` | `((compose add1 add1) 40)` prints `42` | `webify/test-installed-module-runtime.rkt` |
 
 These prove that Webify can discover real installed providers, instantiate the
 resulting module graph, and observe exported module cells without turning
@@ -21,7 +26,7 @@ provider exports into top-level aliases.
 
 | Module | Current status | First blocker |
 | --- | --- | --- |
-| `racket/list` | Provider graph follows demand-driven re-export metadata and demand-slices unused `racket/private/for` exports; `first` and `rest` pass; `add-between` now gets past `unsafe-struct?`, the no-impersonator predicate path, `#%app/no-return`, result-arity helpers, `prop:method-arity-error` free-variable handling, module-reference constant checks, and paired export slicing for `racket/private/pico`'s `reverse` | richer `add-between` path reaches Wasm but raises an uncaught runtime exception after producing `#<undefined>` |
+| `racket/list` | Provider graph follows demand-driven re-export metadata and demand-slices unused `racket/private/for` exports; `first`, `rest`, `add-between`, and `range`/`reverse` smokes pass | Broader list exports still need coverage |
 
 The old `racket/list` blockers are no longer first failures:
 
@@ -45,11 +50,18 @@ The old `racket/list` blockers are no longer first failures:
 
 | Module | Current status | First blocker |
 | --- | --- | --- |
-| `racket/string` | Installed `string-join` smoke reaches WebRacket and prints `a,b`; sliced rename aliases and transitive `racket/list` providers are preserved | Broader string exports still need coverage |
+| `racket/string` | Installed `string-join` and `string-prefix?` smokes reach WebRacket; sliced rename aliases and transitive `racket/list` providers are preserved | Regexp-literal-dependent string exports, such as `string-split`, need literal/runtime support |
+| `racket/function` | Installed `compose` smoke reaches WebRacket and prints `42` | Broader higher-order exports still need coverage |
 
 `racket/string` depends on `racket/list` for `add-between`. The bridge now
 recovers that transitive provider from compiled module-path-index metadata when
 `phase-to-link-modules` is too sparse to name the public provider directly.
+
+The current `string-split` probe does not fail because of provider graph
+resolution. It reaches WebRacket compilation with a regexp literal such as
+`#rx"[][.*?+|(){}\\$^]"`, and `datum->construction-expr` cannot construct that
+literal yet. Treat that as a literal/runtime bridge gap, not as evidence that
+`racket/string` provider discovery regressed.
 
 ## Demand Slicer Boundaries
 
