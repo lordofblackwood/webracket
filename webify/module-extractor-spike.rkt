@@ -197,6 +197,13 @@
                              "key" key
                              "available keys" (webify-module-extractor-spike-bundle-keys report))))
 
+;; maybe-module-bundle-entry-ref : report any/c -> (or/c webify-module-bundle-entry? #f)
+;;   Look up an optional bundle entry by key.
+(define (maybe-module-bundle-entry-ref report key)
+  (for/first ([entry (in-list (webify-module-extractor-spike-bundle-entries report))]
+              #:when (equal? key (webify-module-bundle-entry-key entry)))
+    entry))
+
 ;; normalize-linklet-import-binding : symbol? any/c -> (list/c symbol? symbol?)
 ;;   Expand decompiled shorthand to the bridge's explicit local/external pair.
 (define (normalize-linklet-import-binding who binding)
@@ -424,10 +431,10 @@
   (define unresolved-groups (filter (lambda (group)
                                       (not (protocol-import-group? group)))
                                     import-groups))
-  (define data-entry (webify-module-bundle-entry-ref report 'data))
-  (define decl-entry (webify-module-bundle-entry-ref report 'decl))
-  (define data-linklet (webify-module-bundle-entry-datum data-entry))
-  (define decl-linklet (webify-module-bundle-entry-datum decl-entry))
+  (define data-entry (maybe-module-bundle-entry-ref report 'data))
+  (define decl-entry (maybe-module-bundle-entry-ref report 'decl))
+  (define data-linklet (and data-entry (webify-module-bundle-entry-datum data-entry)))
+  (define decl-linklet (and decl-entry (webify-module-bundle-entry-datum decl-entry)))
   (define data-module-path-indexes (data-linklet-module-path-indexes data-linklet))
   (define decl-requires-expression
     (and decl-linklet (linklet-body-definition-expression decl-linklet 'requires)))
