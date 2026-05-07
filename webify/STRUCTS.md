@@ -323,16 +323,20 @@ nested parent level: deeper simple no-auto/no-mutable chains are reconstructed
 recursively for prefab interning, so a chain such as
 `deep-grandchild -> grandchild -> child -> parent` shares type identity across
 `make-prefab-struct` and matching `make-struct-type ... 'prefab` descriptors.
+The same deeper simple chains can also be written with short aliases such as
+`'(deep-grandchild grandchild 1 child 1 parent 2)` and
+`'(deep-grandchild 1 grandchild 1 child 1 parent 2)`; those aliases normalize
+to the same full explicit public key as the long form.
 
 ## Proposed Next Implementation Milestone
 
 Extend prefab support beyond the nested-simple-super/prefab-datum-auto subset:
 
-- Add short-alias parsing for deeper prefab chains, such as
-  `'(deep-grandchild grandchild 1 child 1 parent 2)`, instead of requiring the
-  full explicit public-key form.
+- Extend the deeper alias path to cover mutable-mask aliases, or deliberately
+  reject/diagnose unsupported deeper mutable aliases with clearer tests.
 - Broaden prefab-datum validation if more Racket datum cases are needed.
 
 That milestone should include small tests showing:
 
-- A deeper prefab subtype alias normalizes to the same key as its explicit form.
+- A deeper prefab subtype with mutable fields either normalizes correctly or is
+  rejected with the intended unsupported-shape behavior.

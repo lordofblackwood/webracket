@@ -40815,12 +40815,24 @@
                     (i32.lt_u (local.get $len) (i32.const 1))
                     (i32.and (i32.gt_u (local.get $len) (i32.const 6))
                              (i32.or
-                              (i32.lt_u (local.get $len) (i32.const 8))
-                              (i32.ne
-                               (i32.rem_u
-                                (i32.sub (local.get $len) (i32.const 4))
-                                (i32.const 4))
-                               (i32.const 0)))))
+                              (i32.and
+                               (i32.lt_u (local.get $len) (i32.const 8))
+                               (i32.ne
+                                (i32.rem_u
+                                 (i32.sub (local.get $len) (i32.const 1))
+                                 (i32.const 2))
+                                (i32.const 0)))
+                              (i32.and
+                               (i32.ge_u (local.get $len) (i32.const 8))
+                               (i32.and
+                                (i32.ne
+                                 (i32.rem_u
+                                  (i32.sub (local.get $len) (i32.const 4))
+                                  (i32.const 4))
+                                 (i32.const 0))
+                                (i32.ne
+                                 (i32.rem_u (local.get $len) (i32.const 2))
+                                 (i32.const 1)))))))
                    (then (return (i32.const 0))))
 
                (local.set $name (call $list-ref/checked (ref.cast (ref $Pair) (local.get $key)) (i32.const 0)))
@@ -40926,6 +40938,41 @@
                                   (i31.get_s (ref.cast (ref i31) (local.get $parent-count)))
                                   (i32.const 1))))))
                         (then (return (i32.const 1))))))
+               (if (i32.gt_u (local.get $len) (i32.const 6))
+                   (then
+                    (if (i32.and
+                         (i32.eq
+                          (i32.rem_u (local.get $len) (i32.const 2))
+                          (i32.const 1))
+                         (ref.test
+                          (ref $Symbol)
+                          (call $list-ref/checked
+                                (ref.cast (ref $Pair) (local.get $key))
+                                (i32.const 1))))
+                        (then
+                         (local.set $i (i32.const 1))
+                         (block $done-chain-alias
+                                (loop $check-chain-alias
+                                      (br_if $done-chain-alias
+                                             (i32.ge_u (local.get $i) (local.get $len)))
+                                      (if (i32.eqz
+                                           (ref.test
+                                            (ref $Symbol)
+                                            (call $list-ref/checked
+                                                  (ref.cast (ref $Pair) (local.get $key))
+                                                  (local.get $i))))
+                                          (then (return (i32.const 0))))
+                                      (local.set $count
+                                                 (call $list-ref/checked
+                                                       (ref.cast (ref $Pair) (local.get $key))
+                                                       (i32.add (local.get $i) (i32.const 1))))
+                                      (if (ref.eq
+                                           (call $exact-nonnegative-integer? (local.get $count))
+                                           (global.get $false))
+                                          (then (return (i32.const 0))))
+                                      (local.set $i (i32.add (local.get $i) (i32.const 2)))
+                                      (br $check-chain-alias)))
+                         (return (i32.const 1))))))
                (if (i32.eq (local.get $len) (i32.const 6))
                    (then
                     (local.set $count
@@ -40993,6 +41040,47 @@
                                    (i31.get_s (ref.cast (ref i31) (local.get $parent-count)))
                                    (i32.const 1)))))))
                         (then (return (i32.const 1))))))
+               (if (i32.gt_u (local.get $len) (i32.const 6))
+                   (then
+                    (if (i32.and
+                         (i32.eqz
+                          (i32.rem_u (local.get $len) (i32.const 2)))
+                         (ref.test
+                          (ref $Symbol)
+                          (call $list-ref/checked
+                                (ref.cast (ref $Pair) (local.get $key))
+                                (i32.const 2))))
+                        (then
+                         (local.set $count
+                                    (call $list-ref/checked
+                                          (ref.cast (ref $Pair) (local.get $key))
+                                          (i32.const 1)))
+                         (if (ref.eq (call $exact-nonnegative-integer? (local.get $count))
+                                     (global.get $false))
+                             (then (return (i32.const 0))))
+                         (local.set $i (i32.const 2))
+                         (block $done-chain-alias
+                                (loop $check-chain-alias
+                                      (br_if $done-chain-alias
+                                             (i32.ge_u (local.get $i) (local.get $len)))
+                                      (if (i32.eqz
+                                           (ref.test
+                                            (ref $Symbol)
+                                            (call $list-ref/checked
+                                                  (ref.cast (ref $Pair) (local.get $key))
+                                                  (local.get $i))))
+                                          (then (return (i32.const 0))))
+                                      (local.set $count
+                                                 (call $list-ref/checked
+                                                       (ref.cast (ref $Pair) (local.get $key))
+                                                       (i32.add (local.get $i) (i32.const 1))))
+                                      (if (ref.eq
+                                           (call $exact-nonnegative-integer? (local.get $count))
+                                           (global.get $false))
+                                          (then (return (i32.const 0))))
+                                      (local.set $i (i32.add (local.get $i) (i32.const 2)))
+                                      (br $check-chain-alias)))
+                         (return (i32.const 1))))))
 
                (local.set $count (call $list-ref/checked (ref.cast (ref $Pair) (local.get $key)) (i32.const 1)))
                (if (ref.eq (call $exact-nonnegative-integer? (local.get $count)) (global.get $false))
@@ -41628,6 +41716,141 @@
                                             (call $simple-prefab-key-mutables/checked
                                                   (local.get $parent-key)))))))))
 
+         ;; simple-prefab-empty-mutable-mask : -> vector?
+         ;;   Build the empty mutable mask used by simple no-mutable aliases.
+         (func $simple-prefab-empty-mutable-mask
+               (result (ref $Vector))
+
+               (struct.new $Vector
+                           (i32.const 0)
+                           (i32.const 0)
+                           (array.new $Array (global.get $false) (i32.const 0))))
+
+         ;; simple-prefab-zero-auto-spec : -> list?
+         ;;   Build the `(0 #f)` auto spec used by simple no-auto aliases.
+         (func $simple-prefab-zero-auto-spec
+               (result (ref eq))
+
+               (call $cons
+                     (ref.i31 (i32.const 0))
+                     (call $cons (global.get $false) (global.get $null))))
+
+         ;; simple-prefab-chain-alias-parent-total/checked : prefab-key? i32 -> i32
+         ;;   Sum init counts in a simple no-auto/no-mutable alias parent chain.
+         (func $simple-prefab-chain-alias-parent-total/checked
+               (param $key   (ref eq))
+               (param $index i32)
+               (result       i32)
+
+               (local $len   i32)
+               (local $i     i32)
+               (local $count (ref eq))
+               (local $total i32)
+
+               (local.set $len (call $length/i32 (local.get $key)))
+               (local.set $i (local.get $index))
+               (local.set $total (i32.const 0))
+               (block $done
+                      (loop $walk
+                            (br_if $done (i32.ge_u (local.get $i) (local.get $len)))
+                            (if (i32.eqz
+                                 (ref.test
+                                  (ref $Symbol)
+                                  (call $list-ref/checked
+                                        (ref.cast (ref $Pair) (local.get $key))
+                                        (local.get $i))))
+                                (then (call $raise-argument-error (local.get $key))
+                                      (unreachable)))
+                            (local.set $count
+                                       (call $list-ref/checked
+                                             (ref.cast (ref $Pair) (local.get $key))
+                                             (i32.add (local.get $i) (i32.const 1))))
+                            (if (ref.eq
+                                 (call $exact-nonnegative-integer? (local.get $count))
+                                 (global.get $false))
+                                (then (call $raise-argument-error (local.get $key))
+                                      (unreachable)))
+                            (local.set $total
+                                       (i32.add
+                                        (local.get $total)
+                                        (i32.shr_s
+                                         (i31.get_s (ref.cast (ref i31) (local.get $count)))
+                                         (i32.const 1))))
+                            (local.set $i (i32.add (local.get $i) (i32.const 2)))
+                            (br $walk)))
+               (local.get $total))
+
+         ;; simple-prefab-chain-alias->explicit-key/checked : prefab-key? i32 -> prefab-key?
+         ;;   Convert a simple alias segment chain into an explicit public key.
+         (func $simple-prefab-chain-alias->explicit-key/checked
+               (param $key   (ref eq))
+               (param $index i32)
+               (result       (ref eq))
+
+               (local $len        i32)
+               (local $name       (ref $Symbol))
+               (local $init-count i32)
+               (local $tail       (ref eq))
+
+               (local.set $len (call $length/i32 (local.get $key)))
+               (if (i32.ge_u (local.get $index) (local.get $len))
+                   (then (call $raise-argument-error (local.get $key))
+                         (unreachable)))
+               (local.set $name
+                          (ref.cast
+                           (ref $Symbol)
+                           (call $list-ref/checked
+                                 (ref.cast (ref $Pair) (local.get $key))
+                                 (local.get $index))))
+               (local.set $init-count
+                          (i32.shr_s
+                           (i31.get_s
+                            (ref.cast
+                             (ref i31)
+                             (call $list-ref/checked
+                                   (ref.cast (ref $Pair) (local.get $key))
+                                   (i32.add (local.get $index) (i32.const 1)))))
+                           (i32.const 1)))
+               (local.set $tail
+                          (if (result (ref eq))
+                              (i32.lt_u
+                               (i32.add (local.get $index) (i32.const 2))
+                               (local.get $len))
+                              (then
+                               (call $simple-prefab-chain-alias->explicit-key/checked
+                                     (local.get $key)
+                                     (i32.add (local.get $index) (i32.const 2))))
+                              (else (global.get $null))))
+               (call $cons
+                     (local.get $name)
+                     (call $cons
+                           (ref.i31 (i32.shl (local.get $init-count) (i32.const 1)))
+                           (call $cons
+                                 (call $simple-prefab-zero-auto-spec)
+                                 (call $cons
+                                       (call $simple-prefab-empty-mutable-mask)
+                                       (local.get $tail))))))
+
+         ;; simple-prefab-chain-alias-top->explicit-key/checked : prefab-key? i32 i32 -> prefab-key?
+         ;;   Convert a full simple alias key with an inferred or explicit top count.
+         (func $simple-prefab-chain-alias-top->explicit-key/checked
+               (param $key            (ref eq))
+               (param $top-init-count i32)
+               (param $parent-index   i32)
+               (result                (ref eq))
+
+               (call $cons
+                     (call $simple-prefab-key-name/checked (local.get $key))
+                     (call $cons
+                           (ref.i31 (i32.shl (local.get $top-init-count) (i32.const 1)))
+                           (call $cons
+                                 (call $simple-prefab-zero-auto-spec)
+                                 (call $cons
+                                       (call $simple-prefab-empty-mutable-mask)
+                                       (call $simple-prefab-chain-alias->explicit-key/checked
+                                             (local.get $key)
+                                             (local.get $parent-index)))))))
+
          ;; simple-prefab-mutable-mask-member?/i32 : vector? i32 -> i32
          ;;   Check whether index appears in the supported mutable-field mask.
          (func $simple-prefab-mutable-mask-member?/i32
@@ -41965,6 +42188,30 @@
                           (call $list-tail/checked
                                 (ref.cast (ref $Pair) (local.get $key))
                                 (i32.const 4)))
+               (if (i32.eqz (call $simple-prefab-key-has-super?/i32
+                                  (local.get $parent-key)))
+                   (then
+                    (return
+                     (call $simple-prefab-super-struct-type/checked
+                           (call $simple-prefab-key-name/checked (local.get $key))
+                           (call $simple-prefab-key-init-count-or-minus-one/checked
+                                 (local.get $key))
+                           (call $simple-prefab-key-auto-count/checked
+                                 (local.get $key))
+                           (call $simple-prefab-key-auto-value/checked
+                                 (local.get $key))
+                           (call $simple-prefab-key-mutables/checked
+                                 (local.get $key))
+                           (call $simple-prefab-key-name/checked
+                                 (local.get $parent-key))
+                           (call $simple-prefab-key-init-count-or-minus-one/checked
+                                 (local.get $parent-key))
+                           (call $simple-prefab-key-auto-count/checked
+                                 (local.get $parent-key))
+                           (call $simple-prefab-key-auto-value/checked
+                                 (local.get $parent-key))
+                           (call $simple-prefab-key-mutables/checked
+                                 (local.get $parent-key))))))
                (local.set $parent-std
                           (call $simple-prefab-struct-type-for-key/checked
                                 (local.get $parent-key)))
@@ -42211,6 +42458,9 @@
                (local $len            i32)
                (local $has-super-key  i32)
                (local $has-nested-super-key i32)
+               (local $chain-alias?   i32)
+               (local $chain-parent-index i32)
+               (local $chain-parent-total i32)
                (local $parent-init    i32)
                (local $parent-auto    i32)
                (local $parent-total   i32)
@@ -42238,6 +42488,64 @@
                                                (ref.test (ref $Symbol) (local.get $key))
                                                (then (i32.const 0))
                                                (else (call $length/i32 (local.get $key)))))
+               (local.set $chain-alias? (i32.const 0))
+               (local.set $chain-parent-index (i32.const 0))
+               (if (i32.gt_u (local.get $len) (i32.const 6))
+                   (then
+                    (if (i32.and
+                         (i32.eq
+                          (i32.rem_u (local.get $len) (i32.const 2))
+                          (i32.const 1))
+                         (ref.test
+                          (ref $Symbol)
+                          (call $list-ref/checked
+                                (ref.cast (ref $Pair) (local.get $key))
+                                (i32.const 1))))
+                        (then
+                         (local.set $chain-alias? (i32.const 1))
+                         (local.set $chain-parent-index (i32.const 1))
+                         (local.set $chain-parent-total
+                                    (call $simple-prefab-chain-alias-parent-total/checked
+                                          (local.get $key)
+                                          (local.get $chain-parent-index)))
+                         (if (i32.gt_u (local.get $chain-parent-total)
+                                       (local.get $field-count))
+                             (then (call $raise-argument-error (local.get $key))
+                                   (unreachable)))
+                         (local.set $key
+                                    (call $simple-prefab-chain-alias-top->explicit-key/checked
+                                          (local.get $key)
+                                          (i32.sub (local.get $field-count)
+                                                   (local.get $chain-parent-total))
+                                          (local.get $chain-parent-index)))
+                         (local.set $len (call $length/i32 (local.get $key)))))))
+               (if (i32.and
+                    (i32.eqz (local.get $chain-alias?))
+                    (i32.gt_u (local.get $len) (i32.const 6)))
+                   (then
+                    (if (i32.and
+                         (i32.eqz (i32.rem_u (local.get $len) (i32.const 2)))
+                         (ref.test
+                          (ref $Symbol)
+                          (call $list-ref/checked
+                                (ref.cast (ref $Pair) (local.get $key))
+                                (i32.const 2))))
+                        (then
+                         (local.set $chain-alias? (i32.const 1))
+                         (local.set $chain-parent-index (i32.const 2))
+                         (local.set $key
+                                    (call $simple-prefab-chain-alias-top->explicit-key/checked
+                                          (local.get $key)
+                                          (i32.shr_s
+                                           (i31.get_s
+                                            (ref.cast
+                                             (ref i31)
+                                             (call $list-ref/checked
+                                                   (ref.cast (ref $Pair) (local.get $key))
+                                                   (i32.const 1))))
+                                           (i32.const 1))
+                                          (local.get $chain-parent-index)))
+                         (local.set $len (call $length/i32 (local.get $key)))))))
                (local.set $name           (call $simple-prefab-key-name/checked (local.get $key)))
                (local.set $parent-std
                           (call $simple-prefab-struct-type/checked
