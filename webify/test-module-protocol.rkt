@@ -1,6 +1,8 @@
 #lang racket/base
 
 (require rackunit
+         racket/file
+         racket/path
          "test-module-support.rkt")
 
 (test-case "module protocol exposes report and input providers"
@@ -40,6 +42,66 @@
          report
          (list webify-module-protocol-report)
          #:module-protocol-dependency webify-module-protocol-dependency)))]))
+
+(unless (or (getenv "WEBIFY_SKIP_CLI_SMOKE")
+            (getenv "WEBIFY_SKIP_RUNTIME_SMOKE"))
+  (test-case "module protocol graph runs through WebRacket"
+    (define source-dir (make-temporary-file "webracket-module-protocol-src-~a" 'directory))
+    (define dest-dir   (make-temporary-file "webracket-module-protocol-dest-~a" 'directory))
+    (define source-path (build-path source-dir "module-protocol-run.rkt"))
+    (dynamic-wind
+      void
+      (lambda ()
+        (define report
+          (webify-module-report
+           'a
+           '(#f)
+           '(0)
+           '()
+           '((.get-syntax-literal!) (.set-transformer!))
+           '(x)
+           '(linklet (((.get-syntax-literal! .get-syntax-literal!))
+                      ((.set-transformer! .set-transformer!)))
+              (x)
+              (define-values (x) 10))
+           #t
+           '()))
+        (define registry
+          (webify-module-reports->registry
+           (list webify-module-protocol-report report)
+           #:module-protocol-dependency webify-module-protocol-dependency))
+        (define loader (make-webify-module-loader registry))
+        (webify-module-loader-instantiate!
+         loader
+         '(a)
+         #:serializable?-box     #f
+         #:datum-intern?         #f
+         #:target                #f
+         #:allow-set!-undefined? #f
+         #:unsafe-mode?          #f
+         #:enforce-constant?     #t
+         #:allow-inline?         #t
+         #:no-prompt?            #f
+         #:prim-knowns           test-prim-knowns
+         #:primitives            test-primitives
+         #:compiler-query        (lambda (v) #f)
+         #:get-import-knowns     (lambda (key) (values #f #f #f))
+         #:import-keys           #f)
+        (write-datum-program!
+         source-path
+         (webify-module-loader-observe loader '((a x))))
+        (define-values (status output)
+          (run-webracket (list "--no-stdlib"
+                               "-r"
+                               "--dest" (path->string dest-dir)
+                               (path->string source-path))
+                         source-dir))
+        (check-equal? status 0 output)
+        (check-regexp-match #rx"(?m:^10$)" output))
+      (lambda ()
+        (for ([dir (in-list (list source-dir dest-dir))])
+          (with-handlers ([exn:fail:filesystem? void])
+            (delete-directory/files dir)))))))
 
 (module+ main
   (void))
