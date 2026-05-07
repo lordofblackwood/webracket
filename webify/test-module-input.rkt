@@ -103,6 +103,50 @@
   (check-equal? (webify-module-linklet-input-imports input)
                 '((ext-x a x))))
 
+(test-case "module linklet manifest derives imports"
+  (define manifest
+    (datum->webify-module-linklet-manifest
+     '(webify-module-linklet-manifest
+       (roots (b))
+       (input a
+              (linklet () (x)
+                (define-values (x) 10))
+              (imports ()))
+       (input b
+              (linklet (([ext-x x])) (y)
+                (define-values (y) (+ x 1)))
+              (resolve-imports
+               (dependency-exports ((a (x)))))))))
+  (define inputs (webify-module-linklet-manifest-inputs manifest))
+  (check-equal? (map webify-module-linklet-input-imports inputs)
+                '(() ((ext-x a x)))))
+
+(test-case "module linklet manifest resolves ambiguous imports with dependencies"
+  (define manifest
+    (datum->webify-module-linklet-manifest
+     '(webify-module-linklet-manifest
+       (roots (b))
+       (input a
+              (linklet () (x)
+                (define-values (x) 10))
+              (imports ()))
+       (input other
+              (linklet () (x)
+                (define-values (x) 99))
+              (imports ()))
+       (input b
+              (linklet (([ext-x x])) (y)
+                (define-values (y) (+ x 1)))
+              (resolve-imports
+               (dependency-exports ((a (x)) (other (x))))
+               (dependencies ((ext-x a))))))))
+  (define b-input
+    (for/first ([input (in-list (webify-module-linklet-manifest-inputs manifest))]
+                #:when (eq? (webify-module-linklet-input-name input) 'b))
+      input))
+  (check-equal? (webify-module-linklet-input-imports b-input)
+                '((ext-x a x))))
+
 (test-case "module linklet inputs validate through registry registration"
   (check-exn
    #rx"webify-module-linklet-input\\?"
@@ -228,7 +272,8 @@
                (input b
                       (linklet (([ext-x x])) (y)
                         (define-values (y) (+ x 1)))
-                      (imports ((ext-x a x)))))
+                      (resolve-imports
+                       (dependency-exports ((a (x)))))))
              out)
             (newline out))
           #:exists 'truncate/replace)

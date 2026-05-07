@@ -37,6 +37,22 @@
   (match datum
     [`(input ,(? symbol? name) ,linklet (imports ,imports))
      (webify-module-linklet-input name linklet imports)]
+    [`(input ,(? symbol? name)
+             ,linklet
+             (resolve-imports (dependency-exports ,dependency-exports)))
+     (webify-module-linklet-input/resolve-imports
+      name
+      linklet
+      dependency-exports)]
+    [`(input ,(? symbol? name)
+             ,linklet
+             (resolve-imports (dependency-exports ,dependency-exports)
+                              (dependencies ,dependencies)))
+     (webify-module-linklet-input/resolve-imports
+      name
+      linklet
+      dependency-exports
+      #:dependencies dependencies)]
     [_
      (raise-arguments-error 'datum->webify-module-linklet-manifest
                             "expected module-linklet input clause"

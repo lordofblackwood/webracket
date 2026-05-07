@@ -506,6 +506,35 @@ forms, and run the resulting top-level program through `webracket.rkt
 --no-stdlib`. That is now the preferred end-to-end bridge fixture because it
 tests the handoff file format instead of only in-memory structs.
 
+Manifests can also ask Webify to derive flat import triples from dependency
+export tables:
+
+```racket
+(input b
+       (linklet (([ext-x x])) (y)
+         (define-values (y) (+ x 1)))
+       (resolve-imports
+        (dependency-exports ((a (x))))))
+```
+
+This is equivalent to:
+
+```racket
+(input b
+       (linklet (([ext-x x])) (y)
+         (define-values (y) (+ x 1)))
+       (imports ((ext-x a x))))
+```
+
+If more than one dependency exports the same external name, the manifest can
+provide an explicit local-import dependency mapping:
+
+```racket
+(resolve-imports
+ (dependency-exports ((a (x)) (other (x))))
+ (dependencies ((ext-x a))))
+```
+
 The export `x` is represented by the cell `webify-export-cell0$0`. The lowered
 procedure writes the exported value into that cell with
 `module-variable-define!`. The adapter then exposes the cell value as the
