@@ -41568,6 +41568,50 @@
                                (ref.cast (ref $Pair) (local.get $key))
                                (i32.const 7))))
 
+         ;; simple-prefab-super-key-registry-key/checked : prefab-key? -> symbol?
+         ;;   Build the internal registry key for an explicit one-level prefab key.
+         (func $simple-prefab-super-key-registry-key/checked
+               (param $key (ref eq))
+               (result     (ref $Symbol))
+
+               (local $len i32)
+
+               (if (i32.eqz (call $simple-prefab-key-has-super?/i32 (local.get $key)))
+                   (then (call $raise-argument-error (local.get $key))
+                         (unreachable)))
+               (local.set $len (call $length/i32 (local.get $key)))
+               (if (i32.ne (local.get $len) (i32.const 8))
+                   (then (call $raise-argument-error (local.get $key))
+                         (unreachable)))
+               (call $string->symbol/checked
+                     (call $string-append/2
+                           (call $string-append/2
+                                 (call $symbol->immutable-string
+                                       (call $simple-prefab-registry-key
+                                             (call $simple-prefab-key-name/checked
+                                                   (local.get $key))
+                                             (call $simple-prefab-key-init-count-or-minus-one/checked
+                                                   (local.get $key))
+                                             (call $simple-prefab-key-auto-count/checked
+                                                   (local.get $key))
+                                             (call $simple-prefab-key-auto-value/checked
+                                                   (local.get $key))
+                                             (call $simple-prefab-key-mutables/checked
+                                                   (local.get $key))))
+                                 (global.get $string:colon))
+                           (call $symbol->immutable-string
+                                 (call $simple-prefab-registry-key
+                                       (call $simple-prefab-key-parent-name/checked
+                                             (local.get $key))
+                                       (call $simple-prefab-key-parent-init-count/checked
+                                             (local.get $key))
+                                       (call $simple-prefab-key-parent-auto-count/checked
+                                             (local.get $key))
+                                       (call $simple-prefab-key-parent-auto-value/checked
+                                             (local.get $key))
+                                       (call $simple-prefab-key-parent-mutables/checked
+                                             (local.get $key)))))))
+
          ;; simple-prefab-mutable-mask-member?/i32 : vector? i32 -> i32
          ;;   Check whether index appears in the supported mutable-field mask.
          (func $simple-prefab-mutable-mask-member?/i32
@@ -42459,6 +42503,8 @@
                (local $prefab?        i32)
                (local $prefab-mutables (ref $Vector))
                (local $prefab-parent-key (ref eq))
+               (local $prefab-parent-has-super i32)
+               (local $prefab-parent-registry-key (ref null $Symbol))
                (local $prefab-parent-init i32)
                (local $prefab-parent-auto i32)
                (local $prefab-parent-auto-value (ref eq))
@@ -42490,6 +42536,7 @@
                (local.set $prefab-existing (global.get $false))
                (local.set $prefab-metadata (global.get $false))
                (local.set $prefab-parent-key (global.get $false))
+               (local.set $prefab-parent-registry-key (ref.null $Symbol))
                (local.set $prefab-parent-auto-value (global.get $false))
                (local.set $prefab-mutables
                           (struct.new $Vector
@@ -42592,6 +42639,14 @@
                          (local.set $prefab-parent-key
                                     (struct.get $Pair $a
                                                 (ref.cast (ref $Pair) (local.get $prefab-metadata))))
+                         (local.set $prefab-parent-has-super
+                                    (call $simple-prefab-key-has-super?/i32
+                                          (local.get $prefab-parent-key)))
+                         (if (local.get $prefab-parent-has-super)
+                             (then
+                              (local.set $prefab-parent-registry-key
+                                         (call $simple-prefab-super-key-registry-key/checked
+                                               (local.get $prefab-parent-key)))))
                          (local.set $prefab-parent-auto
                                     (call $simple-prefab-key-auto-count/checked
                                           (local.get $prefab-parent-key)))
@@ -42635,18 +42690,31 @@
                                (if (result (ref $StructType))
                                    (local.get $has-super)
                                    (then
-                                    (call $simple-prefab-super-struct-type/checked
-                                          (ref.cast (ref $Symbol) (local.get $name))
-                                          (local.get $init)
-                                          (local.get $auto)
-                                          (local.get $auto-val)
-                                          (local.get $prefab-mutables)
-                                          (call $simple-prefab-key-name/checked
-                                                (local.get $prefab-parent-key))
-                                          (local.get $prefab-parent-init)
-                                          (local.get $prefab-parent-auto)
-                                          (local.get $prefab-parent-auto-value)
-                                          (local.get $prefab-parent-mutables)))
+                                    (if (result (ref $StructType))
+                                        (local.get $prefab-parent-has-super)
+                                        (then
+                                         (call $simple-prefab-substruct-type/checked
+                                               (ref.cast (ref $Symbol) (local.get $name))
+                                               (local.get $init)
+                                               (local.get $auto)
+                                               (local.get $auto-val)
+                                               (local.get $prefab-mutables)
+                                               (ref.as_non_null (local.get $super-typed))
+                                               (ref.as_non_null
+                                                (local.get $prefab-parent-registry-key))))
+                                        (else
+                                         (call $simple-prefab-super-struct-type/checked
+                                               (ref.cast (ref $Symbol) (local.get $name))
+                                               (local.get $init)
+                                               (local.get $auto)
+                                               (local.get $auto-val)
+                                               (local.get $prefab-mutables)
+                                               (call $simple-prefab-key-name/checked
+                                                     (local.get $prefab-parent-key))
+                                               (local.get $prefab-parent-init)
+                                               (local.get $prefab-parent-auto)
+                                               (local.get $prefab-parent-auto-value)
+                                               (local.get $prefab-parent-mutables)))))
                                    (else
                                     (call $simple-prefab-struct-type/checked
                                           (ref.cast (ref $Symbol) (local.get $name))

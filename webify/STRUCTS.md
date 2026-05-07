@@ -315,17 +315,18 @@ the explicit form, and parent/child accessors work on instances built from
 simple no-auto/no-mutable middle shape, such as
 `'(grandchild child 1 parent 2)` and
 `'(grandchild 1 child 1 parent 2)`. These nested aliases construct instances
-and normalize to the same full explicit key identity; matching generated
-accessors over nested prefab parents still need a follow-up type-identity pass.
+and normalize to the same full explicit key identity. Generated accessors from
+matching nested `make-struct-type ... 'prefab` descriptors share that nested
+type identity and work across the parent, child, and grandchild fields.
 
 ## Proposed Next Implementation Milestone
 
 Extend prefab support beyond the nested-simple-super/prefab-datum-auto subset:
 
-- Make `make-struct-type ... 'prefab` accessors share nested prefab type
-  identity with `make-prefab-struct`.
+- Generalize nested prefab registry-key reconstruction beyond one nested parent
+  key, so deeper supertype chains do not need special-case bridge code.
 - Broaden prefab-datum validation if more Racket datum cases are needed.
 
 That milestone should include small tests showing:
 
-- A multi-level prefab subtype shares its normalized supertype chain across slices.
+- A deeper prefab subtype shares its normalized supertype chain across slices.

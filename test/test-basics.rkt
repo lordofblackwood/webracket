@@ -4500,6 +4500,9 @@
                       (define-values (struct:prefab-child make-prefab-child prefab-child?
                                                           prefab-child-ref prefab-child-set!)
                         (make-struct-type 'prefab-child struct:prefab-parent 1 0 #f #f 'prefab))
+                      (define-values (struct:prefab-grandchild make-prefab-grandchild prefab-grandchild?
+                                                               prefab-grandchild-ref prefab-grandchild-set!)
+                        (make-struct-type 'prefab-grandchild struct:prefab-child 1 0 #f #f 'prefab))
                       (define type-info (prefab-struct-type-key+field-count struct:prefab-point))
                       (define auto-type-info (prefab-struct-type-key+field-count struct:prefab-auto))
                       (prefab-cell-set! p/mutable 1 99)
@@ -4565,6 +4568,14 @@
                            (equal? (prefab-parent-ref p/child-alias 0) 10)
                            (equal? (prefab-parent-ref p/child-alias 1) 20)
                            (equal? (prefab-child-ref p/child-alias 0) 30)
+                           (equal? (prefab-parent-ref p/grandchild 0) 10)
+                           (equal? (prefab-parent-ref p/grandchild 1) 20)
+                           (equal? (prefab-child-ref p/grandchild 0) 30)
+                           (equal? (prefab-grandchild-ref p/grandchild 0) 40)
+                           (equal? (prefab-parent-ref p/grandchild-explicit-count 0) 10)
+                           (equal? (prefab-parent-ref p/grandchild-explicit-count 1) 20)
+                           (equal? (prefab-child-ref p/grandchild-explicit-count 0) 30)
+                           (equal? (prefab-grandchild-ref p/grandchild-explicit-count 0) 40)
                            (equal? type-info '(prefab-point . 2))
                            (equal? auto-type-info '((prefab-auto 1 (1 #f) #()) . 2)))))))
 
