@@ -2,6 +2,7 @@
 
 (require rackunit
          racket/list
+         racket/match
          "module-extractor.rkt"
          "module-input.rkt"
          "module-protocol.rkt"
@@ -133,3 +134,24 @@
            (map import-binding->printed
                 (webify-linklet-import-bindings
                  (webify-module-report-phase0-linklet-datum report))))))
+
+(test-case "Racket 9.2 demand slicing preserves re-export provider path"
+  (define list-report (webify-module-path->report 'racket/list))
+  (define inputs
+    (webify-module-reports->discovered-resolved-linklet-inputs
+     (list list-report)
+     #:extra-reports (list webify-module-protocol-report)
+     #:module-protocol-dependency webify-module-protocol-dependency
+     #:demand-slice? #t))
+  (define more-scheme-input
+    (for/first ([input (in-list inputs)]
+                #:when (eq? (webify-module-linklet-input-name input)
+                            'racket/private/more-scheme))
+      input))
+  (check-not-false more-scheme-input)
+  (check-equal? (webify-module-linklet-input-name more-scheme-input)
+                'racket/private/more-scheme)
+  (check-equal?
+   (match (webify-module-linklet-input-linklet more-scheme-input)
+     [`(linklet ,_imports ,exports . ,_body) exports])
+   '(hash-update)))
