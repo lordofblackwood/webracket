@@ -3,6 +3,7 @@
 (require rackunit
          racket/list
          racket/match
+         "module-audit.rkt"
          "module-input.rkt"
          "module-extractor-spike.rkt")
 
@@ -804,6 +805,54 @@
       input))
   (check-equal? (webify-module-linklet-input-imports list-input)
                 `((1/reverse ,dependency ,provider-export))))
+
+(test-case "module graph audit summarizes provider resolution"
+  (define provider-report
+    (webify-module-extractor-spike
+     'racket/string
+     '(#f)
+     '(0)
+     '()
+     '()
+     '(string-join.1)
+     '(linklet () (string-join.1)
+        (define-values (string-join.1) 'join))
+     #t
+     '()))
+  (define importer-report
+    (webify-module-extractor-spike
+     'use-string
+     '(#f)
+     '(0)
+     '()
+     '((string-join.1))
+     '(y)
+     '(linklet (((string-join.1 string-join.1))) (y)
+        (define-values (y) string-join.1))
+     #t
+     '()))
+  (define audit
+    (webify-module-reports->graph-audit
+     (list provider-report importer-report)))
+  (check-equal? (webify-module-graph-audit-required-provider-names audit)
+                '())
+  (check-equal? (webify-module-graph-audit-dependency-exports audit)
+                '((racket/string (string-join.1))
+                  (use-string (y))))
+  (check-equal? (webify-module-graph-audit-unresolved-import-groups audit)
+                '((racket/string ())
+                  (use-string (((string-join.1 string-join.1))))))
+  (check-equal? (map webify-module-linklet-input-name
+                     (webify-module-graph-audit-resolved-inputs audit))
+                '(racket/string use-string))
+  (define use-input
+    (for/first ([input (in-list (webify-module-graph-audit-resolved-inputs audit))]
+                #:when (eq? (webify-module-linklet-input-name input) 'use-string))
+      input))
+  (check-equal? (webify-module-linklet-input-imports use-input)
+                '((string-join.1 racket/string string-join.1)))
+  (check-equal? (webify-module-graph-audit-failures audit)
+                '()))
 
 (module+ main
   (void))
