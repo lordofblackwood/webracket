@@ -36,11 +36,19 @@
          webify-module-bundle-entry-value
          webify-module-bundle-entry-ref
          webify-module-extractor-spike-import-map
+         webify-module-extractor-spike-dependency-exports
+         webify-module-extractor-spikes-dependency-exports
+         webify-source-module->dependency-exports
+         webify-source-modules->dependency-exports
          webify-normalize-linklet-imports
          webify-linklet-import-bindings
          webify-source-module->linklet-input
          webify-module-extractor-spike->resolved-linklet-input
+         webify-module-extractor-spike->resolved-linklet-input/providers
+         webify-module-extractor-spikes->resolved-linklet-inputs
          webify-source-module->resolved-linklet-input
+         webify-source-module->resolved-linklet-input/providers
+         webify-source-modules->resolved-linklet-inputs
          webify-compile-module-extractor-spike)
 
 (require racket/linklet
@@ -511,6 +519,32 @@
   (for/list ([binding (in-list bindings)])
     (hash-ref triples-by-import (car binding))))
 
+;; webify-module-extractor-spike-dependency-exports : report -> dependency-export-row
+;;   Derive a resolver export row from the extracted provider's compiled phase-0 exports.
+(define (webify-module-extractor-spike-dependency-exports report)
+  (define who 'webify-module-extractor-spike-dependency-exports)
+  (unless (webify-module-extractor-spike? report)
+    (raise-argument-error who "webify-module-extractor-spike?" report))
+  (list (webify-module-extractor-spike-name report)
+        (webify-module-extractor-spike-phase0-exports report)))
+
+;; webify-module-extractor-spikes-dependency-exports : (listof report) -> dependency-exports
+;;   Derive a resolver export table from extracted provider reports.
+(define (webify-module-extractor-spikes-dependency-exports reports)
+  (define who 'webify-module-extractor-spikes-dependency-exports)
+  (unless (list? reports)
+    (raise-argument-error who "(listof webify-module-extractor-spike?)" reports))
+  (define dependency-exports
+    (for/list ([report (in-list reports)])
+      (unless (webify-module-extractor-spike? report)
+        (raise-argument-error who "webify-module-extractor-spike?" report))
+      (webify-module-extractor-spike-dependency-exports report)))
+  ;; Reuse the manifest-input validator to reject duplicate provider names.
+  (webify-module-linklet-inputs-dependency-exports
+   (for/list ([row (in-list dependency-exports)])
+     (match-define (list name exports) row)
+     (webify-module-linklet-input name `(linklet () ,exports (void)) '()))))
+
 ;; webify-compile-module-extractor-spike : any/c -> webify-module-extractor-spike?
 ;;   Probe Racket's compiled-module linklet shape without claiming extraction support.
 (define (webify-compile-module-extractor-spike module-datum)
@@ -581,6 +615,34 @@
         "host Racket does not provide decompile-linklet"
         "use the newer ../racket checkout for the machine-independent decompile spike")])))
 
+;; webify-source-module->dependency-exports : module-datum -> dependency-export-row
+;;   Compile a provider source module and expose its compiled phase-0 exports.
+(define (webify-source-module->dependency-exports module-datum)
+  (webify-module-extractor-spike-dependency-exports
+   (webify-compile-module-extractor-spike module-datum)))
+
+;; webify-source-modules->dependency-exports : (listof module-datum) -> dependency-exports
+;;   Compile provider source modules and expose their compiled phase-0 exports.
+(define (webify-source-modules->dependency-exports module-data)
+  (define who 'webify-source-modules->dependency-exports)
+  (unless (list? module-data)
+    (raise-argument-error who "(listof source-module-datum?)" module-data))
+  (webify-module-extractor-spikes-dependency-exports
+   (for/list ([module-datum (in-list module-data)])
+     (webify-compile-module-extractor-spike module-datum))))
+
+;; validate-extractor-reports! : symbol? any/c -> void?
+;;   Reject values that cannot be used as an extracted module graph.
+(define (validate-extractor-reports! who reports)
+  (unless (list? reports)
+    (raise-argument-error who "(listof webify-module-extractor-spike?)" reports))
+  (for ([report (in-list reports)])
+    (unless (webify-module-extractor-spike? report)
+      (raise-argument-error who "webify-module-extractor-spike?" report)))
+  ;; Reuse export-table construction to reject duplicate module names.
+  (webify-module-extractor-spikes-dependency-exports reports)
+  (void))
+
 ;; webify-source-module->linklet-input : module-datum [#:imports imports] -> webify-module-linklet-input?
 ;;   Extract the phase-0 linklet datum from a source module into the manifest input shape.
 (define (webify-source-module->linklet-input module-datum #:imports [imports #f])
@@ -624,6 +686,52 @@
     (webify-module-import-map-required-module-candidates import-map)
     module-protocol-dependency)))
 
+;; webify-module-extractor-spike->resolved-linklet-input/providers : report reports ... -> input
+;;   Resolve an importer report using compiled export rows from provider reports.
+(define (webify-module-extractor-spike->resolved-linklet-input/providers report
+                                                                         provider-reports
+                                                                         #:dependencies [dependencies '()]
+                                                                         #:module-protocol-dependency [module-protocol-dependency #f])
+  (define who 'webify-module-extractor-spike->resolved-linklet-input/providers)
+  (unless (webify-module-extractor-spike? report)
+    (raise-argument-error who "webify-module-extractor-spike?" report))
+  (unless (list? provider-reports)
+    (raise-argument-error who "(listof webify-module-extractor-spike?)" provider-reports))
+  (unless (webify-module-extractor-spike-manifest-ready? report)
+    (raise-arguments-error who
+                           "source module did not produce a decompilable phase-0 linklet datum"
+                           "notes" (webify-module-extractor-spike-notes report)))
+  (define raw-linklet (webify-module-extractor-spike-phase0-linklet-datum report))
+  (webify-module-linklet-input
+   (webify-module-extractor-spike-name report)
+   (webify-normalize-linklet-imports raw-linklet)
+   (resolve-extracted-linklet-imports
+    who
+    raw-linklet
+    (webify-module-extractor-spikes-dependency-exports provider-reports)
+    dependencies
+    '()
+    '()
+    module-protocol-dependency)))
+
+;; webify-module-extractor-spikes->resolved-linklet-inputs : reports ... -> (listof input?)
+;;   Resolve a supplied extracted module graph into registry-ready linklet inputs.
+(define (webify-module-extractor-spikes->resolved-linklet-inputs reports
+                                                                  #:dependencies [dependencies '()]
+                                                                  #:module-protocol-dependency [module-protocol-dependency #f])
+  (define who 'webify-module-extractor-spikes->resolved-linklet-inputs)
+  (validate-extractor-reports! who reports)
+  (for/list ([report (in-list reports)])
+    (define provider-reports
+      (filter (lambda (provider-report)
+                (not (eq? provider-report report)))
+              reports))
+    (webify-module-extractor-spike->resolved-linklet-input/providers
+     report
+     provider-reports
+     #:dependencies dependencies
+     #:module-protocol-dependency module-protocol-dependency)))
+
 ;; webify-source-module->resolved-linklet-input : module-datum ... -> webify-module-linklet-input?
 ;;   Extract a source module and resolve classified imports into bridge triples.
 (define (webify-source-module->resolved-linklet-input module-datum
@@ -633,5 +741,35 @@
   (webify-module-extractor-spike->resolved-linklet-input
    (webify-compile-module-extractor-spike module-datum)
    #:dependency-exports dependency-exports
+   #:dependencies dependencies
+   #:module-protocol-dependency module-protocol-dependency))
+
+;; webify-source-module->resolved-linklet-input/providers : module-datum module-data ... -> input
+;;   Compile an importer and providers, then resolve imports from provider compiled exports.
+(define (webify-source-module->resolved-linklet-input/providers module-datum
+                                                                 provider-module-data
+                                                                 #:dependencies [dependencies '()]
+                                                                 #:module-protocol-dependency [module-protocol-dependency #f])
+  (define who 'webify-source-module->resolved-linklet-input/providers)
+  (unless (list? provider-module-data)
+    (raise-argument-error who "(listof source-module-datum?)" provider-module-data))
+  (webify-module-extractor-spike->resolved-linklet-input/providers
+   (webify-compile-module-extractor-spike module-datum)
+   (for/list ([provider-module-datum (in-list provider-module-data)])
+     (webify-compile-module-extractor-spike provider-module-datum))
+   #:dependencies dependencies
+   #:module-protocol-dependency module-protocol-dependency))
+
+;; webify-source-modules->resolved-linklet-inputs : module-data ... -> (listof input?)
+;;   Compile supplied source modules and resolve them as a closed bridge graph.
+(define (webify-source-modules->resolved-linklet-inputs module-data
+                                                         #:dependencies [dependencies '()]
+                                                         #:module-protocol-dependency [module-protocol-dependency #f])
+  (define who 'webify-source-modules->resolved-linklet-inputs)
+  (unless (list? module-data)
+    (raise-argument-error who "(listof source-module-datum?)" module-data))
+  (webify-module-extractor-spikes->resolved-linklet-inputs
+   (for/list ([module-datum (in-list module-data)])
+     (webify-compile-module-extractor-spike module-datum))
    #:dependencies dependencies
    #:module-protocol-dependency module-protocol-dependency))

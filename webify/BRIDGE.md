@@ -810,15 +810,104 @@ mappings and an export table for the internal names they intend to model:
  #:module-protocol-dependency 'module-protocol)
 ```
 
-That is intentionally a low-level override, not a claim that `racket/string`
-really exports those internal names. The upstream schemify/demodularizer path
-keeps richer external/internal import information before flattening, but the
-machine-independent linklets that Webify currently extracts do not expose a
-distinct public `string-join` name for this case through either
-`linklet-import-variables` or the decompiled import datum. The real fix is to
-find or reconstruct that richer metadata, likely by decoding more of the
-serialized `decl`/require information, instead of relying on caller-supplied
-internal aliases.
+That is intentionally a low-level override, not a claim that source-level
+`racket/string` publicly provides those names. The better bridge direction is
+to derive dependency export rows from extracted provider linklets:
+
+```racket
+(webify-module-linklet-input-dependency-exports string-provider-input)
+;; => '(racket/string (string-join.1 string-join9.1))
+```
+
+For source-module extractor reports, the same row is available before a full
+manifest input is assembled:
+
+```racket
+(webify-module-extractor-spike-dependency-exports string-provider-report)
+;; => '(racket/string (string-join.1 string-join9.1))
+```
+
+Multiple extracted providers can be turned into the complete resolver table:
+
+```racket
+(webify-module-extractor-spikes-dependency-exports provider-reports)
+;; => '((racket/string (string-join.1 string-join9.1))
+;;      (racket/list (first rest)))
+```
+
+The manifest-input side has the same table helper:
+
+```racket
+(webify-module-linklet-inputs-dependency-exports provider-inputs)
+```
+
+Importer resolution can also take provider reports directly:
+
+```racket
+(webify-module-extractor-spike->resolved-linklet-input/providers
+ importer-report
+ provider-reports)
+```
+
+That wrapper derives the provider export table and delegates to the same
+resolver used by explicit `#:dependency-exports`.
+
+The graph-level seam resolves every supplied report against the other reports:
+
+```racket
+(webify-module-extractor-spikes->resolved-linklet-inputs
+ reports
+ #:module-protocol-dependency 'module-protocol)
+```
+
+It returns `webify-module-linklet-input`s ready for the registry/composer. The
+source-module convenience wrapper compiles the supplied module data first:
+
+```racket
+(webify-source-modules->resolved-linklet-inputs
+ module-data
+ #:module-protocol-dependency 'module-protocol)
+```
+
+These graph helpers do not discover transitive dependencies yet. They resolve
+only within the supplied set and reject duplicate module names, unresolved
+imports, ambiguous provider exports, and missing module-protocol support.
+
+In other words, the resolver table should describe the provider's compiled
+linklet export surface, not the provider's source-level `provide` surface.
+That matches the schemify/demodularizer shape more closely: import resolution
+is about composing linklet imports with provider linklet exports. Source-level
+public names are still useful metadata, but they are not enough to resolve an
+internalized machine-independent import group by themselves.
+
+The upstream schemify/demodularizer path keeps richer external/internal import
+and export information before flattening. The machine-independent linklets that
+Webify currently extracts do not expose a distinct public `string-join` name
+for this importer-side case through either `linklet-import-variables` or the
+decompiled import datum. The real fix is therefore to build module-graph
+extraction that includes provider compiled exports, and only then layer any
+source-level public-name metadata on top.
+
+A Racket 9.2 machine-independent probe confirms this direction for
+`racket/string`. When `racket/string` is compiled from source with
+`current-compile-target-machine` set to `#f`, the provider phase-0 linklet
+exports include:
+
+```racket
+'(string-join9.1 string-join.2 string-join.1)
+```
+
+So the importer-side group:
+
+```racket
+'((string-join.1 string-join.1)
+  (string-join9.1 string-join9.1))
+```
+
+can be resolved using the provider's compiled export row. That still does not
+mean Webify has recovered a source-level mapping to public `string-join`; it
+means Webify has enough linklet-level information to compose the compiled
+importer and provider safely.
 
 The export `x` is represented by the cell `webify-export-cell0$0`. The lowered
 procedure writes the exported value into that cell with

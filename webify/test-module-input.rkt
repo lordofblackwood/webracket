@@ -103,6 +103,61 @@
   (check-equal? (webify-module-linklet-input-imports input)
                 '((ext-x a x))))
 
+(test-case "dependency exports derive from provider compiled exports"
+  (define string-provider
+    (webify-module-linklet-input
+     'racket/string
+     '(linklet () (string-join.1 string-join9.1)
+        (define-values (string-join.1) 'join)
+        (define-values (string-join9.1) 'join9))
+     '()))
+  (define importer-linklet
+    '(linklet (((string-join.1 string-join.1)
+                (string-join9.1 string-join9.1)))
+       (y)
+       (define-values (y) string-join.1)))
+  (check-equal?
+   (webify-module-linklet-input-dependency-exports string-provider)
+   '(racket/string (string-join.1 string-join9.1)))
+  (check-equal?
+   (webify-resolve-module-linklet-imports
+    importer-linklet
+    (list (webify-module-linklet-input-dependency-exports string-provider)))
+   '((string-join.1 racket/string string-join.1)
+     (string-join9.1 racket/string string-join9.1))))
+
+(test-case "dependency export tables derive from provider inputs"
+  (define providers
+    (list
+     (webify-module-linklet-input
+      'a
+      '(linklet () (x)
+         (define-values (x) 10))
+      '())
+     (webify-module-linklet-input
+      'racket/string
+      '(linklet () (string-join.1 string-join9.1)
+         (define-values (string-join.1) 'join)
+         (define-values (string-join9.1) 'join9))
+      '())))
+  (define dependency-exports
+    (webify-module-linklet-inputs-dependency-exports providers))
+  (check-equal? dependency-exports
+                '((a (x))
+                  (racket/string (string-join.1 string-join9.1))))
+  (check-equal?
+   (webify-resolve-module-linklet-imports
+    '(linklet (((string-join.1 string-join.1))) (y)
+       (define-values (y) string-join.1))
+    dependency-exports)
+   '((string-join.1 racket/string string-join.1)))
+  (check-exn
+   #rx"duplicate dependency export entries"
+   (lambda ()
+     (webify-module-linklet-inputs-dependency-exports
+      (list (webify-module-linklet-input 'a '(linklet () (x) (void)) '())
+            (webify-module-linklet-input 'a '(linklet () (y) (void)) '()))))))
+
 (test-case "module linklet manifest derives imports"
   (define manifest
     (datum->webify-module-linklet-manifest

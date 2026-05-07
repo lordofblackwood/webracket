@@ -101,6 +101,244 @@
      (webify-compile-module-extractor-spike
       '(define x 10)))))
 
+(test-case "extractor report derives provider dependency exports"
+  (define provider-report
+    (webify-compile-module-extractor-spike
+     '(module dep racket/base
+        (provide x y)
+        (define x 1)
+        (define y 2))))
+  (define report-exports (webify-module-extractor-spike-dependency-exports provider-report))
+  (check-equal? (car report-exports) 'dep)
+  (check-equal? (sort (cadr report-exports) symbol<?) '(x y))
+  (define source-exports
+    (webify-source-module->dependency-exports
+     '(module dep racket/base
+        (provide x y)
+        (define x 1)
+        (define y 2))))
+  (check-equal? (car source-exports) 'dep)
+  (check-equal? (sort (cadr source-exports) symbol<?) '(x y)))
+
+(test-case "provider compiled exports resolve internalized importer names"
+  (define provider-report
+    (webify-module-extractor-spike
+     'racket/string
+     '(#f)
+     '(0)
+     '()
+     '()
+     '(string-join9.1 string-join.2 string-join.1)
+     '(linklet () (string-join9.1 string-join.2 string-join.1)
+        (define-values (string-join9.1) 'join9)
+        (define-values (string-join.2) 'join2)
+        (define-values (string-join.1) 'join1))
+     #t
+     '()))
+  (define importer-linklet
+    '(linklet (((string-join.1 string-join.1)
+                (string-join9.1 string-join9.1)))
+       (y)
+       (define-values (y) string-join.1)))
+  (check-equal?
+   (webify-resolve-module-linklet-imports
+    importer-linklet
+    (list (webify-module-extractor-spike-dependency-exports provider-report)))
+   '((string-join.1 racket/string string-join.1)
+     (string-join9.1 racket/string string-join9.1))))
+
+(test-case "dependency export tables derive from extractor reports"
+  (define dep-report
+    (webify-module-extractor-spike
+     'dep
+     '(#f)
+     '(0)
+     '()
+     '()
+     '(x)
+     '(linklet () (x) (define-values (x) 1))
+     #t
+     '()))
+  (define string-report
+    (webify-module-extractor-spike
+     'racket/string
+     '(#f)
+     '(0)
+     '()
+     '()
+     '(string-join9.1 string-join.2 string-join.1)
+     '(linklet () (string-join9.1 string-join.2 string-join.1)
+        (define-values (string-join9.1) 'join9)
+        (define-values (string-join.2) 'join2)
+        (define-values (string-join.1) 'join1))
+     #t
+     '()))
+  (define dependency-exports
+    (webify-module-extractor-spikes-dependency-exports
+     (list dep-report string-report)))
+  (check-equal? dependency-exports
+                '((dep (x))
+                  (racket/string (string-join9.1 string-join.2 string-join.1))))
+  (check-equal?
+   (webify-resolve-module-linklet-imports
+    '(linklet (((string-join.1 string-join.1))) (y)
+       (define-values (y) string-join.1))
+    dependency-exports)
+   '((string-join.1 racket/string string-join.1)))
+  (check-exn
+   #rx"duplicate dependency export entries"
+   (lambda ()
+     (webify-module-extractor-spikes-dependency-exports
+      (list dep-report dep-report)))))
+
+(test-case "provider reports resolve importer report imports"
+  (define importer-report
+    (webify-module-extractor-spike
+     'use-string
+     '(#f)
+     '(0)
+     '()
+     '((string-join.1))
+     '(y)
+     '(linklet (((string-join.1 string-join.1))) (y)
+        (define-values (y) string-join.1))
+     #t
+     '()))
+  (define string-report
+    (webify-module-extractor-spike
+     'racket/string
+     '(#f)
+     '(0)
+     '()
+     '()
+     '(string-join9.1 string-join.2 string-join.1)
+     '(linklet () (string-join9.1 string-join.2 string-join.1)
+        (define-values (string-join9.1) 'join9)
+        (define-values (string-join.2) 'join2)
+        (define-values (string-join.1) 'join1))
+     #t
+     '()))
+  (define input
+    (webify-module-extractor-spike->resolved-linklet-input/providers
+     importer-report
+     (list string-report)))
+  (check-equal? (webify-module-linklet-input-name input) 'use-string)
+  (check-equal? (webify-module-linklet-input-imports input)
+                '((string-join.1 racket/string string-join.1))))
+
+(test-case "extractor report graph resolves module inputs"
+  (define dep-report
+    (webify-module-extractor-spike
+     'dep
+     '(#f)
+     '(0)
+     '()
+     '()
+     '(x)
+     '(linklet () (x) (define-values (x) 1))
+     #t
+     '()))
+  (define use-report
+    (webify-module-extractor-spike
+     'use-dep
+     '(#f)
+     '(0)
+     '()
+     '((x))
+     '(y)
+     '(linklet (((x x))) (y)
+        (define-values (y) x))
+     #t
+     '()))
+  (define inputs
+    (webify-module-extractor-spikes->resolved-linklet-inputs
+     (list dep-report use-report)))
+  (check-equal? (map webify-module-linklet-input-name inputs)
+                '(dep use-dep))
+  (check-equal? (map webify-module-linklet-input-imports inputs)
+                '(() ((x dep x)))))
+
+(test-case "extractor report graph rejects bad dependency shapes"
+  (define provider-a
+    (webify-module-extractor-spike
+     'a
+     '(#f)
+     '(0)
+     '()
+     '()
+     '(x)
+     '(linklet () (x) (define-values (x) 1))
+     #t
+     '()))
+  (define provider-b
+    (webify-module-extractor-spike
+     'b
+     '(#f)
+     '(0)
+     '()
+     '()
+     '(x)
+     '(linklet () (x) (define-values (x) 2))
+     #t
+     '()))
+  (define use-report
+    (webify-module-extractor-spike
+     'use-x
+     '(#f)
+     '(0)
+     '()
+     '((x))
+     '(y)
+     '(linklet (((x x))) (y)
+        (define-values (y) x))
+     #t
+     '()))
+  (check-exn
+   #rx"could not resolve import dependency"
+   (lambda ()
+     (webify-module-extractor-spikes->resolved-linklet-inputs
+      (list use-report))))
+  (check-exn
+   #rx"ambiguous import dependency"
+   (lambda ()
+     (webify-module-extractor-spikes->resolved-linklet-inputs
+      (list provider-a provider-b use-report))))
+  (check-exn
+   #rx"duplicate dependency export entries"
+   (lambda ()
+     (webify-module-extractor-spikes->resolved-linklet-inputs
+      (list provider-a provider-a)))))
+
+(test-case "source module graph wrapper resolves available source reports"
+  (define module-data
+    '((module a racket/base
+        (provide x)
+        (define x 1))
+      (module b racket/base
+        (provide y)
+        (define y 2))))
+  (define reports (map webify-compile-module-extractor-spike module-data))
+  (cond
+    [(andmap webify-module-extractor-spike-manifest-ready? reports)
+     (define inputs
+       (webify-source-modules->resolved-linklet-inputs
+        module-data
+        #:module-protocol-dependency 'module-protocol))
+     (check-equal? (map webify-module-linklet-input-name inputs) '(a b))
+     (check-equal?
+      (map webify-module-linklet-input-imports inputs)
+      '(((.get-syntax-literal! module-protocol .get-syntax-literal!)
+         (.set-transformer! module-protocol .set-transformer!))
+        ((.get-syntax-literal! module-protocol .get-syntax-literal!)
+         (.set-transformer! module-protocol .set-transformer!))))]
+    [else
+     (check-exn
+      #rx"source module did not produce a decompilable phase-0 linklet datum"
+      (lambda ()
+        (webify-source-modules->resolved-linklet-inputs
+         module-data
+         #:module-protocol-dependency 'module-protocol)))]))
+
 (test-case "source module extractor returns linklet input when available"
   (define module-datum
     '(module a racket/base

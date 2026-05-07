@@ -12,6 +12,8 @@
          datum->webify-module-linklet-manifest
          read-webify-module-linklet-manifest
          webify-module-linklet-manifest->registry
+         webify-module-linklet-input-dependency-exports
+         webify-module-linklet-inputs-dependency-exports
          webify-resolve-module-linklet-imports
          webify-module-linklet-input/resolve-imports
          webify-register-module-linklet-input!
@@ -108,6 +110,27 @@
                             "expected a linklet datum"
                             "linklet" linklet)]))
 
+;; linklet-exports : symbol? any/c -> (listof symbol?)
+;;   Extract flat exports from a linklet datum.
+(define (linklet-exports who linklet)
+  (match linklet
+    [`(linklet ,_importss ,exports . ,_body)
+     (unless (and (list? exports)
+                  (andmap symbol? exports))
+       (raise-arguments-error who
+                              "linklet exports must be a list of symbols"
+                              "exports" exports))
+     (define duplicate (check-duplicates exports))
+     (when duplicate
+       (raise-arguments-error who
+                              "duplicate linklet exports are not supported"
+                              "export" duplicate))
+     exports]
+    [_
+     (raise-arguments-error who
+                            "expected a linklet datum"
+                            "linklet" linklet)]))
+
 ;; validate-dependency-exports! : symbol? any/c -> void?
 ;;   Reject dependency export tables that cannot resolve import sources.
 (define (validate-dependency-exports! who dependency-exports)
@@ -153,6 +176,29 @@
                            "import dependency has no export table entry"
                            "dependency" name))
   (cadr found))
+
+;; webify-module-linklet-input-dependency-exports : webify-module-linklet-input? -> dependency-export-row
+;;   Derive a resolver export row from the provider linklet's compiled exports.
+(define (webify-module-linklet-input-dependency-exports input)
+  (define who 'webify-module-linklet-input-dependency-exports)
+  (unless (webify-module-linklet-input? input)
+    (raise-argument-error who "webify-module-linklet-input?" input))
+  (list (webify-module-linklet-input-name input)
+        (linklet-exports who (webify-module-linklet-input-linklet input))))
+
+;; webify-module-linklet-inputs-dependency-exports : (listof webify-module-linklet-input?) -> dependency-exports
+;;   Derive a resolver export table from provider linklet inputs.
+(define (webify-module-linklet-inputs-dependency-exports inputs)
+  (define who 'webify-module-linklet-inputs-dependency-exports)
+  (unless (list? inputs)
+    (raise-argument-error who "(listof webify-module-linklet-input?)" inputs))
+  (define dependency-exports
+    (for/list ([input (in-list inputs)])
+      (unless (webify-module-linklet-input? input)
+        (raise-argument-error who "webify-module-linklet-input?" input))
+      (webify-module-linklet-input-dependency-exports input)))
+  (validate-dependency-exports! who dependency-exports)
+  dependency-exports)
 
 ;; resolve-import-dependency : symbol? (listof dependency-exports?) hash? symbol? symbol? -> symbol?
 ;;   Resolve one import binding to a dependency module.
