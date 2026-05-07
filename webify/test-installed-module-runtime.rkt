@@ -5,6 +5,7 @@
          racket/runtime-path
          racket/system
          rackunit
+         "module-diagnostics.rkt"
          "test-module-support.rkt")
 
 (define-runtime-path repo-root "..")
@@ -95,7 +96,9 @@
           [(zero? status)
            (check-regexp-match #rx"(?m:^#t$)" output)]
           [else
-           (check-regexp-match #rx"redefine a primitive at the top-level" output)]))
+           (define failure (webify-classify-runtime-output status output))
+           (check-equal? (webify-module-failure-category failure)
+                         'primitive-alias-collision)]))
       (lambda ()
         (for ([dir (in-list (list source-dir dest-dir))])
           (with-handlers ([exn:fail:filesystem? void])

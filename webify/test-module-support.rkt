@@ -22,6 +22,7 @@
          (all-from-out "known.rkt")
          (all-from-out "module-adapter.rkt")
          (all-from-out "module-composer.rkt")
+         (all-from-out "module-diagnostics.rkt")
          (all-from-out "module-extractor.rkt")
          (all-from-out "module-input.rkt")
          (all-from-out "module-instance.rkt")
@@ -38,6 +39,7 @@
          "known.rkt"
          "module-adapter.rkt"
          "module-composer.rkt"
+         "module-diagnostics.rkt"
          "module-extractor.rkt"
          "module-input.rkt"
          "module-instance.rkt"
