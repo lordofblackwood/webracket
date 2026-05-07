@@ -5,7 +5,8 @@
          racket/path
          racket/runtime-path
          racket/system
-         rackunit)
+         rackunit
+         "test-module-support.rkt")
 
 (define-runtime-path repo-root "..")
 
@@ -99,7 +100,11 @@
         (check-equal? (cadr datum) '())
         (check-true (positive? (length (cdddr datum))))
         (check-equal? (sort (linklet-export-external-names datum) symbol<?)
-                      (sort regexp-exports symbol<?)))
+                      (sort regexp-exports symbol<?))
+        (check-exn
+         #rx"unsupported webify compatibility form remains after lowering: unsafe-struct\\*-ref"
+         (lambda ()
+           (run-first-slice-top-level datum))))
       (lambda ()
         (with-handlers ([exn:fail:filesystem? void])
           (delete-directory/files out-dir))))))
