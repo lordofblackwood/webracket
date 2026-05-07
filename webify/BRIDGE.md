@@ -720,6 +720,39 @@ requires, multiple possible providers, cross-phase imports, and more complex
 serialized `requires` structures remain unresolved until they can be decoded
 without guessing.
 
+The import model follows schemify's convention. In upstream schemify, a
+linklet import pair is interpreted as:
+
+```racket
+(external-id internal-id)
+```
+
+and schemify keeps those names separately in its `import` record. Webify's
+bridge triples use the inverse operational order:
+
+```racket
+(internal-id dependency external-id)
+```
+
+The import map therefore exposes two phase-0 views:
+
+```racket
+(webify-module-import-map-phase0-structured-import-groups import-map)
+(webify-module-import-map-phase0-decompiled-import-groups import-map)
+```
+
+When those views contain explicit external/internal evidence, Webify can report
+aliases:
+
+```racket
+(webify-module-import-map-import-aliases import-map)
+;; => '((local-name dep/mod external-name))
+```
+
+Those aliases participate in resolution before simple candidate inference.
+That keeps explicit linklet evidence stronger than name-based inference while
+still requiring an export table to confirm the dependency side.
+
 Multiple simple phase-0 requires work the same way. For example, a module that
 requires both `racket/list` and `racket/math` can resolve `first` and `sqr`
 when both exports are declared:
@@ -778,9 +811,14 @@ mappings and an export table for the internal names they intend to model:
 ```
 
 That is intentionally a low-level override, not a claim that `racket/string`
-really exports those internal names. The real fix is to decode more of the
-serialized `decl` metadata so Webify can recover the intended public/export
-mapping instead of relying on caller-supplied internal aliases.
+really exports those internal names. The upstream schemify/demodularizer path
+keeps richer external/internal import information before flattening, but the
+machine-independent linklets that Webify currently extracts do not expose a
+distinct public `string-join` name for this case through either
+`linklet-import-variables` or the decompiled import datum. The real fix is to
+find or reconstruct that richer metadata, likely by decoding more of the
+serialized `decl`/require information, instead of relying on caller-supplied
+internal aliases.
 
 The export `x` is represented by the cell `webify-export-cell0$0`. The lowered
 procedure writes the exported value into that cell with
