@@ -102,7 +102,7 @@
         (check-equal? (sort (linklet-export-external-names datum) symbol<?)
                       (sort regexp-exports symbol<?))
         (check-exn
-         #rx"unsupported webify compatibility form remains after lowering: unsafe-struct\\*-ref"
+         #rx"unsupported webify compatibility form remains after lowering: unsafe-struct"
          (lambda ()
            (run-first-slice-top-level datum))))
       (lambda ()

@@ -77,18 +77,19 @@ So the next blocker is not linklet import wiring. The next blocker is whether
 Webify and WebRacket can lower and compile the forms, primitives, struct shapes,
 and literals that remain inside the flattened body.
 
-The first Webify lowering attempt reaches a concrete struct-operation blocker:
+The first Webify lowering attempt now gets past raw starred struct field
+access and reaches a broader struct-operation blocker:
 
 ```text
-webify: unsupported webify compatibility form remains after lowering: unsafe-struct*-ref
+webify: unsupported webify compatibility form remains after lowering: unsafe-struct
 ```
 
 That means the regexp layer gets through demod and into Webify's first-slice
-adapter, but known-struct inlining still emits Schemify/Chez-style
-`unsafe-struct*` operations. WebRacket currently exposes `unsafe-struct-ref`
-and `unsafe-struct-set!`, so the next implementation milestone is to translate
-or support the `unsafe-struct*` accessor/mutator shape instead of treating it as
-unsupported.
+adapter, and the starred raw accessor/mutator shape is no longer the immediate
+blocker. The current blocker is the Chez/Schemify `unsafe-struct` compatibility
+form, which carries struct-tagged access/predicate behavior that Webify still
+needs to either lower to WebRacket's struct primitives or reject with a narrower
+classification.
 
 ## Immediate Lesson
 
