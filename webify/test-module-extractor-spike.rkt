@@ -558,6 +558,8 @@
      (check-equal? (length string-join-group) 2)
      (check-equal? (webify-module-import-map-import-aliases import-map)
                    '())
+     (check-equal? (webify-module-import-map-require-rename-aliases import-map)
+                   '())
      (check-equal? (webify-module-import-map-missing-alias-import-groups import-map)
                    (list string-join-group))
      (check-not-false

@@ -984,6 +984,19 @@ mean Webify has recovered a source-level mapping to public `string-join`; it
 means Webify has enough linklet-level information to compose the compiled
 importer and provider safely.
 
+This differs from the `racket/private/list` reverse case. There, source has an
+explicit require rename:
+
+```racket
+(require (rename-in "pico.rkt" [alt-reverse reverse]))
+```
+
+so Webify can derive an alias from importer name `reverse` to provider export
+`alt-reverse`. For `racket/string`, the current importer-side
+`string-join.1`/`string-join9.1` group is not explained by source-level
+`rename-in` metadata in the same way. The bridge should resolve it from
+compiled provider export rows, not from a fabricated public-name mapping.
+
 The export `x` is represented by the cell `webify-export-cell0$0`. The lowered
 procedure writes the exported value into that cell with
 `module-variable-define!`. The adapter then exposes the cell value as the
