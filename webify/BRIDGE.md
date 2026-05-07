@@ -736,6 +736,41 @@ If two candidate modules both claim the same required export, inference raises
 an ambiguity error instead of choosing one. Explicit `#:dependencies` remains
 the escape hatch for such cases.
 
+Some requires produce internalized helper imports instead of the original
+export name. For example, `racket/string`'s `string-join` can appear in the
+phase-0 linklet as a group like:
+
+```racket
+'((string-join.1 string-join.1)
+  (string-join9.1 string-join9.1))
+```
+
+The candidate decoder can still see that `racket/string` is a required module:
+
+```racket
+(webify-module-import-map-required-module-candidates import-map)
+;; => '((0 racket/string))
+```
+
+but it cannot safely infer that `string-join.1` or `string-join9.1` correspond
+to the public export `string-join`. In that case the resolver refuses to guess.
+Callers can still proceed by supplying explicit local-import dependency
+mappings and an export table for the internal names they intend to model:
+
+```racket
+(webify-source-module->resolved-linklet-input
+ module-datum
+ #:dependency-exports '((racket/string (string-join.1 string-join9.1)))
+ #:dependencies '((string-join.1 racket/string)
+                  (string-join9.1 racket/string))
+ #:module-protocol-dependency 'module-protocol)
+```
+
+That is intentionally a low-level override, not a claim that `racket/string`
+really exports those internal names. The real fix is to decode more of the
+serialized `decl` metadata so Webify can recover the intended public/export
+mapping instead of relying on caller-supplied internal aliases.
+
 The export `x` is represented by the cell `webify-export-cell0$0`. The lowered
 procedure writes the exported value into that cell with
 `module-variable-define!`. The adapter then exposes the cell value as the

@@ -1,6 +1,7 @@
 #lang racket/base
 
 (require rackunit
+         racket/list
          racket/match
          "module-input.rkt"
          "module-extractor-spike.rkt")
@@ -273,6 +274,58 @@
          module-datum
          #:dependency-exports '((racket/list (first))
                                 (racket/math (sqr)))
+         #:module-protocol-dependency 'module-protocol)))]))
+
+(test-case "source module resolver exposes internalized required imports"
+  (define module-datum
+    '(module a racket/base
+       (require racket/string)
+       (provide y)
+       (define y (string-join (list "a" "b") ","))))
+  (define report (webify-compile-module-extractor-spike module-datum))
+  (define import-map (webify-module-extractor-spike-import-map report))
+  (cond
+    [(webify-module-extractor-spike-manifest-ready? report)
+     (check-equal? (webify-module-import-map-required-module-candidates import-map)
+                   '((0 racket/string)))
+     (define unresolved (webify-module-import-map-unresolved-import-groups import-map))
+     (check-equal? (length unresolved) 1)
+     (define string-join-group (car unresolved))
+     (check-equal? (length string-join-group) 2)
+     (check-not-false
+      (andmap (lambda (binding)
+                (regexp-match? #rx"^string-join"
+                               (symbol->string (car binding))))
+              string-join-group))
+     (check-exn
+      #rx"could not resolve import dependency"
+      (lambda ()
+        (webify-source-module->resolved-linklet-input
+         module-datum
+         #:dependency-exports '((racket/string (string-join)))
+         #:module-protocol-dependency 'module-protocol)))
+     (define explicit-dependencies
+       (for/list ([binding (in-list string-join-group)])
+         (list (car binding) 'racket/string)))
+     (define input
+       (webify-source-module->resolved-linklet-input
+        module-datum
+        #:dependency-exports
+        `((racket/string ,(map cadr string-join-group)))
+        #:dependencies explicit-dependencies
+        #:module-protocol-dependency 'module-protocol))
+     (check-equal? (drop (webify-module-linklet-input-imports input) 2)
+                   (for/list ([binding (in-list string-join-group)])
+                     (list (car binding) 'racket/string (cadr binding))))]
+    [else
+     (check-equal? (webify-module-import-map-required-module-candidates import-map)
+                   '())
+     (check-exn
+      #rx"source module did not produce a decompilable phase-0 linklet datum"
+      (lambda ()
+        (webify-source-module->resolved-linklet-input
+         module-datum
+         #:dependency-exports '((racket/string (string-join)))
          #:module-protocol-dependency 'module-protocol)))]))
 
 (module+ main
