@@ -643,5 +643,32 @@
   (check-equal? (webify-module-linklet-input-imports input)
                 '((local-name dep/mod external-name))))
 
+(test-case "import map reports source-level require rename aliases"
+  (define phase0-linklet
+    '(linklet (((reverse 1/reverse))) () (void)))
+  (define report
+    (webify-module-extractor-spike
+     'racket/private/list
+     '(#f)
+     '(0)
+     (list (webify-module-bundle-entry 0 'linklet '(((reverse 1/reverse))) '() phase0-linklet #f))
+     '(((reverse 1/reverse)))
+     '()
+     phase0-linklet
+     #t
+     '()))
+  (define import-map (webify-module-extractor-spike-import-map report))
+  (define rename-aliases (webify-module-import-map-require-rename-aliases import-map))
+  (check-not-false
+   (or (member '(1/reverse racket/private/pico alt-reverse) rename-aliases)
+       (member '(1/reverse racket/private/reverse alt-reverse) rename-aliases)))
+  (check-equal? (webify-module-import-map-missing-alias-import-groups import-map)
+                '())
+  (define required-provider-names
+    (webify-module-extractor-spike-required-provider-names report))
+  (check-not-false
+   (or (member 'racket/private/pico required-provider-names)
+       (member 'racket/private/reverse required-provider-names))))
+
 (module+ main
   (void))

@@ -63,6 +63,7 @@
  webify-module-import-map-decl-phase-to-link-modules-expression
  webify-module-import-map-required-module-candidates
  webify-module-import-map-import-aliases
+ webify-module-import-map-require-rename-aliases
  webify-module-import-map-missing-alias-import-groups
  webify-module-import-map-notes
  webify-module-bundle-entry

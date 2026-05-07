@@ -24,6 +24,7 @@
          webify-module-import-map-decl-phase-to-link-modules-expression
          webify-module-import-map-required-module-candidates
          webify-module-import-map-import-aliases
+         webify-module-import-map-require-rename-aliases
          webify-module-import-map-missing-alias-import-groups
          webify-module-import-map-notes
          webify-module-bundle-entry
@@ -66,6 +67,7 @@
 (require racket/linklet
          racket/list
          racket/match
+         racket/path
          racket/string
          syntax/modcode
          "module-input.rkt")
@@ -103,6 +105,7 @@
    decl-phase-to-link-modules-expression
    required-module-candidates
    import-aliases
+   require-rename-aliases
    missing-alias-import-groups
    notes)
   #:transparent)
@@ -334,6 +337,81 @@
                             "expected a simple module path"
                             "module path" module-path)]))
 
+;; source-module-path : symbol? -> (or/c path? #f)
+;;   Locate the installed source file for a simple collection module name.
+(define (source-module-path name)
+  (define parts (string-split (symbol->string name) "/"))
+  (and (pair? parts)
+       (let ([file (string-append (car (reverse parts)) ".rkt")]
+             [collections (reverse (cdr (reverse parts)))])
+         (with-handlers ([exn:fail? (lambda (_exn) #f)])
+           (apply collection-file-path file collections)))))
+
+;; relative-module-path->dependency-name : symbol? any/c -> (or/c symbol? #f)
+;;   Resolve a source-level relative require path against a simple module name.
+(define (relative-module-path->dependency-name base-name module-path)
+  (cond
+    [(symbol? module-path) module-path]
+    [(string? module-path)
+     (define base-parts (string-split (symbol->string base-name) "/"))
+     (define base-dir (reverse (cdr (reverse base-parts))))
+     (define as-strings
+       (string-split
+        (path->string
+         (simplify-path (build-path (apply build-path base-dir) module-path) #f))
+        "/"))
+     (and (pair? as-strings)
+          (let* ([last-part (car (reverse as-strings))]
+                 [last-no-suffix (if (string-suffix? last-part ".rkt")
+                                     (substring last-part 0 (- (string-length last-part) 4))
+                                     last-part)])
+            (string->symbol
+             (string-join (append (reverse (cdr (reverse as-strings)))
+                                  (list last-no-suffix))
+                          "/"))))]
+    [else #f]))
+
+;; rename-require-specs : any/c -> (listof (list/c any/c symbol? symbol?))
+;;   Decode source-level require renames as provider-module/provider-export/local-name specs.
+(define (rename-require-specs spec)
+  (match spec
+    [`(rename-in ,module-path [,provider-export ,local-name] ...)
+     (for/list ([provider-export (in-list provider-export)]
+                [local-name      (in-list local-name)])
+       (list module-path provider-export local-name))]
+    [`(rename ,module-path ,local-name ,provider-export)
+     (list (list module-path provider-export local-name))]
+    [_ '()]))
+
+;; source-require-rename-specs : symbol? -> (listof (list/c symbol? symbol? symbol?))
+;;   Decode simple source-level require renames from an installed module.
+(define (source-require-rename-specs name)
+  (define path (source-module-path name))
+  (cond
+    [path
+     (define datum
+       (with-handlers ([exn:fail? (lambda (_exn) #f)])
+         (call-with-input-file path read)))
+     (match datum
+       [`(module ,_name ,_language ,body ...)
+        (append*
+         (for/list ([form (in-list body)])
+           (match form
+             [(or `(require ,spec ...)
+                  `(#%require ,spec ...))
+              (append*
+               (for/list ([raw-spec (in-list spec)])
+                 (for/list ([rename-spec (in-list (rename-require-specs raw-spec))]
+                            #:do [(match-define (list module-path provider-export local-name)
+                                    rename-spec)
+                                  (define dependency
+                                    (relative-module-path->dependency-name name module-path))]
+                            #:when dependency)
+                   (list dependency provider-export local-name))))]
+             [_ '()])))]
+       [_ '()])]
+    [else '()]))
+
 ;; phase-to-link-modules-candidates : any/c any/c -> (listof (list/c exact-integer? symbol?))
 ;;   Decode simple phase-to-link-modules expressions into candidate dependencies.
 (define (phase-to-link-modules-candidates expr mpi-vector)
@@ -421,6 +499,17 @@
          (match-define (list local external) binding)
          (list local (car phase0-candidates) external))))
 
+;; import-group->require-rename-aliases : import-group rename-specs -> aliases
+;;   Use source-level require renames to connect local imports to provider exports.
+(define (import-group->require-rename-aliases group require-rename-specs)
+  (for*/list ([binding (in-list group)]
+              #:do [(match-define (list local external) binding)]
+              [rename-spec (in-list require-rename-specs)]
+              #:do [(match-define (list dependency provider-export local-name)
+                      rename-spec)]
+              #:when (symbolic-name=? external local-name))
+    (list local dependency provider-export)))
+
 ;; webify-module-extractor-spike-import-map : report -> webify-module-import-map?
 ;;   Build an observational import-map report from phase-0, data, and decl linklets.
 (define (webify-module-extractor-spike-import-map report)
@@ -454,6 +543,12 @@
     (phase-to-link-modules-candidates
      decl-phase-to-link-modules-expression
      data-module-path-indexes))
+  (define require-rename-specs
+    (source-require-rename-specs (webify-module-extractor-spike-name report)))
+  (define require-rename-aliases
+    (apply append
+           (for/list ([group (in-list unresolved-groups)])
+             (import-group->require-rename-aliases group require-rename-specs))))
   (define alias-results
     (for/list ([group (in-list unresolved-groups)])
       (cons group (import-group->aliases group required-module-candidates))))
@@ -466,7 +561,10 @@
     (for/list ([result (in-list alias-results)]
                #:do [(define group (car result))]
                #:when (and (import-group-needs-alias-evidence? group)
-                           (not (cdr result))))
+                           (not (cdr result))
+                           (null? (import-group->require-rename-aliases
+                                   group
+                                   require-rename-specs))))
       group))
   (webify-module-import-map
    import-groups
@@ -480,8 +578,12 @@
    decl-phase-to-link-modules-expression
    required-module-candidates
    import-aliases
+   require-rename-aliases
    missing-alias-import-groups
    (cond
+     [(pair? require-rename-aliases)
+      '("source-level require rename metadata supplies provider export aliases"
+        "export tables are still required before resolving imports")]
      [(not decl-linklet)
       '("decl/data metadata is unavailable on this host because linklet decompilation is unavailable")]
      [(pair? missing-alias-import-groups)
@@ -506,11 +608,16 @@
   (define who 'webify-module-extractor-spike-required-provider-names)
   (unless (webify-module-extractor-spike? report)
     (raise-argument-error who "webify-module-extractor-spike?" report))
+  (define import-map (webify-module-extractor-spike-import-map report))
   (remove-duplicates
-   (for/list ([candidate (in-list (webify-module-import-map-required-module-candidates
-                                   (webify-module-extractor-spike-import-map report)))]
-              #:when (= 0 (car candidate)))
-     (cadr candidate))))
+   (append
+    (for/list ([candidate (in-list (webify-module-import-map-required-module-candidates
+                                    import-map))]
+               #:when (= 0 (car candidate)))
+      (cadr candidate))
+    (for/list ([alias (in-list (webify-module-import-map-require-rename-aliases
+                                import-map))])
+      (cadr alias)))))
 
 ;; webify-module-extractor-spike->required-provider-spikes : report -> (listof report)
 ;;   Compile one-level installed provider reports named by the report's require metadata.
@@ -648,6 +755,7 @@
                                            dependency-exports
                                            dependencies
                                            import-aliases
+                                           require-rename-aliases
                                            required-module-candidates
                                            module-protocol-dependency)
   (when module-protocol-dependency
@@ -674,7 +782,7 @@
        (define explicit-locals (map car dependencies))
        (define explicit-or-alias-locals
          (append explicit-locals
-                 (for/list ([alias (in-list import-aliases)]
+                 (for/list ([alias (in-list (append import-aliases require-rename-aliases))]
                             #:do [(match-define (list local _dependency _export) alias)]
                             #:when (assoc local module-bindings))
                    local)))
@@ -700,7 +808,7 @@
         `(linklet (,module-bindings) () (void))
         dependency-exports
         #:dependencies (append dependencies inferred-dependencies)
-        #:import-aliases import-aliases)]))
+        #:import-aliases (append import-aliases require-rename-aliases))]))
   (define triples-by-import
     (for/hasheq ([triple (in-list (append module-protocol-triples module-triples))])
       (values (car triple) triple)))
@@ -895,6 +1003,7 @@
     dependency-exports
     dependencies
     (webify-module-import-map-import-aliases import-map)
+    (webify-module-import-map-require-rename-aliases import-map)
     (webify-module-import-map-required-module-candidates import-map)
     module-protocol-dependency)))
 
@@ -913,6 +1022,7 @@
     (raise-arguments-error who
                            "source module did not produce a decompilable phase-0 linklet datum"
                            "notes" (webify-module-extractor-spike-notes report)))
+  (define import-map (webify-module-extractor-spike-import-map report))
   (define raw-linklet (webify-module-extractor-spike-phase0-linklet-datum report))
   (webify-module-linklet-input
    (webify-module-extractor-spike-name report)
@@ -922,7 +1032,8 @@
     raw-linklet
     (webify-module-extractor-spikes-dependency-exports provider-reports)
     dependencies
-    '()
+    (webify-module-import-map-import-aliases import-map)
+    (webify-module-import-map-require-rename-aliases import-map)
     '()
     module-protocol-dependency)))
 
