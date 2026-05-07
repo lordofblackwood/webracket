@@ -164,6 +164,48 @@
    (member '("js-log" ("module-variable-ref" "webify-export-cell0$0"))
            normalized)))
 
+(test-case "module registry composition payload rebuilds different tails"
+  (define registry (make-webify-module-registry))
+  (webify-module-registry-add!
+   registry
+   'a
+   '(linklet () (x)
+      (define-values (x) 10)))
+  (webify-module-registry-add!
+   registry
+   'b
+   '(linklet (([ext-x x])) (y)
+      (define-values (y) x))
+   #:imports '((ext-x a x)))
+  (define composition (compose-module-registry/roots/composition registry '(b)))
+  (check-true (webify-module-composition? composition))
+  (check-equal? (length (webify-module-composition-fragments composition)) 2)
+  (check-equal? (sort (hash-keys (webify-module-composition-instances composition)) symbol<?)
+                '(a b))
+  (check-true (known-constant? (hash-ref (hash-ref (webify-module-composition-exports-infos composition) 'b) 'y)))
+  (define y-cell (webify-module-composition-export-cell-id composition 'b 'y))
+  (define x-cell (webify-module-composition-export-cell-id composition 'a 'x))
+  (check-equal? y-cell 'webify-export-cell0$1)
+  (check-equal? x-cell 'webify-export-cell0$0)
+  (define log-y
+    (webify-module-composition-with-tail
+     composition
+     `((js-log (module-variable-ref ,y-cell)))))
+  (define log-x
+    (webify-module-composition-with-tail
+     composition
+     `((js-log (module-variable-ref ,x-cell)))))
+  (check-not-false
+   (member '("js-log" ("module-variable-ref" "webify-export-cell0$1"))
+           (normalize-symbols log-y)))
+  (check-not-false
+   (member '("js-log" ("module-variable-ref" "webify-export-cell0$0"))
+           (normalize-symbols log-x)))
+  (check-true (string-contains? (wat-string (comp (datum->syntax #f log-y)))
+                                "$module-variable-ref"))
+  (check-true (string-contains? (wat-string (comp (datum->syntax #f log-x)))
+                                "$module-variable-ref")))
+
 (test-case "module registry rejects duplicate entries"
   (define registry (make-webify-module-registry))
   (webify-module-registry-add!

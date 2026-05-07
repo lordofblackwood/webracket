@@ -6,7 +6,9 @@
          run-first-slice-top-level/imports
          compose-linklet-first-slices
          compose-module-registry
+         compose-module-registry/composition
          compose-module-registry/roots
+         compose-module-registry/roots/composition
          compose-module-registry/roots+observations
          wat-string
          run-webracket
@@ -128,10 +130,52 @@
    #:get-import-knowns     (lambda (key) (values #f #f #f))
    #:import-keys           #f))
 
+;; compose-module-registry/composition : webify-module-registry? (listof symbol?) #:tail (listof any/c) -> webify-module-composition?
+;;   Compose registry entries into a reusable payload with test defaults.
+(define (compose-module-registry/composition registry order #:tail [tail-forms '((void))])
+  (webify-compose-module-registry/composition
+   registry
+   order
+   #:tail                  tail-forms
+   #:serializable?-box     #f
+   #:datum-intern?         #f
+   #:target                #f
+   #:allow-set!-undefined? #f
+   #:unsafe-mode?          #f
+   #:enforce-constant?     #t
+   #:allow-inline?         #t
+   #:no-prompt?            #f
+   #:prim-knowns           test-prim-knowns
+   #:primitives            test-primitives
+   #:compiler-query        (lambda (v) #f)
+   #:get-import-knowns     (lambda (key) (values #f #f #f))
+   #:import-keys           #f))
+
 ;; compose-module-registry/roots : webify-module-registry? (listof symbol?) #:tail (listof any/c) -> values
 ;;   Plan and compose registry roots with the minimal adapter-test compiler context.
 (define (compose-module-registry/roots registry roots #:tail [tail-forms '((void))])
   (webify-compose-module-registry/roots
+   registry
+   roots
+   #:tail                  tail-forms
+   #:serializable?-box     #f
+   #:datum-intern?         #f
+   #:target                #f
+   #:allow-set!-undefined? #f
+   #:unsafe-mode?          #f
+   #:enforce-constant?     #t
+   #:allow-inline?         #t
+   #:no-prompt?            #f
+   #:prim-knowns           test-prim-knowns
+   #:primitives            test-primitives
+   #:compiler-query        (lambda (v) #f)
+   #:get-import-knowns     (lambda (key) (values #f #f #f))
+   #:import-keys           #f))
+
+;; compose-module-registry/roots/composition : webify-module-registry? (listof symbol?) #:tail (listof any/c) -> webify-module-composition?
+;;   Plan and compose registry roots into a reusable payload with test defaults.
+(define (compose-module-registry/roots/composition registry roots #:tail [tail-forms '((void))])
+  (webify-compose-module-registry/roots/composition
    registry
    roots
    #:tail                  tail-forms

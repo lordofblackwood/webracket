@@ -12,6 +12,11 @@
          webify-module-registry-ref
          webify-module-registry-names
          webify-module-registry-plan
+         (struct-out webify-module-composition)
+         webify-module-composition-export-cell-id
+         webify-module-composition-with-tail
+         webify-compose-module-registry/composition
+         webify-compose-module-registry/roots/composition
          webify-compose-module-registry
          webify-compose-module-registry/roots
          webify-compose-module-registry/roots+observations)
@@ -23,6 +28,7 @@
 
 (struct webify-module-registry (entries) #:transparent)
 (struct webify-module-registry-entry (name linklet imports) #:transparent)
+(struct webify-module-composition (datum fragments instances exports-infos) #:transparent)
 
 ;; make-webify-module-registry : -> webify-module-registry?
 ;;   Create an empty mutable registry of named linklet slices.
@@ -177,6 +183,37 @@
     (define cell-id (webify-module-instances-export-cell-id instances name export))
     `(,observer (module-variable-ref ,cell-id))))
 
+;; validate-composition! : symbol? any/c -> void?
+;;   Reject values that are not reusable module-composition payloads.
+(define (validate-composition! who composition)
+  (unless (webify-module-composition? composition)
+    (raise-argument-error who "webify-module-composition?" composition)))
+
+;; webify-module-composition-export-cell-id : webify-module-composition? symbol? symbol? -> symbol?
+;;   Look up one composed module export cell.
+(define (webify-module-composition-export-cell-id composition name export)
+  (validate-composition! 'webify-module-composition-export-cell-id composition)
+  (webify-module-instances-export-cell-id
+   (webify-module-composition-instances composition)
+   name
+   export))
+
+;; webify-module-composition-with-tail : webify-module-composition? (listof any/c) -> any/c
+;;   Rebuild a composed top-level datum with a caller-supplied tail.
+(define (webify-module-composition-with-tail composition tail-forms)
+  (validate-composition! 'webify-module-composition-with-tail composition)
+  (webify-compose-module-fragments
+   (webify-module-composition-fragments composition)
+   #:tail tail-forms))
+
+;; composition->values : webify-module-composition? -> values
+;;   Preserve the existing multi-value composition API.
+(define (composition->values composition)
+  (values (webify-module-composition-datum composition)
+          (webify-module-composition-fragments composition)
+          (webify-module-composition-instances composition)
+          (webify-module-composition-exports-infos composition)))
+
 ;; webify-module-registry-plan : webify-module-registry? (listof symbol?) -> (listof symbol?)
 ;;   Compute a deterministic dependency-first composition order for roots.
 (define (webify-module-registry-plan registry roots)
@@ -208,6 +245,47 @@
     (visit root '()))
   (reverse planned))
 
+;; webify-compose-module-registry/composition : webify-module-registry? (listof symbol?) keyword-args ... -> webify-module-composition?
+;;   Compose named registry entries into a reusable payload object.
+(define (webify-compose-module-registry/composition registry
+                                                    order
+                                                    #:tail                  [tail-forms '((void))]
+                                                    #:serializable?-box     serializable?-box
+                                                    #:datum-intern?         datum-intern?
+                                                    #:target                target
+                                                    #:allow-set!-undefined? allow-set!-undefined?
+                                                    #:unsafe-mode?          unsafe-mode?
+                                                    #:enforce-constant?     enforce-constant?
+                                                    #:allow-inline?         allow-inline?
+                                                    #:no-prompt?            no-prompt?
+                                                    #:prim-knowns           prim-knowns
+                                                    #:primitives            primitives
+                                                    #:compiler-query        compiler-query
+                                                    #:get-import-knowns     get-import-knowns
+                                                    #:import-keys           import-keys)
+  (define who 'webify-compose-module-registry)
+  (validate-registry! who registry)
+  (validate-compose-order! registry order)
+  (define-values (datum fragments instances exports-infos)
+    (webify-compose-linklet-first-slices
+     (for/list ([name (in-list order)])
+       (entry->slice-spec (webify-module-registry-ref registry name)))
+     #:tail                  tail-forms
+     #:serializable?-box     serializable?-box
+     #:datum-intern?         datum-intern?
+     #:target                target
+     #:allow-set!-undefined? allow-set!-undefined?
+     #:unsafe-mode?          unsafe-mode?
+     #:enforce-constant?     enforce-constant?
+     #:allow-inline?         allow-inline?
+     #:no-prompt?            no-prompt?
+     #:prim-knowns           prim-knowns
+     #:primitives            primitives
+     #:compiler-query        compiler-query
+     #:get-import-knowns     get-import-knowns
+     #:import-keys           import-keys))
+  (webify-module-composition datum fragments instances exports-infos))
+
 ;; webify-compose-module-registry : webify-module-registry? (listof symbol?) keyword-args ... -> values
 ;;   Compose named registry entries through the linklet first-slice composer.
 (define (webify-compose-module-registry registry
@@ -226,12 +304,46 @@
                                         #:compiler-query        compiler-query
                                         #:get-import-knowns     get-import-knowns
                                         #:import-keys           import-keys)
-  (define who 'webify-compose-module-registry)
-  (validate-registry! who registry)
-  (validate-compose-order! registry order)
-  (webify-compose-linklet-first-slices
-   (for/list ([name (in-list order)])
-     (entry->slice-spec (webify-module-registry-ref registry name)))
+  (composition->values
+   (webify-compose-module-registry/composition
+    registry
+    order
+    #:tail                  tail-forms
+    #:serializable?-box     serializable?-box
+    #:datum-intern?         datum-intern?
+    #:target                target
+    #:allow-set!-undefined? allow-set!-undefined?
+    #:unsafe-mode?          unsafe-mode?
+    #:enforce-constant?     enforce-constant?
+    #:allow-inline?         allow-inline?
+    #:no-prompt?            no-prompt?
+    #:prim-knowns           prim-knowns
+    #:primitives            primitives
+    #:compiler-query        compiler-query
+    #:get-import-knowns     get-import-knowns
+    #:import-keys           import-keys)))
+
+;; webify-compose-module-registry/roots/composition : webify-module-registry? (listof symbol?) keyword-args ... -> webify-module-composition?
+;;   Plan dependencies for roots, then compose into a reusable payload object.
+(define (webify-compose-module-registry/roots/composition registry
+                                                          roots
+                                                          #:tail                  [tail-forms '((void))]
+                                                          #:serializable?-box     serializable?-box
+                                                          #:datum-intern?         datum-intern?
+                                                          #:target                target
+                                                          #:allow-set!-undefined? allow-set!-undefined?
+                                                          #:unsafe-mode?          unsafe-mode?
+                                                          #:enforce-constant?     enforce-constant?
+                                                          #:allow-inline?         allow-inline?
+                                                          #:no-prompt?            no-prompt?
+                                                          #:prim-knowns           prim-knowns
+                                                          #:primitives            primitives
+                                                          #:compiler-query        compiler-query
+                                                          #:get-import-knowns     get-import-knowns
+                                                          #:import-keys           import-keys)
+  (webify-compose-module-registry/composition
+   registry
+   (webify-module-registry-plan registry roots)
    #:tail                  tail-forms
    #:serializable?-box     serializable?-box
    #:datum-intern?         datum-intern?
@@ -265,23 +377,24 @@
                                               #:compiler-query        compiler-query
                                               #:get-import-knowns     get-import-knowns
                                               #:import-keys           import-keys)
-  (webify-compose-module-registry
-   registry
-   (webify-module-registry-plan registry roots)
-   #:tail                  tail-forms
-   #:serializable?-box     serializable?-box
-   #:datum-intern?         datum-intern?
-   #:target                target
-   #:allow-set!-undefined? allow-set!-undefined?
-   #:unsafe-mode?          unsafe-mode?
-   #:enforce-constant?     enforce-constant?
-   #:allow-inline?         allow-inline?
-   #:no-prompt?            no-prompt?
-   #:prim-knowns           prim-knowns
-   #:primitives            primitives
-   #:compiler-query        compiler-query
-   #:get-import-knowns     get-import-knowns
-   #:import-keys           import-keys))
+  (composition->values
+   (webify-compose-module-registry/roots/composition
+    registry
+    roots
+    #:tail                  tail-forms
+    #:serializable?-box     serializable?-box
+    #:datum-intern?         datum-intern?
+    #:target                target
+    #:allow-set!-undefined? allow-set!-undefined?
+    #:unsafe-mode?          unsafe-mode?
+    #:enforce-constant?     enforce-constant?
+    #:allow-inline?         allow-inline?
+    #:no-prompt?            no-prompt?
+    #:prim-knowns           prim-knowns
+    #:primitives            primitives
+    #:compiler-query        compiler-query
+    #:get-import-knowns     get-import-knowns
+    #:import-keys           import-keys)))
 
 ;; webify-compose-module-registry/roots+observations : webify-module-registry? (listof symbol?) (listof observation?) keyword-args ... -> values
 ;;   Compose planned roots and append observer calls for requested module exports.
@@ -305,8 +418,8 @@
                                                            #:import-keys           import-keys)
   (define who 'webify-compose-module-registry/roots+observations)
   (validate-observations! who observations)
-  (define-values (_combined fragments instances exports-infos)
-    (webify-compose-module-registry/roots
+  (define composition
+    (webify-compose-module-registry/roots/composition
      registry
      roots
      #:serializable?-box     serializable?-box
@@ -323,10 +436,14 @@
      #:get-import-knowns     get-import-knowns
      #:import-keys           import-keys))
   (define observation-tail
-    (observations->tail-forms who instances observations observer))
-  (values (webify-compose-module-fragments
-           fragments
-           #:tail (append observation-tail tail-forms))
-          fragments
-          instances
-          exports-infos))
+    (observations->tail-forms
+     who
+     (webify-module-composition-instances composition)
+     observations
+     observer))
+  (values (webify-module-composition-with-tail
+           composition
+           (append observation-tail tail-forms))
+          (webify-module-composition-fragments composition)
+          (webify-module-composition-instances composition)
+          (webify-module-composition-exports-infos composition)))
