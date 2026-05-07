@@ -348,6 +348,22 @@
         (generated-import-name? local)
         (generated-import-name? external))))
 
+;; import-group->aliases : import-group candidates -> (or/c aliases #f)
+;;   Infer aliases only for one clear phase-0 dependency and non-generated export names.
+(define (import-group->aliases group required-module-candidates)
+  (define phase0-candidates
+    (for/list ([candidate (in-list required-module-candidates)]
+               #:when (= 0 (car candidate)))
+      (cadr candidate)))
+  (and (= 1 (length phase0-candidates))
+       (for/and ([binding (in-list group)])
+         (match-define (list local external) binding)
+         (and (not (eq? local external))
+              (not (generated-import-name? external))))
+       (for/list ([binding (in-list group)])
+         (match-define (list local external) binding)
+         (list local (car phase0-candidates) external))))
+
 ;; webify-module-extractor-spike-import-map : report -> webify-module-import-map?
 ;;   Build an observational import-map report from phase-0, data, and decl linklets.
 (define (webify-module-extractor-spike-import-map report)
@@ -381,8 +397,20 @@
     (phase-to-link-modules-candidates
      decl-phase-to-link-modules-expression
      data-module-path-indexes))
+  (define alias-results
+    (for/list ([group (in-list unresolved-groups)])
+      (cons group (import-group->aliases group required-module-candidates))))
+  (define import-aliases
+    (apply append
+           (for/list ([result (in-list alias-results)]
+                      #:when (cdr result))
+             (cdr result))))
   (define missing-alias-import-groups
-    (filter import-group-needs-alias-evidence? unresolved-groups))
+    (for/list ([result (in-list alias-results)]
+               #:do [(define group (car result))]
+               #:when (and (import-group-needs-alias-evidence? group)
+                           (not (cdr result))))
+      group))
   (webify-module-import-map
    import-groups
    structured-import-groups
@@ -394,7 +422,7 @@
    decl-provides-expression
    decl-phase-to-link-modules-expression
    required-module-candidates
-   '()
+   import-aliases
    missing-alias-import-groups
    (cond
      [(not decl-linklet)

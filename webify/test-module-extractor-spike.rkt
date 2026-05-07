@@ -365,5 +365,39 @@
          #:dependency-exports '((racket/string (string-join)))
          #:module-protocol-dependency 'module-protocol)))]))
 
+(test-case "import map reports aliases from explicit import pairs"
+  (define phase0-linklet
+    '(linklet (((external-name local-name))) () (void)))
+  (define data-linklet
+    '(linklet () (.mpi-vector)
+       (define-values (.mpi-vector)
+         (deserialize-module-path-indexes '#(#(dep/mod)) '#(0)))))
+  (define decl-linklet
+    '(linklet ((.mpi-vector)) (phase-to-link-modules)
+       (define-values (phase-to-link-modules)
+         (hasheqv 0 (list (module-use (unsafe-vector*-ref .mpi-vector 0) 0))))))
+  (define report
+    (webify-module-extractor-spike
+     'synthetic
+     '(#f)
+     '(0 data decl)
+     (list (webify-module-bundle-entry 0 'linklet '(((external-name local-name))) '() phase0-linklet #f)
+           (webify-module-bundle-entry 'data 'linklet '() '(.mpi-vector) data-linklet #f)
+           (webify-module-bundle-entry 'decl 'linklet '((.mpi-vector)) '(phase-to-link-modules) decl-linklet #f))
+     '(((external-name local-name)))
+     '()
+     phase0-linklet
+     #t
+     '()))
+  (define import-map (webify-module-extractor-spike-import-map report))
+  (check-equal? (webify-module-import-map-phase0-decompiled-import-groups import-map)
+                '(((local-name external-name))))
+  (check-equal? (webify-module-import-map-required-module-candidates import-map)
+                '((0 dep/mod)))
+  (check-equal? (webify-module-import-map-import-aliases import-map)
+                '((local-name dep/mod external-name)))
+  (check-equal? (webify-module-import-map-missing-alias-import-groups import-map)
+                '()))
+
 (module+ main
   (void))
