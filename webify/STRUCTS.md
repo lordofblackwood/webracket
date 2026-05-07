@@ -326,17 +326,20 @@ recursively for prefab interning, so a chain such as
 The same deeper simple chains can also be written with short aliases such as
 `'(deep-grandchild grandchild 1 child 1 parent 2)` and
 `'(deep-grandchild 1 grandchild 1 child 1 parent 2)`; those aliases normalize
-to the same full explicit public key as the long form.
+to the same full explicit public key as the long form. Deeper mutable-mask
+aliases are intentionally outside the supported subset for now; `prefab-key?`
+rejects shapes such as `'(deep-grandchild #(0) grandchild 1 child 1 parent 2)`
+while the existing one-level mutable aliases remain supported.
 
 ## Proposed Next Implementation Milestone
 
 Extend prefab support beyond the nested-simple-super/prefab-datum-auto subset:
 
-- Extend the deeper alias path to cover mutable-mask aliases, or deliberately
-  reject/diagnose unsupported deeper mutable aliases with clearer tests.
+- Decide whether deeper mutable-mask aliases are worth supporting; the current
+  contract rejects them while preserving one-level mutable aliases.
 - Broaden prefab-datum validation if more Racket datum cases are needed.
 
 That milestone should include small tests showing:
 
-- A deeper prefab subtype with mutable fields either normalizes correctly or is
-  rejected with the intended unsupported-shape behavior.
+- A deeper prefab subtype with mutable fields normalizes correctly if we choose
+  to support that larger subset.

@@ -996,6 +996,12 @@
                                           prefab-parent 2 (0 #f) #()))
                            (prefab-key? '(prefab-deep-grandchild prefab-grandchild 1 prefab-child 1 prefab-parent 2))
                            (not (prefab-key? '(prefab-triple 3 (0 #f) #(0 0))))
+                           (not (prefab-key? '(prefab-deep-grandchild #(0)
+                                              prefab-grandchild 1 prefab-child 1 prefab-parent 2)))
+                           (not (prefab-key? '(prefab-deep-grandchild 1 #(0)
+                                              prefab-grandchild 1 prefab-child 1 prefab-parent 2)))
+                           (not (prefab-key? '(prefab-deep-grandchild
+                                              prefab-grandchild 1 #(0) prefab-child 1 prefab-parent 2)))
                            (eq? (prefab-struct-key a-point) 'prefab-point)
                            (eq? (prefab-struct-key made-here) 'prefab-point)
                            (equal? (prefab-struct-key auto-point)
@@ -1128,6 +1134,45 @@
            #:tail '((js-log out))))
         (define wat (wat-string (comp (datum->syntax #f combined))))
         (check-true (string-contains? wat "$prefab-struct-type-registry"))
+        (check-false (string-contains? wat "make-record-type-descriptor"))
+        (write-datum-program! source-path combined)
+        (define-values (status output)
+          (run-webracket (list "--no-stdlib"
+                               "-r"
+                               "--dest" (path->string dest-dir)
+                               (path->string source-path))
+                         source-dir))
+        (check-not-equal? status 0 output)
+        (check-regexp-match #rx"contract violation|raise-argument-error|RuntimeError" output))
+      (lambda ()
+        (for ([dir (in-list (list source-dir dest-dir))])
+          (with-handlers ([exn:fail:filesystem? void])
+            (delete-directory/files dir)))))))
+
+(unless (or (getenv "WEBIFY_SKIP_CLI_SMOKE")
+            (getenv "WEBIFY_SKIP_RUNTIME_SMOKE"))
+  (test-case "linklet composer rejects deeper mutable prefab alias"
+    (define source-dir (make-temporary-file "webracket-prefab-mutable-alias-bad-src-~a" 'directory))
+    (define dest-dir   (make-temporary-file "webracket-prefab-mutable-alias-bad-dest-~a" 'directory))
+    (define source-path (build-path source-dir "prefab-mutable-alias-bad.rkt"))
+    (dynamic-wind
+      void
+      (lambda ()
+        (define-values (combined _fragments _instances _exports-infos)
+          (compose-linklet-first-slices
+           (list
+            (webify-linklet-slice-spec
+             'bad-prefab-mutable-alias
+             '(linklet () (out)
+                (define-values (out)
+                  (make-prefab-struct
+                   '(prefab-deep-grandchild #(0)
+                     prefab-grandchild 1 prefab-child 1 prefab-parent 2)
+                   10 20 30 40 50)))
+             '()))
+           #:tail '((js-log out))))
+        (define wat (wat-string (comp (datum->syntax #f combined))))
+        (check-true (string-contains? wat "$make-prefab-struct"))
         (check-false (string-contains? wat "make-record-type-descriptor"))
         (write-datum-program! source-path combined)
         (define-values (status output)

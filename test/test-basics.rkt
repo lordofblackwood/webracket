@@ -4551,6 +4551,12 @@
                            (prefab-key? '(prefab-deep-grandchild prefab-grandchild 1 prefab-child 1 prefab-parent 2))
                            (prefab-key? '(prefab-deep-grandchild 1 prefab-grandchild 1 prefab-child 1 prefab-parent 2))
                            (not (prefab-key? '(prefab-multi 3 (0 #f) #(0 0))))
+                           (not (prefab-key? '(prefab-deep-grandchild #(0)
+                                              prefab-grandchild 1 prefab-child 1 prefab-parent 2)))
+                           (not (prefab-key? '(prefab-deep-grandchild 1 #(0)
+                                              prefab-grandchild 1 prefab-child 1 prefab-parent 2)))
+                           (not (prefab-key? '(prefab-deep-grandchild
+                                              prefab-grandchild 1 #(0) prefab-child 1 prefab-parent 2)))
                            (equal? (prefab-struct-key p) 'prefab-point)
                            (equal? (prefab-struct-key p/auto) '(prefab-auto 1 (1 #f) #()))
                            (equal? (prefab-struct-key p/auto-zero) '(prefab-auto-value 1 (1 0) #()))
