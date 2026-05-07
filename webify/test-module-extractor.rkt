@@ -4,6 +4,40 @@
          racket/string
          "test-module-support.rkt")
 
+;; synthetic-report : symbol? (listof symbol?) -> webify-module-report?
+;;   Build a small manifest-ready report with decoded phase-0 provider metadata.
+(define (synthetic-report name requires)
+  (define phase0-linklet
+    `(linklet () (,name)
+       (define-values (,name) ',name)))
+  (define mpi-vector (list->vector (map (lambda (require)
+                                          (list->vector (map string->symbol
+                                                             (string-split
+                                                              (symbol->string require)
+                                                              "/"))))
+                                        requires)))
+  (define data-linklet
+    `(linklet () (.mpi-vector)
+       (define-values (.mpi-vector)
+         (deserialize-module-path-indexes ',mpi-vector '#(0)))))
+  (define decl-linklet
+    `(linklet ((.mpi-vector)) (phase-to-link-modules)
+       (define-values (phase-to-link-modules)
+         (hasheqv 0 (list ,@(for/list ([i (in-range (length requires))])
+                              `(module-use (unsafe-vector*-ref .mpi-vector ,i) 0)))))))
+  (webify-module-report
+   name
+   '(#f)
+   '(0 data decl)
+   (list (webify-module-bundle-entry 0 'linklet '() (list name) phase0-linklet #f)
+         (webify-module-bundle-entry 'data 'linklet '() '(.mpi-vector) data-linklet #f)
+         (webify-module-bundle-entry 'decl 'linklet '((.mpi-vector)) '(phase-to-link-modules) decl-linklet #f))
+   '()
+   (list name)
+   phase0-linklet
+   #t
+   '()))
+
 (test-case "stable module report API wraps extractor backend"
   (define report
     (webify-compile-module-report
@@ -111,6 +145,28 @@
      '()))
   (check-equal? (webify-module-report-required-provider-names report)
                 '(racket/list)))
+
+(test-case "stable module report discovers transitive provider closure"
+  (define root-report (synthetic-report 'root '(dep/a dep/b)))
+  (define dep-a-report (synthetic-report 'dep/a '(dep/c)))
+  (define dep-b-report (synthetic-report 'dep/b '(dep/c)))
+  (define dep-c-report (synthetic-report 'dep/c '()))
+  (define fetched '())
+  (define provider-table
+    (hasheq 'dep/a dep-a-report
+            'dep/b dep-b-report
+            'dep/c dep-c-report))
+  (define closure
+    (webify-module-reports->required-provider-closure
+     (list root-report)
+     #:fetch-provider
+     (lambda (name)
+       (set! fetched (append fetched (list name)))
+       (hash-ref provider-table name))))
+  (check-equal? (car (map webify-module-report-name closure)) 'root)
+  (check-equal? (sort (cdr (map webify-module-report-name closure)) symbol<?)
+                '(dep/a dep/b dep/c))
+  (check-equal? (sort fetched symbol<?) '(dep/a dep/b dep/c)))
 
 (test-case "stable module report graph registers and composes"
   (define dep-report

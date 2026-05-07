@@ -18,6 +18,8 @@
    webify-module-report-required-provider-names]
   [webify-module-extractor-spike->required-provider-spikes
    webify-module-report->required-provider-reports]
+  [webify-module-extractor-spikes->required-provider-closure
+   webify-module-reports->required-provider-closure]
   [webify-module-extractor-spike-dependency-exports webify-module-report-dependency-exports]
   [webify-module-extractor-spikes-dependency-exports webify-module-reports-dependency-exports]
   [webify-module-extractor-spike->resolved-linklet-input webify-module-report->resolved-linklet-input]

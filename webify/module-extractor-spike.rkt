@@ -38,6 +38,7 @@
          webify-module-extractor-spike-import-map
          webify-module-extractor-spike-required-provider-names
          webify-module-extractor-spike->required-provider-spikes
+         webify-module-extractor-spikes->required-provider-closure
          webify-module-extractor-spike-dependency-exports
          webify-module-extractor-spikes-dependency-exports
          webify-module-path->extractor-spike
@@ -499,6 +500,54 @@
 (define (webify-module-extractor-spike->required-provider-spikes report)
   (for/list ([name (in-list (webify-module-extractor-spike-required-provider-names report))])
     (webify-module-path->extractor-spike name)))
+
+;; webify-module-extractor-spikes->required-provider-closure : reports ... -> (listof report)
+;;   Discover transitive provider reports starting from root reports.
+(define (webify-module-extractor-spikes->required-provider-closure
+         reports
+         #:fetch-provider [fetch-provider webify-module-path->extractor-spike])
+  (define who 'webify-module-extractor-spikes->required-provider-closure)
+  (unless (list? reports)
+    (raise-argument-error who "(listof webify-module-extractor-spike?)" reports))
+  (unless (procedure? fetch-provider)
+    (raise-argument-error who "procedure?" fetch-provider))
+  (for ([report (in-list reports)])
+    (unless (webify-module-extractor-spike? report)
+      (raise-argument-error who "webify-module-extractor-spike?" report)))
+  (define reports-by-name (make-hasheq))
+  (define ordered '())
+  (define (record! report)
+    (define name (webify-module-extractor-spike-name report))
+    (cond
+      [(hash-has-key? reports-by-name name) #f]
+      [else
+       (hash-set! reports-by-name name report)
+       (set! ordered (append ordered (list report)))
+       #t]))
+  (for ([report (in-list reports)])
+    (record! report))
+  (let loop ([queue reports])
+    (cond
+      [(null? queue) ordered]
+      [else
+       (define report (car queue))
+       (define new-reports
+         (for/list ([name (in-list (webify-module-extractor-spike-required-provider-names report))]
+                    #:unless (hash-has-key? reports-by-name name))
+           (define provider-report (fetch-provider name))
+           (unless (webify-module-extractor-spike? provider-report)
+             (raise-arguments-error who
+                                    "provider fetcher did not return an extractor report"
+                                    "module" name
+                                    "result" provider-report))
+           (unless (eq? name (webify-module-extractor-spike-name provider-report))
+             (raise-arguments-error who
+                                    "provider report name does not match requested module"
+                                    "module" name
+                                    "report name" (webify-module-extractor-spike-name provider-report)))
+           (record! provider-report)
+           provider-report))
+       (loop (append (cdr queue) new-reports))])))
 
 ;; resolve-extracted-linklet-imports : symbol? linklet-datum ... -> imports
 ;;   Classify extracted imports and turn supported ones into flat bridge triples.
