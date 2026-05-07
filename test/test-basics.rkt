@@ -5722,6 +5722,22 @@
                          (list (make-srcloc 'extra 9 8 7 6))))])
                 (and (equal? basic (list "EOF" '("src:5:6")))
                      (equal? with-extra '(src extra)))))
+
+        (list "result arity helper errors"
+              (let ([binding
+                     (with-handlers ([exn:fail:contract:arity?
+                                      (λ (exn)
+                                        (list 'binding (exn:fail:contract:arity? exn)))])
+                       (raise-binding-result-arity-error 1 '(a b))
+                       'missed)]
+                    [definition
+                     (with-handlers ([exn:fail:contract:arity?
+                                      (λ (exn)
+                                        (list 'definition (exn:fail:contract:arity? exn)))])
+                       (raise-definition-result-arity-error '(x y) '(a))
+                       'missed)])
+                (and (equal? binding '(binding #t))
+                     (equal? definition '(definition #t)))))
         
         (list "exn constructors"
               (let* ([base (exn "message" #f)]

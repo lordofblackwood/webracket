@@ -35,6 +35,18 @@
         `(module-variable-define! ,(lower cell) ,(lower rhs) ,(lower constance))]
        [`(set-consistent-variables!/define ,cells ,rhss)
         `(module-variables-define-consistent! ,(lower cells) ,(lower rhss))]
+       [`(variable-reference-constant?
+          (make-instance-variable-reference ,_instance ,cell))
+        `(if (module-variable-constance ,(lower cell)) #t #f)]
+       [`(variable-reference-constant?
+          (module-variable-reference ,_instance ,cell))
+        `(if (module-variable-constance ,(lower cell)) #t #f)]
+       [`(variable-reference-from-unsafe?
+          (make-instance-variable-reference ,_instance ,_cell))
+        #f]
+       [`(variable-reference-from-unsafe?
+          (module-variable-reference ,_instance ,_cell))
+        #f]
        [`(make-instance-variable-reference ,instance ,cell)
         `(module-variable-reference ,(lower instance) ,(lower cell))]
        [`(call-with-module-prompt ,thunk . ,args)
@@ -261,8 +273,6 @@
             with-continuation-mark*
             check-not-unsafe-undefined
             check-not-unsafe-undefined/assign
-            raise-definition-result-arity-error
-            raise-binding-result-arity-error
             make-record-type-descriptor
             make-record-constructor-descriptor
             record-constructor

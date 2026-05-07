@@ -72,6 +72,25 @@
   (check-true (schemify-module-variable-free? lowered))
   (check-eq? (assert-schemify-module-variable-free lowered) lowered))
 
+(test-case "module variable reference predicates lower to cell metadata"
+  (check-equal?
+   (normalize-symbols
+    (lower-module-variable-ops
+     '(list
+       (variable-reference-constant?
+        (make-instance-variable-reference instance-variable-reference cell))
+       (variable-reference-constant?
+        (module-variable-reference instance-variable-reference cell))
+       (variable-reference-from-unsafe?
+        (make-instance-variable-reference instance-variable-reference cell))
+       (variable-reference-from-unsafe?
+        (module-variable-reference instance-variable-reference cell)))))
+   '("list"
+     ("if" ("module-variable-constance" "cell") #t #f)
+     ("if" ("module-variable-constance" "cell") #t #f)
+     #f
+     #f)))
+
 (test-case "schemify module variable assertion catches missed forms"
   (check-false (schemify-module-variable-free? '(begin (variable-ref x))))
   (check-true (schemify-module-variable-free? '(quote (variable-ref x))))
@@ -85,6 +104,8 @@
   (check-false (first-slice-unsupported-free? '(unsafe-struct*-ref s 0)))
   (check-true (first-slice-unsupported-free? '(unsafe-struct? s struct:s)))
   (check-true (first-slice-unsupported-free? '(#%app/no-return f x)))
+  (check-true (first-slice-unsupported-free? '(raise-binding-result-arity-error 1 args)))
+  (check-true (first-slice-unsupported-free? '(raise-definition-result-arity-error '(x) args)))
   (check-true (first-slice-unsupported-free? '(if (impersonator? v)
                                                   (impersonator-val v)
                                                   #f)))

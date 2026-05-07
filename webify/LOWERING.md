@@ -41,6 +41,11 @@ Module variable forms:
   becomes `(module-variables-define-consistent! cells rhss)`.
 - `(make-instance-variable-reference instance cell)`
   becomes `(module-variable-reference instance cell)`.
+- `(variable-reference-constant? (make-instance-variable-reference instance cell))`
+  becomes a check of `(module-variable-constance cell)`.
+- `(variable-reference-from-unsafe? (make-instance-variable-reference instance cell))`
+  currently becomes `#f`; Webify is not preserving unsafe-origin metadata in
+  module variable reference records yet.
 
 Module prompt forms:
 

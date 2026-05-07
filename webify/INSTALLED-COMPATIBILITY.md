@@ -21,7 +21,7 @@ provider exports into top-level aliases.
 
 | Module | Current status | First blocker |
 | --- | --- | --- |
-| `racket/list` | Provider graph follows demand-driven re-export metadata and demand-slices unused `racket/private/for` exports; `first` and `rest` pass; `add-between` now gets past `unsafe-struct?`, the no-impersonator predicate path, and `#%app/no-return` | richer `add-between` path leaves `raise-binding-result-arity-error` after lowering |
+| `racket/list` | Provider graph follows demand-driven re-export metadata and demand-slices unused `racket/private/for` exports; `first` and `rest` pass; `add-between` now gets past `unsafe-struct?`, the no-impersonator predicate path, `#%app/no-return`, result-arity helpers, `prop:method-arity-error` free-variable handling, and module-reference constant checks | richer `add-between` path reaches Wasm but raises an uncaught runtime exception after producing `#<undefined>` |
 
 The old `racket/list` blockers are no longer first failures:
 
@@ -30,6 +30,13 @@ The old `racket/list` blockers are no longer first failures:
 - `1/reverse` resolves to `racket/private/pico`'s `reverse` export.
 - `hash-update` resolves to `racket/private/more-scheme` via compiled provide metadata.
 - `read` is avoided for the `first` smoke because unused `in-port` support is sliced away.
+- `raise-binding-result-arity-error` and
+  `raise-definition-result-arity-error` are internal WebRacket primitives.
+- `prop:method-arity-error` is treated as a runtime global struct-type
+  property instead of a closure free variable.
+- `variable-reference-constant?` on lowered module-variable references now
+  uses the module cell's constance metadata instead of the core
+  `$VariableReference` path.
 
 ## Name-Resolution Frontiers
 

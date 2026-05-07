@@ -1946,6 +1946,9 @@
     (add-runtime-string-constant  'arity-error:given         "\n  given: ")
     (add-runtime-string-constant  'arity-error:at-least      "at least ")
     (add-runtime-string-constant  'arity-error:or            " or ")
+    (add-runtime-string-constant  'result-arity-error:start
+                                  ": result arity mismatch;\n expected number of values not received\n  expected: ")
+    (add-runtime-string-constant  'result-arity-error:received "\n  received: ")
     (add-runtime-string-constant  'contract-violation:prefix
                                   ": contract violation\n  expected: ")
     (add-runtime-string-constant  'application:not-procedure
@@ -3412,6 +3415,74 @@
                           (call $current-continuation-marks (global.get $missing)))
                     (global.get $true))
               (unreachable))
+
+        ;; result-arity-count : (or/c exact-integer? list? values?) -> i32
+        ;;   Compute counts for Schemify's result-arity helper primitives.
+        (func $result-arity-count
+              (param $v (ref eq))
+              (result i32)
+
+              (if (ref.test (ref i31) (local.get $v))
+                  (then (return (i32.shr_s
+                                 (i31.get_s (ref.cast (ref i31) (local.get $v)))
+                                 (i32.const 1)))))
+              (if (ref.test (ref $Values) (local.get $v))
+                  (then (return (array.len (ref.cast (ref $Values) (local.get $v))))))
+              (call $length/i32 (local.get $v)))
+
+        ;; raise-result-arity-error/internal : symbol? any/c any/c -> none
+        ;;   Raise a catchable result-arity error for internal Schemify checks.
+        (func $raise-result-arity-error/internal
+              (param $who      (ref eq))      ;; symbol
+              (param $expected (ref eq))      ;; expected count or identifier list
+              (param $args     (ref eq))      ;; received values as list or $Values
+              (result          (ref eq))
+
+              (local $out          (ref $GrowableArray))
+              (local $message      (ref $String))
+
+              (local.set $out
+                         (call $make-growable-array (i32.const 5)))
+              (call $growable-array-add! (local.get $out) (call $format/display (local.get $who)))
+              (call $growable-array-add! (local.get $out) (global.get $string:result-arity-error:start))
+              (call $growable-array-add! (local.get $out)
+                    (call $i32->string (call $result-arity-count (local.get $expected))))
+              (call $growable-array-add! (local.get $out) (global.get $string:result-arity-error:received))
+              (call $growable-array-add! (local.get $out)
+                    (call $i32->string (call $result-arity-count (local.get $args))))
+              (local.set $message
+                         (call $growable-array-of-strings->string (local.get $out)))
+
+              (call $raise
+                    (call $exn:fail:contract:arity/make
+                          (local.get $message)
+                          (call $current-continuation-marks (global.get $missing)))
+                    (global.get $true))
+              (unreachable))
+
+        ;; raise-binding-result-arity-error : any/c any/c -> none
+        ;;   Report a local-binding result-arity mismatch from Schemify output.
+        (func $raise-binding-result-arity-error
+              (type $Prim2)
+              (param $expected (ref eq))
+              (param $args     (ref eq))
+              (result          (ref eq))
+              (call $raise-result-arity-error/internal
+                    (global.get $symbol:raise-binding-result-arity-error)
+                    (local.get $expected)
+                    (local.get $args)))
+
+        ;; raise-definition-result-arity-error : any/c any/c -> none
+        ;;   Report a define-values result-arity mismatch from Schemify output.
+        (func $raise-definition-result-arity-error
+              (type $Prim2)
+              (param $expected (ref eq))
+              (param $args     (ref eq))
+              (result          (ref eq))
+              (call $raise-result-arity-error/internal
+                    (global.get $symbol:raise-definition-result-arity-error)
+                    (local.get $expected)
+                    (local.get $args)))
 
         (func $raise-application-not-procedure
               (param $v (ref eq))

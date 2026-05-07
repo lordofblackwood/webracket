@@ -34,6 +34,8 @@
      'primitive-alias-collision]
     [(regexp-match? #rx"unsupported|not supported" message)
      'unsupported-runtime]
+    [(regexp-match? #rx"Uncaught WebAssembly exception|RuntimeError:" message)
+     'runtime-exception]
     [else
      'unknown]))
 

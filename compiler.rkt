@@ -2141,6 +2141,8 @@
   unquoted-printing-string?
   unquoted-printing-string
   unquoted-printing-string-value
+  raise-binding-result-arity-error
+  raise-definition-result-arity-error
   
   make-srcloc
   srcloc
@@ -10182,7 +10184,9 @@
     [,x       (define sym (variable-id x))
               (cond
                 [(primitive? sym)            (values AE empty-set)]         ; immediate constants
-                #;[(non-literal-constant? sym) (values AE empty-set)]         ; value stored in a global
+                [(and (syntax? sym)
+                      (non-literal-constant? (syntax-e sym)))
+                 (values AE empty-set)]         ; value stored in a global
                 [else                        (values AE (make-id-set x))])] ; non-primitive
     [,ab                  (Abstraction AE xs)]
     [,cab                 (CaseAbstraction AE xs)]

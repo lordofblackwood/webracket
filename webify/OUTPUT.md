@@ -39,9 +39,12 @@ lowered before Wasm emission or assigned explicit WebRacket runtime meaning.
   `variable-ref`, `variable-ref/no-check`, `variable-set!`,
   `variable-set!/check-undefined`, `variable-set!/define`,
   `set-consistent-variables!/define`, and `make-internal-variable`.
-- Module-prompt and result-arity wrappers:
-  `call-with-module-prompt`, `raise-definition-result-arity-error`, and
-  `raise-binding-result-arity-error`.
+- Module-prompt wrappers:
+  `call-with-module-prompt`.
+- Result-arity wrappers:
+  `raise-definition-result-arity-error` and
+  `raise-binding-result-arity-error` are supported as internal WebRacket
+  primitives for Schemify-generated `call-with-values` error paths.
 - Variable-reference support:
   `make-instance-variable-reference`, `variable-reference-constant?`, and
   `variable-reference-from-unsafe?`.

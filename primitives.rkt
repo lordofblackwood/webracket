@@ -888,6 +888,8 @@
  call-with-exception-handler
  raise
  raise-argument-error
+ raise-binding-result-arity-error
+ raise-definition-result-arity-error
  ; raise-unbound-variable-reference
 
  ;; 10.2.5 Source Locations
@@ -2790,6 +2792,27 @@
 
 (define (impersonator-val v)
   (error 'impersonator-val "impersonators are not supported by WebRacket"))
+
+(define (result-arity-count v)
+  (cond
+    [(integer? v) v]
+    [(list? v)    (length v)]
+    [else         1]))
+
+(define (raise-result-arity-error/internal who expected args)
+  (define expected-count (result-arity-count expected))
+  (define received-count (result-arity-count args))
+  (raise
+   (exn:fail:contract:arity
+    (format "~a: result arity mismatch;\n expected number of values not received\n  expected: ~a\n  received: ~a"
+            who expected-count received-count)
+    (current-continuation-marks))))
+
+(define (raise-binding-result-arity-error expected args)
+  (raise-result-arity-error/internal 'raise-binding-result-arity-error expected args))
+
+(define (raise-definition-result-arity-error expected args)
+  (raise-result-arity-error/internal 'raise-definition-result-arity-error expected args))
 
 (define (~r/precision x prec)
   (~r x #:precision prec))
