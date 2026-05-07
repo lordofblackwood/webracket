@@ -15,6 +15,8 @@
                 'webify-export-cell0$0)
   (check-equal? (webify-module-instance-export-cell-id instance 'y)
                 'webify-export-cell1$0)
+  (check-equal? (webify-module-instances-export-cell-id (hasheq 'a instance) 'a 'y)
+                'webify-export-cell1$0)
   (check-equal? (webify-module-instance-reserved-ids instance)
                 '(x y webify-linklet-proc$0 webify-export-cell0$0 webify-export-cell1$0)))
 
@@ -90,6 +92,12 @@
      (webify-module-instance-export-cell-id
       (make-webify-module-instance 'a '(x))
       'missing))))
+
+(test-case "module instance map rejects missing instances"
+  (check-exn
+   #rx"module instance map has no such instance"
+   (lambda ()
+     (webify-module-instances-export-cell-id (hasheq) 'missing 'x))))
 
 (test-case "module instance rejects duplicate renamed imports"
   (check-exn

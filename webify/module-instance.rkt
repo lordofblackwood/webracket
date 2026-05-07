@@ -8,6 +8,7 @@
          webify-module-instance-helper-ids
          make-webify-module-instance
          webify-module-instance-export-cell-id
+         webify-module-instances-export-cell-id
          webify-module-instance-import-env
          webify-module-instance-reserved-ids
          first-slice->module-instance-datum
@@ -64,6 +65,23 @@
                                      "instance" (webify-module-instance-name instance)
                                      "export" export
                                      "available exports" (webify-module-instance-exports instance)))))
+
+;; webify-module-instances-export-cell-id : hash? symbol? symbol? -> symbol?
+;;   Look up one export cell through a composed module-instance map.
+(define (webify-module-instances-export-cell-id instances name export)
+  (define who 'webify-module-instances-export-cell-id)
+  (unless (hash? instances)
+    (raise-argument-error who "hash?" instances))
+  (validate-instance-name! who name)
+  (define instance
+    (hash-ref instances
+              name
+              (lambda ()
+                (raise-arguments-error who
+                                       "module instance map has no such instance"
+                                       "instance" name
+                                       "available instances" (hash-keys instances)))))
+  (webify-module-instance-export-cell-id instance export))
 
 ;; normalize-import-mapping : symbol? any/c -> values symbol? symbol?
 ;;   Convert a shorthand import mapping into imported-name/exported-name values.

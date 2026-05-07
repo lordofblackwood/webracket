@@ -15,6 +15,7 @@
          normalize-symbols
          webracket-rkt
          comp
+         webify-module-instances-export-cell-id
          (all-from-out "known.rkt")
          (all-from-out "module-adapter.rkt")
          (all-from-out "module-composer.rkt")

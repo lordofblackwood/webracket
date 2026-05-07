@@ -291,8 +291,13 @@
          '(linklet (([ext-x x])) (y)
             (define-values (y) x))
          #:imports '((ext-x a x)))
-        (define-values (combined _fragments _instances _exports-infos)
-          (compose-module-registry/roots registry '(b) #:tail '((js-log y))))
+        (define-values (_combined fragments instances _exports-infos)
+          (compose-module-registry/roots registry '(b)))
+        (define y-cell (webify-module-instances-export-cell-id instances 'b 'y))
+        (define combined
+          (webify-compose-module-fragments
+           fragments
+           #:tail `((js-log (module-variable-ref ,y-cell)))))
         (write-datum-program! source-path combined)
         (define-values (status output)
           (run-webracket (list "--no-stdlib"
@@ -330,12 +335,18 @@
             (define-values (y) x))
          #:imports '((ext-x a x)))
         (check-equal? (webify-module-registry-plan registry '(b)) '(a b))
-        (define-values (combined fragments instances _exports-infos)
-          (compose-module-registry/roots registry '(b) #:tail '((js-log y))))
+        (define-values (_combined fragments instances _exports-infos)
+          (compose-module-registry/roots registry '(b)))
         (check-equal? (length fragments) 2)
         (check-equal? (sort (hash-keys instances) symbol<?) '(a b))
+        (define y-cell (webify-module-instances-export-cell-id instances 'b 'y))
+        (define combined
+          (webify-compose-module-fragments
+           fragments
+           #:tail `((js-log (module-variable-ref ,y-cell)))))
         (define wat (wat-string (comp (datum->syntax #f combined))))
         (check-true (string-contains? wat "$module-variable-set!"))
+        (check-true (string-contains? wat "$module-variable-ref"))
         (write-datum-program! source-path combined)
         (define-values (status output)
           (run-webracket (list "--no-stdlib"
