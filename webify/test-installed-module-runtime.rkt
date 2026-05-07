@@ -95,6 +95,26 @@
     '()
     '())
    (installed-runtime-smoke
+    "installed racket/list rest reaches WebRacket runtime smoke"
+    '((module use-list-rest racket/base
+        (require racket/list)
+        (provide y)
+        (define y (first (rest '(#t #f))))))
+    '((use-list-rest y))
+    #rx"(?m:^(#f|false)$)"
+    '()
+    '())
+   (installed-runtime-smoke
+    "installed racket/list add-between reaches WebRacket runtime smoke"
+    '((module use-list-add-between racket/base
+        (require racket/list)
+        (provide y)
+        (define y (car (cdr (add-between '("a" "b") ","))))))
+    '((use-list-add-between y))
+    #rx"(?m:^,$)"
+    '(unsupported-runtime)
+    #rx"unsafe-struct[?]")
+   (installed-runtime-smoke
     "installed racket/string graph reaches WebRacket runtime smoke"
     '((module use-string racket/base
         (require racket/string)
@@ -104,6 +124,19 @@
     #rx"(?m:^a,b$)"
     '(unresolved-import)
     #rx"import: 'add-between[.]1\n  export: 'add-between[.]1")))
+
+;; check-installed-runtime-failure : installed-runtime-smoke? webify-module-failure? -> void?
+;;   Validate an expected extraction, bridge, compiler, or runtime failure.
+(define (check-installed-runtime-failure smoke failure)
+  (check-not-equal? (webify-module-failure-category failure)
+                    'primitive-alias-collision)
+  (unless (memq (webify-module-failure-category failure)
+                (installed-runtime-smoke-allowed-failures smoke))
+    (fail-check (webify-module-failure-message failure)))
+  (when (installed-runtime-smoke-expected-failure smoke)
+    (check-regexp-match
+     (installed-runtime-smoke-expected-failure smoke)
+     (webify-module-failure-message failure))))
 
 ;; run-racket92/extract : path-string? path-string? -> values
 ;;   Run a Racket 9.2 extractor script while capturing combined output.
@@ -147,57 +180,49 @@
              (define manifest (read-webify-module-linklet-manifest manifest-path))
              (define registry (webify-module-linklet-manifest->registry manifest))
              (define loader (make-webify-module-loader registry))
-             (webify-module-loader-instantiate!
-              loader
-              (webify-module-linklet-manifest-roots manifest)
-              #:define-export-aliases? #f
-              #:serializable?-box     #f
-              #:datum-intern?         #f
-              #:target                #f
-              #:allow-set!-undefined? #f
-              #:unsafe-mode?          #f
-              #:enforce-constant?     #t
-              #:allow-inline?         #t
-              #:no-prompt?            #f
-              #:prim-knowns           test-prim-knowns
-              #:primitives            test-primitives
-              #:compiler-query        (lambda (v) #f)
-              #:get-import-knowns     (lambda (key) (values #f #f #f))
-              #:import-keys           #f)
-             (write-datum-program!
-              program-path
-              (webify-module-loader-observe
-               loader
-               (installed-runtime-smoke-observations smoke)))
-             (define-values (status output)
-               (run-webracket (list "--no-stdlib"
-                                    "-r"
-                                    "--dest" (path->string dest-dir)
-                                    (path->string program-path))
-                              source-dir))
-             (cond
-               [(zero? status)
-                (check-regexp-match (installed-runtime-smoke-expected-output smoke) output)]
-               [else
-                (define failure (webify-classify-runtime-output status output))
-                (check-not-equal? (webify-module-failure-category failure)
-                                  'primitive-alias-collision)
-                (unless (memq (webify-module-failure-category failure)
-                              (installed-runtime-smoke-allowed-failures smoke))
-                  (fail-check (webify-module-failure-message failure)))
-                (when (installed-runtime-smoke-expected-failure smoke)
-                  (check-regexp-match
-                   (installed-runtime-smoke-expected-failure smoke)
-                   (webify-module-failure-message failure)))])]
+             (with-handlers ([exn:fail?
+                              (lambda (exn)
+                                (check-installed-runtime-failure
+                                 smoke
+                                 (webify-classify-module-exn 'runtime exn)))])
+               (webify-module-loader-instantiate!
+                loader
+                (webify-module-linklet-manifest-roots manifest)
+                #:define-export-aliases? #f
+                #:serializable?-box     #f
+                #:datum-intern?         #f
+                #:target                #f
+                #:allow-set!-undefined? #f
+                #:unsafe-mode?          #f
+                #:enforce-constant?     #t
+                #:allow-inline?         #t
+                #:no-prompt?            #f
+                #:prim-knowns           test-prim-knowns
+                #:primitives            test-primitives
+                #:compiler-query        (lambda (v) #f)
+                #:get-import-knowns     (lambda (key) (values #f #f #f))
+                #:import-keys           #f)
+               (write-datum-program!
+                program-path
+                (webify-module-loader-observe
+                 loader
+                 (installed-runtime-smoke-observations smoke)))
+               (define-values (status output)
+                 (run-webracket (list "--no-stdlib"
+                                      "-r"
+                                      "--dest" (path->string dest-dir)
+                                      (path->string program-path))
+                                source-dir))
+               (cond
+                 [(zero? status)
+                  (check-regexp-match (installed-runtime-smoke-expected-output smoke) output)]
+                 [else
+                  (check-installed-runtime-failure
+                   smoke
+                   (webify-classify-runtime-output status output))]))]
             [else
              (define failure (webify-classify-runtime-output extract-status extract-output))
-             (unless (memq (webify-module-failure-category failure)
-                           (installed-runtime-smoke-allowed-failures smoke))
-               (fail-check (webify-module-failure-message failure)))
-             (when (installed-runtime-smoke-expected-failure smoke)
-               (check-regexp-match
-                (installed-runtime-smoke-expected-failure smoke)
-                (webify-module-failure-message failure)))]))
+             (check-installed-runtime-failure smoke failure)]))
         (lambda ()
           (for ([dir (in-list (list source-dir dest-dir))])
             (with-handlers ([exn:fail:filesystem? void])

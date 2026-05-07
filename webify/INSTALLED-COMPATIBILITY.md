@@ -11,6 +11,7 @@ test or smoke demonstrates the new status.
 | `racket/bool` | `(boolean=? #t #t)` prints `#t`/`true` | `webify/test-installed-module-runtime.rkt` |
 | `racket/fixnum` | `(fx+ 1 2)` prints `3` | `webify/test-installed-module-runtime.rkt` |
 | `racket/list` | `(first '(#t #f))` prints `#t`/`true` through demand-sliced providers | `webify/test-installed-module-runtime.rkt` |
+| `racket/list` | `(first (rest '(#t #f)))` prints `#f`/`false` | `webify/test-installed-module-runtime.rkt` |
 
 These prove that Webify can discover real installed providers, instantiate the
 resulting module graph, and observe exported module cells without turning
@@ -20,7 +21,7 @@ provider exports into top-level aliases.
 
 | Module | Current status | First blocker |
 | --- | --- | --- |
-| `racket/list` | Provider graph follows demand-driven re-export metadata and demand-slices unused `racket/private/for` exports | passes `first` smoke |
+| `racket/list` | Provider graph follows demand-driven re-export metadata and demand-slices unused `racket/private/for` exports; `first` and `rest` pass | richer `add-between` path leaves `unsafe-struct?` after lowering |
 
 The old `racket/list` blockers are no longer first failures:
 
