@@ -1174,3 +1174,39 @@ The lowered first-slice value must also be a fixed-arity `lambda`. Its arity
 must be one more than the export count: one placeholder instance argument,
 followed by one module-variable cell argument per export. The lambda formals
 must be unique symbols.
+
+## Installed Provider Shapes
+
+The installed-module extractor now treats machine-independent providers as a
+small family of shapes instead of assuming every provider is a runtime
+`linklet-directory?`.
+
+1. A compiled module can be a real `linklet-directory?`. This is the rich module
+   shape with a main bundle plus metadata entries such as `data`, `decl`,
+   `stx`, and `stx-data`.
+
+2. A compiled module can be a direct opaque `linklet?`. When the host Racket
+   exposes `decompile-linklet`, Webify can recover its phase-0 linklet datum and
+   build a single-entry report.
+
+3. A machine-independent installed provider can print as a linklet-shaped
+   compiled expression but parse, via `compiler/zo-parse`, into a `linkl-bundle`
+   whose entries are `faslable-correlated-linklet` values. Webify isolates that
+   version-sensitive API in `webify/faslable-linklet.rkt`, strips correlated
+   source-location wrappers, and uses the embedded S-expression linklet as the
+   provider datum.
+
+The third shape is what makes providers such as `racket/private/pico` usable.
+For example, `racket/private/list` imports `1/reverse` with external name
+`reverse`; after faslable decoding and provider closure filtering, the resolved
+triple is:
+
+```racket
+(1/reverse racket/private/pico reverse)
+```
+
+Provider closure also skips unfetchable decoded candidates. That matters because
+`phase-to-link-modules` can mention broad metadata candidates such as
+`racket/for`; those should not stop traversal before real phase-0 providers
+like `racket/private/pico`, `racket/private/map`, and `racket/private/kw` are
+loaded.

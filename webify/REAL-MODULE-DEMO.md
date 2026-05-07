@@ -99,3 +99,9 @@ decodes faslable-correlated providers such as `racket/private/pico`. The next
 `1/reverse` and `reverse`. `racket/string` is still a linklet-level
 name-resolution frontier for broader internalized imports beyond the focused
 `string-join` provider-export case.
+
+The focused Racket 9.2 extractor test now pins the `racket/private/list`
+provider-graph advance: `1/reverse` resolves to `racket/private/pico`'s
+`reverse` export. That does not mean all of `racket/list` is runtime-ready; it
+means the old provider-shape and candidate-overreach blockers are no longer the
+first problems.
