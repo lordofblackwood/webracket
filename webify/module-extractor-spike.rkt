@@ -1117,13 +1117,77 @@
 
 ;; webify-module-extractor-spikes->discovered-resolved-linklet-inputs : reports ... -> inputs
 ;;   Discover provider closure, then resolve the resulting graph into bridge inputs.
+(define (demand-slice-discovered-reports root-reports
+                                         extra-reports
+                                         discovered-reports
+                                         dependencies
+                                         module-protocol-dependency)
+  (define root/extra-names
+    (for/hasheq ([report (in-list (append root-reports extra-reports))])
+      (values (webify-module-extractor-spike-name report) #t)))
+  (define reports-by-name
+    (for/hasheq ([report (in-list discovered-reports)])
+      (values (webify-module-extractor-spike-name report) report)))
+  (define final-by-name (make-hasheq))
+  (for ([report (in-list (append extra-reports root-reports))])
+    (hash-set! final-by-name (webify-module-extractor-spike-name report) report))
+  (define demanded (make-hasheq))
+  (define (new-exports module exports)
+    (define old (hash-ref demanded module '()))
+    (filter (lambda (export) (not (memq export old))) exports))
+  (define (record-demand! demand)
+    (define module (webify-module-export-demand-module demand))
+    (define exports (webify-module-export-demand-exports demand))
+    (define fresh (new-exports module exports))
+    (cond
+      [(null? fresh) #f]
+      [else
+       (hash-set! demanded module (remove-duplicates (append (hash-ref demanded module '()) fresh)))
+       (webify-module-export-demand module fresh)]))
+  (define initial-demands
+    (append*
+     (for/list ([report (in-list root-reports)])
+       (webify-module-extractor-spike-import-export-demands
+        report
+        discovered-reports
+        #:dependencies dependencies
+        #:module-protocol-dependency module-protocol-dependency))))
+  (let loop ([queue (filter values (map record-demand! initial-demands))])
+    (cond
+      [(null? queue)
+       (filter values
+               (for/list ([report (in-list discovered-reports)])
+                 (hash-ref final-by-name
+                           (webify-module-extractor-spike-name report)
+                           #f)))]
+      [else
+       (define demand (car queue))
+       (define module (webify-module-export-demand-module demand))
+       (define report (hash-ref reports-by-name module #f))
+       (define next-demands '())
+       (when (and report (not (hash-ref root/extra-names module #f)))
+         (define sliced
+           (webify-module-extractor-spike/slice-exports
+            report
+            (hash-ref demanded module)))
+         (hash-set! final-by-name module sliced)
+         (set! next-demands
+               (webify-module-extractor-spike-import-export-demands
+                sliced
+                discovered-reports
+                #:dependencies dependencies
+                #:module-protocol-dependency module-protocol-dependency)))
+       (loop (append (cdr queue)
+                     (filter values (map record-demand! next-demands))))])))
+
 (define (webify-module-extractor-spikes->discovered-resolved-linklet-inputs
          reports
          #:extra-reports [extra-reports '()]
          #:fetch-provider [fetch-provider webify-module-path->extractor-spike]
          #:skip-unfetchable? [skip-unfetchable? #t]
          #:dependencies [dependencies '()]
-         #:module-protocol-dependency [module-protocol-dependency #f])
+         #:module-protocol-dependency [module-protocol-dependency #f]
+         #:demand-slice? [demand-slice? #f])
   (define who 'webify-module-extractor-spikes->discovered-resolved-linklet-inputs)
   (unless (list? reports)
     (raise-argument-error who "(listof webify-module-extractor-spike?)" reports))
@@ -1134,8 +1198,16 @@
      (append extra-reports reports)
      #:fetch-provider fetch-provider
      #:skip-unfetchable? skip-unfetchable?))
+  (define resolved-reports
+    (if demand-slice?
+        (demand-slice-discovered-reports reports
+                                         extra-reports
+                                         discovered-reports
+                                         dependencies
+                                         module-protocol-dependency)
+        discovered-reports))
   (webify-module-extractor-spikes->resolved-linklet-inputs
-   discovered-reports
+   resolved-reports
    #:dependencies dependencies
    #:module-protocol-dependency module-protocol-dependency))
 
@@ -1629,7 +1701,8 @@
          #:extra-reports [extra-reports '()]
          #:fetch-provider [fetch-provider webify-module-path->extractor-spike]
          #:dependencies [dependencies '()]
-         #:module-protocol-dependency [module-protocol-dependency #f])
+         #:module-protocol-dependency [module-protocol-dependency #f]
+         #:demand-slice? [demand-slice? #f])
   (define who 'webify-source-modules->discovered-resolved-linklet-inputs)
   (unless (list? module-data)
     (raise-argument-error who "(listof source-module-datum?)" module-data))
@@ -1639,4 +1712,5 @@
    #:extra-reports extra-reports
    #:fetch-provider fetch-provider
    #:dependencies dependencies
-   #:module-protocol-dependency module-protocol-dependency))
+   #:module-protocol-dependency module-protocol-dependency
+   #:demand-slice? demand-slice?))

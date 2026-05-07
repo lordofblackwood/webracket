@@ -35,7 +35,8 @@
             (webify-source-modules->discovered-resolved-linklet-inputs
              ',module-data
              #:extra-reports (list webify-module-protocol-report)
-             #:module-protocol-dependency webify-module-protocol-dependency))
+             #:module-protocol-dependency webify-module-protocol-dependency
+             #:demand-slice? #t))
           (call-with-output-file ,(path->string manifest-path)
             (lambda (out)
               (write
@@ -91,8 +92,8 @@
         (define y (first '(#t #f)))))
     '((use-list y))
     #rx"(?m:^(#t|true)$)"
-    '(unresolved-import)
-    #rx"import: 'hash-update\n  export: 'hash-update")
+    '()
+    '())
    (installed-runtime-smoke
     "installed racket/string graph reaches WebRacket runtime smoke"
     '((module use-string racket/base
@@ -102,7 +103,7 @@
     '((use-string y))
     #rx"(?m:^a,b$)"
     '(unresolved-import)
-    #rx"import: 'add-between[.]1\n  export: 'add-between[.]1")))
+    #rx"import: 'reverse\n  export: '1/reverse")))
 
 ;; run-racket92/extract : path-string? path-string? -> values
 ;;   Run a Racket 9.2 extractor script while capturing combined output.

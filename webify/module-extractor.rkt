@@ -117,14 +117,16 @@ webify-linklet-import-bindings
          #:extra-reports [extra-reports '()]
          #:fetch-provider [fetch-provider webify-module-path->extractor-spike]
          #:dependencies [dependencies '()]
-         #:module-protocol-dependency [module-protocol-dependency #f])
+         #:module-protocol-dependency [module-protocol-dependency #f]
+         #:demand-slice? [demand-slice? #f])
   (webify-module-linklet-inputs->registry
    (webify-module-extractor-spikes->discovered-resolved-linklet-inputs
     reports
     #:extra-reports extra-reports
     #:fetch-provider fetch-provider
     #:dependencies dependencies
-    #:module-protocol-dependency module-protocol-dependency)))
+    #:module-protocol-dependency module-protocol-dependency
+    #:demand-slice? demand-slice?)))
 
 ;; webify-source-modules->discovered-registry : (listof source-module-datum?) -> webify-module-registry?
 ;;   Compile roots, discover providers, resolve the graph, and register it.
@@ -133,11 +135,13 @@ webify-linklet-import-bindings
          #:extra-reports [extra-reports '()]
          #:fetch-provider [fetch-provider webify-module-path->extractor-spike]
          #:dependencies [dependencies '()]
-         #:module-protocol-dependency [module-protocol-dependency #f])
+         #:module-protocol-dependency [module-protocol-dependency #f]
+         #:demand-slice? [demand-slice? #f])
   (webify-module-linklet-inputs->registry
    (webify-source-modules->discovered-resolved-linklet-inputs
     module-data
     #:extra-reports extra-reports
     #:fetch-provider fetch-provider
     #:dependencies dependencies
-    #:module-protocol-dependency module-protocol-dependency)))
+    #:module-protocol-dependency module-protocol-dependency
+    #:demand-slice? demand-slice?)))
