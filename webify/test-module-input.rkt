@@ -84,6 +84,25 @@
       (with-handlers ([exn:fail:filesystem? void])
         (delete-directory/files source-dir)))))
 
+(test-case "module linklet import resolver derives flat triples"
+  (define b-linklet
+    '(linklet (([ext-x x])) (y)
+       (define-values (y) (+ x 1))))
+  (check-equal?
+   (webify-resolve-module-linklet-imports b-linklet '((a (x))))
+   '((ext-x a x)))
+  (check-equal?
+   (webify-resolve-module-linklet-imports b-linklet
+                                          '((a (x)) (other (x)))
+                                          #:dependencies '((ext-x a)))
+   '((ext-x a x)))
+  (define input
+    (webify-module-linklet-input/resolve-imports 'b
+                                                 b-linklet
+                                                 '((a (x)))))
+  (check-equal? (webify-module-linklet-input-imports input)
+                '((ext-x a x))))
+
 (test-case "module linklet inputs validate through registry registration"
   (check-exn
    #rx"webify-module-linklet-input\\?"
@@ -116,6 +135,36 @@
       '(webify-module-linklet-manifest
         (roots (bad))
         (bad-input)))))
+  (check-exn
+   #rx"could not resolve import dependency"
+   (lambda ()
+     (webify-resolve-module-linklet-imports
+      '(linklet (([ext-x x])) (y)
+         (define-values (y) x))
+      '((a (not-x))))))
+  (check-exn
+   #rx"ambiguous import dependency"
+   (lambda ()
+     (webify-resolve-module-linklet-imports
+      '(linklet (([ext-x x])) (y)
+         (define-values (y) x))
+      '((a (x)) (b (x))))))
+  (check-exn
+   #rx"explicit import dependency does not export required name"
+   (lambda ()
+     (webify-resolve-module-linklet-imports
+      '(linklet (([ext-x x])) (y)
+         (define-values (y) x))
+      '((a (not-x)))
+      #:dependencies '((ext-x a)))))
+  (check-exn
+   #rx"references a name not imported by the linklet"
+   (lambda ()
+     (webify-resolve-module-linklet-imports
+      '(linklet (([ext-x x])) (y)
+         (define-values (y) x))
+      '((a (x)))
+      #:dependencies '((missing a)))))
 
 (test-case "module linklet inputs feed the loader bridge"
   (define registry
