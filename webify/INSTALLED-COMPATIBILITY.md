@@ -34,7 +34,7 @@ The old `racket/list` blockers are no longer first failures:
 
 | Module | Current status | First blocker |
 | --- | --- | --- |
-| `racket/string` | Focused `string-join.1`/`string-join9.1` provider-export resolution works; demand slicing reaches `racket/list` internals | `reverse`/`1/reverse` alias after slicing |
+| `racket/string` | Focused `string-join.1`/`string-join9.1` provider-export resolution works; sliced rename aliases are preserved | `add-between.1` unresolved import |
 
 `racket/string` depends on `racket/list` for `add-between`, so progress on
 `racket/list` is expected to move this frontier too.

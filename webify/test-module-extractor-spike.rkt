@@ -306,6 +306,39 @@
                   (format "~s"
                           (webify-module-extractor-spike-phase0-linklet-datum sliced)))))
 
+(test-case "report slicing preserves decl/data rename metadata"
+  (define phase0-linklet
+    '(linklet (((reverse 1/reverse))) (uses-reverse)
+       (define-values (uses-reverse) 1/reverse)
+       (define-values (unused) 'unused)))
+  (define data-linklet
+    '(linklet () (.mpi-vector)
+       (define-values (.mpi-vector)
+         (deserialize-module-path-indexes '#(#("pico.rkt" 0)) '#(0)))))
+  (define decl-linklet
+    '(linklet () (provides)
+       (define-values (provides)
+         '(reverse #:module-binding #:mpi 0 alt-reverse 0 #f #f ()))))
+  (define report
+    (webify-module-extractor-spike
+     'racket/private/list
+     '(#f)
+     '(0 data decl)
+     (list (webify-module-bundle-entry 0 'linklet '(((reverse 1/reverse))) '(uses-reverse) phase0-linklet #f)
+           (webify-module-bundle-entry 'data 'linklet '() '(.mpi-vector) data-linklet #f)
+           (webify-module-bundle-entry 'decl 'linklet '() '(provides) decl-linklet #f))
+     '(((reverse 1/reverse)))
+     '(uses-reverse)
+     phase0-linklet
+     #t
+     '()))
+  (define sliced (webify-module-extractor-spike/slice-exports report '(uses-reverse)))
+  (check-not-false (webify-module-bundle-entry-ref sliced 'data))
+  (check-not-false (webify-module-bundle-entry-ref sliced 'decl))
+  (check-equal? (webify-module-import-map-require-rename-aliases
+                 (webify-module-extractor-spike-import-map sliced))
+                '((1/reverse racket/private/pico alt-reverse))))
+
 (test-case "extractor report graph resolves module inputs"
   (define dep-report
     (webify-module-extractor-spike

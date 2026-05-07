@@ -938,13 +938,14 @@
     [_ (values #f #f)]))
 
 ;; filter-importss : importss (listof symbol?) -> importss
-;;   Keep only import bindings whose local name is demanded.
+;;   Keep only raw import bindings whose normalized local name is demanded.
 (define (filter-importss importss demanded-imports)
   (filter
    pair?
    (for/list ([group (in-list importss)])
      (filter (lambda (binding)
-               (match-define (list local _external) binding)
+               (match-define (list local _external)
+                 (normalize-linklet-import-binding 'filter-importss binding))
                (memq local demanded-imports))
              group))))
 
@@ -958,6 +959,7 @@
     (raise-argument-error who "(listof symbol?)" demanded-exports))
   (define raw-linklet (webify-module-extractor-spike-phase0-linklet-datum report))
   (define linklet (webify-normalize-linklet-imports raw-linklet))
+  (match-define `(linklet ,raw-importss ,_raw-exports . ,_raw-body) raw-linklet)
   (match-define `(linklet ,importss ,exports . ,body) linklet)
   (define available-exports (webify-normalize-linklet-exports exports))
   (for ([export (in-list demanded-exports)])
@@ -1000,7 +1002,7 @@
     (filter (lambda (id) (hash-has-key? definition-table id)) needed))
   (define demanded-imports
     (filter (lambda (id) (not (memq id local-definitions))) needed))
-  (define sliced-importss (filter-importss importss demanded-imports))
+  (define sliced-importss (filter-importss raw-importss demanded-imports))
   (define sliced-linklet
     `(linklet ,sliced-importss ,demanded-exports . ,kept-body))
   (define phase0-entry
@@ -1011,11 +1013,16 @@
      demanded-exports
      sliced-linklet
      #f))
+  (define sliced-bundle-entries
+    (cons phase0-entry
+          (filter (lambda (entry)
+                    (not (equal? 0 (webify-module-bundle-entry-key entry))))
+                  (webify-module-extractor-spike-bundle-entries report))))
   (webify-module-extractor-spike
    (webify-module-extractor-spike-name report)
    (webify-module-extractor-spike-directory-keys report)
    (webify-module-extractor-spike-bundle-keys report)
-   (list phase0-entry)
+   sliced-bundle-entries
    sliced-importss
    demanded-exports
    sliced-linklet
