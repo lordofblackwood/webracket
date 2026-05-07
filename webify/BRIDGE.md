@@ -997,6 +997,54 @@ so Webify can derive an alias from importer name `reverse` to provider export
 `rename-in` metadata in the same way. The bridge should resolve it from
 compiled provider export rows, not from a fabricated public-name mapping.
 
+## Rename-Aware Resolution
+
+Require renames force the bridge to keep four names separate:
+
+```text
+import local id          generated/importer-side linklet variable
+source require name      name the requiring module uses
+provider export id       name exported by the provider module
+provider implementation  binding name inside the provider source/linklet
+```
+
+For `racket/private/list`, the source contains:
+
+```racket
+(require (rename-in "pico.rkt" [alt-reverse reverse]))
+```
+
+In the compiled importer, that can appear as:
+
+```racket
+((1/reverse reverse))
+```
+
+After linklet normalization, Webify reads that as:
+
+```racket
+local id:            1/reverse
+source require name: reverse
+```
+
+The source-level rename supplies the missing provider side:
+
+```racket
+provider module:    racket/private/pico
+provider export id: alt-reverse
+```
+
+So the registry import triple should be:
+
+```racket
+(1/reverse racket/private/pico alt-reverse)
+```
+
+The provider may implement `alt-reverse` with an internal binding named
+`reverse`, but that implementation detail is not the importer's contract. The
+bridge composes linklets through provider exports, so it must resolve to
+`alt-reverse`.
+
 The export `x` is represented by the cell `webify-export-cell0$0`. The lowered
 procedure writes the exported value into that cell with
 `module-variable-define!`. The adapter then exposes the cell value as the
