@@ -19,10 +19,10 @@
 ;; 
 ;; to better expose procedure bindings for the lifting phase.
 ;;
-;; For `letrec*`, we rewrite to
+;; For `letrec`, we rewrite to
 ;;
-;;  (letrec* ([y <simple>]
- ;;           [x <rhs>])
+;;  (letrec ([y <simple>]
+;;           [x <rhs>])
 ;;    <body>)
 ;;
 ;; because <simple> might refer to `x`. We only do that when <simple>
@@ -34,7 +34,7 @@
     [`(,let-id (,binds ...) . ,body)
      (cond
        [(or (eq? let-id 'let)
-            (eq? let-id 'letrec*))
+            (eq? let-id 'letrec))
         (let loop ([binds binds]
                    [accum-binds '()]
                    [wraps '()]
@@ -58,7 +58,7 @@
                             (immediate-lambda? body)))
                    e]
                   [(and (or (eq? 'let nest-let-id)
-                            (and (eq? 'letrec* nest-let-id)
+                            (and (eq? 'letrec nest-let-id)
                                  (not (could-be-loop? ids body))))
                         (for/and ([rhs (in-list rhss)])
                           (and (or (eq? 'let let-id)

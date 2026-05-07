@@ -25,7 +25,7 @@ These are the forms to prioritize for the first WebRacket module slice:
 - Variable references and `set!`.
 - `lambda` and `case-lambda`.
 - `define` and `define-values`.
-- `let`, `let-values`, `letrec*`, and `letrec-values` after current rewrites.
+- `let`, `let-values`, `letrec`, and `letrec-values` after current rewrites.
 - `if`, `begin`, `begin0`, and `begin-unsafe`.
 - Direct primitive applications.
 - `values` and `call-with-values` for simple multi-value cases.

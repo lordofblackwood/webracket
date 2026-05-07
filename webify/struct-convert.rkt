@@ -291,13 +291,13 @@
                                  #:optimize? #f))
              (cond
                [letrec?
-                `(letrec* ,(let loop ([new-seq new-seq])
-                             (match new-seq
-                               [`() null]
-                               [`((begin ,forms ...) . ,rest)
-                                (loop (append forms rest))]
-                               [`((define ,id ,rhs) . ,rest)
-                                (cons `[,id ,rhs] (loop rest))]))
+                `(letrec ,(let loop ([new-seq new-seq])
+                            (match new-seq
+                              [`() null]
+                              [`((begin ,forms ...) . ,rest)
+                               (loop (append forms rest))]
+                              [`((define ,id ,rhs) . ,rest)
+                               (cons `[,id ,rhs] (loop rest))]))
                    ,@(schemify-body schemify new-knowns bodys))]
                [else
                 (let loop ([new-seq new-seq])

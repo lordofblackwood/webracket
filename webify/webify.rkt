@@ -616,9 +616,9 @@
             (unnest-let
              (letrec-conversion
               ids mutated target
-              `(letrec* ,(for/list ([id (in-list ids)]
-                                    [rhs (in-list rhss)])
-                           `[,id ,(schemify/knowns rhs-knowns inline-fuel 'fresh unsafe-mode? rhs)])
+              `(letrec ,(for/list ([id (in-list ids)]
+                                   [rhs (in-list rhss)])
+                          `[,id ,(schemify/knowns rhs-knowns inline-fuel 'fresh unsafe-mode? rhs)])
                  ,@(for/list ([body (in-list bodys)])
                      (schemify/knowns body-knowns inline-fuel wcm-state unsafe-mode? body))))
              prim-knowns knowns imports mutated simples unsafe-mode?)]
@@ -630,24 +630,24 @@
                 wcm-state)]
               [else
                ;; Convert
-               ;;  (letrec*-values ([(id ...) rhs] ...) ....)
+               ;;  (letrec-values ([(id ...) rhs] ...) ....)
                ;; to
-               ;;  (letrec* ([vec (call-with-values rhs vector)]
-               ;;            [id (vector-ref vec 0)]
-               ;;            ... ...)
+               ;;  (letrec ([vec (call-with-values rhs vector)]
+               ;;           [id (vector-ref vec 0)]
+               ;;           ... ...)
                ;;    ....)
                (letrec-conversion
                 idss mutated target
-                `(letrec* ,(apply
-                            append
-                            (for/list ([ids (in-list idss)]
-                                       [rhs (in-list rhss)])
-                              (let ([rhs (schemify rhs 'fresh)])
-                                (cond
-                                  [(null? ids)
-                                   `([,(deterministic-gensym "lr")
-                                      ,(make-let-values null rhs '(void) target unsafe-mode?)])]
-                                  [(and (pair? ids) (null? (cdr ids)))
+                `(letrec ,(apply
+                           append
+                           (for/list ([ids (in-list idss)]
+                                      [rhs (in-list rhss)])
+                             (let ([rhs (schemify rhs 'fresh)])
+                               (cond
+                                 [(null? ids)
+                                  `([,(deterministic-gensym "lr")
+                                     ,(make-let-values null rhs '(void) target unsafe-mode?)])]
+                                 [(and (pair? ids) (null? (cdr ids)))
                                    `([,(car ids) ,rhs])]
                                   [else
                                    (define lr (deterministic-gensym "lr"))

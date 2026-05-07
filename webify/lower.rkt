@@ -6,7 +6,6 @@
 (provide lower-module-variable-ops
          simplify-compatibility-apps
          simplify-trivial-module-prompts
-         lower-letrec-star
          lower-module-first-slice
          schemify-module-variable-free?
          assert-schemify-module-variable-free
@@ -119,42 +118,6 @@
 
   (simplify v))
 
-;; lower-letrec-star : any/c -> any/c
-;;   Rewrite Webify's Scheme letrec* output to Racket letrec.
-(define (lower-letrec-star v)
-  (define (lower v)
-    (reannotate
-     v
-     (match v
-       [`(letrec* ([,ids ,rhss] ...) ,body0 ,bodys ...)
-        `(letrec ,(for/list ([id (in-list ids)]
-                             [rhs (in-list rhss)])
-                    `[,id ,(lower rhs)])
-           ,@(lower-list (cons body0 bodys)))]
-       [`(lambda ,formals . ,body)
-        `(lambda ,formals . ,(lower-list body))]
-       [`(case-lambda [,formalss . ,bodyss] ...)
-        `(case-lambda ,@(for/list ([formals (in-list formalss)]
-                                   [body (in-list bodyss)])
-                          `[,formals . ,(lower-list body)]))]
-       [`(quote ,_)
-        v]
-       [`(,_ . ,_)
-        (lower-list v)]
-       [`,_
-        v])))
-
-  ;; lower-list : list? -> list?
-  ;;   Lower each wrapped list element.
-  (define (lower-list l)
-    (cond
-      [(wrap-null? l) '()]
-      [(wrap-pair? l) (cons (lower (wrap-car l))
-                            (lower-list (wrap-cdr l)))]
-      [else (lower l)]))
-
-  (lower v))
-
 ;; simplify-trivial-module-prompts : any/c -> any/c
 ;;   Erase direct module-prompt markers that do not need prompt behavior.
 (define (simplify-trivial-module-prompts v)
@@ -218,8 +181,7 @@
     (assert-first-slice-unsupported-free
      (simplify-trivial-module-prompts
       (simplify-compatibility-apps
-       (lower-letrec-star
-        (lower-module-variable-ops v))))))))
+       (lower-module-variable-ops v)))))))
 
 ;; schemify-module-variable-free? : any/c -> boolean?
 ;;   Check that schemify-shaped module variable forms have been lowered.

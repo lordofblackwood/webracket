@@ -200,24 +200,26 @@
    '("lambda" ("instance-variable-reference")
      ("raise-argument-error" ("quote" "f") "integer?" "x"))))
 
-(test-case "letrec-star lowers to Racket letrec for WebRacket source"
-  (check-equal?
-   (normalize-symbols
-    (lower-module-first-slice
-     '(lambda (instance-variable-reference)
-        (letrec* ([loop (lambda (n rest)
-                          (if (null? rest)
-                              n
-                              (loop (+ n 1) (cdr rest))))])
-          (loop 0 xs)))))
-   '("lambda" ("instance-variable-reference")
-     ("letrec"
-      (("loop"
-        ("lambda" ("n" "rest")
-          ("if" ("null?" "rest")
-            "n"
-            ("loop" ("+" "n" 1) ("cdr" "rest"))))))
-      ("loop" 0 "xs")))))
+(test-case "webify emits Racket letrec for single-valued letrec-values"
+  (define webified
+    (run-webify
+     '(linklet () (y)
+        (define-values (y)
+          (letrec-values ([(loop)
+                           (lambda (n rest)
+                             (if (null? rest)
+                                 n
+                                 (loop (+ n 1) (cdr rest))))])
+            (loop 0 '(a b)))))))
+  (define normalized (normalize-symbols webified))
+  (define (contains? needle v)
+    (cond
+      [(equal? v needle) #t]
+      [(pair? v) (or (contains? needle (car v))
+                     (contains? needle (cdr v)))]
+      [else #f]))
+  (check-true (contains? "letrec" normalized))
+  (check-false (contains? "letrec*" normalized)))
 
 (test-case "constant export lowers define operation"
   (define lowered
