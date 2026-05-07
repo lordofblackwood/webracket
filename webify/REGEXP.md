@@ -87,6 +87,9 @@ startup smoke with (js-log 123)         ; succeeds
 (regexp? (regexp "a"))                  ; succeeds
 (regexp-match? (regexp "a") "a")        ; succeeds
 (regexp-match (regexp "a") "cat")       ; succeeds
+(regexp-match? (regexp "ab") "xxabyy")  ; succeeds
+(regexp-match? (regexp "[ab]") "b")     ; succeeds
+(regexp-match (regexp "(a)") "cat")     ; succeeds
 ```
 
 That means the regexp layer gets through demod and into Webify's first-slice
@@ -109,29 +112,36 @@ smoke additionally needs three intentionally small lowerings:
   The demodded validator iterates local `#hasheqv()` tables, and WebRacket's
   current hash representation already maps these literals to mutable hash
   objects.
+- `hash-set` is bridged as `hash-set!` plus returning the same table. This is a
+  practical no-stdlib lowering for the regexp validator's local bookkeeping, not
+  a complete immutable-hash implementation.
 
-The exported constructor and basic matcher path now work for the simplest
-string regexp:
+The exported constructor and basic matcher path now work for literal strings,
+simple character classes, and a basic capture group:
 
 ```racket
 (regexp? (regexp "a"))
 (regexp-match? (regexp "a") "a")
 (regexp-match (regexp "a") "cat")
+(regexp-match? (regexp "ab") "xxabyy")
+(regexp-match? (regexp "[ab]") "b")
+(regexp-match (regexp "(a)") "cat")
 ```
 
 That exercises parsing, conversion, validation, matcher compilation, and
 allocation of the final regexp struct for a literal character pattern, plus the
-fast string matcher used by `regexp-match?` and `regexp-match`.
+fast string matcher used by `regexp-match?` and `regexp-match`. The capture
+case also exercises group-size bookkeeping in the validator.
 
 ## Immediate Lesson
 
-The next Webify experiment should move from a literal-character string regexp
-to adjacent shape coverage, starting with:
+The next Webify experiment should move from these core shapes to repetition and
+failure/negative paths, starting with:
 
 ```racket
-(regexp-match? (regexp "ab") "xxabyy")
-(regexp-match? (regexp "[ab]") "b")
-(regexp-match (regexp "(a)") "cat")
+(regexp-match? (regexp "a*") "bbb")
+(regexp-match? (regexp "a+") "bbb")
+(regexp-match? (regexp "^a") "ba")
 ```
 
 Once basic matching works, regexp literals can later be lifted into calls to the

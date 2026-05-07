@@ -130,6 +130,16 @@
        ("cons" ("mutable-hash-iterate-pair" "ht" "pos" "unsafe-undefined") "acc"))
       "acc"))))
 
+(test-case "functional hash-set lowers to mutable bridge operation"
+  (check-match
+   (normalize-symbols
+    (lower-hash-iteration-ops
+     '(set! sizes (hash-set sizes n min-size))))
+   `("set!" "sizes"
+     ("let" ((,(? string? table-var) "sizes"))
+      ("hash-set!" ,table-var "n" "min-size")
+      ,table-var))))
+
 (test-case "schemify module variable assertion catches missed forms"
   (check-false (schemify-module-variable-free? '(begin (variable-ref x))))
   (check-true (schemify-module-variable-free? '(quote (variable-ref x))))

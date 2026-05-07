@@ -240,6 +240,11 @@
         `(mutable-hash-iterate-pair ,(lower ht) ,(lower pos) unsafe-undefined)]
        [`(hash-iterate-key+value ,ht ,pos)
         `(mutable-hash-iterate-key+value ,(lower ht) ,(lower pos) unsafe-undefined)]
+       [`(hash-set ,ht ,key ,val)
+        (define ht-var (gensym 'hash-set-table))
+        `(let ([,ht-var ,(lower ht)])
+           (hash-set! ,ht-var ,(lower key) ,(lower val))
+           ,ht-var)]
        [`(quote ,_)
         v]
        [`(,rator . ,args)
