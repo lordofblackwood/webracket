@@ -208,6 +208,66 @@
 
 (unless (or (getenv "WEBIFY_SKIP_CLI_SMOKE")
             (getenv "WEBIFY_SKIP_RUNTIME_SMOKE"))
+  (test-case "module linklet manifest file drives WebRacket output"
+    (define source-dir (make-temporary-file "webracket-manifest-run-src-~a" 'directory))
+    (define dest-dir   (make-temporary-file "webracket-manifest-run-dest-~a" 'directory))
+    (define manifest-path (build-path source-dir "inputs.rktd"))
+    (define source-path (build-path source-dir "manifest-run.rkt"))
+    (dynamic-wind
+      void
+      (lambda ()
+        (call-with-output-file manifest-path
+          (lambda (out)
+            (write
+             '(webify-module-linklet-manifest
+               (roots (b))
+               (input a
+                      (linklet () (x)
+                        (define-values (x) 10))
+                      (imports ()))
+               (input b
+                      (linklet (([ext-x x])) (y)
+                        (define-values (y) (+ x 1)))
+                      (imports ((ext-x a x)))))
+             out)
+            (newline out))
+          #:exists 'truncate/replace)
+        (define manifest (read-webify-module-linklet-manifest manifest-path))
+        (define registry (webify-module-linklet-manifest->registry manifest))
+        (define loader (make-webify-module-loader registry))
+        (webify-module-loader-instantiate!
+         loader
+         (webify-module-linklet-manifest-roots manifest)
+         #:serializable?-box     #f
+         #:datum-intern?         #f
+         #:target                #f
+         #:allow-set!-undefined? #f
+         #:unsafe-mode?          #f
+         #:enforce-constant?     #t
+         #:allow-inline?         #t
+         #:no-prompt?            #f
+         #:prim-knowns           test-prim-knowns
+         #:primitives            test-primitives
+         #:compiler-query        (lambda (v) #f)
+         #:get-import-knowns     (lambda (key) (values #f #f #f))
+         #:import-keys           #f)
+        (define combined
+          (webify-module-loader-observe loader '((a x) (b y))))
+        (write-datum-program! source-path combined)
+        (define-values (status output)
+          (run-webracket (list "--no-stdlib"
+                               "-r"
+                               "--dest" (path->string dest-dir)
+                               (path->string source-path))
+                         source-dir))
+        (check-equal? status 0 output)
+        (check-regexp-match #rx"(?m:^10$)" output)
+        (check-regexp-match #rx"(?m:^11$)" output))
+      (lambda ()
+        (for ([dir (in-list (list source-dir dest-dir))])
+          (with-handlers ([exn:fail:filesystem? void])
+            (delete-directory/files dir))))))
+
   (test-case "module linklet input output runs through WebRacket"
     (define source-dir (make-temporary-file "webracket-input-run-src-~a" 'directory))
     (define dest-dir   (make-temporary-file "webracket-input-run-dest-~a" 'directory))

@@ -500,6 +500,12 @@ webify-module-loader-with-tail
 Those names are still useful when a test wants to emphasize the lower-level
 composition mechanics.
 
+The manifest smoke uses this facade from the outside in: read an `.rktd`
+manifest, build a registry, instantiate the manifest roots, generate observer
+forms, and run the resulting top-level program through `webracket.rkt
+--no-stdlib`. That is now the preferred end-to-end bridge fixture because it
+tests the handoff file format instead of only in-memory structs.
+
 The export `x` is represented by the cell `webify-export-cell0$0`. The lowered
 procedure writes the exported value into that cell with
 `module-variable-define!`. The adapter then exposes the cell value as the
