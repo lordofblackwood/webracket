@@ -214,6 +214,22 @@
                               "export" export)]))
   (map normalize-export exports))
 
+;; linklet-export-descriptors : symbol? (listof any/c) -> (listof (list/c symbol? symbol? any/c))
+;;   Decode raw linklet export forms as internal name, external name, and raw form.
+(define (linklet-export-descriptors who exports)
+  (unless (list? exports)
+    (raise-argument-error who "list?" exports))
+  (for/list ([export (in-list exports)])
+    (match export
+      [(list (? symbol? internal) (? symbol? external))
+       (list internal external export)]
+      [(? symbol? external)
+       (list external external export)]
+      [_
+       (raise-arguments-error who
+                              "linklet exports must be symbols or internal/external symbol pairs"
+                              "export" export)])))
+
 ;; linklet-datum-imports+exports : any/c -> values
 ;;   Extract raw imports and normalized external exports from a plain linklet datum.
 (define (linklet-datum-imports+exports datum)
@@ -989,23 +1005,32 @@
     (raise-argument-error who "(listof symbol?)" demanded-exports))
   (define raw-linklet (webify-module-extractor-spike-phase0-linklet-datum report))
   (define linklet (webify-normalize-linklet-imports raw-linklet))
-  (match-define `(linklet ,raw-importss ,_raw-exports . ,_raw-body) raw-linklet)
-  (match-define `(linklet ,importss ,exports . ,body) linklet)
-  (define available-exports (webify-normalize-linklet-exports exports))
-  (for ([export (in-list demanded-exports)])
-    (unless (for/or ([available (in-list available-exports)])
-              (symbolic-name=? available export))
-      (raise-arguments-error who
-                             "demanded export is not provided by report"
-                             "module" (webify-module-extractor-spike-name report)
-                             "export" export)))
+  (match-define `(linklet ,raw-importss ,raw-exports . ,_raw-body) raw-linklet)
+  (match-define `(linklet ,importss ,_exports . ,body) linklet)
+  (define export-descriptors (linklet-export-descriptors who raw-exports))
+  (define (demanded-export-descriptor demanded-export)
+    (for/first ([descriptor (in-list export-descriptors)]
+                #:when (symbolic-name=? (cadr descriptor) demanded-export))
+      descriptor))
+  (define demanded-export-descriptors
+    (for/list ([export (in-list demanded-exports)])
+      (define descriptor (demanded-export-descriptor export))
+      (unless descriptor
+        (raise-arguments-error who
+                               "demanded export is not provided by report"
+                               "module" (webify-module-extractor-spike-name report)
+                               "export" export))
+      descriptor))
   (define definition-table (make-hasheq))
   (for ([form (in-list body)])
     (define-values (ids rhs) (linklet-definition form))
     (when ids
       (for ([id (in-list ids)])
         (hash-set! definition-table id (list ids rhs form)))))
-  (define needed (remove-duplicates demanded-exports))
+  (define needed
+    (remove-duplicates
+     (for/list ([descriptor (in-list demanded-export-descriptors)])
+       (car descriptor))))
   (let loop ([queue needed])
     (cond
       [(null? queue) (void)]
@@ -1033,14 +1058,20 @@
   (define demanded-imports
     (filter (lambda (id) (not (memq id local-definitions))) needed))
   (define sliced-importss (filter-importss raw-importss demanded-imports))
+  (define sliced-exports
+    (remove-duplicates
+     (for/list ([descriptor (in-list demanded-export-descriptors)])
+       (caddr descriptor))))
+  (define sliced-external-exports
+    (webify-normalize-linklet-exports sliced-exports))
   (define sliced-linklet
-    `(linklet ,sliced-importss ,demanded-exports . ,kept-body))
+    `(linklet ,sliced-importss ,sliced-exports . ,kept-body))
   (define phase0-entry
     (webify-module-bundle-entry
      0
      'linklet
      sliced-importss
-     demanded-exports
+     sliced-external-exports
      sliced-linklet
      #f))
   (define sliced-bundle-entries

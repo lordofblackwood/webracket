@@ -72,7 +72,7 @@
                            "import" duplicate)))
 
 ;; linklet-importss+exports : symbol? any/c -> values
-;;   Extract and validate the import groups and exports from a linklet datum.
+;;   Extract and validate the import groups and external exports from a linklet datum.
 (define (linklet-importss+exports who linklet)
   (match linklet
     [`(linklet ,importss ,exports . ,_body)
@@ -86,10 +86,17 @@
        (raise-arguments-error who
                               "linklet imports must be grouped pairs of symbols"
                               "linklet" linklet))
-     (unless (and (list? exports)
-                  (andmap symbol? exports))
+     (define normalized-exports
+       (and (list? exports)
+            (for/list ([export (in-list exports)])
+              (match export
+                [(list (? symbol?) (? symbol? external)) external]
+                [(? symbol? external) external]
+                [_ #f]))))
+     (unless (and normalized-exports
+                  (andmap symbol? normalized-exports))
        (raise-arguments-error who
-                              "linklet exports must be a list of symbols"
+                              "linklet exports must be symbols or internal/external symbol pairs"
                               "exports" exports))
      (define import-names
        (for*/list ([group   (in-list importss)]
@@ -100,12 +107,12 @@
        (raise-arguments-error who
                               "duplicate linklet import names are not supported"
                               "import" duplicate-import))
-     (define duplicate-export (check-duplicates exports))
+     (define duplicate-export (check-duplicates normalized-exports))
      (when duplicate-export
        (raise-arguments-error who
                               "duplicate linklet exports are not supported"
                               "export" duplicate-export))
-     (values importss exports)]
+     (values importss normalized-exports)]
     [_
      (raise-arguments-error who
                             "expected a linklet datum"

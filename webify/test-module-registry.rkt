@@ -30,6 +30,16 @@
   (check-equal? (webify-module-registry-entry-exports b-entry)
                 '(y)))
 
+(test-case "module registry accepts paired linklet exports"
+  (define registry (make-webify-module-registry))
+  (webify-module-registry-add!
+   registry
+   'pico
+   '(linklet () ((1/reverse reverse))
+      (define-values (1/reverse) 'reverse-proc)))
+  (define entry (webify-module-registry-ref registry 'pico))
+  (check-equal? (webify-module-registry-entry-exports entry) '(reverse)))
+
 (test-case "module registry composes named linklets"
   (define registry (make-webify-module-registry))
   (webify-module-registry-add!

@@ -111,21 +111,28 @@
                             "linklet" linklet)]))
 
 ;; linklet-exports : symbol? any/c -> (listof symbol?)
-;;   Extract flat exports from a linklet datum.
+;;   Extract flat external exports from a linklet datum.
 (define (linklet-exports who linklet)
   (match linklet
     [`(linklet ,_importss ,exports . ,_body)
-     (unless (and (list? exports)
-                  (andmap symbol? exports))
+     (define normalized-exports
+       (and (list? exports)
+            (for/list ([export (in-list exports)])
+              (match export
+                [(list (? symbol?) (? symbol? external)) external]
+                [(? symbol? external) external]
+                [_ #f]))))
+     (unless (and normalized-exports
+                  (andmap symbol? normalized-exports))
        (raise-arguments-error who
-                              "linklet exports must be a list of symbols"
+                              "linklet exports must be symbols or internal/external symbol pairs"
                               "exports" exports))
-     (define duplicate (check-duplicates exports))
+     (define duplicate (check-duplicates normalized-exports))
      (when duplicate
        (raise-arguments-error who
                               "duplicate linklet exports are not supported"
                               "export" duplicate))
-     exports]
+     normalized-exports]
     [_
      (raise-arguments-error who
                             "expected a linklet datum"

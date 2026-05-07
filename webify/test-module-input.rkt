@@ -126,6 +126,17 @@
    '((string-join.1 racket/string string-join.1)
      (string-join9.1 racket/string string-join9.1))))
 
+(test-case "dependency exports normalize paired provider exports"
+  (define provider
+    (webify-module-linklet-input
+     'racket/private/pico
+     '(linklet () ((1/reverse reverse))
+        (define-values (1/reverse) 'reverse-proc))
+     '()))
+  (check-equal?
+   (webify-module-linklet-input-dependency-exports provider)
+   '(racket/private/pico (reverse))))
+
 (test-case "dependency resolver carries provider export symbols by printed name"
   (define provider-export (string->uninterned-symbol "string-join.1"))
   (define importer-export (string->uninterned-symbol "string-join.1"))

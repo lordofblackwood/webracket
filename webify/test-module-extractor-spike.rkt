@@ -376,6 +376,31 @@
                  (webify-module-extractor-spike-import-map sliced))
                 '((1/reverse racket/private/pico alt-reverse))))
 
+(test-case "report slicing follows paired exports to internal definitions"
+  (define phase0-linklet
+    '(linklet () ((1/reverse reverse) unused)
+       (define-values (1/reverse) 'reverse-proc)
+       (define-values (unused) 'unused)
+       (void)))
+  (define report
+    (webify-module-extractor-spike
+     'racket/private/pico
+     '(#f)
+     '(0)
+     (list (webify-module-bundle-entry 0 'linklet '() '(reverse unused) phase0-linklet #f))
+     '()
+     '(reverse unused)
+     phase0-linklet
+     #t
+     '()))
+  (define sliced (webify-module-extractor-spike/slice-exports report '(reverse)))
+  (check-equal? (webify-module-extractor-spike-phase0-exports sliced) '(reverse))
+  (check-equal?
+   (webify-module-extractor-spike-phase0-linklet-datum sliced)
+   '(linklet () ((1/reverse reverse))
+      (define-values (1/reverse) 'reverse-proc)
+      (void))))
+
 (test-case "extractor report graph resolves module inputs"
   (define dep-report
     (webify-module-extractor-spike
