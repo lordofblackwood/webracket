@@ -277,6 +277,27 @@
   (check-true (string-contains? wat "$module-variable-ref/no-check"))
   (check-true (string-contains? wat "$module-variable-define!")))
 
+(test-case "first-slice adapter binds imported cells to local linklet names"
+  (define datum
+    (first-slice->top-level-datum/imports
+     '(lambda (instance-variable-reference reverse1 y2)
+        (define y (1/reverse '(a b)))
+        (module-variable-define! y2 y 'constant))
+     '(reverse-cell)
+     '(y)
+     #:importss '((1/reverse))))
+  (match (normalize-symbols datum)
+    [`("begin"
+       ("define" "webify-linklet-proc$0"
+         ("lambda" ("instance-variable-reference" "reverse1" "y2")
+           ("define" "1/reverse" ("module-variable-ref/no-check" "reverse1"))
+           ("define" "y" ("1/reverse" ("quote" ("a" "b"))))
+           ("module-variable-define!" "y2" "y" ("quote" "constant"))))
+       . ,_)
+     (void)]
+    [other
+     (fail-check (format "unexpected local import binding shape: ~s" other))]))
+
 (test-case "first-slice import cell resolver preserves grouped order"
   (check-equal? (first-slice-import-cell-args
                  '((a b) (a))

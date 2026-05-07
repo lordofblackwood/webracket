@@ -200,6 +200,25 @@
    '("lambda" ("instance-variable-reference")
      ("raise-argument-error" ("quote" "f") "integer?" "x"))))
 
+(test-case "letrec-star lowers to Racket letrec for WebRacket source"
+  (check-equal?
+   (normalize-symbols
+    (lower-module-first-slice
+     '(lambda (instance-variable-reference)
+        (letrec* ([loop (lambda (n rest)
+                          (if (null? rest)
+                              n
+                              (loop (+ n 1) (cdr rest))))])
+          (loop 0 xs)))))
+   '("lambda" ("instance-variable-reference")
+     ("letrec"
+      (("loop"
+        ("lambda" ("n" "rest")
+          ("if" ("null?" "rest")
+            "n"
+            ("loop" ("+" "n" 1) ("cdr" "rest"))))))
+      ("loop" 0 "xs")))))
+
 (test-case "constant export lowers define operation"
   (define lowered
     (lower-module-variable-ops

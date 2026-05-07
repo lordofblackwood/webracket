@@ -112,8 +112,8 @@
         (define y (car (cdr (add-between '("a" "b") ","))))))
     '((use-list-add-between y))
     #rx"(?m:^,$)"
-    '(runtime-exception)
-    #rx"Uncaught WebAssembly exception")
+    '()
+    '())
    (installed-runtime-smoke
     "installed racket/string graph reaches WebRacket runtime smoke"
     '((module use-string racket/base

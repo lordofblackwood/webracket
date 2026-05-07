@@ -155,5 +155,6 @@
            import-args
            exports
            #:reserved reserved
+           #:importss importss
            #:define-export-aliases? define-export-aliases?)
           instance))

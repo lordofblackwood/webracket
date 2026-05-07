@@ -69,6 +69,49 @@
                             "expected lowered first-slice value to be a lambda"
                             "form" expr)]))
 
+;; validate-importss! : symbol? any/c -> void?
+;;   Reject grouped import names that cannot become lexical bindings.
+(define (validate-importss! who importss)
+  (unless (and (list? importss)
+               (for/and ([group (in-list importss)])
+                 (and (list? group)
+                      (andmap symbol? group))))
+    (raise-argument-error who "(listof (listof symbol?))" importss))
+  (define duplicate (check-duplicates (flatten-groups importss)))
+  (when duplicate
+    (raise-arguments-error who
+                           "duplicate import names are not supported"
+                           "import" duplicate)))
+
+;; bind-import-cells : any/c (listof (listof symbol?)) exact-nonnegative-integer? -> any/c
+;;   Introduce lexical imports by reading the corresponding module-variable cells.
+(define (bind-import-cells expr importss import-count)
+  (validate-importss! 'bind-import-cells importss)
+  (define import-names (flatten-groups importss))
+  (unless (= (length import-names) import-count)
+    (raise-arguments-error 'bind-import-cells
+                           "import metadata count does not match lowered lambda"
+                           "metadata count" (length import-names)
+                           "lambda import count" import-count
+                           "imports" importss))
+  (match expr
+    [`(lambda ,args ,body ...)
+     (define import-cell-args (take (cdr args) import-count))
+     (define duplicate (check-duplicates (append import-names args)))
+     (when duplicate
+       (raise-arguments-error 'bind-import-cells
+                              "import name collides with generated lambda argument"
+                              "name" duplicate))
+     `(lambda ,args
+        ,@(for/list ([name (in-list import-names)]
+                     [cell (in-list import-cell-args)])
+            `(define ,name (module-variable-ref/no-check ,cell)))
+        ,@body)]
+    [_
+     (raise-arguments-error 'bind-import-cells
+                            "expected lowered first-slice value to be a lambda"
+                            "form" expr)]))
+
 ;; fresh-internal-id : symbol? (listof symbol?) -> symbol?
 ;;   Build a deterministic helper name that does not collide with exports.
 (define (fresh-internal-id base reserved)
@@ -182,6 +225,7 @@
                                              import-args
                                              exports
                                              #:reserved [reserved '()]
+                                             #:importss [importss #f]
                                              #:define-export-aliases? [define-export-aliases? #t])
   (unless (list? import-args)
     (raise-argument-error 'first-slice->top-level-datum/imports "list?" import-args))
@@ -189,11 +233,15 @@
   (validate-reserved-ids! 'first-slice->top-level-datum reserved)
   (define clean-expr (strip-correlated expr))
   (validate-first-slice-lambda! 'first-slice->top-level-datum clean-expr (length import-args) exports)
+  (define adapted-expr
+    (if importss
+        (bind-import-cells clean-expr importss (length import-args))
+        clean-expr))
   (define helper-ids (first-slice-top-level-helper-ids exports #:reserved reserved))
   (define proc-id (car helper-ids))
   (define cell-ids (cdr helper-ids))
   `(begin
-     (define ,proc-id ,clean-expr)
+     (define ,proc-id ,adapted-expr)
      ,@(for/list ([cell-id (in-list cell-ids)]
                   [export  (in-list exports)])
          `(define ,cell-id (module-variable-make ',export)))
@@ -270,6 +318,7 @@
             import-args
             exports
             #:reserved reserved
+            #:importss importss
             #:define-export-aliases? define-export-aliases?))
           importss
           exports
