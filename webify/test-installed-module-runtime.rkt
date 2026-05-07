@@ -57,7 +57,8 @@
    module-data
    observations
    expected-output
-   allowed-failures)
+   allowed-failures
+   expected-failure)
   #:transparent)
 
 (define installed-runtime-smokes
@@ -70,6 +71,7 @@
         (define y (boolean=? #t #t))))
     '((use-bool y))
     #rx"(?m:^(#t|true)$)"
+    '()
     '())
    (installed-runtime-smoke
     "installed racket/fixnum graph reaches WebRacket runtime smoke"
@@ -79,6 +81,7 @@
         (define y (fx+ 1 2))))
     '((use-fixnum y))
     #rx"(?m:^3$)"
+    '()
     '())
    (installed-runtime-smoke
     "installed racket/list graph reaches WebRacket runtime smoke"
@@ -88,7 +91,8 @@
         (define y (first '(#t #f)))))
     '((use-list y))
     #rx"(?m:^(#t|true)$)"
-    '(unresolved-import))
+    '(unresolved-import)
+    #rx"import: '1/reverse\n  export: 'reverse")
    (installed-runtime-smoke
     "installed racket/string graph reaches WebRacket runtime smoke"
     '((module use-string racket/base
@@ -97,7 +101,8 @@
         (define y (string-join '("a" "b") ","))))
     '((use-string y))
     #rx"(?m:^a,b$)"
-    '(unresolved-import syntax-literal unsupported-runtime unknown))))
+    '(unresolved-import syntax-literal unsupported-runtime unknown)
+    #f)))
 
 ;; run-racket92/extract : path-string? path-string? -> values
 ;;   Run a Racket 9.2 extractor script while capturing combined output.
@@ -178,12 +183,20 @@
                                   'primitive-alias-collision)
                 (unless (memq (webify-module-failure-category failure)
                               (installed-runtime-smoke-allowed-failures smoke))
-                  (fail-check (webify-module-failure-message failure)))])]
+                  (fail-check (webify-module-failure-message failure)))
+                (when (installed-runtime-smoke-expected-failure smoke)
+                  (check-regexp-match
+                   (installed-runtime-smoke-expected-failure smoke)
+                   (webify-module-failure-message failure)))])]
             [else
              (define failure (webify-classify-runtime-output extract-status extract-output))
              (unless (memq (webify-module-failure-category failure)
                            (installed-runtime-smoke-allowed-failures smoke))
-               (fail-check (webify-module-failure-message failure)))]))
+               (fail-check (webify-module-failure-message failure)))
+             (when (installed-runtime-smoke-expected-failure smoke)
+               (check-regexp-match
+                (installed-runtime-smoke-expected-failure smoke)
+                (webify-module-failure-message failure)))]))
         (lambda ()
           (for ([dir (in-list (list source-dir dest-dir))])
             (with-handlers ([exn:fail:filesystem? void])
