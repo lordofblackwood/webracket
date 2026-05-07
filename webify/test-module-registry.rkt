@@ -307,6 +307,49 @@
           (with-handlers ([exn:fail:filesystem? void])
             (delete-directory/files dir)))))))
 
+(unless (or (getenv "WEBIFY_SKIP_CLI_SMOKE")
+            (getenv "WEBIFY_SKIP_RUNTIME_SMOKE"))
+  (test-case "module registry planned roots output runs imported export mutation"
+    (define source-dir (make-temporary-file "webracket-registry-roots-mutate-src-~a" 'directory))
+    (define dest-dir   (make-temporary-file "webracket-registry-roots-mutate-dest-~a" 'directory))
+    (define source-path (build-path source-dir "registry-roots-mutate.rkt"))
+    (dynamic-wind
+      void
+      (lambda ()
+        (define registry (make-webify-module-registry))
+        (webify-module-registry-add!
+         registry
+         'a
+         '(linklet () (x)
+            (define-values (x) 10)))
+        (webify-module-registry-add!
+         registry
+         'b
+         '(linklet (([ext-x x])) (y)
+            (set! x (+ x 1))
+            (define-values (y) x))
+         #:imports '((ext-x a x)))
+        (check-equal? (webify-module-registry-plan registry '(b)) '(a b))
+        (define-values (combined fragments instances _exports-infos)
+          (compose-module-registry/roots registry '(b) #:tail '((js-log y))))
+        (check-equal? (length fragments) 2)
+        (check-equal? (sort (hash-keys instances) symbol<?) '(a b))
+        (define wat (wat-string (comp (datum->syntax #f combined))))
+        (check-true (string-contains? wat "$module-variable-set!"))
+        (write-datum-program! source-path combined)
+        (define-values (status output)
+          (run-webracket (list "--no-stdlib"
+                               "-r"
+                               "--dest" (path->string dest-dir)
+                               (path->string source-path))
+                         source-dir))
+        (check-equal? status 0 output)
+        (check-regexp-match #rx"(?m:^11$)" output))
+      (lambda ()
+        (for ([dir (in-list (list source-dir dest-dir))])
+          (with-handlers ([exn:fail:filesystem? void])
+            (delete-directory/files dir)))))))
+
 
 (module+ main
   (void))
