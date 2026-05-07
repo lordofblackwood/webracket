@@ -408,6 +408,46 @@
 
 (unless (or (getenv "WEBIFY_SKIP_CLI_SMOKE")
             (getenv "WEBIFY_SKIP_RUNTIME_SMOKE"))
+  (test-case "linklet composer output runs imported export mutation"
+    (define source-dir (make-temporary-file "webracket-linklet-composer-mutate-src-~a" 'directory))
+    (define dest-dir   (make-temporary-file "webracket-linklet-composer-mutate-dest-~a" 'directory))
+    (define source-path (build-path source-dir "linklet-composer-mutate.rkt"))
+    (dynamic-wind
+      void
+      (lambda ()
+        (define-values (combined _fragments _instances _exports-infos)
+          (compose-linklet-first-slices
+           (list
+            (webify-linklet-slice-spec
+             'a
+             '(linklet () (x)
+                (define-values (x) 10))
+             '())
+            (webify-linklet-slice-spec
+             'b
+             '(linklet (([ext-x x])) (y)
+                (set! x (+ x 1))
+                (define-values (y) x))
+             '(((ext-x a x)))))
+           #:tail '((js-log y))))
+        (define wat (wat-string (comp (datum->syntax #f combined))))
+        (check-true (string-contains? wat "$module-variable-set!"))
+        (write-datum-program! source-path combined)
+        (define-values (status output)
+          (run-webracket (list "--no-stdlib"
+                               "-r"
+                               "--dest" (path->string dest-dir)
+                               (path->string source-path))
+                         source-dir))
+        (check-equal? status 0 output)
+        (check-regexp-match #rx"(?m:^11$)" output))
+      (lambda ()
+        (for ([dir (in-list (list source-dir dest-dir))])
+          (with-handlers ([exn:fail:filesystem? void])
+            (delete-directory/files dir)))))))
+
+(unless (or (getenv "WEBIFY_SKIP_CLI_SMOKE")
+            (getenv "WEBIFY_SKIP_RUNTIME_SMOKE"))
   (test-case "linklet composer output runs preserved struct primitives"
     (define source-dir (make-temporary-file "webracket-struct-composer-run-src-~a" 'directory))
     (define dest-dir   (make-temporary-file "webracket-struct-composer-run-dest-~a" 'directory))

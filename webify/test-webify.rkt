@@ -107,6 +107,36 @@
   (check-equal? imports-abis '((#f)))
   (check-true (known-constant? (hash-ref exports-info 'x))))
 
+(test-case "imported set! updates import cell"
+  (define-values (webified importss exports import-keys imports-abis exports-info)
+    (run-webify '(linklet (([ext-x x])) (y)
+                   (set! x (+ x 1))
+                   (define-values (y) x))))
+  (check-equal? (normalize-symbols webified)
+                '("lambda" ("instance-variable-reference" "x1" "y2")
+                   ("define" "effect3"
+                     ("begin"
+                      ("call-with-module-prompt"
+                       ("lambda"
+                        ()
+                        ("variable-set!" "x1" ("+" ("variable-ref/no-check" "x1") 1))))
+                      ("void")))
+                   ("define" "effect4"
+                     ("begin"
+                      ("call-with-module-prompt"
+                       ("lambda" () ("variable-ref/no-check" "x1"))
+                       ("quote" ("y"))
+                       ("quote" ("constant"))
+                       "y2")
+                      ("void")))
+                   ("define" "y" ("variable-ref/no-check" "y2"))
+                   ("void")))
+  (check-equal? importss '((ext-x)))
+  (check-equal? exports '(y))
+  (check-false import-keys)
+  (check-equal? imports-abis '((#f)))
+  (check-true (known-constant? (hash-ref exports-info 'y))))
+
 (test-case "lambda export preserves inlineable procedure shape"
   (define-values (webified importss exports import-keys imports-abis exports-info)
     (run-webify '(linklet () (f)

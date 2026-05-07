@@ -725,6 +725,7 @@
             (define int-id (unwrap id))
             (define ex (or (hash-ref exports int-id #f)
                            (hash-ref extra-variables int-id #f)))
+            (define im (hash-ref imports int-id #f))
             (define new-rhs (schemify rhs 'fresh))
             (define state (hash-ref mutated int-id #f))
             (cond
@@ -735,6 +736,13 @@
                      'variable-set!
                      'variable-set!/check-undefined))
                `(,set-id ,(export-id ex) ,new-rhs)]
+              [im
+               (define set-id
+                 (if (or allow-set!-undefined?
+                         (not (too-early-mutated-state? state)))
+                     'variable-set!
+                     'variable-set!/check-undefined))
+               `(,set-id ,(import-id im) ,new-rhs)]
               [else
                (cond
                  [(and (too-early-mutated-state? state)
