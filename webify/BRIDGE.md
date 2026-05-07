@@ -377,6 +377,49 @@ The adapter tests also run this imported-composition shape through
 second adapted slice imports the first slice's `x` cell and exports `y`, and
 the generated program logs `10` from `y`.
 
+## Composition Payloads
+
+Registry composition also has a reusable payload form:
+
+```racket
+(define composition
+  (webify-compose-module-registry/roots/composition
+   registry
+   '(b)
+   ...))
+```
+
+The payload is a `webify-module-composition` value containing the generated
+top-level datum, adapted fragments, module-instance map, and export metadata.
+The older multi-value APIs still exist; they unpack this payload for callers
+that already expect `(values datum fragments instances exports-infos)`.
+
+The payload API is the preferred shape for code that wants to compose once and
+then build different observations or consumers of the same module instances:
+
+```racket
+(define x-cell
+  (webify-module-composition-export-cell-id composition 'a 'x))
+(define y-cell
+  (webify-module-composition-export-cell-id composition 'b 'y))
+
+(webify-module-composition-with-tail
+ composition
+ `((js-log (module-variable-ref ,x-cell))
+   (js-log (module-variable-ref ,y-cell))))
+```
+
+This keeps the semantic observation path on module-variable cells instead of on
+temporary top-level aliases. The aliases are still generated because the current
+compiler target is a top-level program, but module-bridge tests should prefer
+cell reads when they are checking module-instance behavior.
+
+`webify-compose-module-registry/roots+observations` is a convenience/debug
+helper layered over the payload API. It composes roots, resolves requested
+`(module export)` pairs to export cells, and appends calls to an observer such
+as `js-log`. It is useful for smoke tests, but it is intentionally not a
+replacement for `dynamic-require`, namespaces, phases, or lazy module loading.
+
 The export `x` is represented by the cell `webify-export-cell0$0`. The lowered
 procedure writes the exported value into that cell with
 `module-variable-define!`. The adapter then exposes the cell value as the

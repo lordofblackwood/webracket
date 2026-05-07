@@ -390,6 +390,51 @@
 
 (unless (or (getenv "WEBIFY_SKIP_CLI_SMOKE")
             (getenv "WEBIFY_SKIP_RUNTIME_SMOKE"))
+  (test-case "module registry composition payload output runs rebuilt tails"
+    (define source-dir (make-temporary-file "webracket-registry-payload-run-src-~a" 'directory))
+    (define dest-dir   (make-temporary-file "webracket-registry-payload-run-dest-~a" 'directory))
+    (define source-path (build-path source-dir "registry-payload-run.rkt"))
+    (dynamic-wind
+      void
+      (lambda ()
+        (define registry (make-webify-module-registry))
+        (webify-module-registry-add!
+         registry
+         'a
+         '(linklet () (x)
+            (define-values (x) 10)))
+        (webify-module-registry-add!
+         registry
+         'b
+         '(linklet (([ext-x x])) (y)
+            (define-values (y) (+ x 1)))
+         #:imports '((ext-x a x)))
+        (define composition
+          (compose-module-registry/roots/composition registry '(b)))
+        (define x-cell (webify-module-composition-export-cell-id composition 'a 'x))
+        (define y-cell (webify-module-composition-export-cell-id composition 'b 'y))
+        (define combined
+          (webify-module-composition-with-tail
+           composition
+           `((js-log (module-variable-ref ,x-cell))
+             (js-log (module-variable-ref ,y-cell)))))
+        (write-datum-program! source-path combined)
+        (define-values (status output)
+          (run-webracket (list "--no-stdlib"
+                               "-r"
+                               "--dest" (path->string dest-dir)
+                               (path->string source-path))
+                         source-dir))
+        (check-equal? status 0 output)
+        (check-regexp-match #rx"(?m:^10$)" output)
+        (check-regexp-match #rx"(?m:^11$)" output))
+      (lambda ()
+        (for ([dir (in-list (list source-dir dest-dir))])
+          (with-handlers ([exn:fail:filesystem? void])
+            (delete-directory/files dir)))))))
+
+(unless (or (getenv "WEBIFY_SKIP_CLI_SMOKE")
+            (getenv "WEBIFY_SKIP_RUNTIME_SMOKE"))
   (test-case "module registry planned roots output runs imported export mutation"
     (define source-dir (make-temporary-file "webracket-registry-roots-mutate-src-~a" 'directory))
     (define dest-dir   (make-temporary-file "webracket-registry-roots-mutate-dest-~a" 'directory))
