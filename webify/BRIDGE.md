@@ -554,18 +554,53 @@ phase-0 linklet object whose export metadata includes `x`:
 ;; => '(x)
 ```
 
-That is useful progress, but it is not enough to feed Webify's manifest bridge.
-The bridge currently consumes linklet datums such as:
+The spike now compiles with `current-compile-target-machine` set to `#f` and,
+on Racket versions that provide `decompile-linklet`, recovers the phase-0
+linklet datum:
 
 ```racket
 (linklet () (x)
   (define-values (x) 10))
 ```
 
-The compiled module path gives us linklet objects, bundle keys, and import/export
-metadata. The remaining blocker is an object-to-datum adapter or a different
-Webify entry point that can consume compiled linklet objects directly. The spike
-therefore reports `manifest-ready?` as `#f` on purpose.
+For the tiny module above, the recovered datum is not quite as small as the
+hand-written example, because it includes kernel/runtime imports such as
+`.get-syntax-literal!` and `.set-transformer!`, but it has the manifest-ready
+`(linklet imports exports body ...)` shape. On older Racket versions without
+`decompile-linklet`, the spike records that limitation and reports
+`manifest-ready?` as `#f`.
+
+The first concrete bridge API from this spike is
+`webify-source-module->linklet-input`:
+
+```racket
+(webify-source-module->linklet-input
+ '(module a racket/base
+    (provide x)
+    (define x 10)))
+```
+
+On a Racket host with `decompile-linklet`, this returns a
+`webify-module-linklet-input` named `a` whose linklet field is the recovered
+phase-0 linklet datum. The input's import mapping defaults to `#f` rather than
+`'()`, because a real compiled module can import kernel/runtime helpers such
+as `.get-syntax-literal!` and `.set-transformer!`; treating those as resolved
+would hide the next missing bridge layer.
+
+Callers can supply explicit import triples when they already know how local
+linklet imports should map to dependency exports:
+
+```racket
+(webify-source-module->linklet-input
+ module-datum
+ #:imports '((.get-syntax-literal! kernel .get-syntax-literal!)
+             (.set-transformer! kernel .set-transformer!)))
+```
+
+That still does not make arbitrary source modules registry-ready. It only
+packages the extracted phase-0 linklet in the same input shape consumed by the
+manifest/registry bridge. Mapping compiled module imports to WebRacket
+runtime/kernel dependencies remains the next seam.
 
 The export `x` is represented by the cell `webify-export-cell0$0`. The lowered
 procedure writes the exported value into that cell with
