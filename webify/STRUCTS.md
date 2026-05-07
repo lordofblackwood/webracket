@@ -40,14 +40,15 @@ designed for Chez/Schemify:
 - `#%struct-field-mutator`
 - `unsafe-struct`
 - `unsafe-sealed-struct?`
-- `unsafe-struct*-ref`
-- `unsafe-struct*-set!`
 - impersonator/error helpers such as `impersonate-ref`,
   `impersonate-set!`, `#%struct-ref-error`, and `#%struct-set!-error`
 
 These forms are currently recognized as unsupported first-slice compatibility
 forms in `lower.rkt`. That is the right safety behavior for now: generated
 programs should fail early instead of silently targeting Chez-only helpers.
+`unsafe-struct*-ref` and `unsafe-struct*-set!` used to be in this rejected set,
+but WebRacket now exposes raw starred access/update primitives for the
+non-impersonator case.
 
 ### `struct-type-info.rkt`
 
@@ -84,9 +85,11 @@ unsafe-struct*-ref
 unsafe-struct*-set!
 ```
 
-Those inlinings are another Chez/Schemify-shaped area. WebRacket has
-`unsafe-struct-ref` and `unsafe-struct-set!`, but not the same type-tagged
-`unsafe-struct*` interface as a supported public bridge target.
+Those inlinings are another Chez/Schemify-shaped area. WebRacket now has both
+the general `unsafe-struct-ref`/`unsafe-struct-set!` pair and the raw starred
+`unsafe-struct*-ref`/`unsafe-struct*-set!` pair. The remaining unsupported part
+is the broader Chez/Schemify `unsafe-struct` shape, plus sealed/tagged
+predicate behavior and impersonator/chaperone paths.
 
 ### `known.rkt`, `infer-known.rkt`, and `constructed-procedure.rkt`
 
@@ -161,6 +164,8 @@ the major struct operations and property globals, including:
 - `$impersonator?`
 - `$impersonator-val`
 - `$unsafe-struct?`
+- `$unsafe-struct*-ref`
+- `$unsafe-struct*-set!`
 - `$unsafe-struct-ref`
 - `$unsafe-struct-set!`
 - `$prop:sealed`
@@ -200,7 +205,7 @@ Do not attempt these in the first implementation slice:
 
 - Chez `make-record-type-descriptor` compatibility
 - `#%struct-constructor` and friends as public bridge targets
-- `unsafe-struct*` type-tagged operations
+- Chez/Schemify `unsafe-struct` type-tagged operations
 - prefab UID lookup
 - struct guards
 - chaperone/impersonator struct access paths
@@ -214,9 +219,9 @@ Do not attempt these in the first implementation slice:
   it behind an explicit compatibility flag while the runtime catches up?
 - Which existing runtime struct property descriptors are complete enough for
   property-preserving translation?
-- Should known-struct inlining target `unsafe-struct-ref`/`unsafe-struct-set!`,
-  or should inlining be disabled until WebRacket has a checked type-specific
-  unsafe interface?
+- Should known-struct inlining preserve raw `unsafe-struct*-ref`/
+  `unsafe-struct*-set!` when the receiver has already been checked, or target
+  the more general `unsafe-struct-ref`/`unsafe-struct-set!` pair?
 - How much of prefab support is needed for the first module examples?
 - Which generated linklets from real Racket use struct guards early enough to
   block useful programs?
@@ -240,12 +245,14 @@ and does not introduce:
 make-record-type-descriptor
 make-record-constructor-descriptor
 record-constructor
-unsafe-struct*-ref
-unsafe-struct*-set!
+unsafe-struct
 ```
 
 The old `struct-convert.rkt` file is still present as inherited source material,
-but it is no longer part of the normal WebRacket-target Webify pipeline.
+but it is no longer part of the normal WebRacket-target Webify pipeline. Raw
+starred struct accessors are now an accepted Webify/WebRacket boundary for the
+non-impersonator case; the current regexp demod blocker has moved to
+`unsafe-struct`.
 
 The module bridge also has a runtime smoke for struct-related exports across
 composed slices. One linklet can create a simple struct type and export the
