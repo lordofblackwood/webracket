@@ -1123,6 +1123,43 @@ bridges to a top-level `f` binding read from the export cell:
 The binding `f` is an ordinary top-level value from the compiler's point of
 view; the bridge does not need a special procedure-export path.
 
+## Keyword Procedure Boundary
+
+Keyword support currently has two separate meanings in the bridge.
+
+First, WebRacket can run the callable-struct surface that Racket's keyword
+machinery uses internally. In particular, `make-struct-type` `proc-spec` values
+are honored by the runtime:
+
+```racket
+(define-values (struct:p make-p p? p-ref p-set!)
+  (make-struct-type 'p #f 1 0 #f null #f 0 '(0)))
+
+(define p (make-p (lambda (x) (+ x 1))))
+(procedure? p) ; => true
+(p 41)         ; => 42
+```
+
+This also works when the callable field belongs to a child struct whose parent
+has the shape of Racket's internal `keyword-procedure` struct. That matters for
+compiled providers that construct optional-keyword-procedure-shaped values: the
+child `proc-spec` field is resolved after the parent field offset, and the
+instance is seen as a normal procedure by WebRacket's application path.
+
+Second, WebRacket does not yet implement first-class keyword application. The
+bridge should not pretend that `make-keyword-procedure`, `keyword-apply`,
+`procedure-keywords`, or keyword-argument dispatch are supported primitives.
+Those require an explicit keyword-call convention, not merely callable struct
+instances.
+
+So the current contract is:
+
+1. Callable struct instances created by `proc-spec` are bridge-supported.
+2. Keyword-procedure-shaped structs can be called through their no-keyword
+   procedure field.
+3. Direct keyword calls and keyword introspection remain future runtime/compiler
+   work.
+
 ## Runtime Smoke
 
 The adapter test also checks the generated top-level program through the normal
