@@ -45,6 +45,7 @@
          webify-module-export-demand-module
          webify-module-export-demand-exports
          webify-module-extractor-spike-import-export-demands
+         webify-module-extractor-spike/slice-exports
          webify-module-extractor-spikes->discovered-resolved-linklet-inputs
          webify-module-provider-cache
          webify-module-provider-cache?
@@ -849,6 +850,178 @@
    (for/list ([import (in-list (webify-module-linklet-input-imports input))])
      (match-define (list _local dependency provider-export) import)
      (webify-module-export-demand dependency (list provider-export)))))
+
+;; remove-bound : (listof symbol?) (listof symbol?) -> (listof symbol?)
+;;   Remove locally bound identifiers from a free-variable list.
+(define (remove-bound free bound)
+  (filter (lambda (id) (not (memq id bound))) free))
+
+;; linklet-expr-free-vars : any/c -> (listof symbol?)
+;;   Approximate free variables well enough to slice first-order linklet definitions.
+(define (linklet-expr-free-vars expr)
+  (define (free expr bound)
+    (cond
+      [(symbol? expr)
+       (if (memq expr bound) '() (list expr))]
+      [(or (null? expr) (not (pair? expr))) '()]
+      [else
+       (match expr
+         [`(quote ,_) '()]
+         [`(quote-syntax ,_) '()]
+         [`(lambda ,formals . ,body)
+          (define formal-ids
+            (let loop ([formals formals])
+              (cond
+                [(symbol? formals) (list formals)]
+                [(pair? formals)   (cons (car formals) (loop (cdr formals)))]
+                [else              '()])))
+          (remove-duplicates
+           (append* (for/list ([body-expr (in-list body)])
+                      (free body-expr (append formal-ids bound)))))]
+         [`(case-lambda [,formalss . ,bodiess] ...)
+          (remove-duplicates
+           (append*
+            (for/list ([formals (in-list formalss)]
+                       [body    (in-list bodiess)])
+              (define formal-ids
+                (let loop ([formals formals])
+                  (cond
+                    [(symbol? formals) (list formals)]
+                    [(pair? formals)   (cons (car formals) (loop (cdr formals)))]
+                    [else              '()])))
+              (append* (for/list ([body-expr (in-list body)])
+                         (free body-expr (append formal-ids bound)))))))]
+         [`(let-values ,clauses . ,body)
+          (define ids
+            (append*
+             (for/list ([clause (in-list clauses)])
+               (match clause
+                 [`((,ids ...) ,_) ids]
+                 [_ '()]))))
+          (remove-duplicates
+           (append
+            (append*
+             (for/list ([clause (in-list clauses)])
+               (match clause
+                 [`((,_ids ...) ,rhs) (free rhs bound)]
+                 [_ '()])))
+            (append*
+             (for/list ([body-expr (in-list body)])
+               (free body-expr (append ids bound))))))]
+         [`(letrec-values ,clauses . ,body)
+          (define ids
+            (append*
+             (for/list ([clause (in-list clauses)])
+               (match clause
+                 [`((,ids ...) ,_) ids]
+                 [_ '()]))))
+          (define next-bound (append ids bound))
+          (remove-duplicates
+           (append
+            (append*
+             (for/list ([clause (in-list clauses)])
+               (match clause
+                 [`((,_ids ...) ,rhs) (free rhs next-bound)]
+                 [_ '()])))
+            (append*
+             (for/list ([body-expr (in-list body)])
+               (free body-expr next-bound)))))]
+         [_ (remove-duplicates (append* (map (lambda (part) (free part bound)) expr)))])]))
+  (free expr '()))
+
+;; linklet-definition : form -> values
+;;   Extract the ids and right-hand side from a define-values form.
+(define (linklet-definition form)
+  (match form
+    [`(define-values (,ids ...) ,rhs)
+     (values ids rhs)]
+    [_ (values #f #f)]))
+
+;; filter-importss : importss (listof symbol?) -> importss
+;;   Keep only import bindings whose local name is demanded.
+(define (filter-importss importss demanded-imports)
+  (filter
+   pair?
+   (for/list ([group (in-list importss)])
+     (filter (lambda (binding)
+               (match-define (list local _external) binding)
+               (memq local demanded-imports))
+             group))))
+
+;; webify-module-extractor-spike/slice-exports : report (listof symbol?) -> report
+;;   Produce a demand-sliced report containing only needed exports/imports/definitions.
+(define (webify-module-extractor-spike/slice-exports report demanded-exports)
+  (define who 'webify-module-extractor-spike/slice-exports)
+  (unless (webify-module-extractor-spike? report)
+    (raise-argument-error who "webify-module-extractor-spike?" report))
+  (unless (and (list? demanded-exports) (andmap symbol? demanded-exports))
+    (raise-argument-error who "(listof symbol?)" demanded-exports))
+  (define raw-linklet (webify-module-extractor-spike-phase0-linklet-datum report))
+  (define linklet (webify-normalize-linklet-imports raw-linklet))
+  (match-define `(linklet ,importss ,exports . ,body) linklet)
+  (define available-exports (webify-normalize-linklet-exports exports))
+  (for ([export (in-list demanded-exports)])
+    (unless (for/or ([available (in-list available-exports)])
+              (symbolic-name=? available export))
+      (raise-arguments-error who
+                             "demanded export is not provided by report"
+                             "module" (webify-module-extractor-spike-name report)
+                             "export" export)))
+  (define definition-table (make-hasheq))
+  (for ([form (in-list body)])
+    (define-values (ids rhs) (linklet-definition form))
+    (when ids
+      (for ([id (in-list ids)])
+        (hash-set! definition-table id (list ids rhs form)))))
+  (define needed (remove-duplicates demanded-exports))
+  (let loop ([queue needed])
+    (cond
+      [(null? queue) (void)]
+      [else
+       (define id (car queue))
+       (define definition (hash-ref definition-table id #f))
+       (cond
+         [(not definition) (loop (cdr queue))]
+         [else
+          (match-define (list ids rhs _form) definition)
+          (define discovered
+            (filter (lambda (free-id) (not (memq free-id needed)))
+                    (linklet-expr-free-vars rhs)))
+          (set! needed (remove-duplicates (append needed ids discovered)))
+          (loop (append (cdr queue) discovered))])]))
+  (define kept-body
+    (for/list ([form (in-list body)]
+               #:do [(define-values (ids _rhs) (linklet-definition form))]
+               #:when (or (not ids)
+                          (for/or ([id (in-list ids)])
+                            (memq id needed))))
+      form))
+  (define local-definitions
+    (filter (lambda (id) (hash-has-key? definition-table id)) needed))
+  (define demanded-imports
+    (filter (lambda (id) (not (memq id local-definitions))) needed))
+  (define sliced-importss (filter-importss importss demanded-imports))
+  (define sliced-linklet
+    `(linklet ,sliced-importss ,demanded-exports . ,kept-body))
+  (define phase0-entry
+    (webify-module-bundle-entry
+     0
+     'linklet
+     sliced-importss
+     demanded-exports
+     sliced-linklet
+     #f))
+  (webify-module-extractor-spike
+   (webify-module-extractor-spike-name report)
+   (webify-module-extractor-spike-directory-keys report)
+   (webify-module-extractor-spike-bundle-keys report)
+   (list phase0-entry)
+   sliced-importss
+   demanded-exports
+   sliced-linklet
+   #t
+   (cons "report was sliced to demanded phase-0 exports"
+         (webify-module-extractor-spike-notes report))))
 
 ;; webify-module-extractor-spikes->required-provider-closure : reports ... -> (listof report)
 ;;   Discover transitive provider reports starting from root reports.

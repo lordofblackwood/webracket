@@ -270,6 +270,42 @@
     (list list-report))
    (list (webify-module-export-demand 'racket/list '(first)))))
 
+(test-case "report slicing keeps only demanded export definitions and imports"
+  (define report
+    (webify-module-extractor-spike
+     'racket/list
+     '(#f)
+     '(0)
+     '()
+     '(((pair? pair?) (list? list?) (car car) (raise-argument-error raise-argument-error))
+       ((read read)))
+     '(first in-port)
+     '(linklet (((pair? pair?) (list? list?) (car car) (raise-argument-error raise-argument-error))
+                ((read read)))
+        (first in-port)
+        (define-values (first)
+          (lambda (x)
+            (if (if (pair? x) (list? x) #f)
+                (car x)
+                (raise-argument-error 'first "list?" x))))
+        (define-values (in-port)
+          (lambda () (read))))
+     #t
+     '()))
+  (define sliced (webify-module-extractor-spike/slice-exports report '(first)))
+  (check-equal? (webify-module-extractor-spike-phase0-exports sliced) '(first))
+  (check-equal?
+   (webify-linklet-import-bindings
+    (webify-module-extractor-spike-phase0-linklet-datum sliced))
+   '((pair? pair?)
+     (list? list?)
+     (car car)
+     (raise-argument-error raise-argument-error)))
+  (check-false
+   (regexp-match? #rx"read"
+                  (format "~s"
+                          (webify-module-extractor-spike-phase0-linklet-datum sliced)))))
+
 (test-case "extractor report graph resolves module inputs"
   (define dep-report
     (webify-module-extractor-spike
