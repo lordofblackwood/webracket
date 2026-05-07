@@ -336,6 +336,42 @@
                             "expected a simple module path"
                             "module path" module-path)]))
 
+;; relative-module-name : symbol? string? -> symbol?
+;;   Resolve a relative module path from compiled metadata against a module name.
+(define (relative-module-name base-name relative-path)
+  (define base-parts (string-split (symbol->string base-name) "/"))
+  (define base-dir (reverse (cdr (reverse base-parts))))
+  (define relative-parts
+    (filter (lambda (part) (not (string=? part "")))
+            (string-split relative-path "/")))
+  (define parts (append base-dir relative-parts))
+  (define last-part (car (reverse parts)))
+  (define last-no-suffix
+    (if (string-suffix? last-part ".rkt")
+        (substring last-part 0 (- (string-length last-part) 4))
+        last-part))
+  (string->symbol
+   (string-join (append (reverse (cdr (reverse parts)))
+                        (list last-no-suffix))
+                "/")))
+
+;; mpi-index->dependency-name : vector? exact-nonnegative-integer? symbol? -> (or/c symbol? #f)
+;;   Resolve a module-path index from compiled metadata when the shape is simple.
+(define (mpi-index->dependency-name mpi-vector idx self-name)
+  (define (resolve mpi)
+    (cond
+      [(and (box? mpi) (symbol? (unbox mpi))) self-name]
+      [(and (vector? mpi)
+            (= (vector-length mpi) 2)
+            (string? (vector-ref mpi 0))
+            (exact-nonnegative-integer? (vector-ref mpi 1)))
+       (relative-module-name self-name (vector-ref mpi 0))]
+      [(symbol? mpi) mpi]
+      [else (module-path-index->dependency-name mpi)]))
+  (and (vector? mpi-vector)
+       (< idx (vector-length mpi-vector))
+       (resolve (vector-ref mpi-vector idx))))
+
 ;; phase-to-link-modules-candidates : any/c any/c -> (listof (list/c exact-integer? symbol?))
 ;;   Decode simple phase-to-link-modules expressions into candidate dependencies.
 (define (phase-to-link-modules-candidates expr mpi-vector)
@@ -430,9 +466,11 @@
   (for*/list ([binding (in-list group)]
               #:do [(match-define (list local external) binding)]
               [rename-spec (in-list compiled-rename-specs)]
-              #:do [(match-define (list local-name provider-export) rename-spec)]
+              #:do [(match-define (list local-name maybe-dependency provider-export) rename-spec)]
               #:when (symbolic-name=? external local-name))
-    (list local provider-export)))
+    (if maybe-dependency
+        (list local maybe-dependency provider-export)
+        (list local provider-export))))
 
 ;; flatten-datum : any/c -> list?
 ;;   Flatten a datum/vector tree in source order for simple serialized metadata scans.
@@ -444,10 +482,18 @@
     [(null? v)   '()]
     [else        (list v)]))
 
-;; compiled-module-binding-rename-specs : any/c -> (listof (list/c symbol? symbol?))
+;; compiled-module-binding-rename-specs : any/c (or/c vector? #f) symbol? -> (listof list?)
 ;;   Decode provider-export aliases from serialized `provides` module-binding records.
-(define (compiled-module-binding-rename-specs provides-expr)
+(define (compiled-module-binding-rename-specs provides-expr mpi-vector self-name)
   (define flat (flatten-datum provides-expr))
+  (define (first-mpi-index rest)
+    (match rest
+      [(list* (? keyword? kw) (? exact-nonnegative-integer? idx) more)
+       (if (eq? kw '#:mpi)
+           idx
+           (first-mpi-index more))]
+      [(cons _ more) (first-mpi-index more)]
+      [_ #f]))
   (define (provider-export-after-module-binding rest)
     (match rest
       [(list* (? symbol? provider-export)
@@ -464,10 +510,13 @@
       ['() (reverse specs)]
       [(list* (? symbol? local-name) '#:module-binding rest)
        (define provider-export (provider-export-after-module-binding rest))
+       (define dependency
+         (let ([idx (first-mpi-index rest)])
+           (and idx (mpi-index->dependency-name mpi-vector idx self-name))))
        (loop rest
              (if (and provider-export
                       (not (symbolic-name=? local-name provider-export)))
-                 (cons (list local-name provider-export) specs)
+                 (cons (list local-name dependency provider-export) specs)
                  specs))]
       [(cons _ more) (loop more specs)])))
 
@@ -477,13 +526,31 @@
   (filter
    values
    (for/list ([alias (in-list aliases)])
-    (match-define (list local provider-export) alias)
+    (define local (car alias))
+    (define provider-export
+      (match alias
+        [(list _ export) export]
+        [(list _ _ export) export]))
+    (define maybe-direct-dependency
+      (match alias
+        [(list _ (? symbol? dependency) _) dependency]
+        [_ #f]))
     (define matches
-      (for/list ([entry (in-list dependency-exports)]
-                 #:do [(match-define (list dependency exports) entry)]
-                 #:when (for/or ([export (in-list exports)])
-                          (symbolic-name=? export provider-export)))
-        (list dependency provider-export)))
+      (cond
+        [maybe-direct-dependency
+         (match (assoc maybe-direct-dependency dependency-exports)
+           [(list dependency exports)
+            (if (for/or ([export (in-list exports)])
+                  (symbolic-name=? export provider-export))
+                (list (list dependency provider-export))
+                '())]
+           [_ '()])]
+        [else
+         (for/list ([entry (in-list dependency-exports)]
+                    #:do [(match-define (list dependency exports) entry)]
+                    #:when (for/or ([export (in-list exports)])
+                             (symbolic-name=? export provider-export)))
+           (list dependency provider-export))]))
     (match matches
       [(list (list dependency provider-export))
        (list local dependency provider-export)]
@@ -523,7 +590,10 @@
      decl-phase-to-link-modules-expression
      data-module-path-indexes))
   (define compiled-rename-specs
-    (compiled-module-binding-rename-specs decl-provides-expression))
+    (compiled-module-binding-rename-specs
+     decl-provides-expression
+     data-module-path-indexes
+     (webify-module-extractor-spike-name report)))
   (define require-rename-aliases
     (apply append
            (for/list ([group (in-list unresolved-groups)])
