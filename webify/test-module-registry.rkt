@@ -132,6 +132,38 @@
   (check-true (string-contains? wat "$module-variable-ref/no-check"))
   (check-true (string-contains? wat "$module-variable-define!")))
 
+(test-case "module registry roots+observations reads root and dependency cells"
+  (define registry (make-webify-module-registry))
+  (webify-module-registry-add!
+   registry
+   'a
+   '(linklet () (x)
+      (define-values (x) 10)))
+  (webify-module-registry-add!
+   registry
+   'b
+   '(linklet (([ext-x x])) (y)
+      (define-values (y) x))
+   #:imports '((ext-x a x)))
+  (webify-module-registry-add!
+   registry
+   'c
+   '(linklet (([ext-y y])) (z)
+      (define-values (z) y))
+   #:imports '((ext-y b y)))
+  (define-values (combined fragments instances exports-infos)
+    (compose-module-registry/roots+observations registry '(c) '((c z) (a x))))
+  (define normalized (normalize-symbols combined))
+  (check-equal? (length fragments) 3)
+  (check-equal? (sort (hash-keys instances) symbol<?) '(a b c))
+  (check-true (known-constant? (hash-ref (hash-ref exports-infos 'c) 'z)))
+  (check-not-false
+   (member '("js-log" ("module-variable-ref" "webify-export-cell0$2"))
+           normalized))
+  (check-not-false
+   (member '("js-log" ("module-variable-ref" "webify-export-cell0$0"))
+           normalized)))
+
 (test-case "module registry rejects duplicate entries"
   (define registry (make-webify-module-registry))
   (webify-module-registry-add!
@@ -233,6 +265,13 @@
    (lambda ()
      (webify-module-registry-plan registry '(a)))))
 
+(test-case "module registry roots+observations rejects malformed observations"
+  (define registry (make-webify-module-registry))
+  (check-exn
+   #rx"list/c symbol\\? symbol\\?"
+   (lambda ()
+     (compose-module-registry/roots+observations registry '(a) '(bad)))))
+
 (unless (or (getenv "WEBIFY_SKIP_CLI_SMOKE")
             (getenv "WEBIFY_SKIP_RUNTIME_SMOKE"))
   (test-case "module registry output runs and exposes imported export value"
@@ -291,13 +330,8 @@
          '(linklet (([ext-x x])) (y)
             (define-values (y) x))
          #:imports '((ext-x a x)))
-        (define-values (_combined fragments instances _exports-infos)
-          (compose-module-registry/roots registry '(b)))
-        (define y-cell (webify-module-instances-export-cell-id instances 'b 'y))
-        (define combined
-          (webify-compose-module-fragments
-           fragments
-           #:tail `((js-log (module-variable-ref ,y-cell)))))
+        (define-values (combined _fragments _instances _exports-infos)
+          (compose-module-registry/roots+observations registry '(b) '((b y))))
         (write-datum-program! source-path combined)
         (define-values (status output)
           (run-webracket (list "--no-stdlib"
@@ -335,15 +369,10 @@
             (define-values (y) x))
          #:imports '((ext-x a x)))
         (check-equal? (webify-module-registry-plan registry '(b)) '(a b))
-        (define-values (_combined fragments instances _exports-infos)
-          (compose-module-registry/roots registry '(b)))
+        (define-values (combined fragments instances _exports-infos)
+          (compose-module-registry/roots+observations registry '(b) '((b y))))
         (check-equal? (length fragments) 2)
         (check-equal? (sort (hash-keys instances) symbol<?) '(a b))
-        (define y-cell (webify-module-instances-export-cell-id instances 'b 'y))
-        (define combined
-          (webify-compose-module-fragments
-           fragments
-           #:tail `((js-log (module-variable-ref ,y-cell)))))
         (define wat (wat-string (comp (datum->syntax #f combined))))
         (check-true (string-contains? wat "$module-variable-set!"))
         (check-true (string-contains? wat "$module-variable-ref"))

@@ -13,11 +13,13 @@
          webify-module-registry-names
          webify-module-registry-plan
          webify-compose-module-registry
-         webify-compose-module-registry/roots)
+         webify-compose-module-registry/roots
+         webify-compose-module-registry/roots+observations)
 
 (require racket/list
          racket/match
-         "module-composer.rkt")
+         "module-composer.rkt"
+         "module-instance.rkt")
 
 (struct webify-module-registry (entries) #:transparent)
 (struct webify-module-registry-entry (name linklet imports) #:transparent)
@@ -153,6 +155,28 @@
                            "duplicate module roots are not supported"
                            "name" duplicate)))
 
+;; validate-observations! : symbol? any/c -> void?
+;;   Reject module/export observation requests with malformed shape.
+(define (validate-observations! who observations)
+  (unless (list? observations)
+    (raise-argument-error who "(listof (list/c symbol? symbol?))" observations))
+  (for ([observation (in-list observations)])
+    (match observation
+      [(list (? symbol?) (? symbol?))
+       (void)]
+      [_
+       (raise-argument-error who "(list/c symbol? symbol?)" observation)])))
+
+;; observations->tail-forms : symbol? hash? (listof observation?) symbol? -> (listof any/c)
+;;   Build top-level observer calls that read composed module export cells.
+(define (observations->tail-forms who instances observations observer)
+  (unless (symbol? observer)
+    (raise-argument-error who "symbol?" observer))
+  (for/list ([observation (in-list observations)])
+    (match-define (list name export) observation)
+    (define cell-id (webify-module-instances-export-cell-id instances name export))
+    `(,observer (module-variable-ref ,cell-id))))
+
 ;; webify-module-registry-plan : webify-module-registry? (listof symbol?) -> (listof symbol?)
 ;;   Compute a deterministic dependency-first composition order for roots.
 (define (webify-module-registry-plan registry roots)
@@ -258,3 +282,51 @@
    #:compiler-query        compiler-query
    #:get-import-knowns     get-import-knowns
    #:import-keys           import-keys))
+
+;; webify-compose-module-registry/roots+observations : webify-module-registry? (listof symbol?) (listof observation?) keyword-args ... -> values
+;;   Compose planned roots and append observer calls for requested module exports.
+(define (webify-compose-module-registry/roots+observations registry
+                                                           roots
+                                                           observations
+                                                           #:observer              [observer 'js-log]
+                                                           #:tail                  [tail-forms '((void))]
+                                                           #:serializable?-box     serializable?-box
+                                                           #:datum-intern?         datum-intern?
+                                                           #:target                target
+                                                           #:allow-set!-undefined? allow-set!-undefined?
+                                                           #:unsafe-mode?          unsafe-mode?
+                                                           #:enforce-constant?     enforce-constant?
+                                                           #:allow-inline?         allow-inline?
+                                                           #:no-prompt?            no-prompt?
+                                                           #:prim-knowns           prim-knowns
+                                                           #:primitives            primitives
+                                                           #:compiler-query        compiler-query
+                                                           #:get-import-knowns     get-import-knowns
+                                                           #:import-keys           import-keys)
+  (define who 'webify-compose-module-registry/roots+observations)
+  (validate-observations! who observations)
+  (define-values (_combined fragments instances exports-infos)
+    (webify-compose-module-registry/roots
+     registry
+     roots
+     #:serializable?-box     serializable?-box
+     #:datum-intern?         datum-intern?
+     #:target                target
+     #:allow-set!-undefined? allow-set!-undefined?
+     #:unsafe-mode?          unsafe-mode?
+     #:enforce-constant?     enforce-constant?
+     #:allow-inline?         allow-inline?
+     #:no-prompt?            no-prompt?
+     #:prim-knowns           prim-knowns
+     #:primitives            primitives
+     #:compiler-query        compiler-query
+     #:get-import-knowns     get-import-knowns
+     #:import-keys           import-keys))
+  (define observation-tail
+    (observations->tail-forms who instances observations observer))
+  (values (webify-compose-module-fragments
+           fragments
+           #:tail (append observation-tail tail-forms))
+          fragments
+          instances
+          exports-infos))

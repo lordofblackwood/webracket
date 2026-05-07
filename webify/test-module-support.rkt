@@ -7,6 +7,7 @@
          compose-linklet-first-slices
          compose-module-registry
          compose-module-registry/roots
+         compose-module-registry/roots+observations
          wat-string
          run-webracket
          write-datum-program!
@@ -133,6 +134,33 @@
   (webify-compose-module-registry/roots
    registry
    roots
+   #:tail                  tail-forms
+   #:serializable?-box     #f
+   #:datum-intern?         #f
+   #:target                #f
+   #:allow-set!-undefined? #f
+   #:unsafe-mode?          #f
+   #:enforce-constant?     #t
+   #:allow-inline?         #t
+   #:no-prompt?            #f
+   #:prim-knowns           test-prim-knowns
+   #:primitives            test-primitives
+   #:compiler-query        (lambda (v) #f)
+   #:get-import-knowns     (lambda (key) (values #f #f #f))
+   #:import-keys           #f))
+
+;; compose-module-registry/roots+observations : webify-module-registry? (listof symbol?) (listof observation?) -> values
+;;   Compose registry roots and observe selected exports through module cells.
+(define (compose-module-registry/roots+observations registry
+                                                    roots
+                                                    observations
+                                                    #:observer [observer 'js-log]
+                                                    #:tail [tail-forms '((void))])
+  (webify-compose-module-registry/roots+observations
+   registry
+   roots
+   observations
+   #:observer              observer
    #:tail                  tail-forms
    #:serializable?-box     #f
    #:datum-intern?         #f
