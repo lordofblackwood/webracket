@@ -101,6 +101,64 @@
       (lambda ()
         (for ([dir (in-list (list source-dir dest-dir))])
           (with-handlers ([exn:fail:filesystem? void])
+            (delete-directory/files dir))))))
+
+  (test-case "module protocol syntax literal calls fail fast"
+    (define source-dir (make-temporary-file "webracket-module-protocol-syntax-src-~a" 'directory))
+    (define dest-dir   (make-temporary-file "webracket-module-protocol-syntax-dest-~a" 'directory))
+    (define source-path (build-path source-dir "module-protocol-syntax-run.rkt"))
+    (dynamic-wind
+      void
+      (lambda ()
+        (define report
+          (webify-module-report
+           'a
+           '(#f)
+           '(0)
+           '()
+           '((.get-syntax-literal!))
+           '(x)
+           '(linklet (((.get-syntax-literal! .get-syntax-literal!)))
+              (x)
+              (define-values (x) (.get-syntax-literal! 'x)))
+           #t
+           '()))
+        (define registry
+          (webify-module-reports->registry
+           (list webify-module-protocol-report report)
+           #:module-protocol-dependency webify-module-protocol-dependency))
+        (define loader (make-webify-module-loader registry))
+        (write-datum-program!
+         source-path
+         (webify-module-loader-instantiate-observe!
+          loader
+          '(a)
+          '((a x))
+          #:serializable?-box     #f
+          #:datum-intern?         #f
+          #:target                #f
+          #:allow-set!-undefined? #f
+          #:unsafe-mode?          #f
+          #:enforce-constant?     #t
+          #:allow-inline?         #t
+          #:no-prompt?            #f
+          #:prim-knowns           test-prim-knowns
+          #:primitives            test-primitives
+          #:compiler-query        (lambda (v) #f)
+          #:get-import-knowns     (lambda (key) (values #f #f #f))
+          #:import-keys           #f))
+        (define-values (status output)
+          (run-webracket (list "--no-stdlib"
+                               "-r"
+                               "--dest" (path->string dest-dir)
+                               (path->string source-path))
+                         source-dir))
+        (define failure (webify-classify-runtime-output status output))
+        (check-true (webify-module-failure? failure))
+        (check-equal? (webify-module-failure-category failure) 'syntax-literal output))
+      (lambda ()
+        (for ([dir (in-list (list source-dir dest-dir))])
+          (with-handlers ([exn:fail:filesystem? void])
             (delete-directory/files dir)))))))
 
 (module+ main

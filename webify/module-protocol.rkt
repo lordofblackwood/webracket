@@ -19,6 +19,8 @@
   '(linklet () (.get-syntax-literal! .set-transformer!)
      (define-values (.get-syntax-literal!)
        (lambda args
+         (js-log
+          ".get-syntax-literal!: syntax literals are not supported by WebRacket module protocol yet")
          (error '.get-syntax-literal!
                 "syntax literals are not supported by WebRacket module protocol yet")))
      (define-values (.set-transformer!)
