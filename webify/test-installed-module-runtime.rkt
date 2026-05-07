@@ -70,6 +70,7 @@
         (webify-module-loader-instantiate!
          loader
          (webify-module-linklet-manifest-roots manifest)
+         #:define-export-aliases? #f
          #:serializable?-box     #f
          #:datum-intern?         #f
          #:target                #f
@@ -94,11 +95,12 @@
                          source-dir))
         (cond
           [(zero? status)
-           (check-regexp-match #rx"(?m:^#t$)" output)]
+           (check-regexp-match #rx"(?m:^(#t|true)$)" output)]
           [else
            (define failure (webify-classify-runtime-output status output))
-           (check-equal? (webify-module-failure-category failure)
-                         'primitive-alias-collision)]))
+           (check-not-equal? (webify-module-failure-category failure)
+                             'primitive-alias-collision)
+           (fail-check (webify-module-failure-message failure))]))
       (lambda ()
         (for ([dir (in-list (list source-dir dest-dir))])
           (with-handlers ([exn:fail:filesystem? void])

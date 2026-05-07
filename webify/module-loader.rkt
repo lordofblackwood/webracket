@@ -59,6 +59,7 @@
 (define (webify-module-loader-instantiate-roots! loader
                                                  roots
                                                  #:tail                  [tail-forms '((void))]
+                                                 #:define-export-aliases? [define-export-aliases? #t]
                                                  #:serializable?-box     serializable?-box
                                                  #:datum-intern?         datum-intern?
                                                  #:target                target
@@ -91,6 +92,7 @@
         (webify-module-loader-registry loader)
         roots
         #:tail                  tail-forms
+        #:define-export-aliases? define-export-aliases?
         #:serializable?-box     serializable?-box
         #:datum-intern?         datum-intern?
         #:target                target

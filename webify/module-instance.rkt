@@ -126,9 +126,17 @@
 
 ;; first-slice->module-instance-datum : symbol? any/c (listof symbol?) [#:reserved (listof symbol?)] -> values
 ;;   Adapt an import-free lowered slice and return its top-level datum plus instance plan.
-(define (first-slice->module-instance-datum name expr exports #:reserved [reserved '()])
+(define (first-slice->module-instance-datum name
+                                            expr
+                                            exports
+                                            #:reserved [reserved '()]
+                                            #:define-export-aliases? [define-export-aliases? #t])
   (define instance (make-webify-module-instance name exports #:reserved reserved))
-  (values (first-slice->top-level-datum expr exports #:reserved reserved)
+  (values (first-slice->top-level-datum
+           expr
+           exports
+           #:reserved reserved
+           #:define-export-aliases? define-export-aliases?)
           instance))
 
 ;; first-slice->module-instance-datum/imports : symbol? any/c (listof (listof symbol?)) (listof hash?) (listof symbol?) [#:reserved (listof symbol?)] -> values
@@ -138,8 +146,14 @@
                                                     importss
                                                     import-cell-envs
                                                     exports
-                                                    #:reserved [reserved '()])
+                                                    #:reserved [reserved '()]
+                                                    #:define-export-aliases? [define-export-aliases? #t])
   (define import-args (first-slice-import-cell-args importss import-cell-envs))
   (define instance (make-webify-module-instance name exports #:reserved reserved))
-  (values (first-slice->top-level-datum/imports expr import-args exports #:reserved reserved)
+  (values (first-slice->top-level-datum/imports
+           expr
+           import-args
+           exports
+           #:reserved reserved
+           #:define-export-aliases? define-export-aliases?)
           instance))

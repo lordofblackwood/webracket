@@ -322,6 +322,7 @@
 (define (webify-compose-module-registry/composition registry
                                                     order
                                                     #:tail                  [tail-forms '((void))]
+                                                    #:define-export-aliases? [define-export-aliases? #t]
                                                     #:serializable?-box     serializable?-box
                                                     #:datum-intern?         datum-intern?
                                                     #:target                target
@@ -343,6 +344,7 @@
      (for/list ([name (in-list order)])
        (entry->slice-spec (webify-module-registry-ref registry name)))
      #:tail                  tail-forms
+     #:define-export-aliases? define-export-aliases?
      #:serializable?-box     serializable?-box
      #:datum-intern?         datum-intern?
      #:target                target
@@ -363,6 +365,7 @@
 (define (webify-compose-module-registry registry
                                         order
                                         #:tail                  [tail-forms '((void))]
+                                        #:define-export-aliases? [define-export-aliases? #t]
                                         #:serializable?-box     serializable?-box
                                         #:datum-intern?         datum-intern?
                                         #:target                target
@@ -381,6 +384,7 @@
     registry
     order
     #:tail                  tail-forms
+    #:define-export-aliases? define-export-aliases?
     #:serializable?-box     serializable?-box
     #:datum-intern?         datum-intern?
     #:target                target
@@ -400,6 +404,7 @@
 (define (webify-compose-module-registry/roots/composition registry
                                                           roots
                                                           #:tail                  [tail-forms '((void))]
+                                                          #:define-export-aliases? [define-export-aliases? #t]
                                                           #:serializable?-box     serializable?-box
                                                           #:datum-intern?         datum-intern?
                                                           #:target                target
@@ -417,6 +422,7 @@
    registry
    (webify-module-registry-plan registry roots)
    #:tail                  tail-forms
+   #:define-export-aliases? define-export-aliases?
    #:serializable?-box     serializable?-box
    #:datum-intern?         datum-intern?
    #:target                target
@@ -436,6 +442,7 @@
 (define (webify-compose-module-registry/roots registry
                                               roots
                                               #:tail                  [tail-forms '((void))]
+                                              #:define-export-aliases? [define-export-aliases? #t]
                                               #:serializable?-box     serializable?-box
                                               #:datum-intern?         datum-intern?
                                               #:target                target
@@ -454,6 +461,7 @@
     registry
     roots
     #:tail                  tail-forms
+    #:define-export-aliases? define-export-aliases?
     #:serializable?-box     serializable?-box
     #:datum-intern?         datum-intern?
     #:target                target
@@ -475,6 +483,7 @@
                                                            observations
                                                            #:observer              [observer 'js-log]
                                                            #:tail                  [tail-forms '((void))]
+                                                           #:define-export-aliases? [define-export-aliases? #t]
                                                            #:serializable?-box     serializable?-box
                                                            #:datum-intern?         datum-intern?
                                                            #:target                target
@@ -494,6 +503,7 @@
     (webify-compose-module-registry/roots/composition
      registry
      roots
+     #:define-export-aliases? define-export-aliases?
      #:serializable?-box     serializable?-box
      #:datum-intern?         datum-intern?
      #:target                target

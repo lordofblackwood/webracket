@@ -247,7 +247,9 @@
 
 ;; webify-compose-lowered-first-slices : (listof webify-lowered-slice-spec?) [#:tail (listof any/c)] -> values
 ;;   Adapt lowered slices in order, resolve prior-instance imports, and compose top-level code.
-(define (webify-compose-lowered-first-slices specs #:tail [tail-forms '((void))])
+(define (webify-compose-lowered-first-slices specs
+                                             #:tail [tail-forms '((void))]
+                                             #:define-export-aliases? [define-export-aliases? #t])
   (define who 'webify-compose-lowered-first-slices)
   (unless (list? specs)
     (raise-argument-error who "list?" specs))
@@ -278,14 +280,16 @@
              name
              (webify-lowered-slice-spec-expr spec)
              exports
-             #:reserved reserved)
+             #:reserved reserved
+             #:define-export-aliases? define-export-aliases?)
             (first-slice->module-instance-datum/imports
              name
              (webify-lowered-slice-spec-expr spec)
              importss
              (import-sources->envs who instances import-sources)
              exports
-             #:reserved reserved)))
+             #:reserved reserved
+             #:define-export-aliases? define-export-aliases?)))
       (values (cons (webify-module-fragment datum instance) reverse-fragments)
               (hash-set instances name instance)
               (append reserved (webify-module-instance-reserved-ids instance)))))
@@ -298,6 +302,7 @@
 ;;   Webify linklets in order, resolve prior-instance imports, and compose top-level code.
 (define (webify-compose-linklet-first-slices specs
                                              #:tail                  [tail-forms '((void))]
+                                             #:define-export-aliases? [define-export-aliases? #t]
                                              #:serializable?-box     serializable?-box
                                              #:datum-intern?         datum-intern?
                                              #:target                target
@@ -371,14 +376,16 @@
              name
              expr
              exports
-             #:reserved reserved)
+             #:reserved reserved
+             #:define-export-aliases? define-export-aliases?)
             (first-slice->module-instance-datum/imports
              name
              expr
              importss
              (import-sources->envs who instances import-sources)
              exports
-             #:reserved reserved)))
+             #:reserved reserved
+             #:define-export-aliases? define-export-aliases?)))
       (values (cons (webify-module-fragment datum instance) reverse-fragments)
               (hash-set instances name instance)
               (append reserved (webify-module-instance-reserved-ids instance))

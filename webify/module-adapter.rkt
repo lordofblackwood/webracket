@@ -165,12 +165,24 @@
 
 ;; first-slice->top-level-datum : any/c (listof symbol?) -> any/c
 ;;   Wrap a lowered import-free first-slice lambda in top-level forms.
-(define (first-slice->top-level-datum expr exports #:reserved [reserved '()])
-  (first-slice->top-level-datum/imports expr '() exports #:reserved reserved))
+(define (first-slice->top-level-datum expr
+                                      exports
+                                      #:reserved [reserved '()]
+                                      #:define-export-aliases? [define-export-aliases? #t])
+  (first-slice->top-level-datum/imports
+   expr
+   '()
+   exports
+   #:reserved reserved
+   #:define-export-aliases? define-export-aliases?))
 
 ;; first-slice->top-level-datum/imports : any/c (listof any/c) (listof symbol?) -> any/c
 ;;   Wrap a lowered first-slice lambda with explicit import argument expressions.
-(define (first-slice->top-level-datum/imports expr import-args exports #:reserved [reserved '()])
+(define (first-slice->top-level-datum/imports expr
+                                             import-args
+                                             exports
+                                             #:reserved [reserved '()]
+                                             #:define-export-aliases? [define-export-aliases? #t])
   (unless (list? import-args)
     (raise-argument-error 'first-slice->top-level-datum/imports "list?" import-args))
   (validate-top-level-exports! 'first-slice->top-level-datum exports)
@@ -187,7 +199,8 @@
          `(define ,cell-id (module-variable-make ',export)))
      (,proc-id 'webify-instance ,@import-args ,@cell-ids)
      ,@(for/list ([cell-id (in-list cell-ids)]
-                  [export  (in-list exports)])
+                  [export  (in-list exports)]
+                  #:when define-export-aliases?)
          `(define ,export (module-variable-ref ,cell-id)))
      (void)))
 
@@ -203,6 +216,7 @@
 (define (webify-linklet-first-slice-top-level/imports lk
                                                        import-args
                                                        #:reserved             [reserved '()]
+                                                       #:define-export-aliases? [define-export-aliases? #t]
                                                        #:serializable?-box     serializable?-box
                                                        #:datum-intern?         datum-intern?
                                                        #:target                target
@@ -251,7 +265,12 @@
                            "imports" importss))
   (values (datum->syntax
            #f
-           (first-slice->top-level-datum/imports expr import-args exports #:reserved reserved))
+           (first-slice->top-level-datum/imports
+            expr
+            import-args
+            exports
+            #:reserved reserved
+            #:define-export-aliases? define-export-aliases?))
           importss
           exports
           exports-info))
