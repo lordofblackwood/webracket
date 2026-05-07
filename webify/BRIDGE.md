@@ -909,11 +909,24 @@ extractor:
 '(.get-syntax-literal! .set-transformer!)
 ```
 
-`.set-transformer!` is a no-op in the current runtime bridge, because Webify is
-only composing phase-0 runtime slices and does not yet preserve transformer
-state. `.get-syntax-literal!` is fail-fast: if a compiled module actually needs
-syntax-literal reconstruction at runtime, the bridge should stop rather than
-pretend syntax support exists.
+`webify/module-phase-policy.rkt` records the current phase boundary as data:
+
+```racket
+webify-default-module-phase-policy
+;; supported phases: '(0)
+```
+
+The policy is intentionally narrow. Webify currently executes phase-0 runtime
+linklets only. Transformer metadata can be observed in extracted reports, but
+transformer state is not preserved or executed.
+
+`.set-transformer!` is therefore a no-op in the current runtime bridge. That is
+safe only for the runtime-only slice we are composing now; it is not a macro
+system implementation. `.get-syntax-literal!` is fail-fast. It may be needed
+not just for macros, but also for syntax/source-location literals used in error
+reporting, so returning a dummy value would risk silently corrupting diagnostics.
+If a compiled module actually calls it, the bridge should stop and report that
+syntax-literal support is missing.
 
 The graph resolver can now use the named dependency directly:
 

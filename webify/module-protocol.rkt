@@ -37,7 +37,7 @@
    webify-module-protocol-linklet
    #t
    '("synthetic Webify module protocol provider"
-     ".get-syntax-literal! is fail-fast because syntax literals are not implemented"
+     ".get-syntax-literal! is fail-fast because syntax/source-location literals are not implemented"
      ".set-transformer! is a runtime no-op in the current bridge")))
 
 ;; webify-module-protocol-input : webify-module-linklet-input?

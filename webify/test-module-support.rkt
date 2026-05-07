@@ -27,6 +27,7 @@
          (all-from-out "module-input.rkt")
          (all-from-out "module-instance.rkt")
          (all-from-out "module-loader.rkt")
+         (all-from-out "module-phase-policy.rkt")
          (all-from-out "module-protocol.rkt")
          (all-from-out "module-registry.rkt"))
 
@@ -44,6 +45,7 @@
          "module-input.rkt"
          "module-instance.rkt"
          "module-loader.rkt"
+         "module-phase-policy.rkt"
          "module-protocol.rkt"
          "module-registry.rkt")
 

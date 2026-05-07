@@ -17,6 +17,7 @@ Bridge-facing module APIs:
   probes.
 - `module-protocol.rkt` provides the synthetic `module-protocol` report/input
   for `.get-syntax-literal!` and `.set-transformer!`.
+- `module-phase-policy.rkt` records the current phase-0-only bridge policy.
 - `module-input.rkt`, `module-registry.rkt`, and `module-loader.rkt` are the
   current handoff path from extracted linklet reports to executable top-level
   WebRacket programs.
