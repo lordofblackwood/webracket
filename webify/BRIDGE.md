@@ -687,9 +687,54 @@ When `decl` and `data` decompile, the same report also exposes the raw
 module-path-index seed vector from `data` and the `requires`, `provides`, and
 `phase-to-link-modules` expressions from `decl`. For the example above, the
 seed vector includes `#(racket/list)`, which is the evidence needed for the
-next decoder step. The current report deliberately stops there: it records the
-metadata in a stable shape, but it does not yet translate the serialized
-`requires` expression into final `(local dependency export)` triples.
+next decoder step. The report now decodes simple phase-0 module-use entries
+from `phase-to-link-modules`:
+
+```racket
+(webify-module-import-map-required-module-candidates import-map)
+;; => '((0 racket/list))
+```
+
+That candidate is still only evidence, not permission to guess. The resolver
+uses it only when the caller supplies a dependency export table confirming that
+the candidate module exports the needed name:
+
+```racket
+(webify-source-module->resolved-linklet-input
+ module-datum
+ #:dependency-exports '((racket/list (first)))
+ #:module-protocol-dependency 'module-protocol)
+```
+
+For the example above, that yields:
+
+```racket
+'((.get-syntax-literal! module-protocol .get-syntax-literal!)
+  (.set-transformer! module-protocol .set-transformer!)
+  (first racket/list first))
+```
+
+The current decoder is intentionally narrow. It handles simple
+`phase-to-link-modules` entries that directly reference `.mpi-vector`; renamed
+requires, multiple possible providers, cross-phase imports, and more complex
+serialized `requires` structures remain unresolved until they can be decoded
+without guessing.
+
+Multiple simple phase-0 requires work the same way. For example, a module that
+requires both `racket/list` and `racket/math` can resolve `first` and `sqr`
+when both exports are declared:
+
+```racket
+(webify-source-module->resolved-linklet-input
+ module-datum
+ #:dependency-exports '((racket/list (first))
+                        (racket/math (sqr)))
+ #:module-protocol-dependency 'module-protocol)
+```
+
+If two candidate modules both claim the same required export, inference raises
+an ambiguity error instead of choosing one. Explicit `#:dependencies` remains
+the escape hatch for such cases.
 
 The export `x` is represented by the cell `webify-export-cell0$0`. The lowered
 procedure writes the exported value into that cell with

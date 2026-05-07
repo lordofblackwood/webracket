@@ -20,6 +20,7 @@
          webify-module-import-map-decl-requires-expression
          webify-module-import-map-decl-provides-expression
          webify-module-import-map-decl-phase-to-link-modules-expression
+         webify-module-import-map-required-module-candidates
          webify-module-import-map-notes
          webify-module-bundle-entry
          webify-module-bundle-entry?
@@ -40,6 +41,7 @@
 (require racket/linklet
          racket/list
          racket/match
+         racket/string
          "module-input.rkt")
 
 (struct webify-module-extractor-spike
@@ -71,6 +73,7 @@
    decl-requires-expression
    decl-provides-expression
    decl-phase-to-link-modules-expression
+   required-module-candidates
    notes)
   #:transparent)
 
@@ -171,12 +174,12 @@
                              "available keys" (webify-module-extractor-spike-bundle-keys report))))
 
 ;; normalize-linklet-import-binding : symbol? any/c -> (list/c symbol? symbol?)
-;;   Expand decompiled symbol shorthand to the bridge's explicit local/external pair.
+;;   Expand decompiled shorthand to the bridge's explicit local/external pair.
 (define (normalize-linklet-import-binding who binding)
   (match binding
     [(? symbol? import)
      (list import import)]
-    [(list (? symbol? local) (? symbol? external))
+    [(list (? symbol? external) (? symbol? local))
      (list local external)]
     [_
      (raise-arguments-error who
@@ -256,6 +259,55 @@
           mpi-vector]
          [_ #f])))
 
+;; module-path-index->dependency-name : any/c -> (or/c symbol? #f)
+;;   Convert a simple quoted module-path vector into a registry dependency name.
+(define (module-path-index->dependency-name mpi)
+  (cond
+    [(and (vector? mpi)
+          (positive? (vector-length mpi))
+          (for/and ([part (in-vector mpi)])
+            (symbol? part)))
+     (string->symbol
+      (string-join
+       (for/list ([part (in-vector mpi)])
+         (symbol->string part))
+       "/"))]
+    [(symbol? mpi) mpi]
+    [else #f]))
+
+;; phase-to-link-modules-candidates : any/c any/c -> (listof (list/c exact-integer? symbol?))
+;;   Decode simple phase-to-link-modules expressions into candidate dependencies.
+(define (phase-to-link-modules-candidates expr mpi-vector)
+  (define (mpi-ref idx)
+    (and (vector? mpi-vector)
+         (exact-nonnegative-integer? idx)
+         (< idx (vector-length mpi-vector))
+         (module-path-index->dependency-name (vector-ref mpi-vector idx))))
+  (define (decode-module-use use)
+    (match use
+      [`(module-use (unsafe-vector*-ref .mpi-vector ,idx) ,_phase)
+       (mpi-ref idx)]
+      [_ #f]))
+  (define (decode-use-list uses)
+    (match uses
+      [`(list ,use ...)
+       (filter values (map decode-module-use use))]
+      [_ '()]))
+  (match expr
+    [`(hasheqv ,items ...)
+     (let loop ([items items]
+                [candidates '()])
+       (match items
+         ['() (reverse candidates)]
+         [(list* (? exact-integer? phase) uses rest)
+          (loop rest
+                (append
+                 (for/list ([name (in-list (decode-use-list uses))])
+                   (list phase name))
+                 candidates))]
+         [_ (reverse candidates)]))]
+    [_ '()]))
+
 ;; phase0-import-groups : webify-module-extractor-spike? -> import-groups
 ;;   Return normalized phase-0 import groups from metadata.
 (define (phase0-import-groups report)
@@ -283,17 +335,33 @@
   (define decl-entry (webify-module-bundle-entry-ref report 'decl))
   (define data-linklet (webify-module-bundle-entry-datum data-entry))
   (define decl-linklet (webify-module-bundle-entry-datum decl-entry))
+  (define data-module-path-indexes (data-linklet-module-path-indexes data-linklet))
+  (define decl-requires-expression
+    (and decl-linklet (linklet-body-definition-expression decl-linklet 'requires)))
+  (define decl-provides-expression
+    (and decl-linklet (linklet-body-definition-expression decl-linklet 'provides)))
+  (define decl-phase-to-link-modules-expression
+    (and decl-linklet (linklet-body-definition-expression decl-linklet 'phase-to-link-modules)))
+  (define required-module-candidates
+    (phase-to-link-modules-candidates
+     decl-phase-to-link-modules-expression
+     data-module-path-indexes))
   (webify-module-import-map
    import-groups
    protocol-groups
    unresolved-groups
-   (data-linklet-module-path-indexes data-linklet)
-   (and decl-linklet (linklet-body-definition-expression decl-linklet 'requires))
-   (and decl-linklet (linklet-body-definition-expression decl-linklet 'provides))
-   (and decl-linklet (linklet-body-definition-expression decl-linklet 'phase-to-link-modules))
+   data-module-path-indexes
+   decl-requires-expression
+   decl-provides-expression
+   decl-phase-to-link-modules-expression
+   required-module-candidates
    (cond
      [(not decl-linklet)
       '("decl/data metadata is unavailable on this host because linklet decompilation is unavailable")]
+     [(and (pair? unresolved-groups) (pair? required-module-candidates))
+      '("phase-0 contains non-protocol import groups"
+        "decl/data metadata provides simple required-module candidates"
+        "export tables are still required before resolving imports")]
      [(null? unresolved-groups)
       '("phase-0 imports are limited to known module-protocol imports"
         "decl/data metadata is available for future require decoding")]
@@ -308,6 +376,7 @@
                                            linklet
                                            dependency-exports
                                            dependencies
+                                           required-module-candidates
                                            module-protocol-dependency)
   (when module-protocol-dependency
     (unless (symbol? module-protocol-dependency)
@@ -330,10 +399,27 @@
     (cond
       [(null? module-bindings) '()]
       [else
+       (define inferred-dependencies
+         (for/list ([binding (in-list module-bindings)]
+                    #:do [(match-define (list local external) binding)]
+                    #:unless (assoc local dependencies)
+                    [candidate (in-list required-module-candidates)]
+                    #:do [(define candidate-exports
+                            (assoc (cadr candidate) dependency-exports))]
+                    #:when (and (= 0 (car candidate))
+                                candidate-exports
+                                (memq external (cadr candidate-exports))))
+           (list local (cadr candidate))))
+       (define duplicate-inferred (check-duplicates (map car inferred-dependencies)))
+       (when duplicate-inferred
+         (raise-arguments-error who
+                                "ambiguous inferred import dependency"
+                                "import" duplicate-inferred
+                                "candidates" inferred-dependencies))
        (webify-resolve-module-linklet-imports
         `(linklet (,module-bindings) () (void))
         dependency-exports
-        #:dependencies dependencies)]))
+        #:dependencies (append dependencies inferred-dependencies))]))
   (define triples-by-import
     (for/hasheq ([triple (in-list (append module-protocol-triples module-triples))])
       (values (car triple) triple)))
@@ -432,13 +518,21 @@
                                                        #:dependencies [dependencies '()]
                                                        #:module-protocol-dependency [module-protocol-dependency #f])
   (define who 'webify-source-module->resolved-linklet-input)
-  (define unresolved-input (webify-source-module->linklet-input module-datum))
-  (define linklet (webify-module-linklet-input-linklet unresolved-input))
+  (define report (webify-compile-module-extractor-spike module-datum))
+  (unless (webify-module-extractor-spike-manifest-ready? report)
+    (raise-arguments-error who
+                           "source module did not produce a decompilable phase-0 linklet datum"
+                           "notes" (webify-module-extractor-spike-notes report)))
+  (define import-map (webify-module-extractor-spike-import-map report))
+  (define linklet
+    (webify-normalize-linklet-imports
+     (webify-module-extractor-spike-phase0-linklet-datum report)))
   (webify-module-linklet-input
-   (webify-module-linklet-input-name unresolved-input)
+   (webify-module-extractor-spike-name report)
    linklet
    (resolve-extracted-linklet-imports who
                                       linklet
                                       dependency-exports
                                       dependencies
+                                      (webify-module-import-map-required-module-candidates import-map)
                                       module-protocol-dependency)))

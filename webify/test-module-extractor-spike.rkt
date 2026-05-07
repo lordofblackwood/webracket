@@ -183,15 +183,97 @@
                   `(let-values ,_ . ,_))
      (check-match (webify-module-import-map-decl-phase-to-link-modules-expression import-map)
                   `(hasheqv . ,_))
+     (check-equal? (webify-module-import-map-required-module-candidates import-map)
+                   '((0 racket/list)))
      (check-not-false
       (member "phase-0 contains non-protocol import groups"
               (webify-module-import-map-notes import-map)))]
     [else
      (check-false (webify-module-import-map-data-module-path-indexes import-map))
      (check-false (webify-module-import-map-decl-requires-expression import-map))
+     (check-equal? (webify-module-import-map-required-module-candidates import-map)
+                   '())
      (check-not-false
       (member "decl/data metadata is unavailable on this host because linklet decompilation is unavailable"
               (webify-module-import-map-notes import-map)))]))
+
+(test-case "source module resolver uses simple required-module candidates"
+  (define module-datum
+    '(module a racket/base
+       (require racket/list)
+       (provide y)
+       (define y (first (list 10)))))
+  (define report (webify-compile-module-extractor-spike module-datum))
+  (cond
+    [(webify-module-extractor-spike-manifest-ready? report)
+     (check-exn
+      #rx"could not resolve import dependency"
+      (lambda ()
+        (webify-source-module->resolved-linklet-input
+         module-datum
+         #:module-protocol-dependency 'module-protocol)))
+     (define input
+       (webify-source-module->resolved-linklet-input
+        module-datum
+        #:dependency-exports '((racket/list (first)))
+        #:module-protocol-dependency 'module-protocol))
+     (check-equal? (webify-module-linklet-input-imports input)
+                   '((.get-syntax-literal! module-protocol .get-syntax-literal!)
+                     (.set-transformer! module-protocol .set-transformer!)
+                     (first racket/list first)))]
+    [else
+     (check-exn
+      #rx"source module did not produce a decompilable phase-0 linklet datum"
+      (lambda ()
+        (webify-source-module->resolved-linklet-input
+         module-datum
+         #:dependency-exports '((racket/list (first)))
+         #:module-protocol-dependency 'module-protocol)))]))
+
+(test-case "source module resolver handles multiple simple required modules"
+  (define module-datum
+    '(module a racket/base
+       (require racket/list racket/math)
+       (provide y)
+       (define y (+ (first (list 10)) (sqr 3)))))
+  (define report (webify-compile-module-extractor-spike module-datum))
+  (define import-map (webify-module-extractor-spike-import-map report))
+  (cond
+    [(webify-module-extractor-spike-manifest-ready? report)
+     (check-equal? (webify-module-import-map-unresolved-import-groups import-map)
+                   '(((first first)) ((sqr sqr))))
+     (check-equal? (webify-module-import-map-required-module-candidates import-map)
+                   '((0 racket/math) (0 racket/list)))
+     (define input
+       (webify-source-module->resolved-linklet-input
+        module-datum
+        #:dependency-exports '((racket/list (first))
+                               (racket/math (sqr)))
+        #:module-protocol-dependency 'module-protocol))
+     (check-equal? (webify-module-linklet-input-imports input)
+                   '((.get-syntax-literal! module-protocol .get-syntax-literal!)
+                     (.set-transformer! module-protocol .set-transformer!)
+                     (first racket/list first)
+                     (sqr racket/math sqr)))
+     (check-exn
+      #rx"ambiguous inferred import dependency"
+      (lambda ()
+        (webify-source-module->resolved-linklet-input
+         module-datum
+         #:dependency-exports '((racket/list (first))
+                                (racket/math (first sqr)))
+         #:module-protocol-dependency 'module-protocol)))]
+    [else
+     (check-equal? (webify-module-import-map-required-module-candidates import-map)
+                   '())
+     (check-exn
+      #rx"source module did not produce a decompilable phase-0 linklet datum"
+      (lambda ()
+        (webify-source-module->resolved-linklet-input
+         module-datum
+         #:dependency-exports '((racket/list (first))
+                                (racket/math (sqr)))
+         #:module-protocol-dependency 'module-protocol)))]))
 
 (module+ main
   (void))
