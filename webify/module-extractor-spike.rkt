@@ -5,15 +5,29 @@
          webify-module-extractor-spike-name
          webify-module-extractor-spike-directory-keys
          webify-module-extractor-spike-bundle-keys
+         webify-module-extractor-spike-bundle-entries
          webify-module-extractor-spike-phase0-imports
          webify-module-extractor-spike-phase0-exports
          webify-module-extractor-spike-phase0-linklet-datum
          webify-module-extractor-spike-manifest-ready?
          webify-module-extractor-spike-notes
+         webify-module-bundle-entry
+         webify-module-bundle-entry?
+         webify-module-bundle-entry-key
+         webify-module-bundle-entry-kind
+         webify-module-bundle-entry-imports
+         webify-module-bundle-entry-exports
+         webify-module-bundle-entry-datum
+         webify-module-bundle-entry-value
+         webify-module-bundle-entry-ref
+         webify-normalize-linklet-imports
+         webify-linklet-import-bindings
          webify-source-module->linklet-input
+         webify-source-module->resolved-linklet-input
          webify-compile-module-extractor-spike)
 
 (require racket/linklet
+         racket/list
          racket/match
          "module-input.rkt")
 
@@ -21,6 +35,7 @@
   (name
    directory-keys
    bundle-keys
+   bundle-entries
    phase0-imports
    phase0-exports
    phase0-linklet-datum
@@ -28,15 +43,36 @@
    notes)
   #:transparent)
 
+(struct webify-module-bundle-entry
+  (key
+   kind
+   imports
+   exports
+   datum
+   value)
+  #:transparent)
+
 ;; maybe-decompile-linklet : (or/c procedure? #f)
 ;;   Use the newer decompiler API when the host Racket provides it.
 (define maybe-decompile-linklet
   (dynamic-require 'racket/linklet 'decompile-linklet (lambda () #f)))
 
+;; known-module-protocol-imports : (listof symbol?)
+;;   Module-layer protocol imports seen in decompiled phase-0 source-module linklets.
+(define known-module-protocol-imports
+  '(.get-syntax-literal!
+    .set-transformer!))
+
 ;; key<? : any/c any/c -> boolean?
 ;;   Sort mixed linklet-directory keys deterministically for spike reports.
 (define (key<? a b)
   (string<? (format "~s" a) (format "~s" b)))
+
+;; bundle-entry<? : webify-module-bundle-entry? webify-module-bundle-entry? -> boolean?
+;;   Sort bundle entries by their mixed key values.
+(define (bundle-entry<? a b)
+  (key<? (webify-module-bundle-entry-key a)
+         (webify-module-bundle-entry-key b)))
 
 ;; validate-source-module! : symbol? any/c -> symbol?
 ;;   Check the tiny source-module shape accepted by this extractor spike.
@@ -69,6 +105,145 @@
           (list? body))]
     [_ #f]))
 
+;; decompile-linklet-datum : linklet? -> (or/c linklet-datum? #f)
+;;   Recover a plain datum for a linklet when the host Racket supports it.
+(define (decompile-linklet-datum linklet)
+  (and maybe-decompile-linklet
+       (strip-correlated* (maybe-decompile-linklet linklet))))
+
+;; bundle-value-kind : any/c -> symbol?
+;;   Classify one compiled bundle value for extractor reports.
+(define (bundle-value-kind value)
+  (cond
+    [(linklet? value)           'linklet]
+    [(linklet-bundle? value)    'bundle]
+    [(linklet-directory? value) 'directory]
+    [else                      'metadata]))
+
+;; bundle-value->entry : any/c any/c -> webify-module-bundle-entry?
+;;   Convert one linklet-bundle hash entry into report data.
+(define (bundle-value->entry key value)
+  (define datum
+    (and (linklet? value)
+         (decompile-linklet-datum value)))
+  (webify-module-bundle-entry
+   key
+   (bundle-value-kind value)
+   (and (linklet? value) (linklet-import-variables value))
+   (and (linklet? value) (linklet-export-variables value))
+   datum
+   value))
+
+;; webify-module-bundle-entry-ref : report any/c -> webify-module-bundle-entry?
+;;   Look up a bundle entry by key.
+(define (webify-module-bundle-entry-ref report key)
+  (define who 'webify-module-bundle-entry-ref)
+  (unless (webify-module-extractor-spike? report)
+    (raise-argument-error who "webify-module-extractor-spike?" report))
+  (or (for/first ([entry (in-list (webify-module-extractor-spike-bundle-entries report))]
+                  #:when (equal? key (webify-module-bundle-entry-key entry)))
+        entry)
+      (raise-arguments-error who
+                             "bundle entry not found"
+                             "key" key
+                             "available keys" (webify-module-extractor-spike-bundle-keys report))))
+
+;; normalize-linklet-import-binding : symbol? any/c -> (list/c symbol? symbol?)
+;;   Expand decompiled symbol shorthand to the bridge's explicit local/external pair.
+(define (normalize-linklet-import-binding who binding)
+  (match binding
+    [(? symbol? import)
+     (list import import)]
+    [(list (? symbol? local) (? symbol? external))
+     (list local external)]
+    [_
+     (raise-arguments-error who
+                            "linklet imports must be symbols or local/external symbol pairs"
+                            "import" binding)]))
+
+;; webify-normalize-linklet-imports : linklet-datum -> linklet-datum
+;;   Normalize import shorthand in a decompiled linklet datum.
+(define (webify-normalize-linklet-imports linklet)
+  (define who 'webify-normalize-linklet-imports)
+  (match linklet
+    [`(linklet ,importss ,exports . ,body)
+     (unless (list? importss)
+       (raise-arguments-error who
+                              "linklet imports must be a list of import groups"
+                              "imports" importss))
+     `(linklet ,(for/list ([group (in-list importss)])
+                  (unless (list? group)
+                    (raise-arguments-error who
+                                           "linklet import group must be a list"
+                                           "group" group))
+                  (for/list ([binding (in-list group)])
+                    (normalize-linklet-import-binding who binding)))
+        ,exports
+        . ,body)]
+    [_
+     (raise-arguments-error who
+                            "expected a linklet datum"
+                            "linklet" linklet)]))
+
+;; webify-linklet-import-bindings : linklet-datum -> (listof (list/c symbol? symbol?))
+;;   Return normalized local/external bindings from a linklet datum.
+(define (webify-linklet-import-bindings linklet)
+  (match (webify-normalize-linklet-imports linklet)
+    [`(linklet ,importss ,_exports . ,_body)
+     (define bindings
+       (for*/list ([group   (in-list importss)]
+                   [binding (in-list group)])
+         binding))
+     (define duplicate (check-duplicates (map car bindings)))
+     (when duplicate
+       (raise-arguments-error 'webify-linklet-import-bindings
+                              "duplicate linklet import names are not supported"
+                              "import" duplicate))
+     bindings]))
+
+;; module-protocol-import-binding? : (list/c symbol? symbol?) -> boolean?
+;;   Recognize imports currently supplied only by Racket's module protocol.
+(define (module-protocol-import-binding? binding)
+  (memq (cadr binding) known-module-protocol-imports))
+
+;; resolve-extracted-linklet-imports : symbol? linklet-datum ... -> imports
+;;   Classify extracted imports and turn supported ones into flat bridge triples.
+(define (resolve-extracted-linklet-imports who
+                                           linklet
+                                           dependency-exports
+                                           dependencies
+                                           module-protocol-dependency)
+  (when module-protocol-dependency
+    (unless (symbol? module-protocol-dependency)
+      (raise-argument-error who "symbol?" module-protocol-dependency)))
+  (define bindings (webify-linklet-import-bindings linklet))
+  (define module-protocol-bindings (filter module-protocol-import-binding? bindings))
+  (define module-bindings (filter (lambda (binding)
+                                    (not (module-protocol-import-binding? binding)))
+                                  bindings))
+  (when (and (pair? module-protocol-bindings) (not module-protocol-dependency))
+    (raise-arguments-error who
+                           "extracted linklet imports require WebRacket module protocol dependency support"
+                           "imports" (map car module-protocol-bindings)
+                           "hint" "pass #:module-protocol-dependency when a module protocol input exists"))
+  (define module-protocol-triples
+    (for/list ([binding (in-list module-protocol-bindings)])
+      (match-define (list local external) binding)
+      (list local module-protocol-dependency external)))
+  (define module-triples
+    (cond
+      [(null? module-bindings) '()]
+      [else
+       (webify-resolve-module-linklet-imports
+        `(linklet (,module-bindings) () (void))
+        dependency-exports
+        #:dependencies dependencies)]))
+  (define triples-by-import
+    (for/hasheq ([triple (in-list (append module-protocol-triples module-triples))])
+      (values (car triple) triple)))
+  (for/list ([binding (in-list bindings)])
+    (hash-ref triples-by-import (car binding))))
+
 ;; webify-compile-module-extractor-spike : any/c -> webify-module-extractor-spike?
 ;;   Probe Racket's compiled-module linklet shape without claiming extraction support.
 (define (webify-compile-module-extractor-spike module-datum)
@@ -95,6 +270,11 @@
                            "main directory entry is not a linklet bundle"
                            "entry" main-bundle))
   (define bundle-hash (linklet-bundle->hash main-bundle))
+  (define bundle-entries
+    (sort
+     (for/list ([(key value) (in-hash bundle-hash)])
+       (bundle-value->entry key value))
+     bundle-entry<?))
   (define phase0-linklet
     (hash-ref bundle-hash
               0
@@ -106,14 +286,18 @@
     (raise-arguments-error who
                            "phase-0 bundle entry is not a linklet"
                            "entry" phase0-linklet))
+  (define phase0-entry
+    (for/first ([entry (in-list bundle-entries)]
+                #:when (equal? 0 (webify-module-bundle-entry-key entry)))
+      entry))
   (define phase0-linklet-datum
-    (and maybe-decompile-linklet
-         (strip-correlated* (maybe-decompile-linklet phase0-linklet))))
+    (webify-module-bundle-entry-datum phase0-entry))
   (define manifest-ready? (linklet-datum? phase0-linklet-datum))
   (webify-module-extractor-spike
    name
    (sort (hash-keys directory-hash) key<?)
    (sort (hash-keys bundle-hash) key<?)
+   bundle-entries
    (linklet-import-variables phase0-linklet)
    (linklet-export-variables phase0-linklet)
    phase0-linklet-datum
@@ -121,7 +305,7 @@
    (cond
      [manifest-ready?
       '("machine-independent compilation exposes a decompilable phase-0 linklet datum"
-        "compiled module import metadata still includes kernel/runtime plumbing")]
+        "compiled module import metadata still includes module protocol plumbing")]
      [maybe-decompile-linklet
       '("compiled source modules expose linklet objects and metadata"
         "decompile-linklet did not produce a linklet datum for the phase-0 linklet")]
@@ -141,5 +325,24 @@
                            "notes" (webify-module-extractor-spike-notes report)))
   (webify-module-linklet-input
    (webify-module-extractor-spike-name report)
-   (webify-module-extractor-spike-phase0-linklet-datum report)
+   (webify-normalize-linklet-imports
+    (webify-module-extractor-spike-phase0-linklet-datum report))
    imports))
+
+;; webify-source-module->resolved-linklet-input : module-datum ... -> webify-module-linklet-input?
+;;   Extract a source module and resolve classified imports into bridge triples.
+(define (webify-source-module->resolved-linklet-input module-datum
+                                                       #:dependency-exports [dependency-exports '()]
+                                                       #:dependencies [dependencies '()]
+                                                       #:module-protocol-dependency [module-protocol-dependency #f])
+  (define who 'webify-source-module->resolved-linklet-input)
+  (define unresolved-input (webify-source-module->linklet-input module-datum))
+  (define linklet (webify-module-linklet-input-linklet unresolved-input))
+  (webify-module-linklet-input
+   (webify-module-linklet-input-name unresolved-input)
+   linklet
+   (resolve-extracted-linklet-imports who
+                                      linklet
+                                      dependency-exports
+                                      dependencies
+                                      module-protocol-dependency)))

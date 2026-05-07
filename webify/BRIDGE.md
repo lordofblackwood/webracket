@@ -554,6 +554,20 @@ phase-0 linklet object whose export metadata includes `x`:
 ;; => '(x)
 ```
 
+The extractor now also reports every entry in the module's main bundle:
+
+```racket
+(map webify-module-bundle-entry-key
+     (webify-module-extractor-spike-bundle-entries report))
+;; => '(0 data decl name pre side-effects)
+```
+
+Each `webify-module-bundle-entry` records the bundle key, a coarse kind, the
+linklet imports/exports when the value is a linklet, the decompiled datum when
+available, and the original value for lower-level probing. This makes `decl`,
+`data`, `stx`, and other bundle entries visible to future bridge stages instead
+of discarding everything except phase 0.
+
 The spike now compiles with `current-compile-target-machine` set to `#f` and,
 on Racket versions that provide `decompile-linklet`, recovers the phase-0
 linklet datum:
@@ -564,7 +578,7 @@ linklet datum:
 ```
 
 For the tiny module above, the recovered datum is not quite as small as the
-hand-written example, because it includes kernel/runtime imports such as
+hand-written example, because it includes module protocol imports such as
 `.get-syntax-literal!` and `.set-transformer!`, but it has the manifest-ready
 `(linklet imports exports body ...)` shape. On older Racket versions without
 `decompile-linklet`, the spike records that limitation and reports
@@ -583,7 +597,7 @@ The first concrete bridge API from this spike is
 On a Racket host with `decompile-linklet`, this returns a
 `webify-module-linklet-input` named `a` whose linklet field is the recovered
 phase-0 linklet datum. The input's import mapping defaults to `#f` rather than
-`'()`, because a real compiled module can import kernel/runtime helpers such
+`'()`, because a real compiled module can import module protocol helpers such
 as `.get-syntax-literal!` and `.set-transformer!`; treating those as resolved
 would hide the next missing bridge layer.
 
@@ -593,14 +607,54 @@ linklet imports should map to dependency exports:
 ```racket
 (webify-source-module->linklet-input
  module-datum
- #:imports '((.get-syntax-literal! kernel .get-syntax-literal!)
-             (.set-transformer! kernel .set-transformer!)))
+ #:imports '((.get-syntax-literal! module-protocol .get-syntax-literal!)
+             (.set-transformer! module-protocol .set-transformer!)))
 ```
 
 That still does not make arbitrary source modules registry-ready. It only
 packages the extracted phase-0 linklet in the same input shape consumed by the
 manifest/registry bridge. Mapping compiled module imports to WebRacket
-runtime/kernel dependencies remains the next seam.
+module-protocol dependencies remains the next seam.
+
+`webify-source-module->resolved-linklet-input` is the next, stricter seam. It
+normalizes decompiled import shorthand such as:
+
+```racket
+((.get-syntax-literal!) (.set-transformer!))
+```
+
+to the explicit bridge shape:
+
+```racket
+(((.get-syntax-literal! .get-syntax-literal!))
+ ((.set-transformer! .set-transformer!)))
+```
+
+Then it classifies imports. Ordinary module imports are resolved with the same
+dependency-export table used by manifests. Module-protocol imports are not
+silently accepted; by default the function raises an error that names them.
+The linklets notes explain why these are special: `.get-syntax-literal!` is
+used for syntax literals, while `.set-transformer!` is synthesized by the
+module layer for transformer bindings instead of being supplied by an ordinary
+compiled-module linklet. When a synthetic module-protocol input exists,
+callers can opt in explicitly:
+
+```racket
+(webify-source-module->resolved-linklet-input
+ module-datum
+ #:module-protocol-dependency 'module-protocol)
+```
+
+For the tiny `racket/base` module above, that produces import triples like:
+
+```racket
+'((.get-syntax-literal! module-protocol .get-syntax-literal!)
+  (.set-transformer! module-protocol .set-transformer!))
+```
+
+The important boundary is intentional: extraction can now normalize and
+classify imports, but Webify still needs an actual module-protocol dependency
+before the result can be instantiated end-to-end.
 
 The export `x` is represented by the cell `webify-export-cell0$0`. The lowered
 procedure writes the exported value into that cell with
