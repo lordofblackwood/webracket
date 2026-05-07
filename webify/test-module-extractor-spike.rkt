@@ -842,6 +842,8 @@
   (check-equal? (webify-module-graph-audit-unresolved-import-groups audit)
                 '((racket/string ())
                   (use-string (((string-join.1 string-join.1))))))
+  (check-equal? (webify-module-graph-audit-provider-candidates audit)
+                '())
   (check-equal? (map webify-module-linklet-input-name
                      (webify-module-graph-audit-resolved-inputs audit))
                 '(racket/string use-string))
@@ -853,6 +855,51 @@
                 '((string-join.1 racket/string string-join.1)))
   (check-equal? (webify-module-graph-audit-failures audit)
                 '()))
+
+(test-case "module graph audit records provider candidate fetch status"
+  (define phase0-linklet
+    '(linklet (((first first))) (y)
+       (define-values (y) first)))
+  (define data-linklet
+    '(linklet () (.mpi-vector)
+       (define-values (.mpi-vector)
+         (deserialize-module-path-indexes '#(#(racket/list)
+                                             #(racket/for))
+                                          '#(0 1)))))
+  (define decl-linklet
+    '(linklet ((.mpi-vector)) (phase-to-link-modules)
+       (define-values (phase-to-link-modules)
+         (hasheqv 0 (list (module-use (unsafe-vector*-ref .mpi-vector 0) 0)
+                          (module-use (unsafe-vector*-ref .mpi-vector 1) 0))))))
+  (define report
+    (webify-module-extractor-spike
+     'use-list
+     '(#f)
+     '(0 data decl)
+     (list (webify-module-bundle-entry 0 'linklet '(((first first))) '(y) phase0-linklet #f)
+           (webify-module-bundle-entry 'data 'linklet '() '(.mpi-vector) data-linklet #f)
+           (webify-module-bundle-entry 'decl 'linklet '((.mpi-vector)) '(phase-to-link-modules) decl-linklet #f))
+     '(((first first)))
+     '(y)
+     phase0-linklet
+     #t
+     '()))
+  (define (fetch-provider name)
+    (case name
+      [(racket/list) report]
+      [else (raise-arguments-error 'fetch-provider
+                                   "no such provider"
+                                   "module" name)]))
+  (define audit
+    (webify-module-reports->graph-audit
+     (list report)
+     #:fetch-provider fetch-provider))
+  (check-equal? (map webify-module-provider-candidate-name
+                     (webify-module-graph-audit-provider-candidates audit))
+                '(racket/for racket/list))
+  (check-equal? (map webify-module-provider-candidate-status
+                     (webify-module-graph-audit-provider-candidates audit))
+                '(failed fetchable)))
 
 (module+ main
   (void))
