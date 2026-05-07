@@ -26,6 +26,7 @@
          (all-from-out "module-input.rkt")
          (all-from-out "module-instance.rkt")
          (all-from-out "module-loader.rkt")
+         (all-from-out "module-protocol.rkt")
          (all-from-out "module-registry.rkt"))
 
 (require racket/match
@@ -41,6 +42,7 @@
          "module-input.rkt"
          "module-instance.rkt"
          "module-loader.rkt"
+         "module-protocol.rkt"
          "module-registry.rkt")
 
 (define-runtime-path webracket-rkt "../webracket.rkt")

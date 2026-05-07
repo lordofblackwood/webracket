@@ -891,6 +891,38 @@ instantiate namespaces, or decide whether a provider is semantically supported
 by WebRacket yet. The result is still just more linklet-level report data that
 can be fed to the existing provider/export resolver.
 
+## Module Protocol Provider
+
+`webify/module-protocol.rkt` packages the synthetic module-protocol dependency
+as a reusable provider instead of leaving every test to hand-write it:
+
+```racket
+webify-module-protocol-report
+webify-module-protocol-input
+webify-module-protocol-dependency ; => 'module-protocol
+```
+
+The provider exports the protocol imports currently recognized by the
+extractor:
+
+```racket
+'(.get-syntax-literal! .set-transformer!)
+```
+
+`.set-transformer!` is a no-op in the current runtime bridge, because Webify is
+only composing phase-0 runtime slices and does not yet preserve transformer
+state. `.get-syntax-literal!` is fail-fast: if a compiled module actually needs
+syntax-literal reconstruction at runtime, the bridge should stop rather than
+pretend syntax support exists.
+
+The graph resolver can now use the named dependency directly:
+
+```racket
+(webify-module-reports->registry
+ (cons webify-module-protocol-report reports)
+ #:module-protocol-dependency webify-module-protocol-dependency)
+```
+
 For callers that want the next bridge step directly, the stable façade can
 register the resolved inputs:
 

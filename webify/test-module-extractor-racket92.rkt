@@ -3,26 +3,11 @@
 (require rackunit
          racket/list
          "module-extractor.rkt"
+         "module-protocol.rkt"
          "module-registry.rkt")
 
 (define (export-name-member? name exports)
   (member name (map symbol->string exports)))
-
-(define module-protocol-report
-  (webify-module-report
-   'module-protocol
-   '(#f)
-   '(0)
-   '()
-   '()
-   '(.get-syntax-literal! .set-transformer!)
-   '(linklet () (.get-syntax-literal! .set-transformer!)
-      (define-values (.get-syntax-literal!)
-        (lambda (sym) (error '.get-syntax-literal! "not implemented in smoke")))
-      (define-values (.set-transformer!)
-        (lambda args (void))))
-   #t
-   '()))
 
 (test-case "Racket 9.2 source module graph resolves into registry"
   (define source-module-data
@@ -36,8 +21,8 @@
   (check-true (andmap webify-module-report-manifest-ready? source-reports))
   (define registry
     (webify-module-reports->registry
-     (cons module-protocol-report source-reports)
-     #:module-protocol-dependency 'module-protocol))
+     (cons webify-module-protocol-report source-reports)
+     #:module-protocol-dependency webify-module-protocol-dependency))
   (check-equal? (webify-module-registry-plan registry '(a b))
                 '(module-protocol a b)))
 
