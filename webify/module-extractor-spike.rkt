@@ -384,6 +384,20 @@
 ;; mpi-index->dependency-name : vector? exact-nonnegative-integer? symbol? -> (or/c symbol? #f)
 ;;   Resolve a module-path index from compiled metadata when the shape is simple.
 (define (mpi-index->dependency-name mpi-vector idx self-name)
+  (define resolving (make-hasheqv))
+  (define resolved  (make-hasheqv))
+  (define (resolve-index idx)
+    (cond
+      [(hash-has-key? resolved idx) (hash-ref resolved idx)]
+      [(hash-has-key? resolving idx) #f]
+      [(and (vector? mpi-vector)
+            (< idx (vector-length mpi-vector)))
+       (hash-set! resolving idx #t)
+       (define name (resolve (vector-ref mpi-vector idx)))
+       (hash-remove! resolving idx)
+       (hash-set! resolved idx name)
+       name]
+      [else #f]))
   (define (resolve mpi)
     (cond
       [(and (box? mpi) (symbol? (unbox mpi))) self-name]
@@ -391,12 +405,16 @@
             (= (vector-length mpi) 2)
             (string? (vector-ref mpi 0))
             (exact-nonnegative-integer? (vector-ref mpi 1)))
-       (relative-module-name self-name (vector-ref mpi 0))]
+       (define parent-idx (vector-ref mpi 1))
+       (define parent-name
+         (and (not (eqv? parent-idx idx))
+              (resolve-index parent-idx)))
+       (relative-module-name (or parent-name self-name) (vector-ref mpi 0))]
       [(symbol? mpi) mpi]
       [else (module-path-index->dependency-name mpi)]))
   (and (vector? mpi-vector)
        (< idx (vector-length mpi-vector))
-       (resolve (vector-ref mpi-vector idx))))
+       (resolve-index idx)))
 
 ;; phase-to-link-modules-candidates : any/c any/c symbol? -> (listof (list/c exact-integer? symbol?))
 ;;   Decode simple phase-to-link-modules expressions into candidate dependencies.

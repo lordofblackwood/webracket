@@ -92,7 +92,7 @@
     '((use-list y))
     #rx"(?m:^(#t|true)$)"
     '(unresolved-import)
-    #rx"import: '1/reverse\n  export: 'reverse")
+    #rx"import: 'hash-update\n  export: 'hash-update")
    (installed-runtime-smoke
     "installed racket/string graph reaches WebRacket runtime smoke"
     '((module use-string racket/base

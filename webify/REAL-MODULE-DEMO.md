@@ -94,11 +94,12 @@ racket/string -> unresolved-import
 
 Those failures are useful. `racket/list` now reaches transitive provider
 discovery, skips unfetchable candidate overreach such as `racket/for`, and
-decodes faslable-correlated providers such as `racket/private/pico`. The next
-`racket/list` blocker is a real import/export name-resolution issue around
-`1/reverse` and `reverse`. `racket/string` is still a linklet-level
-name-resolution frontier for broader internalized imports beyond the focused
-`string-join` provider-export case.
+decodes faslable-correlated providers such as `racket/private/pico`. The old
+`1/reverse` blocker now resolves through `racket/private/pico`'s `reverse`
+export; the current `racket/list` smoke stops at `hash-update`, which appears
+as a compiled import but is not exported by the discovered provider rows.
+`racket/string` is still a linklet-level name-resolution frontier for broader
+internalized imports beyond the focused `string-join` provider-export case.
 
 The focused Racket 9.2 extractor test now pins the `racket/private/list`
 provider-graph advance: `1/reverse` resolves to `racket/private/pico`'s
