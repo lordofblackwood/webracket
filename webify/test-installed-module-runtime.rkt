@@ -101,8 +101,8 @@
         (define y (string-join '("a" "b") ","))))
     '((use-string y))
     #rx"(?m:^a,b$)"
-    '(unresolved-import syntax-literal unsupported-runtime unknown)
-    #f)))
+    '(unresolved-import)
+    #rx"import: 'add-between[.]1\n  export: 'add-between[.]1")))
 
 ;; run-racket92/extract : path-string? path-string? -> values
 ;;   Run a Racket 9.2 extractor script while capturing combined output.

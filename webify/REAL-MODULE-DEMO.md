@@ -99,7 +99,9 @@ decodes faslable-correlated providers such as `racket/private/pico`. The old
 export; the current `racket/list` smoke stops at `hash-update`, which appears
 as a compiled import but is not exported by the discovered provider rows.
 `racket/string` is still a linklet-level name-resolution frontier for broader
-internalized imports beyond the focused `string-join` provider-export case.
+internalized imports beyond the focused `string-join` provider-export case. The
+current first blocker is `add-between.1`, which comes from the `racket/list`
+dependency used by `string-join`.
 
 The focused Racket 9.2 extractor test now pins the `racket/private/list`
 provider-graph advance: `1/reverse` resolves to `racket/private/pico`'s
