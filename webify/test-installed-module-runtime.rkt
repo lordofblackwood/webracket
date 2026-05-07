@@ -115,6 +115,16 @@
     '()
     '())
    (installed-runtime-smoke
+    "installed racket/list range and reverse reach WebRacket runtime smoke"
+    '((module use-list-range-reverse racket/base
+        (require racket/list)
+        (provide y)
+        (define y (first (reverse (range 2 7 2))))))
+    '((use-list-range-reverse y))
+    #rx"(?m:^6$)"
+    '()
+    '())
+   (installed-runtime-smoke
     "installed racket/string graph reaches WebRacket runtime smoke"
     '((module use-string racket/base
         (require racket/string)
@@ -122,6 +132,26 @@
         (define y (string-join '("a" "b") ","))))
     '((use-string y))
     #rx"(?m:^a,b$)"
+    '()
+    '())
+   (installed-runtime-smoke
+    "installed racket/string prefix reaches WebRacket runtime smoke"
+    '((module use-string-prefix racket/base
+        (require racket/string)
+        (provide y)
+        (define y (string-prefix? "abc" "ab"))))
+    '((use-string-prefix y))
+    #rx"(?m:^(#t|true)$)"
+    '()
+    '())
+   (installed-runtime-smoke
+    "installed racket/function compose reaches WebRacket runtime smoke"
+    '((module use-function-compose racket/base
+        (require racket/function)
+        (provide y)
+        (define y ((compose add1 add1) 40))))
+    '((use-function-compose y))
+    #rx"(?m:^42$)"
     '()
     '())))
 
