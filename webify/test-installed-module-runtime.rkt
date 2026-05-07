@@ -1,6 +1,7 @@
 #lang racket/base
 
 (require racket/file
+         racket/match
          racket/path
          racket/runtime-path
          racket/system
@@ -14,6 +15,13 @@
 ;; write-extractor-script! : path-string? path-string? any/c -> void?
 ;;   Write a Racket 9.2 script that extracts a tiny installed-provider graph.
 (define (write-extractor-script! script-path manifest-path module-data)
+  (define root-names
+    (for/list ([datum (in-list module-data)])
+      (match datum
+        [`(module ,(? symbol? name) . ,_) name]
+        [_ (raise-arguments-error 'write-extractor-script!
+                                  "expected source module datum"
+                                  "module" datum)])))
   (call-with-output-file script-path
     (lambda (out)
       (display "#lang racket/base\n" out)
@@ -22,6 +30,7 @@
           (require (file ,(path->string (build-path repo-root "webify/module-extractor.rkt")))
                    (file ,(path->string (build-path repo-root "webify/module-input.rkt")))
                    (file ,(path->string (build-path repo-root "webify/module-protocol.rkt"))))
+          (define root-names ',root-names)
           (define inputs
             (webify-source-modules->discovered-resolved-linklet-inputs
              ',module-data
@@ -31,7 +40,7 @@
             (lambda (out)
               (write
                `(webify-module-linklet-manifest
-                 (roots (use-bool))
+                 (roots ,root-names)
                  ,@(for/list ([input (in-list inputs)])
                      `(input ,(webify-module-linklet-input-name input)
                              ,(webify-module-linklet-input-linklet input)
@@ -61,6 +70,15 @@
         (define y (boolean=? #t #t))))
     '((use-bool y))
     #rx"(?m:^(#t|true)$)"
+    '())
+   (installed-runtime-smoke
+    "installed racket/fixnum graph reaches WebRacket runtime smoke"
+    '((module use-fixnum racket/base
+        (require racket/fixnum)
+        (provide y)
+        (define y (fx+ 1 2))))
+    '((use-fixnum y))
+    #rx"(?m:^3$)"
     '())
    (installed-runtime-smoke
     "installed racket/list graph reaches WebRacket runtime smoke"

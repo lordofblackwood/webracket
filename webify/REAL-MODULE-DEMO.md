@@ -71,6 +71,16 @@ It also exercises a previous failure mode: `xor` is both a WebRacket primitive
 and a provider export. The current bridge avoids that primitive alias collision
 by observing cells directly instead of emitting top-level aliases.
 
+## Second Runtime Demo
+
+`racket/fixnum` is the next real installed module that reaches the WebRacket
+runtime smoke. The demo module requires `racket/fixnum`, computes `(fx+ 1 2)`,
+observes the exported module cell, and prints `3`.
+
+This is intentionally small, but it is a real installed-provider graph. It
+checks that provider discovery and module-cell observation are not special-cased
+to `racket/bool`.
+
 ## Known Frontier
 
 The same smoke file also contains richer installed probes for `racket/list` and
