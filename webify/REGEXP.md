@@ -94,6 +94,9 @@ startup smoke with (js-log 123)         ; succeeds
 (regexp-match? (regexp "a+") "bbb")     ; succeeds
 (regexp-match? (regexp "^a") "ba")      ; succeeds
 (regexp-match? (regexp "^a") "ab")      ; succeeds
+(regexp-match? (byte-regexp #"a") #"cat") ; succeeds
+(regexp-match? (pregexp "a|b") "b")     ; succeeds
+(regexp-match? (regexp "a?") "bbb")     ; succeeds
 ```
 
 That means the regexp layer gets through demod and into Webify's first-slice
@@ -134,6 +137,9 @@ simple character classes, a basic capture group, repetition, and start anchors:
 (regexp-match? (regexp "a+") "bbb")
 (regexp-match? (regexp "^a") "ba")
 (regexp-match? (regexp "^a") "ab")
+(regexp-match? (byte-regexp #"a") #"cat")
+(regexp-match? (pregexp "a|b") "b")
+(regexp-match? (regexp "a?") "bbb")
 ```
 
 That exercises parsing, conversion, validation, matcher compilation, and
@@ -141,17 +147,19 @@ allocation of the final regexp struct for a literal character pattern, plus the
 fast string matcher used by `regexp-match?` and `regexp-match`. The capture
 case also exercises group-size bookkeeping in the validator. Repetition and
 anchor cases exercise matcher paths that can succeed without consuming input,
-fail after scanning, and respect the start-position condition.
+fail after scanning, and respect the start-position condition. The byte and
+pregexp cases show that the exported byte constructors and parse-config variants
+are usable on small examples.
 
 ## Immediate Lesson
 
-The next Webify experiment should move from these core string-regexp shapes to
-byte regexps and richer regexp operators, starting with:
+The next Webify experiment should move from predicate matching to match result
+variants and replacement APIs, starting with:
 
 ```racket
-(regexp-match? (byte-regexp #"a") #"cat")
-(regexp-match? (pregexp "a|b") "b")
-(regexp-match? (regexp "a?") "bbb")
+(regexp-match-positions (regexp "a") "cat")
+(regexp-replace (regexp "a") "cat" "o")
+(regexp-replace* (regexp "a") "banana" "o")
 ```
 
 Once basic matching works, regexp literals can later be lifted into calls to the
