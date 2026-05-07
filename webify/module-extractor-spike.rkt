@@ -44,7 +44,15 @@
          webify-module-export-demand?
          webify-module-export-demand-module
          webify-module-export-demand-exports
+         webify-module-export-demand-reason
+         webify-module-export-demand-reason?
+         webify-module-export-demand-reason-module
+         webify-module-export-demand-reason-export
+         webify-module-export-demand-reason-importer
+         webify-module-export-demand-reason-import
+         webify-module-export-demand-reason-local
          webify-module-extractor-spike-import-export-demands
+         webify-module-extractor-spike-import-export-demand-reasons
          webify-module-extractor-spike/slice-exports
          webify-module-extractor-spikes->discovered-resolved-linklet-inputs
          webify-module-provider-cache
@@ -119,6 +127,7 @@
 
 (struct webify-module-provider-cache (fetch-provider table) #:transparent)
 (struct webify-module-export-demand (module exports) #:transparent)
+(struct webify-module-export-demand-reason (module export importer import local) #:transparent)
 
 ;; maybe-decompile-linklet : (or/c procedure? #f)
 ;;   Use the newer decompiler API when the host Racket provides it.
@@ -850,6 +859,27 @@
    (for/list ([import (in-list (webify-module-linklet-input-imports input))])
      (match-define (list _local dependency provider-export) import)
      (webify-module-export-demand dependency (list provider-export)))))
+
+;; webify-module-extractor-spike-import-export-demand-reasons : report reports ... -> reasons
+;;   Explain which imports retain provider exports for demand slicing.
+(define (webify-module-extractor-spike-import-export-demand-reasons report
+                                                                    provider-reports
+                                                                    #:dependencies [dependencies '()]
+                                                                    #:module-protocol-dependency [module-protocol-dependency #f])
+  (define input
+    (webify-module-extractor-spike->resolved-linklet-input/providers
+     report
+     provider-reports
+     #:dependencies dependencies
+     #:module-protocol-dependency module-protocol-dependency))
+  (for/list ([import (in-list (webify-module-linklet-input-imports input))])
+    (match-define (list local dependency provider-export) import)
+    (webify-module-export-demand-reason
+     dependency
+     provider-export
+     (webify-module-extractor-spike-name report)
+     local
+     local)))
 
 ;; remove-bound : (listof symbol?) (listof symbol?) -> (listof symbol?)
 ;;   Remove locally bound identifiers from a free-variable list.

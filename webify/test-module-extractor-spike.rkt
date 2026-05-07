@@ -270,6 +270,43 @@
     (list list-report))
    (list (webify-module-export-demand 'racket/list '(first)))))
 
+(test-case "provider reports explain imported provider export demands"
+  (define importer-report
+    (webify-module-extractor-spike
+     'use-list
+     '(#f)
+     '(0)
+     '()
+     '(((first first)))
+     '(y)
+     '(linklet (((first first))) (y)
+        (define-values (y) first))
+     #t
+     '()))
+  (define list-report
+    (webify-module-extractor-spike
+     'racket/list
+     '(#f)
+     '(0)
+     '()
+     '()
+     '(first rest)
+     '(linklet () (first rest)
+        (define-values (first) 'first-proc)
+        (define-values (rest) 'rest-proc))
+     #t
+     '()))
+  (check-equal?
+   (webify-module-extractor-spike-import-export-demand-reasons
+    importer-report
+    (list list-report))
+   (list (webify-module-export-demand-reason
+          'racket/list
+          'first
+          'use-list
+          'first
+          'first))))
+
 (test-case "report slicing keeps only demanded export definitions and imports"
   (define report
     (webify-module-extractor-spike

@@ -22,6 +22,8 @@
    webify-module-reports->required-provider-closure]
   [webify-module-extractor-spike-import-export-demands
    webify-module-report-import-export-demands]
+  [webify-module-extractor-spike-import-export-demand-reasons
+   webify-module-report-import-export-demand-reasons]
   [webify-module-extractor-spike/slice-exports
    webify-module-report/slice-exports]
   [webify-module-extractor-spikes->discovered-resolved-linklet-inputs
@@ -40,6 +42,13 @@
  webify-module-export-demand?
  webify-module-export-demand-module
  webify-module-export-demand-exports
+ webify-module-export-demand-reason
+ webify-module-export-demand-reason?
+ webify-module-export-demand-reason-module
+ webify-module-export-demand-reason-export
+ webify-module-export-demand-reason-importer
+ webify-module-export-demand-reason-import
+ webify-module-export-demand-reason-local
  webify-source-module->dependency-exports
  webify-source-modules->dependency-exports
  webify-source-module->linklet-input
