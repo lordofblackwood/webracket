@@ -30,6 +30,60 @@
                 '((ext-x a x)))
   (check-equal? (webify-module-registry-entry-exports b-entry) '(y)))
 
+(test-case "module linklet manifest parses inputs and roots"
+  (define manifest
+    (datum->webify-module-linklet-manifest
+     '(webify-module-linklet-manifest
+       (roots (b))
+       (input a
+              (linklet () (x)
+                (define-values (x) 10))
+              (imports ()))
+       (input b
+              (linklet (([ext-x x])) (y)
+                (define-values (y) (+ x 1)))
+              (imports ((ext-x a x)))))))
+  (check-equal? (webify-module-linklet-manifest-roots manifest) '(b))
+  (check-equal? (map webify-module-linklet-input-name
+                     (webify-module-linklet-manifest-inputs manifest))
+                '(a b))
+  (define registry (webify-module-linklet-manifest->registry manifest))
+  (check-equal? (webify-module-registry-plan
+                 registry
+                 (webify-module-linklet-manifest-roots manifest))
+                '(a b)))
+
+(test-case "module linklet manifest reads from a file"
+  (define source-dir (make-temporary-file "webracket-input-manifest-src-~a" 'directory))
+  (define manifest-path (build-path source-dir "inputs.rktd"))
+  (dynamic-wind
+    void
+    (lambda ()
+      (call-with-output-file manifest-path
+        (lambda (out)
+          (write
+           '(webify-module-linklet-manifest
+             (roots (b))
+             (input a
+                    (linklet () (x)
+                      (define-values (x) 10))
+                    (imports ()))
+             (input b
+                    (linklet (([ext-x x])) (y)
+                      (define-values (y) (+ x 1)))
+                    (imports ((ext-x a x)))))
+           out)
+          (newline out))
+        #:exists 'truncate/replace)
+      (define manifest (read-webify-module-linklet-manifest manifest-path))
+      (check-equal? (webify-module-linklet-manifest-roots manifest) '(b))
+      (check-equal? (webify-module-registry-names
+                     (webify-module-linklet-manifest->registry manifest))
+                    '(a b)))
+    (lambda ()
+      (with-handlers ([exn:fail:filesystem? void])
+        (delete-directory/files source-dir)))))
+
 (test-case "module linklet inputs validate through registry registration"
   (check-exn
    #rx"webify-module-linklet-input\\?"
@@ -51,6 +105,17 @@
              '(linklet (([ext-x x])) (y)
                 (define-values (y) x))
              '()))))))
+  (check-exn
+   #rx"expected webify module-linklet manifest datum"
+   (lambda ()
+     (datum->webify-module-linklet-manifest '(not-a-manifest))))
+  (check-exn
+   #rx"expected module-linklet input clause"
+   (lambda ()
+     (datum->webify-module-linklet-manifest
+      '(webify-module-linklet-manifest
+        (roots (bad))
+        (bad-input)))))
 
 (test-case "module linklet inputs feed the loader bridge"
   (define registry
