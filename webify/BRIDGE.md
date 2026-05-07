@@ -535,6 +535,38 @@ provide an explicit local-import dependency mapping:
  (dependencies ((ext-x a))))
 ```
 
+## Extractor Spike
+
+`webify/module-extractor-spike.rkt` records the current result of probing real
+compiled Racket modules. For a tiny source module:
+
+```racket
+(module a racket/base
+  (provide x)
+  (define x 10))
+```
+
+Racket compilation produces a `linklet-directory`. Its main bundle contains a
+phase-0 linklet object whose export metadata includes `x`:
+
+```racket
+(webify-module-extractor-spike-phase0-exports report)
+;; => '(x)
+```
+
+That is useful progress, but it is not enough to feed Webify's manifest bridge.
+The bridge currently consumes linklet datums such as:
+
+```racket
+(linklet () (x)
+  (define-values (x) 10))
+```
+
+The compiled module path gives us linklet objects, bundle keys, and import/export
+metadata. The remaining blocker is an object-to-datum adapter or a different
+Webify entry point that can consume compiled linklet objects directly. The spike
+therefore reports `manifest-ready?` as `#f` on purpose.
+
 The export `x` is represented by the cell `webify-export-cell0$0`. The lowered
 procedure writes the exported value into that cell with
 `module-variable-define!`. The adapter then exposes the cell value as the
