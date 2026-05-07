@@ -2665,6 +2665,26 @@
                              (equal? (unsafe-struct? other struct:parent) #f)
                              (equal? (unsafe-struct? 10 struct:parent) #f)))))
 
+              (list "unsafe-struct*-ref"
+                    (let-values ([(struct:s make-s s? s-ref s-set!)
+                                  (make-struct-type 'unsafe-star #f 3 0 #f)])
+                      (let ([s (make-s 1 2 3)])
+                        (and (equal? (unsafe-struct*-ref s 0) 1)
+                             (equal? (unsafe-struct*-ref s 1) 2)
+                             (equal? (unsafe-struct*-ref s 2) 3)))))
+
+              (list "unsafe-struct*-set!"
+                    (let-values ([(struct:s make-s s? s-ref s-set!)
+                                  (make-struct-type 'unsafe-star-mutable #f 3 0 #f null #f #f '(0 1 2))])
+                      (let ([s (make-s 1 2 3)])
+                        ;; WebRacket has no impersonators yet; the starred
+                        ;; operations are raw struct field operations.
+                        (unsafe-struct*-set! s 0 10)
+                        (unsafe-struct*-set! s 2 30)
+                        (and (equal? (unsafe-struct*-ref s 0) 10)
+                             (equal? (unsafe-struct*-ref s 1) 2)
+                             (equal? (unsafe-struct*-ref s 2) 30)))))
+
               (list "unsafe-vector-ref"
                     (equal? (unsafe-vector-ref '#(10 20 30) 1) 20))
 
