@@ -5,6 +5,8 @@
 
 (provide lower-module-variable-ops
          simplify-compatibility-apps
+         lower-simple-parameters
+         lower-trivial-continuation-prompts
          simplify-trivial-module-prompts
          lower-module-first-slice
          schemify-module-variable-free?
@@ -77,6 +79,49 @@
 
   (lower v))
 
+;; lower-trivial-continuation-prompts : any/c -> any/c
+;;   Lower prompt allocation/use needed by non-error startup paths.
+(define (lower-trivial-continuation-prompts v)
+  (define (lower v)
+    (reannotate
+     v
+     (match v
+       [`(make-continuation-prompt-tag)
+        ''webracket-continuation-prompt-tag]
+       [`(make-continuation-prompt-tag ,name)
+        (lower name)]
+       [`(call-with-continuation-prompt ,thunk . ,_args)
+        `(,(lower thunk))]
+       [`(unsafe-make-place-local ,value)
+        `(box ,(lower value))]
+       [`(unsafe-place-local-ref ,cell)
+        `(unbox ,(lower cell))]
+       [`(unsafe-place-local-set! ,cell ,value)
+        `(set-box! ,(lower cell) ,(lower value))]
+       [`(lambda ,formals . ,body)
+        `(lambda ,formals . ,(lower-list body))]
+       [`(case-lambda [,formalss . ,bodyss] ...)
+        `(case-lambda ,@(for/list ([formals (in-list formalss)]
+                                   [body (in-list bodyss)])
+                          `[,formals . ,(lower-list body)]))]
+       [`(quote ,_)
+        v]
+       [`(,_ . ,_)
+        (lower-list v)]
+       [`,_
+        v])))
+
+  ;; lower-list : list? -> list?
+  ;;   Lower each wrapped list element.
+  (define (lower-list l)
+    (cond
+      [(wrap-null? l) '()]
+      [(wrap-pair? l) (cons (lower (wrap-car l))
+                            (lower-list (wrap-cdr l)))]
+      [else (lower l)]))
+
+  (lower v))
+
 ;; simplify-compatibility-apps : any/c -> any/c
 ;;   Erase Schemify compatibility application markers for normal calls.
 (define (simplify-compatibility-apps v)
@@ -117,6 +162,57 @@
       [else (simplify l)]))
 
   (simplify v))
+
+;; lower-simple-parameters : any/c -> any/c
+;;   Lower make-parameter calls to a local mutable closure without parameterize.
+(define (lower-simple-parameters v)
+  (define (parameter-form init guard)
+    (define cell (gensym 'parameter-cell))
+    (define guard-var (gensym 'parameter-guard))
+    (define value (gensym 'parameter-value))
+    `(let ([,cell ,init]
+           [,guard-var ,guard])
+       (case-lambda
+         [() ,cell]
+         [(,value)
+          (set! ,cell (if ,guard-var (,guard-var ,value) ,value))
+          (void)])))
+
+  (define (lower v)
+    (reannotate
+     v
+     (match v
+       [`(make-parameter ,init)
+        (parameter-form (lower init) #f)]
+       [`(make-parameter ,init ,guard)
+        (parameter-form (lower init) (lower guard))]
+       [`(make-parameter ,init ,guard ,_name)
+        (parameter-form (lower init) (lower guard))]
+       [`(make-parameter ,init ,guard ,_name ,_realm)
+        (parameter-form (lower init) (lower guard))]
+       [`(lambda ,formals . ,body)
+        `(lambda ,formals . ,(lower-list body))]
+       [`(case-lambda [,formalss . ,bodyss] ...)
+        `(case-lambda ,@(for/list ([formals (in-list formalss)]
+                                   [body (in-list bodyss)])
+                          `[,formals . ,(lower-list body)]))]
+       [`(quote ,_)
+        v]
+       [`(,_ . ,_)
+        (lower-list v)]
+       [`,_
+        v])))
+
+  ;; lower-list : list? -> list?
+  ;;   Lower each wrapped list element.
+  (define (lower-list l)
+    (cond
+      [(wrap-null? l) '()]
+      [(wrap-pair? l) (cons (lower (wrap-car l))
+                            (lower-list (wrap-cdr l)))]
+      [else (lower l)]))
+
+  (lower v))
 
 ;; simplify-trivial-module-prompts : any/c -> any/c
 ;;   Erase direct module-prompt markers that do not need prompt behavior.
@@ -180,8 +276,10 @@
    (assert-schemify-module-variable-free
     (assert-first-slice-unsupported-free
      (simplify-trivial-module-prompts
-      (simplify-compatibility-apps
-       (lower-module-variable-ops v)))))))
+      (lower-trivial-continuation-prompts
+       (lower-simple-parameters
+        (simplify-compatibility-apps
+         (lower-module-variable-ops v)))))))))
 
 ;; schemify-module-variable-free? : any/c -> boolean?
 ;;   Check that schemify-shaped module variable forms have been lowered.

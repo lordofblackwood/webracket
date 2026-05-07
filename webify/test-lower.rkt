@@ -91,6 +91,29 @@
      #f
      #f)))
 
+(test-case "make-parameter lowers to mutable closure subset"
+  (define p
+    (eval (lower-simple-parameters
+           '(make-parameter 1 (lambda (v) (+ v 1)) 'p))
+          (make-base-namespace)))
+  (check-equal? (p) 1)
+  (check-equal? (p 10) (void))
+  (check-equal? (p) 11))
+
+(test-case "trivial continuation prompt allocation lowers for startup"
+  (check-equal? (lower-trivial-continuation-prompts
+                 '(make-continuation-prompt-tag 'regexp-error))
+                ''regexp-error)
+  (check-equal? (lower-trivial-continuation-prompts
+                 '(call-with-continuation-prompt thunk tag handler))
+                '(thunk))
+  (check-equal? (lower-trivial-continuation-prompts
+                 '(unsafe-place-local-ref (unsafe-make-place-local value)))
+                '(unbox (box value)))
+  (check-equal? (lower-trivial-continuation-prompts
+                 '(unsafe-place-local-set! cell value))
+                '(set-box! cell value)))
+
 (test-case "schemify module variable assertion catches missed forms"
   (check-false (schemify-module-variable-free? '(begin (variable-ref x))))
   (check-true (schemify-module-variable-free? '(quote (variable-ref x))))

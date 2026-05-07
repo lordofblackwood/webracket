@@ -82,6 +82,8 @@ access and no longer introduces Chez-style struct allocation:
 
 ```text
 run-first-slice-top-level regexp-linklet ; succeeds
+comp first-slice-output                 ; succeeds
+startup smoke with (js-log 123)         ; succeeds
 ```
 
 That means the regexp layer gets through demod and into Webify's first-slice
@@ -89,12 +91,32 @@ adapter, and the starred raw accessor/mutator shape is no longer the immediate
 blocker. Webify used to create a Chez/Schemify `unsafe-struct` call while
 inlining known constructors, but the regexp linklet itself does not contain that
 form. The WebRacket target now keeps constructor procedures from
-`make-struct-type` instead of inventing a Chez allocation primitive.
+`make-struct-type` instead of inventing a Chez allocation primitive. The startup
+smoke additionally needs three intentionally small lowerings:
+
+- `make-parameter` becomes a mutable closure with optional guard support, but no
+  `parameterize` semantics.
+- `make-continuation-prompt-tag`/`call-with-continuation-prompt` are lowered for
+  non-error startup paths only; WebRacket still does not support prompts.
+- `unsafe-make-place-local`/`unsafe-place-local-ref`/
+  `unsafe-place-local-set!` become box operations, which is enough for
+  WebRacket's single-place runtime.
+
+The next runtime blocker is calling the exported constructor:
+
+```racket
+(regexp? (regexp "a"))
+```
+
+Startup succeeds and `regexp`/`regexp?` are exported as procedures, but the
+constructor call still raises an uncaught WebAssembly exception. That puts the
+next investigation inside the regexp parser/compiler body, not in demod,
+first-slice lowering, compilation, or module startup.
 
 ## Immediate Lesson
 
-The next Webify experiment should consume the flattened linklet directly and
-classify its imports. If the bridge can lower/compose that linklet, regexp
-literals can later be lifted into calls to the linklet's `regexp`,
-`byte-regexp`, `pregexp`, and `byte-pregexp` exports, mirroring the literal
-lifting strategy in `src/cs/convert.rkt`.
+The next Webify experiment should instrument or reduce the body of the exported
+`regexp` constructor. Once that call works, regexp literals can later be lifted
+into calls to the linklet's `regexp`, `byte-regexp`, `pregexp`, and
+`byte-pregexp` exports, mirroring the literal lifting strategy in
+`src/cs/convert.rkt`.
