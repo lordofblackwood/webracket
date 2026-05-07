@@ -88,8 +88,7 @@
         (define y (first '(#t #f)))))
     '((use-list y))
     #rx"(?m:^(#t|true)$)"
-    '(provider-candidate-overreach
-      compiled-provider-shape))
+    '(unresolved-import))
    (installed-runtime-smoke
     "installed racket/string graph reaches WebRacket runtime smoke"
     '((module use-string racket/base

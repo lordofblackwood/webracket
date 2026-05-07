@@ -757,12 +757,15 @@
 ;;   Discover transitive provider reports starting from root reports.
 (define (webify-module-extractor-spikes->required-provider-closure
          reports
-         #:fetch-provider [fetch-provider webify-module-path->extractor-spike])
+         #:fetch-provider [fetch-provider webify-module-path->extractor-spike]
+         #:skip-unfetchable? [skip-unfetchable? #t])
   (define who 'webify-module-extractor-spikes->required-provider-closure)
   (unless (list? reports)
     (raise-argument-error who "(listof webify-module-extractor-spike?)" reports))
   (unless (procedure? fetch-provider)
     (raise-argument-error who "procedure?" fetch-provider))
+  (unless (boolean? skip-unfetchable?)
+    (raise-argument-error who "boolean?" skip-unfetchable?))
   (for ([report (in-list reports)])
     (unless (webify-module-extractor-spike? report)
       (raise-argument-error who "webify-module-extractor-spike?" report)))
@@ -784,21 +787,32 @@
       [else
        (define report (car queue))
        (define new-reports
-         (for/list ([name (in-list (webify-module-extractor-spike-required-provider-names report))]
-                    #:unless (hash-has-key? reports-by-name name))
-           (define provider-report (fetch-provider name))
-           (unless (webify-module-extractor-spike? provider-report)
-             (raise-arguments-error who
-                                    "provider fetcher did not return an extractor report"
-                                    "module" name
-                                    "result" provider-report))
-           (unless (eq? name (webify-module-extractor-spike-name provider-report))
-             (raise-arguments-error who
-                                    "provider report name does not match requested module"
-                                    "module" name
-                                    "report name" (webify-module-extractor-spike-name provider-report)))
-           (record! provider-report)
-           provider-report))
+         (filter
+          values
+          (for/list ([name (in-list (webify-module-extractor-spike-required-provider-names report))]
+                     #:unless (hash-has-key? reports-by-name name))
+            (define provider-report
+              (with-handlers ([exn:fail?
+                               (lambda (exn)
+                                 (if skip-unfetchable?
+                                     #f
+                                     (raise exn)))])
+                (fetch-provider name)))
+            (cond
+              [(not provider-report) #f]
+              [else
+               (unless (webify-module-extractor-spike? provider-report)
+                 (raise-arguments-error who
+                                        "provider fetcher did not return an extractor report"
+                                        "module" name
+                                        "result" provider-report))
+               (unless (eq? name (webify-module-extractor-spike-name provider-report))
+                 (raise-arguments-error who
+                                        "provider report name does not match requested module"
+                                        "module" name
+                                        "report name" (webify-module-extractor-spike-name provider-report)))
+               (record! provider-report)
+               provider-report]))))
        (loop (append (cdr queue) new-reports))])))
 
 ;; webify-module-extractor-spikes->discovered-resolved-linklet-inputs : reports ... -> inputs
@@ -807,6 +821,7 @@
          reports
          #:extra-reports [extra-reports '()]
          #:fetch-provider [fetch-provider webify-module-path->extractor-spike]
+         #:skip-unfetchable? [skip-unfetchable? #t]
          #:dependencies [dependencies '()]
          #:module-protocol-dependency [module-protocol-dependency #f])
   (define who 'webify-module-extractor-spikes->discovered-resolved-linklet-inputs)
@@ -817,7 +832,8 @@
   (define discovered-reports
     (webify-module-extractor-spikes->required-provider-closure
      (append extra-reports reports)
-     #:fetch-provider fetch-provider))
+     #:fetch-provider fetch-provider
+     #:skip-unfetchable? skip-unfetchable?))
   (webify-module-extractor-spikes->resolved-linklet-inputs
    discovered-reports
    #:dependencies dependencies

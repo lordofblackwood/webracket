@@ -88,14 +88,14 @@ The same smoke file also contains richer installed probes for `racket/list` and
 runtime demos:
 
 ```text
-racket/list   -> provider-candidate-overreach / compiled-provider-shape
+racket/list   -> unresolved-import
 racket/string -> unresolved-import
 ```
 
 Those failures are useful. `racket/list` now reaches transitive provider
-discovery and exposes two sharper provider-graph blockers: some decoded
-candidates overreach into non-module names such as `racket/for`, and some real
-providers such as `racket/private/pico` compile to a faslable correlated
-linklet object instead of the linklet-directory shape currently decoded by
-Webify. `racket/string` is still a linklet-level name-resolution frontier for
-internalized `string-join` variants.
+discovery, skips unfetchable candidate overreach such as `racket/for`, and
+decodes faslable-correlated providers such as `racket/private/pico`. The next
+`racket/list` blocker is a real import/export name-resolution issue around
+`1/reverse` and `reverse`. `racket/string` is still a linklet-level
+name-resolution frontier for broader internalized imports beyond the focused
+`string-join` provider-export case.

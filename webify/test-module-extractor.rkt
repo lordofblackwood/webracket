@@ -168,6 +168,39 @@
                 '(dep/a dep/b dep/c))
   (check-equal? (sort fetched symbol<?) '(dep/a dep/b dep/c)))
 
+(test-case "stable provider closure skips unfetchable candidates"
+  (define root-report (synthetic-report 'root '(dep/a dep/missing)))
+  (define dep-a-report (synthetic-report 'dep/a '()))
+  (define fetched '())
+  (define closure
+    (webify-module-reports->required-provider-closure
+     (list root-report)
+     #:fetch-provider
+     (lambda (name)
+       (set! fetched (append fetched (list name)))
+       (case name
+         [(dep/a) dep-a-report]
+         [else (raise-arguments-error 'fetch-provider
+                                      "no such provider"
+                                      "module" name)]))))
+  (check-equal? (map webify-module-report-name closure)
+                '(root dep/a))
+  (check-equal? (sort fetched symbol<?)
+                '(dep/a dep/missing))
+  (check-exn
+   #rx"no such provider"
+   (lambda ()
+     (webify-module-reports->required-provider-closure
+      (list root-report)
+      #:skip-unfetchable? #f
+      #:fetch-provider
+      (lambda (name)
+        (case name
+          [(dep/a) dep-a-report]
+          [else (raise-arguments-error 'fetch-provider
+                                       "no such provider"
+                                       "module" name)]))))))
+
 (test-case "stable provider cache reuses fetched reports across closures"
   (define root-a (synthetic-report 'root/a '(dep/shared)))
   (define root-b (synthetic-report 'root/b '(dep/shared)))
