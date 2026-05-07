@@ -645,15 +645,20 @@
   (check-equal? (webify-module-linklet-input-imports input)
                 '((local-name dep/mod external-name))))
 
-(test-case "import map reports source-level require rename aliases"
+(test-case "import map reports compiled module-binding rename aliases"
   (define phase0-linklet
     '(linklet (((reverse 1/reverse))) () (void)))
+  (define decl-linklet
+    '(linklet () (provides)
+       (define-values (provides)
+         '(reverse #:module-binding alt-reverse 0 #f #f ()))))
   (define report
     (webify-module-extractor-spike
      'racket/private/list
      '(#f)
-     '(0)
-     (list (webify-module-bundle-entry 0 'linklet '(((reverse 1/reverse))) '() phase0-linklet #f))
+     '(0 decl)
+     (list (webify-module-bundle-entry 0 'linklet '(((reverse 1/reverse))) '() phase0-linklet #f)
+           (webify-module-bundle-entry 'decl 'linklet '() '(provides) decl-linklet #f))
      '(((reverse 1/reverse)))
      '()
      phase0-linklet
@@ -661,35 +666,34 @@
      '()))
   (define import-map (webify-module-extractor-spike-import-map report))
   (define rename-aliases (webify-module-import-map-require-rename-aliases import-map))
-  (check-not-false
-   (or (member '(1/reverse racket/private/pico alt-reverse) rename-aliases)
-       (member '(1/reverse racket/private/reverse alt-reverse) rename-aliases)))
+  (check-equal? rename-aliases '((1/reverse alt-reverse)))
   (check-equal? (webify-module-import-map-missing-alias-import-groups import-map)
-                '())
-  (define required-provider-names
-    (webify-module-extractor-spike-required-provider-names report))
-  (check-not-false
-   (or (member 'racket/private/pico required-provider-names)
-       (member 'racket/private/reverse required-provider-names))))
+                '()))
 
-(test-case "source-level require rename aliases resolve private list reverse"
+(test-case "compiled module-binding rename aliases resolve private list reverse"
   (define phase0-linklet
     '(linklet (((reverse 1/reverse))) (uses-reverse)
        (define-values (uses-reverse) 1/reverse)))
+  (define decl-linklet
+    '(linklet () (provides)
+       (define-values (provides)
+         '(reverse #:module-binding alt-reverse 0 #f #f ()))))
   (define report
     (webify-module-extractor-spike
      'racket/private/list
      '(#f)
-     '(0)
-     (list (webify-module-bundle-entry 0 'linklet '(((reverse 1/reverse))) '(uses-reverse) phase0-linklet #f))
+     '(0 decl)
+     (list (webify-module-bundle-entry 0 'linklet '(((reverse 1/reverse))) '(uses-reverse) phase0-linklet #f)
+           (webify-module-bundle-entry 'decl 'linklet '() '(provides) decl-linklet #f))
      '(((reverse 1/reverse)))
      '(uses-reverse)
      phase0-linklet
      #t
      '()))
   (define import-map (webify-module-extractor-spike-import-map report))
-  (match-define (list _local dependency provider-export)
+  (match-define (list _local provider-export)
     (car (webify-module-import-map-require-rename-aliases import-map)))
+  (define dependency 'racket/private/pico)
   (define provider-report
     (webify-module-extractor-spike
      dependency
@@ -709,24 +713,30 @@
   (check-equal? (webify-module-linklet-input-imports input)
                 `((1/reverse ,dependency ,provider-export))))
 
-(test-case "multi-report resolver threads source-level require rename aliases"
+(test-case "multi-report resolver threads compiled rename aliases"
   (define phase0-linklet
     '(linklet (((reverse 1/reverse))) (uses-reverse)
        (define-values (uses-reverse) 1/reverse)))
+  (define decl-linklet
+    '(linklet () (provides)
+       (define-values (provides)
+         '(reverse #:module-binding alt-reverse 0 #f #f ()))))
   (define report
     (webify-module-extractor-spike
      'racket/private/list
      '(#f)
-     '(0)
-     (list (webify-module-bundle-entry 0 'linklet '(((reverse 1/reverse))) '(uses-reverse) phase0-linklet #f))
+     '(0 decl)
+     (list (webify-module-bundle-entry 0 'linklet '(((reverse 1/reverse))) '(uses-reverse) phase0-linklet #f)
+           (webify-module-bundle-entry 'decl 'linklet '() '(provides) decl-linklet #f))
      '(((reverse 1/reverse)))
      '(uses-reverse)
      phase0-linklet
      #t
      '()))
-  (match-define (list _local dependency provider-export)
+  (match-define (list _local provider-export)
     (car (webify-module-import-map-require-rename-aliases
           (webify-module-extractor-spike-import-map report))))
+  (define dependency 'racket/private/pico)
   (define provider-report
     (webify-module-extractor-spike
      dependency

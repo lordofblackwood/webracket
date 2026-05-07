@@ -984,15 +984,15 @@ mean Webify has recovered a source-level mapping to public `string-join`; it
 means Webify has enough linklet-level information to compose the compiled
 importer and provider safely.
 
-This differs from the `racket/private/list` reverse case. There, source has an
-explicit require rename:
+This differs from the `racket/private/list` reverse case. The compiled bundle
+contains provide metadata equivalent to the source rename:
 
 ```racket
 (require (rename-in "pico.rkt" [alt-reverse reverse]))
 ```
 
 so Webify can derive an alias from importer name `reverse` to provider export
-`alt-reverse`. For `racket/string`, the current importer-side
+`alt-reverse` without reading the source file. For `racket/string`, the current importer-side
 `string-join.1`/`string-join9.1` group is not explained by source-level
 `rename-in` metadata in the same way. The bridge should resolve it from
 compiled provider export rows, not from a fabricated public-name mapping.
@@ -1008,7 +1008,7 @@ provider export id       name exported by the provider module
 provider implementation  binding name inside the provider source/linklet
 ```
 
-For `racket/private/list`, the source contains:
+For `racket/private/list`, the source-level shape is:
 
 ```racket
 (require (rename-in "pico.rkt" [alt-reverse reverse]))
@@ -1027,14 +1027,15 @@ local id:            1/reverse
 source require name: reverse
 ```
 
-The source-level rename supplies the missing provider side:
+The compiled `decl` linklet's `provides` metadata supplies the missing
+provider export side:
 
 ```racket
-provider module:    racket/private/pico
 provider export id: alt-reverse
 ```
 
-So the registry import triple should be:
+The provider module is filled in by matching that provider export against the
+discovered provider export rows. So the registry import triple should be:
 
 ```racket
 (1/reverse racket/private/pico alt-reverse)

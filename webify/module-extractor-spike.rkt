@@ -67,7 +67,6 @@
 (require racket/linklet
          racket/list
          racket/match
-         racket/path
          racket/string
          syntax/modcode
          "module-input.rkt")
@@ -337,89 +336,15 @@
                             "expected a simple module path"
                             "module path" module-path)]))
 
-;; source-module-path : symbol? -> (or/c path? #f)
-;;   Locate the installed source file for a simple collection module name.
-(define (source-module-path name)
-  (define parts (string-split (symbol->string name) "/"))
-  (and (pair? parts)
-       (let ([file (string-append (car (reverse parts)) ".rkt")]
-             [collections (reverse (cdr (reverse parts)))])
-         (with-handlers ([exn:fail? (lambda (_exn) #f)])
-           (apply collection-file-path file collections)))))
-
-;; relative-module-path->dependency-name : symbol? any/c -> (or/c symbol? #f)
-;;   Resolve a source-level relative require path against a simple module name.
-(define (relative-module-path->dependency-name base-name module-path)
-  (cond
-    [(symbol? module-path) module-path]
-    [(string? module-path)
-     (define base-parts (string-split (symbol->string base-name) "/"))
-     (define base-dir (reverse (cdr (reverse base-parts))))
-     (define as-strings
-       (string-split
-        (path->string
-         (simplify-path (build-path (apply build-path base-dir) module-path) #f))
-        "/"))
-     (and (pair? as-strings)
-          (let* ([last-part (car (reverse as-strings))]
-                 [last-no-suffix (if (string-suffix? last-part ".rkt")
-                                     (substring last-part 0 (- (string-length last-part) 4))
-                                     last-part)])
-            (string->symbol
-             (string-join (append (reverse (cdr (reverse as-strings)))
-                                  (list last-no-suffix))
-                          "/"))))]
-    [else #f]))
-
-;; rename-require-specs : any/c -> (listof (list/c any/c symbol? symbol?))
-;;   Decode source-level require renames as provider-module/provider-export/local-name specs.
-(define (rename-require-specs spec)
-  (match spec
-    [`(rename-in ,module-path [,provider-export ,local-name] ...)
-     (for/list ([provider-export (in-list provider-export)]
-                [local-name      (in-list local-name)])
-       (list module-path provider-export local-name))]
-    [`(rename ,module-path ,local-name ,provider-export)
-     (list (list module-path provider-export local-name))]
-    [_ '()]))
-
-;; source-require-rename-specs : symbol? -> (listof (list/c symbol? symbol? symbol?))
-;;   Decode simple source-level require renames from an installed module.
-(define (source-require-rename-specs name)
-  (define path (source-module-path name))
-  (cond
-    [path
-     (define datum
-       (with-handlers ([exn:fail? (lambda (_exn) #f)])
-         (call-with-input-file path read)))
-     (match datum
-       [`(module ,_name ,_language ,body ...)
-        (append*
-         (for/list ([form (in-list body)])
-           (match form
-             [(or `(require ,spec ...)
-                  `(#%require ,spec ...))
-              (append*
-               (for/list ([raw-spec (in-list spec)])
-                 (for/list ([rename-spec (in-list (rename-require-specs raw-spec))]
-                            #:do [(match-define (list module-path provider-export local-name)
-                                    rename-spec)
-                                  (define dependency
-                                    (relative-module-path->dependency-name name module-path))]
-                            #:when dependency)
-                   (list dependency provider-export local-name))))]
-             [_ '()])))]
-       [_ '()])]
-    [else '()]))
-
 ;; phase-to-link-modules-candidates : any/c any/c -> (listof (list/c exact-integer? symbol?))
 ;;   Decode simple phase-to-link-modules expressions into candidate dependencies.
 (define (phase-to-link-modules-candidates expr mpi-vector)
   (define (mpi-ref idx)
-    (and (vector? mpi-vector)
-         (exact-nonnegative-integer? idx)
-         (< idx (vector-length mpi-vector))
-         (module-path-index->dependency-name (vector-ref mpi-vector idx))))
+    (and (exact-nonnegative-integer? idx)
+         (or (and (vector? mpi-vector)
+                  (< idx (vector-length mpi-vector))
+                  (module-path-index->dependency-name (vector-ref mpi-vector idx)))
+             #f)))
   (define (decode-module-use use)
     (match use
       [`(module-use (unsafe-vector*-ref .mpi-vector ,idx) ,_phase)
@@ -500,15 +425,69 @@
          (list local (car phase0-candidates) external))))
 
 ;; import-group->require-rename-aliases : import-group rename-specs -> aliases
-;;   Use source-level require renames to connect local imports to provider exports.
-(define (import-group->require-rename-aliases group require-rename-specs)
+;;   Use compiled provide metadata to connect local imports to provider exports.
+(define (import-group->require-rename-aliases group compiled-rename-specs)
   (for*/list ([binding (in-list group)]
               #:do [(match-define (list local external) binding)]
-              [rename-spec (in-list require-rename-specs)]
-              #:do [(match-define (list dependency provider-export local-name)
-                      rename-spec)]
+              [rename-spec (in-list compiled-rename-specs)]
+              #:do [(match-define (list local-name provider-export) rename-spec)]
               #:when (symbolic-name=? external local-name))
-    (list local dependency provider-export)))
+    (list local provider-export)))
+
+;; flatten-datum : any/c -> list?
+;;   Flatten a datum/vector tree in source order for simple serialized metadata scans.
+(define (flatten-datum v)
+  (cond
+    [(pair? v)   (append (flatten-datum (car v))
+                         (flatten-datum (cdr v)))]
+    [(vector? v) (append* (map flatten-datum (vector->list v)))]
+    [(null? v)   '()]
+    [else        (list v)]))
+
+;; compiled-module-binding-rename-specs : any/c -> (listof (list/c symbol? symbol?))
+;;   Decode provider-export aliases from serialized `provides` module-binding records.
+(define (compiled-module-binding-rename-specs provides-expr)
+  (define flat (flatten-datum provides-expr))
+  (define (provider-export-after-module-binding rest)
+    (match rest
+      [(list* (? symbol? provider-export)
+              (? exact-integer?)
+              #f
+              #f
+              _)
+       provider-export]
+      [(cons _ more) (provider-export-after-module-binding more)]
+      [_ #f]))
+  (let loop ([items flat]
+             [specs '()])
+    (match items
+      ['() (reverse specs)]
+      [(list* (? symbol? local-name) '#:module-binding rest)
+       (define provider-export (provider-export-after-module-binding rest))
+       (loop rest
+             (if (and provider-export
+                      (not (symbolic-name=? local-name provider-export)))
+                 (cons (list local-name provider-export) specs)
+                 specs))]
+      [(cons _ more) (loop more specs)])))
+
+;; resolve-compiled-rename-aliases : aliases dependency-exports -> aliases
+;;   Fill provider modules for compiled rename aliases using provider export rows.
+(define (resolve-compiled-rename-aliases aliases dependency-exports)
+  (filter
+   values
+   (for/list ([alias (in-list aliases)])
+    (match-define (list local provider-export) alias)
+    (define matches
+      (for/list ([entry (in-list dependency-exports)]
+                 #:do [(match-define (list dependency exports) entry)]
+                 #:when (for/or ([export (in-list exports)])
+                          (symbolic-name=? export provider-export)))
+        (list dependency provider-export)))
+    (match matches
+      [(list (list dependency provider-export))
+       (list local dependency provider-export)]
+      [_ #f]))))
 
 ;; webify-module-extractor-spike-import-map : report -> webify-module-import-map?
 ;;   Build an observational import-map report from phase-0, data, and decl linklets.
@@ -543,12 +522,12 @@
     (phase-to-link-modules-candidates
      decl-phase-to-link-modules-expression
      data-module-path-indexes))
-  (define require-rename-specs
-    (source-require-rename-specs (webify-module-extractor-spike-name report)))
+  (define compiled-rename-specs
+    (compiled-module-binding-rename-specs decl-provides-expression))
   (define require-rename-aliases
     (apply append
            (for/list ([group (in-list unresolved-groups)])
-             (import-group->require-rename-aliases group require-rename-specs))))
+             (import-group->require-rename-aliases group compiled-rename-specs))))
   (define alias-results
     (for/list ([group (in-list unresolved-groups)])
       (cons group (import-group->aliases group required-module-candidates))))
@@ -564,7 +543,7 @@
                            (not (cdr result))
                            (null? (import-group->require-rename-aliases
                                    group
-                                   require-rename-specs))))
+                                   compiled-rename-specs))))
       group))
   (webify-module-import-map
    import-groups
@@ -582,7 +561,7 @@
    missing-alias-import-groups
    (cond
      [(pair? require-rename-aliases)
-      '("source-level require rename metadata supplies provider export aliases"
+      '("compiled provide metadata supplies provider export aliases"
         "export tables are still required before resolving imports")]
      [(not decl-linklet)
       '("decl/data metadata is unavailable on this host because linklet decompilation is unavailable")]
@@ -615,9 +594,7 @@
                                     import-map))]
                #:when (= 0 (car candidate)))
       (cadr candidate))
-    (for/list ([alias (in-list (webify-module-import-map-require-rename-aliases
-                                import-map))])
-      (cadr alias)))))
+    '())))
 
 ;; webify-module-extractor-spike->required-provider-spikes : report -> (listof report)
 ;;   Compile one-level installed provider reports named by the report's require metadata.
@@ -782,7 +759,10 @@
        (define explicit-locals (map car dependencies))
        (define explicit-or-alias-locals
          (append explicit-locals
-                 (for/list ([alias (in-list (append import-aliases require-rename-aliases))]
+                 (for/list ([alias (in-list (append import-aliases
+                                                     (resolve-compiled-rename-aliases
+                                                      require-rename-aliases
+                                                      dependency-exports)))]
                             #:do [(match-define (list local _dependency _export) alias)]
                             #:when (assoc local module-bindings))
                    local)))
@@ -808,7 +788,9 @@
         `(linklet (,module-bindings) () (void))
         dependency-exports
         #:dependencies (append dependencies inferred-dependencies)
-        #:import-aliases (append import-aliases require-rename-aliases))]))
+        #:import-aliases
+        (append import-aliases
+                (resolve-compiled-rename-aliases require-rename-aliases dependency-exports)))]))
   (define triples-by-import
     (for/hasheq ([triple (in-list (append module-protocol-triples module-triples))])
       (values (car triple) triple)))
