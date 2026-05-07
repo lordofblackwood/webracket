@@ -28,5 +28,5 @@ PLTCOLLECTS="$PLTCOLLECTS_PREFIX:" \
                 "$SCRIPT_DIR/test-module-instance.rkt" \
                 "$SCRIPT_DIR/test-module-composer.rkt" \
                 "$SCRIPT_DIR/test-module-registry.rkt" \
-                "$SCRIPT_DIR/test-module-protocol.rkt" \
+                "$SCRIPT_DIR/test-module-protocol-racket92.rkt" \
                 "$SCRIPT_DIR/test-module-extractor-racket92.rkt"
