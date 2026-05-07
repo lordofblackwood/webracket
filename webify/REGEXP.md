@@ -85,6 +85,8 @@ run-first-slice-top-level regexp-linklet ; succeeds
 comp first-slice-output                 ; succeeds
 startup smoke with (js-log 123)         ; succeeds
 (regexp? (regexp "a"))                  ; succeeds
+(regexp-match? (regexp "a") "a")        ; succeeds
+(regexp-match (regexp "a") "cat")       ; succeeds
 ```
 
 That means the regexp layer gets through demod and into Webify's first-slice
@@ -108,23 +110,28 @@ smoke additionally needs three intentionally small lowerings:
   current hash representation already maps these literals to mutable hash
   objects.
 
-The exported constructor now works for the simplest string regexp:
+The exported constructor and basic matcher path now work for the simplest
+string regexp:
 
 ```racket
 (regexp? (regexp "a"))
+(regexp-match? (regexp "a") "a")
+(regexp-match (regexp "a") "cat")
 ```
 
 That exercises parsing, conversion, validation, matcher compilation, and
-allocation of the final regexp struct for a literal character pattern.
+allocation of the final regexp struct for a literal character pattern, plus the
+fast string matcher used by `regexp-match?` and `regexp-match`.
 
 ## Immediate Lesson
 
-The next Webify experiment should move from constructor startup to useful
-matching calls, starting with:
+The next Webify experiment should move from a literal-character string regexp
+to adjacent shape coverage, starting with:
 
 ```racket
-(regexp-match? (regexp "a") "a")
-(regexp-match (regexp "a") "cat")
+(regexp-match? (regexp "ab") "xxabyy")
+(regexp-match? (regexp "[ab]") "b")
+(regexp-match (regexp "(a)") "cat")
 ```
 
 Once basic matching works, regexp literals can later be lifted into calls to the
