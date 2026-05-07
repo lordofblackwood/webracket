@@ -45,10 +45,11 @@ The old `racket/list` blockers are no longer first failures:
 
 | Module | Current status | First blocker |
 | --- | --- | --- |
-| `racket/string` | Focused `string-join.1`/`string-join9.1` provider-export resolution works; sliced rename aliases are preserved | `add-between.1` unresolved import |
+| `racket/string` | Installed `string-join` smoke reaches WebRacket and prints `a,b`; sliced rename aliases and transitive `racket/list` providers are preserved | Broader string exports still need coverage |
 
-`racket/string` depends on `racket/list` for `add-between`, so progress on
-`racket/list` is expected to move this frontier too.
+`racket/string` depends on `racket/list` for `add-between`. The bridge now
+recovers that transitive provider from compiled module-path-index metadata when
+`phase-to-link-modules` is too sparse to name the public provider directly.
 
 ## Demand Slicer Boundaries
 

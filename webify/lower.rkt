@@ -233,14 +233,19 @@
 ;;   Return the first unsupported compatibility form rator, if any.
 (define (first-slice-unsupported-rator v)
   (let loop ([v v])
+    (define (loop-list l)
+      (cond
+        [(wrap-null? l) #f]
+        [(wrap-pair? l) (or (loop (wrap-car l))
+                            (loop-list (wrap-cdr l)))]
+        [else (loop l)]))
     (match v
       [`(quote ,_)
        #f]
       [`(,rator . ,_)
        (or (and (first-slice-unsupported-rator? (unwrap rator))
                 (unwrap rator))
-           (for/or ([e (in-list (unwrap v))])
-             (loop e)))]
+           (loop-list v))]
       [`,_
        #f])))
 

@@ -122,8 +122,8 @@
         (define y (string-join '("a" "b") ","))))
     '((use-string y))
     #rx"(?m:^a,b$)"
-    '(unresolved-import)
-    #rx"import: 'add-between[.]1\n  export: 'add-between[.]1")))
+    '()
+    '())))
 
 ;; check-installed-runtime-failure : installed-runtime-smoke? webify-module-failure? -> void?
 ;;   Validate an expected extraction, bridge, compiler, or runtime failure.

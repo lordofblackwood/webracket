@@ -495,6 +495,23 @@
          [_ (reverse candidates)]))]
     [_ '()]))
 
+;; data-module-path-index-candidates : any/c symbol? -> (listof (list/c 0 symbol?))
+;;   Fall back to phase-0 provider candidates from all simple serialized MPIs.
+(define (data-module-path-index-candidates mpi-vector self-name)
+  (define (candidate? name)
+    (and name
+         (not (eq? name self-name))
+         (not (memq name '(racket/base racket/private/base #%unsafe)))))
+  (cond
+    [(not (vector? mpi-vector)) '()]
+    [else
+     (remove-duplicates
+      (filter
+       values
+       (for/list ([idx (in-range (vector-length mpi-vector))])
+         (define name (mpi-index->dependency-name mpi-vector idx self-name))
+         (and (candidate? name) (list 0 name)))))]))
+
 ;; generated-import-name? : symbol? -> boolean?
 ;;   Heuristically recognize generated internal import names in decompiled linklets.
 (define (generated-import-name? name)
@@ -700,10 +717,15 @@
   (define decl-phase-to-link-modules-expression
     (and decl-linklet (linklet-body-definition-expression decl-linklet 'phase-to-link-modules)))
   (define required-module-candidates
-    (phase-to-link-modules-candidates
-     decl-phase-to-link-modules-expression
-     data-module-path-indexes
-     (webify-module-extractor-spike-name report)))
+    (remove-duplicates
+     (append
+      (phase-to-link-modules-candidates
+       decl-phase-to-link-modules-expression
+       data-module-path-indexes
+       (webify-module-extractor-spike-name report))
+      (data-module-path-index-candidates
+       data-module-path-indexes
+       (webify-module-extractor-spike-name report)))))
   (define compiled-rename-specs
     (compiled-module-binding-rename-specs
      decl-provides-expression
@@ -715,7 +737,11 @@
              (import-group->require-rename-aliases group compiled-rename-specs))))
   (define alias-results
     (for/list ([group (in-list unresolved-groups)])
-      (cons group (import-group->aliases group required-module-candidates))))
+      (define require-aliases
+        (import-group->require-rename-aliases group compiled-rename-specs))
+      (cons group
+            (and (null? require-aliases)
+                 (import-group->aliases group required-module-candidates)))))
   (define import-aliases
     (apply append
            (for/list ([result (in-list alias-results)]
