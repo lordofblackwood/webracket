@@ -14,6 +14,8 @@
          webify-module-import-map
          webify-module-import-map?
          webify-module-import-map-phase0-import-groups
+         webify-module-import-map-phase0-structured-import-groups
+         webify-module-import-map-phase0-decompiled-import-groups
          webify-module-import-map-module-protocol-import-groups
          webify-module-import-map-unresolved-import-groups
          webify-module-import-map-data-module-path-indexes
@@ -69,6 +71,8 @@
 
 (struct webify-module-import-map
   (phase0-import-groups
+   phase0-structured-import-groups
+   phase0-decompiled-import-groups
    module-protocol-import-groups
    unresolved-import-groups
    data-module-path-indexes
@@ -323,6 +327,12 @@
   (for/list ([group (in-list (webify-module-extractor-spike-phase0-imports report))])
     (normalize-linklet-import-group 'webify-module-extractor-spike-import-map group)))
 
+;; linklet-datum-import-groups : linklet-datum -> import-groups
+;;   Return normalized import groups from a decompiled linklet datum.
+(define (linklet-datum-import-groups linklet)
+  (match (webify-normalize-linklet-imports linklet)
+    [`(linklet ,importss ,_exports . ,_body) importss]))
+
 ;; protocol-import-group? : import-group -> boolean?
 ;;   Check whether every binding in a group is supplied by the module protocol.
 (define (protocol-import-group? group)
@@ -344,7 +354,14 @@
   (define who 'webify-module-extractor-spike-import-map)
   (unless (webify-module-extractor-spike? report)
     (raise-argument-error who "webify-module-extractor-spike?" report))
-  (define import-groups (phase0-import-groups report))
+  (define structured-import-groups (phase0-import-groups report))
+  (define decompiled-import-groups
+    (cond
+      [(webify-module-extractor-spike-phase0-linklet-datum report)
+       (linklet-datum-import-groups
+        (webify-module-extractor-spike-phase0-linklet-datum report))]
+      [else structured-import-groups]))
+  (define import-groups decompiled-import-groups)
   (define protocol-groups (filter protocol-import-group? import-groups))
   (define unresolved-groups (filter (lambda (group)
                                       (not (protocol-import-group? group)))
@@ -368,6 +385,8 @@
     (filter import-group-needs-alias-evidence? unresolved-groups))
   (webify-module-import-map
    import-groups
+   structured-import-groups
+   decompiled-import-groups
    protocol-groups
    unresolved-groups
    data-module-path-indexes
