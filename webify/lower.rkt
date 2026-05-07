@@ -294,8 +294,6 @@
             #%struct-field-mutator
             unsafe-struct
             unsafe-sealed-struct?
-            unsafe-struct*-ref
-            unsafe-struct*-set!
             impersonate-ref
             impersonate-set!
             #%struct-ref-error

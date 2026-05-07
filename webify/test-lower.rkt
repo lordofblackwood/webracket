@@ -101,7 +101,8 @@
 (test-case "first-slice unsupported assertion catches compatibility forms"
   (check-false (first-slice-unsupported-free? '(#%app f x)))
   (check-false (first-slice-unsupported-free? '(with-continuation-mark* push k v body)))
-  (check-false (first-slice-unsupported-free? '(unsafe-struct*-ref s 0)))
+  (check-true (first-slice-unsupported-free? '(unsafe-struct*-ref s 0)))
+  (check-true (first-slice-unsupported-free? '(unsafe-struct*-set! s 0 v)))
   (check-true (first-slice-unsupported-free? '(unsafe-struct? s struct:s)))
   (check-true (first-slice-unsupported-free? '(#%app/no-return f x)))
   (check-true (first-slice-unsupported-free? '(raise-binding-result-arity-error 1 args)))
