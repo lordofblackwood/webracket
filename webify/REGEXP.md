@@ -67,6 +67,16 @@ regexp-replace*
 regexp?
 ```
 
+The generated linklet is closed at the linklet boundary:
+
+```racket
+(cadr regexp-linklet) ; => '()
+```
+
+So the next blocker is not linklet import wiring. The next blocker is whether
+Webify and WebRacket can lower and compile the forms, primitives, struct shapes,
+and literals that remain inside the flattened body.
+
 ## Immediate Lesson
 
 The next Webify experiment should consume the flattened linklet directly and

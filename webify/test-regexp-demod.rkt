@@ -96,6 +96,8 @@
         (check-true (file-exists? out-rktl))
         (define datum (call-with-input-file out-rktl read))
         (check-equal? (car datum) 'linklet)
+        (check-equal? (cadr datum) '())
+        (check-true (positive? (length (cdddr datum))))
         (check-equal? (sort (linklet-export-external-names datum) symbol<?)
                       (sort regexp-exports symbol<?)))
       (lambda ()
