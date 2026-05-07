@@ -177,6 +177,33 @@
                            "dependency" name))
   (cadr found))
 
+;; symbolic-name=? : symbol? symbol? -> boolean?
+;;   Compare generated linklet names by printed identity when eq? is too strict.
+(define (symbolic-name=? a b)
+  (or (eq? a b)
+      (string=? (symbol->string a) (symbol->string b))))
+
+;; dependency-export-ref : symbol? dependency-name (listof symbol?) symbol? -> symbol?
+;;   Find the provider export symbol that corresponds to an import's external name.
+(define (dependency-export-ref who dependency exports external)
+  (define matches
+    (for/list ([export (in-list exports)]
+               #:when (symbolic-name=? export external))
+      export))
+  (match matches
+    [(list export) export]
+    ['()
+     (raise-arguments-error who
+                            "dependency does not export required name"
+                            "dependency" dependency
+                            "export" external)]
+    [_
+     (raise-arguments-error who
+                            "dependency export name is ambiguous"
+                            "dependency" dependency
+                            "export" external
+                            "matches" matches)]))
+
 ;; webify-module-linklet-input-dependency-exports : webify-module-linklet-input? -> dependency-export-row
 ;;   Derive a resolver export row from the provider linklet's compiled exports.
 (define (webify-module-linklet-input-dependency-exports input)
@@ -200,25 +227,22 @@
   (validate-dependency-exports! who dependency-exports)
   dependency-exports)
 
-;; resolve-import-dependency : symbol? (listof dependency-exports?) hash? symbol? symbol? -> symbol?
-;;   Resolve one import binding to a dependency module.
-(define (resolve-import-dependency who dependency-exports dependencies local external)
+;; resolve-import-source : symbol? dependency-exports hash? symbol? symbol? -> (list/c symbol? symbol?)
+;;   Resolve one import binding to its provider module and provider export symbol.
+(define (resolve-import-source who dependency-exports dependencies local external)
   (define explicit (hash-ref dependencies local #f))
   (cond
     [explicit
      (define exports (dependency-exports-ref who dependency-exports explicit))
-     (unless (memq external exports)
-       (raise-arguments-error who
-                              "explicit import dependency does not export required name"
-                              "import" local
-                              "dependency" explicit
-                              "export" external))
-     explicit]
+     (list explicit
+           (dependency-export-ref who explicit exports external))]
     [else
      (define candidates
        (for/list ([entry (in-list dependency-exports)]
-                  #:when (memq external (cadr entry)))
-         (car entry)))
+                  #:do [(match-define (list dependency exports) entry)]
+                  #:when (for/or ([export (in-list exports)])
+                           (symbolic-name=? export external)))
+         dependency))
      (cond
        [(null? candidates)
         (raise-arguments-error who
@@ -226,7 +250,10 @@
                                "import" local
                                "export" external)]
        [(null? (cdr candidates))
-        (car candidates)]
+        (define dependency (car candidates))
+        (define exports (dependency-exports-ref who dependency-exports dependency))
+        (list dependency
+              (dependency-export-ref who dependency exports external))]
        [else
         (raise-arguments-error who
                                "ambiguous import dependency"
@@ -257,9 +284,11 @@
       (values import module)))
   (for/list ([binding (in-list bindings)])
     (match-define (list local external) binding)
+    (match-define (list dependency provider-export)
+      (resolve-import-source who dependency-exports dependency-map local external))
     (list local
-          (resolve-import-dependency who dependency-exports dependency-map local external)
-          external)))
+          dependency
+          provider-export)))
 
 ;; webify-module-linklet-input/resolve-imports : symbol? linklet dependency-exports [#:dependencies dependencies] -> input
 ;;   Build one module-linklet input while deriving its flat import triples.

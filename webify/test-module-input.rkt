@@ -126,6 +126,25 @@
    '((string-join.1 racket/string string-join.1)
      (string-join9.1 racket/string string-join9.1))))
 
+(test-case "dependency resolver carries provider export symbols by printed name"
+  (define provider-export (string->uninterned-symbol "string-join.1"))
+  (define importer-export (string->uninterned-symbol "string-join.1"))
+  (check-false (eq? provider-export importer-export))
+  (define importer-linklet
+    `(linklet (((,importer-export ,importer-export))) (y)
+       (define-values (y) ,importer-export)))
+  (check-equal?
+   (webify-resolve-module-linklet-imports
+    importer-linklet
+    `((racket/string (,provider-export))))
+   `((,importer-export racket/string ,provider-export)))
+  (check-equal?
+   (webify-resolve-module-linklet-imports
+    importer-linklet
+    `((racket/string (,provider-export)))
+    #:dependencies `((,importer-export racket/string)))
+   `((,importer-export racket/string ,provider-export))))
+
 (test-case "dependency export tables derive from provider inputs"
   (define providers
     (list
@@ -249,7 +268,7 @@
          (define-values (y) x))
       '((a (x)) (b (x))))))
   (check-exn
-   #rx"explicit import dependency does not export required name"
+   #rx"dependency does not export required name"
    (lambda ()
      (webify-resolve-module-linklet-imports
       '(linklet (([ext-x x])) (y)

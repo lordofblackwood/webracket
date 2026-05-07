@@ -874,6 +874,23 @@ These graph helpers do not discover transitive dependencies yet. They resolve
 only within the supplied set and reject duplicate module names, unresolved
 imports, ambiguous provider exports, and missing module-protocol support.
 
+The stable report API now exposes the first require-driven discovery hook:
+
+```racket
+(webify-module-report-required-provider-names importer-report)
+;; => '(racket/list)
+
+(webify-module-report->required-provider-reports importer-report)
+;; => (list racket/list-report)
+```
+
+This uses the already-decoded phase-0 `phase-to-link-modules` metadata and
+compiles those installed module paths as machine-independent provider reports.
+It is deliberately one-level discovery. It does not chase transitive requires,
+instantiate namespaces, or decide whether a provider is semantically supported
+by WebRacket yet. The result is still just more linklet-level report data that
+can be fed to the existing provider/export resolver.
+
 For callers that want the next bridge step directly, the stable façade can
 register the resolved inputs:
 

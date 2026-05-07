@@ -49,3 +49,18 @@
    (export-name-member? "string-join.1" (webify-module-report-phase0-exports report)))
   (check-not-false
    (export-name-member? "string-join9.1" (webify-module-report-phase0-exports report))))
+
+(test-case "Racket 9.2 source report discovers one-level installed providers"
+  (define report
+    (webify-compile-module-report
+     '(module use-list racket/base
+        (require racket/list)
+        (provide y)
+        (define y (first (list 10))))))
+  (check-equal? (webify-module-report-required-provider-names report)
+                '(racket/list))
+  (define providers (webify-module-report->required-provider-reports report))
+  (check-equal? (map webify-module-report-name providers)
+                '(racket/list))
+  (check-not-false
+   (export-name-member? "first" (webify-module-report-phase0-exports (car providers)))))

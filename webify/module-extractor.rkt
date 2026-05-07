@@ -14,6 +14,10 @@
   [webify-module-extractor-spike-manifest-ready? webify-module-report-manifest-ready?]
   [webify-module-extractor-spike-notes webify-module-report-notes]
   [webify-module-extractor-spike-import-map webify-module-report-import-map]
+  [webify-module-extractor-spike-required-provider-names
+   webify-module-report-required-provider-names]
+  [webify-module-extractor-spike->required-provider-spikes
+   webify-module-report->required-provider-reports]
   [webify-module-extractor-spike-dependency-exports webify-module-report-dependency-exports]
   [webify-module-extractor-spikes-dependency-exports webify-module-reports-dependency-exports]
   [webify-module-extractor-spike->resolved-linklet-input webify-module-report->resolved-linklet-input]

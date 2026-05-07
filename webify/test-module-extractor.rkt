@@ -84,6 +84,34 @@
   (check-equal? (webify-module-linklet-input-imports input)
                 '((string-join.1 racket/string string-join.1))))
 
+(test-case "stable module report exposes one-level required providers"
+  (define phase0-linklet
+    '(linklet (((first first))) (y)
+       (define-values (y) first)))
+  (define data-linklet
+    '(linklet () (.mpi-vector)
+       (define-values (.mpi-vector)
+         (deserialize-module-path-indexes '#(#(racket/list)) '#(0)))))
+  (define decl-linklet
+    '(linklet ((.mpi-vector)) (phase-to-link-modules)
+       (define-values (phase-to-link-modules)
+         (hasheqv 0 (list (module-use (unsafe-vector*-ref .mpi-vector 0) 0))))))
+  (define report
+    (webify-module-report
+     'use-list
+     '(#f)
+     '(0 data decl)
+     (list (webify-module-bundle-entry 0 'linklet '(((first first))) '(y) phase0-linklet #f)
+           (webify-module-bundle-entry 'data 'linklet '() '(.mpi-vector) data-linklet #f)
+           (webify-module-bundle-entry 'decl 'linklet '((.mpi-vector)) '(phase-to-link-modules) decl-linklet #f))
+     '(((first first)))
+     '(y)
+     phase0-linklet
+     #t
+     '()))
+  (check-equal? (webify-module-report-required-provider-names report)
+                '(racket/list)))
+
 (test-case "stable module report graph registers and composes"
   (define dep-report
     (webify-module-report

@@ -36,6 +36,8 @@
          webify-module-bundle-entry-value
          webify-module-bundle-entry-ref
          webify-module-extractor-spike-import-map
+         webify-module-extractor-spike-required-provider-names
+         webify-module-extractor-spike->required-provider-spikes
          webify-module-extractor-spike-dependency-exports
          webify-module-extractor-spikes-dependency-exports
          webify-module-path->extractor-spike
@@ -352,6 +354,12 @@
 (define (generated-import-name? name)
   (regexp-match? #rx"[.][0-9]+$" (symbol->string name)))
 
+;; symbolic-name=? : symbol? symbol? -> boolean?
+;;   Match generated symbols that print the same but are not necessarily eq?.
+(define (symbolic-name=? a b)
+  (or (eq? a b)
+      (string=? (symbol->string a) (symbol->string b))))
+
 ;; phase0-import-groups : webify-module-extractor-spike? -> import-groups
 ;;   Return normalized phase-0 import groups from metadata.
 (define (phase0-import-groups report)
@@ -474,6 +482,24 @@
         "decl/data metadata likely maps those groups to required modules"
         "this spike reports the raw metadata but does not decode it yet")])))
 
+;; webify-module-extractor-spike-required-provider-names : report -> (listof symbol?)
+;;   Return phase-0 provider module names decoded from the report's require metadata.
+(define (webify-module-extractor-spike-required-provider-names report)
+  (define who 'webify-module-extractor-spike-required-provider-names)
+  (unless (webify-module-extractor-spike? report)
+    (raise-argument-error who "webify-module-extractor-spike?" report))
+  (remove-duplicates
+   (for/list ([candidate (in-list (webify-module-import-map-required-module-candidates
+                                   (webify-module-extractor-spike-import-map report)))]
+              #:when (= 0 (car candidate)))
+     (cadr candidate))))
+
+;; webify-module-extractor-spike->required-provider-spikes : report -> (listof report)
+;;   Compile one-level installed provider reports named by the report's require metadata.
+(define (webify-module-extractor-spike->required-provider-spikes report)
+  (for/list ([name (in-list (webify-module-extractor-spike-required-provider-names report))])
+    (webify-module-path->extractor-spike name)))
+
 ;; resolve-extracted-linklet-imports : symbol? linklet-datum ... -> imports
 ;;   Classify extracted imports and turn supported ones into flat bridge triples.
 (define (resolve-extracted-linklet-imports who
@@ -523,7 +549,8 @@
                             (assoc (cadr candidate) dependency-exports))]
                     #:when (and (= 0 (car candidate))
                                 candidate-exports
-                                (memq external (cadr candidate-exports))))
+                                (for/or ([export (in-list (cadr candidate-exports))])
+                                  (symbolic-name=? export external))))
            (list local (cadr candidate))))
        (define duplicate-inferred (check-duplicates (map car inferred-dependencies)))
        (when duplicate-inferred
