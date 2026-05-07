@@ -672,15 +672,12 @@
       [(null? module-bindings) '()]
       [else
        (define explicit-locals (map car dependencies))
-       (define alias-dependencies
-         (for/list ([alias (in-list import-aliases)]
-                    #:do [(match-define (list local _dependency _export) alias)]
-                    #:when (and (assoc local module-bindings)
-                                (not (memq local explicit-locals))))
-           (match-define (list local dependency _export) alias)
-           (list local dependency)))
        (define explicit-or-alias-locals
-         (append explicit-locals (map car alias-dependencies)))
+         (append explicit-locals
+                 (for/list ([alias (in-list import-aliases)]
+                            #:do [(match-define (list local _dependency _export) alias)]
+                            #:when (assoc local module-bindings))
+                   local)))
        (define inferred-dependencies
          (for/list ([binding (in-list module-bindings)]
                     #:do [(match-define (list local external) binding)]
@@ -702,7 +699,8 @@
        (webify-resolve-module-linklet-imports
         `(linklet (,module-bindings) () (void))
         dependency-exports
-        #:dependencies (append dependencies alias-dependencies inferred-dependencies))]))
+        #:dependencies (append dependencies inferred-dependencies)
+        #:import-aliases import-aliases)]))
   (define triples-by-import
     (for/hasheq ([triple (in-list (append module-protocol-triples module-triples))])
       (values (car triple) triple)))

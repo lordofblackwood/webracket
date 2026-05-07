@@ -167,6 +167,23 @@
                            "duplicate import dependency entries are not supported"
                            "import" duplicate)))
 
+;; validate-import-aliases! : symbol? any/c -> void?
+;;   Reject explicit local-import to dependency export mappings.
+(define (validate-import-aliases! who aliases)
+  (unless (list? aliases)
+    (raise-argument-error who "(listof (list/c symbol? symbol? symbol?))" aliases))
+  (for ([alias (in-list aliases)])
+    (match alias
+      [(list (? symbol?) (? symbol?) (? symbol?))
+       (void)]
+      [_
+       (raise-argument-error who "(list/c symbol? symbol? symbol?)" alias)]))
+  (define duplicate (check-duplicates (map car aliases)))
+  (when duplicate
+    (raise-arguments-error who
+                           "duplicate import alias entries are not supported"
+                           "import" duplicate)))
+
 ;; dependency-exports-ref : symbol? (listof dependency-exports?) symbol? -> (listof symbol?)
 ;;   Look up the exports declared for one dependency module.
 (define (dependency-exports-ref who dependency-exports name)
@@ -227,11 +244,29 @@
   (validate-dependency-exports! who dependency-exports)
   dependency-exports)
 
-;; resolve-import-source : symbol? dependency-exports hash? symbol? symbol? -> (list/c symbol? symbol?)
+;; resolve-import-source : symbol? dependency-exports hash? hash? symbol? symbol? -> (list/c symbol? symbol?)
 ;;   Resolve one import binding to its provider module and provider export symbol.
-(define (resolve-import-source who dependency-exports dependencies local external)
+(define (resolve-import-source who dependency-exports dependencies aliases local external)
+  (define alias (hash-ref aliases local #f))
   (define explicit (hash-ref dependencies local #f))
   (cond
+    [alias
+     (match-define (list dependency provider-export) alias)
+     (when (and explicit (not (eq? explicit dependency)))
+       (raise-arguments-error who
+                              "import alias conflicts with explicit dependency"
+                              "import" local
+                              "dependency" explicit
+                              "alias dependency" dependency))
+     (define exports (dependency-exports-ref who dependency-exports dependency))
+     (unless (for/or ([export (in-list exports)])
+               (symbolic-name=? export provider-export))
+       (raise-arguments-error who
+                              "dependency does not export aliased name"
+                              "dependency" dependency
+                              "export" provider-export))
+     (list dependency
+           (dependency-export-ref who dependency exports provider-export))]
     [explicit
      (define exports (dependency-exports-ref who dependency-exports explicit))
      (list explicit
@@ -265,11 +300,13 @@
 ;;   Derive flat registry import triples from linklet imports and dependency exports.
 (define (webify-resolve-module-linklet-imports linklet
                                                dependency-exports
-                                               #:dependencies [dependencies '()])
+                                               #:dependencies [dependencies '()]
+                                               #:import-aliases [import-aliases '()])
   (define who 'webify-resolve-module-linklet-imports)
   (define bindings (linklet-import-bindings who linklet))
   (validate-dependency-exports! who dependency-exports)
   (validate-import-dependencies! who dependencies)
+  (validate-import-aliases! who import-aliases)
   (define imports (map car bindings))
   (for ([dependency (in-list dependencies)])
     (match-define (list import _module) dependency)
@@ -278,14 +315,25 @@
                              "import dependency references a name not imported by the linklet"
                              "import" import
                              "linklet imports" imports)))
+  (for ([alias (in-list import-aliases)])
+    (match-define (list import _module _export) alias)
+    (unless (memq import imports)
+      (raise-arguments-error who
+                             "import alias references a name not imported by the linklet"
+                             "import" import
+                             "linklet imports" imports)))
   (define dependency-map
     (for/hasheq ([dependency (in-list dependencies)])
       (match-define (list import module) dependency)
       (values import module)))
+  (define alias-map
+    (for/hasheq ([alias (in-list import-aliases)])
+      (match-define (list import module export) alias)
+      (values import (list module export))))
   (for/list ([binding (in-list bindings)])
     (match-define (list local external) binding)
     (match-define (list dependency provider-export)
-      (resolve-import-source who dependency-exports dependency-map local external))
+      (resolve-import-source who dependency-exports dependency-map alias-map local external))
     (list local
           dependency
           provider-export)))
@@ -295,14 +343,16 @@
 (define (webify-module-linklet-input/resolve-imports name
                                                      linklet
                                                      dependency-exports
-                                                     #:dependencies [dependencies '()])
+                                                     #:dependencies [dependencies '()]
+                                                     #:import-aliases [import-aliases '()])
   (webify-module-linklet-input
    name
    linklet
    (webify-resolve-module-linklet-imports
     linklet
     dependency-exports
-    #:dependencies dependencies)))
+    #:dependencies dependencies
+    #:import-aliases import-aliases)))
 
 ;; webify-register-module-linklet-input! : webify-module-registry? webify-module-linklet-input? -> void?
 ;;   Register one extracted module-linklet input in a module registry.

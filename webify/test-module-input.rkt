@@ -145,6 +145,27 @@
     #:dependencies `((,importer-export racket/string)))
    `((,importer-export racket/string ,provider-export))))
 
+(test-case "dependency resolver honors explicit internal export aliases"
+  (define importer-local 'string-join.1)
+  (define importer-external 'string-join)
+  (define provider-export 'string-join.9)
+  (define importer-linklet
+    `(linklet (((,importer-local ,importer-external))) (y)
+       (define-values (y) ,importer-local)))
+  (check-equal?
+   (webify-resolve-module-linklet-imports
+    importer-linklet
+    `((racket/string (,provider-export)))
+    #:import-aliases `((,importer-local racket/string ,provider-export)))
+   `((,importer-local racket/string ,provider-export)))
+  (check-exn
+   #rx"dependency does not export aliased name"
+   (lambda ()
+     (webify-resolve-module-linklet-imports
+      importer-linklet
+      '((racket/string (string-join.8)))
+      #:import-aliases `((,importer-local racket/string ,provider-export))))))
+
 (test-case "dependency export tables derive from provider inputs"
   (define providers
     (list
