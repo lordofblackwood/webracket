@@ -45,9 +45,30 @@ The old `racket/list` blockers are no longer first failures:
 | --- | --- | --- |
 | `racket/private/for` / `in-port` | Export is present, but its default producer imports `read` and `current-input-port` | Reader/port runtime support |
 
-`in-port` is intentionally tracked separately from `racket/list`: demand slicing
-can avoid it for list-only workloads, while real `in-port` support belongs to a
-future IO/runtime milestone.
+`in-port` is intentionally tracked separately from the rest of
+`racket/private/for`: only a small port-sequence corner of the module pulls in
+the IO layer. Demand slicing can avoid that corner for list-only workloads,
+while real `in-port` support belongs to a future IO/runtime milestone.
+
+## Deferred IO Strategy
+
+The next Webify milestones should continue improving module/linklet composition
+before implementing `read`. The important boundary is narrow: most
+`racket/private/for` sequence support is not inherently IO-dependent, but
+exports like `in-port`, `in-lines`, `in-input-port-bytes`, and
+`in-input-port-chars` are. Racket's `src/io/README.txt` describes the underlying
+IO layer as ports, paths, encoding, printing, and formatting backed by lower
+runtime services such as primitive error support, parameters, threads/events,
+and locks. That is a runtime subsystem decision, not a small
+provider-resolution fix.
+
+When IO work becomes intentional, split it into separate milestones:
+
+1. Decide the supported WebRacket IO surface first: string ports only, browser
+   stream ports, or a fuller port model.
+2. Add minimal reader smokes independently from installed-module graph smokes.
+3. Wire `in-port`, `in-lines`, and related sequence exports only after the
+   underlying reader/port behavior is explicit.
 
 ## How To Move A Module
 
