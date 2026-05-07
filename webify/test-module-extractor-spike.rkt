@@ -397,7 +397,13 @@
   (check-equal? (webify-module-import-map-import-aliases import-map)
                 '((local-name dep/mod external-name)))
   (check-equal? (webify-module-import-map-missing-alias-import-groups import-map)
-                '()))
+                '())
+  (define input
+    (webify-module-extractor-spike->resolved-linklet-input
+     report
+     #:dependency-exports '((dep/mod (external-name)))))
+  (check-equal? (webify-module-linklet-input-imports input)
+                '((local-name dep/mod external-name))))
 
 (module+ main
   (void))

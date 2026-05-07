@@ -39,6 +39,7 @@
          webify-normalize-linklet-imports
          webify-linklet-import-bindings
          webify-source-module->linklet-input
+         webify-module-extractor-spike->resolved-linklet-input
          webify-source-module->resolved-linklet-input
          webify-compile-module-extractor-spike)
 
@@ -449,6 +450,7 @@
                                            linklet
                                            dependency-exports
                                            dependencies
+                                           import-aliases
                                            required-module-candidates
                                            module-protocol-dependency)
   (when module-protocol-dependency
@@ -472,10 +474,20 @@
     (cond
       [(null? module-bindings) '()]
       [else
+       (define explicit-locals (map car dependencies))
+       (define alias-dependencies
+         (for/list ([alias (in-list import-aliases)]
+                    #:do [(match-define (list local _dependency _export) alias)]
+                    #:when (and (assoc local module-bindings)
+                                (not (memq local explicit-locals))))
+           (match-define (list local dependency _export) alias)
+           (list local dependency)))
+       (define explicit-or-alias-locals
+         (append explicit-locals (map car alias-dependencies)))
        (define inferred-dependencies
          (for/list ([binding (in-list module-bindings)]
                     #:do [(match-define (list local external) binding)]
-                    #:unless (assoc local dependencies)
+                    #:unless (memq local explicit-or-alias-locals)
                     [candidate (in-list required-module-candidates)]
                     #:do [(define candidate-exports
                             (assoc (cadr candidate) dependency-exports))]
@@ -492,7 +504,7 @@
        (webify-resolve-module-linklet-imports
         `(linklet (,module-bindings) () (void))
         dependency-exports
-        #:dependencies (append dependencies inferred-dependencies))]))
+        #:dependencies (append dependencies alias-dependencies inferred-dependencies))]))
   (define triples-by-import
     (for/hasheq ([triple (in-list (append module-protocol-triples module-triples))])
       (values (car triple) triple)))
@@ -581,8 +593,36 @@
   (webify-module-linklet-input
    (webify-module-extractor-spike-name report)
    (webify-normalize-linklet-imports
-    (webify-module-extractor-spike-phase0-linklet-datum report))
+   (webify-module-extractor-spike-phase0-linklet-datum report))
    imports))
+
+;; webify-module-extractor-spike->resolved-linklet-input : report ... -> webify-module-linklet-input?
+;;   Resolve classified imports from an existing extractor report into bridge triples.
+(define (webify-module-extractor-spike->resolved-linklet-input report
+                                                               #:dependency-exports [dependency-exports '()]
+                                                               #:dependencies [dependencies '()]
+                                                               #:module-protocol-dependency [module-protocol-dependency #f])
+  (define who 'webify-module-extractor-spike->resolved-linklet-input)
+  (unless (webify-module-extractor-spike? report)
+    (raise-argument-error who "webify-module-extractor-spike?" report))
+  (unless (webify-module-extractor-spike-manifest-ready? report)
+    (raise-arguments-error who
+                           "source module did not produce a decompilable phase-0 linklet datum"
+                           "notes" (webify-module-extractor-spike-notes report)))
+  (define import-map (webify-module-extractor-spike-import-map report))
+  (define raw-linklet (webify-module-extractor-spike-phase0-linklet-datum report))
+  (define linklet (webify-normalize-linklet-imports raw-linklet))
+  (webify-module-linklet-input
+   (webify-module-extractor-spike-name report)
+   linklet
+   (resolve-extracted-linklet-imports
+    who
+    raw-linklet
+    dependency-exports
+    dependencies
+    (webify-module-import-map-import-aliases import-map)
+    (webify-module-import-map-required-module-candidates import-map)
+    module-protocol-dependency)))
 
 ;; webify-source-module->resolved-linklet-input : module-datum ... -> webify-module-linklet-input?
 ;;   Extract a source module and resolve classified imports into bridge triples.
@@ -590,22 +630,8 @@
                                                        #:dependency-exports [dependency-exports '()]
                                                        #:dependencies [dependencies '()]
                                                        #:module-protocol-dependency [module-protocol-dependency #f])
-  (define who 'webify-source-module->resolved-linklet-input)
-  (define report (webify-compile-module-extractor-spike module-datum))
-  (unless (webify-module-extractor-spike-manifest-ready? report)
-    (raise-arguments-error who
-                           "source module did not produce a decompilable phase-0 linklet datum"
-                           "notes" (webify-module-extractor-spike-notes report)))
-  (define import-map (webify-module-extractor-spike-import-map report))
-  (define linklet
-    (webify-normalize-linklet-imports
-     (webify-module-extractor-spike-phase0-linklet-datum report)))
-  (webify-module-linklet-input
-   (webify-module-extractor-spike-name report)
-   linklet
-   (resolve-extracted-linklet-imports who
-                                      linklet
-                                      dependency-exports
-                                      dependencies
-                                      (webify-module-import-map-required-module-candidates import-map)
-                                      module-protocol-dependency)))
+  (webify-module-extractor-spike->resolved-linklet-input
+   (webify-compile-module-extractor-spike module-datum)
+   #:dependency-exports dependency-exports
+   #:dependencies dependencies
+   #:module-protocol-dependency module-protocol-dependency))
