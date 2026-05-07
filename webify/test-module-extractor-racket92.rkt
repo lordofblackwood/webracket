@@ -40,6 +40,14 @@
   (check-not-false
    (export-name-member? "string-join9.1" (webify-module-report-phase0-exports report))))
 
+(test-case "Racket 9.2 installed direct provider exposes faslable exports"
+  (define report (webify-module-path->report 'racket/private/pico))
+  (check-true (webify-module-report? report))
+  (check-equal? (webify-module-report-name report) 'racket/private/pico)
+  (check-true (webify-module-report-manifest-ready? report))
+  (check-not-false
+   (export-name-member? "reverse" (webify-module-report-phase0-exports report))))
+
 (test-case "Racket 9.2 source use resolves racket/string internal exports"
   (define use-report
     (webify-compile-module-report

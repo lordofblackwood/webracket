@@ -69,6 +69,7 @@
          racket/match
          racket/string
          syntax/modcode
+         "faslable-linklet.rkt"
          "module-input.rkt")
 
 (struct webify-module-extractor-spike
@@ -177,19 +178,44 @@
     [(linklet? value)           'linklet]
     [(linklet-bundle? value)    'bundle]
     [(linklet-directory? value) 'directory]
+    [(webify-faslable-correlated-linklet? value) 'faslable-linklet]
     [else                      'metadata]))
+
+;; linklet-datum-imports+exports : any/c -> values
+;;   Extract raw imports and exports from a plain linklet datum.
+(define (linklet-datum-imports+exports datum)
+  (define (normalize-export export)
+    (match export
+      [(list _internal (? symbol? external)) external]
+      [(? symbol? external) external]
+      [_ export]))
+  (match datum
+    [`(linklet ,imports ,exports . ,_body)
+     (values imports (map normalize-export exports))]
+    [_ (values #f #f)]))
 
 ;; bundle-value->entry : any/c any/c -> webify-module-bundle-entry?
 ;;   Convert one linklet-bundle hash entry into report data.
 (define (bundle-value->entry key value)
   (define datum
-    (and (linklet? value)
-         (decompile-linklet-datum value)))
+    (cond
+      [(linklet? value) (decompile-linklet-datum value)]
+      [(webify-faslable-correlated-linklet? value)
+       (webify-faslable-correlated-linklet->datum value)]
+      [else #f]))
+  (define-values (datum-imports datum-exports)
+    (linklet-datum-imports+exports datum))
   (webify-module-bundle-entry
    key
    (bundle-value-kind value)
-   (and (linklet? value) (linklet-import-variables value))
-   (and (linklet? value) (linklet-export-variables value))
+   (cond
+     [(linklet? value) (linklet-import-variables value)]
+     [datum-imports datum-imports]
+     [else #f])
+   (cond
+     [(linklet? value) (linklet-export-variables value)]
+     [datum-exports datum-exports]
+     [else #f])
    datum
    value))
 
@@ -899,6 +925,11 @@
 ;;   Convert one machine-independent compiled module to an extractor report.
 (define (compiled-module->extractor-spike who name compiled)
   (cond
+    [(webify-faslable-correlated-linklet? compiled)
+     (compiled-linklet-datum->extractor-spike
+      name
+      (webify-faslable-correlated-linklet->datum compiled)
+      '("machine-independent compilation exposes a faslable-correlated phase-0 linklet datum"))]
     [(linklet? compiled)
      (define phase0-entry (bundle-value->entry 0 compiled))
      (define phase0-linklet-datum
@@ -924,11 +955,104 @@
            "host Racket does not provide decompile-linklet"
            "use the newer ../racket checkout for the machine-independent decompile spike")]))]
     [(not (linklet-directory? compiled))
-     (raise-arguments-error who
-                            "compiled module did not produce a linklet directory or direct linklet"
-                            "compiled" compiled)]
+     (define parsed (webify-compiled-expression->zo compiled))
+     (cond
+       [parsed (compiled-zo->extractor-spike who name parsed)]
+       [else
+        (raise-arguments-error who
+                               "compiled module did not produce a linklet directory or direct linklet"
+                               "compiled" compiled)])]
     [else
      (compiled-linklet-directory->extractor-spike who name compiled)]))
+
+;; parsed-bundle->extractor-spike : symbol? symbol? hash? any/c any/c -> report
+;;   Convert a parsed zo linklet bundle into an extractor report.
+(define (parsed-bundle->extractor-spike who name bundle-hash directory-keys)
+  (define bundle-entries
+    (sort
+     (for/list ([(key value) (in-hash bundle-hash)])
+       (bundle-value->entry key value))
+     bundle-entry<?))
+  (define phase0-entry
+    (for/first ([entry (in-list bundle-entries)]
+                #:when (equal? 0 (webify-module-bundle-entry-key entry)))
+      entry))
+  (unless phase0-entry
+    (raise-arguments-error who
+                           "parsed bundle has no phase-0 linklet"
+                           "bundle keys" (hash-keys bundle-hash)))
+  (define phase0-linklet-datum
+    (webify-module-bundle-entry-datum phase0-entry))
+  (unless (linklet-datum? phase0-linklet-datum)
+    (raise-arguments-error who
+                           "parsed phase-0 entry did not contain a linklet datum"
+                           "entry" phase0-entry))
+  (webify-module-extractor-spike
+   name
+   directory-keys
+   (sort (hash-keys bundle-hash) key<?)
+   bundle-entries
+   (webify-module-bundle-entry-imports phase0-entry)
+   (webify-module-bundle-entry-exports phase0-entry)
+   phase0-linklet-datum
+   #t
+   '("machine-independent compiled expression parses to faslable-correlated linklets")))
+
+;; compiled-zo->extractor-spike : symbol? symbol? any/c -> report
+;;   Convert compiler/zo-parse's bundle or directory structures into a report.
+(define (compiled-zo->extractor-spike who name parsed)
+  (cond
+    [(webify-zo-linklet-bundle? parsed)
+     (parsed-bundle->extractor-spike
+      who
+      name
+      (webify-zo-linklet-bundle->hash parsed)
+      '(#f))]
+    [(webify-zo-linklet-directory? parsed)
+     (define directory-hash (webify-zo-linklet-directory->hash parsed))
+     (define main-bundle
+       (or (hash-ref directory-hash #f #f)
+           (hash-ref directory-hash '() #f)))
+     (unless (webify-zo-linklet-bundle? main-bundle)
+       (raise-arguments-error who
+                              "parsed directory has no main linklet bundle"
+                              "directory keys" (hash-keys directory-hash)))
+     (parsed-bundle->extractor-spike
+      who
+      name
+      (webify-zo-linklet-bundle->hash main-bundle)
+      (sort (hash-keys directory-hash) key<?))]
+    [else
+     (raise-arguments-error who
+                            "parsed compiled module did not produce a linklet bundle or directory"
+                            "parsed" parsed)]))
+
+;; compiled-linklet-datum->extractor-spike : symbol? linklet-datum any/c -> report
+;;   Convert a decompiled direct phase-0 linklet datum into an extractor report.
+(define (compiled-linklet-datum->extractor-spike name phase0-linklet-datum notes)
+  (unless (linklet-datum? phase0-linklet-datum)
+    (raise-arguments-error 'compiled-linklet-datum->extractor-spike
+                           "faslable-correlated value did not contain a linklet datum"
+                           "datum" phase0-linklet-datum))
+  (match-define `(linklet ,imports ,exports . ,_body) phase0-linklet-datum)
+  (define phase0-entry
+    (webify-module-bundle-entry
+     0
+     'linklet
+     imports
+     exports
+     phase0-linklet-datum
+     #f))
+  (webify-module-extractor-spike
+   name
+   '(#f)
+   '(0)
+   (list phase0-entry)
+   imports
+   exports
+   phase0-linklet-datum
+   #t
+   notes))
 
 ;; compiled-linklet-directory->extractor-spike : symbol? symbol? linklet-directory? -> report
 ;;   Convert a compiled module directory into an extractor report.
