@@ -114,6 +114,22 @@
                  '(unsafe-place-local-set! cell value))
                 '(set-box! cell value)))
 
+(test-case "hash iteration lowers to no-stdlib runtime primitives"
+  (check-equal?
+   (normalize-symbols
+    (lower-hash-iteration-ops
+     '(let loop ([pos (hash-iterate-first ht)] [acc '()])
+        (if pos
+            (loop (hash-iterate-next ht pos)
+                  (cons (hash-iterate-pair ht pos) acc))
+            acc))))
+   '("let" "loop" (("pos" ("mutable-hash-iterate-first" "ht"))
+                  ("acc" ("quote" ())))
+     ("if" "pos"
+      ("loop" ("mutable-hash-iterate-next" "ht" "pos")
+       ("cons" ("mutable-hash-iterate-pair" "ht" "pos" "unsafe-undefined") "acc"))
+      "acc"))))
+
 (test-case "schemify module variable assertion catches missed forms"
   (check-false (schemify-module-variable-free? '(begin (variable-ref x))))
   (check-true (schemify-module-variable-free? '(quote (variable-ref x))))

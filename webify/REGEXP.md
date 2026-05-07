@@ -84,6 +84,7 @@ access and no longer introduces Chez-style struct allocation:
 run-first-slice-top-level regexp-linklet ; succeeds
 comp first-slice-output                 ; succeeds
 startup smoke with (js-log 123)         ; succeeds
+(regexp? (regexp "a"))                  ; succeeds
 ```
 
 That means the regexp layer gets through demod and into Webify's first-slice
@@ -101,22 +102,31 @@ smoke additionally needs three intentionally small lowerings:
 - `unsafe-make-place-local`/`unsafe-place-local-ref`/
   `unsafe-place-local-set!` become box operations, which is enough for
   WebRacket's single-place runtime.
+- `hash-iterate-first`/`hash-iterate-next`/`hash-iterate-key` and friends are
+  lowered to WebRacket's mutable hash iterator primitives for no-stdlib slices.
+  The demodded validator iterates local `#hasheqv()` tables, and WebRacket's
+  current hash representation already maps these literals to mutable hash
+  objects.
 
-The next runtime blocker is calling the exported constructor:
+The exported constructor now works for the simplest string regexp:
 
 ```racket
 (regexp? (regexp "a"))
 ```
 
-Startup succeeds and `regexp`/`regexp?` are exported as procedures, but the
-constructor call still raises an uncaught WebAssembly exception. That puts the
-next investigation inside the regexp parser/compiler body, not in demod,
-first-slice lowering, compilation, or module startup.
+That exercises parsing, conversion, validation, matcher compilation, and
+allocation of the final regexp struct for a literal character pattern.
 
 ## Immediate Lesson
 
-The next Webify experiment should instrument or reduce the body of the exported
-`regexp` constructor. Once that call works, regexp literals can later be lifted
-into calls to the linklet's `regexp`, `byte-regexp`, `pregexp`, and
-`byte-pregexp` exports, mirroring the literal lifting strategy in
-`src/cs/convert.rkt`.
+The next Webify experiment should move from constructor startup to useful
+matching calls, starting with:
+
+```racket
+(regexp-match? (regexp "a") "a")
+(regexp-match (regexp "a") "cat")
+```
+
+Once basic matching works, regexp literals can later be lifted into calls to the
+linklet's `regexp`, `byte-regexp`, `pregexp`, and `byte-pregexp` exports,
+mirroring the literal lifting strategy in `src/cs/convert.rkt`.

@@ -7,6 +7,7 @@
          simplify-compatibility-apps
          lower-simple-parameters
          lower-trivial-continuation-prompts
+         lower-hash-iteration-ops
          simplify-trivial-module-prompts
          lower-module-first-slice
          schemify-module-variable-free?
@@ -214,6 +215,49 @@
 
   (lower v))
 
+;; lower-hash-iteration-ops : any/c -> any/c
+;;   Lower stdlib hash iteration names to runtime primitives for no-stdlib slices.
+(define (lower-hash-iteration-ops v)
+  (define (lower-rator rator)
+    (case (unwrap rator)
+      [(hash-iterate-first)     'mutable-hash-iterate-first]
+      [(hash-iterate-next)      'mutable-hash-iterate-next]
+      [(hash-iterate-key)       'mutable-hash-iterate-key]
+      [(hash-iterate-value)     'mutable-hash-iterate-value]
+      [(hash-iterate-pair)      'mutable-hash-iterate-pair]
+      [(hash-iterate-key+value) 'mutable-hash-iterate-key+value]
+      [else                     (lower rator)]))
+
+  (define (lower v)
+    (reannotate
+     v
+     (match v
+       [`(hash-iterate-key ,ht ,pos)
+        `(mutable-hash-iterate-key ,(lower ht) ,(lower pos) unsafe-undefined)]
+       [`(hash-iterate-value ,ht ,pos)
+        `(mutable-hash-iterate-value ,(lower ht) ,(lower pos) unsafe-undefined)]
+       [`(hash-iterate-pair ,ht ,pos)
+        `(mutable-hash-iterate-pair ,(lower ht) ,(lower pos) unsafe-undefined)]
+       [`(hash-iterate-key+value ,ht ,pos)
+        `(mutable-hash-iterate-key+value ,(lower ht) ,(lower pos) unsafe-undefined)]
+       [`(quote ,_)
+        v]
+       [`(,rator . ,args)
+        `(,(lower-rator rator) . ,(lower-list args))]
+       [`,_
+        v])))
+
+  ;; lower-list : list? -> list?
+  ;;   Lower each wrapped list element.
+  (define (lower-list l)
+    (cond
+      [(wrap-null? l) '()]
+      [(wrap-pair? l) (cons (lower (wrap-car l))
+                            (lower-list (wrap-cdr l)))]
+      [else (lower l)]))
+
+  (lower v))
+
 ;; simplify-trivial-module-prompts : any/c -> any/c
 ;;   Erase direct module-prompt markers that do not need prompt behavior.
 (define (simplify-trivial-module-prompts v)
@@ -276,10 +320,11 @@
    (assert-schemify-module-variable-free
     (assert-first-slice-unsupported-free
      (simplify-trivial-module-prompts
-      (lower-trivial-continuation-prompts
-       (lower-simple-parameters
-        (simplify-compatibility-apps
-         (lower-module-variable-ops v)))))))))
+      (lower-hash-iteration-ops
+       (lower-trivial-continuation-prompts
+        (lower-simple-parameters
+         (simplify-compatibility-apps
+          (lower-module-variable-ops v))))))))))
 
 ;; schemify-module-variable-free? : any/c -> boolean?
 ;;   Check that schemify-shaped module variable forms have been lowered.
