@@ -8,6 +8,7 @@
          webify-module-loader-composition
          webify-module-loader-instantiate!
          webify-module-loader-instantiate-roots!
+         webify-module-loader-instantiate-observe!
          webify-module-loader-lookup-export-cell
          webify-module-loader-export-cell-id
          webify-module-loader-compose-program
@@ -114,6 +115,51 @@
 ;;   Facade name for composing and memoizing a loader's root module graph.
 (define webify-module-loader-instantiate!
   webify-module-loader-instantiate-roots!)
+
+;; webify-module-loader-instantiate-observe! : webify-module-loader? (listof symbol?) observations keyword-args ... -> any/c
+;;   Instantiate roots and compose a top-level program that observes selected exports.
+(define (webify-module-loader-instantiate-observe! loader
+                                                   roots
+                                                   observations
+                                                   #:observer              [observer 'js-log]
+                                                   #:tail                  [tail-forms '((void))]
+                                                   #:define-export-aliases? [define-export-aliases? #t]
+                                                   #:serializable?-box     serializable?-box
+                                                   #:datum-intern?         datum-intern?
+                                                   #:target                target
+                                                   #:allow-set!-undefined? allow-set!-undefined?
+                                                   #:unsafe-mode?          unsafe-mode?
+                                                   #:enforce-constant?     enforce-constant?
+                                                   #:allow-inline?         allow-inline?
+                                                   #:no-prompt?            no-prompt?
+                                                   #:prim-knowns           prim-knowns
+                                                   #:primitives            primitives
+                                                   #:compiler-query        compiler-query
+                                                   #:get-import-knowns     get-import-knowns
+                                                   #:import-keys           import-keys)
+  (webify-module-loader-instantiate-roots!
+   loader
+   roots
+   #:tail                  '((void))
+   #:define-export-aliases? define-export-aliases?
+   #:serializable?-box     serializable?-box
+   #:datum-intern?         datum-intern?
+   #:target                target
+   #:allow-set!-undefined? allow-set!-undefined?
+   #:unsafe-mode?          unsafe-mode?
+   #:enforce-constant?     enforce-constant?
+   #:allow-inline?         allow-inline?
+   #:no-prompt?            no-prompt?
+   #:prim-knowns           prim-knowns
+   #:primitives            primitives
+   #:compiler-query        compiler-query
+   #:get-import-knowns     get-import-knowns
+   #:import-keys           import-keys)
+  (webify-module-loader-observe
+   loader
+   observations
+   #:observer observer
+   #:tail tail-forms))
 
 ;; webify-module-loader-export-cell-id : webify-module-loader? symbol? symbol? -> symbol?
 ;;   Look up one export cell in an instantiated loader.

@@ -161,6 +161,38 @@
    (lambda ()
      (webify-module-loader-observe loader '((a x extra))))))
 
+(test-case "module loader facade instantiates roots and observes exports"
+  (define loader (make-webify-module-loader (make-loader-test-registry)))
+  (define observed
+    (webify-module-loader-instantiate-observe!
+     loader
+     '(b)
+     '((a x) (b y))
+     #:define-export-aliases? #f
+     #:serializable?-box     #f
+     #:datum-intern?         #f
+     #:target                #f
+     #:allow-set!-undefined? #f
+     #:unsafe-mode?          #f
+     #:enforce-constant?     #t
+     #:allow-inline?         #t
+     #:no-prompt?            #f
+     #:prim-knowns           test-prim-knowns
+     #:primitives            test-primitives
+     #:compiler-query        (lambda (v) #f)
+     #:get-import-knowns     (lambda (key) (values #f #f #f))
+     #:import-keys           #f))
+  (check-equal? (webify-module-loader-roots loader) '(b))
+  (check-not-false
+   (member '("js-log" ("module-variable-ref" "webify-export-cell0$0"))
+           (normalize-symbols observed)))
+  (check-not-false
+   (member '("js-log" ("module-variable-ref" "webify-export-cell0$1"))
+           (normalize-symbols observed)))
+  (check-false
+   (member '("define" "x" ("module-variable-ref" "webify-export-cell0$0"))
+           (normalize-symbols observed))))
+
 (unless (or (getenv "WEBIFY_SKIP_CLI_SMOKE")
             (getenv "WEBIFY_SKIP_RUNTIME_SMOKE"))
   (test-case "module loader output runs from export cells"
