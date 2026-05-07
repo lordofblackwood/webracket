@@ -83,6 +83,16 @@
       [else
        (fail-check (format "unexpected regexp export shape: ~s" export))])))
 
+;; contains-symbol? : any/c symbol? -> boolean?
+;;   Check whether v contains the symbol s.
+(define (contains-symbol? v s)
+  (let loop ([v v])
+    (cond
+      [(symbol? v) (eq? v s)]
+      [(pair? v)   (or (loop (car v)) (loop (cdr v)))]
+      [(vector? v) (for/or ([e (in-vector v)]) (loop e))]
+      [else        #f])))
+
 (when (and (file-exists? racket-bin)
            (file-exists? bootstrap-run-rkt)
            (file-exists? regexp-main-rkt))
@@ -101,10 +111,9 @@
         (check-true (positive? (length (cdddr datum))))
         (check-equal? (sort (linklet-export-external-names datum) symbol<?)
                       (sort regexp-exports symbol<?))
-        (check-exn
-         #rx"unsupported webify compatibility form remains after lowering: unsafe-struct"
-         (lambda ()
-           (run-first-slice-top-level datum))))
+        (define-values (webified _exports _exports-info)
+          (run-first-slice-top-level datum))
+        (check-false (contains-symbol? webified 'unsafe-struct)))
       (lambda ()
         (with-handlers ([exn:fail:filesystem? void])
           (delete-directory/files out-dir))))))

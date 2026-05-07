@@ -885,16 +885,12 @@
                   `(let ([,tmp ,e])
                      ,body)))
             (define (inline-struct-constructor k s-rator im args)
-              (define type-id (and (known-procedure? k)
-                                   (bitwise-bit-set? (known-procedure-arity-mask k) (length args))
-                                   (inline-type-id k im add-import! mutated imports)))
-              (cond
-                [type-id
-                 (left-to-right/app 'unsafe-struct
-                                    (cons (schemify type-id 'fresh) args)
-                                    #f target
-                                    prim-knowns knowns imports mutated simples unsafe-mode?)]
-                [else #f]))
+              ;; Schemify lowers known constructors to Chez's internal
+              ;; `unsafe-struct` record allocation primitive. WebRacket's
+              ;; struct runtime already provides constructor procedures from
+              ;; `make-struct-type`, so keep the normal constructor call
+              ;; instead of inventing a Chez-shaped bridge primitive.
+              #f)
             (define (inline-struct-predicate k s-rator im args)
               (define type-id (and (pair? args)
                                    (null? (cdr args))

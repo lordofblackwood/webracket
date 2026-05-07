@@ -78,18 +78,18 @@ Webify and WebRacket can lower and compile the forms, primitives, struct shapes,
 and literals that remain inside the flattened body.
 
 The first Webify lowering attempt now gets past raw starred struct field
-access and reaches a broader struct-operation blocker:
+access and no longer introduces Chez-style struct allocation:
 
 ```text
-webify: unsupported webify compatibility form remains after lowering: unsafe-struct
+run-first-slice-top-level regexp-linklet ; succeeds
 ```
 
 That means the regexp layer gets through demod and into Webify's first-slice
 adapter, and the starred raw accessor/mutator shape is no longer the immediate
-blocker. The current blocker is the Chez/Schemify `unsafe-struct` compatibility
-form, which carries struct-tagged access/predicate behavior that Webify still
-needs to either lower to WebRacket's struct primitives or reject with a narrower
-classification.
+blocker. Webify used to create a Chez/Schemify `unsafe-struct` call while
+inlining known constructors, but the regexp linklet itself does not contain that
+form. The WebRacket target now keeps constructor procedures from
+`make-struct-type` instead of inventing a Chez allocation primitive.
 
 ## Immediate Lesson
 

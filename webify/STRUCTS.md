@@ -49,6 +49,8 @@ programs should fail early instead of silently targeting Chez-only helpers.
 `unsafe-struct*-ref` and `unsafe-struct*-set!` used to be in this rejected set,
 but WebRacket now exposes raw starred access/update primitives for the
 non-impersonator case.
+The normal WebRacket-target path also avoids generating Chez `unsafe-struct`
+constructor calls from known-constructor inlining.
 
 ### `struct-type-info.rkt`
 
@@ -251,8 +253,8 @@ unsafe-struct
 The old `struct-convert.rkt` file is still present as inherited source material,
 but it is no longer part of the normal WebRacket-target Webify pipeline. Raw
 starred struct accessors are now an accepted Webify/WebRacket boundary for the
-non-impersonator case; the current regexp demod blocker has moved to
-`unsafe-struct`.
+non-impersonator case, and known constructor calls are preserved instead of
+being rewritten to Chez `unsafe-struct`.
 
 The module bridge also has a runtime smoke for struct-related exports across
 composed slices. One linklet can create a simple struct type and export the
