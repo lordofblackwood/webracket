@@ -40,6 +40,11 @@
          webify-module-extractor-spike-required-provider-names
          webify-module-extractor-spike->required-provider-spikes
          webify-module-extractor-spikes->required-provider-closure
+         webify-module-export-demand
+         webify-module-export-demand?
+         webify-module-export-demand-module
+         webify-module-export-demand-exports
+         webify-module-extractor-spike-import-export-demands
          webify-module-extractor-spikes->discovered-resolved-linklet-inputs
          webify-module-provider-cache
          webify-module-provider-cache?
@@ -112,6 +117,7 @@
   #:transparent)
 
 (struct webify-module-provider-cache (fetch-provider table) #:transparent)
+(struct webify-module-export-demand (module exports) #:transparent)
 
 ;; maybe-decompile-linklet : (or/c procedure? #f)
 ;;   Use the newer decompiler API when the host Racket provides it.
@@ -577,6 +583,31 @@
                  specs))]
       [(cons _ more) (loop more specs)])))
 
+;; compiled-provides-provider-aliases : any/c any/c symbol? symbol? -> aliases
+;;   Decode backing providers for a public name from serialized provide metadata.
+(define (compiled-provides-provider-aliases provides-expr mpi-vector self-name exported-name)
+  (define flat (flatten-datum provides-expr))
+  (define (binding-provider rest)
+    (match rest
+      [(list* (or '#:simple-module-binding '#:module-binding)
+              '#:mpi
+              (? exact-nonnegative-integer? idx)
+              (? symbol? provider-export)
+              _)
+       (define dependency (mpi-index->dependency-name mpi-vector idx self-name))
+       (and dependency (list dependency provider-export))]
+      [(cons _ more) (binding-provider more)]
+      [_ #f]))
+  (let loop ([items flat]
+             [aliases '()])
+    (match items
+      ['() (reverse aliases)]
+      [(list* (? symbol? local-name) rest)
+       (define alias (and (symbolic-name=? local-name exported-name)
+                          (binding-provider rest)))
+       (loop rest (if alias (cons alias aliases) aliases))]
+      [(cons _ more) (loop more aliases)])))
+
 ;; resolve-compiled-rename-aliases : aliases dependency-exports -> aliases
 ;;   Fill provider modules for compiled rename aliases using provider export rows.
 (define (resolve-compiled-rename-aliases aliases dependency-exports)
@@ -783,6 +814,42 @@
                           cache))
   (hash-count (webify-module-provider-cache-table cache)))
 
+;; merge-export-demands : (listof webify-module-export-demand?) -> demands
+;;   Combine demand rows for the same provider module.
+(define (merge-export-demands demands)
+  (define table (make-hasheq))
+  (for ([demand (in-list demands)])
+    (unless (webify-module-export-demand? demand)
+      (raise-argument-error 'merge-export-demands
+                            "webify-module-export-demand?"
+                            demand))
+    (hash-update! table
+                  (webify-module-export-demand-module demand)
+                  (lambda (exports)
+                    (remove-duplicates
+                     (append exports
+                             (webify-module-export-demand-exports demand))))
+                  '()))
+  (for/list ([module (in-list (sort (hash-keys table) symbol<?))])
+    (webify-module-export-demand module (hash-ref table module))))
+
+;; webify-module-extractor-spike-import-export-demands : report reports ... -> demands
+;;   Report the provider exports imported by a resolved linklet input.
+(define (webify-module-extractor-spike-import-export-demands report
+                                                            provider-reports
+                                                            #:dependencies [dependencies '()]
+                                                            #:module-protocol-dependency [module-protocol-dependency #f])
+  (define input
+    (webify-module-extractor-spike->resolved-linklet-input/providers
+     report
+     provider-reports
+     #:dependencies dependencies
+     #:module-protocol-dependency module-protocol-dependency))
+  (merge-export-demands
+   (for/list ([import (in-list (webify-module-linklet-input-imports input))])
+     (match-define (list _local dependency provider-export) import)
+     (webify-module-export-demand dependency (list provider-export)))))
+
 ;; webify-module-extractor-spikes->required-provider-closure : reports ... -> (listof report)
 ;;   Discover transitive provider reports starting from root reports.
 (define (webify-module-extractor-spikes->required-provider-closure
@@ -816,11 +883,11 @@
       [(null? queue) ordered]
       [else
        (define report (car queue))
-       (define new-reports
-         (filter
-          values
-          (for/list ([name (in-list (webify-module-extractor-spike-required-provider-names report))]
-                     #:unless (hash-has-key? reports-by-name name))
+       (define new-reports '())
+       (define (fetch-report name)
+         (cond
+           [(hash-ref reports-by-name name #f)]
+           [else
             (define provider-report
               (with-handlers ([exn:fail?
                                (lambda (exn)
@@ -841,8 +908,38 @@
                                         "provider report name does not match requested module"
                                         "module" name
                                         "report name" (webify-module-extractor-spike-name provider-report)))
-               (record! provider-report)
-               provider-report]))))
+               (when (record! provider-report)
+                 (set! new-reports (append new-reports (list provider-report))))
+               provider-report])]))
+       (for ([name (in-list (webify-module-extractor-spike-required-provider-names report))])
+         (fetch-report name))
+       (define import-map (webify-module-extractor-spike-import-map report))
+       (for* ([group (in-list (webify-module-import-map-unresolved-import-groups import-map))]
+              [binding (in-list group)])
+         (match-define (list _local external) binding)
+         (define candidate-reports
+           (filter
+            values
+            (for/list ([candidate (in-list (webify-module-import-map-required-module-candidates import-map))]
+                       #:when (= 0 (car candidate)))
+              (fetch-report (cadr candidate)))))
+         (define directly-exported?
+           (for/or ([candidate-report (in-list candidate-reports)])
+             (for/or ([export (in-list (webify-module-extractor-spike-phase0-exports
+                                        candidate-report))])
+               (symbolic-name=? export external))))
+         (unless directly-exported?
+           (for ([candidate-report (in-list candidate-reports)])
+             (for ([alias (in-list
+                           (compiled-provides-provider-aliases
+                            (webify-module-import-map-decl-provides-expression
+                             (webify-module-extractor-spike-import-map candidate-report))
+                            (webify-module-import-map-data-module-path-indexes
+                             (webify-module-extractor-spike-import-map candidate-report))
+                            (webify-module-extractor-spike-name candidate-report)
+                            external))])
+               (match-define (list dependency _provider-export) alias)
+               (fetch-report dependency)))))
        (loop (append (cdr queue) new-reports))])))
 
 ;; webify-module-extractor-spikes->discovered-resolved-linklet-inputs : reports ... -> inputs

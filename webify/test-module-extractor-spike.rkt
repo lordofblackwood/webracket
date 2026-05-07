@@ -238,6 +238,38 @@
   (check-equal? (webify-module-linklet-input-imports input)
                 '((string-join.1 racket/string string-join.1))))
 
+(test-case "provider reports expose imported provider export demands"
+  (define importer-report
+    (webify-module-extractor-spike
+     'use-list
+     '(#f)
+     '(0)
+     '()
+     '(((first first)))
+     '(y)
+     '(linklet (((first first))) (y)
+        (define-values (y) first))
+     #t
+     '()))
+  (define list-report
+    (webify-module-extractor-spike
+     'racket/list
+     '(#f)
+     '(0)
+     '()
+     '()
+     '(first rest)
+     '(linklet () (first rest)
+        (define-values (first) 'first-proc)
+        (define-values (rest) 'rest-proc))
+     #t
+     '()))
+  (check-equal?
+   (webify-module-extractor-spike-import-export-demands
+    importer-report
+    (list list-report))
+   (list (webify-module-export-demand 'racket/list '(first)))))
+
 (test-case "extractor report graph resolves module inputs"
   (define dep-report
     (webify-module-extractor-spike
