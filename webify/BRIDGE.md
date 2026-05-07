@@ -466,6 +466,40 @@ The triple means: satisfy B's import named `ext-x` from export `x` of input
 `a`. Discovering that mapping from compiled module paths, phases, require
 specs, or namespace state remains future work.
 
+## Loader Facade
+
+`webify/module-loader.rkt` is now the preferred API boundary for tests and
+future integration code that want to treat the bridge as a module-instantiation
+pipeline:
+
+```racket
+(define loader
+  (make-webify-module-loader registry))
+
+(webify-module-loader-instantiate! loader '(b) ...)
+
+(define y-cell
+  (webify-module-loader-lookup-export-cell loader 'b 'y))
+
+(webify-module-loader-observe loader '((a x) (b y)))
+```
+
+The facade still composes a top-level WebRacket program under the hood. It does
+not implement source-level `module`, lazy instantiation, `dynamic-require`, or
+namespaces. The point is to make the current bridge read like explicit module
+loading instead of direct helper-symbol manipulation.
+
+The older names remain available:
+
+```racket
+webify-module-loader-instantiate-roots!
+webify-module-loader-export-cell-id
+webify-module-loader-with-tail
+```
+
+Those names are still useful when a test wants to emphasize the lower-level
+composition mechanics.
+
 The export `x` is represented by the cell `webify-export-cell0$0`. The lowered
 procedure writes the exported value into that cell with
 `module-variable-define!`. The adapter then exposes the cell value as the

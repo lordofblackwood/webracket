@@ -117,6 +117,50 @@
       #:get-import-knowns     (lambda (key) (values #f #f #f))
       #:import-keys           #f))))
 
+(test-case "module loader facade observes exports through cells"
+  (define loader (make-webify-module-loader (make-loader-test-registry)))
+  (define composition
+    (webify-module-loader-instantiate!
+     loader
+     '(b)
+     #:serializable?-box     #f
+     #:datum-intern?         #f
+     #:target                #f
+     #:allow-set!-undefined? #f
+     #:unsafe-mode?          #f
+     #:enforce-constant?     #t
+     #:allow-inline?         #t
+     #:no-prompt?            #f
+     #:prim-knowns           test-prim-knowns
+     #:primitives            test-primitives
+     #:compiler-query        (lambda (v) #f)
+     #:get-import-knowns     (lambda (key) (values #f #f #f))
+     #:import-keys           #f))
+  (check-true (webify-module-composition? composition))
+  (check-equal? (webify-module-loader-lookup-export-cell loader 'b 'y)
+                'webify-export-cell0$1)
+  (define observed
+    (webify-module-loader-observe loader '((a x) (b y))))
+  (check-not-false
+   (member '("js-log" ("module-variable-ref" "webify-export-cell0$0"))
+           (normalize-symbols observed)))
+  (check-not-false
+   (member '("js-log" ("module-variable-ref" "webify-export-cell0$1"))
+           (normalize-symbols observed)))
+  (define composed
+    (webify-module-loader-compose-program
+     loader
+     `((js-log
+        (module-variable-ref
+         ,(webify-module-loader-lookup-export-cell loader 'b 'y))))))
+  (check-not-false
+   (member '("js-log" ("module-variable-ref" "webify-export-cell0$1"))
+           (normalize-symbols composed)))
+  (check-exn
+   #rx"list/c symbol\\? symbol\\?"
+   (lambda ()
+     (webify-module-loader-observe loader '((a x extra))))))
+
 (unless (or (getenv "WEBIFY_SKIP_CLI_SMOKE")
             (getenv "WEBIFY_SKIP_RUNTIME_SMOKE"))
   (test-case "module loader output runs from export cells"
