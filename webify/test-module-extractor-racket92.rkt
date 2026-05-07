@@ -14,6 +14,10 @@
   (for/list ([part (in-list triple)])
     (symbol->string part)))
 
+(define (import-binding->printed binding)
+  (for/list ([part (in-list binding)])
+    (symbol->string part)))
+
 (test-case "Racket 9.2 source module graph resolves into registry"
   (define source-module-data
     '((module a racket/base
@@ -100,3 +104,32 @@
    (member '("1/reverse" "racket/private/pico" "reverse")
            (map import-triple->printed
                 (webify-module-linklet-input-imports input)))))
+
+(test-case "Racket 9.2 racket/list resolves hash-update through more-scheme"
+  (define list-report (webify-module-path->report 'racket/list))
+  (define closure
+    (cons webify-module-protocol-report
+          (webify-module-reports->required-provider-closure
+           (list list-report))))
+  (check-not-false
+   (member 'racket/private/more-scheme
+           (map webify-module-report-name closure)))
+  (define input
+    (webify-module-report->resolved-linklet-input/providers
+     list-report
+     closure
+     #:module-protocol-dependency webify-module-protocol-dependency))
+  (check-not-false
+   (member '("hash-update" "racket/private/more-scheme" "hash-update")
+           (map import-triple->printed
+                (webify-module-linklet-input-imports input)))))
+
+(test-case "Racket 9.2 racket/private/for imports read for in-port"
+  (define report (webify-module-path->report 'racket/private/for))
+  (check-not-false
+   (export-name-member? "in-port" (webify-module-report-phase0-exports report)))
+  (check-not-false
+   (member '("read" "read")
+           (map import-binding->printed
+                (webify-linklet-import-bindings
+                 (webify-module-report-phase0-linklet-datum report))))))
