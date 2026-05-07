@@ -72,8 +72,8 @@ handling should not be treated as a straight Schemify port.
   `#%struct-field-accessor`, `#%struct-field-mutator`, `unsafe-struct`,
   `unsafe-sealed-struct?`, `unsafe-struct*-ref`, and `unsafe-struct*-set!`.
 - Impersonator/error paths:
-  `impersonator?`, `impersonator-val`, `impersonate-ref`,
-  `impersonate-set!`, `#%struct-ref-error`, and `#%struct-set!-error`.
+  `impersonate-ref`, `impersonate-set!`, `#%struct-ref-error`, and
+  `#%struct-set!-error`.
 
 ## Out Of Scope For Now
 

@@ -138,6 +138,8 @@ record-descriptor output assumes.
 - `struct->list`
 - `struct->vector`
 - `current-inspector`
+- `impersonator?`
+- `impersonator-val`
 - `unsafe-struct?`
 - `unsafe-struct-ref`
 - `unsafe-struct-set!`
@@ -156,6 +158,8 @@ the major struct operations and property globals, including:
 - `$struct-type-authentic?`
 - `$struct->list`
 - `$struct->vector`
+- `$impersonator?`
+- `$impersonator-val`
 - `$unsafe-struct?`
 - `$unsafe-struct-ref`
 - `$unsafe-struct-set!`

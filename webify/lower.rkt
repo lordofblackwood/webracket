@@ -274,8 +274,6 @@
             unsafe-sealed-struct?
             unsafe-struct*-ref
             unsafe-struct*-set!
-            impersonator?
-            impersonator-val
             impersonate-ref
             impersonate-set!
             #%struct-ref-error

@@ -924,6 +924,8 @@
 
  port?
  input-port?
+ impersonator?
+ impersonator-val
  output-port?
  port-closed?
  close-input-port
@@ -2782,6 +2784,12 @@
 
 (define (unsafe-struct? v std)
   (error 'unsafe-struct? "only available in compiled WebRacket"))
+
+(define (impersonator? v)
+  #f)
+
+(define (impersonator-val v)
+  (error 'impersonator-val "impersonators are not supported by WebRacket"))
 
 (define (~r/precision x prec)
   (~r x #:precision prec))

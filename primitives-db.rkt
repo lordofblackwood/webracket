@@ -473,6 +473,8 @@
 (define-primitive inexact?                                  1                   (pure foldable))
 (define-primitive infinite?                                 1                   (pure))
 (define-primitive input-port?                               1                   (pure))
+(define-primitive impersonator?                             1                   (pure))
+(define-primitive impersonator-val                          1                   (ordered))
 (define-primitive instance-data                             1                   (ordered))
 (define-primitive instance-name                             1                   (ordered))
 (define-primitive instance-set-variable-value!              [3 4]               (ordered))

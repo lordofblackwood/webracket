@@ -1998,6 +1998,8 @@
 
   port?
   input-port?
+  impersonator?
+  impersonator-val
   output-port?  
   port-closed?
   current-input-port

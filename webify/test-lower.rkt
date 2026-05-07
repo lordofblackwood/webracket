@@ -84,6 +84,9 @@
   (check-false (first-slice-unsupported-free? '(with-continuation-mark* push k v body)))
   (check-false (first-slice-unsupported-free? '(unsafe-struct*-ref s 0)))
   (check-true (first-slice-unsupported-free? '(unsafe-struct? s struct:s)))
+  (check-true (first-slice-unsupported-free? '(if (impersonator? v)
+                                                  (impersonator-val v)
+                                                  #f)))
   (check-true (first-slice-unsupported-free? '(quote (#%app f x))))
   (check-exn #rx"unsupported webify compatibility form remains"
              (lambda ()

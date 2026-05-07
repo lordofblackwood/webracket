@@ -2668,6 +2668,9 @@
               (list "unsafe-vector-length"
                     (equal? (unsafe-vector-length '#(1 2 3)) 3))
 
+              (list "impersonator?/none"
+                    (equal? (impersonator? (vector 1 2 3)) #f))
+
               (list "unsafe-struct?"
                     (let-values ([(struct:parent make-parent parent? parent-ref parent-set!)
                                   (make-struct-type 'unsafe-parent #f 1 0 #f)]

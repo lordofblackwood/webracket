@@ -35903,6 +35903,16 @@
         (func $input-port? (type $Prim1)
               ,@(make-predicate-body '$InputPort))
 
+        (func $impersonator? (type $Prim1)
+              (param $v (ref eq)) ;; any value
+              (result   (ref eq)) ;; always #f; WebRacket has no impersonators
+              (global.get $false))
+
+        (func $impersonator-val (type $Prim1)
+              (param $v (ref eq)) ;; unsupported impersonator value
+              (result   (ref eq))
+              (unreachable))
+
         (func $output-port? (type $Prim1)
               ,@(make-predicate-body '$OutputPort))
 
