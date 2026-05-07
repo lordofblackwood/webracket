@@ -11,6 +11,16 @@
          webify-module-extractor-spike-phase0-linklet-datum
          webify-module-extractor-spike-manifest-ready?
          webify-module-extractor-spike-notes
+         webify-module-import-map
+         webify-module-import-map?
+         webify-module-import-map-phase0-import-groups
+         webify-module-import-map-module-protocol-import-groups
+         webify-module-import-map-unresolved-import-groups
+         webify-module-import-map-data-module-path-indexes
+         webify-module-import-map-decl-requires-expression
+         webify-module-import-map-decl-provides-expression
+         webify-module-import-map-decl-phase-to-link-modules-expression
+         webify-module-import-map-notes
          webify-module-bundle-entry
          webify-module-bundle-entry?
          webify-module-bundle-entry-key
@@ -20,6 +30,7 @@
          webify-module-bundle-entry-datum
          webify-module-bundle-entry-value
          webify-module-bundle-entry-ref
+         webify-module-extractor-spike-import-map
          webify-normalize-linklet-imports
          webify-linklet-import-bindings
          webify-source-module->linklet-input
@@ -50,6 +61,17 @@
    exports
    datum
    value)
+  #:transparent)
+
+(struct webify-module-import-map
+  (phase0-import-groups
+   module-protocol-import-groups
+   unresolved-import-groups
+   data-module-path-indexes
+   decl-requires-expression
+   decl-provides-expression
+   decl-phase-to-link-modules-expression
+   notes)
   #:transparent)
 
 ;; maybe-decompile-linklet : (or/c procedure? #f)
@@ -161,6 +183,16 @@
                             "linklet imports must be symbols or local/external symbol pairs"
                             "import" binding)]))
 
+;; normalize-linklet-import-group : symbol? any/c -> (listof (list/c symbol? symbol?))
+;;   Normalize one decompiled or metadata import group.
+(define (normalize-linklet-import-group who group)
+  (unless (list? group)
+    (raise-arguments-error who
+                           "linklet import group must be a list"
+                           "group" group))
+  (for/list ([binding (in-list group)])
+    (normalize-linklet-import-binding who binding)))
+
 ;; webify-normalize-linklet-imports : linklet-datum -> linklet-datum
 ;;   Normalize import shorthand in a decompiled linklet datum.
 (define (webify-normalize-linklet-imports linklet)
@@ -172,12 +204,7 @@
                               "linklet imports must be a list of import groups"
                               "imports" importss))
      `(linklet ,(for/list ([group (in-list importss)])
-                  (unless (list? group)
-                    (raise-arguments-error who
-                                           "linklet import group must be a list"
-                                           "group" group))
-                  (for/list ([binding (in-list group)])
-                    (normalize-linklet-import-binding who binding)))
+                  (normalize-linklet-import-group who group))
         ,exports
         . ,body)]
     [_
@@ -205,6 +232,75 @@
 ;;   Recognize imports currently supplied only by Racket's module protocol.
 (define (module-protocol-import-binding? binding)
   (memq (cadr binding) known-module-protocol-imports))
+
+;; linklet-body-definition-expression : linklet-datum symbol? -> any/c
+;;   Find the expression for a single-value definition in a decompiled linklet body.
+(define (linklet-body-definition-expression linklet id)
+  (match linklet
+    [`(linklet ,_imports ,_exports . ,body)
+     (for/first ([form (in-list body)]
+                 #:when (match form
+                          [`(define-values (,defined-id) ,_expr)
+                           (eq? defined-id id)]
+                          [_ #f]))
+       (match form
+         [`(define-values (,_defined-id) ,expr) expr]))]
+    [_ #f]))
+
+;; data-linklet-module-path-indexes : (or/c linklet-datum? #f) -> any/c
+;;   Extract the serialized module-path-index seed vector from a data linklet.
+(define (data-linklet-module-path-indexes data-linklet)
+  (and data-linklet
+       (match (linklet-body-definition-expression data-linklet '.mpi-vector)
+         [`(deserialize-module-path-indexes ',mpi-vector ',_self-vector)
+          mpi-vector]
+         [_ #f])))
+
+;; phase0-import-groups : webify-module-extractor-spike? -> import-groups
+;;   Return normalized phase-0 import groups from metadata.
+(define (phase0-import-groups report)
+  (for/list ([group (in-list (webify-module-extractor-spike-phase0-imports report))])
+    (normalize-linklet-import-group 'webify-module-extractor-spike-import-map group)))
+
+;; protocol-import-group? : import-group -> boolean?
+;;   Check whether every binding in a group is supplied by the module protocol.
+(define (protocol-import-group? group)
+  (and (pair? group)
+       (andmap module-protocol-import-binding? group)))
+
+;; webify-module-extractor-spike-import-map : report -> webify-module-import-map?
+;;   Build an observational import-map report from phase-0, data, and decl linklets.
+(define (webify-module-extractor-spike-import-map report)
+  (define who 'webify-module-extractor-spike-import-map)
+  (unless (webify-module-extractor-spike? report)
+    (raise-argument-error who "webify-module-extractor-spike?" report))
+  (define import-groups (phase0-import-groups report))
+  (define protocol-groups (filter protocol-import-group? import-groups))
+  (define unresolved-groups (filter (lambda (group)
+                                      (not (protocol-import-group? group)))
+                                    import-groups))
+  (define data-entry (webify-module-bundle-entry-ref report 'data))
+  (define decl-entry (webify-module-bundle-entry-ref report 'decl))
+  (define data-linklet (webify-module-bundle-entry-datum data-entry))
+  (define decl-linklet (webify-module-bundle-entry-datum decl-entry))
+  (webify-module-import-map
+   import-groups
+   protocol-groups
+   unresolved-groups
+   (data-linklet-module-path-indexes data-linklet)
+   (and decl-linklet (linklet-body-definition-expression decl-linklet 'requires))
+   (and decl-linklet (linklet-body-definition-expression decl-linklet 'provides))
+   (and decl-linklet (linklet-body-definition-expression decl-linklet 'phase-to-link-modules))
+   (cond
+     [(not decl-linklet)
+      '("decl/data metadata is unavailable on this host because linklet decompilation is unavailable")]
+     [(null? unresolved-groups)
+      '("phase-0 imports are limited to known module-protocol imports"
+        "decl/data metadata is available for future require decoding")]
+     [else
+      '("phase-0 contains non-protocol import groups"
+        "decl/data metadata likely maps those groups to required modules"
+        "this spike reports the raw metadata but does not decode it yet")])))
 
 ;; resolve-extracted-linklet-imports : symbol? linklet-datum ... -> imports
 ;;   Classify extracted imports and turn supported ones into flat bridge triples.

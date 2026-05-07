@@ -39,6 +39,15 @@
                 (webify-module-extractor-spike-phase0-imports report))
   (check-equal? (webify-module-bundle-entry-exports phase0-entry)
                 (webify-module-extractor-spike-phase0-exports report))
+  (define import-map (webify-module-extractor-spike-import-map report))
+  (check-true (webify-module-import-map? import-map))
+  (check-equal? (webify-module-import-map-phase0-import-groups import-map)
+                '(((.get-syntax-literal! .get-syntax-literal!))
+                  ((.set-transformer! .set-transformer!))))
+  (check-equal? (webify-module-import-map-module-protocol-import-groups import-map)
+                (webify-module-import-map-phase0-import-groups import-map))
+  (check-equal? (webify-module-import-map-unresolved-import-groups import-map)
+                '())
   (check-equal? (webify-module-extractor-spike-phase0-exports report) '(x))
   (check-not-false
    (member '(.get-syntax-literal!)
@@ -51,6 +60,13 @@
                   `(linklet ,_ ,_ . ,_))
      (check-match (webify-module-bundle-entry-datum data-entry)
                   `(linklet ,_ ,_ . ,_))
+     (check-true (vector? (webify-module-import-map-data-module-path-indexes import-map)))
+     (check-match (webify-module-import-map-decl-requires-expression import-map)
+                  `(let-values ,_ . ,_))
+     (check-match (webify-module-import-map-decl-provides-expression import-map)
+                  `(let-values ,_ . ,_))
+     (check-match (webify-module-import-map-decl-phase-to-link-modules-expression import-map)
+                  `(hasheqv . ,_))
      (check-equal? (caddr (webify-module-extractor-spike-phase0-linklet-datum report))
                    '(x))
      (check-not-false
@@ -61,6 +77,10 @@
      (check-false (webify-module-bundle-entry-datum phase0-entry))
      (check-false (webify-module-bundle-entry-datum decl-entry))
      (check-false (webify-module-bundle-entry-datum data-entry))
+     (check-false (webify-module-import-map-data-module-path-indexes import-map))
+     (check-false (webify-module-import-map-decl-requires-expression import-map))
+     (check-false (webify-module-import-map-decl-provides-expression import-map))
+     (check-false (webify-module-import-map-decl-phase-to-link-modules-expression import-map))
      (check-not-false
       (member "host Racket does not provide decompile-linklet"
               (webify-module-extractor-spike-notes report)))]))
@@ -135,6 +155,43 @@
       #rx"source module did not produce a decompilable phase-0 linklet datum"
       (lambda ()
         (webify-source-module->resolved-linklet-input module-datum)))]))
+
+(test-case "import map reports unresolved required-module groups"
+  (define module-datum
+    '(module a racket/base
+       (require racket/list)
+       (provide y)
+       (define y (first (list 10)))))
+  (define report (webify-compile-module-extractor-spike module-datum))
+  (define import-map (webify-module-extractor-spike-import-map report))
+  (check-equal? (webify-module-import-map-phase0-import-groups import-map)
+                '(((.get-syntax-literal! .get-syntax-literal!))
+                  ((.set-transformer! .set-transformer!))
+                  ((first first))))
+  (check-equal? (webify-module-import-map-module-protocol-import-groups import-map)
+                '(((.get-syntax-literal! .get-syntax-literal!))
+                  ((.set-transformer! .set-transformer!))))
+  (check-equal? (webify-module-import-map-unresolved-import-groups import-map)
+                '(((first first))))
+  (cond
+    [(webify-module-extractor-spike-manifest-ready? report)
+     (check-true (vector? (webify-module-import-map-data-module-path-indexes import-map)))
+     (check-not-false
+      (for/or ([entry (in-vector (webify-module-import-map-data-module-path-indexes import-map))])
+        (equal? entry '#(racket/list))))
+     (check-match (webify-module-import-map-decl-requires-expression import-map)
+                  `(let-values ,_ . ,_))
+     (check-match (webify-module-import-map-decl-phase-to-link-modules-expression import-map)
+                  `(hasheqv . ,_))
+     (check-not-false
+      (member "phase-0 contains non-protocol import groups"
+              (webify-module-import-map-notes import-map)))]
+    [else
+     (check-false (webify-module-import-map-data-module-path-indexes import-map))
+     (check-false (webify-module-import-map-decl-requires-expression import-map))
+     (check-not-false
+      (member "decl/data metadata is unavailable on this host because linklet decompilation is unavailable"
+              (webify-module-import-map-notes import-map)))]))
 
 (module+ main
   (void))

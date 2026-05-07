@@ -656,6 +656,41 @@ The important boundary is intentional: extraction can now normalize and
 classify imports, but Webify still needs an actual module-protocol dependency
 before the result can be instantiated end-to-end.
 
+`webify-module-extractor-spike-import-map` is the current observational bridge
+between phase-0 imports and bundle metadata. For a module that requires
+`racket/list`:
+
+```racket
+(module a racket/base
+  (require racket/list)
+  (provide y)
+  (define y (first (list 10))))
+```
+
+the phase-0 linklet has three import groups:
+
+```racket
+'(((.get-syntax-literal! .get-syntax-literal!))
+  ((.set-transformer! .set-transformer!))
+  ((first first)))
+```
+
+The first two are classified as module-protocol groups. The third is reported
+as unresolved:
+
+```racket
+(webify-module-import-map-unresolved-import-groups import-map)
+;; => '(((first first)))
+```
+
+When `decl` and `data` decompile, the same report also exposes the raw
+module-path-index seed vector from `data` and the `requires`, `provides`, and
+`phase-to-link-modules` expressions from `decl`. For the example above, the
+seed vector includes `#(racket/list)`, which is the evidence needed for the
+next decoder step. The current report deliberately stops there: it records the
+metadata in a stable shape, but it does not yet translate the serialized
+`requires` expression into final `(local dependency export)` triples.
+
 The export `x` is represented by the cell `webify-export-cell0$0`. The lowered
 procedure writes the exported value into that cell with
 `module-variable-define!`. The adapter then exposes the cell value as the
