@@ -239,6 +239,56 @@
       (lambda ()
         (for ([dir (in-list (list source-dir dest-dir))])
           (with-handlers ([exn:fail:filesystem? void])
+            (delete-directory/files dir))))))
+
+  (test-case "module loader output runs with and without stdlib"
+    (define source-dir (make-temporary-file "webracket-loader-matrix-src-~a" 'directory))
+    (define no-stdlib-dest (make-temporary-file "webracket-loader-matrix-no-stdlib-dest-~a" 'directory))
+    (define stdlib-dest    (make-temporary-file "webracket-loader-matrix-stdlib-dest-~a" 'directory))
+    (define source-path (build-path source-dir "loader-matrix-run.rkt"))
+    (dynamic-wind
+      void
+      (lambda ()
+        (define loader (make-webify-module-loader (make-loader-test-registry)))
+        (write-datum-program!
+         source-path
+         (webify-module-loader-instantiate-observe!
+          loader
+          '(b)
+          '((a x) (b y))
+          #:define-export-aliases? #f
+          #:serializable?-box     #f
+          #:datum-intern?         #f
+          #:target                #f
+          #:allow-set!-undefined? #f
+          #:unsafe-mode?          #f
+          #:enforce-constant?     #t
+          #:allow-inline?         #t
+          #:no-prompt?            #f
+          #:prim-knowns           test-prim-knowns
+          #:primitives            test-primitives
+          #:compiler-query        (lambda (v) #f)
+          #:get-import-knowns     (lambda (key) (values #f #f #f))
+          #:import-keys           #f))
+        (for ([run (in-list
+                    (list (list (list "--no-stdlib"
+                                      "-r"
+                                      "--dest" (path->string no-stdlib-dest)
+                                      (path->string source-path))
+                                no-stdlib-dest)
+                          (list (list "--print-top-level-results"
+                                      "-r"
+                                      "--dest" (path->string stdlib-dest)
+                                      (path->string source-path))
+                                stdlib-dest)))])
+          (define args (car run))
+          (define-values (status output) (run-webracket args source-dir))
+          (check-equal? status 0 output)
+          (check-regexp-match #rx"(?m:^10$)" output)
+          (check-regexp-match #rx"(?m:^11$)" output)))
+      (lambda ()
+        (for ([dir (in-list (list source-dir no-stdlib-dest stdlib-dest))])
+          (with-handlers ([exn:fail:filesystem? void])
             (delete-directory/files dir)))))))
 
 (module+ main
