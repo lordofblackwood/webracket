@@ -18,6 +18,14 @@
                (current-continuation-marks))))
   (check-equal? (webify-module-failure-category unresolved) 'unresolved-import))
 
+(test-case "module diagnostics classify missing alias exports as unresolved imports"
+  (define missing-alias-export
+    (webify-classify-runtime-output
+     1
+     "webify-resolve-module-linklet-imports: dependency does not export aliased name"))
+  (check-equal? (webify-module-failure-category missing-alias-export)
+                'unresolved-import))
+
 (test-case "module diagnostics classify runtime output"
   (define primitive-collision
     (webify-classify-runtime-output

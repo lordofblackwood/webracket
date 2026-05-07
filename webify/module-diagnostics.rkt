@@ -20,7 +20,7 @@
   (cond
     [(regexp-match? #rx"decompilable phase-0 linklet datum" message)
      'missing-decompile]
-    [(regexp-match? #rx"could not resolve import dependency|unresolved import|ambiguous inferred import dependency" message)
+    [(regexp-match? #rx"could not resolve import dependency|dependency does not export aliased name|unresolved import|ambiguous inferred import dependency" message)
      'unresolved-import]
     [(regexp-match? #rx"[.]get-syntax-literal!" message)
      'syntax-literal]

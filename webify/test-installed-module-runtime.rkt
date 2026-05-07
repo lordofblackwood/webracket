@@ -70,7 +70,7 @@
         (define y (first '(#t #f)))))
     '((use-list y))
     #rx"(?m:^(#t|true)$)"
-    '(unresolved-import syntax-literal unsupported-runtime unknown))
+    '(unresolved-import))
    (installed-runtime-smoke
     "installed racket/string graph reaches WebRacket runtime smoke"
     '((module use-string racket/base
