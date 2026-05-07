@@ -88,6 +88,7 @@
 (define (contains-symbol? v s)
   (let loop ([v v])
     (cond
+      [(syntax? v) (loop (syntax->datum v))]
       [(symbol? v) (eq? v s)]
       [(pair? v)   (or (loop (car v)) (loop (cdr v)))]
       [(vector? v) (for/or ([e (in-vector v)]) (loop e))]
@@ -113,7 +114,9 @@
                       (sort regexp-exports symbol<?))
         (define-values (webified _exports _exports-info)
           (run-first-slice-top-level datum))
-        (check-false (contains-symbol? webified 'unsafe-struct)))
+        (check-false (contains-symbol? webified 'unsafe-struct))
+        (define wat (wat-string (comp webified)))
+        (check-true (positive? (string-length wat))))
       (lambda ()
         (with-handlers ([exn:fail:filesystem? void])
           (delete-directory/files out-dir))))))
