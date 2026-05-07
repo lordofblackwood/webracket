@@ -20,6 +20,10 @@
   (cond
     [(regexp-match? #rx"decompilable phase-0 linklet datum" message)
      'missing-decompile]
+    [(regexp-match? #rx"compiled module did not produce a linklet directory or direct linklet" message)
+     'compiled-provider-shape]
+    [(regexp-match? #rx"cannot open module file[^\n]*\n  module path: racket/for" message)
+     'provider-candidate-overreach]
     [(regexp-match? #rx"could not resolve import dependency|dependency does not export aliased name|unresolved import|ambiguous inferred import dependency" message)
      'unresolved-import]
     [(regexp-match? #rx"[.]get-syntax-literal!" message)

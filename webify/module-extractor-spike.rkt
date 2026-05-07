@@ -898,10 +898,41 @@
 ;; compiled-module->extractor-spike : symbol? any/c -> webify-module-extractor-spike?
 ;;   Convert one machine-independent compiled module to an extractor report.
 (define (compiled-module->extractor-spike who name compiled)
-  (unless (linklet-directory? compiled)
-    (raise-arguments-error who
-                           "compiled module did not produce a linklet directory"
-                           "compiled" compiled))
+  (cond
+    [(linklet? compiled)
+     (define phase0-entry (bundle-value->entry 0 compiled))
+     (define phase0-linklet-datum
+       (webify-module-bundle-entry-datum phase0-entry))
+     (define manifest-ready? (linklet-datum? phase0-linklet-datum))
+     (webify-module-extractor-spike
+      name
+      '(#f)
+      '(0)
+      (list phase0-entry)
+      (linklet-import-variables compiled)
+      (linklet-export-variables compiled)
+      phase0-linklet-datum
+      manifest-ready?
+      (cond
+        [manifest-ready?
+         '("machine-independent compilation exposes a direct decompilable phase-0 linklet datum")]
+        [maybe-decompile-linklet
+         '("compiled module exposes a direct linklet object"
+           "decompile-linklet did not produce a linklet datum for the phase-0 linklet")]
+        [else
+         '("compiled module exposes a direct linklet object"
+           "host Racket does not provide decompile-linklet"
+           "use the newer ../racket checkout for the machine-independent decompile spike")]))]
+    [(not (linklet-directory? compiled))
+     (raise-arguments-error who
+                            "compiled module did not produce a linklet directory or direct linklet"
+                            "compiled" compiled)]
+    [else
+     (compiled-linklet-directory->extractor-spike who name compiled)]))
+
+;; compiled-linklet-directory->extractor-spike : symbol? symbol? linklet-directory? -> report
+;;   Convert a compiled module directory into an extractor report.
+(define (compiled-linklet-directory->extractor-spike who name compiled)
   (define directory-hash (linklet-directory->hash compiled))
   (define main-bundle
     (hash-ref directory-hash

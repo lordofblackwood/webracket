@@ -78,11 +78,14 @@ The same smoke file also contains richer installed probes for `racket/list` and
 runtime demos:
 
 ```text
-racket/list   -> unresolved-import
+racket/list   -> provider-candidate-overreach / compiled-provider-shape
 racket/string -> unresolved-import
 ```
 
-Those failures are useful. They show that the next broad bridge step is not the
-cell representation itself, but richer provider graph/name resolution for
-transitive dependencies such as `reverse`, `andmap2`, and internalized
-`string-join` variants.
+Those failures are useful. `racket/list` now reaches transitive provider
+discovery and exposes two sharper provider-graph blockers: some decoded
+candidates overreach into non-module names such as `racket/for`, and some real
+providers such as `racket/private/pico` compile to a faslable correlated
+linklet object instead of the linklet-directory shape currently decoded by
+Webify. `racket/string` is still a linklet-level name-resolution frontier for
+internalized `string-join` variants.
