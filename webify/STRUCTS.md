@@ -318,15 +318,21 @@ simple no-auto/no-mutable middle shape, such as
 and normalize to the same full explicit key identity. Generated accessors from
 matching nested `make-struct-type ... 'prefab` descriptors share that nested
 type identity and work across the parent, child, and grandchild fields.
+The explicit flattened public-key form is no longer limited to that one
+nested parent level: deeper simple no-auto/no-mutable chains are reconstructed
+recursively for prefab interning, so a chain such as
+`deep-grandchild -> grandchild -> child -> parent` shares type identity across
+`make-prefab-struct` and matching `make-struct-type ... 'prefab` descriptors.
 
 ## Proposed Next Implementation Milestone
 
 Extend prefab support beyond the nested-simple-super/prefab-datum-auto subset:
 
-- Generalize nested prefab registry-key reconstruction beyond one nested parent
-  key, so deeper supertype chains do not need special-case bridge code.
+- Add short-alias parsing for deeper prefab chains, such as
+  `'(deep-grandchild grandchild 1 child 1 parent 2)`, instead of requiring the
+  full explicit public-key form.
 - Broaden prefab-datum validation if more Racket datum cases are needed.
 
 That milestone should include small tests showing:
 
-- A deeper prefab subtype shares its normalized supertype chain across slices.
+- A deeper prefab subtype alias normalizes to the same key as its explicit form.

@@ -4470,6 +4470,13 @@
                       (define p/grandchild-explicit-count
                         (make-prefab-struct '(prefab-grandchild 1 prefab-child 1 prefab-parent 2)
                                             10 20 30 40))
+                      (define p/deep-grandchild
+                        (make-prefab-struct
+                         '(prefab-deep-grandchild 1 (0 #f) #()
+                           prefab-grandchild 1 (0 #f) #()
+                           prefab-child 1 (0 #f) #()
+                           prefab-parent 2 (0 #f) #())
+                         10 20 30 40 50))
                       (define-values (struct:prefab-point make-prefab-point prefab-point?
                                                           prefab-point-ref prefab-point-set!)
                         (make-struct-type 'prefab-point #f 2 0 #f #f 'prefab))
@@ -4503,6 +4510,9 @@
                       (define-values (struct:prefab-grandchild make-prefab-grandchild prefab-grandchild?
                                                                prefab-grandchild-ref prefab-grandchild-set!)
                         (make-struct-type 'prefab-grandchild struct:prefab-child 1 0 #f #f 'prefab))
+                      (define-values (struct:prefab-deep-grandchild make-prefab-deep-grandchild prefab-deep-grandchild?
+                                                                    prefab-deep-grandchild-ref prefab-deep-grandchild-set!)
+                        (make-struct-type 'prefab-deep-grandchild struct:prefab-grandchild 1 0 #f #f 'prefab))
                       (define type-info (prefab-struct-type-key+field-count struct:prefab-point))
                       (define auto-type-info (prefab-struct-type-key+field-count struct:prefab-auto))
                       (prefab-cell-set! p/mutable 1 99)
@@ -4526,6 +4536,10 @@
                            (prefab-key? '(prefab-child 1 #(0) prefab-parent 2 #(0 1)))
                            (prefab-key? '(prefab-grandchild prefab-child 1 prefab-parent 2))
                            (prefab-key? '(prefab-grandchild 1 prefab-child 1 prefab-parent 2))
+                           (prefab-key? '(prefab-deep-grandchild 1 (0 #f) #()
+                                          prefab-grandchild 1 (0 #f) #()
+                                          prefab-child 1 (0 #f) #()
+                                          prefab-parent 2 (0 #f) #()))
                            (not (prefab-key? '(prefab-multi 3 (0 #f) #(0 0))))
                            (equal? (prefab-struct-key p) 'prefab-point)
                            (equal? (prefab-struct-key p/auto) '(prefab-auto 1 (1 #f) #()))
@@ -4576,6 +4590,11 @@
                            (equal? (prefab-parent-ref p/grandchild-explicit-count 1) 20)
                            (equal? (prefab-child-ref p/grandchild-explicit-count 0) 30)
                            (equal? (prefab-grandchild-ref p/grandchild-explicit-count 0) 40)
+                           (equal? (prefab-parent-ref p/deep-grandchild 0) 10)
+                           (equal? (prefab-parent-ref p/deep-grandchild 1) 20)
+                           (equal? (prefab-child-ref p/deep-grandchild 0) 30)
+                           (equal? (prefab-grandchild-ref p/deep-grandchild 0) 40)
+                           (equal? (prefab-deep-grandchild-ref p/deep-grandchild 0) 50)
                            (equal? type-info '(prefab-point . 2))
                            (equal? auto-type-info '((prefab-auto 1 (1 #f) #()) . 2)))))))
 

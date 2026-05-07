@@ -852,7 +852,7 @@
              '(linklet () (a-point auto-point auto-zero auto-one auto-list auto-vector
                          mutable-cell mutable-triple child-point child-point/alias
                          child-point/alias-count grandchild-point
-                         grandchild-point/count one-point-value)
+                         grandchild-point/count deep-grandchild-point one-point-value)
                 (define-values (struct:prefab-point/one make-prefab-point/one prefab-point/one?
                                                         prefab-point/one-ref prefab-point/one-set!)
                   (make-struct-type 'prefab-point #f 1 0 #f #f 'prefab))
@@ -892,7 +892,14 @@
                                       10 20 30 40))
                 (define-values (grandchild-point/count)
                   (make-prefab-struct '(prefab-grandchild 1 prefab-child 1 prefab-parent 2)
-                                      10 20 30 40)))
+                                      10 20 30 40))
+                (define-values (deep-grandchild-point)
+                  (make-prefab-struct
+                   '(prefab-deep-grandchild 1 (0 #f) #()
+                     prefab-grandchild 1 (0 #f) #()
+                     prefab-child 1 (0 #f) #()
+                     prefab-parent 2 (0 #f) #())
+                   10 20 30 40 50)))
              '())
             (webify-linklet-slice-spec
              'prefab-maker-b
@@ -908,7 +915,8 @@
                          [child-point/alias child-point/alias]
                          [child-point/alias-count child-point/alias-count]
                          [grandchild-point grandchild-point]
-                         [grandchild-point/count grandchild-point/count])) (out)
+                         [grandchild-point/count grandchild-point/count]
+                         [deep-grandchild-point deep-grandchild-point])) (out)
                 (define-values (struct:prefab-point make-prefab-point prefab-point?
                                                     prefab-point-ref prefab-point-set!)
                   (make-struct-type 'prefab-point #f 2 0 #f #f 'prefab))
@@ -942,6 +950,9 @@
                 (define-values (struct:prefab-grandchild make-prefab-grandchild prefab-grandchild?
                                                          prefab-grandchild-ref prefab-grandchild-set!)
                   (make-struct-type 'prefab-grandchild struct:prefab-child 1 0 #f #f 'prefab))
+                (define-values (struct:prefab-deep-grandchild make-prefab-deep-grandchild prefab-deep-grandchild?
+                                                              prefab-deep-grandchild-ref prefab-deep-grandchild-set!)
+                  (make-struct-type 'prefab-deep-grandchild struct:prefab-grandchild 1 0 #f #f 'prefab))
                 (define-values (type-info)
                   (prefab-struct-type-key+field-count struct:prefab-point))
                 (define-values (auto-type-info)
@@ -973,6 +984,10 @@
                            (prefab-key? '(prefab-child 1 #(0) prefab-parent 2 #(0 1)))
                            (prefab-key? '(prefab-grandchild prefab-child 1 prefab-parent 2))
                            (prefab-key? '(prefab-grandchild 1 prefab-child 1 prefab-parent 2))
+                           (prefab-key? '(prefab-deep-grandchild 1 (0 #f) #()
+                                          prefab-grandchild 1 (0 #f) #()
+                                          prefab-child 1 (0 #f) #()
+                                          prefab-parent 2 (0 #f) #()))
                            (not (prefab-key? '(prefab-triple 3 (0 #f) #(0 0))))
                            (eq? (prefab-struct-key a-point) 'prefab-point)
                            (eq? (prefab-struct-key made-here) 'prefab-point)
@@ -1028,7 +1043,12 @@
                            (= (prefab-parent-ref grandchild-point/count 0) 10)
                            (= (prefab-parent-ref grandchild-point/count 1) 20)
                            (= (prefab-child-ref grandchild-point/count 0) 30)
-                           (= (prefab-grandchild-ref grandchild-point/count 0) 40))
+                           (= (prefab-grandchild-ref grandchild-point/count 0) 40)
+                           (= (prefab-parent-ref deep-grandchild-point 0) 10)
+                           (= (prefab-parent-ref deep-grandchild-point 1) 20)
+                           (= (prefab-child-ref deep-grandchild-point 0) 30)
+                           (= (prefab-grandchild-ref deep-grandchild-point 0) 40)
+                           (= (prefab-deep-grandchild-ref deep-grandchild-point 0) 50))
                       (prefab-auto-ref auto-point 0)
                       0)))
              '((a-point prefab-maker-a a-point)
@@ -1043,7 +1063,8 @@
                (child-point/alias prefab-maker-a child-point/alias)
                (child-point/alias-count prefab-maker-a child-point/alias-count)
                (grandchild-point prefab-maker-a grandchild-point)
-               (grandchild-point/count prefab-maker-a grandchild-point/count))))
+               (grandchild-point/count prefab-maker-a grandchild-point/count)
+               (deep-grandchild-point prefab-maker-a deep-grandchild-point))))
            #:tail '((js-log out))))
         (define wat (wat-string (comp (datum->syntax #f combined))))
         (check-true (string-contains? wat "$prefab-struct-type-registry"))

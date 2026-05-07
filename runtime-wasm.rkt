@@ -40814,9 +40814,13 @@
                (if (i32.or
                     (i32.lt_u (local.get $len) (i32.const 1))
                     (i32.and (i32.gt_u (local.get $len) (i32.const 6))
-                             (i32.and
-                              (i32.ne (local.get $len) (i32.const 8))
-                              (i32.ne (local.get $len) (i32.const 12)))))
+                             (i32.or
+                              (i32.lt_u (local.get $len) (i32.const 8))
+                              (i32.ne
+                               (i32.rem_u
+                                (i32.sub (local.get $len) (i32.const 4))
+                                (i32.const 4))
+                               (i32.const 0)))))
                    (then (return (i32.const 0))))
 
                (local.set $name (call $list-ref/checked (ref.cast (ref $Pair) (local.get $key)) (i32.const 0)))
@@ -41393,7 +41397,12 @@
                    (i32.or
                     (i32.or (i32.eq (local.get $len) (i32.const 5))
                             (i32.eq (local.get $len) (i32.const 6)))
-                    (i32.eq (local.get $len) (i32.const 8)))
+                    (i32.and
+                     (i32.ge_u (local.get $len) (i32.const 8))
+                     (i32.eqz
+                      (i32.rem_u
+                       (i32.sub (local.get $len) (i32.const 4))
+                       (i32.const 4)))))
                    (then (i32.const 1))
                    (else (i32.const 0))))
 
@@ -41569,20 +41578,20 @@
                                (i32.const 7))))
 
          ;; simple-prefab-super-key-registry-key/checked : prefab-key? -> symbol?
-         ;;   Build the internal registry key for an explicit one-level prefab key.
+         ;;   Build the internal registry key for an explicit prefab super chain.
          (func $simple-prefab-super-key-registry-key/checked
                (param $key (ref eq))
                (result     (ref $Symbol))
 
-               (local $len i32)
+               (local $parent-key (ref eq))
 
                (if (i32.eqz (call $simple-prefab-key-has-super?/i32 (local.get $key)))
                    (then (call $raise-argument-error (local.get $key))
                          (unreachable)))
-               (local.set $len (call $length/i32 (local.get $key)))
-               (if (i32.ne (local.get $len) (i32.const 8))
-                   (then (call $raise-argument-error (local.get $key))
-                         (unreachable)))
+               (local.set $parent-key
+                          (call $list-tail/checked
+                                (ref.cast (ref $Pair) (local.get $key))
+                                (i32.const 4)))
                (call $string->symbol/checked
                      (call $string-append/2
                            (call $string-append/2
@@ -41600,17 +41609,24 @@
                                                    (local.get $key))))
                                  (global.get $string:colon))
                            (call $symbol->immutable-string
-                                 (call $simple-prefab-registry-key
-                                       (call $simple-prefab-key-parent-name/checked
-                                             (local.get $key))
-                                       (call $simple-prefab-key-parent-init-count/checked
-                                             (local.get $key))
-                                       (call $simple-prefab-key-parent-auto-count/checked
-                                             (local.get $key))
-                                       (call $simple-prefab-key-parent-auto-value/checked
-                                             (local.get $key))
-                                       (call $simple-prefab-key-parent-mutables/checked
-                                             (local.get $key)))))))
+                                 (if (result (ref $Symbol))
+                                     (call $simple-prefab-key-has-super?/i32
+                                           (local.get $parent-key))
+                                     (then
+                                      (call $simple-prefab-super-key-registry-key/checked
+                                            (local.get $parent-key)))
+                                     (else
+                                      (call $simple-prefab-registry-key
+                                            (call $simple-prefab-key-name/checked
+                                                  (local.get $parent-key))
+                                            (call $simple-prefab-key-init-count-or-minus-one/checked
+                                                  (local.get $parent-key))
+                                            (call $simple-prefab-key-auto-count/checked
+                                                  (local.get $parent-key))
+                                            (call $simple-prefab-key-auto-value/checked
+                                                  (local.get $parent-key))
+                                            (call $simple-prefab-key-mutables/checked
+                                                  (local.get $parent-key)))))))))
 
          ;; simple-prefab-mutable-mask-member?/i32 : vector? i32 -> i32
          ;;   Check whether index appears in the supported mutable-field mask.
@@ -41919,6 +41935,71 @@
                      (local.get $std))
                (local.get $std))
 
+         ;; simple-prefab-struct-type-for-key/checked : prefab-key? -> struct-type?
+         ;;   Intern or retrieve a prefab type from an explicit prefab key chain.
+         (func $simple-prefab-struct-type-for-key/checked
+               (param $key (ref eq))
+               (result     (ref $StructType))
+
+               (local $parent-key          (ref eq))
+               (local $parent-std          (ref $StructType))
+               (local $parent-registry-key (ref $Symbol))
+
+               (if (i32.eqz (call $simple-prefab-key?/i32 (local.get $key)))
+                   (then (call $raise-argument-error (local.get $key))
+                         (unreachable)))
+               (if (i32.eqz (call $simple-prefab-key-has-super?/i32 (local.get $key)))
+                   (then
+                    (return
+                     (call $simple-prefab-struct-type/checked
+                           (call $simple-prefab-key-name/checked (local.get $key))
+                           (call $simple-prefab-key-init-count-or-minus-one/checked
+                                 (local.get $key))
+                           (call $simple-prefab-key-auto-count/checked
+                                 (local.get $key))
+                           (call $simple-prefab-key-auto-value/checked
+                                 (local.get $key))
+                           (call $simple-prefab-key-mutables/checked
+                                 (local.get $key))))))
+               (local.set $parent-key
+                          (call $list-tail/checked
+                                (ref.cast (ref $Pair) (local.get $key))
+                                (i32.const 4)))
+               (local.set $parent-std
+                          (call $simple-prefab-struct-type-for-key/checked
+                                (local.get $parent-key)))
+               (local.set $parent-registry-key
+                          (if (result (ref $Symbol))
+                              (call $simple-prefab-key-has-super?/i32
+                                    (local.get $parent-key))
+                              (then
+                               (call $simple-prefab-super-key-registry-key/checked
+                                     (local.get $parent-key)))
+                              (else
+                               (call $simple-prefab-registry-key
+                                     (call $simple-prefab-key-name/checked
+                                           (local.get $parent-key))
+                                     (call $simple-prefab-key-init-count-or-minus-one/checked
+                                           (local.get $parent-key))
+                                     (call $simple-prefab-key-auto-count/checked
+                                           (local.get $parent-key))
+                                     (call $simple-prefab-key-auto-value/checked
+                                           (local.get $parent-key))
+                                     (call $simple-prefab-key-mutables/checked
+                                           (local.get $parent-key))))))
+               (call $simple-prefab-substruct-type/checked
+                     (call $simple-prefab-key-name/checked (local.get $key))
+                     (call $simple-prefab-key-init-count-or-minus-one/checked
+                           (local.get $key))
+                     (call $simple-prefab-key-auto-count/checked
+                           (local.get $key))
+                     (call $simple-prefab-key-auto-value/checked
+                           (local.get $key))
+                     (call $simple-prefab-key-mutables/checked
+                           (local.get $key))
+                     (local.get $parent-std)
+                     (local.get $parent-registry-key)))
+
          ;; prefab-metadata? : any/c -> i32
          ;;   Detect the simple prefab metadata stored in StructType's immutables slot.
          (func $prefab-metadata?/i32
@@ -42133,6 +42214,8 @@
                (local $parent-init    i32)
                (local $parent-auto    i32)
                (local $parent-total   i32)
+               (local $parent-key     (ref eq))
+               (local $parent-metadata (ref null $Pair))
                (local $parent-std     (ref $StructType))
                (local $parent-registry-key (ref $Symbol))
                (local $grandparent-name (ref $Symbol))
@@ -42182,6 +42265,7 @@
                           (call $simple-prefab-key-mutables/checked
                                 (local.get $key)))
                (local.set $parent-name (local.get $name))
+               (local.set $parent-key  (local.get $key))
                (local.set $parent-auto-value (global.get $false))
                (local.set $parent-mutables
                           (struct.new $Vector
@@ -42310,6 +42394,37 @@
                     (local.set $parent-total
                                (i32.add (local.get $grandparent-init)
                                         (local.get $parent-init)))))
+               (if (i32.and
+                    (local.get $has-super-key)
+                    (i32.and
+                     (i32.eqz (local.get $has-nested-super-key))
+                     (i32.gt_u (local.get $len) (i32.const 8))))
+                   (then
+                    (local.set $parent-key
+                               (call $list-tail/checked
+                                     (ref.cast (ref $Pair) (local.get $key))
+                                     (i32.const 4)))
+                    (local.set $parent-std
+                               (call $simple-prefab-struct-type-for-key/checked
+                                     (local.get $parent-key)))
+                    (local.set $parent-registry-key
+                               (call $simple-prefab-super-key-registry-key/checked
+                                     (local.get $parent-key)))
+                    (local.set $parent-metadata
+                               (ref.cast
+                                (ref $Pair)
+                                (struct.get $StructType $immutables
+                                            (local.get $parent-std))))
+                    (local.set $parent-total
+                               (i32.shr_s
+                                (i31.get_s
+                                 (ref.cast
+                                  (ref i31)
+                                  (struct.get $Pair $d
+                                              (ref.as_non_null
+                                               (local.get $parent-metadata)))))
+                                (i32.const 1)))
+                    (local.set $parent-init (local.get $parent-total))))
                (if (i32.lt_s (local.get $explicit-count) (i32.const 0))
                    (then
                     (local.set $explicit-count
@@ -42382,17 +42497,29 @@
                                           (local.get $parent-std)
                                           (local.get $parent-registry-key)))
                                    (else
-                                    (call $simple-prefab-super-struct-type/checked
-                                          (local.get $name)
-                                          (local.get $explicit-count)
-                                          (local.get $auto-count)
-                                          (local.get $auto-value)
-                                          (local.get $mutables)
-                                          (local.get $parent-name)
-                                          (local.get $parent-init)
-                                          (local.get $parent-auto)
-                                          (local.get $parent-auto-value)
-                                          (local.get $parent-mutables)))))
+                                    (if (result (ref $StructType))
+                                        (i32.gt_u (local.get $len) (i32.const 8))
+                                        (then
+                                         (call $simple-prefab-substruct-type/checked
+                                               (local.get $name)
+                                               (local.get $explicit-count)
+                                               (local.get $auto-count)
+                                               (local.get $auto-value)
+                                               (local.get $mutables)
+                                               (local.get $parent-std)
+                                               (local.get $parent-registry-key)))
+                                        (else
+                                         (call $simple-prefab-super-struct-type/checked
+                                               (local.get $name)
+                                               (local.get $explicit-count)
+                                               (local.get $auto-count)
+                                               (local.get $auto-value)
+                                               (local.get $mutables)
+                                               (local.get $parent-name)
+                                               (local.get $parent-init)
+                                               (local.get $parent-auto)
+                                               (local.get $parent-auto-value)
+                                               (local.get $parent-mutables)))))))
                               (else
                                (call $simple-prefab-struct-type/checked
                                      (local.get $name)
