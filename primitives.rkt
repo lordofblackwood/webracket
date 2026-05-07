@@ -1171,7 +1171,7 @@
  unsafe-flmin unsafe-flmax unsafe-flexpt
  unsafe-flrandom 
  unsafe-car unsafe-cdr
- unsafe-struct? unsafe-struct-ref unsafe-vector-length unsafe-vector-ref
+ unsafe-struct? unsafe-struct*-ref unsafe-struct*-set! unsafe-struct-ref unsafe-vector-length unsafe-vector-ref
  unsafe-vector*-length unsafe-vector*-set! unsafe-vector*-ref
  unsafe-vector-length unsafe-vector-set!
  unsafe-struct-set!

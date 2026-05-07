@@ -49952,6 +49952,20 @@
                                                           (local.get $k)))
                                      (i32.const 1))))
 
+         ;; unsafe-struct*-ref : (not/c impersonator?) fixnum? -> any/c
+         ;;   Raw field access. WebRacket does not yet implement impersonators,
+         ;;   so this is currently the same operation as unsafe-struct-ref.
+         (func $unsafe-struct*-ref (type $Prim2)
+               (param $v (ref eq))
+               (param $k (ref eq))
+               (result (ref eq))
+               (array.get $Array
+                          (struct.get $Struct $fields
+                                      (ref.cast (ref $Struct) (local.get $v)))
+                          (i32.shr_s (i31.get_s (ref.cast (ref i31)
+                                                          (local.get $k)))
+                                     (i32.const 1))))
+
         (func $unsafe-vector-ref (type $Prim2)
               (param $v (ref eq))
               (param $k (ref eq))
@@ -50030,6 +50044,24 @@
               (global.get $void))
 
         (func $unsafe-struct-set!
+              (param $struct (ref eq))
+              (param $idx    (ref eq))
+              (param $val    (ref eq))
+              (result        (ref eq))
+
+              (array.set $Array
+                         (struct.get $Struct $fields
+                                     (ref.cast (ref $Struct) (local.get $struct)))
+                         (i32.shr_s (i31.get_s (ref.cast (ref i31)
+                                                         (local.get $idx)))
+                                    (i32.const 1))
+                         (local.get $val))
+              (global.get $void))
+
+        ;; unsafe-struct*-set! : (not/c impersonator?) fixnum? any/c -> void?
+        ;;   Raw field update. WebRacket does not yet implement impersonators,
+        ;;   so this is currently the same operation as unsafe-struct-set!.
+        (func $unsafe-struct*-set! (type $Prim3)
               (param $struct (ref eq))
               (param $idx    (ref eq))
               (param $val    (ref eq))
