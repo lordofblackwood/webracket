@@ -42,6 +42,12 @@
  webify-source-modules->registry
  webify-module-reports->discovered-registry
  webify-source-modules->discovered-registry
+ webify-module-provider-cache
+ webify-module-provider-cache?
+ make-webify-module-provider-cache
+ webify-module-provider-cache-ref
+ webify-module-provider-cache-names
+ webify-module-provider-cache-count
  webify-normalize-linklet-imports
  webify-linklet-import-bindings
  webify-module-import-map

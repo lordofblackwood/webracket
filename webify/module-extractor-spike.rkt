@@ -40,6 +40,12 @@
          webify-module-extractor-spike->required-provider-spikes
          webify-module-extractor-spikes->required-provider-closure
          webify-module-extractor-spikes->discovered-resolved-linklet-inputs
+         webify-module-provider-cache
+         webify-module-provider-cache?
+         make-webify-module-provider-cache
+         webify-module-provider-cache-ref
+         webify-module-provider-cache-names
+         webify-module-provider-cache-count
          webify-module-extractor-spike-dependency-exports
          webify-module-extractor-spikes-dependency-exports
          webify-module-path->extractor-spike
@@ -100,6 +106,8 @@
    missing-alias-import-groups
    notes)
   #:transparent)
+
+(struct webify-module-provider-cache (fetch-provider table) #:transparent)
 
 ;; maybe-decompile-linklet : (or/c procedure? #f)
 ;;   Use the newer decompiler API when the host Racket provides it.
@@ -509,6 +517,59 @@
 (define (webify-module-extractor-spike->required-provider-spikes report)
   (for/list ([name (in-list (webify-module-extractor-spike-required-provider-names report))])
     (webify-module-path->extractor-spike name)))
+
+;; make-webify-module-provider-cache : [procedure?] -> webify-module-provider-cache?
+;;   Create a reusable installed-provider report cache.
+(define (make-webify-module-provider-cache [fetch-provider webify-module-path->extractor-spike])
+  (unless (procedure? fetch-provider)
+    (raise-argument-error 'make-webify-module-provider-cache "procedure?" fetch-provider))
+  (webify-module-provider-cache fetch-provider (make-hasheq)))
+
+;; webify-module-provider-cache-ref : webify-module-provider-cache? symbol? -> report
+;;   Fetch and cache an installed-provider report by module name.
+(define (webify-module-provider-cache-ref cache name)
+  (unless (webify-module-provider-cache? cache)
+    (raise-argument-error 'webify-module-provider-cache-ref
+                          "webify-module-provider-cache?"
+                          cache))
+  (unless (symbol? name)
+    (raise-argument-error 'webify-module-provider-cache-ref "symbol?" name))
+  (define table (webify-module-provider-cache-table cache))
+  (hash-ref
+   table
+   name
+   (lambda ()
+     (define report ((webify-module-provider-cache-fetch-provider cache) name))
+     (unless (webify-module-extractor-spike? report)
+       (raise-arguments-error 'webify-module-provider-cache-ref
+                              "provider fetcher did not return an extractor report"
+                              "module" name
+                              "result" report))
+     (unless (eq? name (webify-module-extractor-spike-name report))
+       (raise-arguments-error 'webify-module-provider-cache-ref
+                              "provider report name does not match requested module"
+                              "module" name
+                              "report name" (webify-module-extractor-spike-name report)))
+     (hash-set! table name report)
+     report)))
+
+;; webify-module-provider-cache-names : webify-module-provider-cache? -> (listof symbol?)
+;;   Return cached module names.
+(define (webify-module-provider-cache-names cache)
+  (unless (webify-module-provider-cache? cache)
+    (raise-argument-error 'webify-module-provider-cache-names
+                          "webify-module-provider-cache?"
+                          cache))
+  (sort (hash-keys (webify-module-provider-cache-table cache)) symbol<?))
+
+;; webify-module-provider-cache-count : webify-module-provider-cache? -> exact-nonnegative-integer?
+;;   Return the number of cached provider reports.
+(define (webify-module-provider-cache-count cache)
+  (unless (webify-module-provider-cache? cache)
+    (raise-argument-error 'webify-module-provider-cache-count
+                          "webify-module-provider-cache?"
+                          cache))
+  (hash-count (webify-module-provider-cache-table cache)))
 
 ;; webify-module-extractor-spikes->required-provider-closure : reports ... -> (listof report)
 ;;   Discover transitive provider reports starting from root reports.

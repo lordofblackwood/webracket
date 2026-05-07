@@ -168,6 +168,29 @@
                 '(dep/a dep/b dep/c))
   (check-equal? (sort fetched symbol<?) '(dep/a dep/b dep/c)))
 
+(test-case "stable provider cache reuses fetched reports across closures"
+  (define root-a (synthetic-report 'root/a '(dep/shared)))
+  (define root-b (synthetic-report 'root/b '(dep/shared)))
+  (define shared (synthetic-report 'dep/shared '()))
+  (define fetch-count 0)
+  (define cache
+    (make-webify-module-provider-cache
+     (lambda (name)
+       (set! fetch-count (add1 fetch-count))
+       (check-equal? name 'dep/shared)
+       shared)))
+  (define (cached-fetch name)
+    (webify-module-provider-cache-ref cache name))
+  (void (webify-module-reports->required-provider-closure
+         (list root-a)
+         #:fetch-provider cached-fetch))
+  (void (webify-module-reports->required-provider-closure
+         (list root-b)
+         #:fetch-provider cached-fetch))
+  (check-equal? fetch-count 1)
+  (check-equal? (webify-module-provider-cache-count cache) 1)
+  (check-equal? (webify-module-provider-cache-names cache) '(dep/shared)))
+
 (test-case "stable module report resolves discovered provider graph"
   (define dep-data-linklet
     '(linklet () (.mpi-vector)
