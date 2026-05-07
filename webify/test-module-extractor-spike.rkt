@@ -645,6 +645,38 @@
   (check-equal? (webify-module-linklet-input-imports input)
                 '((local-name dep/mod external-name))))
 
+(test-case "import map decodes relative phase-to-link module indexes"
+  (define phase0-linklet
+    '(linklet (((alt-reverse 1/reverse))) () (void)))
+  (define data-linklet
+    '(linklet () (.mpi-vector)
+       (define-values (.mpi-vector)
+         (deserialize-module-path-indexes '#(#("pico.rkt" 0)
+                                             #("map.rkt" 0))
+                                          '#(0)))))
+  (define decl-linklet
+    '(linklet ((.mpi-vector)) (phase-to-link-modules)
+       (define-values (phase-to-link-modules)
+         (hasheqv 0 (list (module-use (unsafe-vector*-ref .mpi-vector 0) 0)
+                          (module-use (unsafe-vector*-ref .mpi-vector 1) 0))))))
+  (define report
+    (webify-module-extractor-spike
+     'racket/private/list
+     '(#f)
+     '(0 data decl)
+     (list (webify-module-bundle-entry 0 'linklet '(((alt-reverse 1/reverse))) '() phase0-linklet #f)
+           (webify-module-bundle-entry 'data 'linklet '() '(.mpi-vector) data-linklet #f)
+           (webify-module-bundle-entry 'decl 'linklet '((.mpi-vector)) '(phase-to-link-modules) decl-linklet #f))
+     '(((alt-reverse 1/reverse)))
+     '()
+     phase0-linklet
+     #t
+     '()))
+  (define import-map (webify-module-extractor-spike-import-map report))
+  (check-equal? (webify-module-import-map-required-module-candidates import-map)
+                '((0 racket/private/map)
+                  (0 racket/private/pico))))
+
 (test-case "import map reports compiled module-binding rename aliases"
   (define phase0-linklet
     '(linklet (((reverse 1/reverse))) () (void)))

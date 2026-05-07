@@ -372,14 +372,15 @@
        (< idx (vector-length mpi-vector))
        (resolve (vector-ref mpi-vector idx))))
 
-;; phase-to-link-modules-candidates : any/c any/c -> (listof (list/c exact-integer? symbol?))
+;; phase-to-link-modules-candidates : any/c any/c symbol? -> (listof (list/c exact-integer? symbol?))
 ;;   Decode simple phase-to-link-modules expressions into candidate dependencies.
-(define (phase-to-link-modules-candidates expr mpi-vector)
+(define (phase-to-link-modules-candidates expr mpi-vector self-name)
   (define (mpi-ref idx)
     (and (exact-nonnegative-integer? idx)
          (or (and (vector? mpi-vector)
                   (< idx (vector-length mpi-vector))
-                  (module-path-index->dependency-name (vector-ref mpi-vector idx)))
+                  (or (module-path-index->dependency-name (vector-ref mpi-vector idx))
+                      (mpi-index->dependency-name mpi-vector idx self-name)))
              #f)))
   (define (decode-module-use use)
     (match use
@@ -588,7 +589,8 @@
   (define required-module-candidates
     (phase-to-link-modules-candidates
      decl-phase-to-link-modules-expression
-     data-module-path-indexes))
+     data-module-path-indexes
+     (webify-module-extractor-spike-name report)))
   (define compiled-rename-specs
     (compiled-module-binding-rename-specs
      decl-provides-expression
