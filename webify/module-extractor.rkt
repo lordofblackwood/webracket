@@ -20,6 +20,8 @@
    webify-module-report->required-provider-reports]
   [webify-module-extractor-spikes->required-provider-closure
    webify-module-reports->required-provider-closure]
+  [webify-module-extractor-spikes->discovered-resolved-linklet-inputs
+   webify-module-reports->discovered-resolved-linklet-inputs]
   [webify-module-extractor-spike-dependency-exports webify-module-report-dependency-exports]
   [webify-module-extractor-spikes-dependency-exports webify-module-reports-dependency-exports]
   [webify-module-extractor-spike->resolved-linklet-input webify-module-report->resolved-linklet-input]
@@ -36,7 +38,10 @@
  webify-source-module->resolved-linklet-input
  webify-source-module->resolved-linklet-input/providers
  webify-source-modules->resolved-linklet-inputs
+ webify-source-modules->discovered-resolved-linklet-inputs
  webify-source-modules->registry
+ webify-module-reports->discovered-registry
+ webify-source-modules->discovered-registry
  webify-normalize-linklet-imports
  webify-linklet-import-bindings
  webify-module-import-map
@@ -86,5 +91,37 @@
   (webify-module-linklet-inputs->registry
    (webify-source-modules->resolved-linklet-inputs
     module-data
+    #:dependencies dependencies
+    #:module-protocol-dependency module-protocol-dependency)))
+
+;; webify-module-reports->discovered-registry : (listof report?) -> webify-module-registry?
+;;   Discover providers, resolve the report graph, and register bridge-ready inputs.
+(define (webify-module-reports->discovered-registry
+         reports
+         #:extra-reports [extra-reports '()]
+         #:fetch-provider [fetch-provider webify-module-path->extractor-spike]
+         #:dependencies [dependencies '()]
+         #:module-protocol-dependency [module-protocol-dependency #f])
+  (webify-module-linklet-inputs->registry
+   (webify-module-extractor-spikes->discovered-resolved-linklet-inputs
+    reports
+    #:extra-reports extra-reports
+    #:fetch-provider fetch-provider
+    #:dependencies dependencies
+    #:module-protocol-dependency module-protocol-dependency)))
+
+;; webify-source-modules->discovered-registry : (listof source-module-datum?) -> webify-module-registry?
+;;   Compile roots, discover providers, resolve the graph, and register it.
+(define (webify-source-modules->discovered-registry
+         module-data
+         #:extra-reports [extra-reports '()]
+         #:fetch-provider [fetch-provider webify-module-path->extractor-spike]
+         #:dependencies [dependencies '()]
+         #:module-protocol-dependency [module-protocol-dependency #f])
+  (webify-module-linklet-inputs->registry
+   (webify-source-modules->discovered-resolved-linklet-inputs
+    module-data
+    #:extra-reports extra-reports
+    #:fetch-provider fetch-provider
     #:dependencies dependencies
     #:module-protocol-dependency module-protocol-dependency)))

@@ -39,6 +39,7 @@
          webify-module-extractor-spike-required-provider-names
          webify-module-extractor-spike->required-provider-spikes
          webify-module-extractor-spikes->required-provider-closure
+         webify-module-extractor-spikes->discovered-resolved-linklet-inputs
          webify-module-extractor-spike-dependency-exports
          webify-module-extractor-spikes-dependency-exports
          webify-module-path->extractor-spike
@@ -53,6 +54,7 @@
          webify-source-module->resolved-linklet-input
          webify-source-module->resolved-linklet-input/providers
          webify-source-modules->resolved-linklet-inputs
+         webify-source-modules->discovered-resolved-linklet-inputs
          webify-compile-module-extractor-spike)
 
 (require racket/linklet
@@ -549,6 +551,28 @@
            provider-report))
        (loop (append (cdr queue) new-reports))])))
 
+;; webify-module-extractor-spikes->discovered-resolved-linklet-inputs : reports ... -> inputs
+;;   Discover provider closure, then resolve the resulting graph into bridge inputs.
+(define (webify-module-extractor-spikes->discovered-resolved-linklet-inputs
+         reports
+         #:extra-reports [extra-reports '()]
+         #:fetch-provider [fetch-provider webify-module-path->extractor-spike]
+         #:dependencies [dependencies '()]
+         #:module-protocol-dependency [module-protocol-dependency #f])
+  (define who 'webify-module-extractor-spikes->discovered-resolved-linklet-inputs)
+  (unless (list? reports)
+    (raise-argument-error who "(listof webify-module-extractor-spike?)" reports))
+  (unless (list? extra-reports)
+    (raise-argument-error who "(listof webify-module-extractor-spike?)" extra-reports))
+  (define discovered-reports
+    (webify-module-extractor-spikes->required-provider-closure
+     (append extra-reports reports)
+     #:fetch-provider fetch-provider))
+  (webify-module-extractor-spikes->resolved-linklet-inputs
+   discovered-reports
+   #:dependencies dependencies
+   #:module-protocol-dependency module-protocol-dependency))
+
 ;; resolve-extracted-linklet-imports : symbol? linklet-datum ... -> imports
 ;;   Classify extracted imports and turn supported ones into flat bridge triples.
 (define (resolve-extracted-linklet-imports who
@@ -893,5 +917,24 @@
   (webify-module-extractor-spikes->resolved-linklet-inputs
    (for/list ([module-datum (in-list module-data)])
      (webify-compile-module-extractor-spike module-datum))
+   #:dependencies dependencies
+   #:module-protocol-dependency module-protocol-dependency))
+
+;; webify-source-modules->discovered-resolved-linklet-inputs : module-data ... -> (listof input?)
+;;   Compile roots, discover installed providers, and resolve the graph.
+(define (webify-source-modules->discovered-resolved-linklet-inputs
+         module-data
+         #:extra-reports [extra-reports '()]
+         #:fetch-provider [fetch-provider webify-module-path->extractor-spike]
+         #:dependencies [dependencies '()]
+         #:module-protocol-dependency [module-protocol-dependency #f])
+  (define who 'webify-source-modules->discovered-resolved-linklet-inputs)
+  (unless (list? module-data)
+    (raise-argument-error who "(listof source-module-datum?)" module-data))
+  (webify-module-extractor-spikes->discovered-resolved-linklet-inputs
+   (for/list ([module-datum (in-list module-data)])
+     (webify-compile-module-extractor-spike module-datum))
+   #:extra-reports extra-reports
+   #:fetch-provider fetch-provider
    #:dependencies dependencies
    #:module-protocol-dependency module-protocol-dependency))

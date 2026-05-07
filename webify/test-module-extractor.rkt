@@ -168,6 +168,69 @@
                 '(dep/a dep/b dep/c))
   (check-equal? (sort fetched symbol<?) '(dep/a dep/b dep/c)))
 
+(test-case "stable module report resolves discovered provider graph"
+  (define dep-data-linklet
+    '(linklet () (.mpi-vector)
+       (define-values (.mpi-vector)
+         (deserialize-module-path-indexes '#() '#(0)))))
+  (define dep-decl-linklet
+    '(linklet ((.mpi-vector)) (phase-to-link-modules)
+       (define-values (phase-to-link-modules)
+         (hasheqv))))
+  (define dep-report
+    (webify-module-report
+     'dep
+     '(#f)
+     '(0 data decl)
+     (list (webify-module-bundle-entry 0 'linklet '() '(x) '(linklet () (x) (define-values (x) 1)) #f)
+           (webify-module-bundle-entry 'data 'linklet '() '(.mpi-vector) dep-data-linklet #f)
+           (webify-module-bundle-entry 'decl 'linklet '((.mpi-vector)) '(phase-to-link-modules) dep-decl-linklet #f))
+     '()
+     '(x)
+     '(linklet () (x) (define-values (x) 1))
+     #t
+     '()))
+  (define phase0-linklet
+    '(linklet (((x x))) (y)
+       (define-values (y) x)))
+  (define data-linklet
+    '(linklet () (.mpi-vector)
+       (define-values (.mpi-vector)
+         (deserialize-module-path-indexes '#(#(dep)) '#(0)))))
+  (define decl-linklet
+    '(linklet ((.mpi-vector)) (phase-to-link-modules)
+       (define-values (phase-to-link-modules)
+         (hasheqv 0 (list (module-use (unsafe-vector*-ref .mpi-vector 0) 0))))))
+  (define use-report
+    (webify-module-report
+     'use-dep
+     '(#f)
+     '(0 data decl)
+     (list (webify-module-bundle-entry 0 'linklet '(((x x))) '(y) phase0-linklet #f)
+           (webify-module-bundle-entry 'data 'linklet '() '(.mpi-vector) data-linklet #f)
+           (webify-module-bundle-entry 'decl 'linklet '((.mpi-vector)) '(phase-to-link-modules) decl-linklet #f))
+     '(((x x)))
+     '(y)
+     phase0-linklet
+     #t
+     '()))
+  (define inputs
+    (webify-module-reports->discovered-resolved-linklet-inputs
+     (list use-report)
+     #:fetch-provider (lambda (name)
+                        (check-equal? name 'dep)
+                        dep-report)))
+  (check-equal? (map webify-module-linklet-input-name inputs)
+                '(use-dep dep))
+  (check-equal? (webify-module-linklet-input-imports (car inputs))
+                '((x dep x)))
+  (define registry
+    (webify-module-reports->discovered-registry
+     (list use-report)
+     #:fetch-provider (lambda (_name) dep-report)))
+  (check-equal? (webify-module-registry-plan registry '(use-dep))
+                '(dep use-dep)))
+
 (test-case "stable module report graph registers and composes"
   (define dep-report
     (webify-module-report
