@@ -707,5 +707,46 @@
   (check-equal? (webify-module-linklet-input-imports input)
                 `((1/reverse ,dependency ,provider-export))))
 
+(test-case "multi-report resolver threads source-level require rename aliases"
+  (define phase0-linklet
+    '(linklet (((reverse 1/reverse))) (uses-reverse)
+       (define-values (uses-reverse) 1/reverse)))
+  (define report
+    (webify-module-extractor-spike
+     'racket/private/list
+     '(#f)
+     '(0)
+     (list (webify-module-bundle-entry 0 'linklet '(((reverse 1/reverse))) '(uses-reverse) phase0-linklet #f))
+     '(((reverse 1/reverse)))
+     '(uses-reverse)
+     phase0-linklet
+     #t
+     '()))
+  (match-define (list _local dependency provider-export)
+    (car (webify-module-import-map-require-rename-aliases
+          (webify-module-extractor-spike-import-map report))))
+  (define provider-report
+    (webify-module-extractor-spike
+     dependency
+     '(#f)
+     '(0)
+     '()
+     '()
+     (list provider-export)
+     `(linklet () (,provider-export)
+        (define-values (,provider-export) 'reverse-proc))
+     #t
+     '()))
+  (define inputs
+    (webify-module-extractor-spikes->resolved-linklet-inputs
+     (list provider-report report)))
+  (define list-input
+    (for/first ([input (in-list inputs)]
+                #:when (eq? (webify-module-linklet-input-name input)
+                            'racket/private/list))
+      input))
+  (check-equal? (webify-module-linklet-input-imports list-input)
+                `((1/reverse ,dependency ,provider-export))))
+
 (module+ main
   (void))
