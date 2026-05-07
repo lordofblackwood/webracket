@@ -82,3 +82,19 @@
                 '(racket/list))
   (check-not-false
    (export-name-member? "first" (webify-module-report-phase0-exports (car providers)))))
+
+(test-case "Racket 9.2 racket/private/list resolves reverse provider"
+  (define list-report (webify-module-path->report 'racket/private/list))
+  (define closure
+    (cons webify-module-protocol-report
+          (webify-module-reports->required-provider-closure
+           (list list-report))))
+  (define input
+    (webify-module-report->resolved-linklet-input/providers
+     list-report
+     closure
+     #:module-protocol-dependency webify-module-protocol-dependency))
+  (check-not-false
+   (member '("1/reverse" "racket/private/pico" "reverse")
+           (map import-triple->printed
+                (webify-module-linklet-input-imports input)))))
