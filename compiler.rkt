@@ -7133,9 +7133,8 @@
                                                        [else
                                                         ; In full Racket variable references outside modules
                                                         ; go through a current namespace - think #%top .
-                                                        
+
                                                         ; signal unbound variable at runtime
-                                                        (displayln (list 'WARNING "unbound?" x) (current-error-port))
                                                         (values `(app ,#'here
                                                                       ,(variable #'raise-unbound-variable-reference)
                                                                       ,`(quote ,(variable-id x)
