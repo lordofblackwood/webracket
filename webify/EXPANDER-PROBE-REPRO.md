@@ -262,6 +262,52 @@ minimal host stubs only to prove that the generated module validates, links, and
 instantiates. The next milestone is to call an entry point under controlled host
 imports and classify the first runtime/linklet failure.
 
+## Entry Runtime Failure
+
+The instantiation probe can also call the generated `entry` export:
+
+```sh
+node --experimental-wasm-exnref \
+  webify/probe-expander-instantiate.js \
+  /private/tmp/webracket-expander-probe.wasm \
+  --call-entry
+```
+
+Current result:
+
+```text
+entry-call: start
+js_print_fasl: #<undefined>
+entry-call: threw
+exception-kind: Exception
+wasm-exception?: true
+foreign-exception?: false
+```
+
+The raw `#<undefined>` line is printed by WebRacket's entry-level uncaught
+exception handler. A temporary WAT patch that logged the handler path showed
+that the caught value satisfies `exn?`, and a second temporary patch showed the
+available subtype predicates:
+
+```text
+js_print_fasl: Symbol(exn?)
+js_print_fasl: true
+js_print_fasl: Symbol(exn:fail?)
+js_print_fasl: true
+js_print_fasl: Symbol(exn:fail:contract?)
+js_print_fasl: true
+js_print_fasl: Symbol(exn:fail:filesystem?)
+js_print_fasl: false
+js_print_fasl: #<undefined>
+```
+
+So the next blocker is more specific than "entry throws": the generated expander
+raises an `exn:fail:contract?`, but `(exn-message e)` is `#<undefined>`.
+That points toward either a malformed exception object produced by the
+webified/linklet path or a struct-inheritance field-layout issue where a subtype
+passes the right predicate but inherited `exn` fields are not stored/read in the
+shape expected by `exn-message`.
+
 ### SCC
 
 Command uses `--compile-letrec-scc --enable-cc-analysis --enable-simplify

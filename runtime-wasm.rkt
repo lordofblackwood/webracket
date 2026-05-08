@@ -2072,6 +2072,19 @@
                              (field $hash      (mut i32))
                              (field $immutable i32)
                              (field $v         (mut (ref eq))))))
+          ;; Thread cells are per-thread in Racket. WebRacket is currently
+          ;; single-threaded, so the current value is stored directly here.
+          (type $ThreadCell (sub $Heap
+                                 (struct
+                                   (field $hash      (mut i32))
+                                   (field $default   (mut (ref eq)))
+                                   (field $current   (mut (ref eq)))
+                                   (field $preserved i32))))
+          ;; Environment variables are currently modeled as an empty set. This
+          ;; is enough for expander probes that merely ask whether flags exist.
+          (type $EnvironmentVariables (sub $Heap
+                                           (struct
+                                             (field $hash (mut i32)))))
 
           (type $Procedure
                 (sub $Heap
@@ -32003,6 +32016,55 @@
                ; 4. Return `void`
                (global.get $void))
 
+         ;;;
+         ;;; 4.15 Thread Cells
+         ;;;
+
+         ;; make-thread-cell : any/c [any/c = #f] -> thread-cell?
+         ;;   Create a single-threaded thread cell. The optional `preserved?`
+         ;;   flag is stored for future thread support, but no thread-specific
+         ;;   value map is needed while WebRacket has one thread.
+         (func $make-thread-cell (type $Prim2)
+               (param $v (ref eq))           ;; initial value
+               (param $preserved? (ref eq))  ;; optional, default #f
+               (result (ref eq))
+               (struct.new $ThreadCell
+                           (i32.const 0)      ;; $hash
+                           (local.get $v)     ;; $default
+                           (local.get $v)     ;; $current
+                           (i32.and
+                            (i32.eqz (ref.eq (local.get $preserved?) (global.get $false)))
+                            (i32.eqz (ref.eq (local.get $preserved?) (global.get $missing))))))
+
+         ;; thread-cell? : any/c -> boolean?
+         ;;   Check whether a value is a thread cell.
+         (func $thread-cell? (type $Prim1)
+               ,@(make-predicate-body '$ThreadCell))
+
+         ;; thread-cell-ref : thread-cell? -> any/c
+         ;;   Return the current value for the single WebRacket thread.
+         (func $thread-cell-ref (type $Prim1)
+               (param $cell (ref eq))
+               (result (ref eq))
+               (struct.get $ThreadCell $current
+                           (block $ok (result (ref $ThreadCell))
+                             (br_on_cast $ok (ref eq) (ref $ThreadCell) (local.get $cell))
+                             (return (global.get $error)))))
+
+         ;; thread-cell-set! : thread-cell? any/c -> void?
+         ;;   Set the current value for the single WebRacket thread.
+         (func $thread-cell-set! (type $Prim2)
+               (param $cell (ref eq))  ;; thread cell
+               (param $v    (ref eq))  ;; new current value
+               (result (ref eq))
+               (local $tc (ref $ThreadCell))
+               (local.set $tc
+                          (block $ok (result (ref $ThreadCell))
+                            (br_on_cast $ok (ref eq) (ref $ThreadCell) (local.get $cell))
+                            (return (global.get $error))))
+               (struct.set $ThreadCell $current (local.get $tc) (local.get $v))
+               (global.get $void))
+
          
          
 
@@ -54282,6 +54344,52 @@
                            (global.get $bytes:vfs-root)
                            (global.get $missing)))
 
+               ;; environment-variables? : any/c -> boolean?
+               ;;   Check whether a value is WebRacket's environment-variable set.
+               (func $environment-variables? (type $Prim1)
+                     ,@(make-predicate-body '$EnvironmentVariables))
+
+               ;; current-environment-variables : [environment-variables?] -> environment-variables?
+               ;;   Get or set the current environment-variable set. WebRacket
+               ;;   starts with an empty set instead of host OS variables.
+               (func $current-environment-variables (type $Prim01)
+                     (param $env-raw (ref eq)) ;; optional environment-variables?, default current set
+                     (result (ref eq))
+                     (if (ref.eq (local.get $env-raw) (global.get $missing))
+                         (then (return (global.get $current-environment-variables-value))))
+                     (if (i32.eqz (ref.test (ref $EnvironmentVariables) (local.get $env-raw)))
+                         (then (return (global.get $error))))
+                     (global.set $current-environment-variables-value (local.get $env-raw))
+                     (global.get $void))
+
+               ;; environment-variables-ref : environment-variables? bytes? -> (or/c bytes? #f)
+               ;;   Look up a variable in WebRacket's empty environment.
+               (func $environment-variables-ref (type $Prim2)
+                     (param $env-raw  (ref eq)) ;; environment-variable set
+                     (param $name-raw (ref eq)) ;; byte string name
+                     (result (ref eq))
+                     (if (i32.eqz (ref.test (ref $EnvironmentVariables) (local.get $env-raw)))
+                         (then (return (global.get $error))))
+                     (if (i32.eqz (ref.test (ref $Bytes) (local.get $name-raw)))
+                         (then (return (global.get $error))))
+                     (global.get $false))
+
+               ;; current-print : [procedure?] -> procedure?
+               ;;   Get or set the top-level printer. The default printer logs
+               ;;   the value through `js-log`, which is sufficient for probes.
+               (func $current-print (type $Prim01)
+                     (param $printer-raw (ref eq)) ;; optional procedure?, default current printer
+                     (result (ref eq))
+                     (if (ref.eq (local.get $printer-raw) (global.get $missing))
+                         (then
+                          (if (ref.eq (global.get $current-print-value) (global.get $false))
+                              (then (return (global.get $prim:js-log)))
+                              (else (return (global.get $current-print-value))))))
+                     (if (i32.eqz (ref.test (ref $Procedure) (local.get $printer-raw)))
+                         (then (return (global.get $error))))
+                     (global.set $current-print-value (local.get $printer-raw))
+                     (global.get $void))
+
                (func $current-directory (type $Prim01)
                      (param $path-raw (ref eq)) ;; optional path-string?
                      (result          (ref eq))
@@ -58633,10 +58741,12 @@
                (global $system-path-convention   (mut (ref eq)) (ref.i31 (i32.const 0)))
                (global $current-directory-path   (mut (ref eq)) (ref.i31 (i32.const 0)))
                (global $current-directory-for-user-path (mut (ref eq)) (ref.i31 (i32.const 0)))
+               (global $current-environment-variables-value (mut (ref eq)) (ref.i31 (i32.const 0)))
                (global $temporary-file-counter   (mut i32)      (i32.const 0))
                (global $current-input-port-value  (mut (ref eq)) (ref.i31 (i32.const 0)))
                (global $current-output-port-value (mut (ref eq)) (ref.i31 (i32.const 0)))
                (global $current-error-port-value  (mut (ref eq)) (ref.i31 (i32.const 0)))
+               (global $current-print-value       (mut (ref eq)) (global.get $false))
                (global $result-bytes             (mut (ref eq)) (ref.i31 (i32.const 0)))
 
                ;; Struct-type properties provided by the runtime
@@ -58840,6 +58950,9 @@
 
                      ;; Default to the host platform's path convention (currently Unix)
                      (global.set $system-path-convention (global.get $symbol:unix))
+                     (global.set $current-environment-variables-value
+                                 (struct.new $EnvironmentVariables
+                                             (i32.const 0)))
                      (global.set $current-directory-path
                                  (call $bytes->path
                                        (global.get $bytes:app-dir)

@@ -48,7 +48,14 @@
 
          (only-in '#%kernel
                   prop:method-arity-error
-                  prop:incomplete-arity)
+                  prop:incomplete-arity
+                  make-thread-cell
+                  thread-cell?
+                  thread-cell-ref
+                  thread-cell-set!
+                  current-environment-variables
+                  environment-variables?
+                  environment-variables-ref)
 
          (only-in racket/format ~r)
          (only-in racket/base format)
@@ -203,6 +210,7 @@
          read
          read-syntax
          ;; stdlib/writing.rkt
+         current-print
          print-pair-curly-braces
          print-mpair-curly-braces
          print-unreadable
@@ -796,6 +804,15 @@
  ;; 4.14 Boxes
  ; boxed unboxed set-boxed!  ; internal
  box? box box-immutable unbox set-box! 
+
+ ;; Thread Cells
+ make-thread-cell thread-cell? thread-cell-ref thread-cell-set!
+
+ ;; Environment Variables
+ current-environment-variables environment-variables? environment-variables-ref
+
+ ;; Printing Parameters
+ current-print
 
  ;; 4.15 Hash Tables
  hash?

@@ -801,6 +801,24 @@
 (define primitive-value-cache (make-hasheq))
 (define-runtime-path primitives-module-path "primitives.rkt")
 
+(define (console-bridge-primitive-normalize sym)
+  (case sym
+    [(#%call-with-values) 'call-with-values]
+    [else sym]))
+
+;; maybe-console-bridge-primitive : symbol? -> (or/c symbol? #f)
+;;   Recover primitives from compiled top-level placeholder symbols.
+(define (maybe-console-bridge-primitive x)
+  (and (symbol? x)
+       (let* ([prefix "wr-top-level/"]
+              [s      (symbol->string x)]
+              [raw    (if (string-prefix? s prefix)
+                          (string->symbol (substring s (string-length prefix)))
+                          x)]
+              [unwrapped (console-bridge-primitive-normalize raw)])
+         (and (set-member? primitives-set unwrapped)
+              unwrapped))))
+
 (define (ensure-primitive-info-cache!)
   (or primitive-info-cache
       (let ([ht (make-hasheq)])
@@ -1207,6 +1225,7 @@
        get-output-bytes
        write-bytes
        write-string
+       make-thread-cell
        make-vector
        make-string
        make-bytes
@@ -1334,6 +1353,8 @@
        current-input-port
        current-output-port
        current-error-port
+       current-print
+       current-environment-variables
        current-directory
        current-directory-for-user)
      'optional 0 1)
@@ -1690,6 +1711,10 @@
   boxed?
 
   box? box box-immutable unbox set-box! 
+
+  make-thread-cell thread-cell? thread-cell-ref thread-cell-set!
+  current-environment-variables environment-variables? environment-variables-ref
+  current-print
 
   mpair? mcons mcar mcdr set-mcar! set-mcdr!
   
@@ -7162,6 +7187,13 @@
                                                        [(non-literal-constant? s) ; like prop:object-name
                                                         (values `,x ρ)]
                                                        [(maybe-console-bridge-non-literal-constant s)
+                                                        => (lambda (unwrapped)
+                                                             (values `,(variable
+                                                                        (datum->syntax
+                                                                         (variable-id x)
+                                                                         unwrapped))
+                                                                     ρ))]
+                                                       [(maybe-console-bridge-primitive s)
                                                         => (lambda (unwrapped)
                                                              (values `,(variable
                                                                         (datum->syntax
@@ -17351,6 +17383,14 @@
        [(maybe-console-bridge-non-literal-constant sym)
         => (lambda (unwrapped)
              `(global.get ,($ unwrapped)))]
+       [(maybe-console-bridge-primitive s)
+        => (lambda (unwrapped)
+             (record-used-primitive! unwrapped)
+             (PrimRef (variable (datum->syntax (variable-id x) unwrapped))))]
+       [(maybe-console-bridge-primitive sym)
+        => (lambda (unwrapped)
+             (record-used-primitive! unwrapped)
+             (PrimRef (variable (datum->syntax (variable-id x) unwrapped))))]
        [(memq s primitives)
         (record-used-primitive! s)
         (PrimRef x)]

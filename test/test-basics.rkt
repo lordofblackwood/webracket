@@ -5535,6 +5535,8 @@
        
        (list "13.5 Writing"
              (list
+              (list "current-print/default"
+                    (procedure? (current-print)))
               (list "custom-write-accessor/modes"
                     (let ()
                       (struct printable (text)
@@ -5909,6 +5911,21 @@
                      (equal? (exn-message syntax-exn) "syntax")
                      (equal? (exn-message missing) "missing")
                      (equal? (exn-message unbound) "unbound"))))))
+
+ (list "11. Concurrency and Parallelism"
+       (list "11.3 Thread Cells"
+             (list
+              (list "thread-cell basics"
+                    (let ([cell (make-thread-cell 'initial)])
+                      (and (equal? (thread-cell? cell) #t)
+                           (equal? (thread-cell? 'initial) #f)
+                           (equal? (thread-cell-ref cell) 'initial)
+                           (void? (thread-cell-set! cell 'updated))
+                           (equal? (thread-cell-ref cell) 'updated))))
+              (list "thread-cell preserved argument"
+                    (let ([cell (make-thread-cell 10 #t)])
+                      (and (equal? (thread-cell? cell) #t)
+                           (equal? (thread-cell-ref cell) 10)))))))
  
 
  (list "12. Macros"
@@ -6288,6 +6305,13 @@
 
  
  (list "15. Operating System"
+       (list "15.1 Environment Variables"
+             (list
+              (list "environment-variable empty set"
+                    (let ([env (current-environment-variables)])
+                      (and (equal? (environment-variables? env) #t)
+                           (equal? (environment-variables? #"PATH") #f)
+                           (equal? (environment-variables-ref env #"PATH") #f))))))
        (list "15. Paths"
              (list
               (list "bytes->path"

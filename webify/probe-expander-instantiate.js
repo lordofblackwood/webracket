@@ -32,12 +32,108 @@ const memory = new WebAssembly.Memory({ initial: 1024 });
 const foreignErrorTag = new WebAssembly.Tag({ parameters: ['externref'] });
 const externals = [];
 
+function readU32(arr, i) {
+  return ((arr[i] << 24) | (arr[i + 1] << 16) |
+          (arr[i + 2] << 8) | arr[i + 3]) >>> 0;
+}
+
+function faslToJsValue(arr, i = 0) {
+  const tag = arr[i++];
+
+  function u32() {
+    const v = readU32(arr, i);
+    i += 4;
+    return v;
+  }
+
+  function readBytes() {
+    const len = u32();
+    const b = arr.slice(i, i + len);
+    i += len;
+    return b;
+  }
+
+  function readString() {
+    return new TextDecoder().decode(readBytes());
+  }
+
+  switch (tag) {
+    case 0: {
+      const raw = u32();
+      return [(raw << 2) >> 2, i];
+    }
+    case 1:
+      return [String.fromCodePoint(u32()), i];
+    case 2:
+      return [Symbol.for(readString()), i];
+    case 3:
+      return [readString(), i];
+    case 4:
+      return [readBytes(), i];
+    case 5:
+      return [arr[i++] !== 0, i];
+    case 6:
+      return [null, i];
+    case 7: {
+      let car;
+      let cdr;
+      [car, i] = faslToJsValue(arr, i);
+      [cdr, i] = faslToJsValue(arr, i);
+      return [{ tag: 'pair', car, cdr }, i];
+    }
+    case 8: {
+      const n = u32();
+      const vec = new Array(n);
+      for (let j = 0; j < n; j++) {
+        [vec[j], i] = faslToJsValue(arr, i);
+      }
+      return [vec, i];
+    }
+    case 9: {
+      const hi = u32();
+      const lo = u32();
+      const dv = new DataView(new ArrayBuffer(8));
+      dv.setUint32(0, hi);
+      dv.setUint32(4, lo);
+      return [dv.getFloat64(0), i];
+    }
+    case 10:
+      return [undefined, i];
+    case 11:
+      return ['<eof>', i];
+    case 12:
+      return [externals[u32()], i];
+    default:
+      throw new Error(`bad FASL tag ${tag}`);
+  }
+}
+
+function formatJsValue(v) {
+  if (typeof v === 'symbol') {
+    return v.toString();
+  }
+  if (v instanceof Uint8Array) {
+    return `#<bytes ${v.length}>`;
+  }
+  return String(v);
+}
+
+function printFasl(start, len) {
+  const bytes = new Uint8Array(memory.buffer).slice(start, start + len);
+  try {
+    const [value] = faslToJsValue(bytes);
+    console.log(`js_print_fasl: ${formatJsValue(value)}`);
+  } catch (err) {
+    console.log(`js_print_fasl: <decode-failed ${err.message}; ${len} bytes>`);
+  }
+}
+
 function primitiveImport(name) {
   switch (name) {
     case 'foreign_error_tag':
       return foreignErrorTag;
     case 'js_print_fasl':
-      return () => {};
+      return printFasl;
     case 'register_external':
       return (obj) => {
         externals.push(obj);
@@ -88,6 +184,22 @@ console.log(`wr-names-kind: ${typeof instance.exports['wr-names']}`);
 
 if (callEntry) {
   console.log('entry-call: start');
-  instance.exports.entry();
-  console.log('entry-call: ok');
+  try {
+    instance.exports.entry();
+    console.log('entry-call: ok');
+  } catch (err) {
+    console.log('entry-call: threw');
+    console.log(`exception-kind: ${err?.constructor?.name ?? typeof err}`);
+    console.log(`wasm-exception?: ${err instanceof WebAssembly.Exception}`);
+    if (err instanceof WebAssembly.Exception) {
+      console.log(`foreign-exception?: ${err.is?.(foreignErrorTag) ?? false}`);
+      if (err.is?.(foreignErrorTag)) {
+        console.log(`foreign-exception-arg0: ${err.getArg(foreignErrorTag, 0)}`);
+      }
+    }
+    if (err?.stack) {
+      console.log(err.stack);
+    }
+    process.exitCode = 1;
+  }
 }
