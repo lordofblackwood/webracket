@@ -49,12 +49,17 @@ The original hash is not mutated.
 
 ## Old Webify Bridge
 
-The demodded regexp linklet uses immutable-looking local bookkeeping tables,
-such as `#hasheqv()` plus `hash-set` and `hash-iterate-*`. WebRacket currently
-has mutable hash runtime support and a first immutable `hasheqv` slice. The
-`hash` and `hasheq` constructors currently reuse that immutable hasheqv backing
-store for expander startup paths with symbol-like keys, but WebRacket does not
-yet have complete equal?-key or eq?-key immutable `intmap`/HAMT representations.
+The demodded regexp and expander linklets use immutable-looking local
+bookkeeping tables, such as `#hasheqv()` plus `hash-set` and
+`hash-iterate-*`. WebRacket currently has mutable hash runtime support and a
+first immutable HAMT slice. The public immutable constructors now have distinct
+wrapper types for `hash`, `hasheq`, and `hasheqv`, so predicates like
+`hash-equal?`, `hash-eq?`, and `hash-eqv?` can distinguish the public kind.
+
+Those wrappers still share the same private HAMT node/entry representation, and
+the internal lookup/update path is still eqv?-based. That is enough for expander
+startup paths with symbol-like keys, where eq?, eqv?, and equal? agree, but it
+is not yet complete equal?-key or eq?-key immutable hash semantics.
 
 Ephemeron hash tables are also currently a strong fallback:
 `make-ephemeron-hasheq` returns an ordinary mutable `hasheq`. That is enough for
@@ -80,10 +85,10 @@ The bridge was safe only for local bookkeeping tables where the original table
 was not observed as an immutable value. It was not acceptable as general
 WebRacket or Webify semantics.
 
-Now that `hasheqv` and `hash-set` have a real immutable first slice, Webify no
-longer rewrites functional `hash-set` into `hash-set!`. The remaining bridge maps
-public `hash-iterate-*` names to the existing mutable iterator primitives until
-immutable hash iteration is implemented.
+Now that immutable hashes and `hash-set` have a real persistent first slice,
+Webify no longer rewrites functional `hash-set` into `hash-set!`. The remaining
+bridge maps public `hash-iterate-*` names to the existing mutable iterator
+primitives until immutable hash iteration is implemented.
 
 ## Semantic Gap Probe
 
@@ -109,10 +114,13 @@ functional `hash-set` shape.
 
 ## Later Direction
 
-When immutable hashes become a milestone, WebRacket should grow a separate
-immutable representation, probably starting with a simple persistent
-copy-on-write representation for `hasheqv`, then moving toward a HAMT/intmap
-style implementation if performance matters.
+The next immutable-hash semantic milestone is comparator correctness. The
+runtime should keep the shared HAMT payload, but route wrapper operations through
+the appropriate key equality and hash-code functions:
+
+- `hasheq`: `eq?` and `eq-hash-code`
+- `hasheqv`: `eqv?` and `eqv-hash-code`
+- `hash`: `equal?` and `equal-hash-code`
 
 The remaining Webify hash bridge should be narrowed further when immutable hash
 iteration lands, so ordinary `hash-iterate-*` works on the immutable runtime
