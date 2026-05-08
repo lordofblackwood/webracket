@@ -1236,7 +1236,10 @@
        struct->vector
        real->floating-point-bytes
        string-trim
-       string-split)
+       string-split
+       compile-linklet
+       recompile-linklet
+       variable-reference->instance)
      'optional
      (λ (name)
        (case name
@@ -1245,6 +1248,9 @@
          [(syntax-property) 2]
          [(peek-bytes! peek-string!) 2]
          [(string-trim string-split) 1]
+         [(compile-linklet) 1]
+         [(recompile-linklet) 1]
+         [(variable-reference->instance) 1]
          [(assoc group-by member remove remove* index-of indexes-of
                  list-prefix? take-common-prefix drop-common-prefix split-common-prefix
                  hash-ref real->floating-point-bytes vector-sort! vector-sort
@@ -1280,6 +1286,8 @@
          [(hash-update!) 4]
          [(string-trim) 5]
          [(string-split) 4]
+         [(compile-linklet recompile-linklet) 5]
+         [(variable-reference->instance) 2]
          [else 2])))
     (make-inline-specs
      '(s-exp->fasl
@@ -1717,7 +1725,7 @@
   initialize-boxed! ; used by letrec-values initialization after assignment elimination
   boxed?
 
-  box? box box-immutable unbox set-box! box-cas! unsafe-box*-cas!
+  box? box box-immutable unbox unbox* set-box! set-box*! box-cas! unsafe-box*-cas!
   make-weak-box weak-box? weak-box-value
 
   make-thread-cell thread-cell? thread-cell-ref thread-cell-set!
@@ -2207,6 +2215,8 @@
   primitive-closure?
   primitive-result-arity
 
+  variable-reference?
+  variable-reference->instance
   variable-reference-from-unsafe?
   variable-reference-constant?
 
@@ -2299,6 +2309,7 @@
   instance-set-variable-value!
   instance-unset-variable!
   instance-variable-value
+  instance-describe-variable!
   instance-variable-box      ; internal in full Racket
   module-variable?
   module-variable-name
@@ -2327,6 +2338,19 @@
   linklet-directory->hash
   make-compiled-linklet
   linklet-name
+  primitive->compiled-position
+  compiled-position->primitive
+  primitive-in-category?
+  primitive-lookup
+  compile-linklet
+  recompile-linklet
+  eval-linklet
+  linklet-add-target-machine-info
+  linklet-summarize-target-machine-info
+  linklet-virtual-machine-bytes
+  linklet-cross-machine-type
+  write-linklet-bundle-hash
+  read-linklet-bundle-hash
   linklet-import-variables
   linklet-export-variables
   instantiate-linklet

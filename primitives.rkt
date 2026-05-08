@@ -805,7 +805,7 @@
  
  ;; 4.14 Boxes
  ; boxed unboxed set-boxed!  ; internal
- box? box box-immutable unbox set-box! box-cas! unsafe-box*-cas!
+ box? box box-immutable unbox unbox* set-box! set-box*! box-cas! unsafe-box*-cas!
  make-weak-box weak-box? weak-box-value
 
  ;; Thread Cells
@@ -1020,6 +1020,10 @@
 
  
  ;; 14.1 Namespaces
+ variable-reference?
+ variable-reference->instance
+ variable-reference-from-unsafe?
+ variable-reference-constant?
  namespace?
  make-empty-namespace
  namespace-variable-value-simple
@@ -1059,6 +1063,7 @@
  instance-set-variable-value!
  instance-unset-variable!
  instance-variable-value
+ instance-describe-variable!
  module-variable?
  module-variable-name
  module-variable-constance
@@ -1086,6 +1091,19 @@
  linklet-directory->hash
  make-compiled-linklet     ; not in Full Racket
  linklet-name              ; not in Full Racket
+ primitive->compiled-position
+ compiled-position->primitive
+ primitive-in-category?
+ primitive-lookup
+ compile-linklet
+ recompile-linklet
+ eval-linklet
+ linklet-add-target-machine-info
+ linklet-summarize-target-machine-info
+ linklet-virtual-machine-bytes
+ linklet-cross-machine-type
+ write-linklet-bundle-hash
+ read-linklet-bundle-hash
  linklet-import-variables
  linklet-export-variables
  instantiate-linklet
@@ -2530,6 +2548,9 @@
       (and (namespace-variable-value sym #t (lambda () #f))
            #t)))
 
+(define (variable-reference->instance vr [ref-site? #f])
+  #f)
+
 (struct webracket-linklet-bundle (content))
 (struct webracket-linklet-directory (content))
 
@@ -2864,6 +2885,50 @@
 
 (define (webracket-literal-byte-pregexp source)
   (byte-pregexp source))
+
+(define (primitive->compiled-position v)
+  #f)
+
+(define (compiled-position->primitive pos)
+  #f)
+
+(define (primitive-in-category? name category)
+  #f)
+
+(define (primitive-lookup sym)
+  #f)
+
+(define (compile-linklet c [info #f] [import-keys #f] [get-import #f] [options '(serializable)])
+  #f)
+
+(define (recompile-linklet linklet [info #f] [import-keys #f] [get-import #f] [options '(serializable)])
+  (if import-keys
+      (values linklet import-keys)
+      linklet))
+
+(define (eval-linklet c)
+  c)
+
+(define (linklet-add-target-machine-info linklet other-linklet)
+  linklet)
+
+(define (linklet-summarize-target-machine-info linklet)
+  (hash))
+
+(define (linklet-virtual-machine-bytes)
+  #"exp")
+
+(define (linklet-cross-machine-type ht)
+  #f)
+
+(define (write-linklet-bundle-hash bundle out)
+  (write bundle out))
+
+(define (read-linklet-bundle-hash in cross-machine)
+  (read in))
+
+(define (instance-describe-variable! instance sym desc)
+  (void))
 
 (define (unsafe-struct? v std)
   (error 'unsafe-struct? "only available in compiled WebRacket"))

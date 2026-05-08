@@ -389,6 +389,11 @@
                            (equal? (unbox b) 'old)
                            (equal? (box-cas! b 'old 'new) #t)
                            (equal? (unbox b) 'new))))
+              (list "unbox*/set-box*!"
+                    (let ([b (box 'old)])
+                      (and (equal? (unbox* b) 'old)
+                           (equal? (set-box*! b 'new) (void))
+                           (equal? (unbox* b) 'new))))
               (list "unsafe-box*-cas!"
                     (let ([b (box 1)])
                       (and (unsafe-box*-cas! b 1 2)
@@ -6080,6 +6085,26 @@
                           (equal? ((hash-ref kernel 'syntax-e)
                                    (table-datum->syntax #f 'table-demo))
                                   'table-demo))))
+             (list "primitive-table/#%linklet bootstrap metadata primitives"
+                   (let ([linklet (primitive-table '#%linklet)])
+                     (and (hash? linklet)
+                          (procedure? (hash-ref linklet 'primitive->compiled-position #f))
+                          (procedure? (hash-ref linklet 'compiled-position->primitive #f))
+                          (procedure? (hash-ref linklet 'primitive-in-category? #f))
+                          (procedure? (hash-ref linklet 'primitive-lookup #f))
+                          (procedure? (hash-ref linklet 'compile-linklet #f))
+                          (procedure? (hash-ref linklet 'recompile-linklet #f))
+                          (procedure? (hash-ref linklet 'eval-linklet #f))
+                          (procedure? (hash-ref linklet 'instance-describe-variable! #f))
+                          (procedure? (hash-ref linklet 'linklet-virtual-machine-bytes #f))
+                          (equal? ((hash-ref linklet 'primitive->compiled-position) '+) #f)
+                          (equal? ((hash-ref linklet 'compiled-position->primitive) 0) #f)
+                          (equal? ((hash-ref linklet 'primitive-in-category?) '+ 'kernel) #f)
+                          (equal? ((hash-ref linklet 'primitive-lookup) '+) #f)
+                          (equal? ((hash-ref linklet 'compile-linklet) '(linklet () () (void))) #f)
+                          (equal? ((hash-ref linklet 'eval-linklet) 'demo-linklet) 'demo-linklet)
+                          (equal? ((hash-ref linklet 'instance-describe-variable!) (make-instance 'demo) 'x 'desc) (void))
+                          (bytes? ((hash-ref linklet 'linklet-virtual-machine-bytes))))))
              (list "identifier?"
                    (let* ([id-stx     (datum->syntax #f 'pear)]
                           [list-stx   (datum->syntax #f '(pear core))]
@@ -6125,6 +6150,17 @@
               ))
 
  (list "14. Reflection and Security"
+
+       (list "14.1 Namespaces"
+             (list
+              (list "variable-reference?"
+                    (let ([vr (#%variable-reference)])
+                      (and (variable-reference? vr)
+                           (not (variable-reference? 'not-a-variable-reference))
+                           (equal? (variable-reference->instance vr) #f)
+                           (equal? (variable-reference->instance vr #t) #f)
+                           (equal? (variable-reference-constant? vr) #f)
+                           (equal? (variable-reference-from-unsafe? vr) #f))))))
        
        (list "14.9 Structure Inspectors"
                (list

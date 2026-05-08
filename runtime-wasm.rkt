@@ -1940,6 +1940,7 @@
     (add-runtime-string-constant 'symbol-or-false               "(or/c symbol? #f)")
     (add-runtime-string-constant 'instance-mode?                "(or/c #f 'constant 'consistent)")
     (add-runtime-string-constant 'instance-or-false             "(or/c instance? #f)")
+    (add-runtime-string-constant 'variable-reference?           "variable-reference?")
     (add-runtime-string-constant 'module-variable?              "module-variable?")
     (add-runtime-string-constant 'module-variable-reference?    "module-variable-reference?")
     (add-runtime-string-constant 'module-variable-same-length-vectors
@@ -1993,6 +1994,7 @@
     (add-runtime-bytes-constant  'backslash                 #"\\")
     (add-runtime-bytes-constant  'dot                       #".")
     (add-runtime-bytes-constant  'dot-dot                   #"..")
+    (add-runtime-bytes-constant  'exp                       #"exp")
     (add-runtime-bytes-constant  'rkttmp-template           #"rkttmp~a")
     (add-runtime-bytes-constant  'app-dir                   #"/app/")
     (add-runtime-bytes-constant  'vfs-root                  #"/")
@@ -32089,6 +32091,14 @@
                            (block $ok (result (ref $Box))
                              (br_on_cast $ok (ref eq) (ref $Box) (local.get $b))
                              (return (global.get $error)))))
+
+         ;; unbox* : (and/c box? (not/c impersonator?)) -> any/c
+         ;;   WebRacket has no box impersonators yet, so this is equivalent
+         ;;   to unbox after the same box representation check.
+         (func $unbox* (type $Prim1)
+               (param $b (ref eq)) ;; non-impersonator box
+               (result (ref eq))
+               (call $unbox (local.get $b)))
          
          (func $raise-immutable-box (param $x (ref eq)) (unreachable))
          
@@ -32108,6 +32118,14 @@
                (struct.set $Box $v (local.get $B) (local.get $v))
                ; 4. Return `void`
                (global.get $void))
+
+         ;; set-box*! : (and/c box? (not/c immutable?) (not/c impersonator?)) any/c -> void?
+         ;;   WebRacket has no box impersonators yet, so this follows set-box!.
+         (func $set-box*! (type $Prim2)
+               (param $b (ref eq)) ;; mutable non-impersonator box
+               (param $v (ref eq)) ;; replacement value
+               (result (ref eq))
+               (call $set-box! (local.get $b) (local.get $v)))
 
          ;; box-cas! : (and/c box? mutable?) any/c any/c -> boolean?
          ;;   Single-threaded compare-and-set using Racket's eq? comparison.
@@ -33044,6 +33062,116 @@
                (if (ref.eq (local.get $assocs) (global.get $missing))
                    (then (local.set $assocs (global.get $null))))
                (call $make-hashalw (local.get $assocs)))
+
+         ;; primitive->compiled-position : any/c -> #f
+         ;;   WebRacket has no bytecode primitive-position table yet. This
+         ;;   matches the source-linklet bootstrap implementation in Racket's
+         ;;   expander, where machine-specific compiled positions are absent.
+         (func $primitive->compiled-position (type $Prim1)
+               (param $v (ref eq)) ;; primitive candidate
+               (result   (ref eq))
+               (global.get $false))
+
+         ;; compiled-position->primitive : any/c -> #f
+         ;;   Inverse of primitive->compiled-position; unsupported without
+         ;;   machine-specific bytecode metadata.
+         (func $compiled-position->primitive (type $Prim1)
+               (param $pos (ref eq)) ;; compiled primitive position
+               (result     (ref eq))
+               (global.get $false))
+
+         ;; primitive-in-category? : any/c any/c -> #f
+         ;;   Primitive categories are JIT/bytecode metadata, so the bootstrap
+         ;;   expander-compatible answer is always false for now.
+         (func $primitive-in-category? (type $Prim2)
+               (param $name     (ref eq)) ;; primitive name
+               (param $category (ref eq)) ;; category symbol
+               (result          (ref eq))
+               (global.get $false))
+
+         ;; primitive-lookup : symbol? -> #f
+         ;;   Bootstrap-compatible placeholder; primitive-table remains the
+         ;;   supported way to obtain primitive procedures.
+         (func $primitive-lookup (type $Prim1)
+               (param $sym (ref eq)) ;; primitive name
+               (result     (ref eq))
+               (global.get $false))
+
+         ;; compile-linklet : linklet-datum? [any/c any/c any/c any/c] -> #f
+         ;;   Runtime compilation is intentionally unavailable in WebAssembly.
+         ;;   Exposing the bootstrap name lets the expander initialize its
+         ;;   #%linklet namespace; actual runtime compilation remains a later
+         ;;   bridge milestone.
+         (func $compile-linklet (type $Prim15)
+               (param $c           (ref eq)) ;; linklet datum
+               (param $info        (ref eq)) ;; optional info, default #f
+               (param $import-keys (ref eq)) ;; optional import keys, default #f
+               (param $get-import  (ref eq)) ;; optional getter, default #f
+               (param $options     (ref eq)) ;; optional options
+               (result             (ref eq))
+               (global.get $false))
+
+         ;; recompile-linklet : any/c any/c [any/c any/c any/c] -> any/c
+         ;;   Re-optimization is unavailable, so return the original linklet.
+         (func $recompile-linklet (type $Prim25)
+               (param $linklet     (ref eq)) ;; existing linklet
+               (param $info        (ref eq)) ;; optimization info
+               (param $import-keys (ref eq)) ;; optional import keys
+               (param $get-import  (ref eq)) ;; optional getter
+               (param $options     (ref eq)) ;; optional options
+               (result             (ref eq))
+               (local.get $linklet))
+
+         ;; eval-linklet : any/c -> any/c
+         ;;   Source-linklet bootstrap placeholder: evaluation is identity.
+         (func $eval-linklet (type $Prim1)
+               (param $c (ref eq)) ;; linklet datum
+               (result   (ref eq))
+               (local.get $c))
+
+         ;; linklet-add-target-machine-info : any/c any/c -> any/c
+         ;;   Cross-machine optimization metadata is not represented.
+         (func $linklet-add-target-machine-info (type $Prim2)
+               (param $linklet       (ref eq)) ;; linklet
+               (param $other-linklet (ref eq)) ;; other target linklet
+               (result               (ref eq))
+               (local.get $linklet))
+
+         ;; linklet-summarize-target-machine-info : any/c -> immutable hash?
+         ;;   Return an empty table, matching the source-linklet bootstrap.
+         (func $linklet-summarize-target-machine-info (type $Prim1)
+               (param $linklet (ref eq)) ;; linklet
+               (result         (ref eq))
+               (call $make-empty-hash))
+
+         ;; linklet-virtual-machine-bytes : -> bytes?
+         ;;   Bootstrap VM tag used by the expander's linklet layer.
+         (func $linklet-virtual-machine-bytes (type $Prim0)
+               (result (ref eq))
+               (global.get $bytes:exp))
+
+         ;; linklet-cross-machine-type : any/c -> #f
+         ;;   WebRacket currently has one target machine.
+         (func $linklet-cross-machine-type (type $Prim1)
+               (param $ht (ref eq)) ;; target-machine info table
+               (result    (ref eq))
+               (global.get $false))
+
+         ;; write-linklet-bundle-hash : any/c output-port? -> void?
+         ;;   Serialization of runtime linklet bundles is not implemented.
+         (func $write-linklet-bundle-hash (type $Prim2)
+               (param $bundle (ref eq)) ;; linklet bundle/hash
+               (param $out    (ref eq)) ;; output port
+               (result        (ref eq))
+               (global.get $void))
+
+         ;; read-linklet-bundle-hash : input-port? any/c -> #f
+         ;;   Deserialization of runtime linklet bundles is not implemented.
+         (func $read-linklet-bundle-hash (type $Prim2)
+               (param $in            (ref eq)) ;; input port
+               (param $cross-machine (ref eq)) ;; cross-machine type
+               (result               (ref eq))
+               (global.get $false))
 
          ;; make-webify-primitive-table : -> mutable-hasheq?
          ;;   Build a Racket CS-style primitive table from WebRacket's current
@@ -48424,6 +48552,25 @@
         ; The form `#%variable-reference` can occur in fully expanded syntax,
         ; so the compiler builds $VariableReference instances directly.
 
+        (func $variable-reference? (type $Prim1)
+              ,@(make-predicate-body '$VariableReference))
+
+        ;; variable-reference->instance : variable-reference? [any/c] -> any/c
+        ;;   The expander bootstrap only needs the name to exist for now.
+        ;;   WebRacket's variable-reference payload does not yet retain an
+        ;;   enclosing module instance, so report that no instance is known.
+        (func $variable-reference->instance (type $Prim12)
+              (param $varref (ref eq)) ;; variable-reference?
+              (param $ref-site? (ref eq)) ;; optional; default #f
+              (result (ref eq))
+              (if (i32.eqz (ref.test (ref $VariableReference) (local.get $varref)))
+                  (then (call $raise-argument-error
+                              (global.get $symbol:variable-reference->instance)
+                              (global.get $string:variable-reference?)
+                              (local.get $varref))
+                        (unreachable)))
+              (global.get $false))
+
         ; This function determines if the variable stems from a module compiled in unsafe mode or not.
         (func $variable-reference-from-unsafe? (type $Prim1)
               (param  $varref (ref eq))
@@ -48990,6 +49137,16 @@
                (drop (call $set-box!
                            (ref.cast (ref eq) (local.get $box))
                            (global.get $undefined)))
+               (global.get $void))
+
+         ;; instance-describe-variable! : instance? symbol? any/c -> void?
+         ;;   Description metadata is for diagnostics and optimization in the
+         ;;   host linklet layer. WebRacket currently ignores it.
+         (func $instance-describe-variable! (type $Prim3)
+               (param $inst (ref eq)) ;; instance
+               (param $sym  (ref eq)) ;; variable name
+               (param $desc (ref eq)) ;; description metadata
+               (result      (ref eq))
                (global.get $void))
 
          (func $instance-variable-value (type $Prim>=2)
@@ -52863,7 +53020,15 @@
                                  (global.get $empty-module-registry)   ;; $modules
                                  (i32.const 0)))                       ;; $protect
 
-               (func $raise-undefined-top (unreachable))
+               ;; raise-undefined-top : symbol? -> never
+               ;;   Log the missing top-level binding before throwing, so large
+               ;;   generated programs expose the next runtime gap directly.
+               (func $raise-undefined-top
+                     (param $sym (ref eq)) ;; missing symbol
+
+                     (call $js-log (global.get $string:missing-binding))
+                     (call $js-log (local.get $sym))
+                     (unreachable))
                (func $raise-argument-error:namespace-expected (unreachable))
 
                (func $namespace-variable-value-simple (type $Prim2)
@@ -59782,7 +59947,15 @@
 
                (func $entry-uncaught-exception2
                      (param $e (ref eq))
-                     (drop (call $js-log (call $format/display (local.get $e)))))
+                     (local $message (ref eq))
+
+                     ;; Keep this intentionally verbose for bootstrap probes:
+                     ;; a malformed exception may have an undefined message,
+                     ;; so log both the full exception shape and its message.
+                     (drop (call $js-log (call $format/display (local.get $e))))
+                     (local.set $message (call $exn-message (local.get $e)))
+                     (drop (call $js-log (local.get $message)))
+                     (drop (call $js-log (call $format/display (local.get $message)))))
 
                (func $entry-uncaught-exception1
                      (param $e (ref eq))
@@ -59792,10 +59965,9 @@
                      (param $e (ref eq))
                      (if (ref.eq (call $exn? (local.get $e)) (global.get $false))
                          (then
-                          (call $entry-uncaught-exception1 (local.get $e)))
+                         (call $entry-uncaught-exception1 (local.get $e)))
                          (else
-                          (call $entry-uncaught-exception2
-                                (call $exn-message (local.get $e)))))
+                          (call $entry-uncaught-exception2 (local.get $e))))
                      (throw $exn (local.get $e)))
                
                (func $entry (export "entry") (result i32)
