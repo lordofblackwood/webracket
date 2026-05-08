@@ -2402,6 +2402,11 @@
                                    (field $hash      (mut i32))
                                    (field $immutable i32)                      ;; 0 or 1
                                    (field $bs        (mut (ref $I8Array)))))) ;; An array of bytes
+          (type $Regexp     (sub $Heap
+                                 (struct
+                                   (field $hash   (mut i32))
+                                   (field $kind   i32)       ;; 0 rx, 1 px, 2 byte-rx, 3 byte-px
+                                   (field $source (ref eq))))) ;; string or bytes object-name
           (type $Symbol (sub $Heap
                              (struct
                                (field $hash          (mut i32))          ;; cached hash
@@ -7990,6 +7995,12 @@
                    (then (return_call $bytes=?/2/checked
                                       (ref.cast (ref $Bytes) (local.get $v1))
                                       (ref.cast (ref $Bytes) (local.get $v2)))))
+               ;; --- Regexp ---
+               (if (i32.and (ref.test (ref $Regexp) (local.get $v1))
+                            (ref.test (ref $Regexp) (local.get $v2)))
+                   (then (return_call $regexp-equal?
+                                      (ref.cast (ref $Regexp) (local.get $v1))
+                                      (ref.cast (ref $Regexp) (local.get $v2)))))
                ;; --- Struct --- (fieldwise comparison)
                (if (i32.and (ref.test (ref $Struct) (local.get $v1))
                             (ref.test (ref $Struct) (local.get $v2)))
@@ -7998,6 +8009,19 @@
                                       (ref.cast (ref $Struct) (local.get $v2)))))
                ;; --- Fallback ---
                (return (global.get $false)))
+
+         ;; regexp-equal? : regexp? regexp? -> boolean?
+         ;;   Compare regexp values by kind and source name.
+         (func $regexp-equal?
+               (param $rx1 (ref $Regexp))
+               (param $rx2 (ref $Regexp))
+               (result    (ref eq))
+               (if (i32.ne (struct.get $Regexp $kind (local.get $rx1))
+                           (struct.get $Regexp $kind (local.get $rx2)))
+                   (then (return (global.get $false))))
+               (return_call $equal?
+                            (struct.get $Regexp $source (local.get $rx1))
+                            (struct.get $Regexp $source (local.get $rx2))))
 
 
          ;; Compare pairs
@@ -19202,7 +19226,112 @@
 
          ;; https://docs.racket-lang.org/reference/regexp.html
 
-         ;; TODO - Implement regular expressions.
+         ;; Matching support is implemented separately by the demodded regexp
+         ;; layer. These primitives provide self-contained regexp values so
+         ;; reader literals can compile without that library being present.
+
+         ;; make-regexp-value : i32 any/c -> regexp?
+         ;;   Create a compact regexp value with a recoverable source name.
+         (func $make-regexp-value
+               (param $kind   i32)      ;; 0 rx, 1 px, 2 byte-rx, 3 byte-px
+               (param $source (ref eq)) ;; string or bytes object-name
+               (result        (ref eq))
+               (struct.new $Regexp
+                           (i32.const 0)
+                           (local.get $kind)
+                           (local.get $source)))
+
+         ;; webracket-literal-regexp : string? -> regexp?
+         ;;   Construct a private regexp literal value; matching is later.
+         (func $webracket-literal-regexp (type $Prim1)
+               (param $source (ref eq)) ;; pattern string
+               (result        (ref eq))
+               (call $make-regexp-value
+                     (i32.const 0)
+                     (ref.cast (ref $String) (local.get $source))))
+
+         ;; webracket-literal-pregexp : string? -> pregexp?
+         ;;   Construct a private pregexp literal value; matching is later.
+         (func $webracket-literal-pregexp (type $Prim1)
+               (param $source (ref eq)) ;; pattern string
+               (result        (ref eq))
+               (call $make-regexp-value
+                     (i32.const 1)
+                     (ref.cast (ref $String) (local.get $source))))
+
+         ;; webracket-literal-byte-regexp : bytes? -> byte-regexp?
+         ;;   Construct a private byte regexp literal value; matching is later.
+         (func $webracket-literal-byte-regexp (type $Prim1)
+               (param $source (ref eq)) ;; pattern bytes
+               (result        (ref eq))
+               (call $make-regexp-value
+                     (i32.const 2)
+                     (ref.cast (ref $Bytes) (local.get $source))))
+
+         ;; webracket-literal-byte-pregexp : bytes? -> byte-pregexp?
+         ;;   Construct a private byte pregexp literal value; matching is later.
+         (func $webracket-literal-byte-pregexp (type $Prim1)
+               (param $source (ref eq)) ;; pattern bytes
+               (result        (ref eq))
+               (call $make-regexp-value
+                     (i32.const 3)
+                     (ref.cast (ref $Bytes) (local.get $source))))
+
+         ;; regexp? : any/c -> boolean?
+         ;;   Check for character regexp and pregexp values.
+         (func $regexp? (type $Prim1)
+               (param $v (ref eq)) ;; candidate value
+               (result   (ref eq))
+               (if (i32.eqz (ref.test (ref $Regexp) (local.get $v)))
+                   (then (return (global.get $false))))
+               (if (result (ref eq))
+                   (i32.lt_u (struct.get $Regexp $kind
+                                         (ref.cast (ref $Regexp) (local.get $v)))
+                             (i32.const 2))
+                   (then (global.get $true))
+                   (else (global.get $false))))
+
+         ;; pregexp? : any/c -> boolean?
+         ;;   Check for character pregexp values.
+         (func $pregexp? (type $Prim1)
+               (param $v (ref eq)) ;; candidate value
+               (result   (ref eq))
+               (if (i32.eqz (ref.test (ref $Regexp) (local.get $v)))
+                   (then (return (global.get $false))))
+               (if (result (ref eq))
+                   (i32.eq (struct.get $Regexp $kind
+                                       (ref.cast (ref $Regexp) (local.get $v)))
+                           (i32.const 1))
+                   (then (global.get $true))
+                   (else (global.get $false))))
+
+         ;; byte-regexp? : any/c -> boolean?
+         ;;   Check for byte regexp and byte pregexp values.
+         (func $byte-regexp? (type $Prim1)
+               (param $v (ref eq)) ;; candidate value
+               (result   (ref eq))
+               (if (i32.eqz (ref.test (ref $Regexp) (local.get $v)))
+                   (then (return (global.get $false))))
+               (if (result (ref eq))
+                   (i32.ge_u (struct.get $Regexp $kind
+                                         (ref.cast (ref $Regexp) (local.get $v)))
+                             (i32.const 2))
+                   (then (global.get $true))
+                   (else (global.get $false))))
+
+         ;; byte-pregexp? : any/c -> boolean?
+         ;;   Check for byte pregexp values.
+         (func $byte-pregexp? (type $Prim1)
+               (param $v (ref eq)) ;; candidate value
+               (result   (ref eq))
+               (if (i32.eqz (ref.test (ref $Regexp) (local.get $v)))
+                   (then (return (global.get $false))))
+               (if (result (ref eq))
+                   (i32.eq (struct.get $Regexp $kind
+                                       (ref.cast (ref $Regexp) (local.get $v)))
+                           (i32.const 3))
+                   (then (global.get $true))
+                   (else (global.get $false))))
 
          ;;;
          ;;; 4.9 KEYWORDS
@@ -47331,6 +47460,7 @@
                (local $prop-val    (ref eq))
                (local $sentinel    (ref eq))
                (local $fields      (ref $Array))
+               (local $rx          (ref $Regexp))
                (local $idx         i32)
                (local $super       (ref eq))
                (local $super-type  (ref null $StructType))
@@ -47399,6 +47529,11 @@
                    (then
                     (return (struct.get $Port $name
                                         (ref.cast (ref $Port) (local.get $v))))))
+               ;; Regexp values expose the source string or bytes.
+               (if (ref.test (ref $Regexp) (local.get $v))
+                   (then
+                    (local.set $rx (ref.cast (ref $Regexp) (local.get $v)))
+                    (return (struct.get $Regexp $source (local.get $rx)))))
                ;; Procedures use the cached name field when available.
                (if (ref.test (ref $Procedure) (local.get $v))
                    (then
@@ -49940,6 +50075,16 @@
                    (local.get $ok)
                    (then (global.get $true))
                    (else (global.get $false))))
+
+         ;; unsafe-sealed-struct? : any/c struct-type? -> boolean?
+         ;;   Internal Schemify predicate for sealed struct predicates. Since
+         ;;   WebRacket rejects sealed parents, the ordinary subtype check is
+         ;;   equivalent for currently representable sealed struct values.
+         (func $unsafe-sealed-struct? (type $Prim2)
+               (param $v   (ref eq)) ;; candidate struct value
+               (param $std (ref eq)) ;; expected sealed struct type descriptor
+               (result     (ref eq)) ;; boolean
+               (call $unsafe-struct? (local.get $v) (local.get $std)))
 
          (func $unsafe-struct-ref (type $Prim2)
                (param $v (ref eq))
@@ -57723,15 +57868,20 @@
                                   (br $done)))
                      (local.get $candidate))
 
-               ;; file-or-directory-modify-seconds : path-string? [(or/c exact-nonnegative-integer? #f)] -> (or/c exact-nonnegative-integer? void?)
-               ;;   Get or set the VFS modification time; fail-thunk and negative seconds are not supported yet.
-               (func $file-or-directory-modify-seconds (type $Prim12)
+               ;; file-or-directory-modify-seconds : path-string? [(or/c exact-nonnegative-integer? #f)] [(-> any)] -> any
+               ;;   Get or set the VFS modification time. Optional secs defaults
+               ;;   to #f, and optional fail-thunk is called on missing VFS paths.
+               (func $file-or-directory-modify-seconds (type $Prim13)
                      (param $path-raw (ref eq)) ;; path-string?
                      (param $secs-raw (ref eq)) ;; optional (or/c exact-nonnegative-integer? #f), default = #f
+                     (param $fail-raw (ref eq)) ;; optional (-> any), default = raise filesystem error
                      (result          (ref eq))
 
                      (local $path     (ref $Path))
                      (local $bytes    (ref $Bytes))
+                     (local $fail     (ref null $Procedure))
+                     (local $fail-inv (ref null $ProcedureInvoker))
+                     (local $args     (ref $Args))
                      (local $len      i32)
                      (local $has-secs i32)
                      (local $secs     i32)
@@ -57774,6 +57924,19 @@
                                            (i31.get_s
                                             (ref.cast (ref i31) (local.get $secs-raw)))
                                            (i32.const 1)))))))
+                     (if (i32.eqz (ref.eq (local.get $fail-raw) (global.get $missing)))
+                         (then
+                          (if (i32.eqz (ref.test (ref $Procedure) (local.get $fail-raw)))
+                              (then (call $raise-argument-error1
+                                          (global.get $symbol:file-or-directory-modify-seconds)
+                                          (global.get $string:procedure?)
+                                          (local.get $fail-raw))
+                                    (unreachable)))
+                          (local.set $fail
+                                     (ref.cast (ref $Procedure) (local.get $fail-raw)))
+                          (local.set $fail-inv
+                                     (struct.get $Procedure $invoke
+                                                 (ref.as_non_null (local.get $fail))))))
                      (local.set $len (call $copy-bytes-to-memory
                                            (local.get $bytes)
                                            (global.get $memory-map:vfs-path-buffer-base)))
@@ -57781,12 +57944,22 @@
                                 (call $js-vfs-modify-seconds
                                       (global.get $memory-map:vfs-path-buffer-base)
                                       (local.get $len)
-                                      (local.get $has-secs)
-                                      (local.get $secs)))
+                                     (local.get $has-secs)
+                                     (local.get $secs)))
                      (if (i32.lt_s (local.get $mtime) (i32.const 0))
-                         (then (call $raise-vfs-file-error
-                                     (global.get $string:vfs:modify-seconds-failed))
-                               (unreachable)))
+                         (then
+                          (if (ref.eq (local.get $fail-raw) (global.get $missing))
+                              (then (call $raise-vfs-file-error
+                                          (global.get $string:vfs:modify-seconds-failed))
+                                    (unreachable)))
+                          (local.set $args
+                                     (array.new $Args
+                                                (global.get $null)
+                                                (i32.const 0)))
+                          (return_call_ref $ProcedureInvoker
+                                           (ref.as_non_null (local.get $fail))
+                                           (local.get $args)
+                                           (ref.as_non_null (local.get $fail-inv)))))
                      (if (result (ref eq))
                          (i32.eqz (local.get $has-secs))
                          (then (ref.i31 (i32.shl (local.get $mtime) (i32.const 1))))

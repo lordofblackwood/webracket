@@ -1149,6 +1149,10 @@
  with-input-from-file
  with-output-to-file
  webracket-vfs-write-file
+ webracket-literal-byte-pregexp
+ webracket-literal-byte-regexp
+ webracket-literal-pregexp
+ webracket-literal-regexp
 
  ;; 17. Unsafe Operations
  unsafe-fx+ unsafe-fx- unsafe-fx* unsafe-fl/
@@ -1171,7 +1175,7 @@
  unsafe-flmin unsafe-flmax unsafe-flexpt
  unsafe-flrandom 
  unsafe-car unsafe-cdr
- unsafe-struct? unsafe-struct*-ref unsafe-struct*-set! unsafe-struct-ref unsafe-vector-length unsafe-vector-ref
+ unsafe-sealed-struct? unsafe-struct? unsafe-struct*-ref unsafe-struct*-set! unsafe-struct-ref unsafe-vector-length unsafe-vector-ref
  unsafe-vector*-length unsafe-vector*-set! unsafe-vector*-ref
  unsafe-vector-length unsafe-vector-set!
  unsafe-struct-set!
@@ -2697,7 +2701,9 @@
 (define file-or-directory-modify-seconds
   (case-lambda
     [(path) (racket:file-or-directory-modify-seconds path)]
-    [(path secs-n) (racket:file-or-directory-modify-seconds path secs-n)]))
+    [(path secs-n) (racket:file-or-directory-modify-seconds path secs-n)]
+    [(path secs-n fail-thunk)
+     (racket:file-or-directory-modify-seconds path secs-n fail-thunk)]))
 
 (define file-or-directory-permissions
   (case-lambda
@@ -2784,8 +2790,23 @@
 (define (webracket-vfs-write-file path bytes)
   (error 'webracket-vfs-write-file "only available in compiled WebRacket"))
 
+(define (webracket-literal-regexp source)
+  (regexp source))
+
+(define (webracket-literal-pregexp source)
+  (pregexp source))
+
+(define (webracket-literal-byte-regexp source)
+  (byte-regexp source))
+
+(define (webracket-literal-byte-pregexp source)
+  (byte-pregexp source))
+
 (define (unsafe-struct? v std)
   (error 'unsafe-struct? "only available in compiled WebRacket"))
+
+(define (unsafe-sealed-struct? v std)
+  (error 'unsafe-sealed-struct? "only available in compiled WebRacket"))
 
 (define (impersonator? v)
   #f)

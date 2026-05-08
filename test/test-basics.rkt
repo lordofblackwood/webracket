@@ -1775,6 +1775,18 @@
                            (equal? (string-prefix? (symbol->string s2) "apple" ) #t)
                            (equal? (eq? s1 s3)                                   #f))))))
 
+       (list "4.8 Regular Expressions"
+             (list
+              (list "regexp literal values"
+                    (and (equal? (object-name #rx"a") "a")
+                         (equal? (object-name #px"a") "a")
+                         (equal? (object-name #rx#"a") #"a")
+                         (equal? (object-name #px#"a") #"a")
+                         (equal? (equal? #rx"a" #rx"a") #t)
+                         (equal? (equal? #rx"a" #px"a") #f)
+                         (equal? (equal? #rx#"a" #rx#"a") #t)
+                         (equal? (equal? #rx#"a" #px#"a") #f)))))
+
        (list "4.9 Keywords"
              (list
               (list "keyword?"
@@ -2664,6 +2676,17 @@
                         (and (equal? (unsafe-struct? parent struct:parent) #t)
                              (equal? (unsafe-struct? other struct:parent) #f)
                              (equal? (unsafe-struct? 10 struct:parent) #f)))))
+
+              (list "unsafe-sealed-struct?"
+                    (let-values ([(struct:sealed make-sealed sealed? sealed-ref sealed-set!)
+                                  (make-struct-type 'unsafe-sealed #f 1 0 #f)]
+                                 [(struct:other make-other other? other-ref other-set!)
+                                  (make-struct-type 'unsafe-sealed-other #f 1 0 #f)])
+                      (let ([sealed (make-sealed 1)]
+                            [other  (make-other 3)])
+                        (and (equal? (unsafe-sealed-struct? sealed struct:sealed) #t)
+                             (equal? (unsafe-sealed-struct? other struct:sealed) #f)
+                             (equal? (unsafe-sealed-struct? 10 struct:sealed) #f)))))
 
               (list "unsafe-struct*-ref"
                     (let-values ([(struct:s make-s s? s-ref s-set!)
@@ -6992,6 +7015,10 @@
                            (void? (rename-file-or-directory "/app/data/mtime-copy.txt"
                                                             "/app/data/mtime-renamed.txt"))
                            (equal? (file-or-directory-modify-seconds "/app/data/mtime-renamed.txt") 123)
+                           (equal? (file-or-directory-modify-seconds "/app/data/missing-mtime.txt"
+                                                                     #f
+                                                                     (lambda () 'missing))
+                                   'missing)
                            (with-handlers ([(lambda (ex) (exn:fail:filesystem? ex))
                                             (lambda (_ex) #t)])
                              (file-or-directory-modify-seconds "/app/data/missing-mtime.txt")

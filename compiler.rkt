@@ -1315,7 +1315,7 @@
      'optional 0 2)
     (make-inline-specs
      '(file-or-directory-modify-seconds)
-     'optional 1 2)
+     'optional 1 3)
     (make-inline-specs
      '(file-or-directory-permissions)
      'optional 1 2)
@@ -2188,6 +2188,12 @@
   ;; 13.8 Printer Extension
   custom-write?
   custom-write-accessor
+
+  ;; 4.8 Regular Expressions
+  webracket-literal-byte-pregexp
+  webracket-literal-byte-regexp
+  webracket-literal-pregexp
+  webracket-literal-regexp
   
   ;; 14.9 Structure Inspectors
   object-name
@@ -2361,6 +2367,7 @@
 
   unsafe-car
   unsafe-cdr
+  unsafe-sealed-struct?
   unsafe-struct?
   unsafe-struct*-ref
   unsafe-struct*-set!
@@ -6627,6 +6634,10 @@
                `(quote ,s ,(datum s v)))]          ; other literals
           [(? string? cs)  `(quote ,s ,(datum s v))]
           [(? bytes?  bs)  `(quote ,s ,(datum s v))]
+          [(? byte-pregexp? rx) `(app ,h ,(var:webracket-literal-byte-pregexp) ,(loop (object-name rx)))]
+          [(? byte-regexp?  rx) `(app ,h ,(var:webracket-literal-byte-regexp)  ,(loop (object-name rx)))]
+          [(? pregexp?      rx) `(app ,h ,(var:webracket-literal-pregexp)      ,(loop (object-name rx)))]
+          [(? regexp?       rx) `(app ,h ,(var:webracket-literal-regexp)       ,(loop (object-name rx)))]
           [(? symbol? sym) `(quote ,s ,(datum s v))]
           [(? pair? p)     `(app ,h ,(var:cons) ,(loop (car p)) ,(loop (cdr p)))]
           [(? vector? v)   (let ([vs (map loop (vector->list v))])

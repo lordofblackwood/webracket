@@ -252,12 +252,19 @@
          `(define ,export (module-variable-ref ,cell-id)))
      (void)))
 
-;; first-slice->top-level-syntax : any/c (listof symbol?) -> syntax?
+;; first-slice->top-level-syntax : any/c (listof symbol?) keyword-args -> syntax?
 ;;   Convert a lowered first-slice expression to top-level syntax for `comp`.
-(define (first-slice->top-level-syntax expr exports #:reserved [reserved '()])
+(define (first-slice->top-level-syntax expr
+                                       exports
+                                       #:reserved [reserved '()]
+                                       #:define-export-aliases? [define-export-aliases? #t])
   (datum->syntax
    #f
-   (first-slice->top-level-datum expr exports #:reserved reserved)))
+   (first-slice->top-level-datum
+    expr
+    exports
+    #:reserved reserved
+    #:define-export-aliases? define-export-aliases?)))
 
 ;; webify-linklet-first-slice-top-level/imports : linklet (listof any/c) keyword-args ... -> syntax?
 ;;   Webify, lower, and wrap a first-slice linklet with explicit import cells.
@@ -327,6 +334,7 @@
 ;; webify-linklet-first-slice-top-level : linklet keyword-args ... -> syntax?
 ;;   Webify, lower, and wrap an import-free first-slice linklet as top-level forms.
 (define (webify-linklet-first-slice-top-level lk
+                                              #:define-export-aliases? [define-export-aliases? #t]
                                               #:serializable?-box     serializable?-box
                                               #:datum-intern?         datum-intern?
                                               #:target                target
@@ -361,6 +369,9 @@
                (null? imports-abis))
     (error 'webify-linklet-first-slice-top-level
            "imported linklets are not supported by the first top-level adapter yet"))
-  (values (first-slice->top-level-syntax expr exports)
+  (values (first-slice->top-level-syntax
+           expr
+           exports
+           #:define-export-aliases? define-export-aliases?)
           exports
           exports-info))

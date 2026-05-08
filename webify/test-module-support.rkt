@@ -61,11 +61,12 @@
 (define test-primitives
   (hasheq '+ +))
 
-;; run-first-slice-top-level : any/c -> values
+;; run-first-slice-top-level : any/c keyword-args -> values
 ;;   Webify, lower, and top-level-wrap a hand-written linklet.
-(define (run-first-slice-top-level lk)
+(define (run-first-slice-top-level lk #:define-export-aliases? [define-export-aliases? #t])
   (webify-linklet-first-slice-top-level
    lk
+   #:define-export-aliases? define-export-aliases?
    #:serializable?-box     #f
    #:datum-intern?         #f
    #:target                #f
