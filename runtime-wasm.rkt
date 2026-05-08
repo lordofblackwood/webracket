@@ -120,6 +120,23 @@
                  #:when (eq? kind 'primitive))
         (second binding)))
 
+    (define primitive-table-module-symbols
+      '(#%bootstrap-linklet
+        #%kernel
+        #%read
+        #%paramz
+        #%unsafe
+        #%foreign
+        #%futures
+        #%place
+        #%flfxnum
+        #%extfl
+        #%network
+        #%terminal
+        #%linklet
+        internal
+        schemify))
+
     (define (console-bridge-symbol-global const-name)
       ($ (string->symbol (~a "symbol:" const-name))))
 
@@ -1472,6 +1489,8 @@
         (add-runtime-symbol-constant pr)))
 
     (add-ffi-symbol-constants)
+
+    (for-each add-runtime-symbol-constant primitive-table-module-symbols)
 
     (define linklet-body-core-reserved-symbols
       '(lambda
@@ -4593,6 +4612,10 @@
          (global $the-keyword-table (mut (ref null $SymbolTable)) (ref.null $SymbolTable))
          ;; Simple prefab struct types are interned by prefab key.
          (global $prefab-struct-type-registry (mut (ref null $HashEqMutable)) (ref.null $HashEqMutable))
+         ;; Placeholder for future Racket CS-style primitive-table installs.
+         ;; The current WebRacket bridge implements the one-argument lookup
+         ;; path needed by the expander startup path.
+         (global $primitive-table-user-installed (mut (ref null $HashEqMutable)) (ref.null $HashEqMutable))
 
          (func $initialize-the-symbol-table
                (if (ref.is_null (global.get $the-symbol-table))
@@ -4601,6 +4624,13 @@
          (func $initialize-the-keyword-table
                (if (ref.is_null (global.get $the-keyword-table))
                    (then (global.set $the-keyword-table (call $make-symbol-table)))))
+
+         (func $initialize-primitive-table-user-installed
+               (if (ref.is_null (global.get $primitive-table-user-installed))
+                   (then
+                    (global.set $primitive-table-user-installed
+                                (ref.cast (ref $HashEqMutable)
+                                          (call $make-empty-hasheq))))))
 
          
          ;;;
@@ -32903,6 +32933,57 @@
                (if (ref.eq (local.get $assocs) (global.get $missing))
                    (then (local.set $assocs (global.get $null))))
                (call $make-hashalw (local.get $assocs)))
+
+         ;; make-webify-primitive-table : -> mutable-hasheq?
+         ;;   Build a Racket CS-style primitive table from WebRacket's current
+         ;;   primitive procedure globals. This bridge is intentionally broad:
+         ;;   it gives the webified expander a primitive-module table shape
+         ;;   while later milestones decide exact per-module membership.
+         (func $make-webify-primitive-table
+               (result (ref eq))
+               (local $table (ref $HashEqMutable))
+               (local.set $table
+                          (ref.cast (ref $HashEqMutable)
+                                    (call $make-empty-hasheq)))
+               ,@(for/list ([pr (in-list (active-described-primitives-sorted))])
+                   `(call $hasheq-set!/mutable/checked
+                          (local.get $table)
+                          (global.get ,($ (string->symbol (~a "symbol:" pr))))
+                          (global.get ,($ (prim: pr)))))
+               (local.get $table))
+
+         ;; primitive-table : symbol? -> (or/c hash? #f)
+         ;;   Bridge the Racket CS expander's primitive-module lookup to
+         ;;   WebRacket's existing primitive procedure globals. The result is a
+         ;;   mutable table so the expander can iterate it during namespace
+         ;;   initialization. Racket CS also has an installer arity, but the
+         ;;   current WebRacket compiler does not yet lower optional direct
+         ;;   primitive calls consistently enough for that form.
+         (func $primitive-table (type $Prim1)
+               (param $key (ref eq)) ;; primitive table name
+               (result     (ref eq))
+
+               (if (i32.eqz (ref.test (ref $Symbol) (local.get $key)))
+                   (then (call $raise-check-symbol (local.get $key))
+                         (unreachable)))
+
+               (call $initialize-primitive-table-user-installed)
+
+               (if (ref.eq (local.get $key) (global.get $symbol:#%bootstrap-linklet))
+                   (then (return (global.get $false))))
+               (if (ref.eq (local.get $key) (global.get $symbol:#%read))
+                   (then (return (call $make-empty-hasheq))))
+
+               ,@(for/list ([name (in-list (remove* '(#%bootstrap-linklet #%read)
+                                                     primitive-table-module-symbols))])
+                   `(if (ref.eq (local.get $key)
+                                (global.get ,($ (string->symbol (~a "symbol:" name)))))
+                        (then (return (call $make-webify-primitive-table)))))
+
+               (call $hasheq-ref
+                     (ref.as_non_null (global.get $primitive-table-user-installed))
+                     (local.get $key)
+                     (global.get $false)))
                
          (func $initialize-prefab-struct-type-registry
                (if (ref.is_null (global.get $prefab-struct-type-registry))
@@ -59406,6 +59487,7 @@
                      ;; Initialize global state
                      (call $initialize-the-symbol-table)  ; for interning
                      (call $initialize-the-keyword-table) ; for interning
+                     (call $initialize-primitive-table-user-installed)
                      (call $initialize-prefab-struct-type-registry)
 
                      ;; Initialize string constants used in the runtime

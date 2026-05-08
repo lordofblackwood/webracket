@@ -1,6 +1,7 @@
 #lang racket/base
 (require               "fully.rkt" "primitives.rkt")
-(provide (all-from-out "fully.rkt" "primitives.rkt"))
+(provide (all-from-out "fully.rkt" "primitives.rkt")
+         primitive-table)
 
 #;(require (for-syntax
           (only-in racket/base

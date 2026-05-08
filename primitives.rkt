@@ -1023,6 +1023,7 @@
  namespace-variable-value-simple
  namespace-set-variable-value!
  namespace-undefine-variable! 
+ primitive-table
  ; namespace-variable-value
  ; namespace-has-key?
 
@@ -1338,6 +1339,22 @@
 
 (define (namespace-variable-value-simple ns sym)
   (namespace-variable-value sym #t #f ns))
+
+(define primitive-table
+  (let ([installed (make-hasheq)])
+    (case-lambda
+      [(key)
+       (case key
+         [(#%bootstrap-linklet) #f]
+         [(#%read) (make-hasheq)]
+         [else
+          (hash-ref installed key
+                    (lambda ()
+                      (for/hasheq ([sym (in-list (namespace-mapped-symbols))])
+                        (values sym
+                                (namespace-variable-value sym #t (lambda () #f))))))])]
+      [(key table)
+       (hash-set! installed key table)])))
 
 ;; Bind hyperbolic flonum operations as plain procedures in this module.
 ;; In host Racket these names can be syntax bindings, but WebRacket's

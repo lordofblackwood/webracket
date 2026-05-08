@@ -697,6 +697,7 @@
 (define-primitive port?                                     1                   (pure))
 (define-primitive positive-integer?                         1                   (pure))
 (define-primitive positive?                                 1                   (pure foldable))
+(define-primitive primitive-table                           1                   (ordered))
 (define-primitive primitive-closure?                        1                   (pure))
 (define-primitive primitive-result-arity                    1                   (pure))
 (define-primitive primitive?                                1                   (pure))

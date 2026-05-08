@@ -2465,6 +2465,7 @@
   namespace-variable-value-simple ; ns sym -> value
   namespace-set-variable-value!
   namespace-undefine-variable!
+  primitive-table
   ; namespace-has-key?
   
   ;; support for `for`
