@@ -13,6 +13,9 @@ See `INSTALLED-COMPATIBILITY.md` for the evidence ladder for installed Racket
 module providers.
 See `HASH.md` for the temporary immutable-hash bridge and the Racket CS
 `intmap` model that should eventually replace it.
+See `EXPANDER.md` for the current standalone expander extraction probe.
+See `NAMESPACE.md` for the boundary between the webified expander's namespace
+implementation and the WebRacket runtime substrate it expects.
 
 Bridge-facing module APIs:
 
