@@ -8,12 +8,13 @@
 import fs from 'node:fs';
 
 function usage() {
-  console.error('usage: node --experimental-wasm-exnref webify/probe-expander-instantiate.js <expander.wasm> [--call-entry]');
+  console.error('usage: node --experimental-wasm-exnref webify/probe-expander-instantiate.js <expander.wasm> [--call-entry] [--expect-entry-throws]');
 }
 
 const args = process.argv.slice(2);
 const wasmPath = args.find((arg) => !arg.startsWith('--'));
 const callEntry = args.includes('--call-entry');
+const expectEntryThrows = args.includes('--expect-entry-throws');
 
 if (!wasmPath) {
   usage();
@@ -187,6 +188,10 @@ if (callEntry) {
   try {
     instance.exports.entry();
     console.log('entry-call: ok');
+    if (expectEntryThrows) {
+      console.log('entry-call-expectation: expected throw, got ok');
+      process.exitCode = 1;
+    }
   } catch (err) {
     console.log('entry-call: threw');
     console.log(`exception-kind: ${err?.constructor?.name ?? typeof err}`);
@@ -200,6 +205,10 @@ if (callEntry) {
     if (err?.stack) {
       console.log(err.stack);
     }
-    process.exitCode = 1;
+    if (expectEntryThrows) {
+      console.log('entry-call-expectation: expected throw');
+    } else {
+      process.exitCode = 1;
+    }
   }
 }

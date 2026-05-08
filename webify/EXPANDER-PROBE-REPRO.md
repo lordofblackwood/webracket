@@ -367,6 +367,21 @@ contract-exception shape: the expander raises an exception object, but the
 message path still produces `#<undefined>`. That keeps the next investigation on
 exception/struct layout or exception construction, not primitive-table lookup.
 
+For a repeatable smoke at this boundary, use the expectation mode:
+
+```sh
+node --experimental-wasm-exnref \
+  webify/probe-expander-instantiate.js \
+  /private/tmp/webracket-expander-probe.wasm \
+  --call-entry \
+  --expect-entry-throws
+```
+
+This is not a successful expansion smoke yet. It is the current minimal
+expander-entry smoke: the module must instantiate, `entry` must be callable, and
+the known exception boundary must remain classified until the exception-shape
+bug is fixed.
+
 ### SCC
 
 Command uses `--compile-letrec-scc --enable-cc-analysis --enable-simplify
