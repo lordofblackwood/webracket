@@ -1079,13 +1079,14 @@
       min max flmin flmax fxmin fxmax gcd lcm
       make-instance instance-set-variable-value! instance-variable-value
       make-prefab-struct
+      hasheqv
       string-append-immutable string-append* bytes-append*)
     ; - kind
     'variadic
     ; - min-proc
     (λ (name)
       (case name
-        [(+ * unsafe-fx+ unsafe-fx* compose compose1 cartesian-product string-append-immutable gcd lcm) 0]
+        [(+ * unsafe-fx+ unsafe-fx* compose compose1 cartesian-product string-append-immutable gcd lcm hasheqv) 0]
         [(- / unsafe-fx- fx-/wraparound unsafe-fx-/wraparound min max
              flmin flmax unsafe-flmin unsafe-flmax
              fxmin fxmax unsafe-fxmin unsafe-fxmax
@@ -1107,7 +1108,7 @@
         [(vector-count map andmap ormap append-map count for-each vector-map vector-map! filter-map
                        instance-variable-value) 2]
         [(foldl foldr instance-set-variable-value!) 3]
-        [(+ * unsafe-fx+ unsafe-fx* compose compose1 cartesian-product string-append-immutable gcd lcm) 0]
+        [(+ * unsafe-fx+ unsafe-fx* compose compose1 cartesian-product string-append-immutable gcd lcm hasheqv) 0]
         [else 1])))
    (make-inline-specs '(= < > <= >=) 'variadic-args 1 #f 1)
    (make-inline-specs '(build-path/convention-type) 'variadic 2 #f 2)
@@ -1338,6 +1339,7 @@
        gensym
        make-hasheq
        make-hasheqv
+       make-immutable-hasheqv
        make-hash
        make-hashalw
        make-weak-hasheq
@@ -1713,6 +1715,9 @@
   box? box box-immutable unbox set-box! 
 
   make-thread-cell thread-cell? thread-cell-ref thread-cell-set!
+  unsafe-make-uninterruptible-lock
+  unsafe-uninterruptible-lock-acquire
+  unsafe-uninterruptible-lock-release
   current-environment-variables environment-variables? environment-variables-ref
   current-print
 
@@ -2127,8 +2132,10 @@
   
   make-hasheq
   make-hasheqv
+  make-immutable-hasheqv
   make-hash
   make-hashalw
+  hasheqv
 
   make-weak-hasheq  ; for now same as make-hasheq
   make-weak-hasheqv ; for now same as make-hasheqv
@@ -2142,6 +2149,7 @@
   hash-equal-always?
   
   hash-ref
+  hash-set
   hash-ref!
   hash-set!
   hash-update!

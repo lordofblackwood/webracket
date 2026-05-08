@@ -807,6 +807,9 @@
 
  ;; Thread Cells
  make-thread-cell thread-cell? thread-cell-ref thread-cell-set!
+ unsafe-make-uninterruptible-lock
+ unsafe-uninterruptible-lock-acquire
+ unsafe-uninterruptible-lock-release
 
  ;; Environment Variables
  current-environment-variables environment-variables? environment-variables-ref
@@ -821,7 +824,7 @@
  hash-equal?
  hash-equal-always?
 
- hash-ref hash-ref! hash-set! hash-remove! hash-clear!
+ hash-ref hash-ref! hash-set hash-set! hash-remove! hash-clear!
  hash-update!
  hash-has-key?
  hash-empty?
@@ -843,6 +846,8 @@
  
  make-hasheq
  make-hasheqv
+ make-immutable-hasheqv
+ hasheqv
  make-hash
  make-hashalw
 
@@ -2830,6 +2835,21 @@
 
 (define (impersonator-val v)
   (error 'impersonator-val "impersonators are not supported by WebRacket"))
+
+(struct webracket-uninterruptible-lock ())
+
+(define (unsafe-make-uninterruptible-lock)
+  (webracket-uninterruptible-lock))
+
+(define (unsafe-uninterruptible-lock-acquire lock)
+  (unless (webracket-uninterruptible-lock? lock)
+    (error 'unsafe-uninterruptible-lock-acquire "expected an uninterruptible lock"))
+  (void))
+
+(define (unsafe-uninterruptible-lock-release lock)
+  (unless (webracket-uninterruptible-lock? lock)
+    (error 'unsafe-uninterruptible-lock-release "expected an uninterruptible lock"))
+  (void))
 
 (define (result-arity-count v)
   (cond

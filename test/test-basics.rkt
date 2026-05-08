@@ -4010,6 +4010,31 @@
                          (equal? (hash-eqv? (make-hash))    #f)
                          (equal? (hash-eqv? (make-hasheqv)) #t)
                          (equal? (hash-eqv? (make-hashalw)) #f)))
+              (list "immutable hasheqv"
+                    (let* ([empty (hasheqv)]
+                           [h     (hasheqv 'a 1 'b 2 'a 3)]
+                           [h2    (hash-set h 'c 4)])
+                      (and (hash? empty)
+                           (immutable-hash? empty)
+                           (not (mutable-hash? empty))
+                           (hash-eqv? empty)
+                           (equal? (hash-count empty) 0)
+                           (equal? (hash-ref empty 'missing #f) #f)
+                           (equal? (hash-count h) 2)
+                           (equal? (hash-ref h 'a) 3)
+                           (equal? (hash-ref h 'b) 2)
+                           (equal? (hash-has-key? h 'a) #t)
+                           (equal? (hash-has-key? h 'c) #f)
+                           (equal? (hash-count h2) 3)
+                           (equal? (hash-ref h2 'c) 4)
+                           (equal? (hash-has-key? h 'c) #f))))
+              (list "make-immutable-hasheqv"
+                    (let ([h (make-immutable-hasheqv '((1 . one) (2 . two) (1 . uno)))])
+                      (and (immutable-hash? h)
+                           (hash-eqv? h)
+                           (equal? (hash-count h) 2)
+                           (equal? (hash-ref h 1) 'uno)
+                           (equal? (hash-ref h 2) 'two))))
               (list "hash-equal?"
                     (and (equal? (hash-equal? (make-hasheq))  #f)
                          (equal? (hash-equal? (make-hash))    #t)
@@ -5925,7 +5950,11 @@
               (list "thread-cell preserved argument"
                     (let ([cell (make-thread-cell 10 #t)])
                       (and (equal? (thread-cell? cell) #t)
-                           (equal? (thread-cell-ref cell) 10)))))))
+                           (equal? (thread-cell-ref cell) 10))))
+              (list "uninterruptible lock basics"
+                    (let ([lock (unsafe-make-uninterruptible-lock)])
+                      (and (void? (unsafe-uninterruptible-lock-acquire lock))
+                           (void? (unsafe-uninterruptible-lock-release lock))))))))
  
 
  (list "12. Macros"
