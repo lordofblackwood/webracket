@@ -7,6 +7,7 @@
          simplify-compatibility-apps
          lower-simple-parameters
          lower-trivial-continuation-prompts
+         lower-trivial-continuation-marks
          lower-hash-iteration-ops
          simplify-trivial-module-prompts
          lower-module-first-slice
@@ -240,13 +241,8 @@
         `(mutable-hash-iterate-pair ,(lower ht) ,(lower pos) unsafe-undefined)]
        [`(hash-iterate-key+value ,ht ,pos)
         `(mutable-hash-iterate-key+value ,(lower ht) ,(lower pos) unsafe-undefined)]
-       [`(hash-set ,ht ,key ,val)
-        (define ht-var (gensym 'hash-set-table))
-        `(let ([,ht-var ,(lower ht)])
-           (hash-set! ,ht-var ,(lower key) ,(lower val))
-           ,ht-var)]
-       [`(quote ,_)
-        v]
+      [`(quote ,_)
+       v]
        [`(,rator . ,args)
         `(,(lower-rator rator) . ,(lower-list args))]
        [`,_
@@ -324,12 +320,42 @@
   (assert-module-prompt-free
    (assert-schemify-module-variable-free
     (assert-first-slice-unsupported-free
-     (simplify-trivial-module-prompts
-      (lower-hash-iteration-ops
-       (lower-trivial-continuation-prompts
-        (lower-simple-parameters
-         (simplify-compatibility-apps
-          (lower-module-variable-ops v))))))))))
+     (lower-trivial-continuation-marks
+      (simplify-trivial-module-prompts
+       (lower-hash-iteration-ops
+        (lower-trivial-continuation-prompts
+         (lower-simple-parameters
+          (simplify-compatibility-apps
+           (lower-module-variable-ops v)))))))))))
+
+;; lower-trivial-continuation-marks : any/c -> any/c
+;;   Erase continuation marks while preserving key/value effects and order.
+(define (lower-trivial-continuation-marks v)
+  (define (lower v)
+    (match v
+      [`(with-continuation-mark* ,_mode ,key ,val ,body)
+       (define key-id (gensym 'ignored-continuation-mark-key))
+       (define val-id (gensym 'ignored-continuation-mark-val))
+       `(let ([,key-id ,(lower key)])
+          (let ([,val-id ,(lower val)])
+            ,(lower body)))]
+      [`(quote ,_)
+       v]
+      [`(,rator . ,_)
+       (lower-list v)]
+      [`,_
+       v]))
+
+  ;; lower-list : list? -> list?
+  ;;   Lower each element in a possibly wrapped list.
+  (define (lower-list l)
+    (cond
+      [(wrap-null? l) '()]
+      [(wrap-pair? l) (cons (lower (wrap-car l))
+                            (lower-list (wrap-cdr l)))]
+      [else (lower l)]))
+
+  (lower v))
 
 ;; schemify-module-variable-free? : any/c -> boolean?
 ;;   Check that schemify-shaped module variable forms have been lowered.
@@ -423,7 +449,6 @@
 (define (first-slice-unsupported-rator? v)
   (memq v '(#%app
             #%app/value
-            with-continuation-mark*
             check-not-unsafe-undefined
             check-not-unsafe-undefined/assign
             make-record-type-descriptor
@@ -441,7 +466,6 @@
             #%struct-field-accessor
             #%struct-field-mutator
             unsafe-struct
-            unsafe-sealed-struct?
             impersonate-ref
             impersonate-set!
             #%struct-ref-error

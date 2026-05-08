@@ -56,6 +56,8 @@
                   current-environment-variables
                   environment-variables?
                   environment-variables-ref)
+         (only-in '#%unsafe
+                  unsafe-root-continuation-prompt-tag)
 
          (only-in racket/format ~r)
          (only-in racket/base format)
@@ -803,7 +805,8 @@
  
  ;; 4.14 Boxes
  ; boxed unboxed set-boxed!  ; internal
- box? box box-immutable unbox set-box! 
+ box? box box-immutable unbox set-box! box-cas! unsafe-box*-cas!
+ make-weak-box weak-box? weak-box-value
 
  ;; Thread Cells
  make-thread-cell thread-cell? thread-cell-ref thread-cell-set!
@@ -847,6 +850,8 @@
  make-hasheq
  make-hasheqv
  make-immutable-hasheqv
+ hash
+ hasheq
  hasheqv
  make-hash
  make-hashalw
@@ -855,6 +860,7 @@
  make-weak-hasheqv 
  make-weak-hash    
  make-weak-hashalw 
+ make-ephemeron-hasheq
 
  eq-hash-code
  eqv-hash-code
@@ -925,6 +931,7 @@
  syntax-srclocs ; in racket/match/runtime.rkt
  
  ;; 10.5 Continuation Marks
+ unsafe-root-continuation-prompt-tag ; stable placeholder; prompts unsupported
  current-continuation-marks  ; dummy, always returns #f
  
  ;; 12.2 Syntac Object Content
@@ -1306,6 +1313,21 @@
 (define (unboxed b)      (boxed-x b))
 (define (set-boxed! b x) (set-boxed-x! b x))
 (define (initialize-boxed! b x) (set-boxed-x! b x))
+
+(struct webracket-weak-box (v) #:transparent #:mutable)
+
+(define (make-weak-box v)
+  (webracket-weak-box v))
+
+(define weak-box? webracket-weak-box?)
+
+(define weak-box-value
+  (case-lambda
+    [(wb) (weak-box-value wb #f)]
+    [(wb failure)
+     (if (webracket-weak-box? wb)
+         (webracket-weak-box-v wb)
+         (error 'weak-box-value "expected a weak box"))]))
 
 (define (make-empty-hash)    (make-hash))
 (define (make-empty-hasheq)  (make-hasheq))

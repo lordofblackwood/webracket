@@ -376,7 +376,26 @@
                          (equal? (mutable-box? #&1) #f)
                          (equal? (immutable-box? #&1) #t)
                          (equal? (immutable-bytes? #"ab") #t)
-                         (equal? (mutable-bytes?   #"ab") #f)))))
+                         (equal? (mutable-bytes?   #"ab") #f)))
+              (list "weak boxes"
+                    (let ([wb (make-weak-box 'cached)])
+                      (and (weak-box? wb)
+                           (not (weak-box? 'cached))
+                           (equal? (weak-box-value wb) 'cached)
+                           (equal? (weak-box-value wb 'missing) 'cached))))
+              (list "box-cas!"
+                    (let ([b (box 'old)])
+                      (and (equal? (box-cas! b 'wrong 'new) #f)
+                           (equal? (unbox b) 'old)
+                           (equal? (box-cas! b 'old 'new) #t)
+                           (equal? (unbox b) 'new))))
+              (list "unsafe-box*-cas!"
+                    (let ([b (box 1)])
+                      (and (unsafe-box*-cas! b 1 2)
+                           (equal? (unbox b) 2))))
+              (list "unsafe-root-continuation-prompt-tag placeholder"
+                    (eq? (unsafe-root-continuation-prompt-tag)
+                         (unsafe-root-continuation-prompt-tag)))))
        
        (list "4.3 Numbers"
              (list "4.3.1 Number Types"
@@ -4028,6 +4047,32 @@
                            (equal? (hash-count h2) 3)
                            (equal? (hash-ref h2 'c) 4)
                            (equal? (hash-has-key? h 'c) #f))))
+              (list "hash immutable constructor"
+                    (let* ([empty (hash)]
+                           [h     (hash 'a 1 'b 2 'a 3)]
+                           [h2    (hash-set h 'c 4)])
+                      (and (hash? empty)
+                           (immutable-hash? empty)
+                           (equal? (hash-count empty) 0)
+                           (equal? (hash-count h) 2)
+                           (equal? (hash-ref h 'a) 3)
+                           (equal? (hash-ref h 'b) 2)
+                           (equal? (hash-ref h 'c #f) #f)
+                           (equal? (hash-count h2) 3)
+                           (equal? (hash-ref h2 'c) 4))))
+              (list "hasheq immutable constructor"
+                    (let* ([empty (hasheq)]
+                           [h     (hasheq 'a 1 'b 2 'a 3)]
+                           [h2    (hash-set h 'c 4)])
+                      (and (hash? empty)
+                           (immutable-hash? empty)
+                           (hash-eqv? empty)
+                           (equal? (hash-count empty) 0)
+                           (equal? (hash-ref h 'a) 3)
+                           (equal? (hash-ref h 'b) 2)
+                           (equal? (hash-ref h 'c #f) #f)
+                           (equal? (hash-count h2) 3)
+                           (equal? (hash-ref h2 'c) 4))))
               (list "make-immutable-hasheqv"
                     (let ([h (make-immutable-hasheqv '((1 . one) (2 . two) (1 . uno)))])
                       (and (immutable-hash? h)
@@ -4052,6 +4097,13 @@
               (list "make-hasheq"
                     (let ([h (make-hasheq)])
                       (and (hash? h) (mutable-hash? h))))
+              (list "make-ephemeron-hasheq strong fallback"
+                    (let ([h (make-ephemeron-hasheq)])
+                      (hash-set! h 'a 1)
+                      (and (hash? h)
+                           (mutable-hash? h)
+                           (hash-eq? h)
+                           (equal? (hash-ref h 'a) 1))))
               (list "make-hasheqv"
                     (let ([h (make-hasheqv)])
                       (and (hash? h) (mutable-hash? h))))

@@ -1079,14 +1079,14 @@
       min max flmin flmax fxmin fxmax gcd lcm
       make-instance instance-set-variable-value! instance-variable-value
       make-prefab-struct
-      hasheqv
+      hash hasheq hasheqv
       string-append-immutable string-append* bytes-append*)
     ; - kind
     'variadic
     ; - min-proc
     (λ (name)
       (case name
-        [(+ * unsafe-fx+ unsafe-fx* compose compose1 cartesian-product string-append-immutable gcd lcm hasheqv) 0]
+        [(+ * unsafe-fx+ unsafe-fx* compose compose1 cartesian-product string-append-immutable gcd lcm hash hasheq hasheqv) 0]
         [(- / unsafe-fx- fx-/wraparound unsafe-fx-/wraparound min max
              flmin flmax unsafe-flmin unsafe-flmax
              fxmin fxmax unsafe-fxmin unsafe-fxmax
@@ -1108,7 +1108,7 @@
         [(vector-count map andmap ormap append-map count for-each vector-map vector-map! filter-map
                        instance-variable-value) 2]
         [(foldl foldr instance-set-variable-value!) 3]
-        [(+ * unsafe-fx+ unsafe-fx* compose compose1 cartesian-product string-append-immutable gcd lcm hasheqv) 0]
+        [(+ * unsafe-fx+ unsafe-fx* compose compose1 cartesian-product string-append-immutable gcd lcm hash hasheq hasheqv) 0]
         [else 1])))
    (make-inline-specs '(= < > <= >=) 'variadic-args 1 #f 1)
    (make-inline-specs '(build-path/convention-type) 'variadic 2 #f 2)
@@ -1286,7 +1286,8 @@
        read-string
        normalize-path
        simplify-path
-       make-directory)
+       make-directory
+       weak-box-value)
      'optional 1 2)
     (make-inline-specs
      '(file->bytes
@@ -1346,6 +1347,7 @@
        make-weak-hasheqv
        make-weak-hash
        make-weak-hashalw
+       make-ephemeron-hasheq
        byte-ready?
        char-ready?
        read-byte
@@ -1712,7 +1714,8 @@
   initialize-boxed! ; used by letrec-values initialization after assignment elimination
   boxed?
 
-  box? box box-immutable unbox set-box! 
+  box? box box-immutable unbox set-box! box-cas! unsafe-box*-cas!
+  make-weak-box weak-box? weak-box-value
 
   make-thread-cell thread-cell? thread-cell-ref thread-cell-set!
   unsafe-make-uninterruptible-lock
@@ -2135,12 +2138,15 @@
   make-immutable-hasheqv
   make-hash
   make-hashalw
+  hash
+  hasheq
   hasheqv
 
   make-weak-hasheq  ; for now same as make-hasheq
   make-weak-hasheqv ; for now same as make-hasheqv
   make-weak-hash    ; for now same as make-hash
   make-weak-hashalw ; for now same as make-hashalw
+  make-ephemeron-hasheq ; strong fallback for now
 
   hash?
   hash-eq?
@@ -2225,6 +2231,7 @@
   srcloc->string
 
   ;; 10.5 Continuation Marks
+  unsafe-root-continuation-prompt-tag ; stable placeholder; prompts unsupported
   current-continuation-marks  ; dummy, always returns #f
 
   ;; 12.2 Syntax Object Content

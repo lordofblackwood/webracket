@@ -122,9 +122,10 @@ smoke additionally needs three intentionally small lowerings:
   The demodded validator iterates local `#hasheqv()` tables, and WebRacket's
   current hash representation already maps these literals to mutable hash
   objects.
-- `hash-set` is bridged as `hash-set!` plus returning the same table. This is a
-  practical no-stdlib lowering for the regexp validator's local bookkeeping, not
-  a complete immutable-hash implementation.
+- `hash-set` now stays functional, using WebRacket's first immutable `hasheqv`
+  runtime slice. The old `hash-set!` bridge was removed because it mutates
+  immutable-looking tables and breaks expander/regexp paths once `#hasheqv()`
+  is represented as an immutable hash.
 
 The exported constructor and basic matcher path now work for literal strings,
 simple character classes, a basic capture group, repetition, and start anchors:

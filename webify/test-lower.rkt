@@ -3,6 +3,7 @@
 (require rackunit
          "known.rkt"
          "lower.rkt"
+         "simple.rkt"
          "webify.rkt"
          "wrap.rkt")
 
@@ -15,6 +16,16 @@
 ;;   Runtime values used by primitive constant folding.
 (define test-primitives
   (hasheq '+ +))
+
+(test-case "simple hash constructor does not assume missing known metadata"
+  (check-false
+   (simple? '(hasheq (quote a) 1)
+            test-prim-knowns
+            '#hasheq()
+            '#hasheq()
+            '#hasheq()
+            (make-hasheq)
+            #f)))
 
 ;; run-webify : any/c -> any/c
 ;;   Return only the webified expression for a hand-written linklet.
@@ -130,25 +141,39 @@
        ("cons" ("mutable-hash-iterate-pair" "ht" "pos" "unsafe-undefined") "acc"))
       "acc"))))
 
-(test-case "functional hash-set lowers to mutable bridge operation"
+(test-case "functional hash-set remains functional"
   (check-match
    (normalize-symbols
     (lower-hash-iteration-ops
      '(set! sizes (hash-set sizes n min-size))))
    `("set!" "sizes"
-     ("let" ((,(? string? table-var) "sizes"))
-      ("hash-set!" ,table-var "n" "min-size")
-      ,table-var))))
+     ("hash-set" "sizes" "n" "min-size"))))
 
-(test-case "hash-set bridge records immutable hash semantic gap"
-  (define bridged
-    `(let ([h0 (make-hasheqv)])
+(test-case "hash-set lowering preserves immutable hash semantics"
+  (define lowered
+    `(let ([h0 (hasheqv)])
        (let ([h1 ,(lower-hash-iteration-ops '(hash-set h0 'a 1))])
          (list (eq? h0 h1)
                (hash-ref h0 'a #f)
                (hash-ref h1 'a #f)))))
-  (check-equal? (eval bridged (make-base-namespace))
-                '(#t 1 1)))
+  (check-equal? (eval lowered (make-base-namespace))
+                '(#f #f 1)))
+
+(test-case "continuation mark lowering preserves key and value effects"
+  (check-equal?
+   (eval
+    `(let ([seen '()])
+       ,(lower-trivial-continuation-marks
+         '(with-continuation-mark* push
+            (begin (set! seen (cons 'key seen)) 'k)
+            (begin (set! seen (cons 'val seen)) 'v)
+            (begin (set! seen (cons 'body seen)) seen))))
+    (make-base-namespace))
+   '(body val key))
+  (check-true
+   (first-slice-unsupported-free?
+    (lower-trivial-continuation-marks
+     '(with-continuation-mark* push k v body)))))
 
 (test-case "schemify module variable assertion catches missed forms"
   (check-false (schemify-module-variable-free? '(begin (variable-ref x))))
@@ -159,7 +184,9 @@
 
 (test-case "first-slice unsupported assertion catches compatibility forms"
   (check-false (first-slice-unsupported-free? '(#%app f x)))
-  (check-false (first-slice-unsupported-free? '(with-continuation-mark* push k v body)))
+  (check-true (first-slice-unsupported-free?
+               (lower-trivial-continuation-marks
+                '(with-continuation-mark* push k v body))))
   (check-true (first-slice-unsupported-free? '(unsafe-struct*-ref s 0)))
   (check-true (first-slice-unsupported-free? '(unsafe-struct*-set! s 0 v)))
   (check-true (first-slice-unsupported-free? '(unsafe-struct? s struct:s)))

@@ -1926,6 +1926,7 @@
     (add-runtime-string-constant 'module-prompts-unsupported    "module prompts are not supported by WebRacket yet")
     (add-runtime-symbol-constant 'constant)
     (add-runtime-symbol-constant 'consistent)
+    (add-runtime-symbol-constant 'root-continuation-prompt-tag)
     (add-runtime-string-constant 'instantiate-linklet:import-count
                                  "the number of import instances does not match the expected number of imports")
     
@@ -2072,6 +2073,14 @@
                              (field $hash      (mut i32))
                              (field $immutable i32)
                              (field $v         (mut (ref eq))))))
+          ;; Weak boxes normally allow their contents to disappear after GC.
+          ;; WebRacket does not expose GC weakness yet, so this first slice
+          ;; keeps a strong reference. That is enough for expander caches, where
+          ;; retaining cached values is semantically conservative.
+          (type $WeakBox (sub $Heap
+                              (struct
+                                (field $hash (mut i32))
+                                (field $v    (mut (ref eq))))))
           ;; Thread cells are per-thread in Racket. WebRacket is currently
           ;; single-threaded, so the current value is stored directly here.
           (type $ThreadCell (sub $Heap
@@ -32052,6 +32061,63 @@
                ; 4. Return `void`
                (global.get $void))
 
+         ;; box-cas! : (and/c box? mutable?) any/c any/c -> boolean?
+         ;;   Single-threaded compare-and-set using Racket's eq? comparison.
+         (func $box-cas! (type $Prim3)
+               (param $b   (ref eq)) ;; box
+               (param $old (ref eq)) ;; expected value
+               (param $new (ref eq)) ;; replacement value
+               (result     (ref eq))
+               (local $B (ref $Box))
+               (local.set $B
+                          (block $ok (result (ref $Box))
+                                 (br_on_cast $ok (ref eq) (ref $Box) (local.get $b))
+                                 (return (global.get $error))))
+               (if (i32.ne (struct.get $Box $immutable (local.get $B)) (i32.const 0))
+                   (then (call $raise-immutable-box (local.get $B)) (unreachable)))
+               (if (result (ref eq))
+                   (ref.eq (call $eq? (struct.get $Box $v (local.get $B)) (local.get $old))
+                           (global.get $true))
+                   (then
+                    (struct.set $Box $v (local.get $B) (local.get $new))
+                    (global.get $true))
+                   (else (global.get $false))))
+
+         ;; unsafe-box*-cas! : box? any/c any/c -> boolean?
+         ;;   Conservative first slice for expander caches; WebRacket is single-threaded
+         ;;   and currently reuses the checked box-cas! path.
+         (func $unsafe-box*-cas! (type $Prim3)
+               (param $b   (ref eq)) ;; box
+               (param $old (ref eq)) ;; expected value
+               (param $new (ref eq)) ;; replacement value
+               (result     (ref eq))
+               (return_call $box-cas! (local.get $b) (local.get $old) (local.get $new)))
+
+         ;; make-weak-box : any/c -> weak-box?
+         ;;   Create a weak-box-shaped value. This is currently strong because
+         ;;   Wasm-GC does not give WebRacket weak-reference hooks yet.
+         (func $make-weak-box (type $Prim1)
+               (param $v (ref eq)) ;; value
+               (result   (ref eq))
+               (struct.new $WeakBox (i32.const 0) (local.get $v)))
+
+         ;; weak-box? : any/c -> boolean?
+         ;;   Check whether a value is a WebRacket weak box.
+         (func $weak-box? (type $Prim1)
+               ,@(make-predicate-body '$WeakBox))
+
+         ;; weak-box-value : weak-box? [any/c = #f] -> any/c
+         ;;   Return the value. Since this first slice is strong, the optional
+         ;;   failure value is accepted but never selected.
+         (func $weak-box-value (type $Prim12)
+               (param $wb      (ref eq)) ;; weak box
+               (param $failure (ref eq)) ;; optional default, unused for strong fallback
+               (result         (ref eq))
+               (struct.get $WeakBox $v
+                           (block $ok (result (ref $WeakBox))
+                             (br_on_cast $ok (ref eq) (ref $WeakBox) (local.get $wb))
+                             (return (global.get $error)))))
+
          ;;;
          ;;; 4.15 Thread Cells
          ;;;
@@ -32703,6 +32769,25 @@
 
          (func $raise-hasheqv-odd-arguments (unreachable))
 
+         ;; hash : any/c any/c ... -> immutable-hash?
+         ;;   Build an immutable hash from alternating keys and values. This
+         ;;   first slice reuses the immutable hasheqv backing store, so it is
+         ;;   suitable for the expander's symbol-key startup path but not yet a
+         ;;   complete equal?-key immutable hash implementation.
+         (func $hash (type $Prim>=0)
+               (param $args (ref eq)) ;; rest arguments as a list
+               (result      (ref eq))
+               (return_call $hasheqv (local.get $args)))
+
+         ;; hasheq : any/c any/c ... -> immutable-hasheq?
+         ;;   First immutable eq?-constructor slice. It currently shares the
+         ;;   immutable hasheqv backing store, which is enough for symbol-key
+         ;;   startup paths and keeps functional hash-set persistent.
+         (func $hasheq (type $Prim>=0)
+               (param $args (ref eq)) ;; rest arguments as a list
+               (result      (ref eq))
+               (return_call $hasheqv (local.get $args)))
+
          ;; hasheqv : any/c any/c ... -> immutable-hasheqv?
          ;;   Build an immutable eqv?-based hash from alternating keys and values.
          (func $hasheqv (type $Prim>=0)
@@ -32786,6 +32871,17 @@
 
          (func $make-weak-hasheq (type $Prim01) ; one optional argument
                (param $assocs (ref eq))
+               (result        (ref eq))
+
+               (if (ref.eq (local.get $assocs) (global.get $missing))
+                   (then (local.set $assocs (global.get $null))))
+               (call $make-hasheq (local.get $assocs)))
+
+         ;; make-ephemeron-hasheq : [(listof pair?) = null] -> mutable-hasheq?
+         ;;   Strong fallback. WebRacket does not have ephemeron/weak GC hooks
+         ;;   yet, so expander intern tables use an ordinary mutable hasheq.
+         (func $make-ephemeron-hasheq (type $Prim01)
+               (param $assocs (ref eq)) ;; optional association list, default null
                (result        (ref eq))
 
                (if (ref.eq (local.get $assocs) (global.get $missing))
@@ -47043,6 +47139,15 @@
 
          ;; 10.3 Delayed Evaluation
          ;; 10.4 Continuations
+
+         ;; unsafe-root-continuation-prompt-tag : -> any/c
+         ;;   Stable root prompt-tag placeholder. WebRacket does not implement
+         ;;   continuation prompts yet, but expander startup code can obtain and
+         ;;   compare this value without exercising prompt control behavior.
+         (func $unsafe-root-continuation-prompt-tag (type $Prim0)
+               (result (ref eq))
+               (global.get $symbol:root-continuation-prompt-tag))
+
          ;; 10.5 Continuation Marks
 
          ;; current-continuation-marks : [continuation-prompt-tag?] -> #f

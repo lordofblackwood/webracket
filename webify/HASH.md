@@ -47,14 +47,22 @@ Functional update is therefore persistent:
 
 The original hash is not mutated.
 
-## Current Webify Bridge
+## Old Webify Bridge
 
 The demodded regexp linklet uses immutable-looking local bookkeeping tables,
 such as `#hasheqv()` plus `hash-set` and `hash-iterate-*`. WebRacket currently
-has mutable hash runtime support but not a separate immutable `intmap`/HAMT
-representation.
+has mutable hash runtime support and a first immutable `hasheqv` slice. The
+`hash` and `hasheq` constructors currently reuse that immutable hasheqv backing
+store for expander startup paths with symbol-like keys, but WebRacket does not
+yet have complete equal?-key or eq?-key immutable `intmap`/HAMT representations.
 
-To keep the regexp demod path moving, `webify/lower.rkt` temporarily lowers:
+Ephemeron hash tables are also currently a strong fallback:
+`make-ephemeron-hasheq` returns an ordinary mutable `hasheq`. That is enough for
+expander intern/cache tables during startup, but it does not implement
+ephemeron GC semantics.
+
+Before WebRacket had immutable hash support, `webify/lower.rkt` temporarily
+lowered:
 
 ```racket
 (hash-set ht k v)
@@ -68,17 +76,19 @@ to:
   tmp)
 ```
 
-and maps public `hash-iterate-*` names to the existing mutable iterator
-primitives.
+The bridge was safe only for local bookkeeping tables where the original table
+was not observed as an immutable value. It was not acceptable as general
+WebRacket or Webify semantics.
 
-This is safe only for local bookkeeping tables where the original table is not
-observed as an immutable value. It is not acceptable as general WebRacket or
-Webify semantics.
+Now that `hasheqv` and `hash-set` have a real immutable first slice, Webify no
+longer rewrites functional `hash-set` into `hash-set!`. The remaining bridge maps
+public `hash-iterate-*` names to the existing mutable iterator primitives until
+immutable hash iteration is implemented.
 
 ## Semantic Gap Probe
 
 `webify/test-lower.rkt` contains a focused probe that intentionally locks in
-the current bridge behavior:
+the old bridge's semantic gap, so it does not come back accidentally:
 
 ```racket
 (let ([h0 (make-hasheqv)])
@@ -87,14 +97,15 @@ the current bridge behavior:
           (hash-ref h0 'a #f))))
 ```
 
-The bridge result is effectively:
+The old bridge result was effectively:
 
 ```racket
 '(#t 1)
 ```
 
-Real immutable Racket semantics would instead keep the original table
-unchanged and return a distinct updated immutable table.
+Real immutable Racket semantics instead keep the original table unchanged and
+return a distinct updated immutable table. The current lowering preserves that
+functional `hash-set` shape.
 
 ## Later Direction
 
@@ -103,5 +114,6 @@ immutable representation, probably starting with a simple persistent
 copy-on-write representation for `hasheqv`, then moving toward a HAMT/intmap
 style implementation if performance matters.
 
-The Webify bridge should then be removed or narrowed so ordinary `hash-set`
-means real functional update again.
+The remaining Webify hash bridge should be narrowed further when immutable hash
+iteration lands, so ordinary `hash-iterate-*` works on the immutable runtime
+representation instead of going through mutable iterator names.
