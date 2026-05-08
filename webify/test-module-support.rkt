@@ -18,6 +18,13 @@
          normalize-symbols
          webracket-rkt
          comp
+         current-compiler-progress?
+         current-closure-conversion-progress?
+         current-closure-conversion-progress-interval
+         current-enable-cc-analysis?
+         current-enable-simplify?
+         current-letrec-strategy
+         label-map-include-form?
          webify-module-instances-export-cell-id
          (all-from-out "known.rkt")
          (all-from-out "module-adapter.rkt")
@@ -36,7 +43,16 @@
          racket/path
          racket/runtime-path
          racket/system
-         (only-in "../compiler.rkt" comp)
+         (only-in "../compiler.rkt"
+                  comp
+                  current-compiler-progress?
+                  current-closure-conversion-progress?
+                  current-closure-conversion-progress-interval
+                  label-map-include-form?)
+         (only-in "../parameters.rkt"
+                  current-enable-cc-analysis?
+                  current-enable-simplify?
+                  current-letrec-strategy)
          "known.rkt"
          "module-adapter.rkt"
          "module-composer.rkt"

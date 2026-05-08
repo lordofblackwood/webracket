@@ -5481,6 +5481,13 @@
                              (and (equal? bs (bytes 65 66))
                                   (equal? (immutable? bs) #t))))))
 
+              (list "get-output-bytes reset and slice"
+                    (let ([port (open-output-bytes)])
+                      (and (equal? (write-bytes (bytes 65 66 67 68) port) 4)
+                           (equal? (get-output-bytes port #f 1 3) (bytes 66 67))
+                           (equal? (get-output-bytes port #t) (bytes 65 66 67 68))
+                           (equal? (get-output-bytes port) (bytes)))))
+
               (list "newline"
                     (let ([port (open-output-string)])
                       (and (void? (newline port))

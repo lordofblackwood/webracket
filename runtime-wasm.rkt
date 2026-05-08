@@ -36284,7 +36284,11 @@
                    (local.set $file-port (ref.cast (ref $OutputFilePort) (local.get $p)))
                    (drop (call $webracket-vfs-write-file
                                (struct.get $OutputFilePort $path (local.get $file-port))
-                               (call $get-output-bytes (local.get $p))))))
+                               (call $get-output-bytes
+                                     (local.get $p)
+                                     (global.get $missing)
+                                     (global.get $missing)
+                                     (global.get $missing))))))
               (global.get $void))
 
         ;; close-output-port : output-port? -> void?
@@ -36511,13 +36515,18 @@
                (struct.set $OutputStringPort $name (local.get $port) (local.get $name-val))
                (local.get $port))
 
-         (func $get-output-bytes (type $Prim1)
-               (param $out (ref eq))
-               (result     (ref eq))
+         (func $get-output-bytes (type $Prim14)
+               (param $out    (ref eq))
+               (param $reset? (ref eq)) ;; optional any/c, default = #f
+               (param $start  (ref eq)) ;; optional exact-nonnegative-integer?, default = 0
+               (param $end    (ref eq)) ;; optional exact-nonnegative-integer?, default = current output length
+               (result        (ref eq))
                
                (local $sp   (ref null $OutputStringPort))
                (local $bs   (ref $Bytes))
                (local $idx  i32)
+               (local $from i32)
+               (local $to   i32)
                (local $src  (ref $I8Array))
                (local $dest (ref $I8Array))
                (local $res  (ref $Bytes))
@@ -36530,22 +36539,56 @@
                (local.set $idx (struct.get $OutputStringPort $idx   (local.get $sp)))
                ;; 3. Extract the I8Array from the Bytes object
                (local.set $src (struct.get $Bytes $bs (local.get $bs)))
-               ;; 4. Allocate a new array of length $idx
-               (local.set $dest (call $i8make-array (local.get $idx) (i32.const 0)))
-               ;; 5. Copy contents into the new array
+               ;; 4. Decode the optional slice bounds. The visible content is
+               ;;    the written prefix [0, idx), not the backing capacity.
+               (if (ref.eq (local.get $start) (global.get $missing))
+                   (then (local.set $from (i32.const 0)))
+                   (else (if (ref.test (ref i31) (local.get $start))
+                             (then
+                              (local.set $from (i31.get_u (ref.cast (ref i31) (local.get $start))))
+                              (if (i32.eqz (i32.and (local.get $from) (i32.const 1)))
+                                  (then (local.set $from (i32.shr_u (local.get $from) (i32.const 1))))
+                                  (else (call $raise-check-fixnum (local.get $start)) (unreachable))))
+                             (else (call $raise-check-fixnum (local.get $start)) (unreachable)))))
+               (if (ref.eq (local.get $end) (global.get $missing))
+                   (then (local.set $to (local.get $idx)))
+                   (else (if (ref.test (ref i31) (local.get $end))
+                             (then
+                              (local.set $to (i31.get_u (ref.cast (ref i31) (local.get $end))))
+                              (if (i32.eqz (i32.and (local.get $to) (i32.const 1)))
+                                  (then (local.set $to (i32.shr_u (local.get $to) (i32.const 1))))
+                                  (else (call $raise-check-fixnum (local.get $end)) (unreachable))))
+                             (else (call $raise-check-fixnum (local.get $end)) (unreachable)))))
+               (if (i32.gt_u (local.get $from) (local.get $to))
+                   (then (call $raise-bad-bytes-range (local.get $out) (local.get $from) (local.get $to)) (unreachable)))
+               (if (i32.gt_u (local.get $to) (local.get $idx))
+                   (then (call $raise-bad-bytes-range (local.get $out) (local.get $from) (local.get $to)) (unreachable)))
+               ;; 5. Allocate a new array for the requested slice.
+               (local.set $dest (call $i8make-array
+                                      (i32.sub (local.get $to) (local.get $from))
+                                      (i32.const 0)))
+               ;; 6. Copy contents into the new array
                (drop (call $i8array-copy!/error
                            (local.get $dest)            ;; dest
                            (i32.const 0)                ;; dest-start
                            (local.get $src)             ;; src
-                           (i32.const 0)                ;; src-start
-                           (local.get $idx)))           ;; count
-               ;; 6. Construct new Bytes object
+                           (local.get $from)             ;; src-start
+                           (local.get $to)))             ;; src-end
+               ;; 7. Construct new Bytes object
                (local.set $res
                           (struct.new $Bytes
                                       (i32.const 0)              ;; hash
                                       (i32.const 1)              ;; immutable
                                       (local.get $dest)))        ;; backing array
-               ;; 7. Return the new Bytes
+               ;; 8. A true reset? clears the visible output but keeps capacity.
+               (if (i32.and
+                    (i32.eqz (ref.eq (local.get $reset?) (global.get $false)))
+                    (i32.eqz (ref.eq (local.get $reset?) (global.get $missing))))
+                   (then (struct.set $OutputStringPort $idx (local.get $sp) (i32.const 0))
+                         (struct.set $OutputStringPort $utf8-len (local.get $sp) (i32.const 0))
+                         (struct.set $OutputStringPort $utf8-left (local.get $sp) (i32.const 0))
+                         (struct.set $OutputStringPort $utf8-bytes (local.get $sp) (i32.const 0))))
+               ;; 9. Return the new Bytes
                (local.get $res))
 
          (func $get-output-string (type $Prim1)
@@ -36556,7 +36599,11 @@
 
                (local.set $bs
                           (ref.cast (ref $Bytes)
-                                    (call $get-output-bytes (local.get $out))))
+                                    (call $get-output-bytes
+                                          (local.get $out)
+                                          (global.get $missing)
+                                          (global.get $missing)
+                                          (global.get $missing))))
                (call $bytes->string/utf-8
                      (local.get $bs)
                      ;; Replacement character #\uFFFD
@@ -46596,7 +46643,12 @@
                    (then
                     (local.set $port (call $open-output-bytes (global.get $missing)))
                     (call $fasl:s-exp->fasl (local.get $v) (local.get $port))
-                    (local.set $res (call $get-output-bytes (local.get $port)))
+                    (local.set $res
+                               (call $get-output-bytes
+                                     (local.get $port)
+                                     (global.get $missing)
+                                     (global.get $missing)
+                                     (global.get $missing)))
                     (local.get $res))
                    (else
                     (if (result (ref eq))

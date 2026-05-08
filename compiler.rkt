@@ -349,10 +349,44 @@
 ;; When true, the compiler recognizes one compiler-private identifier and
 ;; lowers it directly to the runtime-only treelist shape helper.
 (define current-internal-treelist-debug-shape? (make-parameter #f))
+(define current-closure-conversion-progress? (make-parameter #f))
+(define current-closure-conversion-progress-interval (make-parameter 1000))
+(define current-closure-conversion-progress-port (make-parameter #f))
+(define current-closure-conversion-progress-start-ms (make-parameter #f))
 (define print-top-level-results-sentinel-symbol
   'webracket-print-top-level-results-sentinel)
 (define internal-treelist-debug-shape-symbol
   'webracket-internal-treelist-debug-shape)
+
+;; closure-conversion-progress-port : -> output-port?
+;;   Return the diagnostic port for closure-conversion progress reports.
+(define (closure-conversion-progress-port)
+  (or (current-closure-conversion-progress-port)
+      (current-error-port)))
+
+;; closure-conversion-progress-interval : -> exact-positive-integer?
+;;   Normalize the lift-reporting interval used by the progress hook.
+(define (closure-conversion-progress-interval)
+  (define n (current-closure-conversion-progress-interval))
+  (if (and (exact-positive-integer? n) n)
+      n
+      1000))
+
+;; report-closure-conversion-progress! : symbol? any/c any/c -> void?
+;;   Emit a compact, opt-in heartbeat while closure conversion runs.
+(define (report-closure-conversion-progress! event count detail)
+  (when (current-closure-conversion-progress?)
+    (define start-ms (current-closure-conversion-progress-start-ms))
+    (define elapsed-ms
+      (and start-ms
+           (inexact->exact
+            (round (- (current-inexact-milliseconds) start-ms)))))
+    (fprintf (closure-conversion-progress-port)
+             "closure-conversion-progress: event=~a count=~a elapsed-ms=~a detail=~s\n"
+             event
+             (or count 'n/a)
+             (or elapsed-ms 'n/a)
+             detail)))
 
 (define letrec-initialization-set-key 'webracket:letrec-initialization-set?)
 
@@ -910,7 +944,6 @@
 (define primitive-inline-priminfo-skip-set
   (seteq 'fx-/wraparound
          'unsafe-fx-/wraparound
-         'get-output-bytes
          'unsafe-fx=
          'unsafe-fx<
          'unsafe-fx>
@@ -1067,7 +1100,6 @@
        unsafe-fxpopcount16
        unsafe-fxpopcount32
        fasl->s-exp
-       get-output-bytes
        get-output-string
        call-with-output-string
        port-closed?
@@ -1172,6 +1204,7 @@
        progress-evt?
        write-byte
        write-char
+       get-output-bytes
        write-bytes
        write-string
        make-vector
@@ -1196,7 +1229,7 @@
                  ) 2]
          [(hash-update!) 3]
          [(random flrandom unsafe-flrandom) 0]
-        [(progress-evt? write-byte write-char) 1]
+        [(progress-evt? write-byte write-char get-output-bytes) 1]
          [(write-bytes write-string) 1]
          [else 1]))
      (λ (name)
@@ -1211,6 +1244,7 @@
          [(log atan struct->vector) 2]
          [(assoc group-by member remove remove* index-of indexes-of
                  list-prefix? take-common-prefix drop-common-prefix split-common-prefix) 3]
+         [(get-output-bytes) 4]
          [(read-bytes! read-bytes-avail! read-bytes-avail!* read-string!
                        write-bytes write-string) 4]
          [(peek-bytes! peek-string!) 5]
@@ -12522,7 +12556,9 @@
 (define (abstraction-fixed-arity? ab)
   (nanopass-case (LANF Abstraction) ab
     [(λ ,s ,f ,e)
-     (fixed-arity-formals? f)]))
+     (fixed-arity-formals? f)]
+    [else
+     #f]))
 
 ;; direct-letrec-representation-candidate? : symbol? boolean? (listof symbol?) symbol? -> boolean?
 ;;   Check whether a helper fits the current conservative candidate shape for
@@ -15788,8 +15824,21 @@
                      [(formals (,x ...))            (length x)]
                      [(formals (,x0 ,x1 ... . ,xd)) (- (+ 2 (length x1)))]
                      [(formals ,x)                  -1]))
-    (define (lift! s label formals body)       
+    (define lift-count 0)
+    (define (report-lift-progress! event label)
+      (when (current-closure-conversion-progress?)
+        (define interval (closure-conversion-progress-interval))
+        (when (or (= lift-count 1)
+                  (zero? (modulo lift-count interval)))
+          (report-closure-conversion-progress!
+           event
+           lift-count
+           (unparse-variable label)))))
+    (define (lift! s label formals body)
+      (set! lift-count (add1 lift-count))
+      (report-lift-progress! 'lift-start label)
       (record-label-map! label s)
+      (report-lift-progress! 'lift-after-record-label-map label)
       (define cab
         (with-output-language (LANF+closure ConvertedAbstraction)
           `(λ ,s ,(formals->arity formals) ,formals ,body)))
@@ -16283,12 +16332,24 @@
        [#f x] ; refers to argument
        [i `(free-ref ,x ,(index-of x xs))])])
   (begin
-    (let ([T (TopLevelForm T)])
-    (with-output-language (LANF+closure TopLevelForm)
-      ; the lifted (converted) abstractions are added to the top-level
-      (define dl (for/list ([(l cab) lifted-abstractions])
-                   `(define-label ,l ,cab)))
-      `(topbegin ,h ,dl ... ,T)))))
+    (parameterize ([current-closure-conversion-progress-start-ms
+                    (current-inexact-milliseconds)])
+      (report-closure-conversion-progress!
+       'start
+       #f
+       (list (cons 'free (hash-count free-ht))
+             (cons 'kind (hash-count kind-ht))
+             (cons 'labels (hash-count labels-ht))))
+      (define T^ (TopLevelForm T))
+      (report-closure-conversion-progress!
+       'done
+       lift-count
+       (list (cons 'lifted (hash-count lifted-abstractions))))
+      (with-output-language (LANF+closure TopLevelForm)
+        ; the lifted (converted) abstractions are added to the top-level
+        (define dl (for/list ([(l cab) lifted-abstractions])
+                     `(define-label ,l ,cab)))
+        `(topbegin ,h ,dl ... ,T^)))))
 
 
 
@@ -16662,6 +16723,7 @@
 (define current-label-map (make-parameter '()))
 (define current-label-form-ht (make-parameter (make-hash)))
 (define current-label-map-include-form? (make-parameter #t))
+(define current-label-map-default-include-form? (make-parameter #t))
 (define current-direct-letrec-representation-labels (make-parameter (make-hasheq)))
 (define current-inline-small-closure-arities (make-parameter (make-hasheq)))
 (define current-known0-direct-labels (make-parameter (make-hasheq)))
@@ -16672,9 +16734,10 @@
 (define (reset-label-map!)
   (current-label-map '())
   (current-label-form-ht (make-hash))
-  (current-label-map-include-form? #t))
+  (current-label-map-include-form? (current-label-map-default-include-form?)))
 
 (define (label-map-include-form? v)
+  (current-label-map-default-include-form? (and v #t))
   (current-label-map-include-form? (and v #t)))
 
 (define (source-stx s)
@@ -19233,6 +19296,8 @@
 (define current-pass-timings?     (make-parameter #f))
 (define current-pass-timing-table (make-parameter #f))
 (define current-gen-timing-table  (make-parameter #f))
+(define current-compiler-progress? (make-parameter #f))
+(define current-compiler-progress-port (make-parameter #f))
 (define current-pass-dump-dir     (make-parameter #f))
 (define current-pass-dump-limit   (make-parameter #f))
 (define current-console-bridge-top-binding-names (make-parameter '()))
@@ -19303,15 +19368,33 @@
         #:exists 'replace))
     (set! pass-counter (+ pass-counter 1)))
 
+  ;; compiler-progress-port : -> output-port?
+  ;;   Return the diagnostic port for coarse compiler-pass progress reports.
+  (define (compiler-progress-port)
+    (or (current-compiler-progress-port)
+        (current-error-port)))
+
+  ;; report-compiler-progress! : symbol? string? any/c -> void?
+  ;;   Emit an opt-in pass-level heartbeat before and after expensive passes.
+  (define (report-compiler-progress! event label detail)
+    (when (current-compiler-progress?)
+      (fprintf (compiler-progress-port)
+               "compiler-progress: event=~a pass=~s detail=~s\n"
+               event
+               label
+               detail)))
+
   ; The time-pass function also handles dumping if ncessary
   (define (time-pass label thunk [size-fn #f] [dump-fn #f])
     (define (finish-pass v ms)
       (when (current-pass-timings?)
         (define size (and size-fn (size-fn v)))
         (set! pass-times (cons (list label ms size) pass-times)))
+      (report-compiler-progress! 'pass-done label (list (cons 'ms ms)))
       (when dump-fn
         (dump-pass! label dump-fn v))
       v)
+    (report-compiler-progress! 'pass-start label '())
     (if (current-pass-timings?)
         (let-values ([(v ms) (with-timing thunk)])
           (finish-pass v ms))

@@ -27,7 +27,8 @@
                  [eval-jit-enabled  #f])
     ; Since `current-namespace` is set to `(make-webracket-namespace)`
     ; the `webracket` module is available.
-    (expand-top-level-with-compile-time-evals top-level-form-stx)
+    (expand-top-level-with-compile-time-evals
+     (namespace-syntax-introduce top-level-form-stx))
     #;(expand top-level-form-stx)
     ))
 

@@ -1,0 +1,196 @@
+# Expander Probe Repro Notes
+
+## Command
+
+From the repository root:
+
+```sh
+racket webify/probe-expander-full-compile.rkt \
+  --compile-timeout 240 \
+  --compile-memory-mb 2048 \
+  --compile-progress-interval 100 \
+  --compile-letrec-waddell \
+  --enable-cc-analysis \
+  --enable-simplify \
+  --no-label-map-forms
+```
+
+## Important Setup Details
+
+- The probe cleans only the generated `webified` syntax before compilation:
+  `(datum->syntax #f (syntax->datum webified))`.
+- `expander.rkt` namespace-introduces syntax before
+  `expand-top-level-with-compile-time-evals`.
+- `--no-label-map-forms` must survive `comp`'s internal `reset-label-map!`.
+  Without that, closure-conversion progress is dominated by formatting huge
+  generated source forms in `record-label-map!`.
+
+## Observed Progress
+
+With `--no-label-map-forms` working, closure conversion moved from roughly:
+
+```text
+100 lifts / 38 seconds
+```
+
+to roughly:
+
+```text
+7600 lifts / 3.6 seconds
+```
+
+The run reached closure conversion and then failed after thousands of lifts.
+
+## Failure
+
+The final failure was:
+
+```text
+compile-failure-category: unknown
+compile-failure-message:
+nanopass-case: empty else clause hit
+(nanopass-case (LANF Abstraction) ab
+  ((lambda ,s ,f ,e) (fixed-arity-formals? f)))
+compiler.rkt:12557
+```
+
+The failing helper is:
+
+```racket
+(define (abstraction-fixed-arity? ab)
+  (nanopass-case (LANF Abstraction) ab
+    [(lambda ,s ,f ,e)
+     (fixed-arity-formals? f)]))
+```
+
+This suggests a closure-conversion eligibility path is passing a non-plain
+`LANF Abstraction` shape, likely a case-lambda-related value, to a helper that
+assumes only plain lambda.
+
+## Strategy Comparison
+
+### Waddell
+
+Command uses `--compile-letrec-waddell --enable-cc-analysis --enable-simplify
+--no-label-map-forms`.
+
+Observed:
+
+```text
+closure-conversion-progress: event=start ... ((free . 26513) ...)
+closure-conversion-progress: event=lift-start count=7600 elapsed-ms=3605 ...
+compile-failure-message:
+nanopass-case: empty else clause hit ... compiler.rkt:12557:2
+```
+
+### Basic
+
+Command uses `--compile-letrec-basic --enable-cc-analysis --enable-simplify
+--no-label-map-forms`.
+
+Observed:
+
+```text
+closure-conversion-progress: event=start ... ((free . 28469) ...)
+closure-conversion-progress: event=lift-start count=12300 elapsed-ms=2353 ...
+compile-failure-message:
+nanopass-case: empty else clause hit ... compiler.rkt:12557:2
+```
+
+Basic reaches the same `abstraction-fixed-arity?` failure, but after more
+lifts than Waddell.
+
+After adding an explicit diagnostic to `abstraction-fixed-arity?`, the
+offending shape was:
+
+```text
+abstraction-fixed-arity?: expected LANF lambda abstraction, got:
+(case-lambda
+  (lambda (want-layer_1.15200)
+    (app check-nested_1.15199 want-layer_1.15200 (quote #t)))
+  (lambda (want-layer_2.15201 ok?131_1.15202)
+    (app check-nested_1.15199 want-layer_2.15201 ok?131_1.15202)))
+```
+
+So a direct-helper eligibility path was asking the plain-lambda fixed-arity
+predicate about a case-lambda. The conservative fix is to return `#f` for
+non-plain lambda shapes.
+
+After the conservative fix, the Basic strategy completed closure conversion:
+
+```text
+closure-conversion-progress: event=done count=27198 elapsed-ms=6178 ...
+compiler-progress: event=pass-done pass="closure-conversion"
+compiler-progress: event=pass-start pass="generate-code"
+```
+
+The next blocker became:
+
+```text
+compile-failure-message:
+core.rkt:142:13: primapp: too many arguments
+  in: (#%plain-app get-output-bytes o_1 (quote #t))
+```
+
+Waddell reaches the same `get-output-bytes` code-generation blocker after the
+case-lambda fixed-arity fix:
+
+```text
+closure-conversion-progress: event=done count=25242 elapsed-ms=9903 ...
+compiler-progress: event=pass-start pass="generate-code"
+compile-failure-message:
+core.rkt:142:13: primapp: too many arguments
+  in: (#%plain-app get-output-bytes o_1 (quote #t))
+```
+
+After teaching WebRacket that `get-output-bytes` has the Racket arity shape
+`[1 2 3 4]`, the Basic strategy reaches and completes code generation:
+
+```sh
+racket webify/probe-expander-full-compile.rkt \
+  --compile-timeout 240 \
+  --compile-memory-mb 2048 \
+  --compile-progress-interval 5000 \
+  --compile-letrec-basic \
+  --enable-cc-analysis \
+  --enable-simplify \
+  --no-label-map-forms
+```
+
+Observed:
+
+```text
+closure-conversion-progress: event=done count=27198 elapsed-ms=6658 ...
+compiler-progress: event=pass-start pass="generate-code" detail=()
+compiler-progress: event=pass-done pass="generate-code" detail=((ms . #f))
+Traversed 311 modules
+Need 245 of those linklets
+Can remove 1126 of 4001 defined names, keeping 2875
+Flattened code is 1909474 bytes
+extract-ms: 36512
+read-linklet-ms: 499
+webify-lower-ms: 664
+clean-webified-syntax-ms: 227
+exports: 71
+compile-ms: 103591
+compile-wat-bytes: 65114127
+```
+
+This confirms that the old `get-output-bytes` arity failure is fixed. The
+probe now produces the large expander WAT payload; the next useful milestone is
+validating and instantiating that payload, then triaging runtime/linklet issues.
+
+### SCC
+
+Command uses `--compile-letrec-scc --enable-cc-analysis --enable-simplify
+--no-label-map-forms`.
+
+Observed:
+
+```text
+compiler-progress: event=pass-start pass="lower-letrec-values" detail=()
+compile-ms: 240002
+compile-timeout-seconds: 240
+```
+
+SCC did not finish `lower-letrec-values` within the 240-second compile window.
