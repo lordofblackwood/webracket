@@ -59,6 +59,25 @@
  webify-source-modules->registry
  webify-module-reports->discovered-registry
  webify-source-modules->discovered-registry
+ primitive-module-name?
+ primitive-module-names
+ webify-primitive-demand
+ webify-primitive-demand?
+ webify-primitive-demand-module
+ webify-primitive-demand-name
+ webify-primitive-demand-sources
+ webify-primitive-table-request
+ webify-primitive-table-request?
+ webify-primitive-table-request-module
+ webify-primitive-table-request-sources
+ webify-primitive-demand-report
+ webify-primitive-demand-report?
+ webify-primitive-demand-report-demands
+ webify-primitive-demand-report-table-requests
+ webify-linklet-primitive-table-requests
+ webify-module-linklet-inputs->primitive-demands
+ webify-module-reports->primitive-demands
+ webify-primitive-demand-report-missing
  webify-module-provider-cache
  webify-module-provider-cache?
  make-webify-module-provider-cache
@@ -95,7 +114,8 @@ webify-linklet-import-bindings
  webify-module-bundle-entry-ref)
 
 (require "module-extractor-spike.rkt"
-         "module-input.rkt")
+         "module-input.rkt"
+         "primitive-demands.rkt")
 
 ;; webify-module-reports->registry : (listof webify-module-report?) -> webify-module-registry?
 ;;   Resolve extracted module reports and register their bridge-ready linklet inputs.
