@@ -180,6 +180,88 @@ This confirms that the old `get-output-bytes` arity failure is fixed. The
 probe now produces the large expander WAT payload; the next useful milestone is
 validating and instantiating that payload, then triaging runtime/linklet issues.
 
+## WAT Validation
+
+The probe can now preserve and validate the generated expander WAT:
+
+```sh
+racket webify/probe-expander-full-compile.rkt \
+  --compile-timeout 240 \
+  --compile-memory-mb 2048 \
+  --compile-progress-interval 5000 \
+  --compile-letrec-basic \
+  --enable-cc-analysis \
+  --enable-simplify \
+  --no-label-map-forms \
+  --write-wat /private/tmp/webracket-expander-probe.wat \
+  --write-wasm /private/tmp/webracket-expander-probe.wasm \
+  --validate-wat
+```
+
+Before the integer-literal fix, this reached code generation but
+`wasm-tools parse` rejected the generated WAT:
+
+```text
+wasm-tools-parse-status: 1
+error: unknown operator or unexpected token
+```
+
+The local context showed a leaked Racket quote form in generated WAT:
+
+```wat
+(array.new_fixed $Args 2 (local.get $$i_138.12697) (quote 2147483647))
+```
+
+The root cause was that WebRacket fixnum immediates have a smaller signed range
+than Racket's host fixnums. The compiler was treating host fixnums such as
+`2147483647` as immediate literals, then falling through to the generic quote
+path during code generation. The fix is to use `wr-signed-fixnum?` consistently
+for WebRacket immediate integer literals and convert larger exact integers to
+flonums before WAT generation.
+
+After the fix, the validation run completed:
+
+```text
+Traversed 311 modules
+Need 245 of those linklets
+Can remove 1126 of 4001 defined names, keeping 2875
+Flattened code is 1909474 bytes
+compile-ms: 105614
+compile-wat-bytes: 65115193
+compile-wat-path: /private/tmp/webracket-expander-probe.wat
+write-wat-ms: 2901
+wasm-tools-parse-status: 0
+wasm-tools-parse-ms: 1036
+compile-wasm-path: /private/tmp/webracket-expander-probe.wasm
+compile-wasm-bytes: 11913611
+```
+
+## Wasm Instantiation
+
+The generated Wasm also instantiates with the ordinary WebRacket host import
+shape:
+
+```sh
+node --experimental-wasm-exnref \
+  webify/probe-expander-instantiate.js \
+  /private/tmp/webracket-expander-probe.wasm
+```
+
+Observed:
+
+```text
+imports: 18
+exports: 27227
+instantiate-status: ok
+entry-kind: function
+wr-names-kind: function
+```
+
+The instantiation probe intentionally does not call `entry` by default. It uses
+minimal host stubs only to prove that the generated module validates, links, and
+instantiates. The next milestone is to call an entry point under controlled host
+imports and classify the first runtime/linklet failure.
+
 ### SCC
 
 Command uses `--compile-letrec-scc --enable-cc-analysis --enable-simplify

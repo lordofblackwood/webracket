@@ -6654,7 +6654,7 @@
       (with-output-language (LFE Expr)
         (match v
           ; this should match the definition of wr-datum?
-          [(and (or (? wr-fixnum?)
+          [(and (or (? wr-signed-fixnum?)
                     (? flonum?)
                     (? boolean?)
                     (? char?)
@@ -6662,8 +6662,8 @@
                     (? void?)                    
                     (? number?))) ; a bignum or rational number
            (if (number? v)
-               (if (not (or (wr-fixnum? v) (flonum? v)))
-                   `(quote ,s ,(datum s (* 1. v))) ; convert to a flonum
+               (if (not (or (wr-signed-fixnum? v) (flonum? v)))
+                   `(quote ,s ,(datum s (* 1.0 v))) ; convert to a flonum
                    `(quote ,s ,(datum s v)))       ; fixnum or flonum
                `(quote ,s ,(datum s v)))]          ; other literals
           [(? string? cs)  `(quote ,s ,(datum s v))]
@@ -17301,6 +17301,11 @@
                            (cond
                              ; We keep these for now, to get a more readable output.
                              ; In all likelyhood (Imm '()), (Imm (void)), etc. are better.
+                             [(and (number? v)
+                                   (not (or (wr-signed-fixnum? v)
+                                            (flonum? v))))
+                                              (define l (* 1.0 v))
+                                              `(struct.new $Flonum (i32.const 0) (f64.const ,l))]
                              [(flonum? v)     (define l (case v
                                                           [(+nan.0) 'nan] [(-nan.0) '-nan]
                                                           [(+inf.0) 'inf] [(-inf.0) '-inf]
@@ -17311,7 +17316,7 @@
                              [(eq? v #t)      '(global.get $true)]  
                              [(eq? v #f)      '(global.get $false)]
                              [(eof-object? v) '(global.get $eof)]
-                             [(fixnum? v)     (Imm v)]
+                             [(wr-signed-fixnum? v) (Imm v)]
                              [(char? v)       (Imm v)]
                              [(undefined? v)  (Imm v)]
                              [(unsafe-undefined? v) (Imm v)]
