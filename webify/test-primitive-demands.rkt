@@ -44,6 +44,27 @@
    '((#%kernel (literal-probe))
      (#%unsafe (literal-probe)))))
 
+(test-case "primitive demand audit records literal primitive-table key reads"
+  (define demands
+    (webify-linklet-primitive-table-key-demands
+     '(linklet () (out)
+        (define-values (kernel) (primitive-table '#%kernel))
+        (define-values (unsafe) (primitive-table (quote #%unsafe)))
+        (define-values (syntax-p?) (hash-ref kernel 'syntax?))
+        (define-values (datum->syntax*) (hash-ref kernel (quote datum->syntax) #f))
+        (define-values (unsafe-car*) (hash-has-key? unsafe 'unsafe-car))
+        (define-values (ignored) (hash-ref dynamic-table 'not-a-primitive)))
+     'key-probe))
+  (check-equal?
+   (map (lambda (d)
+          (list (webify-primitive-demand-module d)
+                (webify-primitive-demand-name d)
+                (webify-primitive-demand-sources d)))
+        demands)
+   '((#%kernel datum->syntax (key-probe))
+     (#%kernel syntax? (key-probe))
+     (#%unsafe unsafe-car (key-probe)))))
+
 (test-case "primitive demand audit compares explicit imports against availability"
   (define input
     (webify-module-linklet-input
@@ -109,3 +130,36 @@
    (map webify-primitive-table-request-module
         (webify-primitive-demand-report-table-requests report))
    '(#%linklet)))
+
+(test-case "primitive demand audit combines report key reads"
+  (define module-report
+    (webify-module-report
+     'kernel-user
+     '(#f)
+     '(0)
+     (list
+      (webify-module-bundle-entry
+       0
+       'linklet
+       '()
+       '(out)
+       '(linklet () (out)
+          (define-values (kernel) (primitive-table '#%kernel))
+          (define-values (out) (hash-ref kernel 'syntax-e)))
+       #f))
+     '()
+     '(out)
+     '(linklet () (out)
+        (define-values (kernel) (primitive-table '#%kernel))
+        (define-values (out) (hash-ref kernel 'syntax-e)))
+     #t
+     '()))
+  (define report
+    (webify-module-reports->primitive-demands (list module-report)))
+  (check-equal?
+   (map (lambda (d)
+          (list (webify-primitive-demand-module d)
+                (webify-primitive-demand-name d)
+                (webify-primitive-demand-sources d)))
+        (webify-primitive-demand-report-demands report))
+   '((#%kernel syntax-e ((kernel-user 0))))))

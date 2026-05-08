@@ -16,6 +16,7 @@
          webify-primitive-demand-report-demands
          webify-primitive-demand-report-table-requests
          webify-linklet-primitive-table-requests
+         webify-linklet-primitive-table-key-demands
          webify-module-linklet-inputs->primitive-demands
          webify-module-reports->primitive-demands
          webify-primitive-demand-report-missing)
@@ -165,6 +166,72 @@
   (visit linklet)
   (table-request-table->list table))
 
+;; literal-primitive-table-module : any/c -> (or/c symbol? #f)
+;;   Extract a literal primitive module from a primitive-table expression.
+(define (literal-primitive-table-module expr)
+  (match expr
+    [`(primitive-table (quote ,module))
+     (and (primitive-module-name? module) module)]
+    [`(primitive-table ',module)
+     (and (primitive-module-name? module) module)]
+    [_ #f]))
+
+;; webify-linklet-primitive-table-key-demands : linklet-datum? any/c -> demands
+;;   Find literal hash lookups against variables bound to primitive tables.
+(define (webify-linklet-primitive-table-key-demands linklet [source 'linklet])
+  (define table-vars (make-hasheq))
+  (define demands (make-hasheq))
+  (define (record-table-var! id module)
+    (when (and (symbol? id) (primitive-module-name? module))
+      (hash-set! table-vars id module)))
+  (define (record-demand! table-expr key)
+    (when (and (symbol? table-expr) (symbol? key))
+      (define module (hash-ref table-vars table-expr #f))
+      (when module
+        (hash-add-source! demands module key source))))
+  ;; First collect bindings like `(define-values (kernel) (primitive-table '#%kernel))`.
+  (define (visit-defs v)
+    (cond
+      [(pair? v)
+       (match v
+         [`(define-values (,id) ,expr)
+          (define module (literal-primitive-table-module expr))
+          (when module (record-table-var! id module))
+          (visit-defs expr)]
+         [_ (visit-defs (car v))
+            (visit-defs (cdr v))])]
+      [(vector? v)
+       (for ([item (in-vector v)])
+         (visit-defs item))]
+      [else (void)]))
+  ;; Then collect literal key reads from those table variables. This is
+  ;; intentionally conservative: computed table/key uses remain runtime probes.
+  (define (visit-uses v)
+    (cond
+      [(pair? v)
+       (match v
+         [`(hash-ref ,table-expr (quote ,key) . ,_rest)
+          (record-demand! table-expr key)
+          (visit-uses table-expr)]
+         [`(hash-ref ,table-expr ',key . ,_rest)
+          (record-demand! table-expr key)
+          (visit-uses table-expr)]
+         [`(hash-has-key? ,table-expr (quote ,key))
+          (record-demand! table-expr key)
+          (visit-uses table-expr)]
+         [`(hash-has-key? ,table-expr ',key)
+          (record-demand! table-expr key)
+          (visit-uses table-expr)]
+         [_ (visit-uses (car v))
+            (visit-uses (cdr v))])]
+      [(vector? v)
+       (for ([item (in-vector v)])
+         (visit-uses item))]
+      [else (void)]))
+  (visit-defs linklet)
+  (visit-uses linklet)
+  (demand-table->list demands))
+
 ;; webify-module-linklet-inputs->primitive-demands : inputs -> report?
 ;;   Collect explicit primitive-module imports from resolved linklet inputs.
 (define (webify-module-linklet-inputs->primitive-demands inputs)
@@ -189,7 +256,16 @@
       (for ([request-source (in-list (webify-primitive-table-request-sources request))])
         (hash-add-table-source! table-requests
                                 (webify-primitive-table-request-module request)
-                                request-source))))
+                                request-source)))
+    (for ([demand (in-list
+                   (webify-linklet-primitive-table-key-demands
+                    (webify-module-linklet-input-linklet input)
+                    source))])
+      (for ([demand-source (in-list (webify-primitive-demand-sources demand))])
+        (hash-add-source! demands
+                          (webify-primitive-demand-module demand)
+                          (webify-primitive-demand-name demand)
+                          demand-source))))
   (webify-primitive-demand-report
    (demand-table->list demands)
    (table-request-table->list table-requests)))
@@ -200,16 +276,27 @@
   (define who 'webify-module-report->primitive-table-requests)
   (unless (webify-module-report? report)
     (raise-argument-error who "webify-module-report?" report))
-  (define requests
-    (apply append
-           (for/list ([entry (in-list (webify-module-report-bundle-entries report))]
-                      #:do [(define datum (webify-module-bundle-entry-datum entry))]
-                      #:when datum)
-             (webify-linklet-primitive-table-requests
-              datum
-              (list (webify-module-report-name report)
-                    (webify-module-bundle-entry-key entry))))))
-  (webify-primitive-demand-report '() requests))
+  (define demands (make-hasheq))
+  (define table-requests (make-hasheq))
+  (for ([entry (in-list (webify-module-report-bundle-entries report))]
+        #:do [(define datum (webify-module-bundle-entry-datum entry))]
+        #:when datum)
+    (define source (list (webify-module-report-name report)
+                         (webify-module-bundle-entry-key entry)))
+    (for ([request (in-list (webify-linklet-primitive-table-requests datum source))])
+      (for ([request-source (in-list (webify-primitive-table-request-sources request))])
+        (hash-add-table-source! table-requests
+                                (webify-primitive-table-request-module request)
+                                request-source)))
+    (for ([demand (in-list (webify-linklet-primitive-table-key-demands datum source))])
+      (for ([demand-source (in-list (webify-primitive-demand-sources demand))])
+        (hash-add-source! demands
+                          (webify-primitive-demand-module demand)
+                          (webify-primitive-demand-name demand)
+                          demand-source))))
+  (webify-primitive-demand-report
+   (demand-table->list demands)
+   (table-request-table->list table-requests)))
 
 ;; webify-module-reports->primitive-demands : reports -> report?
 ;;   Collect explicit primitive imports and literal primitive-table requests.
