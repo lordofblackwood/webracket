@@ -943,6 +943,8 @@
  syntax-column
  syntax-position
  syntax-span
+ syntax-property
+ syntax-property-symbol-keys
 
  datum->syntax
  syntax->datum

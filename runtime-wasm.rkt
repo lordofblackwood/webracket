@@ -1679,6 +1679,8 @@
           syntax-column
           syntax-position
           syntax-span
+          syntax-property
+          syntax-property-symbol-keys
           datum->syntax
           syntax->datum
           syntax->list
@@ -53694,6 +53696,114 @@
                                               (global.get $symbol:syntax-props)
                                               (local.get $stx)))
                      (array.get $Array (local.get $fields) (i32.const 4)))
+
+               (func $syntax-property (type $Prim24)
+                     (param $stx (ref eq)) ;; syntax object
+                     (param $key (ref eq)) ;; property key
+                     (param $val (ref eq)) ;; optional value (default: missing)
+                     (param $preserved (ref eq)) ;; optional preserved? (currently ignored; default #f)
+                     (result (ref eq))
+
+                     (local $fields     (ref $Array))
+                     (local $e          (ref eq))
+                     (local $scopes     (ref eq))
+                     (local $shifted    (ref eq))
+                     (local $srcloc     (ref eq))
+                     (local $props      (ref eq))
+                     (local $new-props  (ref eq))
+                     (local $pairs      (ref eq))
+                     (local $list       (ref eq))
+                     (local $pair       (ref $Pair))
+                     (local $entry      (ref $Pair))
+                     (local $entry-key  (ref eq))
+                     (local $entry-val  (ref eq))
+
+                     (local.set $fields (call $syntax-unwrap
+                                              (global.get $symbol:syntax-property)
+                                              (local.get $stx)))
+                     (local.set $e       (array.get $Array (local.get $fields) (i32.const 0)))
+                     (local.set $scopes  (array.get $Array (local.get $fields) (i32.const 1)))
+                     (local.set $shifted (array.get $Array (local.get $fields) (i32.const 2)))
+                     (local.set $srcloc  (array.get $Array (local.get $fields) (i32.const 3)))
+                     (local.set $props   (array.get $Array (local.get $fields) (i32.const 4)))
+
+                     (if (ref.eq (local.get $val) (global.get $missing))
+                         (then
+                          (return (call $hash-ref
+                                        (local.get $props)
+                                        (local.get $key)
+                                        (global.get $false)))))
+
+                     (local.set $new-props (call $make-hash (global.get $missing)))
+                     (local.set $pairs     (call $hash->list (local.get $props) (global.get $false)))
+                     (local.set $list      (local.get $pairs))
+                     (block $done
+                            (loop $loop
+                                  (br_if $done (ref.eq (local.get $list) (global.get $null)))
+                                  (local.set $pair (ref.cast (ref $Pair) (local.get $list)))
+                                  (local.set $entry (ref.cast (ref $Pair)
+                                                              (struct.get $Pair $a (local.get $pair))))
+                                  (local.set $list (struct.get $Pair $d (local.get $pair)))
+                                  (local.set $entry-key (struct.get $Pair $a (local.get $entry)))
+                                  (local.set $entry-val (struct.get $Pair $d (local.get $entry)))
+                                  ;; Syntax-property keys are identity-sensitive.
+                                  (if (ref.eq (local.get $entry-key) (local.get $key))
+                                      (then (br $loop)))
+                                  (drop (call $hash-set!
+                                              (local.get $new-props)
+                                              (local.get $entry-key)
+                                              (local.get $entry-val)))
+                                  (br $loop)))
+
+                     (drop (call $hash-set!
+                                 (local.get $new-props)
+                                 (local.get $key)
+                                 (local.get $val)))
+
+                     (call $syntax/make
+                           (local.get $e)
+                           (local.get $scopes)
+                           (local.get $shifted)
+                           (local.get $srcloc)
+                           (local.get $new-props)))
+
+               (func $syntax-property-symbol-keys (type $Prim1)
+                     (param $stx (ref eq)) ;; syntax object
+                     (result (ref eq))
+
+                     (local $fields (ref $Array))
+                     (local $props  (ref eq))
+                     (local $pairs  (ref eq))
+                     (local $list   (ref eq))
+                     (local $pair   (ref $Pair))
+                     (local $entry  (ref $Pair))
+                     (local $key    (ref eq))
+                     (local $acc    (ref eq))
+
+                     (local.set $fields (call $syntax-unwrap
+                                              (global.get $symbol:syntax-property-symbol-keys)
+                                              (local.get $stx)))
+                     (local.set $props (array.get $Array (local.get $fields) (i32.const 4)))
+                     (local.set $pairs (call $hash->list (local.get $props) (global.get $false)))
+                     (local.set $list  (local.get $pairs))
+                     (local.set $acc   (global.get $null))
+                     (block $done
+                            (loop $loop
+                                  (br_if $done (ref.eq (local.get $list) (global.get $null)))
+                                  (local.set $pair (ref.cast (ref $Pair) (local.get $list)))
+                                  (local.set $entry (ref.cast (ref $Pair)
+                                                              (struct.get $Pair $a (local.get $pair))))
+                                  (local.set $list (struct.get $Pair $d (local.get $pair)))
+                                  (local.set $key (struct.get $Pair $a (local.get $entry)))
+                                  (if (ref.test (ref $Symbol) (local.get $key))
+                                      (then
+                                       (local.set $acc
+                                                  (struct.new $Pair
+                                                              (i32.const 0)
+                                                              (local.get $key)
+                                                              (local.get $acc)))))
+                                  (br $loop)))
+                     (call $reverse (local.get $acc)))
 
                (func $empty-props 
                      (result (ref eq))

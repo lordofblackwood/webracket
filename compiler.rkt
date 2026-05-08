@@ -1212,6 +1212,7 @@
        flrandom
        unsafe-flrandom
        datum->syntax
+       syntax-property
        read-bytes!
        read-bytes-avail!
        read-bytes-avail!*
@@ -1241,6 +1242,7 @@
        (case name
          [(vector-copy! string-copy! bytes-copy!) 3]
          [(substring subbytes vector-extend procedure-rename datum->syntax) 2]
+         [(syntax-property) 2]
          [(peek-bytes! peek-string!) 2]
          [(string-trim string-split) 1]
          [(assoc group-by member remove remove* index-of indexes-of
@@ -1260,6 +1262,7 @@
          [(string-utf-8-length) 3]
          [(bytes->string/utf-8 bytes->string/latin-1 bytes-utf-8-length) 4]
          [(string->number datum->syntax) 5]
+         [(syntax-property) 4]
          [(floating-point-bytes->real) 4]
          [(log atan struct->vector) 2]
          [(assoc group-by member remove remove* index-of indexes-of
@@ -2243,6 +2246,8 @@
   syntax-column
   syntax-position
   syntax-span
+  syntax-property
+  syntax-property-symbol-keys
 
   identifier?
 

@@ -6054,6 +6054,32 @@
                           (equal? (syntax-column no-loc)   #f)
                           (equal? (syntax-position no-loc) #f)
                           (equal? (syntax-span no-loc)     #f))))
+             (list "syntax properties"
+                   (let* ([stx      (datum->syntax #f 'demo)]
+                          [with-key (syntax-property stx 'color 'blue)])
+                     (and (equal? (syntax-property stx 'color) #f)
+                          (equal? (syntax-property with-key 'color) 'blue)
+                          (equal? (syntax-property-symbol-keys with-key) '(color)))))
+             (list "primitive-table/#%kernel syntax primitives"
+                   (let* ([kernel             (primitive-table '#%kernel)]
+                          [stx                (datum->syntax #f 'demo (make-srcloc 'src 3 0 10 5))]
+                          [stx+prop           ((hash-ref kernel 'syntax-property) stx 'color 'blue)]
+                          [table-datum->syntax (hash-ref kernel 'datum->syntax)])
+                     (and (hash? kernel)
+                          (procedure? (hash-ref kernel 'syntax?))
+                          (equal? ((hash-ref kernel 'syntax?) stx) #t)
+                          (equal? ((hash-ref kernel 'syntax-e) stx) 'demo)
+                          (equal? ((hash-ref kernel 'syntax->datum) stx) 'demo)
+                          (equal? ((hash-ref kernel 'syntax-source) stx) 'src)
+                          (equal? ((hash-ref kernel 'syntax-line) stx) 3)
+                          (equal? ((hash-ref kernel 'syntax-column) stx) 0)
+                          (equal? ((hash-ref kernel 'syntax-position) stx) 10)
+                          (equal? ((hash-ref kernel 'syntax-span) stx) 5)
+                          (equal? ((hash-ref kernel 'syntax-property) stx+prop 'color) 'blue)
+                          (equal? ((hash-ref kernel 'syntax-property-symbol-keys) stx+prop) '(color))
+                          (equal? ((hash-ref kernel 'syntax-e)
+                                   (table-datum->syntax #f 'table-demo))
+                                  'table-demo))))
              (list "identifier?"
                    (let* ([id-stx     (datum->syntax #f 'pear)]
                           [list-stx   (datum->syntax #f '(pear core))]

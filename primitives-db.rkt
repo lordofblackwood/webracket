@@ -865,6 +865,8 @@
 (define-primitive syntax-e                                  1                   (pure))
 (define-primitive syntax-line                               1                   (pure))
 (define-primitive syntax-position                           1                   (pure))
+(define-primitive syntax-property                           [2 3 4]             (ordered))
+(define-primitive syntax-property-symbol-keys               1                   (ordered))
 (define-primitive syntax-source                             1                   (pure))
 (define-primitive syntax-span                               1                   (pure))
 (define-primitive syntax-srcloc                             1                   (ordered))
