@@ -308,6 +308,65 @@ webified/linklet path or a struct-inheritance field-layout issue where a subtype
 passes the right predicate but inherited `exn` fields are not stored/read in the
 shape expected by `exn-message`.
 
+## Primitive Table Bridge Reprobe
+
+After adding WebRacket's first `primitive-table` bridge, the bounded full
+expander compile still reaches WAT and Wasm successfully:
+
+```sh
+racket webify/probe-expander-full-compile.rkt \
+  --compile-timeout 480 \
+  --compile-memory-mb 2048 \
+  --compile-progress-interval 5000 \
+  --compile-letrec-basic \
+  --enable-cc-analysis \
+  --enable-simplify \
+  --no-label-map-forms \
+  --write-wat /private/tmp/webracket-expander-probe.wat \
+  --write-wasm /private/tmp/webracket-expander-probe.wasm \
+  --validate-wat
+```
+
+Observed:
+
+```text
+Traversed 311 modules
+Need 245 of those linklets
+Can remove 1126 of 4001 defined names, keeping 2875
+Flattened code is 1909474 bytes
+compile-wat-bytes: 66080126
+compile-wasm-bytes: 12074966
+wasm-tools-parse-status: 0
+```
+
+The generated module instantiates with the normal probe host:
+
+```text
+imports: 60
+exports: 27008
+instantiate-status: ok
+entry-kind: function
+wr-names-kind: function
+```
+
+Calling `entry` still throws a Wasm exception:
+
+```text
+entry-call: start
+js_print_fasl: undefined
+js_print_fasl: #<undefined>
+entry-call: threw
+exception-kind: Exception
+wasm-exception?: true
+foreign-exception?: false
+```
+
+The important change is that the primitive-table bridge gets us past the
+previous unbound-name diagnosis. The current failure is back at the malformed
+contract-exception shape: the expander raises an exception object, but the
+message path still produces `#<undefined>`. That keeps the next investigation on
+exception/struct layout or exception construction, not primitive-table lookup.
+
 ### SCC
 
 Command uses `--compile-letrec-scc --enable-cc-analysis --enable-simplify
