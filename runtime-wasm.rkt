@@ -48189,6 +48189,19 @@
                (param $prompt-tag (ref eq))
                (result            (ref eq))
                (global.get $false))
+
+         ;; continuation-mark-set-first : continuation-mark-set? any/c -> any/c
+         ;;   Bootstrap-only approximation used while bringing up the Racket
+         ;;   expander. Since `with-continuation-mark*` is currently erased by
+         ;;   Webify, there is no mark stack to inspect. Returning #f matches
+         ;;   the "not found" result for startup probes, but real continuation
+         ;;   marks should replace this before relying on mark-sensitive error
+         ;;   reporting or dynamic protocols.
+         (func $continuation-mark-set-first (type $Prim2)
+               (param $marks (ref eq)) ;; continuation-mark-set?
+               (param $key   (ref eq)) ;; any/c
+               (result       (ref eq))
+               (global.get $false))
          
          ;; 10.6 Breaks
          ;; 10.7 Exiting

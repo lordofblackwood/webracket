@@ -943,6 +943,7 @@
  ;; 10.5 Continuation Marks
  unsafe-root-continuation-prompt-tag ; stable placeholder; prompts unsupported
  current-continuation-marks  ; dummy, always returns #f
+ continuation-mark-set-first ; dummy, always returns #f
  
  ;; 12.2 Syntac Object Content
  syntax?
@@ -2954,6 +2955,9 @@
   #"exp")
 
 (define (linklet-cross-machine-type ht)
+  #f)
+
+(define (continuation-mark-set-first marks key)
   #f)
 
 (define (write-linklet-bundle-hash bundle out)

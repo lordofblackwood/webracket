@@ -400,7 +400,12 @@
                            (equal? (unbox b) 2))))
               (list "unsafe-root-continuation-prompt-tag placeholder"
                     (eq? (unsafe-root-continuation-prompt-tag)
-                         (unsafe-root-continuation-prompt-tag)))))
+                         (unsafe-root-continuation-prompt-tag)))
+              (list "continuation-mark-set-first bootstrap placeholder"
+                    (equal? (continuation-mark-set-first
+                             (current-continuation-marks)
+                             'missing)
+                            #f))))
        
        (list "4.3 Numbers"
              (list "4.3.1 Number Types"
