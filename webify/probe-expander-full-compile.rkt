@@ -10,7 +10,12 @@
          racket/string
          racket/system
          racket/cmdline
-         (only-in "../compiler.rkt" label-map->sexp label-map-form-labels)
+         (only-in "../compiler.rkt"
+                  current-console-bridge-top-binding-names
+                  label-map->sexp
+                  label-map-form-labels
+                  primitives)
+         (only-in "../parameters.rkt" current-console-bridge?)
          "../wat-identifiers.rkt"
          "module-diagnostics.rkt"
          "test-module-support.rkt")
@@ -30,6 +35,7 @@
 (define compile-letrec-strategy (make-parameter #f))
 (define compile-enable-cc-analysis? (make-parameter #f))
 (define compile-enable-simplify?    (make-parameter #f))
+(define compile-console-bridge?     (make-parameter #t))
 (define compile-label-map-forms?    (make-parameter #f))
 (define compile-label-map-form-labels (make-parameter '()))
 (define write-racket-control-path (make-parameter #f))
@@ -67,6 +73,13 @@
     (parameterize ([current-namespace ns])
       (namespace-require 'racket/base)
       (list->seteq (namespace-mapped-symbols)))))
+
+(define primitive-symbols (list->seteq primitives))
+
+;; console-bridge-export-alias? : symbol? -> boolean?
+;;   Avoid redefining WebRacket primitives while keeping inspectable exports.
+(define (console-bridge-export-alias? export)
+  (not (set-member? primitive-symbols export)))
 
 ;; datum-formals->symbols : any/c -> (listof symbol?)
 ;;   Collect bindings introduced by lambda-like formals.
@@ -434,6 +447,9 @@
  [("--enable-simplify")
   "Enable the early simplify-LFE pass during WebRacket compilation"
   (compile-enable-simplify? #t)]
+ [("--no-console-bridge")
+  "Do not expose first-slice exports through the generated wr-* console bridge"
+  (compile-console-bridge? #f)]
  [("--label-map-forms")
   "Include source form strings in the compiler label map"
   (compile-label-map-forms? #t)]
@@ -516,7 +532,15 @@
     (define-values (webified exports _exports-info)
       (timed 'webify-lower
              (lambda ()
-               (run-first-slice-top-level datum #:define-export-aliases? #f))))
+               (run-first-slice-top-level
+                datum
+                ;; The JS startup probe uses wr-names/wr-ref/wr-call to inspect
+                ;; linklet exports. Those bridge functions can only expose
+                ;; compiler-visible top-level variables, so keep export aliases
+                ;; for non-primitive exports when the bridge is enabled.
+                #:define-export-aliases?
+                (and (compile-console-bridge?)
+                     console-bridge-export-alias?)))))
     (define clean-webified
       (timed 'clean-webified-syntax
              (lambda ()
@@ -562,7 +586,11 @@
                                    [current-enable-cc-analysis?
                                     (compile-enable-cc-analysis?)]
                                    [current-enable-simplify?
-                                    (compile-enable-simplify?)])
+                                    (compile-enable-simplify?)]
+                                   [current-console-bridge?
+                                    (compile-console-bridge?)]
+                                   [current-console-bridge-top-binding-names
+                                    exports])
                       (label-map-include-form? (compile-label-map-forms?))
                       (label-map-form-labels (compile-label-map-form-labels))
                       (define wat (wat-string (comp clean-webified)))

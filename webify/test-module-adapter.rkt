@@ -72,6 +72,38 @@
    (member '("define" "xor" ("module-variable-ref" "webify-export-cell0$0"))
            (normalize-symbols datum))))
 
+(test-case "first-slice adapter can filter top-level export aliases"
+  (define-values (expr _importss exports _new-import-keys _imports-abis _exports-info)
+    (webify-linklet-first-slice
+     '(linklet () (keep skip)
+        (define-values (keep) 1)
+        (define-values (skip) 2))
+     #:serializable?-box     #f
+     #:datum-intern?         #f
+     #:target                #f
+     #:allow-set!-undefined? #f
+     #:unsafe-mode?          #f
+     #:enforce-constant?     #t
+     #:allow-inline?         #t
+     #:no-prompt?            #f
+     #:prim-knowns           test-prim-knowns
+     #:primitives            test-primitives
+     #:compiler-query        (lambda (v) #f)
+     #:get-import-knowns     (lambda (key) (values #f #f #f))
+     #:import-keys           #f))
+  (define normalized
+    (normalize-symbols
+     (first-slice->top-level-datum
+      expr
+      exports
+      #:define-export-aliases? (lambda (export) (eq? export 'keep)))))
+  (check-not-false
+   (member '("define" "keep" ("module-variable-ref" "webify-export-cell0$0"))
+           normalized))
+  (check-false
+   (member '("define" "skip" ("module-variable-ref" "webify-export-cell1$0"))
+           normalized)))
+
 (test-case "first-slice adapter handles import-free linklet with no exports"
   (define-values (stx exports exports-info)
     (run-first-slice-top-level '(linklet () ()

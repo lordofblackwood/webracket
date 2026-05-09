@@ -206,6 +206,13 @@
                [cell-id (in-list cell-ids)])
     (values export cell-id)))
 
+;; export-alias-enabled? : any/c symbol? -> boolean?
+;;   Decide whether to define a top-level alias for an exported cell.
+(define (export-alias-enabled? mode export)
+  (cond
+    [(procedure? mode) (and (mode export) #t)]
+    [else             (and mode #t)]))
+
 ;; first-slice->top-level-datum : any/c (listof symbol?) -> any/c
 ;;   Wrap a lowered import-free first-slice lambda in top-level forms.
 (define (first-slice->top-level-datum expr
@@ -248,7 +255,7 @@
      (,proc-id 'webify-instance ,@import-args ,@cell-ids)
      ,@(for/list ([cell-id (in-list cell-ids)]
                   [export  (in-list exports)]
-                  #:when define-export-aliases?)
+                  #:when (export-alias-enabled? define-export-aliases? export))
          `(define ,export (module-variable-ref ,cell-id)))
      (void)))
 
