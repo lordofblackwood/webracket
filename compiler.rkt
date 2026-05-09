@@ -745,6 +745,7 @@
     prop:method-arity-error
     prop:object-name
     prop:procedure
+    prop:exn:srclocs
     prop:sealed
     prop:authentic
     prop:custom-write
@@ -1080,6 +1081,7 @@
       make-instance instance-set-variable-value! instance-variable-value
       make-prefab-struct
       hash hasheq hasheqv hashalw
+      format
       string-append-immutable string-append* bytes-append*)
     ; - kind
     'variadic
@@ -1090,7 +1092,7 @@
         [(- / unsafe-fx- fx-/wraparound unsafe-fx-/wraparound min max
              flmin flmax unsafe-flmin unsafe-flmax
              fxmin fxmax unsafe-fxmin unsafe-fxmax
-             append* string-append* bytes-append* list*) 1]
+             append* string-append* bytes-append* list* format) 1]
         [(unsafe-fxand unsafe-fxior unsafe-fxxor) 1]
         [(symbol<? keyword<? path<?
                    string=? string<? string<=? string>? string>=?
@@ -1370,6 +1372,7 @@
        current-error-port
        current-print
        current-environment-variables
+       system-type
        current-directory
        current-directory-for-user)
      'optional 0 1)
@@ -1616,6 +1619,7 @@
   ; raise-argument-error
   raise-read-error
   raise-read-eof-error
+  format
 
   exn
   exn?
@@ -1715,6 +1719,8 @@
   struct->vector
 
   current-inspector          ; todo
+  current-code-inspector     ; permissive stub
+  make-inspector             ; permissive stub
   
   values                     
   
@@ -1845,7 +1851,13 @@
   mutable-hash-iterate-value
   mutable-hash-iterate-pair
   mutable-hash-iterate-key+value
-  
+  unsafe-immutable-hash-iterate-first
+  unsafe-immutable-hash-iterate-next
+  unsafe-immutable-hash-iterate-key
+  unsafe-immutable-hash-iterate-value
+  unsafe-immutable-hash-iterate-pair
+  unsafe-immutable-hash-iterate-key+value
+
   
   ; 4.21 Void
   void?
@@ -1946,6 +1958,8 @@
   integer-length
   random
   system-big-endian?
+  system-type
+  version
 
   fixnum? fxzero?
   fx+ fx- fx*
@@ -6770,21 +6784,22 @@
           [(? box? b)       `(app ,h ,(var:box-immutable) ,(loop (unbox b)))]
           [(? keyword? kw) (let ([s (loop (keyword->string kw))])
                              `(app ,h ,(var:string->keyword) ,s))]
-          [(? hash? ht)    (cond
-                             [(hash-eq? ht)
-                              `(app ,h ,(var:make-hasheq)
-                                    ,(loop (hash->list ht)))]
-                             [(hash-eqv? ht)
-                              `(app ,h ,(var:make-hasheqv)
-                                    ,(loop (hash->list ht)))]
-                             [(hash-equal? ht)
-                              `(app ,h ,(var:make-hash)
-                                    ,(loop (hash->list ht)))]
-                             ; todo: immutable hashes
-                             ; todo: always equal hashes
-                             [else
-                              (error 'datum->construction-expr
-                                     "unsupported hash table: ~a" ht)])]
+          [(? hash? ht)    (define kvs
+                              (for*/list ([kv (in-list (hash->list ht))]
+                                           [v  (in-list (list (car kv) (cdr kv)))])
+                                (loop v)))
+                            ;; Quoted hash literals are immutable. Preserve that
+                            ;; shape, because demodded expander sets are encoded
+                            ;; as immutable hash literals plus functional
+                            ;; `hash-set`.
+                            (cond
+                              [(hash-eq? ht)           `(app ,h ,(var:hasheq) ,kvs ...)]
+                              [(hash-eqv? ht)          `(app ,h ,(var:hasheqv) ,kvs ...)]
+                              [(hash-equal? ht)        `(app ,h ,(var:hash) ,kvs ...)]
+                              [(hash-equal-always? ht) `(app ,h ,(var:hashalw) ,kvs ...)]
+                              [else
+                               (error 'datum->construction-expr
+                                      "unsupported hash table: ~a" ht)])]
           [else            (error 'datum->construction-expr "got: ~a" v)]))))
   (Expr : Expr (e) -> Expr ()
     [(quote ,s ,d)

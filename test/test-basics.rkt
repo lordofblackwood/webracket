@@ -826,7 +826,18 @@
                                (= (floating-point-bytes->real (bytes 63 240 0 0 0 0 0 0) #t 0 8) 1.0)))
                     (list "system-big-endian?"
                           (and (equal? (system-big-endian?) #f)
-                               (equal? (procedure-arity system-big-endian?) 0)))))
+                               (equal? (procedure-arity system-big-endian?) 0)))
+                    (list "system-type"
+                          (and (equal? (system-type) 'unix)
+                               (equal? (system-type 'os) 'unix)
+                               (equal? (system-type 'vm) 'chez-scheme)
+                               (equal? (system-type 'gc) 'cs)
+                               (equal? (vector-ref (system-type 'fs-change) 2) #f)))
+                    (list "version"
+                          (and (string? (version))
+                               (immutable? (version))
+                               (positive? (string-length (version)))
+                               (equal? (procedure-arity version) 0)))))
 
              (list "4.3.2.10 Extra Constants and Functions"
                    (list
@@ -4082,6 +4093,21 @@
                            (equal? (hash-ref h 'c #f) #f)
                            (equal? (hash-count h2) 3)
                            (equal? (hash-ref h2 'c) 4))))
+              (list "quoted hash literals are immutable"
+                    (let* ([h-eq    '#hasheq((a . 1))]
+                           [h-eqv   '#hasheqv((1 . one))]
+                           [h-equal '#hash((a . 1))]
+                           [h-alw   '#hashalw((a . 1))]
+                           [h2      (hash-set '#hasheq() 'scope #t)])
+                      (and (immutable-hash? h-eq)
+                           (immutable-hash? h-eqv)
+                           (immutable-hash? h-equal)
+                           (immutable-hash? h-alw)
+                           (hash-eq? h-eq)
+                           (hash-eqv? h-eqv)
+                           (hash-equal? h-equal)
+                           (hash-equal-always? h-alw)
+                           (equal? (hash-ref h2 'scope) #t))))
               (list "hashalw immutable constructor"
                     (let* ([empty (hashalw)]
                            [h     (hashalw 'a 1 'b 2 'a 3)]
@@ -4418,6 +4444,39 @@
                                                   (mutable-hash-iterate-value h pos 'bad)))]
                              [expected '((x . 10) (y . 20))])
                         (and (equal? (mutable-hash-iterate-first empty) #f)
+                             (unordered-equal? pairs expected)
+                             (unordered-equal? kvs expected)
+                             (equal? (sort keys symbol<?) '(x y))
+                             (equal? (sort vals <) '(10 20))))))
+
+              (list "unsafe-immutable-hash-iterate"
+                    (let ([empty (hasheq)]
+                          [h     (hasheq 'x 10 'y 20)])
+                      (define (unordered-equal? xs ys)
+                        (and (= (length xs) (length ys))
+                             (andmap (lambda (x) (member x ys)) xs)
+                             (andmap (lambda (y) (member y xs)) ys)))
+
+                      (define (collect f)
+                        (let loop ([pos (unsafe-immutable-hash-iterate-first h)] [acc '()])
+                          (if pos
+                              (loop (unsafe-immutable-hash-iterate-next h pos)
+                                    (cons (f pos) acc))
+                              acc)))
+
+                      (let* ([pairs    (collect (lambda (pos)
+                                                  (unsafe-immutable-hash-iterate-pair h pos)))]
+                             [kvs      (collect (lambda (pos)
+                                                  (call-with-values
+                                                   (lambda ()
+                                                     (unsafe-immutable-hash-iterate-key+value h pos))
+                                                   cons)))]
+                             [keys     (collect (lambda (pos)
+                                                  (unsafe-immutable-hash-iterate-key h pos)))]
+                             [vals     (collect (lambda (pos)
+                                                  (unsafe-immutable-hash-iterate-value h pos)))]
+                             [expected '((x . 10) (y . 20))])
+                        (and (equal? (unsafe-immutable-hash-iterate-first empty) #f)
                              (unordered-equal? pairs expected)
                              (unordered-equal? kvs expected)
                              (equal? (sort keys symbol<?) '(x y))
@@ -5980,6 +6039,9 @@
                      (equal? (exn-message non-char) "non")
                      (equal? (exn-message eof) "eof"))))
 
+        (list "prop:exn:srclocs property"
+              (struct-type-property? prop:exn:srclocs))
+
         (list "exn:fail:filesystem structures"
               (let* ([marks           '()]
                      [filesystem      (exn:fail:filesystem "filesystem" marks)]
@@ -6184,6 +6246,10 @@
        
        (list "14.9 Structure Inspectors"
                (list
+                (list "inspector placeholders"
+                      (and (equal? (current-inspector) #f)
+                           (equal? (current-code-inspector) #f)
+                           (equal? (make-inspector (current-code-inspector)) #f)))
                 (list "object-name/procedure"
                       (let* ([anon      (lambda (x) x)]
                              [renamed   (procedure-rename +       'plus)]

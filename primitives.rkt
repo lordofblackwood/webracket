@@ -456,6 +456,8 @@
  radians->degrees
  order-of-magnitude
  system-big-endian?
+ system-type
+ version
 
  ;; 4.3.3 Flonums (racket/flonum)
  ;; 4.3.3.1 Flonum Arithmetic
@@ -873,6 +875,12 @@
  mutable-hash-iterate-value
  mutable-hash-iterate-pair
  mutable-hash-iterate-key+value
+ unsafe-immutable-hash-iterate-first
+ unsafe-immutable-hash-iterate-next
+ unsafe-immutable-hash-iterate-key
+ unsafe-immutable-hash-iterate-value
+ unsafe-immutable-hash-iterate-pair
+ unsafe-immutable-hash-iterate-key+value
 
 
  
@@ -902,7 +910,7 @@
  
  struct-constructor-procedure? struct-predicate-procedure?
  struct-accessor-procedure? struct-mutator-procedure?
- struct? struct-type? current-inspector
+ struct? struct-type? current-inspector current-code-inspector make-inspector
  struct-type-property?
  struct-type-property-accessor-procedure?
  struct-type-property-predicate-procedure?
@@ -915,6 +923,7 @@
 
  ;; 10.2 Exceptions
  call-with-exception-handler
+ prop:exn:srclocs
  raise
  raise-argument-error
  raise-binding-result-arity-error
@@ -2660,6 +2669,31 @@
      (unless (mutable-hash? ht)
        (raise-argument-error 'mutable-hash-iterate-key+value "mutable-hash?" ht))
      (hash-iterate-key+value ht pos bad-index-v)]))
+
+;; Compatibility definitions for Racket versions where these unsafe
+;; primitives are not available to the source-level `#lang webracket`
+;; expander. The compiled WebRacket runtime provides dedicated primitives.
+(define (unsafe-immutable-hash-iterate-first ht)
+  (hash-iterate-first ht))
+
+(define (unsafe-immutable-hash-iterate-next ht pos)
+  (hash-iterate-next ht pos))
+
+(define unsafe-immutable-hash-iterate-key
+  (case-lambda
+    [(ht pos) (hash-iterate-key ht pos)]))
+
+(define unsafe-immutable-hash-iterate-value
+  (case-lambda
+    [(ht pos) (hash-iterate-value ht pos)]))
+
+(define unsafe-immutable-hash-iterate-pair
+  (case-lambda
+    [(ht pos) (hash-iterate-pair ht pos)]))
+
+(define unsafe-immutable-hash-iterate-key+value
+  (case-lambda
+    [(ht pos) (hash-iterate-key+value ht pos)]))
 
 ;;;
 ;;; Number Formatting

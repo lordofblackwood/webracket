@@ -1553,6 +1553,8 @@
           object-name
           prop:procedure
           procedure
+          prop:exn:srclocs
+          exn:srclocs
           pair
           prop:checked-procedure
           checked-procedure
@@ -1576,6 +1578,24 @@
           string
           unix
           windows
+          macosx
+          os
+          os*
+          arch
+          wasm32
+          word
+          vm
+          chez-scheme
+          gc
+          link
+          static
+          machine
+          target-machine
+          webracket
+          fs-change
+          supported
+          file-level
+          cross
 
           linefeed
           return
@@ -1884,6 +1904,8 @@
     (add-runtime-string-constant 'system-path-kind           "(or/c 'home-dir 'pref-dir 'pref-file 'temp-dir 'init-dir 'init-file 'config-dir 'host-config-dir 'addon-dir 'host-addon-dir 'cache-dir 'doc-dir 'desk-dir 'sys-dir 'exec-file 'run-file 'collects-dir 'host-collects-dir 'orig-dir)")
     (add-runtime-string-constant 'string-or-bytes            "(or/c string? bytes?)")
     (add-runtime-string-constant 'boolean?                   "boolean?")
+    (add-runtime-string-constant 'racket-version             (version))
+    (add-runtime-string-constant 'webracket-machine          "WebRacket")
     (add-runtime-string-constant 'uncaught-exception         "uncaught exception: ")
     (add-runtime-string-constant 'callback:no-js-equivalent
                                  "The callback attempted to return a WebRacket value with no JavaScript equivalent (i.e. without a FASL encoding): ")
@@ -5131,6 +5153,24 @@
                     (local.set $arr (local.get $new-arr))))
                (array.set $I32Array (local.get $arr) (local.get $i) (local.get $v))
                (struct.set $I32GrowableArray $i (local.get $g) (i32.add (local.get $i) (i32.const 1))))
+
+         (func $i32growable-array-add-string!
+               (param $g (ref $I32GrowableArray))
+               (param $s (ref $String))
+               (local $arr (ref $I32Array))
+               (local $len i32)
+               (local $i   i32)
+               (local.set $arr (struct.get $String $codepoints (local.get $s)))
+               (local.set $len (array.len (local.get $arr)))
+               (local.set $i   (i32.const 0))
+               (block $done
+                      (loop $loop
+                            (br_if $done (i32.ge_u (local.get $i) (local.get $len)))
+                            (call $i32growable-array-add!
+                                  (local.get $g)
+                                  (array.get $I32Array (local.get $arr) (local.get $i)))
+                            (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                            (br $loop))))
 
          (func $i32growable-array-ref (param $g (ref $I32GrowableArray)) (param $index i32) (result i32)
                (local $i i32)
@@ -11533,6 +11573,55 @@
                ;; WebAssembly's linear memory is defined as little-endian,
                ;; so WebRacket always reports a little-endian system.
                (global.get $false))
+
+         ;; system-type : [symbol?] -> any/c
+         ;;   Bootstrap target metadata for WebRacket. This is intentionally
+         ;;   target-oriented, not host-OS detection. Unknown modes return #f
+         ;;   for now instead of implementing Racket's full contract/error
+         ;;   surface.
+         (func $system-type (type $Prim01)
+               (param $mode (ref eq)) ;; optional symbol, defaults to 'os
+               (result      (ref eq))
+
+               (if (ref.eq (local.get $mode) (global.get $missing))
+                   (then (return (global.get $symbol:unix))))
+               (if (ref.eq (local.get $mode) (global.get $symbol:os))
+                   (then (return (global.get $symbol:unix))))
+               (if (ref.eq (local.get $mode) (global.get $symbol:os*))
+                   (then (return (global.get $symbol:unix))))
+               (if (ref.eq (local.get $mode) (global.get $symbol:arch))
+                   (then (return (global.get $symbol:wasm32))))
+               (if (ref.eq (local.get $mode) (global.get $symbol:word))
+                   (then (return ,(Imm 32))))
+               (if (ref.eq (local.get $mode) (global.get $symbol:vm))
+                   (then (return (global.get $symbol:chez-scheme))))
+               (if (ref.eq (local.get $mode) (global.get $symbol:gc))
+                   (then (return (global.get $symbol:cs))))
+               (if (ref.eq (local.get $mode) (global.get $symbol:link))
+                   (then (return (global.get $symbol:static))))
+               (if (ref.eq (local.get $mode) (global.get $symbol:machine))
+                   (then (return (global.get $string:webracket-machine))))
+               (if (ref.eq (local.get $mode) (global.get $symbol:target-machine))
+                   (then (return (global.get $symbol:webracket))))
+               (if (ref.eq (local.get $mode) (global.get $symbol:fs-change))
+                   (then
+                    (return
+                     (struct.new $Vector
+                                 (i32.const 0)
+                                 (i32.const 1)
+                                 (array.new_fixed $Array 4
+                                                  (global.get $symbol:supported)
+                                                  (global.get $false)
+                                                  (global.get $false)
+                                                  (global.get $symbol:file-level))))))
+               (if (ref.eq (local.get $mode) (global.get $symbol:cross))
+                   (then (return (global.get $false))))
+               (global.get $false))
+
+         ;; version : -> string?
+         ;;   Return the Racket version used to generate this WebRacket runtime.
+         (func $version (type $Prim0) (result (ref eq))
+               (global.get $string:racket-version))
 
          ;;;
          ;;;  4.3.4 Fixnums
@@ -34896,6 +34985,22 @@
                   (then (return (call $hashequal-iterate-first (local.get $ht)))))
               (if (ref.test (ref $HashEqualAlwaysMutable) (local.get $ht))
                   (then (return (call $hashalw-iterate-first (local.get $ht)))))
+              ;; Bootstrap compatibility: schemified expander code uses
+              ;; `hash-iterate-first`, which can currently resolve through
+              ;; this helper. Preserve general hash iteration for immutable
+              ;; hashes instead of failing on the misleading helper name.
+              (if (ref.test (ref $HashEqImmutable) (local.get $ht))
+                  (then (return (call $immutable-hasheqv-iterate-first
+                                      (call $immutable-hash-as-hasheqv (local.get $ht))))))
+              (if (ref.test (ref $HashEqvImmutable) (local.get $ht))
+                  (then (return (call $immutable-hasheqv-iterate-first
+                                      (call $immutable-hash-as-hasheqv (local.get $ht))))))
+              (if (ref.test (ref $HashEqualImmutable) (local.get $ht))
+                  (then (return (call $immutable-hasheqv-iterate-first
+                                      (call $immutable-hash-as-hasheqv (local.get $ht))))))
+              (if (ref.test (ref $HashEqualAlwaysImmutable) (local.get $ht))
+                  (then (return (call $immutable-hasheqv-iterate-first
+                                      (call $immutable-hash-as-hasheqv (local.get $ht))))))
               (call $raise-argument-error:mutable-hash-expected (local.get $ht))
               (unreachable))
 
@@ -34975,6 +35080,22 @@
                   (then (return (call $hashequal-iterate-next (local.get $ht) (local.get $pos)))))
               (if (ref.test (ref $HashEqualAlwaysMutable) (local.get $ht))
                   (then (return (call $hashalw-iterate-next (local.get $ht) (local.get $pos)))))
+              (if (ref.test (ref $HashEqImmutable) (local.get $ht))
+                  (then (return (call $immutable-hasheqv-iterate-next
+                                      (call $immutable-hash-as-hasheqv (local.get $ht))
+                                      (local.get $pos)))))
+              (if (ref.test (ref $HashEqvImmutable) (local.get $ht))
+                  (then (return (call $immutable-hasheqv-iterate-next
+                                      (call $immutable-hash-as-hasheqv (local.get $ht))
+                                      (local.get $pos)))))
+              (if (ref.test (ref $HashEqualImmutable) (local.get $ht))
+                  (then (return (call $immutable-hasheqv-iterate-next
+                                      (call $immutable-hash-as-hasheqv (local.get $ht))
+                                      (local.get $pos)))))
+              (if (ref.test (ref $HashEqualAlwaysImmutable) (local.get $ht))
+                  (then (return (call $immutable-hasheqv-iterate-next
+                                      (call $immutable-hash-as-hasheqv (local.get $ht))
+                                      (local.get $pos)))))
               (call $raise-argument-error:mutable-hash-expected (local.get $ht))
               (unreachable))
 
@@ -35050,6 +35171,7 @@
               (param $pos        (ref eq))  ;; iteration position
               (param $bad-index  (ref eq))  ;; optional bad-index value, default = raise
               (result            (ref eq))
+              (local $entry      (ref $ImmutableHashEntry))
 
               ;; Check type: must be (ref $Hash)
               (if (i32.eqz (ref.test (ref $Hash) (local.get $ht)))
@@ -35076,6 +35198,15 @@
                                       (local.get $ht)
                                       (local.get $pos)
                                       (local.get $bad-index)))))
+              (if (ref.test (ref $Hash) (local.get $ht))
+                  (then
+                   (local.set $entry
+                              (ref.cast (ref $ImmutableHashEntry)
+                                        (call $immutable-hasheqv-iterate-entry
+                                              (call $immutable-hash-as-hasheqv (local.get $ht))
+                                              (local.get $pos)
+                                              (local.get $bad-index))))
+                   (return (struct.get $ImmutableHashEntry $key (local.get $entry)))))
               (call $raise-argument-error:mutable-hash-expected (local.get $ht))
               (unreachable))
 
@@ -35085,6 +35216,7 @@
               (param $pos        (ref eq))  ;; iteration position
               (param $bad-index  (ref eq))  ;; optional bad-index value, default = raise
               (result (ref eq))
+              (local $entry      (ref $ImmutableHashEntry))
 
               ;; Check type: must be (ref $Hash)
               (if (i32.eqz (ref.test (ref $Hash) (local.get $ht)))
@@ -35111,6 +35243,15 @@
                                       (local.get $ht)
                                       (local.get $pos)
                                       (local.get $bad-index)))))
+              (if (ref.test (ref $Hash) (local.get $ht))
+                  (then
+                   (local.set $entry
+                              (ref.cast (ref $ImmutableHashEntry)
+                                        (call $immutable-hasheqv-iterate-entry
+                                              (call $immutable-hash-as-hasheqv (local.get $ht))
+                                              (local.get $pos)
+                                              (local.get $bad-index))))
+                   (return (struct.get $ImmutableHashEntry $value (local.get $entry)))))
               (call $raise-argument-error:mutable-hash-expected (local.get $ht))
               (unreachable))
 
@@ -35120,6 +35261,7 @@
               (param $pos        (ref eq))  ;; iteration position
               (param $bad-index  (ref eq))  ;; optional bad-index value, default = raise
               (result            (ref eq))
+              (local $entry      (ref $ImmutableHashEntry))
 
               ;; Check type: must be (ref $Hash)
               (if (i32.eqz (ref.test (ref $Hash) (local.get $ht)))
@@ -35146,6 +35288,17 @@
                                       (local.get $ht)
                                       (local.get $pos)
                                       (local.get $bad-index)))))
+              (if (ref.test (ref $Hash) (local.get $ht))
+                  (then
+                   (local.set $entry
+                              (ref.cast (ref $ImmutableHashEntry)
+                                        (call $immutable-hasheqv-iterate-entry
+                                              (call $immutable-hash-as-hasheqv (local.get $ht))
+                                              (local.get $pos)
+                                              (local.get $bad-index))))
+                   (return (call $cons
+                                 (struct.get $ImmutableHashEntry $key (local.get $entry))
+                                 (struct.get $ImmutableHashEntry $value (local.get $entry))))))
               (call $raise-argument-error:mutable-hash-expected (local.get $ht))
               (unreachable))
 
@@ -35155,6 +35308,7 @@
               (param $pos        (ref eq))  ;; iteration position
               (param $bad-index  (ref eq))  ;; optional bad-index value, default = raise
               (result            (ref eq))  ;; returns two values encoded in $Values
+              (local $entry      (ref $ImmutableHashEntry))
 
               ;; Check type: must be (ref $Hash)
               (if (i32.eqz (ref.test (ref $Hash) (local.get $ht)))
@@ -35181,6 +35335,17 @@
                                       (local.get $ht)
                                       (local.get $pos)
                                       (local.get $bad-index)))))
+              (if (ref.test (ref $Hash) (local.get $ht))
+                  (then
+                   (local.set $entry
+                              (ref.cast (ref $ImmutableHashEntry)
+                                        (call $immutable-hasheqv-iterate-entry
+                                              (call $immutable-hash-as-hasheqv (local.get $ht))
+                                              (local.get $pos)
+                                              (local.get $bad-index))))
+                   (return (array.new_fixed $Values 2
+                                            (struct.get $ImmutableHashEntry $key (local.get $entry))
+                                            (struct.get $ImmutableHashEntry $value (local.get $entry))))))
               (call $raise-argument-error:mutable-hash-expected (local.get $ht))
               (unreachable))
 
@@ -35434,6 +35599,269 @@
                      (return (array.new_fixed $Values 2
                                               (local.get $bad-index)
                                               (local.get $bad-index)))))))
+
+        ;; unsafe-immutable-hash-iterate-* : immutable hash iteration
+        ;;   Racket CS exposes these as unsafe primitives for iterating
+        ;;   immutable hashes. WebRacket's immutable hashes share a compact
+        ;;   root-node representation, so all immutable hash kinds are wrapped
+        ;;   as a temporary $HashEqvImmutable and walked by the helpers below.
+        ;;   The iteration position is a fixnum packing (slot << 16) | bucket.
+        ;;   This bootstrap slice implements the two-argument accessor forms;
+        ;;   Racket's optional bad-index variants can be added when needed.
+        (func $immutable-hash-as-hasheqv
+              (param $ht (ref eq)) ;; immutable hash table
+              (result    (ref $HashEqvImmutable))
+
+              (if (ref.test (ref $HashEqImmutable) (local.get $ht))
+                  (then
+                   (return
+                    (struct.new $HashEqvImmutable
+                                (i32.const 0)
+                                (global.get $false)
+                                (struct.get $HashEqImmutable $root
+                                            (ref.cast (ref $HashEqImmutable)
+                                                      (local.get $ht)))
+                                (struct.get $HashEqImmutable $count
+                                            (ref.cast (ref $HashEqImmutable)
+                                                      (local.get $ht)))))))
+              (if (ref.test (ref $HashEqvImmutable) (local.get $ht))
+                  (then (return (ref.cast (ref $HashEqvImmutable) (local.get $ht)))))
+              (if (ref.test (ref $HashEqualImmutable) (local.get $ht))
+                  (then
+                   (return
+                    (struct.new $HashEqvImmutable
+                                (i32.const 0)
+                                (global.get $false)
+                                (struct.get $HashEqualImmutable $root
+                                            (ref.cast (ref $HashEqualImmutable)
+                                                      (local.get $ht)))
+                                (struct.get $HashEqualImmutable $count
+                                            (ref.cast (ref $HashEqualImmutable)
+                                                      (local.get $ht)))))))
+              (if (ref.test (ref $HashEqualAlwaysImmutable) (local.get $ht))
+                  (then
+                   (return
+                    (struct.new $HashEqvImmutable
+                                (i32.const 0)
+                                (global.get $false)
+                                (struct.get $HashEqualAlwaysImmutable $root
+                                            (ref.cast (ref $HashEqualAlwaysImmutable)
+                                                      (local.get $ht)))
+                                (struct.get $HashEqualAlwaysImmutable $count
+                                            (ref.cast (ref $HashEqualAlwaysImmutable)
+                                                      (local.get $ht)))))))
+              (call $raise-argument-error:hash-expected)
+              (unreachable))
+
+        (func $immutable-hash-pack-iterate-position
+              (param $slot   i32) ;; root slot index
+              (param $bucket i32) ;; bucket-list offset
+              (result        (ref eq))
+              (ref.i31
+               (i32.shl
+                (i32.or (i32.shl (local.get $slot) (i32.const 16))
+                        (local.get $bucket))
+                (i32.const 1))))
+
+        (func $immutable-hasheqv-iterate-first
+              (param $table (ref $HashEqvImmutable)) ;; immutable hash table
+              (result       (ref eq))
+              (local $root-any (ref eq))
+              (local $root     (ref $ImmutableHashNode))
+              (local $slots    (ref $Array))
+              (local $len      i32)
+              (local $slot     i32)
+              (local $bucket   (ref eq))
+
+              (local.set $root-any (struct.get $HashEqvImmutable $root (local.get $table)))
+              (if (ref.eq (local.get $root-any) (global.get $missing))
+                  (then (return (global.get $false))))
+              (local.set $root  (ref.cast (ref $ImmutableHashNode) (local.get $root-any)))
+              (local.set $slots (struct.get $ImmutableHashNode $slots (local.get $root)))
+              (local.set $len   (array.len (local.get $slots)))
+              (local.set $slot  (i32.const 0))
+              (block $done
+                     (loop $loop
+                           (br_if $done (i32.ge_u (local.get $slot) (local.get $len)))
+                           (local.set $bucket (array.get $Array (local.get $slots) (local.get $slot)))
+                           (if (ref.test (ref $Pair) (local.get $bucket))
+                               (then (return (call $immutable-hash-pack-iterate-position
+                                                   (local.get $slot)
+                                                   (i32.const 0)))))
+                           (local.set $slot (i32.add (local.get $slot) (i32.const 1)))
+                           (br $loop)))
+              (global.get $false))
+
+        (func $immutable-hasheqv-iterate-entry
+              (param $table     (ref $HashEqvImmutable)) ;; immutable hash table
+              (param $pos       (ref eq))                ;; packed iteration position
+              (param $bad-index (ref eq))                ;; optional bad-index value, default = raise
+              (result           (ref eq))                ;; entry or bad-index result
+              (local $root-any (ref eq))
+              (local $root     (ref $ImmutableHashNode))
+              (local $slots    (ref $Array))
+              (local $raw      i32)
+              (local $slot     i32)
+              (local $bucket-i i32)
+              (local $i        i32)
+              (local $node     (ref eq))
+              (local $pair     (ref $Pair))
+
+              (block $bad
+                     (if (i32.eqz (ref.test (ref i31) (local.get $pos)))
+                         (then (br $bad)))
+                     (local.set $raw (i31.get_u (ref.cast (ref i31) (local.get $pos))))
+                     (if (i32.and (local.get $raw) (i32.const 1))
+                         (then (br $bad)))
+                     (local.set $raw      (i32.shr_u (local.get $raw) (i32.const 1)))
+                     (local.set $slot     (i32.shr_u (local.get $raw) (i32.const 16)))
+                     (local.set $bucket-i (i32.and (local.get $raw) (i32.const 65535)))
+                     (local.set $root-any (struct.get $HashEqvImmutable $root (local.get $table)))
+                     (if (ref.eq (local.get $root-any) (global.get $missing))
+                         (then (br $bad)))
+                     (local.set $root  (ref.cast (ref $ImmutableHashNode) (local.get $root-any)))
+                     (local.set $slots (struct.get $ImmutableHashNode $slots (local.get $root)))
+                     (if (i32.ge_u (local.get $slot) (array.len (local.get $slots)))
+                         (then (br $bad)))
+                     (local.set $node (array.get $Array (local.get $slots) (local.get $slot)))
+                     (local.set $i    (i32.const 0))
+                     (loop $scan
+                           (if (i32.eqz (ref.test (ref $Pair) (local.get $node)))
+                               (then (br $bad)))
+                           (local.set $pair (ref.cast (ref $Pair) (local.get $node)))
+                           (if (i32.eq (local.get $i) (local.get $bucket-i))
+                               (then (return (struct.get $Pair $a (local.get $pair)))))
+                           (local.set $node (struct.get $Pair $d (local.get $pair)))
+                           (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                           (br $scan)))
+              (if (ref.eq (local.get $bad-index) (global.get $missing))
+                  (then (call $raise-mutable-hash-iterate-bad-index (local.get $pos))
+                        (unreachable)))
+              (local.get $bad-index))
+
+        (func $immutable-hasheqv-iterate-next
+              (param $table (ref $HashEqvImmutable)) ;; immutable hash table
+              (param $pos   (ref eq))                ;; packed iteration position
+              (result       (ref eq))
+              (local $root-any (ref eq))
+              (local $root     (ref $ImmutableHashNode))
+              (local $slots    (ref $Array))
+              (local $raw      i32)
+              (local $slot     i32)
+              (local $bucket-i i32)
+              (local $i        i32)
+              (local $len      i32)
+              (local $node     (ref eq))
+              (local $pair     (ref $Pair))
+
+              (drop (call $immutable-hasheqv-iterate-entry
+                          (local.get $table)
+                          (local.get $pos)
+                          (global.get $missing)))
+              (local.set $raw      (i32.shr_u (i31.get_u (ref.cast (ref i31) (local.get $pos))) (i32.const 1)))
+              (local.set $slot     (i32.shr_u (local.get $raw) (i32.const 16)))
+              (local.set $bucket-i (i32.and (local.get $raw) (i32.const 65535)))
+              (local.set $root-any (struct.get $HashEqvImmutable $root (local.get $table)))
+              (local.set $root     (ref.cast (ref $ImmutableHashNode) (local.get $root-any)))
+              (local.set $slots    (struct.get $ImmutableHashNode $slots (local.get $root)))
+              (local.set $node     (array.get $Array (local.get $slots) (local.get $slot)))
+              (local.set $i        (i32.const 0))
+              (block $bucket-done
+                     (loop $bucket-scan
+                           (local.set $pair (ref.cast (ref $Pair) (local.get $node)))
+                           (if (i32.eq (local.get $i) (local.get $bucket-i))
+                               (then
+                                (if (ref.test (ref $Pair) (struct.get $Pair $d (local.get $pair)))
+                                    (then (return (call $immutable-hash-pack-iterate-position
+                                                        (local.get $slot)
+                                                        (i32.add (local.get $bucket-i) (i32.const 1)))))
+                                    (else (br $bucket-done)))))
+                           (local.set $node (struct.get $Pair $d (local.get $pair)))
+                           (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                           (br $bucket-scan)))
+              (local.set $len  (array.len (local.get $slots)))
+              (local.set $slot (i32.add (local.get $slot) (i32.const 1)))
+              (block $done
+                     (loop $slot-scan
+                           (br_if $done (i32.ge_u (local.get $slot) (local.get $len)))
+                           (local.set $node (array.get $Array (local.get $slots) (local.get $slot)))
+                           (if (ref.test (ref $Pair) (local.get $node))
+                               (then (return (call $immutable-hash-pack-iterate-position
+                                                   (local.get $slot)
+                                                   (i32.const 0)))))
+                           (local.set $slot (i32.add (local.get $slot) (i32.const 1)))
+                           (br $slot-scan)))
+              (global.get $false))
+
+        (func $unsafe-immutable-hash-iterate-first (type $Prim1)
+              (param $ht (ref eq)) ;; immutable hash table
+              (result    (ref eq))
+              (return_call $immutable-hasheqv-iterate-first
+                           (call $immutable-hash-as-hasheqv (local.get $ht))))
+
+        (func $unsafe-immutable-hash-iterate-next (type $Prim12)
+              (param $ht  (ref eq)) ;; immutable hash table
+              (param $pos (ref eq)) ;; packed iteration position
+              (result     (ref eq))
+              (return_call $immutable-hasheqv-iterate-next
+                           (call $immutable-hash-as-hasheqv (local.get $ht))
+                           (local.get $pos)))
+
+        (func $unsafe-immutable-hash-iterate-key (type $Prim2)
+              (param $ht        (ref eq)) ;; immutable hash table
+              (param $pos       (ref eq)) ;; packed iteration position
+              (result           (ref eq))
+              (local $entry (ref $ImmutableHashEntry))
+              (local.set $entry
+                         (ref.cast (ref $ImmutableHashEntry)
+                                   (call $immutable-hasheqv-iterate-entry
+                                         (call $immutable-hash-as-hasheqv (local.get $ht))
+                                         (local.get $pos)
+                                         (global.get $missing))))
+              (struct.get $ImmutableHashEntry $key (local.get $entry)))
+
+        (func $unsafe-immutable-hash-iterate-value (type $Prim2)
+              (param $ht        (ref eq)) ;; immutable hash table
+              (param $pos       (ref eq)) ;; packed iteration position
+              (result           (ref eq))
+              (local $entry (ref $ImmutableHashEntry))
+              (local.set $entry
+                         (ref.cast (ref $ImmutableHashEntry)
+                                   (call $immutable-hasheqv-iterate-entry
+                                         (call $immutable-hash-as-hasheqv (local.get $ht))
+                                         (local.get $pos)
+                                         (global.get $missing))))
+              (struct.get $ImmutableHashEntry $value (local.get $entry)))
+
+        (func $unsafe-immutable-hash-iterate-pair (type $Prim2)
+              (param $ht        (ref eq)) ;; immutable hash table
+              (param $pos       (ref eq)) ;; packed iteration position
+              (result           (ref eq))
+              (local $entry (ref $ImmutableHashEntry))
+              (local.set $entry
+                         (ref.cast (ref $ImmutableHashEntry)
+                                   (call $immutable-hasheqv-iterate-entry
+                                         (call $immutable-hash-as-hasheqv (local.get $ht))
+                                         (local.get $pos)
+                                         (global.get $missing))))
+              (call $cons
+                    (struct.get $ImmutableHashEntry $key (local.get $entry))
+                    (struct.get $ImmutableHashEntry $value (local.get $entry))))
+
+        (func $unsafe-immutable-hash-iterate-key+value (type $Prim2)
+              (param $ht        (ref eq)) ;; immutable hash table
+              (param $pos       (ref eq)) ;; packed iteration position
+              (result           (ref eq)) ;; returns two values encoded in $Values
+              (local $entry (ref $ImmutableHashEntry))
+              (local.set $entry
+                         (ref.cast (ref $ImmutableHashEntry)
+                                   (call $immutable-hasheqv-iterate-entry
+                                         (call $immutable-hash-as-hasheqv (local.get $ht))
+                                         (local.get $pos)
+                                         (global.get $missing))))
+              (array.new_fixed $Values 2
+                               (struct.get $ImmutableHashEntry $key (local.get $entry))
+                               (struct.get $ImmutableHashEntry $value (local.get $entry))))
         
         ; General hash-count
         (func $hash-count (type $Prim1)
@@ -48777,7 +49205,28 @@
          ;; 14.8 Thread Groups
          ;; 14.9 Structure Inspectors
 
-         (func $current-inspector (type $Prim0)   ; TODO: dummy 
+         ;; current-inspector : -> inspector?
+         ;;   Permissive placeholder. WebRacket does not yet enforce inspector
+         ;;   access control, so the current inspector is represented as #f.
+         (func $current-inspector (type $Prim0)
+               (result (ref eq))
+               (global.get $false))
+
+         ;; current-code-inspector : -> inspector?
+         ;;   Code inspectors matter for protected module access in full Racket.
+         ;;   The expander bootstrap asks for the parameter, but WebRacket does
+         ;;   not yet model protected module access, so use the same permissive
+         ;;   #f placeholder as `current-inspector`.
+         (func $current-code-inspector (type $Prim0)
+               (result (ref eq))
+               (global.get $false))
+
+         ;; make-inspector : inspector? -> inspector?
+         ;;   Placeholder constructor paired with the permissive inspector
+         ;;   model above. Returning #f keeps structure creation transparent
+         ;;   until WebRacket grows real inspector objects and hierarchy checks.
+         (func $make-inspector (type $Prim1)
+               (param $parent (ref eq)) ;; parent inspector
                (result (ref eq))
                (global.get $false))
 
@@ -51651,6 +52100,120 @@
          (func $raise-format/display:got-boxed  (unreachable))
          (func $raise-format/display:got-box    (unreachable))
          (func $raise-format/display:got-values (unreachable))
+
+         ;; format : string? any/c ... -> string?
+         ;;   Small runtime formatter for bootstrap/error paths. It supports
+         ;;   `~a`, `~s`, `~v`, and `~e` via WebRacket's existing display-mode
+         ;;   formatter, plus `~~`, `~n`, and `~%`. Full Racket `format`
+         ;;   semantics can be layered in later when the stdlib formatter is
+         ;;   available.
+         (func $format (type $Prim>=1)
+               (param $fmt-raw (ref eq)) ;; format string
+               (param $args    (ref eq)) ;; rest values
+               (result         (ref eq))
+
+               (local $fmt      (ref $String))
+               (local $fmt-arr  (ref $I32Array))
+               (local $out      (ref $I32GrowableArray))
+               (local $args*    (ref eq))
+               (local $arg-pair (ref $Pair))
+               (local $part     (ref $String))
+               (local $len      i32)
+               (local $i        i32)
+               (local $cp       i32)
+               (local $next     i32)
+
+               (if (i32.eqz (ref.test (ref $String) (local.get $fmt-raw)))
+                   (then (call $raise-check-string (local.get $fmt-raw))
+                         (unreachable)))
+               (local.set $fmt     (ref.cast (ref $String) (local.get $fmt-raw)))
+               (local.set $fmt-arr (struct.get $String $codepoints (local.get $fmt)))
+               (local.set $len     (array.len (local.get $fmt-arr)))
+               (local.set $out     (call $make-i32growable-array (local.get $len)))
+               (local.set $args*   (local.get $args))
+               (local.set $i       (i32.const 0))
+
+               (block $done
+                      (loop $loop
+                            (br_if $done (i32.ge_u (local.get $i) (local.get $len)))
+                            (local.set $cp
+                                       (array.get $I32Array
+                                                  (local.get $fmt-arr)
+                                                  (local.get $i)))
+                            (if (i32.ne (local.get $cp) (i32.const 126)) ;; '~'
+                                (then
+                                 (call $i32growable-array-add!
+                                       (local.get $out)
+                                       (local.get $cp))
+                                 (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                                 (br $loop)))
+
+                            (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                            (if (i32.ge_u (local.get $i) (local.get $len))
+                                (then
+                                 (call $i32growable-array-add!
+                                       (local.get $out)
+                                       (i32.const 126))
+                                 (br $done)))
+                            (local.set $next
+                                       (array.get $I32Array
+                                                  (local.get $fmt-arr)
+                                                  (local.get $i)))
+                            (local.set $i (i32.add (local.get $i) (i32.const 1)))
+
+                            (if (i32.eq (local.get $next) (i32.const 126)) ;; '~~'
+                                (then
+                                 (call $i32growable-array-add!
+                                       (local.get $out)
+                                       (i32.const 126))
+                                 (br $loop)))
+                            (if (i32.or
+                                 (i32.eq (local.get $next) (i32.const 110)) ;; '~n'
+                                 (i32.eq (local.get $next) (i32.const 37))) ;; '~%'
+                                (then
+                                 (call $i32growable-array-add!
+                                       (local.get $out)
+                                       (i32.const 10))
+                                 (br $loop)))
+                            (if (i32.or
+                                 (i32.eq (local.get $next) (i32.const 97))  ;; '~a'
+                                 (i32.or
+                                  (i32.eq (local.get $next) (i32.const 115)) ;; '~s'
+                                  (i32.or
+                                   (i32.eq (local.get $next) (i32.const 118)) ;; '~v'
+                                   (i32.eq (local.get $next) (i32.const 101))))) ;; '~e'
+                                (then
+                                 (if (i32.eqz (ref.test (ref $Pair) (local.get $args*)))
+                                     (then (call $raise-argument-error
+                                                 (global.get $symbol:format)
+                                                 (global.get $string:list?)
+                                                 (local.get $args*))
+                                           (unreachable)))
+                                 (local.set $arg-pair
+                                            (ref.cast (ref $Pair) (local.get $args*)))
+                                 (local.set $part
+                                            (call $format/display
+                                                  (struct.get $Pair $a
+                                                              (local.get $arg-pair))))
+                                 (call $i32growable-array-add-string!
+                                       (local.get $out)
+                                       (local.get $part))
+                                 (local.set $args*
+                                            (struct.get $Pair $d
+                                                        (local.get $arg-pair)))
+                                 (br $loop)))
+
+                            ;; Unknown escapes are preserved literally. This is
+                            ;; intentionally forgiving for bootstrap messages.
+                            (call $i32growable-array-add!
+                                  (local.get $out)
+                                  (i32.const 126))
+                            (call $i32growable-array-add!
+                                  (local.get $out)
+                                  (local.get $next))
+                            (br $loop)))
+
+               (call $i32growable-array->immutable-string (local.get $out)))
 
          (func $format/display
                (param $v (ref eq))
@@ -60101,6 +60664,7 @@
                (global $prop:sealed                   (mut (ref eq)) (global.get $void))
                (global $prop:object-name              (mut (ref eq)) (global.get $void))
                (global $prop:procedure                (mut (ref eq)) (global.get $void))
+               (global $prop:exn:srclocs              (mut (ref eq)) (global.get $void))
                (global $prop:checked-procedure        (mut (ref eq)) (global.get $void))
                (global $prop:impersonator-of          (mut (ref eq)) (global.get $void))
                (global $prop:method-arity-error       (mut (ref eq)) (global.get $void))
@@ -60196,6 +60760,15 @@
                                            (call $make-struct-type-property-descriptor/checked
                                                  (ref.cast (ref $Symbol)
                                                            (global.get $symbol:procedure))
+                                                 (global.get $false)
+                                                 (global.get $null)
+                                                 (global.get $false)
+                                                 (global.get $false))))
+                     (global.set $prop:exn:srclocs
+                                 (ref.cast (ref eq)
+                                           (call $make-struct-type-property-descriptor/checked
+                                                 (ref.cast (ref $Symbol)
+                                                           (global.get $symbol:exn:srclocs))
                                                  (global.get $false)
                                                  (global.get $null)
                                                  (global.get $false)
