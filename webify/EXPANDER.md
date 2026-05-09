@@ -340,3 +340,25 @@ runtime primitives. The many generated `ignored-continuation-mark-key...` and
 `ignored-continuation-mark-val...` names in the WAT are artifacts of Webify's
 temporary `with-continuation-mark*` erasure, where key and value expressions are
 still evaluated for effects. They are not separate runtime demands.
+
+After adding a first `continuation-mark-set-first` bootstrap stub, startup gets
+one step further: the name is bound, but the expander calls it with four
+arguments, not two.
+
+```text
+entry-call: start
+js_print_fasl: #(struct exn:fail:contract:arity continuation-mark-set-first: arity mismatch;
+ the expected number of arguments does not match the given number
+  expected: 2
+  given: 4 #f)
+entry-failure-category: unknown
+entry-failure-detail: continuation-mark-set-first: arity mismatch;
+ the expected number of arguments does not match the given number
+  expected: 2
+  given: 4
+wr-names-count: 0
+```
+
+The next continuation-mark milestone is therefore to widen the bootstrap stub
+to the arity shape used by the expander, while preserving the same deliberately
+lossy "no mark found" behavior.
