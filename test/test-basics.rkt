@@ -1836,7 +1836,13 @@
                          (equal? (equal? #rx"a" #rx"a") #t)
                          (equal? (equal? #rx"a" #px"a") #f)
                          (equal? (equal? #rx#"a" #rx#"a") #t)
-                         (equal? (equal? #rx#"a" #px#"a") #f)))))
+                         (equal? (equal? #rx#"a" #px#"a") #f)))
+              (list "datum-intern-literal bootstrap"
+                    (let ([s (string #\a #\b)]
+                          [b (bytes 1 2)])
+                      (and (immutable-string? (datum-intern-literal s))
+                           (immutable-bytes? (datum-intern-literal b))
+                           (eq? (datum-intern-literal 'sym) 'sym))))))
 
        (list "4.9 Keywords"
              (list

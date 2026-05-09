@@ -268,6 +268,7 @@
 (define-primitive custom-write?                             1                   (pure))
 (define-primitive datum->correlated                         [1 2 3]             (ordered))
 (define-primitive datum->syntax                             [2 3 4 5]           (ordered))
+(define-primitive datum-intern-literal                      1                   (ordered))
 (define-primitive degrees->radians                          1                   (ordered))
 (define-primitive delete-directory                          1                   (ordered))
 (define-primitive delete-directory/files                    [1 2]               (ordered))

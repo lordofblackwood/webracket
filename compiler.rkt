@@ -2298,6 +2298,7 @@
   custom-write-accessor
 
   ;; 4.8 Regular Expressions
+  datum-intern-literal
   webracket-literal-byte-pregexp
   webracket-literal-byte-regexp
   webracket-literal-pregexp

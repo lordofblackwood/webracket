@@ -14132,6 +14132,21 @@
                                      (i32.const 0)
                                      (call $i8array-length (struct.get $Bytes $bs (local.get $bs))))))))
 
+         ;; datum-intern-literal : any/c -> any/c
+         ;;   Bootstrap approximation of Racket CS literal interning. Racket
+         ;;   interns immutable strings, immutable bytes, non-fixnum numbers,
+         ;;   and optionally regexps using a weak table. WebRacket does not yet
+         ;;   provide that weak interning table, so this preserves the value
+         ;;   while coercing mutable strings/bytes to immutable copies.
+         (func $datum-intern-literal (type $Prim1)
+               (param $v (ref eq))
+               (result   (ref eq))
+               (if (ref.test (ref $String) (local.get $v))
+                   (then (return (call $string->immutable-string (local.get $v)))))
+               (if (ref.test (ref $Bytes) (local.get $v))
+                   (then (return (call $bytes->immutable-bytes (local.get $v)))))
+               (local.get $v))
+
         ;; real->floating-point-bytes
         ;; Convert a real number to its IEEE floating-point byte representation.
         ;; Only fixnums and flonums are supported for now. The start argument

@@ -1210,6 +1210,7 @@
  with-input-from-file
  with-output-to-file
  webracket-vfs-write-file
+ datum-intern-literal
  webracket-literal-byte-pregexp
  webracket-literal-byte-regexp
  webracket-literal-pregexp
@@ -2909,6 +2910,12 @@
 
 (define (webracket-vfs-write-file path bytes)
   (error 'webracket-vfs-write-file "only available in compiled WebRacket"))
+
+(define (datum-intern-literal v)
+  (cond
+    [(string? v) (string->immutable-string v)]
+    [(bytes? v)  (bytes->immutable-bytes v)]
+    [else        v]))
 
 (define (webracket-literal-regexp source)
   (regexp source))
