@@ -437,3 +437,71 @@ constant for `prop:evt`. Racket CS classifies `prop:evt` as a known
 struct-type property, and the expander's first failure is simply an unbound
 property value. Real synchronization and filesystem events should remain
 separate milestones unless startup actually reaches them.
+
+After adding `prop:evt`, startup advanced to immutable hash removal:
+
+```text
+entry-call: start
+js_print_fasl: #(struct exn:fail:contract:variable #<undefined> #f hash-remove)
+entry-call: threw
+entry-failure-category: unbound-variable
+entry-failure-detail: hash-remove
+wr-names-count: 0
+```
+
+`hash-remove` is now registered and implemented for the current immutable hash
+slice. It rebuilds the shared private immutable-hash backing store without the
+removed key and preserves the existing limitation that all immutable hash
+wrappers currently use the eqv-based backing comparison.
+
+The next probe then exposed a constance mismatch in the bootstrap namespace:
+
+```text
+entry-call: start
+js_print_fasl: variable-reference-constant?
+js_print_fasl: cannot modify a constant
+entry-call: threw
+entry-failure-category: unknown
+entry-failure-detail: cannot modify a constant
+wr-names-count: 0
+```
+
+The expander re-installs some namespace bindings with an explicit constance
+mode. WebRacket now rejects ordinary mutation of constants, but permits a
+constant or consistent reinstall to replace the value while preserving the
+binding's constance.
+
+After that, startup reached the newer error-rendering parameter family:
+
+```text
+entry-call: start
+js_print_fasl: #(struct exn:fail:contract:variable #<undefined> #f error-syntax->name-handler)
+entry-call: threw
+entry-failure-category: unbound-variable
+entry-failure-detail: error-syntax->name-handler
+wr-names-count: 0
+```
+
+`error-syntax->name-handler` is now present as a minimal parameter. Its default
+handler returns `#f`, which is enough for bootstrap name extraction to decline
+without requiring richer syntax analysis.
+
+The current final boundary is the sibling parameter
+`error-syntax->string-handler`:
+
+```text
+entry-call: start
+js_print_fasl: #(struct exn:fail:contract:variable #<undefined> #f error-syntax->string-handler)
+entry-call: threw
+entry-failure-category: unbound-variable
+entry-failure-detail: error-syntax->string-handler
+wr-names-count: 0
+wr-ref-boot-kind: missing-binding
+wr-call-boot-kind: missing-binding
+```
+
+Bridge binding verification and minimal exported calls are still gated:
+`entry` has not completed, so `wr-names` is empty and `boot` is still missing.
+The next substrate milestone should add the remaining error conversion
+parameters as bootstrap-compatible parameter primitives, starting with
+`error-syntax->string-handler`.
