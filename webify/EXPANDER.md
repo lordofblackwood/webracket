@@ -378,3 +378,20 @@ keep parameter-like expander code moving without pretending that continuation
 marks are implemented. In particular, this does not support parameterization,
 break state, syntax-context marks, or mark-sensitive error adjustment. Any code
 that depends on observing marks still needs a real continuation-mark runtime.
+
+With the widened stub in place, the continuation-mark startup blocker is gone.
+The next startup probe reaches a new unbound variable before any bridge exports
+are installed:
+
+```text
+entry-call: start
+js_print_fasl: #(struct exn:fail:contract:variable #<undefined> #f datum-intern-literal)
+entry-call: threw
+entry-failure-category: unbound-variable
+entry-failure-detail: datum-intern-literal
+wr-names-count: 0
+wr-ref-boot-kind: missing-binding
+```
+
+This means bridge binding verification is not reachable yet. The next substrate
+blocker is literal interning, not continuation marks.
