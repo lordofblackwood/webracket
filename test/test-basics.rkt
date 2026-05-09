@@ -6499,6 +6499,12 @@
                                      'missing)
                              (equal? (sort names symbol<?) '(x))))))
 
+              (list "instance constant reinstall"
+                    (let ([inst (make-instance 'constant-namespace)])
+                      (instance-set-variable-value! inst 'x 10 'constant)
+                      (instance-set-variable-value! inst 'x 15 'constant)
+                      (equal? (instance-variable-value inst 'x) 15)))
+
               (list "compiled linklet shares linklet accessors"
                     (let* ([proc (lambda args (void))]
                            [cl   (make-compiled-linklet 'demo '() '() proc)])

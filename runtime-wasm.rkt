@@ -49941,7 +49941,14 @@
                                 (ref.cast (ref eq) (local.get $constants))
                                 (local.get $sym)
                                 (global.get $false)))
-               (if (i32.eqz (ref.eq (local.get $constant?) (global.get $false)))
+               ;; The expander bootstrap re-installs some already-constant
+               ;; namespace bindings with an explicit constance mode. Reject
+               ;; ordinary mutation of constants, but allow a constant or
+               ;; consistent re-definition to replace the value and preserve
+               ;; the binding's constance.
+               (if (i32.and
+                    (i32.eqz (ref.eq (local.get $constant?) (global.get $false)))
+                    (ref.eq (local.get $mode) (global.get $false)))
                    (then (call $raise-instance-variable-constant (local.get $sym))
                          (unreachable)))
 
