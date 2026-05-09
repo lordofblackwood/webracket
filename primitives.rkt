@@ -829,7 +829,7 @@
  hash-equal?
  hash-equal-always?
 
- hash-ref hash-ref! hash-set hash-set! hash-remove! hash-clear!
+ hash-ref hash-ref! hash-set hash-set! hash-remove hash-remove! hash-clear!
  hash-update!
  hash-has-key?
  hash-empty?

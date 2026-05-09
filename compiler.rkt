@@ -2186,6 +2186,7 @@
   
   hash-ref
   hash-set
+  hash-remove
   hash-ref!
   hash-set!
   hash-update!

@@ -4145,6 +4145,36 @@
                            (equal? (hash-count h2) 3)
                            (equal? (hash-ref h2 'c) 4)
                            (hash-has-key? h2 'c))))
+              (list "hash-remove immutable"
+                    (and (let* ([h  (hash 'a 1 'b 2)]
+                                 [h2 (hash-remove h 'a)]
+                                 [h3 (hash-remove h 'missing)])
+                           (and (hash? h2)
+                                (immutable-hash? h2)
+                                (hash-equal? h2)
+                                (equal? (hash-count h) 2)
+                                (equal? (hash-count h2) 1)
+                                (equal? (hash-has-key? h2 'a) #f)
+                                (equal? (hash-ref h2 'b) 2)
+                                (eq? h h3)))
+                         (let* ([h  (hasheq 'a 1 'b 2)]
+                                 [h2 (hash-remove h 'b)])
+                           (and (hash-eq? h2)
+                                (equal? (hash-count h2) 1)
+                                (equal? (hash-ref h2 'a) 1)
+                                (equal? (hash-has-key? h2 'b) #f)))
+                         (let* ([h  (hasheqv 'a 1 'b 2)]
+                                 [h2 (hash-remove h 'a)])
+                           (and (hash-eqv? h2)
+                                (equal? (hash-count h2) 1)
+                                (equal? (hash-ref h2 'b) 2)
+                                (equal? (hash-has-key? h2 'a) #f)))
+                         (let* ([h  (hashalw 'a 1 'b 2)]
+                                 [h2 (hash-remove h 'a)])
+                           (and (hash-equal-always? h2)
+                                (equal? (hash-count h2) 1)
+                                (equal? (hash-ref h2 'b) 2)
+                                (equal? (hash-has-key? h2 'a) #f)))))
               (list "make-immutable-hasheqv"
                     (let ([h (make-immutable-hasheqv '((1 . one) (2 . two) (1 . uno)))])
                       (and (immutable-hash? h)

@@ -33121,6 +33121,171 @@
                            (struct.get $HashEqvImmutable $root (local.get $new))
                            (struct.get $HashEqvImmutable $count (local.get $new))))
 
+         ;; immutable-hasheqv-remove : immutable-hasheqv? any/c -> immutable-hasheqv?
+         ;;   Functionally remove a key from the private immutable hash HAMT.
+         (func $immutable-hasheqv-remove
+               (type $Prim2)
+               (param $ht  (ref eq)) ;; immutable hasheqv
+               (param $key (ref eq)) ;; key to remove
+               (result     (ref eq))
+               (local $table  (ref $HashEqvImmutable))
+               (local $root   (ref $ImmutableHashNode))
+               (local $slots  (ref $Array))
+               (local $out    (ref eq))
+               (local $bucket (ref eq))
+               (local $node   (ref eq))
+               (local $pair   (ref $Pair))
+               (local $entry  (ref $ImmutableHashEntry))
+               (local $i      i32)
+               (local $len    i32)
+               (local $found? i32)
+               (if (i32.eqz (ref.test (ref $HashEqvImmutable) (local.get $ht)))
+                   (then (call $raise-argument-error:hasheqv-expected (local.get $ht))
+                         (unreachable)))
+               (local.set $table (ref.cast (ref $HashEqvImmutable) (local.get $ht)))
+               (if (ref.eq (struct.get $HashEqvImmutable $root (local.get $table))
+                           (global.get $missing))
+                   (then (return (local.get $ht))))
+               (local.set $root
+                          (ref.cast (ref $ImmutableHashNode)
+                                    (struct.get $HashEqvImmutable $root (local.get $table))))
+               (local.set $slots (struct.get $ImmutableHashNode $slots (local.get $root)))
+               (local.set $len   (array.len (local.get $slots)))
+               (local.set $out   (call $make-empty-immutable-hasheqv))
+               (block $done-slots
+                      (loop $slots-loop
+                            (br_if $done-slots (i32.ge_u (local.get $i) (local.get $len)))
+                            (local.set $bucket
+                                       (array.get $Array
+                                                  (local.get $slots)
+                                                  (local.get $i)))
+                            (local.set $node (local.get $bucket))
+                            (block $done-bucket
+                                   (loop $bucket-loop
+                                         (br_if $done-bucket
+                                                (ref.eq (local.get $node) (global.get $null)))
+                                         (if (i32.eqz (ref.test (ref $Pair) (local.get $node)))
+                                             (then (br $done-bucket)))
+                                         (local.set $pair
+                                                    (ref.cast (ref $Pair) (local.get $node)))
+                                         (local.set $entry
+                                                    (ref.cast (ref $ImmutableHashEntry)
+                                                              (struct.get $Pair $a
+                                                                          (local.get $pair))))
+                                         (if (ref.eq (call $eqv?
+                                                           (struct.get $ImmutableHashEntry $key
+                                                                       (local.get $entry))
+                                                           (local.get $key))
+                                                     (global.get $true))
+                                             (then (local.set $found? (i32.const 1)))
+                                             (else
+                                              (local.set $out
+                                                         (call $immutable-hasheqv-set
+                                                               (local.get $out)
+                                                               (struct.get $ImmutableHashEntry $key
+                                                                           (local.get $entry))
+                                                               (struct.get $ImmutableHashEntry $value
+                                                                           (local.get $entry))))))
+                                         (local.set $node
+                                                    (struct.get $Pair $d (local.get $pair)))
+                                         (br $bucket-loop)))
+                            (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                            (br $slots-loop)))
+               (if (result (ref eq))
+                   (local.get $found?)
+                   (then (local.get $out))
+                   (else (local.get $ht))))
+
+         (func $immutable-hasheq-remove
+               (type $Prim2)
+               (param $ht  (ref eq)) ;; immutable hasheq
+               (param $key (ref eq)) ;; key to remove
+               (result     (ref eq))
+               (local $table (ref $HashEqImmutable))
+               (local $tmp   (ref $HashEqvImmutable))
+               (local $new   (ref eq))
+               (if (i32.eqz (ref.test (ref $HashEqImmutable) (local.get $ht)))
+                   (then (call $raise-argument-error:hasheq-expected (local.get $ht))
+                         (unreachable)))
+               (local.set $table (ref.cast (ref $HashEqImmutable) (local.get $ht)))
+               (local.set $tmp
+                          (struct.new $HashEqvImmutable
+                                      (i32.const 0)
+                                      (global.get $false)
+                                      (struct.get $HashEqImmutable $root (local.get $table))
+                                      (struct.get $HashEqImmutable $count (local.get $table))))
+               (local.set $new (call $immutable-hasheqv-remove
+                                     (local.get $tmp)
+                                     (local.get $key)))
+               (if (ref.eq (local.get $new) (local.get $tmp))
+                   (then (return (local.get $ht))))
+               (local.set $tmp (ref.cast (ref $HashEqvImmutable) (local.get $new)))
+               (struct.new $HashEqImmutable
+                           (i32.const 0)
+                           (global.get $false)
+                           (struct.get $HashEqvImmutable $root (local.get $tmp))
+                           (struct.get $HashEqvImmutable $count (local.get $tmp))))
+
+         (func $immutable-hash-remove
+               (type $Prim2)
+               (param $ht  (ref eq)) ;; immutable hash
+               (param $key (ref eq)) ;; key to remove
+               (result     (ref eq))
+               (local $table (ref $HashEqualImmutable))
+               (local $tmp   (ref $HashEqvImmutable))
+               (local $new   (ref eq))
+               (if (i32.eqz (ref.test (ref $HashEqualImmutable) (local.get $ht)))
+                   (then (call $raise-argument-error:hash-expected (local.get $ht))
+                         (unreachable)))
+               (local.set $table (ref.cast (ref $HashEqualImmutable) (local.get $ht)))
+               (local.set $tmp
+                          (struct.new $HashEqvImmutable
+                                      (i32.const 0)
+                                      (global.get $false)
+                                      (struct.get $HashEqualImmutable $root (local.get $table))
+                                      (struct.get $HashEqualImmutable $count (local.get $table))))
+               (local.set $new (call $immutable-hasheqv-remove
+                                     (local.get $tmp)
+                                     (local.get $key)))
+               (if (ref.eq (local.get $new) (local.get $tmp))
+                   (then (return (local.get $ht))))
+               (local.set $tmp (ref.cast (ref $HashEqvImmutable) (local.get $new)))
+               (struct.new $HashEqualImmutable
+                           (i32.const 0)
+                           (global.get $false)
+                           (struct.get $HashEqvImmutable $root (local.get $tmp))
+                           (struct.get $HashEqvImmutable $count (local.get $tmp))))
+
+         (func $immutable-hashalw-remove
+               (type $Prim2)
+               (param $ht  (ref eq)) ;; immutable hashalw
+               (param $key (ref eq)) ;; key to remove
+               (result     (ref eq))
+               (local $table (ref $HashEqualAlwaysImmutable))
+               (local $tmp   (ref $HashEqvImmutable))
+               (local $new   (ref eq))
+               (if (i32.eqz (ref.test (ref $HashEqualAlwaysImmutable) (local.get $ht)))
+                   (then (call $raise-argument-error:hashalw-expected (local.get $ht))
+                         (unreachable)))
+               (local.set $table (ref.cast (ref $HashEqualAlwaysImmutable) (local.get $ht)))
+               (local.set $tmp
+                          (struct.new $HashEqvImmutable
+                                      (i32.const 0)
+                                      (global.get $false)
+                                      (struct.get $HashEqualAlwaysImmutable $root (local.get $table))
+                                      (struct.get $HashEqualAlwaysImmutable $count (local.get $table))))
+               (local.set $new (call $immutable-hasheqv-remove
+                                     (local.get $tmp)
+                                     (local.get $key)))
+               (if (ref.eq (local.get $new) (local.get $tmp))
+                   (then (return (local.get $ht))))
+               (local.set $tmp (ref.cast (ref $HashEqvImmutable) (local.get $new)))
+               (struct.new $HashEqualAlwaysImmutable
+                           (i32.const 0)
+                           (global.get $false)
+                           (struct.get $HashEqvImmutable $root (local.get $tmp))
+                           (struct.get $HashEqvImmutable $count (local.get $tmp))))
+
          ;; hash : any/c any/c ... -> immutable-hash?
          ;;   Build an immutable hash from alternating keys and values. This
          ;;   first slice uses a distinct immutable-hash wrapper around the
@@ -33592,6 +33757,34 @@
                                        (local.get $val)))))
                (drop (call $js-log (global.get $string:hash-set-unsupported)))
                (drop (call $js-log (local.get $ht)))
+               (unreachable))
+
+         ;; hash-remove : immutable-hash? any/c -> immutable-hash?
+         ;;   Functionally remove a key from an immutable hash. This shares the
+         ;;   same private eqv?-based backing-store limitation as hash-set.
+         (func $hash-remove (type $Prim2)
+               (param $ht  (ref eq)) ;; immutable hash table
+               (param $key (ref eq)) ;; key
+               (result     (ref eq))
+               (if (i32.eqz (call $immutable-hash-leaf?/i32 (local.get $ht)))
+                   (then (call $raise-argument-error:hash-expected)
+                         (unreachable)))
+               (if (ref.test (ref $HashEqImmutable) (local.get $ht))
+                   (then (return (call $immutable-hasheq-remove
+                                       (local.get $ht)
+                                       (local.get $key)))))
+               (if (ref.test (ref $HashEqvImmutable) (local.get $ht))
+                   (then (return (call $immutable-hasheqv-remove
+                                       (local.get $ht)
+                                       (local.get $key)))))
+               (if (ref.test (ref $HashEqualImmutable) (local.get $ht))
+                   (then (return (call $immutable-hash-remove
+                                       (local.get $ht)
+                                       (local.get $key)))))
+               (if (ref.test (ref $HashEqualAlwaysImmutable) (local.get $ht))
+                   (then (return (call $immutable-hashalw-remove
+                                       (local.get $ht)
+                                       (local.get $key)))))
                (unreachable))
 
          ,@(for/list ([raise-expected '($raise-argument-error:hasheq-expected
