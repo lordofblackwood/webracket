@@ -1374,6 +1374,7 @@
        current-input-port
        current-output-port
        current-error-port
+       error-syntax->name-handler
        current-print
        current-environment-variables
        system-type
@@ -2103,6 +2104,7 @@
   current-input-port
   current-output-port
   current-error-port
+  error-syntax->name-handler
   reset-current-input-port!
   reset-current-output-port!
   reset-current-error-port!

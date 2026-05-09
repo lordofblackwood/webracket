@@ -45540,6 +45540,7 @@
               (ref.func $invoke-composed-procedure)
               (ref.func $code:case-lambda-dispatch)
               (ref.func $invoke-case-closure)
+              (ref.func $default-error-syntax->name-handler)
 
               ;; Primitive invokers for the different shapes
               ,@(for/list ([shape (in-list primitive-shapes)])
@@ -56537,6 +56538,31 @@
                      (global.set $current-print-value (local.get $printer-raw))
                      (global.get $void))
 
+               ;; default-error-syntax->name-handler : syntax? -> #f
+               ;;   Bootstrap default for error-syntax->name-handler.
+               (func $default-error-syntax->name-handler (type $Prim1)
+                     (param $stx (ref eq)) ;; syntax object, currently ignored
+                     (result     (ref eq))
+                     (global.get $false))
+
+               ;; error-syntax->name-handler : [procedure?] -> procedure? or void?
+               ;;   Parameter used by raise-syntax-error to infer form names.
+               ;;   The default handler returns #f; richer syntax extraction is
+               ;;   deferred until the expander is running further.
+               (func $error-syntax->name-handler (type $Prim01)
+                     (param $handler-raw (ref eq)) ;; optional procedure?, default current handler
+                     (result (ref eq))
+                     (if (ref.eq (local.get $handler-raw) (global.get $missing))
+                         (then (return (global.get $error-syntax->name-handler-value))))
+                     (if (i32.eqz (ref.test (ref $Procedure) (local.get $handler-raw)))
+                         (then (call $raise-argument-error1
+                                     (global.get $symbol:error-syntax->name-handler)
+                                     (global.get $string:procedure?)
+                                     (local.get $handler-raw))
+                               (unreachable)))
+                     (global.set $error-syntax->name-handler-value (local.get $handler-raw))
+                     (global.get $void))
+
                (func $current-directory (type $Prim01)
                      (param $path-raw (ref eq)) ;; optional path-string?
                      (result          (ref eq))
@@ -60894,6 +60920,7 @@
                (global $current-output-port-value (mut (ref eq)) (ref.i31 (i32.const 0)))
                (global $current-error-port-value  (mut (ref eq)) (ref.i31 (i32.const 0)))
                (global $current-print-value       (mut (ref eq)) (global.get $false))
+               (global $error-syntax->name-handler-value (mut (ref eq)) (global.get $false))
                (global $result-bytes             (mut (ref eq)) (ref.i31 (i32.const 0)))
 
                ;; Struct-type properties provided by the runtime
@@ -61187,6 +61214,15 @@
                      ;; Initialize variables holding primitives
                     ,@(initialize-primitives-as-globals)
                     ,@(initialize-ffi-primitives-as-globals)
+                    (global.set $error-syntax->name-handler-value
+                                (struct.new $PrimitiveProcedure
+                                            (i32.const 0)
+                                            (global.get $symbol:error-syntax->name-handler)
+                                            (ref.i31 (i32.const 2))
+                                            (global.get $the-racket/primitive-realm)
+                                            (ref.func $primitive-invoke:shape-1)
+                                            (ref.func $default-error-syntax->name-handler)
+                                            (global.get $false)))
                      
                      ;; Initialize top-level variables.
                      ;; These are all "boxed".

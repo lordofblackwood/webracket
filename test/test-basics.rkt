@@ -5756,6 +5756,15 @@
              (list
               (list "current-print/default"
                     (procedure? (current-print)))
+              (list "error-syntax->name-handler parameter"
+                    (let ([default-handler (error-syntax->name-handler)])
+                      (and (procedure? default-handler)
+                           (equal? (default-handler 'not-syntax) #f)
+                           (equal? (error-syntax->name-handler
+                                    (lambda (stx) 'demo-form))
+                                   (void))
+                           (equal? ((error-syntax->name-handler) 'ignored)
+                                   'demo-form))))
               (list "custom-write-accessor/modes"
                     (let ()
                       (struct printable (text)

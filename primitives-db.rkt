@@ -294,6 +294,7 @@
 (define-primitive equal-always?                             2                   (pure partial-foldable))
 (define-primitive equal-hash-code                           1                   (ordered))
 (define-primitive equal?                                    2                   (pure foldable partial-foldable))
+(define-primitive error-syntax->name-handler                [0 1]               (ordered))
 (define-primitive eqv-hash-code                             1                   (ordered))
 (define-primitive eqv?                                      2                   (pure foldable partial-foldable))
 (define-primitive even?                                     1                   (pure))
