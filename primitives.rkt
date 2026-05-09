@@ -237,7 +237,9 @@
          error-print-width
          ; default-error-value->string-handler
          error-value->string-handler
+         error-syntax->string-handler
          error-syntax->name-handler
+         error-module-path->string-handler
          
          ; format  ; define in stdlib - not a primitive
          fprintf
@@ -1437,6 +1439,11 @@
 ;; WebRacket's expander bootstrap needs its public shape.
 (define error-syntax->name-handler
   (make-parameter (lambda (stx) #f)))
+
+;; Racket 8.12 does not provide this newer error parameter, but
+;; WebRacket's expander bootstrap needs its public shape.
+(define error-module-path->string-handler
+  (make-parameter (lambda (v len) (format "~s" v))))
 
 
 ;; (require (for-syntax racket/base))  ; for version-case

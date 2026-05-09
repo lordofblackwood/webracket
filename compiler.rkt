@@ -1374,7 +1374,10 @@
        current-input-port
        current-output-port
        current-error-port
+       error-value->string-handler
+       error-syntax->string-handler
        error-syntax->name-handler
+       error-module-path->string-handler
        current-print
        current-environment-variables
        system-type
@@ -2104,7 +2107,10 @@
   current-input-port
   current-output-port
   current-error-port
+  error-value->string-handler
+  error-syntax->string-handler
   error-syntax->name-handler
+  error-module-path->string-handler
   reset-current-input-port!
   reset-current-output-port!
   reset-current-error-port!

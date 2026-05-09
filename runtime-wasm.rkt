@@ -45541,6 +45541,9 @@
               (ref.func $code:case-lambda-dispatch)
               (ref.func $invoke-case-closure)
               (ref.func $default-error-syntax->name-handler)
+              (ref.func $default-error-value->string-handler)
+              (ref.func $default-error-syntax->string-handler)
+              (ref.func $default-error-module-path->string-handler)
 
               ;; Primitive invokers for the different shapes
               ,@(for/list ([shape (in-list primitive-shapes)])
@@ -56545,6 +56548,30 @@
                      (result     (ref eq))
                      (global.get $false))
 
+               ;; default-error-value->string-handler : any/c exact-nonnegative-integer? -> string?
+               ;;   Bootstrap default for error-value->string-handler.
+               (func $default-error-value->string-handler (type $Prim2)
+                     (param $v   (ref eq)) ;; value to render
+                     (param $len (ref eq)) ;; maximum length, currently ignored
+                     (result     (ref eq))
+                     (call $format/display (local.get $v)))
+
+               ;; default-error-syntax->string-handler : any/c (or/c exact-nonnegative-integer? #f) -> string?
+               ;;   Bootstrap default for error-syntax->string-handler.
+               (func $default-error-syntax->string-handler (type $Prim2)
+                     (param $v   (ref eq)) ;; syntax object or S-expression
+                     (param $len (ref eq)) ;; maximum length or #f, currently ignored
+                     (result     (ref eq))
+                     (call $format/display (local.get $v)))
+
+               ;; default-error-module-path->string-handler : any/c exact-nonnegative-integer? -> string?
+               ;;   Bootstrap default for error-module-path->string-handler.
+               (func $default-error-module-path->string-handler (type $Prim2)
+                     (param $v   (ref eq)) ;; module path value
+                     (param $len (ref eq)) ;; maximum length, currently ignored
+                     (result     (ref eq))
+                     (call $format/display (local.get $v)))
+
                ;; error-syntax->name-handler : [procedure?] -> procedure? or void?
                ;;   Parameter used by raise-syntax-error to infer form names.
                ;;   The default handler returns #f; richer syntax extraction is
@@ -56561,6 +56588,54 @@
                                      (local.get $handler-raw))
                                (unreachable)))
                      (global.set $error-syntax->name-handler-value (local.get $handler-raw))
+                     (global.get $void))
+
+               ;; error-value->string-handler : [procedure?] -> procedure? or void?
+               ;;   Parameter used to render arbitrary values in error messages.
+               (func $error-value->string-handler (type $Prim01)
+                     (param $handler-raw (ref eq)) ;; optional procedure?, default current handler
+                     (result (ref eq))
+                     (if (ref.eq (local.get $handler-raw) (global.get $missing))
+                         (then (return (global.get $error-value->string-handler-value))))
+                     (if (i32.eqz (ref.test (ref $Procedure) (local.get $handler-raw)))
+                         (then (call $raise-argument-error1
+                                     (global.get $symbol:error-value->string-handler)
+                                     (global.get $string:procedure?)
+                                     (local.get $handler-raw))
+                               (unreachable)))
+                     (global.set $error-value->string-handler-value (local.get $handler-raw))
+                     (global.get $void))
+
+               ;; error-syntax->string-handler : [procedure?] -> procedure? or void?
+               ;;   Parameter used to render syntax values in error messages.
+               (func $error-syntax->string-handler (type $Prim01)
+                     (param $handler-raw (ref eq)) ;; optional procedure?, default current handler
+                     (result (ref eq))
+                     (if (ref.eq (local.get $handler-raw) (global.get $missing))
+                         (then (return (global.get $error-syntax->string-handler-value))))
+                     (if (i32.eqz (ref.test (ref $Procedure) (local.get $handler-raw)))
+                         (then (call $raise-argument-error1
+                                     (global.get $symbol:error-syntax->string-handler)
+                                     (global.get $string:procedure?)
+                                     (local.get $handler-raw))
+                               (unreachable)))
+                     (global.set $error-syntax->string-handler-value (local.get $handler-raw))
+                     (global.get $void))
+
+               ;; error-module-path->string-handler : [procedure?] -> procedure? or void?
+               ;;   Parameter used to render module paths in error messages.
+               (func $error-module-path->string-handler (type $Prim01)
+                     (param $handler-raw (ref eq)) ;; optional procedure?, default current handler
+                     (result (ref eq))
+                     (if (ref.eq (local.get $handler-raw) (global.get $missing))
+                         (then (return (global.get $error-module-path->string-handler-value))))
+                     (if (i32.eqz (ref.test (ref $Procedure) (local.get $handler-raw)))
+                         (then (call $raise-argument-error1
+                                     (global.get $symbol:error-module-path->string-handler)
+                                     (global.get $string:procedure?)
+                                     (local.get $handler-raw))
+                               (unreachable)))
+                     (global.set $error-module-path->string-handler-value (local.get $handler-raw))
                      (global.get $void))
 
                (func $current-directory (type $Prim01)
@@ -60920,7 +60995,10 @@
                (global $current-output-port-value (mut (ref eq)) (ref.i31 (i32.const 0)))
                (global $current-error-port-value  (mut (ref eq)) (ref.i31 (i32.const 0)))
                (global $current-print-value       (mut (ref eq)) (global.get $false))
+               (global $error-value->string-handler-value (mut (ref eq)) (global.get $false))
+               (global $error-syntax->string-handler-value (mut (ref eq)) (global.get $false))
                (global $error-syntax->name-handler-value (mut (ref eq)) (global.get $false))
+               (global $error-module-path->string-handler-value (mut (ref eq)) (global.get $false))
                (global $result-bytes             (mut (ref eq)) (ref.i31 (i32.const 0)))
 
                ;; Struct-type properties provided by the runtime
@@ -61211,9 +61289,27 @@
                      (global.set $the-racket-realm           (global.get $symbol:racket))
                      (global.set $the-racket/primitive-realm (global.get $symbol:racket/primitive))
                      
-                     ;; Initialize variables holding primitives
+                    ;; Initialize variables holding primitives
                     ,@(initialize-primitives-as-globals)
                     ,@(initialize-ffi-primitives-as-globals)
+                    (global.set $error-value->string-handler-value
+                                (struct.new $PrimitiveProcedure
+                                            (i32.const 0)
+                                            (global.get $symbol:error-value->string-handler)
+                                            (ref.i31 (i32.const 4))
+                                            (global.get $the-racket/primitive-realm)
+                                            (ref.func $primitive-invoke:shape-2)
+                                            (ref.func $default-error-value->string-handler)
+                                            (global.get $false)))
+                    (global.set $error-syntax->string-handler-value
+                                (struct.new $PrimitiveProcedure
+                                            (i32.const 0)
+                                            (global.get $symbol:error-syntax->string-handler)
+                                            (ref.i31 (i32.const 4))
+                                            (global.get $the-racket/primitive-realm)
+                                            (ref.func $primitive-invoke:shape-2)
+                                            (ref.func $default-error-syntax->string-handler)
+                                            (global.get $false)))
                     (global.set $error-syntax->name-handler-value
                                 (struct.new $PrimitiveProcedure
                                             (i32.const 0)
@@ -61222,6 +61318,15 @@
                                             (global.get $the-racket/primitive-realm)
                                             (ref.func $primitive-invoke:shape-1)
                                             (ref.func $default-error-syntax->name-handler)
+                                            (global.get $false)))
+                    (global.set $error-module-path->string-handler-value
+                                (struct.new $PrimitiveProcedure
+                                            (i32.const 0)
+                                            (global.get $symbol:error-module-path->string-handler)
+                                            (ref.i31 (i32.const 4))
+                                            (global.get $the-racket/primitive-realm)
+                                            (ref.func $primitive-invoke:shape-2)
+                                            (ref.func $default-error-module-path->string-handler)
                                             (global.get $false)))
                      
                      ;; Initialize top-level variables.

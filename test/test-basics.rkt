@@ -5765,6 +5765,31 @@
                                    (void))
                            (equal? ((error-syntax->name-handler) 'ignored)
                                    'demo-form))))
+              (list "error string handler parameters"
+                    (let ([value-default  (error-value->string-handler)]
+                          [syntax-default (error-syntax->string-handler)]
+                          [module-default (error-module-path->string-handler)])
+                      (and (procedure? value-default)
+                           (procedure? syntax-default)
+                           (procedure? module-default)
+                           (string? (value-default 'value 20))
+                           (string? (syntax-default '(lambda (x) x) #f))
+                           (string? (module-default ''racket/base 20))
+                           (equal? (error-value->string-handler
+                                    (lambda (v len) "value!"))
+                                   (void))
+                           (equal? ((error-value->string-handler) 'ignored 10)
+                                   "value!")
+                           (equal? (error-syntax->string-handler
+                                    (lambda (v len) "syntax!"))
+                                   (void))
+                           (equal? ((error-syntax->string-handler) 'ignored #f)
+                                   "syntax!")
+                           (equal? (error-module-path->string-handler
+                                    (lambda (v len) "module!"))
+                                   (void))
+                           (equal? ((error-module-path->string-handler) 'ignored 10)
+                                   "module!"))))
               (list "custom-write-accessor/modes"
                     (let ()
                       (struct printable (text)
