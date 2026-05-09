@@ -747,6 +747,7 @@
     prop:procedure
     prop:exn:srclocs
     prop:sealed
+    prop:evt
     prop:authentic
     prop:custom-write
     prop:equal+hash

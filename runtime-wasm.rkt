@@ -1548,6 +1548,8 @@
 
           prop:sealed
           sealed
+          prop:evt
+          evt
           prefab
           prop:object-name
           object-name
@@ -60696,6 +60698,7 @@
 
                ;; Struct-type properties provided by the runtime
                (global $prop:sealed                   (mut (ref eq)) (global.get $void))
+               (global $prop:evt                      (mut (ref eq)) (global.get $void))
                (global $prop:object-name              (mut (ref eq)) (global.get $void))
                (global $prop:procedure                (mut (ref eq)) (global.get $void))
                (global $prop:exn:srclocs              (mut (ref eq)) (global.get $void))
@@ -60776,6 +60779,15 @@
                                            (call $make-struct-type-property-descriptor/checked
                                                  (ref.cast (ref $Symbol)
                                                            (global.get $symbol:prop:sealed))
+                                                 (global.get $false)
+                                                 (global.get $null)
+                                                 (global.get $false)
+                                                 (global.get $false))))
+                     (global.set $prop:evt
+                                 (ref.cast (ref eq)
+                                           (call $make-struct-type-property-descriptor/checked
+                                                 (ref.cast (ref $Symbol)
+                                                           (global.get $symbol:prop:evt))
                                                  (global.get $false)
                                                  (global.get $null)
                                                  (global.get $false)

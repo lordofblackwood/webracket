@@ -899,6 +899,7 @@
 
  ;; 5.1 Structures
  prop:sealed
+ prop:evt
  make-prefab-struct
  prefab-key?
  prefab-struct-key

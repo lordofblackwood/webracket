@@ -4645,6 +4645,8 @@
 
               (list "prop:procedure/builtin"
                     (list (equal? (struct-type-property? prop:procedure) #t)))
+              (list "prop:evt/builtin"
+                    (equal? (struct-type-property? prop:evt) #t))
 
               (list "prop:procedure/apply-field"
                     (let ()
