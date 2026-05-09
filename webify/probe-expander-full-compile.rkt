@@ -7,9 +7,10 @@
          racket/pretty
          racket/runtime-path
          racket/set
+         racket/string
          racket/system
          racket/cmdline
-         (only-in "../compiler.rkt" label-map->sexp)
+         (only-in "../compiler.rkt" label-map->sexp label-map-form-labels)
          "../wat-identifiers.rkt"
          "module-diagnostics.rkt"
          "test-module-support.rkt")
@@ -30,6 +31,7 @@
 (define compile-enable-cc-analysis? (make-parameter #f))
 (define compile-enable-simplify?    (make-parameter #f))
 (define compile-label-map-forms?    (make-parameter #f))
+(define compile-label-map-form-labels (make-parameter '()))
 (define write-racket-control-path (make-parameter #f))
 (define write-racket-expand-control-path (make-parameter #f))
 (define write-racket-expand-datum-path (make-parameter #f))
@@ -435,6 +437,11 @@
  [("--label-map-forms")
   "Include source form strings in the compiler label map"
   (compile-label-map-forms? #t)]
+ [("--label-map-form-labels") labels
+  "Include source form strings for comma-separated generated labels, e.g. label.97083,label.97084"
+  (compile-label-map-form-labels
+   (append (string-split labels "," #:trim? #t)
+           (compile-label-map-form-labels)))]
  [("--no-label-map-forms")
   "Omit source form strings from the compiler label map, the probe default"
   (compile-label-map-forms? #f)]
@@ -557,6 +564,7 @@
                                    [current-enable-simplify?
                                     (compile-enable-simplify?)])
                       (label-map-include-form? (compile-label-map-forms?))
+                      (label-map-form-labels (compile-label-map-form-labels))
                       (define wat (wat-string (comp clean-webified)))
                       (compile-result wat
                                       (and (write-map-path)

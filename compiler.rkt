@@ -2822,12 +2822,15 @@
          ;            (list handler1 handler2)
          ;            (lambda () body))
          ; But we need to use the fully expanded form.
-         (syntax/loc stx
-           (#%plain-app
-            catch*
-            (#%plain-app list preds ...)
-            (#%plain-app list handlers ...)
-            lambda1)))]
+         (syntax-property
+          (syntax/loc stx
+            (#%plain-app
+             catch*
+             (#%plain-app list preds ...)
+             (#%plain-app list handlers ...)
+             lambda1))
+          'source-stx
+          stx))]
       [_ #f]))
 
   (define (walk stx)
@@ -2838,12 +2841,29 @@
        (syntax-case stx ()
          [() stx]
         [(a . d)
-          (with-syntax ([a* (walk #'a)]
-                        [d* (walk #'d)])
-            (syntax/loc stx (a* . d*)))]
+          (let* ([a0 #'a]
+                 [d0 #'d]
+                 [a* (walk a0)]
+                 [d* (walk d0)])
+            (if (and (eq? a* a0)
+                     (eq? d* d0))
+                stx
+                (syntax-property
+                 (with-syntax ([a* a*]
+                               [d* d*])
+                   (syntax/loc stx (a* . d*)))
+                 'source-stx
+                 stx)))]
         [#(ele ...)
-          (with-syntax ([(ele* ...) (map walk (syntax->list #'(ele ...)))])
-            (syntax/loc stx #(ele* ...)))]
+          (let* ([ele0s (syntax->list #'(ele ...))]
+                 [ele*s (map walk ele0s)])
+            (if (andmap eq? ele*s ele0s)
+                stx
+                (syntax-property
+                 (with-syntax ([(ele* ...) ele*s])
+                   (syntax/loc stx #(ele* ...)))
+                 'source-stx
+                 stx)))]
         [_ stx])]))
 
   (walk stx))
@@ -16802,6 +16822,7 @@
 (define current-label-form-ht (make-parameter (make-hash)))
 (define current-label-map-include-form? (make-parameter #f))
 (define current-label-map-default-include-form? (make-parameter #f))
+(define current-label-map-form-labels (make-parameter #f))
 (define current-direct-letrec-representation-labels (make-parameter (make-hasheq)))
 (define current-inline-small-closure-arities (make-parameter (make-hasheq)))
 (define current-known0-direct-labels (make-parameter (make-hasheq)))
@@ -16818,6 +16839,14 @@
   (current-label-map-default-include-form? (and v #t))
   (current-label-map-include-form? (and v #t)))
 
+(define (label-map-form-labels labels)
+  (current-label-map-form-labels
+   (and labels
+        (for/set ([label (in-list labels)])
+          (cond
+            [(symbol? label) (symbol->string label)]
+            [else           (~a label)])))))
+
 (define (source-stx s)
   (if (and (syntax? s) (syntax-property s 'source-stx))
       (syntax-property s 'source-stx)
@@ -16830,17 +16859,20 @@
 
 (define (record-label-map! l stx)
   (define id (unparse-variable l))
+  (define id-str (format "~a" id))
   (define s (source-stx stx))
   (define src (and (syntax? s) (label-map-source->datum (syntax-source s))))
   (define line (and (syntax? s) (syntax-line s)))
   (define col (and (syntax? s) (syntax-column s)))
   (define span (and (syntax? s) (syntax-span s)))
   (define form-str
-    (and (current-label-map-include-form?)
+    (and (or (current-label-map-include-form?)
+             (let ([labels (current-label-map-form-labels)])
+               (and labels (set-member? labels id-str))))
          (syntax? s)
          (format "~s" (syntax->datum s))))
   (define entry
-    (let ([base `(label ,(format "~a" id)
+    (let ([base `(label ,id-str
                         (src ,(or src 'unknown)
                              ,(or line 0)
                              ,(or col 0)
@@ -16851,15 +16883,15 @@
          (let* ([key (list src line col span form-str)]
                 [seen (hash-ref (current-label-form-ht) key #f)])
            (if seen
-               `(label ,(format "~a" id)
+               `(label ,id-str
                        (src ,(or src 'unknown)
                             ,(or line 0)
                             ,(or col 0)
                             ,(or span 0))
                        (same-as ,seen))
                (begin
-                 (hash-set! (current-label-form-ht) key (format "~a" id))
-                 `(label ,(format "~a" id)
+                 (hash-set! (current-label-form-ht) key id-str)
+                 `(label ,id-str
                          (src ,(or src 'unknown)
                               ,(or line 0)
                               ,(or col 0)
