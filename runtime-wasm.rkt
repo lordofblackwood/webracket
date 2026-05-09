@@ -48190,18 +48190,24 @@
                (result            (ref eq))
                (global.get $false))
 
-         ;; continuation-mark-set-first : continuation-mark-set? any/c -> any/c
+         ;; continuation-mark-set-first : continuation-mark-set? any/c [any/c] [continuation-prompt-tag?] -> any/c
          ;;   Bootstrap-only approximation used while bringing up the Racket
          ;;   expander. Since `with-continuation-mark*` is currently erased by
-         ;;   Webify, there is no mark stack to inspect. Returning #f matches
-         ;;   the "not found" result for startup probes, but real continuation
-         ;;   marks should replace this before relying on mark-sensitive error
-         ;;   reporting or dynamic protocols.
-         (func $continuation-mark-set-first (type $Prim2)
-               (param $marks (ref eq)) ;; continuation-mark-set?
-               (param $key   (ref eq)) ;; any/c
-               (result       (ref eq))
-               (global.get $false))
+         ;;   Webify, there is no mark stack to inspect. Returning the
+         ;;   caller's `none-v` value (default #f) matches Racket's "not found"
+         ;;   convention closely enough for startup probes, but real
+         ;;   continuation marks should replace this before relying on
+         ;;   mark-sensitive error reporting or dynamic protocols.
+         (func $continuation-mark-set-first (type $Prim24)
+               (param $marks      (ref eq)) ;; continuation-mark-set? or #f
+               (param $key        (ref eq)) ;; any/c
+               (param $none-v     (ref eq)) ;; optional any/c, default = #f
+               (param $prompt-tag (ref eq)) ;; optional continuation-prompt-tag?
+               (result            (ref eq))
+               (if (result (ref eq))
+                   (ref.eq (local.get $none-v) (global.get $missing))
+                   (then (global.get $false))
+                   (else (local.get $none-v))))
          
          ;; 10.6 Breaks
          ;; 10.7 Exiting

@@ -1347,6 +1347,9 @@
        with-output-to-file)
      'optional 2 4)
     (make-inline-specs
+     '(continuation-mark-set-first)
+     'optional 2 4)
+    (make-inline-specs
      '(open-output-bytes
        open-output-string
        current-continuation-marks

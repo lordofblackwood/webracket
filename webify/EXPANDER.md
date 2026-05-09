@@ -362,3 +362,19 @@ wr-names-count: 0
 The next continuation-mark milestone is therefore to widen the bootstrap stub
 to the arity shape used by the expander, while preserving the same deliberately
 lossy "no mark found" behavior.
+
+The widened bootstrap decision follows the Reference and CS implementation:
+`continuation-mark-set-first` accepts 2 to 4 arguments:
+
+```racket
+(continuation-mark-set-first marks key)
+(continuation-mark-set-first marks key none-v)
+(continuation-mark-set-first marks key none-v prompt-tag)
+```
+
+For now, WebRacket implements only the "not found" path. It returns `#f` when
+`none-v` is omitted and returns `none-v` when it is supplied. This is enough to
+keep parameter-like expander code moving without pretending that continuation
+marks are implemented. In particular, this does not support parameterization,
+break state, syntax-context marks, or mark-sensitive error adjustment. Any code
+that depends on observing marks still needs a real continuation-mark runtime.

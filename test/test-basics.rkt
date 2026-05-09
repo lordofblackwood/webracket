@@ -402,10 +402,21 @@
                     (eq? (unsafe-root-continuation-prompt-tag)
                          (unsafe-root-continuation-prompt-tag)))
               (list "continuation-mark-set-first bootstrap placeholder"
-                    (equal? (continuation-mark-set-first
-                             (current-continuation-marks)
-                             'missing)
-                            #f))))
+                    (and (equal? (continuation-mark-set-first
+                                  (current-continuation-marks)
+                                  'missing)
+                                 #f)
+                         (equal? (continuation-mark-set-first
+                                  (current-continuation-marks)
+                                  'missing
+                                  'none)
+                                 'none)
+                         (equal? (continuation-mark-set-first
+                                  (current-continuation-marks)
+                                  'missing
+                                  'none
+                                  (unsafe-root-continuation-prompt-tag))
+                                 'none)))))
        
        (list "4.3 Numbers"
              (list "4.3.1 Number Types"

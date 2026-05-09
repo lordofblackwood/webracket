@@ -2957,8 +2957,11 @@
 (define (linklet-cross-machine-type ht)
   #f)
 
-(define (continuation-mark-set-first marks key)
-  #f)
+(define continuation-mark-set-first
+  (case-lambda
+    [(marks key) #f]
+    [(marks key none-v) none-v]
+    [(marks key none-v prompt-tag) none-v]))
 
 (define (write-linklet-bundle-hash bundle out)
   (write bundle out))
