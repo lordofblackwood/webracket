@@ -270,3 +270,73 @@ The next milestone should stay on the expander startup boundary:
 Likely next substrate investments are syntax objects, namespaces, ports/reader
 support, immutable hashes, continuation marks, and linklet/module instance
 operations.
+
+## Startup Probe
+
+The current startup repro is:
+
+```sh
+racket webify/probe-expander-full-compile.rkt \
+  --compile-timeout 480 \
+  --compile-memory-mb 2048 \
+  --compile-progress-interval 5000 \
+  --compile-letrec-basic \
+  --enable-cc-analysis \
+  --enable-simplify \
+  --write-wat /private/tmp/webracket-expander-startup.wat \
+  --write-wasm /private/tmp/webracket-expander-startup.wasm \
+  --validate-wat
+
+node --experimental-wasm-exnref \
+  webify/probe-expander-instantiate.js \
+  /private/tmp/webracket-expander-startup.wasm \
+  --call-entry \
+  --list-names \
+  --ref boot \
+  --call boot
+```
+
+As of the expander bootstrap primitive milestone, the full compile succeeds
+with the basic letrec strategy plus closure-conversion analysis and simplify:
+
+```text
+closure-conversion-progress: event=done count=26978 elapsed-ms=6548 detail=((lifted . 26978))
+compile-ms: 84576
+compile-wat-bytes: 65762860
+wasm-tools-parse-status: 0
+compile-wasm-bytes: 12031167
+```
+
+The generated wasm instantiates, but startup fails during `entry` before any
+WebRacket top-level bridge bindings are installed:
+
+```text
+instantiate-status: ok
+entry-call: start
+js_print_fasl: #(struct exn:fail:contract:variable #<undefined> #f continuation-mark-set-first)
+entry-call: threw
+entry-failure-category: unbound-variable
+entry-failure-detail: continuation-mark-set-first
+wr-names-count: 0
+wr-ref-boot-kind: missing-binding
+wr-call-boot-kind: missing-binding
+```
+
+So the current first startup blocker is not extraction, provider composition,
+regexp literals, immutable hash iteration, `system-type`, or `format`. It is an
+unbound continuation-mark helper, currently `continuation-mark-set-first`.
+
+The continuation-mark demand audit against the generated WAT is intentionally
+narrow. The relevant names are:
+
+```text
+continuation-mark-set-first
+current-continuation-marks
+exn-continuation-marks
+```
+
+`current-continuation-marks` and `exn-continuation-marks` are already WebRacket
+runtime primitives. The many generated `ignored-continuation-mark-key...` and
+`ignored-continuation-mark-val...` names in the WAT are artifacts of Webify's
+temporary `with-continuation-mark*` erasure, where key and value expressions are
+still evaluated for effects. They are not separate runtime demands.

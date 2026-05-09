@@ -8,13 +8,32 @@
 import fs from 'node:fs';
 
 function usage() {
-  console.error('usage: node --experimental-wasm-exnref webify/probe-expander-instantiate.js <expander.wasm> [--call-entry] [--expect-entry-throws]');
+  console.error('usage: node --experimental-wasm-exnref webify/probe-expander-instantiate.js <expander.wasm> [--call-entry] [--expect-entry-throws] [--list-names] [--ref NAME] [--call NAME]');
 }
 
 const args = process.argv.slice(2);
 const wasmPath = args.find((arg) => !arg.startsWith('--'));
 const callEntry = args.includes('--call-entry');
 const expectEntryThrows = args.includes('--expect-entry-throws');
+const listNames = args.includes('--list-names');
+const refNames = [];
+const callNames = [];
+
+for (let i = 0; i < args.length; i++) {
+  if (args[i] === '--ref') {
+    if (i + 1 >= args.length) {
+      usage();
+      process.exit(2);
+    }
+    refNames.push(args[++i]);
+  } else if (args[i] === '--call') {
+    if (i + 1 >= args.length) {
+      usage();
+      process.exit(2);
+    }
+    callNames.push(args[++i]);
+  }
+}
 
 if (!wasmPath) {
   usage();
@@ -32,6 +51,9 @@ const moduleExports = WebAssembly.Module.exports(module);
 const memory = new WebAssembly.Memory({ initial: 1024 });
 const foreignErrorTag = new WebAssembly.Tag({ parameters: ['externref'] });
 const externals = [];
+const printedFaslValues = [];
+const CALLBACK_BUFFER_BASE = 1052672;
+const CALLBACK_BUFFER_LENGTH = 65536;
 
 function readU32(arr, i) {
   return ((arr[i] << 24) | (arr[i + 1] << 16) |
@@ -109,24 +131,200 @@ function faslToJsValue(arr, i = 0) {
   }
 }
 
+function jsValueToFasl(v) {
+  const out = [];
+  const enc = new TextEncoder();
+
+  function writeByte(b) {
+    out.push(b & 0xff);
+  }
+
+  function writeU32(u) {
+    out.push((u >>> 24) & 0xff,
+             (u >>> 16) & 0xff,
+             (u >>> 8) & 0xff,
+             u & 0xff);
+  }
+
+  function writeBytes(u8) {
+    writeU32(u8.length >>> 0);
+    for (let i = 0; i < u8.length; i++) {
+      writeByte(u8[i]);
+    }
+  }
+
+  function writeString(s) {
+    writeBytes(enc.encode(s));
+  }
+
+  function writeF64(x) {
+    const dv = new DataView(new ArrayBuffer(8));
+    dv.setFloat64(0, x, false);
+    writeU32(dv.getUint32(0, false));
+    writeU32(dv.getUint32(4, false));
+  }
+
+  function writeAny(x) {
+    if (typeof x === 'number') {
+      if (Number.isInteger(x) && x >= -(1 << 29) && x <= ((1 << 29) - 1)) {
+        writeByte(0);
+        writeU32((x & 0x3fffffff) >>> 0);
+      } else {
+        writeByte(9);
+        writeF64(x);
+      }
+    } else if (typeof x === 'boolean') {
+      writeByte(5);
+      writeByte(x ? 1 : 0);
+    } else if (x === null) {
+      writeByte(6);
+    } else if (x === undefined) {
+      writeByte(10);
+    } else if (x === '<eof>' || (x && x.tag === 'eof')) {
+      writeByte(11);
+    } else if (x && x.tag === 'char') {
+      const cp = typeof x.cp === 'number' ? x.cp
+               : typeof x.ch === 'string' ? x.ch.codePointAt(0)
+               : undefined;
+      if (cp === undefined) {
+        throw new TypeError('bad char object');
+      }
+      writeByte(1);
+      writeU32(cp >>> 0);
+    } else if (x && x.tag === 'pair') {
+      writeByte(7);
+      writeAny(x.car);
+      writeAny(x.cdr);
+    } else if (x instanceof Uint8Array) {
+      writeByte(4);
+      writeBytes(x);
+    } else if (Array.isArray(x)) {
+      writeByte(8);
+      writeU32(x.length >>> 0);
+      for (const elem of x) {
+        writeAny(elem);
+      }
+    } else if (typeof x === 'symbol') {
+      writeByte(2);
+      writeString(Symbol.keyFor(x) ?? x.description ?? '');
+    } else if (typeof x === 'string') {
+      writeByte(3);
+      writeString(x);
+    } else {
+      const idx = externals.push(x) - 1;
+      writeByte(12);
+      writeU32(idx >>> 0);
+    }
+  }
+
+  writeAny(v);
+  return Uint8Array.from(out);
+}
+
 function formatJsValue(v) {
   if (typeof v === 'symbol') {
-    return v.toString();
+    return Symbol.keyFor(v) ?? v.description ?? v.toString();
   }
   if (v instanceof Uint8Array) {
     return `#<bytes ${v.length}>`;
   }
+  if (Array.isArray(v)) {
+    return `[${v.map(formatJsValue).join(', ')}]`;
+  }
+  if (v && v.tag === 'pair') {
+    return `(${formatJsValue(v.car)} . ${formatJsValue(v.cdr)})`;
+  }
   return String(v);
+}
+
+function bridgeInvoke(exported, payload) {
+  const fasl = jsValueToFasl(payload);
+  if (fasl.length > CALLBACK_BUFFER_LENGTH) {
+    throw new RangeError('probe FASL payload exceeds callback buffer');
+  }
+  new Uint8Array(memory.buffer).set(fasl, CALLBACK_BUFFER_BASE);
+  const len = exported(CALLBACK_BUFFER_BASE);
+  const bytes = new Uint8Array(memory.buffer, CALLBACK_BUFFER_BASE, len);
+  return faslToJsValue(bytes)[0];
+}
+
+function decodeBridgeResult(raw, operation, name) {
+  if (!Array.isArray(raw) || raw.length < 5) {
+    return {
+      ok: false,
+      kind: 'invalid-bridge-result',
+      value: raw,
+      printed: '',
+      error: `invalid bridge result from ${operation}`,
+    };
+  }
+  const [ok, kind, value, printed, error] = raw;
+  return {
+    ok: !!ok,
+    kind: formatJsValue(kind),
+    value,
+    printed: typeof printed === 'string' ? printed : formatJsValue(printed),
+    error: typeof error === 'string' ? error : formatJsValue(error),
+    operation,
+    name,
+  };
+}
+
+function printBridgeResult(label, result) {
+  console.log(`${label}-status: ${result.ok ? 'ok' : 'failed'}`);
+  console.log(`${label}-kind: ${result.kind}`);
+  if (result.printed) {
+    console.log(`${label}-printed: ${result.printed}`);
+  }
+  if (result.error) {
+    console.log(`${label}-error: ${result.error}`);
+  }
+}
+
+function printThrown(label, err) {
+  console.log(`${label}: threw`);
+  console.log(`${label}-exception-kind: ${err?.constructor?.name ?? typeof err}`);
+  console.log(`${label}-wasm-exception?: ${err instanceof WebAssembly.Exception}`);
+  if (err instanceof WebAssembly.Exception) {
+    console.log(`${label}-foreign-exception?: ${err.is?.(foreignErrorTag) ?? false}`);
+    if (err.is?.(foreignErrorTag)) {
+      console.log(`${label}-foreign-exception-arg0: ${err.getArg(foreignErrorTag, 0)}`);
+    }
+  }
+  if (err?.stack) {
+    console.log(err.stack);
+  }
 }
 
 function printFasl(start, len) {
   const bytes = new Uint8Array(memory.buffer).slice(start, start + len);
   try {
     const [value] = faslToJsValue(bytes);
-    console.log(`js_print_fasl: ${formatJsValue(value)}`);
+    const formatted = formatJsValue(value);
+    printedFaslValues.push(formatted);
+    console.log(`js_print_fasl: ${formatted}`);
   } catch (err) {
     console.log(`js_print_fasl: <decode-failed ${err.message}; ${len} bytes>`);
   }
+}
+
+function classifyPrintedFailure() {
+  for (const text of printedFaslValues) {
+    const variableMatch =
+      /^#\(struct exn:fail:contract:variable\b.*\s([^\s)]+)\)$/.exec(text);
+    if (variableMatch) {
+      return {
+        category: 'unbound-variable',
+        detail: variableMatch[1],
+      };
+    }
+  }
+  return {
+    category: 'unknown',
+    detail: printedFaslValues.length === 0
+      ? 'no printed FASL diagnostics'
+      : printedFaslValues[printedFaslValues.length - 1],
+  };
 }
 
 function primitiveImport(name) {
@@ -193,22 +391,64 @@ if (callEntry) {
       process.exitCode = 1;
     }
   } catch (err) {
-    console.log('entry-call: threw');
-    console.log(`exception-kind: ${err?.constructor?.name ?? typeof err}`);
-    console.log(`wasm-exception?: ${err instanceof WebAssembly.Exception}`);
-    if (err instanceof WebAssembly.Exception) {
-      console.log(`foreign-exception?: ${err.is?.(foreignErrorTag) ?? false}`);
-      if (err.is?.(foreignErrorTag)) {
-        console.log(`foreign-exception-arg0: ${err.getArg(foreignErrorTag, 0)}`);
-      }
-    }
-    if (err?.stack) {
-      console.log(err.stack);
-    }
+    printThrown('entry-call', err);
+    const failure = classifyPrintedFailure();
+    console.log(`entry-failure-category: ${failure.category}`);
+    console.log(`entry-failure-detail: ${failure.detail}`);
     if (expectEntryThrows) {
       console.log('entry-call-expectation: expected throw');
     } else {
       process.exitCode = 1;
     }
+  }
+}
+
+if (listNames) {
+  console.log('wr-names-call: start');
+  try {
+    const len = instance.exports['wr-names'](0);
+    const [names] = faslToJsValue(new Uint8Array(memory.buffer, CALLBACK_BUFFER_BASE, len));
+    console.log('wr-names-call: ok');
+    console.log(`wr-names-count: ${Array.isArray(names) ? names.length : 'not-a-vector'}`);
+    console.log(`wr-names-value: ${formatJsValue(names)}`);
+  } catch (err) {
+    printThrown('wr-names-call', err);
+    process.exitCode = 1;
+  }
+}
+
+for (const name of refNames) {
+  const label = `wr-ref-${name}`;
+  console.log(`${label}: start`);
+  try {
+    const result = decodeBridgeResult(
+      bridgeInvoke(instance.exports['wr-ref'], name),
+      'ref',
+      name);
+    printBridgeResult(label, result);
+    if (!result.ok) {
+      process.exitCode = 1;
+    }
+  } catch (err) {
+    printThrown(label, err);
+    process.exitCode = 1;
+  }
+}
+
+for (const name of callNames) {
+  const label = `wr-call-${name}`;
+  console.log(`${label}: start`);
+  try {
+    const result = decodeBridgeResult(
+      bridgeInvoke(instance.exports['wr-call'], [name, []]),
+      'call',
+      name);
+    printBridgeResult(label, result);
+    if (!result.ok) {
+      process.exitCode = 1;
+    }
+  } catch (err) {
+    printThrown(label, err);
+    process.exitCode = 1;
   }
 }
