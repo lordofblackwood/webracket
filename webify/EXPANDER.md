@@ -395,3 +395,21 @@ wr-ref-boot-kind: missing-binding
 
 This means bridge binding verification is not reachable yet. The next substrate
 blocker is literal interning, not continuation marks.
+
+After adding bootstrap `datum-intern-literal`, startup advances again. The
+literal-interning blocker is gone, and the next first failure is another
+unbound kernel/runtime value:
+
+```text
+entry-call: start
+js_print_fasl: #(struct exn:fail:contract:variable #<undefined> #f prop:evt)
+entry-call: threw
+entry-failure-category: unbound-variable
+entry-failure-detail: prop:evt
+wr-names-count: 0
+```
+
+Bridge binding verification and minimal exported calls are still not reachable:
+`entry` has not completed, so `wr-names` remains empty and `boot` is still a
+missing binding from the console bridge. The next substrate milestone is
+event/evt property support, starting with `prop:evt`.
