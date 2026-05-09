@@ -1771,6 +1771,9 @@
     (add-runtime-string-constant 'hash-hasheq                "#hasheq")
     (add-runtime-string-constant 'hash-hasheqv               "#hasheqv")
     (add-runtime-string-constant 'hash-hashalw               "#hashalw")
+    (add-runtime-string-constant 'hash-set-non-hash          "hash-set expected hash table, got:")
+    (add-runtime-string-constant 'hash-set-exn-message       "hash-set received exception message:")
+    (add-runtime-string-constant 'hash-set-unsupported       "hash-set unsupported hash table:")
     (add-runtime-string-constant 'null                       "()")
     (add-runtime-string-constant 'eof                        "#<eof>")
     (add-runtime-string-constant 'void                       "#<void>")
@@ -2695,6 +2698,14 @@
 
           (type $HashEqualImmutable
                 (sub $HashEqual
+                     (struct
+                       (field $hash     (mut i32))
+                       (field $mutable? (ref eq))
+                       (field $root     (ref eq))
+                       (field $count    i32))))
+
+          (type $HashEqualAlwaysImmutable
+                (sub $HashEqualAlways
                      (struct
                        (field $hash     (mut i32))
                        (field $mutable? (ref eq))
@@ -8729,26 +8740,55 @@
                              (else (global.get $false))))
                    (else (global.get $false))))
 
+         ;; hash-leaf?/i32 : any/c -> i32
+         ;;   Check concrete hash representations instead of the broad $Hash
+         ;;   prefix type, which can also match non-hash structs by shape.
+         (func $hash-leaf?/i32
+               (param $v (ref eq)) ;; any/c
+               (result   i32)
+               ;; Wasm-GC struct subtyping is structural enough that the
+               ;; broad hash wrapper shapes can accidentally match ordinary
+               ;; Racket structs. Reject `$Struct` first; WebRacket hash
+               ;; wrappers are runtime objects, not Racket struct values.
+               (if (result i32)
+                   (ref.test (ref $Struct) (local.get $v))
+                   (then (i32.const 0))
+                   (else
+                    (i32.or (call $mutable-hash-leaf?/i32 (local.get $v))
+                            (call $immutable-hash-leaf?/i32 (local.get $v))))))
+
+         ;; mutable-hash-leaf?/i32 : any/c -> i32
+         ;;   Check concrete mutable hash representations.
+         (func $mutable-hash-leaf?/i32
+               (param $v (ref eq)) ;; any/c
+               (result   i32)
+               (i32.or
+                (i32.or (ref.test (ref $HashEqMutable) (local.get $v))
+                        (ref.test (ref $HashEqvMutable) (local.get $v)))
+                (i32.or (ref.test (ref $HashEqualMutable) (local.get $v))
+                        (ref.test (ref $HashEqualAlwaysMutable) (local.get $v)))))
+
+         ;; immutable-hash-leaf?/i32 : any/c -> i32
+         ;;   Check concrete immutable hash representations.
+         (func $immutable-hash-leaf?/i32
+               (param $v (ref eq)) ;; any/c
+               (result   i32)
+               (i32.or
+                (i32.or (ref.test (ref $HashEqImmutable) (local.get $v))
+                        (ref.test (ref $HashEqvImmutable) (local.get $v)))
+                (i32.or (ref.test (ref $HashEqualImmutable) (local.get $v))
+                        (ref.test (ref $HashEqualAlwaysImmutable) (local.get $v)))))
+
          (func $mutable-hash? (type $Prim1) (param $v (ref eq)) (result (ref eq))
                (if (result (ref eq))
-                   (ref.test (ref $Hash) (local.get $v))
-                   (then (if (result (ref eq))
-                             (ref.eq (struct.get $Hash $mutable?
-                                                 (ref.cast (ref $Hash) (local.get $v)))
-                                     (global.get $true))
-                             (then (global.get $true))
-                             (else (global.get $false))))
+                   (call $mutable-hash-leaf?/i32 (local.get $v))
+                   (then (global.get $true))
                    (else (global.get $false))))
 
          (func $immutable-hash? (type $Prim1) (param $v (ref eq)) (result (ref eq))
                (if (result (ref eq))
-                   (ref.test (ref $Hash) (local.get $v))
-                   (then (if (result (ref eq))
-                             (ref.eq (struct.get $Hash $mutable?
-                                                 (ref.cast (ref $Hash) (local.get $v)))
-                                     (global.get $false))
-                             (then (global.get $true))
-                             (else (global.get $false))))
+                   (call $immutable-hash-leaf?/i32 (local.get $v))
+                   (then (global.get $true))
                    (else (global.get $false))))
          
          ; todo: Benchmark the two implementations of $boolean? below
@@ -8841,12 +8881,8 @@
                     (if (i32.eq (struct.get $Vector $immutable (local.get $vec)) (i32.const 1))
                         (then (return (global.get $true)))
                         (else (return (global.get $false))))))
-               (if (ref.test (ref $Hash) (local.get $v))
-                   (then
-                    (local.set $hash (ref.cast (ref $Hash) (local.get $v)))
-                    (if (ref.eq (struct.get $Hash $mutable? (local.get $hash)) (global.get $false))
-                        (then (return (global.get $true)))
-                        (else (return (global.get $false))))))
+               (if (call $immutable-hash-leaf?/i32 (local.get $v))
+                   (then (return (global.get $true))))
                (if (ref.test (ref $Box) (local.get $v))
                    (then
                     (local.set $box (ref.cast (ref $Box) (local.get $v)))
@@ -32397,21 +32433,29 @@
                (result   (ref eq))
                
                (if (result (ref eq))
-                   (ref.test (ref $Hash) (local.get $v))
+                   (call $hash-leaf?/i32 (local.get $v))
                    (then (global.get $true))
                    (else (global.get $false))))
 
          ,@(for/list ([pred '($hash-eq? $hash-eqv? $hash-equal? $hash-equal-always?)]
-                      [type '($HashEq   $HashEqv   $HashEqual   $HashEqualAlways)])
+                      [mutable-type '($HashEqMutable
+                                      $HashEqvMutable
+                                      $HashEqualMutable
+                                      $HashEqualAlwaysMutable)]
+                      [immutable-type '($HashEqImmutable
+                                        $HashEqvImmutable
+                                        $HashEqualImmutable
+                                        $HashEqualAlwaysImmutable)])
              `(func ,pred (type $Prim1)
                     (param $ht (ref eq)) ;; hash table
                     (result    (ref eq))
                     ;; Validate argument is a hash table
-                    (if (i32.eqz (ref.test (ref $Hash) (local.get $ht)))
+                    (if (i32.eqz (call $hash-leaf?/i32 (local.get $ht)))
                         (then (call $raise-argument-error:hash-expected)
                               (unreachable)))
                     (if (result (ref eq))
-                        (ref.test (ref ,type) (local.get $ht))
+                        (i32.or (ref.test (ref ,mutable-type) (local.get $ht))
+                                (ref.test (ref ,immutable-type) (local.get $ht)))
                         (then (global.get $true))
                         (else (global.get $false)))))
 
@@ -32537,6 +32581,14 @@
          (func $make-empty-immutable-hash (type $Prim0)
                (result (ref eq))
                (struct.new $HashEqualImmutable
+                           (i32.const 0)
+                           (global.get $false)
+                           (global.get $missing)
+                           (i32.const 0)))
+
+         (func $make-empty-immutable-hashalw (type $Prim0)
+               (result (ref eq))
+               (struct.new $HashEqualAlwaysImmutable
                            (i32.const 0)
                            (global.get $false)
                            (global.get $missing)
@@ -32911,6 +32963,36 @@
                            (struct.get $HashEqvImmutable $root (local.get $new))
                            (struct.get $HashEqvImmutable $count (local.get $new))))
 
+         (func $immutable-hashalw-set (type $Prim3)
+               (param $ht  (ref eq))
+               (param $key (ref eq))
+               (param $val (ref eq))
+               (result     (ref eq))
+               (local $table (ref $HashEqualAlwaysImmutable))
+               (local $tmp   (ref $HashEqvImmutable))
+               (local $new   (ref $HashEqvImmutable))
+               (if (i32.eqz (ref.test (ref $HashEqualAlwaysImmutable) (local.get $ht)))
+                   (then (call $raise-argument-error:hashalw-expected (local.get $ht))
+                         (unreachable)))
+               (local.set $table (ref.cast (ref $HashEqualAlwaysImmutable) (local.get $ht)))
+               (local.set $tmp
+                          (struct.new $HashEqvImmutable
+                                      (i32.const 0)
+                                      (global.get $false)
+                                      (struct.get $HashEqualAlwaysImmutable $root (local.get $table))
+                                      (struct.get $HashEqualAlwaysImmutable $count (local.get $table))))
+               (local.set $new
+                          (ref.cast (ref $HashEqvImmutable)
+                                    (call $immutable-hasheqv-set
+                                          (local.get $tmp)
+                                          (local.get $key)
+                                          (local.get $val))))
+               (struct.new $HashEqualAlwaysImmutable
+                           (i32.const 0)
+                           (global.get $false)
+                           (struct.get $HashEqvImmutable $root (local.get $new))
+                           (struct.get $HashEqvImmutable $count (local.get $new))))
+
          ;; hash : any/c any/c ... -> immutable-hash?
          ;;   Build an immutable hash from alternating keys and values. This
          ;;   first slice uses a distinct immutable-hash wrapper around the
@@ -32942,6 +33024,23 @@
                           (ref.cast (ref $HashEqvImmutable)
                                     (call $hasheqv (local.get $args))))
                (struct.new $HashEqImmutable
+                           (i32.const 0)
+                           (global.get $false)
+                           (struct.get $HashEqvImmutable $root (local.get $tmp))
+                           (struct.get $HashEqvImmutable $count (local.get $tmp))))
+
+         ;; hashalw : any/c any/c ... -> immutable-hashalw?
+         ;;   First immutable equal-always?-constructor slice. It uses a
+         ;;   distinct wrapper around the shared private HAMT backing store.
+         ;;   Key comparison is still the current eqv?-based implementation.
+         (func $hashalw (type $Prim>=0)
+               (param $args (ref eq)) ;; rest arguments as a list
+               (result      (ref eq))
+               (local $tmp (ref $HashEqvImmutable))
+               (local.set $tmp
+                          (ref.cast (ref $HashEqvImmutable)
+                                    (call $hasheqv (local.get $args))))
+               (struct.new $HashEqualAlwaysImmutable
                            (i32.const 0)
                            (global.get $false)
                            (struct.get $HashEqvImmutable $root (local.get $tmp))
@@ -33290,6 +33389,22 @@
                                   (local.get $tmp-immutable-hash)
                                   (local.get $key)
                                   (local.get $failure)))))
+               (if (ref.test (ref $HashEqualAlwaysImmutable) (local.get $ht))
+                   (then
+                    (local.set $tmp-immutable-hash
+                               (struct.new $HashEqvImmutable
+                                           (i32.const 0)
+                                           (global.get $false)
+                                           (struct.get $HashEqualAlwaysImmutable $root
+                                                       (ref.cast (ref $HashEqualAlwaysImmutable)
+                                                                 (local.get $ht)))
+                                           (struct.get $HashEqualAlwaysImmutable $count
+                                                       (ref.cast (ref $HashEqualAlwaysImmutable)
+                                                                 (local.get $ht)))))
+                    (return (call $immutable-hasheqv-ref
+                                  (local.get $tmp-immutable-hash)
+                                  (local.get $key)
+                                  (local.get $failure)))))
                (if (ref.test (ref $HashEqualAlwaysMutable) (local.get $ht))
                    (then (return (call $hashalw-ref
                                        (local.get $ht) (local.get $key) (local.get $failure)))))
@@ -33320,8 +33435,13 @@
                (param $key (ref eq)) ;; key
                (param $val (ref eq)) ;; value
                (result     (ref eq))
-               (if (i32.eqz (ref.test (ref $Hash) (local.get $ht)))
-                   (then (call $raise-argument-error:hash-expected)
+               (if (i32.eqz (call $hash-leaf?/i32 (local.get $ht)))
+                   (then (drop (call $js-log (global.get $string:hash-set-non-hash)))
+                         (drop (call $js-log (local.get $ht)))
+                         (if (ref.eq (call $exn? (local.get $ht)) (global.get $true))
+                             (then (drop (call $js-log (global.get $string:hash-set-exn-message)))
+                                   (drop (call $js-log (call $exn-message (local.get $ht))))))
+                         (call $raise-argument-error:hash-expected)
                          (unreachable)))
                (if (ref.test (ref $HashEqImmutable) (local.get $ht))
                    (then (return (call $immutable-hasheq-set
@@ -33338,6 +33458,13 @@
                                        (local.get $ht)
                                        (local.get $key)
                                        (local.get $val)))))
+               (if (ref.test (ref $HashEqualAlwaysImmutable) (local.get $ht))
+                   (then (return (call $immutable-hashalw-set
+                                       (local.get $ht)
+                                       (local.get $key)
+                                       (local.get $val)))))
+               (drop (call $js-log (global.get $string:hash-set-unsupported)))
+               (drop (call $js-log (local.get $ht)))
                (unreachable))
 
          ,@(for/list ([raise-expected '($raise-argument-error:hasheq-expected
@@ -34407,6 +34534,21 @@
                     (return (call $immutable-hasheqv-has-key?
                                   (local.get $tmp-immutable-hash)
                                   (local.get $key)))))
+               (if (ref.test (ref $HashEqualAlwaysImmutable) (local.get $ht))
+                   (then
+                    (local.set $tmp-immutable-hash
+                               (struct.new $HashEqvImmutable
+                                           (i32.const 0)
+                                           (global.get $false)
+                                           (struct.get $HashEqualAlwaysImmutable $root
+                                                       (ref.cast (ref $HashEqualAlwaysImmutable)
+                                                                 (local.get $ht)))
+                                           (struct.get $HashEqualAlwaysImmutable $count
+                                                       (ref.cast (ref $HashEqualAlwaysImmutable)
+                                                                 (local.get $ht)))))
+                    (return (call $immutable-hasheqv-has-key?
+                                  (local.get $tmp-immutable-hash)
+                                  (local.get $key)))))
                (if (ref.test (ref $HashEqualAlwaysMutable) (local.get $ht))
                    (then (return (call $hashalw-has-key?
                                        (local.get $ht)
@@ -35313,6 +35455,15 @@
                      (i32.shl
                       (struct.get $HashEqualImmutable $count
                                   (ref.cast (ref $HashEqualImmutable)
+                                            (local.get $ht)))
+                      (i32.const 1))))))
+              (if (ref.test (ref $HashEqualAlwaysImmutable) (local.get $ht))
+                  (then
+                   (return
+                    (ref.i31
+                     (i32.shl
+                      (struct.get $HashEqualAlwaysImmutable $count
+                                  (ref.cast (ref $HashEqualAlwaysImmutable)
                                             (local.get $ht)))
                       (i32.const 1))))))
               (if (ref.test (ref $HashEqualAlwaysMutable) (local.get $ht))

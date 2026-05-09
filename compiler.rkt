@@ -1079,14 +1079,14 @@
       min max flmin flmax fxmin fxmax gcd lcm
       make-instance instance-set-variable-value! instance-variable-value
       make-prefab-struct
-      hash hasheq hasheqv
+      hash hasheq hasheqv hashalw
       string-append-immutable string-append* bytes-append*)
     ; - kind
     'variadic
     ; - min-proc
     (λ (name)
       (case name
-        [(+ * unsafe-fx+ unsafe-fx* compose compose1 cartesian-product string-append-immutable gcd lcm hash hasheq hasheqv) 0]
+        [(+ * unsafe-fx+ unsafe-fx* compose compose1 cartesian-product string-append-immutable gcd lcm hash hasheq hasheqv hashalw) 0]
         [(- / unsafe-fx- fx-/wraparound unsafe-fx-/wraparound min max
              flmin flmax unsafe-flmin unsafe-flmax
              fxmin fxmax unsafe-fxmin unsafe-fxmax
@@ -1108,7 +1108,7 @@
         [(vector-count map andmap ormap append-map count for-each vector-map vector-map! filter-map
                        instance-variable-value) 2]
         [(foldl foldr instance-set-variable-value!) 3]
-        [(+ * unsafe-fx+ unsafe-fx* compose compose1 cartesian-product string-append-immutable gcd lcm hash hasheq hasheqv) 0]
+        [(+ * unsafe-fx+ unsafe-fx* compose compose1 cartesian-product string-append-immutable gcd lcm hash hasheq hasheqv hashalw) 0]
         [else 1])))
    (make-inline-specs '(= < > <= >=) 'variadic-args 1 #f 1)
    (make-inline-specs '(build-path/convention-type) 'variadic 2 #f 2)
@@ -2152,6 +2152,7 @@
   hash
   hasheq
   hasheqv
+  hashalw
 
   make-weak-hasheq  ; for now same as make-hasheq
   make-weak-hasheqv ; for now same as make-hasheqv

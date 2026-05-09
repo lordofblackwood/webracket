@@ -4082,6 +4082,21 @@
                            (equal? (hash-ref h 'c #f) #f)
                            (equal? (hash-count h2) 3)
                            (equal? (hash-ref h2 'c) 4))))
+              (list "hashalw immutable constructor"
+                    (let* ([empty (hashalw)]
+                           [h     (hashalw 'a 1 'b 2 'a 3)]
+                           [h2    (hash-set h 'c 4)])
+                      (and (hash? empty)
+                           (immutable-hash? empty)
+                           (hash-equal-always? empty)
+                           (not (hash-equal? empty))
+                           (equal? (hash-count empty) 0)
+                           (equal? (hash-ref h 'a) 3)
+                           (equal? (hash-ref h 'b) 2)
+                           (equal? (hash-ref h 'c #f) #f)
+                           (equal? (hash-count h2) 3)
+                           (equal? (hash-ref h2 'c) 4)
+                           (hash-has-key? h2 'c))))
               (list "make-immutable-hasheqv"
                     (let ([h (make-immutable-hasheqv '((1 . one) (2 . two) (1 . uno)))])
                       (and (immutable-hash? h)
@@ -4099,6 +4114,11 @@
                           (equal? (hash-equal-always? (make-hash))    #f)
                           (equal? (hash-equal-always? (make-hasheqv)) #f)
                           (equal? (hash-equal-always? (make-hashalw)) #t)))
+              (list "hash predicates reject exception structs"
+                    (let ([e (exn:fail "nope" #f)])
+                      (and (not (hash? e))
+                           (not (mutable-hash? e))
+                           (not (immutable-hash? e)))))
 
               (list "make-hash"
                     (let ([h (make-hash)])

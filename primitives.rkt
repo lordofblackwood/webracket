@@ -851,6 +851,7 @@
  make-hasheqv
  make-immutable-hasheqv
  hash
+ hashalw
  hasheq
  hasheqv
  make-hash
