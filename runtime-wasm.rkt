@@ -8763,10 +8763,32 @@
                (param $v (ref eq)) ;; any/c
                (result   i32)
                (i32.or
-                (i32.or (ref.test (ref $HashEqMutable) (local.get $v))
-                        (ref.test (ref $HashEqvMutable) (local.get $v)))
-                (i32.or (ref.test (ref $HashEqualMutable) (local.get $v))
-                        (ref.test (ref $HashEqualAlwaysMutable) (local.get $v)))))
+                (i32.or
+                 (if (result i32)
+                     (ref.test (ref $HashEqMutable) (local.get $v))
+                     (then (ref.eq (struct.get $HashEqMutable $mutable?
+                                               (ref.cast (ref $HashEqMutable) (local.get $v)))
+                                   (global.get $true)))
+                     (else (i32.const 0)))
+                 (if (result i32)
+                     (ref.test (ref $HashEqvMutable) (local.get $v))
+                     (then (ref.eq (struct.get $HashEqvMutable $mutable?
+                                               (ref.cast (ref $HashEqvMutable) (local.get $v)))
+                                   (global.get $true)))
+                     (else (i32.const 0))))
+                (i32.or
+                 (if (result i32)
+                     (ref.test (ref $HashEqualMutable) (local.get $v))
+                     (then (ref.eq (struct.get $HashEqualMutable $mutable?
+                                               (ref.cast (ref $HashEqualMutable) (local.get $v)))
+                                   (global.get $true)))
+                     (else (i32.const 0)))
+                 (if (result i32)
+                     (ref.test (ref $HashEqualAlwaysMutable) (local.get $v))
+                     (then (ref.eq (struct.get $HashEqualAlwaysMutable $mutable?
+                                               (ref.cast (ref $HashEqualAlwaysMutable) (local.get $v)))
+                                   (global.get $true)))
+                     (else (i32.const 0))))))
 
          ;; immutable-hash-leaf?/i32 : any/c -> i32
          ;;   Check concrete immutable hash representations.
@@ -33435,9 +33457,8 @@
                (param $key (ref eq)) ;; key
                (param $val (ref eq)) ;; value
                (result     (ref eq))
-               (if (i32.eqz (call $hash-leaf?/i32 (local.get $ht)))
+               (if (i32.eqz (call $immutable-hash-leaf?/i32 (local.get $ht)))
                    (then (drop (call $js-log (global.get $string:hash-set-non-hash)))
-                         (drop (call $js-log (local.get $ht)))
                          (if (ref.eq (call $exn? (local.get $ht)) (global.get $true))
                              (then (drop (call $js-log (global.get $string:hash-set-exn-message)))
                                    (drop (call $js-log (call $exn-message (local.get $ht))))))

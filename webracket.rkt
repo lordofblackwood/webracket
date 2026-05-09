@@ -19,7 +19,7 @@
 (define wasm-filename   (make-parameter #f))
 (define host-filename   (make-parameter #f))
 (define dest-dir        (make-parameter #f))
-(define label-map-forms (make-parameter #t))
+(define label-map-forms (make-parameter #f))
 (define dump-passes-dir (make-parameter #f))
 (define dump-passes-limit (make-parameter #f))
 (define timings?        (make-parameter #f))
@@ -149,9 +149,9 @@
                              (host-filename filename)]
    [("--dest") dirname "Write default outputs under <dir>"
                (dest-dir dirname)]
-   [("--label-map-forms") "Include (form ...) entries in .wasm.map.sexp"
+   [("--label-map-forms") "Include heavyweight (form ...) entries in .wasm.map.sexp"
                           (label-map-forms #t)]
-   [("--no-label-map-forms") "Omit (form ...) entries in .wasm.map.sexp"
+   [("--no-label-map-forms") "Omit (form ...) entries in .wasm.map.sexp (default)"
                              (label-map-forms #f)]
    [("--dump-passes") dir "Write per-pass dumps to directory <dir>"
                       (dump-passes-dir dir)]

@@ -4,10 +4,12 @@
          racket/list
          racket/match
          racket/path
+         racket/pretty
          racket/runtime-path
          racket/set
          racket/system
          racket/cmdline
+         (only-in "../compiler.rkt" label-map->sexp)
          "../wat-identifiers.rkt"
          "module-diagnostics.rkt"
          "test-module-support.rkt")
@@ -27,14 +29,17 @@
 (define compile-letrec-strategy (make-parameter #f))
 (define compile-enable-cc-analysis? (make-parameter #f))
 (define compile-enable-simplify?    (make-parameter #f))
-(define compile-label-map-forms?    (make-parameter #t))
+(define compile-label-map-forms?    (make-parameter #f))
 (define write-racket-control-path (make-parameter #f))
 (define write-racket-expand-control-path (make-parameter #f))
 (define write-racket-expand-datum-path (make-parameter #f))
+(define write-map-path                 (make-parameter #f))
 (define write-wat-path                 (make-parameter #f))
 (define write-wasm-path                (make-parameter #f))
 (define validate-wat?                  (make-parameter #f))
 (define skip-webracket-compile?   (make-parameter #f))
+
+(struct compile-result (wat label-map) #:transparent)
 
 (define special-forms
   '(begin
@@ -431,7 +436,7 @@
   "Include source form strings in the compiler label map"
   (compile-label-map-forms? #t)]
  [("--no-label-map-forms")
-  "Omit source form strings from the compiler label map"
+  "Omit source form strings from the compiler label map, the probe default"
   (compile-label-map-forms? #f)]
  [("--write-racket-control") path
   "Write the lowered generated program as a #lang racket/base control file"
@@ -442,6 +447,9 @@
  [("--write-racket-expand-datum") path
   "Write the generated datum consumed by --write-racket-expand-control"
   (write-racket-expand-datum-path path)]
+ [("--write-map") path
+  "Write the compiler label map to path"
+  (write-map-path path)]
  [("--write-wat") path
   "Write the compiled expander WAT to path"
   (write-wat-path path)]
@@ -549,7 +557,10 @@
                                    [current-enable-simplify?
                                     (compile-enable-simplify?)])
                       (label-map-include-form? (compile-label-map-forms?))
-                      (wat-string (comp clean-webified)))))))))
+                      (define wat (wat-string (comp clean-webified)))
+                      (compile-result wat
+                                      (and (write-map-path)
+                                           (label-map->sexp))))))))))
     (cond
       [(eq? compile-status 'timeout)
        (printf "compile-timeout-seconds: ~a\n" (compile-timeout-seconds))
@@ -567,7 +578,14 @@
                (webify-module-failure-message wat-or-failure))
        (exit 1)]
       [else
-       (printf "compile-wat-bytes: ~a\n" (string-length wat-or-failure))
+       (define compiled-wat (compile-result-wat wat-or-failure))
+       (printf "compile-wat-bytes: ~a\n" (string-length compiled-wat))
+       (when (write-map-path)
+         (call-with-output-file (write-map-path)
+           (lambda (out) (pretty-write (compile-result-label-map wat-or-failure) out))
+           #:exists 'replace)
+         (printf "compile-map-path: ~a\n" (write-map-path))
+         (printf "compile-map-bytes: ~a\n" (file-size (write-map-path))))
        (when (or (write-wat-path)
                  (write-wasm-path)
                  (validate-wat?))
@@ -577,7 +595,7 @@
                 (build-path out-dir "expander.wat"))))
          (timed 'write-wat
                 (lambda ()
-                  (write-compiled-wat! wat-path wat-or-failure)))
+                  (write-compiled-wat! wat-path compiled-wat)))
          (when (or (write-wasm-path) (validate-wat?))
            (define wasm-path
              (or (write-wasm-path)

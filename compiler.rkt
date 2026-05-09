@@ -16800,8 +16800,8 @@
 
 (define current-label-map (make-parameter '()))
 (define current-label-form-ht (make-parameter (make-hash)))
-(define current-label-map-include-form? (make-parameter #t))
-(define current-label-map-default-include-form? (make-parameter #t))
+(define current-label-map-include-form? (make-parameter #f))
+(define current-label-map-default-include-form? (make-parameter #f))
 (define current-direct-letrec-representation-labels (make-parameter (make-hasheq)))
 (define current-inline-small-closure-arities (make-parameter (make-hasheq)))
 (define current-known0-direct-labels (make-parameter (make-hasheq)))
@@ -16823,10 +16823,15 @@
       (syntax-property s 'source-stx)
       s))
 
+(define (label-map-source->datum src)
+  (cond
+    [(path? src) (path->string src)]
+    [else        src]))
+
 (define (record-label-map! l stx)
   (define id (unparse-variable l))
   (define s (source-stx stx))
-  (define src (and (syntax? s) (syntax-source s)))
+  (define src (and (syntax? s) (label-map-source->datum (syntax-source s))))
   (define line (and (syntax? s) (syntax-line s)))
   (define col (and (syntax? s) (syntax-column s)))
   (define span (and (syntax? s) (syntax-span s)))

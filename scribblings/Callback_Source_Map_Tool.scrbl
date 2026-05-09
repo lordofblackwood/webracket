@@ -122,10 +122,10 @@ WebRacket compiler flow:
   @item{@tt{program.wasm.map.sexp}}
 ]
 
-The source-form output depends on the label map including form payloads. That
-is the default compiler behavior. If the map was generated with
-@tt{--no-label-map-forms}, source locations still work, but @tt{--show-form}
-may print nothing for the form.
+The source-form output depends on the label map including form payloads. Maps
+omit those heavyweight payloads by default. If the map was generated without
+@tt{--label-map-forms}, source locations still work, but @tt{--show-form} may
+print nothing for the form.
 
 @section{Notes}
 
