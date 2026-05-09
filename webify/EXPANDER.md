@@ -413,3 +413,27 @@ Bridge binding verification and minimal exported calls are still not reachable:
 `entry` has not completed, so `wr-names` remains empty and `boot` is still a
 missing binding from the console bridge. The next substrate milestone is
 event/evt property support, starting with `prop:evt`.
+
+The generated artifact's event-name audit shows `prop:evt` as the current
+startup blocker, with additional event operations present for later:
+
+```text
+prop:evt
+always-evt
+never-evt
+sync
+sync/timeout
+make-semaphore
+semaphore-post
+semaphore-peek-evt
+filesystem-change-evt
+filesystem-change-evt-ready?
+filesystem-change-evt-cancel
+progress-evt?
+```
+
+For the next patch, keep the scope to a runtime-provided struct-type property
+constant for `prop:evt`. Racket CS classifies `prop:evt` as a known
+struct-type property, and the expander's first failure is simply an unbound
+property value. Real synchronization and filesystem events should remain
+separate milestones unless startup actually reaches them.
