@@ -8,7 +8,7 @@
 import fs from 'node:fs';
 
 function usage() {
-  console.error('usage: node --experimental-wasm-exnref webify/probe-expander-instantiate.js <expander.wasm> [--call-entry] [--expect-entry-throws] [--list-names] [--ref NAME] [--call NAME]');
+  console.error('usage: node --experimental-wasm-exnref webify/probe-expander-instantiate.js <expander.wasm> [--call-entry] [--expect-entry-throws] [--list-names] [--ref NAME] [--call NAME] [--call-json NAME JSON-ARGS]');
 }
 
 const args = process.argv.slice(2);
@@ -18,6 +18,7 @@ const expectEntryThrows = args.includes('--expect-entry-throws');
 const listNames = args.includes('--list-names');
 const refNames = [];
 const callNames = [];
+const callJsonRequests = [];
 
 for (let i = 0; i < args.length; i++) {
   if (args[i] === '--ref') {
@@ -32,6 +33,15 @@ for (let i = 0; i < args.length; i++) {
       process.exit(2);
     }
     callNames.push(args[++i]);
+  } else if (args[i] === '--call-json') {
+    if (i + 2 >= args.length) {
+      usage();
+      process.exit(2);
+    }
+    callJsonRequests.push({
+      name: args[++i],
+      argsJson: args[++i],
+    });
   }
 }
 
@@ -219,6 +229,53 @@ function jsValueToFasl(v) {
 
   writeAny(v);
   return Uint8Array.from(out);
+}
+
+function probeJsonToJsValue(v) {
+  if (Array.isArray(v)) {
+    return v.map(probeJsonToJsValue);
+  }
+  if (!v || typeof v !== 'object') {
+    return v;
+  }
+  if (Object.hasOwn(v, '$symbol')) {
+    return Symbol.for(String(v.$symbol));
+  }
+  if (Object.hasOwn(v, '$char')) {
+    return { tag: 'char', ch: String(v.$char) };
+  }
+  if (Object.hasOwn(v, '$eof')) {
+    return '<eof>';
+  }
+  if (Object.hasOwn(v, '$pair')) {
+    if (!Array.isArray(v.$pair) || v.$pair.length !== 2) {
+      throw new TypeError('$pair must hold a two-element array');
+    }
+    return {
+      tag: 'pair',
+      car: probeJsonToJsValue(v.$pair[0]),
+      cdr: probeJsonToJsValue(v.$pair[1]),
+    };
+  }
+  if (Object.hasOwn(v, '$list')) {
+    if (!Array.isArray(v.$list)) {
+      throw new TypeError('$list must hold an array');
+    }
+    let result = null;
+    for (let i = v.$list.length - 1; i >= 0; i--) {
+      result = {
+        tag: 'pair',
+        car: probeJsonToJsValue(v.$list[i]),
+        cdr: result,
+      };
+    }
+    return result;
+  }
+  const out = {};
+  for (const [key, value] of Object.entries(v)) {
+    out[key] = probeJsonToJsValue(value);
+  }
+  return out;
 }
 
 function formatJsValue(v) {
@@ -446,6 +503,29 @@ for (const name of callNames) {
       bridgeInvoke(instance.exports['wr-call'], [name, []]),
       'call',
       name);
+    printBridgeResult(label, result);
+    if (!result.ok) {
+      process.exitCode = 1;
+    }
+  } catch (err) {
+    printThrown(label, err);
+    process.exitCode = 1;
+  }
+}
+
+for (const request of callJsonRequests) {
+  const label = `wr-call-json-${request.name}`;
+  console.log(`${label}: start`);
+  try {
+    const parsedArgs = JSON.parse(request.argsJson);
+    if (!Array.isArray(parsedArgs)) {
+      throw new TypeError('--call-json arguments must decode to a JSON array');
+    }
+    const probeArgs = parsedArgs.map(probeJsonToJsValue);
+    const result = decodeBridgeResult(
+      bridgeInvoke(instance.exports['wr-call'], [request.name, probeArgs]),
+      'call-json',
+      request.name);
     printBridgeResult(label, result);
     if (!result.ok) {
       process.exitCode = 1;
