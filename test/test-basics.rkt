@@ -1838,6 +1838,14 @@
                          (equal? (equal? #rx"a" #px"a") #f)
                          (equal? (equal? #rx#"a" #rx#"a") #t)
                          (equal? (equal? #rx#"a" #px#"a") #f)))
+              (list "regexp-match? bootstrap subset"
+                    (and (equal? (regexp-match? #rx"a" "cat") #t)
+                         (equal? (regexp-match? #rx"z" "cat") #f)
+                         (equal? (regexp-match? #rx"[.]" "x.y") #t)
+                         (equal? (regexp-match? #rx"[.]zo$" "x.zo") #t)
+                         (equal? (regexp-match? #rx"[.]zo$" "x.zot") #f)
+                         (equal? (regexp-match? #rx"^id(:|$)" "id:rest") #t)
+                         (equal? (regexp-match? #rx"^id(:|$)" "idea") #f)))
               (list "datum-intern-literal bootstrap"
                     (let ([s (string #\a #\b)]
                           [b (bytes 1 2)])
@@ -6001,6 +6009,23 @@
                 (and (equal? normal-result  'ok)
                      (equal? handled-result '(handled boom))
                      (equal? nested-result  '(outer (inner boom))))))
+
+        (list "raise-argument-error"
+              (let ([plain
+                     (with-handlers ([exn:fail:contract?
+                                      (lambda (exn)
+                                        (and (exn:fail:contract? exn)
+                                             (string? (exn-message exn))))])
+                       (raise-argument-error 'demo "string?" 42)
+                       #f)]
+                    [indexed
+                     (with-handlers ([exn:fail:contract?
+                                      (lambda (exn)
+                                        (and (exn:fail:contract? exn)
+                                             (string? (exn-message exn))))])
+                       (raise-argument-error 'demo "string?" 0 42 'extra)
+                       #f)])
+                (and plain indexed)))
         
         (list "raise-read-error"
               (let* ([basic

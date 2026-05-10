@@ -723,6 +723,7 @@
         treelist
         treelist-append
         module-call-with-prompt
+        raise-argument-error
         vector-immutable
         values
         void))
@@ -1819,6 +1820,13 @@
     (add-runtime-string-constant 'space-dot-space            " . ")
     (add-runtime-string-constant 'vector-prefix              "#(")
     (add-runtime-string-constant 'values-prefix              "(values")
+    (add-runtime-string-constant 'rx-dot-class               "[.]")
+    (add-runtime-string-constant 'rx-dot-zo-end              "[.]zo$")
+    (add-runtime-string-constant 'rx-id-colon-or-end         "^id(:|$)")
+    (add-runtime-string-constant 'dot                        ".")
+    (add-runtime-string-constant 'dot-zo                     ".zo")
+    (add-runtime-string-constant 'id                         "id")
+    (add-runtime-string-constant 'regexp?                    "regexp?")
     (add-runtime-string-constant 'g                          "g")
 
     (add-runtime-string-constant 'struct-type-descriptor     "#<struct-type-descriptor>")
@@ -8889,9 +8897,9 @@
 
                ;; Type checks
                (if (ref.eq (call $boolean? (local.get $x)) (global.get $false))
-                   (then (call $raise-argument-error (local.get $x)) (unreachable)))
+                   (then (call $raise-argument-error/internal (local.get $x)) (unreachable)))
                (if (ref.eq (call $boolean? (local.get $y)) (global.get $false))
-                   (then (call $raise-argument-error (local.get $y)) (unreachable)))
+                   (then (call $raise-argument-error/internal (local.get $y)) (unreachable)))
 
                ;; Compare booleans
                (if (result (ref eq))
@@ -10570,9 +10578,9 @@
                             (then
                              (local.set $f64 (f64.convert_i32_s (local.get $i)))
                              (local.set $ok (i32.const 1)))
-                            (else (call $raise-argument-error (local.get $r))
+                            (else (call $raise-argument-error/internal (local.get $r))
                                   (unreachable))))
-                       (else (call $raise-argument-error (local.get $r))
+                       (else (call $raise-argument-error/internal (local.get $r))
                              (unreachable)))))
 
               (if (i32.eqz (local.get $ok))
@@ -10582,18 +10590,18 @@
                         (local.set $fl (ref.cast (ref $Flonum) (local.get $r)))
                         (local.set $f64 (struct.get $Flonum $v (local.get $fl)))
                         (if (f64.le (local.get $f64) (f64.const 0))
-                            (then (call $raise-argument-error (local.get $r))
+                            (then (call $raise-argument-error/internal (local.get $r))
                                   (unreachable)))
                         (if (f64.eq (local.get $f64) (f64.const inf))
-                            (then (call $raise-argument-error (local.get $r))
+                            (then (call $raise-argument-error/internal (local.get $r))
                                   (unreachable)))
                         (if (f64.ne (local.get $f64) (local.get $f64))
-                            (then (call $raise-argument-error (local.get $r))
+                            (then (call $raise-argument-error/internal (local.get $r))
                                   (unreachable)))
                         (local.set $ok (i32.const 1))))))
 
               (if (i32.eqz (local.get $ok))
-                  (then (call $raise-argument-error (local.get $r))
+                  (then (call $raise-argument-error/internal (local.get $r))
                         (unreachable)))
 
               (local.set $m
@@ -11396,11 +11404,11 @@
 
               ;; --- Range checks ---
               (if (i32.lt_s (local.get $start/i) (i32.const 0))
-                  (then (call $raise-argument-error (local.get $start)) (unreachable)))
+                  (then (call $raise-argument-error/internal (local.get $start)) (unreachable)))
               (if (i32.lt_s (local.get $end/i) (i32.const 0))
-                  (then (call $raise-argument-error (local.get $end)) (unreachable)))
+                  (then (call $raise-argument-error/internal (local.get $end)) (unreachable)))
               (if (i32.lt_s (local.get $end/i) (local.get $start/i))
-                  (then (call $raise-argument-error (local.get $end)) (unreachable)))
+                  (then (call $raise-argument-error/internal (local.get $end)) (unreachable)))
 
               ;; --- Compute width and mask ---
               (local.set $width (i32.sub (local.get $end/i) (local.get $start/i)))
@@ -11559,7 +11567,7 @@
                                  (then (call $raise-expected-number (local.get $a)) (unreachable)))
                              (local.set $k ,(Half `(i31.get_s (ref.cast i31ref (local.get $a)))))
                              (if (i32.le_s (local.get $k) (i32.const 0))
-                                 (then (call $raise-argument-error (local.get $a)) (unreachable)))
+                                 (then (call $raise-argument-error/internal (local.get $a)) (unreachable)))
                              (local.set $r (i32.rem_u (call $random-u32) (local.get $k)))
                              (return (ref.i31 (i32.shl (local.get $r) (i32.const 1)))))
                        (else (if (i32.eqz (call $fx?/i32 (local.get $a)))
@@ -11570,7 +11578,7 @@
                              (local.set $max ,(Half `(i31.get_s (ref.cast i31ref (local.get $b)))))
                              (local.set $range (i32.sub (local.get $max) (local.get $min)))
                              (if (i32.le_s (local.get $range) (i32.const 0))
-                                 (then (call $raise-argument-error (local.get $b)) (unreachable)))
+                                 (then (call $raise-argument-error/internal (local.get $b)) (unreachable)))
                              (local.set $r (i32.add (local.get $min)
                                                     (i32.rem_u (call $random-u32)
                                                                (local.get $range))))
@@ -12885,19 +12893,19 @@
 
               ;; Range checks: 0 <= start <= end <= 64
               (if (i32.lt_s (local.get $start/i) (i32.const 0))
-                  (then (call $raise-argument-error (local.get $start))
+                  (then (call $raise-argument-error/internal (local.get $start))
                         (unreachable)))
               (if (i32.lt_s (local.get $end/i) (i32.const 0))
-                  (then (call $raise-argument-error (local.get $end))
+                  (then (call $raise-argument-error/internal (local.get $end))
                         (unreachable)))
               (if (i32.gt_u (local.get $start/i) (i32.const 64))
-                  (then (call $raise-argument-error (local.get $start))
+                  (then (call $raise-argument-error/internal (local.get $start))
                         (unreachable)))
               (if (i32.gt_u (local.get $end/i) (i32.const 64))
-                  (then (call $raise-argument-error (local.get $end))
+                  (then (call $raise-argument-error/internal (local.get $end))
                         (unreachable)))
               (if (i32.lt_s (local.get $end/i) (local.get $start/i))
-                  (then (call $raise-argument-error (local.get $end))
+                  (then (call $raise-argument-error/internal (local.get $end))
                         (unreachable)))
 
               ;; Compute mask for requested width
@@ -12916,7 +12924,7 @@
 
               ;; Enforce fixnum-sized result (no bignum support yet)
               (if (i64.gt_u (local.get $result64) (i64.const 536870911))
-                  (then (call $raise-argument-error (local.get $a))
+                  (then (call $raise-argument-error/internal (local.get $a))
                         (unreachable)))
 
               (local.set $result/i32 (i32.wrap_i64 (local.get $result64)))
@@ -13467,7 +13475,7 @@
                (local.set $nbytes (i32.sub (local.get $to) (local.get $from)))
                (if (i32.and (i32.ne (local.get $nbytes) (i32.const 4))
                             (i32.ne (local.get $nbytes) (i32.const 8)))
-                   (then (call $raise-argument-error (local.get $bstr)) (unreachable)))
+                   (then (call $raise-argument-error/internal (local.get $bstr)) (unreachable)))
 
                ;; --- Decode big-endian? ---
                (if (ref.eq (local.get $big?) (global.get $missing))
@@ -13476,7 +13484,7 @@
                              (then (local.set $big-i32 (i32.const 0)))
                              (else (if (ref.eq (local.get $big?) (global.get $true))
                                        (then (local.set $big-i32 (i32.const 1)))
-                                       (else (call $raise-argument-error (local.get $big?)) (unreachable)))))))
+                                       (else (call $raise-argument-error/internal (local.get $big?)) (unreachable)))))))
 
                ;; --- Accumulate bytes into i64 ---
                (local.set $val (i64.const 0))
@@ -13921,7 +13929,7 @@
               (local $f   f64)
               ;; Check that $v is an $External
               (if (i32.eqz (ref.test (ref $External) (local.get $v)))
-                  (then (call $raise-argument-error (local.get $v)) (unreachable)))
+                  (then (call $raise-argument-error/internal (local.get $v)) (unreachable)))
               ;; Cast to $External
               (local.set $e (ref.cast (ref $External) (local.get $v)))
               ;; Extract underlying JS value
@@ -13943,7 +13951,7 @@
               (local $ptr i32)
               ;; Check that $v is an $External
               (if (i32.eqz (ref.test (ref $External) (local.get $v)))
-                  (then (call $raise-argument-error (local.get $v)) (unreachable)))
+                  (then (call $raise-argument-error/internal (local.get $v)) (unreachable)))
               ;; Cast to $External
               (local.set $e (ref.cast (ref $External) (local.get $v)))
               ;; Extract underlying JS value
@@ -14186,7 +14194,7 @@
               (local.set $size (i32.shr_u (local.get $size) (i32.const 1)))
               (if (i32.and (i32.ne (local.get $size) (i32.const 4))
                            (i32.ne (local.get $size) (i32.const 8)))
-                  (then (call $raise-argument-error (local.get $size-raw)) (unreachable)))
+                  (then (call $raise-argument-error/internal (local.get $size-raw)) (unreachable)))
 
               ;; --- Decode and validate start (exact-nonnegative-integer?, defaults to 0) ---
               (local.set $start (i32.const 0))
@@ -14200,7 +14208,7 @@
                        (then (call $raise-check-fixnum (local.get $start-raw)) (unreachable)))
                    (local.set $start (i32.shr_s (local.get $start) (i32.const 1)))
                    (if (i32.lt_s (local.get $start) (i32.const 0))
-                       (then (call $raise-argument-error (local.get $start-raw)) (unreachable)))))
+                       (then (call $raise-argument-error/internal (local.get $start-raw)) (unreachable)))))
 
               ;; --- Allocate or validate destination ---
               (if (ref.eq (local.get $dest-raw) (global.get $missing))
@@ -14208,7 +14216,7 @@
                                    (call $make-bytes (local.get $size-raw) (global.get $missing)))))
 
               (if (i32.eqz (ref.test (ref $Bytes) (local.get $dest-raw)))
-                  (then (call $raise-argument-error (local.get $start-raw)) (unreachable)))
+                  (then (call $raise-argument-error/internal (local.get $start-raw)) (unreachable)))
 
               (local.set $dest (ref.cast (ref $Bytes) (local.get $dest-raw)))
 
@@ -14220,7 +14228,7 @@
                   
               (if (i32.lt_u (call $i8array-length (local.get $arr))
                             (i32.add (local.get $start) (local.get $size)))
-                  (then (call $raise-argument-error (local.get $dest-raw)) (unreachable)))
+                  (then (call $raise-argument-error/internal (local.get $dest-raw)) (unreachable)))
               
 
               ;; --- Decode big-endian? flag, defaulting to (system-big-endian?) ---
@@ -14236,7 +14244,7 @@
                        (else
                         (if (ref.eq (local.get $big-raw) (global.get $true))
                             (then (local.set $big (i32.const 1)))
-                            (else (call $raise-argument-error (local.get $big-raw)) (unreachable)))))))
+                            (else (call $raise-argument-error/internal (local.get $big-raw)) (unreachable)))))))
 
               ;; --- Convert x to flonum ---
               (local.set $fl (ref.cast (ref $Flonum) (global.get $flzero)))
@@ -18356,7 +18364,7 @@
               (if (i32.eqz (ref.test (ref $String) (local.get $to)))
                   (then (call $raise-check-string (local.get $to))))
               (if (ref.eq (call $boolean? (local.get $all?)) (global.get $false))
-                  (then (call $raise-argument-error (local.get $all?))
+                  (then (call $raise-argument-error/internal (local.get $all?))
                         (unreachable)))
 
               ;; Decode after checks
@@ -19611,6 +19619,88 @@
                    (then (global.get $true))
                    (else (global.get $false))))
 
+         ;; regexp-match?/string-subset : regexp? string? -> boolean?
+         ;;   Small bootstrap matcher for expander startup. It handles the
+         ;;   simple literal regexp shapes currently reached before the
+         ;;   demodded regexp library is available.
+         (func $regexp-match?/string-subset
+               (param $rx (ref $Regexp)) ;; regexp value
+               (param $s  (ref $String)) ;; input string
+               (result    (ref eq))
+               (local $source (ref eq))
+               (local $pattern (ref $String))
+               (local $arr (ref $I32Array))
+               (local $len i32)
+
+               (local.set $source (struct.get $Regexp $source (local.get $rx)))
+               (if (i32.eqz (ref.test (ref $String) (local.get $source)))
+                   (then (return (global.get $false))))
+               (local.set $pattern (ref.cast (ref $String) (local.get $source)))
+
+               (if (call $string=?/i32/checked
+                         (local.get $pattern)
+                         (ref.cast (ref $String) (global.get $string:rx-dot-class)))
+                   (then (return (call $string-contains?
+                                       (ref.cast (ref eq) (local.get $s))
+                                       (global.get $string:dot)))))
+               (if (call $string=?/i32/checked
+                         (local.get $pattern)
+                         (ref.cast (ref $String) (global.get $string:rx-dot-zo-end)))
+                   (then (return (if (result (ref eq))
+                                     (call $string-suffix?/i32/checked
+                                           (local.get $s)
+                                           (ref.cast (ref $String)
+                                                     (global.get $string:dot-zo)))
+                                     (then (global.get $true))
+                                     (else (global.get $false))))))
+               (if (call $string=?/i32/checked
+                         (local.get $pattern)
+                         (ref.cast (ref $String) (global.get $string:rx-id-colon-or-end)))
+                   (then
+                    (if (i32.eqz (call $string-prefix?/i32/checked
+                                       (local.get $s)
+                                       (ref.cast (ref $String)
+                                                 (global.get $string:id))))
+                        (then (return (global.get $false))))
+                    (local.set $arr (struct.get $String $codepoints (local.get $s)))
+                    (local.set $len (array.len (local.get $arr)))
+                    (return
+                     (if (result (ref eq))
+                         (i32.eq (local.get $len) (i32.const 2))
+                         (then (global.get $true))
+                         (else
+                          (if (result (ref eq))
+                              (i32.eq (array.get $I32Array
+                                                 (local.get $arr)
+                                                 (i32.const 2))
+                                      (i32.const 58))
+                              (then (global.get $true))
+                              (else (global.get $false))))))))
+
+               (return_call $string-contains?
+                            (ref.cast (ref eq) (local.get $s))
+                            (ref.cast (ref eq) (local.get $pattern))))
+
+         ;; regexp-match? : regexp? string? -> boolean?
+         ;;   Bootstrap subset. Full Racket regexp semantics should come from
+         ;;   the demodded regexp library; this primitive only unblocks the
+         ;;   expander's early literal/predicate-style matches.
+         (func $regexp-match? (type $Prim2)
+               (param $rx-raw (ref eq)) ;; regexp?
+               (param $s-raw  (ref eq)) ;; string? for the bootstrap subset
+               (result        (ref eq))
+               (if (i32.eqz (ref.test (ref $Regexp) (local.get $rx-raw)))
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:regexp-match?)
+                               (global.get $string:regexp?)
+                               (local.get $rx-raw))
+                         (unreachable)))
+               (if (i32.eqz (ref.test (ref $String) (local.get $s-raw)))
+                   (then (return (global.get $false))))
+               (return_call $regexp-match?/string-subset
+                            (ref.cast (ref $Regexp) (local.get $rx-raw))
+                            (ref.cast (ref $String) (local.get $s-raw))))
+
          ;;;
          ;;; 4.9 KEYWORDS
          ;;;
@@ -20018,11 +20108,11 @@
                    ;; Type check: non-empty proper list
                    (if (ref.eq (local.get $xs) (global.get $null))
                        (then (call $js-log (call $format/display (local.get $xs)))
-                             (call $raise-argument-error (local.get $xs))
+                             (call $raise-argument-error/internal (local.get $xs))
                              (unreachable)))
                    (if (ref.eq (call $list? (local.get $xs)) (global.get $false))                       
                        (then (call $js-log (call $format/display (local.get $xs)))
-                             (call $raise-argument-error (local.get $xs))
+                             (call $raise-argument-error/internal (local.get $xs))
                              (unreachable)))
                    ;; Retrieve element using list-ref
                    (call $list-ref
@@ -20032,9 +20122,9 @@
         (func $rest (type $Prim1) (param $xs (ref eq)) (result (ref eq))
               ;; Type check: non-empty proper list
               (if (ref.eq (local.get $xs) (global.get $null))
-                  (then (call $raise-argument-error (local.get $xs)) (unreachable)))
+                  (then (call $raise-argument-error/internal (local.get $xs)) (unreachable)))
               (if (ref.eq (call $list? (local.get $xs)) (global.get $false))
-                  (then (call $raise-argument-error (local.get $xs)) (unreachable)))
+                  (then (call $raise-argument-error/internal (local.get $xs)) (unreachable)))
               ;; Return tail
               (struct.get $Pair $d (ref.cast (ref $Pair) (local.get $xs))))
 
@@ -20059,9 +20149,9 @@
               (local $p (ref $Pair))
               ;; Type check: non-empty proper list
               (if (ref.eq (local.get $xs) (global.get $null))
-                  (then (call $raise-argument-error (local.get $xs)) (unreachable)))
+                  (then (call $raise-argument-error/internal (local.get $xs)) (unreachable)))
               (if (ref.eq (call $list? (local.get $xs)) (global.get $false))
-                  (then (call $raise-argument-error (local.get $xs)) (unreachable)))
+                  (then (call $raise-argument-error/internal (local.get $xs)) (unreachable)))
               ;; Retrieve last element
               (local.set $p (call $last-pair/checked (ref.cast (ref $Pair) (local.get $xs))))
               (struct.get $Pair $a (local.get $p)))
@@ -20229,7 +20319,7 @@
                               (local.get $xs) (local.get $idx) (i32.const 0))
                         (unreachable)))
               (if (ref.eq (call $list? (local.get $xs)) (global.get $false))
-                  (then (call $raise-argument-error (local.get $xs)) (unreachable)))
+                  (then (call $raise-argument-error/internal (local.get $xs)) (unreachable)))
 
               (local.set $pair (ref.cast (ref $Pair) (local.get $xs)))
               (call $list-set/checked (local.get $pair) (local.get $idx) (local.get $v)))
@@ -20260,7 +20350,7 @@
                                (i31.get_s (ref.cast (ref i31) (local.get $pos)))
                                (i32.const 1)))
                    (if (i32.lt_s (local.get $n) (i32.const 0))
-                       (then (call $raise-argument-error (local.get $pos))
+                       (then (call $raise-argument-error/internal (local.get $pos))
                              (unreachable))))
                   (else (call $raise-check-fixnum (local.get $pos))
                         (unreachable)))
@@ -20271,7 +20361,7 @@
 
               ;; Non-empty list required when dropping more than zero
               (if (ref.eq (local.get $lst) (global.get $null))
-                  (then (call $raise-argument-error (local.get $lst))
+                  (then (call $raise-argument-error/internal (local.get $lst))
                         (unreachable)))
               (if (i32.eqz (ref.test (ref $Pair) (local.get $lst)))
                   (then (call $raise-pair-expected (local.get $lst))
@@ -20334,7 +20424,7 @@
                                (i31.get_s (ref.cast (ref i31) (local.get $pos)))
                                (i32.const 1)))
                    (if (i32.lt_s (local.get $n) (i32.const 0))
-                       (then (call $raise-argument-error (local.get $pos))
+                       (then (call $raise-argument-error/internal (local.get $pos))
                              (unreachable))))
                   (else (call $raise-check-fixnum (local.get $pos))
                         (unreachable)))
@@ -20343,7 +20433,7 @@
                   (then (return (local.get $lst))))
 
               (if (ref.eq (local.get $lst) (global.get $null))
-                  (then (call $raise-argument-error (local.get $lst))
+                  (then (call $raise-argument-error/internal (local.get $lst))
                         (unreachable)))
               (if (i32.eqz (ref.test (ref $Pair) (local.get $lst)))
                   (then (call $raise-pair-expected (local.get $lst))
@@ -21812,12 +21902,12 @@
                     (i32.eqz (ref.test (ref i31) (local.get $n-raw)))
                     (i32.ne (i32.and (i31.get_u (ref.cast (ref i31) (local.get $n-raw))) (i32.const 1))
                             (i32.const 0)))
-                   (then (call $raise-argument-error (local.get $n-raw)))) ;; customize this if needed
+                   (then (call $raise-argument-error/internal (local.get $n-raw)))) ;; customize this if needed
                (local.set $n (i32.shr_s (i31.get_s (ref.cast (ref i31) (local.get $n-raw))) (i32.const 1)))
                ;; Negative counts must fail before allocation; unsigned decoding
                ;; would otherwise turn them into huge positive counts.
                (if (i32.lt_s (local.get $n) (i32.const 0))
-                   (then (call $raise-argument-error (local.get $n-raw))))
+                   (then (call $raise-argument-error/internal (local.get $n-raw))))
                (call $make-list/checked (local.get $n) (local.get $v)))
 
          (func $make-list/checked
@@ -21860,7 +21950,7 @@
                            (i31.get_s (ref.cast (ref i31) (local.get $n-raw)))
                            (i32.const 1)))
                (if (i32.lt_s (local.get $n) (i32.const 0))
-                   (then (call $raise-argument-error (local.get $n-raw))))
+                   (then (call $raise-argument-error/internal (local.get $n-raw))))
 
                ;; Check procedure and fetch invoker
                (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
@@ -21955,7 +22045,7 @@
                             (else (if (call $fx?/i32 (local.get $start-val))
                                       (then (local.set $start-i32
                                                       (i32.shr_s (i31.get_s (ref.cast (ref i31) (local.get $start-val))) (i32.const 1))))
-                                      (else (call $raise-argument-error (local.get $start-val))
+                                      (else (call $raise-argument-error/internal (local.get $start-val))
                                             (unreachable)))))))
 
               ;; end
@@ -21966,7 +22056,7 @@
                   (else (if (call $fx?/i32 (local.get $end-val))
                             (then (local.set $end-i32
                                             (i32.shr_s (i31.get_s (ref.cast (ref i31) (local.get $end-val))) (i32.const 1))))
-                            (else (call $raise-argument-error (local.get $end-val))
+                            (else (call $raise-argument-error/internal (local.get $end-val))
                                   (unreachable)))))
 
               ;; step (optional, defaults to 1)
@@ -21982,17 +22072,17 @@
                             (else (if (call $fx?/i32 (local.get $step-val))
                                       (then (local.set $step-i32
                                                       (i32.shr_s (i31.get_s (ref.cast (ref i31) (local.get $step-val))) (i32.const 1))))
-                                      (else (call $raise-argument-error (local.get $step-val))
+                                      (else (call $raise-argument-error/internal (local.get $step-val))
                                             (unreachable)))))))
 
               ;; step must be non-zero when provided
               (if (i32.eqz (ref.eq (local.get $step-val) (global.get $missing)))
                   (then (if (i32.eqz (local.get $use-fl))
                             (then (if (i32.eq (local.get $step-i32) (i32.const 0))
-                                      (then (call $raise-argument-error (local.get $step-val))
+                                      (then (call $raise-argument-error/internal (local.get $step-val))
                                             (unreachable))))
                             (else (if (f64.eq (local.get $step-f64) (f64.const 0))
-                                      (then (call $raise-argument-error (local.get $step-val))
+                                      (then (call $raise-argument-error/internal (local.get $step-val))
                                             (unreachable)))))))
 
               ;; decide variant
@@ -22112,7 +22202,7 @@
                   (else (if (call $fx?/i32 (local.get $start-raw))
                             (then (local.set $start-i32
                                             (i32.shr_s (i31.get_s (ref.cast (ref i31) (local.get $start-raw))) (i32.const 1))))
-                            (else (call $raise-argument-error (local.get $start-raw))
+                            (else (call $raise-argument-error/internal (local.get $start-raw))
                                   (unreachable)))))
 
               ;; end
@@ -22123,7 +22213,7 @@
                   (else (if (call $fx?/i32 (local.get $end-raw))
                             (then (local.set $end-i32
                                             (i32.shr_s (i31.get_s (ref.cast (ref i31) (local.get $end-raw))) (i32.const 1))))
-                            (else (call $raise-argument-error (local.get $end-raw))
+                            (else (call $raise-argument-error/internal (local.get $end-raw))
                                   (unreachable)))))
 
               ;; step
@@ -22147,17 +22237,17 @@
                             (else (if (call $fx?/i32 (local.get $step-raw))
                                       (then (local.set $step-i32
                                                       (i32.shr_s (i31.get_s (ref.cast (ref i31) (local.get $step-raw))) (i32.const 1))))
-                                      (else (call $raise-argument-error (local.get $step-raw))
+                                      (else (call $raise-argument-error/internal (local.get $step-raw))
                                             (unreachable)))))))
 
               ;; step must be non-zero when provided
               (if (i32.eqz (ref.eq (local.get $step-raw) (global.get $missing)))
                   (then (if (i32.eqz (local.get $use-fl))
                             (then (if (i32.eq (local.get $step-i32) (i32.const 0))
-                                      (then (call $raise-argument-error (local.get $step-raw))
+                                      (then (call $raise-argument-error/internal (local.get $step-raw))
                                             (unreachable))))
                             (else (if (f64.eq (local.get $step-f64) (f64.const 0))
-                                      (then (call $raise-argument-error (local.get $step-raw))
+                                      (then (call $raise-argument-error/internal (local.get $step-raw))
                                             (unreachable)))))))
 
               ;; decide variant
@@ -22380,7 +22470,7 @@
 
                        ;; Ensure lst is a non-empty proper list
                        (if (ref.eq (local.get $lst) (global.get $null))
-                           (then (call $raise-argument-error (local.get $lst)) (unreachable)))
+                           (then (call $raise-argument-error/internal (local.get $lst)) (unreachable)))
                        (if (i32.eqz (ref.test (ref $Pair) (local.get $lst)))
                            (then (call $raise-pair-expected (local.get $lst)) (unreachable)))
                        (local.set $pair (ref.cast (ref $Pair) (local.get $lst)))
@@ -22416,13 +22506,42 @@
              (append (gen-argminmax 'argmax '$</2)
                      (gen-argminmax 'argmin '$>/2)))
 
-         (func $raise-argument-error
+         (func $raise-argument-error/internal
                (param $x (ref eq))
 
                (call $raise-argument-error1
                      (global.get $symbol:error)
                      (global.get $string:valid-argument)
                      (local.get $x)))
+
+         ;; raise-argument-error : symbol? string? any/c any/c ... -> none
+         ;;   Public primitive used by compiled library code to report
+         ;;   contract violations. In the optional variant, the third argument
+         ;;   is the bad argument position and the actual bad value is the
+         ;;   first rest argument; extra values are currently ignored.
+         (func $raise-argument-error (type $Prim>=3)
+               (param $who      (ref eq)) ;; symbol?
+               (param $expected (ref eq)) ;; string?
+               (param $third    (ref eq)) ;; bad value or bad argument index
+               (param $rest     (ref eq)) ;; rest arguments as $Args
+               (result          (ref eq)) ;; unreachable
+               (local $got      (ref eq))
+               (local $rest-args (ref $Args))
+               (local.set $got (local.get $third))
+               (if (ref.test (ref $Args) (local.get $rest))
+                   (then
+                    (local.set $rest-args (ref.cast (ref $Args) (local.get $rest)))
+                    (if (i32.gt_u (array.len (local.get $rest-args)) (i32.const 0))
+                        (then (local.set $got
+                                         (array.get $Args
+                                                    (local.get $rest-args)
+                                                    (i32.const 0)))))))
+               (call $raise-argument-error1
+                     (local.get $who)
+                     (local.get $expected)
+                     (local.get $got))
+               (unreachable))
+
          (func $raise-expected-fixnum (param $x (ref eq)) (unreachable))
          
          (func $list-from-range
@@ -30475,7 +30594,7 @@
                           (i31.get_s (ref.cast (ref i31) (local.get $n-raw)))
                           (i32.const 1)))
               (if (i32.lt_s (local.get $n) (i32.const 0))
-                  (then (call $raise-argument-error (local.get $n-raw))))
+                  (then (call $raise-argument-error/internal (local.get $n-raw))))
 
               ;; --- Check procedure ---
               (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
@@ -31414,7 +31533,7 @@
                            (if (i32.ne
                                 (array.len (struct.get $Vector $arr (local.get $vec)))
                                 (local.get $len))
-                               (then (call $raise-argument-error (local.get $vec))
+                               (then (call $raise-argument-error/internal (local.get $vec))
                                      (unreachable)))
                            (local.set $nvecs (i32.add (local.get $nvecs) (i32.const 1)))
                            (local.set $cur (struct.get $Pair $d (local.get $pair)))
@@ -31535,7 +31654,7 @@
                            (if (i32.ne
                                 (array.len (struct.get $Vector $arr (local.get $vec)))
                                 (local.get $len))
-                               (then (call $raise-argument-error (local.get $vec))
+                               (then (call $raise-argument-error/internal (local.get $vec))
                                      (unreachable)))
                            (local.set $nvecs (i32.add (local.get $nvecs) (i32.const 1)))
                            (local.set $cur (struct.get $Pair $d (local.get $pair)))
@@ -31632,7 +31751,7 @@
                       (local.set $len (array.len (struct.get $Vector $arr (local.get $vector))))
                       ;; non-empty vector
                       (if (i32.eqz (local.get $len))
-                          (then (call $raise-argument-error (local.get $vec))
+                          (then (call $raise-argument-error/internal (local.get $vec))
                                 (unreachable)))
                       ;; Prepare argument array
                       (local.set $args (array.new $Args (global.get $null) (i32.const 1)))
@@ -42356,15 +42475,15 @@
 
                ;; --- Argument checks ---
                (if (i32.eqz (ref.test (ref $Symbol) (local.get $name)))
-                   (then (call $raise-argument-error (local.get $name))))
+                   (then (call $raise-argument-error/internal (local.get $name))))
                (if (i32.or
                     (i32.eqz (ref.test (ref i31) (local.get $init-field-count)))
                     (i32.ne (i32.and (i31.get_u (ref.cast (ref i31) (local.get $init-field-count))) (i32.const 1)) (i32.const 0)))
-                   (then (call $raise-argument-error (local.get $init-field-count))))
+                   (then (call $raise-argument-error/internal (local.get $init-field-count))))
                (if (i32.or
                     (i32.eqz (ref.test (ref i31) (local.get $auto-field-count)))
                     (i32.ne (i32.and (i31.get_u (ref.cast (ref i31) (local.get $auto-field-count))) (i32.const 1)) (i32.const 0)))
-                   (then (call $raise-argument-error (local.get $auto-field-count))))
+                   (then (call $raise-argument-error/internal (local.get $auto-field-count))))
 
                ;; --- Decode fixnums ---
                (local.set $ifc (i32.shr_u (i31.get_u (ref.cast (ref i31) (local.get $init-field-count))) (i32.const 1)))
@@ -43475,7 +43594,7 @@
                (if (ref.test (ref $Symbol) (local.get $key))
                    (then (return (ref.cast (ref $Symbol) (local.get $key)))))
                (if (i32.eqz (call $simple-prefab-key?/i32 (local.get $key)))
-                   (then (call $raise-argument-error (local.get $key))
+                   (then (call $raise-argument-error/internal (local.get $key))
                          (unreachable)))
                (ref.cast (ref $Symbol)
                          (call $list-ref/checked
@@ -43494,7 +43613,7 @@
                (if (ref.test (ref $Symbol) (local.get $key))
                    (then (return (i32.const -1))))
                (if (i32.eqz (call $simple-prefab-key?/i32 (local.get $key)))
-                   (then (call $raise-argument-error (local.get $key))
+                   (then (call $raise-argument-error/internal (local.get $key))
                          (unreachable)))
                (local.set $len (call $length/i32 (local.get $key)))
                (if (i32.eq (local.get $len) (i32.const 1))
@@ -43527,7 +43646,7 @@
                (if (ref.test (ref $Symbol) (local.get $key))
                    (then (return (i32.const 0))))
                (if (i32.eqz (call $simple-prefab-key?/i32 (local.get $key)))
-                   (then (call $raise-argument-error (local.get $key))
+                   (then (call $raise-argument-error/internal (local.get $key))
                          (unreachable)))
                (local.set $len (call $length/i32 (local.get $key)))
                (if (i32.eq (local.get $len) (i32.const 3))
@@ -43573,7 +43692,7 @@
                (if (ref.test (ref $Symbol) (local.get $key))
                    (then (return (global.get $false))))
                (if (i32.eqz (call $simple-prefab-key?/i32 (local.get $key)))
-                   (then (call $raise-argument-error (local.get $key))
+                   (then (call $raise-argument-error/internal (local.get $key))
                          (unreachable)))
                (local.set $len (call $length/i32 (local.get $key)))
                (if (i32.eq (local.get $len) (i32.const 3))
@@ -43621,7 +43740,7 @@
                                       (i32.const 0)
                                       (array.new $Array (global.get $false) (i32.const 0))))))
                (if (i32.eqz (call $simple-prefab-key?/i32 (local.get $key)))
-                   (then (call $raise-argument-error (local.get $key))
+                   (then (call $raise-argument-error/internal (local.get $key))
                          (unreachable)))
                (local.set $len (call $length/i32 (local.get $key)))
                (if (i32.eq (local.get $len) (i32.const 5))
@@ -43700,7 +43819,7 @@
                (if (ref.test (ref $Symbol) (local.get $key))
                    (then (return (i32.const 0))))
                (if (i32.eqz (call $simple-prefab-key?/i32 (local.get $key)))
-                   (then (call $raise-argument-error (local.get $key))
+                   (then (call $raise-argument-error/internal (local.get $key))
                          (unreachable)))
                (local.set $len (call $length/i32 (local.get $key)))
                (if (i32.eq (local.get $len) (i32.const 3))
@@ -43741,7 +43860,7 @@
                (local $len i32)
 
                (if (i32.eqz (call $simple-prefab-key-has-super?/i32 (local.get $key)))
-                   (then (call $raise-argument-error (local.get $key))
+                   (then (call $raise-argument-error/internal (local.get $key))
                          (unreachable)))
                (local.set $len (call $length/i32 (local.get $key)))
                (if (i32.eq (local.get $len) (i32.const 3))
@@ -43791,7 +43910,7 @@
                (local $count (ref eq))
 
                (if (i32.eqz (call $simple-prefab-key-has-super?/i32 (local.get $key)))
-                   (then (call $raise-argument-error (local.get $key))
+                   (then (call $raise-argument-error/internal (local.get $key))
                          (unreachable)))
                (local.set $len (call $length/i32 (local.get $key)))
                (local.set $count
@@ -43826,7 +43945,7 @@
                (local $auto-count (ref eq))
 
                (if (i32.eqz (call $simple-prefab-key-has-super?/i32 (local.get $key)))
-                   (then (call $raise-argument-error (local.get $key))
+                   (then (call $raise-argument-error/internal (local.get $key))
                          (unreachable)))
                (local.set $len (call $length/i32 (local.get $key)))
                (if (i32.ne (local.get $len) (i32.const 8))
@@ -43851,7 +43970,7 @@
                (local $auto-spec (ref eq))
 
                (if (i32.eqz (call $simple-prefab-key-has-super?/i32 (local.get $key)))
-                   (then (call $raise-argument-error (local.get $key))
+                   (then (call $raise-argument-error/internal (local.get $key))
                          (unreachable)))
                (local.set $len (call $length/i32 (local.get $key)))
                (if (i32.ne (local.get $len) (i32.const 8))
@@ -43873,7 +43992,7 @@
                (local $len i32)
 
                (if (i32.eqz (call $simple-prefab-key-has-super?/i32 (local.get $key)))
-                   (then (call $raise-argument-error (local.get $key))
+                   (then (call $raise-argument-error/internal (local.get $key))
                          (unreachable)))
                (local.set $len (call $length/i32 (local.get $key)))
                (if (i32.lt_u (local.get $len) (i32.const 5))
@@ -43912,7 +44031,7 @@
                (local $parent-key (ref eq))
 
                (if (i32.eqz (call $simple-prefab-key-has-super?/i32 (local.get $key)))
-                   (then (call $raise-argument-error (local.get $key))
+                   (then (call $raise-argument-error/internal (local.get $key))
                          (unreachable)))
                (local.set $parent-key
                           (call $list-tail/checked
@@ -43997,7 +44116,7 @@
                                   (call $list-ref/checked
                                         (ref.cast (ref $Pair) (local.get $key))
                                         (local.get $i))))
-                                (then (call $raise-argument-error (local.get $key))
+                                (then (call $raise-argument-error/internal (local.get $key))
                                       (unreachable)))
                             (local.set $count
                                        (call $list-ref/checked
@@ -44006,7 +44125,7 @@
                             (if (ref.eq
                                  (call $exact-nonnegative-integer? (local.get $count))
                                  (global.get $false))
-                                (then (call $raise-argument-error (local.get $key))
+                                (then (call $raise-argument-error/internal (local.get $key))
                                       (unreachable)))
                             (local.set $total
                                        (i32.add
@@ -44032,7 +44151,7 @@
 
                (local.set $len (call $length/i32 (local.get $key)))
                (if (i32.ge_u (local.get $index) (local.get $len))
-                   (then (call $raise-argument-error (local.get $key))
+                   (then (call $raise-argument-error/internal (local.get $key))
                          (unreachable)))
                (local.set $name
                           (ref.cast
@@ -44407,7 +44526,7 @@
                (local $parent-registry-key (ref $Symbol))
 
                (if (i32.eqz (call $simple-prefab-key?/i32 (local.get $key)))
-                   (then (call $raise-argument-error (local.get $key))
+                   (then (call $raise-argument-error/internal (local.get $key))
                          (unreachable)))
                (if (i32.eqz (call $simple-prefab-key-has-super?/i32 (local.get $key)))
                    (then
@@ -44516,7 +44635,7 @@
                (local $metadata (ref eq))
 
                (if (i32.eqz (ref.test (ref $StructType) (local.get $v)))
-                   (then (call $raise-argument-error (local.get $v))
+                   (then (call $raise-argument-error/internal (local.get $v))
                          (unreachable)))
                (local.set $std (ref.cast (ref $StructType) (local.get $v)))
                (local.set $metadata (struct.get $StructType $immutables (local.get $std)))
@@ -44618,20 +44737,20 @@
                                    (loop $walk
                                          (br_if $done-list (ref.eq (local.get $cursor) (global.get $null)))
                                          (if (i32.eqz (ref.test (ref $Pair) (local.get $cursor)))
-                                             (then (call $raise-argument-error (local.get $immutables))
+                                             (then (call $raise-argument-error/internal (local.get $immutables))
                                                    (unreachable)))
                                          (local.set $cell (ref.cast (ref $Pair) (local.get $cursor)))
                                          (local.set $raw (struct.get $Pair $a (local.get $cell)))
                                          (if (ref.eq (call $exact-nonnegative-integer? (local.get $raw))
                                                      (global.get $false))
-                                             (then (call $raise-argument-error (local.get $raw))
+                                             (then (call $raise-argument-error/internal (local.get $raw))
                                                    (unreachable)))
                                          (local.set $immutable-i
                                                     (i32.shr_s
                                                      (i31.get_s (ref.cast (ref i31) (local.get $raw)))
                                                      (i32.const 1)))
                                          (if (i32.ge_u (local.get $immutable-i) (local.get $field-count))
-                                             (then (call $raise-argument-error (local.get $raw))
+                                             (then (call $raise-argument-error/internal (local.get $raw))
                                                    (unreachable)))
                                          (if (i32.eq (local.get $immutable-i) (local.get $i))
                                              (then (local.set $immutable? (i32.const 1))))
@@ -44719,7 +44838,7 @@
                (local $src            i32)
 
                (if (i32.eqz (call $simple-prefab-key?/i32 (local.get $key)))
-                   (then (call $raise-argument-error (local.get $key))
+                   (then (call $raise-argument-error/internal (local.get $key))
                          (unreachable)))
                (local.set $field-count    (call $length/i32 (local.get $vals)))
                (local.set $len            (if (result i32)
@@ -44748,7 +44867,7 @@
                                           (local.get $chain-parent-index)))
                          (if (i32.gt_u (local.get $chain-parent-total)
                                        (local.get $field-count))
-                             (then (call $raise-argument-error (local.get $key))
+                             (then (call $raise-argument-error/internal (local.get $key))
                                    (unreachable)))
                          (local.set $key
                                     (call $simple-prefab-chain-alias-top->explicit-key/checked
@@ -44981,14 +45100,14 @@
                                              (local.get $parent-total)))
                                    (else (local.get $field-count))))))
                (if (i32.lt_s (local.get $explicit-count) (i32.const 0))
-                   (then (call $raise-argument-error (local.get $key))
+                   (then (call $raise-argument-error/internal (local.get $key))
                          (unreachable)))
                (if (i32.and
                     (i32.ge_s (local.get $explicit-count) (i32.const 0))
                     (i32.ne
                      (i32.add (local.get $explicit-count) (local.get $parent-total))
                      (local.get $field-count)))
-                   (then (call $raise-argument-error (local.get $key))
+                   (then (call $raise-argument-error/internal (local.get $key))
                          (unreachable)))
                (local.set $total-count
                           (i32.add
@@ -45188,22 +45307,22 @@
 
                ;; --- Type checks ---
                (if (i32.eqz (ref.test (ref $Symbol) (local.get $name)))
-                   (then (call $raise-argument-error (local.get $name))))
+                   (then (call $raise-argument-error/internal (local.get $name))))
                
                (if (i32.and
                     (i32.eqz (ref.eq (local.get $super) (global.get $false)))
                     (i32.eqz (ref.test (ref $StructType) (local.get $super))))
-                   (then (call $raise-argument-error (local.get $super))))
+                   (then (call $raise-argument-error/internal (local.get $super))))
 
                (if (i32.or
                     (i32.eqz (ref.test (ref i31) (local.get $init-count)))
                     (i32.ne (i32.and (i31.get_u (ref.cast (ref i31) (local.get $init-count))) (i32.const 1)) (i32.const 0)))
-                   (then (call $raise-argument-error (local.get $init-count))))
+                   (then (call $raise-argument-error/internal (local.get $init-count))))
 
                (if (i32.or
                     (i32.eqz (ref.test (ref i31) (local.get $auto-count)))
                     (i32.ne (i32.and (i31.get_u (ref.cast (ref i31) (local.get $auto-count))) (i32.const 1)) (i32.const 0)))
-                   (then (call $raise-argument-error (local.get $auto-count))))
+                   (then (call $raise-argument-error/internal (local.get $auto-count))))
 
                ;; Initialize non-defaultable prefab locals before branching.
                (local.set $prefab-existing (global.get $false))
@@ -45251,7 +45370,7 @@
                (if (i32.and
                     (i32.eqz (ref.eq (local.get $guard-checked) (global.get $false)))
                     (i32.eqz (ref.test (ref $Procedure) (local.get $guard-checked))))
-                   (then (call $raise-argument-error (local.get $guard-checked))
+                   (then (call $raise-argument-error/internal (local.get $guard-checked))
                          (unreachable)))
 
                ;; --- Initialize property tables ---
@@ -45322,7 +45441,7 @@
                                     (struct.get $StructType $immutables
                                                 (ref.as_non_null (local.get $super-typed))))
                          (if (i32.eqz (call $prefab-metadata?/i32 (local.get $prefab-metadata)))
-                             (then (call $raise-argument-error (local.get $super))
+                             (then (call $raise-argument-error/internal (local.get $super))
                                    (unreachable)))
                          (local.set $prefab-parent-key
                                     (struct.get $Pair $a
@@ -45366,7 +45485,7 @@
                          (i32.or
                           (i32.eqz (ref.eq (local.get $props-list) (global.get $null)))
                           (i32.eqz (ref.eq (local.get $guard-checked) (global.get $false)))))
-                        (then (call $raise-argument-error (local.get $inspector))
+                        (then (call $raise-argument-error/internal (local.get $inspector))
                               (unreachable)))))
 
 
@@ -45443,17 +45562,17 @@
                       (loop $walk
                             (br_if $done (ref.eq (local.get $props-cursor) (global.get $null)))
                             (if (i32.eqz (ref.test (ref $Pair) (local.get $props-cursor)))
-                                (then (call $raise-argument-error (local.get $props-cursor))
+                                (then (call $raise-argument-error/internal (local.get $props-cursor))
                                       (unreachable)))
                             (local.set $props-cell (ref.cast (ref $Pair) (local.get $props-cursor)))
                             (local.set $entry-raw (struct.get $Pair $a (local.get $props-cell)))
                             (if (i32.eqz (ref.test (ref $Pair) (local.get $entry-raw)))
-                                (then (call $raise-argument-error (local.get $entry-raw))
+                                (then (call $raise-argument-error/internal (local.get $entry-raw))
                                       (unreachable)))
                             (local.set $entry (ref.cast (ref $Pair) (local.get $entry-raw)))
                             (local.set $prop-raw (struct.get $Pair $a (local.get $entry)))
                             (if (i32.eqz (ref.test (ref $StructTypeProperty) (local.get $prop-raw)))
-                                (then (call $raise-argument-error (local.get $prop-raw))
+                                (then (call $raise-argument-error/internal (local.get $prop-raw))
                                       (unreachable)))
                             (local.set $prop-desc (ref.cast (ref $StructTypeProperty) (local.get $prop-raw)))
                             (local.set $value (struct.get $Pair $d (local.get $entry)))
@@ -45501,11 +45620,11 @@
 
                ;; Type checks
                (if (i32.eqz (ref.test (ref $StructType) (local.get $std)))
-                   (then (call $raise-argument-error (local.get $std))))
+                   (then (call $raise-argument-error/internal (local.get $std))))
                (if (i32.eqz (ref.test (ref i31) (local.get $field-index)))
-                   (then (call $raise-argument-error (local.get $field-index))))
+                   (then (call $raise-argument-error/internal (local.get $field-index))))
                (if (i32.eqz (ref.test (ref i31) (local.get $super-count)))
-                   (then (call $raise-argument-error (local.get $super-count))))
+                   (then (call $raise-argument-error/internal (local.get $super-count))))
                ;; Decode
                (local.set $i (i32.shr_u (i31.get_u (ref.cast (ref i31) (local.get $field-index))) (i32.const 1)))
                ;; Prepare typed std and accessor name
@@ -45572,21 +45691,21 @@
                ;; Get struct
                (local.set $target (array.get $Args (local.get $args) (i32.const 0)))
                (if (i32.eqz (ref.test (ref $Struct) (local.get $target)))
-                   (then (call $raise-argument-error (local.get $target))))
+                   (then (call $raise-argument-error/internal (local.get $target))))
                (local.set $struct (ref.cast (ref $Struct) (local.get $target)))
 
                ;; Get index and decode
                (local.set $index-fx (array.get $Args (local.get $args) (i32.const 1)))
                (if (i32.or (i32.eqz (ref.test (ref i31) (local.get $index-fx)))
                            (i32.ne (i32.and (i31.get_u (ref.cast (ref i31) (local.get $index-fx))) (i32.const 1)) (i32.const 0)))
-                   (then (call $raise-argument-error (local.get $index-fx))))
+                   (then (call $raise-argument-error/internal (local.get $index-fx))))
                (local.set $index (i32.shr_u (i31.get_u (ref.cast (ref i31) (local.get $index-fx))) (i32.const 1)))
                
                ;; Type match - is $struct a subtype of $std
                (if (i32.eqz (call $struct-type-is-a?/i32
                                   (struct.get $Struct $type (local.get $struct))
                                   (local.get $std)))
-                   (then (call $raise-argument-error (local.get $target))))
+                   (then (call $raise-argument-error/internal (local.get $target))))
 
                ;; Get and return field
                (local.set $fields (struct.get $Struct $fields (local.get $struct)))
@@ -45602,7 +45721,7 @@
 
                ;; Type check
                (if (i32.eqz (ref.test (ref $StructType) (local.get $v)))
-                   (then (call $raise-argument-error (local.get $v))))
+                   (then (call $raise-argument-error/internal (local.get $v))))
                ;; Decode
                (local.set $std (ref.cast (ref $StructType) (local.get $v)))
                ;; Delegate
@@ -45796,7 +45915,7 @@
                ;; struct
                (local.set $target (array.get $Args (local.get $args) (i32.const 0)))
                (if (i32.eqz (ref.test (ref $Struct) (local.get $target)))
-                   (then (call $raise-argument-error (local.get $target))))
+                   (then (call $raise-argument-error/internal (local.get $target))))
                (local.set $struct (ref.cast (ref $Struct) (local.get $target)))
                ;; index
                (local.set $index-fx (array.get $Args (local.get $args) (i32.const 1)))
@@ -45804,7 +45923,7 @@
                            (i32.ne (i32.and (i31.get_u (ref.cast (ref i31)
                                                                  (local.get $index-fx)))
                                             (i32.const 1)) (i32.const 0)))
-                   (then (call $raise-argument-error (local.get $index-fx))))
+                   (then (call $raise-argument-error/internal (local.get $index-fx))))
                (local.set $index (i32.shr_u (i31.get_u (ref.cast (ref i31)
                                                                  (local.get $index-fx)))
                                             (i32.const 1)))
@@ -45817,13 +45936,13 @@
                (if (i32.eqz (call $struct-type-is-a?/i32
                                   (struct.get $Struct $type (local.get $struct))
                                   (local.get $std)))
-                   (then (call $raise-argument-error (local.get $target))))
+                   (then (call $raise-argument-error/internal (local.get $target))))
                ;; --- Set field ---
                (local.set $fields (struct.get $Struct $fields (local.get $struct)))
                (if (i32.eqz (call $prefab-struct-field-mutable?/i32
                                   (local.get $std)
                                   (i32.add (local.get $skip) (local.get $index))))
-                   (then (call $raise-argument-error (local.get $index-fx))
+                   (then (call $raise-argument-error/internal (local.get $index-fx))
                          (unreachable)))
                (array.set $Array (local.get $fields)
                           (i32.add (local.get $skip) (local.get $index))
@@ -45895,7 +46014,7 @@
                ;; --- Get arguments ---
                (local.set $target (array.get $Args (local.get $args) (i32.const 0)))
                (if (i32.eqz (ref.test (ref $Struct) (local.get $target)))
-                   (then (call $raise-argument-error (local.get $target))))
+                   (then (call $raise-argument-error/internal (local.get $target))))
                (local.set $struct (ref.cast (ref $Struct) (local.get $target)))
 
                (local.set $val (array.get $Args (local.get $args) (i32.const 1)))
@@ -45905,14 +46024,14 @@
                (if (i32.eqz (call $struct-type-is-a?/i32
                                   (struct.get $Struct $type (local.get $struct))
                                   (local.get $std)))
-                   (then (call $raise-argument-error (local.get $target))))
+                   (then (call $raise-argument-error/internal (local.get $target))))
 
                ;; --- Set field ---
                (local.set $fields (struct.get $Struct $fields (local.get $struct)))
                (if (i32.eqz (call $prefab-struct-field-mutable?/i32
                                   (local.get $std)
                                   (i32.add (local.get $skip) (local.get $index))))
-                   (then (call $raise-argument-error (local.get $index-fx))
+                   (then (call $raise-argument-error/internal (local.get $index-fx))
                          (unreachable)))
                (array.set $Array (local.get $fields)
                           (i32.add (local.get $skip) (local.get $index))
@@ -45971,7 +46090,7 @@
 
                ;; --- Check mutator-proc is a closure ---
                (if (i32.eqz (ref.test (ref $Closure) (local.get $mutator-proc)))
-                   (then (call $raise-argument-error (local.get $mutator-proc))))
+                   (then (call $raise-argument-error/internal (local.get $mutator-proc))))
                (local.set $clos (ref.cast (ref $Closure) (local.get $mutator-proc)))
 
                ;; --- Extract fields ---
@@ -45989,7 +46108,7 @@
                ;; --- Validate realm ---
                (if (i32.and (i32.eqz (ref.eq (local.get $realm-checked) (global.get $false)))
                             (i32.eqz (ref.test (ref $Symbol) (local.get $realm-checked))))
-                   (then (call $raise-argument-error (local.get $realm-checked))))
+                   (then (call $raise-argument-error/internal (local.get $realm-checked))))
 
                ;; --- Determine procedure name ---
                (local.set $name (global.get $symbol:mutator))
@@ -46050,7 +46169,7 @@
                               (local.set $name (local.get $field-name)))))
                         (else
                          (if (i32.eqz (ref.test (ref $String) (local.get $field-name)))
-                             (then (call $raise-argument-error (local.get $field-name)))
+                             (then (call $raise-argument-error/internal (local.get $field-name)))
                              (else
                               (local.set $name
                                          (call $string->symbol/checked
@@ -46071,7 +46190,7 @@
                (result (ref eq))   ;; returns: closure
 
                (if (i32.eqz (ref.test (ref $StructType) (local.get $v)))
-                   (then (call $raise-argument-error (local.get $v))))
+                   (then (call $raise-argument-error/internal (local.get $v))))
 
                (call $make-struct-predicate/checked
                      (ref.cast (ref $StructType) (local.get $v))))
@@ -46146,18 +46265,18 @@
                ;; --- Type checks ---
                ;; Check accessor-proc is a struct accessor procedure
                (if (i32.eqz (ref.test (ref $StructAccessorProcedure) (local.get $accessor-proc)))
-                   (then (call $raise-argument-error (local.get $accessor-proc))))
+                   (then (call $raise-argument-error/internal (local.get $accessor-proc))))
                (local.set $accessor (ref.cast (ref $Closure) (local.get $accessor-proc)))
                ;; Check field-index is a fixnum (i31 with lsb = 0)
                (if (i32.or (i32.eqz (ref.test (ref i31) (local.get $field-index-fx)))
                            (i32.ne (i32.and (i31.get_u (ref.cast (ref i31) (local.get $field-index-fx)))
                                             (i32.const 1))
                                    (i32.const 0)))
-                   (then (call $raise-argument-error (local.get $field-index-fx))))
+                   (then (call $raise-argument-error/internal (local.get $field-index-fx))))
                ;; field name must be a symbol or #f
                (if (i32.eqz (ref.eq (local.get $name) (global.get $false)))
                    (then (if (i32.eqz (ref.test (ref $Symbol) (local.get $name)))
-                             (then (call $raise-argument-error (local.get $name))))))
+                             (then (call $raise-argument-error/internal (local.get $name))))))
                ;; Build the name of the struct accessor
                (local.set $free (struct.get $Closure $free (local.get $accessor)))
                (local.set $std  (ref.cast (ref $StructType)
@@ -46350,7 +46469,7 @@
                             (br_if $done (ref.eq (local.get $indices) (global.get $null)))
                             ;; Type check: $indices must be $Pair
                             (if (i32.eqz (ref.test (ref $Pair) (local.get $indices)))
-                                (then (call $raise-argument-error (local.get $indices))))
+                                (then (call $raise-argument-error/internal (local.get $indices))))
                             ;; Extract current index (fixnum) and decode
                             (local.set $index (i32.shr_u
                                                (i31.get_u
@@ -46387,7 +46506,7 @@
                             ;; Type checks
                             (if (i32.or (i32.eqz (ref.test (ref $Pair) (local.get $indices)))
                                         (i32.eqz (ref.test (ref $Pair) (local.get $values))))
-                                (then (call $raise-argument-error (local.get $indices))))
+                                (then (call $raise-argument-error/internal (local.get $indices))))
                             ;; Decode fixnum index
                             (local.set $index (i32.shr_u
                                                (i31.get_u
@@ -46446,12 +46565,12 @@
                       (loop $walk
                             (br_if $done (ref.eq (local.get $cursor) (global.get $null)))
                             (if (i32.eqz (ref.test (ref $Pair) (local.get $cursor)))
-                                (then (call $raise-argument-error (local.get $cursor))
+                                (then (call $raise-argument-error/internal (local.get $cursor))
                                       (unreachable)))
                             (local.set $cell (ref.cast (ref $Pair) (local.get $cursor)))
                             (local.set $entry-raw (struct.get $Pair $a (local.get $cell)))
                             (if (i32.eqz (ref.test (ref $Pair) (local.get $entry-raw)))
-                                (then (call $raise-argument-error (local.get $entry-raw))
+                                (then (call $raise-argument-error/internal (local.get $entry-raw))
                                       (unreachable)))
                             (local.set $entry (ref.cast (ref $Pair) (local.get $entry-raw)))
                             (local.set $prop
@@ -46555,7 +46674,7 @@
                    (then)
                    (else
                     (if (i32.eqz (ref.test (ref $Pair) (local.get $rest)))
-                        (then (call $raise-argument-error (local.get $rest))
+                        (then (call $raise-argument-error/internal (local.get $rest))
                               (unreachable)))
                     (local.set $rest-pair (ref.cast (ref $Pair) (local.get $rest)))
                     (local.set $fallback (struct.get $Pair $a (local.get $rest-pair)))
@@ -46757,7 +46876,7 @@
                    (then)
                    (else
                     (if (i32.eqz (ref.test (ref $StructTypeProperty) (local.get $prop-info)))
-                        (then (call $raise-argument-error (local.get $prop-info))
+                        (then (call $raise-argument-error/internal (local.get $prop-info))
                               (unreachable)))
                     (local.set $expected (local.get $prop-info))))
 
@@ -46790,7 +46909,7 @@
                (result (ref $StructTypeProperty))
 
                (if (i32.eqz (ref.test (ref $Symbol) (local.get $name)))
-                   (then (call $raise-argument-error (local.get $name))
+                   (then (call $raise-argument-error/internal (local.get $name))
                          (unreachable)))
 
                (call $make-struct-type-property-descriptor/checked
@@ -46961,7 +47080,7 @@
                     (if (i32.eqz (ref.test (ref $Array) (local.get $processed)))
                         (then
                          (if (i32.eqz (ref.test (ref $Pair) (local.get $processed)))
-                             (then (call $raise-argument-error (local.get $value))
+                             (then (call $raise-argument-error/internal (local.get $value))
                                    (unreachable)))
                          (local.set $equal+hash-array
                                     (ref.cast (ref $Array)
@@ -46969,7 +47088,7 @@
                          (local.set $equal+hash-count (array.len (local.get $equal+hash-array)))
                          (if (i32.or (i32.lt_s (local.get $equal+hash-count) (i32.const 2))
                                      (i32.gt_s (local.get $equal+hash-count) (i32.const 3)))
-                             (then (call $raise-argument-error (local.get $value))
+                             (then (call $raise-argument-error/internal (local.get $value))
                                    (unreachable)))
                          (local.set $equal+hash-index (i32.const 0))
                          (block $done
@@ -46982,7 +47101,7 @@
                                                             (local.get $equal+hash-index)))
                                       (if (i32.eqz (ref.test (ref $Procedure)
                                                              (local.get $equal+hash-proc)))
-                                          (then (call $raise-argument-error (local.get $value))
+                                          (then (call $raise-argument-error/internal (local.get $value))
                                                 (unreachable)))
                                       (local.set $equal+hash-index
                                                  (i32.add (local.get $equal+hash-index)
@@ -47011,7 +47130,7 @@
                                      (i32.const 1)))
                          (if (i32.or (i32.lt_s (local.get $equal+hash-count) (i32.const 2))
                                      (i32.gt_s (local.get $equal+hash-count) (i32.const 3)))
-                             (then (call $raise-argument-error (local.get $value))
+                             (then (call $raise-argument-error/internal (local.get $value))
                                    (unreachable)))))))
 
                ;; --- prop:authentic                   
@@ -47042,12 +47161,12 @@
                            (loop $walk
                                  (br_if $done (ref.eq (local.get $supers) (global.get $null)))
                                  (if (i32.eqz (ref.test (ref $Pair) (local.get $supers)))
-                                     (then (call $raise-argument-error (local.get $supers))
+                                     (then (call $raise-argument-error/internal (local.get $supers))
                                            (unreachable)))
                                  (local.set $cell (ref.cast (ref $Pair) (local.get $supers)))
                                  (local.set $entry-raw (struct.get $Pair $a (local.get $cell)))
                                  (if (i32.eqz (ref.test (ref $Pair) (local.get $entry-raw)))
-                                     (then (call $raise-argument-error (local.get $entry-raw))
+                                     (then (call $raise-argument-error/internal (local.get $entry-raw))
                                            (unreachable)))
                                  (local.set $entry (ref.cast (ref $Pair) (local.get $entry-raw)))
                                  (local.set $super-prop
@@ -47055,7 +47174,7 @@
                                                       (struct.get $Pair $a (local.get $entry))))
                                  (local.set $converter-raw (struct.get $Pair $d (local.get $entry)))
                                  (if (i32.eqz (ref.test (ref $Procedure) (local.get $converter-raw)))
-                                     (then (call $raise-argument-error (local.get $converter-raw))
+                                     (then (call $raise-argument-error/internal (local.get $converter-raw))
                                            (unreachable)))
                                  (local.set $converter (ref.cast (ref $Procedure) (local.get $converter-raw)))
                                  (local.set $conv-inv (struct.get $Procedure $invoke (local.get $converter)))
@@ -47078,7 +47197,7 @@
                                  (br $walk))))
                    (else
                     (if (i32.eqz (ref.eq (local.get $existing) (local.get $processed)))
-                        (then (call $raise-argument-error (local.get $value))
+                        (then (call $raise-argument-error/internal (local.get $value))
                               (unreachable))
                         (else
                          (if (i32.eq (call $symbol=?/i32
@@ -47106,12 +47225,12 @@
                       (loop $walk
                             (br_if $done (ref.eq (local.get $cursor) (global.get $null)))
                             (if (i32.eqz (ref.test (ref $Pair) (local.get $cursor)))
-                                (then (call $raise-argument-error (local.get $cursor))
+                                (then (call $raise-argument-error/internal (local.get $cursor))
                                       (unreachable)))
                             (local.set $cell (ref.cast (ref $Pair) (local.get $cursor)))
                             (local.set $entry-raw (struct.get $Pair $a (local.get $cell)))
                             (if (i32.eqz (ref.test (ref $Pair) (local.get $entry-raw)))
-                                (then (call $raise-argument-error (local.get $entry-raw))
+                                (then (call $raise-argument-error/internal (local.get $entry-raw))
                                       (unreachable)))
                             (local.set $entry (ref.cast (ref $Pair) (local.get $entry-raw)))
                             (local.set $prop
@@ -47250,7 +47369,7 @@
 
                ;; Validate property name and capture its string form.
                (if (i32.eqz (ref.test (ref $Symbol) (local.get $name)))
-                   (then (call $raise-argument-error (local.get $name))
+                   (then (call $raise-argument-error/internal (local.get $name))
                          (unreachable)))
                (local.set $name-sym    (ref.cast (ref $Symbol) (local.get $name)))
                (local.set $name-string (ref.cast (ref $String)
@@ -47283,11 +47402,11 @@
                                                 (global.get $symbol:can-impersonate))
                                           (i32.const 1))
                                   (then (local.set $impersonate (global.get $true)))
-                                  (else (call $raise-argument-error (local.get $guard-info))
+                                  (else (call $raise-argument-error/internal (local.get $guard-info))
                                         (unreachable))))
                              (else
                               (if (i32.eqz (ref.test (ref $Procedure) (local.get $guard-info)))
-                                  (then (call $raise-argument-error (local.get $guard-info))
+                                  (then (call $raise-argument-error/internal (local.get $guard-info))
                                         (unreachable)))
                               (local.set $guard (local.get $guard-info))))))))
 
@@ -47306,7 +47425,7 @@
                                                            (global.get $null)))
                                       (if (i32.eqz (ref.test (ref $Pair)
                                                              (local.get $supers-cursor)))
-                                          (then (call $raise-argument-error (local.get $supers-cursor))
+                                          (then (call $raise-argument-error/internal (local.get $supers-cursor))
                                                 (unreachable)))
                                       (local.set $supers-cell
                                                  (ref.cast (ref $Pair)
@@ -47314,7 +47433,7 @@
                                       (local.set $supers-entry-raw
                                                  (struct.get $Pair $a (local.get $supers-cell)))
                                       (if (i32.eqz (ref.test (ref $Pair) (local.get $supers-entry-raw)))
-                                          (then (call $raise-argument-error (local.get $supers-entry-raw))
+                                          (then (call $raise-argument-error/internal (local.get $supers-entry-raw))
                                                 (unreachable)))
                                       (local.set $supers-entry
                                                  (ref.cast (ref $Pair) (local.get $supers-entry-raw)))
@@ -47322,7 +47441,7 @@
                                                  (struct.get $Pair $a (local.get $supers-entry)))
                                       (if (i32.eqz (ref.test (ref $StructTypeProperty)
                                                              (local.get $super-prop-raw)))
-                                          (then (call $raise-argument-error (local.get $super-prop-raw))
+                                          (then (call $raise-argument-error/internal (local.get $super-prop-raw))
                                                 (unreachable)))
                                       (local.set $super-prop
                                                  (ref.cast (ref $StructTypeProperty)
@@ -47330,7 +47449,7 @@
                                       (local.set $super-proc-raw
                                                  (struct.get $Pair $d (local.get $supers-entry)))
                                       (if (i32.eqz (ref.test (ref $Procedure) (local.get $super-proc-raw)))
-                                          (then (call $raise-argument-error (local.get $super-proc-raw))
+                                          (then (call $raise-argument-error/internal (local.get $super-proc-raw))
                                                 (unreachable)))
                                       (local.set $super-proc
                                                  (ref.cast (ref $Procedure) (local.get $super-proc-raw)))
@@ -47373,7 +47492,7 @@
                                                              (call $string->symbol/checked
                                                                    (ref.cast (ref $String)
                                                                              (local.get $accessor-name-info))))))
-                                  (else (call $raise-argument-error (local.get $accessor-name-info))
+                                  (else (call $raise-argument-error/internal (local.get $accessor-name-info))
                                         (unreachable)))))))))
 
                ;; Contract string: allow #f, string, or symbol (converted to string).
@@ -47396,7 +47515,7 @@
                                                    (ref.cast (ref eq)
                                                              (ref.cast (ref $String)
                                                                        (local.get $contract-info)))))
-                                  (else (call $raise-argument-error (local.get $contract-info))
+                                  (else (call $raise-argument-error/internal (local.get $contract-info))
                                         (unreachable)))))))))
 
                ;; Realm defaults to 'racket unless a symbol is supplied.
@@ -47407,7 +47526,7 @@
                         (then)
                         (else
                          (if (i32.eqz (ref.test (ref $Symbol) (local.get $realm-info)))
-                             (then (call $raise-argument-error (local.get $realm-info))
+                             (then (call $raise-argument-error/internal (local.get $realm-info))
                                    (unreachable)))
                          (local.set $realm (local.get $realm-info))))))
 
@@ -48906,7 +49025,7 @@
               (local $i   i32)
 
               (if (i32.eqz (ref.test (ref $Bytes) (local.get $bs)))
-                  (then (call $raise-argument-error (local.get $bs))
+                  (then (call $raise-argument-error/internal (local.get $bs))
                         (unreachable)))
               (local.set $b   (ref.cast (ref $Bytes) (local.get $bs)))
 
@@ -49494,7 +49613,7 @@
               (param $ref-site? (ref eq)) ;; optional; default #f
               (result (ref eq))
               (if (i32.eqz (ref.test (ref $VariableReference) (local.get $varref)))
-                  (then (call $raise-argument-error
+                  (then (call $raise-argument-error1
                               (global.get $symbol:variable-reference->instance)
                               (global.get $string:variable-reference?)
                               (local.get $varref))
@@ -52521,7 +52640,7 @@
                                    (i32.eq (local.get $next) (i32.const 101))))) ;; '~e'
                                 (then
                                  (if (i32.eqz (ref.test (ref $Pair) (local.get $args*)))
-                                     (then (call $raise-argument-error
+                                     (then (call $raise-argument-error1
                                                  (global.get $symbol:format)
                                                  (global.get $string:list?)
                                                  (local.get $args*))

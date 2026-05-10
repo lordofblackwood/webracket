@@ -1628,7 +1628,7 @@
   
   raise
   raise-unbound-variable-reference
-  ; raise-argument-error
+  raise-argument-error
   raise-read-error
   raise-read-eof-error
   format
@@ -2315,6 +2315,7 @@
 
   ;; 4.8 Regular Expressions
   datum-intern-literal
+  regexp-match?
   webracket-literal-byte-pregexp
   webracket-literal-byte-regexp
   webracket-literal-pregexp
@@ -18031,6 +18032,18 @@
                   (for/fold ([acc first-two])
                             ([arg (in-list (cddr aes))])
                     `(call ,(Prim pr) ,acc ,arg))]
+                 [(raise-argument-error)
+                  (let* ([aes (AExpr* ae1)]
+                         [n   (length aes)])
+                    (if (primitive-arity-accepts? sym n)
+                        `(call ,(Prim pr)
+                               ,(list-ref aes 0)
+                               ,(list-ref aes 1)
+                               ,(list-ref aes 2)
+                               (array.new_fixed $Args
+                                                ,(- n 3)
+                                                ,@(drop aes 3)))
+                        (primapp-arity-error sym aes)))]
                  [else
                   ;; Without arity checks, this is simply:
                   ;;     `(call ,(Prim pr) ,@(AExpr* ae1))
