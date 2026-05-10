@@ -2275,6 +2275,7 @@
   unsafe-root-continuation-prompt-tag ; stable placeholder; prompts unsupported
   current-continuation-marks  ; dummy, always returns #f
   continuation-mark-set-first ; bootstrap stub; full continuation marks unsupported
+  reparameterize              ; bootstrap identity; full parameterizations unsupported
 
   ;; 12.2 Syntax Object Content
   syntax?

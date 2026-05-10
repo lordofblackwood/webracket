@@ -948,6 +948,7 @@
  unsafe-root-continuation-prompt-tag ; stable placeholder; prompts unsupported
  current-continuation-marks  ; dummy, always returns #f
  continuation-mark-set-first ; dummy, always returns #f
+ reparameterize              ; bootstrap identity; full parameterizations unsupported
  
  ;; 12.2 Syntac Object Content
  syntax?
@@ -2983,6 +2984,8 @@
     [(marks key) #f]
     [(marks key none-v) none-v]
     [(marks key none-v prompt-tag) none-v]))
+
+(define (reparameterize p) p)
 
 (define (write-linklet-bundle-hash bundle out)
   (write bundle out))

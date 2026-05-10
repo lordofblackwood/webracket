@@ -416,7 +416,8 @@
                                   'missing
                                   'none
                                   (unsafe-root-continuation-prompt-tag))
-                                 'none)))))
+                                 'none)
+                         (equal? (reparameterize 'paramz) 'paramz)))))
        
        (list "4.3 Numbers"
              (list "4.3.1 Number Types"

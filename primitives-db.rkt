@@ -253,6 +253,7 @@
 (define-primitive count                                     at-least-2          (ordered))
 (define-primitive current-continuation-marks                [0 1]               (ordered))
 (define-primitive continuation-mark-set-first               [2 3 4]             (ordered))
+(define-primitive reparameterize                           1                   (ordered))
 (define-primitive current-code-inspector                    0                   (ordered))
 (define-primitive unsafe-root-continuation-prompt-tag       0                   (pure))
 (define-primitive current-directory                         [0 1]               (ordered))

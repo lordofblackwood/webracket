@@ -48490,6 +48490,15 @@
                    (ref.eq (local.get $none-v) (global.get $missing))
                    (then (global.get $false))
                    (else (local.get $none-v))))
+
+         ;; reparameterize : any/c -> any/c
+         ;;   Bootstrap identity for the extracted expander. Real Racket CS
+         ;;   checks for a parameterization record; WebRacket does not yet
+         ;;   model continuation-mark parameterizations, so preserve the value.
+         (func $reparameterize (type $Prim1)
+               (param $p (ref eq)) ;; parameterization placeholder
+               (result   (ref eq))
+               (local.get $p))
          
          ;; 10.6 Breaks
          ;; 10.7 Exiting
