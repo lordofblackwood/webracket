@@ -6276,6 +6276,16 @@
                           (equal? ((hash-ref linklet 'eval-linklet) 'demo-linklet) 'demo-linklet)
                           (equal? ((hash-ref linklet 'instance-describe-variable!) (make-instance 'demo) 'x 'desc) (void))
                           (bytes? ((hash-ref linklet 'linklet-virtual-machine-bytes))))))
+             (list "primitive-table/#%paramz bootstrap keys"
+                   (let ([paramz (primitive-table '#%paramz)])
+                     (and (hash? paramz)
+                          (eq? (hash-ref paramz 'parameterization-key #f)
+                               (hash-ref paramz 'parameterization-key #f))
+                          (eq? (hash-ref paramz 'break-enabled-key #f)
+                               (hash-ref paramz 'break-enabled-key #f))
+                          (procedure? (hash-ref paramz 'reparameterize #f))
+                          (equal? ((hash-ref paramz 'reparameterize) 'paramz)
+                                  'paramz))))
              (list "identifier?"
                    (let* ([id-stx     (datum->syntax #f 'pear)]
                           [list-stx   (datum->syntax #f '(pear core))]

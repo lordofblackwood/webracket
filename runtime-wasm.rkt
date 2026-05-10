@@ -1923,6 +1923,8 @@
     (add-runtime-string-constant 'wr:not-procedure           "top-level binding is not a procedure: ")
     (add-runtime-string-constant 'wr:undefined-exception     "bridge call raised #<undefined>")
     (add-runtime-string-constant 'arity-at-least?            "arity-at-least?")
+    (add-runtime-symbol-constant 'break-enabled-key)
+    (add-runtime-symbol-constant 'parameterization-key)
     
     (add-runtime-string-constant 'srcloc?                    "srcloc?")
     (add-runtime-string-constant 'srcloc-positive-or-false   "(or/c exact-positive-integer? #f)")
@@ -33584,6 +33586,18 @@
                           (local.get $table)
                           (global.get ,($ (string->symbol (~a "symbol:" pr))))
                           (global.get ,($ (prim: pr)))))
+               ;; Racket CS exposes these #%paramz keys as authentic primitive
+               ;; values instead of procedures. WebRacket uses stable symbols
+               ;; for the bootstrap identity of each key until continuation
+               ;; parameterizations are modeled directly.
+               (call $hasheq-set!/mutable/checked
+                     (local.get $table)
+                     (global.get $symbol:break-enabled-key)
+                     (global.get $symbol:break-enabled-key))
+               (call $hasheq-set!/mutable/checked
+                     (local.get $table)
+                     (global.get $symbol:parameterization-key)
+                     (global.get $symbol:parameterization-key))
                (local.get $table))
 
          ;; primitive-table : symbol? -> (or/c hash? #f)
