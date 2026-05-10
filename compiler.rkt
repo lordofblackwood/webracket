@@ -754,6 +754,9 @@
 
     empty-treelist
 
+    break-enabled-key
+    parameterization-key
+
     struct:exn
     struct:exn:fail
     struct:exn:fail:contract

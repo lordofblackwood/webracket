@@ -61114,6 +61114,8 @@
                (global $equal+hash-recur/equal        (mut (ref eq)) (global.get $void))
                (global $equal+hash-recur/equal-always (mut (ref eq)) (global.get $void))
                (global $equal+hash-recur/hash         (mut (ref eq)) (global.get $void))
+               (global $break-enabled-key             (mut (ref eq)) (global.get $void))
+               (global $parameterization-key          (mut (ref eq)) (global.get $void))
                
                (func $get-bytes (export "get_bytes")
                      (result (ref $Bytes))
@@ -61173,6 +61175,10 @@
                      ,@(initialize-runtime-bytes-constants)
                      ;; Initialize symbol constants used in the runtime
                      ,@(initialize-runtime-symbol-constants)
+                     (global.set $break-enabled-key
+                                 (global.get $symbol:break-enabled-key))
+                     (global.set $parameterization-key
+                                 (global.get $symbol:parameterization-key))
 
                      ;; Initialize struct-type properties provided by the runtime
                      (global.set $prop:sealed
