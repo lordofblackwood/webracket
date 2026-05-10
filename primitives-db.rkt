@@ -265,6 +265,7 @@
 (define-primitive current-inspector                         [0 1]               (ordered))
 (define-primitive current-output-port                       [0 1]               (ordered))
 (define-primitive current-print                             [0 1]               (ordered))
+(define-primitive current-read-interaction                  [0 1]               (ordered))
 (define-primitive custom-write-accessor                     [1 2]               (ordered))
 (define-primitive custom-write?                             1                   (pure))
 (define-primitive datum->correlated                         [1 2 3]             (ordered))

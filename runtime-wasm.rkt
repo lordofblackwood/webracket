@@ -45631,6 +45631,7 @@
               (ref.func $default-error-value->string-handler)
               (ref.func $default-error-syntax->string-handler)
               (ref.func $default-error-module-path->string-handler)
+              (ref.func $default-current-read-interaction)
 
               ;; Primitive invokers for the different shapes
               ,@(for/list ([shape (in-list primitive-shapes)])
@@ -56637,6 +56638,35 @@
                      (global.set $current-print-value (local.get $printer-raw))
                      (global.get $void))
 
+               ;; default-current-read-interaction : any/c input-port? -> eof-object?
+               ;;   Bootstrap reader used by current-read-interaction. The
+               ;;   full interactive reader is outside the current WebRacket
+               ;;   startup bridge; returning EOF lets expander boot code
+               ;;   install the parameter without attempting REPL reads.
+               (func $default-current-read-interaction (type $Prim2)
+                     (param $source-name (ref eq)) ;; source name, currently ignored
+                     (param $in          (ref eq)) ;; input-port?, currently ignored
+                     (result             (ref eq))
+                     (global.get $eof))
+
+               ;; current-read-interaction : [procedure?] -> procedure? or void?
+               ;;   Parameter for the interactive reader. The default returns
+               ;;   EOF, which is enough for expander startup probes that only
+               ;;   need the binding to exist.
+               (func $current-read-interaction (type $Prim01)
+                     (param $reader-raw (ref eq)) ;; optional procedure?, default current reader
+                     (result (ref eq))
+                     (if (ref.eq (local.get $reader-raw) (global.get $missing))
+                         (then (return (global.get $current-read-interaction-value))))
+                     (if (i32.eqz (ref.test (ref $Procedure) (local.get $reader-raw)))
+                         (then (call $raise-argument-error1
+                                     (global.get $symbol:current-read-interaction)
+                                     (global.get $string:procedure?)
+                                     (local.get $reader-raw))
+                               (unreachable)))
+                     (global.set $current-read-interaction-value (local.get $reader-raw))
+                     (global.get $void))
+
                ;; default-error-syntax->name-handler : syntax? -> #f
                ;;   Bootstrap default for error-syntax->name-handler.
                (func $default-error-syntax->name-handler (type $Prim1)
@@ -61091,6 +61121,7 @@
                (global $current-output-port-value (mut (ref eq)) (ref.i31 (i32.const 0)))
                (global $current-error-port-value  (mut (ref eq)) (ref.i31 (i32.const 0)))
                (global $current-print-value       (mut (ref eq)) (global.get $false))
+               (global $current-read-interaction-value (mut (ref eq)) (global.get $false))
                (global $error-value->string-handler-value (mut (ref eq)) (global.get $false))
                (global $error-syntax->string-handler-value (mut (ref eq)) (global.get $false))
                (global $error-syntax->name-handler-value (mut (ref eq)) (global.get $false))
@@ -61402,6 +61433,15 @@
                                             (global.get $the-racket/primitive-realm)
                                             (ref.func $primitive-invoke:shape-2)
                                             (ref.func $default-error-value->string-handler)
+                                            (global.get $false)))
+                    (global.set $current-read-interaction-value
+                                (struct.new $PrimitiveProcedure
+                                            (i32.const 0)
+                                            (global.get $symbol:current-read-interaction)
+                                            (ref.i31 (i32.const 4))
+                                            (global.get $the-racket/primitive-realm)
+                                            (ref.func $primitive-invoke:shape-2)
+                                            (ref.func $default-current-read-interaction)
                                             (global.get $false)))
                     (global.set $error-syntax->string-handler-value
                                 (struct.new $PrimitiveProcedure

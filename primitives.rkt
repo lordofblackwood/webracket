@@ -205,6 +205,7 @@
          current-input-port
          current-output-port
          current-error-port
+         current-read-interaction
          reset-current-input-port!
          reset-current-output-port!
          reset-current-error-port!

@@ -5059,6 +5059,18 @@
                             (eof-object? (read-byte))
                             (void? (current-input-port original)))))
 
+               (list "current-read-interaction/bootstrap"
+                     (let ([original (current-read-interaction)])
+                       (and (procedure? original)
+                            (eof-object? (original 'source (open-input-string "")))
+                            (void? (current-read-interaction
+                                    (lambda (_source _in) 'interaction)))
+                            (equal? ((current-read-interaction)
+                                     'source
+                                     (open-input-string "ignored"))
+                                    'interaction)
+                            (void? (current-read-interaction original)))))
+
                (list "close-input-port/custom-close-order"
                      (let ([port #f])
                        (let ([closed-during-close #t]

@@ -1377,6 +1377,7 @@
        current-input-port
        current-output-port
        current-error-port
+       current-read-interaction
        error-value->string-handler
        error-syntax->string-handler
        error-syntax->name-handler
@@ -2110,6 +2111,7 @@
   current-input-port
   current-output-port
   current-error-port
+  current-read-interaction
   error-value->string-handler
   error-syntax->string-handler
   error-syntax->name-handler
