@@ -1922,6 +1922,7 @@
     (add-runtime-string-constant 'wr:bad-request             "invalid WebRacket console bridge request")
     (add-runtime-string-constant 'wr:not-procedure           "top-level binding is not a procedure: ")
     (add-runtime-string-constant 'wr:undefined-exception     "bridge call raised #<undefined>")
+    (add-runtime-string-constant 'wr:unsafe-undefined-exception "bridge call raised #<unsafe-undefined>")
     (add-runtime-string-constant 'arity-at-least?            "arity-at-least?")
     (add-runtime-symbol-constant 'break-enabled-key)
     (add-runtime-symbol-constant 'parameterization-key)
@@ -41410,9 +41411,13 @@
                    (then (global.get $string:wr:undefined-exception))
                    (else
                     (if (result (ref eq))
-                   (ref.eq (call $exn? (local.get $v)) (global.get $false))
-                   (then (call $format/display (local.get $v)))
-                        (else (call $exn-message (local.get $v)))))))
+                        (ref.eq (local.get $v) (global.get $unsafe-undefined))
+                        (then (global.get $string:wr:unsafe-undefined-exception))
+                        (else
+                         (if (result (ref eq))
+                             (ref.eq (call $exn? (local.get $v)) (global.get $false))
+                             (then (call $format/display (local.get $v)))
+                             (else (call $exn-message (local.get $v)))))))))
 
          (func $wr-success
                (param $v (ref eq))
@@ -41731,7 +41736,7 @@
                                         (else
                                          (call $wr-failure
                                                (global.get $string:wr-kind:exception)
-                                               (global.get $false)
+                                               (call $format/display (local.get $res))
                                                (call $wr-bridge-error-message (local.get $res))))))))))
 
                (local.set $bridge-sentinel
