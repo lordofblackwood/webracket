@@ -273,6 +273,9 @@ function decodeBridgeResult(raw, operation, name) {
 function printBridgeResult(label, result) {
   console.log(`${label}-status: ${result.ok ? 'ok' : 'failed'}`);
   console.log(`${label}-kind: ${result.kind}`);
+  if (result.ok) {
+    console.log(`${label}-value: ${formatJsValue(result.value)}`);
+  }
   if (result.printed) {
     console.log(`${label}-printed: ${result.printed}`);
   }

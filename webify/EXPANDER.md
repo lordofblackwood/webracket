@@ -505,3 +505,63 @@ Bridge binding verification and minimal exported calls are still gated:
 The next substrate milestone should add the remaining error conversion
 parameters as bootstrap-compatible parameter primitives, starting with
 `error-syntax->string-handler`.
+
+After adding the remaining bootstrap error-string handler parameters, the
+closed expander finally reaches the next boundary: generated wasm startup
+itself succeeds.
+
+```text
+entry-call: start
+entry-call: ok
+wr-names-call: ok
+wr-names-count: 137
+```
+
+The full-expander probe now enables the `wr-*` console bridge by default and
+keeps top-level aliases only for exported names that do not collide with
+WebRacket primitives. That exposes ordinary expander exports such as `boot`
+while avoiding primitive-name aliases like `datum->syntax`.
+
+The first bridge-level fix was procedure metadata. A direct reference to
+`boot` is not a missing binding anymore, but a WebRacket closure cannot be
+encoded as FASL and sent to JavaScript. `wr-ref` now reports procedure refs
+using FASL-safe metadata:
+
+```text
+wr-ref-boot-status: ok
+wr-ref-boot-kind: procedure
+wr-ref-boot-value: [boot, 0, #<procedure:boot>]
+wr-ref-boot-printed: #<procedure:boot>
+```
+
+Reading the Racket expander sources confirms that `boot` is intentionally a
+zero-argument procedure:
+
+```racket
+;; racket/src/expander/main.rkt
+(provide boot ...)
+
+;; racket/src/expander/boot/handler.rkt
+(define (boot)
+  ...)
+```
+
+The next bridge-level fix was argument marshalling. `wr-call` used to cast a
+decoded FASL vector's backing `$Array` to `$Args`, which is not a valid Wasm-GC
+downcast. It now copies the vector elements into a real `$Args` array before
+invoking the target procedure.
+
+That means the current failure is past name lookup, procedure lookup, and
+argument marshalling:
+
+```text
+wr-call-boot-status: failed
+wr-call-boot-kind: exception
+wr-call-boot-error: #<undefined>
+```
+
+So the current blocker is inside the actual expander `boot` execution path.
+The next useful milestone is to localize which operation inside `boot` raises
+the undefined exception. The likely candidates are the startup handlers that
+`boot` installs (`seal`, module-name resolver, load/use-compiled, reader guard,
+eval, compile, load, and read-interaction), not the bridge lookup layer.

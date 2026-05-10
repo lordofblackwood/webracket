@@ -1915,10 +1915,13 @@
     (add-runtime-string-constant 'wr-kind:value              "value")
     (add-runtime-string-constant 'wr-kind:missing-binding    "missing-binding")
     (add-runtime-string-constant 'wr-kind:not-procedure      "not-procedure")
+    (add-runtime-string-constant 'wr-kind:procedure          "procedure")
     (add-runtime-string-constant 'wr-kind:exception          "exception")
+    (add-runtime-string-constant 'wr-kind:non-fasl-result    "non-fasl-result")
     (add-runtime-string-constant 'wr-kind:bad-request        "bad-request")
     (add-runtime-string-constant 'wr:bad-request             "invalid WebRacket console bridge request")
     (add-runtime-string-constant 'wr:not-procedure           "top-level binding is not a procedure: ")
+    (add-runtime-string-constant 'wr:undefined-exception     "bridge call raised #<undefined>")
     (add-runtime-string-constant 'arity-at-least?            "arity-at-least?")
     
     (add-runtime-string-constant 'srcloc?                    "srcloc?")
@@ -41389,9 +41392,13 @@
                (result (ref eq))
 
                (if (result (ref eq))
+                   (ref.eq (local.get $v) (global.get $undefined))
+                   (then (global.get $string:wr:undefined-exception))
+                   (else
+                    (if (result (ref eq))
                    (ref.eq (call $exn? (local.get $v)) (global.get $false))
                    (then (call $format/display (local.get $v)))
-                   (else (call $exn-message (local.get $v)))))
+                        (else (call $exn-message (local.get $v)))))))
 
          (func $wr-success
                (param $v (ref eq))
@@ -41402,6 +41409,35 @@
                      (global.get $string:wr-kind:value)
                      (local.get $v)
                      (call $format/display (local.get $v))
+                     (global.get $false)))
+
+         (func $wr-procedure-info
+               (param $proc (ref $Procedure))
+               (result (ref $Vector))
+
+               (struct.new $Vector
+                           (i32.const 0)
+                           (i32.const 1)
+                           (array.new_fixed $Array 3
+                                            (struct.get $Procedure $name
+                                                        (local.get $proc))
+                                            (call $procedure-arity->expected-string
+                                                  (local.get $proc))
+                                            (call $format/display:procedure
+                                                  (ref.cast (ref eq)
+                                                            (local.get $proc))))))
+
+         (func $wr-procedure-success
+               (param $proc (ref $Procedure))
+               (result (ref $Vector))
+
+               (call $wr-result->bridge-vector
+                     (global.get $true)
+                     (global.get $string:wr-kind:procedure)
+                     (ref.cast (ref eq)
+                               (call $wr-procedure-info (local.get $proc)))
+                     (call $format/display:procedure
+                           (ref.cast (ref eq) (local.get $proc)))
                      (global.get $false)))
 
          (func $wr-failure
@@ -41514,6 +41550,32 @@
                      (local.get $name))
                (unreachable))
 
+         (func $wr-vector->args
+               (param $vec (ref $Vector))
+               (result (ref $Args))
+
+               (local $src (ref $Array))
+               (local $dst (ref $Args))
+               (local $len i32)
+               (local $i   i32)
+
+               (local.set $src (struct.get $Vector $arr (local.get $vec)))
+               (local.set $len (array.len (local.get $src)))
+               (local.set $dst (array.new $Args (global.get $null) (local.get $len)))
+               (local.set $i (i32.const 0))
+               (block $done
+                      (loop $loop
+                            (br_if $done (i32.ge_u (local.get $i) (local.get $len)))
+                            (array.set $Args
+                                       (local.get $dst)
+                                       (local.get $i)
+                                       (array.get $Array
+                                                  (local.get $src)
+                                                  (local.get $i)))
+                            (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                            (br $loop)))
+               (local.get $dst))
+
          (func $wr-ref (export "wr-ref")
                (param $fasl i32)
                (result i32)
@@ -41544,7 +41606,14 @@
                                            (global.get $string:missing-binding)
                                            (call $symbol->string (local.get $sym)))))
                               (else
-                               (call $wr-success (local.get $val)))))
+                               (if (result (ref $Vector))
+                                   (ref.test (ref $Procedure) (local.get $val))
+                                   (then
+                                    (call $wr-procedure-success
+                                          (ref.cast (ref $Procedure)
+                                                    (local.get $val))))
+                                   (else
+                                    (call $wr-success (local.get $val)))))))
 
                (local.set $bridge-sentinel
                           (call $cons (global.get $false) (global.get $false)))
@@ -41560,9 +41629,9 @@
                (if (i32.eqz (ref.eq (local.get $bridge-exn) (local.get $bridge-sentinel)))
                    (then
                     (global.set $result-bytes
-                                (call $s-exp->fasl
-                                      (call $wr-failure
-                                            (global.get $string:wr-kind:exception)
+                                      (call $s-exp->fasl
+                                            (call $wr-failure
+                                            (global.get $string:wr-kind:non-fasl-result)
                                             (global.get $false)
                                             (call $callback-non-fasl-return-message
                                                   (if (result (ref eq))
@@ -41626,13 +41695,12 @@
                                           (call $string-append/2
                                                 (global.get $string:wr:not-procedure)
                                                 (call $symbol->string (local.get $sym)))))
-                                   (else
-                                    (local.set $proc (ref.cast (ref $Procedure) (local.get $val)))
-                                    (local.set $args
-                                               (ref.cast (ref $Args)
-                                                         (struct.get $Vector $arr
-                                                                     (ref.cast (ref $Vector)
-                                                                               (local.get $args-val)))))
+                                    (else
+                                     (local.set $proc (ref.cast (ref $Procedure) (local.get $val)))
+                                     (local.set $args
+                                               (call $wr-vector->args
+                                                     (ref.cast (ref $Vector)
+                                                               (local.get $args-val))))
                                     (local.set $res
                                                (block $wr-call-raised (result (ref eq))
                                                  (try_table (result (ref eq))
@@ -41666,9 +41734,9 @@
                (if (i32.eqz (ref.eq (local.get $bridge-exn) (local.get $bridge-sentinel)))
                    (then
                     (global.set $result-bytes
-                                (call $s-exp->fasl
-                                      (call $wr-failure
-                                            (global.get $string:wr-kind:exception)
+                                      (call $s-exp->fasl
+                                            (call $wr-failure
+                                            (global.get $string:wr-kind:non-fasl-result)
                                             (global.get $false)
                                             (call $callback-non-fasl-return-message
                                                   (local.get $res)))
