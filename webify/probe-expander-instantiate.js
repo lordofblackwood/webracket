@@ -8,7 +8,7 @@
 import fs from 'node:fs';
 
 function usage() {
-  console.error('usage: node --experimental-wasm-exnref webify/probe-expander-instantiate.js <expander.wasm> [--call-entry] [--expect-entry-throws] [--list-names] [--ref NAME] [--call NAME] [--call-json NAME JSON-ARGS]');
+  console.error('usage: node --experimental-wasm-exnref webify/probe-expander-instantiate.js <expander.wasm> [--call-entry] [--expect-entry-throws] [--list-names] [--ref NAME] [--call NAME] [--call-json NAME JSON-ARGS] [--call-json-expect-printed NAME JSON-ARGS EXPECTED]');
 }
 
 const args = process.argv.slice(2);
@@ -41,6 +41,16 @@ for (let i = 0; i < args.length; i++) {
     callJsonRequests.push({
       name: args[++i],
       argsJson: args[++i],
+    });
+  } else if (args[i] === '--call-json-expect-printed') {
+    if (i + 3 >= args.length) {
+      usage();
+      process.exit(2);
+    }
+    callJsonRequests.push({
+      name: args[++i],
+      argsJson: args[++i],
+      expectedPrinted: args[++i],
     });
   }
 }
@@ -282,6 +292,9 @@ function formatJsValue(v) {
   if (typeof v === 'symbol') {
     return Symbol.keyFor(v) ?? v.description ?? v.toString();
   }
+  if (v && v.tag === 'path') {
+    return `#<${v.prefix}:${v.bytes}>`;
+  }
   if (v instanceof Uint8Array) {
     return `#<bytes ${v.length}>`;
   }
@@ -292,6 +305,34 @@ function formatJsValue(v) {
     return `(${formatJsValue(v.car)} . ${formatJsValue(v.cdr)})`;
   }
   return String(v);
+}
+
+function parsePrintedPathValue(text) {
+  const pathPattern = /^#<((?:unix-|windows-)?path):([^>]*)>$/;
+
+  function parsePath(token) {
+    const match = pathPattern.exec(token);
+    return match ? { tag: 'path', prefix: match[1], bytes: match[2] } : null;
+  }
+
+  const direct = parsePath(text);
+  if (direct) {
+    return direct;
+  }
+
+  if (!text.startsWith('(') || !text.endsWith(')')) {
+    return null;
+  }
+
+  const inner = text.slice(1, -1).trim();
+  if (inner === '') {
+    return [];
+  }
+  const tokens = inner.match(/#<(?:unix-|windows-)?path:[^>]*>/g);
+  if (!tokens || tokens.join(' ') !== inner) {
+    return null;
+  }
+  return tokens.map(parsePath);
 }
 
 function bridgeInvoke(exported, payload) {
@@ -316,12 +357,32 @@ function decodeBridgeResult(raw, operation, name) {
     };
   }
   const [ok, kind, value, printed, error] = raw;
+  const formattedKind = formatJsValue(kind);
+  const formattedPrinted = typeof printed === 'string' ? printed : formatJsValue(printed);
+  const formattedError = typeof error === 'string' ? error : formatJsValue(error);
+  const nonFaslPrefix =
+    'The callback attempted to return a WebRacket value with no JavaScript equivalent (i.e. without a FASL encoding): ';
+  if (!ok && formattedKind === 'non-fasl-result' && formattedError.startsWith(nonFaslPrefix)) {
+    const resultText = formattedError.slice(nonFaslPrefix.length);
+    const pathValue = parsePrintedPathValue(resultText);
+    if (pathValue) {
+      return {
+        ok: true,
+        kind: 'printed-path-result',
+        value: pathValue,
+        printed: resultText,
+        error: '',
+        operation,
+        name,
+      };
+    }
+  }
   return {
     ok: !!ok,
-    kind: formatJsValue(kind),
+    kind: formattedKind,
     value,
-    printed: typeof printed === 'string' ? printed : formatJsValue(printed),
-    error: typeof error === 'string' ? error : formatJsValue(error),
+    printed: formattedPrinted,
+    error: formattedError,
     operation,
     name,
   };
@@ -527,6 +588,15 @@ for (const request of callJsonRequests) {
       'call-json',
       request.name);
     printBridgeResult(label, result);
+    if (request.expectedPrinted !== undefined) {
+      if (result.printed === request.expectedPrinted) {
+        console.log(`${label}-expect-printed: ok`);
+      } else {
+        console.log(`${label}-expect-printed: failed`);
+        console.log(`${label}-expected-printed: ${request.expectedPrinted}`);
+        process.exitCode = 1;
+      }
+    }
     if (!result.ok) {
       process.exitCode = 1;
     }
