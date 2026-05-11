@@ -2035,7 +2035,14 @@
     (add-runtime-bytes-constant  'backslash                 #"\\")
     (add-runtime-bytes-constant  'dot                       #".")
     (add-runtime-bytes-constant  'dot-dot                   #"..")
+    (add-runtime-bytes-constant  'dot-zo                    #".zo")
     (add-runtime-bytes-constant  'exp                       #"exp")
+    (add-runtime-bytes-constant  'id                        #"id")
+    (add-runtime-bytes-constant  'rx-dot-class              #"[.]")
+    (add-runtime-bytes-constant  'rx-dot-zo-end             #"[.]zo$")
+    (add-runtime-bytes-constant  'rx-id-colon-or-end        #"^id(:|$)")
+    (add-runtime-bytes-constant  'rx-unix-path-list         #"([^:]*):(.*)")
+    (add-runtime-bytes-constant  'rx-windows-path-list      #"([^;]*);(.*)")
     (add-runtime-bytes-constant  'rkttmp-template           #"rkttmp~a")
     (add-runtime-bytes-constant  'app-dir                   #"/app/")
     (add-runtime-bytes-constant  'vfs-root                  #"/")
@@ -19563,6 +19570,20 @@
                      (i32.const 3)
                      (ref.cast (ref $Bytes) (local.get $source))))
 
+         ;; byte-regexp : bytes? -> byte-regexp?
+         ;;   Construct a bootstrap byte regexp from a byte pattern.
+         (func $byte-regexp (type $Prim1)
+               (param $source (ref eq)) ;; pattern bytes
+               (result        (ref eq))
+               (return_call $webracket-literal-byte-regexp (local.get $source)))
+
+         ;; byte-pregexp : bytes? -> byte-pregexp?
+         ;;   Construct a bootstrap byte pregexp from a byte pattern.
+         (func $byte-pregexp (type $Prim1)
+               (param $source (ref eq)) ;; pattern bytes
+               (result        (ref eq))
+               (return_call $webracket-literal-byte-pregexp (local.get $source)))
+
          ;; regexp? : any/c -> boolean?
          ;;   Check for character regexp and pregexp values.
          (func $regexp? (type $Prim1)
@@ -19681,13 +19702,275 @@
                             (ref.cast (ref eq) (local.get $s))
                             (ref.cast (ref eq) (local.get $pattern))))
 
-         ;; regexp-match? : regexp? string? -> boolean?
-         ;;   Bootstrap subset. Full Racket regexp semantics should come from
-         ;;   the demodded regexp library; this primitive only unblocks the
-         ;;   expander's early literal/predicate-style matches.
-         (func $regexp-match? (type $Prim2)
+         ;; bytes-prefix?/i32/checked : bytes? bytes? -> i32
+         ;;   Check whether b starts with prefix. Arguments are prechecked.
+         (func $bytes-prefix?/i32/checked
+               (param $b      (ref $Bytes)) ;; bytes
+               (param $prefix (ref $Bytes)) ;; bytes prefix
+               (result        i32)
+               (local $arr-b (ref $I8Array))
+               (local $arr-p (ref $I8Array))
+               (local $len-b i32)
+               (local $len-p i32)
+               (local $i     i32)
+
+               (local.set $arr-b (struct.get $Bytes $bs (local.get $b)))
+               (local.set $arr-p (struct.get $Bytes $bs (local.get $prefix)))
+               (local.set $len-b (array.len (local.get $arr-b)))
+               (local.set $len-p (array.len (local.get $arr-p)))
+               (if (i32.lt_u (local.get $len-b) (local.get $len-p))
+                   (then (return (i32.const 0))))
+               (local.set $i (i32.const 0))
+               (block $done
+                      (loop $loop
+                            (br_if $done (i32.ge_u (local.get $i) (local.get $len-p)))
+                            (if (i32.ne (array.get_u $I8Array (local.get $arr-b) (local.get $i))
+                                        (array.get_u $I8Array (local.get $arr-p) (local.get $i)))
+                                (then (return (i32.const 0))))
+                            (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                            (br $loop)))
+               (i32.const 1))
+
+         ;; bytes-suffix?/i32/checked : bytes? bytes? -> i32
+         ;;   Check whether b ends with suffix. Arguments are prechecked.
+         (func $bytes-suffix?/i32/checked
+               (param $b      (ref $Bytes)) ;; bytes
+               (param $suffix (ref $Bytes)) ;; bytes suffix
+               (result        i32)
+               (local $arr-b  (ref $I8Array))
+               (local $arr-s  (ref $I8Array))
+               (local $len-b  i32)
+               (local $len-s  i32)
+               (local $offset i32)
+               (local $i      i32)
+
+               (local.set $arr-b (struct.get $Bytes $bs (local.get $b)))
+               (local.set $arr-s (struct.get $Bytes $bs (local.get $suffix)))
+               (local.set $len-b (array.len (local.get $arr-b)))
+               (local.set $len-s (array.len (local.get $arr-s)))
+               (if (i32.gt_u (local.get $len-s) (local.get $len-b))
+                   (then (return (i32.const 0))))
+               (local.set $offset (i32.sub (local.get $len-b) (local.get $len-s)))
+               (local.set $i (i32.const 0))
+               (block $done
+                      (loop $loop
+                            (br_if $done (i32.ge_u (local.get $i) (local.get $len-s)))
+                            (if (i32.ne
+                                 (array.get_u $I8Array
+                                              (local.get $arr-b)
+                                              (i32.add (local.get $offset) (local.get $i)))
+                                 (array.get_u $I8Array (local.get $arr-s) (local.get $i)))
+                                (then (return (i32.const 0))))
+                            (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                            (br $loop)))
+               (i32.const 1))
+
+         ;; bytes-contains?/checked : bytes? bytes? -> boolean?
+         ;;   Check whether b contains needle. Arguments are prechecked.
+         (func $bytes-contains?/checked
+               (param $b      (ref $Bytes)) ;; bytes
+               (param $needle (ref $Bytes)) ;; bytes needle
+               (result        (ref eq))
+               (local $arr-b (ref $I8Array))
+               (local $arr-n (ref $I8Array))
+               (local $len-b i32)
+               (local $len-n i32)
+               (local $limit i32)
+               (local $i     i32)
+               (local $j     i32)
+
+               (local.set $arr-b (struct.get $Bytes $bs (local.get $b)))
+               (local.set $arr-n (struct.get $Bytes $bs (local.get $needle)))
+               (local.set $len-b (array.len (local.get $arr-b)))
+               (local.set $len-n (array.len (local.get $arr-n)))
+               (if (i32.eqz (local.get $len-n))
+                   (then (return (global.get $true))))
+               (if (i32.lt_u (local.get $len-b) (local.get $len-n))
+                   (then (return (global.get $false))))
+               (local.set $limit (i32.sub (local.get $len-b) (local.get $len-n)))
+               (local.set $i (i32.const 0))
+               (block $not-found
+                      (loop $outer
+                            (br_if $not-found
+                                   (i32.gt_u (local.get $i) (local.get $limit)))
+                            (local.set $j (i32.const 0))
+                            (block $mismatch
+                                   (loop $inner
+                                         (br_if $mismatch
+                                                (i32.ge_u (local.get $j) (local.get $len-n)))
+                                         (if (i32.ne
+                                              (array.get_u $I8Array
+                                                           (local.get $arr-b)
+                                                           (i32.add (local.get $i) (local.get $j)))
+                                              (array.get_u $I8Array
+                                                           (local.get $arr-n)
+                                                           (local.get $j)))
+                                             (then (br $mismatch)))
+                                         (local.set $j (i32.add (local.get $j) (i32.const 1)))
+                                         (br $inner)))
+                            (if (i32.eq (local.get $j) (local.get $len-n))
+                                (then (return (global.get $true))))
+                            (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                            (br $outer)))
+               (global.get $false))
+
+         ;; regexp-match?/bytes-subset : byte-regexp? bytes? -> boolean?
+         ;;   Byte analogue of regexp-match?/string-subset for startup probes.
+         (func $regexp-match?/bytes-subset
+               (param $rx (ref $Regexp)) ;; byte regexp value
+               (param $b  (ref $Bytes))  ;; input bytes
+               (result    (ref eq))
+               (local $source  (ref eq))
+               (local $pattern (ref $Bytes))
+               (local $arr     (ref $I8Array))
+               (local $len     i32)
+
+               (local.set $source (struct.get $Regexp $source (local.get $rx)))
+               (if (i32.eqz (ref.test (ref $Bytes) (local.get $source)))
+                   (then (return (global.get $false))))
+               (local.set $pattern (ref.cast (ref $Bytes) (local.get $source)))
+
+               (if (ref.eq (call $bytes=?/2/checked
+                                 (local.get $pattern)
+                                 (ref.cast (ref $Bytes) (global.get $bytes:rx-dot-class)))
+                           (global.get $true))
+                   (then (return (call $bytes-contains?/checked
+                                       (local.get $b)
+                                       (ref.cast (ref $Bytes) (global.get $bytes:dot))))))
+               (if (ref.eq (call $bytes=?/2/checked
+                                 (local.get $pattern)
+                                 (ref.cast (ref $Bytes) (global.get $bytes:rx-dot-zo-end)))
+                           (global.get $true))
+                   (then (return (if (result (ref eq))
+                                     (call $bytes-suffix?/i32/checked
+                                           (local.get $b)
+                                           (ref.cast (ref $Bytes) (global.get $bytes:dot-zo)))
+                                     (then (global.get $true))
+                                     (else (global.get $false))))))
+               (if (ref.eq (call $bytes=?/2/checked
+                                 (local.get $pattern)
+                                 (ref.cast (ref $Bytes) (global.get $bytes:rx-id-colon-or-end)))
+                           (global.get $true))
+                   (then
+                    (if (i32.eqz (call $bytes-prefix?/i32/checked
+                                       (local.get $b)
+                                       (ref.cast (ref $Bytes) (global.get $bytes:id))))
+                        (then (return (global.get $false))))
+                    (local.set $arr (struct.get $Bytes $bs (local.get $b)))
+                    (local.set $len (array.len (local.get $arr)))
+                    (return
+                     (if (result (ref eq))
+                         (i32.eq (local.get $len) (i32.const 2))
+                         (then (global.get $true))
+                         (else
+                          (if (result (ref eq))
+                              (i32.eq (array.get_u $I8Array
+                                                   (local.get $arr)
+                                                   (i32.const 2))
+                                      (i32.const 58))
+                              (then (global.get $true))
+                              (else (global.get $false))))))))
+               (return_call $bytes-contains?/checked
+                            (local.get $b)
+                            (local.get $pattern)))
+
+         ;; bytes-index-of-byte/checked : bytes? byte -> i32
+         ;;   Return the first index of byte, or -1 if absent.
+         (func $bytes-index-of-byte/checked
+               (param $b    (ref $Bytes)) ;; bytes
+               (param $byte i32)          ;; byte
+               (result      i32)
+               (local $arr (ref $I8Array))
+               (local $len i32)
+               (local $i   i32)
+
+               (local.set $arr (struct.get $Bytes $bs (local.get $b)))
+               (local.set $len (array.len (local.get $arr)))
+               (local.set $i (i32.const 0))
+               (block $not-found
+                      (loop $loop
+                            (br_if $not-found (i32.ge_u (local.get $i) (local.get $len)))
+                            (if (i32.eq (array.get_u $I8Array (local.get $arr) (local.get $i))
+                                        (local.get $byte))
+                                (then (return (local.get $i))))
+                            (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                            (br $loop)))
+               (i32.const -1))
+
+         ;; regexp-match/path-list-bytes : byte-regexp? bytes? byte -> (or/c list? #f)
+         ;;   Bootstrap path-list splitter for patterns like #"([^:]*):(.*)".
+         (func $regexp-match/path-list-bytes
+               (param $b   (ref $Bytes)) ;; input bytes
+               (param $sep i32)          ;; separator byte
+               (result     (ref eq))
+               (local $idx        i32)
+               (local $left       (ref eq))
+               (local $right      (ref eq))
+               (local $idx-fx     (ref eq))
+               (local $after-fx   (ref eq))
+
+               (local.set $idx (call $bytes-index-of-byte/checked
+                                     (local.get $b)
+                                     (local.get $sep)))
+               (if (i32.lt_s (local.get $idx) (i32.const 0))
+                   (then (return (global.get $false))))
+               (local.set $idx-fx (ref.i31 (i32.shl (local.get $idx) (i32.const 1))))
+               (local.set $after-fx
+                          (ref.i31 (i32.shl (i32.add (local.get $idx) (i32.const 1))
+                                            (i32.const 1))))
+               (local.set $left
+                          (call $subbytes
+                                (ref.cast (ref eq) (local.get $b))
+                                (ref.i31 (i32.const 0))
+                                (local.get $idx-fx)))
+               (local.set $right
+                          (call $subbytes
+                                (ref.cast (ref eq) (local.get $b))
+                                (local.get $after-fx)
+                                (global.get $missing)))
+               (call $cons
+                     (ref.cast (ref eq) (local.get $b))
+                     (call $cons
+                           (local.get $left)
+                           (call $cons
+                                 (local.get $right)
+                                 (global.get $null)))))
+
+         ;; regexp-match/bytes-subset : byte-regexp? bytes? -> (or/c list? #f)
+         ;;   Minimal capture support needed by racket/private/path-list.
+         (func $regexp-match/bytes-subset
+               (param $rx (ref $Regexp)) ;; byte regexp value
+               (param $b  (ref $Bytes))  ;; input bytes
+               (result    (ref eq))
+               (local $source  (ref eq))
+               (local $pattern (ref $Bytes))
+
+               (local.set $source (struct.get $Regexp $source (local.get $rx)))
+               (if (i32.eqz (ref.test (ref $Bytes) (local.get $source)))
+                   (then (return (global.get $false))))
+               (local.set $pattern (ref.cast (ref $Bytes) (local.get $source)))
+               (if (ref.eq (call $bytes=?/2/checked
+                                 (local.get $pattern)
+                                 (ref.cast (ref $Bytes) (global.get $bytes:rx-unix-path-list)))
+                           (global.get $true))
+                   (then (return_call $regexp-match/path-list-bytes
+                                      (local.get $b)
+                                      (i32.const 58))))
+               (if (ref.eq (call $bytes=?/2/checked
+                                 (local.get $pattern)
+                                 (ref.cast (ref $Bytes) (global.get $bytes:rx-windows-path-list)))
+                           (global.get $true))
+                   (then (return_call $regexp-match/path-list-bytes
+                                      (local.get $b)
+                                      (i32.const 59))))
+               (global.get $false))
+
+         ;; regexp-match : regexp? bytes? -> (or/c list? #f)
+         ;;   Bootstrap subset for expander startup; full matching belongs to
+         ;;   the demodded regexp library.
+         (func $regexp-match (type $Prim2)
                (param $rx-raw (ref eq)) ;; regexp?
-               (param $s-raw  (ref eq)) ;; string? for the bootstrap subset
+               (param $s-raw  (ref eq)) ;; bytes? for the bootstrap subset
                (result        (ref eq))
                (if (i32.eqz (ref.test (ref $Regexp) (local.get $rx-raw)))
                    (then (call $raise-argument-error1
@@ -19695,6 +19978,30 @@
                                (global.get $string:regexp?)
                                (local.get $rx-raw))
                          (unreachable)))
+               (if (i32.eqz (ref.test (ref $Bytes) (local.get $s-raw)))
+                   (then (return (global.get $false))))
+               (return_call $regexp-match/bytes-subset
+                            (ref.cast (ref $Regexp) (local.get $rx-raw))
+                            (ref.cast (ref $Bytes) (local.get $s-raw))))
+
+         ;; regexp-match? : regexp? (or/c string? bytes?) -> boolean?
+         ;;   Bootstrap subset. Full Racket regexp semantics should come from
+         ;;   the demodded regexp library; this primitive only unblocks the
+         ;;   expander's early literal/predicate-style matches.
+         (func $regexp-match? (type $Prim2)
+               (param $rx-raw (ref eq)) ;; regexp?
+               (param $s-raw  (ref eq)) ;; string? or bytes? for the bootstrap subset
+               (result        (ref eq))
+               (if (i32.eqz (ref.test (ref $Regexp) (local.get $rx-raw)))
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:regexp-match?)
+                               (global.get $string:regexp?)
+                               (local.get $rx-raw))
+                         (unreachable)))
+               (if (ref.test (ref $Bytes) (local.get $s-raw))
+                   (then (return_call $regexp-match?/bytes-subset
+                                      (ref.cast (ref $Regexp) (local.get $rx-raw))
+                                      (ref.cast (ref $Bytes) (local.get $s-raw)))))
                (if (i32.eqz (ref.test (ref $String) (local.get $s-raw)))
                    (then (return (global.get $false))))
                (return_call $regexp-match?/string-subset

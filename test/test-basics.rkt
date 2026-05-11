@@ -1846,6 +1846,24 @@
                          (equal? (regexp-match? #rx"[.]zo$" "x.zot") #f)
                          (equal? (regexp-match? #rx"^id(:|$)" "id:rest") #t)
                          (equal? (regexp-match? #rx"^id(:|$)" "idea") #f)))
+              (list "byte-regexp bootstrap subset"
+                    (and (byte-regexp? (byte-regexp #"a"))
+                         (byte-pregexp? (byte-pregexp #"a"))
+                         (equal? (regexp-match? (byte-regexp #"a") #"cat") #t)
+                         (equal? (regexp-match? (byte-regexp #"z") #"cat") #f)
+                         (equal? (regexp-match? #rx#"[.]" #"x.y") #t)
+                         (equal? (regexp-match? #rx#"[.]zo$" #"x.zo") #t)
+                         (equal? (regexp-match? #rx#"[.]zo$" #"x.zot") #f)
+                         (equal? (regexp-match? #rx#"^id(:|$)" #"id:rest") #t)
+                         (equal? (regexp-match? #rx#"^id(:|$)" #"idea") #f)
+                         (equal? (regexp-match? #rx#"\0" #"abc") #f)))
+              (list "regexp-match byte path-list bootstrap"
+                    (and (equal? (regexp-match (byte-regexp #"([^:]*):(.*)") #"/a:/b")
+                                 (list #"/a:/b" #"/a" #"/b"))
+                         (equal? (regexp-match (byte-regexp #"([^:]*):(.*)") #"/a")
+                                 #f)
+                         (equal? (regexp-match (byte-regexp #"([^;]*);(.*)") #"c;d")
+                                 (list #"c;d" #"c" #"d"))))
               (list "datum-intern-literal bootstrap"
                     (let ([s (string #\a #\b)]
                           [b (bytes 1 2)])
