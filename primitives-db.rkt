@@ -191,6 +191,7 @@
 (define-primitive cddr                                      1                   (ordered partial-foldable))
 (define-primitive cdr                                       1                   (pure restricted partial-foldable))
 (define-primitive ceiling                                   1                   (ordered))
+(define-primitive cache-configuration                       2                   (ordered))
 (define-primitive char->integer                             1                   (pure))
 (define-primitive char-alphabetic?                          1                   (pure))
 (define-primitive char-blank?                               1                   (pure))

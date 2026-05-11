@@ -2281,6 +2281,7 @@
   current-continuation-marks  ; dummy, always returns #f
   continuation-mark-set-first ; bootstrap stub; full continuation marks unsupported
   reparameterize              ; bootstrap identity; full parameterizations unsupported
+  cache-configuration         ; small #%paramz cache for expander configuration
 
   ;; 12.2 Syntax Object Content
   syntax?

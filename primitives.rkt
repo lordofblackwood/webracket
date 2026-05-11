@@ -950,6 +950,7 @@
  current-continuation-marks  ; dummy, always returns #f
  continuation-mark-set-first ; dummy, always returns #f
  reparameterize              ; bootstrap identity; full parameterizations unsupported
+ cache-configuration         ; small #%paramz cache for expander configuration
  
  ;; 12.2 Syntac Object Content
  syntax?
@@ -2987,6 +2988,11 @@
     [(marks key none-v prompt-tag) none-v]))
 
 (define (reparameterize p) p)
+
+(define cache-configuration
+  (let ([cache (make-hasheqv)])
+    (lambda (index thunk)
+      (hash-ref! cache index thunk))))
 
 (define (write-linklet-bundle-hash bundle out)
   (write bundle out))

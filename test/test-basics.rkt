@@ -6339,8 +6339,18 @@
                           (eq? (hash-ref paramz 'break-enabled-key #f)
                                (hash-ref paramz 'break-enabled-key #f))
                           (procedure? (hash-ref paramz 'reparameterize #f))
+                          (procedure? (hash-ref paramz 'cache-configuration #f))
                           (equal? ((hash-ref paramz 'reparameterize) 'paramz)
-                                  'paramz))))
+                                  'paramz)
+                          (let ([n 0]
+                                [cache (hash-ref paramz 'cache-configuration)])
+                            (and (equal? (cache 0 (lambda ()
+                                                    (set! n (+ n 1))
+                                                    'cached))
+                                         'cached)
+                                 (equal? (cache 0 (lambda () 'fresh))
+                                         'cached)
+                                 (equal? n 1))))))
              (list "identifier?"
                    (let* ([id-stx     (datum->syntax #f 'pear)]
                           [list-stx   (datum->syntax #f '(pear core))]
