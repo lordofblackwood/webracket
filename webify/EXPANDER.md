@@ -2236,18 +2236,39 @@ feed ordinary source syntax through `namespace-require '(quote #%kernel)`,
 introduce it with the expander namespace, and reach the expander's `compile`
 entry successfully for these small forms.
 
-The tiny eval probe is intentionally still negative, but it now fails after the
-compile step:
+Follow-up: eval bridge and require contract frontier
+----------------------------------------------------
+
+The tiny eval probe now gets past the previous post-compile arity failure:
 
 ```text
 eval-ordinary-kernel-primitive-app:
   probe:eval-compile:after-compile
-  failure-category: bridge-call-failure
-  failure-detail: #f: arity mismatch;
+  probe:eval-compile:after-call
+  probe:eval-ordinary-kernel-primitive-app:after-eval
+  value: 0
 ```
 
-So the eval frontier is no longer ordinary syntax binding or compile. It is the
-bridge/evaluator call shape used after compilation.
+This is deliberately not claiming that `eval` of `(+ 1 2)` computes `3` yet.
+The compiled value returned by the expander is a `compiled-in-memory` struct,
+not a linklet, linklet bundle, or linklet directory:
+
+```text
+compile-ordinary-kernel-summary:
+  object-name:          compiled-in-memory
+  struct-vector-length: 17
+  linklet-directory?:   #f
+  linklet-bundle?:      #f
+  linklet?:             #f
+```
+
+The runtime `compile-linklet` placeholder used to carry `$dummy-closure`, whose
+arity is exactly zero. When the expander/evaluator called it with runtime
+arguments, that produced the old `#f: arity mismatch` frontier. WebRacket now
+uses a separate placeholder linklet closure with arity-at-least zero. That
+clears the bridge-call shape problem and exposes the real remaining work:
+executing the compiled-in-memory/linklet body instead of returning the
+metadata-only placeholder result `0`.
 
 The `racket/base` namespace setup probe also moved. The first attempt exposed
 a missing `raise-arguments-error` primitive. WebRacket now has a bootstrap
@@ -2268,3 +2289,25 @@ racket-base-require:
 That is a better next problem: the require path is now executing far enough to
 raise an ordinary contract error, not failing because a bootstrap exception
 primitive is absent or miscompiled.
+
+The focused require probes now catch that exception so the smoke matrix can
+compare several module paths without treating the process exit as the signal:
+
+```text
+racket-base-require/catch:
+  (require-failed (message require: contract violation ...))
+
+racket-bool-require/catch:
+  (require-failed (message require: contract violation ...))
+
+racket-base-via-kernel-then-base/catch:
+  probe:racket-base-via-kernel/catch:before-kernel
+  probe:racket-base-via-kernel/catch:before-base
+  (require-failed (message require: contract violation ...))
+```
+
+That comparison matters because `racket/bool` is a small provider and
+kernel-then-base explicitly preloads `#%kernel`. Seeing the same contract
+frontier in all three cases means the next blocker is probably in the
+module/require contract path itself, not simply a missing initial `#%kernel`
+namespace setup and not something unique to the size of `racket/base`.

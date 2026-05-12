@@ -243,16 +243,52 @@
   (require-output output (format "probe:~a:after-compile" marker))
   (require-output output (format "~a:returned" marker)))
 
-(check-failing-probe
+(check-ok-probe
+ "webify-probe-expand-self-evaluating/compile-ordinary-kernel-summary"
+ "[]"
+ "probe:compile-ordinary-kernel-summary:after-compile"
+ "object-name compiled-in-memory")
+
+(check-ok-probe
  "webify-probe-expand-self-evaluating/eval-ordinary-kernel-primitive-app"
  "[]"
- '("probe:eval-ordinary-kernel-primitive-app:before-eval"
-   "probe:eval-compile:after-compile"
-   "failure-category: bridge-call-failure"
-   "failure-detail: #f: arity mismatch;")
- '("heap out of memory"
-   "literal data is not allowed"
-   "exception-handler-key"))
+ "probe:eval-ordinary-kernel-primitive-app:after-eval"
+ "wr-call-json-webify-probe-expand-self-evaluating/eval-ordinary-kernel-primitive-app-printed: 0")
+
+(define-values (eval-status eval-output)
+  (run-probe wasm-path
+             "webify-probe-expand-self-evaluating/eval-ordinary-kernel-primitive-app"
+             "[]"))
+(unless (zero? eval-status)
+  (error 'check-expander-kernel-smoke
+         "eval ordinary kernel primitive app probe failed with status ~a\noutput:\n~a"
+         eval-status
+         eval-output))
+(require-output eval-output "probe:eval-compile:after-call")
+(reject-output eval-output "failure-detail: #f: arity mismatch;")
+(reject-output eval-output "literal data is not allowed")
+(reject-output eval-output "exception-handler-key")
+
+(for ([probe+marker (in-list
+                     '(("webify-probe-expand-self-evaluating/racket-base-require/catch"
+                        "probe:racket-base-require/catch:caught")
+                       ("webify-probe-expand-self-evaluating/racket-bool-require/catch"
+                        "probe:racket-bool-require/catch:caught")
+                       ("webify-probe-expand-self-evaluating/racket-base-via-kernel-then-base/catch"
+                        "probe:racket-base-via-kernel/catch:caught")))])
+  (match-define (list probe marker) probe+marker)
+  (define-values (status output) (run-probe wasm-path probe "[]"))
+  (unless (zero? status)
+    (error 'check-expander-kernel-smoke
+           "require frontier probe ~a failed with status ~a\noutput:\n~a"
+           probe
+           status
+           output))
+  (require-output output marker)
+  (require-output output "(require-failed (message require: contract violation")
+  (reject-output output "raise-arguments-error")
+  (reject-output output "heap out of memory")
+  (reject-output output "exception-handler-key"))
 
 (check-failing-probe
  "webify-probe-expand-self-evaluating/racket-base-require"

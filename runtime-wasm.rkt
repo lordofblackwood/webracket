@@ -4981,6 +4981,16 @@
                              (global.get $false)         ; debug-id
                              (ref.func $dummy-code)
                              (array.new_fixed $Free 0)))
+         (global $placeholder-linklet-closure (ref $Closure)
+                 (struct.new $Closure
+                             (i32.const 0)               ; hash
+                             (global.get $false)         ; name:  #f or $String
+                             (ref.i31 (i32.const -1))    ; arity-at-least 0
+                             (global.get $false)         ; realm: #f or $Symbol
+                             (ref.func $invoke-closure) ; invoke (used by apply, map, etc.)
+                             (global.get $false)         ; debug-id
+                             (ref.func $dummy-code)
+                             (array.new_fixed $Free 0)))
          (global $closedapp-clos (mut (ref $Closure)) (global.get $dummy-closure))
 
          
@@ -34711,7 +34721,7 @@
                                      (local.get $imports)
                                      (local.get $exports)
                                      (ref.cast (ref eq)
-                                               (global.get $dummy-closure)))))
+                                               (global.get $placeholder-linklet-closure)))))
 
          ;; compile-linklet : linklet-datum? [any/c any/c any/c any/c] -> any/c
          ;;   Runtime compilation is intentionally unavailable in WebAssembly.

@@ -8197,7 +8197,9 @@
                    (let ([compiled (compile-linklet '(linklet ((x)) (y) (void)) #f #f)])
                      (and (linklet? compiled)
                           (equal? (linklet-import-variables compiled) '((x)))
-                          (equal? (linklet-export-variables compiled) '(y))))))
+                          (equal? (linklet-export-variables compiled) '(y))))
+                   (let ([compiled (compile-linklet '(linklet () () (void)) #f #f)])
+                     (instance? (instantiate-linklet compiled '())))))
         (list "recompile-linklet import-key protocol"
               (and (let-values ([(linklet import-keys)
                                   (recompile-linklet 'compiled #f '#(k))])
