@@ -310,6 +310,9 @@ function formatJsValue(v) {
     }
     return `${v.prefix}(${v.entries.map(formatJsValue).join(' ')})`;
   }
+  if (v && v.tag === 'opaque') {
+    return `#<${v.name}>`;
+  }
   if (v instanceof Uint8Array) {
     return `#<bytes ${v.length}>`;
   }
@@ -362,8 +365,15 @@ function parsePrintedHashValue(text) {
   return { tag: 'hash', prefix: match[1], entries: [] };
 }
 
+function parsePrintedOpaqueValue(text) {
+  const match = /^#<([A-Za-z0-9_.:/-]+)>$/.exec(text);
+  return match ? { tag: 'opaque', name: match[1] } : null;
+}
+
 function parsePrintedNonFaslValue(text) {
-  return parsePrintedPathValue(text) ?? parsePrintedHashValue(text);
+  return parsePrintedPathValue(text)
+      ?? parsePrintedHashValue(text)
+      ?? parsePrintedOpaqueValue(text);
 }
 
 function bridgeInvoke(exported, payload) {
