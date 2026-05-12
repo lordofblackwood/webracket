@@ -700,6 +700,8 @@
         [(? (λ (a) (arity-range? a 0 1)))  16]
         [(? (λ (a) (arity-range? a 0 2)))  17]
         [(? (λ (a) (arity-range? a 0 3)))  27]
+        [(? (λ (a) (arity-range? a 0 4)))  28]
+        [(? (λ (a) (arity-range? a 0 5)))  29]
         [(? (λ (a) (arity-range? a 1 2)))  18]
         [(? (λ (a) (arity-range? a 1 3)))  19]
         [(? (λ (a) (arity-range? a 1 4)))  20]
@@ -729,7 +731,7 @@
         void))
 
     (define primitive-shapes
-      '(0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27))
+      '(0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29))
 
     (define (primitive->shape pr [desc (primitive->description pr)])
       (and desc
@@ -771,6 +773,8 @@
         [25 'primitive-invoke:shape-25]
         [26 'primitive-invoke:shape-26]
         [27 'primitive-invoke:shape-27]
+        [28 'primitive-invoke:shape-28]
+        [29 'primitive-invoke:shape-29]
         [_  'primitive-invoke]))
 
     (define (primitive-invoker-tail shape)
@@ -1038,6 +1042,75 @@
                                       (local.get $a1)
                                       (local.get $a2)
                                       (ref.cast (ref $Prim03) (local.get $code))))
+               (else (return (call $raise-code-type-mismatch (local.get $pproc)))))
+           (unreachable))]
+        [28 ; between 0 and 4 arguments
+         `((if (i32.gt_u (local.get $argc) (i32.const 4))
+               (then (return (call $primitive-invoke:raise-arity-error
+                                   (local.get $pproc) (local.get $argc)))))
+           (if (ref.test (ref $Prim4) (local.get $code))
+               (then (if (i32.eqz (local.get $argc))
+                         (then (local.set $a0 (global.get $missing))
+                               (local.set $a1 (global.get $missing))
+                               (local.set $a2 (global.get $missing))
+                               (local.set $a3 (global.get $missing)))
+                         (else (if (i32.eq (local.get $argc) (i32.const 1))
+                                   (then (local.set $a1 (global.get $missing))
+                                         (local.set $a2 (global.get $missing))
+                                         (local.set $a3 (global.get $missing)))
+                                   (else (if (i32.eq (local.get $argc) (i32.const 2))
+                                             (then (local.set $a2 (global.get $missing))
+                                                   (local.set $a3 (global.get $missing)))
+                                             (else (if (i32.eq (local.get $argc) (i32.const 3))
+                                                       (then (local.set $a3 (global.get $missing)))
+                                                       (else (local.set $a3
+                                                                        (array.get $Args (local.get $args) (i32.const 3)))))))))))
+                     (return_call_ref $Prim4
+                                      (local.get $a0)
+                                      (local.get $a1)
+                                      (local.get $a2)
+                                      (local.get $a3)
+                                      (ref.cast (ref $Prim4) (local.get $code))))
+               (else (return (call $raise-code-type-mismatch (local.get $pproc)))))
+           (unreachable))]
+        [29 ; between 0 and 5 arguments
+         `((if (i32.gt_u (local.get $argc) (i32.const 5))
+               (then (return (call $primitive-invoke:raise-arity-error
+                                   (local.get $pproc) (local.get $argc)))))
+           (if (ref.test (ref $Prim5) (local.get $code))
+               (then (if (i32.eqz (local.get $argc))
+                         (then (local.set $a0 (global.get $missing))
+                               (local.set $a1 (global.get $missing))
+                               (local.set $a2 (global.get $missing))
+                               (local.set $a3 (global.get $missing))
+                               (local.set $a4 (global.get $missing)))
+                         (else (if (i32.eq (local.get $argc) (i32.const 1))
+                                   (then (local.set $a1 (global.get $missing))
+                                         (local.set $a2 (global.get $missing))
+                                         (local.set $a3 (global.get $missing))
+                                         (local.set $a4 (global.get $missing)))
+                                   (else (if (i32.eq (local.get $argc) (i32.const 2))
+                                             (then (local.set $a2 (global.get $missing))
+                                                   (local.set $a3 (global.get $missing))
+                                                   (local.set $a4 (global.get $missing)))
+                                             (else (if (i32.eq (local.get $argc) (i32.const 3))
+                                                       (then (local.set $a3 (global.get $missing))
+                                                             (local.set $a4 (global.get $missing)))
+                                                       (else (if (i32.eq (local.get $argc) (i32.const 4))
+                                                                 (then (local.set $a3
+                                                                                  (array.get $Args (local.get $args) (i32.const 3)))
+                                                                       (local.set $a4 (global.get $missing)))
+                                                                 (else (local.set $a3
+                                                                                  (array.get $Args (local.get $args) (i32.const 3)))
+                                                                       (local.set $a4
+                                                                                  (array.get $Args (local.get $args) (i32.const 4)))))))))))))
+                     (return_call_ref $Prim5
+                                      (local.get $a0)
+                                      (local.get $a1)
+                                      (local.get $a2)
+                                      (local.get $a3)
+                                      (local.get $a4)
+                                      (ref.cast (ref $Prim5) (local.get $code))))
                (else (return (call $raise-code-type-mismatch (local.get $pproc)))))
            (unreachable))]
         [18 ; between 1 and 2 arguments
@@ -39604,6 +39677,26 @@
                (ref.i31 (i32.or (i32.shl (local.get $cp) (i32.const ,char-shift))
                                 (i32.const ,char-tag))))
 
+         ;; read-byte-or-special : [input-port?] [special-wrap/c] [any/c] -> (or/c byte? eof-object? any/c)
+         ;;   Bootstrap implementation: WebRacket ports do not yet produce special values.
+         (func $read-byte-or-special (type $Prim03)
+               (param $in           (ref eq)) ;; optional input-port?, default = (current-input-port)
+               (param $special-wrap (ref eq)) ;; optional procedure-or-false?, ignored until special values exist
+               (param $source-name  (ref eq)) ;; optional any/c, passed to special producers in full Racket
+               (result              (ref eq))
+
+               (call $read-byte (local.get $in)))
+
+         ;; read-char-or-special : [input-port?] [special-wrap/c] [any/c] -> (or/c char? eof-object? any/c)
+         ;;   Bootstrap implementation: WebRacket ports do not yet produce special values.
+         (func $read-char-or-special (type $Prim03)
+               (param $in           (ref eq)) ;; optional input-port?, default = (current-input-port)
+               (param $special-wrap (ref eq)) ;; optional procedure-or-false?, ignored until special values exist
+               (param $source-name  (ref eq)) ;; optional any/c, passed to special producers in full Racket
+               (result              (ref eq))
+
+               (call $read-char (local.get $in)))
+
 
          (func $read-bytes! (type $Prim14)
                (param $bstr  (ref eq)) ;; bytes?
@@ -40956,6 +41049,29 @@
 
                (ref.i31 (i32.or (i32.shl (local.get $cp) (i32.const ,char-shift))
                                 (i32.const ,char-tag))))
+
+         ;; peek-byte-or-special : [input-port?] [exact-nonnegative-integer?] [evt-or-false?] [special-wrap/c] [any/c] -> (or/c byte? eof-object? any/c)
+         ;;   Bootstrap implementation: special values and progress events are not modeled yet.
+         (func $peek-byte-or-special (type $Prim5)
+               (param $in           (ref eq)) ;; optional input-port?, default = (current-input-port)
+               (param $skip         (ref eq)) ;; optional exact-nonnegative-integer?, default = 0
+               (param $progress-evt (ref eq)) ;; optional evt-or-false?, ignored until progress events exist
+               (param $special-wrap (ref eq)) ;; optional procedure-or-false-or-special?, ignored until special values exist
+               (param $source-name  (ref eq)) ;; optional any/c, passed to special producers in full Racket
+               (result              (ref eq))
+
+               (call $peek-byte (local.get $in) (local.get $skip)))
+
+         ;; peek-char-or-special : [input-port?] [exact-nonnegative-integer?] [special-wrap/c] [any/c] -> (or/c char? eof-object? any/c)
+         ;;   Bootstrap implementation: special values are not modeled yet.
+         (func $peek-char-or-special (type $Prim4)
+               (param $in           (ref eq)) ;; optional input-port?, default = (current-input-port)
+               (param $skip         (ref eq)) ;; optional exact-nonnegative-integer?, default = 0
+               (param $special-wrap (ref eq)) ;; optional procedure-or-false-or-special?, ignored until special values exist
+               (param $source-name  (ref eq)) ;; optional any/c, passed to special producers in full Racket
+               (result              (ref eq))
+
+               (call $peek-char (local.get $in) (local.get $skip)))
 
 
          ;; Like Racket's peek-bytes, but currently only string ports are supported.

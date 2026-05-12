@@ -999,6 +999,8 @@
  ;; 13.2 Byte and String Input
  read-byte
  read-char
+ read-byte-or-special
+ read-char-or-special
  read-bytes!
  read-string!
  read-bytes
@@ -1018,6 +1020,8 @@
  peek-string
  peek-byte
  peek-char
+ peek-byte-or-special
+ peek-char-or-special
  
  ;; 13.3 Byte and String Output
  write-byte

@@ -590,28 +590,34 @@ The reader entry points are visible through the bridge. The bridge must call
 startup path initializes enough runtime state and null-deref while converting
 the requested export name to a symbol.
 
-After the bootstrap `port-read-handler` getter and reader accept parameters
-were added, the reader smoke moved past the old `port-read-handler` failure:
+After the bootstrap `port-read-handler` getter, reader accept parameters, and
+special-aware byte/char input primitives were added, the empty-argument reader
+smoke succeeds through the bridge:
 
 ```text
 wr-ref-read-status: ok
 wr-ref-read-syntax-status: ok
 
-wr-call-read-status: failed
-wr-call-read-kind: exception
-wr-call-read-failure-category: unbound-variable
-wr-call-read-failure-detail: read-char-or-special
-wr-call-read-printed: #(struct exn:fail:contract:variable #<undefined> #f read-char-or-special)
+wr-call-read-status: ok
+wr-call-read-kind: value
+wr-call-read-value: <eof>
+wr-call-read-printed: #<eof>
 
-wr-call-read-syntax-status: failed
-wr-call-read-syntax-kind: exception
-wr-call-read-syntax-failure-category: unbound-variable
-wr-call-read-syntax-failure-detail: read-char-or-special
-wr-call-read-syntax-printed: #(struct exn:fail:contract:variable #<undefined> #f read-char-or-special)
+wr-call-read-syntax-status: ok
+wr-call-read-syntax-kind: value
+wr-call-read-syntax-value: <eof>
+wr-call-read-syntax-printed: #<eof>
 ```
 
-That points at the next internal reader helper rather than missing `read`,
-`read-syntax`, `port-read-handler`, or the reader accept parameter layer. Also,
-`open-input-string` is not exported by this expander slice, so a direct
-host-side `(read (open-input-string ...))` probe still needs either a composed
-in-Wasm helper or more of the ordinary port API available through the bridge.
+The primitive report confirms the reader now retains the special-input names:
+
+```text
+retained-primitives-matches: peek-byte-or-special peek-char-or-special read-byte-or-special read-char-or-special
+```
+
+This does not mean the full special-value custom-port protocol is implemented.
+The current WebRacket runtime treats these as bootstrap-compatible wrappers
+around ordinary byte/char input. The next stronger reader probe should provide
+an actual input port to `read`/`read-syntax`; `open-input-string` is not exported
+by this expander slice, so that needs either a composed in-Wasm helper or more
+of the ordinary port API available through the bridge.

@@ -1405,6 +1405,15 @@
      '(read-line peek-byte peek-char)
      'optional 0 2)
     (make-inline-specs
+     '(peek-char-or-special)
+     'optional 0 4)
+    (make-inline-specs
+     '(peek-byte-or-special)
+     'optional 0 5)
+    (make-inline-specs
+     '(read-byte-or-special read-char-or-special)
+     'optional 0 3)
+    (make-inline-specs
      '(directory-list)
      'optional 0 2)
     (make-inline-specs
@@ -2155,6 +2164,8 @@
 
   read-byte
   read-char
+  read-byte-or-special
+  read-char-or-special
   read-bytes!
   read-string!
   read-bytes
@@ -2174,6 +2185,8 @@
   peek-string
   peek-byte
   peek-char
+  peek-byte-or-special
+  peek-char-or-special
   
   write-byte
   write-char

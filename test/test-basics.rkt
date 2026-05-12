@@ -5306,6 +5306,26 @@
                            (equal? (read-char port) #\x)
                            (eof-object? (read-char port)))))
 
+              (list "read-byte-or-special/basic"
+                    (let ([port (open-input-bytes (bytes 65))])
+                      (and (equal? (read-byte-or-special port) 65)
+                           (eof-object? (read-byte-or-special port)))))
+
+              (list "read-byte-or-special/optional"
+                    (let ([port (open-input-bytes (bytes 66))])
+                      (and (equal? (read-byte-or-special port values 'source) 66)
+                           (eof-object? (read-byte-or-special port #f #f)))))
+
+              (list "read-char-or-special/basic"
+                    (let ([port (open-input-string "λ")])
+                      (and (char=? (read-char-or-special port) #\λ)
+                           (eof-object? (read-char-or-special port)))))
+
+              (list "read-char-or-special/optional"
+                    (let ([port (open-input-string "x")])
+                      (and (char=? (read-char-or-special port values 'source) #\x)
+                           (eof-object? (read-char-or-special port #f #f)))))
+
               (list "read-char/location"
                     (let* ([port (open-input-string "A\n\t")]
                            [loc  (lambda ()
@@ -5633,6 +5653,24 @@
                            [first  (read-char port)])
                       (and (eof-object? value)
                            (char=? first #\λ))))
+
+              (list "peek-byte-or-special/basic"
+                    (let* ([port     (open-input-bytes (bytes 65 66))]
+                           [peeked   (peek-byte-or-special port)]
+                           [skipped  (peek-byte-or-special port 1)]
+                           [consumed (read-byte port)])
+                      (and (equal? peeked 65)
+                           (equal? skipped 66)
+                           (equal? consumed 65))))
+
+              (list "peek-char-or-special/basic"
+                    (let* ([port     (open-input-string "λx")]
+                           [peeked   (peek-char-or-special port)]
+                           [skipped  (peek-char-or-special port 1)]
+                           [consumed (read-char port)])
+                      (and (char=? peeked #\λ)
+                           (char=? skipped #\x)
+                           (char=? consumed #\λ))))
 
               (list "peek-bytes/basic"
                     (let* ([port  (open-input-bytes (bytes 65 66 67 68))]
