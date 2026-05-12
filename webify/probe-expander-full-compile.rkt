@@ -703,6 +703,9 @@
                 (list 'linklet? (linklet? c))
                 (list 'struct-vector-length (and vec (vector-length vec)))
                 (list 'struct-vector-tag (and vec (vector-ref vec 0))))))
+      (define (webify-probe-vector-field-shapes vec)
+        (for/list ([i (in-range (vector-length vec))])
+          (list i (webify-probe-value-shape (vector-ref vec i)))))
       (define (webify-probe-expand-self-evaluating/compile-ordinary-kernel-summary)
         (js-log "probe:compile-ordinary-kernel-summary:before-introduce")
         (let ([stx (webify-probe-expander-introduced-syntax '(+ 1 2))])
@@ -710,6 +713,15 @@
           (let ([c (webify-expander:compile stx (current-namespace) #f webify-expander:expand)])
             (js-log "probe:compile-ordinary-kernel-summary:after-compile")
             (webify-probe-compiled-value-summary c))))
+      (define (webify-probe-expand-self-evaluating/compiled-in-memory-fields)
+        (js-log "probe:compiled-in-memory-fields:before-introduce")
+        (let ([stx (webify-probe-expander-introduced-syntax '(+ 1 2))])
+          (js-log "probe:compiled-in-memory-fields:before-compile")
+          (let* ([c   (webify-expander:compile stx (current-namespace) #f webify-expander:expand)]
+                 [vec (and (struct? c) (struct->vector c '...))])
+            (js-log "probe:compiled-in-memory-fields:after-compile")
+            (list (list 'summary (webify-probe-compiled-value-summary c))
+                  (list 'fields (and vec (webify-probe-vector-field-shapes vec)))))))
       (define (webify-probe-expand-self-evaluating/eval-ordinary-kernel-primitive-app)
         (js-log "probe:eval-ordinary-kernel-primitive-app:before-introduce")
         (let ([stx (webify-probe-expander-introduced-syntax '(+ 1 2))])
@@ -738,10 +750,56 @@
                          (lambda (exn)
                            (js-log (string-append "probe:" label ":caught"))
                            (list 'require-failed
-                                 (list 'message (exn-message exn))))])
+                                 (list 'message (exn-message exn))
+                                 (list 'shape (webify-probe-value-shape exn))
+                                 (list 'struct-fields
+                                       (let ([vec (and (struct? exn) (struct->vector exn '...))])
+                                         (and vec (webify-probe-vector-field-shapes vec))))))])
           (require-thunk)
           (js-log (string-append "probe:" label ":after-require"))
           (list 'require-ok (audit-thunk))))
+      (define (webify-probe-expand-self-evaluating/kernel-require/catch)
+        (js-log "probe:kernel-require/catch:before-require")
+        (webify-probe-require/catch
+         "kernel-require/catch"
+         (lambda ()
+           (webify-expander:namespace-require '(quote #%kernel) (current-namespace)))
+         (lambda ()
+           (for/list ([sym (in-list '(#%datum #%app quote if lambda let-values +))])
+             (let ([id (webify-expander:namespace-syntax-introduce
+                        (webify-expander:datum->syntax #f sym)
+                        (current-namespace))])
+               (list sym (webify-probe-binding-summary id)))))))
+      (define (webify-probe-expand-self-evaluating/paramz-require/catch)
+        (js-log "probe:paramz-require/catch:before-require")
+        (webify-probe-require/catch
+         "paramz-require/catch"
+         (lambda ()
+           (webify-expander:namespace-require '(quote #%paramz) (current-namespace)))
+         (lambda ()
+           (for/list ([sym (in-list '(parameterization-key exception-handler-key))])
+             (let ([id (webify-expander:namespace-syntax-introduce
+                        (webify-expander:datum->syntax #f sym)
+                        (current-namespace))])
+               (list sym (webify-probe-binding-summary id)))))))
+      (define (webify-probe-expand-self-evaluating/linklet-boundary-audit)
+        (js-log "probe:linklet-boundary-audit:before-build")
+        (let* ([compiled       (compile-linklet '(linklet ((x)) (y) (void)) #f #f)]
+               [bundle-content (make-hasheq)]
+               [dir-content    (make-hasheq)]
+               [inst           (make-instance 'audit)])
+          (hash-set! bundle-content 'main compiled)
+          (let ([bundle (hash->linklet-bundle bundle-content)])
+            (hash-set! dir-content #f bundle)
+            (let ([dir (hash->linklet-directory dir-content)])
+              (js-log "probe:linklet-boundary-audit:after-build")
+              (list (list 'compiled
+                          (list (list 'linklet? (linklet? compiled))
+                                (list 'imports (linklet-import-variables compiled))
+                                (list 'exports (linklet-export-variables compiled))))
+                    (list 'bundle? (linklet-bundle? bundle))
+                    (list 'directory? (linklet-directory? dir))
+                    (list 'instance? (instance? inst)))))))
       (define (webify-probe-expand-self-evaluating/racket-base-require/catch)
         (js-log "probe:racket-base-require/catch:before-require")
         (webify-probe-require/catch

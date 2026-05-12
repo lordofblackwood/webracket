@@ -249,6 +249,19 @@
  "probe:compile-ordinary-kernel-summary:after-compile"
  "object-name compiled-in-memory")
 
+(define-values (compiled-fields-status compiled-fields-output)
+  (run-probe wasm-path
+             "webify-probe-expand-self-evaluating/compiled-in-memory-fields"
+             "[]"))
+(unless (zero? compiled-fields-status)
+  (error 'check-expander-kernel-smoke
+         "compiled-in-memory field probe failed with status ~a\noutput:\n~a"
+         compiled-fields-status
+         compiled-fields-output))
+(require-output compiled-fields-output "probe:compiled-in-memory-fields:after-compile")
+(require-output compiled-fields-output "object-name linklet-directory")
+(require-output compiled-fields-output "object-name namespace-scopes")
+
 (check-ok-probe
  "webify-probe-expand-self-evaluating/eval-ordinary-kernel-primitive-app"
  "[]"
@@ -269,6 +282,27 @@
 (reject-output eval-output "literal data is not allowed")
 (reject-output eval-output "exception-handler-key")
 
+(for ([probe+fragments (in-list
+                        '(("webify-probe-expand-self-evaluating/kernel-require/catch"
+                           "probe:kernel-require/catch:after-require"
+                           "(require-ok"
+                           "(#%datum (module-binding")
+                          ("webify-probe-expand-self-evaluating/paramz-require/catch"
+                           "probe:paramz-require/catch:after-require"
+                           "(require-ok"
+                           "(parameterization-key (module-binding")))])
+  (match-define (list probe marker ok-fragment binding-fragment) probe+fragments)
+  (define-values (status output) (run-probe wasm-path probe "[]"))
+  (unless (zero? status)
+    (error 'check-expander-kernel-smoke
+           "small require probe ~a failed with status ~a\noutput:\n~a"
+           probe
+           status
+           output))
+  (require-output output marker)
+  (require-output output ok-fragment)
+  (require-output output binding-fragment))
+
 (for ([probe+marker (in-list
                      '(("webify-probe-expand-self-evaluating/racket-base-require/catch"
                         "probe:racket-base-require/catch:caught")
@@ -286,9 +320,17 @@
            output))
   (require-output output marker)
   (require-output output "(require-failed (message require: contract violation")
+  (require-output output "expected: unknown module")
+  (require-output output "object-name exn:fail:contract")
   (reject-output output "raise-arguments-error")
   (reject-output output "heap out of memory")
   (reject-output output "exception-handler-key"))
+
+(check-ok-probe
+ "webify-probe-expand-self-evaluating/linklet-boundary-audit"
+ "[]"
+ "probe:linklet-boundary-audit:after-build"
+ "((compiled ((linklet? #t) (imports ((x))) (exports (y)))) (bundle? #t) (directory? #t) (instance? #t))")
 
 (check-failing-probe
  "webify-probe-expand-self-evaluating/racket-base-require"

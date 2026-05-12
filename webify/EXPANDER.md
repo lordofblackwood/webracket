@@ -2270,6 +2270,34 @@ clears the bridge-call shape problem and exposes the real remaining work:
 executing the compiled-in-memory/linklet body instead of returning the
 metadata-only placeholder result `0`.
 
+The next inspection probe shows why this is not just a WebRacket
+`CompiledLinklet` problem. The `compiled-in-memory` value is an expander struct
+with 17 fields. Field 1 is itself an expander `linklet-directory` struct, and
+field 15 is a `namespace-scopes` struct:
+
+```text
+compiled-in-memory-fields:
+  field 1:  object-name linklet-directory, struct-vector-length 2
+  field 15: object-name namespace-scopes,  struct-vector-length 3
+```
+
+Those are not WebRacket's runtime `linklet-directory?` / `linklet-bundle?`
+wrappers, which is why the top-level summary still reports:
+
+```text
+linklet-directory?: #f
+linklet-bundle?:    #f
+linklet?:           #f
+```
+
+So the eval bridge needs to learn the expander's compiled-in-memory/linklet
+directory representation, not merely instantiate WebRacket's own
+metadata-only `CompiledLinklet` wrapper. To keep the runtime side honest,
+metadata-only compiled linklets now use a distinct placeholder closure whose
+body raises if it is actually invoked; import/export inspection remains
+available, but the placeholder body should no longer be treated as executable
+semantics.
+
 The `racket/base` namespace setup probe also moved. The first attempt exposed
 a missing `raise-arguments-error` primitive. WebRacket now has a bootstrap
 implementation and the compiler lowers its rest arguments through the same
@@ -2311,3 +2339,50 @@ kernel-then-base explicitly preloads `#%kernel`. Seeing the same contract
 frontier in all three cases means the next blocker is probably in the
 module/require contract path itself, not simply a missing initial `#%kernel`
 namespace setup and not something unique to the size of `racket/base`.
+
+The caught exception payload is now a little sharper:
+
+```text
+racket-base-require/catch:
+  (require-failed
+    (message "require: contract violation\n  expected: unknown module")
+    (shape object-name exn:fail:contract))
+
+racket-bool-require/catch:
+  same: expected unknown module
+
+racket-base-via-kernel-then-base/catch:
+  same: expected unknown module
+```
+
+The smaller provider controls are useful:
+
+```text
+kernel-require/catch:
+  require-ok, binds #%datum/#%app/quote/if/lambda/let-values/+.
+
+paramz-require/catch:
+  require-ok, binds parameterization-key and exception-handler-key.
+```
+
+That narrows the require problem: built-in bootstrap providers such as
+`#%kernel` and `#%paramz` are loadable, but ordinary module paths like
+`racket/base` and `racket/bool` are still classified as unknown modules by the
+current WebRacket/expander module-name-resolution bridge.
+
+Finally, the WebRacket runtime linklet wrappers themselves still satisfy their
+own boundary invariants:
+
+```text
+linklet-boundary-audit:
+  compiled linklet?: #t
+  imports:           ((x))
+  exports:           (y)
+  bundle?:           #t
+  directory?:        #t
+  instance?:         #t
+```
+
+The mismatch is therefore between the expander's compiled module/linklet
+directory structures and WebRacket's runtime wrappers, not a total absence of
+runtime linklet, bundle, directory, or instance values.

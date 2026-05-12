@@ -2119,6 +2119,8 @@
     (add-runtime-string-constant 'module-variable-same-length-vectors
                                  "value vector with the same length as the cell vector")
     (add-runtime-string-constant 'module-prompts-unsupported    "module prompts are not supported by WebRacket yet")
+    (add-runtime-string-constant 'metadata-only-compiled-linklet
+                                 "metadata-only compiled linklet has no executable body")
     (add-runtime-symbol-constant 'constant)
     (add-runtime-symbol-constant 'consistent)
     (add-runtime-symbol-constant 'root-continuation-prompt-tag)
@@ -4971,6 +4973,18 @@
          ;; Variable used by `closedapp` to hold the closure during construction.
          (func $dummy-code (type $ClosureCode) (param $clos (ref $Closure))
                (param $args (ref $Args)) (result (ref eq)) ,(Imm 0))
+         (func $placeholder-linklet-code (type $ClosureCode)
+               (param $clos (ref $Closure))
+               (param $args (ref $Args))
+               (result     (ref eq))
+               ;; Metadata-only linklets are inspectable but not executable.
+               ;; Keep this distinct from $dummy-code so expander/eval probes
+               ;; fail at the missing execution boundary instead of returning 0.
+               (call $raise-arguments-error
+                     (global.get $symbol:instantiate-linklet)
+                     (global.get $string:metadata-only-compiled-linklet)
+                     (array.new_fixed $Args 0))
+               (unreachable))
          (global $dummy-closure (ref $Closure)
                  (struct.new $Closure
                              (i32.const 0)               ; hash
@@ -4979,7 +4993,7 @@
                              (global.get $false)         ; realm: #f or $Symbol
                              (ref.func $invoke-closure) ; invoke (used by apply, map, etc.)
                              (global.get $false)         ; debug-id
-                             (ref.func $dummy-code)
+                             (ref.func $placeholder-linklet-code)
                              (array.new_fixed $Free 0)))
          (global $placeholder-linklet-closure (ref $Closure)
                  (struct.new $Closure
