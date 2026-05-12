@@ -707,6 +707,36 @@
       (define (webify-probe-vector-field-shapes vec)
         (for/list ([i (in-range (vector-length vec))])
           (list i (webify-probe-value-shape (vector-ref vec i)))))
+      (define (webify-probe-bytes-prefix bs limit)
+        (let ([n (min limit (bytes-length bs))])
+          (for/list ([i (in-range n)])
+            (bytes-ref bs i))))
+      (define (webify-probe-value-detail v)
+        (append
+         (webify-probe-value-shape v)
+         (list (list 'boolean? (boolean? v))
+               (list 'null? (null? v))
+               (list 'symbol? (symbol? v))
+               (list 'number? (number? v))
+               (list 'string? (string? v))
+               (list 'bytes? (bytes? v))
+               (list 'immutable-bytes? (immutable-bytes? v))
+               (list 'mutable-bytes? (mutable-bytes? v))
+               (list 'pair? (pair? v))
+               (list 'vector? (vector? v))
+               (list 'hash? (hash? v)))
+         (cond
+           [(bytes? v)
+            (list (list 'bytes-length (bytes-length v))
+                  (list 'bytes-prefix (webify-probe-bytes-prefix v 16)))]
+           [(pair? v)
+            (list (list 'car-detail (webify-probe-value-detail (car v)))
+                  (list 'cdr-detail (webify-probe-value-shape (cdr v))))]
+           [(vector? v)
+            (list (list 'vector-length (vector-length v))
+                  (list 'vector-fields (webify-probe-vector-field-shapes v)))]
+           [else
+            '()])))
       (define (webify-probe-hash-summary h)
         (cond
           [(hash? h)
@@ -715,7 +745,7 @@
                  (list 'entries
                        (for/list ([entry (in-list (hash->list h))])
                          (list (car entry)
-                               (webify-probe-value-shape (cdr entry))))))]
+                               (webify-probe-value-detail (cdr entry))))))]
           [else
            (list (list 'hash? #f)
                  (list 'shape (webify-probe-value-shape h)))]))
@@ -727,6 +757,22 @@
                       (and vec
                            (>= (vector-length vec) 2)
                            (webify-probe-hash-summary (vector-ref vec 1)))))))
+      (define (webify-probe-compiled-payload-summary datum)
+        (let* ([stx        (webify-probe-expander-introduced-syntax datum)]
+               [c          (webify-expander:compile stx (current-namespace) #f webify-expander:expand)]
+               [vec        (and (struct? c) (struct->vector c '...))]
+               [ld         (and vec (>= (vector-length vec) 2) (vector-ref vec 1))]
+               [ld-vec     (and (struct? ld) (struct->vector ld '...))]
+               [ld-payload (and ld-vec (>= (vector-length ld-vec) 2) (vector-ref ld-vec 1))]
+               [bundle     (and (hash? ld-payload) (hash-ref ld-payload #f #f))]
+               [bundle-vec (and (struct? bundle) (struct->vector bundle '...))]
+               [bundle-ht  (and bundle-vec (>= (vector-length bundle-vec) 2) (vector-ref bundle-vec 1))]
+               [phase-0    (and (hash? bundle-ht) (hash-ref bundle-ht 0 #f))])
+          (list (list 'datum datum)
+                (list 'directory (webify-probe-expander-linklet-directory-summary ld))
+                (list 'bundle (webify-probe-value-shape bundle))
+                (list 'bundle-payload (webify-probe-hash-summary bundle-ht))
+                (list 'phase-0 (webify-probe-value-detail phase-0)))))
       (define (webify-probe-expand-self-evaluating/compile-ordinary-kernel-summary)
         (js-log "probe:compile-ordinary-kernel-summary:before-introduce")
         (let ([stx (webify-probe-expander-introduced-syntax '(+ 1 2))])
@@ -766,6 +812,16 @@
                           (and bundle-vec
                                (>= (vector-length bundle-vec) 2)
                                (webify-probe-hash-summary (vector-ref bundle-vec 1)))))))))
+      (define (webify-probe-expand-self-evaluating/compiled-phase0-payload-matrix)
+        (js-log "probe:compiled-phase0-payload-matrix:before")
+        (let ([result
+               (for/list ([datum (in-list '(42
+                                            (+ 1 2)
+                                            (lambda (x) x)
+                                            (let-values ([(x) 1]) x)))])
+                 (webify-probe-compiled-payload-summary datum))])
+          (js-log "probe:compiled-phase0-payload-matrix:after")
+          result))
       (define (webify-probe-expand-self-evaluating/compiled-directory-adapter/catch)
         (js-log "probe:compiled-directory-adapter/catch:before-introduce")
         (with-handlers ([exn:fail?

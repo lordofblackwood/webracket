@@ -284,6 +284,30 @@
  "probe:compiled-directory-adapter/catch:caught"
  "(adapter-failed (message hash->linklet-directory: contract violation")
 
+(define-values (phase0-status phase0-output)
+  (run-probe wasm-path
+             "webify-probe-expand-self-evaluating/compiled-phase0-payload-matrix"
+             "[]"))
+(unless (zero? phase0-status)
+  (error 'check-expander-kernel-smoke
+         "compiled phase-0 payload matrix probe failed with status ~a\noutput:\n~a"
+         phase0-status
+         phase0-output))
+(require-output phase0-output "probe:compiled-phase0-payload-matrix:after")
+(for ([fragment (in-list '("(datum 42)"
+                           "(datum (+ 1 2))"
+                           "(datum (lambda (x) x))"
+                           "(datum (let-values (((x) 1)) x))"
+                           "(bundle-payload ((hash? #t) (hash-count 3)"
+                           "original-phase"
+                           "max-phase"
+                           "(phase-0 ((syntax? #f)"
+                           "(bytes? #f)"
+                           "(pair? #f)"
+                           "(vector? #f)"
+                           "(hash? #f)"))])
+  (require-output phase0-output fragment))
+
 (check-ok-probe
  "webify-probe-expand-self-evaluating/eval-ordinary-kernel-primitive-app"
  "[]"

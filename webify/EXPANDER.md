@@ -2470,3 +2470,72 @@ binding/protocol to declare and then require an ordinary module. That is a
 smaller version of the same problem: Webify can inspect expander compiled
 module products, but has not yet wired an ordinary module declaration into the
 runtime module registry that `namespace-require` consults.
+
+Follow-up: opening the phase-0 payload box
+------------------------------------------
+
+The next probe compared four tiny ordinary expressions:
+
+```text
+42
+(+ 1 2)
+(lambda (x) x)
+(let-values ([(x) 1]) x)
+```
+
+All four have the same outer compiled shape:
+
+```text
+compiled-in-memory
+  linklet-directory payload hash-count 1
+  #f -> linklet-bundle
+    payload hash-count 3
+    keys: original-phase, max-phase, 0
+```
+
+The `original-phase` and `max-phase` entries are numbers. The phase `0` entry
+is not exposed to WebRacket as ordinary bytes or as an ordinary compound value:
+
+```text
+phase-0:
+  syntax?           #f
+  struct?           #f
+  procedure?        #f
+  object-name       #f
+  bytes?            #f
+  immutable-bytes?  #f
+  mutable-bytes?    #f
+  pair?             #f
+  vector?           #f
+  hash?             #f
+```
+
+That refines the earlier "FASL-looking bytes" observation. The error printer
+for the expander `linklet-bundle` can show a `#~...8.12...expB...`-looking
+payload, but WebRacket does not receive phase `0` as a normal byte string that
+`bytes?`, `bytes-length`, or the existing FASL helpers can inspect. The bytes
+boundary is therefore still inside the expander/linklet serialization layer.
+
+So the next execution strategy should not start with WebRacket's existing FASL
+reader. There are three realistic paths:
+
+```text
+1. Expose/reflect the expander linklet-bundle payload through expander-side
+   accessors, so WebRacket can obtain ordinary inspectable data.
+
+2. Teach WebRacket about the expander's opaque serialized linklet payload
+   format directly, but only after finding the serializer/deserializer boundary
+   in the Racket expander sources.
+
+3. Avoid decoding the payload initially and instead wire a module registry path
+   where expander-compiled module products remain expander objects until the
+   expander's own evaluator/loader consumes them.
+```
+
+Given the probes so far, path 1 is the smallest next step. We should add a
+focused expander-side reflection hook or alias for the linklet-bundle/hash
+accessors used by `src/expander/compile/linklet-api.rkt`, then re-run the same
+matrix with actual bundle values instead of opaque phase payloads. Path 2 is
+probably premature: the payload is not yet ordinary bytes at the WebRacket
+level. Path 3 is attractive for `namespace-require`, but it risks hiding the
+eval boundary again unless we still keep the read-only payload probes.
