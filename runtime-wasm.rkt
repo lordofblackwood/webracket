@@ -2011,6 +2011,33 @@
     (add-runtime-symbol-constant 'error-print-width)
     (add-runtime-symbol-constant 'error-print-source-location)
     (add-runtime-symbol-constant 'current-compile-target-machine)
+    (add-runtime-symbol-constant 'webracket-debug-allocation-budget!)
+    (add-runtime-symbol-constant 'webracket-debug-allocation-counters)
+    (add-runtime-symbol-constant 'webracket-debug-invoke-budget!)
+    (add-runtime-symbol-constant 'allocation-budget-exhausted)
+    (add-runtime-symbol-constant 'invoke-budget-exhausted)
+    (add-runtime-symbol-constant 'pairs)
+    (add-runtime-symbol-constant 'vectors)
+    (add-runtime-symbol-constant 'structs)
+    (add-runtime-symbol-constant 'hash-sets)
+    (add-runtime-symbol-constant 'closures)
+    (add-runtime-symbol-constant 'arg-arrays)
+    (add-runtime-symbol-constant 'strings)
+    (add-runtime-symbol-constant 'bytes)
+    (add-runtime-symbol-constant 'value-arrays)
+    (add-runtime-symbol-constant 'free-arrays)
+    (add-runtime-symbol-constant 'invocations)
+    (add-runtime-symbol-constant 'current-procedure)
+    (add-runtime-symbol-constant 'name)
+    (add-runtime-symbol-constant 'debug-id)
+    (add-runtime-symbol-constant 'call-with-parameterization-wrapper-entry)
+    (add-runtime-symbol-constant 'call-with-parameterization-primitive-entry)
+    (add-runtime-symbol-constant 'count)
+    (add-runtime-symbol-constant 'argc)
+    (add-runtime-symbol-constant 'arg0-parameterization?)
+    (add-runtime-symbol-constant 'arg1-procedure?)
+    (add-runtime-symbol-constant 'arg1-name)
+    (add-runtime-symbol-constant 'arg1-debug-id)
     (add-runtime-string-constant 'wr-kind:value              "value")
     (add-runtime-string-constant 'wr-kind:missing-binding    "missing-binding")
     (add-runtime-string-constant 'wr-kind:not-procedure      "not-procedure")
@@ -3869,6 +3896,8 @@
                (local $arg-count     i32)
                (local $args-repacked (ref $Args))
 
+               (global.set $debug-current-procedure (local.get $proc))
+               (call $debug-invoke-tick)
                ;; Step 1: cast proc to closure and extract code
                (local.set $clos (ref.cast (ref $Closure) (local.get $proc)))
                (local.set $code (struct.get $Closure $code (local.get $clos)))
@@ -4019,6 +4048,8 @@
 
                (local $clos (ref $Closure))
                (local $code (ref $ClosureCode))
+               (global.set $debug-current-procedure (local.get $proc))
+               (call $debug-invoke-tick)
                ;; Cast and fetch code pointer
                (local.set $clos (ref.cast (ref $Closure) (local.get $proc)))
                (local.set $code (struct.get $Closure $code (local.get $clos)))
@@ -4123,6 +4154,8 @@
               (local $a4   (ref eq))
               (local $rest (ref eq))
 
+              (global.set $debug-current-procedure (local.get $proc))
+              (call $debug-invoke-tick)
               (local.set $a0 (global.get $null))
               (local.set $a1 (global.get $null))
               (local.set $a2 (global.get $null))
@@ -14201,6 +14234,7 @@
                              (else (call $raise-check-fixnum (local.get $b-raw))
                                    (unreachable)))))
                ;; Construct mutable bytes object
+               (call $debug-allocation-tick (i32.const 7))
                (struct.new $Bytes
                            (i32.const 0)  ;; hash
                            (i32.const 0)  ;; immutable = false
@@ -15948,6 +15982,7 @@
                ;; Create backing array and fill with `ch`
                (local.set $arr (array.new $I32Array (local.get $ch) (local.get $n)))
                ;; Construct mutable string
+               (call $debug-allocation-tick (i32.const 6))
                (struct.new $String
                            (i32.const 0)     ;; hash = 0
                            (i32.const 0)     ;; mutable
@@ -20386,6 +20421,7 @@
                (call $null? (local.get $v)))
 
          (func $cons (type $Prim2) (param $a (ref eq)) (param $d (ref eq)) (result (ref eq))
+               (call $debug-allocation-tick (i32.const 0))
                (struct.new $Pair (i32.const 0) (local.get $a) (local.get $d)))
 
          (func $list* (type $Prim>=1) (param $a (ref eq)) (param $tail (ref eq)) (result (ref eq))
@@ -30894,6 +30930,7 @@
                (result     (ref $Vector))
 
                (local $arr (ref $Array))
+               (call $debug-allocation-tick (i32.const 1))
                ;; Create the array
                (local.set $arr (array.new $Array (local.get $val) (local.get $k)))
                ;; Construct and return the vector
@@ -34557,6 +34594,7 @@
                (param $key (ref eq)) ;; key
                (param $val (ref eq)) ;; value
                (result     (ref eq))
+               (call $debug-allocation-tick (i32.const 3))
                (if (i32.eqz (call $immutable-hash-leaf?/i32 (local.get $ht)))
                    (then (drop (call $js-log (global.get $string:hash-set-non-hash)))
                          (if (ref.eq (call $exn? (local.get $ht)) (global.get $true))
@@ -34746,6 +34784,7 @@
               (param $key (ref eq))   ;; key
               (param $val (ref eq))   ;; value
               (result     (ref eq))   ;; return void (an immediate)
+              (call $debug-allocation-tick (i32.const 3))
 
               ;; Check type: must be (ref $Hash)
               (if (i32.eqz (ref.test (ref $Hash) (local.get $ht)))
@@ -42090,6 +42129,276 @@
                      (global.get $memory-map:callback-buffer-base)
                      (local.get $len))
                (global.get $void))
+
+         ;; webracket-debug-allocation-counters : -> list?
+         ;;   Return probe-only allocation counters for the currently selected hot paths.
+         (func $webracket-debug-allocation-counters (type $Prim0)
+               (result (ref eq))
+               (call $cons
+                     (call $cons (global.get $symbol:pairs)
+                           (call $cons (ref.i31 (i32.shl (global.get $debug-allocation-pairs) (i32.const 1)))
+                                 (global.get $null)))
+                     (call $cons
+                           (call $cons (global.get $symbol:vectors)
+                                 (call $cons (ref.i31 (i32.shl (global.get $debug-allocation-vectors) (i32.const 1)))
+                                       (global.get $null)))
+                           (call $cons
+                                 (call $cons (global.get $symbol:structs)
+                                       (call $cons (ref.i31 (i32.shl (global.get $debug-allocation-structs) (i32.const 1)))
+                                             (global.get $null)))
+                                 (call $cons
+                                       (call $cons (global.get $symbol:hash-sets)
+                                             (call $cons (ref.i31 (i32.shl (global.get $debug-allocation-hash-sets) (i32.const 1)))
+                                                   (global.get $null)))
+                                       (call $cons
+                                             (call $cons (global.get $symbol:closures)
+                                                   (call $cons (ref.i31 (i32.shl (global.get $debug-allocation-closures) (i32.const 1)))
+                                                         (global.get $null)))
+                                             (call $cons
+                                                   (call $cons (global.get $symbol:arg-arrays)
+                                                         (call $cons (ref.i31 (i32.shl (global.get $debug-allocation-arg-arrays) (i32.const 1)))
+                                                               (global.get $null)))
+                                                   (call $cons
+                                                         (call $cons (global.get $symbol:strings)
+                                                               (call $cons (ref.i31 (i32.shl (global.get $debug-allocation-strings) (i32.const 1)))
+                                                                     (global.get $null)))
+                                                         (call $cons
+                                                               (call $cons (global.get $symbol:bytes)
+                                                                 (call $cons (ref.i31 (i32.shl (global.get $debug-allocation-bytes) (i32.const 1)))
+                                                                       (global.get $null)))
+                                                               (call $cons
+                                                                     (call $cons (global.get $symbol:value-arrays)
+                                                                           (call $cons (ref.i31 (i32.shl (global.get $debug-allocation-value-arrays) (i32.const 1)))
+                                                                                 (global.get $null)))
+                                                                     (call $cons
+                                                                           (call $cons (global.get $symbol:free-arrays)
+                                                                                 (call $cons (ref.i31 (i32.shl (global.get $debug-allocation-free-arrays) (i32.const 1)))
+                                                                                       (global.get $null)))
+                                                                           (call $cons
+                                                                                 (call $cons (global.get $symbol:invocations)
+                                                                                       (call $cons (ref.i31 (i32.shl (global.get $debug-invocations) (i32.const 1)))
+                                                                                             (global.get $null)))
+                                                                                 (global.get $null)))))))))))))
+
+         ;; webracket-debug-allocation-budget! : exact-nonnegative-integer? -> void?
+         ;;   Enable a probe-only allocation budget and reset hot-path counters.
+         (func $webracket-debug-allocation-budget! (type $Prim1)
+               (param $budget-fx (ref eq)) ;; exact nonnegative fixnum budget
+               (result (ref eq))
+               (if (i32.eqz (ref.test (ref i31) (local.get $budget-fx)))
+                   (then (call $raise-check-fixnum (local.get $budget-fx))
+                         (unreachable)))
+               (global.set $debug-allocation-budget
+                           (i32.shr_u
+                            (i31.get_u (ref.cast (ref i31) (local.get $budget-fx)))
+                            (i32.const 1)))
+               (global.set $debug-allocation-pairs (i32.const 0))
+               (global.set $debug-allocation-vectors (i32.const 0))
+               (global.set $debug-allocation-structs (i32.const 0))
+               (global.set $debug-allocation-hash-sets (i32.const 0))
+               (global.set $debug-allocation-closures (i32.const 0))
+               (global.set $debug-allocation-arg-arrays (i32.const 0))
+               (global.set $debug-allocation-strings (i32.const 0))
+               (global.set $debug-allocation-bytes (i32.const 0))
+               (global.set $debug-allocation-value-arrays (i32.const 0))
+               (global.set $debug-allocation-free-arrays (i32.const 0))
+               (global.get $void))
+
+         ;; webracket-debug-invoke-budget! : exact-nonnegative-integer? -> void?
+         ;;   Enable a probe-only invocation watchdog and reset its counter.
+         (func $webracket-debug-invoke-budget! (type $Prim1)
+               (param $budget-fx (ref eq)) ;; exact nonnegative fixnum budget
+               (result (ref eq))
+               (if (i32.eqz (ref.test (ref i31) (local.get $budget-fx)))
+                   (then (call $raise-check-fixnum (local.get $budget-fx))
+                         (unreachable)))
+               (global.set $debug-invoke-budget
+                           (i32.shr_u
+                            (i31.get_u (ref.cast (ref i31) (local.get $budget-fx)))
+                            (i32.const 1)))
+               (global.set $debug-invocations (i32.const 0))
+               (global.set $debug-label102683-count (i32.const 0))
+               (global.get $void))
+
+         ;; debug-watch-label102683 : args-array? -> void?
+         ;;   Probe the lowered call-with-parameterization wrapper entry.
+         (func $debug-watch-label102683
+               (param $args (ref $Args))
+               (local $argc i32)
+               (local $arg0 (ref eq))
+               (local $arg1 (ref eq))
+               (local $arg1-name (ref eq))
+               (local $arg1-debug-id (ref eq))
+               (local $arg0-paramz? (ref eq))
+               (local $arg1-proc? (ref eq))
+               (if (i32.gt_u (global.get $debug-invoke-budget) (i32.const 0))
+                   (then
+                    (global.set $debug-label102683-count
+                                (i32.add (global.get $debug-label102683-count) (i32.const 1)))
+                    (if (i32.le_u (global.get $debug-label102683-count) (i32.const 12))
+                        (then
+                         (local.set $argc (array.len (local.get $args)))
+                         (local.set $arg0 (global.get $false))
+                         (local.set $arg1 (global.get $false))
+                         (local.set $arg1-name (global.get $false))
+                         (local.set $arg1-debug-id (global.get $false))
+                         (if (i32.gt_u (local.get $argc) (i32.const 0))
+                             (then (local.set $arg0 (array.get $Args (local.get $args) (i32.const 0)))))
+                         (if (i32.gt_u (local.get $argc) (i32.const 1))
+                             (then (local.set $arg1 (array.get $Args (local.get $args) (i32.const 1)))))
+                         (local.set $arg0-paramz?
+                                    (if (result (ref eq))
+                                        (ref.test (ref $Parameterization) (local.get $arg0))
+                                        (then (global.get $true))
+                                        (else (global.get $false))))
+                         (local.set $arg1-proc?
+                                    (if (result (ref eq))
+                                        (ref.test (ref $Procedure) (local.get $arg1))
+                                        (then (global.get $true))
+                                        (else (global.get $false))))
+                         (if (ref.test (ref $Procedure) (local.get $arg1))
+                             (then
+                              (local.set $arg1-name
+                                         (struct.get $Procedure $name
+                                                     (ref.cast (ref $Procedure) (local.get $arg1))))))
+                         (if (ref.test (ref $Closure) (local.get $arg1))
+                             (then
+                              (local.set $arg1-debug-id
+                                         (struct.get $Closure $debug-id
+                                                     (ref.cast (ref $Closure) (local.get $arg1))))))
+                         (drop (call $js-log (global.get $symbol:call-with-parameterization-wrapper-entry)))
+                         (drop (call $js-log
+                                     (call $cons
+                                           (call $cons (global.get $symbol:count)
+                                                 (call $cons
+                                                       (ref.i31 (i32.shl (global.get $debug-label102683-count)
+                                                                         (i32.const 1)))
+                                                       (global.get $null)))
+                                           (global.get $null))))
+                         (drop (call $js-log
+                                     (call $cons
+                                           (call $cons (global.get $symbol:argc)
+                                                 (call $cons
+                                                       (ref.i31 (i32.shl (local.get $argc) (i32.const 1)))
+                                                       (global.get $null)))
+                                           (global.get $null))))
+                         (drop (call $js-log
+                                     (call $cons
+                                           (call $cons (global.get $symbol:arg0-parameterization?)
+                                                 (call $cons (local.get $arg0-paramz?)
+                                                       (global.get $null)))
+                                           (global.get $null))))
+                         (drop (call $js-log
+                                     (call $cons
+                                           (call $cons (global.get $symbol:arg1-procedure?)
+                                                 (call $cons (local.get $arg1-proc?)
+                                                       (global.get $null)))
+                                           (global.get $null))))
+                         (drop (call $js-log
+                                     (call $cons
+                                           (call $cons (global.get $symbol:arg1-name)
+                                                 (call $cons (local.get $arg1-name)
+                                                       (global.get $null)))
+                                           (global.get $null))))
+                         (drop (call $js-log
+                                     (call $cons
+                                           (call $cons (global.get $symbol:arg1-debug-id)
+                                                 (call $cons (local.get $arg1-debug-id)
+                                                       (global.get $null)))
+                                           (global.get $null)))))))))
+
+         ;; debug-allocation-tick : i32 -> void
+         ;;   Count selected allocations while an explicit probe budget is active.
+         (func $debug-allocation-tick
+               (param $kind i32)
+               (if (i32.gt_u (global.get $debug-allocation-budget) (i32.const 0))
+                   (then
+                    (if (i32.eq (local.get $kind) (i32.const 0))
+                        (then (global.set $debug-allocation-pairs
+                                          (i32.add (global.get $debug-allocation-pairs) (i32.const 1)))))
+                    (if (i32.eq (local.get $kind) (i32.const 1))
+                        (then (global.set $debug-allocation-vectors
+                                          (i32.add (global.get $debug-allocation-vectors) (i32.const 1)))))
+                    (if (i32.eq (local.get $kind) (i32.const 2))
+                        (then (global.set $debug-allocation-structs
+                                          (i32.add (global.get $debug-allocation-structs) (i32.const 1)))))
+                    (if (i32.eq (local.get $kind) (i32.const 3))
+                        (then (global.set $debug-allocation-hash-sets
+                                          (i32.add (global.get $debug-allocation-hash-sets) (i32.const 1)))))
+                    (if (i32.eq (local.get $kind) (i32.const 4))
+                        (then (global.set $debug-allocation-closures
+                                          (i32.add (global.get $debug-allocation-closures) (i32.const 1)))))
+                    (if (i32.eq (local.get $kind) (i32.const 5))
+                        (then (global.set $debug-allocation-arg-arrays
+                                          (i32.add (global.get $debug-allocation-arg-arrays) (i32.const 1)))))
+                    (if (i32.eq (local.get $kind) (i32.const 6))
+                        (then (global.set $debug-allocation-strings
+                                          (i32.add (global.get $debug-allocation-strings) (i32.const 1)))))
+                    (if (i32.eq (local.get $kind) (i32.const 7))
+                        (then (global.set $debug-allocation-bytes
+                                          (i32.add (global.get $debug-allocation-bytes) (i32.const 1)))))
+                    (if (i32.eq (local.get $kind) (i32.const 8))
+                        (then (global.set $debug-allocation-value-arrays
+                                          (i32.add (global.get $debug-allocation-value-arrays) (i32.const 1)))))
+                    (if (i32.eq (local.get $kind) (i32.const 9))
+                        (then (global.set $debug-allocation-free-arrays
+                                          (i32.add (global.get $debug-allocation-free-arrays) (i32.const 1)))))
+                    (global.set $debug-allocation-budget
+                                (i32.sub (global.get $debug-allocation-budget) (i32.const 1)))
+                    (if (i32.eqz (global.get $debug-allocation-budget))
+                        (then
+                         (drop (call $js-log (global.get $symbol:allocation-budget-exhausted)))
+                         (drop (call $js-log (call $webracket-debug-allocation-counters)))
+                         (unreachable))))))
+
+         ;; debug-invoke-tick : -> void
+         ;;   Count procedure invocations while an explicit probe budget is active.
+         (func $debug-invoke-tick
+               (local $proc (ref eq))
+               (local $name (ref eq))
+               (local $debug-id (ref eq))
+               (if (i32.gt_u (global.get $debug-invoke-budget) (i32.const 0))
+                   (then
+                    (global.set $debug-invocations
+                                (i32.add (global.get $debug-invocations) (i32.const 1)))
+                    (global.set $debug-invoke-budget
+                                (i32.sub (global.get $debug-invoke-budget) (i32.const 1)))
+                    (if (i32.eqz (global.get $debug-invoke-budget))
+                        (then
+                         (local.set $proc (global.get $debug-current-procedure))
+                         (local.set $name (global.get $debug-current-procedure-name))
+                         (local.set $debug-id (global.get $false))
+                         (if (ref.test (ref $Procedure) (local.get $proc))
+                             (then
+                              (local.set $name
+                                         (struct.get $Procedure $name
+                                                     (ref.cast (ref $Procedure) (local.get $proc))))))
+                         (if (ref.test (ref $Closure) (local.get $proc))
+                             (then
+                              (local.set $debug-id
+                                         (struct.get $Closure $debug-id
+                                                     (ref.cast (ref $Closure) (local.get $proc))))))
+                         (drop (call $js-log (global.get $symbol:invoke-budget-exhausted)))
+                         (drop (call $js-log
+                                     (call $cons
+                                           (call $cons (global.get $symbol:current-procedure)
+                                                 (call $cons (local.get $proc)
+                                                       (global.get $null)))
+                                           (global.get $null))))
+                         (drop (call $js-log
+                                     (call $cons
+                                           (call $cons (global.get $symbol:name)
+                                                 (call $cons (local.get $name)
+                                                       (global.get $null)))
+                                           (global.get $null))))
+                         (drop (call $js-log
+                                     (call $cons
+                                           (call $cons (global.get $symbol:debug-id)
+                                                 (call $cons (local.get $debug-id)
+                                                       (global.get $null)))
+                                           (global.get $null))))
+                         (drop (call $js-log (call $webracket-debug-allocation-counters)))
+                         (unreachable))))))
          
          (func $copy-bytes-to-memory
                ;; Copy a Racket $Bytes object into linear memory at $ptr.
@@ -46589,6 +46898,7 @@
                (local.set $arr (array.new $Array (global.get $false) (local.get $field-count)))
                (call $fill-fields-from-args   (local.get $arr) (local.get $init-indices) (local.get $args))
                (call $fill-fields-from-values (local.get $arr) (local.get $auto-indices) (local.get $auto-values))
+               (call $debug-allocation-tick (i32.const 2))
 
                (struct.new $Struct
                            ; $Heap
@@ -46649,6 +46959,7 @@
                                            local.get $struct-name))
 
                ;; Construct closure
+               (call $debug-allocation-tick (i32.const 4))
                (struct.new $Closure
                            (i32.const 0)               ; hash
                            (local.get $closure-name)   ; name:  #f or $Symbol
@@ -49440,6 +49751,16 @@
                (drop (call $call-thunk (local.get $after)))
                (local.get $res))
 
+         ;; call-with-continuation-barrier : (-> any/c) -> any/c
+         ;;   Bootstrap approximation for the expander: WebRacket currently
+         ;;   has no first-class continuation jumps, so there is no barrier to
+         ;;   enforce yet. If call/cc or prompt abort support is reinstated,
+         ;;   this must become a real delimiter for continuation jumps.
+         (func $call-with-continuation-barrier (type $Prim1)
+               (param $thunk (ref eq)) ;; procedure?
+               (result       (ref eq))
+               (call $call-thunk (local.get $thunk)))
+
          ;; unsafe-root-continuation-prompt-tag : -> any/c
          ;;   Stable root prompt-tag placeholder. WebRacket does not implement
          ;;   continuation prompts yet, but expander startup code can obtain and
@@ -49479,9 +49800,8 @@
                    (then (global.get $false))
                    (else (local.get $none-v))))
 
-         ;; current-parameterization : -> any/c
-         ;;   Return the current poor-man parameterization overlay, or #f when
-         ;;   no scoped overlay is active.
+         ;; current-parameterization : -> parameterization?
+         ;;   Return the current poor-man parameterization overlay.
          (func $current-parameterization (type $Prim0)
                (result (ref eq))
                (global.get $current-parameterization-value))
@@ -49710,6 +50030,8 @@
                (local $old     (ref eq))
                (local $res     (ref eq))
                (local $exn-val (ref eq))
+               (local $thunk-name (ref eq))
+               (local $thunk-debug-id (ref eq))
 
                (if (i32.eqz (ref.test (ref $Parameterization) (local.get $paramz-raw)))
                    (then (call $raise-argument-error1
@@ -49724,6 +50046,33 @@
                (local.set $thunk (ref.cast (ref $Procedure) (local.get $thunk-raw)))
                (local.set $inv   (struct.get $Procedure $invoke (local.get $thunk)))
                (local.set $args  (array.new $Args (global.get $null) (i32.const 0)))
+               (if (i32.gt_u (global.get $debug-invoke-budget) (i32.const 0))
+                   (then
+                    (if (i32.le_u (global.get $debug-label102683-count) (i32.const 12))
+                        (then
+                         (local.set $thunk-name
+                                    (struct.get $Procedure $name (local.get $thunk)))
+                         (local.set $thunk-debug-id (global.get $false))
+                         (if (ref.test (ref $Closure) (local.get $thunk-raw))
+                             (then
+                              (local.set $thunk-debug-id
+                                         (struct.get $Closure $debug-id
+                                                     (ref.cast (ref $Closure)
+                                                               (local.get $thunk-raw))))))
+                         (drop (call $js-log
+                                     (global.get $symbol:call-with-parameterization-primitive-entry)))
+                         (drop (call $js-log
+                                     (call $cons
+                                           (call $cons (global.get $symbol:arg1-name)
+                                                 (call $cons (local.get $thunk-name)
+                                                       (global.get $null)))
+                                           (global.get $null))))
+                         (drop (call $js-log
+                                     (call $cons
+                                           (call $cons (global.get $symbol:arg1-debug-id)
+                                                 (call $cons (local.get $thunk-debug-id)
+                                                       (global.get $null)))
+                                           (global.get $null))))))))
                (local.set $old   (global.get $current-parameterization-value))
                (global.set $current-parameterization-value (local.get $paramz-raw))
                (local.set $res
@@ -62713,6 +63062,22 @@
                (global $break-enabled-key             (mut (ref eq)) (global.get $void))
                (global $parameterization-key          (mut (ref eq)) (global.get $void))
                (global $cache-configuration-values    (mut (ref eq)) (global.get $void))
+               (global $debug-allocation-budget        (mut i32)      (i32.const 0))
+               (global $debug-allocation-pairs         (mut i32)      (i32.const 0))
+               (global $debug-allocation-vectors       (mut i32)      (i32.const 0))
+               (global $debug-allocation-structs       (mut i32)      (i32.const 0))
+               (global $debug-allocation-hash-sets     (mut i32)      (i32.const 0))
+               (global $debug-allocation-closures      (mut i32)      (i32.const 0))
+               (global $debug-allocation-arg-arrays    (mut i32)      (i32.const 0))
+               (global $debug-allocation-strings       (mut i32)      (i32.const 0))
+               (global $debug-allocation-bytes         (mut i32)      (i32.const 0))
+               (global $debug-allocation-value-arrays  (mut i32)      (i32.const 0))
+               (global $debug-allocation-free-arrays   (mut i32)      (i32.const 0))
+               (global $debug-invoke-budget            (mut i32)      (i32.const 0))
+               (global $debug-invocations              (mut i32)      (i32.const 0))
+               (global $debug-label102683-count        (mut i32)      (i32.const 0))
+               (global $debug-current-procedure        (mut (ref eq)) (global.get $false))
+               (global $debug-current-procedure-name   (mut (ref eq)) (global.get $false))
                
                (func $get-bytes (export "get_bytes")
                      (result (ref $Bytes))
@@ -62776,6 +63141,11 @@
                                  (global.get $symbol:break-enabled-key))
                      (global.set $parameterization-key
                                  (global.get $symbol:parameterization-key))
+                     (global.set $current-parameterization-value
+                                 (struct.new $Parameterization
+                                             (i32.const 0)
+                                             (global.get $false)
+                                             (global.get $null)))
                      (global.set $current-thread-value
                                  (struct.new $Thread (i32.const 0)))
                      (global.set $always-evt

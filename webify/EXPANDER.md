@@ -1327,3 +1327,709 @@ So the current frontier is no longer a missing compile-target primitive. The
 frontier is the first heavy allocation/loop inside expansion itself, after
 inputs are already expander-native syntax and after controlled namespace
 introduction remains stable.
+
+## Direct Expand Frontier
+
+Reading the expander sources gives the relevant call chain:
+
+```text
+expander/eval/api.rkt expand
+  -> intro
+  -> direct expand from expander/eval/main.rkt
+  -> per-top-level
+  -> expand-capturing-lifts with only-immediate?
+  -> expand-single
+  -> expand-capturing-lifts
+```
+
+The extracted `main.rkt` export named `expand` is the direct
+`expander/eval/main.rkt` entry point, not the public `eval/api.rkt` wrapper. So
+the probe alias `webify-expander:expand` already bypasses the public
+`intro` wrapper and enters the direct `per-top-level` path.
+
+The newest helper-level probes keep instrumentation outside the expander source
+body. That matters because previous source-rewrite instrumentation changed the
+flattened program enough to stall normal Racket expansion before WebRacket was
+involved.
+
+The pre-expand state probe succeeds:
+
+```text
+webify-probe-expand-self-evaluating/pre-expand-state:
+  probe:pre-expand-state:before
+  probe:pre-expand-state:after
+  namespace: struct:namespace, 18 fields
+  raw: expander syntax, datum 42
+  introduced: expander syntax, datum 42
+  module-id: expander syntax, datum module
+```
+
+That rules out expander-owned `datum->syntax`,
+`namespace-syntax-introduce`, and `namespace-module-identifier` as the current
+runaway.
+
+The direct expander flag probes all fail at the same boundary:
+
+```text
+webify-probe-expand-self-evaluating/direct-expand-default:
+  before-datum->syntax
+  before-expand
+  SIGABRT: JavaScript heap out of memory
+
+webify-probe-expand-self-evaluating/direct-expand-observable:
+  before-datum->syntax
+  before-expand
+  SIGABRT: JavaScript heap out of memory
+
+webify-probe-expand-self-evaluating/direct-expand-to-parsed:
+  before-datum->syntax
+  before-expand
+  SIGABRT: JavaScript heap out of memory
+```
+
+The nonserializable direct compile path reaches the same expansion boundary:
+
+```text
+webify-probe-expand-self-evaluating/compile-expander-syntax/nonserializable:
+  before-datum->syntax
+  before-compile
+  SIGABRT: JavaScript heap out of memory
+```
+
+So the problem is not the public API wrapper, syntax construction, namespace
+introduction, observable expansion mode, parsed-output mode, or serializable
+compile output. The current frontier is inside the direct expansion body,
+between entering `expander/eval/main.rkt`'s `expand` and returning from the
+first `per-top-level`/`expand-capturing-lifts` work.
+
+The next useful milestone should therefore avoid more primitive chasing and
+instead expose one narrower internal expander step. Good candidates are:
+
+1. Add a probe-only export for `per-top-level` or `expand-capturing-lifts` in
+   the extracted bundle, if it can be done at the linklet/export layer without
+   source body rewrites.
+2. Add allocation/count instrumentation to WebRacket runtime constructors used
+   heavily by syntax scopes, hashes, sets, and lists, then rerun the direct
+   expand probe to see which representation is exploding.
+3. Compare direct Racket execution of the same extracted direct `expand` call
+   against WebRacket to confirm the input path should return quickly for `42`.
+
+## Allocation And Control Spike
+
+The internal functions `per-top-level`, `expand-single`, and
+`expand-capturing-lifts` are local definitions in:
+
+```text
+/Users/soegaard/Dropbox/GitHub/racket/racket/src/expander/eval/main.rkt
+```
+
+They are not public exports of the closed `main.rkt` bundle. The safe probe path
+therefore remains helper-level instrumentation unless Webify grows a
+linklet/export-layer way to expose selected local definitions without rewriting
+the expander source body.
+
+WebRacket now has two probe-only debug primitives:
+
+```racket
+(webracket-debug-allocation-budget! n)
+(webracket-debug-allocation-counters)
+```
+
+When a positive budget is installed, selected hot allocation paths count down
+and deliberately trap when the budget is exhausted after logging:
+
+```text
+allocation-budget-exhausted
+((pairs <n>) (vectors <n>) (structs <n>) (hash-sets <n>))
+```
+
+The current counted paths are:
+
+```text
+runtime $cons
+compiler-generated rest-list pair allocation
+runtime make-vector/checked
+runtime struct-constructor/no-guard
+runtime hash-set and hash-set!
+```
+
+The healthy setup path remains small:
+
+```text
+webify-probe-expand-self-evaluating/pre-expand-budget 1000:
+  before-budget
+  before
+  after
+  counters: ((pairs 199) (vectors 0) (structs 6) (hash-sets 5))
+```
+
+The direct expand path still aborts with V8 heap exhaustion before exhausting a
+budget as low as 250:
+
+```text
+webify-probe-expand-self-evaluating/direct-expand-budget 250:
+  before-budget
+  before-datum->syntax
+  before-expand
+  SIGABRT: JavaScript heap out of memory
+```
+
+That means the runaway is not dominated by the counted helper paths. It is
+either in currently uncounted Wasm-GC allocations, such as generated arrays,
+closure/application argument arrays, strings/bytes, or direct struct
+allocations, or in a host-side/JS allocation path triggered while the wasm call
+is running.
+
+A normal Racket control script for expansion of the generated bridged datum now
+writes successfully after teaching the free-identifier walker about named
+`let`. The generated-control result is scale-useful but not a direct expander
+runtime repro:
+
+```text
+read-datum-ms: 507
+expand-syntax/raw-ms: 410
+expand-syntax/raw-result: failed
+expand-syntax/introduced-ms: 15442
+expand-syntax/introduced-result: ok
+expand-top-level-with-compile-time-evals/raw-ms: 17667
+expand-top-level-with-compile-time-evals/raw-result: failed
+expand-top-level-with-compile-time-evals/introduced-ms: 16332
+expand-top-level-with-compile-time-evals/introduced-result: failed
+```
+
+The sharper control is the source expander itself. Running the same direct
+expander entry on expander-owned syntax for `42` under the newest Racket
+checkout fails quickly:
+
+```sh
+/Users/soegaard/Dropbox/GitHub/racket/racket/bin/racket -e \
+  '(require (prefix-in exp: (file "/Users/soegaard/Dropbox/GitHub/racket/racket/src/expander/main.rkt")))
+   (define ns (exp:current-namespace))
+   (define stx (exp:datum->syntax #f 42))
+   (time (void (exp:expand stx ns #f #f #f #f)))'
+```
+
+Result:
+
+```text
+?: literal data is not allowed;
+ no #%datum syntax transformer is bound
+  at: 42
+  context...:
+   .../src/expander/eval/main.rkt:319:0: expand-capturing-lifts
+   .../src/expander/eval/main.rkt:148:0: expand-single
+```
+
+So `expand` of bare `42` is not supposed to succeed in this namespace, but it is
+also not supposed to allocate indefinitely. WebRacket should reach the same
+fast syntax-error path.
+
+Disabling source-location printing does not avoid the WebRacket runaway:
+
+```text
+webify-probe-expand-self-evaluating/direct-expand-no-source-location:
+  before-parameter
+  before-datum->syntax
+  before-expand
+  SIGABRT: JavaScript heap out of memory
+```
+
+After adding `datum->kernel-syntax` probes, the frontier is a little sharper.
+In upstream Racket, both of these source-expander controls return immediately:
+
+```sh
+/Users/soegaard/Dropbox/GitHub/racket/racket/bin/racket -e \
+  '(require (prefix-in exp: (file "/Users/soegaard/Dropbox/GitHub/racket/racket/src/expander/main.rkt")))
+   (define ns (exp:current-namespace))
+   (define stx (exp:datum->kernel-syntax 42))
+   (time (displayln (exp:syntax->datum (exp:expand stx ns #f #f #f #f))))'
+```
+
+```text
+(quote 42)
+cpu time: 1 real time: 1 gc time: 1
+```
+
+and:
+
+```sh
+/Users/soegaard/Dropbox/GitHub/racket/racket/bin/racket -e \
+  '(require (prefix-in exp: (file "/Users/soegaard/Dropbox/GitHub/racket/racket/src/expander/main.rkt")))
+   (define ns (exp:current-namespace))
+   (define stx (exp:datum->kernel-syntax (quote (quote 42))))
+   (time (displayln (exp:syntax->datum (exp:expand stx ns #f #f #f #f))))'
+```
+
+```text
+(quote 42)
+cpu time: 0 real time: 0 gc time: 0
+```
+
+The corresponding WebRacket probes reach `before-expand` and then exhaust the
+Node heap:
+
+```text
+webify-probe-expand-self-evaluating/direct-expand-kernel-datum:
+  before-kernel-syntax
+  before-expand
+  SIGABRT: JavaScript heap out of memory
+
+webify-probe-expand-self-evaluating/direct-expand-kernel-quote:
+  before-kernel-syntax
+  before-expand
+  SIGABRT: JavaScript heap out of memory
+```
+
+That means the bug is not only the missing-`#%datum` error path. Even
+already-core syntax that upstream expands directly to `(quote 42)` runs away
+inside WebRacket.
+
+The allocation budget now reports these buckets:
+
+```text
+((pairs N) (vectors N) (structs N) (hash-sets N)
+ (closures N) (arg-arrays N) (strings N) (bytes N)
+ (value-arrays N) (free-arrays N) (invocations N))
+```
+
+After adding generated allocation ticks for closure, argument, value, and free
+arrays, the pre-expand path is still small enough to be boring in the useful
+way:
+
+```text
+pre-expand-budget 1000:
+  ((pairs 199) (vectors 0) (structs 6) (hash-sets 5)
+   (closures 200) (arg-arrays 309) (strings 0) (bytes 0)
+   (value-arrays 0) (free-arrays 42) (invocations 0))
+```
+
+Direct expansion still OOMs if only allocation budgets are enabled, so the
+runaway is not simply "lots of visible allocation before anything calls back."
+
+The next useful bounded repro is invocation-based. `webracket-debug-invoke-budget!`
+counts both dynamic invocations and generated lifted-function entries. With it,
+the same direct kernel-syntax probe stops before Node OOMs:
+
+```sh
+node --experimental-wasm-exnref webify/probe-expander-instantiate.js \
+  /private/tmp/webracket-expander-startup.wasm \
+  --bounded-call-json 10000 \
+  webify-probe-expand-self-evaluating/direct-expand-kernel-datum/invoke-budget \
+  '[100]'
+```
+
+Result:
+
+```text
+probe:direct-expand-kernel-datum/invoke-budget:before-budget
+probe:direct-expand-kernel-datum/invoke-budget:before-kernel-syntax
+probe:direct-expand-kernel-datum/invoke-budget:before-expand
+invoke-budget-exhausted
+((pairs 0) (vectors 0) (structs 0) (hash-sets 0)
+ (closures 0) (arg-arrays 0) (strings 0) (bytes 0)
+ (value-arrays 0) (free-arrays 0) (invocations 100))
+```
+
+With a budget of 1000 the same two labels are at the top of the runtime stack:
+
+```text
+debug-invoke-tick
+label.102683
+label.75608
+wr-call
+```
+
+The primitive report classifies those labels as:
+
+```text
+label.75608:
+  webify-probe-expand-self-evaluating/direct-expand-kernel-datum/invoke-budget
+  uses js-log, webracket-debug-allocation-counters, webracket-debug-invoke-budget!
+
+label.102683:
+  uses parameterization?, procedure-arity-includes?, procedure?,
+       raise-argument-error, void
+```
+
+So the current frontier is a tight loop or very deep direct-call path reached
+after the probe enters `expand`, with no counted allocation before the
+invocation watchdog fires. The next step is to map `label.102683` back to the
+expander source form via the label map and then add source-aware progress marks
+around that function's neighbors.
+
+Follow-up: focused label map and watchdog identity
+--------------------------------------------------
+
+The focused map was regenerated with:
+
+```sh
+racket webify/probe-expander-full-compile.rkt \
+  --compile-timeout 1000 \
+  --compile-memory-mb 2048 \
+  --compile-progress-interval 5000 \
+  --compile-letrec-basic \
+  --enable-cc-analysis \
+  --enable-simplify \
+  --label-map-form-labels label.102683,label.75608 \
+  --write-map /private/tmp/webracket-expander-label-map.sexp \
+  --write-primitive-report /private/tmp/webracket-expander-primitives.sexp \
+  --write-wat /private/tmp/webracket-expander-startup.wat \
+  --write-wasm /private/tmp/webracket-expander-startup.wasm \
+  --validate-wat
+```
+
+The rebuild is bounded and alive: closure conversion reports 27,183 lifted
+functions and finishes in about 6-7 seconds once reached. The whole extraction
+and compile still takes about 110 seconds, but it is not stuck in the compiler.
+
+The map identifies `label.102683` as the lowered `call-with-parameterization`
+guard wrapper:
+
+```racket
+(lambda (paramz_0 thunk_0)
+  (if (#%plain-app (#%top . parameterization?) paramz_0)
+      (#%plain-app void)
+      (#%plain-app raise-argument-error
+                   'call-with-parameterization
+                   "parameterization?"
+                   '0
+                   paramz_0
+                   thunk_0))
+  (if (if (#%plain-app procedure? thunk_0)
+          (#%plain-app procedure-arity-includes? thunk_0 '0)
+          '#f)
+      (#%plain-app void)
+      (#%plain-app raise-argument-error
+                   'call-with-parameterization
+                   "(-> any)"
+                   '1
+                   paramz_0
+                   thunk_0))
+  (#%plain-app call-with-parameterization
+               paramz_0
+               (lambda () (#%plain-app thunk_0))))
+```
+
+The relevant detail is the last call: it calls `call-with-parameterization`
+again by the same top-level name. The first hypothesis was therefore
+primitive/provider alias recursion: a lowered provider wrapper might be calling
+itself instead of WebRacket's runtime primitive.
+
+The focused budget series now reports the current procedure identity:
+
+```text
+budget 10:
+  stops before expand while building kernel syntax
+  failure-detail: #<procedure:to-srcloc-stx>
+
+budget 50:
+  before-expand
+  invoke-budget-exhausted
+  ((current-procedure false))
+  ((name label.102683))
+  ((debug-id false))
+  ((invocations 50))
+
+budget 100:
+  same as budget 50, with ((invocations 100))
+
+budget 1000:
+  same as budget 50, with ((invocations 1000))
+```
+
+The `direct-expand-kernel-quote/invoke-budget` probe with budget 100 reaches
+the same `label.102683` trap, so this is not specific to the datum `42` path.
+
+One guard mismatch was fixed while classifying this: WebRacket's runtime
+initialized `current-parameterization-value` to `#f`, even though
+`call-with-parameterization` expects a `parameterization?`. Runtime startup now
+installs an empty `$Parameterization`, and the Racket-side dummy
+`current-parameterization` returns an empty WebRacket parameterization marker.
+That makes the guard semantics line up with the intended baseline, but it does
+not by itself fix the alias recursion.
+
+Follow-up: runtime-preferred primitive alias rule
+------------------------------------------------
+
+Webify now treats `call-with-parameterization` as a runtime-preferred primitive
+alias. This is intentionally narrow: the name is a runtime protocol primitive in
+WebRacket, and a provider wrapper must not shadow it when generated code refers
+to the protocol operation.
+
+The compiler changes are:
+
+```text
+categorize-applications:
+  calls to call-with-parameterization become primapp forms
+
+direct-call analysis:
+  call-with-parameterization wrappers are not classified as direct local labels
+
+code generation:
+  references to the name use the runtime primitive
+  stores to the top-level alias evaluate and drop the RHS instead of replacing
+  the runtime binding
+
+label map:
+  focused forms can report
+  (runtime-preferred-primitive-aliases call-with-parameterization)
+```
+
+After rebuilding the expander startup wasm, the direct WAT call sites to the
+wrapper are gone:
+
+```sh
+wasm-tools print /private/tmp/webracket-expander-startup.wasm |
+  rg -n "call \\$label\\.102683|return_call \\$label\\.102683"
+```
+
+That search now produces no matches. So the simple direct-call alias recursion
+route has been fixed or ruled out.
+
+The runtime frontier did not move, though. The invocation-budget probes still
+stop at the same wrapper:
+
+```text
+budget 100:
+  before-expand
+  invoke-budget-exhausted
+  ((name label.102683))
+  ((invocations 100))
+
+budget 1000:
+  before-expand
+  invoke-budget-exhausted
+  ((name label.102683))
+  ((invocations 1000))
+
+budget 10000:
+  before-expand
+  invoke-budget-exhausted
+  ((name label.102683))
+  ((invocations 10000))
+```
+
+The refined conclusion is that `label.102683` is definitely a hot dynamic
+frontier for direct expansion, but it is no longer explained by direct calls to
+the wrapper label in generated wasm. The next investigation should trace how the
+wrapper is reached dynamically: either through a closure value stored in the
+provider/module environment, through an indirect alias cell, or through a
+legitimate repeated parameterization path that is hiding the real non-progress
+inside the thunk.
+
+Follow-up: wrapper argument trace
+---------------------------------
+
+The next probe added a watched-label hook for `label.102683`. It does not
+rewrite the expander source; generated code for the focused label calls a
+runtime debug helper with the raw `$Args` array. The helper logs only while an
+invoke budget is active and caps output to the first dozen wrapper entries.
+
+The standalone parameterization stress probe succeeds:
+
+```text
+webify-probe-parameterization-pressure-string 1000:
+  parameterization-pressure:ok
+```
+
+So the WebRacket `call-with-parameterization` primitive can install and restore
+parameterizations repeatedly in isolation.
+
+The rebuilt expander startup wasm still has no direct calls to the wrapper:
+
+```sh
+wasm-tools print /private/tmp/webracket-expander-startup.wasm |
+  rg -n "call \\$label\\.102683|return_call \\$label\\.102683"
+```
+
+The only focused generated call is the probe hook:
+
+```text
+call $debug-watch-label102683
+```
+
+The direct expand probes now show the shape of the repeated dynamic path:
+
+```text
+call-with-parameterization-wrapper-entry
+((argc . (2 . null)))
+((arg0-parameterization? . (true . null)))
+((arg1-procedure? . (true . null)))
+((arg1-name . (false . null)))
+((arg1-debug-id . (label.84947 . null)))
+
+call-with-parameterization-wrapper-entry
+((argc . (2 . null)))
+((arg0-parameterization? . (true . null)))
+((arg1-procedure? . (true . null)))
+((arg1-name . (false . null)))
+((arg1-debug-id . (label.102684 . null)))
+```
+
+After the first entry, both `direct-expand-kernel-datum/invoke-budget` and
+`direct-expand-kernel-quote/invoke-budget` repeat with thunk debug id
+`label.102684` until the invocation budget is exhausted at `label.102683`.
+
+The focused label map identifies the relevant labels:
+
+```racket
+label.102683:
+  (lambda (paramz_0 thunk_0)
+    ...
+    (#%plain-app call-with-parameterization
+                 paramz_0
+                 (lambda () (#%plain-app thunk_0))))
+
+label.102684:
+  (lambda () (#%plain-app thunk_0))
+
+label.84947:
+  (lambda ()
+    (let-values ([(temp98_3)
+                  (lambda (s_755 ns_123 as-tail?_5)
+                    (#%plain-app expand-single.1 ...))])
+      (#%plain-app per-top-level.1 ... temp98_3 ...)))
+```
+
+This refines the failure classification again. The arguments are valid, and the
+runtime primitive works in isolation. The non-progress is now specifically a
+dynamic wrapper/thunk cycle: the provider wrapper receives a proper
+parameterization and a proper thunk, then repeatedly invokes the wrapper-created
+`label.102684` thunk. The next milestone should decide whether the wrapper is
+still being reached through an alias cell in the provider/module environment, or
+whether the expander's `per-top-level` path is repeatedly installing the same
+parameterization because some inner expander condition never advances.
+
+Follow-up: primitive bypass and new frontier
+--------------------------------------------
+
+The wrapper/self-call path was then inspected in generated wasm. The lowered
+`label.102683` body ended with:
+
+```text
+local.get $clos
+local.get $$paramz_0.1394
+<make label.102684 thunk>
+array.new_fixed $Args 2
+return_call $label.102683
+```
+
+So the remaining cycle was not a module binding lookup after all. It was a
+direct `selfapp` optimization for the provider wrapper. The compiler now has a
+focused bypass for this watched label: the wrapper's self-call to
+`call-with-parameterization` is emitted as a direct call to the runtime
+`$call-with-parameterization` primitive instead of a tail-call back to
+`$label.102683`.
+
+After rebuilding, the bounded trace changed as expected:
+
+```text
+call-with-parameterization-wrapper-entry
+((arg1-debug-id . (label.84947 . null)))
+
+call-with-parameterization-primitive-entry
+((arg1-debug-id . (label.102684 . null)))
+
+invoke-budget-exhausted
+((name . (label.86928 . null)))
+```
+
+That proves the provider wrapper now reaches the runtime primitive, and the
+frontier moves beyond the old `label.102683` cycle. The new budget frontier,
+`label.86928`, is a small box-clear helper: it unboxes a box, applies a stored
+procedure to the old value, then clears the box with `set-box!`. That looks like
+real expander cleanup/lift plumbing rather than the parameterization alias bug.
+
+The unbudgeted direct kernel probes now split:
+
+```text
+direct-expand-kernel-quote:
+  before-kernel-syntax
+  before-expand
+  after-expand
+  expander-maybe-syntax->datum: (quote 42)
+
+direct-expand-kernel-datum:
+  before-kernel-syntax
+  before-expand
+  failure-category: unbound-variable
+  failure-detail: call-with-continuation-barrier
+```
+
+This is a major milestone: the known-good upstream shape for
+`(datum->kernel-syntax '(quote 42))` now runs to completion in WebRacket. The
+plain datum path no longer OOMs; it reaches the next ordinary missing primitive.
+Upstream `expander/eval/main.rkt` confirms the direct control path:
+
+```text
+expand
+  -> parameterize current-expand-observe
+  -> per-top-level
+  -> expand-single
+  -> expand-capturing-lifts
+```
+
+The next frontier is therefore no longer the parameterization wrapper. It is
+supporting `call-with-continuation-barrier` enough for the expander's datum path
+and error/control plumbing.
+
+Follow-up: continuation barrier and structural wrapper bypass
+-------------------------------------------------------------
+
+`call-with-continuation-barrier` is now available as a WebRacket primitive and
+as a `#lang webracket` dummy binding. This first implementation is intentionally
+only a bootstrap approximation:
+
+```racket
+(call-with-continuation-barrier thunk) => (thunk)
+```
+
+That is enough while WebRacket does not implement first-class continuation
+jumps. If `call/cc`, aborts, or prompt jumps are reinstated, the primitive must
+become a real delimiter for continuation jumps.
+
+Adding another probe shifted the generated label numbers, which exposed that
+the old `label.102683` bypass was too brittle. A broader "source mentions
+call-with-parameterization" rule was also wrong: many helper labels mention the
+name without being the tiny provider wrapper. The compiler now uses structural
+recognition instead. During closure conversion it records only labels whose
+source syntax has this shape:
+
+```racket
+(lambda (arg0 arg1)
+  ...
+  (#%plain-app call-with-parameterization ...))
+```
+
+Those labels are allowed to bypass an ordinary `selfapp` back to the generated
+label and call the runtime primitive directly. The recognizer is deliberately
+syntax-level and shallow; a full `syntax->datum` scan over every lifted label
+made closure conversion jump from about 7 seconds to about 112 seconds on the
+expander bundle.
+
+A stable smoke checker now captures the current frontier:
+
+```text
+racket webify/check-expander-kernel-smoke.rkt /private/tmp/webracket-expander-startup.wasm
+```
+
+It verifies that the kernel quote probe still expands to `(quote 42)`, and
+that the datum probe has moved past `call-with-continuation-barrier`. The
+current datum frontier is:
+
+```text
+failure-category: bridge-call-failure
+failure-detail: application: not a procedure;
+```
+
+The slightly larger kernel `let` probe reaches the same frontier:
+
+```text
+webify-probe-expand-self-evaluating/direct-expand-kernel-let
+  before-kernel-syntax
+  before-expand
+  failure-detail: application: not a procedure;
+```
+
+So the next milestone is no longer a missing primitive. It is identifying which
+value the expander is attempting to apply as a procedure on the datum/let path.

@@ -209,6 +209,7 @@
          current-parameterization
          parameterization?
          call-with-parameterization
+         call-with-continuation-barrier
          port-read-handler
          read-accept-reader
          read-accept-lang
@@ -965,6 +966,7 @@
  
  ;; 10.5 Continuation Marks
  dynamic-wind
+ call-with-continuation-barrier ; bootstrap approximation: invokes thunk
  unsafe-root-continuation-prompt-tag ; stable placeholder; prompts unsupported
  current-continuation-marks  ; dummy, always returns #f
  continuation-mark-set-first ; dummy, always returns #f
@@ -1296,6 +1298,9 @@
  external-number->flonum
  external-string->string
  js-log
+ webracket-debug-allocation-budget!
+ webracket-debug-allocation-counters
+ webracket-debug-invoke-budget!
  external?
 
 )
@@ -1533,6 +1538,20 @@
 
 (define (js-log x)
   (displayln x))
+
+(define webracket-debug-allocation-budget-value 0)
+
+(define (webracket-debug-allocation-budget! n)
+  (set! webracket-debug-allocation-budget-value n)
+  (void))
+
+(define (webracket-debug-allocation-counters)
+  '((pairs 0) (vectors 0) (structs 0) (hash-sets 0)
+    (closures 0) (arg-arrays 0) (strings 0) (bytes 0)
+    (value-arrays 0) (free-arrays 0) (invocations 0)))
+
+(define (webracket-debug-invoke-budget! n)
+  (void))
 
 ;; Simple prefab utility fallbacks for host-side `#lang webracket` expansion on
 ;; Racket versions that do not provide the newer prefab helpers.
@@ -3033,7 +3052,7 @@
     [(marks key none-v prompt-tag) none-v]))
 
 (define (current-parameterization)
-  #f)
+  '(webracket-parameterization))
 
 (define (parameterization? p)
   (and (pair? p)
@@ -3045,6 +3064,9 @@
   (cons 'webracket-parameterization (cons p args)))
 
 (define (call-with-parameterization _p thunk)
+  (thunk))
+
+(define (call-with-continuation-barrier thunk)
   (thunk))
 
 (define cache-configuration

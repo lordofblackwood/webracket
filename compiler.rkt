@@ -1800,6 +1800,9 @@
   vector-immutable  ; used in datum construction
   bytes             ; used in datum construction
   string            ; used in datum construction
+  webracket-debug-allocation-budget!
+  webracket-debug-allocation-counters
+  webracket-debug-invoke-budget!
 
   
   ; 4.10.1 Pair constructors and selectors
@@ -2320,6 +2323,7 @@
 
   ;; 10. Control Flow
   call-with-values
+  call-with-continuation-barrier ; bootstrap approximation: invokes thunk
 
   ; 10.2 Exceptions
   unquoted-printing-string?
@@ -2695,6 +2699,28 @@
            (and (current-internal-treelist-debug-shape?)
                 (eq? v internal-treelist-debug-shape-symbol))
            (set-member? primitives-set v))
+       #t))
+
+;; These primitives are runtime protocols, not ordinary library exports, in the
+;; current Webify expander bundle. If a provider wrapper shadows one of these
+;; names, calls must still target WebRacket's primitive implementation.
+(define runtime-preferred-primitive-aliases
+  '(call-with-parameterization))
+(define runtime-preferred-primitive-aliases-set
+  (list->seteq runtime-preferred-primitive-aliases))
+
+;; runtime-preferred-primitive-alias? : any/c -> boolean?
+;;   Detect primitive names whose top-level aliases should not shadow runtime.
+(define (runtime-preferred-primitive-alias? v)
+  (define sym
+    (cond
+      [(syntax? v)   (syntax-e v)]
+      [(variable? v) (syntax-e (variable-id v))]
+      [(symbol? v)   v]
+      [else          #f]))
+  (and sym
+       (set-member? runtime-preferred-primitive-aliases-set sym)
+       (primitive? sym)
        #t))
 
 ; A few primitives need access to _tc and are therefore wrapped in a closure.
@@ -9570,6 +9596,10 @@
   (GeneralTopLevelForm : GeneralTopLevelForm (G) -> GeneralTopLevelForm ())
   (Expr : Expr (E) -> Expr ()
     ; the rule order is important here, since this rule applies in the other cases too    
+    [(app ,s ,x           ,[e1] ...) (guard (runtime-preferred-primitive-alias? x))
+                                     `(primapp   ,s ,x              ,e1 ...)]
+    [(app ,s (top ,s0 ,x) ,[e1] ...) (guard (runtime-preferred-primitive-alias? x))
+                                     `(primapp   ,s ,x              ,e1 ...)]
     [(app ,s ,x           ,[e1] ...) (guard (primitive? x))  (if (special-primitive? x) ; like 
                                                                  `(app       ,s ,x              ,e1 ...)
                                                                  `(primapp   ,s ,x              ,e1 ...))]
@@ -10684,7 +10714,12 @@
   ;; direct-binding-candidate? : (listof variable?) LANF CExpr -> boolean?
   ;;   Check whether clause xs = ce is eligible for the conservative 'direct classification.
   (define (direct-binding-candidate? xs ce)
-    (and (clause-local-binding xs ce) #t))
+    (match xs
+      [(list x)
+       (and (not (runtime-preferred-primitive-alias? x))
+            (clause-local-binding xs ce)
+            #t)]
+      [_ #f]))
 
   ;; clause-local-bindings : (listof (listof variable?)) (listof LANF CExpr)
   ;;                      -> (listof (cons variable? any/c))
@@ -16159,7 +16194,8 @@
       (match xs
         [(list x)
          (define target (clause-bound-abstraction ce))
-         (and target
+         (and (not (runtime-preferred-primitive-alias? x))
+              target
               (eq? (kind-of target) 'direct)
               (cons x target))]
         [_ #f]))
@@ -16943,9 +16979,11 @@
 (define current-known1-direct-labels (make-parameter (make-hasheq)))
 (define current-known1-only-labels (make-parameter (make-hasheq)))
 (define current-known1-wrapper-env-indices (make-parameter (make-hasheq)))
+(define current-runtime-preferred-selfapp-bypasses (make-parameter (make-hasheq)))
 (define (reset-label-map!)
   (current-label-map '())
   (current-label-form-ht (make-hash))
+  (current-runtime-preferred-selfapp-bypasses (make-hasheq))
   (current-label-map-include-form? (current-label-map-default-include-form?)))
 
 (define (label-map-include-form? v)
@@ -16970,10 +17008,83 @@
     [(path? src) (path->string src)]
     [else        src]))
 
+;; datum-mentions-symbol? : any/c symbol? -> boolean?
+;;   Check whether a recorded source form mentions a symbol anywhere.
+(define (datum-mentions-symbol? v sym)
+  (cond
+    [(eq? v sym) #t]
+    [(pair? v)   (or (datum-mentions-symbol? (car v) sym)
+                     (datum-mentions-symbol? (cdr v) sym))]
+    [(vector? v) (for/or ([x (in-vector v)])
+                   (datum-mentions-symbol? x sym))]
+    [(box? v)    (datum-mentions-symbol? (unbox v) sym)]
+    [else        #f]))
+
+;; runtime-preferred-alias-mentions : any/c -> (listof symbol?)
+;;   Report runtime-preferred primitive names mentioned by a source form.
+(define (runtime-preferred-alias-mentions datum)
+  (for/list ([sym (in-list runtime-preferred-primitive-aliases)]
+             #:when (datum-mentions-symbol? datum sym))
+    sym))
+
+;; runtime-preferred-callee-symbol : any/c -> (or/c symbol? #f)
+;;   Extract a runtime-preferred primitive name from common callee shapes.
+(define (runtime-preferred-callee-symbol v)
+  (define sym
+    (match v
+      [(? symbol? s) s]
+      [`(#%top . ,s) #:when (symbol? s) s]
+      [`(top ,_ ,s)  #:when (symbol? s) s]
+      [_ #f]))
+  (and sym
+       (set-member? runtime-preferred-primitive-aliases-set sym)
+       sym))
+
+;; runtime-preferred-wrapper-target : any/c -> (or/c symbol? #f)
+;;   Detect tiny provider wrappers that validate arguments and tail-call a
+;;   runtime-preferred primitive. This avoids brittle label-number checks.
+(define (runtime-preferred-wrapper-target datum)
+  (match datum
+    [`(lambda (,a ,b) ,body ... ,tail)
+     #:when (and (symbol? a) (symbol? b))
+     (match tail
+       [`(#%plain-app ,callee ,_args ...)
+        (runtime-preferred-callee-symbol callee)]
+       [_ #f])]
+    [_ #f]))
+
+;; runtime-preferred-wrapper-target/stx : syntax? -> (or/c symbol? #f)
+;;   Cheap syntax-level version of runtime-preferred-wrapper-target.
+(define (runtime-preferred-wrapper-target/stx stx)
+  (define e (syntax-e stx))
+  (and (list? e)
+       (>= (length e) 3)
+       (identifier? (car e))
+       (eq? (syntax-e (car e)) 'lambda)
+       (let ([formals-e (syntax-e (cadr e))]
+             [tail-e    (syntax-e (last e))])
+         (and (list? formals-e)
+              (= (length formals-e) 2)
+              (andmap identifier? formals-e)
+              (list? tail-e)
+              (>= (length tail-e) 2)
+              (identifier? (car tail-e))
+              (eq? (syntax-e (car tail-e)) '#%plain-app)
+              (let ([callee (cadr tail-e)])
+                (and (identifier? callee)
+                     (runtime-preferred-callee-symbol
+                      (syntax-e callee))))))))
+
 (define (record-label-map! l stx)
   (define id (unparse-variable l))
   (define id-str (format "~a" id))
   (define s (source-stx stx))
+  (define source-datum
+    (and (or (current-label-map-include-form?)
+             (let ([labels (current-label-map-form-labels)])
+               (and labels (set-member? labels id-str))))
+         (syntax? s)
+         (syntax->datum s)))
   (define src (and (syntax? s) (label-map-source->datum (syntax-source s))))
   (define line (and (syntax? s) (syntax-line s)))
   (define col (and (syntax? s) (syntax-column s)))
@@ -16982,14 +17093,30 @@
     (and (or (current-label-map-include-form?)
              (let ([labels (current-label-map-form-labels)])
                (and labels (set-member? labels id-str))))
-         (syntax? s)
-         (format "~s" (syntax->datum s))))
+         source-datum
+         (format "~s" source-datum)))
+  (define alias-mentions
+    (if (and form-str source-datum)
+        (runtime-preferred-alias-mentions source-datum)
+        '()))
+  (define alias-entry
+    (if (null? alias-mentions)
+        '()
+        `((runtime-preferred-primitive-aliases ,@alias-mentions))))
+  (define wrapper-target
+    (and (syntax? s)
+         (runtime-preferred-wrapper-target/stx s)))
+  (when wrapper-target
+    (hash-set! (current-runtime-preferred-selfapp-bypasses)
+               (syntax-e (variable-id l))
+               wrapper-target))
   (define entry
     (let ([base `(label ,id-str
                         (src ,(or src 'unknown)
                              ,(or line 0)
                              ,(or col 0)
-                             ,(or span 0)))])
+                             ,(or span 0))
+                        ,@alias-entry)])
       (cond
         [(not form-str) base]
         [else
@@ -17001,6 +17128,7 @@
                             ,(or line 0)
                             ,(or col 0)
                             ,(or span 0))
+                       ,@alias-entry
                        (same-as ,seen))
                (begin
                  (hash-set! (current-label-form-ht) key id-str)
@@ -17009,6 +17137,7 @@
                               ,(or line 0)
                               ,(or col 0)
                               ,(or span 0))
+                         ,@alias-entry
                          (form ,form-str)))))])))
   (current-label-map (cons entry (current-label-map))))
 
@@ -17046,6 +17175,10 @@
       (hash-ref (current-known1-wrapper-env-indices)
                 (syntax-e (variable-id l))
                 0))
+    (define (runtime-preferred-selfapp-bypass l)
+      (hash-ref (current-runtime-preferred-selfapp-bypasses)
+                (syntax-e (variable-id l))
+                #f))
     (define (known0-code-label l)
       (string->symbol (~a (Label l) ".known0")))
     (define (known1-code-label l)
@@ -17117,6 +17250,7 @@
       ;; (displayln (list 'glo (global-variable? v)))
       (cond
         [(global-variable? v) 'global]
+        [(runtime-preferred-primitive-alias? v) 'runtime-primitive]
         [(top-variable?    v) 'top]
         [(module-variable? v) 'module]
         [(local-variable?  v) 'local]
@@ -17148,6 +17282,9 @@
                           `(struct.get $Boxed $v
                                        (ref.cast (ref $Boxed) (global.get ,(TopVar v)))))]
         [(global)     `(global.get ,($ (syntax-e (variable-id v))))]
+        [(runtime-primitive)
+         (record-used-primitive! (syntax-e (variable-id v)))
+         (PrimRef v)]
         [(local)      `(local.get  ,(LocalVar v))]
         [(module)     `(module.get ,(ModuleVar v))]
         [(ffi)        'TODO]
@@ -17159,6 +17296,8 @@
          (case (classify v)
            ; [(top)    `(global.set ,(TopVar    v) ,e)]
            [(top)    `(struct.set $Boxed $v (ref.cast (ref $Boxed) (global.get ,(TopVar v))) ,e)]
+           [(runtime-primitive)
+            `(drop ,e)]
            [(local)  `(local.set  ,(LocalVar  v) ,e)]
            [(module) `(module.set ,(ModuleVar v) ,e)]
            [(ffi)        'TODO]
@@ -17208,6 +17347,73 @@
            (walk (cdr x))]
           [else (void)]))
       (walk wat))
+
+    ;; with-debug-allocation-tick : exact-nonnegative-integer? any/c any/c -> any/c
+    ;;   Wrap generated allocation forms so probe budgets can stop runaway code.
+    (define (with-debug-allocation-tick kind result-type expr)
+      `(block (result ,result-type)
+              (call $debug-allocation-tick (i32.const ,kind))
+              ,expr))
+
+    ;; generated-args-array : natural? (listof any/c) -> any/c
+    ;;   Allocate an instrumented generated $Args array.
+    (define (generated-args-array n args)
+      (with-debug-allocation-tick
+       5
+       '(ref $Args)
+       `(array.new_fixed $Args ,n ,@args)))
+
+    ;; generated-values-array : natural? (listof any/c) -> any/c
+    ;;   Allocate an instrumented generated $Values array.
+    (define (generated-values-array n values)
+      (with-debug-allocation-tick
+       8
+       '(ref $Values)
+       `(array.new_fixed $Values ,n ,@values)))
+
+    ;; generated-free-array : natural? (listof any/c) -> any/c
+    ;;   Allocate an instrumented generated $Free array.
+    (define (generated-free-array n values)
+      (with-debug-allocation-tick
+       9
+       '(ref $Free)
+       `(array.new_fixed $Free ,n ,@values)))
+
+    ;; generated-closure : symbol? (listof any/c) -> any/c
+    ;;   Allocate an instrumented generated closure-like structure.
+    (define (generated-closure closure-type fields)
+      (with-debug-allocation-tick
+       4
+       `(ref ,closure-type)
+       `(struct.new ,closure-type ,@fields)))
+
+    ;; generated-case-closure : (listof any/c) -> any/c
+    ;;   Allocate an instrumented generated case-closure structure.
+    (define (generated-case-closure fields)
+      (with-debug-allocation-tick
+       4
+       '(ref $CaseClosure)
+       `(struct.new $CaseClosure ,@fields)))
+
+    ;; label-debug-id-expr : variable? -> any/c
+    ;;   Return the runtime symbol used as a generated closure/function debug id.
+    (define (label-debug-id-expr l)
+      (define debug-id (syntax-e (variable-id l)))
+      (define $debug-id (string->symbol (~a "$symbol:" debug-id)))
+      (add-symbol-constant debug-id debug-id)
+      `(global.get ,$debug-id))
+
+    ;; watched-label102683? : variable? -> boolean?
+    ;;   Recognize the current expander frontier wrapper for focused probes.
+    (define (watched-label102683? l)
+      (eq? (syntax-e (variable-id l)) 'label.102683))
+
+    ;; watched-label-entry-probe : variable? -> (listof any/c)
+    ;;   Emit raw-argument diagnostics only for the focused expander frontier.
+    (define (watched-label-entry-probe l)
+      (if (watched-label102683? l)
+          '((call $debug-watch-label102683 (local.get $args)))
+          '()))
 
     ;; Some expressions (e.g. let-values, letrec-values) need local
     ;; variables to hold values.
@@ -17340,11 +17546,7 @@
                `(global.get ,$name)]
          [else `(global.get $false)]))
      (define debug-id-expr
-       (let ()
-         (define debug-id (syntax-e (variable-id l)))
-         (define $debug-id (string->symbol (~a "$symbol:" debug-id)))
-         (add-symbol-constant debug-id debug-id)
-         `(global.get ,$debug-id)))
+       (label-debug-id-expr l))
      (define inline-small-arity (inline-small-closure-arity-label l))
      (define closure-type
        (match inline-small-arity
@@ -17377,39 +17579,42 @@
      (maybe-store-in-dest
       (match self-reference-indices
         ; no self-references
-        ['() `(struct.new ,closure-type
-                (i32.const 0)                  ; hash
+        ['() (generated-closure
+              closure-type
+              `((i32.const 0)                  ; hash
                 ,get-name                      ; name:  #f or $Symbol
                 ,(Imm ar)                      ; arity: fixnum
                 (global.get $the-racket-realm) ; realm: #f or $Symbol
                 (ref.func $invoke-closure)     ; invoke (used by apply, map, etc.)
                 ,debug-id-expr                 ; debug-id
-                (ref.func ,(Label l)) 
+                (ref.func ,(Label l))
                 ,@(if inline-small-arity
                       (append (list '(global.get $empty-free))
                               (for/list ([ae (in-list ae1)])
                                 (AExpr3 ae <value>)))
-                      (list `(array.new_fixed $Free ,(length ae1)
-                                              ,@(for/list ([ae ae1])
-                                                  (AExpr3 ae <value>))))))]
+                      (list (generated-free-array
+                             (length ae1)
+                             (for/list ([ae ae1])
+                               (AExpr3 ae <value>)))))))]
         [(list is)
          (define this (new-var #'$this))
          (emit-local this '(ref $Closure))
          `(block (result (ref eq))
                  ; 1. Allocate closure with dummy array of free variables.
                  (local.set ,this
-                            `(struct.new ,closure-type
-                               (i32.const 0)               ; hash
-                               ,get-name                   ; name:  #f or $Symbol
-                               ,(Imm ar)                   ; arity: todo
-                               (global.get $false)         ; realm: #f or $Symbol
-                               (ref.func $invoke-closure)  ; invoke (used by apply, map, etc.)
-                               ,debug-id-expr              ; debug-id
-                               (ref.func ,(Label l))
-                               (global.get $empty-free)
-                               ,@(if inline-small-arity
-                                     (make-list inline-small-arity (Undefined))
-                                     '())))
+                            ,(generated-closure
+                              closure-type
+                              `((i32.const 0)               ; hash
+                                ,get-name                   ; name:  #f or $Symbol
+                                ,(Imm ar)                   ; arity: todo
+                                (global.get $false)         ; realm: #f or $Symbol
+                                (ref.func $invoke-closure)  ; invoke (used by apply, map, etc.)
+                                ,debug-id-expr              ; debug-id
+                                (ref.func ,(Label l))
+                                (global.get $empty-free)
+                                ,@(if inline-small-arity
+                                      (make-list inline-small-arity (Undefined))
+                                      '()))))
                  ; 2. Fill in the correct array of free variables.
                  ,@(if inline-small-arity
                        (for/list ([ae (in-list ae1)]
@@ -17423,11 +17628,12 @@
                        (list
                         `(struct.set $Closure $free
                                      (ref.cast (ref $Closure) (local.get ,this))
-                                     (array.new_fixed $Free ,(length ae1)
-                                                      ,@(for/list ([ae ae1] [i (in-naturals)])
-                                                          (if (member i is)
-                                                              `(local.get ,this)
-                                                              (AExpr3 ae <value>)))))))
+                                     ,(generated-free-array
+                                       (length ae1)
+                                       (for/list ([ae ae1] [i (in-naturals)])
+                                         (if (member i is)
+                                             `(local.get ,this)
+                                             (AExpr3 ae <value>)))))))
                  ; 3. Return the closure.
                  (local.get ,this))]
 
@@ -17459,24 +17665,20 @@
                          [else
                           `(global.get $false)])]
             [debug-id-expr
-             (let ()
-               (define debug-id (syntax-e (variable-id l)))
-               (define $debug-id (string->symbol (~a "$symbol:" debug-id)))
-               (add-symbol-constant debug-id debug-id)
-               `(global.get ,$debug-id))])
+             (label-debug-id-expr l)])
        `(block (result (ref $CaseClosure))
                ,@fills
-               (struct.new $CaseClosure
-                           (i32.const 0)                                 ;; $hash
-                           ,name-expr                                    ;; $name
-                           ,arity-expr                                    ;; $arity  = normalized set
-                           (global.get $false)                           ;; $realm
-                           (ref.func $invoke-case-closure)               ;; $invoke
-                           ,debug-id-expr                               ;; $debug-id
-                           (ref.func $code:case-lambda-dispatch)         ;; $code (dispatcher)
-                           (global.get $empty-free)                      ;; $free (unused here)
-                           ,(Reference $ars)                             ;; $arities (typed field)
-                           ,(Reference $as))))                           ;; $arms    (typed field)
+               ,(generated-case-closure
+                 `((i32.const 0)                                 ;; $hash
+                   ,name-expr                                    ;; $name
+                   ,arity-expr                                   ;; $arity = normalized set
+                   (global.get $false)                           ;; $realm
+                   (ref.func $invoke-case-closure)               ;; $invoke
+                   ,debug-id-expr                                ;; $debug-id
+                   (ref.func $code:case-lambda-dispatch)         ;; $code (dispatcher)
+                   (global.get $empty-free)                      ;; $free (unused here)
+                   ,(Reference $ars)                             ;; $arities (typed field)
+                   ,(Reference $as)))))                          ;; $arms (typed field)
      ]                                                                 
     ) ; CaseClosureAllocation
   
@@ -17752,10 +17954,12 @@
        (let loop ([aes aes])
          (if (null? aes)
              `(global.get $null)
-             `(struct.new $Pair
-                          (i32.const 0)
-                          ,(first aes)
-                          ,(loop (rest aes))))))
+             `(block (result (ref eq))
+                     (call $debug-allocation-tick (i32.const 0))
+                     (struct.new $Pair
+                                 (i32.const 0)
+                                 ,(first aes)
+                                 ,(loop (rest aes)))))))
      
      ;; Inlines a call to a primitive with
      ;;   at least `min` arguments.
@@ -17774,8 +17978,12 @@
      (define (build-rest-args/args aes)
       (define n (length aes))
       (if (zero? n)
-          '(array.new $Args (global.get $null) (i32.const 0))
-          `(array.new_fixed $Args ,n ,@aes)))
+          '(block (result (ref $Args))
+                  (call $debug-allocation-tick (i32.const 5))
+                  (array.new $Args (global.get $null) (i32.const 0)))
+          `(block (result (ref $Args))
+                  (call $debug-allocation-tick (i32.const 5))
+                  (array.new_fixed $Args ,n ,@aes))))
 
      ;; Inlines a call to a primitive with
      ;;   at least `min` arguments.
@@ -17853,7 +18061,7 @@
           (define aes (AExpr* ae1))
           (case n
             [(1)   (first aes)]
-            [else  `(array.new_fixed $Values ,n ,@aes)])]
+            [else  (generated-values-array n aes)])]
          [(memq sym '(range range-proc))
           (inline-range sym ae1)]
          [spec
@@ -18116,9 +18324,7 @@
                                ,(list-ref aes 0)
                                ,(list-ref aes 1)
                                ,(list-ref aes 2)
-                               (array.new_fixed $Args
-                                                ,(- n 3)
-                                                ,@(drop aes 3)))
+                               ,(generated-args-array (- n 3) (drop aes 3)))
                         (primapp-arity-error sym aes)))]
                  [else
                   ;; Without arity checks, this is simply:
@@ -18152,8 +18358,10 @@
      (define tc (eq? cd '<return>))
 
      ;; Build user-argument vector (no header, no repack)
-     (define args `(array.new_fixed $Args ,(length ae1)
-                                    ,@(for/list ([ae ae1]) (AExpr3 ae <value>))))
+     (define args
+       (generated-args-array
+        (length ae1)
+        (for/list ([ae ae1]) (AExpr3 ae <value>))))
 
      ;; Hold the callee as a (ref $Procedure) 
      (define proc-var (new-var '$app-proc))
@@ -18225,9 +18433,10 @@
 
           ; Package arguments in an $Args array.
           (define args
-            `(array.new_fixed $Args ,(length ae2)
-                              ,@(for/list ([ae ae2])
-                                  (AExpr3 ae <value>))))
+            (generated-args-array
+             (length ae2)
+             (for/list ([ae ae2])
+               (AExpr3 ae <value>))))
 
           ;; For variadic closures, argument repacking is handled by
           ;; `$invoke-closure` via `$repack-arguments`. A direct label call
@@ -18309,9 +18518,10 @@
      (define clos
        `(ref.cast (ref $Closure) ,(AExpr3 ae0 <value>)))
      (define raw-args
-       `(array.new_fixed $Args ,(length ae2)
-                         ,@(for/list ([ae (in-list ae2)])
-                             (AExpr3 ae <value>))))
+       (generated-args-array
+        (length ae2)
+        (for/list ([ae (in-list ae2)])
+          (AExpr3 ae <value>))))
      (define args
        (if (negative? ar)
            `(call $repack-arguments ,raw-args (i32.const ,ar))
@@ -18426,13 +18636,31 @@
        (if (negative? ar)
            `(call $repack-arguments ,raw-args (i32.const ,ar))
            raw-args))
+     (define primitive-bypass-symbol (runtime-preferred-selfapp-bypass l))
+     (define primitive-bypass?
+       (and primitive-bypass-symbol
+            (= (length ae2) 2)))
+     (define primitive-bypass-call
+       (and primitive-bypass?
+            `(call ,($ primitive-bypass-symbol)
+                   ,(AExpr3 (first ae2) <value>)
+                   ,(AExpr3 (second ae2) <value>))))
      (define work
-       (if tc
-           `(return_call ,(Label l) (local.get $clos) ,args)
-           (cond
-             [(eq? dd <value>)  `(call ,(Label l) (local.get $clos) ,args)]
-             [(eq? dd <effect>) `(drop (call ,(Label l) (local.get $clos) ,args))]
-             [else              `(call ,(Label l) (local.get $clos) ,args)])))
+       (cond
+         [primitive-bypass?
+          (if tc
+              `(return ,primitive-bypass-call)
+              (cond
+                [(eq? dd <value>)  primitive-bypass-call]
+                [(eq? dd <effect>) `(drop ,primitive-bypass-call)]
+                [else              primitive-bypass-call]))]
+         [tc
+          `(return_call ,(Label l) (local.get $clos) ,args)]
+         [else
+          (cond
+            [(eq? dd <value>)  `(call ,(Label l) (local.get $clos) ,args)]
+            [(eq? dd <effect>) `(drop (call ,(Label l) (local.get $clos) ,args))]
+            [else              `(call ,(Label l) (local.get $clos) ,args)])]))
      (match dd
        [(or '<effect> '<value>)  (match cd
                                    ['<return>           work]
@@ -18705,10 +18933,7 @@
             (eq? (letrec-closure-allocation-mode/closure ca x) 'final-only)))
 
      (define (closure-debug-id-expr l)
-       (define debug-id (syntax-e (variable-id l)))
-       (define $debug-id (string->symbol (~a "$symbol:" debug-id)))
-       (add-symbol-constant debug-id debug-id)
-       `(global.get ,$debug-id))
+       (label-debug-id-expr l))
      (define (inline-small-letrec-closure-arity-label l)
        (inline-small-closure-arity-label l))
      (define (closure-name-expr in)
@@ -19135,6 +19360,10 @@
                  ,@formals
                  (result (ref eq))
                  ,@locals
+                 (global.set $debug-current-procedure-name ,(label-debug-id-expr l))
+                 (global.set $debug-current-procedure (global.get $false))
+                 (call $debug-invoke-tick)
+                 ,@(watched-label-entry-probe l)
                  ,@init-locals
                  ,body-expr)]
          [x
@@ -19175,6 +19404,10 @@
               (param $clos (ref $Closure))
               (param $args (ref $Args))
               (result (ref eq))
+              (global.set $debug-current-procedure-name ,(label-debug-id-expr l))
+              (global.set $debug-current-procedure (local.get $clos))
+              (call $debug-invoke-tick)
+              ,@(watched-label-entry-probe l)
               (return_call ,(known1-code-label l) ,env0 (local.get $args))))
      (define base-func
        (if (and (known1-direct-label? l)

@@ -411,6 +411,14 @@
                                     (lambda () (set! seen (cons 'after seen))))
                                    'result)
                            (equal? seen '(after body before)))))
+              (list "call-with-continuation-barrier bootstrap"
+                    (let ([seen '()])
+                      (and (equal? (call-with-continuation-barrier
+                                    (lambda ()
+                                      (set! seen (cons 'body seen))
+                                      'result))
+                                   'result)
+                           (equal? seen '(body)))))
               (list "continuation-mark-set-first bootstrap placeholder"
                     (and (equal? (continuation-mark-set-first
                                   (current-continuation-marks)
