@@ -5105,6 +5105,35 @@
                                     'interaction)
                             (void? (current-read-interaction original)))))
 
+               (list "port-read-handler/bootstrap"
+                     (let* ([in       (open-input-string "ignored")]
+                            [default  (port-read-handler in)])
+                       (and (procedure? default)
+                            (eof-object? (default in)))))
+
+               (list "reader accept bootstrap parameters"
+                     (let ([reader     (read-accept-reader)]
+                           [lang       (read-accept-lang)]
+                           [compiled   (read-accept-compiled)]
+                           [box        (read-accept-box)]
+                           [bar-quote  (read-accept-bar-quote)]
+                           [graph      (read-accept-graph)]
+                           [dot        (read-accept-dot)]
+                           [infix-dot  (read-accept-infix-dot)]
+                           [quasiquote (read-accept-quasiquote)])
+                       (and (boolean? reader)
+                            (boolean? lang)
+                            (boolean? compiled)
+                            (boolean? box)
+                            (boolean? bar-quote)
+                            (boolean? graph)
+                            (boolean? dot)
+                            (boolean? infix-dot)
+                            (boolean? quasiquote)
+                            (void? (read-accept-reader #f))
+                            (equal? (read-accept-reader) #f)
+                            (void? (read-accept-reader reader)))))
+
                (list "close-input-port/custom-close-order"
                      (let ([port #f])
                        (let ([closed-during-close #t]

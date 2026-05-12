@@ -206,6 +206,16 @@
          current-output-port
          current-error-port
          current-read-interaction
+         port-read-handler
+         read-accept-reader
+         read-accept-lang
+         read-accept-compiled
+         read-accept-box
+         read-accept-bar-quote
+         read-accept-graph
+         read-accept-dot
+         read-accept-infix-dot
+         read-accept-quasiquote
          reset-current-input-port!
          reset-current-output-port!
          reset-current-error-port!
@@ -2993,6 +3003,21 @@
   (let ([cache (make-hasheqv)])
     (lambda (index thunk)
       (hash-ref! cache index thunk))))
+
+(define (port-read-handler in)
+  (unless (input-port? in)
+    (raise-argument-error 'port-read-handler "input-port?" in))
+  (lambda (_in) eof))
+
+(define read-accept-reader      (make-parameter #t))
+(define read-accept-lang        (make-parameter #t))
+(define read-accept-compiled    (make-parameter #f))
+(define read-accept-box         (make-parameter #t))
+(define read-accept-bar-quote   (make-parameter #t))
+(define read-accept-graph       (make-parameter #t))
+(define read-accept-dot         (make-parameter #t))
+(define read-accept-infix-dot   (make-parameter #t))
+(define read-accept-quasiquote  (make-parameter #t))
 
 (define (write-linklet-bundle-hash bundle out)
   (write bundle out))

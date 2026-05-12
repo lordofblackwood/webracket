@@ -1378,6 +1378,15 @@
        current-output-port
        current-error-port
        current-read-interaction
+       read-accept-reader
+       read-accept-lang
+       read-accept-compiled
+       read-accept-box
+       read-accept-bar-quote
+       read-accept-graph
+       read-accept-dot
+       read-accept-infix-dot
+       read-accept-quasiquote
        error-value->string-handler
        error-syntax->string-handler
        error-syntax->name-handler
@@ -2112,6 +2121,16 @@
   current-output-port
   current-error-port
   current-read-interaction
+  port-read-handler
+  read-accept-reader
+  read-accept-lang
+  read-accept-compiled
+  read-accept-box
+  read-accept-bar-quote
+  read-accept-graph
+  read-accept-dot
+  read-accept-infix-dot
+  read-accept-quasiquote
   error-value->string-handler
   error-syntax->string-handler
   error-syntax->name-handler

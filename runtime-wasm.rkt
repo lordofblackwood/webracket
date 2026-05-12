@@ -1920,6 +1920,16 @@
     (add-runtime-string-constant 'callback:no-js-equivalent
                                  "The callback attempted to return a WebRacket value with no JavaScript equivalent (i.e. without a FASL encoding): ")
     (add-runtime-symbol-constant 'wr-ref)
+    (add-runtime-symbol-constant 'port-read-handler)
+    (add-runtime-symbol-constant 'read-accept-reader)
+    (add-runtime-symbol-constant 'read-accept-lang)
+    (add-runtime-symbol-constant 'read-accept-compiled)
+    (add-runtime-symbol-constant 'read-accept-box)
+    (add-runtime-symbol-constant 'read-accept-bar-quote)
+    (add-runtime-symbol-constant 'read-accept-graph)
+    (add-runtime-symbol-constant 'read-accept-dot)
+    (add-runtime-symbol-constant 'read-accept-infix-dot)
+    (add-runtime-symbol-constant 'read-accept-quasiquote)
     (add-runtime-string-constant 'wr-kind:value              "value")
     (add-runtime-string-constant 'wr-kind:missing-binding    "missing-binding")
     (add-runtime-string-constant 'wr-kind:not-procedure      "not-procedure")
@@ -2554,7 +2564,8 @@
                        (field $bytes (mut (ref $Bytes)))        ; the byte string (bytes)
                        (field $len   (mut i32))                 ; the length of the string
                        (field $idx   (mut i32))                 ; the current index into the byte string
-                       (field $loc   (mut (ref $Location))))))  ; the current location
+                       (field $loc   (mut (ref $Location)))     ; the current location
+                       (field $read-handler (mut (ref eq))))))  ; #f means use the default reader
 
           (type $OutputPort
                 (sub $Port
@@ -2577,6 +2588,7 @@
                        (field $len   (mut i32))                 ; the length of the string
                        (field $idx   (mut i32))                 ; the current index into the byte string
                        (field $loc   (mut (ref $Location)))     ; the current location
+                       (field $read-handler (mut (ref eq)))      ; port-read-handler override or #f
                        ;; UTF-8 decoder state:
                        (field $utf8-len    (mut i32))     ;; 0 = idle, 1-4 = number of bytes expected
                        (field $utf8-left   (mut i32))     ;; number of continuation bytes still needed
@@ -2622,6 +2634,7 @@
                        (field $len   (mut i32))                      ; unused length placeholder
                        (field $idx   (mut i32))                      ; unused index placeholder
                        (field $loc   (mut (ref $Location)))          ; the current location
+                       (field $read-handler (mut (ref eq)))           ; port-read-handler override or #f
                        (field $read-proc          (mut (ref eq)))    ; required read-in argument
                        (field $peek-proc          (mut (ref eq)))    ; required peek argument
                        (field $close-proc         (mut (ref eq)))    ; required close argument
@@ -38767,6 +38780,7 @@
                            (local.get $len)      ;; $len
                            (i32.const 0)         ;; $idx
                            (local.get $loc)      ;; $loc
+                           (global.get $false)   ;; $read-handler
                            (i32.const 0)         ;; $utf8-len
                            (i32.const 0)         ;; $utf8-left
                            (i32.const 0)))       ;; $utf8-bytes
@@ -38813,6 +38827,7 @@
                            (local.get $len)       ;; $len (byte length)
                            (i32.const 0)          ;; $idx
                            (local.get $loc)       ;; $loc
+                           (global.get $false)    ;; $read-handler
                            (i32.const 0)          ;; $utf8-len
                            (i32.const 0)          ;; $utf8-left
                            (i32.const 0)))        ;; $utf8-bytes
@@ -39060,6 +39075,7 @@
                            (i32.const 0)              ;; $len placeholder
                            (i32.const 0)              ;; $idx placeholder
                            (local.get $loc)           ;; $loc
+                           (global.get $false)        ;; $read-handler
                            (local.get $read)          ;; $read-proc
                            (local.get $peek)          ;; $peek-proc
                            (local.get $close)         ;; $close-proc
@@ -46078,6 +46094,8 @@
               (ref.func $default-error-syntax->string-handler)
               (ref.func $default-error-module-path->string-handler)
               (ref.func $default-current-read-interaction)
+              (ref.func $default-port-read-handler)
+              (ref.func $default-port-read-handler/1)
 
               ;; Primitive invokers for the different shapes
               ,@(for/list ([shape (in-list primitive-shapes)])
@@ -57146,6 +57164,48 @@
                      (result             (ref eq))
                      (global.get $eof))
 
+               ;; default-port-read-handler : input-port? [any/c] -> eof-object?
+               ;;   Bootstrap port reader used until WebRacket has its own
+               ;;   reader. This unblocks expander code that expects a valid
+               ;;   port-read-handler protocol; it intentionally does not parse.
+               (func $default-port-read-handler (type $Prim12)
+                     (param $in     (ref eq)) ;; input-port?
+                     (param $source (ref eq)) ;; optional source name, ignored
+                     (result        (ref eq))
+                     (global.get $eof))
+
+               (func $default-port-read-handler/1 (type $Prim1)
+                     (param $in (ref eq)) ;; input-port?
+                     (result    (ref eq))
+                     (global.get $eof))
+
+               ;; port-read-handler : input-port? -> procedure?
+               ;;   Get the Racket-level read handler attached to an input
+               ;;   port. The setter form is deferred until WebRacket has a
+               ;;   robust optional-argument primitive path for [1 2] arities.
+               ;;   File/device substrate may later come from rktio-like host
+               ;;   support, but this hook belongs to the Racket port layer.
+               (func $port-read-handler (type $Prim1)
+                     (param $in-raw (ref eq)) ;; input-port?
+                     (result        (ref eq))
+
+                     (local $in      (ref $InputPort))
+                     (local $handler (ref eq))
+
+                     (if (i32.eqz (ref.test (ref $InputPort) (local.get $in-raw)))
+                         (then (call $raise-argument-error1
+                                     (global.get $symbol:port-read-handler)
+                                     (global.get $string:input-port?)
+                                     (local.get $in-raw))
+                               (unreachable)))
+                     (local.set $in (ref.cast (ref $InputPort) (local.get $in-raw)))
+                     (local.set $handler
+                                (struct.get $InputPort $read-handler (local.get $in)))
+                     (if (ref.eq (local.get $handler) (global.get $false))
+                         (then (return (global.get $default-port-read-handler-value)))
+                         (else (return (local.get $handler))))
+                     (unreachable))
+
                ;; current-read-interaction : [procedure?] -> procedure? or void?
                ;;   Parameter for the interactive reader. The default returns
                ;;   EOF, which is enough for expander startup probes that only
@@ -57163,6 +57223,52 @@
                                (unreachable)))
                      (global.set $current-read-interaction-value (local.get $reader-raw))
                      (global.get $void))
+
+               ;; read-accept-* : [boolean?] -> boolean? or void?
+               ;;   Bootstrap reader policy parameters. The full reader can
+               ;;   consult these later; for now they provide the parameter
+               ;;   bindings and mutable cells expected by expander startup.
+               ,@(for/list ([name '($read-accept-reader
+                                    $read-accept-lang
+                                    $read-accept-compiled
+                                    $read-accept-box
+                                    $read-accept-bar-quote
+                                    $read-accept-graph
+                                    $read-accept-dot
+                                    $read-accept-infix-dot
+                                    $read-accept-quasiquote)]
+                             [symbol '($symbol:read-accept-reader
+                                       $symbol:read-accept-lang
+                                       $symbol:read-accept-compiled
+                                       $symbol:read-accept-box
+                                       $symbol:read-accept-bar-quote
+                                       $symbol:read-accept-graph
+                                       $symbol:read-accept-dot
+                                       $symbol:read-accept-infix-dot
+                                       $symbol:read-accept-quasiquote)]
+                             [global '($read-accept-reader-value
+                                       $read-accept-lang-value
+                                       $read-accept-compiled-value
+                                       $read-accept-box-value
+                                       $read-accept-bar-quote-value
+                                       $read-accept-graph-value
+                                       $read-accept-dot-value
+                                       $read-accept-infix-dot-value
+                                       $read-accept-quasiquote-value)])
+                   `(func ,name (type $Prim01)
+                          (param $v (ref eq)) ;; optional boolean?
+                          (result   (ref eq))
+
+                          (if (ref.eq (local.get $v) (global.get $missing))
+                              (then (return (global.get ,global))))
+                          (if (ref.eq (call $boolean? (local.get $v)) (global.get $false))
+                              (then (call $raise-argument-error1
+                                          (global.get ,symbol)
+                                          (global.get $string:boolean?)
+                                          (local.get $v))
+                                    (unreachable)))
+                          (global.set ,global (local.get $v))
+                          (global.get $void)))
 
                ;; default-error-syntax->name-handler : syntax? -> #f
                ;;   Bootstrap default for error-syntax->name-handler.
@@ -61619,6 +61725,16 @@
                (global $current-error-port-value  (mut (ref eq)) (ref.i31 (i32.const 0)))
                (global $current-print-value       (mut (ref eq)) (global.get $false))
                (global $current-read-interaction-value (mut (ref eq)) (global.get $false))
+               (global $default-port-read-handler-value (mut (ref eq)) (global.get $false))
+               (global $read-accept-reader-value       (mut (ref eq)) (global.get $true))
+               (global $read-accept-lang-value         (mut (ref eq)) (global.get $true))
+               (global $read-accept-compiled-value     (mut (ref eq)) (global.get $false))
+               (global $read-accept-box-value          (mut (ref eq)) (global.get $true))
+               (global $read-accept-bar-quote-value    (mut (ref eq)) (global.get $true))
+               (global $read-accept-graph-value        (mut (ref eq)) (global.get $true))
+               (global $read-accept-dot-value          (mut (ref eq)) (global.get $true))
+               (global $read-accept-infix-dot-value    (mut (ref eq)) (global.get $true))
+               (global $read-accept-quasiquote-value   (mut (ref eq)) (global.get $true))
                (global $error-value->string-handler-value (mut (ref eq)) (global.get $false))
                (global $error-syntax->string-handler-value (mut (ref eq)) (global.get $false))
                (global $error-syntax->name-handler-value (mut (ref eq)) (global.get $false))
@@ -61940,6 +62056,15 @@
                                             (global.get $the-racket/primitive-realm)
                                             (ref.func $primitive-invoke:shape-2)
                                             (ref.func $default-current-read-interaction)
+                                            (global.get $false)))
+                    (global.set $default-port-read-handler-value
+                                (struct.new $PrimitiveProcedure
+                                            (i32.const 0)
+                                            (global.get $symbol:port-read-handler)
+                                            (ref.i31 (i32.const 2))
+                                            (global.get $the-racket/primitive-realm)
+                                            (ref.func $primitive-invoke:shape-1)
+                                            (ref.func $default-port-read-handler/1)
                                             (global.get $false)))
                     (global.set $error-syntax->string-handler-value
                                 (struct.new $PrimitiveProcedure
