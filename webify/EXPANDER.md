@@ -2386,3 +2386,87 @@ linklet-boundary-audit:
 The mismatch is therefore between the expander's compiled module/linklet
 directory structures and WebRacket's runtime wrappers, not a total absence of
 runtime linklet, bundle, directory, or instance values.
+
+Follow-up: decoding the expander linklet directory
+--------------------------------------------------
+
+The next bridge probe reads the expander-side `linklet-directory` structurally
+with `struct->vector`. That confirms the direct layout from
+`src/expander/compile/linklet.rkt`: a two-slot struct whose payload field is a
+hash.
+
+For a tiny compiled ordinary expression, the directory payload is:
+
+```text
+compiled-linklet-directory-hash:
+  directory:
+    object-name: linklet-directory
+    payload:     hash-count 1
+    entries:     #f -> linklet-bundle
+
+  main-entry:
+    object-name: linklet-bundle
+    payload:     hash-count 3
+    entries:     original-phase, max-phase, 0
+```
+
+That gives us the first concrete adapter target:
+
+```text
+compiled-in-memory
+  field 1: expander linklet-directory
+    ht[#f] -> expander linklet-bundle
+      ht[0] -> phase-0 linklet payload
+```
+
+A deliberately naive adapter probe copies the expander directory hash into a
+mutable `hasheq` and passes it to WebRacket's runtime
+`hash->linklet-directory`. It fails as expected:
+
+```text
+compiled-directory-adapter/catch:
+  adapter-failed
+  hash->linklet-directory: contract violation
+```
+
+The important point is that mutability is not the only mismatch. The copied
+value is still an expander `linklet-bundle` struct whose payload contains
+encoded/compiled linklet data, not WebRacket runtime `LinkletBundle` and
+`CompiledLinklet` values. The next adapter must translate recursively:
+
+```text
+expander linklet-directory -> WebRacket LinkletDirectory
+expander linklet-bundle    -> WebRacket LinkletBundle
+phase payload / FASL bytes  -> executable or inspectable WebRacket linklet data
+```
+
+The module-name resolver probe also clarified a limitation of the current probe
+surface. `current-module-name-resolver` is protected in the expander primitive
+layer and is not exposed through the first-slice alias table, so the direct
+resolver audit reports:
+
+```text
+module-name-resolver-audit:
+  resolver-unavailable
+  object-name exn:fail:contract:variable
+```
+
+For now the useful module-resolution signal is therefore the caught
+`namespace-require` result, not a direct call to the resolver. Those require
+probes already show that `#%kernel` and `#%paramz` resolve, while `racket/base`
+and `racket/bool` reach `expected: unknown module`.
+
+Finally, a tiny ordinary module experiment is not through the frontier yet:
+
+```text
+tiny-module-require/catch:
+  before eval module
+  eval-compile:before-compile
+  exn:fail:contract:variable
+```
+
+This says the current eval namespace still does not have the right module-form
+binding/protocol to declare and then require an ordinary module. That is a
+smaller version of the same problem: Webify can inspect expander compiled
+module products, but has not yet wired an ordinary module declaration into the
+runtime module registry that `namespace-require` consults.

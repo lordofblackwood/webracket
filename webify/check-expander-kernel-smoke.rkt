@@ -262,6 +262,28 @@
 (require-output compiled-fields-output "object-name linklet-directory")
 (require-output compiled-fields-output "object-name namespace-scopes")
 
+(define-values (compiled-directory-status compiled-directory-output)
+  (run-probe wasm-path
+             "webify-probe-expand-self-evaluating/compiled-linklet-directory-hash"
+             "[]"))
+(unless (zero? compiled-directory-status)
+  (error 'check-expander-kernel-smoke
+         "compiled linklet-directory hash probe failed with status ~a\noutput:\n~a"
+         compiled-directory-status
+         compiled-directory-output))
+(require-output compiled-directory-output "probe:compiled-linklet-directory-hash:after-compile")
+(require-output compiled-directory-output "(hash-count 1)")
+(require-output compiled-directory-output "(#f ((syntax? #f) (struct? #t) (procedure? #f) (object-name linklet-bundle)")
+(require-output compiled-directory-output "(main-entry-payload ((hash? #t) (hash-count 3)")
+(require-output compiled-directory-output "original-phase")
+(require-output compiled-directory-output "max-phase")
+
+(check-ok-probe
+ "webify-probe-expand-self-evaluating/compiled-directory-adapter/catch"
+ "[]"
+ "probe:compiled-directory-adapter/catch:caught"
+ "(adapter-failed (message hash->linklet-directory: contract violation")
+
 (check-ok-probe
  "webify-probe-expand-self-evaluating/eval-ordinary-kernel-primitive-app"
  "[]"
@@ -281,6 +303,18 @@
 (reject-output eval-output "failure-detail: #f: arity mismatch;")
 (reject-output eval-output "literal data is not allowed")
 (reject-output eval-output "exception-handler-key")
+
+(check-ok-probe
+ "webify-probe-expand-self-evaluating/module-name-resolver-audit"
+ "[]"
+ "probe:module-name-resolver-audit:unavailable"
+ "(resolver-unavailable")
+
+(check-ok-probe
+ "webify-probe-expand-self-evaluating/tiny-module-require/catch"
+ "[]"
+ "probe:tiny-module-require/catch:caught"
+ "object-name exn:fail:contract:variable")
 
 (for ([probe+fragments (in-list
                         '(("webify-probe-expand-self-evaluating/kernel-require/catch"

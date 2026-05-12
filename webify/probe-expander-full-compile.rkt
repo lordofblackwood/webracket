@@ -103,6 +103,7 @@
       namespace-attach-module
       namespace-module-identifier
       namespace-require
+      current-module-name-resolver
       namespace-datum-introduce
       namespace-syntax-introduce
       identifier-binding
@@ -706,6 +707,26 @@
       (define (webify-probe-vector-field-shapes vec)
         (for/list ([i (in-range (vector-length vec))])
           (list i (webify-probe-value-shape (vector-ref vec i)))))
+      (define (webify-probe-hash-summary h)
+        (cond
+          [(hash? h)
+           (list (list 'hash? #t)
+                 (list 'hash-count (hash-count h))
+                 (list 'entries
+                       (for/list ([entry (in-list (hash->list h))])
+                         (list (car entry)
+                               (webify-probe-value-shape (cdr entry))))))]
+          [else
+           (list (list 'hash? #f)
+                 (list 'shape (webify-probe-value-shape h)))]))
+      (define (webify-probe-expander-linklet-directory-summary ld)
+        (let ([vec (and (struct? ld) (struct->vector ld '...))])
+          (list (list 'shape (webify-probe-value-shape ld))
+                (list 'vector-length (and vec (vector-length vec)))
+                (list 'payload
+                      (and vec
+                           (>= (vector-length vec) 2)
+                           (webify-probe-hash-summary (vector-ref vec 1)))))))
       (define (webify-probe-expand-self-evaluating/compile-ordinary-kernel-summary)
         (js-log "probe:compile-ordinary-kernel-summary:before-introduce")
         (let ([stx (webify-probe-expander-introduced-syntax '(+ 1 2))])
@@ -722,6 +743,52 @@
             (js-log "probe:compiled-in-memory-fields:after-compile")
             (list (list 'summary (webify-probe-compiled-value-summary c))
                   (list 'fields (and vec (webify-probe-vector-field-shapes vec)))))))
+      (define (webify-probe-expand-self-evaluating/compiled-linklet-directory-hash)
+        (js-log "probe:compiled-linklet-directory-hash:before-introduce")
+        (let ([stx (webify-probe-expander-introduced-syntax '(+ 1 2))])
+          (js-log "probe:compiled-linklet-directory-hash:before-compile")
+          (let* ([c      (webify-expander:compile stx (current-namespace) #f webify-expander:expand)]
+                 [vec    (and (struct? c) (struct->vector c '...))]
+                 [ld     (and vec (>= (vector-length vec) 2) (vector-ref vec 1))]
+                 [ld-vec (and (struct? ld) (struct->vector ld '...))]
+                 [bundle (and ld-vec
+                              (>= (vector-length ld-vec) 2)
+                              (hash? (vector-ref ld-vec 1))
+                              (hash-ref (vector-ref ld-vec 1) #f #f))])
+            (js-log "probe:compiled-linklet-directory-hash:after-compile")
+            (list (list 'directory (webify-probe-expander-linklet-directory-summary ld))
+                  (list 'main-entry (webify-probe-value-shape bundle))
+                  (list 'main-entry-vector
+                        (let ([bundle-vec (and (struct? bundle) (struct->vector bundle '...))])
+                          (and bundle-vec (webify-probe-vector-field-shapes bundle-vec))))
+                  (list 'main-entry-payload
+                        (let ([bundle-vec (and (struct? bundle) (struct->vector bundle '...))])
+                          (and bundle-vec
+                               (>= (vector-length bundle-vec) 2)
+                               (webify-probe-hash-summary (vector-ref bundle-vec 1)))))))))
+      (define (webify-probe-expand-self-evaluating/compiled-directory-adapter/catch)
+        (js-log "probe:compiled-directory-adapter/catch:before-introduce")
+        (with-handlers ([exn:fail?
+                         (lambda (exn)
+                           (js-log "probe:compiled-directory-adapter/catch:caught")
+                           (list 'adapter-failed
+                                 (list 'message (exn-message exn))
+                                 (list 'shape (webify-probe-value-shape exn))))])
+          (let* ([stx     (webify-probe-expander-introduced-syntax '(+ 1 2))]
+                 [c       (webify-expander:compile stx (current-namespace) #f webify-expander:expand)]
+                 [vec     (and (struct? c) (struct->vector c '...))]
+                 [ld      (and vec (>= (vector-length vec) 2) (vector-ref vec 1))]
+                 [ld-vec  (and (struct? ld) (struct->vector ld '...))]
+                 [payload (and ld-vec (>= (vector-length ld-vec) 2) (vector-ref ld-vec 1))]
+                 [copy    (make-hasheq)])
+            (js-log "probe:compiled-directory-adapter/catch:before-copy")
+            (for-each (lambda (entry) (hash-set! copy (car entry) (cdr entry)))
+                      (hash->list payload))
+            (js-log "probe:compiled-directory-adapter/catch:before-wrap")
+            (let ([wrapped (hash->linklet-directory copy)])
+              (js-log "probe:compiled-directory-adapter/catch:after-wrap")
+              (list 'adapter-ok
+                    (list 'directory? (linklet-directory? wrapped)))))))
       (define (webify-probe-expand-self-evaluating/eval-ordinary-kernel-primitive-app)
         (js-log "probe:eval-ordinary-kernel-primitive-app:before-introduce")
         (let ([stx (webify-probe-expander-introduced-syntax '(+ 1 2))])
@@ -782,6 +849,46 @@
                         (webify-expander:datum->syntax #f sym)
                         (current-namespace))])
                (list sym (webify-probe-binding-summary id)))))))
+      (define (webify-probe-expand-self-evaluating/module-name-resolver-audit)
+        (js-log "probe:module-name-resolver-audit:before")
+        (with-handlers ([exn:fail?
+                         (lambda (exn)
+                           (js-log "probe:module-name-resolver-audit:unavailable")
+                           (list 'resolver-unavailable
+                                 (list 'message (exn-message exn))
+                                 (list 'shape (webify-probe-value-shape exn))))])
+          (let ([resolver (webify-expander:current-module-name-resolver)])
+            (define (resolve/catch name)
+              (with-handlers ([exn:fail?
+                               (lambda (exn)
+                                 (list name
+                                       'failed
+                                       (list 'message (exn-message exn))
+                                       (list 'shape (webify-probe-value-shape exn))))])
+                (list name 'ok (resolver name #f #f #t))))
+            (js-log "probe:module-name-resolver-audit:after")
+            (list (list 'resolver-shape (webify-probe-value-shape resolver))
+                  (list 'kernel (resolve/catch ''#%kernel))
+                  (list 'paramz (resolve/catch ''#%paramz))
+                  (list 'base (resolve/catch ''racket/base))
+                  (list 'bool (resolve/catch ''racket/bool))))))
+      (define (webify-probe-expand-self-evaluating/tiny-module-require/catch)
+        (js-log "probe:tiny-module-require/catch:before-eval-module")
+        (webify-probe-require/catch
+         "tiny-module-require/catch"
+         (lambda ()
+           (webify-probe-eval-checkpoint/compile
+            (webify-probe-expander-introduced-syntax
+             '(module webify-tiny '#%kernel
+                (#%provide webify-tiny-value)
+                (define-values (webify-tiny-value) '42))))
+           (js-log "probe:tiny-module-require/catch:before-require")
+           (webify-expander:namespace-require '(quote webify-tiny) (current-namespace)))
+         (lambda ()
+           (let ([id (webify-expander:namespace-syntax-introduce
+                      (webify-expander:datum->syntax #f 'webify-tiny-value)
+                      (current-namespace))])
+             (webify-probe-binding-summary id)))))
       (define (webify-probe-expand-self-evaluating/linklet-boundary-audit)
         (js-log "probe:linklet-boundary-audit:before-build")
         (let* ([compiled       (compile-linklet '(linklet ((x)) (y) (void)) #f #f)]
