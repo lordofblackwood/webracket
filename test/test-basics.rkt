@@ -902,6 +902,13 @@
                                  (equal? (current-compile-target-machine) 'probe-target)
                                  (equal? (current-compile-target-machine original) (void))
                                  (equal? (current-compile-target-machine) original))))
+                    (list "current-compile-realm"
+                          (let ([original (current-compile-realm)])
+                            (and (equal? original 'racket)
+                                 (equal? (current-compile-realm 'probe-realm) (void))
+                                 (equal? (current-compile-realm) 'probe-realm)
+                                 (equal? (current-compile-realm original) (void))
+                                 (equal? (current-compile-realm) original))))
                     (list "version"
                           (and (string? (version))
                                (immutable? (version))
@@ -4789,6 +4796,18 @@
               (list "prop:evt/builtin"
                     (equal? (struct-type-property? prop:evt) #t))
 
+              (list "procedure?/plain-struct"
+                    (let ()
+                      (struct plain (x))
+                      (equal? (procedure? (plain 1)) #f)))
+
+              (list "procedure-arity/plain-struct"
+                    (let ()
+                      (struct plain (x))
+                      (with-handlers ([exn:fail:contract? (lambda (exn) #t)])
+                        (procedure-arity (plain 1))
+                        #f)))
+
               (list "prop:procedure/apply-field"
                     (let ()
                       (struct callable (f) #:property prop:procedure 0)
@@ -6533,7 +6552,7 @@
                           (equal? ((hash-ref linklet 'compiled-position->primitive) 0) #f)
                           (equal? ((hash-ref linklet 'primitive-in-category?) '+ 'kernel) #f)
                           (equal? ((hash-ref linklet 'primitive-lookup) '+) #f)
-                          (equal? ((hash-ref linklet 'compile-linklet) '(linklet () () (void))) #f)
+                          (linklet? ((hash-ref linklet 'compile-linklet) '(linklet () () (void))))
                           (equal? ((hash-ref linklet 'eval-linklet) 'demo-linklet) 'demo-linklet)
                           (equal? ((hash-ref linklet 'instance-describe-variable!) (make-instance 'demo) 'x 'desc) (void))
                           (bytes? ((hash-ref linklet 'linklet-virtual-machine-bytes))))))
@@ -8134,6 +8153,26 @@
                            (eq? (current-output-port) original)
                            (equal? (file->string "/app/data/with-error.txt")
                                    "saved")))))))
+
+ (list "Linklets"
+       (list
+        (list "compile-linklet import-key protocol"
+              (and (let-values ([(linklet import-keys)
+                                  (compile-linklet 'placeholder #f '#(a b))])
+                     (and (eq? linklet #f)
+                          (equal? import-keys '#(a b))))
+                   (eq? (compile-linklet 'placeholder #f #f) #f)
+                   (let ([compiled (compile-linklet '(linklet ((x)) (y) (void)) #f #f)])
+                     (and (linklet? compiled)
+                          (equal? (linklet-import-variables compiled) '((x)))
+                          (equal? (linklet-export-variables compiled) '(y))))))
+        (list "recompile-linklet import-key protocol"
+              (and (let-values ([(linklet import-keys)
+                                  (recompile-linklet 'compiled #f '#(k))])
+                     (and (equal? linklet 'compiled)
+                          (equal? import-keys '#(k))))
+                   (equal? (recompile-linklet 'compiled #f #f)
+                           'compiled)))))
        
  (list "Checkers"
        (list

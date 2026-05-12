@@ -2011,6 +2011,8 @@
     (add-runtime-symbol-constant 'error-print-width)
     (add-runtime-symbol-constant 'error-print-source-location)
     (add-runtime-symbol-constant 'current-compile-target-machine)
+    (add-runtime-symbol-constant 'current-compile-realm)
+    (add-runtime-symbol-constant 'linklet)
     (add-runtime-symbol-constant 'webracket-debug-allocation-budget!)
     (add-runtime-symbol-constant 'webracket-debug-allocation-counters)
     (add-runtime-symbol-constant 'webracket-debug-invoke-budget!)
@@ -2038,6 +2040,14 @@
     (add-runtime-symbol-constant 'arg1-procedure?)
     (add-runtime-symbol-constant 'arg1-name)
     (add-runtime-symbol-constant 'arg1-debug-id)
+    (add-runtime-symbol-constant 'application-not-procedure-frontier)
+    (add-runtime-symbol-constant 'binding-result-arity-frontier)
+    (add-runtime-symbol-constant 'expected-count)
+    (add-runtime-symbol-constant 'received-count)
+    (add-runtime-symbol-constant 'got-struct-type)
+    (add-runtime-symbol-constant 'got-procedure?)
+    (add-runtime-symbol-constant 'caller-name)
+    (add-runtime-symbol-constant 'caller-debug-id)
     (add-runtime-string-constant 'wr-kind:value              "value")
     (add-runtime-string-constant 'wr-kind:missing-binding    "missing-binding")
     (add-runtime-string-constant 'wr-kind:not-procedure      "not-procedure")
@@ -3778,6 +3788,60 @@
               (param $expected (ref eq))
               (param $args     (ref eq))
               (result          (ref eq))
+
+              (local $caller-proc     (ref eq))
+              (local $caller-name     (ref eq))
+              (local $caller-debug-id (ref eq))
+
+              (if (i32.gt_u (global.get $debug-invoke-budget) (i32.const 0))
+                  (then
+                   (local.set $caller-proc (global.get $debug-current-procedure))
+                   (local.set $caller-name (global.get $debug-current-procedure-name))
+                   (local.set $caller-debug-id (global.get $false))
+                   (if (ref.test (ref $Procedure) (local.get $caller-proc))
+                       (then
+                        (local.set $caller-name
+                                   (struct.get $Procedure $name
+                                               (ref.cast (ref $Procedure)
+                                                         (local.get $caller-proc))))))
+                   (if (ref.test (ref $Closure) (local.get $caller-proc))
+                       (then
+                        (local.set $caller-debug-id
+                                   (struct.get $Closure $debug-id
+                                               (ref.cast (ref $Closure)
+                                                         (local.get $caller-proc))))))
+                   (drop (call $js-log
+                               (global.get $symbol:binding-result-arity-frontier)))
+                   (drop (call $js-log
+                               (call $cons
+                                     (call $cons (global.get $symbol:expected-count)
+                                           (call $cons
+                                                 (call $i32->string
+                                                       (call $result-arity-count
+                                                             (local.get $expected)))
+                                                 (global.get $null)))
+                                     (global.get $null))))
+                   (drop (call $js-log
+                               (call $cons
+                                     (call $cons (global.get $symbol:received-count)
+                                           (call $cons
+                                                 (call $i32->string
+                                                       (call $result-arity-count
+                                                             (local.get $args)))
+                                                 (global.get $null)))
+                                     (global.get $null))))
+                   (drop (call $js-log
+                               (call $cons
+                                     (call $cons (global.get $symbol:caller-name)
+                                           (call $cons (local.get $caller-name)
+                                                 (global.get $null)))
+                                     (global.get $null))))
+                   (drop (call $js-log
+                               (call $cons
+                                     (call $cons (global.get $symbol:caller-debug-id)
+                                           (call $cons (local.get $caller-debug-id)
+                                                 (global.get $null)))
+                                     (global.get $null))))))
               (call $raise-result-arity-error/internal
                     (global.get $symbol:raise-binding-result-arity-error)
                     (local.get $expected)
@@ -3799,6 +3863,62 @@
               (param $v (ref eq))
               (local $out     (ref $GrowableArray))
               (local $message (ref $String))
+              (local $caller-proc (ref eq))
+              (local $caller-name (ref eq))
+              (local $caller-debug-id (ref eq))
+              (local $got-struct-type (ref eq))
+
+              (if (i32.gt_u (global.get $debug-invoke-budget) (i32.const 0))
+                  (then
+                   (local.set $caller-proc (global.get $debug-current-procedure))
+                   (local.set $caller-name (global.get $debug-current-procedure-name))
+                   (local.set $caller-debug-id (global.get $false))
+                   (local.set $got-struct-type (global.get $false))
+                   (if (ref.test (ref $Procedure) (local.get $caller-proc))
+                       (then
+                        (local.set $caller-name
+                                   (struct.get $Procedure $name
+                                               (ref.cast (ref $Procedure)
+                                                         (local.get $caller-proc))))))
+                   (if (ref.test (ref $Closure) (local.get $caller-proc))
+                       (then
+                        (local.set $caller-debug-id
+                                   (struct.get $Closure $debug-id
+                                               (ref.cast (ref $Closure)
+                                                         (local.get $caller-proc))))))
+                   (if (ref.test (ref $Struct) (local.get $v))
+                       (then
+                        (local.set $got-struct-type
+                                   (struct.get $StructType $name
+                                               (struct.get $Struct $type
+                                                           (ref.cast (ref $Struct)
+                                                                     (local.get $v)))))))
+                   (drop (call $js-log
+                               (global.get $symbol:application-not-procedure-frontier)))
+                   (drop (call $js-log
+                               (call $cons
+                                     (call $cons (global.get $symbol:got-struct-type)
+                                           (call $cons (local.get $got-struct-type)
+                                                 (global.get $null)))
+                                     (global.get $null))))
+                   (drop (call $js-log
+                               (call $cons
+                                     (call $cons (global.get $symbol:got-procedure?)
+                                           (call $cons (call $procedure? (local.get $v))
+                                                 (global.get $null)))
+                                     (global.get $null))))
+                   (drop (call $js-log
+                               (call $cons
+                                     (call $cons (global.get $symbol:caller-name)
+                                           (call $cons (local.get $caller-name)
+                                                 (global.get $null)))
+                                     (global.get $null))))
+                   (drop (call $js-log
+                               (call $cons
+                                     (call $cons (global.get $symbol:caller-debug-id)
+                                           (call $cons (local.get $caller-debug-id)
+                                                 (global.get $null)))
+                                     (global.get $null))))))
 
               (local.set $out
                          (call $make-growable-array (i32.const 2)))
@@ -11841,6 +11961,54 @@
                (if (ref.eq (local.get $v) (global.get $missing))
                    (then (return (call $current-compile-target-machine/get))))
                (call $current-compile-target-machine/set (local.get $v)))
+
+         ;; current-compile-realm : [symbol?] -> symbol?
+         ;;   Bootstrap parameter for expander compilation. Racket uses this
+         ;;   realm to annotate generated procedures and module code; WebRacket
+         ;;   defaults to 'racket and supports parameterize-style overrides.
+         (func $current-compile-realm/get (type $Prim0)
+               (result (ref eq))
+               (local $v (ref eq))
+
+               (local.set $v
+                          (call $parameterization-ref
+                                (global.get $current-parameterization-value)
+                                (global.get $prim:current-compile-realm)))
+               (if (result (ref eq))
+                   (ref.eq (local.get $v) (global.get $missing))
+                   (then
+                    (if (result (ref eq))
+                        (ref.eq (global.get $current-compile-realm-value)
+                                (global.get $false))
+                        (then (global.get $symbol:racket))
+                        (else (global.get $current-compile-realm-value))))
+                   (else (local.get $v))))
+
+         (func $current-compile-realm/set (type $Prim1)
+               (param $v (ref eq)) ;; realm symbol
+               (result   (ref eq))
+
+               (if (i32.eqz (ref.test (ref $Symbol) (local.get $v)))
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:current-compile-realm)
+                               (global.get $string:symbol?)
+                               (local.get $v))
+                         (unreachable)))
+               (if (i32.eqz (ref.eq (global.get $current-parameterization-value)
+                                    (global.get $false)))
+                   (then (return (call $extend-current-parameterization!
+                                       (global.get $prim:current-compile-realm)
+                                       (local.get $v)))))
+               (global.set $current-compile-realm-value (local.get $v))
+               (global.get $void))
+
+         (func $current-compile-realm (type $Prim01)
+               (param $v (ref eq)) ;; optional realm symbol, default 'racket
+               (result   (ref eq))
+
+               (if (ref.eq (local.get $v) (global.get $missing))
+                   (then (return (call $current-compile-realm/get))))
+               (call $current-compile-realm/set (local.get $v)))
 
          ;; version : -> string?
          ;;   Return the Racket version used to generate this WebRacket runtime.
@@ -34343,11 +34511,56 @@
                (result     (ref eq))
                (global.get $false))
 
-         ;; compile-linklet : linklet-datum? [any/c any/c any/c any/c] -> #f
+         ;; compile-linklet/placeholder-result : any/c -> any/c
+         ;;   Build a metadata-only compiled linklet for linklet-shaped data.
+         (func $compile-linklet/placeholder-result
+               (param $c (ref eq)) ;; candidate linklet datum
+               (result   (ref eq))
+
+               (local $rest    (ref eq))
+               (local $imports (ref eq))
+               (local $exports (ref eq))
+
+               (if (i32.eqz (ref.test (ref $Pair) (local.get $c)))
+                   (then (return (global.get $false))))
+               (if (i32.eqz
+                    (ref.eq (struct.get $Pair $a
+                                        (ref.cast (ref $Pair) (local.get $c)))
+                            (global.get $symbol:linklet)))
+                   (then (return (global.get $false))))
+
+               (local.set $rest (struct.get $Pair $d
+                                            (ref.cast (ref $Pair) (local.get $c))))
+               (if (i32.eqz (ref.test (ref $Pair) (local.get $rest)))
+                   (then (return (global.get $false))))
+               (local.set $imports
+                          (struct.get $Pair $a
+                                      (ref.cast (ref $Pair) (local.get $rest))))
+               (local.set $rest
+                          (struct.get $Pair $d
+                                      (ref.cast (ref $Pair) (local.get $rest))))
+               (if (i32.eqz (ref.test (ref $Pair) (local.get $rest)))
+                   (then (return (global.get $false))))
+               (local.set $exports
+                          (struct.get $Pair $a
+                                      (ref.cast (ref $Pair) (local.get $rest))))
+
+               (ref.cast (ref eq)
+                         (struct.new $CompiledLinklet
+                                     (i32.const 0)
+                                     (global.get $false)
+                                     (local.get $imports)
+                                     (local.get $exports)
+                                     (ref.cast (ref eq)
+                                               (global.get $dummy-closure)))))
+
+         ;; compile-linklet : linklet-datum? [any/c any/c any/c any/c] -> any/c
          ;;   Runtime compilation is intentionally unavailable in WebAssembly.
          ;;   Exposing the bootstrap name lets the expander initialize its
-         ;;   #%linklet namespace; actual runtime compilation remains a later
-         ;;   bridge milestone.
+         ;;   #%linklet namespace. For linklet-shaped data, return a
+         ;;   metadata-only compiled linklet so the expander can inspect import
+         ;;   and export variables. When import-keys is supplied, preserve the
+         ;;   expander protocol by returning the unchanged import keys too.
          (func $compile-linklet (type $Prim15)
                (param $c           (ref eq)) ;; linklet datum
                (param $info        (ref eq)) ;; optional info, default #f
@@ -34355,10 +34568,23 @@
                (param $get-import  (ref eq)) ;; optional getter, default #f
                (param $options     (ref eq)) ;; optional options
                (result             (ref eq))
-               (global.get $false))
+               (local $compiled (ref eq))
+
+               (local.set $compiled (call $compile-linklet/placeholder-result
+                                          (local.get $c)))
+               (if (result (ref eq))
+                   (i32.or
+                    (ref.eq (local.get $import-keys) (global.get $false))
+                    (ref.eq (local.get $import-keys) (global.get $missing)))
+                   (then (local.get $compiled))
+                   (else (array.new_fixed $Values 2
+                                          (local.get $compiled)
+                                          (local.get $import-keys)))))
 
          ;; recompile-linklet : any/c any/c [any/c any/c any/c] -> any/c
          ;;   Re-optimization is unavailable, so return the original linklet.
+         ;;   When import-keys is supplied, return it as a second value as in
+         ;;   the Racket expander's boot linklet implementation.
          (func $recompile-linklet (type $Prim25)
                (param $linklet     (ref eq)) ;; existing linklet
                (param $info        (ref eq)) ;; optimization info
@@ -34366,7 +34592,14 @@
                (param $get-import  (ref eq)) ;; optional getter
                (param $options     (ref eq)) ;; optional options
                (result             (ref eq))
-               (local.get $linklet))
+               (if (result (ref eq))
+                   (i32.or
+                    (ref.eq (local.get $import-keys) (global.get $false))
+                    (ref.eq (local.get $import-keys) (global.get $missing)))
+                   (then (local.get $linklet))
+                   (else (array.new_fixed $Values 2
+                                          (local.get $linklet)
+                                          (local.get $import-keys)))))
 
          ;; eval-linklet : any/c -> any/c
          ;;   Source-linklet bootstrap placeholder: evaluation is identity.
@@ -42251,11 +42484,7 @@
                                         (ref.test (ref $Parameterization) (local.get $arg0))
                                         (then (global.get $true))
                                         (else (global.get $false))))
-                         (local.set $arg1-proc?
-                                    (if (result (ref eq))
-                                        (ref.test (ref $Procedure) (local.get $arg1))
-                                        (then (global.get $true))
-                                        (else (global.get $false))))
+                         (local.set $arg1-proc? (call $procedure? (local.get $arg1)))
                          (if (ref.test (ref $Procedure) (local.get $arg1))
                              (then
                               (local.set $arg1-name
@@ -48699,8 +48928,41 @@
          ;;; PROCEDURES
          ;;;
 
+         ;; applicable-struct?/i32 : any/c -> i32
+         ;;   Check whether a struct instance has a prop:procedure association.
+         (func $applicable-struct?/i32
+               (param $v (ref eq)) ;; candidate value
+               (result   i32)
+               (local $type     (ref $StructType))
+               (local $sentinel (ref eq))
+               (local $prop-val (ref eq))
+               (if (i32.eqz (ref.test (ref $Struct) (local.get $v)))
+                   (then (return (i32.const 0))))
+               (local.set $type
+                          (struct.get $Struct $type
+                                      (ref.cast (ref $Struct) (local.get $v))))
+               (local.set $sentinel (call $cons (global.get $false) (global.get $false)))
+               (local.set $prop-val
+                          (call $struct-type-property-lookup
+                                (local.get $type)
+                                (ref.cast (ref $StructTypeProperty)
+                                          (global.get $prop:procedure))
+                                (local.get $sentinel)))
+               (i32.eqz (ref.eq (local.get $prop-val) (local.get $sentinel))))
+
+         ;; procedure? : any/c -> boolean?
+         ;;   Recognize procedures semantically; non-applicable structs are not procedures.
          (func $procedure? (type $Prim1)
-               ,@(make-predicate-body '$Procedure))
+               (param $v (ref eq)) ;; candidate value
+               (result   (ref eq))
+               (if (i32.eqz (ref.test (ref $Procedure) (local.get $v)))
+                   (then (return (global.get $false))))
+               (if (ref.test (ref $Struct) (local.get $v))
+                   (then (return (if (result (ref eq))
+                                     (call $applicable-struct?/i32 (local.get $v))
+                                     (then (global.get $true))
+                                     (else (global.get $false))))))
+               (global.get $true))
 
          ; Notes: repacking of arguments are done in $invoke-closure,
          ;        so no repacking is needed in $apply.
@@ -48732,8 +48994,10 @@
                (local.set $i            (i32.const 0))
                (local.set $val          (global.get $null))
 
-               ;; Step 1: ensure $proc is a procedure
-               (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
+               ;; Step 1: ensure $proc is a semantic procedure. Structs are
+               ;; represented under $Procedure for fast application, but only
+               ;; structs with prop:procedure are Racket procedures.
+               (if (ref.eq (call $procedure? (local.get $proc)) (global.get $false))
                    (then (call $raise-argument-error:procedure-expected (local.get $proc))
                          (unreachable)))
                (local.set $p (ref.cast (ref $Procedure) (local.get $proc)))
@@ -49327,10 +49591,12 @@
                ; to the checked version that expects (ref $Procedure).
                (param $proc (ref eq))
                (result      (ref eq))
-               ;; 1. Check that $proc is a procedure
-               (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
-                   (then (call $raise-argument-error:procedure-expected (local.get $proc))
-                         (unreachable)))
+              ;; 1. Check that $proc is a semantic procedure. Structs are
+              ;; represented under $Procedure for fast application, but only
+              ;; structs with prop:procedure are Racket procedures.
+              (if (ref.eq (call $procedure? (local.get $proc)) (global.get $false))
+                  (then (call $raise-argument-error:procedure-expected (local.get $proc))
+                        (unreachable)))
                ;; 2. Delegate to the checked implementation
                (return_call $procedure-arity/checked
                             (ref.cast (ref $Procedure) (local.get $proc))))
@@ -49399,11 +49665,12 @@
                (local $p     (ref null $Procedure))
                (local $mask  i32)
 
-               ;; Step 1: type check and cast
-               (if (ref.test (ref $Procedure) (local.get $proc))
-                   (then (local.set $p (ref.cast (ref $Procedure) (local.get $proc))))
-                   (else (call $raise-argument-error:procedure-expected (local.get $proc))
-                         (unreachable)))
+              ;; Step 1: type check and cast. Use semantic procedure-ness so
+              ;; plain structs do not expose their internal application fields.
+              (if (ref.eq (call $procedure? (local.get $proc)) (global.get $false))
+                  (then (call $raise-argument-error:procedure-expected (local.get $proc))
+                        (unreachable)))
+              (local.set $p (ref.cast (ref $Procedure) (local.get $proc)))
                ;; Step 2: compute mask in checked helper
                (local.set $mask
                           (call $procedure-arity-mask/checked/i32
@@ -63032,6 +63299,7 @@
                (global $error-print-width-value        (mut (ref eq)) (ref.i31 (i32.const 512)))
                (global $error-print-source-location-value (mut (ref eq)) (global.get $true))
                (global $current-compile-target-machine-value (mut (ref eq)) (global.get $false))
+               (global $current-compile-realm-value (mut (ref eq)) (global.get $false))
                (global $current-parameterization-value (mut (ref eq)) (global.get $false))
                (global $error-value->string-handler-value (mut (ref eq)) (global.get $false))
                (global $error-syntax->string-handler-value (mut (ref eq)) (global.get $false))

@@ -1412,6 +1412,7 @@
        current-print
        current-environment-variables
        current-compile-target-machine
+       current-compile-realm
        system-type
        current-directory
        current-directory-for-user)
@@ -2015,6 +2016,7 @@
   integer-length
   random
   current-compile-target-machine
+  current-compile-realm
   system-big-endian?
   system-type
   version

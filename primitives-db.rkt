@@ -264,6 +264,7 @@
 (define-primitive reparameterize                           1                   (ordered))
 (define-primitive call-with-parameterization                2                   (ordered))
 (define-primitive current-code-inspector                    0                   (ordered))
+(define-primitive current-compile-realm                     [0 1]               (ordered))
 (define-primitive current-compile-target-machine            [0 1]               (ordered))
 (define-primitive unsafe-root-continuation-prompt-tag       0                   (pure))
 (define-primitive current-directory                         [0 1]               (ordered))

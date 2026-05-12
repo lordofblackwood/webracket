@@ -6,9 +6,10 @@
 // links, and instantiates with the ordinary WebRacket host import shape.
 
 import fs from 'node:fs';
+import { spawn } from 'node:child_process';
 
 function usage() {
-  console.error('usage: node --experimental-wasm-exnref webify/probe-expander-instantiate.js <expander.wasm> [--call-entry] [--expect-entry-throws] [--list-names] [--ref NAME] [--call NAME] [--call-expect-printed NAME EXPECTED] [--call-json NAME JSON-ARGS] [--call-json-expect-printed NAME JSON-ARGS EXPECTED] [--read-string TEXT] [--read-syntax-string SOURCE TEXT] [--read-syntax-datum-string SOURCE TEXT]');
+  console.error('usage: node --experimental-wasm-exnref webify/probe-expander-instantiate.js <expander.wasm> [--call-entry] [--expect-entry-throws] [--list-names] [--ref NAME] [--call NAME] [--call-expect-printed NAME EXPECTED] [--call-json NAME JSON-ARGS] [--call-json-expect-printed NAME JSON-ARGS EXPECTED] [--bounded-call-json TIMEOUT-MS NAME JSON-ARGS] [--bounded-eval-matrix TIMEOUT-MS] [--read-string TEXT] [--read-syntax-string SOURCE TEXT] [--read-syntax-phase-string SOURCE TEXT] [--read-syntax-class-string SOURCE TEXT] [--read-syntax-class-matrix SOURCE] [--read-syntax-inspect-string SOURCE TEXT] [--read-syntax-inspect-matrix SOURCE] [--read-syntax-safe-datum-string SOURCE TEXT] [--read-syntax-safe-datum-matrix SOURCE] [--read-syntax-expander-datum-string SOURCE TEXT] [--read-syntax-expander-summary-string SOURCE TEXT] [--read-syntax-procedure-shape-string SOURCE TEXT] [--read-syntax-lang-parameterized-string SOURCE TEXT] [--read-syntax-datum-string SOURCE TEXT] [--read-syntax-summary-string SOURCE TEXT] [--parameterization-pressure COUNT]');
 }
 
 const args = process.argv.slice(2);
@@ -19,9 +20,22 @@ const listNames = args.includes('--list-names');
 const refNames = [];
 const callRequests = [];
 const callJsonRequests = [];
+const boundedCallJsonRequests = [];
 const readStringRequests = [];
 const readSyntaxStringRequests = [];
+const readSyntaxPhaseStringRequests = [];
+const readSyntaxClassStringRequests = [];
+const readSyntaxInspectStringRequests = [];
+const readSyntaxSafeDatumStringRequests = [];
+const readSyntaxExpanderDatumStringRequests = [];
+const readSyntaxExpanderSummaryStringRequests = [];
+const readSyntaxProcedureShapeStringRequests = [];
+const readSyntaxLangParameterizedStringRequests = [];
 const readSyntaxDatumStringRequests = [];
+const readSyntaxSummaryStringRequests = [];
+const parameterizationPressureRequests = [];
+
+const readSyntaxMatrixTexts = ['', ' ', '42', 'a', '()', '(a)', '#lang racket\n42'];
 
 for (let i = 0; i < args.length; i++) {
   if (args[i] === '--ref') {
@@ -64,6 +78,30 @@ for (let i = 0; i < args.length; i++) {
       argsJson: args[++i],
       expectedPrinted: args[++i],
     });
+  } else if (args[i] === '--bounded-call-json') {
+    if (i + 3 >= args.length) {
+      usage();
+      process.exit(2);
+    }
+    boundedCallJsonRequests.push({
+      timeoutMs: Number(args[++i]),
+      name: args[++i],
+      argsJson: args[++i],
+    });
+  } else if (args[i] === '--bounded-eval-matrix') {
+    if (i + 1 >= args.length) {
+      usage();
+      process.exit(2);
+    }
+    const timeoutMs = Number(args[++i]);
+    for (const name of [
+      'webify-probe-eval-self-evaluating',
+      'webify-probe-eval-quoted-symbol',
+      'webify-probe-eval-primitive-app',
+      'webify-probe-eval-local-let',
+    ]) {
+      boundedCallJsonRequests.push({ timeoutMs, name, argsJson: '[]' });
+    }
   } else if (args[i] === '--read-string') {
     if (i + 1 >= args.length) {
       usage();
@@ -79,6 +117,105 @@ for (let i = 0; i < args.length; i++) {
       source: args[++i],
       text: args[++i],
     });
+  } else if (args[i] === '--read-syntax-phase-string') {
+    if (i + 2 >= args.length) {
+      usage();
+      process.exit(2);
+    }
+    readSyntaxPhaseStringRequests.push({
+      source: args[++i],
+      text: args[++i],
+    });
+  } else if (args[i] === '--read-syntax-class-string') {
+    if (i + 2 >= args.length) {
+      usage();
+      process.exit(2);
+    }
+    readSyntaxClassStringRequests.push({
+      source: args[++i],
+      text: args[++i],
+    });
+  } else if (args[i] === '--read-syntax-class-matrix') {
+    if (i + 1 >= args.length) {
+      usage();
+      process.exit(2);
+    }
+    const source = args[++i];
+    for (const text of readSyntaxMatrixTexts) {
+      readSyntaxClassStringRequests.push({ source, text });
+    }
+  } else if (args[i] === '--read-syntax-inspect-string') {
+    if (i + 2 >= args.length) {
+      usage();
+      process.exit(2);
+    }
+    readSyntaxInspectStringRequests.push({
+      source: args[++i],
+      text: args[++i],
+    });
+  } else if (args[i] === '--read-syntax-inspect-matrix') {
+    if (i + 1 >= args.length) {
+      usage();
+      process.exit(2);
+    }
+    const source = args[++i];
+    for (const text of readSyntaxMatrixTexts) {
+      readSyntaxInspectStringRequests.push({ source, text });
+    }
+  } else if (args[i] === '--read-syntax-safe-datum-string') {
+    if (i + 2 >= args.length) {
+      usage();
+      process.exit(2);
+    }
+    readSyntaxSafeDatumStringRequests.push({
+      source: args[++i],
+      text: args[++i],
+    });
+  } else if (args[i] === '--read-syntax-safe-datum-matrix') {
+    if (i + 1 >= args.length) {
+      usage();
+      process.exit(2);
+    }
+    const source = args[++i];
+    for (const text of readSyntaxMatrixTexts) {
+      readSyntaxSafeDatumStringRequests.push({ source, text });
+    }
+  } else if (args[i] === '--read-syntax-expander-datum-string') {
+    if (i + 2 >= args.length) {
+      usage();
+      process.exit(2);
+    }
+    readSyntaxExpanderDatumStringRequests.push({
+      source: args[++i],
+      text: args[++i],
+    });
+  } else if (args[i] === '--read-syntax-expander-summary-string') {
+    if (i + 2 >= args.length) {
+      usage();
+      process.exit(2);
+    }
+    readSyntaxExpanderSummaryStringRequests.push({
+      source: args[++i],
+      text: args[++i],
+    });
+  } else if (args[i] === '--read-syntax-procedure-shape-string') {
+    if (i + 2 >= args.length) {
+      usage();
+      process.exit(2);
+    }
+    readSyntaxProcedureShapeStringRequests.push({
+      source: args[++i],
+      text: args[++i],
+    });
+  } else if (args[i] === '--read-syntax-lang-parameterized-string') {
+    if (i + 2 >= args.length) {
+      usage();
+      process.exit(2);
+    }
+    readSyntaxLangParameterizedStringRequests.push({
+      source: args[++i],
+      text: args[++i],
+    });
   } else if (args[i] === '--read-syntax-datum-string') {
     if (i + 2 >= args.length) {
       usage();
@@ -88,12 +225,118 @@ for (let i = 0; i < args.length; i++) {
       source: args[++i],
       text: args[++i],
     });
+  } else if (args[i] === '--read-syntax-summary-string') {
+    if (i + 2 >= args.length) {
+      usage();
+      process.exit(2);
+    }
+    readSyntaxSummaryStringRequests.push({
+      source: args[++i],
+      text: args[++i],
+    });
+  } else if (args[i] === '--parameterization-pressure') {
+    if (i + 1 >= args.length) {
+      usage();
+      process.exit(2);
+    }
+    parameterizationPressureRequests.push(Number(args[++i]));
   }
 }
 
 if (!wasmPath) {
   usage();
   process.exit(2);
+}
+
+function hasNormalRequests() {
+  return callEntry ||
+    expectEntryThrows ||
+    listNames ||
+    refNames.length ||
+    callRequests.length ||
+    callJsonRequests.length ||
+    readStringRequests.length ||
+    readSyntaxStringRequests.length ||
+    readSyntaxPhaseStringRequests.length ||
+    readSyntaxClassStringRequests.length ||
+    readSyntaxInspectStringRequests.length ||
+    readSyntaxSafeDatumStringRequests.length ||
+    readSyntaxExpanderDatumStringRequests.length ||
+    readSyntaxExpanderSummaryStringRequests.length ||
+    readSyntaxProcedureShapeStringRequests.length ||
+    readSyntaxLangParameterizedStringRequests.length ||
+    readSyntaxDatumStringRequests.length ||
+    readSyntaxSummaryStringRequests.length ||
+    parameterizationPressureRequests.length;
+}
+
+function runBoundedCallJson(request) {
+  return new Promise((resolve) => {
+    const label = `wr-bounded-call-json-${request.name}`;
+    console.log(`${label}: start`);
+    console.log(`${label}-timeout-ms: ${request.timeoutMs}`);
+    const childArgs = [
+      '--max-old-space-size=1024',
+      '--experimental-wasm-exnref',
+      new URL(import.meta.url).pathname,
+      wasmPath,
+      '--call-entry',
+      '--call-json',
+      request.name,
+      request.argsJson,
+    ];
+    const child = spawn(process.execPath, childArgs, { stdio: ['ignore', 'pipe', 'pipe'] });
+    let stdout = '';
+    let stderr = '';
+    let timedOut = false;
+    const timer = setTimeout(() => {
+      timedOut = true;
+      child.kill('SIGKILL');
+    }, request.timeoutMs);
+    child.stdout.on('data', (chunk) => {
+      stdout += chunk.toString();
+    });
+    child.stderr.on('data', (chunk) => {
+      stderr += chunk.toString();
+    });
+    child.on('close', (code, signal) => {
+      clearTimeout(timer);
+      if (timedOut) {
+        console.log(`${label}-status: timeout`);
+        console.log(`${label}-failure-category: bounded-timeout`);
+      } else {
+        console.log(`${label}-status: exited`);
+        console.log(`${label}-exit-code: ${code}`);
+        if (signal) {
+          console.log(`${label}-signal: ${signal}`);
+        }
+      }
+      const interesting = stdout
+        .split(/\r?\n/)
+        .filter((line) =>
+          /probe:|budget-exhausted|current-procedure|debug-id|name|invocations|call-with-parameterization-wrapper-entry|call-with-parameterization-primitive-entry|application-not-procedure-frontier|binding-result-arity-frontier|expected-count|received-count|got-struct-type|got-procedure|caller-name|caller-debug-id|argc|arg0-parameterization|arg1-procedure|arg1-name|arg1-debug-id|wr-call-json-|failure-category|failure-detail|FATAL ERROR|heap out of memory|entry-call/.test(line));
+      for (const line of interesting.slice(-80)) {
+        console.log(`${label}-child: ${line}`);
+      }
+      const errLines = stderr
+        .split(/\r?\n/)
+        .filter((line) => /FATAL ERROR|heap out of memory|Allocation failed|Error/.test(line));
+      for (const line of errLines.slice(-20)) {
+        console.log(`${label}-stderr: ${line}`);
+      }
+      if (timedOut || code !== 0) {
+        process.exitCode = 1;
+      }
+      resolve();
+    });
+  });
+}
+
+if (boundedCallJsonRequests.length && !hasNormalRequests()) {
+  for (const request of boundedCallJsonRequests) {
+    await runBoundedCallJson(request);
+  }
+  process.exit(process.exitCode ?? 0);
 }
 
 if (typeof WebAssembly.Tag === 'undefined' || typeof WebAssembly.Exception === 'undefined') {
@@ -472,6 +715,18 @@ function classifyBridgeFailure(result) {
       detail: readerParameterMatch[0],
     };
   }
+  if (result.kind === 'non-fasl-result' && /#<syntax[:>]/.test(text)) {
+    return {
+      category: 'non-fasl-syntax-result',
+      detail: 'read-syntax returned a syntax-shaped value that the JS bridge cannot FASL-decode yet',
+    };
+  }
+  if (/syntax->datum: contract violation[\s\S]*expected: syntax\?[\s\S]*given: #<syntax[:>]/.test(text)) {
+    return {
+      category: 'syntax-object-representation-mismatch',
+      detail: 'read-syntax produced a syntax-shaped value that WebRacket syntax? does not recognize',
+    };
+  }
   const exnVariableMatch = /#\(struct exn:fail:contract:variable\b.*\s([^\s)]+)\)$/.exec(result.printed);
   if (exnVariableMatch) {
     return {
@@ -760,9 +1015,79 @@ for (const request of readSyntaxStringRequests) {
     [request.source, request.text]);
 }
 
+for (const request of readSyntaxPhaseStringRequests) {
+  runProbeHelper(
+    `wr-read-syntax-phase-string-${JSON.stringify(request.text)}`,
+    'webify-probe-read-syntax-phase-string',
+    [request.source, request.text]);
+}
+
+for (const request of readSyntaxClassStringRequests) {
+  runProbeHelper(
+    `wr-read-syntax-class-string-${JSON.stringify(request.text)}`,
+    'webify-probe-read-syntax-class-string',
+    [request.source, request.text]);
+}
+
+for (const request of readSyntaxInspectStringRequests) {
+  runProbeHelper(
+    `wr-read-syntax-inspect-string-${JSON.stringify(request.text)}`,
+    'webify-probe-read-syntax-inspect-string',
+    [request.source, request.text]);
+}
+
+for (const request of readSyntaxSafeDatumStringRequests) {
+  runProbeHelper(
+    `wr-read-syntax-safe-datum-string-${JSON.stringify(request.text)}`,
+    'webify-probe-read-syntax-safe-datum-string',
+    [request.source, request.text]);
+}
+
+for (const request of readSyntaxExpanderDatumStringRequests) {
+  runProbeHelper(
+    `wr-read-syntax-expander-datum-string-${JSON.stringify(request.text)}`,
+    'webify-probe-read-syntax-expander-datum-string',
+    [request.source, request.text]);
+}
+
+for (const request of readSyntaxExpanderSummaryStringRequests) {
+  runProbeHelper(
+    `wr-read-syntax-expander-summary-string-${JSON.stringify(request.text)}`,
+    'webify-probe-read-syntax-expander-summary-string',
+    [request.source, request.text]);
+}
+
+for (const request of readSyntaxProcedureShapeStringRequests) {
+  runProbeHelper(
+    `wr-read-syntax-procedure-shape-string-${JSON.stringify(request.text)}`,
+    'webify-probe-read-syntax-procedure-shape-string',
+    [request.source, request.text]);
+}
+
+for (const request of readSyntaxLangParameterizedStringRequests) {
+  runProbeHelper(
+    `wr-read-syntax-lang-parameterized-string-${JSON.stringify(request.text)}`,
+    'webify-probe-read-syntax-lang-parameterized-string',
+    [request.source, request.text]);
+}
+
 for (const request of readSyntaxDatumStringRequests) {
   runProbeHelper(
     `wr-read-syntax-datum-string-${JSON.stringify(request.text)}`,
     'webify-probe-read-syntax-datum-string',
     [request.source, request.text]);
+}
+
+for (const request of readSyntaxSummaryStringRequests) {
+  runProbeHelper(
+    `wr-read-syntax-summary-string-${JSON.stringify(request.text)}`,
+    'webify-probe-read-syntax-summary-string',
+    [request.source, request.text]);
+}
+
+for (const count of parameterizationPressureRequests) {
+  runProbeHelper(
+    `wr-parameterization-pressure-${count}`,
+    'webify-probe-parameterization-pressure-string',
+    [count]);
 }

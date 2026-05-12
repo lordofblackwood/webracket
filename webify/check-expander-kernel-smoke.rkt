@@ -56,6 +56,19 @@
          "compiled expander wasm not found: ~a"
          wasm-path))
 
+(define (check-ok-probe export-name json-args after-marker expected-datum-fragment)
+  (define-values (status output)
+    (run-probe wasm-path export-name json-args))
+  (unless (zero? status)
+    (error 'check-expander-kernel-smoke
+           "probe ~a failed with status ~a\noutput:\n~a"
+           export-name
+           status
+           output))
+  (require-output output after-marker)
+  (require-output output expected-datum-fragment)
+  (void))
+
 (define-values (quote-status quote-output)
   (run-probe wasm-path
              "webify-probe-expand-self-evaluating/direct-expand-kernel-quote"
@@ -68,15 +81,74 @@
 (require-output quote-output "probe:direct-expand-kernel-quote:after-expand")
 (require-output quote-output "(quote 42)")
 
-(define-values (datum-status datum-output)
-  (run-probe wasm-path
-             "webify-probe-expand-self-evaluating/direct-expand-kernel-datum"
-             "[]"))
-(unless (not (zero? datum-status))
-  (error 'check-expander-kernel-smoke
-         "datum probe unexpectedly succeeded; update this smoke test\noutput:\n~a"
-         datum-output))
-(reject-output datum-output "call-with-continuation-barrier")
-(require-output datum-output "application: not a procedure")
+(check-ok-probe
+ "webify-probe-expand-self-evaluating/direct-expand-kernel-datum"
+ "[]"
+ "probe:direct-expand-kernel-datum:after-expand"
+ "(quote 42)")
 
-(printf "expander-kernel-smoke: quote ok; datum frontier is application-not-procedure\n")
+(check-ok-probe
+ "webify-probe-expand-self-evaluating/direct-expand-kernel-let"
+ "[]"
+ "probe:direct-expand-kernel-let:after-expand"
+ "(#%top . let)")
+
+(check-ok-probe
+ "webify-probe-expand-self-evaluating/direct-expand-kernel-let-values"
+ "[]"
+ "probe:direct-expand-kernel-let-values:after-expand"
+ "(let-values")
+
+(check-ok-probe
+ "webify-probe-expand-self-evaluating/direct-expand-kernel-if"
+ "[]"
+ "probe:direct-expand-kernel-if:after-expand"
+ "(if (quote #t)")
+
+(check-ok-probe
+ "webify-probe-expand-self-evaluating/direct-expand-kernel-lambda"
+ "[]"
+ "probe:direct-expand-kernel-lambda:after-expand"
+ "(lambda (x) x)")
+
+(check-ok-probe
+ "webify-probe-expand-self-evaluating/direct-expand-kernel-primitive-app"
+ "[]"
+ "probe:direct-expand-kernel-primitive-app:after-expand"
+ "(#%top . +)")
+
+(define-values (compile-status compile-output)
+  (run-probe wasm-path
+             "webify-probe-expand-self-evaluating/compile-kernel-datum"
+             "[]"))
+(unless (zero? compile-status)
+  (error 'check-expander-kernel-smoke
+         "compile kernel datum probe failed with status ~a\noutput:\n~a"
+         compile-status
+         compile-output))
+(require-output compile-output "probe:compile-kernel-datum:before-compile")
+(require-output compile-output "probe:compile-kernel-datum:after-compile")
+(require-output compile-output "compile-kernel-datum:returned")
+
+(for ([probe (in-list
+              '("webify-probe-expand-self-evaluating/compile-kernel-quote"
+                "webify-probe-expand-self-evaluating/compile-kernel-let-values"
+                "webify-probe-expand-self-evaluating/compile-kernel-if"
+                "webify-probe-expand-self-evaluating/compile-kernel-lambda"
+                "webify-probe-expand-self-evaluating/compile-kernel-primitive-app"))])
+  (define marker
+    (string-replace
+     (substring probe
+                (string-length "webify-probe-expand-self-evaluating/"))
+     "/" ":"))
+  (define-values (status output) (run-probe wasm-path probe "[]"))
+  (unless (zero? status)
+    (error 'check-expander-kernel-smoke
+           "compile matrix probe ~a failed with status ~a\noutput:\n~a"
+           probe
+           status
+           output))
+  (require-output output (format "probe:~a:after-compile" marker))
+  (require-output output (format "~a:returned" marker)))
+
+(printf "expander-kernel-smoke: expansion and compile matrix ok\n")

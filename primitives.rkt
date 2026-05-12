@@ -475,6 +475,7 @@
  degrees->radians
  radians->degrees
  order-of-magnitude
+ current-compile-realm
  current-compile-target-machine
  system-big-endian?
  system-type
