@@ -8,7 +8,7 @@
 import fs from 'node:fs';
 
 function usage() {
-  console.error('usage: node --experimental-wasm-exnref webify/probe-expander-instantiate.js <expander.wasm> [--call-entry] [--expect-entry-throws] [--list-names] [--ref NAME] [--call NAME] [--call-expect-printed NAME EXPECTED] [--call-json NAME JSON-ARGS] [--call-json-expect-printed NAME JSON-ARGS EXPECTED]');
+  console.error('usage: node --experimental-wasm-exnref webify/probe-expander-instantiate.js <expander.wasm> [--call-entry] [--expect-entry-throws] [--list-names] [--ref NAME] [--call NAME] [--call-expect-printed NAME EXPECTED] [--call-json NAME JSON-ARGS] [--call-json-expect-printed NAME JSON-ARGS EXPECTED] [--read-string TEXT] [--read-syntax-string SOURCE TEXT] [--read-syntax-datum-string SOURCE TEXT]');
 }
 
 const args = process.argv.slice(2);
@@ -19,6 +19,9 @@ const listNames = args.includes('--list-names');
 const refNames = [];
 const callRequests = [];
 const callJsonRequests = [];
+const readStringRequests = [];
+const readSyntaxStringRequests = [];
+const readSyntaxDatumStringRequests = [];
 
 for (let i = 0; i < args.length; i++) {
   if (args[i] === '--ref') {
@@ -60,6 +63,30 @@ for (let i = 0; i < args.length; i++) {
       name: args[++i],
       argsJson: args[++i],
       expectedPrinted: args[++i],
+    });
+  } else if (args[i] === '--read-string') {
+    if (i + 1 >= args.length) {
+      usage();
+      process.exit(2);
+    }
+    readStringRequests.push({ text: args[++i] });
+  } else if (args[i] === '--read-syntax-string') {
+    if (i + 2 >= args.length) {
+      usage();
+      process.exit(2);
+    }
+    readSyntaxStringRequests.push({
+      source: args[++i],
+      text: args[++i],
+    });
+  } else if (args[i] === '--read-syntax-datum-string') {
+    if (i + 2 >= args.length) {
+      usage();
+      process.exit(2);
+    }
+    readSyntaxDatumStringRequests.push({
+      source: args[++i],
+      text: args[++i],
     });
   }
 }
@@ -438,7 +465,7 @@ function classifyBridgeFailure(result) {
       detail: 'reader reached port-read-handler before the runtime provided enough support',
     };
   }
-  const readerParameterMatch = /\bread-accept-[A-Za-z0-9-]+\b/.exec(text);
+  const readerParameterMatch = /\b(?:read-accept-[A-Za-z0-9-]+|read-case-sensitive)\b/.exec(text);
   if (readerParameterMatch) {
     return {
       category: 'missing-reader-parameter',
@@ -694,4 +721,42 @@ for (const request of callJsonRequests) {
     printThrown(label, err);
     process.exitCode = 1;
   }
+}
+
+function runProbeHelper(label, name, probeArgs) {
+  console.log(`${label}: start`);
+  try {
+    const result = decodeBridgeResult(
+      bridgeInvoke(instance.exports['wr-call'], [name, probeArgs]),
+      'call-json',
+      name);
+    printBridgeResult(label, result);
+    if (!result.ok) {
+      process.exitCode = 1;
+    }
+  } catch (err) {
+    printThrown(label, err);
+    process.exitCode = 1;
+  }
+}
+
+for (const request of readStringRequests) {
+  runProbeHelper(
+    `wr-read-string-${JSON.stringify(request.text)}`,
+    'webify-probe-read-string',
+    [request.text]);
+}
+
+for (const request of readSyntaxStringRequests) {
+  runProbeHelper(
+    `wr-read-syntax-string-${JSON.stringify(request.text)}`,
+    'webify-probe-read-syntax-string',
+    [request.source, request.text]);
+}
+
+for (const request of readSyntaxDatumStringRequests) {
+  runProbeHelper(
+    `wr-read-syntax-datum-string-${JSON.stringify(request.text)}`,
+    'webify-probe-read-syntax-datum-string',
+    [request.source, request.text]);
 }

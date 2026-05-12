@@ -230,6 +230,20 @@
   (visit datum (seteq))
   (sort (remove-duplicates free eq?) symbol<?))
 
+;; add-console-bridge-probe-helpers : syntax? -> syntax?
+;;   Add probe-only top-level helpers that compose retained primitives.
+(define (add-console-bridge-probe-helpers stx)
+  (datum->syntax
+   #f
+   `(begin
+      ,(syntax->datum stx)
+      (define (webify-probe-read-string text)
+        (read (open-input-string text)))
+      (define (webify-probe-read-syntax-string source text)
+        (read-syntax source (open-input-string text)))
+      (define (webify-probe-read-syntax-datum-string source text)
+        (syntax->datum (read-syntax source (open-input-string text)))))))
+
 ;; write-racket-control! : path-string? any/c -> void?
 ;;   Write a normal Racket module that controls for ordinary expansion cost.
 (define (write-racket-control! path datum)
@@ -551,20 +565,24 @@
       (timed 'clean-webified-syntax
              (lambda ()
                (datum->syntax #f (syntax->datum webified)))))
+    (define bridged-webified
+      (if (compile-console-bridge?)
+          (add-console-bridge-probe-helpers clean-webified)
+          clean-webified))
     (printf "exports: ~a\n" (length exports))
     (when (write-racket-control-path)
       (timed 'write-racket-control
              (lambda ()
                (write-racket-control!
                 (write-racket-control-path)
-                (syntax->datum clean-webified)))))
+                (syntax->datum bridged-webified)))))
     (when (write-racket-expand-control-path)
       (timed 'write-racket-expand-control
              (lambda ()
                (write-racket-expand-control!
                 (write-racket-expand-control-path)
                 (write-racket-expand-datum-path)
-                (syntax->datum clean-webified)))))
+                (syntax->datum bridged-webified)))))
     (when (skip-webracket-compile?)
       (exit 0))
     (define-values (compile-status wat-or-failure)
@@ -601,7 +619,7 @@
                                     (write-primitive-report-path)])
                       (label-map-include-form? (compile-label-map-forms?))
                       (label-map-form-labels (compile-label-map-form-labels))
-                      (define wat (wat-string (comp clean-webified)))
+                      (define wat (wat-string (comp bridged-webified)))
                       (compile-result wat
                                       (and (write-map-path)
                                            (label-map->sexp))))))))))

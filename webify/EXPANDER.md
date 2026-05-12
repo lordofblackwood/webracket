@@ -617,7 +617,48 @@ retained-primitives-matches: peek-byte-or-special peek-char-or-special read-byte
 
 This does not mean the full special-value custom-port protocol is implemented.
 The current WebRacket runtime treats these as bootstrap-compatible wrappers
-around ordinary byte/char input. The next stronger reader probe should provide
-an actual input port to `read`/`read-syntax`; `open-input-string` is not exported
-by this expander slice, so that needs either a composed in-Wasm helper or more
-of the ordinary port API available through the bridge.
+around ordinary byte/char input.
+
+## Real-Input Reader Probe
+
+The console bridge now injects three probe-only helpers into the generated
+first-slice program:
+
+```racket
+(define (webify-probe-read-string text)
+  (read (open-input-string text)))
+
+(define (webify-probe-read-syntax-string source text)
+  (read-syntax source (open-input-string text)))
+
+(define (webify-probe-read-syntax-datum-string source text)
+  (syntax->datum (read-syntax source (open-input-string text))))
+```
+
+This keeps `open-input-string` composition inside Wasm even though
+`open-input-string` is not an expander export. The JS probe exposes these via
+`--read-string`, `--read-syntax-string`, and
+`--read-syntax-datum-string`.
+
+The empty real-input smoke succeeds:
+
+```text
+wr-read-string-""-status: ok
+wr-read-string-""-kind: value
+wr-read-string-""-value: <eof>
+```
+
+Non-empty real-input smokes now fail in a classified way:
+
+```text
+wr-read-string-"42"-status: failed
+wr-read-string-"42"-kind: exception
+wr-read-string-"42"-failure-category: missing-reader-parameter
+wr-read-string-"42"-failure-detail: read-case-sensitive
+wr-read-string-"42"-printed: #(struct exn:fail:contract:variable #<undefined> #f read-case-sensitive)
+```
+
+The same `read-case-sensitive` failure appears for symbols, lists, raw
+`read-syntax`, and `syntax->datum` of `read-syntax`. So the current reader
+boundary is no longer bridge composition or EOF handling; it is the next reader
+parameter shared with the printer layer.
