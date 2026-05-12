@@ -133,6 +133,43 @@
  "probe:direct-expand-kernel-primitive-app:after-expand"
  "(#%top . +)")
 
+(check-ok-probe
+ "webify-probe-expand-self-evaluating/ordinary-kernel-datum"
+ "[]"
+ "probe:ordinary-kernel-datum:after-expand"
+ "(quote 42)")
+
+(check-ok-probe
+ "webify-probe-expand-self-evaluating/ordinary-kernel-primitive-app"
+ "[]"
+ "probe:ordinary-kernel-primitive-app:after-expand"
+ "(#%app + (quote 1) (quote 2))")
+
+(check-ok-probe
+ "webify-probe-expand-self-evaluating/ordinary-kernel-if"
+ "[]"
+ "probe:ordinary-kernel-if:after-expand"
+ "(if (quote #t) (quote 1) (quote 2))")
+
+(define-values (ordinary-binding-status ordinary-binding-output)
+  (run-probe wasm-path
+             "webify-probe-expand-self-evaluating/ordinary-kernel-binding-audit"
+             "[]"))
+(unless (zero? ordinary-binding-status)
+  (error 'check-expander-kernel-smoke
+         "ordinary binding audit failed with status ~a\noutput:\n~a"
+         ordinary-binding-status
+         ordinary-binding-output))
+(require-output ordinary-binding-output "probe:ordinary-kernel-binding-audit:after-require")
+(require-output ordinary-binding-output "(#%datum #t)")
+(for ([fragment (in-list '("(#%app #t)"
+                           "(quote #t)"
+                           "(if #t)"
+                           "(lambda #t)"
+                           "(let-values #t)"
+                           "(+ #t)"))])
+  (require-output ordinary-binding-output fragment))
+
 (define-values (compile-status compile-output)
   (run-probe wasm-path
              "webify-probe-expand-self-evaluating/compile-kernel-datum"
@@ -185,4 +222,4 @@
    "failure-detail: exception-handler-key"
    "heap out of memory"))
 
-(printf "expander-kernel-smoke: kernel matrix ok; ordinary syntax reaches literal-data frontier\n")
+(printf "expander-kernel-smoke: kernel matrix and ordinary #%kernel namespace probes ok\n")

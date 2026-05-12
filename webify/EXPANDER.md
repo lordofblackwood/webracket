@@ -2154,3 +2154,44 @@ The next useful milestone is to feed ordinary syntax through a namespace that
 has the expected datum/core bindings, or to add a focused probe that expands a
 non-literal ordinary form whose bindings are known to be present. Kernel syntax
 is already green; ordinary source syntax now reaches a real expander error path.
+
+Follow-up: ordinary syntax through a kernel namespace
+----------------------------------------------------
+
+The focused ordinary-syntax path is now green. The key detail from upstream
+Racket is that a fresh expander namespace does not automatically bind
+`#%datum`, `#%app`, `quote`, `if`, `lambda`, `let-values`, or `+`. The working
+recipe is:
+
+```racket
+(namespace-require '(quote #%kernel) ns)
+(namespace-syntax-introduce (datum->syntax #f datum) ns)
+```
+
+Webify now has focused probes for that recipe:
+
+```text
+ordinary-kernel-binding-audit:
+  ((#%datum #t) (#%app #t) (quote #t) (if #t)
+   (lambda #t) (let-values #t) (+ #t))
+
+ordinary-kernel-datum:
+  (quote 42)
+
+ordinary-kernel-primitive-app:
+  (#%app + (quote 1) (quote 2))
+
+ordinary-kernel-if:
+  (if (quote #t) (quote 1) (quote 2))
+```
+
+The runtime blocker uncovered by this probe was `hash-ref-key`, which the
+expander uses while interning phase-and-space keys. WebRacket now implements
+`hash-ref-key` as a real primitive for mutable hashes and for the current
+immutable HAMT representation, including the normal failure/default behavior.
+
+The older `full-expander-syntax/invoke-budget` probe is intentionally still a
+negative smoke: it feeds bare ordinary syntax into the current namespace without
+the explicit `#%kernel` require/introduction step, so it should keep reaching
+the fast `literal data is not allowed` frontier instead of regressing to OOM,
+arity failures, or missing bootstrap values.

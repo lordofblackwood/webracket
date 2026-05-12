@@ -1226,6 +1226,7 @@
        drop-common-prefix
        split-common-prefix
        hash-ref
+       hash-ref-key
        hash-update!
        random
        flrandom
@@ -1273,7 +1274,7 @@
          [(variable-reference->instance) 1]
          [(assoc group-by member remove remove* index-of indexes-of
                  list-prefix? take-common-prefix drop-common-prefix split-common-prefix
-                 hash-ref real->floating-point-bytes vector-sort! vector-sort
+                 hash-ref hash-ref-key real->floating-point-bytes vector-sort! vector-sort
                  ) 2]
          [(hash-update!) 3]
         [(random flrandom unsafe-flrandom make-semaphore) 0]
@@ -1284,7 +1285,7 @@
        (case name
          [(vector-copy! string-copy! bytes-copy!) 5]
          [(substring subbytes vector-copy vector->values vector-extend
-                       procedure-rename hash-ref) 3]
+                       procedure-rename hash-ref hash-ref-key) 3]
          [(string-utf-8-length) 3]
          [(bytes->string/utf-8 bytes->string/latin-1 bytes-utf-8-length) 4]
          [(string->number datum->syntax) 5]
@@ -2266,6 +2267,7 @@
   hash-equal-always?
   
   hash-ref
+  hash-ref-key
   hash-set
   hash-remove
   hash-ref!

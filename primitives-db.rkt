@@ -497,6 +497,7 @@
 (define-primitive hash-map                                  [2 3]               (ordered))
 (define-primitive hash-map/copy                             [2 3]               (ordered))
 (define-primitive hash-ref                                  [2 3]               (ordered))
+(define-primitive hash-ref-key                              [2 3]               (ordered))
 (define-primitive hash-ref!                                 3                   (ordered))
 (define-primitive hash                                      at-least-0          (allocates))
 (define-primitive hashalw                                   at-least-0          (allocates))

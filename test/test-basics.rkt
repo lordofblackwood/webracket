@@ -4356,6 +4356,28 @@
                                 (equal? (hash-ref h 'b 2) 2)
                                 (equal? (hash-ref h 'b (lambda () 3)) 3)))))
 
+              (list "hash-ref-key"
+                    (and (let ([h (make-hasheq)])
+                           (hash-set! h 'a 1)
+                           (and (eq? (hash-ref-key h 'a) 'a)
+                                (equal? (hash-ref-key h 'missing 'fallback) 'fallback)
+                                (equal? (hash-ref-key h 'missing (lambda () 'thunked)) 'thunked)))
+                         (let ([h (make-hasheqv)])
+                           (hash-set! h 10 'ten)
+                           (and (equal? (hash-ref-key h 10) 10)
+                                (equal? (hash-ref-key h 11 'fallback) 'fallback)))
+                         (let ([h (make-hash)])
+                           (hash-set! h 'a 1)
+                           (and (eq? (hash-ref-key h 'a) 'a)
+                                (equal? (hash-ref-key h 'missing 'fallback) 'fallback)))
+                         (let ([h (make-hashalw)])
+                           (hash-set! h 'a 1)
+                           (and (eq? (hash-ref-key h 'a) 'a)
+                                (equal? (hash-ref-key h 'missing 'fallback) 'fallback)))
+                         (let ([h (hasheqv 1 'one 2 'two)])
+                           (and (equal? (hash-ref-key h 1) 1)
+                                (equal? (hash-ref-key h 3 'fallback) 'fallback)))))
+
               (list "hash-ref!"
                     (and (let ([h (make-hasheq)])
                            (hash-set! h 'a 1)
