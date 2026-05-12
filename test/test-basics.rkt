@@ -5867,6 +5867,12 @@
                            [count (write-string "héllo" port 1 4)])
                       (and (equal? count 3)
                            (equal? (get-output-string port) "éll"))))
+
+              (list "fprintf/bootstrap"
+                    (let ([port (open-output-string)])
+                      (and (void? (fprintf port "value=~a symbol=~s~n" 42 'ok))
+                           (equal? (get-output-string port)
+                                   "value=42 symbol=ok\n"))))
               ))
 
 

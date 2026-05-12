@@ -53184,6 +53184,24 @@
 
                (call $i32growable-array->immutable-string (local.get $out)))
 
+         ;; fprintf : output-port? string? any/c ... -> void?
+         ;;   Bootstrap formatter: format into a string, write it to the port,
+         ;;   and return void. The supported escapes are inherited from $format.
+         (func $fprintf (type $Prim>=2)
+               (param $out     (ref eq)) ;; output-port?
+               (param $fmt-raw (ref eq)) ;; format string
+               (param $args    (ref eq)) ;; rest values
+               (result         (ref eq))
+
+               (drop (call $write-string
+                           (call $format
+                                 (local.get $fmt-raw)
+                                 (local.get $args))
+                           (local.get $out)
+                           (global.get $missing)
+                           (global.get $missing)))
+               (global.get $void))
+
          (func $format/display
                (param $v (ref eq))
                (result   (ref $String))

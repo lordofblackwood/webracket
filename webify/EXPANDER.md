@@ -660,21 +660,29 @@ wr-read-string-"(a b)"-kind: value
 wr-read-string-"(a b)"-printed: (a b)
 ```
 
-The syntax reader is now the boundary. A raw `read-syntax` result currently
-throws an unclassified Wasm exception in the bridge, while asking the helper to
-immediately convert the syntax result to a datum reaches a missing helper:
+The syntax reader is now the boundary. After adding a bootstrap `fprintf`,
+the raw `read-syntax` result still throws before the bridge can decode the
+syntax object, but the probe now classifies that as a raw syntax-result
+boundary. Asking the helper to immediately convert the syntax result to a datum
+continues farther and exposes the next missing binding:
 
 ```text
 wr-read-syntax-string-"42": threw
-wr-read-syntax-string-"42"-failure-category: wasm-exception
-wr-read-syntax-string-"42"-failure-detail: unclassified wasm exception
+wr-read-syntax-string-"42"-failure-category: raw-read-syntax-wasm-exception
+wr-read-syntax-string-"42"-failure-detail: raw syntax-object result threw before bridge decoding; use --read-syntax-datum-string to expose the next runtime dependency
 
 wr-read-syntax-datum-string-"42"-status: failed
 wr-read-syntax-datum-string-"42"-kind: exception
 wr-read-syntax-datum-string-"42"-failure-category: unbound-variable
-wr-read-syntax-datum-string-"42"-failure-detail: fprintf
+wr-read-syntax-datum-string-"42"-failure-detail: print-syntax-width
 ```
 
 So the current reader boundary is no longer bridge composition, EOF handling,
-special input, or `read-case-sensitive`; it is syntax-object/source-location
-handling that reaches `fprintf`.
+special input, `read-case-sensitive`, or formatted output. It is
+syntax-object/source-location printing that reaches `print-syntax-width`.
+
+The primitive report confirms the shape of that boundary. `fprintf` is now
+present in the program-root, runtime-root, and retained primitive sets. Grepping
+the same report for `print-syntax-width` finds no primitive entry, so that name
+is currently best treated as a provider/top-level dependency of the syntax
+printing path rather than a new primitive-db entry.

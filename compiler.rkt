@@ -1085,7 +1085,7 @@
       make-instance instance-set-variable-value! instance-variable-value
       make-prefab-struct
       hash hasheq hasheqv hashalw
-      format
+      format fprintf
       string-append-immutable string-append* bytes-append*)
     ; - kind
     'variadic
@@ -1097,6 +1097,7 @@
              flmin flmax unsafe-flmin unsafe-flmax
              fxmin fxmax unsafe-fxmin unsafe-fxmax
              append* string-append* bytes-append* list* format) 1]
+        [(fprintf) 2]
         [(unsafe-fxand unsafe-fxior unsafe-fxxor) 1]
         [(symbol<? keyword<? path<?
                    string=? string<? string<=? string>? string>=?
@@ -1113,6 +1114,7 @@
         [(apply list*) 1]
         [(vector-count map andmap ormap append-map count for-each vector-map vector-map! filter-map
                        instance-variable-value) 2]
+        [(fprintf) 2]
         [(foldl foldr instance-set-variable-value!) 3]
         [(+ * unsafe-fx+ unsafe-fx* compose compose1 cartesian-product string-append-immutable gcd lcm hash hasheq hasheqv hashalw) 0]
         [else 1])))
@@ -1651,6 +1653,7 @@
   raise-read-error
   raise-read-eof-error
   format
+  fprintf
 
   exn
   exn?

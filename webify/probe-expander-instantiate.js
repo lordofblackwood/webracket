@@ -518,6 +518,9 @@ function printThrown(label, err) {
     console.log(`${label}-foreign-exception?: ${err.is?.(foreignErrorTag) ?? false}`);
     if (err.is?.(foreignErrorTag)) {
       console.log(`${label}-foreign-exception-arg0: ${err.getArg(foreignErrorTag, 0)}`);
+    } else if (label.startsWith('wr-read-syntax-string-')) {
+      console.log(`${label}-failure-category: raw-read-syntax-wasm-exception`);
+      console.log(`${label}-failure-detail: raw syntax-object result threw before bridge decoding; use --read-syntax-datum-string to expose the next runtime dependency`);
     } else {
       console.log(`${label}-failure-category: wasm-exception`);
       console.log(`${label}-failure-detail: unclassified wasm exception`);

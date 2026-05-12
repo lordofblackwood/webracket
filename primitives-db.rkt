@@ -426,6 +426,7 @@
 (define-primitive flush-output                              [0 1]               (ordered))
 (define-primitive foldl                                     at-least-3          (ordered))
 (define-primitive foldr                                     at-least-3          (ordered))
+(define-primitive fprintf                                   at-least-2          (ordered allocates))
 (define-primitive format                                    at-least-1          (ordered allocates))
 (define-primitive for-each                                  at-least-2          (ordered))
 (define-primitive fourteenth                                1                   (pure restricted))
