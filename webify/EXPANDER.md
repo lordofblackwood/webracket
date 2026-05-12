@@ -565,3 +565,43 @@ The next useful milestone is to localize which operation inside `boot` raises
 the undefined exception. The likely candidates are the startup handlers that
 `boot` installs (`seal`, module-name resolver, load/use-compiled, reader guard,
 eval, compile, load, and read-interaction), not the bridge lookup layer.
+
+## Startup Probe Progress
+
+The current startup probe gets through `entry` and `boot`, and bridge calls can
+observe several opaque runtime values by their printed form:
+
+```text
+wr-call-read-installation-configuration-table-status: ok
+wr-call-read-installation-configuration-table-kind: printed-hash-result
+wr-call-read-installation-configuration-table-printed: #hash()
+
+wr-call-current-namespace-status: ok
+wr-call-current-namespace-kind: printed-opaque-result
+wr-call-current-namespace-printed: #<namespace>
+
+wr-call-make-namespace-status: ok
+wr-call-make-namespace-kind: printed-opaque-result
+wr-call-make-namespace-printed: #<namespace>
+```
+
+The reader entry points are now visible, but they are not yet usable through a
+simple host-side `wr-call` smoke:
+
+```text
+wr-ref-read-status: ok
+wr-ref-read-syntax-status: ok
+
+wr-call-read-status: failed
+wr-call-read-kind: exception
+wr-call-read-printed: #(struct exn:fail:contract:variable #<undefined> #f port-read-handler)
+
+wr-call-read-syntax-status: failed
+wr-call-read-syntax-kind: exception
+wr-call-read-syntax-printed: #(struct exn:fail:contract:variable #<undefined> #f port-read-handler)
+```
+
+That points at the reader parameter layer, not missing `read` or `read-syntax`
+bindings. Also, `open-input-string` is not exported by this expander slice, so a
+direct host-side `(read (open-input-string ...))` probe needs either a composed
+in-Wasm helper or more of the ordinary port API available through the bridge.
