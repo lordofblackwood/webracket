@@ -314,7 +314,7 @@ function runBoundedCallJson(request) {
       const interesting = stdout
         .split(/\r?\n/)
         .filter((line) =>
-          /probe:|budget-exhausted|current-procedure|debug-id|name|invocations|call-with-parameterization-wrapper-entry|call-with-parameterization-primitive-entry|application-not-procedure-frontier|binding-result-arity-frontier|expected-count|received-count|got-struct-type|got-procedure|caller-name|caller-debug-id|argc|arg0-parameterization|arg1-procedure|arg1-name|arg1-debug-id|wr-call-json-|failure-category|failure-detail|FATAL ERROR|heap out of memory|entry-call/.test(line));
+          /probe:|budget-exhausted|current-procedure|debug-id|name|invocations|call-with-parameterization-wrapper-entry|call-with-parameterization-primitive-entry|application-not-procedure-frontier|binding-result-arity-frontier|procedure-arity-frontier|expected-count|received-count|got-struct-type|got-procedure|caller-name|caller-debug-id|argc|arg0-parameterization|arg1-procedure|arg1-name|arg1-debug-id|wr-call-json-|failure-category|failure-detail|FATAL ERROR|heap out of memory|entry-call/.test(line));
       for (const line of interesting.slice(-80)) {
         console.log(`${label}-child: ${line}`);
       }

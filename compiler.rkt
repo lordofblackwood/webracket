@@ -757,6 +757,7 @@
     empty-treelist
 
     break-enabled-key
+    exception-handler-key
     parameterization-key
 
     struct:exn

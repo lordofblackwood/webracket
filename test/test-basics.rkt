@@ -6563,6 +6563,8 @@
                                (hash-ref paramz 'parameterization-key #f))
                           (eq? (hash-ref paramz 'break-enabled-key #f)
                                (hash-ref paramz 'break-enabled-key #f))
+                          (eq? (hash-ref paramz 'exception-handler-key #f)
+                               (hash-ref paramz 'exception-handler-key #f))
                           (procedure? (hash-ref paramz 'reparameterize #f))
                           (procedure? (hash-ref paramz 'cache-configuration #f))
                           (equal? ((hash-ref paramz 'reparameterize) 'paramz)

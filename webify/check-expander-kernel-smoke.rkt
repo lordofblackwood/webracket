@@ -69,6 +69,22 @@
   (require-output output expected-datum-fragment)
   (void))
 
+;; check-failing-probe : string? string? (listof string?) (listof string?) -> void?
+;;   Require a known frontier failure and reject old internal failure modes.
+(define (check-failing-probe export-name json-args required-fragments rejected-fragments)
+  (define-values (status output)
+    (run-probe wasm-path export-name json-args))
+  (when (zero? status)
+    (error 'check-expander-kernel-smoke
+           "probe ~a unexpectedly succeeded\noutput:\n~a"
+           export-name
+           output))
+  (for ([fragment (in-list required-fragments)])
+    (require-output output fragment))
+  (for ([fragment (in-list rejected-fragments)])
+    (reject-output output fragment))
+  (void))
+
 (define-values (quote-status quote-output)
   (run-probe wasm-path
              "webify-probe-expand-self-evaluating/direct-expand-kernel-quote"
@@ -151,4 +167,22 @@
   (require-output output (format "probe:~a:after-compile" marker))
   (require-output output (format "~a:returned" marker)))
 
-(printf "expander-kernel-smoke: expansion and compile matrix ok\n")
+(check-failing-probe
+ "webify-probe-expand-self-evaluating/full-expander-syntax/invoke-budget"
+ "[20000]"
+ '("probe:full-expander-syntax/invoke-budget:before-expand"
+   "failure-detail: ?: literal data is not allowed;")
+ '("procedure-arity-frontier"
+   "failure-detail: exception-handler-key"
+   "heap out of memory"))
+
+(check-failing-probe
+ "webify-probe-expand-self-evaluating/compile-expander-syntax/invoke-budget"
+ "[20000]"
+ '("probe:compile-expander-syntax/invoke-budget:before-compile"
+   "failure-detail: ?: literal data is not allowed;")
+ '("procedure-arity-frontier"
+   "failure-detail: exception-handler-key"
+   "heap out of memory"))
+
+(printf "expander-kernel-smoke: kernel matrix ok; ordinary syntax reaches literal-data frontier\n")

@@ -887,8 +887,7 @@ representation internally, and expose selected summaries through expander-owned
 operations. It avoids the previous OOM and avoids treating expander syntax as a
 WebRacket `$Syntax` value.
 
-The procedure-shape probe explains the odd `procedure?` result well enough to
-make it actionable:
+The procedure-shape probe originally exposed an odd `procedure?` result:
 
 ```text
 wr-read-syntax-procedure-shape-string-"42"-printed:
@@ -900,11 +899,11 @@ wr-read-syntax-procedure-shape-string-"42"-printed:
 ```
 
 The expander source does not attach `prop:procedure` to its `syntax` struct.
-Since `struct->vector` reports `struct:syntax`, but WebRacket also reports a
-zero-arity procedure, this is likely a WebRacket struct-property/procedure
-classification bug for extracted structs, not an intentional expander syntax
-feature. The next core-runtime follow-up should be to audit how WebRacket
-decides that a struct value is callable.
+This was a WebRacket predicate bug: `$Struct` is represented as a subtype of
+`$Procedure` so callable structs can be invoked quickly, but public
+`procedure?` must still mean "ordinary procedure or struct with
+`prop:procedure`." The runtime now checks non-applicable structs semantically,
+so plain expander structs report `(procedure? #f)`.
 
 The `#lang` probe also got sharper. Reinstalling `read-accept-lang` with the
 poor-man parameterization does not change the result:
@@ -2007,29 +2006,151 @@ syntax-level and shallow; a full `syntax->datum` scan over every lifted label
 made closure conversion jump from about 7 seconds to about 112 seconds on the
 expander bundle.
 
-A stable smoke checker now captures the current frontier:
+A stable smoke checker captures the current kernel-expansion frontier:
 
 ```text
 racket webify/check-expander-kernel-smoke.rkt /private/tmp/webracket-expander-startup.wasm
 ```
 
 It verifies that the kernel quote probe still expands to `(quote 42)`, and
-that the datum probe has moved past `call-with-continuation-barrier`. The
-current datum frontier is:
+that both the kernel datum and small kernel `let` probes run to completion.
+The datum probe now returns expander syntax whose expander-owned
+`maybe-syntax->datum` summary is `(quote 42)`.
 
 ```text
-failure-category: bridge-call-failure
-failure-detail: application: not a procedure;
+webify-probe-expand-self-evaluating/direct-expand-kernel-datum
+  probe:direct-expand-kernel-datum:after-expand
+  expander-maybe-syntax->datum: (quote 42)
 ```
 
-The slightly larger kernel `let` probe reaches the same frontier:
+The old plain `let` probe also returns expander syntax, but it is not a good
+"core let" proof:
 
 ```text
 webify-probe-expand-self-evaluating/direct-expand-kernel-let
   before-kernel-syntax
   before-expand
-  failure-detail: application: not a procedure;
+  after-expand
+  expander-maybe-syntax->datum:
+    (#%app (#%top . let) (#%app (#%app (#%top . x) (quote 1))) (#%top . x))
 ```
 
-So the next milestone is no longer a missing primitive. It is identifying which
-value the expander is attempting to apply as a procedure on the datum/let path.
+That shape is expected for this probe: `let` is source syntax, while the kernel
+core form is `let-values`. The current stable expansion matrix therefore uses
+real kernel forms in addition to the plain-`let` sanity marker:
+
+```text
+direct-expand-kernel-quote:         (quote 42)
+direct-expand-kernel-datum:         (quote 42)
+direct-expand-kernel-let:           (#%app (#%top . let) ...)
+direct-expand-kernel-let-values:    (let-values (((x) (quote 1))) x)
+direct-expand-kernel-if:            (if (quote #t) (quote yes) (quote no))
+direct-expand-kernel-lambda:        (lambda (x) x)
+direct-expand-kernel-primitive-app: (#%app (#%top . +) (quote 1) (quote 2))
+```
+
+The root cause of the previous `application: not a procedure` frontier was
+`procedure?` returning true for all structs. In the expander, `transformer?`
+uses `(procedure? t)` before the core-form path. Since `core-form` is a plain
+struct, WebRacket misclassified it as an ordinary transformer and later tried
+to apply the `core-form` record itself. Fixing semantic `procedure?` lets the
+expander dispatch through `core-form-expander` as intended.
+
+Compile now reaches a later frontier. Adding `current-compile-realm` as a
+parameterized bootstrap primitive moved `compile-kernel-datum` past the missing
+primitive failure:
+
+```text
+webify-probe-expand-self-evaluating/compile-kernel-datum
+  probe:compile-kernel-datum:before-kernel-syntax
+  probe:compile-kernel-datum:before-compile
+  failure-detail: raise-binding-result-arity-error: result arity mismatch;
+```
+
+So the next frontier is no longer expansion of small kernel forms. It is the
+compiler path's binding result arity handling.
+
+Follow-up: compile bridge and ordinary syntax frontier
+------------------------------------------------------
+
+The binding-result arity frontier has been cleared for the focused kernel
+compile path. `compile-linklet`/`recompile-linklet` now preserve the Racket CS
+two-value protocol when import keys are supplied, and linklet-shaped datums
+produce metadata-only compiled-linklet placeholders. The stable smoke matrix now
+checks both expansion and compile for small kernel forms:
+
+```text
+compile-kernel-datum:         returned
+compile-kernel-quote:         returned
+compile-kernel-let-values:    returned
+compile-kernel-if:            returned
+compile-kernel-lambda:        returned
+compile-kernel-primitive-app: returned
+```
+
+The next non-kernel probe initially failed with:
+
+```text
+procedure-arity-frontier
+debug-id: label.102809
+expected-count: 2
+received-count: 0
+```
+
+The focused label map identified `label.102809` as the body procedure created
+inside the expander's `call-handled-body` helper:
+
+```racket
+(lambda (bpz body-thunk)
+  ... (body-thunk))
+```
+
+The root cause was Webify's temporary prompt lowering:
+
+```racket
+(call-with-continuation-prompt thunk tag handler arg ...)
+```
+
+was lowered to:
+
+```racket
+(thunk)
+```
+
+That was too aggressive. Even while WebRacket treats prompts as a bootstrap
+no-op, Racket still applies the prompt thunk to the arguments after the prompt
+tag and handler. The lowering now preserves those arguments:
+
+```racket
+(call-with-continuation-prompt thunk tag handler x y)
+;; =>
+(thunk x y)
+```
+
+After that fix, the next failure was an unbound `exception-handler-key`. It is
+now bootstrapped like `break-enabled-key` and `parameterization-key`: a stable
+symbol value is installed in the `#%paramz` primitive table and in the runtime
+constant environment. This keeps continuation-mark key evaluation intact
+without pretending that full continuation marks are implemented.
+
+The current smoke frontier is intentionally sharper:
+
+```text
+webify-probe-expand-self-evaluating/full-expander-syntax/invoke-budget:
+  before-expand
+  failure-detail: ?: literal data is not allowed;
+
+webify-probe-expand-self-evaluating/compile-expander-syntax/invoke-budget:
+  before-compile
+  failure-detail: ?: literal data is not allowed;
+```
+
+That is the same kind of fast source-expander error seen in upstream Racket for
+bare ordinary syntax `42` in this namespace: no `#%datum` transformer is bound.
+The important regression guard is that this path no longer OOMs, no longer hits
+the old procedure arity frontier, and no longer fails on `exception-handler-key`.
+
+The next useful milestone is to feed ordinary syntax through a namespace that
+has the expected datum/core bindings, or to add a focused probe that expands a
+non-literal ordinary form whose bindings are known to be present. Kernel syntax
+is already green; ordinary source syntax now reaches a real expander error path.

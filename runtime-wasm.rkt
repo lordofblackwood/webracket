@@ -2042,6 +2042,7 @@
     (add-runtime-symbol-constant 'arg1-debug-id)
     (add-runtime-symbol-constant 'application-not-procedure-frontier)
     (add-runtime-symbol-constant 'binding-result-arity-frontier)
+    (add-runtime-symbol-constant 'procedure-arity-frontier)
     (add-runtime-symbol-constant 'expected-count)
     (add-runtime-symbol-constant 'received-count)
     (add-runtime-symbol-constant 'got-struct-type)
@@ -2061,6 +2062,7 @@
     (add-runtime-string-constant 'wr:unsafe-undefined-exception "bridge call raised #<unsafe-undefined>")
     (add-runtime-string-constant 'arity-at-least?            "arity-at-least?")
     (add-runtime-symbol-constant 'break-enabled-key)
+    (add-runtime-symbol-constant 'exception-handler-key)
     (add-runtime-symbol-constant 'parameterization-key)
     (add-runtime-symbol-constant 'namespace)
     
@@ -3682,6 +3684,7 @@
               (param $proc (ref $Procedure))
               (param $argc i32)
               (local $name         (ref eq))
+              (local $debug-id     (ref eq))
               (local $expected-str (ref $String))
               (local $received-str (ref $String))
               (local $out          (ref $GrowableArray))
@@ -3689,11 +3692,45 @@
 
               (local.set $name
                          (struct.get $Procedure $name (local.get $proc)))
+              (local.set $debug-id (global.get $false))
+              (if (ref.test (ref $Closure) (local.get $proc))
+                  (then
+                   (local.set $debug-id
+                              (struct.get $Closure $debug-id
+                                          (ref.cast (ref $Closure) (local.get $proc))))))
 
               (local.set $expected-str
                          (call $procedure-arity->expected-string (local.get $proc)))
               (local.set $received-str
                          (call $i32->string (local.get $argc)))
+
+              (if (i32.gt_u (global.get $debug-invoke-budget) (i32.const 0))
+                  (then
+                   (drop (call $js-log (global.get $symbol:procedure-arity-frontier)))
+                   (drop (call $js-log
+                               (call $cons
+                                     (call $cons (global.get $symbol:name)
+                                           (call $cons (local.get $name)
+                                                 (global.get $null)))
+                                     (global.get $null))))
+                   (drop (call $js-log
+                               (call $cons
+                                     (call $cons (global.get $symbol:debug-id)
+                                           (call $cons (local.get $debug-id)
+                                                 (global.get $null)))
+                                     (global.get $null))))
+                   (drop (call $js-log
+                               (call $cons
+                                     (call $cons (global.get $symbol:expected-count)
+                                           (call $cons (local.get $expected-str)
+                                                 (global.get $null)))
+                                     (global.get $null))))
+                   (drop (call $js-log
+                               (call $cons
+                                     (call $cons (global.get $symbol:received-count)
+                                           (call $cons (local.get $received-str)
+                                                 (global.get $null)))
+                                     (global.get $null))))))
 
               (local.set $out
                          (call $make-growable-array (i32.const 5)))
@@ -34678,6 +34715,10 @@
                      (global.get $symbol:break-enabled-key))
                (call $hasheq-set!/mutable/checked
                      (local.get $table)
+                     (global.get $symbol:exception-handler-key)
+                     (global.get $symbol:exception-handler-key))
+               (call $hasheq-set!/mutable/checked
+                     (local.get $table)
                      (global.get $symbol:parameterization-key)
                      (global.get $symbol:parameterization-key))
                (local.get $table))
@@ -63328,6 +63369,7 @@
                (global $equal+hash-recur/equal-always (mut (ref eq)) (global.get $void))
                (global $equal+hash-recur/hash         (mut (ref eq)) (global.get $void))
                (global $break-enabled-key             (mut (ref eq)) (global.get $void))
+               (global $exception-handler-key         (mut (ref eq)) (global.get $void))
                (global $parameterization-key          (mut (ref eq)) (global.get $void))
                (global $cache-configuration-values    (mut (ref eq)) (global.get $void))
                (global $debug-allocation-budget        (mut i32)      (i32.const 0))
@@ -63407,6 +63449,8 @@
                      ,@(initialize-runtime-symbol-constants)
                      (global.set $break-enabled-key
                                  (global.get $symbol:break-enabled-key))
+                     (global.set $exception-handler-key
+                                 (global.get $symbol:exception-handler-key))
                      (global.set $parameterization-key
                                  (global.get $symbol:parameterization-key))
                      (global.set $current-parameterization-value

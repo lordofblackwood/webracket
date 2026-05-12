@@ -92,8 +92,15 @@
         ''webracket-continuation-prompt-tag]
        [`(make-continuation-prompt-tag ,name)
         (lower name)]
-       [`(call-with-continuation-prompt ,thunk . ,_args)
-        `(,(lower thunk))]
+      [`(call-with-continuation-prompt ,thunk . ,args)
+       ;; WebRacket has no prompt/control substrate yet, but Racket still
+       ;; applies the prompt thunk to arguments after the tag and handler.
+       ;; Preserving those arguments keeps expander helper thunks arity-correct.
+       (define thunk-args
+         (if (>= (length args) 2)
+             (cddr args)
+             '()))
+       `(,(lower thunk) ,@(map lower thunk-args))]
        [`(unsafe-make-place-local ,value)
         `(box ,(lower value))]
        [`(unsafe-place-local-ref ,cell)
@@ -333,6 +340,10 @@
 (define (lower-trivial-continuation-marks v)
   (define (lower v)
     (match v
+      [`(with-continuation-mark* ,_mode parameterization-key ,val ,body)
+       `(call-with-parameterization
+         ,(lower val)
+         (lambda () ,(lower body)))]
       [`(with-continuation-mark* ,_mode ,key ,val ,body)
        (define key-id (gensym 'ignored-continuation-mark-key))
        (define val-id (gensym 'ignored-continuation-mark-val))

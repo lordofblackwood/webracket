@@ -119,6 +119,9 @@
                  '(call-with-continuation-prompt thunk tag handler))
                 '(thunk))
   (check-equal? (lower-trivial-continuation-prompts
+                 '(call-with-continuation-prompt thunk tag handler x y))
+                '(thunk x y))
+  (check-equal? (lower-trivial-continuation-prompts
                  '(unsafe-place-local-ref (unsafe-make-place-local value)))
                 '(unbox (box value)))
   (check-equal? (lower-trivial-continuation-prompts
@@ -160,6 +163,13 @@
                 '(#f #f 1)))
 
 (test-case "continuation mark lowering preserves key and value effects"
+  (check-equal?
+   (lower-trivial-continuation-marks
+    '(with-continuation-mark* push
+       parameterization-key
+       paramz
+       body))
+   '(call-with-parameterization paramz (lambda () body)))
   (check-equal?
    (eval
     `(let ([seen '()])
