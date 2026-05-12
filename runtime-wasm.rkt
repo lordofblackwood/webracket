@@ -36615,16 +36615,36 @@
                   (then (call $raise-argument-error:hash-expected)
                         (unreachable)))
 
-              ;; Dispatch on table type
-              (if (ref.test (ref $HashEqMutable) (local.get $ht))
-                  (then (return (call $hasheq->list (local.get $ht) (local.get $try)))))
-              (if (ref.test (ref $HashEqvMutable) (local.get $ht))
-                  (then (return (call $hasheqv->list (local.get $ht) (local.get $try)))))
-              (if (ref.test (ref $HashEqualMutable) (local.get $ht))
-                  (then (return (call $hashequal->list (local.get $ht) (local.get $try)))))
-              (if (ref.test (ref $HashEqualAlwaysMutable) (local.get $ht))
-                  (then (return (call $hashalw->list (local.get $ht) (local.get $try)))))
-              (unreachable))
+              ;; Use the general hash-iteration entry points. Despite their
+              ;; historical mutable-* names, they now handle immutable hashes
+              ;; too, and keep hash->list aligned with printer traversal.
+              (return_call $hash->list/generic (local.get $ht)))
+
+        (func $hash->list/generic
+              (param $ht (ref eq)) ;; hash table
+              (result    (ref eq)) ;; list of pairs
+
+              (local $pos  (ref eq))
+              (local $pair (ref eq))
+              (local $acc  (ref eq))
+
+              (local.set $pos (call $mutable-hash-iterate-first (local.get $ht)))
+              (local.set $acc (global.get $null))
+              (block $done
+                     (loop $walk
+                           (br_if $done (ref.eq (local.get $pos) (global.get $false)))
+                           (local.set $pair
+                                      (call $mutable-hash-iterate-pair
+                                            (local.get $ht)
+                                            (local.get $pos)
+                                            (global.get $missing)))
+                           (local.set $acc (call $cons (local.get $pair) (local.get $acc)))
+                           (local.set $pos
+                                      (call $mutable-hash-iterate-next
+                                            (local.get $ht)
+                                            (local.get $pos)))
+                           (br $walk)))
+              (local.get $acc))
 
         
         ,@(for/list ([hash->list       '($hasheq->list

@@ -4401,6 +4401,14 @@
                           (and (equal? (sort (hash->list h)    <<) expected)
                                (equal? (sort (hash->list h #t) <<) expected))))))
 
+              (list "immutable hash->list"
+                    (let ([<< (λ (x y) (symbol<? (car x) (car y)))])
+                      (let* ([empty    (hash)]
+                             [h        (hash 'a 1 'b 2)]
+                             [expected (list (cons 'a 1) (cons 'b 2))])
+                        (and (equal? (hash->list empty) '())
+                             (equal? (sort (hash->list h) <<) expected)))))
+
               (list "hash-for-each"
                     (let ([<< (λ (x y) (< (car x) (car y)))])
                       (let ([h   (make-hasheq)]
