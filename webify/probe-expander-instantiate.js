@@ -429,11 +429,44 @@ function decodeBridgeResult(raw, operation, name) {
   };
 }
 
+function classifyBridgeFailure(result) {
+  const text = `${result.kind}\n${result.printed}\n${result.error}`;
+
+  if (/\bport-read-handler\b/.test(text)) {
+    return {
+      category: 'missing-port-read-handler',
+      detail: 'reader reached port-read-handler before the runtime provided enough support',
+    };
+  }
+  const readerParameterMatch = /\bread-accept-[A-Za-z0-9-]+\b/.exec(text);
+  if (readerParameterMatch) {
+    return {
+      category: 'missing-reader-parameter',
+      detail: readerParameterMatch[0],
+    };
+  }
+  const unboundMatch = /(?:unbound|undefined|reference to undefined identifier)[^A-Za-z0-9_.-]*([A-Za-z0-9_.:/?+*<>=!-]+)/i.exec(text);
+  if (unboundMatch) {
+    return {
+      category: 'unbound-variable',
+      detail: unboundMatch[1],
+    };
+  }
+  return {
+    category: 'bridge-call-failure',
+    detail: result.error || result.printed || result.kind,
+  };
+}
+
 function printBridgeResult(label, result) {
   console.log(`${label}-status: ${result.ok ? 'ok' : 'failed'}`);
   console.log(`${label}-kind: ${result.kind}`);
   if (result.ok) {
     console.log(`${label}-value: ${formatJsValue(result.value)}`);
+  } else {
+    const failure = classifyBridgeFailure(result);
+    console.log(`${label}-failure-category: ${failure.category}`);
+    console.log(`${label}-failure-detail: ${failure.detail}`);
   }
   if (result.printed) {
     console.log(`${label}-printed: ${result.printed}`);

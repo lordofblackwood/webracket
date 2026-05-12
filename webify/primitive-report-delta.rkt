@@ -10,6 +10,8 @@
 ;;   Summarize one expander primitive report, or compare it with a baseline.
 
 (define limit 25)
+(define grep-text #f)
+(define selected-section #f)
 
 (define report-sections
   '(program-root-primitives
@@ -19,6 +21,11 @@
 
 (define (symbol<?* a b)
   (string<? (symbol->string a) (symbol->string b)))
+
+(define (active-report-sections)
+  (if selected-section
+      (list selected-section)
+      report-sections))
 
 (define (read-report path)
   (call-with-input-file path read))
@@ -41,6 +48,13 @@
       [(list key value) (values key value)]
       [_ (values 'unknown entry)])))
 
+(define (grep-match? name)
+  (or (not grep-text)
+      (string-contains? (symbol->string name) grep-text)))
+
+(define (filter-names names)
+  (filter grep-match? names))
+
 (define (show-list names)
   (define sorted (sort names symbol<?*))
   (define shown (take sorted (min limit (length sorted))))
@@ -57,10 +71,15 @@
                retained-count
                isolated-count)])
     (printf "~a: ~a\n" key (hash-ref summary key 'unknown)))
-  (for ([section (in-list report-sections)])
+  (for ([section (in-list (active-report-sections))])
+    (define names (report-list report section))
+    (define filtered (filter-names names))
     (printf "~a-list-count: ~a\n"
             section
-            (length (report-list report section)))))
+            (length names))
+    (when grep-text
+      (printf "~a-match-count: ~a\n" section (length filtered))
+      (printf "~a-matches: ~a\n" section (show-list filtered)))))
 
 (define (set-diff xs ys)
   (define ys-set (for/hash ([y (in-list ys)]) (values y #t)))
@@ -69,11 +88,11 @@
 (define (print-delta old-path old-report new-path new-report)
   (printf "baseline: ~a\n" old-path)
   (printf "current: ~a\n" new-path)
-  (for ([section (in-list report-sections)])
+  (for ([section (in-list (active-report-sections))])
     (define old (report-list old-report section))
     (define new (report-list new-report section))
-    (define added (set-diff new old))
-    (define removed (set-diff old new))
+    (define added (filter-names (set-diff new old)))
+    (define removed (filter-names (set-diff old new)))
     (printf "~a-added-count: ~a\n" section (length added))
     (printf "~a-added: ~a\n" section (show-list added))
     (printf "~a-removed-count: ~a\n" section (length removed))
@@ -86,6 +105,18 @@
    [("--limit") n
                 "maximum names to show per delta list"
                 (set! limit (string->number n))]
+   [("--grep") text
+               "only show names containing text in section lists and deltas"
+               (set! grep-text text)]
+   [("--section") section
+                  "only show one primitive report section"
+                  (define sym (string->symbol section))
+                  (unless (memq sym report-sections)
+                    (raise-user-error 'primitive-report-delta
+                                      "unknown section ~a; expected one of ~a"
+                                      section
+                                      report-sections))
+                  (set! selected-section sym)]
    #:args paths
    paths))
 
