@@ -15,7 +15,9 @@
                   label-map->sexp
                   label-map-form-labels
                   primitives)
-         (only-in "../parameters.rkt" current-console-bridge?)
+         (only-in "../parameters.rkt"
+                  current-console-bridge?
+                  current-runtime-primitive-report-path)
          "../wat-identifiers.rkt"
          "module-diagnostics.rkt"
          "test-module-support.rkt")
@@ -42,6 +44,7 @@
 (define write-racket-expand-control-path (make-parameter #f))
 (define write-racket-expand-datum-path (make-parameter #f))
 (define write-map-path                 (make-parameter #f))
+(define write-primitive-report-path    (make-parameter #f))
 (define write-wat-path                 (make-parameter #f))
 (define write-wasm-path                (make-parameter #f))
 (define validate-wat?                  (make-parameter #f))
@@ -473,6 +476,9 @@
  [("--write-map") path
   "Write the compiler label map to path"
   (write-map-path path)]
+ [("--write-primitive-report") path
+  "Write the runtime primitive reachability report to path"
+  (write-primitive-report-path path)]
  [("--write-wat") path
   "Write the compiled expander WAT to path"
   (write-wat-path path)]
@@ -590,7 +596,9 @@
                                    [current-console-bridge?
                                     (compile-console-bridge?)]
                                    [current-console-bridge-top-binding-names
-                                    exports])
+                                    exports]
+                                   [current-runtime-primitive-report-path
+                                    (write-primitive-report-path)])
                       (label-map-include-form? (compile-label-map-forms?))
                       (label-map-form-labels (compile-label-map-form-labels))
                       (define wat (wat-string (comp clean-webified)))
@@ -622,6 +630,10 @@
            #:exists 'replace)
          (printf "compile-map-path: ~a\n" (write-map-path))
          (printf "compile-map-bytes: ~a\n" (file-size (write-map-path))))
+       (when (write-primitive-report-path)
+         (printf "compile-primitive-report-path: ~a\n" (write-primitive-report-path))
+         (printf "compile-primitive-report-bytes: ~a\n"
+                 (file-size (write-primitive-report-path))))
        (when (or (write-wat-path)
                  (write-wasm-path)
                  (validate-wat?))
