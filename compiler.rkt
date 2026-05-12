@@ -1669,6 +1669,7 @@
   raise
   raise-unbound-variable-reference
   raise-argument-error
+  raise-arguments-error
   raise-read-error
   raise-read-eof-error
   format
@@ -18289,6 +18290,15 @@
                                        ,(AExpr (first ae1)) ,(AExpr (second ae1)))]
                  [(fl+ fl- fl*) `(call ,(Prim pr)
                                        ,(AExpr (first ae1)) ,(AExpr (second ae1)))]
+                 [(raise-arguments-error)
+                  (let* ([aes (AExpr* ae1)]
+                         [n   (length aes)])
+                    (if (primitive-arity-accepts? sym n)
+                        `(call ,(Prim pr)
+                               ,(list-ref aes 0)
+                               ,(list-ref aes 1)
+                               ,(generated-args-array 0 '()))
+                        (primapp-arity-error sym aes)))]
                  ; / needs to signal an Racket error if denominator is zero
                  [else   (let ([aes (AExpr* ae1)])
                            (if (primitive-arity-accepts? sym 2)
@@ -18330,6 +18340,15 @@
                                ,(list-ref aes 1)
                                ,(list-ref aes 2)
                                ,(generated-args-array (- n 3) (drop aes 3)))
+                        (primapp-arity-error sym aes)))]
+                 [(raise-arguments-error)
+                  (let* ([aes (AExpr* ae1)]
+                         [n   (length aes)])
+                    (if (primitive-arity-accepts? sym n)
+                        `(call ,(Prim pr)
+                               ,(list-ref aes 0)
+                               ,(list-ref aes 1)
+                               ,(generated-args-array (- n 2) (drop aes 2)))
                         (primapp-arity-error sym aes)))]
                  [else
                   ;; Without arity checks, this is simply:

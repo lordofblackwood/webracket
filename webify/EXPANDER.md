@@ -2195,3 +2195,76 @@ negative smoke: it feeds bare ordinary syntax into the current namespace without
 the explicit `#%kernel` require/introduction step, so it should keep reaching
 the fast `literal data is not allowed` frontier instead of regressing to OOM,
 arity failures, or missing bootstrap values.
+
+Follow-up: ordinary compile and namespace frontier
+--------------------------------------------------
+
+The next five-probe slice keeps three lanes separate:
+
+* direct kernel syntax still expands and compiles;
+* ordinary syntax works after an explicit `#%kernel` require/introduction step;
+* `racket/base` namespace setup is tracked as its own frontier.
+
+The ordinary binding-shape probe now reports more than booleans. It shows which
+required identifiers are core forms and which are runtime bindings:
+
+```text
+ordinary-kernel-binding-shapes:
+  (#%datum    module-binding core? #t runtime? #f)
+  (#%app      module-binding core? #t runtime? #f)
+  (quote      module-binding core? #t runtime? #f)
+  (if         module-binding core? #t runtime? #f)
+  (lambda     module-binding core? #t runtime? #f)
+  (let-values module-binding core? #t runtime? #f)
+  (+          module-binding core? #f runtime? #t)
+```
+
+That gives the probe a cheap regression guard for "namespace has the right
+shape", not merely "some binding exists".
+
+The ordinary compile lane is now green for the small forms:
+
+```text
+compile-ordinary-kernel-datum:         returned
+compile-ordinary-kernel-primitive-app: returned
+compile-ordinary-kernel-if:            returned
+compile-ordinary-kernel-lambda:        returned
+```
+
+This is stronger than the earlier expansion-only result. It means WebRacket can
+feed ordinary source syntax through `namespace-require '(quote #%kernel)`,
+introduce it with the expander namespace, and reach the expander's `compile`
+entry successfully for these small forms.
+
+The tiny eval probe is intentionally still negative, but it now fails after the
+compile step:
+
+```text
+eval-ordinary-kernel-primitive-app:
+  probe:eval-compile:after-compile
+  failure-category: bridge-call-failure
+  failure-detail: #f: arity mismatch;
+```
+
+So the eval frontier is no longer ordinary syntax binding or compile. It is the
+bridge/evaluator call shape used after compilation.
+
+The `racket/base` namespace setup probe also moved. The first attempt exposed
+a missing `raise-arguments-error` primitive. WebRacket now has a bootstrap
+implementation and the compiler lowers its rest arguments through the same
+`$Args` convention used by other variadic primitives, including the exact
+two-argument case where the rest array is empty.
+
+After that fix, `racket/base` no longer stops on an unbound
+`raise-arguments-error`. The current frontier is:
+
+```text
+racket-base-require:
+  probe:racket-base-require:before-require
+  failure-category: bridge-call-failure
+  failure-detail: require: contract violation
+```
+
+That is a better next problem: the require path is now executing far enough to
+raise an ordinary contract error, not failing because a bootstrap exception
+primitive is absent or miscompiled.

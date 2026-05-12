@@ -951,6 +951,7 @@
  prop:exn:srclocs
  raise
  raise-argument-error
+ raise-arguments-error
  raise-binding-result-arity-error
  raise-definition-result-arity-error
  ; raise-unbound-variable-reference

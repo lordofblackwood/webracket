@@ -726,6 +726,7 @@
         treelist-append
         module-call-with-prompt
         raise-argument-error
+        raise-arguments-error
         vector-immutable
         values
         void))
@@ -23256,6 +23257,34 @@
                      (local.get $who)
                      (local.get $expected)
                      (local.get $got))
+               (unreachable))
+
+         ;; raise-arguments-error : symbol? string? any/c ... -> none
+         ;;   Report a multi-argument contract error. WebRacket currently
+         ;;   omits field/value detail formatting, but preserves the
+         ;;   non-returning exn:fail:contract behavior that bootstrap code
+         ;;   relies on.
+         (func $raise-arguments-error (type $Prim>=2)
+               (param $who     (ref eq)) ;; symbol?
+               (param $message (ref eq)) ;; string?
+               (param $rest    (ref eq)) ;; ignored field/value details
+               (result         (ref eq)) ;; unreachable
+               (local $out          (ref $GrowableArray))
+               (local $full-message (ref $String))
+               (local.set $out (call $make-growable-array (i32.const 3)))
+               (call $growable-array-add! (local.get $out)
+                     (call $format/display (local.get $who)))
+               (call $growable-array-add! (local.get $out)
+                     (global.get $string:contract-violation:prefix))
+               (call $growable-array-add! (local.get $out)
+                     (call $format/display (local.get $message)))
+               (local.set $full-message
+                          (call $growable-array-of-strings->string (local.get $out)))
+               (drop (call $raise
+                           (call $exn:fail:contract/make
+                                 (local.get $full-message)
+                                 (call $current-continuation-marks (global.get $missing)))
+                           (global.get $true)))
                (unreachable))
 
          (func $raise-expected-fixnum (param $x (ref eq)) (unreachable))

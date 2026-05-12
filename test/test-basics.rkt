@@ -6291,6 +6291,14 @@
                        (raise-argument-error 'demo "string?" 0 42 'extra)
                        #f)])
                 (and plain indexed)))
+
+        (list "raise-arguments-error"
+              (with-handlers ([exn:fail:contract?
+                               (lambda (exn)
+                                 (and (exn:fail:contract? exn)
+                                      (string? (exn-message exn))))])
+                (raise-arguments-error 'demo "bad pair" "left" 1 "right" 2)
+                #f))
         
         (list "raise-read-error"
               (let* ([basic

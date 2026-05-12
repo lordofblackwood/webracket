@@ -170,6 +170,25 @@
                            "(+ #t)"))])
   (require-output ordinary-binding-output fragment))
 
+(define-values (ordinary-binding-shapes-status ordinary-binding-shapes-output)
+  (run-probe wasm-path
+             "webify-probe-expand-self-evaluating/ordinary-kernel-binding-shapes"
+             "[]"))
+(unless (zero? ordinary-binding-shapes-status)
+  (error 'check-expander-kernel-smoke
+         "ordinary binding shape probe failed with status ~a\noutput:\n~a"
+         ordinary-binding-shapes-status
+         ordinary-binding-shapes-output))
+(require-output ordinary-binding-shapes-output "probe:ordinary-kernel-binding-shapes:after-require")
+(for ([fragment (in-list '("(#%datum (module-binding (internal #%datum) (external #%datum) (core? #t) (runtime? #f)))"
+                           "(#%app (module-binding (internal #%app) (external #%app) (core? #t) (runtime? #f)))"
+                           "(quote (module-binding (internal quote) (external quote) (core? #t) (runtime? #f)))"
+                           "(if (module-binding (internal if) (external if) (core? #t) (runtime? #f)))"
+                           "(lambda (module-binding (internal lambda) (external lambda) (core? #t) (runtime? #f)))"
+                           "(let-values (module-binding (internal let-values) (external let-values) (core? #t) (runtime? #f)))"
+                           "(+ (module-binding (internal +) (external +) (core? #f) (runtime? #t)))"))])
+  (require-output ordinary-binding-shapes-output fragment))
+
 (define-values (compile-status compile-output)
   (run-probe wasm-path
              "webify-probe-expand-self-evaluating/compile-kernel-datum"
@@ -204,6 +223,47 @@
   (require-output output (format "probe:~a:after-compile" marker))
   (require-output output (format "~a:returned" marker)))
 
+(for ([probe (in-list
+              '("webify-probe-expand-self-evaluating/compile-ordinary-kernel-datum"
+                "webify-probe-expand-self-evaluating/compile-ordinary-kernel-primitive-app"
+                "webify-probe-expand-self-evaluating/compile-ordinary-kernel-if"
+                "webify-probe-expand-self-evaluating/compile-ordinary-kernel-lambda"))])
+  (define marker
+    (string-replace
+     (substring probe
+                (string-length "webify-probe-expand-self-evaluating/"))
+     "/" ":"))
+  (define-values (status output) (run-probe wasm-path probe "[]"))
+  (unless (zero? status)
+    (error 'check-expander-kernel-smoke
+           "ordinary compile matrix probe ~a failed with status ~a\noutput:\n~a"
+           probe
+           status
+           output))
+  (require-output output (format "probe:~a:after-compile" marker))
+  (require-output output (format "~a:returned" marker)))
+
+(check-failing-probe
+ "webify-probe-expand-self-evaluating/eval-ordinary-kernel-primitive-app"
+ "[]"
+ '("probe:eval-ordinary-kernel-primitive-app:before-eval"
+   "probe:eval-compile:after-compile"
+   "failure-category: bridge-call-failure"
+   "failure-detail: #f: arity mismatch;")
+ '("heap out of memory"
+   "literal data is not allowed"
+   "exception-handler-key"))
+
+(check-failing-probe
+ "webify-probe-expand-self-evaluating/racket-base-require"
+ "[]"
+ '("probe:racket-base-require:before-require"
+   "failure-category: bridge-call-failure"
+   "failure-detail: require: contract violation")
+ '("raise-arguments-error"
+   "heap out of memory"
+   "exception-handler-key"))
+
 (check-failing-probe
  "webify-probe-expand-self-evaluating/full-expander-syntax/invoke-budget"
  "[20000]"
@@ -222,4 +282,4 @@
    "failure-detail: exception-handler-key"
    "heap out of memory"))
 
-(printf "expander-kernel-smoke: kernel matrix and ordinary #%kernel namespace probes ok\n")
+(printf "expander-kernel-smoke: kernel, ordinary #%kernel, and racket/base frontier probes ok\n")
