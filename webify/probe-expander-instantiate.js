@@ -8,7 +8,7 @@
 import fs from 'node:fs';
 
 function usage() {
-  console.error('usage: node --experimental-wasm-exnref webify/probe-expander-instantiate.js <expander.wasm> [--call-entry] [--expect-entry-throws] [--list-names] [--ref NAME] [--call NAME] [--call-json NAME JSON-ARGS] [--call-json-expect-printed NAME JSON-ARGS EXPECTED]');
+  console.error('usage: node --experimental-wasm-exnref webify/probe-expander-instantiate.js <expander.wasm> [--call-entry] [--expect-entry-throws] [--list-names] [--ref NAME] [--call NAME] [--call-expect-printed NAME EXPECTED] [--call-json NAME JSON-ARGS] [--call-json-expect-printed NAME JSON-ARGS EXPECTED]');
 }
 
 const args = process.argv.slice(2);
@@ -17,7 +17,7 @@ const callEntry = args.includes('--call-entry');
 const expectEntryThrows = args.includes('--expect-entry-throws');
 const listNames = args.includes('--list-names');
 const refNames = [];
-const callNames = [];
+const callRequests = [];
 const callJsonRequests = [];
 
 for (let i = 0; i < args.length; i++) {
@@ -32,7 +32,16 @@ for (let i = 0; i < args.length; i++) {
       usage();
       process.exit(2);
     }
-    callNames.push(args[++i]);
+    callRequests.push({ name: args[++i] });
+  } else if (args[i] === '--call-expect-printed') {
+    if (i + 2 >= args.length) {
+      usage();
+      process.exit(2);
+    }
+    callRequests.push({
+      name: args[++i],
+      expectedPrinted: args[++i],
+    });
   } else if (args[i] === '--call-json') {
     if (i + 2 >= args.length) {
       usage();
@@ -295,6 +304,12 @@ function formatJsValue(v) {
   if (v && v.tag === 'path') {
     return `#<${v.prefix}:${v.bytes}>`;
   }
+  if (v && v.tag === 'hash') {
+    if (v.entries.length === 0) {
+      return `${v.prefix}()`;
+    }
+    return `${v.prefix}(${v.entries.map(formatJsValue).join(' ')})`;
+  }
   if (v instanceof Uint8Array) {
     return `#<bytes ${v.length}>`;
   }
@@ -335,6 +350,22 @@ function parsePrintedPathValue(text) {
   return tokens.map(parsePath);
 }
 
+function parsePrintedHashValue(text) {
+  const match = /^(#(?:hash|hasheq|hasheqv|hashalw))\((.*)\)$/.exec(text);
+  if (!match) {
+    return null;
+  }
+  const body = match[2].trim();
+  if (body !== '') {
+    return null;
+  }
+  return { tag: 'hash', prefix: match[1], entries: [] };
+}
+
+function parsePrintedNonFaslValue(text) {
+  return parsePrintedPathValue(text) ?? parsePrintedHashValue(text);
+}
+
 function bridgeInvoke(exported, payload) {
   const fasl = jsValueToFasl(payload);
   if (fasl.length > CALLBACK_BUFFER_LENGTH) {
@@ -364,12 +395,12 @@ function decodeBridgeResult(raw, operation, name) {
     'The callback attempted to return a WebRacket value with no JavaScript equivalent (i.e. without a FASL encoding): ';
   if (!ok && formattedKind === 'non-fasl-result' && formattedError.startsWith(nonFaslPrefix)) {
     const resultText = formattedError.slice(nonFaslPrefix.length);
-    const pathValue = parsePrintedPathValue(resultText);
-    if (pathValue) {
+    const printedValue = parsePrintedNonFaslValue(resultText);
+    if (printedValue) {
       return {
         ok: true,
-        kind: 'printed-path-result',
-        value: pathValue,
+        kind: `printed-${printedValue.tag}-result`,
+        value: printedValue,
         printed: resultText,
         error: '',
         operation,
@@ -556,15 +587,24 @@ for (const name of refNames) {
   }
 }
 
-for (const name of callNames) {
-  const label = `wr-call-${name}`;
+for (const request of callRequests) {
+  const label = `wr-call-${request.name}`;
   console.log(`${label}: start`);
   try {
     const result = decodeBridgeResult(
-      bridgeInvoke(instance.exports['wr-call'], [name, []]),
+      bridgeInvoke(instance.exports['wr-call'], [request.name, []]),
       'call',
-      name);
+      request.name);
     printBridgeResult(label, result);
+    if (request.expectedPrinted !== undefined) {
+      if (result.printed === request.expectedPrinted) {
+        console.log(`${label}-expect-printed: ok`);
+      } else {
+        console.log(`${label}-expect-printed: failed`);
+        console.log(`${label}-expected-printed: ${request.expectedPrinted}`);
+        process.exitCode = 1;
+      }
+    }
     if (!result.ok) {
       process.exitCode = 1;
     }
