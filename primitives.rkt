@@ -216,6 +216,7 @@
          read-accept-dot
          read-accept-infix-dot
          read-accept-quasiquote
+         read-case-sensitive
          reset-current-input-port!
          reset-current-output-port!
          reset-current-error-port!
@@ -3022,6 +3023,7 @@
 (define read-accept-dot         (make-parameter #t))
 (define read-accept-infix-dot   (make-parameter #t))
 (define read-accept-quasiquote  (make-parameter #t))
+(define read-case-sensitive     (make-parameter #t))
 
 (define (write-linklet-bundle-hash bundle out)
   (write bundle out))

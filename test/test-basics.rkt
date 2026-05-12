@@ -5120,7 +5120,8 @@
                            [graph      (read-accept-graph)]
                            [dot        (read-accept-dot)]
                            [infix-dot  (read-accept-infix-dot)]
-                           [quasiquote (read-accept-quasiquote)])
+                           [quasiquote (read-accept-quasiquote)]
+                           [case-sens  (read-case-sensitive)])
                        (and (boolean? reader)
                             (boolean? lang)
                             (boolean? compiled)
@@ -5130,9 +5131,13 @@
                             (boolean? dot)
                             (boolean? infix-dot)
                             (boolean? quasiquote)
+                            (boolean? case-sens)
                             (void? (read-accept-reader #f))
                             (equal? (read-accept-reader) #f)
-                            (void? (read-accept-reader reader)))))
+                            (void? (read-accept-reader reader))
+                            (void? (read-case-sensitive #f))
+                            (equal? (read-case-sensitive) #f)
+                            (void? (read-case-sensitive case-sens)))))
 
                (list "close-input-port/custom-close-order"
                      (let ([port #f])

@@ -1387,6 +1387,7 @@
        read-accept-dot
        read-accept-infix-dot
        read-accept-quasiquote
+       read-case-sensitive
        error-value->string-handler
        error-syntax->string-handler
        error-syntax->name-handler
@@ -2140,6 +2141,7 @@
   read-accept-dot
   read-accept-infix-dot
   read-accept-quasiquote
+  read-case-sensitive
   error-value->string-handler
   error-syntax->string-handler
   error-syntax->name-handler

@@ -281,6 +281,7 @@
 (define-primitive read-accept-dot                           [0 1]               (ordered))
 (define-primitive read-accept-infix-dot                     [0 1]               (ordered))
 (define-primitive read-accept-quasiquote                    [0 1]               (ordered))
+(define-primitive read-case-sensitive                       [0 1]               (ordered))
 (define-primitive custom-write-accessor                     [1 2]               (ordered))
 (define-primitive custom-write?                             1                   (pure))
 (define-primitive datum->correlated                         [1 2 3]             (ordered))

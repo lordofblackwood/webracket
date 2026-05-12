@@ -518,6 +518,9 @@ function printThrown(label, err) {
     console.log(`${label}-foreign-exception?: ${err.is?.(foreignErrorTag) ?? false}`);
     if (err.is?.(foreignErrorTag)) {
       console.log(`${label}-foreign-exception-arg0: ${err.getArg(foreignErrorTag, 0)}`);
+    } else {
+      console.log(`${label}-failure-category: wasm-exception`);
+      console.log(`${label}-failure-detail: unclassified wasm exception`);
     }
   }
   if (err?.stack) {

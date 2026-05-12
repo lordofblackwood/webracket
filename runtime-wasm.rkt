@@ -2003,6 +2003,7 @@
     (add-runtime-symbol-constant 'read-accept-dot)
     (add-runtime-symbol-constant 'read-accept-infix-dot)
     (add-runtime-symbol-constant 'read-accept-quasiquote)
+    (add-runtime-symbol-constant 'read-case-sensitive)
     (add-runtime-string-constant 'wr-kind:value              "value")
     (add-runtime-string-constant 'wr-kind:missing-binding    "missing-binding")
     (add-runtime-string-constant 'wr-kind:not-procedure      "not-procedure")
@@ -57352,7 +57353,8 @@
                                     $read-accept-graph
                                     $read-accept-dot
                                     $read-accept-infix-dot
-                                    $read-accept-quasiquote)]
+                                    $read-accept-quasiquote
+                                    $read-case-sensitive)]
                              [symbol '($symbol:read-accept-reader
                                        $symbol:read-accept-lang
                                        $symbol:read-accept-compiled
@@ -57361,7 +57363,8 @@
                                        $symbol:read-accept-graph
                                        $symbol:read-accept-dot
                                        $symbol:read-accept-infix-dot
-                                       $symbol:read-accept-quasiquote)]
+                                       $symbol:read-accept-quasiquote
+                                       $symbol:read-case-sensitive)]
                              [global '($read-accept-reader-value
                                        $read-accept-lang-value
                                        $read-accept-compiled-value
@@ -57370,7 +57373,8 @@
                                        $read-accept-graph-value
                                        $read-accept-dot-value
                                        $read-accept-infix-dot-value
-                                       $read-accept-quasiquote-value)])
+                                       $read-accept-quasiquote-value
+                                       $read-case-sensitive-value)])
                    `(func ,name (type $Prim01)
                           (param $v (ref eq)) ;; optional boolean?
                           (result   (ref eq))
@@ -61851,6 +61855,7 @@
                (global $read-accept-dot-value          (mut (ref eq)) (global.get $true))
                (global $read-accept-infix-dot-value    (mut (ref eq)) (global.get $true))
                (global $read-accept-quasiquote-value   (mut (ref eq)) (global.get $true))
+               (global $read-case-sensitive-value      (mut (ref eq)) (global.get $true))
                (global $error-value->string-handler-value (mut (ref eq)) (global.get $false))
                (global $error-syntax->string-handler-value (mut (ref eq)) (global.get $false))
                (global $error-syntax->name-handler-value (mut (ref eq)) (global.get $false))

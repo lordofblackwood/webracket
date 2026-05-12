@@ -640,25 +640,41 @@ This keeps `open-input-string` composition inside Wasm even though
 `--read-string`, `--read-syntax-string`, and
 `--read-syntax-datum-string`.
 
-The empty real-input smoke succeeds:
+After adding `read-case-sensitive`, plain `read` works for basic real input:
 
 ```text
 wr-read-string-""-status: ok
 wr-read-string-""-kind: value
 wr-read-string-""-value: <eof>
+
+wr-read-string-"42"-status: ok
+wr-read-string-"42"-kind: value
+wr-read-string-"42"-value: 42
+
+wr-read-string-"abc"-status: ok
+wr-read-string-"abc"-kind: value
+wr-read-string-"abc"-value: abc
+
+wr-read-string-"(a b)"-status: ok
+wr-read-string-"(a b)"-kind: value
+wr-read-string-"(a b)"-printed: (a b)
 ```
 
-Non-empty real-input smokes now fail in a classified way:
+The syntax reader is now the boundary. A raw `read-syntax` result currently
+throws an unclassified Wasm exception in the bridge, while asking the helper to
+immediately convert the syntax result to a datum reaches a missing helper:
 
 ```text
-wr-read-string-"42"-status: failed
-wr-read-string-"42"-kind: exception
-wr-read-string-"42"-failure-category: missing-reader-parameter
-wr-read-string-"42"-failure-detail: read-case-sensitive
-wr-read-string-"42"-printed: #(struct exn:fail:contract:variable #<undefined> #f read-case-sensitive)
+wr-read-syntax-string-"42": threw
+wr-read-syntax-string-"42"-failure-category: wasm-exception
+wr-read-syntax-string-"42"-failure-detail: unclassified wasm exception
+
+wr-read-syntax-datum-string-"42"-status: failed
+wr-read-syntax-datum-string-"42"-kind: exception
+wr-read-syntax-datum-string-"42"-failure-category: unbound-variable
+wr-read-syntax-datum-string-"42"-failure-detail: fprintf
 ```
 
-The same `read-case-sensitive` failure appears for symbols, lists, raw
-`read-syntax`, and `syntax->datum` of `read-syntax`. So the current reader
-boundary is no longer bridge composition or EOF handling; it is the next reader
-parameter shared with the printer layer.
+So the current reader boundary is no longer bridge composition, EOF handling,
+special input, or `read-case-sensitive`; it is syntax-object/source-location
+handling that reaches `fprintf`.
