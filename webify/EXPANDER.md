@@ -585,8 +585,13 @@ wr-call-make-namespace-kind: printed-opaque-result
 wr-call-make-namespace-printed: #<namespace>
 ```
 
-The reader entry points are now visible, but they are not yet usable through a
-simple host-side `wr-call` smoke:
+The reader entry points are visible through the bridge. The bridge must call
+`entry` before `wr-call`; otherwise, bridge name conversion can run before the
+startup path initializes enough runtime state and null-deref while converting
+the requested export name to a symbol.
+
+After the bootstrap `port-read-handler` getter and reader accept parameters
+were added, the reader smoke moved past the old `port-read-handler` failure:
 
 ```text
 wr-ref-read-status: ok
@@ -594,14 +599,19 @@ wr-ref-read-syntax-status: ok
 
 wr-call-read-status: failed
 wr-call-read-kind: exception
-wr-call-read-printed: #(struct exn:fail:contract:variable #<undefined> #f port-read-handler)
+wr-call-read-failure-category: unbound-variable
+wr-call-read-failure-detail: read-char-or-special
+wr-call-read-printed: #(struct exn:fail:contract:variable #<undefined> #f read-char-or-special)
 
 wr-call-read-syntax-status: failed
 wr-call-read-syntax-kind: exception
-wr-call-read-syntax-printed: #(struct exn:fail:contract:variable #<undefined> #f port-read-handler)
+wr-call-read-syntax-failure-category: unbound-variable
+wr-call-read-syntax-failure-detail: read-char-or-special
+wr-call-read-syntax-printed: #(struct exn:fail:contract:variable #<undefined> #f read-char-or-special)
 ```
 
-That points at the reader parameter layer, not missing `read` or `read-syntax`
-bindings. Also, `open-input-string` is not exported by this expander slice, so a
-direct host-side `(read (open-input-string ...))` probe needs either a composed
+That points at the next internal reader helper rather than missing `read`,
+`read-syntax`, `port-read-handler`, or the reader accept parameter layer. Also,
+`open-input-string` is not exported by this expander slice, so a direct
+host-side `(read (open-input-string ...))` probe still needs either a composed
 in-Wasm helper or more of the ordinary port API available through the bridge.

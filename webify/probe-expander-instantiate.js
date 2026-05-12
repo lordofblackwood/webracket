@@ -445,6 +445,13 @@ function classifyBridgeFailure(result) {
       detail: readerParameterMatch[0],
     };
   }
+  const exnVariableMatch = /#\(struct exn:fail:contract:variable\b.*\s([^\s)]+)\)$/.exec(result.printed);
+  if (exnVariableMatch) {
+    return {
+      category: 'unbound-variable',
+      detail: exnVariableMatch[1],
+    };
+  }
   const unboundMatch = /(?:unbound|undefined|reference to undefined identifier)[^A-Za-z0-9_.-]*([A-Za-z0-9_.:/?+*<>=!-]+)/i.exec(text);
   if (unboundMatch) {
     return {
