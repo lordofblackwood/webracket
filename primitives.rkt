@@ -206,6 +206,9 @@
          current-output-port
          current-error-port
          current-read-interaction
+         current-parameterization
+         parameterization?
+         call-with-parameterization
          port-read-handler
          read-accept-reader
          read-accept-lang
@@ -247,6 +250,7 @@
          println
          
          error-print-width
+         error-print-source-location
          ; default-error-value->string-handler
          error-value->string-handler
          error-syntax->string-handler
@@ -470,6 +474,7 @@
  degrees->radians
  radians->degrees
  order-of-magnitude
+ current-compile-target-machine
  system-big-endian?
  system-type
  version
@@ -765,7 +770,8 @@
  
  ;; 4.12 Vectors
  vector vector-immutable vector? make-vector vector-ref vector-set!
- vector-length vector-fill! vector-copy! vector-empty?
+ vector-length vector*-length vector*-ref vector*-set!
+ vector-fill! vector-copy! vector-empty?
  vector-take vector-take-right
  vector-drop vector-drop-right
  vector-split-at vector-split-at-right 
@@ -854,6 +860,7 @@
  hash-map
  hash-map/copy
  hash-keys
+ hash-keys-subset?
  hash-values
  hash-filter
  hash-filter-keys
@@ -957,11 +964,22 @@
  syntax-srclocs ; in racket/match/runtime.rkt
  
  ;; 10.5 Continuation Marks
+ dynamic-wind
  unsafe-root-continuation-prompt-tag ; stable placeholder; prompts unsupported
  current-continuation-marks  ; dummy, always returns #f
  continuation-mark-set-first ; dummy, always returns #f
+ current-parameterization    ; poor-man dynamic parameterization overlay
+ parameterization?           ; recognizes poor-man parameterization overlays
+ extend-parameterization     ; poor-man parameterization overlay constructor
  reparameterize              ; bootstrap identity; full parameterizations unsupported
+ call-with-parameterization  ; scoped poor-man parameterization installer
  cache-configuration         ; small #%paramz cache for expander configuration
+
+ ;; 11 Threads and Synchronization
+ current-thread
+ make-semaphore semaphore? semaphore-post
+ semaphore-peek-evt semaphore-peek-evt?
+ always-evt never-evt sync sync/timeout
  
  ;; 12.2 Syntac Object Content
  syntax?
@@ -1259,7 +1277,7 @@
  unsafe-flmin unsafe-flmax unsafe-flexpt
  unsafe-flrandom 
  unsafe-car unsafe-cdr
- unsafe-sealed-struct? unsafe-struct? unsafe-struct*-ref unsafe-struct*-set! unsafe-struct-ref unsafe-vector-length unsafe-vector-ref
+ unsafe-sealed-struct? unsafe-struct? unsafe-struct*-cas! unsafe-struct*-ref unsafe-struct*-set! unsafe-struct-ref unsafe-vector-length unsafe-vector-ref
  unsafe-vector*-length unsafe-vector*-set! unsafe-vector*-ref
  unsafe-vector-length unsafe-vector-set!
  unsafe-struct-set!
@@ -2704,6 +2722,18 @@
        (raise-argument-error 'mutable-hash-iterate-key+value "mutable-hash?" ht))
      (hash-iterate-key+value ht pos bad-index-v)]))
 
+(define (hash-keys-subset? ht1 ht2)
+  (unless (hash? ht1)
+    (raise-argument-error 'hash-keys-subset? "hash?" ht1))
+  (unless (hash? ht2)
+    (raise-argument-error 'hash-keys-subset? "hash?" ht2))
+  (let loop ([pos (hash-iterate-first ht1)])
+    (cond
+      [(not pos) #t]
+      [(hash-has-key? ht2 (hash-iterate-key ht1 pos))
+       (loop (hash-iterate-next ht1 pos))]
+      [else #f])))
+
 ;; Compatibility definitions for Racket versions where these unsafe
 ;; primitives are not available to the source-level `#lang webracket`
 ;; expander. The compiled WebRacket runtime provides dedicated primitives.
@@ -3002,7 +3032,20 @@
     [(marks key none-v) none-v]
     [(marks key none-v prompt-tag) none-v]))
 
+(define (current-parameterization)
+  #f)
+
+(define (parameterization? p)
+  (and (pair? p)
+       (eq? (car p) 'webracket-parameterization)))
+
 (define (reparameterize p) p)
+
+(define (extend-parameterization p . args)
+  (cons 'webracket-parameterization (cons p args)))
+
+(define (call-with-parameterization _p thunk)
+  (thunk))
 
 (define cache-configuration
   (let ([cache (make-hasheqv)])
@@ -3042,6 +3085,13 @@
 
 (define (impersonator? v)
   #f)
+
+(define (unsafe-struct*-cas! v k old new)
+  (cond
+    [(eq? (unsafe-struct*-ref v k) old)
+     (unsafe-struct*-set! v k new)
+     #t]
+    [else #f]))
 
 (define (impersonator-val v)
   (error 'impersonator-val "impersonators are not supported by WebRacket"))

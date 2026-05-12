@@ -401,6 +401,16 @@
               (list "unsafe-root-continuation-prompt-tag placeholder"
                     (eq? (unsafe-root-continuation-prompt-tag)
                          (unsafe-root-continuation-prompt-tag)))
+              (list "dynamic-wind/basic"
+                    (let ([seen '()])
+                      (and (equal? (dynamic-wind
+                                    (lambda () (set! seen (cons 'before seen)))
+                                    (lambda ()
+                                      (set! seen (cons 'body seen))
+                                      'result)
+                                    (lambda () (set! seen (cons 'after seen))))
+                                   'result)
+                           (equal? seen '(after body before)))))
               (list "continuation-mark-set-first bootstrap placeholder"
                     (and (equal? (continuation-mark-set-first
                                   (current-continuation-marks)
@@ -417,7 +427,34 @@
                                   'none
                                   (unsafe-root-continuation-prompt-tag))
                                  'none)
-                         (equal? (reparameterize 'paramz) 'paramz)))))
+                         (equal? (reparameterize 'paramz) 'paramz)
+                         (let* ([original (error-print-width)]
+                                [paramz (extend-parameterization
+                                         (current-parameterization)
+                                         error-print-width
+                                         80
+                                         error-print-width
+                                         81)])
+                           (and (equal? (error-print-width) original)
+                                (equal? (call-with-parameterization
+                                         paramz
+                                         (lambda ()
+                                           (error-print-width)))
+                                        81)
+                                (equal? (error-print-width) original)
+                                (equal? (call-with-parameterization
+                                         paramz
+                                         (lambda ()
+                                           (error-print-width 90)
+                                           (let loop ([i 50])
+                                             (if (= i 0)
+                                                 (error-print-width)
+                                                 (begin
+                                                   (error-print-width 80)
+                                                   (error-print-width 90)
+                                                   (loop (- i 1)))))))
+                                        90)
+                                (equal? (error-print-width) original)))))))
        
        (list "4.3 Numbers"
              (list "4.3.1 Number Types"
@@ -850,6 +887,13 @@
                                (equal? (system-type 'vm) 'chez-scheme)
                                (equal? (system-type 'gc) 'cs)
                                (equal? (vector-ref (system-type 'fs-change) 2) #f)))
+                    (list "current-compile-target-machine"
+                          (let ([original (current-compile-target-machine)])
+                            (and (equal? original (system-type 'target-machine))
+                                 (equal? (current-compile-target-machine 'probe-target) (void))
+                                 (equal? (current-compile-target-machine) 'probe-target)
+                                 (equal? (current-compile-target-machine original) (void))
+                                 (equal? (current-compile-target-machine) original))))
                     (list "version"
                           (and (string? (version))
                                (immutable? (version))
@@ -2744,6 +2788,13 @@
                     (and (equal? (vector-length '#(1 2 3)) 3)
                          (equal? (vector-length '#()) 0)))
 
+              (list "vector*/checked"
+                    (let ([v (vector 'a 'b 'c)])
+                      (and (equal? (vector*-length v) 3)
+                           (equal? (vector*-ref v 1) 'b)
+                           (equal? (vector*-set! v 1 'changed) (void))
+                           (equal? (vector*-ref v 1) 'changed))))
+
               (list "unsafe-vector-length"
                     (equal? (unsafe-vector-length '#(1 2 3)) 3))
 
@@ -2791,6 +2842,15 @@
                         (and (equal? (unsafe-struct*-ref s 0) 10)
                              (equal? (unsafe-struct*-ref s 1) 2)
                              (equal? (unsafe-struct*-ref s 2) 30)))))
+
+              (list "unsafe-struct*-cas!"
+                    (let-values ([(struct:s make-s s? s-ref s-set!)
+                                  (make-struct-type 'unsafe-star-cas #f 1 0 #f null #f #f '(0))])
+                      (let ([s (make-s 'old)])
+                        (and (equal? (unsafe-struct*-cas! s 0 'wrong 'new) #f)
+                             (equal? (unsafe-struct*-ref s 0) 'old)
+                             (equal? (unsafe-struct*-cas! s 0 'old 'new) #t)
+                             (equal? (unsafe-struct*-ref s 0) 'new)))))
 
               (list "unsafe-vector-ref"
                     (equal? (unsafe-vector-ref '#(10 20 30) 1) 20))
@@ -4491,6 +4551,14 @@
                         (and (equal? (sort (hash-keys h)    (λ (x y) (symbol<? x y))) expected)
                              (equal? (sort (hash-keys h #t) (λ (x y) (symbol<? x y))) expected)))))
 
+              (list "hash-keys-subset?"
+                    (let ([small (hasheq 'a 1 'b 2)]
+                          [large (hasheq 'a 10 'b 20 'c 30)]
+                          [miss  (hasheq 'a 10 'c 30)])
+                      (and (equal? (hash-keys-subset? small large) #t)
+                           (equal? (hash-keys-subset? small miss) #f)
+                           (equal? (hash-keys-subset? (hasheq) miss) #t))))
+
               (list "hash-values"
                     (let ([h (make-hasheq)])
                       (hash-set! h 'a 1)
@@ -5484,6 +5552,30 @@
                     (let ([port (open-input-string "ok")])
                       (equal? (progress-evt? #f port) #f)))
 
+              (list "semaphore/basic"
+                    (let ([s (make-semaphore)])
+                      (and (equal? (semaphore? s) #t)
+                           (equal? (sync/timeout 0 s) #f)
+                           (equal? (semaphore-post s) (void))
+                           (equal? (sync/timeout 0 s) s)
+                           (equal? (sync/timeout 0 s) #f))))
+
+              (list "semaphore-peek-evt/basic"
+                    (let* ([s (make-semaphore)]
+                           [e (semaphore-peek-evt s)])
+                      (and (equal? (semaphore-peek-evt? e) #t)
+                           (equal? (sync/timeout 0 e) #f)
+                           (equal? (semaphore-post s) (void))
+                           (equal? (sync/timeout 0 e) e)
+                           (equal? (sync/timeout 0 e) e)
+                           (equal? (sync/timeout 0 s) s)
+                           (equal? (sync/timeout 0 e) #f))))
+
+              (list "always-never-evt/basic"
+                    (and (equal? (sync/timeout 0 always-evt) always-evt)
+                         (equal? (sync/timeout 0 never-evt) #f)
+                         (equal? (sync always-evt) always-evt)))
+
               (list "read-line/basic"
                     (let* ([port   (open-input-string "alpha\nbeta\n")]
                            [first  (read-line port)]
@@ -5881,6 +5973,26 @@
              (list
               (list "current-print/default"
                     (procedure? (current-print)))
+              (list "print-syntax-width parameter"
+                    (let ([original (print-syntax-width)])
+                      (and (equal? original 256)
+                           (void? (print-syntax-width 0))
+                           (equal? (print-syntax-width) 0)
+                           (void? (print-syntax-width 3))
+                           (equal? (print-syntax-width) 3)
+                           (void? (print-syntax-width original)))))
+              (list "error-print-width parameter"
+                    (let ([original (error-print-width)])
+                      (and (equal? original 256)
+                           (void? (error-print-width 3))
+                           (equal? (error-print-width) 3)
+                           (void? (error-print-width original)))))
+              (list "error-print-source-location parameter"
+                    (let ([original (error-print-source-location)])
+                      (and (equal? original #t)
+                           (void? (error-print-source-location #f))
+                           (equal? (error-print-source-location) #f)
+                           (void? (error-print-source-location original)))))
               (list "error-syntax->name-handler parameter"
                     (let ([default-handler (error-syntax->name-handler)])
                       (and (procedure? default-handler)

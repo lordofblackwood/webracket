@@ -1950,10 +1950,13 @@
     (add-runtime-string-constant 'port?                      "port?")
     (add-runtime-string-constant 'input-port?                "input-port?")
     (add-runtime-string-constant 'output-port?               "output-port?")
+    (add-runtime-string-constant 'parameterization?          "parameterization?")
     (add-runtime-string-constant 'mpair-or-null              "(or/c mpair? null?)")
     (add-runtime-string-constant 'catch*-matching-lengths    "same number of handlers as predicates")
     (add-runtime-string-constant 'real?                      "real?")
     (add-runtime-string-constant 'exact-nonnegative-integer? "exact-nonnegative-integer?")
+    (add-runtime-string-constant 'semaphore?                 "semaphore?")
+    (add-runtime-string-constant 'evt?                       "evt?")
     (add-runtime-string-constant 'procedure-arity?           "procedure-arity?")
     (add-runtime-string-constant 'valid-argument             "valid argument")
     (add-runtime-string-constant 'read-byte:input-port-closed "read-byte: input port is closed")
@@ -2004,6 +2007,10 @@
     (add-runtime-symbol-constant 'read-accept-infix-dot)
     (add-runtime-symbol-constant 'read-accept-quasiquote)
     (add-runtime-symbol-constant 'read-case-sensitive)
+    (add-runtime-symbol-constant 'print-syntax-width)
+    (add-runtime-symbol-constant 'error-print-width)
+    (add-runtime-symbol-constant 'error-print-source-location)
+    (add-runtime-symbol-constant 'current-compile-target-machine)
     (add-runtime-string-constant 'wr-kind:value              "value")
     (add-runtime-string-constant 'wr-kind:missing-binding    "missing-binding")
     (add-runtime-string-constant 'wr-kind:not-procedure      "not-procedure")
@@ -2018,6 +2025,7 @@
     (add-runtime-string-constant 'arity-at-least?            "arity-at-least?")
     (add-runtime-symbol-constant 'break-enabled-key)
     (add-runtime-symbol-constant 'parameterization-key)
+    (add-runtime-symbol-constant 'namespace)
     
     (add-runtime-string-constant 'srcloc?                    "srcloc?")
     (add-runtime-string-constant 'srcloc-positive-or-false   "(or/c exact-positive-integer? #f)")
@@ -2244,6 +2252,26 @@
                                    (field $default   (mut (ref eq)))
                                    (field $current   (mut (ref eq)))
                                    (field $preserved i32))))
+          ;; WebRacket is single-threaded for now, but the expander's
+          ;; namespace registry expects stable thread identity and simple
+          ;; synchronizable semaphores/events.
+          (type $Thread (sub $Heap
+                             (struct
+                               (field $hash (mut i32)))))
+          (type $Semaphore (sub $Heap
+                                (struct
+                                  (field $hash  (mut i32))
+                                  (field $count (mut i32)))))
+          (type $SemaphorePeekEvt (sub $Heap
+                                       (struct
+                                         (field $hash (mut i32))
+                                         (field $sema (ref $Semaphore)))))
+          (type $AlwaysEvt (sub $Heap
+                                (struct
+                                  (field $hash (mut i32)))))
+          (type $NeverEvt (sub $Heap
+                               (struct
+                                 (field $hash (mut i32)))))
           ;; Racket CS uses uninterruptible locks around mutable runtime
           ;; tables. WebRacket is currently single-threaded, so the lock value
           ;; is opaque and acquire/release are no-ops. If WebRacket grows
@@ -2256,6 +2284,17 @@
           (type $EnvironmentVariables (sub $Heap
                                            (struct
                                              (field $hash (mut i32)))))
+
+          ;; Poor-man parameterizations. This is an overlay chain over a base
+          ;; parameterization plus a list of parameter/value pairs. It is not a
+          ;; full continuation-mark model, but it preserves dynamic parameter
+          ;; lookup for the bootstrap parameters that WebRacket implements as
+          ;; primitives.
+          (type $Parameterization (sub $Heap
+                                       (struct
+                                         (field $hash     (mut i32))
+                                         (field $base     (ref eq))
+                                         (field $bindings (ref eq)))))
 
           (type $Procedure
                 (sub $Heap
@@ -11727,6 +11766,48 @@
                (if (ref.eq (local.get $mode) (global.get $symbol:cross))
                    (then (return (global.get $false))))
                (global.get $false))
+
+         ;; current-compile-target-machine : [any/c] -> any/c
+         ;;   Bootstrap compiler target parameter. WebRacket currently has one
+         ;;   target, so the default matches `(system-type 'target-machine)`.
+         ;;   The setter accepts any value for expander/compiler compatibility.
+         (func $current-compile-target-machine/get (type $Prim0)
+               (result (ref eq))
+               (local $v (ref eq))
+
+               (local.set $v
+                          (call $parameterization-ref
+                                (global.get $current-parameterization-value)
+                                (global.get $prim:current-compile-target-machine)))
+               (if (result (ref eq))
+                   (ref.eq (local.get $v) (global.get $missing))
+                   (then
+                    (if (result (ref eq))
+                        (ref.eq (global.get $current-compile-target-machine-value)
+                                (global.get $false))
+                        (then (global.get $symbol:webracket))
+                        (else (global.get $current-compile-target-machine-value))))
+                   (else (local.get $v))))
+
+         (func $current-compile-target-machine/set (type $Prim1)
+               (param $v (ref eq)) ;; target machine value
+               (result   (ref eq))
+
+               (if (i32.eqz (ref.eq (global.get $current-parameterization-value)
+                                    (global.get $false)))
+                   (then (return (call $extend-current-parameterization!
+                                       (global.get $prim:current-compile-target-machine)
+                                       (local.get $v)))))
+               (global.set $current-compile-target-machine-value (local.get $v))
+               (global.get $void))
+
+         (func $current-compile-target-machine (type $Prim01)
+               (param $v (ref eq)) ;; optional target machine value
+               (result   (ref eq))
+
+               (if (ref.eq (local.get $v) (global.get $missing))
+                   (then (return (call $current-compile-target-machine/get))))
+               (call $current-compile-target-machine/set (local.get $v)))
 
          ;; version : -> string?
          ;;   Return the Racket version used to generate this WebRacket runtime.
@@ -31225,6 +31306,43 @@
                                (local.get $vec) (local.get $idx) (local.get $len))
                          (unreachable))))
 
+         ;; vector*-length : vector? -> exact-nonnegative-integer?
+         ;;   Checked vector length. WebRacket has no vector impersonators yet,
+         ;;   so this currently matches vector-length.
+         (func $vector*-length (type $Prim1)
+               (param $v (ref eq)) ;; vector?
+               (result   (ref eq))
+               
+               (local $vec (ref $Vector))
+               (local.set $vec (global.get $dummy-vector))
+               (if (ref.test (ref $Vector) (local.get $v))
+                   (then (local.set $vec (ref.cast (ref $Vector) (local.get $v))))
+                   (else (call $raise-check-vector (local.get $v))
+                         (unreachable)))
+               (ref.i31 (i32.shl
+                         (array.len
+                          (struct.get $Vector $arr (local.get $vec)))
+                         (i32.const 1))))
+
+         ;; vector*-ref : vector? exact-nonnegative-integer? -> any/c
+         ;;   Checked vector ref. WebRacket has no vector impersonators yet,
+         ;;   so this currently matches vector-ref.
+         (func $vector*-ref (type $Prim2)
+               (param $v (ref eq)) ;; vector?
+               (param $i (ref eq)) ;; exact-nonnegative-integer?
+               (result   (ref eq))
+               (call $vector-ref (local.get $v) (local.get $i)))
+
+         ;; vector*-set! : (and/c vector? (not/c immutable?)) exact-nonnegative-integer? any/c -> void?
+         ;;   Checked vector set. WebRacket has no vector impersonators yet,
+         ;;   so this currently matches vector-set!.
+         (func $vector*-set! (type $Prim3)
+               (param $v   (ref eq)) ;; mutable vector?
+               (param $i   (ref eq)) ;; exact-nonnegative-integer?
+               (param $val (ref eq)) ;; new value
+               (result     (ref eq))
+               (call $vector-set! (local.get $v) (local.get $i) (local.get $val)))
+
          (func $vector-fill! (type $Prim2) (param $v (ref eq)) (param $x (ref eq)) (result (ref eq))
                (local $vec (ref $Vector))
                (local.set $vec (global.get $dummy-vector))
@@ -32915,6 +33033,186 @@
                             (return (global.get $error))))
                (struct.set $ThreadCell $current (local.get $tc) (local.get $v))
                (global.get $void))
+
+         ;; current-thread : -> thread?
+         ;;   Return the single stable WebRacket thread token.
+         (func $current-thread (type $Prim0)
+               (result (ref eq))
+               (global.get $current-thread-value))
+
+         ;; make-semaphore : [exact-nonnegative-integer? = 0] -> semaphore?
+         ;;   Create a lightweight single-threaded semaphore.
+         (func $make-semaphore (type $Prim01)
+               (param $count-raw (ref eq)) ;; optional initial count, default = 0
+               (result           (ref eq))
+
+               (local $count i32)
+               (if (ref.eq (local.get $count-raw) (global.get $missing))
+                   (then (local.set $count (i32.const 0)))
+                   (else
+                    (if (ref.eq (call $exact-nonnegative-integer? (local.get $count-raw))
+                                (global.get $false))
+                        (then
+                         (call $raise-argument-error1
+                               (global.get $symbol:make-semaphore)
+                               (global.get $string:exact-nonnegative-integer?)
+                               (local.get $count-raw))
+                         (unreachable)))
+                    (local.set $count
+                               (i32.shr_s
+                                (i31.get_s (ref.cast (ref i31) (local.get $count-raw)))
+                                (i32.const 1)))))
+               (struct.new $Semaphore
+                           (i32.const 0)
+                           (local.get $count)))
+
+         ;; semaphore? : any/c -> boolean?
+         ;;   Check whether a value is a lightweight semaphore.
+         (func $semaphore? (type $Prim1)
+               ,@(make-predicate-body '$Semaphore))
+
+         ;; semaphore-peek-evt? : any/c -> boolean?
+         ;;   Check whether a value is a semaphore peek event.
+         (func $semaphore-peek-evt? (type $Prim1)
+               ,@(make-predicate-body '$SemaphorePeekEvt))
+
+         ;; semaphore-post : semaphore? -> void?
+         ;;   Increment a lightweight semaphore's ready count.
+         (func $semaphore-post (type $Prim1)
+               (param $sema-raw (ref eq)) ;; semaphore?
+               (result          (ref eq))
+
+               (local $sema (ref $Semaphore))
+               (if (i32.eqz (ref.test (ref $Semaphore) (local.get $sema-raw)))
+                   (then
+                    (call $raise-argument-error1
+                          (global.get $symbol:semaphore-post)
+                          (global.get $string:semaphore?)
+                          (local.get $sema-raw))
+                    (unreachable)))
+               (local.set $sema (ref.cast (ref $Semaphore) (local.get $sema-raw)))
+               (struct.set $Semaphore $count
+                           (local.get $sema)
+                           (i32.add (struct.get $Semaphore $count (local.get $sema))
+                                    (i32.const 1)))
+               (global.get $void))
+
+         ;; semaphore-peek-evt : semaphore? -> semaphore-peek-evt?
+         ;;   Create an event that becomes ready when the semaphore is ready
+         ;;   without consuming the semaphore count.
+         (func $semaphore-peek-evt (type $Prim1)
+               (param $sema-raw (ref eq)) ;; semaphore?
+               (result          (ref eq))
+
+               (if (i32.eqz (ref.test (ref $Semaphore) (local.get $sema-raw)))
+                   (then
+                    (call $raise-argument-error1
+                          (global.get $symbol:semaphore-peek-evt)
+                          (global.get $string:semaphore?)
+                          (local.get $sema-raw))
+                    (unreachable)))
+               (struct.new $SemaphorePeekEvt
+                           (i32.const 0)
+                           (ref.cast (ref $Semaphore) (local.get $sema-raw))))
+
+         ;; $sync-one : evt? boolean? -> any/c
+         ;;   Return the selected event value, or #f when it is not ready.
+         ;;   Semaphore events consume when requested; peek events do not.
+         (func $sync-one
+               (param $evt      (ref eq)) ;; event candidate
+               (param $consume? i32)      ;; non-zero consumes semaphore counts
+               (result          (ref eq))
+
+               (local $sema (ref $Semaphore))
+               (local $peek (ref $SemaphorePeekEvt))
+
+               (if (ref.test (ref $AlwaysEvt) (local.get $evt))
+                   (then (return (local.get $evt))))
+               (if (ref.test (ref $NeverEvt) (local.get $evt))
+                   (then (return (global.get $false))))
+               ;; Threads are synchronizable in Racket when they terminate. The
+               ;; single WebRacket thread never terminates while user code runs.
+               (if (ref.test (ref $Thread) (local.get $evt))
+                   (then (return (global.get $false))))
+               (if (ref.test (ref $Semaphore) (local.get $evt))
+                   (then
+                    (local.set $sema (ref.cast (ref $Semaphore) (local.get $evt)))
+                    (if (i32.gt_s (struct.get $Semaphore $count (local.get $sema))
+                                  (i32.const 0))
+                        (then
+                         (if (local.get $consume?)
+                             (then
+                              (struct.set $Semaphore $count
+                                          (local.get $sema)
+                                          (i32.sub
+                                           (struct.get $Semaphore $count (local.get $sema))
+                                           (i32.const 1)))))
+                         (return (local.get $evt))))
+                    (return (global.get $false))))
+               (if (ref.test (ref $SemaphorePeekEvt) (local.get $evt))
+                   (then
+                    (local.set $peek (ref.cast (ref $SemaphorePeekEvt) (local.get $evt)))
+                    (local.set $sema (struct.get $SemaphorePeekEvt $sema (local.get $peek)))
+                    (if (i32.gt_s (struct.get $Semaphore $count (local.get $sema))
+                                  (i32.const 0))
+                        (then (return (local.get $evt))))
+                    (return (global.get $false))))
+               ;; Keep the first event layer permissive: other event kinds from
+               ;; imported linklets can be added here as they become reachable.
+               (global.get $false))
+
+         ;; sync : evt? evt? ... -> any/c
+         ;;   Select the first ready event. WebRacket has no scheduler yet, so
+         ;;   an otherwise-blocking sync currently returns #f instead of waiting.
+         (func $sync (type $Prim>=0)
+               (param $events (ref eq)) ;; event candidates
+               (result        (ref eq))
+
+               (local $r    (ref eq))
+               (local $node (ref eq))
+               (local $p    (ref $Pair))
+
+               (local.set $node (local.get $events))
+               (loop $again
+                 (if (ref.test (ref $Pair) (local.get $node))
+                     (then
+                      (local.set $p (ref.cast (ref $Pair) (local.get $node)))
+                      (local.set $r
+                                 (call $sync-one
+                                       (struct.get $Pair $a (local.get $p))
+                                       (i32.const 1)))
+                      (if (i32.eqz (ref.eq (local.get $r) (global.get $false)))
+                          (then (return (local.get $r))))
+                      (local.set $node (struct.get $Pair $d (local.get $p)))
+                      (br $again))))
+               (global.get $false))
+
+         ;; sync/timeout : (or/c real? #f) evt? ... -> any/c
+         ;;   Poll ready events. The timeout value is accepted but not used
+         ;;   until WebRacket has a scheduler/timer queue.
+         (func $sync/timeout (type $Prim>=1)
+               (param $timeout (ref eq)) ;; timeout or #f
+               (param $events  (ref eq)) ;; rest event candidates
+               (result         (ref eq))
+
+               (local $r    (ref eq))
+               (local $node (ref eq))
+               (local $p    (ref $Pair))
+
+               (local.set $node (local.get $events))
+               (loop $again
+                 (if (ref.test (ref $Pair) (local.get $node))
+                     (then
+                      (local.set $p (ref.cast (ref $Pair) (local.get $node)))
+                      (local.set $r
+                                 (call $sync-one
+                                       (struct.get $Pair $a (local.get $p))
+                                       (i32.const 1)))
+                      (if (i32.eqz (ref.eq (local.get $r) (global.get $false)))
+                          (then (return (local.get $r))))
+                      (local.set $node (struct.get $Pair $d (local.get $p)))
+                      (br $again))))
+               (global.get $false))
 
          ;; unsafe-make-uninterruptible-lock : -> lock?
          ;;   Create an opaque single-threaded lock token.
@@ -35405,6 +35703,46 @@
                                        (local.get $ht)
                                        (local.get $key)))))
                (unreachable))
+
+         ;; hash-keys-subset? : hash? hash? -> boolean?
+         ;;   Check whether every key in ht1 is present in ht2. The expander's
+         ;;   lightweight set layer uses this directly, and the generic
+         ;;   iteration helpers below cover both mutable and immutable hashes.
+         (func $hash-keys-subset? (type $Prim2)
+               (param $ht1 (ref eq)) ;; hash table whose keys are tested
+               (param $ht2 (ref eq)) ;; hash table that must contain them
+               (result     (ref eq))
+
+               (local $pos (ref eq))
+               (local $key (ref eq))
+
+               (if (i32.eqz (ref.test (ref $Hash) (local.get $ht1)))
+                   (then (call $raise-argument-error:hash-expected)
+                         (unreachable)))
+               (if (i32.eqz (ref.test (ref $Hash) (local.get $ht2)))
+                   (then (call $raise-argument-error:hash-expected)
+                         (unreachable)))
+
+               (local.set $pos (call $mutable-hash-iterate-first (local.get $ht1)))
+               (block $done
+                      (loop $walk
+                            (br_if $done (ref.eq (local.get $pos) (global.get $false)))
+                            (local.set $key
+                                       (call $mutable-hash-iterate-key
+                                             (local.get $ht1)
+                                             (local.get $pos)
+                                             (global.get $missing)))
+                            (if (ref.eq (call $hash-has-key?
+                                              (local.get $ht2)
+                                              (local.get $key))
+                                        (global.get $false))
+                                (then (return (global.get $false))))
+                            (local.set $pos
+                                       (call $mutable-hash-iterate-next
+                                             (local.get $ht1)
+                                             (local.get $pos)))
+                            (br $walk)))
+               (global.get $true))
 
 
          ; Specialized hash-has-key?
@@ -49055,6 +49393,53 @@
          ;; 10.3 Delayed Evaluation
          ;; 10.4 Continuations
 
+         ;; $call-thunk : procedure? -> any/c
+         ;;   Invoke a zero-argument procedure.
+         (func $call-thunk
+               (param $thunk-raw (ref eq)) ;; procedure?
+               (result           (ref eq))
+
+               (local $thunk (ref $Procedure))
+               (local $inv   (ref $ProcedureInvoker))
+
+               (if (i32.eqz (ref.test (ref $Procedure) (local.get $thunk-raw)))
+                   (then (call $raise-argument-error:procedure-expected (local.get $thunk-raw))
+                         (unreachable)))
+               (local.set $thunk (ref.cast (ref $Procedure) (local.get $thunk-raw)))
+               (local.set $inv   (struct.get $Procedure $invoke (local.get $thunk)))
+               (call_ref $ProcedureInvoker
+                         (local.get $thunk)
+                         (array.new $Args (global.get $null) (i32.const 0))
+                         (local.get $inv)))
+
+         ;; dynamic-wind : (-> any/c) (-> any/c) (-> any/c) -> any/c
+         ;;   Run before/body/after with exception-safe cleanup. This first
+         ;;   WebRacket slice does not model continuation jumps, but it covers
+         ;;   the expander namespace registry's lock discipline.
+         (func $dynamic-wind (type $Prim3)
+               (param $before (ref eq)) ;; before thunk
+               (param $body   (ref eq)) ;; body thunk
+               (param $after  (ref eq)) ;; after thunk
+               (result        (ref eq))
+
+               (local $res     (ref eq))
+               (local $exn-val (ref eq))
+
+               (drop (call $call-thunk (local.get $before)))
+               (local.set $res
+                          (block $done (result (ref eq))
+                            (block $handler-block (result (ref eq))
+                              (try_table (result (ref eq))
+                                         (catch $exn $handler-block)
+                                         (call $call-thunk (local.get $body))
+                                         (br $done)))
+                            (local.set $exn-val)
+                            (drop (call $call-thunk (local.get $after)))
+                            (throw $exn (local.get $exn-val))
+                            (unreachable)))
+               (drop (call $call-thunk (local.get $after)))
+               (local.get $res))
+
          ;; unsafe-root-continuation-prompt-tag : -> any/c
          ;;   Stable root prompt-tag placeholder. WebRacket does not implement
          ;;   continuation prompts yet, but expander startup code can obtain and
@@ -49087,19 +49472,277 @@
                (param $none-v     (ref eq)) ;; optional any/c, default = #f
                (param $prompt-tag (ref eq)) ;; optional continuation-prompt-tag?
                (result            (ref eq))
+               (if (ref.eq (local.get $key) (global.get $parameterization-key))
+                   (then (return (global.get $current-parameterization-value))))
                (if (result (ref eq))
                    (ref.eq (local.get $none-v) (global.get $missing))
                    (then (global.get $false))
                    (else (local.get $none-v))))
 
+         ;; current-parameterization : -> any/c
+         ;;   Return the current poor-man parameterization overlay, or #f when
+         ;;   no scoped overlay is active.
+         (func $current-parameterization (type $Prim0)
+               (result (ref eq))
+               (global.get $current-parameterization-value))
+
+         ;; parameterization? : any/c -> boolean?
+         ;;   Recognize WebRacket's lightweight parameterization overlays.
+         (func $parameterization? (type $Prim1)
+               ,@(make-predicate-body '$Parameterization))
+
          ;; reparameterize : any/c -> any/c
-         ;;   Bootstrap identity for the extracted expander. Real Racket CS
-         ;;   checks for a parameterization record; WebRacket does not yet
-         ;;   model continuation-mark parameterizations, so preserve the value.
+         ;;   Bootstrap identity for the extracted expander. The scoped
+         ;;   installation operation is modeled by call-with-parameterization.
          (func $reparameterize (type $Prim1)
-               (param $p (ref eq)) ;; parameterization placeholder
+               (param $p (ref eq)) ;; parameterization
                (result   (ref eq))
                (local.get $p))
+
+         ;; $build-parameterization-bindings : list? -> list?
+         ;;   Reverse parameter/value pairs so lookup can stop at the first
+         ;;   match while still giving later extend-parameterization arguments
+         ;;   precedence.
+         (func $build-parameterization-bindings
+               (param $args (ref eq)) ;; parameter/value rest list
+               (result      (ref eq))
+               (local $rest  (ref eq))
+               (local $pair  (ref $Pair))
+               (local $param (ref eq))
+               (local $val   (ref eq))
+               (local $out   (ref eq))
+
+               (local.set $rest (local.get $args))
+               (local.set $out  (global.get $null))
+               (block $done
+                      (loop $loop
+                            (if (ref.eq (local.get $rest) (global.get $null))
+                                (then (br $done)))
+                            (if (i32.eqz (ref.test (ref $Pair) (local.get $rest)))
+                                (then (call $raise-argument-error1
+                                            (global.get $symbol:extend-parameterization)
+                                            (global.get $string:list?)
+                                            (local.get $args))
+                                      (unreachable)))
+                            (local.set $pair (ref.cast (ref $Pair) (local.get $rest)))
+                            (local.set $param (struct.get $Pair $a (local.get $pair)))
+                            (local.set $rest  (struct.get $Pair $d (local.get $pair)))
+                            (if (i32.eqz (ref.test (ref $Pair) (local.get $rest)))
+                                (then (call $raise-argument-error1
+                                            (global.get $symbol:extend-parameterization)
+                                            (global.get $string:list?)
+                                            (local.get $args))
+                                      (unreachable)))
+                            (local.set $pair (ref.cast (ref $Pair) (local.get $rest)))
+                            (local.set $val  (struct.get $Pair $a (local.get $pair)))
+                            (local.set $rest (struct.get $Pair $d (local.get $pair)))
+                            (local.set $out
+                                       (struct.new $Pair
+                                                   (i32.const 0)
+                                                   (local.get $param)
+                                                   (struct.new $Pair
+                                                               (i32.const 0)
+                                                               (local.get $val)
+                                                               (local.get $out))))
+                            (br $loop)))
+               (local.get $out))
+
+         ;; extend-parameterization : any/c any/c ... -> parameterization?
+         ;;   Build a lightweight overlay. The base parameterization is not
+         ;;   mutated, and duplicate parameters are resolved by the later
+         ;;   argument winning, matching Racket's parameterize behavior.
+         (func $extend-parameterization (type $Prim>=1)
+               (param $p    (ref eq)) ;; base parameterization or #f
+               (param $args (ref eq)) ;; parameter/value rest list
+               (result      (ref eq))
+               (struct.new $Parameterization
+                           (i32.const 0)
+                           (local.get $p)
+                           (call $build-parameterization-bindings
+                                 (local.get $args))))
+
+         ;; $parameterization-ref : any/c any/c -> any/c
+         ;;   Look up a parameter procedure in an overlay chain; returns
+         ;;   $missing when no scoped binding exists.
+         (func $parameterization-ref
+               (param $paramz (ref eq)) ;; parameterization or #f
+               (param $param  (ref eq)) ;; parameter procedure
+               (result        (ref eq))
+               (local $p        (ref eq))
+               (local $bindings (ref eq))
+               (local $pair     (ref $Pair))
+               (local $key      (ref eq))
+               (local $val      (ref eq))
+
+               (local.set $p (local.get $paramz))
+               (block $not-found
+                      (loop $paramz-loop
+                            (if (i32.eqz (ref.test (ref $Parameterization) (local.get $p)))
+                                (then (br $not-found)))
+                            (local.set $bindings
+                                       (struct.get $Parameterization $bindings
+                                                   (ref.cast (ref $Parameterization)
+                                                             (local.get $p))))
+                            (block $bindings-done
+                                   (loop $bindings-loop
+                                         (if (ref.eq (local.get $bindings) (global.get $null))
+                                             (then (br $bindings-done)))
+                                         (local.set $pair
+                                                    (ref.cast (ref $Pair) (local.get $bindings)))
+                                         (local.set $key (struct.get $Pair $a (local.get $pair)))
+                                         (local.set $bindings (struct.get $Pair $d (local.get $pair)))
+                                         (local.set $pair
+                                                    (ref.cast (ref $Pair) (local.get $bindings)))
+                                         (local.set $val (struct.get $Pair $a (local.get $pair)))
+                                         (local.set $bindings (struct.get $Pair $d (local.get $pair)))
+                                         (if (ref.eq (local.get $key) (local.get $param))
+                                             (then (return (local.get $val))))
+                                         (br $bindings-loop)))
+                            (local.set $p
+                                       (struct.get $Parameterization $base
+                                                   (ref.cast (ref $Parameterization)
+                                                             (local.get $p))))
+                            (br $paramz-loop)))
+               (global.get $missing))
+
+         ;; $parameter-value-or-global : procedure? any/c -> any/c
+         ;;   Read a parameter from the current overlay, falling back to its
+         ;;   global default cell.
+         (func $parameter-value-or-global
+               (param $param  (ref eq)) ;; parameter procedure
+               (param $global (ref eq)) ;; fallback global value
+               (result        (ref eq))
+               (local $v (ref eq))
+               (local.set $v
+                          (call $parameterization-ref
+                                (global.get $current-parameterization-value)
+                                (local.get $param)))
+               (if (result (ref eq))
+                   (ref.eq (local.get $v) (global.get $missing))
+                   (then (local.get $global))
+                   (else (local.get $v))))
+
+         ;; $parameterization-set! : any/c any/c any/c -> i32
+         ;;   Mutate the first scoped binding for param in paramz. Returns 1
+         ;;   when an existing scoped binding was updated, otherwise 0.
+         (func $parameterization-set!
+               (param $paramz (ref eq)) ;; parameterization or #f
+               (param $param  (ref eq)) ;; parameter procedure
+               (param $val    (ref eq)) ;; new value
+               (result        i32)
+               (local $p        (ref eq))
+               (local $bindings (ref eq))
+               (local $pair     (ref $Pair))
+               (local $val-pair (ref $Pair))
+               (local $key      (ref eq))
+
+               (local.set $p (local.get $paramz))
+               (block $not-found
+                      (loop $paramz-loop
+                            (if (i32.eqz (ref.test (ref $Parameterization) (local.get $p)))
+                                (then (br $not-found)))
+                            (local.set $bindings
+                                       (struct.get $Parameterization $bindings
+                                                   (ref.cast (ref $Parameterization)
+                                                             (local.get $p))))
+                            (block $bindings-done
+                                   (loop $bindings-loop
+                                         (if (ref.eq (local.get $bindings) (global.get $null))
+                                             (then (br $bindings-done)))
+                                         (local.set $pair
+                                                    (ref.cast (ref $Pair) (local.get $bindings)))
+                                         (local.set $key (struct.get $Pair $a (local.get $pair)))
+                                         (local.set $bindings (struct.get $Pair $d (local.get $pair)))
+                                         (local.set $val-pair
+                                                    (ref.cast (ref $Pair) (local.get $bindings)))
+                                         (local.set $bindings
+                                                    (struct.get $Pair $d (local.get $val-pair)))
+                                         (if (ref.eq (local.get $key) (local.get $param))
+                                             (then
+                                              (struct.set $Pair $a
+                                                          (local.get $val-pair)
+                                                          (local.get $val))
+                                              (return (i32.const 1))))
+                                         (br $bindings-loop)))
+                            (local.set $p
+                                       (struct.get $Parameterization $base
+                                                   (ref.cast (ref $Parameterization)
+                                                             (local.get $p))))
+                            (br $paramz-loop)))
+               (i32.const 0))
+
+         ;; $set-parameter-value-or-global! : procedure? any/c global-index -> void?
+         ;;   Mutating a parameter inside a scoped overlay shadows that overlay;
+         ;;   without an overlay, callers update the global cell themselves.
+         (func $extend-current-parameterization!
+               (param $param (ref eq)) ;; parameter procedure
+               (param $val   (ref eq)) ;; new value
+               (result       (ref eq))
+               (if (call $parameterization-set!
+                         (global.get $current-parameterization-value)
+                         (local.get $param)
+                         (local.get $val))
+                   (then (return (global.get $void))))
+               (global.set $current-parameterization-value
+                           (struct.new $Parameterization
+                                       (i32.const 0)
+                                       (global.get $current-parameterization-value)
+                                       (struct.new $Pair
+                                                   (i32.const 0)
+                                                   (local.get $param)
+                                                   (struct.new $Pair
+                                                               (i32.const 0)
+                                                               (local.get $val)
+                                                               (global.get $null)))))
+               (global.get $void))
+
+         ;; call-with-parameterization : parameterization? (-> any/c) -> any/c
+         ;;   Install a poor-man parameterization while thunk runs. This is the
+         ;;   dynamic-scoping half that the with-continuation-mark erasure lacks.
+         (func $call-with-parameterization (type $Prim2)
+               (param $paramz-raw (ref eq)) ;; parameterization?
+               (param $thunk-raw  (ref eq)) ;; procedure?
+               (result            (ref eq))
+
+               (local $thunk   (ref $Procedure))
+               (local $inv     (ref $ProcedureInvoker))
+               (local $args    (ref $Args))
+               (local $old     (ref eq))
+               (local $res     (ref eq))
+               (local $exn-val (ref eq))
+
+               (if (i32.eqz (ref.test (ref $Parameterization) (local.get $paramz-raw)))
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:call-with-parameterization)
+                               (global.get $string:parameterization?)
+                               (local.get $paramz-raw))
+                         (unreachable)))
+               (if (i32.eqz (ref.test (ref $Procedure) (local.get $thunk-raw)))
+                   (then (call $raise-argument-error:procedure-expected
+                               (local.get $thunk-raw))
+                         (unreachable)))
+               (local.set $thunk (ref.cast (ref $Procedure) (local.get $thunk-raw)))
+               (local.set $inv   (struct.get $Procedure $invoke (local.get $thunk)))
+               (local.set $args  (array.new $Args (global.get $null) (i32.const 0)))
+               (local.set $old   (global.get $current-parameterization-value))
+               (global.set $current-parameterization-value (local.get $paramz-raw))
+               (local.set $res
+                          (block $done (result (ref eq))
+                                 (block $handler-block (result (ref eq))
+                                        (try_table (result (ref eq))
+                                                   (catch $exn $handler-block)
+                                                   (call_ref $ProcedureInvoker
+                                                             (local.get $thunk)
+                                                             (local.get $args)
+                                                             (local.get $inv))
+                                                   (br $done)))
+                                 (local.set $exn-val)
+                                 (global.set $current-parameterization-value
+                                             (local.get $old))
+                                 (throw $exn (local.get $exn-val))
+                                 (unreachable)))
+               (global.set $current-parameterization-value (local.get $old))
+               (local.get $res))
 
          ;; cache-configuration : exact-nonnegative-integer? (-> any/c) -> any/c
          ;;   Small #%paramz cache used by racket/private/config during
@@ -50108,8 +50751,31 @@
 
         ;; 14.1 Namespaces
         
+        ;; expander-namespace-struct?/i32 : any/c -> i32
+        ;;   Recognize the expander's own authentic `namespace` struct. This is
+        ;;   a bootstrap compatibility bridge: WebRacket also has a runtime
+        ;;   $Namespace type, but the schemified expander carries its own
+        ;;   namespace records through ordinary Racket structs.
+        (func $expander-namespace-struct?/i32
+              (param $v (ref eq)) ;; candidate value
+              (result   i32)
+              (local $s (ref $Struct))
+              (if (i32.eqz (ref.test (ref $Struct) (local.get $v)))
+                  (then (return (i32.const 0))))
+              (local.set $s (ref.cast (ref $Struct) (local.get $v)))
+              (ref.eq
+               (struct.get $StructType $name
+                           (struct.get $Struct $type (local.get $s)))
+               (global.get $symbol:namespace)))
+
         (func $namespace? (type $Prim1)
-              ,@(make-predicate-body '$Namespace))
+              (param $v (ref eq)) ;; candidate value
+              (result   (ref eq))
+              (if (result (ref eq))
+                  (i32.or (ref.test (ref $Namespace) (local.get $v))
+                          (call $expander-namespace-struct?/i32 (local.get $v)))
+                  (then (global.get $true))
+                  (else (global.get $false))))
         
         ; The form `#%variable-reference` can occur in fully expanded syntax,
         ; so the compiler builds $VariableReference instances directly.
@@ -52984,6 +53650,37 @@
                                     (i32.const 1))
                          (local.get $val))
               (global.get $void))
+
+        ;; unsafe-struct*-cas! : (not/c impersonator?) fixnum? any/c any/c -> boolean?
+        ;;   Single-threaded raw-field compare-and-set. This is not a full
+        ;;   atomic substrate yet, but it preserves the expander's expected
+        ;;   success/failure protocol for non-impersonated structs.
+        (func $unsafe-struct*-cas! (type $Prim4)
+              (param $struct (ref eq)) ;; struct value
+              (param $idx    (ref eq)) ;; fixnum field index
+              (param $old    (ref eq)) ;; expected old value
+              (param $new    (ref eq)) ;; replacement value
+              (result        (ref eq))
+
+              (local $fields (ref $Array))
+              (local $i      i32)
+
+              (local.set $fields
+                         (struct.get $Struct $fields
+                                     (ref.cast (ref $Struct) (local.get $struct))))
+              (local.set $i
+                         (i32.shr_s (i31.get_s (ref.cast (ref i31)
+                                                        (local.get $idx)))
+                                    (i32.const 1)))
+              (if (ref.eq (array.get $Array (local.get $fields) (local.get $i))
+                          (local.get $old))
+                  (then
+                   (array.set $Array
+                              (local.get $fields)
+                              (local.get $i)
+                              (local.get $new))
+                   (return (global.get $true))))
+              (global.get $false))
 
         (func $unsafe-string-length (type $Prim1)
               (param $s   (ref eq))
@@ -57372,7 +58069,8 @@
                                     $read-accept-dot
                                     $read-accept-infix-dot
                                     $read-accept-quasiquote
-                                    $read-case-sensitive)]
+                                    $read-case-sensitive
+                                    $error-print-source-location)]
                              [symbol '($symbol:read-accept-reader
                                        $symbol:read-accept-lang
                                        $symbol:read-accept-compiled
@@ -57382,7 +58080,8 @@
                                        $symbol:read-accept-dot
                                        $symbol:read-accept-infix-dot
                                        $symbol:read-accept-quasiquote
-                                       $symbol:read-case-sensitive)]
+                                       $symbol:read-case-sensitive
+                                       $symbol:error-print-source-location)]
                              [global '($read-accept-reader-value
                                        $read-accept-lang-value
                                        $read-accept-compiled-value
@@ -57392,21 +58091,127 @@
                                        $read-accept-dot-value
                                        $read-accept-infix-dot-value
                                        $read-accept-quasiquote-value
-                                       $read-case-sensitive-value)])
+                                       $read-case-sensitive-value
+                                       $error-print-source-location-value)]
+                             [primitive '($prim:read-accept-reader
+                                          $prim:read-accept-lang
+                                          $prim:read-accept-compiled
+                                          $prim:read-accept-box
+                                          $prim:read-accept-bar-quote
+                                          $prim:read-accept-graph
+                                          $prim:read-accept-dot
+                                          $prim:read-accept-infix-dot
+                                          $prim:read-accept-quasiquote
+                                          $prim:read-case-sensitive
+                                          $prim:error-print-source-location)])
                    `(func ,name (type $Prim01)
                           (param $v (ref eq)) ;; optional boolean?
                           (result   (ref eq))
 
                           (if (ref.eq (local.get $v) (global.get $missing))
-                              (then (return (global.get ,global))))
+                              (then (return (call $parameter-value-or-global
+                                                  (global.get ,primitive)
+                                                  (global.get ,global)))))
                           (if (ref.eq (call $boolean? (local.get $v)) (global.get $false))
                               (then (call $raise-argument-error1
                                           (global.get ,symbol)
                                           (global.get $string:boolean?)
                                           (local.get $v))
                                     (unreachable)))
+                          (if (i32.eqz (ref.eq (global.get $current-parameterization-value)
+                                               (global.get $false)))
+                              (then (return (call $extend-current-parameterization!
+                                                  (global.get ,primitive)
+                                                  (local.get $v)))))
                           (global.set ,global (local.get $v))
                           (global.get $void)))
+
+               ;; print-syntax-width : [(or/c +inf.0 0 exact-integer>=3)] -> any/c
+               ;;   Bootstrap parameter for syntax-object printing. It accepts
+               ;;   exact fixnums 0 or >= 3, which covers the default and the
+               ;;   expander startup path; +inf.0 can be added with broader
+               ;;   numeric printer-parameter support.
+               (func $print-syntax-width (type $Prim01)
+                     (param $v (ref eq)) ;; optional width, default = current value
+                     (result   (ref eq))
+
+                     (local $raw i32)
+                     (local $n   i32)
+
+                     (if (ref.eq (local.get $v) (global.get $missing))
+                         (then (return (call $parameter-value-or-global
+                                             (global.get $prim:print-syntax-width)
+                                             (global.get $print-syntax-width-value)))))
+                     (if (i32.eqz (ref.test (ref i31) (local.get $v)))
+                         (then (call $raise-argument-error1
+                                     (global.get $symbol:print-syntax-width)
+                                     (global.get $string:exact-nonnegative-integer?)
+                                     (local.get $v))
+                               (unreachable)))
+                     (local.set $raw (i31.get_u (ref.cast (ref i31) (local.get $v))))
+                     (if (i32.ne (i32.and (local.get $raw) (i32.const 1)) (i32.const 0))
+                         (then (call $raise-argument-error1
+                                     (global.get $symbol:print-syntax-width)
+                                     (global.get $string:exact-nonnegative-integer?)
+                                     (local.get $v))
+                               (unreachable)))
+                     (local.set $n (i32.shr_u (local.get $raw) (i32.const 1)))
+                     (if (i32.and
+                          (i32.ne (local.get $n) (i32.const 0))
+                          (i32.lt_u (local.get $n) (i32.const 3)))
+                         (then (call $raise-argument-error1
+                                     (global.get $symbol:print-syntax-width)
+                                     (global.get $string:exact-nonnegative-integer?)
+                                     (local.get $v))
+                               (unreachable)))
+                     (if (i32.eqz (ref.eq (global.get $current-parameterization-value)
+                                          (global.get $false)))
+                         (then (return (call $extend-current-parameterization!
+                                             (global.get $prim:print-syntax-width)
+                                             (local.get $v)))))
+                     (global.set $print-syntax-width-value (local.get $v))
+                     (global.get $void))
+
+               ;; error-print-width : [exact-integer>=3] -> any/c
+               ;;   Bootstrap parameter used by error and syntax printers.
+               (func $error-print-width (type $Prim01)
+                     (param $v (ref eq)) ;; optional width, default = current value
+                     (result   (ref eq))
+
+                     (local $raw i32)
+                     (local $n   i32)
+
+                     (if (ref.eq (local.get $v) (global.get $missing))
+                         (then (return (call $parameter-value-or-global
+                                             (global.get $prim:error-print-width)
+                                             (global.get $error-print-width-value)))))
+                     (if (i32.eqz (ref.test (ref i31) (local.get $v)))
+                         (then (call $raise-argument-error1
+                                     (global.get $symbol:error-print-width)
+                                     (global.get $string:exact-nonnegative-integer?)
+                                     (local.get $v))
+                               (unreachable)))
+                     (local.set $raw (i31.get_u (ref.cast (ref i31) (local.get $v))))
+                     (if (i32.ne (i32.and (local.get $raw) (i32.const 1)) (i32.const 0))
+                         (then (call $raise-argument-error1
+                                     (global.get $symbol:error-print-width)
+                                     (global.get $string:exact-nonnegative-integer?)
+                                     (local.get $v))
+                               (unreachable)))
+                     (local.set $n (i32.shr_u (local.get $raw) (i32.const 1)))
+                     (if (i32.lt_u (local.get $n) (i32.const 3))
+                         (then (call $raise-argument-error1
+                                     (global.get $symbol:error-print-width)
+                                     (global.get $string:exact-nonnegative-integer?)
+                                     (local.get $v))
+                               (unreachable)))
+                     (if (i32.eqz (ref.eq (global.get $current-parameterization-value)
+                                          (global.get $false)))
+                         (then (return (call $extend-current-parameterization!
+                                             (global.get $prim:error-print-width)
+                                             (local.get $v)))))
+                     (global.set $error-print-width-value (local.get $v))
+                     (global.get $void))
 
                ;; default-error-syntax->name-handler : syntax? -> #f
                ;;   Bootstrap default for error-syntax->name-handler.
@@ -61874,11 +62679,19 @@
                (global $read-accept-infix-dot-value    (mut (ref eq)) (global.get $true))
                (global $read-accept-quasiquote-value   (mut (ref eq)) (global.get $true))
                (global $read-case-sensitive-value      (mut (ref eq)) (global.get $true))
+               (global $print-syntax-width-value       (mut (ref eq)) (ref.i31 (i32.const 512)))
+               (global $error-print-width-value        (mut (ref eq)) (ref.i31 (i32.const 512)))
+               (global $error-print-source-location-value (mut (ref eq)) (global.get $true))
+               (global $current-compile-target-machine-value (mut (ref eq)) (global.get $false))
+               (global $current-parameterization-value (mut (ref eq)) (global.get $false))
                (global $error-value->string-handler-value (mut (ref eq)) (global.get $false))
                (global $error-syntax->string-handler-value (mut (ref eq)) (global.get $false))
                (global $error-syntax->name-handler-value (mut (ref eq)) (global.get $false))
                (global $error-module-path->string-handler-value (mut (ref eq)) (global.get $false))
                (global $result-bytes             (mut (ref eq)) (ref.i31 (i32.const 0)))
+               (global $current-thread-value     (mut (ref eq)) (global.get $false))
+               (global $always-evt               (mut (ref eq)) (global.get $false))
+               (global $never-evt                (mut (ref eq)) (global.get $false))
 
                ;; Struct-type properties provided by the runtime
                (global $prop:sealed                   (mut (ref eq)) (global.get $void))
@@ -61963,6 +62776,12 @@
                                  (global.get $symbol:break-enabled-key))
                      (global.set $parameterization-key
                                  (global.get $symbol:parameterization-key))
+                     (global.set $current-thread-value
+                                 (struct.new $Thread (i32.const 0)))
+                     (global.set $always-evt
+                                 (struct.new $AlwaysEvt (i32.const 0)))
+                     (global.set $never-evt
+                                 (struct.new $NeverEvt (i32.const 0)))
 
                      ;; Initialize struct-type properties provided by the runtime
                      (global.set $prop:sealed

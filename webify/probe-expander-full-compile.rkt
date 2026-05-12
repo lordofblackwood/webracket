@@ -84,6 +84,29 @@
 (define (console-bridge-export-alias? export)
   (not (set-member? primitive-symbols export)))
 
+;; expander-probe-alias-id : symbol? -> symbol?
+;;   Build a non-primitive top-level alias for an expander export.
+(define (expander-probe-alias-id export)
+  (string->symbol (format "webify-expander:~a" export)))
+
+;; expander-probe-alias-definitions : (listof symbol?) -> (listof any/c)
+;;   Expose selected expander exports whose public names collide with WebRacket primitives.
+(define (expander-probe-alias-definitions exports)
+  (define selected
+    '(datum->syntax
+      expand
+      compile
+      maybe-syntax->datum
+      namespace-datum-introduce
+      namespace-syntax-introduce
+      syntax?
+      syntax->datum))
+  (define export-cells (first-slice-top-level-export-cell-ids exports))
+  (for/list ([export (in-list selected)]
+             #:when (hash-has-key? export-cells export))
+    `(define ,(expander-probe-alias-id export)
+       (module-variable-ref ,(hash-ref export-cells export)))))
+
 ;; datum-formals->symbols : any/c -> (listof symbol?)
 ;;   Collect bindings introduced by lambda-like formals.
 (define (datum-formals->symbols formals)
@@ -230,19 +253,427 @@
   (visit datum (seteq))
   (sort (remove-duplicates free eq?) symbol<?))
 
-;; add-console-bridge-probe-helpers : syntax? -> syntax?
+;; add-console-bridge-probe-helpers : syntax? (listof symbol?) -> syntax?
 ;;   Add probe-only top-level helpers that compose retained primitives.
-(define (add-console-bridge-probe-helpers stx)
+(define (add-console-bridge-probe-helpers stx exports)
   (datum->syntax
    #f
    `(begin
       ,(syntax->datum stx)
+      ,@(expander-probe-alias-definitions exports)
       (define (webify-probe-read-string text)
         (read (open-input-string text)))
       (define (webify-probe-read-syntax-string source text)
         (read-syntax source (open-input-string text)))
+      (define (webify-probe-read-syntax-phase-string source text)
+        (js-log "probe:open-input-string:start")
+        (let ([in (open-input-string text)])
+          (js-log "probe:read-syntax:start")
+          (let ([stx (read-syntax source in)])
+            (js-log "probe:read-syntax:done")
+            "read-syntax:returned")))
+      (define (webify-probe-read-syntax-class-string source text)
+        (js-log "probe:class:open-input-string:start")
+        (let ([in (open-input-string text)])
+          (js-log "probe:class:read-syntax:start")
+          (let ([stx (read-syntax source in)])
+            (js-log "probe:class:read-syntax:done")
+            (if (syntax? stx)
+                (begin
+                  (js-log "probe:class:syntax?:true")
+                  "syntax")
+                (begin
+                  (js-log "probe:class:syntax?:false")
+                  "not-syntax")))))
+      (define (webify-probe-read-syntax-inspect-string source text)
+        (js-log "probe:inspect:open-input-string:start")
+        (let ([in (open-input-string text)])
+          (js-log "probe:inspect:read-syntax:start")
+          (let ([stx (read-syntax source in)])
+            (js-log "probe:inspect:read-syntax:done")
+            (list (list 'eof-object? (eof-object? stx))
+                  (list 'syntax? (syntax? stx))
+                  (list 'correlated? (correlated? stx))
+                  (list 'struct? (struct? stx))
+                  (list 'vector? (vector? stx))
+                  (list 'procedure? (procedure? stx))))))
+      (define (webify-probe-read-syntax-safe-datum-string source text)
+        (js-log "probe:safe-datum:open-input-string:start")
+        (let ([in (open-input-string text)])
+          (js-log "probe:safe-datum:read-syntax:start")
+          (let ([stx (read-syntax source in)])
+            (js-log "probe:safe-datum:read-syntax:done")
+            (cond
+              [(eof-object? stx)
+               (list 'eof)]
+              [(syntax? stx)
+               (list 'datum (syntax->datum stx))]
+              [else
+               (list 'foreign-syntax
+                     (list 'syntax? (syntax? stx))
+                     (list 'correlated? (correlated? stx))
+                     (list 'struct? (struct? stx))
+                     (list 'vector? (vector? stx))
+                     (list 'procedure? (procedure? stx)))]))))
+      (define (webify-probe-read-syntax-expander-datum-string source text)
+        (js-log "probe:expander-datum:open-input-string:start")
+        (let ([in (open-input-string text)])
+          (js-log "probe:expander-datum:read-syntax:start")
+          (let ([stx (read-syntax source in)])
+            (js-log "probe:expander-datum:read-syntax:done")
+            (let ([datum (maybe-syntax->datum stx)])
+              (js-log "probe:expander-datum:maybe-syntax->datum:done")
+              (list 'expander-datum datum)))))
+      (define (webify-probe-read-syntax-expander-summary-string source text)
+        (js-log "probe:expander-summary:open-input-string:start")
+        (let ([in (open-input-string text)])
+          (js-log "probe:expander-summary:read-syntax:start")
+          (let ([stx (read-syntax source in)])
+            (js-log "probe:expander-summary:read-syntax:done")
+            (let* ([vec (struct->vector stx '...)]
+                   [loc (vector-ref vec 5)]
+                   [debug-info (syntax-debug-info stx 0 #f)]
+                   [context (hash-ref debug-info 'context null)])
+              (list (list 'datum (maybe-syntax->datum stx))
+                    (list 'source (and (srcloc? loc) (srcloc-source loc)))
+                    (list 'line (and (srcloc? loc) (srcloc-line loc)))
+                    (list 'column (and (srcloc? loc) (srcloc-column loc)))
+                    (list 'position (and (srcloc? loc) (srcloc-position loc)))
+                    (list 'span (and (srcloc? loc) (srcloc-span loc)))
+                    (list 'debug-known-keys '(context))
+                    (list 'debug-context-count (length context)))))))
+      (define (webify-probe-read-syntax-procedure-shape-string source text)
+        (js-log "probe:procedure-shape:open-input-string:start")
+        (let ([in (open-input-string text)])
+          (js-log "probe:procedure-shape:read-syntax:start")
+          (let ([stx (read-syntax source in)])
+            (js-log "probe:procedure-shape:read-syntax:done")
+            (let ([vec (struct->vector stx '...)])
+              (list (list 'object-name (object-name stx))
+                    (list 'procedure? (procedure? stx))
+                    (list 'procedure-arity (procedure-arity stx))
+                    (list 'struct-vector-length (vector-length vec))
+                    (list 'struct-vector-tag (vector-ref vec 0)))))))
+      (define (webify-probe-read-syntax-lang-parameterized-string source text)
+        (js-log "probe:lang-param:open-input-string:start")
+        (let ([paramz (extend-parameterization
+                       (current-parameterization)
+                       read-accept-lang
+                       #t)])
+          (call-with-parameterization
+           paramz
+           (lambda ()
+             (let ([in (open-input-string text)])
+               (js-log "probe:lang-param:read-syntax:start")
+               (let ([stx (read-syntax source in)])
+                 (js-log "probe:lang-param:read-syntax:done")
+                 (list 'expander-datum (maybe-syntax->datum stx))))))))
+      (define (webify-probe-namespace-lock-sanity-string n)
+        (js-log "probe:namespace-lock-sanity:start")
+        (let loop ([i n])
+          (if (= i 0)
+              (begin
+                (js-log "probe:namespace-lock-sanity:done")
+                "namespace-lock-sanity:ok")
+              (let ([sema (make-semaphore)])
+                (dynamic-wind
+                  void
+                  (lambda ()
+                    (let ([peek (semaphore-peek-evt sema)])
+                      (and (not (sync/timeout 0 peek))
+                           (begin
+                             (semaphore-post sema)
+                             (sync/timeout 0 peek)))))
+                  (lambda ()
+                    (semaphore-post sema)))
+                (loop (- i 1))))))
+      (define (webify-probe-eval-checkpoint datum)
+        (js-log "probe:eval:entered")
+        (js-log "probe:eval:before-call")
+        (let ([v (eval datum)])
+          (js-log "probe:eval:after-call")
+          v))
+      (define (webify-probe-eval-checkpoint/compile datum)
+        (js-log "probe:eval-compile:entered")
+        (js-log (if (syntax? datum)
+                    "probe:eval-compile:datum-syntax?:true"
+                    "probe:eval-compile:datum-syntax?:false"))
+        (js-log "probe:eval-compile:before-call")
+        (let ([v (eval datum
+                       (current-namespace)
+                       (lambda (s ns)
+                         (js-log "probe:eval-compile:compile-entered")
+                         (js-log (if (syntax? s)
+                                     "probe:eval-compile:compile-syntax?:true"
+                                     "probe:eval-compile:compile-syntax?:false"))
+                         (js-log "probe:eval-compile:before-compile")
+                         (let ([c (compile s ns #f)])
+                           (js-log "probe:eval-compile:after-compile")
+                           c)))])
+          (js-log "probe:eval-compile:after-call")
+          v))
+      (define (webify-probe-eval-self-evaluating)
+        (webify-probe-eval-checkpoint 42))
+      (define (webify-probe-eval-self-evaluating/compile)
+        (webify-probe-eval-checkpoint/compile 42))
+      (define (webify-probe-eval-self-evaluating-introduced/compile)
+        (webify-probe-eval-checkpoint/compile
+         (namespace-syntax-introduce
+          (datum->syntax #f 42)
+          (current-namespace))))
+      (define (webify-probe-eval-self-evaluating-expander-syntax/compile)
+        (webify-probe-eval-checkpoint/compile
+         (webify-expander:datum->syntax #f 42)))
+      (define (webify-probe-compile-self-evaluating/expand)
+        (js-log "probe:compile-expand:entered")
+        (js-log "probe:compile-expand:before-compile")
+        (let ([c (compile 42
+                          (current-namespace)
+                          #f
+                          (lambda (s ns observable? to-parsed? serializable? to-correlated-linklet?)
+                            (js-log "probe:compile-expand:expand-entered")
+                            (js-log (if (syntax? s)
+                                        "probe:compile-expand:expand-syntax?:true"
+                                        "probe:compile-expand:expand-syntax?:false"))
+                            (js-log "probe:compile-expand:before-expand")
+                            (let ([expanded (expand s ns observable? to-parsed? serializable? to-correlated-linklet?)])
+                              (js-log "probe:compile-expand:after-expand")
+                              expanded)))])
+          (js-log "probe:compile-expand:after-compile")
+          (if c "compile:returned" "compile:false")))
+      (define (webify-probe-expand-self-evaluating/datum->syntax)
+        (js-log "probe:expand-step:datum->syntax:before")
+        (let ([stx (datum->syntax #f 42)])
+          (js-log "probe:expand-step:datum->syntax:after")
+          (if (syntax? stx)
+              "datum->syntax:syntax"
+              "datum->syntax:not-syntax")))
+      (define (webify-probe-expand-self-evaluating/namespace-introduce)
+        (js-log "probe:expand-step:introduce:before-datum->syntax")
+        (let ([stx (datum->syntax #f 42)])
+          (js-log "probe:expand-step:introduce:before-introduce")
+          (let ([introduced (namespace-syntax-introduce stx (current-namespace))])
+            (js-log "probe:expand-step:introduce:after-introduce")
+            (if (syntax? introduced)
+                "introduce:syntax"
+                "introduce:not-syntax"))))
+      (define (webify-probe-expand-self-evaluating/namespace-args)
+        (js-log "probe:expand-step:namespace-args:before")
+        (let ([stx (datum->syntax #f 42)]
+              [ns (current-namespace)])
+          (js-log "probe:expand-step:namespace-args:after-values")
+          (list (list 'syntax? (syntax? stx))
+                (list 'stx-struct? (struct? stx))
+                (list 'stx-procedure? (procedure? stx))
+                (list 'stx-object-name (object-name stx))
+                (list 'namespace? (namespace? ns))
+                (list 'ns-struct? (struct? ns))
+                (list 'ns-procedure? (procedure? ns))
+                (list 'ns-object-name (object-name ns)))))
+      (define (webify-probe-value-shape v)
+        (let ([vec (and (struct? v) (struct->vector v '...))])
+          (list (list 'syntax? (syntax? v))
+                (list 'struct? (struct? v))
+                (list 'procedure? (procedure? v))
+                (list 'object-name (object-name v))
+                (list 'struct-vector-length (and vec (vector-length vec)))
+                (list 'struct-vector-tag (and vec (vector-ref vec 0)))
+                (list 'maybe-syntax->datum
+                      (let ([datum (maybe-syntax->datum v)])
+                        (cond
+                          [(eq? datum v) 'self]
+                          [(syntax? datum) 'syntax]
+                          [else datum]))))))
+      (define (webify-probe-expander-value-shape v)
+        (let ([vec (and (struct? v) (struct->vector v '...))])
+          (list (list 'expander-syntax? (webify-expander:syntax? v))
+                (list 'runtime-syntax? (syntax? v))
+                (list 'struct? (struct? v))
+                (list 'procedure? (procedure? v))
+                (list 'object-name (object-name v))
+                (list 'struct-vector-length (and vec (vector-length vec)))
+                (list 'struct-vector-tag (and vec (vector-ref vec 0)))
+                (list 'expander-maybe-syntax->datum
+                      (let ([datum (webify-expander:maybe-syntax->datum v)])
+                        (cond
+                          [(eq? datum v) 'self]
+                          [(webify-expander:syntax? datum) 'expander-syntax]
+                          [(syntax? datum) 'runtime-syntax]
+                          [else datum]))))))
+      (define (webify-probe-expand-self-evaluating/syntax-binding-shape)
+        (list (list 'syntax?-object-name (object-name syntax?))
+              (list 'syntax?-procedure? (procedure? syntax?))
+              (list 'syntax?-arity (procedure-arity syntax?))
+              (list 'datum->syntax-object-name (object-name datum->syntax))
+              (list 'maybe-syntax->datum-object-name (object-name maybe-syntax->datum))
+              (list 'expander-syntax?-object-name (object-name webify-expander:syntax?))
+              (list 'expander-datum->syntax-object-name
+                    (object-name webify-expander:datum->syntax))
+              (list 'expander-maybe-syntax->datum-object-name
+                    (object-name webify-expander:maybe-syntax->datum))))
+      (define (webify-probe-expand-self-evaluating/syntax-shape-comparison)
+        (js-log "probe:expand-step:syntax-shape-comparison:before")
+        (let* ([raw (datum->syntax #f 42)]
+               [expander-raw (webify-expander:datum->syntax #f 42)]
+               [introduced (namespace-datum-introduce 42)])
+          (js-log "probe:expand-step:syntax-shape-comparison:after-values")
+          (list (list 'raw (webify-probe-value-shape raw))
+                (list 'raw/expander (webify-probe-expander-value-shape raw))
+                (list 'expander-raw
+                      (webify-probe-expander-value-shape expander-raw))
+                (list 'introduced
+                      (webify-probe-expander-value-shape introduced)))))
+      (define (webify-probe-expand-self-evaluating/expander-namespace-introduce)
+        (js-log "probe:expand-step:expander-introduce:before-datum->syntax")
+        (let ([stx (webify-expander:datum->syntax #f 42)])
+          (js-log "probe:expand-step:expander-introduce:before-introduce")
+          (let ([introduced (webify-expander:namespace-syntax-introduce
+                             stx
+                             (current-namespace))])
+            (js-log "probe:expand-step:expander-introduce:after-introduce")
+            (webify-probe-expander-value-shape introduced))))
+      (define (webify-probe-expand-self-evaluating/full-expander-syntax)
+        (js-log "probe:expand-step:full-expander-syntax:before-datum->syntax")
+        (let ([stx (webify-expander:datum->syntax #f 42)])
+          (js-log "probe:expand-step:full-expander-syntax:before-expand")
+          (let ([v (webify-expander:expand stx)])
+            (js-log "probe:expand-step:full-expander-syntax:after-expand")
+            (webify-probe-expander-value-shape v))))
+      (define (webify-probe-expand-self-evaluating/full-runtime-syntax)
+        (js-log "probe:expand-step:full-runtime-syntax:before-datum->syntax")
+        (let ([stx (datum->syntax #f 42)])
+          (js-log "probe:expand-step:full-runtime-syntax:before-expand")
+          (let ([v (webify-expander:expand stx)])
+            (js-log "probe:expand-step:full-runtime-syntax:after-expand")
+            (webify-probe-expander-value-shape v))))
+      (define (webify-probe-expand-self-evaluating/compile-expander-syntax)
+        (js-log "probe:compile-expander-syntax:before-datum->syntax")
+        (let ([stx (webify-expander:datum->syntax #f 42)])
+          (js-log "probe:compile-expander-syntax:before-compile")
+          (let ([c (webify-expander:compile stx)])
+            (js-log "probe:compile-expander-syntax:after-compile")
+            (if c "compile-expander-syntax:returned" "compile-expander-syntax:false"))))
+      (define (webify-probe-expand-self-evaluating/wrap-counts)
+        (js-log "probe:wrap-counts:before")
+        (let* ([runtime-raw (datum->syntax #f 42)]
+               [expander-raw (webify-expander:datum->syntax #f 42)]
+               [introduced (webify-expander:namespace-syntax-introduce
+                            expander-raw
+                            (current-namespace))]
+               [datum-introduced (webify-expander:namespace-datum-introduce 42)])
+          (js-log "probe:wrap-counts:after")
+          (list (list 'runtime-raw (webify-probe-value-shape runtime-raw))
+                (list 'expander-raw (webify-probe-expander-value-shape expander-raw))
+                (list 'introduced (webify-probe-expander-value-shape introduced))
+                (list 'datum-introduced
+                      (webify-probe-expander-value-shape datum-introduced)))))
+      (define (webify-probe-expand-self-evaluating/namespace-introduce-shape)
+        (js-log "probe:expand-step:introduce-shape:before-datum->syntax")
+        (let ([stx (datum->syntax #f 42)]
+              [ns (current-namespace)])
+          (js-log "probe:expand-step:introduce-shape:before-introduce")
+          (with-handlers ([exn:fail?
+                           (lambda (exn)
+                             (list (list 'raised? #t)
+                                   (list 'message (exn-message exn))
+                                   (list 'stx-shape (webify-probe-value-shape stx))
+                                   (list 'ns-shape (webify-probe-value-shape ns))))])
+            (let ([introduced (namespace-syntax-introduce stx ns)])
+              (js-log "probe:expand-step:introduce-shape:after-introduce")
+              (list (list 'raised? #f)
+                    (list 'introduced-shape
+                          (webify-probe-value-shape introduced)))))))
+      (define (webify-probe-expand-self-evaluating/namespace-introduce-no-ns)
+        (js-log "probe:expand-step:introduce-no-ns:before-datum->syntax")
+        (let ([stx (datum->syntax #f 42)])
+          (js-log "probe:expand-step:introduce-no-ns:before-introduce")
+          (let ([introduced (namespace-syntax-introduce stx)])
+            (js-log "probe:expand-step:introduce-no-ns:after-introduce")
+            (if (syntax? introduced)
+                "introduce-no-ns:syntax"
+                "introduce-no-ns:not-syntax"))))
+      (define (webify-probe-expand-self-evaluating/namespace-datum-introduce)
+        (js-log "probe:expand-step:datum-introduce:before")
+        (let ([introduced (namespace-datum-introduce 42)])
+          (js-log "probe:expand-step:datum-introduce:after")
+          (if (syntax? introduced)
+              "datum-introduce:syntax"
+              "datum-introduce:not-syntax")))
+      (define (webify-probe-expand-self-evaluating/namespace-datum-introduce-shape)
+        (js-log "probe:expand-step:datum-introduce-shape:before")
+        (with-handlers ([exn:fail?
+                         (lambda (exn)
+                           (list (list 'raised? #t)
+                                 (list 'message (exn-message exn))))])
+          (let ([introduced (namespace-datum-introduce 42)])
+            (js-log "probe:expand-step:datum-introduce-shape:after")
+            (list (list 'raised? #f)
+                  (list 'introduced-shape
+                        (webify-probe-value-shape introduced))))))
+      (define (webify-probe-expand-self-evaluating/expand-syntax)
+        (js-log "probe:expand-step:expand-syntax:before-datum->syntax")
+        (let ([stx (datum->syntax #f 42)])
+          (js-log "probe:expand-step:expand-syntax:before-expand")
+          (let ([v (expand stx)])
+            (js-log "probe:expand-step:expand-syntax:after-expand")
+            (if (syntax? v)
+                "expand-syntax:syntax"
+                "expand-syntax:not-syntax"))))
+      (define (webify-probe-expand-self-evaluating/expand-once)
+        (js-log "probe:expand-step:expand-once:before")
+        (let ([v (expand-once 42)])
+          (js-log "probe:expand-step:expand-once:after")
+          (if (syntax? v)
+              "expand-once:syntax"
+              "expand-once:not-syntax")))
+      (define (webify-probe-expand-self-evaluating/top-form)
+        (js-log "probe:expand-step:top-form:before")
+        (let ([v (expand-to-top-form 42)])
+          (js-log "probe:expand-step:top-form:after")
+          (if (syntax? v)
+              "top-form:syntax"
+              "top-form:not-syntax")))
+      (define (webify-probe-expand-self-evaluating/full)
+        (js-log "probe:expand-step:full:before")
+        (let ([v (expand 42)])
+          (js-log "probe:expand-step:full:after")
+          (if (syntax? v)
+              "expand:syntax"
+              "expand:not-syntax")))
+      (define (webify-probe-eval-quoted-symbol)
+        (webify-probe-eval-checkpoint '(quote a)))
+      (define (webify-probe-eval-primitive-app)
+        (webify-probe-eval-checkpoint '(+ 1 2)))
+      (define (webify-probe-eval-local-let)
+        (webify-probe-eval-checkpoint '(let ([x 1]) x)))
       (define (webify-probe-read-syntax-datum-string source text)
-        (syntax->datum (read-syntax source (open-input-string text)))))))
+        (syntax->datum (read-syntax source (open-input-string text))))
+      (define (webify-probe-read-syntax-summary-string source text)
+        (let ([stx (read-syntax source (open-input-string text))])
+          (list (syntax->datum stx)
+                (syntax-source stx)
+                (syntax-line stx)
+                (syntax-column stx)
+                (syntax-position stx)
+                (syntax-span stx))))
+      (define (webify-probe-parameterization-pressure-string n)
+        (let ([original (error-print-width)])
+          (let ([paramz (extend-parameterization
+                         (current-parameterization)
+                         error-print-width
+                         original)])
+            (call-with-parameterization
+             paramz
+             (lambda ()
+               (let loop ([i n])
+                 (if (= i 0)
+                     (if (= (error-print-width) original)
+                         "parameterization-pressure:ok"
+                         "parameterization-pressure:wrong-value")
+                     (begin
+                       (error-print-width 80)
+                       (error-print-width original)
+                       (loop (- i 1)))))))))))))
 
 ;; write-racket-control! : path-string? any/c -> void?
 ;;   Write a normal Racket module that controls for ordinary expansion cost.
@@ -567,7 +998,7 @@
                (datum->syntax #f (syntax->datum webified)))))
     (define bridged-webified
       (if (compile-console-bridge?)
-          (add-console-bridge-probe-helpers clean-webified)
+          (add-console-bridge-probe-helpers clean-webified exports)
           clean-webified))
     (printf "exports: ~a\n" (length exports))
     (when (write-racket-control-path)

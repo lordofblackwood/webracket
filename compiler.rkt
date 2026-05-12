@@ -751,6 +751,8 @@
     prop:authentic
     prop:custom-write
     prop:equal+hash
+    always-evt
+    never-evt
 
     empty-treelist
 
@@ -1086,6 +1088,8 @@
       make-prefab-struct
       hash hasheq hasheqv hashalw
       format fprintf
+      sync sync/timeout
+      extend-parameterization
       string-append-immutable string-append* bytes-append*)
     ; - kind
     'variadic
@@ -1098,6 +1102,9 @@
              fxmin fxmax unsafe-fxmin unsafe-fxmax
              append* string-append* bytes-append* list* format) 1]
         [(fprintf) 2]
+        [(sync) 0]
+        [(sync/timeout) 1]
+        [(extend-parameterization) 1]
         [(unsafe-fxand unsafe-fxior unsafe-fxxor) 1]
         [(symbol<? keyword<? path<?
                    string=? string<? string<=? string>? string>=?
@@ -1112,9 +1119,12 @@
     (λ (name)
       (case name
         [(apply list*) 1]
+        [(extend-parameterization) 1]
         [(vector-count map andmap ormap append-map count for-each vector-map vector-map! filter-map
                        instance-variable-value) 2]
         [(fprintf) 2]
+        [(sync) 0]
+        [(sync/timeout) 1]
         [(foldl foldr instance-set-variable-value!) 3]
         [(+ * unsafe-fx+ unsafe-fx* compose compose1 cartesian-product string-append-immutable gcd lcm hash hasheq hasheqv hashalw) 0]
         [else 1])))
@@ -1230,6 +1240,7 @@
        peek-bytes
        peek-string
        progress-evt?
+       make-semaphore
        write-byte
        write-char
        get-output-bytes
@@ -1264,7 +1275,7 @@
                  hash-ref real->floating-point-bytes vector-sort! vector-sort
                  ) 2]
          [(hash-update!) 3]
-         [(random flrandom unsafe-flrandom) 0]
+        [(random flrandom unsafe-flrandom make-semaphore) 0]
         [(progress-evt? write-byte write-char get-output-bytes) 1]
          [(write-bytes write-string) 1]
          [else 1]))
@@ -1287,6 +1298,7 @@
          [(peek-bytes! peek-string!) 5]
          [(peek-bytes peek-string) 3]
          [(progress-evt? make-vector make-string make-bytes) 2]
+         [(make-semaphore) 1]
          [(random) 2]
          [(flrandom unsafe-flrandom) 1]
          [(vector-sort! vector-sort) 4]
@@ -1390,12 +1402,16 @@
        read-accept-infix-dot
        read-accept-quasiquote
        read-case-sensitive
+       print-syntax-width
+       error-print-width
+       error-print-source-location
        error-value->string-handler
        error-syntax->string-handler
        error-syntax->name-handler
        error-module-path->string-handler
        current-print
        current-environment-variables
+       current-compile-target-machine
        system-type
        current-directory
        current-directory-for-user)
@@ -1757,6 +1773,7 @@
   make-inspector             ; permissive stub
   
   values                     
+  dynamic-wind
   
 
   boxed      ; used by assignment elimination
@@ -1768,7 +1785,10 @@
   box? box box-immutable unbox unbox* set-box! set-box*! box-cas! unsafe-box*-cas!
   make-weak-box weak-box? weak-box-value
 
+  current-thread
   make-thread-cell thread-cell? thread-cell-ref thread-cell-set!
+  make-semaphore semaphore? semaphore-post semaphore-peek-evt semaphore-peek-evt?
+  sync sync/timeout
   unsafe-make-uninterruptible-lock
   unsafe-uninterruptible-lock-acquire
   unsafe-uninterruptible-lock-release
@@ -1991,6 +2011,7 @@
   arithmetic-shift
   integer-length
   random
+  current-compile-target-machine
   system-big-endian?
   system-type
   version
@@ -2029,7 +2050,8 @@
   byte?
 
   vector 
-  vector? make-vector vector-ref vector-set! vector-length  
+  vector? make-vector vector-ref vector-set! vector-length
+  vector*-length vector*-ref vector*-set!
   vector-fill! vector-copy! vector-empty?
   vector->list list->vector vector->values vector->immutable-vector
   vector-copy vector-map vector-map! vector-argmax vector-argmin
@@ -2145,6 +2167,9 @@
   read-accept-infix-dot
   read-accept-quasiquote
   read-case-sensitive
+  print-syntax-width
+  error-print-width
+  error-print-source-location
   error-value->string-handler
   error-syntax->string-handler
   error-syntax->name-handler
@@ -2250,6 +2275,7 @@
   hash-map
   hash-map/copy
   hash-keys
+  hash-keys-subset?
   hash-values
   hash-filter
   hash-filter-keys
@@ -2317,7 +2343,11 @@
   unsafe-root-continuation-prompt-tag ; stable placeholder; prompts unsupported
   current-continuation-marks  ; dummy, always returns #f
   continuation-mark-set-first ; bootstrap stub; full continuation marks unsupported
+  current-parameterization    ; poor-man dynamic parameterization overlay
+  parameterization?           ; recognizes poor-man parameterization overlays
+  extend-parameterization     ; poor-man parameterization overlay constructor
   reparameterize              ; bootstrap identity; full parameterizations unsupported
+  call-with-parameterization  ; scoped poor-man parameterization installer
   cache-configuration         ; small #%paramz cache for expander configuration
 
   ;; 12.2 Syntax Object Content
@@ -2554,6 +2584,7 @@
   unsafe-cdr
   unsafe-sealed-struct?
   unsafe-struct?
+  unsafe-struct*-cas!
   unsafe-struct*-ref
   unsafe-struct*-set!
   unsafe-struct-ref
