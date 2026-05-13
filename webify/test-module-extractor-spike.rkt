@@ -1379,6 +1379,37 @@
     (list provider-row reexport-row consumer-row))
    '((consumer public-x provider internal-x))))
 
+(test-case "reflection hints follow normalized module->exports provider paths"
+  (define provider-row
+    (webify-module-reflection-row
+     'provider
+     '()
+     '(internal-x)
+     (webify-normalize-module-export-metadata '(internal-x))
+     '()
+     '()))
+  (define reexport-row
+    (webify-module-reflection-row
+     'reexport
+     '((internal-x))
+     '((0 ((public-x ((provider 0 internal-x 0)) internal-x))))
+     (webify-normalize-module-export-metadata
+      '((0 ((public-x ((provider 0 internal-x 0)) internal-x)))))
+     '()
+     '()))
+  (define consumer-row
+    (webify-module-reflection-row
+     'consumer
+     '((public-x))
+     '(answer)
+     (webify-normalize-module-export-metadata '(answer))
+     '()
+     '(((public-x public-x)))))
+  (check-equal?
+   (webify-reflection-rows->import-hints
+    (list provider-row reexport-row consumer-row))
+   '((consumer public-x provider internal-x))))
+
 (test-case "resolved extractor inputs use re-provide backing provider hints"
   (define provider-report
     (webify-module-extractor-spike

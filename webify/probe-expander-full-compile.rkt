@@ -769,7 +769,44 @@
                                 variables))
                      (list 'syntaxes
                            (map (lambda (v) (webify-probe-reflect-digest v 10))
-                                syntaxes)))))
+                               syntaxes)))))
+            '(module->exports-alias-unavailable)))
+
+      (define (webify-probe-provider-path-entry->backing entry fallback-module fallback-export)
+        (match entry
+          [(list mpi _phase (? symbol? provider-export) _nominal-phase)
+           ;; The extracted expander can preserve the provider-path entry, but
+           ;; host-side code resolves the module-path-index into a module name.
+           (list (if mpi 'module-path-index fallback-module)
+                 provider-export)]
+          [_ (list fallback-module fallback-export)]))
+
+      (define (webify-probe-module-exports->reflection-hints mod importer)
+        (if webify-expander-has:module->exports
+            (call-with-values
+             (lambda () (webify-expander:module->exports mod 'defined-names))
+             (lambda (variables _syntaxes)
+               (apply append
+                      (for/list ([row (in-list variables)])
+                        (match row
+                          [(cons _phase entries)
+                           (for/list ([entry (in-list entries)])
+                             (match entry
+                               [(list (? symbol? external) provider-path (? symbol? internal))
+                                (define backing
+                                  (if (and (pair? provider-path)
+                                           (pair? (car provider-path)))
+                                      (webify-probe-provider-path-entry->backing
+                                       (car provider-path)
+                                       mod
+                                       internal)
+                                      (list mod internal)))
+                                (list importer
+                                      external
+                                      (car backing)
+                                      (cadr backing))]
+                               [_ (list importer 'unknown mod 'unknown)]))]
+                          [_ '()])))))
             '(module->exports-alias-unavailable)))
       (define (webify-probe-expand-self-evaluating/ordinary-kernel-binding-shapes)
         (js-log "probe:ordinary-kernel-binding-shapes:before-require")
@@ -1742,6 +1779,35 @@
                   (webify-probe-instance-value-by-key
                    module-inst
                    public-key))))))
+      (define (webify-probe-expand-self-evaluating/tiny-rename-reprovide-hints/catch)
+        (js-log "probe:tiny-rename-reprovide-hints/catch:before-eval-module-a")
+        (webify-probe-require/catch
+         "tiny-rename-reprovide-hints/catch"
+         (lambda ()
+           (webify-probe-eval-checkpoint/compile
+            (webify-probe-expander-introduced-syntax
+             '(module webify-hint-provider '#%kernel
+                (#%provide webify-hint-internal)
+                (define-values (webify-hint-internal) '29))))
+           (js-log "probe:tiny-rename-reprovide-hints/catch:before-eval-module-b")
+           (webify-probe-eval-checkpoint/compile
+            (webify-probe-expander-introduced-syntax
+             '(module webify-hint-reexport '#%kernel
+                (#%require (quote webify-hint-provider))
+                (#%provide (rename webify-hint-internal webify-hint-public)))))
+           (js-log "probe:tiny-rename-reprovide-hints/catch:before-require")
+           (webify-expander:namespace-require
+            '(quote webify-hint-reexport)
+            (webify-expander:current-namespace)))
+         (lambda ()
+           (list
+            (list 'exports
+                  (webify-probe-module-exports/digest
+                   '(quote webify-hint-reexport)))
+            (list 'hints
+                  (webify-probe-module-exports->reflection-hints
+                   '(quote webify-hint-reexport)
+                   'webify-hint-consumer))))))
       (define (webify-probe-expand-self-evaluating/tiny-only-require/catch)
         (js-log "probe:tiny-only-require/catch:before-eval-module-a")
         (webify-probe-require/catch

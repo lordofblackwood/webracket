@@ -91,6 +91,14 @@
 (define (simple-export-binding phase export)
   (webify-module-export-binding phase export '() export))
 
+;; normalize-export-provider-path : (listof any/c) -> (listof any/c)
+;;   Keep source-style provider entries and actual module->exports provider paths comparable.
+(define (normalize-export-provider-path provider-path)
+  (match provider-path
+    [(list (and nested (cons (or (? list?) (? vector?)) _)))
+     nested]
+    [_ provider-path]))
+
 ;; normalize-module-export-entry : any/c any/c -> webify-module-export-binding?
 ;;   Normalize one module->exports-style entry while preserving provider path data.
 (define (normalize-module-export-entry phase entry)
@@ -98,7 +106,11 @@
     [(? symbol? external)
      (simple-export-binding phase external)]
     [(list (? symbol? external) provider-path ... (? symbol? internal))
-     (webify-module-export-binding phase external provider-path internal)]
+     (webify-module-export-binding
+      phase
+      external
+      (normalize-export-provider-path provider-path)
+      internal)]
     [_
      (webify-module-export-binding phase entry '() entry)]))
 
@@ -164,6 +176,10 @@
       [(list 'provider (? symbol? dependency) (? symbol? export))
        (list dependency export)]
       [(list 'provider-export (? symbol? dependency) (? symbol? export))
+       (list dependency export)]
+      [(list (? symbol? dependency) _phase (? symbol? export) _nominal-phase)
+       (list dependency export)]
+      [(vector (? symbol? dependency) _phase (? symbol? export) _nominal-phase)
        (list dependency export)]
       [(list (? symbol? dependency) (? symbol? export))
        (list dependency export)]

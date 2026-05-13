@@ -552,6 +552,19 @@
                            "(public-instance-value missing)"))])
   (require-output tiny-rename-output fragment))
 
+(define-values (tiny-rename-hints-status tiny-rename-hints-output)
+  (run-probe wasm-path
+             "webify-probe-expand-self-evaluating/tiny-rename-reprovide-hints/catch"
+             "[]"))
+(unless (zero? tiny-rename-hints-status)
+  (error 'check-expander-kernel-smoke
+         "tiny rename reprovide hints probe failed with status ~a\noutput:\n~a"
+         tiny-rename-hints-status
+         tiny-rename-hints-output))
+(for ([fragment (in-list '("probe:tiny-rename-reprovide-hints/catch:after-require"
+                           "(hints ((webify-hint-consumer webify-hint-public module-path-index webify-hint-internal)))"))])
+  (require-output tiny-rename-hints-output fragment))
+
 (define-values (tiny-only-status tiny-only-output)
   (run-probe wasm-path
              "webify-probe-expand-self-evaluating/tiny-only-require/catch"
