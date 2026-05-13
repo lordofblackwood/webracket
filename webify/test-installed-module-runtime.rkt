@@ -6,6 +6,7 @@
 (define installed-runtime-smokes
   (list
    (installed-runtime-smoke
+    'racket/bool
     "installed racket/bool graph reaches WebRacket runtime smoke"
     '((module use-bool racket/base
         (require racket/bool)
@@ -14,8 +15,9 @@
     '((use-bool y))
     #rx"(?m:^(#t|true)$)"
     '()
-    '())
+    #f)
    (installed-runtime-smoke
+    'racket/fixnum
     "installed racket/fixnum graph reaches WebRacket runtime smoke"
     '((module use-fixnum racket/base
         (require racket/fixnum)
@@ -24,8 +26,9 @@
     '((use-fixnum y))
     #rx"(?m:^3$)"
     '()
-    '())
+    #f)
    (installed-runtime-smoke
+    'racket/list
     "installed racket/list graph reaches WebRacket runtime smoke"
     '((module use-list racket/base
         (require racket/list)
@@ -34,8 +37,9 @@
     '((use-list y))
     #rx"(?m:^(#t|true)$)"
     '()
-    '())
+    #f)
    (installed-runtime-smoke
+    'racket/list
     "installed racket/list rest reaches WebRacket runtime smoke"
     '((module use-list-rest racket/base
         (require racket/list)
@@ -44,8 +48,9 @@
     '((use-list-rest y))
     #rx"(?m:^(#f|false)$)"
     '()
-    '())
+    #f)
    (installed-runtime-smoke
+    'racket/list
     "installed racket/list add-between reaches WebRacket runtime smoke"
     '((module use-list-add-between racket/base
         (require racket/list)
@@ -54,8 +59,9 @@
     '((use-list-add-between y))
     #rx"(?m:^,$)"
     '()
-    '())
+    #f)
    (installed-runtime-smoke
+    'racket/list
     "installed racket/list range and reverse reach WebRacket runtime smoke"
     '((module use-list-range-reverse racket/base
         (require racket/list)
@@ -64,8 +70,9 @@
     '((use-list-range-reverse y))
     #rx"(?m:^6$)"
     '()
-    '())
+    #f)
    (installed-runtime-smoke
+    'racket/string
     "installed racket/string graph reaches WebRacket runtime smoke"
     '((module use-string racket/base
         (require racket/string)
@@ -74,8 +81,9 @@
     '((use-string y))
     #rx"(?m:^a,b$)"
     '()
-    '())
+    #f)
    (installed-runtime-smoke
+    'racket/string
     "installed racket/string prefix reaches WebRacket runtime smoke"
     '((module use-string-prefix racket/base
         (require racket/string)
@@ -84,8 +92,9 @@
     '((use-string-prefix y))
     #rx"(?m:^(#t|true)$)"
     '()
-    '())
+    #f)
    (installed-runtime-smoke
+    'racket/list+racket/string
     "installed racket/list and racket/string compose in WebRacket runtime smoke"
     '((module use-list-and-string racket/base
         (require racket/list racket/string)
@@ -97,8 +106,9 @@
     '((use-list-and-string y))
     #rx"(?m:^1,2,3$)"
     '()
-    '())
+    #f)
    (installed-runtime-smoke
+    'local-module
     "local multi-export module observes multiple values"
     '((module local-multi-export racket/base
         (provide a b)
@@ -108,8 +118,9 @@
       (local-multi-export b))
     #rx"(?s:20.*22)"
     '()
-    '())
+    #f)
    (installed-runtime-smoke
+    'racket/function
     "installed racket/function compose reaches WebRacket runtime smoke"
     '((module use-function-compose racket/base
         (require racket/function)
@@ -118,8 +129,9 @@
     '((use-function-compose y))
     #rx"(?m:^42$)"
     '()
-    '())
+    #f)
    (installed-runtime-smoke
+    'racket/function
     "installed racket/function identity reaches WebRacket runtime smoke"
     '((module use-function-identity racket/base
         (require racket/function)
@@ -128,8 +140,9 @@
     '((use-function-identity y))
     #rx"(?m:^42$)"
     '()
-    '())
+    #f)
    (installed-runtime-smoke
+    'racket/function
     "installed racket/function compose1 reaches WebRacket runtime smoke"
     '((module use-function-compose1 racket/base
         (require racket/function)
@@ -138,8 +151,9 @@
     '((use-function-compose1 y))
     #rx"(?m:^42$)"
     '()
-    '())
+    #f)
    (installed-runtime-smoke
+    'racket/function
     "installed racket/function negate reaches WebRacket runtime smoke"
     '((module use-function-negate racket/base
         (require racket/function)
@@ -148,8 +162,9 @@
     '((use-function-negate y))
     #rx"(?m:^(#t|true)$)"
     '()
-    '())
+    #f)
    (installed-runtime-smoke
+    'racket/function
     "installed racket/function const reaches WebRacket runtime smoke"
     '((module use-function-const racket/base
         (require racket/function)
@@ -158,11 +173,13 @@
     '((use-function-const y))
     #rx"(?m:^42$)"
     '()
-    '())))
+    #f)))
 
 (when (file-exists? racket92-bin)
   (for ([smoke (in-list installed-runtime-smokes)])
-    (test-case (installed-runtime-smoke-name smoke)
+    (test-case (format "~a: ~a"
+                       (installed-runtime-smoke-category smoke)
+                       (installed-runtime-smoke-name smoke))
       (run-installed-runtime-smoke smoke))))
 
 (module+ main

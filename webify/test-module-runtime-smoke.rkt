@@ -2,6 +2,7 @@
 
 (require rackunit
          "module-input.rkt"
+         "module-registry.rkt"
          "module-runtime-smoke.rkt"
          "primitive-demands.rkt")
 
@@ -22,7 +23,9 @@
       '((ext-x provider x))))
     '(consumer)
     '((consumer y))
-    #rx"(?m:^42$)")
+    #rx"(?m:^42$)"
+    '()
+    #f)
    (local-runtime-smoke
     "resolved re-export graph can use the backing provider cell"
     (list
@@ -44,7 +47,9 @@
     '(reexport consumer)
     '((reexport public-x)
       (consumer answer))
-    #rx"(?s:20.*42)")
+    #rx"(?s:20.*42)"
+    '()
+    #f)
    (local-runtime-smoke
     "renamed import graph reaches WebRacket runtime"
     (list
@@ -60,7 +65,9 @@
       '((renamed-x provider x))))
     '(consumer)
     '((consumer answer))
-    #rx"(?m:^42$)")
+    #rx"(?m:^42$)"
+    '()
+    #f)
    (local-runtime-smoke
     "multi-root graph shares provider instances"
     (list
@@ -82,7 +89,47 @@
     '(left-root right-root)
     '((left-root left)
       (right-root right))
-    #rx"(?s:21.*22)")))
+    #rx"(?s:21.*22)"
+    '()
+    #f)
+   (local-runtime-smoke
+    "missing runtime primitive is classified before WebRacket runs"
+    (list
+     (webify-module-linklet-input
+      'needs-missing-primitive
+      '(linklet (((missing missing))) (out)
+         (define-values (out) missing))
+      '((missing #%kernel not-a-real-kernel-primitive))))
+    '(needs-missing-primitive)
+    '((needs-missing-primitive out))
+    #rx"never-matches-success"
+    '(primitive-demand-preflight)
+    #rx"not-a-real-kernel-primitive")))
+
+(test-case "multi-root local manifest plans shared provider once"
+  (define inputs
+    (list
+     (webify-module-linklet-input
+      'provider
+      '(linklet () (x)
+         (define-values (x) 20))
+      '())
+     (webify-module-linklet-input
+      'left-root
+      '(linklet (([x x])) (left)
+         (define-values (left) (+ x 1)))
+      '((x provider x)))
+     (webify-module-linklet-input
+      'right-root
+      '(linklet (([x x])) (right)
+         (define-values (right) (+ x 2)))
+      '((x provider x)))))
+  (define registry
+    (webify-module-linklet-manifest->registry
+     (webify-module-linklet-manifest inputs '(left-root right-root))))
+  (check-equal?
+   (webify-module-registry-plan registry '(left-root right-root))
+   '(provider left-root right-root)))
 
 (test-case "runtime smoke preflight reports missing primitive-table entries"
   (define input

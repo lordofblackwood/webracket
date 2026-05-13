@@ -2,6 +2,7 @@
 
 (provide installed-runtime-smoke
          installed-runtime-smoke?
+         installed-runtime-smoke-category
          installed-runtime-smoke-name
          installed-runtime-smoke-module-data
          installed-runtime-smoke-observations
@@ -15,6 +16,8 @@
          local-runtime-smoke-roots
          local-runtime-smoke-observations
          local-runtime-smoke-expected-output
+         local-runtime-smoke-allowed-failures
+         local-runtime-smoke-expected-failure
          racket92-bin
          installed-runtime-inputs-missing-primitive-demands
          run-installed-runtime-smoke
@@ -35,7 +38,8 @@
 (define racket92-bin (build-path repo-root "../racket/racket/bin/racket"))
 
 (struct installed-runtime-smoke
-  (name
+  (category
+   name
    module-data
    observations
    expected-output
@@ -48,7 +52,9 @@
    inputs
    roots
    observations
-   expected-output)
+   expected-output
+   allowed-failures
+   expected-failure)
   #:transparent)
 
 ;; write-extractor-script! : path-string? path-string? any/c -> void?
@@ -92,18 +98,40 @@
       (newline out))
     #:exists 'truncate/replace))
 
-;; check-installed-runtime-failure : installed-runtime-smoke? webify-module-failure? -> void?
+;; check-runtime-failure : symbol? (listof symbol?) (or/c regexp? #f) webify-module-failure? -> void?
 ;;   Validate an expected extraction, bridge, compiler, or runtime failure.
-(define (check-installed-runtime-failure smoke failure)
+(define (check-runtime-failure who allowed-failures expected-failure failure)
   (check-not-equal? (webify-module-failure-category failure)
                     'primitive-alias-collision)
   (unless (memq (webify-module-failure-category failure)
-                (installed-runtime-smoke-allowed-failures smoke))
-    (fail-check (webify-module-failure-message failure)))
-  (when (installed-runtime-smoke-expected-failure smoke)
+                allowed-failures)
+    (fail-check
+     (format "~a failed as ~a:\n~a"
+             who
+             (webify-module-failure-category failure)
+             (webify-module-failure-message failure))))
+  (when expected-failure
     (check-regexp-match
-     (installed-runtime-smoke-expected-failure smoke)
+     expected-failure
      (webify-module-failure-message failure))))
+
+;; check-installed-runtime-failure : installed-runtime-smoke? webify-module-failure? -> void?
+;;   Validate an expected installed-module smoke failure.
+(define (check-installed-runtime-failure smoke failure)
+  (check-runtime-failure
+   (installed-runtime-smoke-name smoke)
+   (installed-runtime-smoke-allowed-failures smoke)
+   (installed-runtime-smoke-expected-failure smoke)
+   failure))
+
+;; check-local-runtime-failure : local-runtime-smoke? webify-module-failure? -> void?
+;;   Validate an expected hand-authored module-linklet smoke failure.
+(define (check-local-runtime-failure smoke failure)
+  (check-runtime-failure
+   (local-runtime-smoke-name smoke)
+   (local-runtime-smoke-allowed-failures smoke)
+   (local-runtime-smoke-expected-failure smoke)
+   failure))
 
 ;; run-racket92/extract : path-string? path-string? -> values
 ;;   Run a Racket 9.2 extractor script while capturing combined output.
@@ -213,12 +241,21 @@
     (raise-argument-error 'run-local-runtime-smoke
                           "local-runtime-smoke?"
                           smoke))
-  (run-composed-runtime-smoke
-   (webify-module-linklet-manifest
-    (local-runtime-smoke-inputs smoke)
-    (local-runtime-smoke-roots smoke))
-   (local-runtime-smoke-observations smoke)
-   (local-runtime-smoke-expected-output smoke)))
+  (with-handlers ([exn:fail?
+                   (lambda (exn)
+                     (check-local-runtime-failure
+                      smoke
+                      (webify-classify-module-exn 'runtime exn)))])
+    (run-composed-runtime-smoke
+     (webify-module-linklet-manifest
+      (local-runtime-smoke-inputs smoke)
+      (local-runtime-smoke-roots smoke))
+     (local-runtime-smoke-observations smoke)
+     (local-runtime-smoke-expected-output smoke))
+    (when (pair? (local-runtime-smoke-allowed-failures smoke))
+      (fail-check
+       (format "expected local runtime smoke failure in ~a"
+               (local-runtime-smoke-name smoke))))))
 
 ;; run-installed-runtime-smoke : installed-runtime-smoke? -> void?
 ;;   Extract, compose, compile, and run one installed-module WebRacket smoke.

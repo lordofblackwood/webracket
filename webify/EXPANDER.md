@@ -3611,7 +3611,9 @@ source module datum
 The preflight step is intentionally earlier than WebRacket execution. It scans
 resolved module inputs for primitive-module imports and literal primitive-table
 key demands, then reports missing primitive-table entries before a runtime crash
-can hide the real cause.
+can hide the real cause. That path is classified as
+`primitive-demand-preflight`, so intentionally negative smokes can assert the
+failure mode instead of depending on raw RackUnit output.
 
 There are three related but different Goal 1 tools:
 
@@ -3627,7 +3629,9 @@ There are three related but different Goal 1 tools:
 The current smoke matrix includes selected uses of `racket/bool`,
 `racket/fixnum`, `racket/list`, `racket/string`, `racket/function`, plus local
 manifest smokes for two-module composition, re-export/backing-provider
-resolution, renamed imports, and multi-root shared-provider composition. This
-is still a smoke matrix, not a compatibility promise for those libraries, but it
-is the standard place to turn newly working Goal 1 library slices into
-regressions.
+resolution, renamed imports, multi-root shared-provider composition, and a
+negative primitive-preflight case. Installed smokes also carry a category
+symbol, currently by library, so the list can grow without losing which slice
+of Goal 1 each smoke is meant to protect. This is still a smoke matrix, not a
+compatibility promise for those libraries, but it is the standard place to turn
+newly working Goal 1 library slices into regressions.
