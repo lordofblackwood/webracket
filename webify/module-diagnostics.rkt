@@ -30,6 +30,8 @@
      'io-dependent]
     [(regexp-match? #rx"import dependency has no export table entry" message)
      'provider-key-mismatch]
+    [(regexp-match? #rx"module instance has no such export" message)
+     'provider-export-mismatch]
     [(regexp-match? #rx"unsupported kernel-origin binding" message)
      'unsupported-kernel-binding]
     [(regexp-match? #rx"missing-after-reflection|could not resolve import dependency|dependency does not export aliased name|unresolved import|ambiguous inferred import dependency" message)

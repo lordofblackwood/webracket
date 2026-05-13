@@ -3627,11 +3627,19 @@ There are three related but different Goal 1 tools:
   generated WebRacket program.
 
 The current smoke matrix includes selected uses of `racket/bool`,
-`racket/fixnum`, `racket/list`, `racket/string`, `racket/function`, plus local
-manifest smokes for two-module composition, re-export/backing-provider
-resolution, renamed imports, multi-root shared-provider composition, and a
-negative primitive-preflight case. Installed smokes also carry a category
-symbol, currently by library, so the list can grow without losing which slice
-of Goal 1 each smoke is meant to protect. This is still a smoke matrix, not a
-compatibility promise for those libraries, but it is the standard place to turn
-newly working Goal 1 library slices into regressions.
+`racket/fixnum`, `racket/list`, `racket/string`, `racket/vector`,
+`racket/function`, plus local manifest smokes for two-module composition,
+re-export/backing-provider resolution, renamed imports, multi-root
+shared-provider composition, negative primitive-preflight classification, and
+negative provider-export classification. Installed smokes also carry a category
+symbol, currently by library or combined-library slice, so the list can grow
+without losing which slice of Goal 1 each smoke is meant to protect. This is
+still a smoke matrix, not a compatibility promise for those libraries, but it
+is the standard place to turn newly working Goal 1 library slices into
+regressions.
+
+The harness also exposes `runtime-smoke-graph-audit`, a compact pre-runtime
+summary of a manifest's roots, input names, module-only dependency plan,
+imports, primitive demands, and missing primitive demands. It deliberately
+keeps primitive imports in the demand report instead of asking the module
+registry to plan `#%kernel` as if it were a normal module slice.

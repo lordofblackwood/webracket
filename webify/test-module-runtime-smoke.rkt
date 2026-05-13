@@ -104,7 +104,25 @@
     '((needs-missing-primitive out))
     #rx"never-matches-success"
     '(primitive-demand-preflight)
-    #rx"not-a-real-kernel-primitive")))
+    #rx"not-a-real-kernel-primitive")
+   (local-runtime-smoke
+    "missing provider export is classified during composition"
+    (list
+     (webify-module-linklet-input
+      'provider
+      '(linklet () (x)
+         (define-values (x) 20))
+      '())
+     (webify-module-linklet-input
+      'consumer
+      '(linklet (([x x])) (answer)
+         (define-values (answer) (+ x 22)))
+      '((x provider missing-export))))
+    '(consumer)
+    '((consumer answer))
+    #rx"never-matches-success"
+    '(provider-export-mismatch)
+    #rx"missing-export")))
 
 (test-case "multi-root local manifest plans shared provider once"
   (define inputs
@@ -130,6 +148,38 @@
   (check-equal?
    (webify-module-registry-plan registry '(left-root right-root))
    '(provider left-root right-root)))
+
+(test-case "runtime smoke graph audit summarizes plan, imports, and primitive demands"
+  (define inputs
+    (list
+     (webify-module-linklet-input
+      'provider
+      '(linklet () (x)
+         (define-values (x) 20))
+      '())
+     (webify-module-linklet-input
+      'consumer
+      '(linklet (((cons cons)) ([x x])) (answer)
+         (define-values (answer) (cons x '())))
+      '((cons #%kernel cons)
+        (x provider x)))))
+  (define audit
+    (webify-module-linklet-manifest->runtime-smoke-graph-audit
+     (webify-module-linklet-manifest inputs '(consumer))))
+  (check-equal? (runtime-smoke-graph-audit-roots audit) '(consumer))
+  (check-equal? (runtime-smoke-graph-audit-input-names audit) '(provider consumer))
+  (check-equal? (runtime-smoke-graph-audit-plan audit) '(provider consumer))
+  (check-equal?
+   (runtime-smoke-graph-audit-imports audit)
+   '((provider ())
+     (consumer ((cons #%kernel cons)
+                (x provider x)))))
+  (check-equal?
+   (runtime-smoke-graph-audit-primitive-demands audit)
+   '((#%kernel cons (consumer))))
+  (check-equal?
+   (runtime-smoke-graph-audit-missing-primitive-demands audit)
+   '()))
 
 (test-case "runtime smoke preflight reports missing primitive-table entries"
   (define input

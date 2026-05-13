@@ -108,6 +108,17 @@
     '()
     #f)
    (installed-runtime-smoke
+    'racket/vector
+    "installed racket/vector graph reaches WebRacket runtime smoke"
+    '((module use-vector racket/base
+        (require racket/vector)
+        (provide y)
+        (define y (vector-member 2 (vector 1 2 3)))))
+    '((use-vector y))
+    #rx"(?m:^1$)"
+    '()
+    #f)
+   (installed-runtime-smoke
     'local-module
     "local multi-export module observes multiple values"
     '((module local-multi-export racket/base
@@ -117,6 +128,18 @@
     '((local-multi-export a)
       (local-multi-export b))
     #rx"(?s:20.*22)"
+    '()
+    #f)
+   (installed-runtime-smoke
+    'racket/vector+racket/list
+    "installed racket/vector and racket/list graph reaches shared provider smoke"
+    '((module use-vector-and-list racket/base
+        (require racket/list racket/vector)
+        (provide y)
+        (define y (+ (vector-member 2 (vector 1 2 3))
+                     (first '(40 41 42))))))
+    '((use-vector-and-list y))
+    #rx"(?m:^41$)"
     '()
     #f)
    (installed-runtime-smoke

@@ -58,7 +58,8 @@ Recent successful smokes:
 - `racket/list` graph resolution is clean.
 - `racket/string` graph resolution is clean.
 - Installed-module runtime smokes pass for selected uses of `racket/bool`,
-  `racket/fixnum`, `racket/list`, `racket/string`, and `racket/function`.
+  `racket/fixnum`, `racket/list`, `racket/string`, `racket/vector`, and
+  `racket/function`.
 
 Known remaining work:
 
@@ -87,6 +88,33 @@ real implementation.
 
 This boundary is useful: it keeps ordinary module programs moving without
 accidentally turning Goal 1 into Goal 2.
+
+Current installed-extraction runtime smokes cover:
+
+- `racket/bool`: `boolean=?`.
+- `racket/fixnum`: `fx+`.
+- `racket/list`: `first`, `rest`, `add-between`, `range`, `reverse`, and a
+  combined `take`/`map` use with `racket/string`.
+- `racket/string`: `string-join` and `string-prefix?`.
+- `racket/vector`: `vector-member`, plus a combined `racket/vector` and
+  `racket/list` provider-graph smoke.
+- `racket/function`: `compose`, `identity`, `compose1`, `negate`, and `const`.
+
+Current local-manifest runtime smokes cover hand-authored bridge shapes that do
+not depend on source extraction:
+
+- Two-module provider/consumer composition.
+- Re-export graphs that use the backing provider cell.
+- Renamed imports.
+- Multi-root graphs that share one provider instance.
+- Negative classification for missing primitive-table entries.
+- Negative classification for missing provider exports during composition.
+
+This split matters. Installed-extraction smokes are evidence that host Racket
+metadata, provider discovery, Webify composition, and WebRacket runtime
+execution all agree for a real source module. Local-manifest smokes are more
+surgical: they protect bridge/runtime invariants even when the source extractor
+cannot yet generate that exact graph shape.
 
 ## Goal 2: Make `eval` Work In The Browser
 

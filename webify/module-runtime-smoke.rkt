@@ -18,8 +18,17 @@
          local-runtime-smoke-expected-output
          local-runtime-smoke-allowed-failures
          local-runtime-smoke-expected-failure
+         runtime-smoke-graph-audit
+         runtime-smoke-graph-audit?
+         runtime-smoke-graph-audit-roots
+         runtime-smoke-graph-audit-input-names
+         runtime-smoke-graph-audit-plan
+         runtime-smoke-graph-audit-imports
+         runtime-smoke-graph-audit-primitive-demands
+         runtime-smoke-graph-audit-missing-primitive-demands
          racket92-bin
          installed-runtime-inputs-missing-primitive-demands
+         webify-module-linklet-manifest->runtime-smoke-graph-audit
          run-installed-runtime-smoke
          run-local-runtime-smoke)
 
@@ -55,6 +64,15 @@
    expected-output
    allowed-failures
    expected-failure)
+  #:transparent)
+
+(struct runtime-smoke-graph-audit
+  (roots
+   input-names
+   plan
+   imports
+   primitive-demands
+   missing-primitive-demands)
   #:transparent)
 
 ;; write-extractor-script! : path-string? path-string? any/c -> void?
@@ -171,6 +189,77 @@
 (define (installed-runtime-inputs-missing-primitive-demands inputs)
   (define report (webify-module-linklet-inputs->primitive-demands inputs))
   (webify-primitive-demand-report-missing report))
+
+;; primitive-demand->summary : webify-primitive-demand? -> list?
+;;   Convert one primitive demand to a stable diagnostic datum.
+(define (primitive-demand->summary demand)
+  (list (webify-primitive-demand-module demand)
+        (webify-primitive-demand-name demand)
+        (webify-primitive-demand-sources demand)))
+
+;; module-linklet-inputs-module-plan : (listof webify-module-linklet-input?) (listof symbol?) -> (listof symbol?)
+;;   Compute a dependency-first plan while ignoring primitive-module imports.
+(define (module-linklet-inputs-module-plan inputs roots)
+  (define who 'module-linklet-inputs-module-plan)
+  (define input-table
+    (for/hasheq ([input (in-list inputs)])
+      (values (webify-module-linklet-input-name input) input)))
+  (define planned '())
+  (define permanent (hasheq))
+  (define temporary (hasheq))
+  (define (input-ref name)
+    (hash-ref input-table
+              name
+              (lambda ()
+                (raise-arguments-error who
+                                       "unknown module-linklet input"
+                                       "name" name
+                                       "available names" (hash-keys input-table)))))
+  (define (visit name path)
+    (input-ref name)
+    (cond
+      [(hash-has-key? permanent name)
+       (void)]
+      [(hash-has-key? temporary name)
+       (raise-arguments-error who
+                              "cyclic module-linklet dependencies are not supported"
+                              "name" name
+                              "path" (reverse (cons name path)))]
+      [else
+       (set! temporary (hash-set temporary name #t))
+       (define input (input-ref name))
+       (for ([source (in-list (webify-module-linklet-input-imports input))])
+         (match-define (list _local dependency _export) source)
+         (unless (primitive-module-name? dependency)
+           (visit dependency (cons name path))))
+       (set! temporary (hash-remove temporary name))
+       (set! permanent (hash-set permanent name #t))
+       (set! planned (cons name planned))]))
+  (for ([root (in-list roots)])
+    (visit root '()))
+  (reverse planned))
+
+;; webify-module-linklet-manifest->runtime-smoke-graph-audit : webify-module-linklet-manifest? -> runtime-smoke-graph-audit?
+;;   Summarize a module-linklet manifest before runtime-smoke compilation.
+(define (webify-module-linklet-manifest->runtime-smoke-graph-audit manifest)
+  (unless (webify-module-linklet-manifest? manifest)
+    (raise-argument-error 'webify-module-linklet-manifest->runtime-smoke-graph-audit
+                          "webify-module-linklet-manifest?"
+                          manifest))
+  (define inputs   (webify-module-linklet-manifest-inputs manifest))
+  (define roots    (webify-module-linklet-manifest-roots manifest))
+  (define report   (webify-module-linklet-inputs->primitive-demands inputs))
+  (runtime-smoke-graph-audit
+   roots
+   (map webify-module-linklet-input-name inputs)
+   (module-linklet-inputs-module-plan inputs roots)
+   (for/list ([input (in-list inputs)])
+     (list (webify-module-linklet-input-name input)
+           (webify-module-linklet-input-imports input)))
+   (map primitive-demand->summary
+        (webify-primitive-demand-report-demands report))
+   (map primitive-demand->summary
+        (webify-primitive-demand-report-missing report))))
 
 ;; check-primitive-demands! : (listof webify-module-linklet-input?) -> void?
 ;;   Fail early when resolved inputs demand names absent from the primitive table.
