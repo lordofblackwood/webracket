@@ -8,6 +8,7 @@
 ;; run-probe : path-string? string? string? -> (values exact-integer? string?)
 ;;   Run one bounded expander probe against a compiled expander wasm.
 (define (run-probe wasm-path export-name json-args)
+  (eprintf "check-expander-kernel-smoke: running ~a\n" export-name)
   (define node (or (find-executable-path "node")
                    (error 'check-expander-kernel-smoke "node not found")))
   (define-values (proc out in err)
@@ -25,6 +26,9 @@
   (define stderr (port->string err))
   (subprocess-wait proc)
   (define status (subprocess-status proc))
+  (eprintf "check-expander-kernel-smoke: finished ~a status=~a\n"
+           export-name
+           status)
   (values status (string-append stdout stderr)))
 
 ;; require-output : string? string? -> void?
@@ -547,6 +551,38 @@
                            "(internal-value-in-requirer missing)"
                            "(public-instance-value missing)"))])
   (require-output tiny-rename-output fragment))
+
+(define-values (tiny-only-status tiny-only-output)
+  (run-probe wasm-path
+             "webify-probe-expand-self-evaluating/tiny-only-require/catch"
+             "[]"))
+(unless (zero? tiny-only-status)
+  (error 'check-expander-kernel-smoke
+         "tiny only require probe failed with status ~a\noutput:\n~a"
+         tiny-only-status
+         tiny-only-output))
+(for ([fragment (in-list '("probe:tiny-only-require/catch:after-require"
+                           "(consumer-exports ((variables ((0 (webify-only-z () webify-only-z.1)))) (syntaxes ())))"
+                           "(z-value 31)"
+                           "(x-value-in-requirer missing)"
+                           "(y-value-in-requirer missing)"))])
+  (require-output tiny-only-output fragment))
+
+(define-values (tiny-rename-require-status tiny-rename-require-output)
+  (run-probe wasm-path
+             "webify-probe-expand-self-evaluating/tiny-rename-require/catch"
+             "[]"))
+(unless (zero? tiny-rename-require-status)
+  (error 'check-expander-kernel-smoke
+         "tiny rename require probe failed with status ~a\noutput:\n~a"
+         tiny-rename-require-status
+         tiny-rename-require-output))
+(for ([fragment (in-list '("probe:tiny-rename-require/catch:after-require"
+                           "(consumer-exports ((variables ((0 (webify-renamed-z () webify-renamed-z.1)))) (syntaxes ())))"
+                           "(z-value 37)"
+                           "(local-value-in-requirer missing)"
+                           "(original-value-in-requirer missing)"))])
+  (require-output tiny-rename-require-output fragment))
 
 (check-ok-probe
  "webify-probe-expand-self-evaluating/tiny-module-dynamic-value/catch"

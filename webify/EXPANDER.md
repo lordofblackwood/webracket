@@ -3224,3 +3224,39 @@ when inspecting module instances. For a pure re-provide, the re-exporting module
 does not necessarily contain a local instance cell for the value; normal
 namespace lookup can succeed by following the imported binding while direct
 inspection of the re-exporting module instance reports `missing`.
+
+The graph audit now keeps that distinction explicitly. Each reflection row has
+normalized export bindings with:
+
+```text
+phase
+external/public name
+provider path metadata
+internal/generated name
+```
+
+For simple local exports, the provider path is empty and the internal name is
+the exported variable. For `module->exports`-style metadata, any middle fields
+between the external and internal names are preserved as provider-path metadata.
+The audit also computes conservative reflection import hints for unresolved
+imports when exactly one reflection row exports the requested name.
+
+Two more tiny require-shape probes are covered by the smoke runner:
+
+```text
+only require:
+  provider exports webify-only-x and webify-only-y
+  consumer imports only webify-only-x
+  consumer exports webify-only-z = 31
+  neither provider name leaks into the requiring namespace
+
+rename require:
+  provider exports webify-original-x
+  consumer imports it locally as webify-local-x
+  consumer exports webify-renamed-z = 37
+  neither the original nor local import name leaks into the requiring namespace
+```
+
+This gives the bridge a compact matrix for the next provider resolver: ordinary
+import, transitive import, re-provide, selective import, and renamed local
+import.

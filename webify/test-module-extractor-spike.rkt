@@ -1061,6 +1061,8 @@
         (webify-module-graph-audit-reflection-rows audit))
    '((racket/string () (string-join.1) ())
      (use-string ((string-join.1)) (y) (((string-join.1 string-join.1))))))
+  (check-equal? (webify-module-graph-audit-reflection-import-hints audit)
+                '((use-string string-join.1 racket/string string-join.1)))
   (check-equal? (map webify-module-linklet-input-name
                      (webify-module-graph-audit-resolved-inputs audit))
                 '(racket/string use-string))
@@ -1129,7 +1131,10 @@
         (webify-module-graph-audit-reflection-rows audit))
    '((a () (x))
      (b ((x)) (y))
-     (c ((y)) (z)))))
+     (c ((y)) (z))))
+  (check-equal? (webify-module-graph-audit-reflection-import-hints audit)
+                '((b x a x)
+                  (c y b y))))
 
 (test-case "module graph audit preserves renamed provider exports"
   (define provider-report
@@ -1180,6 +1185,20 @@
    '((provider (internal-x))
      (reexport (public-x))
      (consumer (answer)))))
+
+(test-case "module export metadata preserves provider path"
+  (define bindings
+    (webify-normalize-module-export-metadata
+     '((0 ((public-x (provider-mpi 0 internal-x 0) internal-x.1)
+           (local-y local-y.1))))))
+  (check-equal? (map webify-module-export-binding-phase bindings)
+                '(0 0))
+  (check-equal? (map webify-module-export-binding-external bindings)
+                '(public-x local-y))
+  (check-equal? (map webify-module-export-binding-provider-path bindings)
+                '(((provider-mpi 0 internal-x 0)) ()))
+  (check-equal? (map webify-module-export-binding-internal bindings)
+                '(internal-x.1 local-y.1)))
 
 (test-case "module graph audit records provider candidate fetch status"
   (define phase0-linklet

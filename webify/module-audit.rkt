@@ -15,8 +15,15 @@
          webify-module-reflection-row-name
          webify-module-reflection-row-imports
          webify-module-reflection-row-exports
+         webify-module-reflection-row-export-bindings
          webify-module-reflection-row-required-provider-names
          webify-module-reflection-row-unresolved-import-groups
+         webify-module-export-binding
+         webify-module-export-binding?
+         webify-module-export-binding-phase
+         webify-module-export-binding-external
+         webify-module-export-binding-provider-path
+         webify-module-export-binding-internal
          webify-module-provider-candidate
          webify-module-provider-candidate?
          webify-module-provider-candidate-requester
@@ -24,6 +31,8 @@
          webify-module-provider-candidate-name
          webify-module-provider-candidate-status
          webify-module-provider-candidate-failure
+         webify-module-graph-audit-reflection-import-hints
+         webify-normalize-module-export-metadata
          webify-module-reports->graph-audit)
 
 (require racket/list
@@ -38,12 +47,17 @@
    unresolved-import-groups
    provider-candidates
    reflection-rows
+   reflection-import-hints
    resolved-inputs
    failures)
   #:transparent)
 
 (struct webify-module-reflection-row
-  (name imports exports required-provider-names unresolved-import-groups)
+  (name imports exports export-bindings required-provider-names unresolved-import-groups)
+  #:transparent)
+
+(struct webify-module-export-binding
+  (phase external provider-path internal)
   #:transparent)
 
 (struct webify-module-provider-candidate
@@ -57,16 +71,104 @@
   (list (webify-module-extractor-spike-name report)
         (webify-module-import-map-unresolved-import-groups import-map)))
 
+;; simple-export-binding : symbol? symbol? -> webify-module-export-binding?
+;;   Model an ordinary local export as metadata with no provider path.
+(define (simple-export-binding phase export)
+  (webify-module-export-binding phase export '() export))
+
+;; normalize-module-export-entry : any/c any/c -> webify-module-export-binding?
+;;   Normalize one module->exports-style entry while preserving provider path data.
+(define (normalize-module-export-entry phase entry)
+  (match entry
+    [(? symbol? external)
+     (simple-export-binding phase external)]
+    [(list (? symbol? external) provider-path ... (? symbol? internal))
+     (webify-module-export-binding phase external provider-path internal)]
+    [_
+     (webify-module-export-binding phase entry '() entry)]))
+
+;; webify-normalize-module-export-metadata : any/c -> (listof webify-module-export-binding?)
+;;   Convert module->exports or simple export rows to stable diagnostic metadata.
+(define (webify-normalize-module-export-metadata exports)
+  (define who 'webify-normalize-module-export-metadata)
+  (unless (list? exports)
+    (raise-argument-error who "list?" exports))
+  (append*
+   (for/list ([row (in-list exports)])
+     (match row
+       [(list phase entries)
+        (unless (list? entries)
+          (raise-argument-error who "module export entry list?" entries))
+        (for/list ([entry (in-list entries)])
+          (normalize-module-export-entry phase entry))]
+       [(cons phase entries)
+        (unless (list? entries)
+          (raise-argument-error who "module export entry list?" entries))
+        (for/list ([entry (in-list entries)])
+          (normalize-module-export-entry phase entry))]
+       [(? symbol? export)
+        (list (simple-export-binding 0 export))]
+       [_
+        (raise-argument-error who "module export row?" row)]))))
+
 ;; report-reflection-row : report -> webify-module-reflection-row?
 ;;   Normalize one extracted report into graph metadata for diagnostics.
 (define (report-reflection-row report)
   (define import-map (webify-module-extractor-spike-import-map report))
+  (define exports (webify-module-extractor-spike-phase0-exports report))
   (webify-module-reflection-row
    (webify-module-extractor-spike-name report)
    (webify-module-extractor-spike-phase0-imports report)
-   (webify-module-extractor-spike-phase0-exports report)
+   exports
+   (webify-normalize-module-export-metadata exports)
    (webify-module-extractor-spike-required-provider-names report)
    (webify-module-import-map-unresolved-import-groups import-map)))
+
+;; import-binding->local+external : any/c -> (or/c (list/c symbol? symbol?) #f)
+;;   Normalize one unresolved import binding into local and external names.
+(define (import-binding->local+external binding)
+  (match binding
+    [(list (? symbol? local) (? symbol? external))
+     (list local external)]
+    [(? symbol? name)
+     (list name name)]
+    [_
+     #f]))
+
+;; export-binding-matches? : webify-module-export-binding? symbol? -> boolean?
+;;   Check whether an export binding can satisfy an unresolved external name.
+(define (export-binding-matches? binding external)
+  (or (eq? (webify-module-export-binding-external binding) external)
+      (eq? (webify-module-export-binding-internal binding) external)))
+
+;; compute-reflection-import-hints : rows -> (listof (list/c importer local provider internal))
+;;   Infer unambiguous provider hints from reflection rows before broad scanning.
+(define (compute-reflection-import-hints rows)
+  (append*
+   (for/list ([row (in-list rows)])
+     (define importer (webify-module-reflection-row-name row))
+     (append*
+      (for/list ([group (in-list (webify-module-reflection-row-unresolved-import-groups row))])
+        (for/list ([binding (in-list group)]
+                   #:do [(define maybe-local+external
+                            (import-binding->local+external binding))]
+                   #:when maybe-local+external
+                   #:do [(match-define (list local external)
+                            maybe-local+external)
+                         (define candidates
+                           (for*/list ([provider-row (in-list rows)]
+                                       #:unless (eq? provider-row row)
+                                       [export-binding
+                                        (in-list (webify-module-reflection-row-export-bindings
+                                                  provider-row))]
+                                       #:when (export-binding-matches?
+                                               export-binding
+                                               external))
+                             (list (webify-module-reflection-row-name provider-row)
+                                   (webify-module-export-binding-internal export-binding))))])
+          (and (= (length candidates) 1)
+               (match-let ([(list provider internal) (car candidates)])
+                 (list importer local provider internal)))))))))
 
 ;; report-failure-row : symbol? exn? -> (list/c symbol? webify-module-failure?)
 ;;   Classify one audit failure without aborting the whole audit.
@@ -141,6 +243,8 @@
   (define reflection-rows
     (for/list ([report (in-list reports)])
       (report-reflection-row report)))
+  (define reflection-import-hints
+    (filter values (compute-reflection-import-hints reflection-rows)))
   (define-values (resolved-inputs resolution-failures)
     (with-handlers ([exn:fail? (lambda (exn)
                                  (values '()
@@ -160,5 +264,6 @@
    unresolved-import-groups
    provider-candidates
    reflection-rows
+   reflection-import-hints
    resolved-inputs
    (append dependency-failures resolution-failures)))
