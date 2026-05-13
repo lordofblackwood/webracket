@@ -69,6 +69,25 @@ Known remaining work:
 - Continue improving diagnostics so failures classify as graph-resolution,
   unsupported-runtime, compiler, or runtime errors.
 
+### Current Goal 1 Supported Subset
+
+The supported Goal 1 path is intentionally ahead-of-time:
+
+- Source modules are expanded and lowered on the host Racket side.
+- Webify extracts phase-0 runtime linklet inputs and provider metadata.
+- Webify composes a closed module graph into module instances and export cells.
+- WebRacket compiles the composed program to Wasm-GC and runs it in the browser.
+
+The browser-side runtime is not expected to expand source, compile new code, or
+answer arbitrary collection/module lookup questions. Kernel services such as
+syntax serialization, syntax binding-set construction, collection lookup, and
+syntax-error construction may be resolvable as metadata names, but they are
+explicitly unsupported runtime services unless a Goal 1 program actually needs a
+real implementation.
+
+This boundary is useful: it keeps ordinary module programs moving without
+accidentally turning Goal 1 into Goal 2.
+
 ## Goal 2: Make `eval` Work In The Browser
 
 ### Why
