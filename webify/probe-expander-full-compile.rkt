@@ -105,6 +105,7 @@
       namespace-require
       namespace-variable-value
       namespace-mapped-symbols
+      module-declared?
       module->namespace
       dynamic-require
       current-module-name-resolver
@@ -1236,6 +1237,13 @@
                                (webify-expander:datum->syntax #f 'webify-tiny-value)
                                (webify-expander:current-namespace))])
                       (webify-probe-binding-summary id)))
+              (list 'module-declared?
+                    (webify-expander:module-declared?
+                     '(quote webify-tiny-instance-audit)))
+              (list 'namespace-module-identifier
+                    (webify-probe-value-shape
+                     (webify-expander:namespace-module-identifier
+                      (webify-expander:current-namespace))))
               (list 'module-namespace-shape
                     (webify-probe-value-shape module-ns))
               (list 'module-mapped-symbols

@@ -7037,6 +7037,34 @@
                            (equal? (instance-variable-value target 'x)
                                    (list (cons 1 2) 3)))))
 
+              (list "compile-linklet/source primitive dispatch"
+                    (let* ([compiled (compile-linklet
+                                      '(linklet () (x y z)
+                                         (define-values (x) (#%app * '2 '3 '4))
+                                         (define-values (y) (#%app - x '5))
+                                         (define-values (z) (#%app car (#%app cons y 'ignored))))
+                                      #f
+                                      #f)]
+                           [target   (make-instance 'source-primitive-target)]
+                           [result   (instantiate-linklet compiled '() target)])
+                      (and (void? result)
+                           (equal? (instance-variable-value target 'x) 24)
+                           (equal? (instance-variable-value target 'y) 19)
+                           (equal? (instance-variable-value target 'z) 19))))
+
+              (list "compile-linklet/source if"
+                    (let* ([compiled (compile-linklet
+                                      '(linklet () (x y)
+                                         (define-values (x) (if 'yes 'then 'else))
+                                         (define-values (y) (if #f 'then 'else)))
+                                      #f
+                                      #f)]
+                           [target   (make-instance 'source-if-target)]
+                           [result   (instantiate-linklet compiled '() target)])
+                      (and (void? result)
+                           (equal? (instance-variable-value target 'x) 'then)
+                           (equal? (instance-variable-value target 'y) 'else))))
+
               
               
              )))

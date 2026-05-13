@@ -3054,19 +3054,43 @@ The intentionally small expression subset is now:
 - variable references from the target instance or an import instance,
 - `(quote datum)`,
 - `(begin body ...)`,
+- `(if test then else)`, where only `#f` is false,
 - `(void)`,
 - `(set! id rhs)`, including imported variables,
 - single and packed-multiple `(define-values ids rhs)`,
 - `(#%app + arg ...)`,
+- `(#%app - arg arg ...)`,
+- `(#%app * arg ...)`,
 - `(#%app values arg ...)`,
 - `(#%app list arg ...)`, and
-- `(#%app cons a d)`.
+- `(#%app cons a d)`,
+- `(#%app car p)`, and
+- `(#%app cdr p)`.
 
 The new runtime tests cover source linklets that import a value, compute with
-`+`, unpack `(values ...)` into multiple exports, and build a list containing a
-pair. The expander smoke still reports the same `module->namespace` frontier:
-the module value path and `dynamic-require` return `42`, but recovering the
-module body namespace fails inside `webify-expander:module->namespace` with the
-generic `#<undefined>` contract-variable error. Import-aware source-linklet
-execution therefore rules out missing imported variable dispatch as the cause of
-that remaining namespace problem.
+`+`, `*`, and `-`, unpack `(values ...)` into multiple exports, select `car`,
+and build a list containing a pair. Primitive application is centralized through
+`linklet-apply-primitive`, so adding more first-slice primitives no longer
+requires growing the `#%app` branch itself.
+
+The correlated adapter also has a named begin-directory runner now:
+`webify-run-correlated-begin-directory/exports`. It validates the observed
+`(data 0 1)` directory summary and runs the lowered definition entry followed
+by the expression entry over a shared top-level binding table.
+
+The expander smoke still reports the same `module->namespace` frontier, but the
+audit is sharper:
+
+```text
+(module-declared? #t)
+(namespace-module-identifier ... (maybe-syntax->datum module))
+(module->namespace-failed
+  (message #<undefined>)
+  (shape ... exn:fail:contract:variable ...)
+  (struct-fields ... webify-expander:module->namespace ...))
+```
+
+So the module is declared and required; the failure is not an absent declaration
+or missing export cell. The next useful direction is to inspect the runtime
+bindings reached by `module->namespace` itself, especially the inspector and
+root-expand-context path in the expander's `namespace/api-module.rkt`.
