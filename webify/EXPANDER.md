@@ -3444,21 +3444,90 @@ That is still host-side metadata use; it does not add source-level scraping.
 
 After this change, the newer-Racket smoke confirms that
 `racket/private/pre-base` contributes `string->number` to the resolver export
-table. The `racket/string` path moves again, and the current frontier is now an
-ambiguity on `1/reverse`:
+table. The `racket/string` path moved again and exposed a provider-precedence
+problem: public metadata makes many base-like modules advertise broad re-exports,
+while the extracted provider linklets identify the more direct implementation
+module.
+
+The resolver now uses two export views when inferring imports from a compiled
+module's `phase-to-link-modules`/MPI candidates:
+
+* the augmented view answers "can this dependency provide the public name at
+  all?", including `module->exports` metadata re-exports;
+* the provider-local view breaks ties by preferring names actually exported by
+  the extracted provider linklet.
+
+For the former `1/reverse` frontier, broad metadata candidates such as
+`racket/private/list`, `racket/private/pre-base`, `racket/private/base`, and
+`racket/base` no longer tie with the implementation provider. The required
+candidate list still describes the possible providers, but the provider-local
+export table singles out `racket/private/pico`, so the import resolves as:
 
 ```text
-ambiguous-after-reflection
-  import: 1/reverse
-  export: reverse
-  candidates: racket/private/pico
-              racket/private/list
-              racket/private/pre-base
-              racket/private/base
-              racket/base
+(1/reverse racket/private/pico reverse)
 ```
 
-This is a sharper and more honest blocker. Public metadata makes base modules
-advertise broad re-exports such as `reverse`; the next resolver milestone should
-prefer local import provenance or required-module evidence over global public
-export scans when metadata has many re-exporting candidates.
+The broad export-scan fallback now applies the same idea to base aggregators:
+`racket/base` and `racket/private/base` are treated as broad re-export modules,
+so a concrete private provider such as `racket/private/pre-base` wins when all
+three advertise the same public name. That moved the former `1/syntax?` frontier
+to:
+
+```text
+(1/syntax? racket/private/pre-base syntax?)
+```
+
+Ambiguity diagnostics now include candidate reasons, so the next frontier says
+which candidates came from provider-local exports versus broad metadata:
+
+```text
+ambiguous inferred import dependency
+  import: path-string?
+  candidates: (path-string? racket/private/path)
+              (path-string? racket/private/old-path)
+  candidate reasons:
+              (path-string? racket/private/path provider-local-export)
+              (path-string? racket/private/misc metadata-export-candidate)
+              (path-string? racket/private/old-path provider-local-export)
+```
+
+The resolver now uses `module->exports 'defined-names` origins to rank those
+candidates. Per the Reference, an empty origin list means the export is defined
+locally, while a non-empty origin list describes a re-export. For
+`path-string?`, `racket/private/path` defines the binding locally and
+`racket/private/misc` re-exports the same provider; those duplicate origin paths
+collapse to one hint:
+
+```text
+(path-string? racket/private/path path-string?)
+```
+
+That moves `racket/string` past `path-string?`. The current frontier is no
+longer an ambiguous name; it is a provider-key normalization problem. First,
+reflection metadata produced a file-like dependency key with no export table:
+
+```text
+import dependency has no export table entry
+  dependency: /Users/soegaard/Dropbox/GitHub/webracket/pico.rkt
+```
+
+The reflected origin decoder now handles singleton MPI origins, including the
+extra-list shape that appears as `((#<module-path-index:...>))`, and
+canonicalizes file-style provider keys against discovered provider rows by
+basename plus export evidence. That moves the `pico.rkt` case back to the
+discovered `racket/private/pico` provider.
+
+The current frontier is the next provider-key mismatch, this time for a kernel
+provider that is not represented as a discovered provider export row:
+
+```text
+import dependency has no export table entry
+  dependency: #%kernel
+  available dependencies: string-smoke racket/string racket/private/pico ...
+```
+
+That is useful progress: `reverse` was a provider-local precedence problem,
+`syntax?` was a base-aggregator precedence problem, `path-string?` was an
+origin-ranking problem, `pico.rkt` was a reflected relative-provider
+normalization problem, and the next issue is deciding how kernel-origin
+metadata should be represented in the dependency/export table.

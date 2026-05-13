@@ -329,6 +329,24 @@
          (define-values (y) x))
       '((a (x)) (b (x))))))
   (check-exn
+   #rx"candidate reasons"
+   (lambda ()
+     (webify-resolve-module-linklet-imports
+      '(linklet (([ext-x x])) (y)
+         (define-values (y) x))
+      '((a (x)) (b (x))))))
+  (define-values (preferred-imports preferred-outcomes)
+    (webify-resolve-module-linklet-imports/outcomes
+     '(linklet (([1/syntax? syntax?])) (y)
+        (define-values (y) 1/syntax?))
+     '((racket/private/pre-base (syntax?))
+       (racket/private/base (syntax?))
+       (racket/base (syntax?)))))
+  (check-equal? preferred-imports
+                '((1/syntax? racket/private/pre-base syntax?)))
+  (check-equal? (map webify-module-resolution-outcome-status preferred-outcomes)
+                '(resolved-by-export-scan/provider-precedence))
+  (check-exn
    #rx"dependency does not export required name"
    (lambda ()
      (webify-resolve-module-linklet-imports

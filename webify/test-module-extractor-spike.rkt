@@ -1563,6 +1563,115 @@
         (webify-module-graph-audit-resolution-outcomes audit))
    '((consumer public-x provider public-x resolved-by-reflection-hint))))
 
+(test-case "reflection hints prefer local definitions over duplicate re-export origins"
+  (define path-row
+    (webify-module-reflection-row
+     'racket/private/path
+     '()
+     '(path-string?)
+     (list (webify-module-export-binding 0 'path-string? '() 'path-string?))
+     '()
+     '()))
+  (define misc-row
+    (webify-module-reflection-row
+     'racket/private/misc
+     '()
+     '(path-string?)
+     (list (webify-module-export-binding
+            0
+            'path-string?
+            '((provider racket/private/path path-string?))
+            'path-string?))
+     '()
+     '()))
+  (define consumer-row
+    (webify-module-reflection-row
+     'consumer
+     '(((path-string? path-string?)))
+     '(answer)
+     (list (webify-module-export-binding 0 'answer '() 'answer))
+     '()
+     '(((path-string? path-string?)))))
+  (check-equal?
+   (webify-reflection-rows->import-hints
+    (list path-row misc-row consumer-row))
+   '((consumer path-string? racket/private/path path-string?))))
+
+(test-case "reflection hints canonicalize reflected file provider keys"
+  (define provider-row
+    (webify-module-reflection-row
+     'racket/private/pico
+     '()
+     '(reverse)
+     (list (webify-module-export-binding 0 'reverse '() 'reverse))
+     '()
+     '()))
+  (define reexport-row
+    (webify-module-reflection-row
+     'racket/private/list
+     '()
+     '(reverse)
+     (list (webify-module-export-binding
+            0
+            'reverse
+            '((provider |/tmp/webracket/pico.rkt| reverse))
+            'reverse))
+     '()
+     '()))
+  (define consumer-row
+    (webify-module-reflection-row
+     'consumer
+     '(((reverse reverse)))
+     '(answer)
+     (list (webify-module-export-binding 0 'answer '() 'answer))
+     '()
+     '(((reverse reverse)))))
+  (check-equal?
+   (webify-reflection-rows->import-hints
+    (list provider-row reexport-row consumer-row))
+   '((consumer reverse racket/private/pico reverse))))
+
+(test-case "provider-local exports outrank broad metadata re-exports"
+  (define phase0-linklet
+    '(linklet (((external local))) (answer)
+       (define-values (answer) local)))
+  (define data-linklet
+    '(linklet () (.mpi-vector)
+       (define-values (.mpi-vector)
+         (deserialize-module-path-indexes '#(#(broad/reexport)
+                                             #(direct/provider))
+                                          '#(0 1)))))
+  (define decl-linklet
+    '(linklet ((.mpi-vector)) (phase-to-link-modules)
+       (define-values (phase-to-link-modules)
+         (hasheqv 0 (list (module-use (unsafe-vector*-ref .mpi-vector 0) 0)
+                          (module-use (unsafe-vector*-ref .mpi-vector 1) 0))))))
+  (define importer-report
+    (webify-module-extractor-spike
+     'consumer
+     '(#f)
+     '(0 data decl)
+     (list (webify-module-bundle-entry 0 'linklet '(((external local))) '(answer) phase0-linklet #f)
+           (webify-module-bundle-entry 'data 'linklet '() '(.mpi-vector) data-linklet #f)
+           (webify-module-bundle-entry 'decl 'linklet '((.mpi-vector)) '(phase-to-link-modules) decl-linklet #f))
+     '(((external local)))
+     '(answer)
+     phase0-linklet
+     #t
+     '()))
+  (define broad-report
+    (test-report 'broad/reexport '() '()))
+  (define direct-report
+    (test-report 'direct/provider '() '(external)))
+  (define input
+    (webify-module-extractor-spike->resolved-linklet-input/providers
+     importer-report
+     (list broad-report direct-report)
+     #:dependency-exports '((broad/reexport (external))
+                            (direct/provider (external)))))
+  (check-equal? (webify-module-linklet-input-imports input)
+                '((local direct/provider external))))
+
 (test-case "discovered graph audit collects provider export metadata"
   (define provider-report
     (test-report 'provider '() '(internal-x)))
@@ -1655,6 +1764,31 @@
        (webify-reflection-rows->import-hints
         (list provider-row reexport-row consumer-row))
        `((consumer public-x ,provider-key internal-x))))
+    (lambda ()
+      (delete-directory/files tmp-dir))))
+
+(test-case "raw module->exports singleton MPI origins resolve to provider paths"
+  (define tmp-dir (make-temporary-file "webify-module-singleton-provider-~a" 'directory))
+  (dynamic-wind
+    void
+    (lambda ()
+      (define provider-path (build-path tmp-dir "provider.rkt"))
+      (define reexport-path (build-path tmp-dir "reexport.rkt"))
+      (call-with-output-file provider-path
+        (lambda (out)
+          (display "#lang racket/base\n(provide public-x)\n(define public-x 41)\n" out))
+        #:exists 'truncate/replace)
+      (call-with-output-file reexport-path
+        (lambda (out)
+          (display "#lang racket/base\n(require \"provider.rkt\")\n(provide public-x)\n" out))
+        #:exists 'truncate/replace)
+      (define provider-key (string->symbol (path->string provider-path)))
+      (define raw-exports (file-module-variable-exports reexport-path))
+      (define bindings
+        (webify-normalize-module-export-metadata
+         (webify-resolve-module-export-provider-paths raw-exports)))
+      (check-equal? (map webify-module-export-binding-provider-path bindings)
+                    (list (list (list 'provider provider-key 'public-x)))))
     (lambda ()
       (delete-directory/files tmp-dir))))
 

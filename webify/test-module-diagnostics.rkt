@@ -16,7 +16,14 @@
      'resolve
      (exn:fail "webify-resolve-module-linklet-imports: could not resolve import dependency"
                (current-continuation-marks))))
-  (check-equal? (webify-module-failure-category unresolved) 'unresolved-import))
+  (check-equal? (webify-module-failure-category unresolved) 'unresolved-import)
+  (define provider-key-mismatch
+    (webify-classify-module-exn
+     'resolve
+     (exn:fail "webify-resolve-module-linklet-imports: import dependency has no export table entry"
+               (current-continuation-marks))))
+  (check-equal? (webify-module-failure-category provider-key-mismatch)
+                'provider-key-mismatch))
 
 (test-case "module diagnostics classify missing alias exports as unresolved imports"
   (define missing-alias-export

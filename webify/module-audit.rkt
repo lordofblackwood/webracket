@@ -144,6 +144,11 @@
          origin)]
     [else
      (match origin
+       [(list (? module-path-index? mpi))
+        (define provider (module-path-index->provider-symbol mpi))
+        (if provider
+            (list 'provider provider external)
+            origin)]
        [(list (? module-path-index? mpi) _phase (? symbol? import-name) _nominal-phase)
         (define provider (module-path-index->provider-symbol mpi))
         (if provider
@@ -340,13 +345,73 @@
        (list dependency export)]
       [_ #f])))
 
-;; export-binding-provider+internal : row binding -> (list/c symbol? symbol?)
+;; provider-symbol-basename : symbol? -> (or/c string? #f)
+;;   Extract a file/module basename for canonicalizing reflected relative origins.
+(define (provider-symbol-basename dependency)
+  (define str (symbol->string dependency))
+  (define name
+    (let ([parts (regexp-split #rx"/" str)])
+      (and (pair? parts) (last parts))))
+  (and name (regexp-replace #rx"[.]rkt$" name "")))
+
+;; reflection-row-exports? : row symbol? -> boolean?
+;;   Check whether a reflected provider row can satisfy an export.
+(define (reflection-row-exports? row export)
+  (for/or ([binding (in-list (webify-module-reflection-row-export-bindings row))])
+    (export-binding-matches? binding export)))
+
+;; canonical-provider-symbol : rows symbol? symbol? -> symbol?
+;;   Map reflected file-style provider keys back to discovered provider modules.
+(define (canonical-provider-symbol rows dependency export)
+  (cond
+    [(for/or ([row (in-list rows)])
+       (eq? (webify-module-reflection-row-name row) dependency))
+     dependency]
+    [else
+     (define dependency-base (provider-symbol-basename dependency))
+     (define matches
+       (for/list ([row (in-list rows)]
+                  #:do [(define row-name (webify-module-reflection-row-name row))]
+                  #:when (and dependency-base
+                              (equal? dependency-base
+                                      (provider-symbol-basename row-name))
+                              (reflection-row-exports? row export)))
+         row-name))
+     (match (remove-duplicates matches)
+       [(list canonical) canonical]
+       [_ dependency])]))
+
+;; export-binding-provider+internal : rows row binding -> (list/c symbol? symbol?)
 ;;   Resolve an export binding to the module/export pair that actually supplies it.
-(define (export-binding-provider+internal row binding)
-  (or (provider-path->backing
-       (webify-module-export-binding-provider-path binding))
-      (list (webify-module-reflection-row-name row)
-            (webify-module-export-binding-internal binding))))
+(define (export-binding-provider+internal rows row binding)
+  (match (provider-path->backing
+          (webify-module-export-binding-provider-path binding))
+    [(list dependency export)
+     (list (canonical-provider-symbol rows dependency export) export)]
+    [#f
+     (list (webify-module-reflection-row-name row)
+           (webify-module-export-binding-internal binding))]))
+
+;; export-binding-provider-rank : binding -> exact-nonnegative-integer?
+;;   Prefer locally defined exports over re-export origin metadata.
+(define (export-binding-provider-rank binding)
+  (cond
+    [(null? (webify-module-export-binding-provider-path binding)) 0]
+    [(provider-path->backing
+      (webify-module-export-binding-provider-path binding))        1]
+    [else                                                          2]))
+
+;; best-provider-candidates : (listof (list/c symbol? symbol? exact-nonnegative-integer?)) -> candidates
+;;   Keep only the strongest origin class, then deduplicate equivalent providers.
+(define (best-provider-candidates candidates)
+  (cond
+    [(null? candidates) '()]
+    [else
+     (define best-rank (apply min (map caddr candidates)))
+     (remove-duplicates
+      (for/list ([candidate (in-list candidates)]
+                 #:when (= (caddr candidate) best-rank))
+        (take candidate 2)))]))
 
 ;; compute-reflection-import-hints : rows -> (listof (list/c importer local provider internal))
 ;;   Infer unambiguous provider hints from reflection rows before broad scanning.
@@ -380,10 +445,16 @@
                                        #:when (export-binding-matches?
                                                export-binding
                                                external))
-                             (export-binding-provider+internal provider-row
-                                                               export-binding)))])
-          (and (= (length candidates) 1)
-               (match-let ([(list provider internal) (car candidates)])
+                             (append
+                              (export-binding-provider+internal rows
+                                                                provider-row
+                                                                export-binding)
+                              (list (export-binding-provider-rank
+                                     export-binding)))))
+                         (define best-candidates
+                           (best-provider-candidates candidates))])
+          (and (= (length best-candidates) 1)
+               (match-let ([(list provider internal) (car best-candidates)])
                  (list importer local provider internal)))))))))
 
 ;; hint-status : symbol? symbol? symbol? symbol? hints dependencies -> symbol?

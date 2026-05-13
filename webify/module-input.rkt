@@ -225,7 +225,9 @@
   (unless found
     (raise-arguments-error who
                            "import dependency has no export table entry"
-                           "dependency" name))
+                           "dependency" name
+                           "available dependencies"
+                           (map car dependency-exports)))
   (cadr found))
 
 ;; symbolic-name=? : symbol? symbol? -> boolean?
@@ -254,6 +256,33 @@
                             "dependency" dependency
                             "export" external
                             "matches" matches)]))
+
+;; broad-base-reexport-module? : symbol? -> boolean?
+;;   Identify base aggregators whose public exports should not outrank private providers.
+(define (broad-base-reexport-module? dependency)
+  (memq dependency '(racket/base racket/private/base)))
+
+;; provider-candidate-reason : symbol? -> symbol?
+;;   Classify broad export-scan candidates for ambiguity diagnostics.
+(define (provider-candidate-reason dependency)
+  (if (broad-base-reexport-module? dependency)
+      'broad-base-reexport
+      'export-table-candidate))
+
+;; prefer-provider-candidates : (listof symbol?) -> (listof symbol?)
+;;   Prefer concrete provider candidates over broad base re-export aggregators.
+(define (prefer-provider-candidates candidates)
+  (define concrete-candidates
+    (filter (lambda (dependency)
+              (not (broad-base-reexport-module? dependency)))
+            candidates))
+  (if (null? concrete-candidates) candidates concrete-candidates))
+
+;; provider-candidate-reasons : (listof symbol?) -> (listof list?)
+;;   Explain why export-scan candidates survived far enough to be ambiguous.
+(define (provider-candidate-reasons candidates)
+  (for/list ([dependency (in-list candidates)])
+    (list dependency (provider-candidate-reason dependency))))
 
 ;; webify-module-linklet-input-dependency-exports : webify-module-linklet-input? -> dependency-export-row
 ;;   Derive a resolver export row from the provider linklet's compiled exports.
@@ -355,24 +384,29 @@
                   #:when (for/or ([export (in-list exports)])
                            (symbolic-name=? export external)))
          dependency))
+     (define ranked-candidates (prefer-provider-candidates candidates))
      (cond
        [(null? candidates)
        (raise-arguments-error who
                                "missing-after-reflection"
                                "import" local
                                "export" external)]
-       [(null? (cdr candidates))
-        (define dependency (car candidates))
+       [(null? (cdr ranked-candidates))
+        (define dependency (car ranked-candidates))
         (define exports (dependency-exports-ref who dependency-exports dependency))
         (list dependency
               (dependency-export-ref who dependency exports external)
-              'resolved-by-export-scan)]
+              (if (equal? ranked-candidates candidates)
+                  'resolved-by-export-scan
+                  'resolved-by-export-scan/provider-precedence))]
        [else
         (raise-arguments-error who
                                "ambiguous-after-reflection"
                                "import" local
                                "export" external
-                               "candidates" candidates)])]))
+                               "candidates" ranked-candidates
+                               "candidate reasons"
+                               (provider-candidate-reasons candidates))])]))
 
 ;; webify-resolve-module-linklet-imports/outcomes : linklet dependency-exports keyword-args ... -> values
 ;;   Derive flat registry import triples and classify each resolution decision.

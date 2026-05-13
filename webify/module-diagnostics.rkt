@@ -26,6 +26,8 @@
      'provider-candidate-overreach]
     [(regexp-match? #rx"import: '(read|current-input-port|read-byte|read-char|read-line|read-bytes-line)" message)
      'io-dependent]
+    [(regexp-match? #rx"import dependency has no export table entry" message)
+     'provider-key-mismatch]
     [(regexp-match? #rx"missing-after-reflection|could not resolve import dependency|dependency does not export aliased name|unresolved import|ambiguous inferred import dependency" message)
      'unresolved-import]
     [(regexp-match? #rx"ambiguous-after-reflection|ambiguous import dependency" message)

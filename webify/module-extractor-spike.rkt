@@ -1316,6 +1316,7 @@
 (define (resolve-extracted-linklet-imports who
                                            linklet
                                            dependency-exports
+                                           preferred-dependency-exports
                                            dependencies
                                            import-aliases
                                            require-rename-aliases
@@ -1365,18 +1366,56 @@
                             #:do [(match-define (list local _dependency _export) alias)]
                             #:when (assoc local module-bindings))
                    local)))
+       (define (dependency-exports-external? exports dependency external)
+         (define candidate-exports (assoc dependency exports))
+         (and candidate-exports
+              (for/or ([export (in-list (cadr candidate-exports))])
+                (symbolic-name=? export external))))
+       (define (candidate->inferred-dependency binding)
+         (match-define (list local external) binding)
+         (define candidates
+           (for/list ([candidate (in-list required-module-candidates)]
+                      #:when (and (= 0 (car candidate))
+                                  (dependency-exports-external?
+                                   dependency-exports
+                                   (cadr candidate)
+                                   external)))
+             candidate))
+         (define preferred-candidates
+           (filter (lambda (candidate)
+                     (dependency-exports-external?
+                      preferred-dependency-exports
+                      (cadr candidate)
+                      external))
+                   candidates))
+         (define ranked-candidates
+           (if (null? preferred-candidates) candidates preferred-candidates))
+         (define (candidate-reason candidate)
+           (list local
+                 (cadr candidate)
+                 (if (memq candidate preferred-candidates)
+                     'provider-local-export
+                     'metadata-export-candidate)))
+         (cond
+           [(null? ranked-candidates) #f]
+           [(null? (cdr ranked-candidates))
+            (list local (cadar ranked-candidates))]
+           [else
+            (raise-arguments-error who
+                                   "ambiguous inferred import dependency"
+                                   "import" local
+                                   "candidates"
+                                   (for/list ([candidate (in-list ranked-candidates)])
+                                     (list local (cadr candidate)))
+                                   "candidate reasons"
+                                   (map candidate-reason candidates))]))
        (define inferred-dependencies
-         (for/list ([binding (in-list module-bindings)]
-                    #:do [(match-define (list local external) binding)]
-                    #:unless (memq local explicit-or-alias-locals)
-                    [candidate (in-list required-module-candidates)]
-                    #:do [(define candidate-exports
-                            (assoc (cadr candidate) dependency-exports))]
-                    #:when (and (= 0 (car candidate))
-                                candidate-exports
-                                (for/or ([export (in-list (cadr candidate-exports))])
-                                  (symbolic-name=? export external))))
-           (list local (cadr candidate))))
+         (filter
+          values
+          (for/list ([binding (in-list module-bindings)]
+                     #:do [(match-define (list local _external) binding)]
+                     #:unless (memq local explicit-or-alias-locals))
+            (candidate->inferred-dependency binding))))
        (define duplicate-inferred (check-duplicates (map car inferred-dependencies)))
        (when duplicate-inferred
          (raise-arguments-error who
@@ -1765,6 +1804,7 @@
     who
     raw-linklet
     dependency-exports
+    dependency-exports
     dependencies
     (webify-module-import-map-import-aliases import-map)
     (webify-module-import-map-require-rename-aliases import-map)
@@ -1792,6 +1832,8 @@
                            "notes" (webify-module-extractor-spike-notes report)))
   (define import-map (webify-module-extractor-spike-import-map report))
   (define raw-linklet (webify-module-extractor-spike-phase0-linklet-datum report))
+  (define provider-dependency-exports
+    (webify-module-extractor-spikes-dependency-exports provider-reports))
   (webify-module-linklet-input
    (webify-module-extractor-spike-name report)
    (webify-normalize-linklet-imports raw-linklet)
@@ -1799,11 +1841,12 @@
     who
     raw-linklet
     (or dependency-exports
-        (webify-module-extractor-spikes-dependency-exports provider-reports))
+        provider-dependency-exports)
+    provider-dependency-exports
     dependencies
     (webify-module-import-map-import-aliases import-map)
     (webify-module-import-map-require-rename-aliases import-map)
-    '()
+    (webify-module-import-map-required-module-candidates import-map)
     module-protocol-dependency
     reflection-hints
     (webify-module-extractor-spike-name report))))
