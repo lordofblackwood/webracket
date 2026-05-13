@@ -30,6 +30,8 @@
   (build-path racket-root "src/expander/bootstrap-run.rkt"))
 (define expander-main-rkt
   (build-path racket-root "src/expander/main.rkt"))
+(define expander-api-module-rkt
+  (build-path racket-root "src/expander/namespace/api-module.rkt"))
 
 (define compile-timeout-seconds (make-parameter 300))
 (define compile-memory-mb       (make-parameter #f))
@@ -89,6 +91,11 @@
 (define (expander-probe-alias-id export)
   (string->symbol (format "webify-expander:~a" export)))
 
+;; expander-probe-alias-available-id : symbol? -> symbol?
+;;   Build a boolean top-level flag for whether an expander export alias exists.
+(define (expander-probe-alias-available-id export)
+  (string->symbol (format "webify-expander-has:~a" export)))
+
 ;; expander-probe-alias-definitions : (listof symbol?) -> (listof any/c)
 ;;   Expose selected expander exports whose public names collide with WebRacket primitives.
 (define (expander-probe-alias-definitions exports)
@@ -105,6 +112,7 @@
       namespace-require
       namespace-variable-value
       namespace-mapped-symbols
+      namespace->instance
       module-declared?
       module->namespace
       dynamic-require
@@ -115,10 +123,15 @@
       syntax?
       syntax->datum))
   (define export-cells (first-slice-top-level-export-cell-ids exports))
-  (for/list ([export (in-list selected)]
-             #:when (hash-has-key? export-cells export))
-    `(define ,(expander-probe-alias-id export)
-       (module-variable-ref ,(hash-ref export-cells export)))))
+  (append*
+   (for/list ([export (in-list selected)])
+     (define available? (hash-has-key? export-cells export))
+     (list
+      `(define ,(expander-probe-alias-available-id export) ,available?)
+      `(define ,(expander-probe-alias-id export)
+         ,(if available?
+              `(module-variable-ref ,(hash-ref export-cells export))
+              #f))))))
 
 ;; datum-formals->symbols : any/c -> (listof symbol?)
 ;;   Collect bindings introduced by lambda-like formals.
@@ -1218,25 +1231,61 @@
             (webify-expander:current-namespace)))
          (lambda ()
            (let ([module-ns
-                  (with-handlers ([exn:fail?
-                                   (lambda (exn)
-                                     (list 'module->namespace-failed
-                                           (list 'message (exn-message exn))
-                                           (list 'shape (webify-probe-value-shape exn))
-                                           (list 'struct-fields
-                                                 (let ([vec (and (struct? exn)
-                                                                 (struct->vector exn '...))])
-                                                   (and vec
-                                                        (webify-probe-vector-field-details vec))))))])
-                    (webify-expander:module->namespace
-                     '(quote webify-tiny-instance-audit)
-                     (webify-expander:current-namespace)))])
+                  (if webify-expander-has:module->namespace
+                      (with-handlers ([exn:fail?
+                                       (lambda (exn)
+                                         (list 'module->namespace-failed
+                                               (list 'message (exn-message exn))
+                                               (list 'shape (webify-probe-value-shape exn))
+                                               (list 'struct-fields
+                                                     (let ([vec (and (struct? exn)
+                                                                     (struct->vector exn '...))])
+                                                       (and vec
+                                                            (webify-probe-vector-field-details vec))))))])
+                        (webify-expander:module->namespace
+                         '(quote webify-tiny-instance-audit)
+                         (webify-expander:current-namespace)))
+                      '(module->namespace-alias-unavailable))])
+             (define module-inst
+               (and (namespace? module-ns)
+                    webify-expander-has:namespace->instance
+                    (webify-expander:namespace->instance module-ns 0)))
+             (define module-inst-names
+               (if module-inst
+                   (instance-variable-names module-inst)
+                   '()))
+             (define webify-tiny-value-key
+               (for/or ([name (in-list module-inst-names)])
+                 (and (symbol? name)
+                      (string=? (symbol->string name) "webify-tiny-value.1")
+                      name)))
              (list
               (list 'binding
                     (let ([id (webify-expander:namespace-syntax-introduce
                                (webify-expander:datum->syntax #f 'webify-tiny-value)
                                (webify-expander:current-namespace))])
                       (webify-probe-binding-summary id)))
+              (list 'binding-name-details
+                    (let* ([id (webify-expander:namespace-syntax-introduce
+                                (webify-expander:datum->syntax #f 'webify-tiny-value)
+                                (webify-expander:current-namespace))]
+                           [binding (webify-expander:identifier-binding id)])
+                      (if (and (pair? binding)
+                               (pair? (cdr binding))
+                               (pair? (cddr binding))
+                               (pair? (cdddr binding)))
+                          (let ([internal-name (cadr binding)]
+                                [external-name (cadddr binding)])
+                            (list 'internal internal-name
+                                  'internal-interned? (symbol-interned? internal-name)
+                                  'external external-name
+                                  'external-interned? (symbol-interned? external-name)
+                                  'internal-eq-instance-key?
+                                  (and webify-tiny-value-key
+                                       (eq? internal-name webify-tiny-value-key))))
+                          '(not-module-binding))))
+              (list 'module->namespace-alias?
+                    webify-expander-has:module->namespace)
               (list 'module-declared?
                     (webify-expander:module-declared?
                      '(quote webify-tiny-instance-audit)))
@@ -1250,11 +1299,70 @@
                     (if (namespace? module-ns)
                         (webify-expander:namespace-mapped-symbols module-ns)
                         module-ns))
+              (list 'module-instance-names
+                    (if module-inst
+                        module-inst-names
+                        'module-instance-unavailable))
+              (list 'module-instance-name-details
+                    (if module-inst
+                        (for/list ([name (in-list module-inst-names)]
+                                   #:when (and (symbol? name)
+                                               (string=? (symbol->string name)
+                                                         "webify-tiny-value.1")))
+                          (list 'name name
+                                'interned? (symbol-interned? name)
+                                'eq-quoted? (eq? name 'webify-tiny-value.1)
+                                'eq-string->symbol?
+                                (eq? name (string->symbol "webify-tiny-value.1"))))
+                        'module-instance-unavailable))
+              (list 'module-instance-internal-value
+                    (if module-inst
+                        (instance-variable-value
+                         module-inst
+                         'webify-tiny-value.1
+                         (lambda () 'missing))
+                        'module-instance-unavailable))
+              (list 'module-instance-actual-key-value
+                    (if (and module-inst webify-tiny-value-key)
+                        (instance-variable-value
+                         module-inst
+                         webify-tiny-value-key
+                         (lambda () 'missing))
+                        'module-instance-key-unavailable))
+              (list 'current-namespace-external-value
+                    (webify-expander:namespace-variable-value
+                     'webify-tiny-value
+                     #t
+                     (lambda () 'missing)
+                     (webify-expander:current-namespace)))
+              (list 'module-instance-external-value
+                    (if module-inst
+                        (instance-variable-value
+                         module-inst
+                         'webify-tiny-value
+                         (lambda () 'missing))
+                        'module-instance-unavailable))
               (list 'external-value/no-mapping
                     (if (namespace? module-ns)
                         (webify-expander:namespace-variable-value
                          'webify-tiny-value
                          #f
+                         (lambda () 'missing)
+                        module-ns)
+                        'module-namespace-unavailable))
+              (list 'external-value/mapped
+                    (if (namespace? module-ns)
+                        (webify-expander:namespace-variable-value
+                         'webify-tiny-value
+                         #t
+                         (lambda () 'missing)
+                         module-ns)
+                        'module-namespace-unavailable))
+              (list 'internal-value/mapped
+                    (if (namespace? module-ns)
+                        (webify-expander:namespace-variable-value
+                         'webify-tiny-value.1
+                         #t
                          (lambda () 'missing)
                          module-ns)
                         'module-namespace-unavailable))
@@ -1815,9 +1923,19 @@
   (define out-rktl (build-path out-dir "expander.rktl"))
   (define dep-rktd (build-path out-dir "expander-dep.rktd"))
   (define cache-dir (build-path out-dir "cache-src"))
+  (define startup-wrapper (build-path out-dir "expander-startup-wrapper.rkt"))
+  (call-with-output-file* startup-wrapper
+    (lambda (out)
+      (fprintf out "#lang racket/base\n")
+      (fprintf out "(require (file ~s)\n" (path->string expander-main-rkt))
+      (fprintf out "         (only-in (file ~s) module->namespace module->imports module->exports))\n"
+               (path->string expander-api-module-rkt))
+      (fprintf out "(provide (all-from-out (file ~s))\n" (path->string expander-main-rkt))
+      (fprintf out "         module->namespace module->imports module->exports)\n"))
+    #:exists 'truncate/replace)
   (list
    (path->string bootstrap-run-rkt)
-   "-t" (path->string expander-main-rkt)
+   "-t" (path->string startup-wrapper)
    "-c" (path->string cache-dir)
    "--depends" (path->string dep-rktd)
    "++knot" "read" (path->string (build-path racket-root "src/expander/read/api.rkt"))
@@ -1989,7 +2107,8 @@
 
 (unless (and (file-exists? racket-bin)
              (file-exists? bootstrap-run-rkt)
-             (file-exists? expander-main-rkt))
+             (file-exists? expander-main-rkt)
+             (file-exists? expander-api-module-rkt))
   (error 'probe-expander-full-compile
          "expected Racket checkout under ../racket/racket"))
 

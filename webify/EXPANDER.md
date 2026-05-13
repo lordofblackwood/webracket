@@ -3078,19 +3078,42 @@ The correlated adapter also has a named begin-directory runner now:
 `(data 0 1)` directory summary and runs the lowered definition entry followed
 by the expression entry over a shared top-level binding table.
 
-The expander smoke still reports the same `module->namespace` frontier, but the
-audit is sharper:
+The expander module smoke has moved past the old `module->namespace` frontier.
+The focused audit now declares and requires a tiny `#%kernel` module:
 
-```text
-(module-declared? #t)
-(namespace-module-identifier ... (maybe-syntax->datum module))
-(module->namespace-failed
-  (message #<undefined>)
-  (shape ... exn:fail:contract:variable ...)
-  (struct-fields ... webify-expander:module->namespace ...))
+```racket
+(module webify-tiny-instance-audit '#%kernel
+  (#%provide webify-tiny-value)
+  (define-values (webify-tiny-value) '42))
 ```
 
-So the module is declared and required; the failure is not an absent declaration
-or missing export cell. The next useful direction is to inspect the runtime
-bindings reached by `module->namespace` itself, especially the inspector and
-root-expand-context path in the expander's `namespace/api-module.rkt`.
+`module->namespace` is exposed to the probe by extracting through a small
+wrapper module that re-provides `module->namespace`, `module->imports`, and
+`module->exports` from `namespace/api-module.rkt` alongside `expander/main.rkt`.
+The audit now reports:
+
+```text
+module->namespace-alias? #t
+module-declared? #t
+binding internal webify-tiny-value.1
+binding internal-interned? #f
+binding internal-eq-instance-key? #t
+module-instance-names (webify-tiny-value.1)
+module-instance-actual-key-value 42
+current-namespace-external-value 42
+```
+
+One important diagnostic lesson: the printed internal name
+`webify-tiny-value.1` is an unreadable/uninterned symbol, as intended by
+`racket/src/expander/expand/def-id.rkt` for non-simple module bindings.
+Reconstructing it with `'webify-tiny-value.1` or
+`(string->symbol "webify-tiny-value.1")` produces an interned symbol and misses
+in the linklet instance's eq-hash. Probes must preserve the actual symbol from
+`identifier-binding` or `instance-variable-names` when inspecting body
+namespace variables.
+
+This also clarifies the public/private namespace split. The requiring namespace
+maps the external export name `webify-tiny-value` and reads it as `42` with
+`namespace-variable-value`. The module body namespace returned by
+`module->namespace` contains the internal linklet key, so direct inspection must
+use that exact uninterned key.

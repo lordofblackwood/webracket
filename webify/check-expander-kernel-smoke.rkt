@@ -45,6 +45,16 @@
            needle
            output)))
 
+;; require-any-output : string? (listof string?) -> void?
+;;   Fail unless at least one needle appears in output.
+(define (require-any-output output needles)
+  (unless (for/or ([needle (in-list needles)])
+            (string-contains? output needle))
+    (error 'check-expander-kernel-smoke
+           "expected output to contain one of ~s\noutput:\n~a"
+           needles
+           output)))
+
 (define wasm-path
   (command-line
    #:program "check-expander-kernel-smoke"
@@ -379,10 +389,12 @@
                            "(directory-keys (#f))"
                            "(linklet-summary ((linklet? #t) (import-group-count 3) (export-count 1)"
                            "(datum (begin (define-values (webify-top-x) 1) webify-top-x))"
-                           "(directory-keys (data"
                            "(bundle-object-name #f)"
                            "(bundle-entries #f)"))])
   (require-output correlated-definition-payload-output fragment))
+(require-any-output correlated-definition-payload-output
+                    '("(directory-keys (data"
+                      "(directory-keys (1 0 data)"))
 
 (check-ok-probe
  "webify-probe-expand-self-evaluating/eval-ordinary-kernel-primitive-app"

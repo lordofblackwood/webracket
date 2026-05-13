@@ -6697,8 +6697,14 @@
                (list
                 (list "inspector placeholders"
                       (and (equal? (current-inspector) #f)
+                           (equal? (inspector? (current-inspector)) #t)
+                           (equal? (inspector? 'not-an-inspector) #f)
                            (equal? (current-code-inspector) #f)
-                           (equal? (make-inspector (current-code-inspector)) #f)))
+                           (equal? (make-inspector (current-code-inspector)) #f)
+                           (equal? (inspector-superior?
+                                    (current-code-inspector)
+                                    (make-inspector (current-code-inspector)))
+                                   #t)))
                 (list "object-name/procedure"
                       (let* ([anon      (lambda (x) x)]
                              [renamed   (procedure-rename +       'plus)]

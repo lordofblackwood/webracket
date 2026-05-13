@@ -1323,6 +1323,9 @@
        weak-box-value)
      'optional 1 2)
     (make-inline-specs
+     '(ephemeron-value)
+     'optional 1 3)
+    (make-inline-specs
      '(file->bytes
        file->string)
      'optional 1 2)
@@ -1394,6 +1397,7 @@
        current-output-port
        current-error-port
        current-read-interaction
+       load-on-demand-enabled
        read-accept-reader
        read-accept-lang
        read-accept-compiled
@@ -1772,6 +1776,8 @@
   struct->list
   struct->vector
 
+  inspector?                  ; permissive stub
+  inspector-superior?         ; permissive stub
   current-inspector          ; todo
   current-code-inspector     ; permissive stub
   make-inspector             ; permissive stub
@@ -2148,7 +2154,7 @@
 
   symbol? symbol=? symbol<? 
   string->symbol symbol->string
-  string->uninterned-symbol symbol-interned?
+  string->uninterned-symbol string->unreadable-symbol symbol-interned?
   symbol->immutable-string
   gensym
   
@@ -2165,6 +2171,7 @@
   current-error-port
   current-read-interaction
   port-read-handler
+  load-on-demand-enabled
   read-accept-reader
   read-accept-lang
   read-accept-compiled
@@ -2259,6 +2266,7 @@
   make-weak-hasheqv ; for now same as make-hasheqv
   make-weak-hash    ; for now same as make-hash
   make-weak-hashalw ; for now same as make-hashalw
+  make-ephemeron ephemeron? ephemeron-value ; strong fallback for now
   make-ephemeron-hasheq ; strong fallback for now
 
   hash?
@@ -2330,6 +2338,7 @@
   ;; 10. Control Flow
   call-with-values
   call-with-continuation-barrier ; bootstrap approximation: invokes thunk
+  call-with-escape-continuation ; bootstrap approximation: no non-local escape
 
   ; 10.2 Exceptions
   unquoted-printing-string?

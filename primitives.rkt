@@ -210,7 +210,9 @@
          parameterization?
          call-with-parameterization
          call-with-continuation-barrier
+         call-with-escape-continuation
          port-read-handler
+         load-on-demand-enabled
          read-accept-reader
          read-accept-lang
          read-accept-compiled
@@ -647,6 +649,7 @@
  string->symbol
  symbol->string
  string->uninterned-symbol
+ string->unreadable-symbol
  symbol-interned?
  ; symbol-unreadable?
  gensym
@@ -832,6 +835,7 @@
  ; boxed unboxed set-boxed!  ; internal
  box? box box-immutable unbox unbox* set-box! set-box*! box-cas! unsafe-box*-cas!
  make-weak-box weak-box? weak-box-value
+ make-ephemeron ephemeron? ephemeron-value
 
  ;; Thread Cells
  make-thread-cell thread-cell? thread-cell-ref thread-cell-set!
@@ -935,7 +939,8 @@
  
  struct-constructor-procedure? struct-predicate-procedure?
  struct-accessor-procedure? struct-mutator-procedure?
- struct? struct-type? current-inspector current-code-inspector make-inspector
+ struct? struct-type? inspector? current-inspector current-code-inspector make-inspector
+ inspector-superior?
  struct-type-property?
  struct-type-property-accessor-procedure?
  struct-type-property-predicate-procedure?
@@ -3071,6 +3076,9 @@
 (define (call-with-continuation-barrier thunk)
   (thunk))
 
+(define (call-with-escape-continuation proc)
+  (proc values))
+
 (define cache-configuration
   (let ([cache (make-hasheqv)])
     (lambda (index thunk)
@@ -3081,6 +3089,7 @@
     (raise-argument-error 'port-read-handler "input-port?" in))
   (lambda (_in) eof))
 
+(define load-on-demand-enabled (make-parameter #t))
 (define read-accept-reader      (make-parameter #t))
 (define read-accept-lang        (make-parameter #t))
 (define read-accept-compiled    (make-parameter #f))

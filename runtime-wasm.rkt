@@ -52539,6 +52539,17 @@
          ;; 14.8 Thread Groups
          ;; 14.9 Structure Inspectors
 
+         ;; inspector? : any/c -> boolean?
+         ;;   Permissive placeholder. The inspector value itself is represented
+         ;;   as #f until WebRacket grows a real inspector hierarchy.
+         (func $inspector? (type $Prim1)
+               (param $v (ref eq)) ;; any/c
+               (result   (ref eq))
+               (if (result (ref eq))
+                   (ref.eq (local.get $v) (global.get $false))
+                   (then (global.get $true))
+                   (else (global.get $false))))
+
          ;; current-inspector : -> inspector?
          ;;   Permissive placeholder. WebRacket does not yet enforce inspector
          ;;   access control, so the current inspector is represented as #f.
@@ -52563,6 +52574,21 @@
                (param $parent (ref eq)) ;; parent inspector
                (result (ref eq))
                (global.get $false))
+
+         ;; inspector-superior? : inspector? inspector? -> boolean?
+         ;;   Permissive placeholder for module/body namespace recovery. Since
+         ;;   all inspectors collapse to #f in the current model, treat #f as
+         ;;   controlling #f; real hierarchy checks should replace this stub
+         ;;   when protected module/struct access is implemented.
+         (func $inspector-superior? (type $Prim2)
+               (param $inspector (ref eq)) ;; inspector?
+               (param $maybe-subinspector (ref eq)) ;; inspector?
+               (result (ref eq))
+               (if (result (ref eq))
+                   (i32.and (ref.eq (local.get $inspector) (global.get $false))
+                            (ref.eq (local.get $maybe-subinspector) (global.get $false)))
+                   (then (global.get $true))
+                   (else (global.get $false))))
 
          ;; Racket's object-name recognizes additional values such as regexp objects,
          ;; loggers, prompt tags, and structures with the prop:object-name property.
