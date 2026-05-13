@@ -1943,6 +1943,7 @@
     (add-runtime-string-constant 'string?                    "string?")
     (add-runtime-string-constant 'string-or-symbol?          "(or/c string? symbol?)")
     (add-runtime-string-constant 'symbol?                    "symbol?")
+    (add-runtime-string-constant 'ephemeron?                 "ephemeron?")
     (add-runtime-string-constant 'keyword?                   "keyword?")
     (add-runtime-string-constant 'pair?                      "pair?")
     (add-runtime-string-constant 'list?                      "list?")
@@ -1997,7 +1998,9 @@
     (add-runtime-string-constant 'callback:no-js-equivalent
                                  "The callback attempted to return a WebRacket value with no JavaScript equivalent (i.e. without a FASL encoding): ")
     (add-runtime-symbol-constant 'wr-ref)
+    (add-runtime-symbol-constant 'call-with-escape-continuation)
     (add-runtime-symbol-constant 'port-read-handler)
+    (add-runtime-symbol-constant 'load-on-demand-enabled)
     (add-runtime-symbol-constant 'read-accept-reader)
     (add-runtime-symbol-constant 'read-accept-lang)
     (add-runtime-symbol-constant 'read-accept-compiled)
@@ -2014,6 +2017,13 @@
     (add-runtime-symbol-constant 'current-compile-target-machine)
     (add-runtime-symbol-constant 'current-compile-realm)
     (add-runtime-symbol-constant 'linklet)
+    (add-runtime-symbol-constant '#%app)
+    (add-runtime-symbol-constant '+)
+    (add-runtime-symbol-constant 'define-values)
+    (add-runtime-symbol-constant 'quote)
+    (add-runtime-symbol-constant 'begin)
+    (add-runtime-symbol-constant 'set!)
+    (add-runtime-symbol-constant 'void)
     (add-runtime-symbol-constant 'webracket-debug-allocation-budget!)
     (add-runtime-symbol-constant 'webracket-debug-allocation-counters)
     (add-runtime-symbol-constant 'webracket-debug-invoke-budget!)
@@ -2326,6 +2336,12 @@
           (type $EnvironmentVariables (sub $Heap
                                            (struct
                                              (field $hash (mut i32)))))
+          ;; Private payload thrown by WebRacket's bootstrap
+          ;; call-with-escape-continuation implementation.
+          (type $EscapeContinuationJump (sub $Heap
+                                             (struct
+                                               (field $hash  (mut i32))
+                                               (field $value (ref eq)))))
 
           ;; Poor-man parameterizations. This is an overlay chain over a base
           ;; parameterization plus a list of parameter/value pairs. It is not a
@@ -2677,6 +2693,11 @@
                                (field $hash          (mut i32))          ;; cached hash
                                (field $name          (ref $String))      ;; symbol name (string)
                                (field $property-list (mut (ref eq))))))  ;; user-defined properties
+          (type $Ephemeron (sub $Heap
+                                (struct
+                                  (field $hash  (mut i32))
+                                  (field $key   (ref eq))
+                                  (field $value (mut (ref eq))))))
           (type $Keyword (sub $Heap
                               (struct
                                 (field $hash  (mut i32))
@@ -4985,6 +5006,257 @@
                      (global.get $string:metadata-only-compiled-linklet)
                      (array.new_fixed $Args 0))
                (unreachable))
+         ;; linklet-datum-body-list : linklet-datum? -> list?
+         ;;   Return the body forms after imports and exports in `(linklet ...)`.
+         (func $linklet-datum-body-list
+               (param $src (ref eq)) ;; linklet datum
+               (result     (ref eq))
+
+               (local $rest (ref eq))
+
+               (if (i32.eqz (ref.test (ref $Pair) (local.get $src)))
+                   (then (return (global.get $null))))
+               (local.set $rest
+                          (struct.get $Pair $d
+                                      (ref.cast (ref $Pair) (local.get $src))))
+               ;; imports
+               (if (i32.eqz (ref.test (ref $Pair) (local.get $rest)))
+                   (then (return (global.get $null))))
+               (local.set $rest
+                          (struct.get $Pair $d
+                                      (ref.cast (ref $Pair) (local.get $rest))))
+               ;; exports
+               (if (i32.eqz (ref.test (ref $Pair) (local.get $rest)))
+                   (then (return (global.get $null))))
+               (struct.get $Pair $d
+                           (ref.cast (ref $Pair) (local.get $rest))))
+
+         ;; linklet-normalize-id : any/c -> any/c
+         ;;   Convert a syntax-wrapped source-linklet identifier to its symbol.
+         (func $linklet-normalize-id
+               (param $id (ref eq)) ;; linklet variable identifier
+               (result    (ref eq))
+
+               (if (ref.eq (call $syntax? (local.get $id)) (global.get $true))
+                   (then (return (call $syntax-e (local.get $id)))))
+               (local.get $id))
+
+         ;; linklet-eval-sequence : instance? list? -> any/c
+         ;;   Evaluate body forms left-to-right for the bootstrap linklet interpreter.
+         (func $linklet-eval-sequence
+               (param $self  (ref eq)) ;; target instance
+               (param $forms (ref eq)) ;; body form list
+               (result       (ref eq))
+
+               (local $node   (ref eq))
+               (local $pair   (ref $Pair))
+               (local $result (ref eq))
+
+               (local.set $node (local.get $forms))
+               (local.set $result (global.get $void))
+               (block $done
+                      (loop $loop
+                            (br_if $done (ref.eq (local.get $node) (global.get $null)))
+                            (if (i32.eqz (ref.test (ref $Pair) (local.get $node)))
+                                (then (return (global.get $void))))
+                            (local.set $pair (ref.cast (ref $Pair) (local.get $node)))
+                            (local.set $result
+                                       (call $linklet-eval-expr
+                                             (local.get $self)
+                                             (struct.get $Pair $a (local.get $pair))))
+                            (local.set $node (struct.get $Pair $d (local.get $pair)))
+                            (br $loop)))
+               (local.get $result))
+
+         ;; linklet-eval-expr-list : instance? list? -> list?
+         ;;   Evaluate each expression in a source-linklet argument list.
+         (func $linklet-eval-expr-list
+               (param $self  (ref eq)) ;; target instance
+               (param $forms (ref eq)) ;; expression list
+               (result       (ref eq))
+
+               (local $node   (ref eq))
+               (local $pair   (ref $Pair))
+               (local $acc    (ref eq))
+
+               (local.set $node (local.get $forms))
+               (local.set $acc (global.get $null))
+               (block $done
+                      (loop $loop
+                            (br_if $done (ref.eq (local.get $node) (global.get $null)))
+                            (if (i32.eqz (ref.test (ref $Pair) (local.get $node)))
+                                (then (return (call $reverse (local.get $acc)))))
+                            (local.set $pair (ref.cast (ref $Pair) (local.get $node)))
+                            (local.set $acc
+                                       (call $cons
+                                             (call $linklet-eval-expr
+                                                   (local.get $self)
+                                                   (struct.get $Pair $a (local.get $pair)))
+                                             (local.get $acc)))
+                            (local.set $node (struct.get $Pair $d (local.get $pair)))
+                            (br $loop)))
+               (call $reverse (local.get $acc)))
+
+         ;; linklet-eval-expr : instance? any/c -> any/c
+         ;;   Interpret the small source-linklet subset needed for bootstrap modules.
+         (func $linklet-eval-expr
+               (param $self (ref eq)) ;; target instance
+               (param $expr (ref eq)) ;; expression datum
+               (result      (ref eq))
+
+               (local $pair    (ref $Pair))
+               (local $head    (ref eq))
+               (local $rest    (ref eq))
+               (local $ids     (ref eq))
+               (local $id-pair (ref $Pair))
+               (local $id      (ref eq))
+               (local $rhs     (ref eq))
+               (local $val     (ref eq))
+               (local $op      (ref eq))
+               (local $args    (ref eq))
+
+               (if (i32.eqz (ref.test (ref $Pair) (local.get $expr)))
+                   (then
+                    (local.set $expr (call $linklet-normalize-id (local.get $expr)))
+                    (if
+                        (ref.test (ref $Symbol) (local.get $expr))
+                        (then (return (call $instance-variable-value
+                                            (local.get $self)
+                                            (local.get $expr)
+                                                  (call $cons
+                                                        (global.get $false)
+                                                        (global.get $null)))))
+                        (else (return (local.get $expr))))))
+
+               (local.set $pair (ref.cast (ref $Pair) (local.get $expr)))
+               (local.set $head (struct.get $Pair $a (local.get $pair)))
+               (local.set $rest (struct.get $Pair $d (local.get $pair)))
+
+               ;; (quote datum)
+               (if (ref.eq (local.get $head) (global.get $symbol:quote))
+                   (then
+                    (if (ref.test (ref $Pair) (local.get $rest))
+                        (then
+                         (return (struct.get $Pair $a
+                                             (ref.cast (ref $Pair) (local.get $rest))))))))
+
+               ;; (begin body ...)
+               (if (ref.eq (local.get $head) (global.get $symbol:begin))
+                   (then
+                    (return (call $linklet-eval-sequence
+                                  (local.get $self)
+                                  (local.get $rest)))))
+
+               ;; (void)
+               (if (ref.eq (local.get $head) (global.get $symbol:void))
+                   (then (return (global.get $void))))
+
+               ;; (#%app + arg ...)
+               (if (ref.eq (local.get $head) (global.get $symbol:#%app))
+                   (then
+                    (if (ref.test (ref $Pair) (local.get $rest))
+                        (then
+                         (local.set $pair (ref.cast (ref $Pair) (local.get $rest)))
+                         (local.set $op
+                                    (call $linklet-normalize-id
+                                          (struct.get $Pair $a (local.get $pair))))
+                         (local.set $args (struct.get $Pair $d (local.get $pair)))
+                         (if (ref.eq (local.get $op) (global.get $symbol:+))
+                             (then
+                              (local.set $args
+                                         (call $linklet-eval-expr-list
+                                               (local.get $self)
+                                               (local.get $args)))
+                              (return (call $+ (local.get $args)))))))))
+
+               ;; Some runtime-produced source linklets can already have the
+               ;; operator in head position after simplification.
+               (if (ref.eq (local.get $head) (global.get $symbol:+))
+                   (then (return
+                          (call $+
+                                (call $linklet-eval-expr-list
+                                      (local.get $self)
+                                      (local.get $rest))))))
+
+               ;; (set! id rhs)
+               (if (ref.eq (local.get $head) (global.get $symbol:set!))
+                   (then
+                    (if (ref.test (ref $Pair) (local.get $rest))
+                        (then
+                         (local.set $pair (ref.cast (ref $Pair) (local.get $rest)))
+                         (local.set $id
+                                    (call $linklet-normalize-id
+                                          (struct.get $Pair $a (local.get $pair))))
+                         (local.set $rest (struct.get $Pair $d (local.get $pair)))
+                         (if (ref.test (ref $Pair) (local.get $rest))
+                             (then
+                              (local.set $rhs
+                                         (struct.get $Pair $a
+                                                     (ref.cast (ref $Pair) (local.get $rest))))
+                              (local.set $val
+                                         (call $linklet-eval-expr
+                                               (local.get $self)
+                                               (local.get $rhs)))
+                              (return (call $instance-set-variable-value!
+                                            (local.get $self)
+                                            (local.get $id)
+                                            (local.get $val)
+                                            (global.get $null)))))))))
+
+               ;; (define-values (id) rhs)
+               (if (ref.eq (local.get $head) (global.get $symbol:define-values))
+                   (then
+                    (if (ref.test (ref $Pair) (local.get $rest))
+                        (then
+                         (local.set $pair (ref.cast (ref $Pair) (local.get $rest)))
+                         (local.set $ids (struct.get $Pair $a (local.get $pair)))
+                         (local.set $rest (struct.get $Pair $d (local.get $pair)))
+                         (if (ref.test (ref $Pair) (local.get $rest))
+                             (then
+                              (local.set $rhs
+                                         (struct.get $Pair $a
+                                                     (ref.cast (ref $Pair) (local.get $rest))))
+                              (local.set $val
+                                         (call $linklet-eval-expr
+                                               (local.get $self)
+                                               (local.get $rhs)))
+                              (if (ref.test (ref $Pair) (local.get $ids))
+                                  (then
+                                   (local.set $id-pair (ref.cast (ref $Pair) (local.get $ids)))
+                                   (local.set $id
+                                              (call $linklet-normalize-id
+                                                    (struct.get $Pair $a (local.get $id-pair))))
+                                   (return (call $instance-set-variable-value!
+                                                 (local.get $self)
+                                                 (local.get $id)
+                                                 (local.get $val)
+                                                 (global.get $null)))))))))))
+
+               ;; Unsupported applications are left inert for now; the next
+               ;; executor milestones should add primitive and import dispatch.
+               (global.get $void))
+
+         ;; interpreted-linklet-code : closure args -> any/c
+         ;;   Execute the stored source linklet datum against the target instance.
+         (func $interpreted-linklet-code (type $ClosureCode)
+               (param $clos (ref $Closure)) ;; closure with source datum free var
+               (param $args (ref $Args))    ;; self instance, then imports
+               (result     (ref eq))
+
+               (local $src   (ref eq))
+               (local $self  (ref eq))
+               (local $forms (ref eq))
+
+               (if (i32.eqz (array.len (local.get $args)))
+                   (then (return (global.get $void))))
+               (local.set $src
+                          (array.get $Free
+                                     (struct.get $Closure $free (local.get $clos))
+                                     (i32.const 0)))
+               (local.set $self (array.get $Args (local.get $args) (i32.const 0)))
+               (local.set $forms (call $linklet-datum-body-list (local.get $src)))
+               (call $linklet-eval-sequence (local.get $self) (local.get $forms)))
+
          (global $dummy-closure (ref $Closure)
                  (struct.new $Closure
                              (i32.const 0)               ; hash
@@ -5003,6 +5275,26 @@
                              (global.get $false)         ; realm: #f or $Symbol
                              (ref.func $invoke-closure) ; invoke (used by apply, map, etc.)
                              (global.get $false)         ; debug-id
+                             (ref.func $dummy-code)
+                             (array.new_fixed $Free 0)))
+         (global $interpreted-linklet-retainer (ref $Closure)
+                 (struct.new $Closure
+                             (i32.const 0)
+                             (global.get $false)
+                             (ref.i31 (i32.const -1))
+                             (global.get $false)
+                             (ref.func $invoke-closure)
+                             (global.get $false)
+                             (ref.func $interpreted-linklet-code)
+                             (array.new_fixed $Free 1 (global.get $false))))
+         (global $escape-continuation-closure (ref $Closure)
+                 (struct.new $Closure
+                             (i32.const 0)
+                             (global.get $false)
+                             (ref.i31 (i32.const -1)) ; arity-at-least 0
+                             (global.get $false)
+                             (ref.func $invoke-escape-continuation)
+                             (global.get $false)
                              (ref.func $dummy-code)
                              (array.new_fixed $Free 0)))
          (global $closedapp-clos (mut (ref $Closure)) (global.get $dummy-closure))
@@ -19818,6 +20110,15 @@
                            (local.get $str)         ;; name
                            (global.get $null)))     ;; empty property list
 
+         ;; string->unreadable-symbol : string? -> symbol?
+         ;;   Temporary unreadable-symbol approximation. The runtime does not
+         ;;   distinguish unreadable symbols yet, but expander-generated names
+         ;;   need a non-interned symbol that is not equal to a plain symbol.
+         (func $string->unreadable-symbol (type $Prim1)
+               (param $v (ref eq)) ;; source string
+               (result   (ref eq))
+               (call $string->uninterned-symbol (local.get $v)))
+
          (func $symbol-interned? (type $Prim1)
                (param $sym (ref eq))
                (result     (ref eq))
@@ -33753,7 +34054,7 @@
                                        $hasheqv-set!/mutable/checked
                                        $hash-set!/mutable/checked
                                        $hashalw-set!/mutable/checked)])
-             `(func ,make-hash (type $Prim1) ; (make-hasheq [assocs])   - optional without default 
+             `(func ,make-hash (type $Prim01) ; (make-hasheq [assocs])   - optional default null
                     (param $assocs (ref eq))   ;; Either $missing or an alist of key/value pairs
                     (result        (ref eq))   ;; an (ref $HashEqMutable)
 
@@ -34644,6 +34945,42 @@
                    (then (local.set $assocs (global.get $null))))
                (call $make-hasheq (local.get $assocs)))
 
+         ;; make-ephemeron : any/c any/c -> ephemeron?
+         ;;   Strong fallback. WebRacket keeps the key/value strongly because
+         ;;   Wasm GC does not expose Racket-style weak/ephemeron hooks yet.
+         (func $make-ephemeron (type $Prim2)
+               (param $key (ref eq)) ;; ephemeron key
+               (param $val (ref eq)) ;; ephemeron value
+               (result     (ref eq))
+               (struct.new $Ephemeron
+                           (i32.const 0)
+                           (local.get $key)
+                           (local.get $val)))
+
+         ;; ephemeron? : any/c -> boolean?
+         ;;   Predicate for WebRacket's strong ephemeron fallback values.
+         (func $ephemeron? (type $Prim1)
+               (param $v (ref eq)) ;; candidate value
+               (result   (ref eq))
+               (if (result (ref eq)) (ref.test (ref $Ephemeron) (local.get $v))
+                   (then (global.get $true))
+                   (else (global.get $false))))
+
+         ;; ephemeron-value : ephemeron? [any/c = #f] [any/c = #f] -> any/c
+         ;;   Return the strongly retained value; gced-v and retain-v are ignored.
+         (func $ephemeron-value (type $Prim13)
+               (param $e        (ref eq)) ;; ephemeron
+               (param $gced-v   (ref eq)) ;; optional fallback, ignored
+               (param $retain-v (ref eq)) ;; optional retain value, ignored
+               (result          (ref eq))
+               (if (i32.eqz (ref.test (ref $Ephemeron) (local.get $e)))
+                   (then (call $raise-argument-error1
+                               (ref.cast (ref $Symbol) (global.get $symbol:ephemeron-value))
+                               (ref.cast (ref $String) (global.get $string:ephemeron?))
+                               (local.get $e))))
+               (struct.get $Ephemeron $value
+                           (ref.cast (ref $Ephemeron) (local.get $e))))
+
          (func $make-weak-hasheqv (type $Prim01) ; one optional argument
                (param $assocs (ref eq))
                (result        (ref eq))
@@ -34703,6 +35040,9 @@
                (local $rest    (ref eq))
                (local $imports (ref eq))
                (local $exports (ref eq))
+               (local $proc    (ref $Closure))
+               (local $imports-node (ref eq))
+               (local $import-count i32)
 
                (if (i32.eqz (ref.test (ref $Pair) (local.get $c)))
                    (then (return (global.get $false))))
@@ -34727,6 +35067,40 @@
                (local.set $exports
                           (struct.get $Pair $a
                                       (ref.cast (ref $Pair) (local.get $rest))))
+               ;; The linklet body procedure is called with the target instance
+               ;; followed by one instance for each import group.
+               (local.set $imports-node (local.get $imports))
+               (local.set $import-count (i32.const 0))
+               (block $imports-done
+                      (loop $imports-loop
+                            (br_if $imports-done
+                                   (ref.eq (local.get $imports-node)
+                                           (global.get $null)))
+                            (if (i32.eqz (ref.test (ref $Pair) (local.get $imports-node)))
+                                (then (return (global.get $false))))
+                            (local.set $import-count
+                                       (i32.add (local.get $import-count)
+                                                (i32.const 1)))
+                            (local.set $imports-node
+                                       (struct.get $Pair $d
+                                                   (ref.cast (ref $Pair)
+                                                             (local.get $imports-node))))
+                            (br $imports-loop)))
+               (local.set $proc
+                          (struct.new $Closure
+                                      (i32.const 0)
+                                      (global.get $false)
+                                      (ref.i31
+                                       (i32.shl
+                                        (i32.add (local.get $import-count)
+                                                 (i32.const 1))
+                                        (i32.const 1)))
+                                      (global.get $false)
+                                      (ref.func $invoke-closure)
+                                      (global.get $false)
+                                      (ref.func $interpreted-linklet-code)
+                                      (array.new_fixed $Free 1
+                                                       (local.get $c))))
 
                (ref.cast (ref eq)
                          (struct.new $CompiledLinklet
@@ -34734,16 +35108,15 @@
                                      (global.get $false)
                                      (local.get $imports)
                                      (local.get $exports)
-                                     (ref.cast (ref eq)
-                                               (global.get $placeholder-linklet-closure)))))
+                                     (ref.cast (ref eq) (local.get $proc)))))
 
          ;; compile-linklet : linklet-datum? [any/c any/c any/c any/c] -> any/c
-         ;;   Runtime compilation is intentionally unavailable in WebAssembly.
-         ;;   Exposing the bootstrap name lets the expander initialize its
-         ;;   #%linklet namespace. For linklet-shaped data, return a
-         ;;   metadata-only compiled linklet so the expander can inspect import
-         ;;   and export variables. When import-keys is supplied, preserve the
-         ;;   expander protocol by returning the unchanged import keys too.
+         ;;   Runtime machine-code compilation is unavailable in WebAssembly.
+         ;;   For linklet-shaped data, return a compiled-linklet record whose
+         ;;   closure interprets a small source-linklet subset. This is enough
+         ;;   for bootstrap module bodies while preserving metadata access.
+         ;;   When import-keys is supplied, preserve the expander protocol by
+         ;;   returning the unchanged import keys too.
          (func $compile-linklet (type $Prim15)
                (param $c           (ref eq)) ;; linklet datum
                (param $info        (ref eq)) ;; optional info, default #f
@@ -50352,6 +50725,18 @@
          ;; 10.3 Delayed Evaluation
          ;; 10.4 Continuations
 
+         ;; invoke-escape-continuation : procedure-invoker
+         ;;   Throw a private payload that call-with-escape-continuation catches.
+         (func $invoke-escape-continuation (type $ProcedureInvoker)
+               (param $proc (ref $Procedure))
+               (param $args (ref $Args))
+               (result      (ref eq))
+               (throw $exn
+                      (struct.new $EscapeContinuationJump
+                                  (i32.const 0)
+                                  (call $values (local.get $args))))
+               (unreachable))
+
          ;; $call-thunk : procedure? -> any/c
          ;;   Invoke a zero-argument procedure.
          (func $call-thunk
@@ -50408,6 +50793,55 @@
                (param $thunk (ref eq)) ;; procedure?
                (result       (ref eq))
                (call $call-thunk (local.get $thunk)))
+
+         ;; call-with-escape-continuation : ((procedure? -> any/c) -> any/c) -> any/c
+         ;;   Bootstrap implementation using a private Wasm exception. This
+         ;;   supports the expander's `let/ec` patterns, including early return
+         ;;   through the current call. It is still not a full Racket escape
+         ;;   continuation: the escape procedure is not dynamically invalidated
+         ;;   after return, and real continuation prompts/barriers are deferred.
+         (func $call-with-escape-continuation (type $Prim1)
+               (param $proc-raw (ref eq)) ;; procedure?
+               (result          (ref eq))
+
+               (local $proc    (ref $Procedure))
+               (local $inv     (ref $ProcedureInvoker))
+               (local $exn-val (ref eq))
+               (local $jump    (ref $EscapeContinuationJump))
+
+               (local.set $proc (global.get $dummy-closure))
+               (local.set $inv  (ref.func $invoke-closure))
+               (local.set $exn-val (global.get $false))
+               (local.set $jump
+                          (struct.new $EscapeContinuationJump
+                                      (i32.const 0)
+                                      (global.get $false)))
+
+               (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc-raw)))
+                   (then (call $raise-argument-error:procedure-expected (local.get $proc-raw))
+                         (unreachable)))
+               (local.set $proc (ref.cast (ref $Procedure) (local.get $proc-raw)))
+               (local.set $inv  (struct.get $Procedure $invoke (local.get $proc)))
+               (block $done (result (ref eq))
+                 (block $handler-block (result (ref eq))
+                   (try_table (result (ref eq))
+                              (catch $exn $handler-block)
+                              (call_ref $ProcedureInvoker
+                                        (local.get $proc)
+                                        (array.new_fixed $Args
+                                                         1
+                                                         (global.get $escape-continuation-closure))
+                                        (local.get $inv))
+                              (br $done)))
+                 (local.set $exn-val)
+                 (if (ref.test (ref $EscapeContinuationJump) (local.get $exn-val))
+                     (then
+                      (local.set $jump
+                                 (ref.cast (ref $EscapeContinuationJump)
+                                           (local.get $exn-val)))
+                      (return (struct.get $EscapeContinuationJump $value (local.get $jump)))))
+                 (throw $exn (local.get $exn-val))
+                 (unreachable)))
 
          ;; unsafe-root-continuation-prompt-tag : -> any/c
          ;;   Stable root prompt-tag placeholder. WebRacket does not implement
@@ -59053,11 +59487,13 @@
                      (global.set $current-read-interaction-value (local.get $reader-raw))
                      (global.get $void))
 
-               ;; read-accept-* : [boolean?] -> boolean? or void?
-               ;;   Bootstrap reader policy parameters. The full reader can
-               ;;   consult these later; for now they provide the parameter
-               ;;   bindings and mutable cells expected by expander startup.
-               ,@(for/list ([name '($read-accept-reader
+               ;; load-on-demand-enabled/read-accept-* : [boolean?] -> boolean? or void?
+               ;;   Bootstrap reader policy parameters. The Reference gives
+               ;;   load-on-demand-enabled a default of #t; WebRacket exposes
+               ;;   the parameter now, while delayed source loading is deferred
+               ;;   until the reader/load layer is richer.
+               ,@(for/list ([name '($load-on-demand-enabled
+                                    $read-accept-reader
                                     $read-accept-lang
                                     $read-accept-compiled
                                     $read-accept-box
@@ -59068,7 +59504,8 @@
                                     $read-accept-quasiquote
                                     $read-case-sensitive
                                     $error-print-source-location)]
-                             [symbol '($symbol:read-accept-reader
+                             [symbol '($symbol:load-on-demand-enabled
+                                       $symbol:read-accept-reader
                                        $symbol:read-accept-lang
                                        $symbol:read-accept-compiled
                                        $symbol:read-accept-box
@@ -59079,7 +59516,8 @@
                                        $symbol:read-accept-quasiquote
                                        $symbol:read-case-sensitive
                                        $symbol:error-print-source-location)]
-                             [global '($read-accept-reader-value
+                             [global '($load-on-demand-enabled-value
+                                       $read-accept-reader-value
                                        $read-accept-lang-value
                                        $read-accept-compiled-value
                                        $read-accept-box-value
@@ -59090,7 +59528,8 @@
                                        $read-accept-quasiquote-value
                                        $read-case-sensitive-value
                                        $error-print-source-location-value)]
-                             [primitive '($prim:read-accept-reader
+                             [primitive '($prim:load-on-demand-enabled
+                                          $prim:read-accept-reader
                                           $prim:read-accept-lang
                                           $prim:read-accept-compiled
                                           $prim:read-accept-box
@@ -63666,6 +64105,7 @@
                (global $current-print-value       (mut (ref eq)) (global.get $false))
                (global $current-read-interaction-value (mut (ref eq)) (global.get $false))
                (global $default-port-read-handler-value (mut (ref eq)) (global.get $false))
+               (global $load-on-demand-enabled-value (mut (ref eq)) (global.get $true))
                (global $read-accept-reader-value       (mut (ref eq)) (global.get $true))
                (global $read-accept-lang-value         (mut (ref eq)) (global.get $true))
                (global $read-accept-compiled-value     (mut (ref eq)) (global.get $false))

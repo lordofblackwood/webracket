@@ -308,11 +308,87 @@
                            "(hash? #f)"))])
   (require-output phase0-output fragment))
 
+(define-values (correlated-phase0-status correlated-phase0-output)
+  (run-probe wasm-path
+             "webify-probe-expand-self-evaluating/correlated-phase0-payload-matrix"
+             "[]"))
+(unless (zero? correlated-phase0-status)
+  (error 'check-expander-kernel-smoke
+         "correlated phase-0 payload matrix probe failed with status ~a\noutput:\n~a"
+         correlated-phase0-status
+         correlated-phase0-output))
+(require-output correlated-phase0-output "probe:correlated-phase0-payload-matrix:after")
+(for ([fragment (in-list '("(datum 42)"
+                           "(datum (+ 1 2))"
+                           "(datum (lambda (x) x))"
+                           "(datum (let-values (((x) 1)) x))"
+                           "(target-machine #f)"
+                           "(bundle-payload ((hash? #t) (hash-count 4)"
+                           "original-phase"
+                           "max-phase"
+                           "(link ((syntax? #f) (struct? #t) (procedure? #f) (object-name correlated-linklet)"
+                           "(phase-0 ((syntax? #f) (struct? #t) (procedure? #f) (object-name correlated-linklet)"
+                           "(struct-vector-length 4)"
+                           "(struct-vector-tag struct:correlated-linklet)"))])
+  (require-output correlated-phase0-output fragment))
+
+(define-values (correlated-linklet-datum-status correlated-linklet-datum-output)
+  (run-probe wasm-path
+             "webify-probe-expand-self-evaluating/correlated-phase0-linklet-datum-matrix"
+             "[]"))
+(unless (zero? correlated-linklet-datum-status)
+  (error 'check-expander-kernel-smoke
+         "correlated phase-0 linklet datum matrix probe failed with status ~a\noutput:\n~a"
+         correlated-linklet-datum-status
+         correlated-linklet-datum-output))
+(require-output correlated-linklet-datum-output
+                "probe:correlated-phase0-linklet-datum-matrix:after")
+(for ([fragment (in-list '("(linklet-datum (linklet ((.top-level-bind! .top-level-require!)"
+                           "(.namespace .phase .self .inspector .bulk-binding-registry .set-transformer!)"
+                           "(linklet-datum (linklet ((.top-level-bind! .top-level-require!) (.mpi-vector .syntax-literals) (.namespace .phase .self .inspector .bulk-binding-registry .set-transformer!)) () 42))"
+                           "(linklet-datum (linklet ((.top-level-bind! .top-level-require!) (.mpi-vector .syntax-literals) (.namespace .phase .self .inspector .bulk-binding-registry .set-transformer!)) () (+ 1 2)))"
+                           "(lambda (arg_1) arg_1)"
+                           "(let-values (((loc_2) 1)) loc_2)"))])
+  (require-output correlated-linklet-datum-output fragment))
+
+(check-ok-probe
+ "webify-probe-expand-self-evaluating/correlated-accessor-smoke"
+ "[]"
+ "probe:correlated-accessor-smoke:after"
+ "(linklet-datum (linklet ((.top-level-bind! .top-level-require!)")
+
+(check-ok-probe
+ "webify-probe-expand-self-evaluating/correlated-definition-linklet/catch"
+ "[]"
+ "probe:correlated-definition-linklet/catch:after"
+ "(linklet-datum #f)")
+
+(define-values (correlated-definition-payload-status correlated-definition-payload-output)
+  (run-probe wasm-path
+             "webify-probe-expand-self-evaluating/correlated-definition-payload-details"
+             "[]"))
+(unless (zero? correlated-definition-payload-status)
+  (error 'check-expander-kernel-smoke
+         "correlated definition payload probe failed with status ~a\noutput:\n~a"
+         correlated-definition-payload-status
+         correlated-definition-payload-output))
+(require-output correlated-definition-payload-output
+                "probe:correlated-definition-payload-details:after")
+(for ([fragment (in-list '("(datum (define-values (webify-top-x) 1))"
+                           "(bundle-entries"
+                           "(directory-keys (#f))"
+                           "(linklet-summary ((linklet? #t) (import-group-count 3) (export-count 1)"
+                           "(datum (begin (define-values (webify-top-x) 1) webify-top-x))"
+                           "(directory-keys (data"
+                           "(bundle-object-name #f)"
+                           "(bundle-entries #f)"))])
+  (require-output correlated-definition-payload-output fragment))
+
 (check-ok-probe
  "webify-probe-expand-self-evaluating/eval-ordinary-kernel-primitive-app"
  "[]"
  "probe:eval-ordinary-kernel-primitive-app:after-eval"
- "wr-call-json-webify-probe-expand-self-evaluating/eval-ordinary-kernel-primitive-app-printed: 0")
+ "wr-call-json-webify-probe-expand-self-evaluating/eval-ordinary-kernel-primitive-app-printed: 3")
 
 (define-values (eval-status eval-output)
   (run-probe wasm-path
@@ -329,6 +405,12 @@
 (reject-output eval-output "exception-handler-key")
 
 (check-ok-probe
+ "webify-probe-expand-self-evaluating/correlated-tiny-module-compile/catch"
+ "[]"
+ "probe:correlated-tiny-module-compile/catch:after-compile"
+ "object-name compiled-in-memory")
+
+(check-ok-probe
  "webify-probe-expand-self-evaluating/module-name-resolver-audit"
  "[]"
  "probe:module-name-resolver-audit:unavailable"
@@ -337,8 +419,26 @@
 (check-ok-probe
  "webify-probe-expand-self-evaluating/tiny-module-require/catch"
  "[]"
- "probe:tiny-module-require/catch:caught"
- "object-name exn:fail:contract:variable")
+ "probe:tiny-module-require/catch:after-require"
+ "(require-ok (module-binding (internal webify-tiny-value.1) (external webify-tiny-value)")
+
+(check-ok-probe
+ "webify-probe-expand-self-evaluating/tiny-module-value/catch"
+ "[]"
+ "probe:tiny-module-value/catch:after-require"
+ "(value 42)")
+
+(check-ok-probe
+ "webify-probe-expand-self-evaluating/tiny-module-instance-audit/catch"
+ "[]"
+ "probe:tiny-module-instance-audit/catch:after-require"
+ "(module-mapped-symbols")
+
+(check-ok-probe
+ "webify-probe-expand-self-evaluating/tiny-module-dynamic-value/catch"
+ "[]"
+ "probe:tiny-module-dynamic-value/catch:after-require"
+ "(require-ok ((binding (unbound)) (value 42)))")
 
 (for ([probe+fragments (in-list
                         '(("webify-probe-expand-self-evaluating/kernel-require/catch"

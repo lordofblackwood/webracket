@@ -2539,3 +2539,502 @@ matrix with actual bundle values instead of opaque phase payloads. Path 2 is
 probably premature: the payload is not yet ordinary bytes at the WebRacket
 level. Path 3 is attractive for `namespace-require`, but it risks hiding the
 eval boundary again unless we still keep the read-only payload probes.
+
+Follow-up: controlling what the expander generates
+--------------------------------------------------
+
+Reading the expander source showed that we can control this at generation time.
+In `src/expander/eval/main.rkt`, the public `compile` wrapper computes:
+
+```racket
+(define to-correlated-linklet? (and serializable?
+                                    (not (current-compile-target-machine))))
+```
+
+That flag flows through `compile-top` and `compile-module`. When it is true,
+the compiler stores `(make-correlated-linklet s name)` instead of immediately
+calling `compile-linklet` on the generated linklet expression. In other words,
+the machine-independent/source-shaped representation is already an upstream
+mode; Webify does not have to reverse-engineer the opaque phase-0 value first.
+
+The new WebRacket probe confirms the mode works when the compile call is run
+with `serializable?` true and `current-compile-target-machine` temporarily set
+to `#f`:
+
+```text
+webify-probe-expand-self-evaluating/correlated-phase0-payload-matrix:
+  target-machine #f
+  bundle-payload hash-count 4
+  keys: original-phase, link, max-phase, 0
+  link:    object-name correlated-linklet, struct-vector-length 4
+  phase-0: object-name correlated-linklet, struct-vector-length 4
+```
+
+This changes the recommendation. The shortest path is now:
+
+```text
+1. Compile expander products for Webify with `serializable? #t` and
+   `current-compile-target-machine #f`.
+
+2. Add a Webify adapter for `correlated-linklet` values that extracts the
+   generated linklet expression field.
+
+3. Feed that source-shaped linklet expression into the existing Webify linklet
+   lowering path.
+```
+
+One small runtime lesson came with the probe: `parameterize` around
+`current-compile-target-machine` failed in this embedded path with
+`application: not a procedure`, but direct save/set/restore via
+`dynamic-wind` worked. That suggests the primitive getter/setter is usable, but
+the parameter protocol around this particular primitive still deserves a later
+cleanup.
+
+Follow-up: bridge adapter for correlated linklets
+------------------------------------------------
+
+Webify now has a small adapter in `webify/correlated-linklet.rkt` for the
+source-shaped values produced by correlated compile mode. It recognizes an
+inspectable `correlated-linklet` struct, extracts the generated linklet
+expression from the struct payload, and strips correlated source wrappers before
+handing the result to the existing first-slice path. In `struct->vector` terms,
+the tag is at vector slot 0 and the expression payload is at vector slot 1.
+
+The adapter is intentionally guarded. Host Racket keeps expander
+`correlated-linklet` values opaque outside the expander's inspector, so a local
+adapter cannot always inspect real values with `struct->vector`. Inside the
+embedded WebRacket expander probe, the same shape is inspectable and the phase-0
+payload is confirmed as:
+
+```text
+object-name correlated-linklet
+struct-vector-length 4
+struct-vector-tag struct:correlated-linklet
+```
+
+The local tests therefore use same-shaped synthetic values to prove the bridge
+logic:
+
+```text
+correlated-linklet
+  -> generated linklet datum
+  -> webify-linklet-first-slice
+  -> lowered first-slice lambda
+```
+
+The expression matrix covers constant, primitive application, lambda, and
+`let-values` linklet bodies. That is enough to make the next implementation
+step precise: add an expander-side accessor/export for real correlated-linklet
+values, then feed that accessor result into this adapter instead of relying on
+probe-only `struct->vector` access.
+
+Follow-up: real phase-0 correlated extraction
+---------------------------------------------
+
+The embedded expander probe now has a probe-local accessor for real
+`correlated-linklet` values. That accessor runs on the expander side, where the
+struct is inspectable, and extracts a machine-independent phase-0 linklet datum
+from the compiled payload.
+
+For small top-level forms, real correlated extraction now returns ordinary
+linklet source like this:
+
+```text
+(linklet ((.top-level-bind! .top-level-require!)
+          (.mpi-vector .syntax-literals)
+          (.namespace .phase .self .inspector .bulk-binding-registry .set-transformer!))
+  ()
+  42)
+```
+
+The same matrix works for `(+ 1 2)`, `lambda`, and `let-values`. Those extracted
+linklets have expander-support imports and no exports because they represent
+top-level expression bodies, not module export bodies.
+`webify/test-correlated-linklet.rkt` now uses these real extracted shapes as
+fixtures and verifies that they lower through `webify-linklet-first-slice`; in
+particular, the `(+ 1 2)` fixture folds to `3`.
+
+The remaining production gap is API shape, not extraction theory. Host Racket
+still keeps these structs opaque outside the expander inspector, so production
+Webify should get this datum through an expander-side exported accessor rather
+than duplicating `struct->vector` outside the expander.
+
+For definitions and modules, the source protocol remains different from
+top-level expressions. A top-level `begin` with an internal definition still
+does not look like the simple expression path:
+
+```text
+(datum (begin (define-values (webify-top-x) 1) webify-top-x))
+(directory-object-name linklet-directory)
+(directory-keys (0 1 data))
+(bundle-object-name #f)
+(bundle-entries #f)
+```
+
+But a plain top-level definition does carry ordinary correlated linklets in the
+same bundle shape as expression compilation:
+
+```text
+(datum (define-values (webify-top-x) 1))
+(directory-keys (#f))
+(bundle-object-name linklet-bundle)
+(bundle-entries
+  ...
+  (0    ... (linklet-summary ((linklet? #t)
+                              (import-group-count 3)
+                              (export-count 1)
+                              (first-body-form define-values))))
+  (link ... (linklet-summary ((linklet? #t)
+                              (import-group-count 2)
+                              (export-count 4)
+                              (first-body-form define-values)))))
+```
+
+That narrowed the definition frontier, and the first bridge is now in place.
+`webify/correlated-runner.rkt` can run a lowered top-level correlated linklet
+with export cells. The standalone definition fixture lowers and executes:
+
+```text
+phase 0 linklet export: webify-top-x.1
+export cell value:      1
+top-level binding key:  webify-top-x
+binding name metadata:  webify-top-x.1
+```
+
+The runner supplies the expander support imports, allocates export
+`module-variable` cells, and records `.top-level-bind!` metadata in a
+host-side table. That is still only the standalone definition case. A `begin`
+containing both definition and expression is a different compiled-directory
+shape, so the next bridge should either split that directory shape or drive it
+through the expander's eval path instead of pretending it is a single phase-0
+expression linklet.
+
+Module compilations, per `src/expander/compile/module.rkt`, use
+module-oriented keys such as `name`, `decl`, `data`, `stx`, `stx-data`,
+optional submodule keys, and phase `0`. A direct embedded tiny-module
+correlated compile now succeeds and returns a `compiled-in-memory` value:
+
+```text
+probe:correlated-tiny-module-compile/catch:after-compile
+object-name compiled-in-memory
+```
+
+The remaining tiny-module frontier is one step later. Evaluating the module
+body and then requiring it reaches `after-call` and `before-require`, then
+returns a catchable `exn:fail:contract:variable` with an unavailable message.
+Expanded exception-field diagnostics recover the hidden variable name:
+
+```text
+probe:tiny-module-require/catch:before-require
+probe:tiny-module-require/catch:caught
+object-name exn:fail:contract:variable
+message #<undefined>
+symbol-value load-on-demand-enabled
+```
+
+That is the module-registration hypothesis test in miniature: evaluating the
+compiled module reaches `after-call`, so the compiler/evaluator path no longer
+crashes. The failure appears when `namespace-require` tries to load or consult
+the module and reaches the expander's `load-on-demand-enabled` binding. The
+next module milestone is therefore to provide or stub that expander parameter
+well enough for tiny-module require to proceed.
+
+The raw `RuntimeError` was caused by a real primitive dispatcher mismatch:
+`make-hasheqv` was declared as optional-arity `[0 1]`, so the dispatcher used
+shape 16 (`$Prim01`), but the runtime implementation was emitted as `$Prim1`.
+Changing the mutable hash constructors to `$Prim01` moved both module probes
+forward.
+
+This changes the next frontier again. The bridge should keep the top-level
+correlated route as the stable path, add standalone definition extraction next,
+and treat tiny-module `namespace-require` as the remaining module-system
+binding/registration problem.
+
+Follow-up: primitive approximations added for the expander
+---------------------------------------------------------
+
+Two expander-facing primitive gaps were closed with intentionally conservative
+approximations:
+
+- `string->unreadable-symbol` currently delegates to uninterned-symbol
+  construction. The Racket Reference distinguishes unreadable symbols from
+  interned and uninterned symbols, but WebRacket does not yet track that symbol
+  category. This is enough for expander startup probes that need a fresh,
+  non-interned-looking symbol, and the runtime comment marks it as temporary.
+
+- `make-ephemeron`, `ephemeron?`, and `ephemeron-value` currently use a strong
+  heap record. The Reference semantics are GC-sensitive: an ephemeron can hide
+  its value unless the key is otherwise reachable. Wasm GC does not expose the
+  reachability hook WebRacket would need here yet, so this is deliberately a
+  conservative strong fallback, not a complete ephemeron implementation.
+
+The expander primitive report confirms these names are live in the closed
+expander build, not merely retained by accident:
+
+```text
+program-root-primitives-matches: ephemeron-value make-ephemeron make-ephemeron-hasheq
+runtime-root-primitives-matches: ephemeron-value make-ephemeron make-ephemeron-hasheq
+retained-primitives-matches: ephemeron-value ephemeron? make-ephemeron make-ephemeron-hasheq
+```
+
+The same report includes `string->unreadable-symbol` as both a program root and
+runtime root. So the current approximations are intentional bootstrapping
+support for live expander paths; they should be replaced later only when
+WebRacket gains a real unreadable-symbol category or weak/ephemeron GC hooks.
+
+Follow-up: bounded probe diagnostics
+------------------------------------
+
+`webify/probe-expander-instantiate.js` now preserves more child diagnostics for
+bounded probes. In particular, it keeps `js_print_fasl:` lines, raw
+`RuntimeError` stacks, `raise-code-type-mismatch`, and
+`primitive-invoke:shape-*` frames. That made the `make-hasheqv` mismatch visible
+without dropping into `wasm-tools print`:
+
+```text
+js_print_fasl: #<primitive:make-hasheqv:(0 1):3>
+RuntimeError: unreachable
+at raise-code-type-mismatch
+at primitive-invoke:shape-16
+```
+
+Follow-up: tiny module require and definition bridge composition
+----------------------------------------------------------------
+
+`load-on-demand-enabled` is now exposed as a WebRacket boolean parameter. The
+Racket Reference documents it as a default-`#t` parameter used by the default
+load handler to decide whether reading should use delayed source loading. The
+current WebRacket implementation provides the parameter cell and scoped
+parameterization behavior; it does not yet implement delayed reader/source
+loading itself.
+
+That was enough to move the tiny-module probe through `namespace-require`:
+
+```text
+probe:tiny-module-require/catch:before-require
+probe:tiny-module-require/catch:after-require
+(require-ok
+  (module-binding
+    (internal webify-tiny-value.1)
+    (external webify-tiny-value)
+    (core? #f)
+    (runtime? #f)))
+```
+
+So the old `symbol-value load-on-demand-enabled` frontier is closed. The module
+path is still tiny, but it proves this sequence now works in the expander wasm:
+compile an in-memory module, evaluate/register it, require it, and recover the
+provided binding metadata.
+
+The standalone definition bridge is now a named API instead of just a fixture
+test. `webify/correlated-runner.rkt` can:
+
+- extract export names from a correlated or plain linklet datum,
+- recognize the current standalone top-level definition shape,
+- run several lowered top-level linklets in order while preserving the same
+  top-level binding table.
+
+The composition smoke is deliberately small: run the standalone definition
+linklet for `(define-values (webify-top-x) 1)`, then run a separate expression
+linklet `(+ 1 2)` in the same bridge state. The final result is `3`, while the
+definition's export cell and `.top-level-bind!` metadata remain available:
+
+```text
+export cell webify-top-x.1 => 1
+binding key webify-top-x
+binding metadata name webify-top-x.1
+```
+
+The begin-with-definition directory shape is also pinned now. A standalone
+definition has directory key `#f` and a bundle with correlated linklets, while
+`(begin (define-values ...) webify-top-x)` has directory keys `(data 0 1)` and
+no direct bundle object:
+
+```text
+(datum (define-values (webify-top-x) 1))
+(directory-keys (#f))
+(bundle-object-name linklet-bundle)
+
+(datum (begin (define-values (webify-top-x) 1) webify-top-x))
+(directory-keys (data 0 1))
+(bundle-object-name #f)
+(bundle-entries #f)
+```
+
+That means the next bridge layer should treat begin directories as a directory
+composition problem, not as a single hidden phase-0 linklet.
+
+Follow-up: begin decoding and tiny-module value frontier
+--------------------------------------------------------
+
+The bridge now normalizes the begin-directory key shape. The raw directory keys
+come from a hash, so the numeric entries are not stable in printed order:
+
+```text
+(directory-keys (data 0 1))
+;; or
+(directory-keys (data 1 0))
+```
+
+`webify-correlated-begin-directory-keys` normalizes either form to
+`'(data 0 1)`, and `webify-correlated-begin-directory-description?` recognizes
+that shape as the currently observed begin-with-definition directory.
+
+The bridge also has a small top-level reference helper now. After a standalone
+definition linklet runs, `webify-correlated-top-level-ref` follows the recorded
+`.top-level-bind!` metadata from the external name to the internal export cell:
+
+```text
+external name: webify-top-x
+internal name: webify-top-x.1
+value:         1
+```
+
+For expander-side modules, `namespace-require` gets as far as installing the
+binding metadata, but value lookup exposes the next runtime/module-instance
+frontier. The probe follows the documented `namespace-variable-value` route
+after require:
+
+```text
+probe:tiny-module-value/catch:after-require
+instance-variable-value
+instance variable not found:
+webify-tiny-value.1
+```
+
+Before this probe, `namespace-variable-value` stopped at an unbound
+`call-with-escape-continuation`. WebRacket now has a bootstrap
+`call-with-escape-continuation` implemented with a private Wasm exception
+payload, which is enough for the expander's `let/ec` pattern to perform a
+non-local return through the current call. It is intentionally not a complete
+continuation implementation: the escape procedure is not dynamically
+invalidated after the call returns, and prompt/barrier interaction remains
+future work.
+
+So the current module boundary is sharper:
+
+- module declaration/evaluation reaches `after-call`,
+- `namespace-require` reaches `after-require`,
+- binding metadata for `webify-tiny-value` is visible,
+- runtime module instance storage does not yet contain the provided internal
+  variable `webify-tiny-value.1`.
+
+The next real module milestone is therefore not another namespace binding
+probe; it is making module instantiation populate the runtime instance variable
+table for phase-0 exports.
+
+Module boundary update
+----------------------
+
+The first explicit module-instance audit shows that `namespace-require` and
+`module->namespace` are exercising different registry paths:
+
+```text
+(binding
+  (module-binding
+    (internal webify-tiny-value.1)
+    (external webify-tiny-value)
+    (core? #f)
+    (runtime? #f)))
+(module-mapped-symbols
+  (module->namespace-failed ... exn:fail:contract:variable ...))
+```
+
+So the top-level namespace knows the import binding, but `module->namespace`
+cannot yet recover the instantiated module body namespace. That suggests the
+next module-runtime work is in the module-instance registry, not in the binding
+metadata.
+
+There is now a second value probe that uses the Reference-documented
+`dynamic-require` route. `dynamic-require` with `#f` should force phase-0
+instantiation, and `dynamic-require` with a symbol should return the provided
+value:
+
+```text
+probe:tiny-module-dynamic-value/catch:before-dynamic-require
+probe:tiny-module-dynamic-value/catch:after-require
+instance-variable-value
+instance variable not found:
+webify-tiny-value.1
+```
+
+This fails for the same reason as `namespace-variable-value`: WebRacket's
+current `compile-linklet` is a metadata-only bootstrap placeholder. It records
+the linklet import/export shape, but it does not produce an executable linklet
+body. When the expander later instantiates the module phase linklet, the
+placeholder closure cannot run the `define-values` body that would populate the
+`webify-tiny-value.1` export cell.
+
+That keeps the tiny value milestone open, but the blocker is now precise:
+module metadata and binding registration work; executable linklet-body support
+for runtime-produced linklets is missing.
+
+Begin-directory executor sketch
+-------------------------------
+
+The begin-with-definition directory shape should be executed as a small
+directory program, not flattened as one linklet. The current design target is:
+
+- Decode the `data` entry first, because it carries the shared declaration/data
+  instance payload needed by numbered linklets.
+- Execute numbered entries in dependency order, preserving one top-level bridge
+  state and one module-instance registry across entries.
+- Treat each numbered entry as a correlated linklet with the same import
+  discipline as the standalone top-level linklet runner.
+- Register any `.top-level-bind!` metadata before running later entries that
+  may reference those names.
+- Keep `module` forms at the boundary for now: top-level begin directories are
+  executable, but full Racket module-directory execution still needs body
+  namespace installation and `module->namespace` support.
+
+Executable source-linklet bridge update
+---------------------------------------
+
+WebRacket's runtime `compile-linklet` bridge now turns linklet-shaped source
+data into a compiled-linklet record with an executable bootstrap closure. This
+is not machine-code linklet compilation; it is a deliberately small source
+linklet interpreter for the first module slice. The bridge currently handles:
+
+- source-linklet import/export metadata,
+- exact body-procedure arity based on the linklet import groups,
+- syntax-wrapped linklet identifiers via `syntax-e`,
+- `(quote datum)`,
+- `(begin body ...)`,
+- `(void)`,
+- `(set! id rhs)`, and
+- single-value `(define-values (id) rhs)`.
+
+That is enough for the tiny module value probes to instantiate a module body
+and populate the exported internal variable:
+
+```text
+probe:tiny-module-value/catch:after-require
+(require-ok
+  ((binding
+     (module-binding
+       (internal webify-tiny-value.1)
+       (external webify-tiny-value)
+       (core? #f)
+       (runtime? #f)))
+   (value 42)))
+
+probe:tiny-module-dynamic-value/catch:after-require
+(require-ok ((binding (unbound)) (value 42)))
+```
+
+The still-open namespace frontier is narrower. `module->namespace` still fails
+inside the expander with `exn:fail:contract:variable` and message
+`#<undefined>`, even when the audit passes `webify-expander:current-namespace`
+explicitly:
+
+```text
+(module->namespace-failed
+  (message #<undefined>)
+  (shape ... exn:fail:contract:variable ...)
+  (struct-fields ... webify-expander:module->namespace ...))
+```
+
+So phase-0 module instantiation and export-cell population now work for the
+tiny case. Recovering the module body namespace remains a separate
+module-registry/root-expand-context problem, not the old missing export-cell
+problem.
