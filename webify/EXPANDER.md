@@ -3366,3 +3366,61 @@ import as:
 ```text
 (first racket/list first)
 ```
+
+Follow-up: automated metadata collection and real providers
+-----------------------------------------------------------
+
+The newer-Racket smoke now isolates its compiled-file cache with
+`current-compiled-file-roots`, so running:
+
+```sh
+../racket/racket/bin/racket -y webify/check-newer-racket-rename-smoke.rkt
+```
+
+does not leave 9.2 `.zo` files in the normal `webify/compiled` tree used by the
+default Racket 8.12 tests.
+
+The extractor layer also has host-side metadata collectors:
+
+```text
+webify-source-module->module-export-metadata
+webify-source-modules->module-export-metadata
+webify-module-path->module-export-metadata
+webify-module-paths->module-export-metadata
+```
+
+These return `(module-name raw-module->exports-variable-rows)` pairs. The audit
+layer can consume those rows directly through `#:module-export-metadata`, and
+`webify-module-reports->discovered-graph-audit` now combines provider discovery,
+metadata collection, reflection-hint construction, and graph resolution in one
+host-side pass.
+
+The real `racket/private/list` smoke confirms the compiled/reflection path for
+the old reverse problem:
+
+```text
+module->exports reverse row:
+  (reverse ((#<module-path-index:"pico.rkt" ...> 0 alt-reverse 0)) reverse)
+
+provider closure includes:
+  racket/private/pico
+
+resolved linklet import:
+  (1/reverse racket/private/pico reverse)
+```
+
+So the fix is not source-level `rename-in` scraping. The compiled metadata and
+provider closure now carry the relative `"pico.rkt"` edge far enough to resolve
+the lowered private-list import against the real provider.
+
+The same smoke revisits the `racket/string` / `string-join` case. With provider
+closure discovery enabled, the current frontier is no longer an unresolved
+`string-join` import. The first reported missing import is now:
+
+```text
+string->number
+```
+
+That means the `string-join` variants are no longer the immediate blocker for
+this path; the next work should follow the newly exposed transitive dependency
+frontier instead of adding ad hoc `string-join` hints.

@@ -64,8 +64,12 @@
          webify-module-extractor-spike-dependency-exports
          webify-module-extractor-spikes-dependency-exports
          webify-module-path->extractor-spike
+         webify-module-path->module-export-metadata
+         webify-module-paths->module-export-metadata
          webify-source-module->dependency-exports
          webify-source-modules->dependency-exports
+         webify-source-module->module-export-metadata
+         webify-source-modules->module-export-metadata
          webify-normalize-linklet-imports
          webify-normalize-linklet-exports
          webify-linklet-import-bindings
@@ -391,6 +395,8 @@
 (define (module-path->dependency-name module-path)
   (cond
     [(symbol? module-path) module-path]
+    [(path? module-path)
+     (string->symbol (path->string module-path))]
     [(and (list? module-path)
           (eq? (car module-path) 'lib)
           (pair? (cdr module-path))
@@ -1640,6 +1646,57 @@
                  (parameterize ([current-compile-target-machine #f])
                    (compile stx)))))
   (compiled-module->extractor-spike who name compiled))
+
+;; module-path-variable-export-metadata : module-path? -> list?
+;;   Declare/load a module and read its variable exports with defined-name metadata.
+(define (module-path-variable-export-metadata module-path)
+  (define ns (make-base-namespace))
+  (parameterize ([current-namespace ns])
+    (dynamic-require module-path #f)
+    (call-with-values
+     (lambda () (module->exports module-path 'defined-names))
+     (lambda (variables _syntaxes) variables))))
+
+;; webify-module-path->module-export-metadata : module-path? -> (list/c symbol? list?)
+;;   Collect raw module->exports metadata for an installed module path.
+(define (webify-module-path->module-export-metadata module-path)
+  (list (module-path->dependency-name module-path)
+        (module-path-variable-export-metadata module-path)))
+
+;; webify-module-paths->module-export-metadata : (listof module-path?) -> (listof row?)
+;;   Collect raw module->exports metadata for installed module paths.
+(define (webify-module-paths->module-export-metadata module-paths)
+  (define who 'webify-module-paths->module-export-metadata)
+  (unless (list? module-paths)
+    (raise-argument-error who "(listof module-path?)" module-paths))
+  (for/list ([module-path (in-list module-paths)])
+    (webify-module-path->module-export-metadata module-path)))
+
+;; source-module-variable-export-metadata : module-datum symbol? -> list?
+;;   Declare a source module and read its variable exports with defined-name metadata.
+(define (source-module-variable-export-metadata module-datum name)
+  (define ns (make-base-namespace))
+  (parameterize ([current-namespace ns])
+    (eval module-datum)
+    (call-with-values
+     (lambda () (module->exports (list 'quote name) 'defined-names))
+     (lambda (variables _syntaxes) variables))))
+
+;; webify-source-module->module-export-metadata : module-datum -> (list/c symbol? list?)
+;;   Collect raw module->exports metadata for a source module declaration.
+(define (webify-source-module->module-export-metadata module-datum)
+  (define who 'webify-source-module->module-export-metadata)
+  (define name (validate-source-module! who module-datum))
+  (list name (source-module-variable-export-metadata module-datum name)))
+
+;; webify-source-modules->module-export-metadata : (listof module-datum) -> (listof row?)
+;;   Collect raw module->exports metadata for source module declarations.
+(define (webify-source-modules->module-export-metadata module-data)
+  (define who 'webify-source-modules->module-export-metadata)
+  (unless (list? module-data)
+    (raise-argument-error who "(listof source-module-datum?)" module-data))
+  (for/list ([module-datum (in-list module-data)])
+    (webify-source-module->module-export-metadata module-datum)))
 
 ;; webify-source-module->dependency-exports : module-datum -> dependency-export-row
 ;;   Compile a provider source module and expose its compiled phase-0 exports.

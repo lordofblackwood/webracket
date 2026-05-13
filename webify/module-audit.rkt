@@ -43,7 +43,8 @@
          webify-normalize-module-export-metadata
          webify-resolve-module-export-provider-paths
          webify-reflection-rows->import-hints
-         webify-module-reports->graph-audit)
+         webify-module-reports->graph-audit
+         webify-module-reports->discovered-graph-audit)
 
 (require racket/list
          racket/match
@@ -476,3 +477,53 @@
    resolution-outcomes
    resolved-inputs
    (append dependency-failures resolution-failures)))
+
+;; fetch-module-export-metadata-row : procedure? symbol? boolean? -> (or/c list? #f)
+;;   Fetch one raw module->exports metadata row while optionally skipping failures.
+(define (fetch-module-export-metadata-row fetch-metadata name skip-unfetchable?)
+  (with-handlers ([exn:fail?
+                   (lambda (exn)
+                     (if skip-unfetchable?
+                         #f
+                         (raise exn)))])
+    (fetch-metadata name)))
+
+;; webify-module-reports->discovered-graph-audit : reports ... -> webify-module-graph-audit?
+;;   Discover providers, collect export metadata, and audit the resulting graph.
+(define (webify-module-reports->discovered-graph-audit
+         reports
+         #:extra-reports [extra-reports '()]
+         #:fetch-provider [fetch-provider webify-module-path->extractor-spike]
+         #:fetch-module-export-metadata [fetch-module-export-metadata
+                                         webify-module-path->module-export-metadata]
+         #:skip-unfetchable? [skip-unfetchable? #t]
+         #:skip-unfetchable-metadata? [skip-unfetchable-metadata? #t]
+         #:module-protocol-dependency [module-protocol-dependency #f]
+         #:dependencies [dependencies '()])
+  (define who 'webify-module-reports->discovered-graph-audit)
+  (unless (list? reports)
+    (raise-argument-error who "(listof webify-module-extractor-spike?)" reports))
+  (unless (list? extra-reports)
+    (raise-argument-error who "(listof webify-module-extractor-spike?)" extra-reports))
+  (unless (procedure? fetch-provider)
+    (raise-argument-error who "procedure?" fetch-provider))
+  (unless (procedure? fetch-module-export-metadata)
+    (raise-argument-error who "procedure?" fetch-module-export-metadata))
+  (define discovered-reports
+    (webify-module-extractor-spikes->required-provider-closure
+     (append extra-reports reports)
+     #:fetch-provider fetch-provider
+     #:skip-unfetchable? skip-unfetchable?))
+  (define module-export-metadata
+    (filter
+     values
+     (for/list ([report (in-list discovered-reports)])
+       (fetch-module-export-metadata-row
+        fetch-module-export-metadata
+        (webify-module-extractor-spike-name report)
+        skip-unfetchable-metadata?))))
+  (webify-module-reports->graph-audit
+   discovered-reports
+   #:module-protocol-dependency module-protocol-dependency
+   #:dependencies dependencies
+   #:module-export-metadata module-export-metadata))

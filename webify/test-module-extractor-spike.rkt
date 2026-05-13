@@ -1534,6 +1534,46 @@
    '((reexport internal-x provider internal-x resolved-by-reflection-hint)
      (consumer public-x provider internal-x resolved-by-reflection-hint))))
 
+(test-case "discovered graph audit collects provider export metadata"
+  (define provider-report
+    (test-report 'provider '() '(internal-x)))
+  (define reexport-report
+    (test-report 'reexport '(((internal-x internal-x))) '(public-x)))
+  (define consumer-report
+    (test-report 'consumer '(((public-x public-x))) '(answer)))
+  (define raw-exports
+    '((0 (public-x ((provider 0 internal-x 0)) internal-x))))
+  (define (fetch-provider name)
+    (case name
+      [(provider) provider-report]
+      [(reexport) reexport-report]
+      [(consumer) consumer-report]
+      [else (error 'fetch-provider "unexpected provider: ~s" name)]))
+  (define (fetch-metadata name)
+    (case name
+      [(reexport) (list 'reexport raw-exports)]
+      [else (list name (webify-module-extractor-spike-phase0-exports
+                        (fetch-provider name)))]))
+  (define audit
+    (webify-module-reports->discovered-graph-audit
+     (list consumer-report)
+     #:extra-reports (list provider-report reexport-report)
+     #:fetch-provider fetch-provider
+     #:fetch-module-export-metadata fetch-metadata))
+  (check-equal? (webify-module-graph-audit-reflection-import-hints audit)
+                '((reexport internal-x provider internal-x)
+                  (consumer public-x provider internal-x)))
+  (check-equal?
+   (map (lambda (outcome)
+          (list (webify-module-audit-resolution-outcome-module outcome)
+                (webify-module-audit-resolution-outcome-local outcome)
+                (webify-module-audit-resolution-outcome-dependency outcome)
+                (webify-module-audit-resolution-outcome-provider-export outcome)
+                (webify-module-audit-resolution-outcome-status outcome)))
+        (webify-module-graph-audit-resolution-outcomes audit))
+   '((reexport internal-x provider internal-x resolved-by-reflection-hint)
+     (consumer public-x provider internal-x resolved-by-reflection-hint))))
+
 (test-case "raw module->exports provider paths resolve relative file providers"
   (define tmp-dir (make-temporary-file "webify-module-provider-~a" 'directory))
   (dynamic-wind
@@ -1586,6 +1626,41 @@
        (webify-reflection-rows->import-hints
         (list provider-row reexport-row consumer-row))
        `((consumer public-x ,provider-key internal-x))))
+    (lambda ()
+      (delete-directory/files tmp-dir))))
+
+(test-case "extractor API collects source module export metadata"
+  (define metadata
+    (webify-source-module->module-export-metadata
+     '(module metadata-source racket/base
+        (provide public-x)
+        (define public-x 11))))
+  (check-equal? (car metadata) 'metadata-source)
+  (define bindings
+    (webify-normalize-module-export-metadata
+     (webify-resolve-module-export-provider-paths (cadr metadata))))
+  (check-equal? (map webify-module-export-binding-external bindings)
+                '(public-x))
+  (check-equal? (map webify-module-export-binding-internal bindings)
+                '(public-x)))
+
+(test-case "extractor API collects relative file module export metadata"
+  (define tmp-dir (make-temporary-file "webify-module-metadata-~a" 'directory))
+  (dynamic-wind
+    void
+    (lambda ()
+      (define provider-path (build-path tmp-dir "provider.rkt"))
+      (call-with-output-file provider-path
+        (lambda (out)
+          (display "#lang racket/base\n(provide public-x)\n(define public-x 41)\n" out))
+        #:exists 'truncate/replace)
+      (define metadata (webify-module-path->module-export-metadata provider-path))
+      (check-equal? (car metadata) (string->symbol (path->string provider-path)))
+      (define bindings
+        (webify-normalize-module-export-metadata
+         (webify-resolve-module-export-provider-paths (cadr metadata))))
+      (check-equal? (map webify-module-export-binding-external bindings)
+                    '(public-x)))
     (lambda ()
       (delete-directory/files tmp-dir))))
 
