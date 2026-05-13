@@ -28,6 +28,7 @@
 
 (require racket/list
          racket/match
+         "../primitives-db.rkt"
          "module-registry.rkt")
 
 (struct webify-module-linklet-input (name linklet imports) #:transparent)
@@ -230,11 +231,36 @@
                            (map car dependency-exports)))
   (cadr found))
 
+;; kernel-dependency? : symbol? -> boolean?
+;;   Recognize reflected origins for Racket's primitive kernel module.
+(define (kernel-dependency? dependency)
+  (eq? dependency '#%kernel))
+
 ;; symbolic-name=? : symbol? symbol? -> boolean?
 ;;   Compare generated linklet names by printed identity when eq? is too strict.
 (define (symbolic-name=? a b)
   (or (eq? a b)
       (string=? (symbol->string a) (symbol->string b))))
+
+;; webify-primitive-name? : symbol? -> boolean?
+;;   Check whether a kernel-origin binding is already a known Webify primitive.
+(define (webify-primitive-name? name)
+  (for/or ([info (in-list primitive-db)])
+    (symbolic-name=? (primitive-info-name info) name)))
+
+;; kernel-dependency-export-row : -> dependency-export-row
+;;   Expose only supported Webify primitives as resolvable #%kernel exports.
+(define (kernel-dependency-export-row)
+  (list '#%kernel
+        (for/list ([info (in-list primitive-db)])
+          (primitive-info-name info))))
+
+;; dependency-exports/add-kernel : dependency-exports -> dependency-exports
+;;   Add a synthetic #%kernel row so unhinted kernel primitive imports can resolve.
+(define (dependency-exports/add-kernel dependency-exports)
+  (if (assoc '#%kernel dependency-exports)
+      dependency-exports
+      (append dependency-exports (list (kernel-dependency-export-row)))))
 
 ;; dependency-export-ref : symbol? dependency-name (listof symbol?) symbol? -> symbol?
 ;;   Find the provider export symbol that corresponds to an import's external name.
@@ -265,16 +291,18 @@
 ;; provider-candidate-reason : symbol? -> symbol?
 ;;   Classify broad export-scan candidates for ambiguity diagnostics.
 (define (provider-candidate-reason dependency)
-  (if (broad-base-reexport-module? dependency)
-      'broad-base-reexport
-      'export-table-candidate))
+  (cond
+    [(kernel-dependency? dependency)        'kernel-primitive-fallback]
+    [(broad-base-reexport-module? dependency) 'broad-base-reexport]
+    [else                                  'export-table-candidate]))
 
 ;; prefer-provider-candidates : (listof symbol?) -> (listof symbol?)
-;;   Prefer concrete provider candidates over broad base re-export aggregators.
+;;   Prefer concrete module providers over broad aggregators and kernel fallback.
 (define (prefer-provider-candidates candidates)
   (define concrete-candidates
     (filter (lambda (dependency)
-              (not (broad-base-reexport-module? dependency)))
+              (and (not (broad-base-reexport-module? dependency))
+                   (not (kernel-dependency? dependency))))
             candidates))
   (if (null? concrete-candidates) candidates concrete-candidates))
 
@@ -333,14 +361,24 @@
 ;; validate-provider-export! : symbol? dependency-exports symbol? symbol? -> symbol?
 ;;   Validate a selected provider/export pair and return the canonical export symbol.
 (define (validate-provider-export! who dependency-exports dependency provider-export)
-  (define exports (dependency-exports-ref who dependency-exports dependency))
-  (unless (for/or ([export (in-list exports)])
-            (symbolic-name=? export provider-export))
-    (raise-arguments-error who
-                           "dependency does not export hinted name"
-                           "dependency" dependency
-                           "export" provider-export))
-  (dependency-export-ref who dependency exports provider-export))
+  (cond
+    [(kernel-dependency? dependency)
+     (cond
+       [(webify-primitive-name? provider-export) provider-export]
+       [else
+        (raise-arguments-error who
+                               "unsupported kernel-origin binding"
+                               "dependency" dependency
+                               "export" provider-export)])]
+    [else
+     (define exports (dependency-exports-ref who dependency-exports dependency))
+     (unless (for/or ([export (in-list exports)])
+               (symbolic-name=? export provider-export))
+       (raise-arguments-error who
+                              "dependency does not export hinted name"
+                              "dependency" dependency
+                              "export" provider-export))
+     (dependency-export-ref who dependency exports provider-export)]))
 
 ;; resolve-import-source : symbol? dependency-exports hash? hash? hash? symbol? symbol? -> values
 ;;   Resolve one import binding to its provider module and provider export symbol.
@@ -418,7 +456,8 @@
                                                         #:reflection-hints [reflection-hints '()])
   (define who 'webify-resolve-module-linklet-imports)
   (define bindings (linklet-import-bindings who linklet))
-  (validate-dependency-exports! who dependency-exports)
+  (define dependency-exports* (dependency-exports/add-kernel dependency-exports))
+  (validate-dependency-exports! who dependency-exports*)
   (validate-import-dependencies! who dependencies)
   (validate-import-aliases! who import-aliases)
   (unless (or (not module-name) (symbol? module-name))
@@ -452,7 +491,7 @@
     (for/list ([binding (in-list bindings)])
       (match-define (list local external) binding)
       (match-define (list dependency provider-export status)
-        (resolve-import-source who dependency-exports dependency-map alias-map hint-map local external))
+        (resolve-import-source who dependency-exports* dependency-map alias-map hint-map local external))
       (list (list local dependency provider-export)
             (webify-module-resolution-outcome local dependency provider-export status))))
   (values (map car resolved)

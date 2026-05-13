@@ -146,15 +146,16 @@
 
 (define string-failures
   (webify-module-graph-audit-failures string-audit))
-(check-equal? (length string-failures) 1)
+(check-equal? string-failures '())
 (define string-frontier (format "~s" string-failures))
-(check-not-false (regexp-match? #rx"import dependency has no export table entry" string-frontier))
+(check-false (regexp-match? #rx"missing-after-reflection" string-frontier))
 (check-false (regexp-match? #rx"1/reverse" string-frontier))
 (check-false (regexp-match? #rx"1/syntax\\?" string-frontier))
 (check-false (regexp-match? #rx"path-string\\?" string-frontier))
 (check-false (regexp-match? #rx"pico\\.rkt" string-frontier))
-(check-not-false (regexp-match? #rx"#%kernel" string-frontier))
-(check-not-false (regexp-match? #rx"available dependencies" string-frontier))
+(check-false (regexp-match? #rx"#%kernel" string-frontier))
+(check-false (regexp-match? #rx"raise-syntax-error" string-frontier))
+(check-false (regexp-match? #rx"exn:fail:filesystem:missing-module" string-frontier))
 (check-false (regexp-match? #rx"string->number" string-frontier))
 (check-false (regexp-match? #rx"string-join" string-frontier))
 

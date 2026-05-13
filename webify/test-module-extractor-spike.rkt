@@ -1390,6 +1390,13 @@
   (check-equal? (map webify-module-export-binding-internal bindings)
                 '(internal-x.1 local-y.1)))
 
+(test-case "module export metadata treats wrapped empty origins as local"
+  (define bindings
+    (webify-normalize-module-export-metadata
+     '((0 ((local-x (()) local-x))))))
+  (check-equal? (map webify-module-export-binding-provider-path bindings)
+                '(())))
+
 (test-case "reflection hints follow re-provide provider paths"
   (define provider-row
     (webify-module-reflection-row

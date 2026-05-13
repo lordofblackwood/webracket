@@ -130,6 +130,7 @@
          struct:exn:fail:read:eof
          struct:exn:fail:read:non-char
          struct:exn:fail:filesystem
+         struct:exn:fail:filesystem:missing-module
          struct:exn:fail:syntax
          struct:exn:fail:syntax:missing-module
          struct:exn:fail:syntax:unbound
@@ -164,6 +165,9 @@
 
          exn:fail:filesystem
          exn:fail:filesystem?
+         exn:fail:filesystem:missing-module
+         exn:fail:filesystem:missing-module?
+         exn:fail:filesystem:missing-module-path
 
          exn:fail:syntax
          exn:fail:syntax?
@@ -185,6 +189,7 @@
          make-exn:fail:read:eof
          make-exn:fail:read:non-char
          make-exn:fail:filesystem
+         make-exn:fail:filesystem:missing-module
          make-exn:fail:syntax
          make-exn:fail:syntax:missing-module
          make-exn:fail:syntax:unbound
@@ -200,8 +205,11 @@
           ;; syntax/readerr 
          raise-read-error
          raise-read-eof-error
+         raise-syntax-error
          
          ;; stdlib/ports.rkt
+         collection-file-path
+         collection-path
          current-input-port
          current-output-port
          current-error-port
@@ -1001,10 +1009,16 @@
  syntax-span
  syntax-property
  syntax-property-symbol-keys
+ syntax-serialize
+ syntax-deserialize
 
  datum->syntax
  syntax->datum
  syntax->list
+ syntax-binding-set
+ syntax-binding-set?
+ syntax-binding-set-extend
+ syntax-binding-set->syntax
   
  ;; 13   Input and Output
  ;; 13.1 Ports
@@ -2522,6 +2536,21 @@
 (define (raise-read-eof-error message source line column position span [extra-srclocs '()])
   (readerr:raise-read-eof-error message source line column position span
                                 #:extra-srclocs extra-srclocs))
+
+;; raise-syntax-error : (or/c symbol? #f) string? [any/c] [any/c] [(listof syntax?)] [string?] -> any
+;;   Positional wrapper for the documented non-keyword raise-syntax-error path.
+(define (raise-syntax-error name
+                            message
+                            [expr #f]           ; optional, default = #f
+                            [sub-expr #f]       ; optional, default = #f
+                            [extra-sources '()] ; optional, default = null
+                            [message-suffix ""]) ; optional, default = ""
+  (racket:raise-syntax-error name
+                             message
+                             expr
+                             sub-expr
+                             extra-sources
+                             message-suffix))
 
 ;;;
 ;;; STANDARD LIBRARY

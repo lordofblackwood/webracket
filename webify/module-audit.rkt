@@ -129,6 +129,8 @@
 ;;   Keep source-style provider entries and actual module->exports provider paths comparable.
 (define (normalize-export-provider-path provider-path)
   (match provider-path
+    [(list '()) '()]
+    [(list (list '())) '()]
     [(list (and nested (cons (or (? list?) (? vector?)) _)))
      nested]
     [_ provider-path]))
@@ -325,8 +327,11 @@
 ;; export-binding-matches? : webify-module-export-binding? symbol? -> boolean?
 ;;   Check whether an export binding can satisfy an unresolved external name.
 (define (export-binding-matches? binding external)
-  (or (eq? (webify-module-export-binding-external binding) external)
-      (eq? (webify-module-export-binding-internal binding) external)))
+  (define (symbolic-name=? a b)
+    (or (eq? a b)
+        (string=? (symbol->string a) (symbol->string b))))
+  (or (symbolic-name=? (webify-module-export-binding-external binding) external)
+      (symbolic-name=? (webify-module-export-binding-internal binding) external)))
 
 ;; provider-path->backing : any/c -> (or/c (list/c symbol? symbol?) #f)
 ;;   Decode explicit backing-provider metadata when a re-provide path carries it.

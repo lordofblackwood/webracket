@@ -132,6 +132,57 @@
       #:module-name 'b
       #:reflection-hints '((b ext-x a x))))))
 
+(test-case "module linklet import resolver handles kernel-origin primitive hints"
+  (define reverse-linklet
+    '(linklet (([reverse reverse])) (y)
+       (define-values (y) reverse)))
+  (define-values (kernel-imports kernel-outcomes)
+    (webify-resolve-module-linklet-imports/outcomes
+     reverse-linklet
+     '()
+     #:module-name 'use-reverse
+     #:reflection-hints '((use-reverse reverse #%kernel reverse))))
+  (check-equal? kernel-imports '((reverse #%kernel reverse)))
+  (check-equal? (map webify-module-resolution-outcome-status kernel-outcomes)
+                '(resolved-by-reflection-hint))
+  (check-exn
+   #rx"unsupported kernel-origin binding"
+   (lambda ()
+     (webify-resolve-module-linklet-imports
+      '(linklet (([unsupported-kernel unsupported-kernel])) (y)
+         (define-values (y) unsupported-kernel))
+      '()
+      #:module-name 'use-unsupported-kernel
+      #:reflection-hints
+      '((use-unsupported-kernel unsupported-kernel #%kernel unsupported-kernel))))))
+
+(test-case "module linklet import resolver uses supported kernel fallback"
+  (define syntax-error-linklet
+    '(linklet (([raise-syntax-error raise-syntax-error])) (y)
+       (define-values (y) raise-syntax-error)))
+  (define-values (kernel-imports kernel-outcomes)
+    (webify-resolve-module-linklet-imports/outcomes
+     syntax-error-linklet
+     '()))
+  (check-equal? kernel-imports
+                '((raise-syntax-error #%kernel raise-syntax-error)))
+  (check-equal? (map webify-module-resolution-outcome-status kernel-outcomes)
+                '(resolved-by-export-scan)))
+
+(test-case "module linklet import resolver ranks concrete providers above kernel fallback"
+  (define syntax-linklet
+    '(linklet (([syntax? syntax?])) (y)
+       (define-values (y) syntax?)))
+  (define-values (imports outcomes)
+    (webify-resolve-module-linklet-imports/outcomes
+     syntax-linklet
+     '((racket/private/pre-base (syntax?))
+       (racket/private/base (syntax?)))))
+  (check-equal? imports
+                '((syntax? racket/private/pre-base syntax?)))
+  (check-equal? (map webify-module-resolution-outcome-status outcomes)
+                '(resolved-by-export-scan/provider-precedence)))
+
 (test-case "dependency exports derive from provider compiled exports"
   (define string-provider
     (webify-module-linklet-input

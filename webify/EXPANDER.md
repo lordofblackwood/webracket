@@ -3517,17 +3517,43 @@ canonicalizes file-style provider keys against discovered provider rows by
 basename plus export evidence. That moves the `pico.rkt` case back to the
 discovered `racket/private/pico` provider.
 
-The current frontier is the next provider-key mismatch, this time for a kernel
-provider that is not represented as a discovered provider export row:
+Kernel origins are now handled separately from ordinary module providers. If a
+reflected `#%kernel` origin names a primitive already present in Webify's
+primitive database, the resolver accepts it as a kernel primitive. If the name
+is not implemented as a Webify primitive, it fails with a dedicated kernel
+diagnostic instead of looking for a normal module export table.
+
+The resolver also adds a synthetic `#%kernel` export row derived from
+`primitives-db.rkt`. This lets unhinted kernel primitive imports resolve by the
+same export-scan path as module imports, but only for names Webify has
+explicitly declared. Concrete module providers still outrank the kernel row, so
+ordinary provider exports such as `syntax?` continue to resolve to
+`racket/private/pre-base` instead of becoming ambiguous with `#%kernel`.
+
+The first unsupported kernel-origin binding was:
 
 ```text
-import dependency has no export table entry
+unsupported kernel-origin binding
   dependency: #%kernel
-  available dependencies: string-smoke racket/string racket/private/pico ...
+  export: raise-syntax-error
 ```
 
+`raise-syntax-error` is now registered as a Webify primitive name and exposed by
+`primitives.rkt` as a positional wrapper around Racket's documented
+`raise-syntax-error` procedure. The wrapper covers the non-keyword arities used
+by the reflected kernel-origin path; the full `#:exn` customization is not part
+of this compatibility layer yet.
+
+The next kernel/export holes were the filesystem missing-module exception
+family, collection lookup helpers, `do-raise-syntax-error`, syntax binding-set
+helpers, and syntax serialization helpers. The public names were checked
+against the Reference before being added to the primitive database or
+`primitives.rkt`; `do-raise-syntax-error` remains an internal kernel bridge name.
+
+The current `racket/string` graph-audit smoke now resolves without failures.
 That is useful progress: `reverse` was a provider-local precedence problem,
 `syntax?` was a base-aggregator precedence problem, `path-string?` was an
 origin-ranking problem, `pico.rkt` was a reflected relative-provider
-normalization problem, and the next issue is deciding how kernel-origin
-metadata should be represented in the dependency/export table.
+normalization problem, `raise-syntax-error` was a kernel primitive-support
+frontier, and the later exception/collection/syntax helpers were missing
+kernel-surface coverage.

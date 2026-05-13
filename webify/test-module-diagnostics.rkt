@@ -23,7 +23,14 @@
      (exn:fail "webify-resolve-module-linklet-imports: import dependency has no export table entry"
                (current-continuation-marks))))
   (check-equal? (webify-module-failure-category provider-key-mismatch)
-                'provider-key-mismatch))
+                'provider-key-mismatch)
+  (define unsupported-kernel
+    (webify-classify-module-exn
+     'resolve
+     (exn:fail "webify-resolve-module-linklet-imports: unsupported kernel-origin binding"
+               (current-continuation-marks))))
+  (check-equal? (webify-module-failure-category unsupported-kernel)
+                'unsupported-kernel-binding))
 
 (test-case "module diagnostics classify missing alias exports as unresolved imports"
   (define missing-alias-export
