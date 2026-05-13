@@ -9,6 +9,7 @@
          installed-runtime-smoke-allowed-failures
          installed-runtime-smoke-expected-failure
          racket92-bin
+         installed-runtime-inputs-missing-primitive-demands
          run-installed-runtime-smoke)
 
 (require racket/file
@@ -121,11 +122,16 @@
               (webify-primitive-table-request-sources request))))
   (string-join (append demands table-requests) "\n"))
 
+;; installed-runtime-inputs-missing-primitive-demands : inputs -> demands
+;;   Report primitive-table names that are absent before a runtime smoke runs.
+(define (installed-runtime-inputs-missing-primitive-demands inputs)
+  (define report (webify-module-linklet-inputs->primitive-demands inputs))
+  (webify-primitive-demand-report-missing report))
+
 ;; check-primitive-demands! : (listof webify-module-linklet-input?) -> void?
 ;;   Fail early when resolved inputs demand names absent from the primitive table.
 (define (check-primitive-demands! inputs)
-  (define report (webify-module-linklet-inputs->primitive-demands inputs))
-  (define missing (webify-primitive-demand-report-missing report))
+  (define missing (installed-runtime-inputs-missing-primitive-demands inputs))
   (unless (null? missing)
     (fail-check
      (format "missing primitive-table entries before runtime smoke:\n~a"

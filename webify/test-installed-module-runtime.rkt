@@ -99,6 +99,17 @@
     '()
     '())
    (installed-runtime-smoke
+    "local multi-export module observes multiple values"
+    '((module local-multi-export racket/base
+        (provide a b)
+        (define a 20)
+        (define b 22)))
+    '((local-multi-export a)
+      (local-multi-export b))
+    #rx"(?s:20.*22)"
+    '()
+    '())
+   (installed-runtime-smoke
     "installed racket/function compose reaches WebRacket runtime smoke"
     '((module use-function-compose racket/base
         (require racket/function)
@@ -126,6 +137,16 @@
         (define y ((compose1 add1 add1) 40))))
     '((use-function-compose1 y))
     #rx"(?m:^42$)"
+    '()
+    '())
+   (installed-runtime-smoke
+    "installed racket/function negate reaches WebRacket runtime smoke"
+    '((module use-function-negate racket/base
+        (require racket/function)
+        (provide y)
+        (define y ((negate symbol?) 42))))
+    '((use-function-negate y))
+    #rx"(?m:^(#t|true)$)"
     '()
     '())
    (installed-runtime-smoke

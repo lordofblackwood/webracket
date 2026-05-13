@@ -3591,3 +3591,29 @@ explicit unsupported-runtime policy. That lets Goal 1 keep compiling and running
 ahead-of-time module programs while still recording that browser-side syntax
 serialization, syntax binding-set construction, collection lookup, and
 syntax-error construction are not supported runtime services yet.
+
+## Installed Module Runtime Smokes
+
+`webify/module-runtime-smoke.rkt` is the reusable Goal 1 runtime harness for
+small installed-module experiments. It performs the full ahead-of-time path:
+
+```text
+source module datum
+  -> Racket 9.2 extractor script
+  -> resolved module-linklet manifest
+  -> primitive-demand preflight
+  -> module registry and loader composition
+  -> WebRacket --no-stdlib compile/run
+  -> observed export values
+```
+
+The preflight step is intentionally earlier than WebRacket execution. It scans
+resolved module inputs for primitive-module imports and literal primitive-table
+key demands, then reports missing primitive-table entries before a runtime crash
+can hide the real cause.
+
+The current smoke matrix includes selected uses of `racket/bool`,
+`racket/fixnum`, `racket/list`, `racket/string`, `racket/function`, a local
+two-module graph, and a local multi-export module. This is still a smoke matrix,
+not a compatibility promise for those libraries, but it is the standard place to
+turn newly working Goal 1 library slices into regressions.

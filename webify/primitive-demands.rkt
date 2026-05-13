@@ -24,6 +24,9 @@
 (require racket/list
          racket/match
          racket/runtime-path
+         (only-in "../primitives-db.rkt"
+                  primitive-db
+                  primitive-info-name)
          (rename-in "module-extractor-spike.rkt"
                     [webify-module-extractor-spike?
                      webify-module-report?]
@@ -313,19 +316,20 @@
     (for/list ([report (in-list reports)])
       (webify-module-report->primitive-table-requests report)))))
 
+;; primitive-db-keys : -> (listof symbol?)
+;;   Read the stable primitive database keys without loading primitives.rkt.
+(define (primitive-db-keys)
+  (for/list ([info (in-list primitive-db)])
+    (primitive-info-name info)))
+
 ;; primitive-table-keys : symbol? -> (listof symbol?)
-;;   Read the currently available host-side WebRacket primitive table keys.
+;;   Read available primitive keys for preflight diagnostics.
 (define (primitive-table-keys module)
-  (define primitive-table
-    (with-handlers ([exn:fail? (lambda (_exn) #f)])
-      (dynamic-require primitives-path 'primitive-table)))
-  (define table
-    (with-handlers ([exn:fail? (lambda (_exn) #f)])
-      (and primitive-table
-           (primitive-table module))))
   (cond
-    [(hash? table) (hash-keys table)]
-    [else '()]))
+    [(primitive-module-name? module)
+     (primitive-db-keys)]
+    [else
+     '()]))
 
 ;; webify-primitive-demand-report-missing : report? -> demands
 ;;   Return explicit primitive imports absent from the current primitive table.
