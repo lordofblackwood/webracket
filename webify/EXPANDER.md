@@ -3557,3 +3557,37 @@ origin-ranking problem, `pico.rkt` was a reflected relative-provider
 normalization problem, `raise-syntax-error` was a kernel primitive-support
 frontier, and the later exception/collection/syntax helpers were missing
 kernel-surface coverage.
+
+## Kernel Runtime Audit
+
+Graph resolution and runtime execution are now tracked separately. A resolved
+`#%kernel` import means Webify knows how to name the provider in the module
+graph; it does not by itself prove that `runtime-wasm.rkt` implements the
+primitive function that a compiled Wasm program will call.
+
+`webify/kernel-runtime-audit.rkt` compares resolved `#%kernel` imports from a
+graph audit with `(func $name ...)` definitions in `runtime-wasm.rkt`. This
+keeps resolver-only compatibility names visible. For example,
+`racket/list`, `racket/string`, and a small syntax-kernel probe can resolve with
+no graph-audit failures, while the raw runtime-gap report still flags:
+
+```text
+collection-file-path
+collection-path
+do-raise-syntax-error
+exn:fail:filesystem:missing-module
+raise-syntax-error
+syntax-binding-set-extend
+syntax-deserialize
+syntax-serialize
+```
+
+Those names are now resolvable kernel names, but they still need either real
+runtime support or an explicit unsupported-runtime policy before code that calls
+them should be expected to run in WebRacket.
+
+The audit also exposes an actionable-gap view that filters names with an
+explicit unsupported-runtime policy. That lets Goal 1 keep compiling and running
+ahead-of-time module programs while still recording that browser-side syntax
+serialization, syntax binding-set construction, collection lookup, and
+syntax-error construction are not supported runtime services yet.

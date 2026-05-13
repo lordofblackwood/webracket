@@ -145,6 +145,19 @@
     '()
     '())
    (installed-runtime-smoke
+    "installed racket/list and racket/string compose in WebRacket runtime smoke"
+    '((module use-list-and-string racket/base
+        (require racket/list racket/string)
+        (provide y)
+        (define y
+          (string-join
+           (map number->string (take '(1 2 3 4) 3))
+           ","))))
+    '((use-list-and-string y))
+    #rx"(?m:^1,2,3$)"
+    '()
+    '())
+   (installed-runtime-smoke
     "installed racket/function compose reaches WebRacket runtime smoke"
     '((module use-function-compose racket/base
         (require racket/function)
