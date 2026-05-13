@@ -3038,3 +3038,35 @@ So phase-0 module instantiation and export-cell population now work for the
 tiny case. Recovering the module body namespace remains a separate
 module-registry/root-expand-context problem, not the old missing export-cell
 problem.
+
+Source-linklet executor widening
+--------------------------------
+
+The bootstrap source-linklet executor now carries the linklet import groups and
+the actual instantiation argument array through expression evaluation. A symbol
+reference is resolved from the import instance that declares the symbol, falling
+back to the target instance for local definitions. This follows the Reference
+model for `instantiate-linklet`: each import set is satisfied by one instance,
+and the number of instances must match the number of import sets.
+
+The intentionally small expression subset is now:
+
+- variable references from the target instance or an import instance,
+- `(quote datum)`,
+- `(begin body ...)`,
+- `(void)`,
+- `(set! id rhs)`, including imported variables,
+- single and packed-multiple `(define-values ids rhs)`,
+- `(#%app + arg ...)`,
+- `(#%app values arg ...)`,
+- `(#%app list arg ...)`, and
+- `(#%app cons a d)`.
+
+The new runtime tests cover source linklets that import a value, compute with
+`+`, unpack `(values ...)` into multiple exports, and build a list containing a
+pair. The expander smoke still reports the same `module->namespace` frontier:
+the module value path and `dynamic-require` return `42`, but recovering the
+module body namespace fails inside `webify-expander:module->namespace` with the
+generic `#<undefined>` contract-variable error. Import-aware source-linklet
+execution therefore rules out missing imported variable dispatch as the cause of
+that remaining namespace problem.

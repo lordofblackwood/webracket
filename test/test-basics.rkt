@@ -66,9 +66,18 @@
                      (equal? (procedure? (lambda (x) (* x x))) #t)
                      (equal? (procedure? '(lambda (x) (* x x))) #f)
                      #;(equal? (procedure? call-with-current-continuation) #t)
-                     #;(equal? (procedure? call-with-escape-continuation) #t)
+                     (equal? (procedure? call-with-escape-continuation) #t)
                      (equal? (procedure? (case-lambda ((x) x) ((x y) (+ x y)))) #t)                  
                      (equal? (procedure-arity procedure?) 1)))
+              (list "call-with-escape-continuation/bootstrap"
+                    (and
+                     (equal? (call-with-escape-continuation
+                              (lambda (_escape) 'ordinary-return))
+                             'ordinary-return)
+                     (equal? (call-with-escape-continuation
+                              (lambda (escape)
+                                (+ 1 (escape 42))))
+                             42)))
               (list "procedure-reduce-arity"
                     (and
                      (procedure? (procedure-reduce-arity values 1))
@@ -1862,6 +1871,14 @@
                       (and (equal? (symbol-interned? interned) #t)
                            (equal? (symbol-interned? uninterned) #f)
                            (equal? (symbol-interned? (string->symbol "bar")) #t))))
+
+              (list "string->unreadable-symbol"
+                    (let ([s (string->unreadable-symbol "apple")])
+                      (and (symbol? s)
+                           (equal? (symbol->string s) "apple")
+                           ;; Temporary runtime approximation: WebRacket
+                           ;; represents unreadable symbols as uninterned.
+                           (not (symbol-interned? s)))))
 
               (list "symbol<?"
                     (and (equal? (symbol<? 'a 'b)    #t)
@@ -4313,6 +4330,12 @@
                            (mutable-hash? h)
                            (hash-eq? h)
                            (equal? (hash-ref h 'a) 1))))
+              (list "make-ephemeron strong fallback"
+                    (let ([e (make-ephemeron 'k 'v)])
+                      (and (ephemeron? e)
+                           (equal? (ephemeron-value e) 'v)
+                           (equal? (ephemeron-value e 'gone) 'v)
+                           (equal? (ephemeron-value e 'gone 'retain) 'v))))
               (list "make-hasheqv"
                     (let ([h (make-hasheqv)])
                       (and (hash? h) (mutable-hash? h))))
@@ -5229,7 +5252,8 @@
                             (eof-object? (default in)))))
 
                (list "reader accept bootstrap parameters"
-                     (let ([reader     (read-accept-reader)]
+                     (let ([load-delay (load-on-demand-enabled)]
+                           [reader     (read-accept-reader)]
                            [lang       (read-accept-lang)]
                            [compiled   (read-accept-compiled)]
                            [box        (read-accept-box)]
@@ -5239,7 +5263,8 @@
                            [infix-dot  (read-accept-infix-dot)]
                            [quasiquote (read-accept-quasiquote)]
                            [case-sens  (read-case-sensitive)])
-                       (and (boolean? reader)
+                       (and (boolean? load-delay)
+                            (boolean? reader)
                             (boolean? lang)
                             (boolean? compiled)
                             (boolean? box)
@@ -5249,6 +5274,9 @@
                             (boolean? infix-dot)
                             (boolean? quasiquote)
                             (boolean? case-sens)
+                            (void? (load-on-demand-enabled #f))
+                            (equal? (load-on-demand-enabled) #f)
+                            (void? (load-on-demand-enabled load-delay))
                             (void? (read-accept-reader #f))
                             (equal? (read-accept-reader) #f)
                             (void? (read-accept-reader reader))
@@ -6957,6 +6985,57 @@
                            [result      (instantiate-linklet compiled (list import-inst) target)])
                       (and (equal? result 42)
                            (equal? (instance-variable-value target 'result) 42))))
+
+              (list "compile-linklet/source define-values"
+                    (let* ([compiled (compile-linklet
+                                      '(linklet () (x)
+                                         (define-values (x) '42))
+                                      #f
+                                      #f)]
+                           [target   (make-instance 'source-target)]
+                           [result   (instantiate-linklet compiled '() target)])
+                      (and (instance? target)
+                           (void? result)
+                           (equal? (instance-variable-value target 'x) 42))))
+
+              (list "compile-linklet/source imports"
+                    (let* ([import-inst (make-instance 'source-provider)]
+                           [_           (instance-set-variable-value! import-inst 'shared 41)]
+                           [compiled    (compile-linklet
+                                         '(linklet ((shared)) (result)
+                                            (define-values (result) (#%app + shared '1)))
+                                         #f
+                                         #f)]
+                           [target      (make-instance 'source-import-target)]
+                           [result      (instantiate-linklet compiled (list import-inst) target)])
+                      (and (void? result)
+                           (equal? (instance-variable-value target 'result) 42))))
+
+              (list "compile-linklet/source multiple values"
+                    (let* ([compiled (compile-linklet
+                                      '(linklet () (a b)
+                                         (define-values (a b)
+                                           (#%app values 'left 'right)))
+                                      #f
+                                      #f)]
+                           [target   (make-instance 'source-values-target)]
+                           [result   (instantiate-linklet compiled '() target)])
+                      (and (void? result)
+                           (equal? (instance-variable-value target 'a) 'left)
+                           (equal? (instance-variable-value target 'b) 'right))))
+
+              (list "compile-linklet/source list and cons"
+                    (let* ([compiled (compile-linklet
+                                      '(linklet () (x)
+                                         (define-values (x)
+                                           (#%app list (#%app cons '1 '2) '3)))
+                                      #f
+                                      #f)]
+                           [target   (make-instance 'source-list-target)]
+                           [result   (instantiate-linklet compiled '() target)])
+                      (and (void? result)
+                           (equal? (instance-variable-value target 'x)
+                                   (list (cons 1 2) 3)))))
 
               
               
