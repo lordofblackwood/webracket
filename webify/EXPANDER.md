@@ -3117,3 +3117,67 @@ maps the external export name `webify-tiny-value` and reads it as `42` with
 `namespace-variable-value`. The module body namespace returned by
 `module->namespace` contains the internal linklet key, so direct inspection must
 use that exact uninterned key.
+
+The probe now has reusable helpers for that pattern:
+
+```text
+webify-probe-namespace-binding-key
+webify-probe-instance-key-by-printed-name
+webify-probe-instance-value-by-key
+```
+
+For exported names, the key can come from `identifier-binding` in the requiring
+namespace. For private body names, there may be no namespace mapping at all, so
+diagnostics have to recover the unreadable key from `instance-variable-names`
+and preserve that exact symbol.
+
+The reflection probe also confirms that `module->imports` and `module->exports`
+are usable enough for Webify diagnostics when opaque module-path-index values
+are summarized instead of returned directly:
+
+```text
+imports ((0 (... module-path-index ...)))
+exports ((variables ((0 (webify-tiny-value () webify-tiny-value.1))))
+         (syntaxes ()))
+```
+
+That matches the Reference-level API shape: imports are grouped by phase, and
+exports report the external name plus the internal generated name. Webify should
+consume this metadata as provider/export metadata, not as executable values. In
+particular, the internal generated symbol must be preserved by identity when it
+is later used to inspect or compose linklet instances.
+
+Two additional tiny module probes are now green:
+
+```text
+private helper:
+  public-value 5
+  private-value-in-requirer missing
+  public-instance-value 5
+  private-instance-value 5
+
+two-module require:
+  provider-declared? #t
+  consumer-declared? #t
+  consumer-value 41
+  provider-value-in-requirer missing
+  consumer-instance-value 41
+```
+
+The two-module probe uses ordinary kernel source:
+
+```racket
+(module webify-tiny-provider '#%kernel
+  (#%provide webify-a-value)
+  (define-values (webify-a-value) '41))
+
+(module webify-tiny-consumer '#%kernel
+  (#%require (quote webify-tiny-provider))
+  (#%provide webify-b-value)
+  (define-values (webify-b-value) webify-a-value))
+```
+
+This is the first clean composed-module success case in the expander bridge:
+both modules are declared, the consumer imports the provider, requiring only the
+consumer exposes only the consumer export, and the consumer module instance
+contains the computed value.

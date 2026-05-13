@@ -446,6 +446,70 @@
  "probe:tiny-module-instance-audit/catch:after-require"
  "(module-mapped-symbols")
 
+(define-values (tiny-instance-status tiny-instance-output)
+  (run-probe wasm-path
+             "webify-probe-expand-self-evaluating/tiny-module-instance-audit/catch"
+             "[]"))
+(unless (zero? tiny-instance-status)
+  (error 'check-expander-kernel-smoke
+         "tiny module instance audit failed with status ~a\noutput:\n~a"
+         tiny-instance-status
+         tiny-instance-output))
+(for ([fragment (in-list '("module->namespace-alias?"
+                           "module-declared?"
+                           "internal-interned?"
+                           "internal-eq-instance-key?"
+                           "(module-instance-actual-key-value . (42"
+                           "(current-namespace-external-value . (42"))])
+  (require-output tiny-instance-output fragment))
+
+(check-ok-probe
+ "webify-probe-expand-self-evaluating/tiny-module-reflect/catch"
+ "[]"
+ "probe:tiny-module-reflect/catch:after-require"
+ "(exports ((variables ((0 (webify-tiny-value () webify-tiny-value.1)))) (syntaxes ())))")
+
+(check-ok-probe
+ "webify-probe-expand-self-evaluating/tiny-module-private-helper/catch"
+ "[]"
+ "probe:tiny-module-private-helper/catch:after-require"
+ "(private-binding-in-requirer (unbound))")
+
+(define-values (tiny-private-status tiny-private-output)
+  (run-probe wasm-path
+             "webify-probe-expand-self-evaluating/tiny-module-private-helper/catch"
+             "[]"))
+(unless (zero? tiny-private-status)
+  (error 'check-expander-kernel-smoke
+         "tiny private helper probe failed with status ~a\noutput:\n~a"
+         tiny-private-status
+         tiny-private-output))
+(for ([fragment (in-list '("(public-value 5)"
+                           "(private-value-in-requirer missing)"
+                           "(public-instance-value 5)"
+                           "(private-instance-value 5)"))])
+  (require-output tiny-private-output fragment))
+
+(define-values (tiny-two-module-status tiny-two-module-output)
+  (run-probe wasm-path
+             "webify-probe-expand-self-evaluating/tiny-two-module-require/catch"
+             "[]"))
+(unless (zero? tiny-two-module-status)
+  (error 'check-expander-kernel-smoke
+         "tiny two-module require probe failed with status ~a\noutput:\n~a"
+         tiny-two-module-status
+         tiny-two-module-output))
+(for ([fragment (in-list '("probe:tiny-two-module-require/catch:after-require"
+                           "(provider-declared? #t)"
+                           "(consumer-declared? #t)"
+                           "(consumer-exports ((variables ((0 (webify-b-value () webify-b-value.1)))) (syntaxes ())))"
+                           "(consumer-binding (module-binding (internal webify-b-value.1) (external webify-b-value)"
+                           "(provider-binding-in-requirer (unbound))"
+                           "(consumer-value 41)"
+                           "(provider-value-in-requirer missing)"
+                           "(consumer-instance-value 41)"))])
+  (require-output tiny-two-module-output fragment))
+
 (check-ok-probe
  "webify-probe-expand-self-evaluating/tiny-module-dynamic-value/catch"
  "[]"
