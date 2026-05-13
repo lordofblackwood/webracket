@@ -3314,3 +3314,55 @@ On the default Racket 8.12 host, that module is classified as blocked by missing
 `decompile-linklet` support before provider metadata can be resolved. On a newer
 linklet-capable checkout, the same test path is ready to resolve the renamed
 import with a reflection hint.
+
+Follow-up: raw provider-path normalization
+------------------------------------------
+
+The host-side audit now resolves raw `module->exports` provider-path entries
+before constructing reflection hints. This follows the Reference contract for
+`module-compiled-exports`: a re-export origin is either a bare
+module-path-index or a four-field origin of the form:
+
+```text
+(module-path-index import-phase imported-name nominal-phase)
+```
+
+For symbolic modules, a tiny re-provide produces a raw variable export row like:
+
+```text
+((0 (public-x ((#<module-path-index:'provider> 0 internal-x 0)) internal-x)))
+```
+
+The normalizer resolves the module-path-index without loading, converts it to a
+stable dependency key, and records the provider path as:
+
+```text
+(provider provider internal-x)
+```
+
+That lets a composed graph resolve a consumer's public re-export import to the
+backing provider cell, not to the re-exporting module:
+
+```text
+(consumer public-x provider internal-x)
+```
+
+The same normalization handles relative file providers by converting the
+resolved path payload into Webify's current symbol-shaped dependency key. This
+is the small version of the `racket/private/list` -> `"pico.rkt"` problem:
+relative provider paths must be resolved against their source module before
+Webify decides that an import is genuinely missing.
+
+A focused newer-Racket smoke is available as:
+
+```sh
+../racket/racket/bin/racket -y webify/check-newer-racket-rename-smoke.rkt
+```
+
+It confirms that the machine-independent `rename-in racket/list` case reaches a
+decompilable phase-0 linklet on the newer checkout and resolves the lowered
+import as:
+
+```text
+(first racket/list first)
+```

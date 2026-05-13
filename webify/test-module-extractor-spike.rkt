@@ -1,6 +1,7 @@
 #lang racket/base
 
 (require rackunit
+         racket/file
          racket/list
          racket/match
          "module-audit.rkt"
@@ -13,6 +14,47 @@
   (match linklet
     [`(linklet ,importss ,_exports . ,_body)
      (apply append importss)]))
+
+;; test-report : symbol? list? list? -> webify-module-extractor-spike?
+;;   Build a compact extractor report for graph-audit resolver tests.
+(define (test-report name imports exports)
+  (define linklet-datum `(linklet ,imports ,exports (void)))
+  (webify-module-extractor-spike
+   name
+   '(#f)
+   '(0)
+   (list (webify-module-bundle-entry
+          0
+          'linklet
+          imports
+          exports
+          linklet-datum
+          #f))
+   imports
+   exports
+   linklet-datum
+   #t
+   '()))
+
+;; declared-module-variable-exports : module-datum module-path -> list?
+;;   Declare a module and read its variable exports with defined-name metadata.
+(define (declared-module-variable-exports module-datum module-path)
+  (define ns (make-base-namespace))
+  (parameterize ([current-namespace ns])
+    (eval module-datum)
+    (call-with-values
+     (lambda () (module->exports module-path 'defined-names))
+     (lambda (variables _syntaxes) variables))))
+
+;; file-module-variable-exports : path? -> list?
+;;   Load a file module and read its variable exports with defined-name metadata.
+(define (file-module-variable-exports module-path)
+  (define ns (make-base-namespace))
+  (parameterize ([current-namespace ns])
+    (dynamic-require module-path #f)
+    (call-with-values
+     (lambda () (module->exports module-path 'defined-names))
+     (lambda (variables _syntaxes) variables))))
 
 (test-case "extractor spike reports compiled module linklet metadata"
   (define report
@@ -1409,6 +1451,143 @@
    (webify-reflection-rows->import-hints
     (list provider-row reexport-row consumer-row))
    '((consumer public-x provider internal-x))))
+
+(test-case "reflection hints resolve raw module->exports provider paths"
+  (define raw-exports
+    (declared-module-variable-exports
+     '(begin
+        (module provider racket/base
+          (provide internal-x)
+          (define internal-x 23))
+        (module reexport racket/base
+          (require 'provider)
+          (provide (rename-out [internal-x public-x]))))
+     ''reexport))
+  (define bindings
+    (webify-normalize-module-export-metadata
+     (webify-resolve-module-export-provider-paths raw-exports)))
+  (check-equal? (map webify-module-export-binding-external bindings)
+                '(public-x))
+  (check-equal? (map webify-module-export-binding-provider-path bindings)
+                '(((provider provider internal-x))))
+  (define provider-row
+    (webify-module-reflection-row
+     'provider
+     '()
+     '(internal-x)
+     (webify-normalize-module-export-metadata '(internal-x))
+     '()
+     '()))
+  (define reexport-row
+    (webify-module-reflection-row
+     'reexport
+     '((internal-x))
+     '(public-x)
+     bindings
+     '()
+     '()))
+  (define consumer-row
+    (webify-module-reflection-row
+     'consumer
+     '((public-x))
+     '(answer)
+     (webify-normalize-module-export-metadata '(answer))
+     '()
+     '(((public-x public-x)))))
+  (check-equal?
+   (webify-reflection-rows->import-hints
+    (list provider-row reexport-row consumer-row))
+   '((consumer public-x provider internal-x))))
+
+(test-case "graph audit uses raw module->exports metadata for re-provide hints"
+  (define raw-exports
+    (declared-module-variable-exports
+     '(begin
+        (module provider racket/base
+          (provide internal-x)
+          (define internal-x 23))
+        (module reexport racket/base
+          (require 'provider)
+          (provide (rename-out [internal-x public-x]))))
+     ''reexport))
+  (define provider-report
+    (test-report 'provider '() '(internal-x)))
+  (define reexport-report
+    (test-report 'reexport '(((internal-x internal-x))) '(public-x)))
+  (define consumer-report
+    (test-report 'consumer '(((public-x public-x))) '(answer)))
+  (define audit
+    (webify-module-reports->graph-audit
+     (list provider-report reexport-report consumer-report)
+     #:module-export-metadata `((reexport ,raw-exports))))
+  (check-equal? (webify-module-graph-audit-reflection-import-hints audit)
+                '((reexport internal-x provider internal-x)
+                  (consumer public-x provider internal-x)))
+  (check-equal?
+   (map (lambda (outcome)
+          (list (webify-module-audit-resolution-outcome-module outcome)
+                (webify-module-audit-resolution-outcome-local outcome)
+                (webify-module-audit-resolution-outcome-dependency outcome)
+                (webify-module-audit-resolution-outcome-provider-export outcome)
+                (webify-module-audit-resolution-outcome-status outcome)))
+        (webify-module-graph-audit-resolution-outcomes audit))
+   '((reexport internal-x provider internal-x resolved-by-reflection-hint)
+     (consumer public-x provider internal-x resolved-by-reflection-hint))))
+
+(test-case "raw module->exports provider paths resolve relative file providers"
+  (define tmp-dir (make-temporary-file "webify-module-provider-~a" 'directory))
+  (dynamic-wind
+    void
+    (lambda ()
+      (define provider-path (build-path tmp-dir "provider.rkt"))
+      (define reexport-path (build-path tmp-dir "reexport.rkt"))
+      (call-with-output-file provider-path
+        (lambda (out)
+          (display "#lang racket/base\n(provide internal-x)\n(define internal-x 41)\n" out))
+        #:exists 'truncate/replace)
+      (call-with-output-file reexport-path
+        (lambda (out)
+          (display "#lang racket/base\n(require \"provider.rkt\")\n(provide (rename-out [internal-x public-x]))\n" out))
+        #:exists 'truncate/replace)
+      (define provider-key (string->symbol (path->string provider-path)))
+      (define raw-exports (file-module-variable-exports reexport-path))
+      (define bindings
+        (webify-normalize-module-export-metadata
+         (webify-resolve-module-export-provider-paths raw-exports)))
+      (check-equal? (map webify-module-export-binding-external bindings)
+                    '(public-x))
+      (check-equal? (map webify-module-export-binding-provider-path bindings)
+                    (list (list (list 'provider provider-key 'internal-x))))
+      (define provider-row
+        (webify-module-reflection-row
+         provider-key
+         '()
+         '(internal-x)
+         (webify-normalize-module-export-metadata '(internal-x))
+         '()
+         '()))
+      (define reexport-row
+        (webify-module-reflection-row
+         'reexport
+         '((internal-x))
+         '(public-x)
+         bindings
+         '()
+         '()))
+      (define consumer-row
+        (webify-module-reflection-row
+         'consumer
+         '((public-x))
+         '(answer)
+         (webify-normalize-module-export-metadata '(answer))
+         '()
+         '(((public-x public-x)))))
+      (check-equal?
+       (webify-reflection-rows->import-hints
+        (list provider-row reexport-row consumer-row))
+       `((consumer public-x ,provider-key internal-x))))
+    (lambda ()
+      (delete-directory/files tmp-dir))))
 
 (test-case "resolved extractor inputs use re-provide backing provider hints"
   (define provider-report

@@ -41,6 +41,7 @@
          webify-module-audit-resolution-outcome-provider-export
          webify-module-audit-resolution-outcome-status
          webify-normalize-module-export-metadata
+         webify-resolve-module-export-provider-paths
          webify-reflection-rows->import-hints
          webify-module-reports->graph-audit)
 
@@ -79,6 +80,29 @@
   (module local dependency provider-export status)
   #:transparent)
 
+;; resolved-module-name->provider-symbol : any/c -> (or/c symbol? #f)
+;;   Convert a resolved module path payload into Webify's dependency key shape.
+(define (resolved-module-name->provider-symbol name)
+  (cond
+    [(symbol? name)
+     name]
+    [(path? name)
+     (string->symbol (path->string name))]
+    [(and (pair? name) (symbol? (car name)))
+     (string->symbol (format "~s" name))]
+    [(and (pair? name) (path? (car name)))
+     (string->symbol (format "~s" name))]
+    [else
+     #f]))
+
+;; module-path-index->provider-symbol : module-path-index? -> (or/c symbol? #f)
+;;   Resolve an origin MPI without forcing module loading.
+(define (module-path-index->provider-symbol mpi)
+  (with-handlers ([exn:fail? (lambda (_exn) #f)])
+    (resolved-module-name->provider-symbol
+     (resolved-module-path-name
+      (module-path-index-resolve mpi #f #f)))))
+
 ;; report-unresolved-row : report -> (list/c symbol? list?)
 ;;   Summarize unresolved non-protocol import groups for one report.
 (define (report-unresolved-row report)
@@ -91,6 +115,14 @@
 (define (simple-export-binding phase export)
   (webify-module-export-binding phase export '() export))
 
+;; module-export-row-entries : (listof any/c) -> (listof any/c)
+;;   Normalize actual module->exports rows and older test rows to entry lists.
+(define (module-export-row-entries entries)
+  (match entries
+    [(list (and nested (cons (or (? list?) (? vector?)) _)))
+     nested]
+    [_ entries]))
+
 ;; normalize-export-provider-path : (listof any/c) -> (listof any/c)
 ;;   Keep source-style provider entries and actual module->exports provider paths comparable.
 (define (normalize-export-provider-path provider-path)
@@ -98,6 +130,60 @@
     [(list (and nested (cons (or (? list?) (? vector?)) _)))
      nested]
     [_ provider-path]))
+
+;; resolve-module-export-provider-origin : symbol? any/c -> any/c
+;;   Decode a raw module->exports origin into stable provider metadata.
+(define (resolve-module-export-provider-origin external origin)
+  (cond
+    [(module-path-index? origin)
+     (define provider (module-path-index->provider-symbol origin))
+     (if provider
+         (list 'provider provider external)
+         origin)]
+    [else
+     (match origin
+       [(list (? module-path-index? mpi) _phase (? symbol? import-name) _nominal-phase)
+        (define provider (module-path-index->provider-symbol mpi))
+        (if provider
+            (list 'provider provider import-name)
+            origin)]
+       [(vector (? module-path-index? mpi) _phase (? symbol? import-name) _nominal-phase)
+        (define provider (module-path-index->provider-symbol mpi))
+        (if provider
+            (list 'provider provider import-name)
+            origin)]
+       [_ origin])]))
+
+;; resolve-module-export-provider-path : symbol? (listof any/c) -> (listof any/c)
+;;   Resolve all raw origin entries in a module->exports provider path.
+(define (resolve-module-export-provider-path external provider-path)
+  (for/list ([origin (in-list (normalize-export-provider-path provider-path))])
+    (resolve-module-export-provider-origin external origin)))
+
+;; webify-resolve-module-export-provider-paths : exports -> exports
+;;   Resolve raw module->exports MPI origins into stable provider/export metadata.
+(define (webify-resolve-module-export-provider-paths exports)
+  (define who 'webify-resolve-module-export-provider-paths)
+  (unless (list? exports)
+    (raise-argument-error who "list?" exports))
+  (for/list ([row (in-list exports)])
+    (match row
+      [(cons phase entries)
+       (define normalized-entries (module-export-row-entries entries))
+       (unless (list? normalized-entries)
+         (raise-argument-error who "module export entry list?" normalized-entries))
+       (cons phase
+             (for/list ([entry (in-list normalized-entries)])
+               (match entry
+                 [(list (? symbol? external) provider-path ... (? symbol? internal))
+                  (list external
+                        (resolve-module-export-provider-path external provider-path)
+                        internal)]
+                 [_ entry])))]
+      [(? symbol? export)
+       export]
+      [_
+       (raise-argument-error who "module export row?" row)])))
 
 ;; normalize-module-export-entry : any/c any/c -> webify-module-export-binding?
 ;;   Normalize one module->exports-style entry while preserving provider path data.
@@ -123,31 +209,45 @@
   (append*
    (for/list ([row (in-list exports)])
      (match row
-       [(list phase entries)
-        (unless (list? entries)
-          (raise-argument-error who "module export entry list?" entries))
-        (for/list ([entry (in-list entries)])
-          (normalize-module-export-entry phase entry))]
        [(cons phase entries)
-        (unless (list? entries)
-          (raise-argument-error who "module export entry list?" entries))
-        (for/list ([entry (in-list entries)])
+        (define normalized-entries (module-export-row-entries entries))
+        (unless (list? normalized-entries)
+          (raise-argument-error who "module export entry list?" normalized-entries))
+        (for/list ([entry (in-list normalized-entries)])
           (normalize-module-export-entry phase entry))]
        [(? symbol? export)
         (list (simple-export-binding 0 export))]
        [_
         (raise-argument-error who "module export row?" row)]))))
 
-;; report-reflection-row : report -> webify-module-reflection-row?
+;; module-export-metadata-ref : any/c symbol? any/c -> any/c
+;;   Look up optional module->exports metadata for one report.
+(define (module-export-metadata-ref metadata name fallback)
+  (cond
+    [(hash? metadata)
+     (hash-ref metadata name fallback)]
+    [(list? metadata)
+     (match (assoc name metadata)
+       [(list _ exports) exports]
+       [_ fallback])]
+    [else
+     fallback]))
+
+;; report-reflection-row : report any/c -> webify-module-reflection-row?
 ;;   Normalize one extracted report into graph metadata for diagnostics.
-(define (report-reflection-row report)
+(define (report-reflection-row report module-export-metadata)
   (define import-map (webify-module-extractor-spike-import-map report))
   (define exports (webify-module-extractor-spike-phase0-exports report))
+  (define reflected-exports
+    (module-export-metadata-ref module-export-metadata
+                                (webify-module-extractor-spike-name report)
+                                exports))
   (webify-module-reflection-row
    (webify-module-extractor-spike-name report)
    (webify-module-extractor-spike-phase0-imports report)
    exports
-   (webify-normalize-module-export-metadata exports)
+   (webify-normalize-module-export-metadata
+    (webify-resolve-module-export-provider-paths reflected-exports))
    (webify-module-extractor-spike-required-provider-names report)
    (webify-module-import-map-unresolved-import-groups import-map)))
 
@@ -315,6 +415,7 @@
          reports
          #:module-protocol-dependency [module-protocol-dependency #f]
          #:dependencies [dependencies '()]
+         #:module-export-metadata [module-export-metadata '()]
          #:fetch-provider [fetch-provider #f])
   (define who 'webify-module-reports->graph-audit)
   (unless (list? reports)
@@ -344,7 +445,7 @@
        (report-provider-candidates report fetch-provider))))
   (define reflection-rows
     (for/list ([report (in-list reports)])
-      (report-reflection-row report)))
+      (report-reflection-row report module-export-metadata)))
   (define reflection-import-hints
     (filter values (webify-reflection-rows->import-hints reflection-rows)))
   (define-values (resolved-inputs resolution-failures)
