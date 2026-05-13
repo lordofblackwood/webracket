@@ -8,6 +8,8 @@
          webify-module-graph-audit-unresolved-import-groups
          webify-module-graph-audit-provider-candidates
          webify-module-graph-audit-reflection-rows
+         webify-module-graph-audit-reflection-import-hints
+         webify-module-graph-audit-resolution-outcomes
          webify-module-graph-audit-resolved-inputs
          webify-module-graph-audit-failures
          webify-module-reflection-row
@@ -31,14 +33,21 @@
          webify-module-provider-candidate-name
          webify-module-provider-candidate-status
          webify-module-provider-candidate-failure
-         webify-module-graph-audit-reflection-import-hints
+         webify-module-audit-resolution-outcome
+         webify-module-audit-resolution-outcome?
+         webify-module-audit-resolution-outcome-module
+         webify-module-audit-resolution-outcome-local
+         webify-module-audit-resolution-outcome-dependency
+         webify-module-audit-resolution-outcome-provider-export
+         webify-module-audit-resolution-outcome-status
          webify-normalize-module-export-metadata
          webify-module-reports->graph-audit)
 
 (require racket/list
          racket/match
          "module-diagnostics.rkt"
-         "module-extractor-spike.rkt")
+         "module-extractor-spike.rkt"
+         "module-input.rkt")
 
 (struct webify-module-graph-audit
   (reports
@@ -48,6 +57,7 @@
    provider-candidates
    reflection-rows
    reflection-import-hints
+   resolution-outcomes
    resolved-inputs
    failures)
   #:transparent)
@@ -62,6 +72,10 @@
 
 (struct webify-module-provider-candidate
   (requester phase name status failure)
+  #:transparent)
+
+(struct webify-module-audit-resolution-outcome
+  (module local dependency provider-export status)
   #:transparent)
 
 ;; report-unresolved-row : report -> (list/c symbol? list?)
@@ -170,6 +184,47 @@
                (match-let ([(list provider internal) (car candidates)])
                  (list importer local provider internal)))))))))
 
+;; hint-status : symbol? symbol? symbol? symbol? hints dependencies -> symbol?
+;;   Classify the source of one resolved provider selection.
+(define (hint-status module-name local dependency provider-export reflection-hints dependencies)
+  (cond
+    [(for/or ([hint (in-list reflection-hints)])
+       (match hint
+         [(list importer hint-local hint-dependency hint-export)
+          (and (eq? importer module-name)
+               (eq? hint-local local)
+               (eq? hint-dependency dependency)
+               (eq? hint-export provider-export))]
+         [_ #f]))
+     'resolved-by-reflection-hint]
+    [(for/or ([dependency-row (in-list dependencies)])
+       (match dependency-row
+         [(list hint-local hint-dependency)
+          (and (eq? hint-local local)
+               (eq? hint-dependency dependency))]
+         [_ #f]))
+     'resolved-by-explicit-dependency]
+    [else
+     'resolved-by-export-scan]))
+
+;; input-resolution-outcomes : input hints dependencies -> outcomes
+;;   Summarize how one resolved input's imports were selected.
+(define (input-resolution-outcomes input reflection-hints dependencies)
+  (for/list ([triple (in-list (webify-module-linklet-input-imports input))])
+    (match-define (list local dependency provider-export) triple)
+    (define module-name (webify-module-linklet-input-name input))
+    (webify-module-audit-resolution-outcome
+     module-name
+     local
+     dependency
+     provider-export
+     (hint-status module-name
+                  local
+                  dependency
+                  provider-export
+                  reflection-hints
+                  dependencies))))
+
 ;; report-failure-row : symbol? exn? -> (list/c symbol? webify-module-failure?)
 ;;   Classify one audit failure without aborting the whole audit.
 (define (report-failure-row stage exn)
@@ -255,8 +310,13 @@
        (webify-module-extractor-spikes->resolved-linklet-inputs
         reports
         #:dependencies dependencies
+        #:reflection-hints reflection-import-hints
         #:module-protocol-dependency module-protocol-dependency)
        '())))
+  (define resolution-outcomes
+    (append*
+     (for/list ([input (in-list resolved-inputs)])
+       (input-resolution-outcomes input reflection-import-hints dependencies))))
   (webify-module-graph-audit
    reports
    required-provider-names
@@ -265,5 +325,6 @@
    provider-candidates
    reflection-rows
    reflection-import-hints
+   resolution-outcomes
    resolved-inputs
    (append dependency-failures resolution-failures)))

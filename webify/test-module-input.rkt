@@ -103,6 +103,35 @@
   (check-equal? (webify-module-linklet-input-imports input)
                 '((ext-x a x))))
 
+(test-case "module linklet import resolver honors reflection hints"
+  (define linklet
+    '(linklet (([ext-x x])) (y)
+       (define-values (y) ext-x)))
+  (check-equal?
+   (webify-resolve-module-linklet-imports
+    linklet
+    '((a (x)) (other (x)))
+    #:module-name 'b
+    #:reflection-hints '((b ext-x a x)))
+   '((ext-x a x)))
+  (define-values (imports outcomes)
+    (webify-resolve-module-linklet-imports/outcomes
+     linklet
+     '((a (x)) (other (x)))
+     #:module-name 'b
+     #:reflection-hints '((b ext-x a x))))
+  (check-equal? imports '((ext-x a x)))
+  (check-equal? (map webify-module-resolution-outcome-status outcomes)
+                '(resolved-by-reflection-hint))
+  (check-exn
+   #rx"dependency does not export hinted name"
+   (lambda ()
+     (webify-resolve-module-linklet-imports
+      linklet
+      '((a (not-x)) (other (x)))
+      #:module-name 'b
+      #:reflection-hints '((b ext-x a x))))))
+
 (test-case "dependency exports derive from provider compiled exports"
   (define string-provider
     (webify-module-linklet-input
@@ -286,14 +315,14 @@
         (roots (bad))
         (bad-input)))))
   (check-exn
-   #rx"could not resolve import dependency"
+   #rx"missing-after-reflection"
    (lambda ()
      (webify-resolve-module-linklet-imports
       '(linklet (([ext-x x])) (y)
          (define-values (y) x))
       '((a (not-x))))))
   (check-exn
-   #rx"ambiguous import dependency"
+   #rx"ambiguous-after-reflection"
    (lambda ()
      (webify-resolve-module-linklet-imports
       '(linklet (([ext-x x])) (y)

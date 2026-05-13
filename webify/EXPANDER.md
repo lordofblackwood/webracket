@@ -3260,3 +3260,34 @@ rename require:
 This gives the bridge a compact matrix for the next provider resolver: ordinary
 import, transitive import, re-provide, selective import, and renamed local
 import.
+
+The resolver now accepts those reflection hints as an input, instead of only
+reporting them in audits. The precedence is intentionally conservative:
+
+```text
+explicit import alias
+explicit dependency
+reflection hint
+broad dependency-export scan
+```
+
+A reflection hint has to name a provider and exported binding that still appears
+in the dependency export table. That means metadata can disambiguate provider
+selection, but it cannot fabricate a dependency that the extracted graph did not
+actually provide.
+
+Resolution outcomes are classified for audits:
+
+```text
+resolved-by-explicit-dependency
+resolved-by-reflection-hint
+resolved-by-export-scan
+ambiguous-after-reflection
+missing-after-reflection
+```
+
+The first source-module smoke for this path is deliberately tiny: a compiled
+module that imports `first` from `racket/list` can be resolved with a reflection
+hint even when another dependency export table also contains `first`. The hint
+selects `racket/list`, and the resolver still validates that `racket/list`
+exports `first`.

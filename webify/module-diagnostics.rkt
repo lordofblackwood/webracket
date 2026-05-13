@@ -26,10 +26,18 @@
      'provider-candidate-overreach]
     [(regexp-match? #rx"import: '(read|current-input-port|read-byte|read-char|read-line|read-bytes-line)" message)
      'io-dependent]
-    [(regexp-match? #rx"could not resolve import dependency|dependency does not export aliased name|unresolved import|ambiguous inferred import dependency" message)
+    [(regexp-match? #rx"missing-after-reflection|could not resolve import dependency|dependency does not export aliased name|unresolved import|ambiguous inferred import dependency" message)
      'unresolved-import]
+    [(regexp-match? #rx"ambiguous-after-reflection|ambiguous import dependency" message)
+     'ambiguous-import]
     [(regexp-match? #rx"[.]get-syntax-literal!" message)
      'syntax-literal]
+    [(regexp-match? #rx"known-procedure-arity-mask" message)
+     'known-procedure-metadata]
+    [(regexp-match? #rx"with-continuation-mark[*]" message)
+     'continuation-mark]
+    [(regexp-match? #rx"datum->construction-expr: got: #rx" message)
+     'regexp-literal]
     [(regexp-match? #rx"redefine a primitive at the top-level" message)
      'primitive-alias-collision]
     [(regexp-match? #rx"unsupported|not supported" message)

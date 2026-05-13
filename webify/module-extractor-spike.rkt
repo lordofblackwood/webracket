@@ -1314,7 +1314,9 @@
                                            import-aliases
                                            require-rename-aliases
                                            required-module-candidates
-                                           module-protocol-dependency)
+                                           module-protocol-dependency
+                                           reflection-hints
+                                           module-name)
   (when module-protocol-dependency
     (unless (symbol? module-protocol-dependency)
       (raise-argument-error who "symbol?" module-protocol-dependency)))
@@ -1336,9 +1338,20 @@
     (cond
       [(null? module-bindings) '()]
       [else
+       (define reflection-hint-locals
+         (for/list ([hint (in-list reflection-hints)]
+                    #:when (match hint
+                             [(list (? symbol?) (? symbol?) (? symbol?)) #t]
+                             [(list importer _local _dependency _export)
+                              (eq? importer module-name)]
+                             [_ #f]))
+           (match hint
+             [(list local _dependency _export) local]
+             [(list _importer local _dependency _export) local])))
        (define explicit-locals (map car dependencies))
        (define explicit-or-alias-locals
          (append explicit-locals
+                 reflection-hint-locals
                  (for/list ([alias (in-list (append import-aliases
                                                      (resolve-compiled-rename-aliases
                                                       require-rename-aliases
@@ -1367,7 +1380,9 @@
        (webify-resolve-module-linklet-imports
         `(linklet (,module-bindings) () (void))
         dependency-exports
+        #:module-name module-name
         #:dependencies (append dependencies inferred-dependencies)
+        #:reflection-hints reflection-hints
         #:import-aliases
         (append import-aliases
                 (resolve-compiled-rename-aliases require-rename-aliases dependency-exports)))]))
@@ -1674,6 +1689,7 @@
 (define (webify-module-extractor-spike->resolved-linklet-input report
                                                                #:dependency-exports [dependency-exports '()]
                                                                #:dependencies [dependencies '()]
+                                                               #:reflection-hints [reflection-hints '()]
                                                                #:module-protocol-dependency [module-protocol-dependency #f])
   (define who 'webify-module-extractor-spike->resolved-linklet-input)
   (unless (webify-module-extractor-spike? report)
@@ -1696,13 +1712,16 @@
     (webify-module-import-map-import-aliases import-map)
     (webify-module-import-map-require-rename-aliases import-map)
     (webify-module-import-map-required-module-candidates import-map)
-    module-protocol-dependency)))
+    module-protocol-dependency
+    reflection-hints
+    (webify-module-extractor-spike-name report))))
 
 ;; webify-module-extractor-spike->resolved-linklet-input/providers : report reports ... -> input
 ;;   Resolve an importer report using compiled export rows from provider reports.
 (define (webify-module-extractor-spike->resolved-linklet-input/providers report
                                                                          provider-reports
                                                                          #:dependencies [dependencies '()]
+                                                                         #:reflection-hints [reflection-hints '()]
                                                                          #:module-protocol-dependency [module-protocol-dependency #f])
   (define who 'webify-module-extractor-spike->resolved-linklet-input/providers)
   (unless (webify-module-extractor-spike? report)
@@ -1726,12 +1745,15 @@
     (webify-module-import-map-import-aliases import-map)
     (webify-module-import-map-require-rename-aliases import-map)
     '()
-    module-protocol-dependency)))
+    module-protocol-dependency
+    reflection-hints
+    (webify-module-extractor-spike-name report))))
 
 ;; webify-module-extractor-spikes->resolved-linklet-inputs : reports ... -> (listof input?)
 ;;   Resolve a supplied extracted module graph into registry-ready linklet inputs.
 (define (webify-module-extractor-spikes->resolved-linklet-inputs reports
                                                                   #:dependencies [dependencies '()]
+                                                                  #:reflection-hints [reflection-hints '()]
                                                                   #:module-protocol-dependency [module-protocol-dependency #f])
   (define who 'webify-module-extractor-spikes->resolved-linklet-inputs)
   (validate-extractor-reports! who reports)
@@ -1744,6 +1766,7 @@
      report
      provider-reports
      #:dependencies dependencies
+     #:reflection-hints reflection-hints
      #:module-protocol-dependency module-protocol-dependency)))
 
 ;; webify-source-module->resolved-linklet-input : module-datum ... -> webify-module-linklet-input?
@@ -1751,11 +1774,13 @@
 (define (webify-source-module->resolved-linklet-input module-datum
                                                        #:dependency-exports [dependency-exports '()]
                                                        #:dependencies [dependencies '()]
+                                                       #:reflection-hints [reflection-hints '()]
                                                        #:module-protocol-dependency [module-protocol-dependency #f])
   (webify-module-extractor-spike->resolved-linklet-input
    (webify-compile-module-extractor-spike module-datum)
    #:dependency-exports dependency-exports
    #:dependencies dependencies
+   #:reflection-hints reflection-hints
    #:module-protocol-dependency module-protocol-dependency))
 
 ;; webify-source-module->resolved-linklet-input/providers : module-datum module-data ... -> input
@@ -1763,6 +1788,7 @@
 (define (webify-source-module->resolved-linklet-input/providers module-datum
                                                                  provider-module-data
                                                                  #:dependencies [dependencies '()]
+                                                                 #:reflection-hints [reflection-hints '()]
                                                                  #:module-protocol-dependency [module-protocol-dependency #f])
   (define who 'webify-source-module->resolved-linklet-input/providers)
   (unless (list? provider-module-data)
@@ -1772,12 +1798,14 @@
    (for/list ([provider-module-datum (in-list provider-module-data)])
      (webify-compile-module-extractor-spike provider-module-datum))
    #:dependencies dependencies
+   #:reflection-hints reflection-hints
    #:module-protocol-dependency module-protocol-dependency))
 
 ;; webify-source-modules->resolved-linklet-inputs : module-data ... -> (listof input?)
 ;;   Compile supplied source modules and resolve them as a closed bridge graph.
 (define (webify-source-modules->resolved-linklet-inputs module-data
                                                          #:dependencies [dependencies '()]
+                                                         #:reflection-hints [reflection-hints '()]
                                                          #:module-protocol-dependency [module-protocol-dependency #f])
   (define who 'webify-source-modules->resolved-linklet-inputs)
   (unless (list? module-data)
@@ -1786,6 +1814,7 @@
    (for/list ([module-datum (in-list module-data)])
      (webify-compile-module-extractor-spike module-datum))
    #:dependencies dependencies
+   #:reflection-hints reflection-hints
    #:module-protocol-dependency module-protocol-dependency))
 
 ;; webify-source-modules->discovered-resolved-linklet-inputs : module-data ... -> (listof input?)

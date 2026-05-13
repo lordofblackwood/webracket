@@ -469,12 +469,12 @@
      #t
      '()))
   (check-exn
-   #rx"could not resolve import dependency"
+   #rx"missing-after-reflection"
    (lambda ()
      (webify-module-extractor-spikes->resolved-linklet-inputs
       (list use-report))))
   (check-exn
-   #rx"ambiguous import dependency"
+   #rx"ambiguous-after-reflection"
    (lambda ()
      (webify-module-extractor-spikes->resolved-linklet-inputs
       (list provider-a provider-b use-report))))
@@ -637,7 +637,7 @@
   (cond
     [(webify-module-extractor-spike-manifest-ready? report)
      (check-exn
-      #rx"could not resolve import dependency"
+      #rx"missing-after-reflection"
       (lambda ()
         (webify-source-module->resolved-linklet-input
          module-datum
@@ -658,6 +658,36 @@
         (webify-source-module->resolved-linklet-input
          module-datum
          #:dependency-exports '((racket/list (first)))
+         #:module-protocol-dependency 'module-protocol)))]))
+
+(test-case "source module resolver accepts reflection hints"
+  (define module-datum
+    '(module a racket/base
+       (require racket/list)
+       (provide y)
+       (define y (first (list 10)))))
+  (define report (webify-compile-module-extractor-spike module-datum))
+  (cond
+    [(webify-module-extractor-spike-manifest-ready? report)
+     (define input
+       (webify-source-module->resolved-linklet-input
+        module-datum
+        #:dependency-exports '((racket/list (first))
+                               (other/list (first)))
+        #:reflection-hints '((a first racket/list first))
+        #:module-protocol-dependency 'module-protocol))
+     (check-equal? (webify-module-linklet-input-imports input)
+                   '((.get-syntax-literal! module-protocol .get-syntax-literal!)
+                     (.set-transformer! module-protocol .set-transformer!)
+                     (first racket/list first)))]
+    [else
+     (check-exn
+      #rx"source module did not produce a decompilable phase-0 linklet datum"
+      (lambda ()
+        (webify-source-module->resolved-linklet-input
+         module-datum
+         #:dependency-exports '((racket/list (first)))
+         #:reflection-hints '((a first racket/list first))
          #:module-protocol-dependency 'module-protocol)))]))
 
 (test-case "source module resolver handles multiple simple required modules"
@@ -746,7 +776,7 @@
                                (symbol->string (car binding))))
               string-join-group))
      (check-exn
-      #rx"could not resolve import dependency"
+      #rx"missing-after-reflection"
       (lambda ()
         (webify-source-module->resolved-linklet-input
          module-datum
@@ -1185,6 +1215,99 @@
    '((provider (internal-x))
      (reexport (public-x))
      (consumer (answer)))))
+
+(test-case "resolved extractor inputs can use reflection hints before broad scanning"
+  (define provider-a
+    (webify-module-extractor-spike
+     'a
+     '(#f)
+     '(0)
+     '()
+     '()
+     '(x)
+     '(linklet () (x)
+        (define-values (x) '1))
+     #t
+     '()))
+  (define provider-b
+    (webify-module-extractor-spike
+     'b
+     '(#f)
+     '(0)
+     '()
+     '()
+     '(x)
+     '(linklet () (x)
+        (define-values (x) '2))
+     #t
+     '()))
+  (define use-report
+    (webify-module-extractor-spike
+     'use-x
+     '(#f)
+     '(0)
+     '()
+     '((x))
+     '(y)
+     '(linklet (((x x))) (y)
+        (define-values (y) x))
+     #t
+     '()))
+  (check-exn
+   #rx"ambiguous-after-reflection"
+   (lambda ()
+     (webify-module-extractor-spikes->resolved-linklet-inputs
+      (list provider-a provider-b use-report))))
+  (define inputs
+    (webify-module-extractor-spikes->resolved-linklet-inputs
+     (list provider-a provider-b use-report)
+     #:reflection-hints '((use-x x b x))))
+  (define use-input
+    (for/first ([input (in-list inputs)]
+                #:when (eq? (webify-module-linklet-input-name input) 'use-x))
+      input))
+  (check-equal? (webify-module-linklet-input-imports use-input)
+                '((x b x))))
+
+(test-case "module graph audit classifies reflection-hint resolutions"
+  (define provider-report
+    (webify-module-extractor-spike
+     'provider
+     '(#f)
+     '(0)
+     '()
+     '()
+     '(only-x)
+     '(linklet () (only-x)
+        (define-values (only-x) '1))
+     #t
+     '()))
+  (define use-report
+    (webify-module-extractor-spike
+     'use-only
+     '(#f)
+     '(0)
+     '()
+     '((only-x))
+     '(y)
+     '(linklet (((only-x only-x))) (y)
+        (define-values (y) only-x))
+     #t
+     '()))
+  (define audit
+    (webify-module-reports->graph-audit
+     (list provider-report use-report)))
+  (check-equal? (webify-module-graph-audit-reflection-import-hints audit)
+                '((use-only only-x provider only-x)))
+  (check-equal?
+   (map (lambda (outcome)
+          (list (webify-module-audit-resolution-outcome-module outcome)
+                (webify-module-audit-resolution-outcome-local outcome)
+                (webify-module-audit-resolution-outcome-dependency outcome)
+                (webify-module-audit-resolution-outcome-provider-export outcome)
+                (webify-module-audit-resolution-outcome-status outcome)))
+        (webify-module-graph-audit-resolution-outcomes audit))
+   '((use-only only-x provider only-x resolved-by-reflection-hint))))
 
 (test-case "module export metadata preserves provider path"
   (define bindings

@@ -15,6 +15,13 @@
          webify-module-linklet-input-dependency-exports
          webify-module-linklet-inputs-dependency-exports
          webify-resolve-module-linklet-imports
+         webify-module-resolution-outcome
+         webify-module-resolution-outcome?
+         webify-module-resolution-outcome-local
+         webify-module-resolution-outcome-dependency
+         webify-module-resolution-outcome-provider-export
+         webify-module-resolution-outcome-status
+         webify-resolve-module-linklet-imports/outcomes
          webify-module-linklet-input/resolve-imports
          webify-register-module-linklet-input!
          webify-module-linklet-inputs->registry)
@@ -25,6 +32,9 @@
 
 (struct webify-module-linklet-input (name linklet imports) #:transparent)
 (struct webify-module-linklet-manifest (inputs roots) #:transparent)
+(struct webify-module-resolution-outcome
+  (local dependency provider-export status)
+  #:transparent)
 
 ;; validate-roots! : symbol? any/c -> void?
 ;;   Reject manifest roots that cannot identify module-linklet inputs.
@@ -191,6 +201,23 @@
                            "duplicate import alias entries are not supported"
                            "import" duplicate)))
 
+;; validate-reflection-hints! : symbol? any/c -> void?
+;;   Reject metadata-derived local-import provider hints.
+(define (validate-reflection-hints! who hints)
+  (unless (list? hints)
+    (raise-argument-error who "(listof reflection-hint?)" hints))
+  (for ([hint (in-list hints)])
+    (match hint
+      [(list (? symbol?) (? symbol?) (? symbol?))
+       (void)]
+      [(list (? symbol?) (? symbol?) (? symbol?) (? symbol?))
+       (void)]
+      [_
+       (raise-argument-error
+        who
+        "(or/c (list/c local dependency export) (list/c module local dependency export))"
+        hint)])))
+
 ;; dependency-exports-ref : symbol? (listof dependency-exports?) symbol? -> (listof symbol?)
 ;;   Look up the exports declared for one dependency module.
 (define (dependency-exports-ref who dependency-exports name)
@@ -251,11 +278,47 @@
   (validate-dependency-exports! who dependency-exports)
   dependency-exports)
 
-;; resolve-import-source : symbol? dependency-exports hash? hash? symbol? symbol? -> (list/c symbol? symbol?)
+;; reflection-hints->map : symbol? (or/c symbol? #f) list? -> hash?
+;;   Build a local-import map from reflection hints relevant to one module.
+(define (reflection-hints->map who module-name hints)
+  (validate-reflection-hints! who hints)
+  (define rows
+    (filter
+     values
+     (for/list ([hint (in-list hints)])
+       (match hint
+         [(list (? symbol? local) (? symbol? dependency) (? symbol? export))
+          (list local dependency export)]
+         [(list (? symbol? importer) (? symbol? local) (? symbol? dependency) (? symbol? export))
+          (and (or (not module-name) (eq? importer module-name))
+               (list local dependency export))]))))
+  (define duplicate (check-duplicates (map car rows)))
+  (when duplicate
+    (raise-arguments-error who
+                           "duplicate reflection hint entries are not supported"
+                           "import" duplicate))
+  (for/hasheq ([row (in-list rows)])
+    (match-define (list local dependency export) row)
+    (values local (list dependency export))))
+
+;; validate-provider-export! : symbol? dependency-exports symbol? symbol? -> symbol?
+;;   Validate a selected provider/export pair and return the canonical export symbol.
+(define (validate-provider-export! who dependency-exports dependency provider-export)
+  (define exports (dependency-exports-ref who dependency-exports dependency))
+  (unless (for/or ([export (in-list exports)])
+            (symbolic-name=? export provider-export))
+    (raise-arguments-error who
+                           "dependency does not export hinted name"
+                           "dependency" dependency
+                           "export" provider-export))
+  (dependency-export-ref who dependency exports provider-export))
+
+;; resolve-import-source : symbol? dependency-exports hash? hash? hash? symbol? symbol? -> values
 ;;   Resolve one import binding to its provider module and provider export symbol.
-(define (resolve-import-source who dependency-exports dependencies aliases local external)
+(define (resolve-import-source who dependency-exports dependencies aliases hints local external)
   (define alias (hash-ref aliases local #f))
   (define explicit (hash-ref dependencies local #f))
+  (define hint (hash-ref hints local #f))
   (cond
     [alias
      (match-define (list dependency provider-export) alias)
@@ -273,11 +336,18 @@
                               "dependency" dependency
                               "export" provider-export))
      (list dependency
-           (dependency-export-ref who dependency exports provider-export))]
+           (dependency-export-ref who dependency exports provider-export)
+           'resolved-by-import-alias)]
     [explicit
      (define exports (dependency-exports-ref who dependency-exports explicit))
      (list explicit
-           (dependency-export-ref who explicit exports external))]
+           (dependency-export-ref who explicit exports external)
+           'resolved-by-explicit-dependency)]
+    [hint
+     (match-define (list dependency provider-export) hint)
+     (list dependency
+           (validate-provider-export! who dependency-exports dependency provider-export)
+           'resolved-by-reflection-hint)]
     [else
      (define candidates
        (for/list ([entry (in-list dependency-exports)]
@@ -287,33 +357,38 @@
          dependency))
      (cond
        [(null? candidates)
-        (raise-arguments-error who
-                               "could not resolve import dependency"
+       (raise-arguments-error who
+                               "missing-after-reflection"
                                "import" local
                                "export" external)]
        [(null? (cdr candidates))
         (define dependency (car candidates))
         (define exports (dependency-exports-ref who dependency-exports dependency))
         (list dependency
-              (dependency-export-ref who dependency exports external))]
+              (dependency-export-ref who dependency exports external)
+              'resolved-by-export-scan)]
        [else
         (raise-arguments-error who
-                               "ambiguous import dependency"
+                               "ambiguous-after-reflection"
                                "import" local
                                "export" external
                                "candidates" candidates)])]))
 
-;; webify-resolve-module-linklet-imports : linklet dependency-exports [#:dependencies dependencies] -> imports
-;;   Derive flat registry import triples from linklet imports and dependency exports.
-(define (webify-resolve-module-linklet-imports linklet
-                                               dependency-exports
-                                               #:dependencies [dependencies '()]
-                                               #:import-aliases [import-aliases '()])
+;; webify-resolve-module-linklet-imports/outcomes : linklet dependency-exports keyword-args ... -> values
+;;   Derive flat registry import triples and classify each resolution decision.
+(define (webify-resolve-module-linklet-imports/outcomes linklet
+                                                        dependency-exports
+                                                        #:module-name [module-name #f]
+                                                        #:dependencies [dependencies '()]
+                                                        #:import-aliases [import-aliases '()]
+                                                        #:reflection-hints [reflection-hints '()])
   (define who 'webify-resolve-module-linklet-imports)
   (define bindings (linklet-import-bindings who linklet))
   (validate-dependency-exports! who dependency-exports)
   (validate-import-dependencies! who dependencies)
   (validate-import-aliases! who import-aliases)
+  (unless (or (not module-name) (symbol? module-name))
+    (raise-argument-error who "(or/c symbol? #f)" module-name))
   (define imports (map car bindings))
   (for ([dependency (in-list dependencies)])
     (match-define (list import _module) dependency)
@@ -337,13 +412,35 @@
     (for/hasheq ([alias (in-list import-aliases)])
       (match-define (list import module export) alias)
       (values import (list module export))))
-  (for/list ([binding (in-list bindings)])
-    (match-define (list local external) binding)
-    (match-define (list dependency provider-export)
-      (resolve-import-source who dependency-exports dependency-map alias-map local external))
-    (list local
-          dependency
-          provider-export)))
+  (define hint-map
+    (reflection-hints->map who module-name reflection-hints))
+  (define resolved
+    (for/list ([binding (in-list bindings)])
+      (match-define (list local external) binding)
+      (match-define (list dependency provider-export status)
+        (resolve-import-source who dependency-exports dependency-map alias-map hint-map local external))
+      (list (list local dependency provider-export)
+            (webify-module-resolution-outcome local dependency provider-export status))))
+  (values (map car resolved)
+          (map cadr resolved)))
+
+;; webify-resolve-module-linklet-imports : linklet dependency-exports [#:dependencies dependencies] -> imports
+;;   Derive flat registry import triples from linklet imports and dependency exports.
+(define (webify-resolve-module-linklet-imports linklet
+                                               dependency-exports
+                                               #:module-name [module-name #f]
+                                               #:dependencies [dependencies '()]
+                                               #:import-aliases [import-aliases '()]
+                                               #:reflection-hints [reflection-hints '()])
+  (define-values (imports outcomes)
+    (webify-resolve-module-linklet-imports/outcomes
+     linklet
+     dependency-exports
+     #:module-name module-name
+     #:dependencies dependencies
+     #:import-aliases import-aliases
+     #:reflection-hints reflection-hints))
+  imports)
 
 ;; webify-module-linklet-input/resolve-imports : symbol? linklet dependency-exports [#:dependencies dependencies] -> input
 ;;   Build one module-linklet input while deriving its flat import triples.
@@ -351,15 +448,18 @@
                                                      linklet
                                                      dependency-exports
                                                      #:dependencies [dependencies '()]
-                                                     #:import-aliases [import-aliases '()])
+                                                     #:import-aliases [import-aliases '()]
+                                                     #:reflection-hints [reflection-hints '()])
   (webify-module-linklet-input
    name
    linklet
    (webify-resolve-module-linklet-imports
     linklet
     dependency-exports
+    #:module-name name
     #:dependencies dependencies
-    #:import-aliases import-aliases)))
+    #:import-aliases import-aliases
+    #:reflection-hints reflection-hints)))
 
 ;; webify-register-module-linklet-input! : webify-module-registry? webify-module-linklet-input? -> void?
 ;;   Register one extracted module-linklet input in a module registry.

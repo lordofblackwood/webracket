@@ -49,6 +49,33 @@
      ".get-syntax-literal!: syntax literals are not supported by WebRacket module protocol yet"))
   (check-equal? (webify-module-failure-category syntax-literal)
                 'syntax-literal)
+  (define ambiguous-after-reflection
+    (webify-classify-runtime-output
+     1
+     "webify-resolve-module-linklet-imports: ambiguous-after-reflection"))
+  (check-equal? (webify-module-failure-category ambiguous-after-reflection)
+                'ambiguous-import)
+  (define known-procedure-metadata
+    (webify-classify-module-exn
+     'webify
+     (exn:fail "known-procedure-arity-mask: contract violation"
+               (current-continuation-marks))))
+  (check-equal? (webify-module-failure-category known-procedure-metadata)
+                'known-procedure-metadata)
+  (define continuation-mark
+    (webify-classify-module-exn
+     'webify
+     (exn:fail "webify: unsupported webify compatibility form remains after lowering: with-continuation-mark*"
+               (current-continuation-marks))))
+  (check-equal? (webify-module-failure-category continuation-mark)
+                'continuation-mark)
+  (define regexp-literal
+    (webify-classify-module-exn
+     'compile
+     (exn:fail "datum->construction-expr: got: #rx\"x\""
+               (current-continuation-marks))))
+  (check-equal? (webify-module-failure-category regexp-literal)
+                'regexp-literal)
   (check-false (webify-classify-runtime-output 0 "#t\n")))
 
 (module+ main
