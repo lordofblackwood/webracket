@@ -3592,10 +3592,11 @@ ahead-of-time module programs while still recording that browser-side syntax
 serialization, syntax binding-set construction, collection lookup, and
 syntax-error construction are not supported runtime services yet.
 
-## Installed Module Runtime Smokes
+## Goal 1 Runtime Smokes
 
 `webify/module-runtime-smoke.rkt` is the reusable Goal 1 runtime harness for
-small installed-module experiments. It performs the full ahead-of-time path:
+small module-runtime experiments. The installed-module path performs the full
+ahead-of-time extraction route:
 
 ```text
 source module datum
@@ -3612,8 +3613,21 @@ resolved module inputs for primitive-module imports and literal primitive-table
 key demands, then reports missing primitive-table entries before a runtime crash
 can hide the real cause.
 
+There are three related but different Goal 1 tools:
+
+- Installed-module smokes use Racket 9.2 extraction and should cover real
+  installed libraries such as `racket/list`, `racket/string`, and
+  `racket/function`.
+- Local manifest smokes use hand-authored `webify-module-linklet-input` graphs
+  and should cover bridge/runtime shapes such as re-exports, renamed imports,
+  multiple roots, and shared providers without waiting for source extraction.
+- Graph audits inspect provider resolution and metadata without executing the
+  generated WebRacket program.
+
 The current smoke matrix includes selected uses of `racket/bool`,
-`racket/fixnum`, `racket/list`, `racket/string`, `racket/function`, a local
-two-module graph, and a local multi-export module. This is still a smoke matrix,
-not a compatibility promise for those libraries, but it is the standard place to
-turn newly working Goal 1 library slices into regressions.
+`racket/fixnum`, `racket/list`, `racket/string`, `racket/function`, plus local
+manifest smokes for two-module composition, re-export/backing-provider
+resolution, renamed imports, and multi-root shared-provider composition. This
+is still a smoke matrix, not a compatibility promise for those libraries, but it
+is the standard place to turn newly working Goal 1 library slices into
+regressions.

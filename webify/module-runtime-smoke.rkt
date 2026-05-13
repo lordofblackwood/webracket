@@ -8,9 +8,17 @@
          installed-runtime-smoke-expected-output
          installed-runtime-smoke-allowed-failures
          installed-runtime-smoke-expected-failure
+         local-runtime-smoke
+         local-runtime-smoke?
+         local-runtime-smoke-name
+         local-runtime-smoke-inputs
+         local-runtime-smoke-roots
+         local-runtime-smoke-observations
+         local-runtime-smoke-expected-output
          racket92-bin
          installed-runtime-inputs-missing-primitive-demands
-         run-installed-runtime-smoke)
+         run-installed-runtime-smoke
+         run-local-runtime-smoke)
 
 (require racket/file
          racket/match
@@ -33,6 +41,14 @@
    expected-output
    allowed-failures
    expected-failure)
+  #:transparent)
+
+(struct local-runtime-smoke
+  (name
+   inputs
+   roots
+   observations
+   expected-output)
   #:transparent)
 
 ;; write-extractor-script! : path-string? path-string? any/c -> void?
@@ -160,6 +176,50 @@
    #:import-keys           #f)
   (void))
 
+;; run-composed-runtime-smoke : webify-module-linklet-manifest? observations regexp? -> void?
+;;   Compose a resolved manifest, run it with WebRacket, and check observed output.
+(define (run-composed-runtime-smoke manifest observations expected-output)
+  (define source-dir (make-temporary-file "webracket-module-runtime-src-~a" 'directory))
+  (define dest-dir   (make-temporary-file "webracket-module-runtime-dest-~a" 'directory))
+  (define program-path (build-path source-dir "module-runtime-run.rkt"))
+  (dynamic-wind
+    void
+    (lambda ()
+      (define inputs (webify-module-linklet-manifest-inputs manifest))
+      (check-primitive-demands! inputs)
+      (define registry (webify-module-linklet-manifest->registry manifest))
+      (define loader (make-webify-module-loader registry))
+      (instantiate-loader! loader (webify-module-linklet-manifest-roots manifest))
+      (write-datum-program!
+       program-path
+       (webify-module-loader-observe loader observations))
+      (define-values (status output)
+        (run-webracket (list "--no-stdlib"
+                             "-r"
+                             "--dest" (path->string dest-dir)
+                             (path->string program-path))
+                       source-dir))
+      (check-equal? status 0 output)
+      (check-regexp-match expected-output output))
+    (lambda ()
+      (for ([dir (in-list (list source-dir dest-dir))])
+        (with-handlers ([exn:fail:filesystem? void])
+          (delete-directory/files dir))))))
+
+;; run-local-runtime-smoke : local-runtime-smoke? -> void?
+;;   Run one hand-authored module-linklet manifest through the WebRacket runtime.
+(define (run-local-runtime-smoke smoke)
+  (unless (local-runtime-smoke? smoke)
+    (raise-argument-error 'run-local-runtime-smoke
+                          "local-runtime-smoke?"
+                          smoke))
+  (run-composed-runtime-smoke
+   (webify-module-linklet-manifest
+    (local-runtime-smoke-inputs smoke)
+    (local-runtime-smoke-roots smoke))
+   (local-runtime-smoke-observations smoke)
+   (local-runtime-smoke-expected-output smoke)))
+
 ;; run-installed-runtime-smoke : installed-runtime-smoke? -> void?
 ;;   Extract, compose, compile, and run one installed-module WebRacket smoke.
 (define (run-installed-runtime-smoke smoke)
@@ -168,10 +228,8 @@
                           "installed-runtime-smoke?"
                           smoke))
   (define source-dir (make-temporary-file "webracket-installed-runtime-src-~a" 'directory))
-  (define dest-dir   (make-temporary-file "webracket-installed-runtime-dest-~a" 'directory))
   (define manifest-path (build-path source-dir "installed-inputs.rktd"))
   (define extractor-path (build-path source-dir "extract-installed.rkt"))
-  (define program-path (build-path source-dir "installed-run.rkt"))
   (dynamic-wind
     void
     (lambda ()
@@ -187,40 +245,18 @@
       (cond
         [(zero? extract-status)
          (define manifest (read-webify-module-linklet-manifest manifest-path))
-         (define inputs (webify-module-linklet-manifest-inputs manifest))
-         (check-primitive-demands! inputs)
-         (define registry (webify-module-linklet-manifest->registry manifest))
-         (define loader (make-webify-module-loader registry))
          (with-handlers ([exn:fail?
                           (lambda (exn)
                             (check-installed-runtime-failure
                              smoke
                              (webify-classify-module-exn 'runtime exn)))])
-           (instantiate-loader!
-            loader
-            (webify-module-linklet-manifest-roots manifest))
-           (write-datum-program!
-            program-path
-            (webify-module-loader-observe
-             loader
-             (installed-runtime-smoke-observations smoke)))
-           (define-values (status output)
-             (run-webracket (list "--no-stdlib"
-                                  "-r"
-                                  "--dest" (path->string dest-dir)
-                                  (path->string program-path))
-                            source-dir))
-           (cond
-             [(zero? status)
-              (check-regexp-match (installed-runtime-smoke-expected-output smoke) output)]
-             [else
-              (check-installed-runtime-failure
-               smoke
-               (webify-classify-runtime-output status output))]))]
+           (run-composed-runtime-smoke
+            manifest
+            (installed-runtime-smoke-observations smoke)
+            (installed-runtime-smoke-expected-output smoke)))]
         [else
          (define failure (webify-classify-runtime-output extract-status extract-output))
          (check-installed-runtime-failure smoke failure)]))
     (lambda ()
-      (for ([dir (in-list (list source-dir dest-dir))])
-        (with-handlers ([exn:fail:filesystem? void])
-          (delete-directory/files dir))))))
+      (with-handlers ([exn:fail:filesystem? void])
+        (delete-directory/files source-dir)))))

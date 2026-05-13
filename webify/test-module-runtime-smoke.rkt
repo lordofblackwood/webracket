@@ -1,12 +1,88 @@
 #lang racket/base
 
-(require racket/file
-         racket/path
-         rackunit
+(require rackunit
          "module-input.rkt"
          "module-runtime-smoke.rkt"
-         "primitive-demands.rkt"
-         "test-module-support.rkt")
+         "primitive-demands.rkt")
+
+(define local-runtime-smokes
+  (list
+   (local-runtime-smoke
+    "hand-authored two-module graph runs through WebRacket runtime"
+    (list
+     (webify-module-linklet-input
+      'provider
+      '(linklet () (x)
+         (define-values (x) 20))
+      '())
+     (webify-module-linklet-input
+      'consumer
+      '(linklet (([ext-x x])) (y)
+         (define-values (y) (+ ext-x 22)))
+      '((ext-x provider x))))
+    '(consumer)
+    '((consumer y))
+    #rx"(?m:^42$)")
+   (local-runtime-smoke
+    "resolved re-export graph can use the backing provider cell"
+    (list
+     (webify-module-linklet-input
+      'provider
+      '(linklet () (internal-x)
+         (define-values (internal-x) 20))
+      '())
+     (webify-module-linklet-input
+      'reexport
+      '(linklet (([local-x internal-x])) (public-x)
+         (define-values (public-x) local-x))
+      '((local-x provider internal-x)))
+     (webify-module-linklet-input
+      'consumer
+      '(linklet (([public-x internal-x])) (answer)
+         (define-values (answer) (+ public-x 22)))
+      '((public-x provider internal-x))))
+    '(reexport consumer)
+    '((reexport public-x)
+      (consumer answer))
+    #rx"(?s:20.*42)")
+   (local-runtime-smoke
+    "renamed import graph reaches WebRacket runtime"
+    (list
+     (webify-module-linklet-input
+      'provider
+      '(linklet () (x)
+         (define-values (x) 41))
+      '())
+     (webify-module-linklet-input
+      'consumer
+      '(linklet (([renamed-x x])) (answer)
+         (define-values (answer) (+ renamed-x 1)))
+      '((renamed-x provider x))))
+    '(consumer)
+    '((consumer answer))
+    #rx"(?m:^42$)")
+   (local-runtime-smoke
+    "multi-root graph shares provider instances"
+    (list
+     (webify-module-linklet-input
+      'provider
+      '(linklet () (x)
+         (define-values (x) 20))
+      '())
+     (webify-module-linklet-input
+      'left-root
+      '(linklet (([x x])) (left)
+         (define-values (left) (+ x 1)))
+      '((x provider x)))
+     (webify-module-linklet-input
+      'right-root
+      '(linklet (([x x])) (right)
+         (define-values (right) (+ x 2)))
+      '((x provider x))))
+    '(left-root right-root)
+    '((left-root left)
+      (right-root right))
+    #rx"(?s:21.*22)")))
 
 (test-case "runtime smoke preflight reports missing primitive-table entries"
   (define input
@@ -36,44 +112,9 @@
    (installed-runtime-inputs-missing-primitive-demands (list input))
    '()))
 
-(test-case "hand-authored two-module graph runs through WebRacket runtime"
-  (define source-dir (make-temporary-file "webracket-runtime-smoke-src-~a" 'directory))
-  (define dest-dir   (make-temporary-file "webracket-runtime-smoke-dest-~a" 'directory))
-  (define source-path (build-path source-dir "two-module-runtime.rkt"))
-  (dynamic-wind
-    void
-    (lambda ()
-      (define registry
-        (webify-module-linklet-inputs->registry
-         (list
-          (webify-module-linklet-input
-           'provider
-           '(linklet () (x)
-              (define-values (x) 20))
-           '())
-          (webify-module-linklet-input
-           'consumer
-           '(linklet (([ext-x x])) (y)
-              (define-values (y) (+ ext-x 22)))
-           '((ext-x provider x))))))
-      (define-values (combined _fragments _instances _exports-infos)
-        (compose-module-registry/roots+observations
-         registry
-         '(consumer)
-         '((consumer y))))
-      (write-datum-program! source-path combined)
-      (define-values (status output)
-        (run-webracket (list "--no-stdlib"
-                             "-r"
-                             "--dest" (path->string dest-dir)
-                             (path->string source-path))
-                       source-dir))
-      (check-equal? status 0 output)
-      (check-regexp-match #rx"(?m:^42$)" output))
-    (lambda ()
-      (for ([dir (in-list (list source-dir dest-dir))])
-        (with-handlers ([exn:fail:filesystem? void])
-          (delete-directory/files dir))))))
+(for ([smoke (in-list local-runtime-smokes)])
+  (test-case (local-runtime-smoke-name smoke)
+    (run-local-runtime-smoke smoke)))
 
 (module+ main
   (void))
