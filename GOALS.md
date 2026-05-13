@@ -98,7 +98,11 @@ Current installed-extraction runtime smokes cover:
 - `racket/string`: `string-join` and `string-prefix?`.
 - `racket/vector`: `vector-member`, plus a combined `racket/vector` and
   `racket/list` provider-graph smoke.
+- `racket/set`: provider resolution gets past the `stream?` ambiguity; the
+  current smoke records the next lowering blocker, `check-not-unsafe-undefined`.
 - `racket/function`: `compose`, `identity`, `compose1`, `negate`, and `const`.
+- Dependency-first local source modules with quoted sibling requires, such as
+  `(require 'base-values)`, through a shared-provider transitive smoke.
 
 Current local-manifest runtime smokes cover hand-authored bridge shapes that do
 not depend on source extraction:
@@ -115,6 +119,11 @@ metadata, provider discovery, Webify composition, and WebRacket runtime
 execution all agree for a real source module. Local-manifest smokes are more
 surgical: they protect bridge/runtime invariants even when the source extractor
 cannot yet generate that exact graph shape.
+
+Source-module extraction compiles a supplied module-data list in one shared
+host namespace. Earlier declarations are installed before later modules are
+compiled, which lets quoted sibling requires resolve for dependency-first test
+graphs without requiring browser-side namespace support.
 
 ## Goal 2: Make `eval` Work In The Browser
 

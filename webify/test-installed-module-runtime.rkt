@@ -143,6 +143,40 @@
     '()
     #f)
    (installed-runtime-smoke
+    'racket/set
+    "installed racket/set records current lowering blocker"
+    '((module use-set racket/base
+        (require racket/set)
+        (provide y)
+        (define y (set-count (set 1 2 2)))))
+    '((use-set y))
+    #rx"never-matches-success"
+    '(unsupported-runtime)
+    #rx"check-not-unsafe-undefined")
+   (installed-runtime-smoke
+    'local-source-transitive
+    "installed source modules share a quoted local provider"
+    '((module base-values racket/base
+        (require racket/list)
+        (provide picked)
+        (define picked (first '(40 41 42))))
+      (module left-values racket/base
+        (require 'base-values)
+        (provide left)
+        (define left (+ picked 1)))
+      (module right-values racket/base
+        (require 'base-values)
+        (provide right)
+        (define right (+ picked 2)))
+      (module use-transitive racket/base
+        (require 'left-values 'right-values)
+        (provide y)
+        (define y (+ left right))))
+    '((use-transitive y))
+    #rx"(?m:^83$)"
+    '()
+    #f)
+   (installed-runtime-smoke
     'racket/function
     "installed racket/function compose reaches WebRacket runtime smoke"
     '((module use-function-compose racket/base

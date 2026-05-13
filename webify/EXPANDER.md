@@ -3643,3 +3643,15 @@ summary of a manifest's roots, input names, module-only dependency plan,
 imports, primitive demands, and missing primitive demands. It deliberately
 keeps primitive imports in the demand report instead of asking the module
 registry to plan `#%kernel` as if it were a normal module slice.
+
+Source-module extraction now compiles multi-module source data in a shared host
+namespace. The input order is meaningful: provider module declarations must
+appear before source modules that use quoted sibling requires such as
+`(require 'base-values)`. This is still ahead-of-time host work for Goal 1, not
+browser-side namespace/eval support.
+
+The `racket/set` smoke is currently an expected failure, but it no longer fails
+at the old `stream?` provider ambiguity. The resolver has a narrow tie-breaker
+that prefers `racket/private/stream-cons` over `racket/private/for` for
+`stream?`; the current frontier is the lowering/runtime blocker
+`check-not-unsafe-undefined`.

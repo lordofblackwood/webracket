@@ -1388,14 +1388,27 @@
                       (cadr candidate)
                       external))
                    candidates))
+         (define (prefer-stream-cons candidates)
+           (cond
+             [(symbolic-name=? external 'stream?)
+              (define stream-cons-candidates
+                (filter (lambda (candidate)
+                          (eq? (cadr candidate) 'racket/private/stream-cons))
+                        candidates))
+              (if (null? stream-cons-candidates) candidates stream-cons-candidates)]
+             [else candidates]))
          (define ranked-candidates
-           (if (null? preferred-candidates) candidates preferred-candidates))
+           (prefer-stream-cons
+            (if (null? preferred-candidates) candidates preferred-candidates)))
          (define (candidate-reason candidate)
            (list local
                  (cadr candidate)
                  (if (memq candidate preferred-candidates)
                      'provider-local-export
-                     'metadata-export-candidate)))
+                     'metadata-export-candidate)
+                 (if (assoc (cadr candidate) preferred-dependency-exports)
+                     'reachable-provider
+                     'discovered-candidate)))
          (cond
            [(null? ranked-candidates) #f]
            [(null? (cdr ranked-candidates))
@@ -1403,6 +1416,7 @@
            [else
             (raise-arguments-error who
                                    "ambiguous inferred import dependency"
+                                   "importer" module-name
                                    "import" local
                                    "candidates"
                                    (for/list ([candidate (in-list ranked-candidates)])
@@ -1667,6 +1681,22 @@
         (compile (datum->syntax #f module-datum)))))
   (compiled-module->extractor-spike who name compiled))
 
+;; webify-compile-module-extractor-spikes/shared-namespace : (listof module-datum) -> reports
+;;   Compile source modules in order while installing earlier declarations for quoted requires.
+(define (webify-compile-module-extractor-spikes/shared-namespace module-data)
+  (define who 'webify-compile-module-extractor-spikes/shared-namespace)
+  (unless (list? module-data)
+    (raise-argument-error who "(listof source-module-datum?)" module-data))
+  (define namespace (make-base-namespace))
+  (parameterize ([current-namespace namespace])
+    (for/list ([module-datum (in-list module-data)])
+      (define name (validate-source-module! who module-datum))
+      (eval module-datum)
+      (define compiled
+        (parameterize ([current-compile-target-machine #f])
+          (compile (datum->syntax #f module-datum))))
+      (compiled-module->extractor-spike who name compiled))))
+
 ;; webify-module-path->extractor-spike : module-path? -> webify-module-extractor-spike?
 ;;   Compile an installed module path as machine-independent code and report its linklets.
 (define (webify-module-path->extractor-spike module-path)
@@ -1750,8 +1780,7 @@
   (unless (list? module-data)
     (raise-argument-error who "(listof source-module-datum?)" module-data))
   (webify-module-extractor-spikes-dependency-exports
-   (for/list ([module-datum (in-list module-data)])
-     (webify-compile-module-extractor-spike module-datum))))
+   (webify-compile-module-extractor-spikes/shared-namespace module-data)))
 
 ;; validate-extractor-reports! : symbol? any/c -> void?
 ;;   Reject values that cannot be used as an extracted module graph.
@@ -1915,8 +1944,7 @@
   (unless (list? module-data)
     (raise-argument-error who "(listof source-module-datum?)" module-data))
   (webify-module-extractor-spikes->resolved-linklet-inputs
-   (for/list ([module-datum (in-list module-data)])
-     (webify-compile-module-extractor-spike module-datum))
+   (webify-compile-module-extractor-spikes/shared-namespace module-data)
    #:dependencies dependencies
    #:reflection-hints reflection-hints
    #:module-protocol-dependency module-protocol-dependency))
@@ -1934,8 +1962,7 @@
   (unless (list? module-data)
     (raise-argument-error who "(listof source-module-datum?)" module-data))
   (webify-module-extractor-spikes->discovered-resolved-linklet-inputs
-   (for/list ([module-datum (in-list module-data)])
-     (webify-compile-module-extractor-spike module-datum))
+   (webify-compile-module-extractor-spikes/shared-namespace module-data)
    #:extra-reports extra-reports
    #:fetch-provider fetch-provider
    #:dependencies dependencies

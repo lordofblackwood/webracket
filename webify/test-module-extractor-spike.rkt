@@ -787,7 +787,10 @@
                      (first racket/list first)
                      (sqr racket/math sqr)))
      (check-exn
-      #rx"ambiguous inferred import dependency"
+      (lambda (exn)
+        (and (regexp-match? #rx"ambiguous inferred import dependency" (exn-message exn))
+             (regexp-match? #rx"importer: 'a" (exn-message exn))
+             (regexp-match? #rx"reachable-provider" (exn-message exn))))
       (lambda ()
         (webify-source-module->resolved-linklet-input
          module-datum
