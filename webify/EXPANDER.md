@@ -3291,3 +3291,26 @@ module that imports `first` from `racket/list` can be resolved with a reflection
 hint even when another dependency export table also contains `first`. The hint
 selects `racket/list`, and the resolver still validates that `racket/list`
 exports `first`.
+
+Re-provide metadata now has a similarly explicit path. If a normalized export
+binding includes provider-path metadata such as:
+
+```text
+(provider provider-module backing-export)
+```
+
+then reflection-hint construction resolves an import of the public re-export to
+`provider-module/backing-export`, not to the re-exporting module. This matches
+the expander probe where a pure re-provide is visible through namespace lookup
+but has no local cell in the re-exporting module instance.
+
+The current real-module rename-in smoke uses:
+
+```racket
+(require (rename-in racket/list [first head]))
+```
+
+On the default Racket 8.12 host, that module is classified as blocked by missing
+`decompile-linklet` support before provider metadata can be resolved. On a newer
+linklet-capable checkout, the same test path is ready to resolve the renamed
+import with a reflection hint.

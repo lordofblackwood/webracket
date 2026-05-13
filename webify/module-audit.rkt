@@ -41,6 +41,7 @@
          webify-module-audit-resolution-outcome-provider-export
          webify-module-audit-resolution-outcome-status
          webify-normalize-module-export-metadata
+         webify-reflection-rows->import-hints
          webify-module-reports->graph-audit)
 
 (require racket/list
@@ -155,9 +156,39 @@
   (or (eq? (webify-module-export-binding-external binding) external)
       (eq? (webify-module-export-binding-internal binding) external)))
 
+;; provider-path->backing : any/c -> (or/c (list/c symbol? symbol?) #f)
+;;   Decode explicit backing-provider metadata when a re-provide path carries it.
+(define (provider-path->backing provider-path)
+  (for/or ([item (in-list provider-path)])
+    (match item
+      [(list 'provider (? symbol? dependency) (? symbol? export))
+       (list dependency export)]
+      [(list 'provider-export (? symbol? dependency) (? symbol? export))
+       (list dependency export)]
+      [(list (? symbol? dependency) (? symbol? export))
+       (list dependency export)]
+      [_ #f])))
+
+;; export-binding-provider+internal : row binding -> (list/c symbol? symbol?)
+;;   Resolve an export binding to the module/export pair that actually supplies it.
+(define (export-binding-provider+internal row binding)
+  (or (provider-path->backing
+       (webify-module-export-binding-provider-path binding))
+      (list (webify-module-reflection-row-name row)
+            (webify-module-export-binding-internal binding))))
+
 ;; compute-reflection-import-hints : rows -> (listof (list/c importer local provider internal))
 ;;   Infer unambiguous provider hints from reflection rows before broad scanning.
-(define (compute-reflection-import-hints rows)
+(define (webify-reflection-rows->import-hints rows)
+  (unless (list? rows)
+    (raise-argument-error 'webify-reflection-rows->import-hints
+                          "(listof webify-module-reflection-row?)"
+                          rows))
+  (for ([row (in-list rows)])
+    (unless (webify-module-reflection-row? row)
+      (raise-argument-error 'webify-reflection-rows->import-hints
+                            "webify-module-reflection-row?"
+                            row)))
   (append*
    (for/list ([row (in-list rows)])
      (define importer (webify-module-reflection-row-name row))
@@ -178,8 +209,8 @@
                                        #:when (export-binding-matches?
                                                export-binding
                                                external))
-                             (list (webify-module-reflection-row-name provider-row)
-                                   (webify-module-export-binding-internal export-binding))))])
+                             (export-binding-provider+internal provider-row
+                                                               export-binding)))])
           (and (= (length candidates) 1)
                (match-let ([(list provider internal) (car candidates)])
                  (list importer local provider internal)))))))))
@@ -299,7 +330,7 @@
     (for/list ([report (in-list reports)])
       (report-reflection-row report)))
   (define reflection-import-hints
-    (filter values (compute-reflection-import-hints reflection-rows)))
+    (filter values (webify-reflection-rows->import-hints reflection-rows)))
   (define-values (resolved-inputs resolution-failures)
     (with-handlers ([exn:fail? (lambda (exn)
                                  (values '()

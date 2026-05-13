@@ -690,6 +690,31 @@
          #:reflection-hints '((a first racket/list first))
          #:module-protocol-dependency 'module-protocol)))]))
 
+(test-case "source module rename-in path is classified or resolved by hint"
+  (define module-datum
+    '(module a racket/base
+       (require (rename-in racket/list [first head]))
+       (provide y)
+       (define y (head (list 10)))))
+  (define report (webify-compile-module-extractor-spike module-datum))
+  (cond
+    [(webify-module-extractor-spike-manifest-ready? report)
+     (define input
+       (webify-source-module->resolved-linklet-input
+        module-datum
+        #:dependency-exports '((racket/list (first))
+                               (other/list (first)))
+        #:reflection-hints '((a first racket/list first))
+        #:module-protocol-dependency 'module-protocol))
+     (check-equal? (drop (webify-module-linklet-input-imports input) 2)
+                   '((first racket/list first)))]
+    [else
+     (check-not-false
+      (or (member "source module did not produce a decompilable phase-0 linklet datum"
+                  (webify-module-extractor-spike-notes report))
+          (member "host Racket does not provide decompile-linklet"
+                  (webify-module-extractor-spike-notes report))))]))
+
 (test-case "source module resolver handles multiple simple required modules"
   (define module-datum
     '(module a racket/base
@@ -1322,6 +1347,85 @@
                 '(((provider-mpi 0 internal-x 0)) ()))
   (check-equal? (map webify-module-export-binding-internal bindings)
                 '(internal-x.1 local-y.1)))
+
+(test-case "reflection hints follow re-provide provider paths"
+  (define provider-row
+    (webify-module-reflection-row
+     'provider
+     '()
+     '(internal-x)
+     (webify-normalize-module-export-metadata '(internal-x))
+     '()
+     '()))
+  (define reexport-row
+    (webify-module-reflection-row
+     'reexport
+     '((internal-x))
+     '((0 ((public-x (provider provider internal-x) internal-x.1))))
+     (webify-normalize-module-export-metadata
+      '((0 ((public-x (provider provider internal-x) internal-x.1)))))
+     '()
+     '()))
+  (define consumer-row
+    (webify-module-reflection-row
+     'consumer
+     '((public-x))
+     '(answer)
+     (webify-normalize-module-export-metadata '(answer))
+     '()
+     '(((public-x public-x)))))
+  (check-equal?
+   (webify-reflection-rows->import-hints
+    (list provider-row reexport-row consumer-row))
+   '((consumer public-x provider internal-x))))
+
+(test-case "resolved extractor inputs use re-provide backing provider hints"
+  (define provider-report
+    (webify-module-extractor-spike
+     'provider
+     '(#f)
+     '(0)
+     '()
+     '()
+     '(internal-x)
+     '(linklet () (internal-x)
+        (define-values (internal-x) '7))
+     #t
+     '()))
+  (define reexport-report
+    (webify-module-extractor-spike
+     'reexport
+     '(#f)
+     '(0)
+     '()
+     '((internal-x))
+     '(public-x)
+     '(linklet (((internal-x internal-x))) (public-x)
+        (define-values (public-x) internal-x))
+     #t
+     '()))
+  (define consumer-report
+    (webify-module-extractor-spike
+     'consumer
+     '(#f)
+     '(0)
+     '()
+     '((public-x))
+     '(answer)
+     '(linklet (((public-x public-x))) (answer)
+        (define-values (answer) public-x))
+     #t
+     '()))
+  (define inputs
+    (webify-module-extractor-spikes->resolved-linklet-inputs
+     (list provider-report reexport-report consumer-report)
+     #:reflection-hints '((consumer public-x provider internal-x))))
+  (define consumer-input
+    (for/first ([input (in-list inputs)]
+                #:when (eq? (webify-module-linklet-input-name input) 'consumer))
+      input))
+  (check-equal? (webify-module-linklet-input-imports consumer-input)
+                '((public-x provider internal-x))))
 
 (test-case "module graph audit records provider candidate fetch status"
   (define phase0-linklet
