@@ -7,8 +7,16 @@
          webify-module-graph-audit-dependency-exports
          webify-module-graph-audit-unresolved-import-groups
          webify-module-graph-audit-provider-candidates
+         webify-module-graph-audit-reflection-rows
          webify-module-graph-audit-resolved-inputs
          webify-module-graph-audit-failures
+         webify-module-reflection-row
+         webify-module-reflection-row?
+         webify-module-reflection-row-name
+         webify-module-reflection-row-imports
+         webify-module-reflection-row-exports
+         webify-module-reflection-row-required-provider-names
+         webify-module-reflection-row-unresolved-import-groups
          webify-module-provider-candidate
          webify-module-provider-candidate?
          webify-module-provider-candidate-requester
@@ -29,8 +37,13 @@
    dependency-exports
    unresolved-import-groups
    provider-candidates
+   reflection-rows
    resolved-inputs
    failures)
+  #:transparent)
+
+(struct webify-module-reflection-row
+  (name imports exports required-provider-names unresolved-import-groups)
   #:transparent)
 
 (struct webify-module-provider-candidate
@@ -43,6 +56,17 @@
   (define import-map (webify-module-extractor-spike-import-map report))
   (list (webify-module-extractor-spike-name report)
         (webify-module-import-map-unresolved-import-groups import-map)))
+
+;; report-reflection-row : report -> webify-module-reflection-row?
+;;   Normalize one extracted report into graph metadata for diagnostics.
+(define (report-reflection-row report)
+  (define import-map (webify-module-extractor-spike-import-map report))
+  (webify-module-reflection-row
+   (webify-module-extractor-spike-name report)
+   (webify-module-extractor-spike-phase0-imports report)
+   (webify-module-extractor-spike-phase0-exports report)
+   (webify-module-extractor-spike-required-provider-names report)
+   (webify-module-import-map-unresolved-import-groups import-map)))
 
 ;; report-failure-row : symbol? exn? -> (list/c symbol? webify-module-failure?)
 ;;   Classify one audit failure without aborting the whole audit.
@@ -114,6 +138,9 @@
     (append*
      (for/list ([report (in-list reports)])
        (report-provider-candidates report fetch-provider))))
+  (define reflection-rows
+    (for/list ([report (in-list reports)])
+      (report-reflection-row report)))
   (define-values (resolved-inputs resolution-failures)
     (with-handlers ([exn:fail? (lambda (exn)
                                  (values '()
@@ -132,5 +159,6 @@
    dependency-exports
    unresolved-import-groups
    provider-candidates
+   reflection-rows
    resolved-inputs
    (append dependency-failures resolution-failures)))

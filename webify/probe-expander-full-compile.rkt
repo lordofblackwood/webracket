@@ -1609,6 +1609,139 @@
                   (webify-probe-instance-value-by-key
                    module-inst
                    b-key))))))
+      (define (webify-probe-expand-self-evaluating/tiny-three-module-chain/catch)
+        (js-log "probe:tiny-three-module-chain/catch:before-eval-module-a")
+        (webify-probe-require/catch
+         "tiny-three-module-chain/catch"
+         (lambda ()
+           (webify-probe-eval-checkpoint/compile
+            (webify-probe-expander-introduced-syntax
+             '(module webify-chain-a '#%kernel
+                (#%provide webify-a-value)
+                (define-values (webify-a-value) '17))))
+           (js-log "probe:tiny-three-module-chain/catch:before-eval-module-b")
+           (webify-probe-eval-checkpoint/compile
+            (webify-probe-expander-introduced-syntax
+             '(module webify-chain-b '#%kernel
+                (#%require (quote webify-chain-a))
+                (#%provide webify-b-value)
+                (define-values (webify-b-value) webify-a-value))))
+           (js-log "probe:tiny-three-module-chain/catch:before-eval-module-c")
+           (webify-probe-eval-checkpoint/compile
+            (webify-probe-expander-introduced-syntax
+             '(module webify-chain-c '#%kernel
+                (#%require (quote webify-chain-b))
+                (#%provide webify-c-value)
+                (define-values (webify-c-value) webify-b-value))))
+           (js-log "probe:tiny-three-module-chain/catch:before-require")
+           (webify-expander:namespace-require
+            '(quote webify-chain-c)
+            (webify-expander:current-namespace)))
+         (lambda ()
+           (define module-ns
+             (webify-probe-module-namespace
+              '(quote webify-chain-c)))
+           (define module-inst
+             (webify-probe-module-instance module-ns))
+           (define c-key
+             (webify-probe-namespace-binding-key
+              (webify-expander:current-namespace)
+              'webify-c-value))
+           (list
+            (list 'a-declared?
+                  (webify-expander:module-declared?
+                   '(quote webify-chain-a)))
+            (list 'b-declared?
+                  (webify-expander:module-declared?
+                   '(quote webify-chain-b)))
+            (list 'c-declared?
+                  (webify-expander:module-declared?
+                   '(quote webify-chain-c)))
+            (list 'b-imports
+                  (webify-probe-module-imports/digest
+                   '(quote webify-chain-b)))
+            (list 'c-imports
+                  (webify-probe-module-imports/digest
+                   '(quote webify-chain-c)))
+            (list 'c-exports
+                  (webify-probe-module-exports/digest
+                   '(quote webify-chain-c)))
+            (list 'c-value
+                  (webify-expander:namespace-variable-value
+                   'webify-c-value
+                   #t
+                   (lambda () 'missing)
+                   (webify-expander:current-namespace)))
+            (list 'a-value-in-requirer
+                  (webify-expander:namespace-variable-value
+                   'webify-a-value
+                   #t
+                   (lambda () 'missing)
+                   (webify-expander:current-namespace)))
+            (list 'c-instance-value
+                  (webify-probe-instance-value-by-key
+                   module-inst
+                   c-key))))))
+      (define (webify-probe-expand-self-evaluating/tiny-rename-reprovide/catch)
+        (js-log "probe:tiny-rename-reprovide/catch:before-eval-module-a")
+        (webify-probe-require/catch
+         "tiny-rename-reprovide/catch"
+         (lambda ()
+           (webify-probe-eval-checkpoint/compile
+            (webify-probe-expander-introduced-syntax
+             '(module webify-rename-provider '#%kernel
+                (#%provide webify-internal-value)
+                (define-values (webify-internal-value) '23))))
+           (js-log "probe:tiny-rename-reprovide/catch:before-eval-module-b")
+           (webify-probe-eval-checkpoint/compile
+            (webify-probe-expander-introduced-syntax
+             '(module webify-rename-consumer '#%kernel
+                (#%require (quote webify-rename-provider))
+                (#%provide (rename webify-internal-value webify-public-value)))))
+           (js-log "probe:tiny-rename-reprovide/catch:before-require")
+           (webify-expander:namespace-require
+            '(quote webify-rename-consumer)
+            (webify-expander:current-namespace)))
+         (lambda ()
+           (define module-ns
+             (webify-probe-module-namespace
+              '(quote webify-rename-consumer)))
+           (define module-inst
+             (webify-probe-module-instance module-ns))
+           (define public-key
+             (webify-probe-namespace-binding-key
+              (webify-expander:current-namespace)
+              'webify-public-value))
+           (list
+            (list 'consumer-exports
+                  (webify-probe-module-exports/digest
+                   '(quote webify-rename-consumer)))
+            (list 'public-binding
+                  (let ([id (webify-expander:namespace-syntax-introduce
+                             (webify-expander:datum->syntax #f 'webify-public-value)
+                             (webify-expander:current-namespace))])
+                    (webify-probe-binding-summary id)))
+            (list 'internal-binding-in-requirer
+                  (let ([id (webify-expander:namespace-syntax-introduce
+                             (webify-expander:datum->syntax #f 'webify-internal-value)
+                             (webify-expander:current-namespace))])
+                    (webify-probe-binding-summary id)))
+            (list 'public-value
+                  (webify-expander:namespace-variable-value
+                   'webify-public-value
+                   #t
+                   (lambda () 'missing)
+                   (webify-expander:current-namespace)))
+            (list 'internal-value-in-requirer
+                  (webify-expander:namespace-variable-value
+                   'webify-internal-value
+                   #t
+                   (lambda () 'missing)
+                   (webify-expander:current-namespace)))
+            (list 'public-instance-value
+                  (webify-probe-instance-value-by-key
+                   module-inst
+                   public-key))))))
       (define (webify-probe-expand-self-evaluating/tiny-module-dynamic-value/catch)
         (js-log "probe:tiny-module-dynamic-value/catch:before-eval-module")
         (webify-probe-require/catch

@@ -1052,6 +1052,15 @@
                   (use-string (((string-join.1 string-join.1))))))
   (check-equal? (webify-module-graph-audit-provider-candidates audit)
                 '())
+  (check-equal?
+   (map (lambda (row)
+          (list (webify-module-reflection-row-name row)
+                (webify-module-reflection-row-imports row)
+                (webify-module-reflection-row-exports row)
+                (webify-module-reflection-row-unresolved-import-groups row)))
+        (webify-module-graph-audit-reflection-rows audit))
+   '((racket/string () (string-join.1) ())
+     (use-string ((string-join.1)) (y) (((string-join.1 string-join.1))))))
   (check-equal? (map webify-module-linklet-input-name
                      (webify-module-graph-audit-resolved-inputs audit))
                 '(racket/string use-string))
@@ -1063,6 +1072,114 @@
                 '((string-join.1 racket/string string-join.1)))
   (check-equal? (webify-module-graph-audit-failures audit)
                 '()))
+
+(test-case "module graph audit summarizes transitive hand-authored providers"
+  (define a-report
+    (webify-module-extractor-spike
+     'a
+     '(#f)
+     '(0)
+     '()
+     '()
+     '(x)
+     '(linklet () (x)
+        (define-values (x) '1))
+     #t
+     '()))
+  (define b-report
+    (webify-module-extractor-spike
+     'b
+     '(#f)
+     '(0)
+     '()
+     '((x))
+     '(y)
+     '(linklet (((x x))) (y)
+        (define-values (y) x))
+     #t
+     '()))
+  (define c-report
+    (webify-module-extractor-spike
+     'c
+     '(#f)
+     '(0)
+     '()
+     '((y))
+     '(z)
+     '(linklet (((y y))) (z)
+        (define-values (z) y))
+     #t
+     '()))
+  (define audit
+    (webify-module-reports->graph-audit
+     (list a-report b-report c-report)))
+  (check-equal?
+   (map webify-module-linklet-input-name
+        (webify-module-graph-audit-resolved-inputs audit))
+   '(a b c))
+  (check-equal?
+   (map webify-module-linklet-input-imports
+        (webify-module-graph-audit-resolved-inputs audit))
+   '(() ((x a x)) ((y b y))))
+  (check-equal?
+   (map (lambda (row)
+          (list (webify-module-reflection-row-name row)
+                (webify-module-reflection-row-imports row)
+                (webify-module-reflection-row-exports row)))
+        (webify-module-graph-audit-reflection-rows audit))
+   '((a () (x))
+     (b ((x)) (y))
+     (c ((y)) (z)))))
+
+(test-case "module graph audit preserves renamed provider exports"
+  (define provider-report
+    (webify-module-extractor-spike
+     'provider
+     '(#f)
+     '(0)
+     '()
+     '()
+     '(internal-x)
+     '(linklet () (internal-x)
+        (define-values (internal-x) '7))
+     #t
+     '()))
+  (define reexport-report
+    (webify-module-extractor-spike
+     'reexport
+     '(#f)
+     '(0)
+     '()
+     '((internal-x))
+     '(public-x)
+     '(linklet (((internal-x internal-x))) (public-x)
+        (define-values (public-x) internal-x))
+     #t
+     '()))
+  (define consumer-report
+    (webify-module-extractor-spike
+     'consumer
+     '(#f)
+     '(0)
+     '()
+     '((public-x))
+     '(answer)
+     '(linklet (((public-x public-x))) (answer)
+        (define-values (answer) public-x))
+     #t
+     '()))
+  (define audit
+    (webify-module-reports->graph-audit
+     (list provider-report reexport-report consumer-report)))
+  (check-equal?
+   (map webify-module-linklet-input-imports
+        (webify-module-graph-audit-resolved-inputs audit))
+   '(() ((internal-x provider internal-x)) ((public-x reexport public-x))))
+  (check-equal?
+   (webify-module-graph-audit-dependency-exports audit)
+   '((provider (internal-x))
+     (reexport (public-x))
+     (consumer (answer)))))
 
 (test-case "module graph audit records provider candidate fetch status"
   (define phase0-linklet

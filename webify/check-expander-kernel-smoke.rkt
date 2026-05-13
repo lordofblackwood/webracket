@@ -510,6 +510,44 @@
                            "(consumer-instance-value 41)"))])
   (require-output tiny-two-module-output fragment))
 
+(define-values (tiny-chain-status tiny-chain-output)
+  (run-probe wasm-path
+             "webify-probe-expand-self-evaluating/tiny-three-module-chain/catch"
+             "[]"))
+(unless (zero? tiny-chain-status)
+  (error 'check-expander-kernel-smoke
+         "tiny three-module chain probe failed with status ~a\noutput:\n~a"
+         tiny-chain-status
+         tiny-chain-output))
+(for ([fragment (in-list '("probe:tiny-three-module-chain/catch:after-require"
+                           "(a-declared? #t)"
+                           "(b-declared? #t)"
+                           "(c-declared? #t)"
+                           "(c-exports ((variables ((0 (webify-c-value () webify-c-value.1)))) (syntaxes ())))"
+                           "(c-value 17)"
+                           "(a-value-in-requirer missing)"
+                           "(c-instance-value 17)"))])
+  (require-output tiny-chain-output fragment))
+
+(define-values (tiny-rename-status tiny-rename-output)
+  (run-probe wasm-path
+             "webify-probe-expand-self-evaluating/tiny-rename-reprovide/catch"
+             "[]"))
+(unless (zero? tiny-rename-status)
+  (error 'check-expander-kernel-smoke
+         "tiny rename reprovide probe failed with status ~a\noutput:\n~a"
+         tiny-rename-status
+         tiny-rename-output))
+(for ([fragment (in-list '("probe:tiny-rename-reprovide/catch:after-require"
+                           "(consumer-exports ((variables ((0 (webify-public-value"
+                           "webify-internal-value.1"
+                           "(public-binding (module-binding (internal webify-internal-value.1) (external webify-public-value)"
+                           "(internal-binding-in-requirer (unbound))"
+                           "(public-value 23)"
+                           "(internal-value-in-requirer missing)"
+                           "(public-instance-value missing)"))])
+  (require-output tiny-rename-output fragment))
+
 (check-ok-probe
  "webify-probe-expand-self-evaluating/tiny-module-dynamic-value/catch"
  "[]"

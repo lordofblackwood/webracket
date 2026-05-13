@@ -3181,3 +3181,46 @@ This is the first clean composed-module success case in the expander bridge:
 both modules are declared, the consumer imports the provider, requiring only the
 consumer exposes only the consumer export, and the consumer module instance
 contains the computed value.
+
+The next bridge step carries the same idea into the reusable graph-audit path.
+`webify/module-audit.rkt` now records a `webify-module-reflection-row` for each
+extractor report:
+
+```text
+name
+phase-0 imports
+phase-0 exports
+required provider names
+unresolved import groups
+```
+
+That row is intentionally metadata-only. It does not instantiate modules or
+read values. Its purpose is to give the bridge a stable diagnostic surface for
+provider-graph decisions before composing linklet inputs.
+
+Two more tiny expander probes exercise the cases that the audit layer needs to
+model next:
+
+```text
+three-module chain:
+  webify-chain-a -> webify-chain-b -> webify-chain-c
+  c-value 17
+  a-value-in-requirer missing
+  c-instance-value 17
+
+rename re-provide:
+  provider internal export: webify-internal-value
+  consumer public export:  webify-public-value
+  module->exports maps public webify-public-value through the provider path to internal webify-internal-value.1
+  public-value 23
+  internal-value-in-requirer missing
+  public-instance-value missing
+```
+
+The important rename lesson is that the provider graph cannot resolve by printed
+public names alone. `module->exports` exposes the public name and the generated
+internal name together, and the internal name is the one that must be preserved
+when inspecting module instances. For a pure re-provide, the re-exporting module
+does not necessarily contain a local instance cell for the value; normal
+namespace lookup can succeed by following the imported binding while direct
+inspection of the re-exporting module instance reports `missing`.
