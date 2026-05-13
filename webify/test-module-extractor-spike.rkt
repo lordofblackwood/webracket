@@ -1534,6 +1534,35 @@
    '((reexport internal-x provider internal-x resolved-by-reflection-hint)
      (consumer public-x provider internal-x resolved-by-reflection-hint))))
 
+(test-case "module export metadata augments dependency exports"
+  (define metadata
+    '((provider ((0 (public-x ((kernel-provider)) public-x))))))
+  (check-equal? (webify-module-export-metadata->dependency-exports metadata)
+                '((provider (public-x)))))
+
+(test-case "graph audit resolves metadata-only re-exported dependency exports"
+  (define provider-report
+    (test-report 'provider '() '()))
+  (define consumer-report
+    (test-report 'consumer '(((public-x public-x))) '(answer)))
+  (define metadata
+    '((provider ((0 (public-x ((kernel-provider)) public-x))))))
+  (define audit
+    (webify-module-reports->graph-audit
+     (list provider-report consumer-report)
+     #:module-export-metadata metadata))
+  (check-equal? (webify-module-graph-audit-dependency-exports audit)
+                '((provider (public-x)) (consumer (answer))))
+  (check-equal?
+   (map (lambda (outcome)
+          (list (webify-module-audit-resolution-outcome-module outcome)
+                (webify-module-audit-resolution-outcome-local outcome)
+                (webify-module-audit-resolution-outcome-dependency outcome)
+                (webify-module-audit-resolution-outcome-provider-export outcome)
+                (webify-module-audit-resolution-outcome-status outcome)))
+        (webify-module-graph-audit-resolution-outcomes audit))
+   '((consumer public-x provider public-x resolved-by-reflection-hint))))
+
 (test-case "discovered graph audit collects provider export metadata"
   (define provider-report
     (test-report 'provider '() '(internal-x)))

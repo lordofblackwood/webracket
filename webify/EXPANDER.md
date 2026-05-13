@@ -3424,3 +3424,41 @@ string->number
 That means the `string-join` variants are no longer the immediate blocker for
 this path; the next work should follow the newly exposed transitive dependency
 frontier instead of adding ad hoc `string-join` hints.
+
+Follow-up: metadata exports and the string frontier
+---------------------------------------------------
+
+Tracing `string->number` shows that the failing importer is
+`racket/private/string`, and the needed binding is re-exported by
+`racket/private/pre-base` from `#%kernel`:
+
+```text
+(string->number (#<module-path-index:'#%kernel>) string->number)
+```
+
+The phase-0 linklet export table alone does not include that re-export, so
+provider discovery could find `racket/private/pre-base` but still classify
+`1/string->number` as missing. The audit now augments dependency export tables
+with public names from raw `module->exports` metadata before resolving imports.
+That is still host-side metadata use; it does not add source-level scraping.
+
+After this change, the newer-Racket smoke confirms that
+`racket/private/pre-base` contributes `string->number` to the resolver export
+table. The `racket/string` path moves again, and the current frontier is now an
+ambiguity on `1/reverse`:
+
+```text
+ambiguous-after-reflection
+  import: 1/reverse
+  export: reverse
+  candidates: racket/private/pico
+              racket/private/list
+              racket/private/pre-base
+              racket/private/base
+              racket/base
+```
+
+This is a sharper and more honest blocker. Public metadata makes base modules
+advertise broad re-exports such as `reverse`; the next resolver milestone should
+prefer local import provenance or required-module evidence over global public
+export scans when metadata has many re-exporting candidates.

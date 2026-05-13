@@ -21,11 +21,15 @@
   (build-path here "module-extractor-spike.rkt"))
 (define module-input-module
   (build-path here "module-input.rkt"))
+(define module-audit-module
+  (build-path here "module-audit.rkt"))
 
 (define module-extractor-spike
   (dynamic-require module-extractor-module #f))
 (define module-input
   (dynamic-require module-input-module #f))
+(define module-audit
+  (dynamic-require module-audit-module #f))
 
 (define webify-compile-module-extractor-spike
   (dynamic-require module-extractor-module
@@ -60,6 +64,15 @@
 (define webify-module-linklet-input-imports
   (dynamic-require module-input-module
                    'webify-module-linklet-input-imports))
+(define webify-module-reports->discovered-graph-audit
+  (dynamic-require module-audit-module
+                   'webify-module-reports->discovered-graph-audit))
+(define webify-module-graph-audit-dependency-exports
+  (dynamic-require module-audit-module
+                   'webify-module-graph-audit-dependency-exports))
+(define webify-module-graph-audit-failures
+  (dynamic-require module-audit-module
+                   'webify-module-graph-audit-failures))
 
 (define module-datum
   '(module a racket/base
@@ -121,17 +134,23 @@
       (require racket/string)
       (provide y)
       (define y (string-join (list "a" "b") ",")))))
-(define string-closure
-  (webify-module-extractor-spikes->required-provider-closure
-   (list string-report)))
-(define string-frontier
-  (with-handlers ([exn:fail? exn-message])
-    (webify-module-extractor-spikes->resolved-linklet-inputs
-     string-closure
-     #:module-protocol-dependency 'module-protocol)
-    'resolved))
-(check-true (string? string-frontier))
-(check-not-false (regexp-match? #rx"string->number" string-frontier))
+(define string-audit
+  (webify-module-reports->discovered-graph-audit
+   (list string-report)
+   #:module-protocol-dependency 'module-protocol))
+(define pre-base-exports
+  (assoc 'racket/private/pre-base
+         (webify-module-graph-audit-dependency-exports string-audit)))
+(check-not-false pre-base-exports)
+(check-not-false (member 'string->number (cadr pre-base-exports)))
+
+(define string-failures
+  (webify-module-graph-audit-failures string-audit))
+(check-equal? (length string-failures) 1)
+(define string-frontier (format "~s" string-failures))
+(check-not-false (regexp-match? #rx"ambiguous-after-reflection" string-frontier))
+(check-not-false (regexp-match? #rx"1/reverse" string-frontier))
+(check-false (regexp-match? #rx"string->number" string-frontier))
 (check-false (regexp-match? #rx"string-join" string-frontier))
 
 (displayln "newer-racket-rename-smoke: ok")

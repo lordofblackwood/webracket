@@ -1777,6 +1777,7 @@
 ;;   Resolve an importer report using compiled export rows from provider reports.
 (define (webify-module-extractor-spike->resolved-linklet-input/providers report
                                                                          provider-reports
+                                                                         #:dependency-exports [dependency-exports #f]
                                                                          #:dependencies [dependencies '()]
                                                                          #:reflection-hints [reflection-hints '()]
                                                                          #:module-protocol-dependency [module-protocol-dependency #f])
@@ -1797,7 +1798,8 @@
    (resolve-extracted-linklet-imports
     who
     raw-linklet
-    (webify-module-extractor-spikes-dependency-exports provider-reports)
+    (or dependency-exports
+        (webify-module-extractor-spikes-dependency-exports provider-reports))
     dependencies
     (webify-module-import-map-import-aliases import-map)
     (webify-module-import-map-require-rename-aliases import-map)
@@ -1809,6 +1811,7 @@
 ;; webify-module-extractor-spikes->resolved-linklet-inputs : reports ... -> (listof input?)
 ;;   Resolve a supplied extracted module graph into registry-ready linklet inputs.
 (define (webify-module-extractor-spikes->resolved-linklet-inputs reports
+                                                                  #:dependency-exports [dependency-exports #f]
                                                                   #:dependencies [dependencies '()]
                                                                   #:reflection-hints [reflection-hints '()]
                                                                   #:module-protocol-dependency [module-protocol-dependency #f])
@@ -1822,6 +1825,7 @@
     (webify-module-extractor-spike->resolved-linklet-input/providers
      report
      provider-reports
+     #:dependency-exports dependency-exports
      #:dependencies dependencies
      #:reflection-hints reflection-hints
      #:module-protocol-dependency module-protocol-dependency)))

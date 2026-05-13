@@ -42,6 +42,7 @@
          webify-module-audit-resolution-outcome-status
          webify-normalize-module-export-metadata
          webify-resolve-module-export-provider-paths
+         webify-module-export-metadata->dependency-exports
          webify-reflection-rows->import-hints
          webify-module-reports->graph-audit
          webify-module-reports->discovered-graph-audit)
@@ -233,6 +234,59 @@
        [_ fallback])]
     [else
      fallback]))
+
+;; module-export-metadata-row->dependency-export-row : any/c -> (or/c list? #f)
+;;   Convert one raw module->exports metadata row into resolver export metadata.
+(define (module-export-metadata-row->dependency-export-row row)
+  (match row
+    [(list (? symbol? name) exports)
+     (define bindings
+       (webify-normalize-module-export-metadata
+        (webify-resolve-module-export-provider-paths exports)))
+     (list name
+           (remove-duplicates
+            (for/list ([binding (in-list bindings)])
+              (webify-module-export-binding-external binding))))]
+    [_ #f]))
+
+;; webify-module-export-metadata->dependency-exports : any/c -> dependency-exports
+;;   Derive public dependency exports from raw module->exports metadata rows.
+(define (webify-module-export-metadata->dependency-exports module-export-metadata)
+  (define who 'webify-module-export-metadata->dependency-exports)
+  (unless (or (hash? module-export-metadata)
+              (list? module-export-metadata))
+    (raise-argument-error who "(or/c hash? list?)" module-export-metadata))
+  (define rows
+    (cond
+      [(hash? module-export-metadata)
+       (for/list ([(name exports) (in-hash module-export-metadata)])
+         (list name exports))]
+      [else module-export-metadata]))
+  (filter values
+          (for/list ([row (in-list rows)])
+            (module-export-metadata-row->dependency-export-row row))))
+
+;; augment-dependency-exports : dependency-exports dependency-exports -> dependency-exports
+;;   Merge phase-0 linklet exports with public exports reflected by module->exports.
+(define (augment-dependency-exports dependency-exports metadata-dependency-exports)
+  (define exports-by-name (make-hasheq))
+  (for ([entry (in-list dependency-exports)])
+    (match-define (list name exports) entry)
+    (hash-set! exports-by-name name exports))
+  (for ([entry (in-list metadata-dependency-exports)])
+    (match-define (list name exports) entry)
+    (define old (hash-ref exports-by-name name '()))
+    (hash-set! exports-by-name name (remove-duplicates (append old exports))))
+  ;; Include metadata-only modules last. This is mostly for diagnostics and
+  ;; conservative fetch failures; normal resolution still needs reports.
+  (append
+   (for/list ([entry (in-list dependency-exports)])
+     (match-define (list name _exports) entry)
+     (list name (hash-ref exports-by-name name)))
+   (for/list ([entry (in-list metadata-dependency-exports)]
+              #:do [(match-define (list name _exports) entry)]
+              #:unless (assoc name dependency-exports))
+     (list name (hash-ref exports-by-name name)))))
 
 ;; report-reflection-row : report any/c -> webify-module-reflection-row?
 ;;   Normalize one extracted report into graph metadata for diagnostics.
@@ -435,7 +489,13 @@
                                          (list (report-failure-row
                                                 'dependency-exports
                                                 exn))))])
-      (values (webify-module-extractor-spikes-dependency-exports reports)
+      (define report-dependency-exports
+        (webify-module-extractor-spikes-dependency-exports reports))
+      (define metadata-dependency-exports
+        (webify-module-export-metadata->dependency-exports module-export-metadata))
+      (values (augment-dependency-exports
+               report-dependency-exports
+               metadata-dependency-exports)
               '())))
   (define unresolved-import-groups
     (for/list ([report (in-list reports)])
@@ -458,6 +518,7 @@
       (values
        (webify-module-extractor-spikes->resolved-linklet-inputs
         reports
+        #:dependency-exports dependency-exports
         #:dependencies dependencies
         #:reflection-hints reflection-import-hints
         #:module-protocol-dependency module-protocol-dependency)
