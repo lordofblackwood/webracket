@@ -3656,3 +3656,12 @@ longer fails at the old `stream?` provider ambiguity or at the
 tie-breaker that prefers `racket/private/stream-cons` over `racket/private/for`
 for `stream?` where both are viable. The current frontier is a real guarded
 `unsafe-undefined` access that raises `exn:fail:contract:variable` at runtime.
+Tracing the composed program points to `racket/private/custom-write`'s
+`make-constructor-style-printer`, specifically an escape from the `loc_47`
+`letrec` RHS around `make-tentative-pretty-print-output-port`. A focused local
+manifest smoke now preserves that shape: escaping from a `letrec` RHS and later
+calling a closure that reads the skipped binding must trip the guard. That
+means this is not a simple dependency-order bug; making `racket/set` pass needs
+either avoiding that custom-write/pretty path for the exercised operation or
+supporting enough of the relevant continuation/pretty-print behavior without
+masking a real use-before-initialization check.

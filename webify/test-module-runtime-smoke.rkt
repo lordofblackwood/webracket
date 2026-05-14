@@ -122,7 +122,27 @@
     '((consumer answer))
     #rx"never-matches-success"
     '(provider-export-mismatch)
-    #rx"missing-export")))
+    #rx"missing-export")
+   (local-runtime-smoke
+    "escape out of letrec RHS preserves unsafe-undefined guard"
+    (list
+     (webify-module-linklet-input
+      'escape-letrec
+      '(linklet () (y)
+         (define-values (y)
+           ((call-with-escape-continuation
+             (lambda (escape)
+               (letrec-values ([(x)
+                                (escape
+                                 (lambda ()
+                                   (check-not-unsafe-undefined x 'x)))])
+                 x))))))
+      '()))
+    '(escape-letrec)
+    '((escape-letrec y))
+    #rx"never-matches-success"
+    '(runtime-exception)
+    #rx"exn:fail:contract:variable")))
 
 (test-case "multi-root local manifest plans shared provider once"
   (define inputs

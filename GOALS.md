@@ -101,7 +101,8 @@ Current installed-extraction runtime smokes cover:
   `racket/list` provider-graph smoke.
 - `racket/set`: provider resolution gets past the `stream?` ambiguity, and
   `check-not-unsafe-undefined` lowers to a real guard. Current smokes record the
-  next blocker: a runtime `exn:fail:contract:variable` for `unsafe-undefined`.
+  next blocker: a runtime `exn:fail:contract:variable` for `unsafe-undefined`
+  in `racket/private/custom-write`'s tentative pretty-print path.
 - `racket/function`: `compose`, `identity`, `compose1`, `negate`, and `const`.
 - Dependency-first local source modules with quoted sibling requires, such as
   `(require 'base-values)`, through a shared-provider transitive smoke.
@@ -115,6 +116,9 @@ not depend on source extraction:
 - Multi-root graphs that share one provider instance.
 - Negative classification for missing primitive-table entries.
 - Negative classification for missing provider exports during composition.
+- Negative classification for an escape from a `letrec` RHS that later reads
+  the skipped binding, matching the current `racket/set` unsafe-undefined
+  frontier in a tiny manifest.
 
 This split matters. Installed-extraction smokes are evidence that host Racket
 metadata, provider discovery, Webify composition, and WebRacket runtime
