@@ -20,6 +20,8 @@
 (define selected-category #f)
 (define selected-name #f)
 (define selected-module-case #f)
+(define preserve-dir #f)
+(define no-observe? #f)
 (define list-only? #f)
 (define worker? #f)
 
@@ -69,18 +71,37 @@
                               "expected module case data with a root module"
                               "case" name)]))
 
-;; module-case-smoke : symbol? -> installed-runtime-smoke?
+;; module-case-smoke : symbol? boolean? -> installed-runtime-smoke?
 ;;   Build an installed runtime smoke for one ad hoc source-module case.
-(define (module-case-smoke name)
+(define (module-case-smoke name observe?)
   (define root (module-case-root name))
-  (installed-runtime-smoke
-   name
-   (format "module case ~a reaches WebRacket runtime smoke" name)
-   (module-case-data name)
-   `((,root y))
-   #rx"(?m:^42$)"
-   '()
-   #f))
+  (define observations
+    (if observe?
+        `((,root y))
+        '()))
+  (define expected-simple-output
+    (if observe?
+        #rx"(?m:^42$)"
+        #rx""))
+  (case name
+    [(set-predicate set-count set-member set-types-predicate)
+     (installed-runtime-smoke
+      name
+      (format "module case ~a records current unsafe-undefined runtime blocker" name)
+      (module-case-data name)
+      observations
+      #rx"never-matches-success"
+      '(runtime-exception)
+      #rx"exn:fail:contract:variable")]
+    [else
+     (installed-runtime-smoke
+      name
+      (format "module case ~a reaches WebRacket runtime smoke" name)
+      (module-case-data name)
+      observations
+      expected-simple-output
+      '()
+      #f)]))
 
 ;; call-with-memory-limit : (or/c #f exact-positive-integer?) (-> any/c) -> any/c
 ;;   Optionally run thunk in a custodian-limited worker thread.
@@ -112,7 +133,7 @@
   (define smoke
     (cond
       [selected-module-case
-       (module-case-smoke selected-module-case)]
+       (module-case-smoke selected-module-case (not no-observe?))]
       [else
        (define matches (selected-smokes))
        (unless (= (length matches) 1)
@@ -126,7 +147,8 @@
   (call-with-memory-limit
    (and memory-mb (* memory-mb 1024 1024))
    (lambda ()
-     (run-installed-runtime-smoke smoke)))
+     (parameterize ([current-runtime-smoke-preserve-dir preserve-dir])
+       (run-installed-runtime-smoke smoke))))
   0)
 
 ;; run-child/bounded! : any/c installed-runtime-smoke? (listof string?) -> exact-integer?
@@ -146,6 +168,12 @@
      (list (path->string self-path)
            "--worker")
      selector-args
+     (if preserve-dir
+         (list "--preserve-dir" preserve-dir)
+         '())
+     (if no-observe?
+         (list "--no-observe")
+         '())
      (if memory-mb
          (list "--memory-mb" (number->string memory-mb))
          '())))
@@ -194,7 +222,7 @@
     [selected-module-case
      (run-child/bounded!
       (format "case:~a" selected-module-case)
-      (module-case-smoke selected-module-case)
+      (module-case-smoke selected-module-case (not no-observe?))
       (list "--module-case" (symbol->string selected-module-case)))]
     [else
      (define matches (selected-smokes))
@@ -220,6 +248,10 @@
                 (set! timeout-seconds (string->number seconds))]
  [("--memory-mb") mb "best-effort Racket worker memory limit in MiB"
                   (set! memory-mb (string->number mb))]
+ [("--preserve-dir") dir "copy generated runtime-smoke artifacts into dir"
+                     (set! preserve-dir dir)]
+ [("--no-observe") "for --module-case, instantiate without logging an export"
+                   (set! no-observe? #t)]
  [("--index") index "run only the smoke at index"
               (set! selected-index (string->number index))]
  [("--category") category "run only smokes whose category matches the symbol"

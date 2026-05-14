@@ -27,6 +27,7 @@
          runtime-smoke-graph-audit-primitive-demands
          runtime-smoke-graph-audit-missing-primitive-demands
          racket92-bin
+         current-runtime-smoke-preserve-dir
          installed-runtime-inputs-missing-primitive-demands
          webify-module-linklet-manifest->runtime-smoke-graph-audit
          run-installed-runtime-smoke
@@ -45,6 +46,7 @@
 
 (define-runtime-path repo-root "..")
 (define racket92-bin (build-path repo-root "../racket/racket/bin/racket"))
+(define current-runtime-smoke-preserve-dir (make-parameter #f))
 
 (struct installed-runtime-smoke
   (category
@@ -74,6 +76,29 @@
    primitive-demands
    missing-primitive-demands)
   #:transparent)
+
+;; preserve-runtime-directory! : symbol? path-string? -> void?
+;;   Copy a temporary runtime-smoke directory into the requested transcript area.
+(define (preserve-runtime-directory! label dir)
+  (define base (current-runtime-smoke-preserve-dir))
+  (when base
+    (make-directory* base)
+    (define label-text
+      (regexp-replace* #rx"[^A-Za-z0-9_.-]"
+                       (format "~a" label)
+                       "-"))
+    (let loop ([n 0])
+      (define dest
+        (build-path base
+                    (if (zero? n)
+                        label-text
+                        (format "~a-~a" label-text n))))
+      (cond
+        [(or (file-exists? dest) (directory-exists? dest))
+         (loop (add1 n))]
+        [else
+         (copy-directory/files dir dest)
+         (printf "runtime-smoke-preserved: ~a\n" dest)]))))
 
 ;; write-extractor-script! : path-string? path-string? any/c -> void?
 ;;   Write a Racket 9.2 script that extracts a tiny installed-provider graph.
@@ -323,6 +348,8 @@
                output))
       (check-regexp-match expected-output output))
     (lambda ()
+      (preserve-runtime-directory! 'composed-source source-dir)
+      (preserve-runtime-directory! 'composed-dest dest-dir)
       (for ([dir (in-list (list source-dir dest-dir))])
         (with-handlers ([exn:fail:filesystem? void])
           (delete-directory/files dir))))))
@@ -388,5 +415,6 @@
          (define failure (webify-classify-runtime-output extract-status extract-output))
          (check-installed-runtime-failure smoke failure)]))
     (lambda ()
+      (preserve-runtime-directory! 'installed-source source-dir)
       (with-handlers ([exn:fail:filesystem? void])
         (delete-directory/files source-dir)))))

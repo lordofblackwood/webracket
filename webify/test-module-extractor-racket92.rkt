@@ -152,10 +152,15 @@
 (test-case "Racket 9.2 racket/set operation dependency delta stays classified"
   (define require-inputs (extract-case-inputs 'set-require))
   (define predicate-inputs (extract-case-inputs 'set-predicate))
+  (define set-types-predicate-inputs (extract-case-inputs 'set-types-predicate))
+  (define set-types-require-inputs (extract-case-inputs 'set-types-require))
   (define require-names (input-names require-inputs))
   (define predicate-names (input-names predicate-inputs))
+  (define set-types-predicate-names (input-names set-types-predicate-inputs))
   (check-equal? require-names
                 '(module-protocol use-set-require-only))
+  (check-equal? (input-names set-types-require-inputs)
+                '(module-protocol use-set-types-require))
   (define added (set-diff predicate-names require-names))
   (for ([name (in-list '(racket/private/set
                          racket/private/set-types
@@ -166,7 +171,12 @@
     (check-not-false (memq name added)))
   (check-equal?
    (set-diff require-names predicate-names)
-   '(use-set-require-only)))
+   '(use-set-require-only))
+  (for ([name (in-list '(racket/private/set
+                         racket/private/set-types
+                         racket/pretty
+                         racket/private/custom-write))])
+    (check-not-false (memq name set-types-predicate-names))))
 
 (test-case "Racket 9.2 racket/private/for imports read for in-port"
   (define report (webify-module-path->report 'racket/private/for))

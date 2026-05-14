@@ -3685,11 +3685,30 @@ the current evidence says public `racket/set` operations do not provide a small
 non-printing path around the custom-write/pretty initialization frontier.
 
 The bounded runtime probe also supports ad hoc module cases from the dependency
-probe table. Direct require-only cases for `racket/private/set-types`,
-`racket/pretty`, and `racket/private/custom-write` all pass, each exporting an
-unrelated `42`. That means the current `racket/set` operation blocker is not
-one of those providers failing to instantiate by itself; it is the combined
-operation slice reaching the custom-write/pretty escaped-closure path.
+probe table. A require-only case that exports an unrelated `42` is useful as a
+control, but demand slicing removes unused imports; such a case does not prove
+that `racket/private/set-types`, `racket/pretty`, or
+`racket/private/custom-write` instantiated. The smaller meaningful operation is
+`set-types-predicate`, which requires `racket/private/set-types` and evaluates
+`(set? 42)`. It pulls the same broad set/custom-write/pretty provider cluster
+and records the same `unsafe-undefined` runtime blocker.
+
+Use `webify/probe-installed-runtime-smoke.rkt --preserve-dir DIR` for a runtime
+frontier transcript. The preserved `installed-source` directory has the
+extractor and manifest, `composed-source` has the generated
+`module-runtime-run.rkt`, and `composed-dest` has the emitted JS/Wasm/WAT/map.
+The current transcript shows `set-types-predicate`'s root linklet calling the
+imported `set?`, while the dependency-first composition plan has
+`racket/pretty` immediately before `racket/private/custom-write` and
+`racket/private/set-types` later in the plan. In the generated custom-write
+linklet, `make-constructor-style-printer` contains the guarded
+`loc_47` access around `make-tentative-pretty-print-output-port`.
+
+Observation is not the cause of this frontier. Running `set-types-predicate`
+and `set-count` with `--no-observe` still reaches the same expected
+`exn:fail:contract:variable`, even though no export is logged with `js-log`.
+So less-invasive observation is now available for probes, but the current set
+failure happens during module execution of the operation-demanded slice.
 
 The operation smokes no longer fail at the old `stream?` provider ambiguity or
 at the `check-not-unsafe-undefined` lowering guard. The resolver has a narrow

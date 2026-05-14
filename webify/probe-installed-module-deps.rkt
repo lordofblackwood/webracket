@@ -25,7 +25,8 @@
     stream-first
     pretty-require
     custom-write-require
-    set-types-require))
+    set-types-require
+    set-types-predicate))
 
 ;; module-case-data : symbol? -> (listof source-module-datum?)
 ;;   Return a small installed-module source slice for dependency probing.
@@ -71,6 +72,11 @@
          (require racket/private/set-types)
          (provide y)
          (define y 42)))]
+    [(set-types-predicate)
+     '((module use-set-types-predicate racket/base
+         (require racket/private/set-types)
+         (provide y)
+         (define y (set? 42))))]
     [else
      (raise-user-error 'probe-installed-module-deps
                        "unknown case ~a; expected one of ~a"

@@ -154,12 +154,22 @@ require-only extracts only `module-protocol` and the root module, while
 yet found a public `racket/set` operation that exercises set logic without
 initializing the pretty/custom-write path.
 
-Direct provider probes narrow the same frontier further. Requiring
-`racket/private/set-types`, `racket/pretty`, or
-`racket/private/custom-write` and exporting an unrelated `42` all pass through
-the bounded runtime probe. So the current blocker is not isolated provider
-initialization; it is the operation-demanded combination that reaches the
-custom-write/pretty escaped-closure path.
+Direct provider probes clarified a useful caveat: require-only cases that never
+use an imported binding are demand-sliced down to `module-protocol` plus the
+root module, so they do not prove provider initialization. The meaningful
+smaller operation is `(require racket/private/set-types)` plus `(set? 42)`;
+that pulls the same broad provider cluster and records the same
+`unsafe-undefined` runtime blocker. Running that probe with `--no-observe`
+still fails, so the current blocker is not result printing or `js-log`; it is
+module execution of the operation-demanded set/custom-write/pretty slice.
+
+Use `webify/probe-installed-runtime-smoke.rkt --preserve-dir DIR` to keep a
+runtime frontier transcript. The preserved `composed-source` directory contains
+the generated `module-runtime-run.rkt`, `composed-dest` contains the emitted
+JS/Wasm/WAT/map artifacts, and `installed-source` contains the extractor script
+and manifest. For the current set frontier, useful transcripts were generated
+under `/private/tmp/wr-goal1-frontier-set-types-predicate` and
+`/private/tmp/wr-goal1-frontier-set-count`.
 
 The escape-continuation decision is deliberately conservative. The Reference
 says an escape continuation can only be called during the dynamic extent of the
