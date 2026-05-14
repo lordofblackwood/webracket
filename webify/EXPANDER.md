@@ -3628,11 +3628,12 @@ There are three related but different Goal 1 tools:
 
 The current smoke matrix includes selected uses of `racket/bool`,
 `racket/fixnum`, `racket/list`, `racket/string`, `racket/vector`,
-`racket/function`, `racket/stream`, `racket/hash`, first `racket/set`
-operation/update smokes, and a combined `racket/list` + `racket/string` +
-`racket/set` program, plus local manifest smokes for two-module composition,
-re-export/backing-provider resolution, renamed imports, multi-root
-shared-provider composition, negative
+`racket/function`, `racket/stream`, `racket/hash`, a larger `racket/set`
+operation/update slice, a combined `racket/list` + `racket/string` +
+`racket/set` program, and a multi-module local source graph whose providers use
+those installed libraries separately, plus local manifest smokes for
+two-module composition, re-export/backing-provider resolution, renamed imports,
+multi-root shared-provider composition, negative
 primitive-preflight classification, and negative provider-export
 classification. Installed smokes also carry a category symbol, currently by
 library or combined-library slice, so the list can grow without losing which
@@ -3668,9 +3669,23 @@ reliably stop subprocesses used by extraction or WebRacket execution.
 The first `racket/set` operation smokes now pass. A require-only source module
 that imports `racket/set`, exports `42`, and observes that export still serves
 as the control case. Operation/update cases for `set?`, `set-count`,
-`set-member?`, `set-add`, `set-remove`, `set-union`, `set->list`, and the
+`set-member?`, `set-add`, `set-remove`, `set-union`, `set->list`,
+`set-intersect`, `set-subtract`, `set-symmetric-difference`, `set-map`, and the
 `racket/private/set-types` predicate all pass through extraction, composition,
-compilation, and WebRacket execution.
+compilation, and WebRacket execution. `set-filter` is not in this current
+installed `racket/set` surface, so it is not a Goal 1 smoke yet.
+
+Immutable hash traversal now has a Goal 1 smoke too: `hash-keys`,
+`hash-values`, `hash->list`, and `hash-for-each` work over the current
+immutable hash wrappers through the generic iterator path. This is still
+symbol-keyed coverage, not proof that all immutable hash comparator semantics
+are complete.
+
+When an installed runtime smoke fails after successful extraction, the bounded
+probe prints a compact graph prefix, missing primitive count, missing primitive
+list when non-empty, and the preserve directory when one is active. That keeps
+the next broken provider graph debuggable without rerunning a giant unbounded
+suite.
 
 `webify/probe-installed-module-deps.rkt` makes that static audit repeatable
 with the newer `../racket` checkout. Comparing `set-require` to `set?` or

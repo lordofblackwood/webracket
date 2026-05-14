@@ -100,7 +100,8 @@ Current installed-extraction runtime smokes cover:
   `racket/list` provider-graph smoke.
 - `racket/set`: a require-only source module instantiates and returns a normal
   value, and operation smokes now run too: `set?`, `set-count`, `set-member?`,
-  `set-add`, `set-remove`, `set-union`, `set->list`, and the
+  `set-add`, `set-remove`, `set-union`, `set->list`, `set-intersect`,
+  `set-subtract`, `set-symmetric-difference`, `set-map`, and the
   `racket/private/set-types` predicate case. Retiring this frontier required
   small runtime pieces that the provider graph actually executes: port
   struct-type-property identities, the unsafe struct-property constructor
@@ -109,11 +110,13 @@ Current installed-extraction runtime smokes cover:
   `procedure-arity?`, and the documented immutable hash association-list
   constructors.
 - `racket/stream`: `stream-first` and `stream-rest`.
-- `racket/hash`: an immutable hash constructor, functional `hash-set`, and
-  `hash-ref` smoke.
+- `racket/hash`: an immutable hash constructor, functional `hash-set`,
+  `hash-ref`, and immutable hash traversal through `hash-keys`, `hash-values`,
+  `hash->list`, and `hash-for-each`.
 - `racket/function`: `compose`, `identity`, `compose1`, `negate`, and `const`.
-- Combined installed-library programs for `racket/list` + `racket/string` and
-  for `racket/list` + `racket/string` + `racket/set`.
+- Combined installed-library programs for `racket/list` + `racket/string`, for
+  `racket/list` + `racket/string` + `racket/set`, and for a multi-module local
+  source graph whose providers require those installed libraries separately.
 - Dependency-first local source modules with quoted sibling requires, such as
   `(require 'base-values)`, through a shared-provider transitive smoke.
 

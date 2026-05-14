@@ -34,6 +34,7 @@
          run-local-runtime-smoke)
 
 (require racket/file
+         racket/list
          racket/match
          racket/path
          racket/runtime-path
@@ -148,15 +149,19 @@
                     'primitive-alias-collision)
   (unless (memq (webify-module-failure-category failure)
                 allowed-failures)
-    (fail-check
-     (format "~a failed as ~a:\n~a"
-             who
-             (webify-module-failure-category failure)
-             (webify-module-failure-message failure))))
+    (error 'check-runtime-failure
+           "~a failed as ~a:\n~a"
+           who
+           (webify-module-failure-category failure)
+           (webify-module-failure-message failure)))
   (when expected-failure
-    (check-regexp-match
-     expected-failure
-     (webify-module-failure-message failure))))
+    (unless (regexp-match? expected-failure
+                           (webify-module-failure-message failure))
+      (error 'check-runtime-failure
+             "~a failure message did not match expected regexp\nexpected: ~s\nmessage:\n~a"
+             who
+             expected-failure
+             (webify-module-failure-message failure)))))
 
 ;; assert-runtime-output-match! : regexp? string? -> void?
 ;;   Treat observed-output mismatches as hard probe failures, not soft RackUnit logs.
@@ -230,6 +235,30 @@
   (list (webify-primitive-demand-module demand)
         (webify-primitive-demand-name demand)
         (webify-primitive-demand-sources demand)))
+
+;; print-runtime-smoke-failure-summary : manifest? -> void?
+;;   Print compact graph context for a failed bounded installed-module probe.
+(define (print-runtime-smoke-failure-summary manifest)
+  (define audit (webify-module-linklet-manifest->runtime-smoke-graph-audit manifest))
+  (define plan (runtime-smoke-graph-audit-plan audit))
+  (define missing (runtime-smoke-graph-audit-missing-primitive-demands audit))
+  (fprintf (current-error-port)
+           "runtime-smoke-failure-roots: ~s\n"
+           (runtime-smoke-graph-audit-roots audit))
+  (fprintf (current-error-port)
+           "runtime-smoke-failure-plan-prefix: ~s\n"
+           (take plan (min 12 (length plan))))
+  (fprintf (current-error-port)
+           "runtime-smoke-failure-missing-primitive-count: ~a\n"
+           (length missing))
+  (unless (null? missing)
+    (fprintf (current-error-port)
+             "runtime-smoke-failure-missing-primitives: ~s\n"
+             missing))
+  (when (current-runtime-smoke-preserve-dir)
+    (fprintf (current-error-port)
+             "runtime-smoke-failure-preserve-dir: ~a\n"
+             (current-runtime-smoke-preserve-dir))))
 
 ;; module-linklet-inputs-module-plan : (listof webify-module-linklet-input?) (listof symbol?) -> (listof symbol?)
 ;;   Compute a dependency-first plan while ignoring primitive-module imports.
@@ -413,6 +442,7 @@
          (define manifest (read-webify-module-linklet-manifest manifest-path))
          (with-handlers ([exn:fail?
                           (lambda (exn)
+                            (print-runtime-smoke-failure-summary manifest)
                             (check-installed-runtime-failure
                              smoke
                              (webify-classify-module-exn 'runtime exn)))])

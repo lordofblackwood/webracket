@@ -61,8 +61,9 @@ the internal lookup/update path is still eqv?-based. That is enough for expander
 startup paths with symbol-like keys, where eq?, eqv?, and equal? agree, but it
 is not yet complete equal?-key or eq?-key immutable hash semantics.
 
-The Goal 1 installed smoke suite now includes a small immutable hash path:
-`make-immutable-hash`, functional `hash-set`, and `hash-ref`. That smoke is
+The Goal 1 installed smoke suite now includes small immutable hash paths:
+`make-immutable-hash`, functional `hash-set`, `hash-ref`, and traversal through
+`hash-keys`, `hash-values`, `hash->list`, and `hash-for-each`. These smokes are
 deliberately symbol-keyed, because symbol keys stay inside the supported
 comparator overlap. Duplicate-sensitive set/list behavior should not be used as
 evidence for full equal?-hash semantics until comparator routing is fixed.
@@ -92,9 +93,11 @@ was not observed as an immutable value. It was not acceptable as general
 WebRacket or Webify semantics.
 
 Now that immutable hashes and `hash-set` have a real persistent first slice,
-Webify no longer rewrites functional `hash-set` into `hash-set!`. The remaining
-bridge maps public `hash-iterate-*` names to the existing mutable iterator
-primitives until immutable hash iteration is implemented.
+Webify no longer rewrites functional `hash-set` into `hash-set!`. Immutable hash
+traversal now reuses the shared private representation through generic iterator
+helpers, so public operations like `hash-keys`, `hash-values`, `hash->list`,
+and `hash-for-each` can run on immutable wrappers without copying them to a
+mutable table first.
 
 ## Semantic Gap Probe
 

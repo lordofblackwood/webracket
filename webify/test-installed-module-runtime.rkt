@@ -253,6 +253,50 @@
     '()
     #f)
    (installed-runtime-smoke
+    'racket/set
+    "installed racket/set intersect reaches WebRacket runtime smoke"
+    '((module use-set-intersect racket/base
+        (require racket/set)
+        (provide y)
+        (define y (set-count (set-intersect (set 1 2) (set 2 3))))))
+    '((use-set-intersect y))
+    #rx"(?m:^1$)"
+    '()
+    #f)
+   (installed-runtime-smoke
+    'racket/set
+    "installed racket/set subtract reaches WebRacket runtime smoke"
+    '((module use-set-subtract racket/base
+        (require racket/set)
+        (provide y)
+        (define y (set-member? (set-subtract (set 1 2) (set 2)) 2))))
+    '((use-set-subtract y))
+    #rx"(?m:^false$)"
+    '()
+    #f)
+   (installed-runtime-smoke
+    'racket/set
+    "installed racket/set symmetric difference reaches WebRacket runtime smoke"
+    '((module use-set-symmetric-difference racket/base
+        (require racket/set)
+        (provide y)
+        (define y (set-count (set-symmetric-difference (set 1 2) (set 2 3))))))
+    '((use-set-symmetric-difference y))
+    #rx"(?m:^2$)"
+    '()
+    #f)
+   (installed-runtime-smoke
+    'racket/set
+    "installed racket/set map reaches WebRacket runtime smoke"
+    '((module use-set-map racket/base
+        (require racket/set)
+        (provide y)
+        (define y (length (set-map (set 1 2) add1)))))
+    '((use-set-map y))
+    #rx"(?m:^2$)"
+    '()
+    #f)
+   (installed-runtime-smoke
     'racket/stream
     "installed racket/stream first reaches WebRacket runtime smoke"
     '((module use-stream-first racket/base
@@ -287,6 +331,23 @@
     '()
     #f)
    (installed-runtime-smoke
+    'racket/hash
+    "installed immutable hash iteration reaches WebRacket runtime smoke"
+    '((module use-hash-iterate racket/base
+        (provide y)
+        (define y
+          (let ([h (make-immutable-hash '((a . 1) (b . 2)))])
+            (+ (length (hash-keys h))
+               (length (hash-values h))
+               (length (hash->list h))
+               (let ([sum 0])
+                 (hash-for-each h (lambda (k v) (set! sum (+ sum v))))
+                 sum))))))
+    '((use-hash-iterate y))
+    #rx"(?m:^9$)"
+    '()
+    #f)
+   (installed-runtime-smoke
     'racket/list+racket/string+racket/set
     "installed list string and set compose in WebRacket runtime smoke"
     '((module use-combined-list-string-set racket/base
@@ -298,6 +359,25 @@
              (set-count (set 'x 'y 'y))))))
     '((use-combined-list-string-set y))
     #rx"(?m:^42$)"
+    '()
+    #f)
+   (installed-runtime-smoke
+    'local-source-installed-libraries
+    "installed list string and set compose across local source modules"
+    '((module set-provider racket/base
+        (require racket/set)
+        (provide selected)
+        (define selected (set-add (set 'alpha) 'beta)))
+      (module string-provider racket/base
+        (require racket/list racket/string)
+        (provide joined)
+        (define joined (string-join (map symbol->string '(alpha beta)) ",")))
+      (module use-multi-module-list-string-set racket/base
+        (require racket/set 'set-provider 'string-provider)
+        (provide y)
+        (define y (+ (set-count selected) (string-length joined)))))
+    '((use-multi-module-list-string-set y))
+    #rx"(?m:^12$)"
     '()
     #f)
    (installed-runtime-smoke

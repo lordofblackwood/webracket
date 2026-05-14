@@ -65,7 +65,7 @@
 ;; module-case-root : symbol? -> symbol?
 ;;   Extract the root module name from a source-module probe case.
 (define (module-case-root name)
-  (match (module-case-data name)
+  (match (reverse (module-case-data name))
     [(cons `(module ,(? symbol? root) . ,_) _) root]
     [_ (raise-arguments-error 'module-case-root
                               "expected module case data with a root module"
@@ -91,10 +91,16 @@
       set-remove
       set-union
       set->list
+      set-intersect
+      set-subtract
+      set-symmetric-difference
+      set-map
       set-types-predicate
       stream-rest
       hash-basic
-      combined-list-string-set)
+      hash-iterate
+      combined-list-string-set
+      multi-module-list-string-set)
      (installed-runtime-smoke
       name
       (format "module case ~a reaches WebRacket runtime smoke" name)
@@ -102,9 +108,12 @@
       observations
       (if observe?
           (case name
-            [(set-count set->list) #rx"(?m:^2$)"]
+            [(set-count set->list set-symmetric-difference set-map) #rx"(?m:^2$)"]
             [(set-member) #rx"(?m:^true$)"]
             [(set-add set-union) #rx"(?m:^3$)"]
+            [(set-intersect) #rx"(?m:^1$)"]
+            [(hash-iterate) #rx"(?m:^9$)"]
+            [(multi-module-list-string-set) #rx"(?m:^12$)"]
             [(hash-basic) #rx"(?m:^41$)"]
             [(stream-rest combined-list-string-set) #rx"(?m:^42$)"]
             [else #rx"(?m:^false$)"])

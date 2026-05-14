@@ -38618,6 +38618,22 @@
                    (then (return (call $hashequal-for-each (local.get $ht) (local.get $proc)))))
                (if (ref.test (ref $HashEqualAlwaysMutable) (local.get $ht))
                    (then (return (call $hashalw-for-each (local.get $ht) (local.get $proc)))))
+               (if (ref.test (ref $HashEqImmutable) (local.get $ht))
+                   (then (return (call $hash-for-each/generic
+                                       (local.get $ht)
+                                       (local.get $proc)))))
+               (if (ref.test (ref $HashEqvImmutable) (local.get $ht))
+                   (then (return (call $hash-for-each/generic
+                                       (local.get $ht)
+                                       (local.get $proc)))))
+               (if (ref.test (ref $HashEqualImmutable) (local.get $ht))
+                   (then (return (call $hash-for-each/generic
+                                       (local.get $ht)
+                                       (local.get $proc)))))
+               (if (ref.test (ref $HashEqualAlwaysImmutable) (local.get $ht))
+                   (then (return (call $hash-for-each/generic
+                                       (local.get $ht)
+                                       (local.get $proc)))))
                (unreachable))
 
         ,@(for/list ([hash-for-each '($hasheq-for-each
@@ -38730,6 +38746,53 @@
 
                    (global.get $void)))
 
+        ;; hash-for-each/generic : hash? procedure? -> void?
+        ;;   Iterator-backed fallback for immutable hash wrappers.
+        (func $hash-for-each/generic
+              (param $ht   (ref eq)) ;; hash table
+              (param $proc (ref eq)) ;; procedure
+              (result      (ref eq))
+              (local $f    (ref $Procedure))
+              (local $finv (ref $ProcedureInvoker))
+              (local $args (ref $Args))
+              (local $pos  (ref eq))
+              (local $key  (ref eq))
+              (local $val  (ref eq))
+              (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
+                  (then (call $raise-argument-error:procedure-expected (local.get $proc))
+                        (unreachable)))
+              (local.set $f    (ref.cast (ref $Procedure) (local.get $proc)))
+              (local.set $finv (struct.get $Procedure $invoke (local.get $f)))
+              (local.set $args (array.new_fixed $Args 2
+                                                (global.get $null)
+                                                (global.get $null)))
+              (local.set $pos (call $mutable-hash-iterate-first (local.get $ht)))
+              (block $done
+                     (loop $walk
+                           (br_if $done (ref.eq (local.get $pos) (global.get $false)))
+                           (local.set $key
+                                      (call $mutable-hash-iterate-key
+                                            (local.get $ht)
+                                            (local.get $pos)
+                                            (global.get $missing)))
+                           (local.set $val
+                                      (call $mutable-hash-iterate-value
+                                            (local.get $ht)
+                                            (local.get $pos)
+                                            (global.get $missing)))
+                           (array.set $Args (local.get $args) (i32.const 0) (local.get $key))
+                           (array.set $Args (local.get $args) (i32.const 1) (local.get $val))
+                           (drop (call_ref $ProcedureInvoker
+                                           (local.get $f)
+                                           (local.get $args)
+                                           (local.get $finv)))
+                           (local.set $pos
+                                      (call $mutable-hash-iterate-next
+                                            (local.get $ht)
+                                            (local.get $pos)))
+                           (br $walk)))
+              (global.get $void))
+
 
         ;; General hash-map
         (func $hash-map (type $Prim23)
@@ -38766,6 +38829,22 @@
                   (then (return (call $hashalw-map (local.get $ht)
                                       (local.get $proc)
                                       (local.get $try)))))
+              (if (ref.test (ref $HashEqImmutable) (local.get $ht))
+                  (then (return (call $hash-map/generic
+                                      (local.get $ht)
+                                      (local.get $proc)))))
+              (if (ref.test (ref $HashEqvImmutable) (local.get $ht))
+                  (then (return (call $hash-map/generic
+                                      (local.get $ht)
+                                      (local.get $proc)))))
+              (if (ref.test (ref $HashEqualImmutable) (local.get $ht))
+                  (then (return (call $hash-map/generic
+                                      (local.get $ht)
+                                      (local.get $proc)))))
+              (if (ref.test (ref $HashEqualAlwaysImmutable) (local.get $ht))
+                  (then (return (call $hash-map/generic
+                                      (local.get $ht)
+                                      (local.get $proc)))))
               (unreachable))
 
         
@@ -38901,6 +38980,58 @@
                                 (br $loop)))
 
                    (local.get $acc)))
+
+        ;; hash-map/generic : hash? procedure? -> list?
+        ;;   Iterator-backed fallback for immutable hash wrappers.
+        (func $hash-map/generic
+              (param $ht   (ref eq)) ;; hash table
+              (param $proc (ref eq)) ;; procedure
+              (result      (ref eq))
+              (local $f    (ref $Procedure))
+              (local $finv (ref $ProcedureInvoker))
+              (local $args (ref $Args))
+              (local $pos  (ref eq))
+              (local $key  (ref eq))
+              (local $val  (ref eq))
+              (local $r    (ref eq))
+              (local $acc  (ref eq))
+              (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
+                  (then (call $raise-argument-error:procedure-expected (local.get $proc))
+                        (unreachable)))
+              (local.set $f    (ref.cast (ref $Procedure) (local.get $proc)))
+              (local.set $finv (struct.get $Procedure $invoke (local.get $f)))
+              (local.set $args (array.new_fixed $Args 2
+                                                (global.get $null)
+                                                (global.get $null)))
+              (local.set $pos (call $mutable-hash-iterate-first (local.get $ht)))
+              (local.set $acc (global.get $null))
+              (block $done
+                     (loop $walk
+                           (br_if $done (ref.eq (local.get $pos) (global.get $false)))
+                           (local.set $key
+                                      (call $mutable-hash-iterate-key
+                                            (local.get $ht)
+                                            (local.get $pos)
+                                            (global.get $missing)))
+                           (local.set $val
+                                      (call $mutable-hash-iterate-value
+                                            (local.get $ht)
+                                            (local.get $pos)
+                                            (global.get $missing)))
+                           (array.set $Args (local.get $args) (i32.const 0) (local.get $key))
+                           (array.set $Args (local.get $args) (i32.const 1) (local.get $val))
+                           (local.set $r
+                                      (call_ref $ProcedureInvoker
+                                                (local.get $f)
+                                                (local.get $args)
+                                                (local.get $finv)))
+                           (local.set $acc (call $cons (local.get $r) (local.get $acc)))
+                           (local.set $pos
+                                      (call $mutable-hash-iterate-next
+                                            (local.get $ht)
+                                            (local.get $pos)))
+                           (br $walk)))
+              (local.get $acc))
         
 
         ;; -------------------------------------------------------------------
@@ -39351,7 +39482,75 @@
                        (then (return (call ,hashequal-prim (local.get $ht) (local.get $try)))))
                    (if (ref.test (ref $HashEqualAlwaysMutable) (local.get $ht))
                        (then (return (call ,hashalw-prim (local.get $ht) (local.get $try)))))
+                   (if (ref.test (ref $HashEqImmutable) (local.get $ht))
+                       (then (return (call ,(if (eq? prim '$hash-keys)
+                                               '$hash-keys/generic
+                                               '$hash-values/generic)
+                                           (local.get $ht)))))
+                   (if (ref.test (ref $HashEqvImmutable) (local.get $ht))
+                       (then (return (call ,(if (eq? prim '$hash-keys)
+                                               '$hash-keys/generic
+                                               '$hash-values/generic)
+                                           (local.get $ht)))))
+                   (if (ref.test (ref $HashEqualImmutable) (local.get $ht))
+                       (then (return (call ,(if (eq? prim '$hash-keys)
+                                               '$hash-keys/generic
+                                               '$hash-values/generic)
+                                           (local.get $ht)))))
+                   (if (ref.test (ref $HashEqualAlwaysImmutable) (local.get $ht))
+                       (then (return (call ,(if (eq? prim '$hash-keys)
+                                               '$hash-keys/generic
+                                               '$hash-values/generic)
+                                           (local.get $ht)))))
                    (unreachable)))
+
+        (func $hash-keys/generic
+              (param $ht (ref eq)) ;; immutable hash table
+              (result    (ref eq))
+              (local $pos (ref eq))
+              (local $acc (ref eq))
+              (local.set $pos (call $mutable-hash-iterate-first (local.get $ht)))
+              (local.set $acc (global.get $null))
+              (block $done
+                     (loop $walk
+                           (br_if $done (ref.eq (local.get $pos) (global.get $false)))
+                           (local.set $acc
+                                      (call $cons
+                                            (call $mutable-hash-iterate-key
+                                                  (local.get $ht)
+                                                  (local.get $pos)
+                                                  (global.get $missing))
+                                            (local.get $acc)))
+                           (local.set $pos
+                                      (call $mutable-hash-iterate-next
+                                            (local.get $ht)
+                                            (local.get $pos)))
+                           (br $walk)))
+              (local.get $acc))
+
+        (func $hash-values/generic
+              (param $ht (ref eq)) ;; immutable hash table
+              (result    (ref eq))
+              (local $pos (ref eq))
+              (local $acc (ref eq))
+              (local.set $pos (call $mutable-hash-iterate-first (local.get $ht)))
+              (local.set $acc (global.get $null))
+              (block $done
+                     (loop $walk
+                           (br_if $done (ref.eq (local.get $pos) (global.get $false)))
+                           (local.set $acc
+                                      (call $cons
+                                            (call $mutable-hash-iterate-value
+                                                  (local.get $ht)
+                                                  (local.get $pos)
+                                                  (global.get $missing))
+                                            (local.get $acc)))
+                           (local.set $pos
+                                      (call $mutable-hash-iterate-next
+                                            (local.get $ht)
+                                            (local.get $pos)))
+                           (br $walk)))
+              (local.get $acc))
 
         ,@(append*
            (for/list ([spec '("keys" "values")] [offset '(0 1)])

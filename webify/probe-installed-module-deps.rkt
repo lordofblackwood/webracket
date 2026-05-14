@@ -26,10 +26,16 @@
     set-remove
     set-union
     set->list
+    set-intersect
+    set-subtract
+    set-symmetric-difference
+    set-map
     stream-first
     stream-rest
     hash-basic
+    hash-iterate
     combined-list-string-set
+    multi-module-list-string-set
     pretty-require
     custom-write-require
     set-types-require
@@ -79,6 +85,26 @@
          (require racket/set)
          (provide y)
          (define y (length (set->list (set 1 2))))))]
+    [(set-intersect)
+     '((module use-set-intersect racket/base
+         (require racket/set)
+         (provide y)
+         (define y (set-count (set-intersect (set 1 2) (set 2 3))))))]
+    [(set-subtract)
+     '((module use-set-subtract racket/base
+         (require racket/set)
+         (provide y)
+         (define y (set-member? (set-subtract (set 'a 'b) (set 'a)) 'a))))]
+    [(set-symmetric-difference)
+     '((module use-set-symmetric-difference racket/base
+         (require racket/set)
+         (provide y)
+         (define y (set-count (set-symmetric-difference (set 1 2) (set 2 3))))))]
+    [(set-map)
+     '((module use-set-map racket/base
+         (require racket/set)
+         (provide y)
+         (define y (length (set-map (set 1 2) add1)))))]
     [(stream-first)
      '((module use-stream-first racket/base
          (require racket/stream)
@@ -95,6 +121,17 @@
          (define y
            (hash-ref (hash-set (make-immutable-hash '((a . 1))) 'b 41)
                      'b))))]
+    [(hash-iterate)
+     '((module use-hash-iterate racket/base
+         (provide y)
+         (define y
+           (let ([h (make-immutable-hash '((a . 1) (b . 2)))])
+             (+ (length (hash-keys h))
+                (length (hash-values h))
+                (length (hash->list h))
+                (let ([sum 0])
+                  (hash-for-each h (lambda (k v) (set! sum (+ sum v))))
+                  sum))))))]
     [(combined-list-string-set)
      '((module use-combined-list-string-set racket/base
          (require racket/list racket/string racket/set)
@@ -103,6 +140,19 @@
            (+ (first '(37 38))
               (string-length (string-join '("ab" "c") ""))
               (set-count (set 'x 'y 'y))))))]
+    [(multi-module-list-string-set)
+     '((module set-provider racket/base
+         (require racket/set)
+         (provide selected)
+         (define selected (set-add (set 'alpha) 'beta)))
+       (module string-provider racket/base
+         (require racket/list racket/string)
+         (provide joined)
+         (define joined (string-join (map symbol->string '(alpha beta)) ",")))
+       (module use-multi-module-list-string-set racket/base
+         (require racket/set 'set-provider 'string-provider)
+         (provide y)
+         (define y (+ (set-count selected) (string-length joined)))))]
     [(pretty-require)
      '((module use-pretty-require racket/base
          (require racket/pretty)
