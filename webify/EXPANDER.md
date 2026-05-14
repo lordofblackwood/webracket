@@ -3659,6 +3659,13 @@ current blocker. Those probes are deliberately not in the default installed
 runtime suite yet, because that suite is expensive and new installed smokes
 should be promoted only when they directly guard the active frontier.
 
+Installed-module runtime probes should now go through
+`webify/probe-installed-runtime-smoke.rkt` when possible. The tool imports the
+installed smoke list without running it, lists stable indexes, then runs a
+single selected smoke in a child Racket process with a hard timeout. That
+process-level boundary is deliberate: a Racket custodian limit alone would not
+reliably stop subprocesses used by extraction or WebRacket execution.
+
 The `racket/set` operation smokes are currently expected runtime failures, but
 `racket/set` is not blocked merely by being required. A require-only source
 module that imports `racket/set`, exports `42`, and observes that export passes
@@ -3666,6 +3673,16 @@ through extraction, composition, compilation, and WebRacket execution. The
 static audit for that require-only slice contains only `module-protocol` and
 the root module; it does not pull `racket/private/custom-write` or
 `racket/pretty`.
+
+`webify/probe-installed-module-deps.rkt` makes that static audit repeatable
+with the newer `../racket` checkout. Comparing `set-require` to `set?` or
+`set-count` shows that both operations add the same broad provider cluster:
+`racket/private/set`, `racket/private/set-types`,
+`racket/private/stream-cons`, `racket/stream`, `racket/sequence`,
+`racket/private/generic*`, `racket/private/hash`, `racket/pretty`,
+`racket/private/custom-write`, and related list/map/kw/arity/port support. So
+the current evidence says public `racket/set` operations do not provide a small
+non-printing path around the custom-write/pretty initialization frontier.
 
 The operation smokes no longer fail at the old `stream?` provider ambiguity or
 at the `check-not-unsafe-undefined` lowering guard. The resolver has a narrow

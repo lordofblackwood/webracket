@@ -1,5 +1,7 @@
 #lang racket/base
 
+(provide installed-runtime-smokes)
+
 (require rackunit
          "module-runtime-smoke.rkt")
 
@@ -254,12 +256,13 @@
     '()
     #f)))
 
-(when (file-exists? racket92-bin)
-  (for ([smoke (in-list installed-runtime-smokes)])
-    (test-case (format "~a: ~a"
-                       (installed-runtime-smoke-category smoke)
-                       (installed-runtime-smoke-name smoke))
-      (run-installed-runtime-smoke smoke))))
+(module+ test
+  (when (file-exists? racket92-bin)
+    (for ([smoke (in-list installed-runtime-smokes)])
+      (test-case (format "~a: ~a"
+                         (installed-runtime-smoke-category smoke)
+                         (installed-runtime-smoke-name smoke))
+        (run-installed-runtime-smoke smoke)))))
 
 (module+ main
   (void))

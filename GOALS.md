@@ -138,6 +138,22 @@ runtime suite, because the installed-module suite is expensive enough that new
 smokes should be promoted only when they are directly guarding the active
 frontier.
 
+Use `webify/probe-installed-runtime-smoke.rkt` for one-at-a-time installed
+runtime checks. It lists stable smoke indexes and runs a selected smoke in a
+child Racket process with a hard timeout, so a single provider graph cannot
+consume an unbounded debugging session. The `--memory-mb` flag is intentionally
+best-effort: it limits the worker Racket process's own custodian-managed
+allocations, but subprocesses used by extraction or WebRacket execution still
+need the parent process timeout as the hard containment boundary.
+
+Use `webify/probe-installed-module-deps.rkt` with the newer `../racket`
+checkout for provider-graph deltas. The current `racket/set` comparison is:
+require-only extracts only `module-protocol` and the root module, while
+`set?` and `set-count` add the same broad provider cluster, including
+`racket/pretty` and `racket/private/custom-write`. In other words, we have not
+yet found a public `racket/set` operation that exercises set logic without
+initializing the pretty/custom-write path.
+
 Source-module extraction compiles a supplied module-data list in one shared
 host namespace. Earlier declarations are installed before later modules are
 compiled, which lets quoted sibling requires resolve for dependency-first test
