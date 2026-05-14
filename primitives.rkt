@@ -3,6 +3,7 @@
          racket/bool
          racket/bytes
          racket/control
+         racket/date
          racket/fasl
          racket/fixnum
          racket/flonum
@@ -123,6 +124,7 @@
          struct:exn:fail
          struct:exn:fail:contract
          struct:exn:fail:contract:arity
+         struct:exn:fail:contract:continuation
          struct:exn:fail:contract:divide-by-zero
          struct:exn:fail:contract:non-fixnum-result
          struct:exn:fail:contract:variable
@@ -130,6 +132,7 @@
          struct:exn:fail:read:eof
          struct:exn:fail:read:non-char
          struct:exn:fail:filesystem
+         struct:exn:fail:filesystem:exists
          struct:exn:fail:filesystem:missing-module
          struct:exn:fail:syntax
          struct:exn:fail:syntax:missing-module
@@ -147,6 +150,8 @@
          exn:fail:contract?
          exn:fail:contract:arity
          exn:fail:contract:arity?
+         exn:fail:contract:continuation
+         exn:fail:contract:continuation?
          exn:fail:contract:divide-by-zero
          exn:fail:contract:divide-by-zero?
          exn:fail:contract:non-fixnum-result
@@ -165,6 +170,8 @@
 
          exn:fail:filesystem
          exn:fail:filesystem?
+         exn:fail:filesystem:exists
+         exn:fail:filesystem:exists?
          exn:fail:filesystem:missing-module
          exn:fail:filesystem:missing-module?
          exn:fail:filesystem:missing-module-path
@@ -187,6 +194,7 @@
          make-exn:fail
          make-exn:fail:contract
          make-exn:fail:contract:arity
+         make-exn:fail:contract:continuation
          make-exn:fail:contract:divide-by-zero
          make-exn:fail:contract:non-fixnum-result
          make-exn:fail:contract:variable
@@ -194,6 +202,7 @@
          make-exn:fail:read:eof
          make-exn:fail:read:non-char
          make-exn:fail:filesystem
+         make-exn:fail:filesystem:exists
          make-exn:fail:filesystem:missing-module
          make-exn:fail:syntax
          make-exn:fail:syntax:missing-module
@@ -247,7 +256,11 @@
          make-custodian-box
          custodian-box?
          custodian-box-value
+         date
+         make-date
          date?
+         date*
+         make-date*
          date*?
          date-second
          date-minute
@@ -1076,10 +1089,13 @@ current-parameterization    ; poor-man dynamic parameterization overlay
  current-custodian custodian? make-custodian
  custodian-shutdown-all custodian-shut-down?
  make-custodian-box custodian-box? custodian-box-value
- date? date*? ; placeholders until date/date* structs are implemented
+ date make-date date? date* make-date* date*?
  date-second date-minute date-hour date-day date-month date-year
  date-week-day date-year-day date-dst? date-time-zone-offset
  date*-nanosecond date*-time-zone-name
+ current-seconds current-inexact-milliseconds current-milliseconds
+ current-process-milliseconds current-gc-milliseconds seconds->date
+ current-date
  exn:break? exn:break-continuation
  exn:break:hang-up? exn:break:terminate?
  make-channel channel? channel-get channel-try-get

@@ -2167,6 +2167,68 @@ var imports = {
         const [v] = fasl_to_js_value(bytes);
         console.log(v);
       }),
+      'current_inexact_milliseconds': (() => Date.now()),
+      'current_milliseconds_bits': (() => {
+        const modulus = 0x40000000;
+        let n = Math.trunc(Date.now()) % modulus;
+        if (n >= 0x20000000) n -= modulus;
+        return (n << 1) | 0;
+      }),
+      'date_field': ((seconds, local, field) => {
+        const d = new Date(seconds * 1000);
+        const get = local ? {
+          year: () => d.getFullYear(),
+          month: () => d.getMonth() + 1,
+          day: () => d.getDate(),
+          hour: () => d.getHours(),
+          minute: () => d.getMinutes(),
+          second: () => d.getSeconds(),
+          weekDay: () => d.getDay(),
+          offset: () => -d.getTimezoneOffset() * 60
+        } : {
+          year: () => d.getUTCFullYear(),
+          month: () => d.getUTCMonth() + 1,
+          day: () => d.getUTCDate(),
+          hour: () => d.getUTCHours(),
+          minute: () => d.getUTCMinutes(),
+          second: () => d.getUTCSeconds(),
+          weekDay: () => d.getUTCDay(),
+          offset: () => 0
+        };
+        const yearDay = (() => {
+          const start = local
+            ? new Date(get.year(), 0, 1)
+            : new Date(Date.UTC(get.year(), 0, 1));
+          const now = local
+            ? new Date(get.year(), d.getMonth(), d.getDate())
+            : new Date(Date.UTC(get.year(), d.getUTCMonth(), d.getUTCDate()));
+          return Math.floor((now - start) / 86400000);
+        });
+        const dst = (() => {
+          if (!local) return 0;
+          const jan = new Date(get.year(), 0, 1).getTimezoneOffset();
+          const jul = new Date(get.year(), 6, 1).getTimezoneOffset();
+          return d.getTimezoneOffset() < Math.max(jan, jul) ? 1 : 0;
+        });
+        // WebRacket currently represents exact integers as small fixnums, while
+        // Racket's date* nanosecond range extends to 999,999,999. Preserve a
+        // safe exact value until larger exact integers are available.
+        const nanos = (() => 0);
+        switch (field) {
+          case 0: return get.second();
+          case 1: return get.minute();
+          case 2: return get.hour();
+          case 3: return get.day();
+          case 4: return get.month();
+          case 5: return get.year();
+          case 6: return get.weekDay();
+          case 7: return yearDay();
+          case 8: return dst();
+          case 9: return get.offset();
+          case 10: return nanos();
+          default: return 0;
+        }
+      }),
       'vfs_stat_kind': ((start, len) => {
         try {
           const stat = webracketVFS.stat(vfs_path_from_memory(start, len));

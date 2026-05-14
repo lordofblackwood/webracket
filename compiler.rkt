@@ -767,6 +767,7 @@
     struct:exn:fail
     struct:exn:fail:contract
     struct:exn:fail:contract:arity
+    struct:exn:fail:contract:continuation
     struct:exn:fail:contract:divide-by-zero
     struct:exn:fail:contract:non-fixnum-result
     struct:exn:fail:contract:variable
@@ -774,6 +775,7 @@
     struct:exn:fail:read:eof
     struct:exn:fail:read:non-char
     struct:exn:fail:filesystem
+    struct:exn:fail:filesystem:exists
     struct:exn:fail:syntax
     struct:exn:fail:syntax:missing-module
     struct:exn:fail:syntax:unbound
@@ -1143,6 +1145,7 @@
         [(bytes-convert) 2]
         [(+ * unsafe-fx+ unsafe-fx* compose compose1 cartesian-product string-append-immutable gcd lcm hash hasheq hasheqv hashalw) 0]
         [else 1])))
+   (make-inline-specs '(date make-date date* make-date*) 'variadic-args 0 #f 0)
    (make-inline-specs '(= < > <= >=) 'variadic-args 1 #f 1)
    (make-inline-specs '(build-path/convention-type) 'variadic 2 #f 2)
    (append
@@ -1233,6 +1236,8 @@
        procedure-rename
        string->number
        floating-point-bytes->real
+       current-process-milliseconds
+       seconds->date
        log
        atan
        assoc
@@ -1311,6 +1316,8 @@
          [(string-trim string-split) 1]
          [(compile-linklet) 1]
          [(recompile-linklet) 1]
+         [(current-process-milliseconds) 0]
+         [(seconds->date) 1]
          [(variable-reference->instance) 1]
          [(assoc group-by member remove remove* index-of indexes-of
                  list-prefix? take-common-prefix drop-common-prefix split-common-prefix
@@ -1354,6 +1361,8 @@
          [(current-pseudo-random-generator) 1]
          [(current-logger) 1]
          [(current-custodian make-custodian) 1]
+         [(current-process-milliseconds) 1]
+         [(seconds->date) 2]
          [(flrandom unsafe-flrandom) 1]
          [(vector-sort! vector-sort) 4]
          [(real->floating-point-bytes) 5]
@@ -1773,7 +1782,11 @@
   exn:fail:contract:arity
   exn:fail:contract:arity?
   make-exn:fail:contract:arity
-  
+
+  exn:fail:contract:continuation
+  exn:fail:contract:continuation?
+  make-exn:fail:contract:continuation
+
   exn:fail:contract:divide-by-zero
   exn:fail:contract:divide-by-zero?
   make-exn:fail:contract:divide-by-zero
@@ -1803,6 +1816,9 @@
   exn:fail:filesystem
   exn:fail:filesystem?
   make-exn:fail:filesystem
+  exn:fail:filesystem:exists
+  exn:fail:filesystem:exists?
+  make-exn:fail:filesystem:exists
 
   exn:fail:syntax
   exn:fail:syntax?
@@ -1879,10 +1895,13 @@
   current-custodian custodian? make-custodian
   custodian-shutdown-all custodian-shut-down?
   make-custodian-box custodian-box? custodian-box-value
-  date? date*?
+  date make-date date? date* make-date* date*?
   date-second date-minute date-hour date-day date-month date-year
   date-week-day date-year-day date-dst? date-time-zone-offset
   date*-nanosecond date*-time-zone-name
+  current-seconds current-inexact-milliseconds current-milliseconds
+  current-process-milliseconds current-gc-milliseconds seconds->date
+  current-date
   exn:break? exn:break-continuation
   exn:break:hang-up? exn:break:terminate?
   make-channel channel? channel-get channel-try-get
@@ -3208,6 +3227,7 @@
                          kern-exn:fail kern-exn:fail?
                          kern-exn:fail:contract kern-exn:fail:contract?
                          kern-exn:fail:contract:arity kern-exn:fail:contract:arity?
+                         kern-exn:fail:contract:continuation kern-exn:fail:contract:continuation?
                          kern-exn:fail:contract:divide-by-zero kern-exn:fail:contract:divide-by-zero?
                          kern-exn:fail:contract:non-fixnum-result kern-exn:fail:contract:non-fixnum-result?
                          kern-exn:fail:contract:variable kern-exn:fail:contract:variable?
@@ -3217,6 +3237,7 @@
                          kern-exn:fail:read:eof kern-exn:fail:read:eof?
                          kern-exn:fail:read:non-char kern-exn:fail:read:non-char?
                          kern-exn:fail:filesystem kern-exn:fail:filesystem?
+                         kern-exn:fail:filesystem:exists kern-exn:fail:filesystem:exists?
                          kern-exn:fail:syntax kern-exn:fail:syntax?
                          kern-exn:fail:syntax-exprs
                          kern-exn:fail:syntax:missing-module kern-exn:fail:syntax:missing-module?
@@ -3234,6 +3255,8 @@
     [kern-exn:fail:contract?                #'exn:fail:contract?]
     [kern-exn:fail:contract:arity           #'exn:fail:contract:arity]
     [kern-exn:fail:contract:arity?          #'exn:fail:contract:arity?]
+    [kern-exn:fail:contract:continuation    #'exn:fail:contract:continuation]
+    [kern-exn:fail:contract:continuation?   #'exn:fail:contract:continuation?]
     [kern-exn:fail:contract:divide-by-zero  #'exn:fail:contract:divide-by-zero]
     [kern-exn:fail:contract:divide-by-zero? #'exn:fail:contract:divide-by-zero?]
     [kern-exn:fail:contract:non-fixnum-result #'exn:fail:contract:non-fixnum-result]
@@ -3250,6 +3273,8 @@
     [kern-exn:fail:read:non-char?           #'exn:fail:read:non-char?]
     [kern-exn:fail:filesystem               #'exn:fail:filesystem]
     [kern-exn:fail:filesystem?              #'exn:fail:filesystem?]
+    [kern-exn:fail:filesystem:exists        #'exn:fail:filesystem:exists]
+    [kern-exn:fail:filesystem:exists?       #'exn:fail:filesystem:exists?]
     [kern-exn:fail:syntax                   #'exn:fail:syntax]
     [kern-exn:fail:syntax?                  #'exn:fail:syntax?]
     [kern-exn:fail:syntax-exprs             #'exn:fail:syntax-exprs]

@@ -29,6 +29,7 @@
   (namespace-require 'racket/symbol)
   (namespace-require 'racket/string)
   (namespace-require 'racket/bytes)
+  (namespace-require 'racket/date)
   (namespace-require 'racket/keyword)            ; keyword->immutable-string
   (namespace-require 'rnrs/arithmetic/fixnums-6) ; fxzero?
   (namespace-require 'math/base)
@@ -82,7 +83,11 @@
 ;; Example: vector-member gained an optional comparator in Racket 8.15.0.1,
 ;; but older Rackets report arity 2 while docs show (2 3).
 (define arity-overrides
-  (hash 'make-treelist '(1 2)
+  (hash 'date (arity-at-least 0)
+        'date* (arity-at-least 0)
+        'make-date (arity-at-least 0)
+        'make-date* (arity-at-least 0)
+        'make-treelist '(1 2)
         'vector-member '(2 3)))
 
 
@@ -187,6 +192,7 @@
     exn:fail
     exn:fail:contract
     exn:fail:contract:arity
+    exn:fail:contract:continuation
     exn:fail:contract:divide-by-zero
     exn:fail:contract:non-fixnum-result
     exn:fail:contract:variable
@@ -194,9 +200,13 @@
     exn:fail:read:eof
     exn:fail:read:non-char
     exn:fail:filesystem
+    exn:fail:filesystem:exists
     exn:fail:syntax
     exn:fail:syntax:missing-module
     exn:fail:syntax:unbound
+    date
+    date*
+    current-date
     ))
 
 (define (exception-constructor? sym)  

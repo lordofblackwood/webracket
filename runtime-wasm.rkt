@@ -69,6 +69,7 @@
         (struct:exn:fail                            ensure-exn:fail-type)
         (struct:exn:fail:contract                   ensure-exn:fail:contract-type)
         (struct:exn:fail:contract:arity             ensure-exn:fail:contract:arity-type)
+        (struct:exn:fail:contract:continuation      ensure-exn:fail:contract:continuation-type)
         (struct:exn:fail:contract:divide-by-zero    ensure-exn:fail:contract:divide-by-zero-type)
         (struct:exn:fail:contract:non-fixnum-result ensure-exn:fail:contract:non-fixnum-result-type)
         (struct:exn:fail:contract:variable          ensure-exn:fail:contract:variable-type)
@@ -76,6 +77,7 @@
         (struct:exn:fail:read:eof                   ensure-exn:fail:read:eof-type)
         (struct:exn:fail:read:non-char              ensure-exn:fail:read:non-char-type)
         (struct:exn:fail:filesystem                 ensure-exn:fail:filesystem-type)
+        (struct:exn:fail:filesystem:exists          ensure-exn:fail:filesystem:exists-type)
         (struct:exn:fail:syntax                     ensure-exn:fail:syntax-type)
         (struct:exn:fail:syntax:missing-module      ensure-exn:fail:syntax:missing-module-type)
         (struct:exn:fail:syntax:unbound             ensure-exn:fail:syntax:unbound-type)))
@@ -720,6 +722,10 @@
     ; The list  convention by `apply`, `map` and others.
     (define primitive-variadic-args
       '(bytes
+        date
+        date*
+        make-date
+        make-date*
         string
         vector
         treelist
@@ -1808,6 +1814,9 @@
           exn:fail:contract:arity
           exn:fail:contract:arity?
           make-exn:fail:contract:arity
+          exn:fail:contract:continuation
+          exn:fail:contract:continuation?
+          make-exn:fail:contract:continuation
           exn:fail:contract:divide-by-zero
           exn:fail:contract:divide-by-zero?
           make-exn:fail:contract:divide-by-zero
@@ -1831,6 +1840,9 @@
           exn:fail:filesystem
           exn:fail:filesystem?
           make-exn:fail:filesystem
+          exn:fail:filesystem:exists
+          exn:fail:filesystem:exists?
+          make-exn:fail:filesystem:exists
           exn:fail:syntax
           exn:fail:syntax?
           make-exn:fail:syntax
@@ -2009,6 +2021,8 @@
     (add-runtime-string-constant 'boolean?                   "boolean?")
     (add-runtime-string-constant 'date?                      "date?")
     (add-runtime-string-constant 'date*?                     "date*?")
+    (add-runtime-string-constant 'UTC                        "UTC")
+    (add-runtime-string-constant 'local                      "local")
     (add-runtime-string-constant 'racket-version             (version))
     (add-runtime-string-constant 'webracket-machine          "WebRacket")
     (add-runtime-string-constant 'uncaught-exception         "uncaught exception: ")
@@ -2052,7 +2066,11 @@
     (add-runtime-symbol-constant 'custodian-box?)
     (add-runtime-symbol-constant 'custodian-box-value)
     (add-runtime-symbol-constant 'date?)
+    (add-runtime-symbol-constant 'date)
+    (add-runtime-symbol-constant 'make-date)
     (add-runtime-symbol-constant 'date*?)
+    (add-runtime-symbol-constant 'date*)
+    (add-runtime-symbol-constant 'make-date*)
     (add-runtime-symbol-constant 'date-second)
     (add-runtime-symbol-constant 'date-minute)
     (add-runtime-symbol-constant 'date-hour)
@@ -2065,6 +2083,19 @@
     (add-runtime-symbol-constant 'date-time-zone-offset)
     (add-runtime-symbol-constant 'date*-nanosecond)
     (add-runtime-symbol-constant 'date*-time-zone-name)
+    (add-runtime-symbol-constant 'exn:fail:contract:continuation)
+    (add-runtime-symbol-constant 'exn:fail:contract:continuation?)
+    (add-runtime-symbol-constant 'make-exn:fail:contract:continuation)
+    (add-runtime-symbol-constant 'exn:fail:filesystem:exists)
+    (add-runtime-symbol-constant 'exn:fail:filesystem:exists?)
+    (add-runtime-symbol-constant 'make-exn:fail:filesystem:exists)
+    (add-runtime-symbol-constant 'current-seconds)
+    (add-runtime-symbol-constant 'current-inexact-milliseconds)
+    (add-runtime-symbol-constant 'current-milliseconds)
+    (add-runtime-symbol-constant 'current-process-milliseconds)
+    (add-runtime-symbol-constant 'current-gc-milliseconds)
+    (add-runtime-symbol-constant 'seconds->date)
+    (add-runtime-symbol-constant 'current-date)
     (add-runtime-symbol-constant 'exn:break?)
     (add-runtime-symbol-constant 'exn:break-continuation)
     (add-runtime-symbol-constant 'exn:break:hang-up?)
@@ -2453,6 +2484,34 @@
                                      (field $hash (mut i32))
                                      (field $cust (ref $Custodian))
                                      (field $v    (mut (ref eq))))))
+          (type $Date (sub $Heap
+                           (struct
+                             (field $hash             (mut i32))
+                             (field $second           (ref eq))
+                             (field $minute           (ref eq))
+                             (field $hour             (ref eq))
+                             (field $day              (ref eq))
+                             (field $month            (ref eq))
+                             (field $year             (ref eq))
+                             (field $week-day         (ref eq))
+                             (field $year-day         (ref eq))
+                             (field $dst?             (ref eq))
+                             (field $time-zone-offset (ref eq)))))
+          (type $DateStar (sub $Date
+                               (struct
+                                 (field $hash             (mut i32))
+                                 (field $second           (ref eq))
+                                 (field $minute           (ref eq))
+                                 (field $hour             (ref eq))
+                                 (field $day              (ref eq))
+                                 (field $month            (ref eq))
+                                 (field $year             (ref eq))
+                                 (field $week-day         (ref eq))
+                                 (field $year-day         (ref eq))
+                                 (field $dst?             (ref eq))
+                                 (field $time-zone-offset (ref eq))
+                                 (field $nanosecond       (ref eq))
+                                 (field $time-zone-name   (ref $String)))))
           (type $Semaphore (sub $Heap
                                 (struct
                                   (field $hash  (mut i32))
@@ -3342,9 +3401,22 @@
          (func $js-vfs-permissions
                (import "primitives" "vfs_permissions")
                (param i32) (param i32) (param i32) (param i32) (result i32))
-         (func $js-vfs-identity
-               (import "primitives" "vfs_identity")
-               (param i32) (param i32) (result i32))
+        (func $js-vfs-identity
+              (import "primitives" "vfs_identity")
+              (param i32) (param i32) (result i32))
+
+         ;; Browser/JS wall-clock bridge. The exact millisecond import returns
+         ;; already-tagged fixnum bits so JavaScript can apply WebRacket's
+         ;; current 30-bit fixnum wrapping policy without trapping in Wasm.
+         (func $js-current-inexact-milliseconds
+               (import "primitives" "current_inexact_milliseconds")
+               (result f64))
+         (func $js-current-milliseconds-bits
+               (import "primitives" "current_milliseconds_bits")
+               (result i32))
+         (func $js-date-field
+               (import "primitives" "date_field")
+               (param f64) (param i32) (param i32) (result i32))
 
          (func $char-upcase/ucs
                (import "primitives" "char_upcase")
@@ -3798,6 +3870,7 @@
 
          (global $exn:fail:contract-type                (mut (ref null $StructType)) (ref.null $StructType))
          (global $exn:fail:contract:arity-type          (mut (ref null $StructType)) (ref.null $StructType))
+         (global $exn:fail:contract:continuation-type   (mut (ref null $StructType)) (ref.null $StructType))
          (global $exn:fail:contract:divide-by-zero-type (mut (ref null $StructType)) (ref.null $StructType))
          (global $exn:fail:contract:non-fixnum-result-type (mut (ref null $StructType)) (ref.null $StructType))
          (global $exn:fail:contract:variable-type       (mut (ref null $StructType)) (ref.null $StructType))
@@ -3807,6 +3880,7 @@
          (global $exn:fail:read:non-char-type           (mut (ref null $StructType)) (ref.null $StructType))
 
          (global $exn:fail:filesystem-type              (mut (ref null $StructType)) (ref.null $StructType))
+         (global $exn:fail:filesystem:exists-type       (mut (ref null $StructType)) (ref.null $StructType))
 
          (global $exn:fail:syntax-type                  (mut (ref null $StructType)) (ref.null $StructType))
          (global $exn:fail:syntax:missing-module-type   (mut (ref null $StructType)) (ref.null $StructType))
@@ -7340,6 +7414,37 @@
                     (local.set $existing (local.get $std))))
                (ref.as_non_null (local.get $existing)))
 
+         ;; Kernel exception fail:contract:continuation struct type descriptor cache
+         (func $ensure-exn:fail:contract:continuation-type
+               (result (ref $StructType))
+
+               (local $existing (ref null $StructType))
+               (local $std      (ref $StructType))
+               (local $super    (ref $StructType))
+               (local $immut    (ref eq))
+
+               (local.set $existing (global.get $exn:fail:contract:continuation-type))
+               (if (ref.is_null (local.get $existing))
+                   (then
+                    (local.set $super (call $ensure-exn:fail:contract-type))
+                    (local.set $immut (struct.get $StructType $immutables (local.get $super)))
+                    (local.set $std
+                               (call $make-struct-type-descriptor/checked
+                                     (ref.cast (ref $Symbol) (global.get $symbol:exn:fail:contract:continuation))
+                                     (ref.cast (ref eq) (local.get $super))
+                                     (i32.const 0)
+                                     (i32.const 0)
+                                     (global.get $false)
+                                     (global.get $null)
+                                     (global.get $false)
+                                     (global.get $false)
+                                     (local.get $immut)
+                                     (global.get $false)
+                                     (ref.cast (ref $Symbol) (global.get $symbol:exn:fail:contract:continuation))))
+                    (global.set $exn:fail:contract:continuation-type (local.get $std))
+                    (local.set $existing (local.get $std))))
+               (ref.as_non_null (local.get $existing)))
+
          ;; Kernel exception fail:contract:divide-by-zero struct type descriptor cache
          (func $ensure-exn:fail:contract:divide-by-zero-type
                (result (ref $StructType))
@@ -7560,6 +7665,29 @@
                            (local.get $std)
                            (local.get $fields)))
 
+         ;; Construct a kernel exception:fail:contract:continuation instance
+         (func $exn:fail:contract:continuation/make
+               (param $message (ref eq)) ; string
+               (param $marks   (ref eq)) ; continuation-mark-set?
+               (result (ref $Struct))
+
+               (local $std    (ref $StructType))
+               (local $fields (ref $Array))
+
+               (local.set $std (call $ensure-exn:fail:contract:continuation-type))
+               (local.set $fields
+                          (array.new_fixed $Array 2
+                                           (local.get $message)
+                                           (local.get $marks)))
+               (struct.new $Struct
+                           (i32.const 0)
+                           (global.get $false)
+                           (ref.i31 (i32.const 0))
+                           (global.get $false)
+                           (ref.func $invoke-struct)
+                           (local.get $std)
+                           (local.get $fields)))
+
          ;; Construct a kernel exception:fail:contract:divide-by-zero instance
          (func $exn:fail:contract:divide-by-zero/make
                (param $message (ref eq)) ; string
@@ -7708,6 +7836,51 @@
                (local $ok     i32)
 
                (local.set $std (call $ensure-exn:fail:contract:arity-type))
+               (if (result (ref eq))
+                   (ref.test (ref $Struct) (local.get $v))
+                   (then
+                    (local.set $struct (ref.cast (ref $Struct) (local.get $v)))
+                    (local.set $ok (call $struct-type-is-a?/i32
+                                             (struct.get $Struct $type (local.get $struct))
+                                             (local.get $std)))
+                    (if (result (ref eq))
+                        (local.get $ok)
+                        (then (global.get $true))
+                        (else (global.get $false))))
+                   (else (global.get $false))))
+
+         ;; exn:fail:contract:continuation : string? continuation-mark-set? -> exn:fail:contract:continuation
+         (func $exn:fail:contract:continuation (type $Prim2)
+               (param $message (ref eq)) ; string
+               (param $marks   (ref eq)) ; continuation-mark-set?
+               (result (ref eq))
+
+               (ref.cast (ref eq)
+                         (call $exn:fail:contract:continuation/make
+                               (call $exn-ensure-message (global.get $symbol:exn:fail:contract:continuation) (local.get $message))
+                               (local.get $marks))))
+
+         ;; make-exn:fail:contract:continuation : string? continuation-mark-set? -> exn:fail:contract:continuation
+         (func $make-exn:fail:contract:continuation (type $Prim2)
+               (param $message (ref eq)) ; string
+               (param $marks   (ref eq)) ; continuation-mark-set?
+               (result (ref eq))
+
+               (ref.cast (ref eq)
+                         (call $exn:fail:contract:continuation/make
+                               (call $exn-ensure-message (global.get $symbol:make-exn:fail:contract:continuation) (local.get $message))
+                               (local.get $marks))))
+
+         ;; exn:fail:contract:continuation? : any/c -> boolean?
+         (func $exn:fail:contract:continuation? (type $Prim1)
+               (param $v (ref eq)) ; any/c
+               (result (ref eq))
+
+               (local $std    (ref $StructType))
+               (local $struct (ref $Struct))
+               (local $ok     i32)
+
+               (local.set $std (call $ensure-exn:fail:contract:continuation-type))
                (if (result (ref eq))
                    (ref.test (ref $Struct) (local.get $v))
                    (then
@@ -8379,6 +8552,105 @@
                (local $ok     i32)
 
                (local.set $std (call $ensure-exn:fail:filesystem-type))
+               (if (result (ref eq))
+                   (ref.test (ref $Struct) (local.get $v))
+                   (then
+                    (local.set $struct (ref.cast (ref $Struct) (local.get $v)))
+                    (local.set $ok (call $struct-type-is-a?/i32
+                                             (struct.get $Struct $type (local.get $struct))
+                                             (local.get $std)))
+                    (if (result (ref eq))
+                        (local.get $ok)
+                        (then (global.get $true))
+                        (else (global.get $false))))
+                   (else (global.get $false))))
+
+         ;; Kernel exception fail:filesystem:exists struct type descriptor cache
+         (func $ensure-exn:fail:filesystem:exists-type
+               (result (ref $StructType))
+
+               (local $existing (ref null $StructType))
+               (local $std      (ref $StructType))
+               (local $super    (ref $StructType))
+               (local $immut    (ref eq))
+
+               (local.set $existing (global.get $exn:fail:filesystem:exists-type))
+               (if (ref.is_null (local.get $existing))
+                   (then
+                    (local.set $super (call $ensure-exn:fail:filesystem-type))
+                    (local.set $immut (struct.get $StructType $immutables (local.get $super)))
+                    (local.set $std
+                               (call $make-struct-type-descriptor/checked
+                                     (ref.cast (ref $Symbol) (global.get $symbol:exn:fail:filesystem:exists))
+                                     (ref.cast (ref eq) (local.get $super))
+                                     (i32.const 0)
+                                     (i32.const 0)
+                                     (global.get $false)
+                                     (global.get $null)
+                                     (global.get $false)
+                                     (global.get $false)
+                                     (local.get $immut)
+                                     (global.get $false)
+                                     (ref.cast (ref $Symbol) (global.get $symbol:exn:fail:filesystem:exists))))
+                    (global.set $exn:fail:filesystem:exists-type (local.get $std))
+                    (local.set $existing (local.get $std))))
+               (ref.as_non_null (local.get $existing)))
+
+         ;; Construct a kernel exception:fail:filesystem:exists instance
+         (func $exn:fail:filesystem:exists/make
+               (param $message (ref eq)) ; string
+               (param $marks   (ref eq)) ; continuation-mark-set?
+               (result (ref $Struct))
+
+               (local $std    (ref $StructType))
+               (local $fields (ref $Array))
+
+               (local.set $std (call $ensure-exn:fail:filesystem:exists-type))
+               (local.set $fields
+                          (array.new_fixed $Array 2
+                                           (local.get $message)
+                                           (local.get $marks)))
+               (struct.new $Struct
+                           (i32.const 0)
+                           (global.get $false)
+                           (ref.i31 (i32.const 0))
+                           (global.get $false)
+                           (ref.func $invoke-struct)
+                           (local.get $std)
+                           (local.get $fields)))
+
+         ;; exn:fail:filesystem:exists : string? continuation-mark-set? -> exn:fail:filesystem:exists
+         (func $exn:fail:filesystem:exists (type $Prim2)
+               (param $message (ref eq)) ; string
+               (param $marks   (ref eq)) ; continuation-mark-set?
+               (result (ref eq))
+
+               (ref.cast (ref eq)
+                         (call $exn:fail:filesystem:exists/make
+                               (call $exn-ensure-message (global.get $symbol:exn:fail:filesystem:exists) (local.get $message))
+                               (local.get $marks))))
+
+         ;; make-exn:fail:filesystem:exists : string? continuation-mark-set? -> exn:fail:filesystem:exists
+         (func $make-exn:fail:filesystem:exists (type $Prim2)
+               (param $message (ref eq)) ; string
+               (param $marks   (ref eq)) ; continuation-mark-set?
+               (result (ref eq))
+
+               (ref.cast (ref eq)
+                         (call $exn:fail:filesystem:exists/make
+                               (call $exn-ensure-message (global.get $symbol:make-exn:fail:filesystem:exists) (local.get $message))
+                               (local.get $marks))))
+
+         ;; exn:fail:filesystem:exists? : any/c -> boolean?
+         (func $exn:fail:filesystem:exists? (type $Prim1)
+               (param $v (ref eq)) ; any/c
+               (result (ref eq))
+
+               (local $std    (ref $StructType))
+               (local $struct (ref $Struct))
+               (local $ok     i32)
+
+               (local.set $std (call $ensure-exn:fail:filesystem:exists-type))
                (if (result (ref eq))
                    (ref.test (ref $Struct) (local.get $v))
                    (then
@@ -54995,45 +55267,384 @@
          ;; 14.9 Structure Inspectors
 
          ;; date? : any/c -> boolean?
-         ;;   Placeholder predicate for the time/date structure family.
-         ;;   WebRacket does not yet construct Racket date records; module
-         ;;   bootstrap code currently only needs the predicate bound.
+         ;;   Recognize WebRacket date and date* records.
          (func $date? (type $Prim1)
-               (param $v (ref eq)) ;; any/c
-               (result   (ref eq))
-               (global.get $false))
+               ,@(make-predicate-body '$Date))
 
          ;; date*? : any/c -> boolean?
-         ;;   Placeholder predicate for extended date records. Real support
-         ;;   will need the full `date`/`date*` structure layout plus
-         ;;   seconds->date/current-date conversion.
+         ;;   Recognize WebRacket date* records.
          (func $date*? (type $Prim1)
-               (param $v (ref eq)) ;; any/c
-               (result   (ref eq))
-               (global.get $false))
+               ,@(make-predicate-body '$DateStar))
 
-         ;; date-field-placeholder : date? -> any/c
-         ;;   Shared placeholder for date/date* accessors. Since `date?` and
-         ;;   `date*?` currently always return #f, real date values cannot be
-         ;;   produced yet; these bindings exist so serializers/contracts can
-         ;;   register the struct interface without failing at load time.
-         (func $date-field-placeholder (type $Prim1)
-               (param $v (ref eq)) ;; date?
-               (result   (ref eq))
-               (global.get $false))
+         ;; exact-fixnum-in-range? : any/c i32 i32 -> i32
+         ;;   Validate the fixnum subset used by date range fields.
+         (func $exact-fixnum-in-range?
+               (param $v    (ref eq))
+               (param $low  i32)
+               (param $high i32)
+               (result      i32)
+               (local $raw i32)
+               (local $n   i32)
+               (if (i32.eqz (ref.test (ref i31) (local.get $v)))
+                   (then (return (i32.const 0))))
+               (local.set $raw (i31.get_s (ref.cast (ref i31) (local.get $v))))
+               (if (i32.ne (i32.and (local.get $raw) (i32.const 1)) (i32.const 0))
+                   (then (return (i32.const 0))))
+               (local.set $n (i32.shr_s (local.get $raw) (i32.const 1)))
+               (i32.and (i32.ge_s (local.get $n) (local.get $low))
+                        (i32.le_s (local.get $n) (local.get $high))))
 
-         (func $date-second           (type $Prim1) (param $v (ref eq)) (result (ref eq)) (return_call $date-field-placeholder (local.get $v)))
-         (func $date-minute           (type $Prim1) (param $v (ref eq)) (result (ref eq)) (return_call $date-field-placeholder (local.get $v)))
-         (func $date-hour             (type $Prim1) (param $v (ref eq)) (result (ref eq)) (return_call $date-field-placeholder (local.get $v)))
-         (func $date-day              (type $Prim1) (param $v (ref eq)) (result (ref eq)) (return_call $date-field-placeholder (local.get $v)))
-         (func $date-month            (type $Prim1) (param $v (ref eq)) (result (ref eq)) (return_call $date-field-placeholder (local.get $v)))
-         (func $date-year             (type $Prim1) (param $v (ref eq)) (result (ref eq)) (return_call $date-field-placeholder (local.get $v)))
-         (func $date-week-day         (type $Prim1) (param $v (ref eq)) (result (ref eq)) (return_call $date-field-placeholder (local.get $v)))
-         (func $date-year-day         (type $Prim1) (param $v (ref eq)) (result (ref eq)) (return_call $date-field-placeholder (local.get $v)))
-         (func $date-dst?             (type $Prim1) (param $v (ref eq)) (result (ref eq)) (return_call $date-field-placeholder (local.get $v)))
-         (func $date-time-zone-offset (type $Prim1) (param $v (ref eq)) (result (ref eq)) (return_call $date-field-placeholder (local.get $v)))
-         (func $date*-nanosecond      (type $Prim1) (param $v (ref eq)) (result (ref eq)) (return_call $date-field-placeholder (local.get $v)))
-         (func $date*-time-zone-name  (type $Prim1) (param $v (ref eq)) (result (ref eq)) (return_call $date-field-placeholder (local.get $v)))
+         ;; ensure-date-range-field : symbol? any/c i32 i32 -> any/c
+         ;;   Check a date range field and return it unchanged.
+         (func $ensure-date-range-field
+               (param $who  (ref eq))
+               (param $v    (ref eq))
+               (param $low  i32)
+               (param $high i32)
+               (result      (ref eq))
+               (if (i32.eqz (call $exact-fixnum-in-range?
+                                  (local.get $v)
+                                  (local.get $low)
+                                  (local.get $high)))
+                   (then (call $raise-argument-error1
+                               (local.get $who)
+                               (global.get $string:exact-integer?)
+                               (local.get $v))
+                         (unreachable)))
+               (local.get $v))
+
+         ;; ensure-date-exact-integer-field : symbol? any/c -> any/c
+         ;;   Check a date field documented as exact-integer?.
+         (func $ensure-date-exact-integer-field
+               (param $who (ref eq))
+               (param $v   (ref eq))
+               (result     (ref eq))
+               (if (ref.eq (call $exact-integer? (local.get $v)) (global.get $false))
+                   (then (call $raise-argument-error1
+                               (local.get $who)
+                               (global.get $string:exact-integer?)
+                               (local.get $v))
+                         (unreachable)))
+               (local.get $v))
+
+         ;; ensure-date-boolean-field : symbol? any/c -> boolean?
+         ;;   Check the date dst? field.
+         (func $ensure-date-boolean-field
+               (param $who (ref eq))
+               (param $v   (ref eq))
+               (result     (ref eq))
+               (if (ref.eq (call $boolean? (local.get $v)) (global.get $false))
+                   (then (call $raise-argument-error1
+                               (local.get $who)
+                               (global.get $string:boolean?)
+                               (local.get $v))
+                         (unreachable)))
+               (local.get $v))
+
+         ;; make-date/checked : fields -> date?
+         ;;   Construct a date after validation.
+         (func $make-date/checked
+               (param $who              (ref eq))
+               (param $second           (ref eq))
+               (param $minute           (ref eq))
+               (param $hour             (ref eq))
+               (param $day              (ref eq))
+               (param $month            (ref eq))
+               (param $year             (ref eq))
+               (param $week-day         (ref eq))
+               (param $year-day         (ref eq))
+               (param $dst?             (ref eq))
+               (param $time-zone-offset (ref eq))
+               (result                  (ref eq))
+               (struct.new $Date
+                           (i32.const 0)
+                           (call $ensure-date-range-field (local.get $who) (local.get $second) (i32.const 0) (i32.const 60))
+                           (call $ensure-date-range-field (local.get $who) (local.get $minute) (i32.const 0) (i32.const 59))
+                           (call $ensure-date-range-field (local.get $who) (local.get $hour) (i32.const 0) (i32.const 23))
+                           (call $ensure-date-range-field (local.get $who) (local.get $day) (i32.const 1) (i32.const 31))
+                           (call $ensure-date-range-field (local.get $who) (local.get $month) (i32.const 1) (i32.const 12))
+                           (call $ensure-date-exact-integer-field (local.get $who) (local.get $year))
+                           (call $ensure-date-range-field (local.get $who) (local.get $week-day) (i32.const 0) (i32.const 6))
+                           (call $ensure-date-range-field (local.get $who) (local.get $year-day) (i32.const 0) (i32.const 365))
+                           (call $ensure-date-boolean-field (local.get $who) (local.get $dst?))
+                           (call $ensure-date-exact-integer-field (local.get $who) (local.get $time-zone-offset))))
+
+         ;; make-date*/checked : fields -> date*?
+         ;;   Construct a date* after validation, copying the zone name to an
+         ;;   immutable string as specified by the Reference.
+         (func $make-date*/checked
+               (param $who              (ref eq))
+               (param $second           (ref eq))
+               (param $minute           (ref eq))
+               (param $hour             (ref eq))
+               (param $day              (ref eq))
+               (param $month            (ref eq))
+               (param $year             (ref eq))
+               (param $week-day         (ref eq))
+               (param $year-day         (ref eq))
+               (param $dst?             (ref eq))
+               (param $time-zone-offset (ref eq))
+               (param $nanosecond       (ref eq))
+               (param $time-zone-name   (ref eq))
+               (result                  (ref eq))
+               (if (i32.eqz (ref.test (ref $String) (local.get $time-zone-name)))
+                   (then (call $raise-argument-error1
+                               (local.get $who)
+                               (global.get $string:string?)
+                               (local.get $time-zone-name))
+                         (unreachable)))
+               (struct.new $DateStar
+                           (i32.const 0)
+                           (call $ensure-date-range-field (local.get $who) (local.get $second) (i32.const 0) (i32.const 60))
+                           (call $ensure-date-range-field (local.get $who) (local.get $minute) (i32.const 0) (i32.const 59))
+                           (call $ensure-date-range-field (local.get $who) (local.get $hour) (i32.const 0) (i32.const 23))
+                           (call $ensure-date-range-field (local.get $who) (local.get $day) (i32.const 1) (i32.const 31))
+                           (call $ensure-date-range-field (local.get $who) (local.get $month) (i32.const 1) (i32.const 12))
+                           (call $ensure-date-exact-integer-field (local.get $who) (local.get $year))
+                           (call $ensure-date-range-field (local.get $who) (local.get $week-day) (i32.const 0) (i32.const 6))
+                           (call $ensure-date-range-field (local.get $who) (local.get $year-day) (i32.const 0) (i32.const 365))
+                           (call $ensure-date-boolean-field (local.get $who) (local.get $dst?))
+                           (call $ensure-date-exact-integer-field (local.get $who) (local.get $time-zone-offset))
+                           (call $ensure-date-range-field (local.get $who) (local.get $nanosecond) (i32.const 0) (i32.const 999999999))
+                           (ref.cast (ref $String)
+                                     (call $string->immutable-string (local.get $time-zone-name)))))
+
+         ;; date : fields -> date?
+         ;;   Rest-style primitive because WebRacket does not yet have exact
+         ;;   fixed primitive shapes for arity 10.
+         (func $date (type $Prim>=0)
+               (param $args (ref eq)) ;; argument array
+               (result      (ref eq))
+               (local $argv (ref $Array))
+               (local.set $argv (call $make-array (i32.const 0) (global.get $null)))
+               (if (ref.test (ref $Args) (local.get $args))
+                   (then
+                    (local.set $argv
+                               (call $list->array
+                                     (call $rest-arguments->list
+                                           (ref.cast (ref $Args) (local.get $args))
+                                           (i32.const 0)))))
+                   (else
+                    (local.set $argv (call $list->array (local.get $args)))))
+               (if (i32.ne (array.len (local.get $argv)) (i32.const 10))
+                   (then (call $raise-arity-mismatch/name+given
+                               (global.get $symbol:date)
+                               (array.len (local.get $argv)))
+                         (unreachable)))
+               (call $make-date/checked
+                     (global.get $symbol:date)
+                     (array.get $Array (local.get $argv) (i32.const 0))
+                     (array.get $Array (local.get $argv) (i32.const 1))
+                     (array.get $Array (local.get $argv) (i32.const 2))
+                     (array.get $Array (local.get $argv) (i32.const 3))
+                     (array.get $Array (local.get $argv) (i32.const 4))
+                     (array.get $Array (local.get $argv) (i32.const 5))
+                     (array.get $Array (local.get $argv) (i32.const 6))
+                     (array.get $Array (local.get $argv) (i32.const 7))
+                     (array.get $Array (local.get $argv) (i32.const 8))
+                     (array.get $Array (local.get $argv) (i32.const 9))))
+
+         ;; make-date : fields -> date?
+         ;;   Alias for the `date` constructor.
+         (func $make-date (type $Prim>=0)
+               (param $args (ref eq))
+               (result      (ref eq))
+               (return_call $date (local.get $args)))
+
+         ;; date* : fields -> date*?
+         ;;   Rest-style primitive because WebRacket does not yet have exact
+         ;;   fixed primitive shapes for arity 12.
+         (func $date* (type $Prim>=0)
+               (param $args (ref eq)) ;; argument array
+               (result      (ref eq))
+               (local $argv (ref $Array))
+               (local.set $argv (call $make-array (i32.const 0) (global.get $null)))
+               (if (ref.test (ref $Args) (local.get $args))
+                   (then
+                    (local.set $argv
+                               (call $list->array
+                                     (call $rest-arguments->list
+                                           (ref.cast (ref $Args) (local.get $args))
+                                           (i32.const 0)))))
+                   (else
+                    (local.set $argv (call $list->array (local.get $args)))))
+               (if (i32.ne (array.len (local.get $argv)) (i32.const 12))
+                   (then (call $raise-arity-mismatch/name+given
+                               (global.get $symbol:date*)
+                               (array.len (local.get $argv)))
+                         (unreachable)))
+               (call $make-date*/checked
+                     (global.get $symbol:date*)
+                     (array.get $Array (local.get $argv) (i32.const 0))
+                     (array.get $Array (local.get $argv) (i32.const 1))
+                     (array.get $Array (local.get $argv) (i32.const 2))
+                     (array.get $Array (local.get $argv) (i32.const 3))
+                     (array.get $Array (local.get $argv) (i32.const 4))
+                     (array.get $Array (local.get $argv) (i32.const 5))
+                     (array.get $Array (local.get $argv) (i32.const 6))
+                     (array.get $Array (local.get $argv) (i32.const 7))
+                     (array.get $Array (local.get $argv) (i32.const 8))
+                     (array.get $Array (local.get $argv) (i32.const 9))
+                     (array.get $Array (local.get $argv) (i32.const 10))
+                     (array.get $Array (local.get $argv) (i32.const 11))))
+
+         ;; make-date* : fields -> date*?
+         ;;   Alias for the `date*` constructor.
+         (func $make-date* (type $Prim>=0)
+               (param $args (ref eq))
+               (result      (ref eq))
+               (return_call $date* (local.get $args)))
+
+         (func $ensure-date
+               (param $who (ref eq))
+               (param $v   (ref eq))
+               (result     (ref $Date))
+               (if (i32.eqz (ref.test (ref $Date) (local.get $v)))
+                   (then (call $raise-argument-error1
+                               (local.get $who)
+                               (global.get $string:date?)
+                               (local.get $v))
+                         (unreachable)))
+               (ref.cast (ref $Date) (local.get $v)))
+
+         (func $ensure-date*
+               (param $who (ref eq))
+               (param $v   (ref eq))
+               (result     (ref $DateStar))
+               (if (i32.eqz (ref.test (ref $DateStar) (local.get $v)))
+                   (then (call $raise-argument-error1
+                               (local.get $who)
+                               (global.get $string:date*?)
+                               (local.get $v))
+                         (unreachable)))
+               (ref.cast (ref $DateStar) (local.get $v)))
+
+         (func $date-second           (type $Prim1) (param $v (ref eq)) (result (ref eq)) (struct.get $Date $second           (call $ensure-date (global.get $symbol:date-second)           (local.get $v))))
+         (func $date-minute           (type $Prim1) (param $v (ref eq)) (result (ref eq)) (struct.get $Date $minute           (call $ensure-date (global.get $symbol:date-minute)           (local.get $v))))
+         (func $date-hour             (type $Prim1) (param $v (ref eq)) (result (ref eq)) (struct.get $Date $hour             (call $ensure-date (global.get $symbol:date-hour)             (local.get $v))))
+         (func $date-day              (type $Prim1) (param $v (ref eq)) (result (ref eq)) (struct.get $Date $day              (call $ensure-date (global.get $symbol:date-day)              (local.get $v))))
+         (func $date-month            (type $Prim1) (param $v (ref eq)) (result (ref eq)) (struct.get $Date $month            (call $ensure-date (global.get $symbol:date-month)            (local.get $v))))
+         (func $date-year             (type $Prim1) (param $v (ref eq)) (result (ref eq)) (struct.get $Date $year             (call $ensure-date (global.get $symbol:date-year)             (local.get $v))))
+         (func $date-week-day         (type $Prim1) (param $v (ref eq)) (result (ref eq)) (struct.get $Date $week-day         (call $ensure-date (global.get $symbol:date-week-day)         (local.get $v))))
+         (func $date-year-day         (type $Prim1) (param $v (ref eq)) (result (ref eq)) (struct.get $Date $year-day         (call $ensure-date (global.get $symbol:date-year-day)         (local.get $v))))
+         (func $date-dst?             (type $Prim1) (param $v (ref eq)) (result (ref eq)) (struct.get $Date $dst?             (call $ensure-date (global.get $symbol:date-dst?)             (local.get $v))))
+         (func $date-time-zone-offset (type $Prim1) (param $v (ref eq)) (result (ref eq)) (struct.get $Date $time-zone-offset (call $ensure-date (global.get $symbol:date-time-zone-offset) (local.get $v))))
+         (func $date*-nanosecond      (type $Prim1) (param $v (ref eq)) (result (ref eq)) (struct.get $DateStar $nanosecond   (call $ensure-date* (global.get $symbol:date*-nanosecond)     (local.get $v))))
+         (func $date*-time-zone-name  (type $Prim1) (param $v (ref eq)) (result (ref eq)) (struct.get $DateStar $time-zone-name (call $ensure-date* (global.get $symbol:date*-time-zone-name) (local.get $v))))
+
+         ;; real->f64/date : symbol? real? -> f64
+         ;;   Convert a date/time real argument to a host double.
+         (func $real->f64/date
+               (param $who (ref eq))
+               (param $v   (ref eq))
+               (result     f64)
+               (local $bits i32)
+               (if (ref.test (ref $Flonum) (local.get $v))
+                   (then (return (struct.get $Flonum $v
+                                             (ref.cast (ref $Flonum) (local.get $v))))))
+               (if (ref.test (ref i31) (local.get $v))
+                   (then
+                    (local.set $bits (i31.get_s (ref.cast (ref i31) (local.get $v))))
+                    (if (i32.eqz (i32.and (local.get $bits) (i32.const 1)))
+                        (then (return (f64.convert_i32_s
+                                       (i32.shr_s (local.get $bits) (i32.const 1))))))))
+               (call $raise-expected-real (local.get $who) (local.get $v))
+               (unreachable))
+
+         ;; current-inexact-milliseconds : -> flonum?
+         ;;   Return Date.now(), including any fractional milliseconds.
+         (func $current-inexact-milliseconds (type $Prim0)
+               (result (ref eq))
+               (struct.new $Flonum
+                           (i32.const 0)
+                           (call $js-current-inexact-milliseconds)))
+
+         ;; current-milliseconds : -> exact-integer?
+         ;;   Return a fixnum-wrapped millisecond count, matching Racket's
+         ;;   "coerced to a fixnum" contract on small-fixnum platforms.
+         (func $current-milliseconds (type $Prim0)
+               (result (ref eq))
+               (ref.i31 (call $js-current-milliseconds-bits)))
+
+         ;; current-seconds : -> exact-integer?
+         ;;   Return whole seconds since the Unix epoch.
+         (func $current-seconds (type $Prim0)
+               (result (ref eq))
+               (ref.i31
+                (i32.shl
+                 (i32.trunc_f64_s
+                  (f64.div (call $js-current-inexact-milliseconds)
+                           (f64.const 1000)))
+                 (i32.const 1))))
+
+         ;; current-process-milliseconds : [any/c] -> exact-integer?
+         ;;   Browser JavaScript does not expose Racket-style process CPU time;
+         ;;   use the wall-clock fixnum value as a bootstrap approximation.
+         (func $current-process-milliseconds (type $Prim01)
+               (param $scope (ref eq)) ;; optional: #f, thread?, or 'subprocesses
+               (result (ref eq))
+               (return_call $current-milliseconds))
+
+         ;; current-gc-milliseconds : -> exact-integer?
+         ;;   JS GC accounting is not available to WebAssembly modules.
+         (func $current-gc-milliseconds (type $Prim0)
+               (result (ref eq))
+               (global.get $zero))
+
+         ;; seconds->date : real? [any/c] -> date*?
+         ;;   Use the JavaScript Date implementation to decompose wall-clock
+         ;;   seconds. The timezone-name field is precise for UTC and a stable
+         ;;   "local" placeholder for local time until WebRacket has a richer
+         ;;   timezone/rktio layer.
+         (func $seconds->date (type $Prim12)
+               (param $secs        (ref eq)) ;; real?
+               (param $local-time? (ref eq)) ;; optional any/c; default #t
+               (result             (ref eq))
+               (local $secs-f64 f64)
+               (local $local    i32)
+               (local.set $secs-f64
+                          (call $real->f64/date
+                                (global.get $symbol:seconds->date)
+                                (local.get $secs)))
+               (local.set $local
+                          (if (result i32)
+                              (ref.eq (local.get $local-time?) (global.get $false))
+                              (then (i32.const 0))
+                              (else (i32.const 1))))
+               (call $make-date*/checked
+                     (global.get $symbol:seconds->date)
+                     (ref.i31 (i32.shl (call $js-date-field (local.get $secs-f64) (local.get $local) (i32.const 0)) (i32.const 1)))
+                     (ref.i31 (i32.shl (call $js-date-field (local.get $secs-f64) (local.get $local) (i32.const 1)) (i32.const 1)))
+                     (ref.i31 (i32.shl (call $js-date-field (local.get $secs-f64) (local.get $local) (i32.const 2)) (i32.const 1)))
+                     (ref.i31 (i32.shl (call $js-date-field (local.get $secs-f64) (local.get $local) (i32.const 3)) (i32.const 1)))
+                     (ref.i31 (i32.shl (call $js-date-field (local.get $secs-f64) (local.get $local) (i32.const 4)) (i32.const 1)))
+                     (ref.i31 (i32.shl (call $js-date-field (local.get $secs-f64) (local.get $local) (i32.const 5)) (i32.const 1)))
+                     (ref.i31 (i32.shl (call $js-date-field (local.get $secs-f64) (local.get $local) (i32.const 6)) (i32.const 1)))
+                     (ref.i31 (i32.shl (call $js-date-field (local.get $secs-f64) (local.get $local) (i32.const 7)) (i32.const 1)))
+                     (if (result (ref eq))
+                         (i32.eqz (local.get $local))
+                         (then (global.get $false))
+                         (else (if (result (ref eq))
+                                   (i32.eqz (call $js-date-field (local.get $secs-f64) (local.get $local) (i32.const 8)))
+                                   (then (global.get $false))
+                                   (else (global.get $true)))))
+                     (ref.i31 (i32.shl (call $js-date-field (local.get $secs-f64) (local.get $local) (i32.const 9)) (i32.const 1)))
+                     (ref.i31 (i32.shl (call $js-date-field (local.get $secs-f64) (local.get $local) (i32.const 10)) (i32.const 1)))
+                     (if (result (ref eq))
+                         (i32.eqz (local.get $local))
+                         (then (global.get $string:UTC))
+                         (else (global.get $string:local)))))
+
+         ;; current-date : -> date*?
+         ;;   Equivalent to `(seconds->date (* 0.001 (current-inexact-milliseconds)))`.
+         (func $current-date (type $Prim0)
+               (result (ref eq))
+               (call $seconds->date
+                     (struct.new $Flonum
+                                 (i32.const 0)
+                                 (f64.div (call $js-current-inexact-milliseconds)
+                                          (f64.const 1000)))
+                     (global.get $true)))
 
          ;; exn:break? : any/c -> boolean?
          ;;   Break delivery is not implemented yet; WebRacket currently never

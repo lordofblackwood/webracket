@@ -5789,11 +5789,58 @@
                            (equal? (custodian-shutdown-all c) (void))
                            (equal? (custodian-box-value b) #f))))
 
-              (list "date-predicates/placeholders"
-                    (and (equal? (date? 'not-a-date) #f)
-                         (equal? (date*? 'not-a-date) #f)
-                         (equal? (date-dst? 'not-a-date) #f)
-                         (equal? (date*-time-zone-name 'not-a-date) #f)))
+              (list "date/basic"
+                    (let ([d (date 6 7 8 9 10 2024 3 282 #f 0)])
+                      (and (equal? (date? d) #t)
+                           (equal? (date*? d) #f)
+                           (equal? (date-second d) 6)
+                           (equal? (date-minute d) 7)
+                           (equal? (date-hour d) 8)
+                           (equal? (date-day d) 9)
+                           (equal? (date-month d) 10)
+                           (equal? (date-year d) 2024)
+                           (equal? (date-week-day d) 3)
+                           (equal? (date-year-day d) 282)
+                           (equal? (date-dst? d) #f)
+                           (equal? (date-time-zone-offset d) 0))))
+
+              (list "date*/basic"
+                    (let* ([zone (string #\U #\T #\C)]
+                           [d (date* 6 7 8 9 10 2024 3 282 #f 0 123 zone)])
+                      (and (equal? (date? d) #t)
+                           (equal? (date*? d) #t)
+                           (equal? (date-second d) 6)
+                           (equal? (date*-nanosecond d) 123)
+                           (equal? (date*-time-zone-name d) "UTC")
+                           (equal? (immutable-string? (date*-time-zone-name d)) #t))))
+
+              (list "time/current-clock"
+                    (and (equal? (exact-integer? (current-seconds)) #t)
+                         (equal? (real? (current-inexact-milliseconds)) #t)
+                         (equal? (inexact? (current-inexact-milliseconds)) #t)
+                         (equal? (exact-integer? (current-milliseconds)) #t)
+                         (equal? (exact-integer? (current-process-milliseconds)) #t)
+                         (equal? (exact-integer? (current-gc-milliseconds)) #t)))
+
+              (list "time/seconds->date-utc"
+                    (let ([d (seconds->date 0 #f)])
+                      (and (equal? (date? d) #t)
+                           (equal? (date*? d) #t)
+                           (equal? (date-second d) 0)
+                           (equal? (date-minute d) 0)
+                           (equal? (date-hour d) 0)
+                           (equal? (date-day d) 1)
+                           (equal? (date-month d) 1)
+                           (equal? (date-year d) 1970)
+                           (equal? (date-week-day d) 4)
+                           (equal? (date-year-day d) 0)
+                           (equal? (date-dst? d) #f)
+                           (equal? (date-time-zone-offset d) 0)
+                           (equal? (date*-nanosecond d) 0)
+                           (equal? (date*-time-zone-name d) "UTC"))))
+
+              (list "time/current-date"
+                    (date*? (current-date)))
 
               (list "break-exn-predicates/placeholders"
                     (and (equal? (exn:break? 'not-a-break) #f)
@@ -6595,6 +6642,8 @@
                      [contract-make (make-exn:fail:contract "made" marks)]
                      [arity         (exn:fail:contract:arity "arity" marks)]
                      [arity-make    (make-exn:fail:contract:arity "made-arity" marks)]
+                     [continuation  (exn:fail:contract:continuation "continuation" marks)]
+                     [continuation-make (make-exn:fail:contract:continuation "made-continuation" marks)]
                      [divide        (exn:fail:contract:divide-by-zero "divide" marks)]
                      [divide-make   (make-exn:fail:contract:divide-by-zero "made-divide" marks)]
                      [non-fixnum    (exn:fail:contract:non-fixnum-result "non-fixnum" marks)]
@@ -6609,12 +6658,16 @@
                      (equal? (exn:fail:contract? variable) #t)
                      (equal? (exn:fail:contract? contract-make) #t)
                      (equal? (exn:fail:contract? arity-make) #t)
+                     (equal? (exn:fail:contract? continuation) #t)
+                     (equal? (exn:fail:contract? continuation-make) #t)
                      (equal? (exn:fail:contract? divide-make) #t)
                      (equal? (exn:fail:contract? non-fixnum-make) #t)
                      (equal? (exn:fail:contract? variable-make) #t)
                      (equal? (exn:fail:contract:arity? contract) #f)
                      (equal? (exn:fail:contract:arity? arity) #t)
                      (equal? (exn:fail:contract:arity? arity-make) #t)
+                     (equal? (exn:fail:contract:continuation? continuation) #t)
+                     (equal? (exn:fail:contract:continuation? continuation-make) #t)
                      (equal? (exn:fail:contract:divide-by-zero? divide) #t)
                      (equal? (exn:fail:contract:divide-by-zero? divide-make) #t)
                      (equal? (exn:fail:contract:non-fixnum-result? non-fixnum) #t)
@@ -6625,6 +6678,7 @@
                      (equal? (exn:fail:contract:variable-id variable-make) 'made-id)
                      (equal? (exn-message contract) "contract")
                      (equal? (exn-message arity) "arity")
+                     (equal? (exn-message continuation) "continuation")
                      (equal? (exn-message divide) "divide")
                      (equal? (exn-message non-fixnum) "non-fixnum")
                      (equal? (exn-message variable) "variable"))))
@@ -6657,14 +6711,22 @@
         (list "exn:fail:filesystem structures"
               (let* ([marks           '()]
                      [filesystem      (exn:fail:filesystem "filesystem" marks)]
-                     [filesystem-make (make-exn:fail:filesystem "made-filesystem" marks)])
+                     [filesystem-make (make-exn:fail:filesystem "made-filesystem" marks)]
+                     [exists          (exn:fail:filesystem:exists "exists" marks)]
+                     [exists-make     (make-exn:fail:filesystem:exists "made-exists" marks)])
                 (and (equal? (exn:fail? filesystem) #t)
                      (equal? (exn:fail? filesystem-make) #t)
                      (equal? (exn:fail:filesystem? filesystem) #t)
                      (equal? (exn:fail:filesystem? filesystem-make) #t)
+                     (equal? (exn:fail:filesystem? exists) #t)
+                     (equal? (exn:fail:filesystem? exists-make) #t)
+                     (equal? (exn:fail:filesystem:exists? filesystem) #f)
+                     (equal? (exn:fail:filesystem:exists? exists) #t)
+                     (equal? (exn:fail:filesystem:exists? exists-make) #t)
                      (equal? (exn:fail:filesystem? (exn:fail "fail" marks)) #f)
                      (equal? (exn-message filesystem) "filesystem")
-                     (equal? (exn-message filesystem-make) "made-filesystem"))))
+                     (equal? (exn-message filesystem-make) "made-filesystem")
+                     (equal? (exn-message exists) "exists"))))
 
         (list "exn:fail:syntax structures"
               (let* ([marks          '()]
