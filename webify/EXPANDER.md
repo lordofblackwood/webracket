@@ -3650,18 +3650,35 @@ appear before source modules that use quoted sibling requires such as
 `(require 'base-values)`. This is still ahead-of-time host work for Goal 1, not
 browser-side namespace/eval support.
 
-The `racket/set` smoke is currently an expected runtime failure, but it no
-longer fails at the old `stream?` provider ambiguity or at the
-`check-not-unsafe-undefined` lowering guard. The resolver has a narrow
+Manual `racket/stream` probes are passing: both a require-only module and a
+simple `(stream-first (stream 42))` source module pass through installed module
+extraction, provider discovery, composition, compilation, and WebRacket
+execution. This matters for the `racket/set` frontier because the Reference
+documents hash sets as streams/sequences; the stream layer itself is not the
+current blocker. Those probes are deliberately not in the default installed
+runtime suite yet, because that suite is expensive and new installed smokes
+should be promoted only when they directly guard the active frontier.
+
+The `racket/set` operation smokes are currently expected runtime failures, but
+`racket/set` is not blocked merely by being required. A require-only source
+module that imports `racket/set`, exports `42`, and observes that export passes
+through extraction, composition, compilation, and WebRacket execution. The
+static audit for that require-only slice contains only `module-protocol` and
+the root module; it does not pull `racket/private/custom-write` or
+`racket/pretty`.
+
+The operation smokes no longer fail at the old `stream?` provider ambiguity or
+at the `check-not-unsafe-undefined` lowering guard. The resolver has a narrow
 tie-breaker that prefers `racket/private/stream-cons` over `racket/private/for`
 for `stream?` where both are viable. The current frontier is a real guarded
 `unsafe-undefined` access that raises `exn:fail:contract:variable` at runtime.
 Tracing the composed program points to `racket/private/custom-write`'s
 `make-constructor-style-printer`, specifically an escape from the `loc_47`
-`letrec` RHS around `make-tentative-pretty-print-output-port`. A focused local
-manifest smoke now preserves that shape: escaping from a `letrec` RHS and later
-calling a closure that reads the skipped binding must trip the guard. That
-means this is not a simple dependency-order bug; making `racket/set` pass needs
-either avoiding that custom-write/pretty path for the exercised operation or
-supporting enough of the relevant continuation/pretty-print behavior without
-masking a real use-before-initialization check.
+`letrec` RHS around `make-tentative-pretty-print-output-port`. Focused local
+manifest smokes now preserve both the raw control-flow shape and a two-module
+`racket/pretty` -> `racket/private/custom-write` shaped import: escaping from a
+`letrec` RHS and later calling a closure that reads the skipped binding must
+trip the guard. That means this is not a simple dependency-order bug; making
+set operations pass needs either avoiding that custom-write/pretty path for the
+exercised operation or supporting enough of the relevant continuation and
+pretty-print behavior without masking a real use-before-initialization check.

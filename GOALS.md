@@ -99,10 +99,12 @@ Current installed-extraction runtime smokes cover:
 - `racket/string`: `string-join` and `string-prefix?`.
 - `racket/vector`: `vector-member`, plus a combined `racket/vector` and
   `racket/list` provider-graph smoke.
-- `racket/set`: provider resolution gets past the `stream?` ambiguity, and
-  `check-not-unsafe-undefined` lowers to a real guard. Current smokes record the
-  next blocker: a runtime `exn:fail:contract:variable` for `unsafe-undefined`
-  in `racket/private/custom-write`'s tentative pretty-print path.
+- `racket/set`: a require-only source module now instantiates and returns a
+  normal value, so the module graph itself is not the blocker. Provider
+  resolution gets past the `stream?` ambiguity, and `check-not-unsafe-undefined`
+  lowers to a real guard. Current operation smokes record the next blocker: a
+  runtime `exn:fail:contract:variable` for `unsafe-undefined` in
+  `racket/private/custom-write`'s tentative pretty-print path.
 - `racket/function`: `compose`, `identity`, `compose1`, `negate`, and `const`.
 - Dependency-first local source modules with quoted sibling requires, such as
   `(require 'base-values)`, through a shared-provider transitive smoke.
@@ -119,12 +121,22 @@ not depend on source extraction:
 - Negative classification for an escape from a `letrec` RHS that later reads
   the skipped binding, matching the current `racket/set` unsafe-undefined
   frontier in a tiny manifest.
+- Negative classification for the same guard through a two-module
+  `racket/pretty` -> `racket/private/custom-write` shaped import, so the
+  pretty/custom-write frontier is documented without requiring the full
+  installed `racket/set` graph.
 
 This split matters. Installed-extraction smokes are evidence that host Racket
 metadata, provider discovery, Webify composition, and WebRacket runtime
 execution all agree for a real source module. Local-manifest smokes are more
 surgical: they protect bridge/runtime invariants even when the source extractor
 cannot yet generate that exact graph shape.
+
+Manual Goal 1 probes also show `racket/stream` can require and run
+`(stream-first (stream 42))`. That result is not yet in the default installed
+runtime suite, because the installed-module suite is expensive enough that new
+smokes should be promoted only when they are directly guarding the active
+frontier.
 
 Source-module extraction compiles a supplied module-data list in one shared
 host namespace. Earlier declarations are installed before later modules are

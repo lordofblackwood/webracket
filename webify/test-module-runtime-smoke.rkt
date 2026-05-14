@@ -142,6 +142,39 @@
     '((escape-letrec y))
     #rx"never-matches-success"
     '(runtime-exception)
+    #rx"exn:fail:contract:variable")
+   (local-runtime-smoke
+    "custom-write/pretty shaped import preserves unsafe-undefined guard"
+    (list
+     (webify-module-linklet-input
+      'racket/pretty
+      '(linklet () (make-tentative-pretty-print-output-port)
+         (define-values (make-tentative-pretty-print-output-port)
+           (call-with-escape-continuation
+            (lambda (escape)
+              (letrec-values ([(x)
+                               (escape
+                                (lambda ()
+                                  (check-not-unsafe-undefined
+                                   x
+                                   'make-tentative-pretty-print-output-port)))])
+                x)))))
+      '())
+     (webify-module-linklet-input
+      'racket/private/custom-write
+      '(linklet (([make-tentative-pretty-print-output-port
+                   make-tentative-pretty-print-output-port]))
+         (y)
+         (define-values
+           (y)
+           (make-tentative-pretty-print-output-port)))
+      '((make-tentative-pretty-print-output-port
+         racket/pretty
+         make-tentative-pretty-print-output-port))))
+    '(racket/private/custom-write)
+    '((racket/private/custom-write y))
+    #rx"never-matches-success"
+    '(runtime-exception)
     #rx"exn:fail:contract:variable")))
 
 (test-case "multi-root local manifest plans shared provider once"

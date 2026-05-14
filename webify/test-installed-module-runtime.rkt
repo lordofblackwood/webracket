@@ -144,6 +144,17 @@
     #f)
    (installed-runtime-smoke
     'racket/set
+    "installed racket/set can be required without forcing set operations"
+    '((module use-set-require-only racket/base
+        (require racket/set)
+        (provide y)
+        (define y 42)))
+    '((use-set-require-only y))
+    #rx"(?m:^42$)"
+    '()
+    #f)
+   (installed-runtime-smoke
+    'racket/set
     "installed racket/set count records current unsafe-undefined runtime blocker"
     '((module use-set racket/base
         (require racket/set)
