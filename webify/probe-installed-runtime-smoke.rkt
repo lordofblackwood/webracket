@@ -110,12 +110,14 @@
       promise-predicate-plain
       force-identity
       promise-basic
-      sequence-list
-      promise-state
-      sequence-range
-      class-require
-      class-basic
-      hash-comparator-semantics
+	      sequence-list
+	      promise-state
+	      sequence-range
+	      class-require
+	      class-basic
+	      format-basic
+	      match-basic
+	      hash-comparator-semantics
       set-comparator-semantics)
      (installed-runtime-smoke
       name
@@ -142,7 +144,8 @@
             [(sequence-list sequence-range) #rx"(?m:^3$)"]
             [(hash-comparator-semantics set-comparator-semantics) #rx"(?m:^21$)"]
             [(hash-basic) #rx"(?m:^41$)"]
-            [(stream-rest combined-list-string-set class-require class-basic) #rx"(?m:^42$)"]
+	            [(stream-rest combined-list-string-set class-require class-basic match-basic) #rx"(?m:^42$)"]
+	            [(format-basic) #rx"(?m:^web-racket$)"]
             [else #rx"(?m:^false$)"])
           #rx"")
       '()
@@ -208,10 +211,20 @@
 ;; run-child/bounded! : any/c installed-runtime-smoke? (listof string?) -> exact-integer?
 ;;   Run one smoke in a child Racket process and kill it on timeout.
 (define (run-child/bounded! label smoke selector-args)
-  (define racket-bin (find-executable-path "racket"))
+  (define exec-file (find-system-path 'exec-file))
+  (define racket-bin
+    (cond
+      [(and (path? exec-file)
+            (complete-path? exec-file))
+       exec-file]
+      [(and (path? exec-file)
+            (file-exists? exec-file))
+       (path->complete-path exec-file)]
+      [else
+       (find-executable-path (path->string exec-file))]))
   (unless racket-bin
     (raise-user-error 'probe-installed-runtime-smoke
-                      "could not find racket executable on PATH"))
+                      "could not find current racket executable on PATH"))
   (define tmp-dir (make-temporary-file "webracket-installed-probe-~a" 'directory))
   (define out-path (build-path tmp-dir "stdout.txt"))
   (define err-path (build-path tmp-dir "stderr.txt"))
@@ -219,8 +232,9 @@
   (define err (open-output-file err-path #:exists 'truncate/replace))
   (define args
     (append
-     ;; Use source mode so local 8.12 probes are not derailed by stale `.zo`
-     ;; files produced by the newer Racket checkout used for extraction.
+     ;; Use the same Racket executable as the parent. Newer-checkout probes
+     ;; should compile the local WebRacket entrypoints with that executable
+     ;; first, so the worker does not load stale repo-local `.zo` files.
      (list "-y"
            (path->string self-path)
            "--worker")

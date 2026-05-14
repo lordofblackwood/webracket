@@ -1962,6 +1962,7 @@
     (add-runtime-string-constant 'input-port?                "input-port?")
     (add-runtime-string-constant 'output-port?               "output-port?")
     (add-runtime-string-constant 'parameterization?          "parameterization?")
+    (add-runtime-string-constant 'pseudo-random-generator?   "pseudo-random-generator?")
     (add-runtime-string-constant 'mpair-or-null              "(or/c mpair? null?)")
     (add-runtime-string-constant 'catch*-matching-lengths    "same number of handlers as predicates")
     (add-runtime-string-constant 'real?                      "real?")
@@ -2010,15 +2011,23 @@
     (add-runtime-symbol-constant 'call-with-escape-continuation)
     (add-runtime-symbol-constant 'port-read-handler)
     (add-runtime-symbol-constant 'load-on-demand-enabled)
+    (add-runtime-symbol-constant 'read-square-bracket-as-paren)
+    (add-runtime-symbol-constant 'read-curly-brace-as-paren)
+    (add-runtime-symbol-constant 'read-square-bracket-with-tag)
+    (add-runtime-symbol-constant 'read-curly-brace-with-tag)
     (add-runtime-symbol-constant 'read-accept-reader)
     (add-runtime-symbol-constant 'read-accept-lang)
     (add-runtime-symbol-constant 'read-accept-compiled)
     (add-runtime-symbol-constant 'read-accept-box)
     (add-runtime-symbol-constant 'read-accept-bar-quote)
     (add-runtime-symbol-constant 'read-accept-graph)
+    (add-runtime-symbol-constant 'read-syntax-accept-graph)
     (add-runtime-symbol-constant 'read-accept-dot)
     (add-runtime-symbol-constant 'read-accept-infix-dot)
     (add-runtime-symbol-constant 'read-accept-quasiquote)
+    (add-runtime-symbol-constant 'read-cdot)
+    (add-runtime-symbol-constant 'read-single-flonum)
+    (add-runtime-symbol-constant 'read-decimal-as-inexact)
     (add-runtime-symbol-constant 'read-case-sensitive)
     (add-runtime-symbol-constant 'print-syntax-width)
     (add-runtime-symbol-constant 'error-print-width)
@@ -2141,6 +2150,11 @@
     (add-runtime-string-constant 'instance-mode?                "(or/c #f 'constant 'consistent)")
     (add-runtime-string-constant 'instance-or-false             "(or/c instance? #f)")
     (add-runtime-string-constant 'variable-reference?           "variable-reference?")
+    (add-runtime-string-constant 'module-path?                  "module-path?")
+    (add-runtime-string-constant 'module-path-index?            "module-path-index?")
+    (add-runtime-string-constant 'resolved-module-path?         "resolved-module-path?")
+    (add-runtime-string-constant 'module-path-index-base        "(or/c #f resolved-module-path? module-path-index?)")
+    (add-runtime-string-constant 'readtable-or-false            "(or/c readtable? #f)")
     (add-runtime-string-constant 'variable-reference->module-source "variable-reference->module-source")
     (add-runtime-string-constant 'variable-reference->resolved-module-path "variable-reference->resolved-module-path")
     (add-runtime-string-constant 'module-variable?              "module-variable?")
@@ -2148,6 +2162,7 @@
     (add-runtime-string-constant 'module-variable-same-length-vectors
                                  "value vector with the same length as the cell vector")
     (add-runtime-string-constant 'module-prompts-unsupported    "module prompts are not supported by WebRacket yet")
+    (add-runtime-string-constant 'reader-unsupported            "the Racket reader is not supported by WebRacket yet")
     (add-runtime-string-constant 'metadata-only-compiled-linklet
                                  "metadata-only compiled linklet has no executable body")
     (add-runtime-symbol-constant 'constant)
@@ -2204,6 +2219,7 @@
     (add-runtime-bytes-constant  'rx-dot-class              #"[.]")
     (add-runtime-bytes-constant  'rx-dot-zo-end             #"[.]zo$")
     (add-runtime-bytes-constant  'rx-id-colon-or-end        #"^id(:|$)")
+    (add-runtime-bytes-constant  'rx-envvar-name            #"^[^\0=]*$")
     (add-runtime-bytes-constant  'rx-unix-path-list         #"([^:]*):(.*)")
     (add-runtime-bytes-constant  'rx-windows-path-list      #"([^;]*);(.*)")
     (add-runtime-bytes-constant  'rkttmp-template           #"rkttmp~a")
@@ -2355,6 +2371,13 @@
           (type $EnvironmentVariables (sub $Heap
                                            (struct
                                              (field $hash (mut i32)))))
+          ;; Lightweight pseudo-random generators. Racket specifies MRG32k3a;
+          ;; WebRacket currently uses SplitMix32 state while preserving the
+          ;; generator object/parameter protocol needed by racket/base modules.
+          (type $PseudoRandomGenerator (sub $Heap
+                                            (struct
+                                              (field $hash  (mut i32))
+                                              (field $state (mut i32)))))
           ;; Private payload thrown by WebRacket's bootstrap
           ;; call-with-escape-continuation implementation.
           (type $EscapeContinuationJump (sub $Heap
@@ -2671,12 +2694,17 @@
           (type $Number (sub $Heap    ; abstract super type for boxed numbers
                              (struct
                                (field $hash (mut i32)))))
-          (type $Flonum (sub $Number  ; double precision
-                             (struct
-                               (field $hash (mut i32))  ; sigh
-                               (field $v f64))))
-          
-          (type $Vector    (sub $Heap
+	          (type $Flonum (sub $Number  ; double precision
+	                             (struct
+	                               (field $hash (mut i32))  ; sigh
+	                               (field $v f64))))
+	          (type $Complex (sub $Number
+	                              (struct
+	                                (field $hash (mut i32))
+	                                (field $real (ref eq))
+	                                (field $imag (ref eq)))))
+	          
+	          (type $Vector    (sub $Heap
                                 (struct
                                   (field $hash      (mut i32))
                                   (field $immutable i32)                        ;; 0 or 1
@@ -2973,6 +3001,19 @@
 	                       (field $constant?   (ref eq))
 	                       (field $from-unsafe? (ref eq))
 	                       )))
+          (type $ResolvedModulePath
+                (sub $Heap
+                     (struct
+                       (field $hash (mut i32))
+                       (field $name (ref eq)))))
+          (type $ModulePathIndex
+                (sub $Heap
+                     (struct
+                       (field $hash     (mut i32))
+                       (field $path     (ref eq))
+                       (field $base     (ref eq))
+                       (field $submod   (ref eq))
+                       (field $resolved (mut (ref eq))))))
 	          (type $ModuleVariable ; lowered module/linklet variable cell
 	                (sub $Heap
 	                     (struct
@@ -9018,10 +9059,12 @@
                (result    (ref eq))
                
                (local $i1 i32)
-               (local $i2 i32)
-               (local $f1 (ref $Flonum))
-               (local $f2 (ref $Flonum))
-               ;; --- Fast path: ref.eq ---
+	               (local $i2 i32)
+	               (local $f1 (ref $Flonum))
+	               (local $f2 (ref $Flonum))
+	               (local $c1 (ref $Complex))
+	               (local $c2 (ref $Complex))
+	               ;; --- Fast path: ref.eq ---
                (if (ref.eq (local.get $v1) (local.get $v2))
                    (then (return (global.get $true))))
                ;; --- Case: both flonums ---
@@ -9032,9 +9075,21 @@
                     (local.set $f2 (ref.cast (ref $Flonum) (local.get $v2)))
                     (if (f64.eq (struct.get $Flonum $v (local.get $f1))
                                 (struct.get $Flonum $v (local.get $f2)))
-                        (then (return (global.get $true)))
-                        (else (return (global.get $false))))))
-               ;; --- Characters ---
+	                        (then (return (global.get $true)))
+	                        (else (return (global.get $false))))))
+	               ;; --- Case: both complex numbers ---
+	               (if (i32.and (ref.test (ref $Complex) (local.get $v1))
+	                            (ref.test (ref $Complex) (local.get $v2)))
+	                   (then
+	                    (local.set $c1 (ref.cast (ref $Complex) (local.get $v1)))
+	                    (local.set $c2 (ref.cast (ref $Complex) (local.get $v2)))
+	                    (if (ref.eq (call $eqv? (struct.get $Complex $real (local.get $c1))
+	                                                (struct.get $Complex $real (local.get $c2)))
+	                                (global.get $true))
+	                        (then (return (call $eqv? (struct.get $Complex $imag (local.get $c1))
+	                                                 (struct.get $Complex $imag (local.get $c2)))))
+	                        (else (return (global.get $false))))))
+	               ;; --- Characters ---
                ; With our implementation, we `eqv` is the same as `eq` on characters.
                ;; --- Fallback: ref.eq ---
                (if (ref.eq (local.get $v1) (local.get $v2))
@@ -9947,15 +10002,17 @@
                                                (i32.const ,fixnum-mask)))
                              (then (global.get $true))
                              (else (global.get $false))))
-                   (else (if (result (ref eq))
-                             (ref.test (ref $Flonum) (local.get $v))
-                             (then (global.get $true))
-                             (else (global.get $false))))))
+	                   (else (if (result (ref eq))
+	                             (ref.test (ref $Flonum) (local.get $v))
+	                             (then (global.get $true))
+	                             (else (if (result (ref eq))
+	                                     (ref.test (ref $Complex) (local.get $v))
+	                                     (then (global.get $true))
+	                                     (else (global.get $false))))))))
 
-        (func $real? (type $Prim1)
-              ;; WebRacket currently has no complex numbers, so real? is
-              ;; equivalent to number?
-              (param $v (ref eq))
+	        (func $real? (type $Prim1)
+	              ;; Complex numbers are numbers, but they are not real.
+	              (param $v (ref eq))
               (result (ref eq))
               (if (result (ref eq))
                   (ref.test i31ref (local.get $v))
@@ -9968,6 +10025,34 @@
                             (ref.test (ref $Flonum) (local.get $v))
                             (then (global.get $true))
                             (else (global.get $false))))))
+
+         (func $rational? (type $Prim1)
+               ;; WebRacket currently has fixnums and flonums as real numeric
+               ;; values. Racket reports finite flonums as rational? but not
+               ;; +inf.0, -inf.0, or +nan.0. Exact rationals and complex
+               ;; rationals can be added when those representations exist.
+               (param $v (ref eq))
+               (result (ref eq))
+               (local $f64v f64)
+               (if (ref.test i31ref (local.get $v))
+                   (then
+                    (if (i32.eqz (i32.and (i31.get_s (ref.cast i31ref (local.get $v)))
+                                          (i32.const ,fixnum-mask)))
+                        (then (return (global.get $true)))
+                        (else (return (global.get $false))))))
+               (if (ref.test (ref $Flonum) (local.get $v))
+                   (then
+                    (local.set $f64v
+                               (struct.get $Flonum $v
+                                           (ref.cast (ref $Flonum) (local.get $v))))
+                    (if (f64.ne (local.get $f64v) (local.get $f64v))
+                        (then (return (global.get $false))))
+                    (if (f64.eq (local.get $f64v) (f64.const +inf))
+                        (then (return (global.get $false))))
+                    (if (f64.eq (local.get $f64v) (f64.const -inf))
+                        (then (return (global.get $false))))
+                    (return (global.get $true))))
+               (global.get $false))
 
          (func $exact? (type $Prim1)
                ;; A number is exact if it's a fixnum: a ref i31 with LSB = 0
@@ -12444,22 +12529,21 @@
 
 
 
-        ;; Shared state for the pseudo-random number generator.
-        ;; The initial value is chosen arbitrarily and can be replaced
-        ;; with a fixed seed if reproducibility is needed.
+        ;; Shared fallback state for early pseudo-random generation.
+        ;; Normal random calls use $current-pseudo-random-generator-value after
+        ;; entry initialization.
         (global $random-state (mut i32) (i32.const 0x9E3779B9))
 
-        ;; A simple SplitMix32 generator that produces uniformly
-        ;; distributed 32-bit integers.  It is fast and has a large
-        ;; period, which is sufficient for the primitives implemented
-        ;; here.  The algorithm is the 32-bit variant of the SplitMix
-        ;; step used by multiple languages as an initialization phase
-        ;; for stronger generators.
-        (func $random-u32 (result i32)
+        (func $random-u32/generator
+              (param $gen (ref $PseudoRandomGenerator)) ;; pseudo-random-generator?
+              (result i32)
               (local $z i32)
-              (local.set $z (i32.add (global.get $random-state)
+              (local.set $z (i32.add (struct.get $PseudoRandomGenerator $state
+                                                 (local.get $gen))
                                      (i32.const 0x9E3779B9)))
-              (global.set $random-state (local.get $z))
+              (struct.set $PseudoRandomGenerator $state
+                          (local.get $gen)
+                          (local.get $z))
               (local.set $z (i32.xor (local.get $z)
                                       (i32.shr_u (local.get $z) (i32.const 16))))
               (local.set $z (i32.mul (local.get $z) (i32.const 0x85EBCA6B)))
@@ -12470,11 +12554,77 @@
                                       (i32.shr_u (local.get $z) (i32.const 16))))
               (local.get $z))
 
+        (func $current-random-generator
+              (result (ref $PseudoRandomGenerator))
+              (if (ref.test (ref $PseudoRandomGenerator)
+                            (global.get $current-pseudo-random-generator-value))
+                  (then (return
+                         (ref.cast (ref $PseudoRandomGenerator)
+                                   (global.get $current-pseudo-random-generator-value)))))
+              (struct.new $PseudoRandomGenerator
+                          (i32.const 0)
+                          (global.get $random-state)))
+
+        ;; A simple SplitMix32 generator that produces uniformly distributed
+        ;; 32-bit integers. It is fast and sufficient for current bootstrap
+        ;; probes, but not yet Racket's documented MRG32k3a algorithm.
+        (func $random-u32 (result i32)
+              (call $random-u32/generator (call $current-random-generator)))
+
+        ;; make-pseudo-random-generator : -> pseudo-random-generator?
+        ;;   Create a lightweight generator seeded from the current generator.
+        (func $make-pseudo-random-generator (type $Prim0)
+              (result (ref eq))
+              (struct.new $PseudoRandomGenerator
+                          (i32.const 0)
+                          (call $random-u32)))
+
+        ;; pseudo-random-generator? : any/c -> boolean?
+        ;;   Recognize WebRacket pseudo-random-generator values.
+        (func $pseudo-random-generator? (type $Prim1)
+              ,@(make-predicate-body '$PseudoRandomGenerator))
+
+        ;; current-pseudo-random-generator : [pseudo-random-generator?] -> any/c
+        ;;   Poor-man parameter for the current generator.
+        (func $current-pseudo-random-generator (type $Prim01)
+              (param $gen (ref eq)) ;; optional pseudo-random-generator?
+              (result     (ref eq))
+              (if (ref.eq (local.get $gen) (global.get $missing))
+                  (then (return (global.get $current-pseudo-random-generator-value))))
+              (if (i32.eqz (ref.test (ref $PseudoRandomGenerator) (local.get $gen)))
+                  (then (call $raise-argument-error1
+                              (global.get $symbol:current-pseudo-random-generator)
+                              (global.get $string:pseudo-random-generator?)
+                              (local.get $gen))
+                        (unreachable)))
+              (global.set $current-pseudo-random-generator-value (local.get $gen))
+              (global.get $void))
+
+        ;; random-seed : exact-integer? -> void?
+        ;;   Seed the current lightweight generator. The accepted range follows
+        ;;   Racket's documented 0 <= k < 2^31 restriction for fixnums.
+        (func $random-seed (type $Prim1)
+              (param $k-raw (ref eq)) ;; exact integer in [0, 2^31)
+              (result       (ref eq))
+              (local $k i32)
+              (if (i32.eqz (call $fx?/i32 (local.get $k-raw)))
+                  (then (call $raise-expected-number (local.get $k-raw))
+                        (unreachable)))
+              (local.set $k ,(Half `(i31.get_s (ref.cast i31ref (local.get $k-raw)))))
+              (if (i32.lt_s (local.get $k) (i32.const 0))
+                  (then (call $raise-argument-error/internal (local.get $k-raw))
+                        (unreachable)))
+              (struct.set $PseudoRandomGenerator $state
+                          (call $current-random-generator)
+                          (i32.xor (local.get $k) (i32.const 0x9E3779B9)))
+              (global.get $void))
+
 
         (func $random (type $Prim02) ; two optional arguments
               ;; (random)         -> flonum in (0,1)
               ;; (random k)       -> exact integer in [0,k)
               ;; (random min max) -> exact integer in [min,max)
+              ;; (random gen) and (random k gen) are supported.
               (param $a (ref eq))
               (param $b (ref eq))
               (result   (ref eq))
@@ -12484,9 +12634,12 @@
               (local $max   i32)
               (local $range i32)
               (local $r     i32)
+              (local $gen   (ref $PseudoRandomGenerator))
+
+              (local.set $gen (call $current-random-generator))
 
               (if (ref.eq (local.get $a) (global.get $missing))
-                  (then (local.set $r (call $random-u32))
+                  (then (local.set $r (call $random-u32/generator (local.get $gen)))
                         (return
                          (struct.new $Flonum
                                      (i32.const 0)
@@ -12496,24 +12649,57 @@
                                       (f64.const 4294967298.0)))))
                   (else
                    (if (ref.eq (local.get $b) (global.get $missing))
-                       (then (if (i32.eqz (call $fx?/i32 (local.get $a)))
+                       (then (if (ref.test (ref $PseudoRandomGenerator) (local.get $a))
+                                 (then (local.set $gen
+                                                  (ref.cast (ref $PseudoRandomGenerator)
+                                                            (local.get $a)))
+                                       (local.set $r
+                                                  (call $random-u32/generator
+                                                        (local.get $gen)))
+                                       (return
+                                        (struct.new $Flonum
+                                                    (i32.const 0)
+                                                    (f64.div
+                                                     (f64.add (f64.convert_i32_u
+                                                               (local.get $r))
+                                                              (f64.const 1))
+                                                     (f64.const 4294967298.0))))))
+                             (if (i32.eqz (call $fx?/i32 (local.get $a)))
                                  (then (call $raise-expected-number (local.get $a)) (unreachable)))
                              (local.set $k ,(Half `(i31.get_s (ref.cast i31ref (local.get $a)))))
                              (if (i32.le_s (local.get $k) (i32.const 0))
                                  (then (call $raise-argument-error/internal (local.get $a)) (unreachable)))
-                             (local.set $r (i32.rem_u (call $random-u32) (local.get $k)))
+                             (local.set $r (i32.rem_u
+                                            (call $random-u32/generator
+                                                  (local.get $gen))
+                                            (local.get $k)))
                              (return (ref.i31 (i32.shl (local.get $r) (i32.const 1)))))
-                       (else (if (i32.eqz (call $fx?/i32 (local.get $a)))
+                       (else (if (ref.test (ref $PseudoRandomGenerator) (local.get $b))
+                                 (then (local.set $gen
+                                                  (ref.cast (ref $PseudoRandomGenerator)
+                                                            (local.get $b)))))
+                             (if (i32.eqz (call $fx?/i32 (local.get $a)))
                                  (then (call $raise-expected-number (local.get $a)) (unreachable)))
-                             (if (i32.eqz (call $fx?/i32 (local.get $b)))
-                                 (then (call $raise-expected-number (local.get $b)) (unreachable)))
+                             (if (i32.eqz (ref.test (ref $PseudoRandomGenerator) (local.get $b)))
+                                 (then
+                                  (if (i32.eqz (call $fx?/i32 (local.get $b)))
+                                      (then (call $raise-expected-number (local.get $b))
+                                            (unreachable)))))
                              (local.set $min ,(Half `(i31.get_s (ref.cast i31ref (local.get $a)))))
-                             (local.set $max ,(Half `(i31.get_s (ref.cast i31ref (local.get $b)))))
+                             (if (ref.test (ref $PseudoRandomGenerator) (local.get $b))
+                                 (then (local.set $max (local.get $min))
+                                       (local.set $min (i32.const 0)))
+                                 (else
+                                  (local.set $max ,(Half `(i31.get_s
+                                                           (ref.cast i31ref
+                                                                     (local.get $b)))))))
                              (local.set $range (i32.sub (local.get $max) (local.get $min)))
                              (if (i32.le_s (local.get $range) (i32.const 0))
                                  (then (call $raise-argument-error/internal (local.get $b)) (unreachable)))
                              (local.set $r (i32.add (local.get $min)
-                                                    (i32.rem_u (call $random-u32)
+                                                    (i32.rem_u
+                                                               (call $random-u32/generator
+                                                                     (local.get $gen))
                                                                (local.get $range))))
                              (return (ref.i31 (i32.shl (local.get $r) (i32.const 1))))))))
               (unreachable))
@@ -14061,9 +14247,10 @@
 
                (local $radix i32)
                (local $n     i32)
-               (local $max   i32)
-               (local $i31   (ref i31))
-               ;; Treat missing radix as #f to reuse existing defaults.
+	               (local $max   i32)
+	               (local $i31   (ref i31))
+	               (local $c     (ref $Complex))
+	               ;; Treat missing radix as #f to reuse existing defaults.
                (if (ref.eq (local.get $radix-raw) (global.get $missing))
                    (then (local.set $radix-raw (global.get $false))))
                ;; Step 1: Check if $z is a fixnum or flonum
@@ -14088,7 +14275,22 @@
                                                             (ref.cast (ref $Flonum) (local.get $z)))))
                                        (else (call $raise-number->string-bad-radix))))
                                   (else (call $raise-number->string-bad-radix))))))
-                        (else (call $raise-number->string-bad-input)))))
+	                        (else
+	                         (if (ref.test (ref $Complex) (local.get $z))
+	                             (then
+	                              (local.set $c (ref.cast (ref $Complex) (local.get $z)))
+	                              (if (ref.eq (local.get $radix-raw) (global.get $false))
+	                                  (then (return (call $format/display:complex (local.get $c)))))
+	                              (if (ref.test (ref i31) (local.get $radix-raw))
+	                                  (then
+	                                   (local.set $radix
+	                                              (i32.shr_u (i31.get_u (ref.cast (ref i31) (local.get $radix-raw)))
+	                                                         (i32.const 1)))
+	                                   (if (i32.eq (local.get $radix) (i32.const 10))
+	                                       (then (return (call $format/display:complex (local.get $c))))
+	                                       (else (call $raise-number->string-bad-radix))))
+	                                  (else (call $raise-number->string-bad-radix))))
+	                             (else (call $raise-number->string-bad-input)))))))
                ;; Step 2: Handle radix for fixnums
                (if (ref.eq (local.get $radix-raw) (global.get $false))
                    (then (local.set $radix (i32.const 10))) ;; default = 10
@@ -14928,10 +15130,47 @@
                     (array.set $I32Array (local.get $arr) (i32.const 0) (i32.const 45)))) ;; '-'
                (local.get $arr))
          
-         (func $format/display:flonum
-               (param $val (ref $Flonum))
-               (result     (ref $String))
-               (call $flonum->string (local.get $val)))
+	         (func $format/display:flonum
+	               (param $val (ref $Flonum))
+	               (result     (ref $String))
+	               (call $flonum->string (local.get $val)))
+
+	         (func $format/display:complex
+	               (param $val (ref $Complex))
+	               (result     (ref $String))
+
+	               (local $real-str (ref $String))
+	               (local $imag-str (ref $String))
+	               (local $plus     (ref $String))
+	               (local $suffix   (ref $String))
+	               (local $imag-len i32)
+
+	               (local.set $real-str
+	                          (ref.cast (ref $String)
+	                                    (call $number->string
+	                                          (struct.get $Complex $real (local.get $val))
+	                                          (global.get $false))))
+	               (local.set $imag-str
+	                          (ref.cast (ref $String)
+	                                    (call $number->string
+	                                          (struct.get $Complex $imag (local.get $val))
+	                                          (global.get $false))))
+	               (local.set $suffix (call $make-string/checked (i32.const 1) (i32.const 105))) ;; "i"
+	               (local.set $imag-len (call $string-length/checked/i32 (local.get $imag-str)))
+	               (if (i32.and (i32.gt_u (local.get $imag-len) (i32.const 0))
+	                            (i32.eq (call $string-ref/checked/i32 (local.get $imag-str) (i32.const 0))
+	                                    (i32.const 45))) ;; "-"
+	                   (then (return (call $string-append/2
+	                                       (call $string-append/2 (local.get $real-str)
+	                                                             (local.get $imag-str))
+	                                       (local.get $suffix)))))
+	               (local.set $plus (call $make-string/checked (i32.const 1) (i32.const 43))) ;; "+"
+	               (call $string-append/2
+	                     (call $string-append/2
+	                           (call $string-append/2 (local.get $real-str)
+	                                                 (local.get $plus))
+	                           (local.get $imag-str))
+	                     (local.get $suffix)))
          
 
 
@@ -18516,6 +18755,22 @@
                           (br $encode-loop))))
                (local.get $bs))
 
+         (func $string->bytes/locale (type $Prim14)
+               ;; string->bytes/locale : string? [err-byte] [start] [end] -> bytes?
+               ;; WebRacket has no host locale layer yet, so locale encoding is
+               ;; currently UTF-8. The optional err-byte is accepted like
+               ;; string->bytes/utf-8 but not needed for Unicode-to-UTF-8.
+               (param $str       (ref eq)) ;; string?
+               (param $err-byte  (ref eq)) ;; optional #f-or-byte?, default = #f
+               (param $start-raw (ref eq)) ;; optional exact-nonnegative-integer?, default = 0
+               (param $end-raw   (ref eq)) ;; optional exact-nonnegative-integer?, default = string length
+               (result           (ref eq))
+               (call $string->bytes/utf-8
+                     (local.get $str)
+                     (local.get $err-byte)
+                     (local.get $start-raw)
+                     (local.get $end-raw)))
+
          (func $raise-string-utf-8-length:bad-argument (unreachable))
          (func $raise-string-utf-8-length:range-error (unreachable))
 
@@ -20905,6 +21160,25 @@
                                       (i32.const 58))
                               (then (global.get $true))
                               (else (global.get $false))))))))
+               (if (ref.eq (call $bytes=?/2/checked
+                                 (local.get $pattern)
+                                 (ref.cast (ref $Bytes) (global.get $bytes:rx-envvar-name)))
+                           (global.get $true))
+                   (then (return
+                          (if (result (ref eq))
+                              (i32.and
+                               (i32.lt_s
+                                (call $bytes-index-of-byte/checked
+                                      (local.get $b)
+                                      (i32.const 0))
+                                (i32.const 0))
+                               (i32.lt_s
+                                (call $bytes-index-of-byte/checked
+                                      (local.get $b)
+                                      (i32.const 61))
+                                (i32.const 0)))
+                              (then (global.get $true))
+                              (else (global.get $false))))))
                (return_call $bytes-contains?/checked
                             (local.get $b)
                             (local.get $pattern)))
@@ -33994,6 +34268,104 @@
                                     (i32.const 1)))
                (global.get $void))
 
+         ;; call-with-semaphore : semaphore? procedure? [try-fail-thunk] arg ... -> any/c
+         ;;   Single-threaded approximation of Racket's semaphore protocol:
+         ;;   consume a ready semaphore count, invoke proc with args, and post
+         ;;   afterward, including on exceptions. Blocking waits cannot suspend
+         ;;   yet, so a zero-count semaphore behaves like try-fail when a
+         ;;   try-fail thunk is provided.
+         (func $call-with-semaphore (type $Prim>=2)
+               (param $sema-raw (ref eq)) ;; semaphore?
+               (param $proc-raw (ref eq)) ;; procedure?
+               (param $rest     (ref eq)) ;; optional try-fail-thunk followed by args
+               (result          (ref eq))
+
+               (local $sema      (ref $Semaphore))
+               (local $proc      (ref $Procedure))
+               (local $inv       (ref $ProcedureInvoker))
+               (local $pair      (ref $Pair))
+               (local $try-fail  (ref eq))
+               (local $args-list (ref eq))
+               (local $args      (ref $Args))
+               (local $node      (ref eq))
+               (local $len       i32)
+               (local $i         i32)
+               (local $res       (ref eq))
+               (local $exn-val   (ref eq))
+
+               (if (i32.eqz (ref.test (ref $Semaphore) (local.get $sema-raw)))
+                   (then
+                    (call $raise-argument-error1
+                          (global.get $symbol:call-with-semaphore)
+                          (global.get $string:semaphore?)
+                          (local.get $sema-raw))
+                    (unreachable)))
+               (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc-raw)))
+                   (then (call $raise-argument-error:procedure-expected
+                               (local.get $proc-raw))
+                         (unreachable)))
+               (local.set $sema (ref.cast (ref $Semaphore) (local.get $sema-raw)))
+               (local.set $proc (ref.cast (ref $Procedure) (local.get $proc-raw)))
+               (local.set $try-fail (global.get $false))
+               (local.set $args-list (global.get $null))
+               (if (i32.eqz (ref.eq (local.get $rest) (global.get $null)))
+                   (then
+                    (if (i32.eqz (ref.test (ref $Pair) (local.get $rest)))
+                        (then (call $raise-pair-expected (local.get $rest))
+                              (unreachable)))
+                    (local.set $pair (ref.cast (ref $Pair) (local.get $rest)))
+                    (local.set $try-fail (struct.get $Pair $a (local.get $pair)))
+                    (local.set $args-list (struct.get $Pair $d (local.get $pair)))))
+               (if (i32.le_s (struct.get $Semaphore $count (local.get $sema))
+                             (i32.const 0))
+                   (then
+                    (if (i32.and
+                         (i32.and
+                          (i32.eqz (ref.eq (local.get $try-fail) (global.get $false)))
+                          (i32.eqz (ref.eq (local.get $try-fail) (global.get $undefined))))
+                         (i32.eqz (ref.eq (local.get $try-fail) (global.get $unsafe-undefined))))
+                        (then (return (call $call-thunk (local.get $try-fail)))))))
+               (if (i32.gt_s (struct.get $Semaphore $count (local.get $sema))
+                             (i32.const 0))
+                   (then
+                    (struct.set $Semaphore $count
+                                (local.get $sema)
+                                (i32.sub
+                                 (struct.get $Semaphore $count (local.get $sema))
+                                 (i32.const 1)))))
+               (local.set $len (call $length/i32 (local.get $args-list)))
+               (local.set $args (array.new $Args (global.get $null) (local.get $len)))
+               (local.set $node (local.get $args-list))
+               (local.set $i (i32.const 0))
+               (block $args-done
+                      (loop $args-loop
+                            (br_if $args-done (i32.ge_u (local.get $i) (local.get $len)))
+                            (local.set $pair (ref.cast (ref $Pair) (local.get $node)))
+                            (array.set $Args
+                                       (local.get $args)
+                                       (local.get $i)
+                                       (struct.get $Pair $a (local.get $pair)))
+                            (local.set $node (struct.get $Pair $d (local.get $pair)))
+                            (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                            (br $args-loop)))
+               (local.set $inv (struct.get $Procedure $invoke (local.get $proc)))
+               (local.set $res
+                          (block $done (result (ref eq))
+                                 (block $handler-block (result (ref eq))
+                                        (try_table (result (ref eq))
+                                                   (catch $exn $handler-block)
+                                                   (call_ref $ProcedureInvoker
+                                                             (local.get $proc)
+                                                             (local.get $args)
+                                                             (local.get $inv))
+                                                   (br $done)))
+                                 (local.set $exn-val)
+                                 (drop (call $semaphore-post (local.get $sema)))
+                                 (throw $exn (local.get $exn-val))
+                                 (unreachable)))
+               (drop (call $semaphore-post (local.get $sema)))
+               (local.get $res))
+
          ;; semaphore-peek-evt : semaphore? -> semaphore-peek-evt?
          ;;   Create an event that becomes ready when the semaphore is ready
          ;;   without consuming the semaphore count.
@@ -39989,11 +40361,11 @@
                (local $v-i31 i32)
                (local $heap  (ref $Heap))
                (local $h     i32)
-               (local $f     (ref $Flonum))
-               (local $bits i64)
-               (local $low  i32)
-               (local $high i32)
-               (local $x    i32)
+	               (local $f     (ref $Flonum))
+	               (local $bits i64)
+	               (local $low  i32)
+	               (local $high i32)
+	               (local $x    i32)
 
                (if (result i32)
                    (ref.test (ref i31) (local.get $v))
@@ -40064,12 +40436,15 @@
 
                (local $v-i31 i32)
                (local $heap  (ref $Heap))
-               (local $h     i32)
-               (local $f     (ref $Flonum))
-               (local $bits i64)
-               (local $low  i32)
-               (local $high i32)
-               (local $x    i32)
+	               (local $h     i32)
+	               (local $f     (ref $Flonum))
+	               (local $c     (ref $Complex))
+	               (local $bits i64)
+	               (local $low  i32)
+	               (local $high i32)
+	               (local $x    i32)
+	               (local $hr   i32)
+	               (local $hi   i32)
 
                (if (result i32)
                    (ref.test (ref i31) (local.get $v))
@@ -40098,24 +40473,36 @@
                            (i32.mul (local.get $x) (i32.const 0xcc9e2d51))
                            (i32.const 15))
                           (i32.const 0x1b873593)))
-                        (else
-                         ;; --- Heap object: return or assign hash without mixing for now ---
-                         (local.set $heap (ref.cast (ref $Heap) (local.get $v)))
-                         (local.set $h (struct.get $Heap $hash (local.get $heap)))
-                         (if (result i32)
-                             (i32.eqz (local.get $h))
-                             ;; If the current stored hash value is zero,
-                             ;; it means the hash value hasn't been computed yet.
-                             (then (local.set $h (call $splitmix32))
-                                   ;; If $splitmix32 happens to return 0, we need a different
-                                   ;; value - since 0 means "not computed yet".
-                                   (if (i32.eqz (local.get $h))
-                                       (then (local.set $h (i32.const 2))))
-                                   ; Store the newly computed hash value.
-                                   (struct.set $Heap $hash (local.get $heap) (local.get $h))
-                                   (local.get $h))
-                             ;; Just use the existing hash value.
-                             (else (local.get $h))))))))
+	                        (else
+	                         ;; --- Complex numbers are hashed by their components. ---
+	                         (if (result i32)
+	                             (ref.test (ref $Complex) (local.get $v))
+	                             (then
+	                              (local.set $c (ref.cast (ref $Complex) (local.get $v)))
+	                              (local.set $hr (call $eqv-hash/i32
+	                                                   (struct.get $Complex $real (local.get $c))))
+	                              (local.set $hi (call $eqv-hash/i32
+	                                                   (struct.get $Complex $imag (local.get $c))))
+	                              (i32.add (i32.mul (local.get $hr) (i32.const 33))
+	                                       (local.get $hi)))
+	                             (else
+	                              ;; --- Heap object: return or assign hash without mixing for now ---
+	                              (local.set $heap (ref.cast (ref $Heap) (local.get $v)))
+	                              (local.set $h (struct.get $Heap $hash (local.get $heap)))
+	                              (if (result i32)
+	                                  (i32.eqz (local.get $h))
+	                                  ;; If the current stored hash value is zero,
+	                                  ;; it means the hash value hasn't been computed yet.
+	                                  (then (local.set $h (call $splitmix32))
+	                                        ;; If $splitmix32 happens to return 0, we need a different
+	                                        ;; value - since 0 means "not computed yet".
+	                                        (if (i32.eqz (local.get $h))
+	                                            (then (local.set $h (i32.const 2))))
+	                                        ; Store the newly computed hash value.
+	                                        (struct.set $Heap $hash (local.get $heap) (local.get $h))
+	                                        (local.get $h))
+	                                  ;; Just use the existing hash value.
+		                                  (else (local.get $h))))))))))
 
 
          ;;; Equal Hash Code
@@ -40145,8 +40532,10 @@
                ;; immediates and numbers fall back to eqv-hash
                (if (ref.test (ref i31) (local.get $v))
                    (then (return (call $eqv-hash/i32 (local.get $v)))))
-               (if (ref.test (ref $Flonum) (local.get $v))
-                   (then (return (call $eqv-hash/i32 (local.get $v)))))
+	               (if (ref.test (ref $Flonum) (local.get $v))
+	                   (then (return (call $eqv-hash/i32 (local.get $v)))))
+	               (if (ref.test (ref $Complex) (local.get $v))
+	                   (then (return (call $eqv-hash/i32 (local.get $v)))))
                ;; strings
                (if (ref.test (ref $String) (local.get $v))
                    (then (local.set $str (ref.cast (ref $String) (local.get $v)))
@@ -53329,31 +53718,171 @@
                        (else (call $path? (local.get $v)))))))
 
         ;; module-path-index? : any/c -> boolean?
-        ;;   Module-path-index values are expander/linker metadata. WebRacket
-        ;;   currently resolves module paths ahead of runtime instead of
-        ;;   exposing opaque module-path-index values.
+        ;;   Recognize WebRacket's small runtime module-path-index wrapper.
         (func $module-path-index? (type $Prim1)
-              (param $v (ref eq)) ;; any/c
-              (result   (ref eq))
-              (global.get $false))
+              ,@(make-predicate-body '$ModulePathIndex))
+
+        ;; module-path-index-join : (or/c module-path? #f) (or/c module-path-index? resolved-module-path? #f) [submod] -> module-path-index?
+        ;;   Minimal MPI constructor for already-lowered module metadata. It
+        ;;   preserves path/base/submodule fields but does not invoke a module
+        ;;   name resolver.
+        (func $module-path-index-join (type $Prim23)
+              (param $path   (ref eq)) ;; (or/c module-path? #f)
+              (param $base   (ref eq)) ;; (or/c module-path-index? resolved-module-path? #f)
+              (param $submod (ref eq)) ;; optional (or/c #f (non-empty-listof symbol?)), default = #f
+              (result        (ref eq))
+              (if (ref.eq (local.get $path) (global.get $false))
+                  (then
+                   (if (i32.eqz (ref.eq (local.get $base) (global.get $false)))
+                       (then
+                        (call $raise-argument-error1
+                              (global.get $symbol:module-path-index-join)
+                              (global.get $string:module-path?)
+                              (local.get $path))
+                        (unreachable))))
+                  (else
+                   (if (ref.eq (call $module-path? (local.get $path)) (global.get $false))
+                       (then
+                        (call $raise-argument-error1
+                              (global.get $symbol:module-path-index-join)
+                              (global.get $string:module-path?)
+                              (local.get $path))
+                        (unreachable)))))
+              (if (i32.eqz
+                   (i32.or
+                    (ref.eq (local.get $base) (global.get $false))
+                    (i32.or
+                     (ref.test (ref $ModulePathIndex) (local.get $base))
+                     (ref.test (ref $ResolvedModulePath) (local.get $base)))))
+                  (then
+                   (call $raise-argument-error1
+                         (global.get $symbol:module-path-index-join)
+                         (global.get $string:module-path-index-base)
+                         (local.get $base))
+                   (unreachable)))
+              (if (i32.eqz (ref.eq (local.get $submod) (global.get $false)))
+                  (then
+                   (if (i32.eqz
+                        (i32.and
+                         (ref.eq (local.get $path) (global.get $false))
+                         (ref.eq (local.get $base) (global.get $false))))
+                       (then
+                        (call $raise-argument-error1
+                              (global.get $symbol:module-path-index-join)
+                              (global.get $string:listof-symbol?)
+                              (local.get $submod))
+                        (unreachable)))))
+              (struct.new $ModulePathIndex
+                          (i32.const 0)
+                          (local.get $path)
+                          (local.get $base)
+                          (local.get $submod)
+                          (global.get $false)))
+
+        ;; module-path-index-split : module-path-index? -> values path base
+        ;;   Return the path/base fields preserved by module-path-index-join.
+        (func $module-path-index-split
+              (param $mpi (ref eq)) ;; module-path-index?
+              (result (ref $Values))
+              (if (i32.eqz (ref.test (ref $ModulePathIndex) (local.get $mpi)))
+                  (then
+                   (call $raise-argument-error1
+                         (global.get $symbol:module-path-index-split)
+                         (global.get $string:module-path-index?)
+                         (local.get $mpi))
+                   (unreachable)))
+              (array.new_fixed $Values 2
+                               (struct.get $ModulePathIndex $path
+                                           (ref.cast (ref $ModulePathIndex) (local.get $mpi)))
+                               (struct.get $ModulePathIndex $base
+                                           (ref.cast (ref $ModulePathIndex) (local.get $mpi)))))
+
+        ;; module-path-index-submodule : module-path-index? -> (or/c #f (non-empty-listof symbol?))
+        ;;   Return a submodule list only for self/submodule indexes.
+        (func $module-path-index-submodule (type $Prim1)
+              (param $mpi (ref eq)) ;; module-path-index?
+              (result     (ref eq))
+              (local $idx (ref $ModulePathIndex))
+              (if (i32.eqz (ref.test (ref $ModulePathIndex) (local.get $mpi)))
+                  (then
+                   (call $raise-argument-error1
+                         (global.get $symbol:module-path-index-submodule)
+                         (global.get $string:module-path-index?)
+                         (local.get $mpi))
+                   (unreachable)))
+              (local.set $idx (ref.cast (ref $ModulePathIndex) (local.get $mpi)))
+              (if (result (ref eq))
+                  (i32.and
+                   (ref.eq (struct.get $ModulePathIndex $path (local.get $idx)) (global.get $false))
+                   (ref.eq (struct.get $ModulePathIndex $base (local.get $idx)) (global.get $false)))
+                  (then (struct.get $ModulePathIndex $submod (local.get $idx)))
+                  (else (global.get $false))))
+
+        ;; module-path-index-resolve : module-path-index? [any/c] [syntax?/#f] -> resolved-module-path?
+        ;;   Resolve only the already-lowered names used by Webify probes.
+        ;;   Relative resolver, loading, and source-syntax behavior remain out
+        ;;   of scope for now.
+        (func $module-path-index-resolve (type $Prim13)
+              (param $mpi   (ref eq)) ;; module-path-index?
+              (param $load? (ref eq)) ;; optional any/c, default = #f
+              (param $stx   (ref eq)) ;; optional (or/c syntax? #f), default = #f
+              (result       (ref eq))
+              (local $idx      (ref $ModulePathIndex))
+              (local $resolved (ref eq))
+              (local $path     (ref eq))
+              (local $base     (ref eq))
+              (if (i32.eqz (ref.test (ref $ModulePathIndex) (local.get $mpi)))
+                  (then
+                   (call $raise-argument-error1
+                         (global.get $symbol:module-path-index-resolve)
+                         (global.get $string:module-path-index?)
+                         (local.get $mpi))
+                   (unreachable)))
+              (local.set $idx (ref.cast (ref $ModulePathIndex) (local.get $mpi)))
+              (local.set $resolved (struct.get $ModulePathIndex $resolved (local.get $idx)))
+              (if (ref.test (ref $ResolvedModulePath) (local.get $resolved))
+                  (then (return (local.get $resolved))))
+              (local.set $path (struct.get $ModulePathIndex $path (local.get $idx)))
+              (local.set $base (struct.get $ModulePathIndex $base (local.get $idx)))
+              (if (ref.test (ref $ResolvedModulePath) (local.get $base))
+                  (then
+                   (struct.set $ModulePathIndex $resolved
+                               (local.get $idx)
+                               (local.get $base))
+                   (return (local.get $base))))
+              (if (ref.eq (local.get $path) (global.get $false))
+                  (then
+                   (call $raise-argument-error1
+                         (global.get $symbol:module-path-index-resolve)
+                         (global.get $string:module-path?)
+                         (local.get $path))
+                   (unreachable)))
+              (local.set $resolved
+                         (struct.new $ResolvedModulePath
+                                     (i32.const 0)
+                                     (local.get $path)))
+              (struct.set $ModulePathIndex $resolved (local.get $idx) (local.get $resolved))
+              (local.get $resolved))
 
         ;; resolved-module-path? : any/c -> boolean?
-        ;;   A full resolved-module-path wraps module identity after
-        ;;   resolution. WebRacket currently lowers module identities into
-        ;;   symbols/path-like values instead of a distinct runtime wrapper.
+        ;;   Recognize WebRacket's small resolved-module-path wrapper.
         (func $resolved-module-path? (type $Prim1)
-              (param $v (ref eq)) ;; any/c
-              (result   (ref eq))
-              (global.get $false))
+              ,@(make-predicate-body '$ResolvedModulePath))
 
         ;; resolved-module-path-name : resolved-module-path? -> any/c
-        ;;   WebRacket does not model resolved-module-path values yet. For
-        ;;   already-lowered symbolic/path-like module names, this acts as the
-        ;;   identity; reinstate validation when resolved-module-path values land.
+        ;;   Return the lowered module identity stored in a resolved wrapper.
         (func $resolved-module-path-name (type $Prim1)
               (param $module-path (ref eq)) ;; resolved-module-path?
               (result             (ref eq))
-              (local.get $module-path))
+              (if (i32.eqz (ref.test (ref $ResolvedModulePath) (local.get $module-path)))
+                  (then
+                   (call $raise-argument-error1
+                         (global.get $symbol:resolved-module-path-name)
+                         (global.get $string:resolved-module-path?)
+                         (local.get $module-path))
+                   (unreachable)))
+              (struct.get $ResolvedModulePath $name
+                          (ref.cast (ref $ResolvedModulePath) (local.get $module-path))))
         
         ;; expander-namespace-struct?/i32 : any/c -> i32
         ;;   Recognize the expander's own authentic `namespace` struct. This is
@@ -56688,10 +57217,14 @@
                (if (ref.test (ref $Keyword) (local.get $v))
                    (then (return (call $format/display:keyword
                                        (ref.cast (ref $Keyword) (local.get $v))))))
-               ;; --- Case: flonum ---
-               (if (ref.test (ref $Flonum) (local.get $v))
-                   (then (return (call $format/display:flonum
-                                       (ref.cast (ref $Flonum) (local.get $v))))))
+	               ;; --- Case: flonum ---
+	               (if (ref.test (ref $Flonum) (local.get $v))
+	                   (then (return (call $format/display:flonum
+	                                       (ref.cast (ref $Flonum) (local.get $v))))))
+	               ;; --- Case: complex ---
+	               (if (ref.test (ref $Complex) (local.get $v))
+	                   (then (return (call $format/display:complex
+	                                       (ref.cast (ref $Complex) (local.get $v))))))
                ;; --- Case: values ---
                (if (ref.test (ref $Values) (local.get $v))
                    (then (return (call $format/display:values
@@ -60696,6 +61229,59 @@
                      (result    (ref eq))
                      (global.get $eof))
 
+               ;; read : [input-port?] -> any/c
+               ;;   Full `read` parses Racket datums from a port. WebRacket has
+               ;;   byte/string input helpers, but not the Racket reader yet.
+               ;;   Keep this as a loud link-time bridge for provider code that
+               ;;   imports `read` without calling it.
+               (func $read (type $Prim01)
+                     (param $in (ref eq)) ;; optional input-port?, default = current-input-port
+                     (result    (ref eq))
+                     (call $raise-argument-error1
+                           (global.get $symbol:read)
+                           (global.get $string:reader-unsupported)
+                           (local.get $in))
+                     (unreachable))
+
+               ;; read-syntax : [any/c] [input-port?] -> syntax?
+               ;;   See `read`: syntax-producing reader support is intentionally
+               ;;   absent until the reader subsystem is implemented.
+               (func $read-syntax (type $Prim02)
+                     (param $source-name (ref eq)) ;; optional source name
+                     (param $in          (ref eq)) ;; optional input-port?, default = current-input-port
+                     (result             (ref eq))
+                     (call $raise-argument-error1
+                           (global.get $symbol:read-syntax)
+                           (global.get $string:reader-unsupported)
+                           (local.get $in))
+                     (unreachable))
+
+               ;; current-readtable : [(or/c readtable? #f)] -> (or/c readtable? #f) or void?
+               ;;   WebRacket has no readtable values yet, so #f is the only
+               ;;   supported setting. This keeps provider code linkable while
+               ;;   making real custom-readtable use fail clearly.
+               (func $current-readtable (type $Prim01)
+                     (param $v (ref eq)) ;; optional (or/c readtable? #f), default = current value
+                     (result   (ref eq))
+                     (if (ref.eq (local.get $v) (global.get $missing))
+                         (then (return (call $parameter-value-or-global
+                                             (global.get $prim:current-readtable)
+                                             (global.get $current-readtable-value)))))
+                     (if (i32.eqz (ref.eq (local.get $v) (global.get $false)))
+                         (then
+                          (call $raise-argument-error1
+                                (global.get $symbol:current-readtable)
+                                (global.get $string:readtable-or-false)
+                                (local.get $v))
+                          (unreachable)))
+                     (if (i32.eqz (ref.eq (global.get $current-parameterization-value)
+                                          (global.get $false)))
+                         (then (return (call $extend-current-parameterization!
+                                             (global.get $prim:current-readtable)
+                                             (local.get $v)))))
+                     (global.set $current-readtable-value (local.get $v))
+                     (global.get $void))
+
                ;; port-read-handler : input-port? -> procedure?
                ;;   Get the Racket-level read handler attached to an input
                ;;   port. The setter form is deferred until WebRacket has a
@@ -60741,57 +61327,93 @@
                      (global.set $current-read-interaction-value (local.get $reader-raw))
                      (global.get $void))
 
-               ;; load-on-demand-enabled/read-accept-* : [boolean?] -> boolean? or void?
+               ;; load-on-demand-enabled/use-user-specific-search-paths/read-accept-* : [boolean?] -> boolean? or void?
                ;;   Bootstrap reader policy parameters. The Reference gives
                ;;   load-on-demand-enabled a default of #t; WebRacket exposes
                ;;   the parameter now, while delayed source loading is deferred
                ;;   until the reader/load layer is richer.
                ,@(for/list ([name '($load-on-demand-enabled
+                                    $use-user-specific-search-paths
+                                    $read-square-bracket-as-paren
+                                    $read-curly-brace-as-paren
+                                    $read-square-bracket-with-tag
+                                    $read-curly-brace-with-tag
                                     $read-accept-reader
                                     $read-accept-lang
                                     $read-accept-compiled
                                     $read-accept-box
                                     $read-accept-bar-quote
                                     $read-accept-graph
+                                    $read-syntax-accept-graph
                                     $read-accept-dot
                                     $read-accept-infix-dot
                                     $read-accept-quasiquote
+                                    $read-cdot
+                                    $read-single-flonum
+                                    $read-decimal-as-inexact
                                     $read-case-sensitive
                                     $error-print-source-location)]
                              [symbol '($symbol:load-on-demand-enabled
+                                       $symbol:use-user-specific-search-paths
+                                       $symbol:read-square-bracket-as-paren
+                                       $symbol:read-curly-brace-as-paren
+                                       $symbol:read-square-bracket-with-tag
+                                       $symbol:read-curly-brace-with-tag
                                        $symbol:read-accept-reader
                                        $symbol:read-accept-lang
                                        $symbol:read-accept-compiled
                                        $symbol:read-accept-box
                                        $symbol:read-accept-bar-quote
                                        $symbol:read-accept-graph
+                                       $symbol:read-syntax-accept-graph
                                        $symbol:read-accept-dot
                                        $symbol:read-accept-infix-dot
                                        $symbol:read-accept-quasiquote
+                                       $symbol:read-cdot
+                                       $symbol:read-single-flonum
+                                       $symbol:read-decimal-as-inexact
                                        $symbol:read-case-sensitive
                                        $symbol:error-print-source-location)]
                              [global '($load-on-demand-enabled-value
+                                       $use-user-specific-search-paths-value
+                                       $read-square-bracket-as-paren-value
+                                       $read-curly-brace-as-paren-value
+                                       $read-square-bracket-with-tag-value
+                                       $read-curly-brace-with-tag-value
                                        $read-accept-reader-value
                                        $read-accept-lang-value
                                        $read-accept-compiled-value
                                        $read-accept-box-value
                                        $read-accept-bar-quote-value
                                        $read-accept-graph-value
+                                       $read-syntax-accept-graph-value
                                        $read-accept-dot-value
                                        $read-accept-infix-dot-value
                                        $read-accept-quasiquote-value
+                                       $read-cdot-value
+                                       $read-single-flonum-value
+                                       $read-decimal-as-inexact-value
                                        $read-case-sensitive-value
                                        $error-print-source-location-value)]
                              [primitive '($prim:load-on-demand-enabled
+                                          $prim:use-user-specific-search-paths
+                                          $prim:read-square-bracket-as-paren
+                                          $prim:read-curly-brace-as-paren
+                                          $prim:read-square-bracket-with-tag
+                                          $prim:read-curly-brace-with-tag
                                           $prim:read-accept-reader
                                           $prim:read-accept-lang
                                           $prim:read-accept-compiled
                                           $prim:read-accept-box
                                           $prim:read-accept-bar-quote
                                           $prim:read-accept-graph
+                                          $prim:read-syntax-accept-graph
                                           $prim:read-accept-dot
                                           $prim:read-accept-infix-dot
                                           $prim:read-accept-quasiquote
+                                          $prim:read-cdot
+                                          $prim:read-single-flonum
+                                          $prim:read-decimal-as-inexact
                                           $prim:read-case-sensitive
                                           $prim:error-print-source-location)])
                    `(func ,name (type $Prim01)
@@ -65392,22 +66014,33 @@
                (global $current-read-interaction-value (mut (ref eq)) (global.get $false))
                (global $default-port-read-handler-value (mut (ref eq)) (global.get $false))
                (global $load-on-demand-enabled-value (mut (ref eq)) (global.get $true))
+               (global $use-user-specific-search-paths-value (mut (ref eq)) (global.get $true))
+               (global $read-square-bracket-as-paren-value (mut (ref eq)) (global.get $true))
+               (global $read-curly-brace-as-paren-value   (mut (ref eq)) (global.get $true))
+               (global $read-square-bracket-with-tag-value (mut (ref eq)) (global.get $false))
+               (global $read-curly-brace-with-tag-value   (mut (ref eq)) (global.get $false))
                (global $read-accept-reader-value       (mut (ref eq)) (global.get $true))
                (global $read-accept-lang-value         (mut (ref eq)) (global.get $true))
                (global $read-accept-compiled-value     (mut (ref eq)) (global.get $false))
                (global $read-accept-box-value          (mut (ref eq)) (global.get $true))
                (global $read-accept-bar-quote-value    (mut (ref eq)) (global.get $true))
                (global $read-accept-graph-value        (mut (ref eq)) (global.get $true))
+               (global $read-syntax-accept-graph-value (mut (ref eq)) (global.get $false))
                (global $read-accept-dot-value          (mut (ref eq)) (global.get $true))
                (global $read-accept-infix-dot-value    (mut (ref eq)) (global.get $true))
                (global $read-accept-quasiquote-value   (mut (ref eq)) (global.get $true))
+               (global $read-cdot-value                (mut (ref eq)) (global.get $false))
+               (global $read-single-flonum-value       (mut (ref eq)) (global.get $false))
+               (global $read-decimal-as-inexact-value  (mut (ref eq)) (global.get $true))
                (global $read-case-sensitive-value      (mut (ref eq)) (global.get $true))
+               (global $current-readtable-value        (mut (ref eq)) (global.get $false))
                (global $print-syntax-width-value       (mut (ref eq)) (ref.i31 (i32.const 512)))
                (global $error-print-width-value        (mut (ref eq)) (ref.i31 (i32.const 512)))
                (global $error-print-source-location-value (mut (ref eq)) (global.get $true))
                (global $current-compile-target-machine-value (mut (ref eq)) (global.get $false))
                (global $current-compile-realm-value (mut (ref eq)) (global.get $false))
                (global $current-parameterization-value (mut (ref eq)) (global.get $false))
+               (global $current-pseudo-random-generator-value (mut (ref eq)) (global.get $false))
                (global $error-value->string-handler-value (mut (ref eq)) (global.get $false))
                (global $error-syntax->string-handler-value (mut (ref eq)) (global.get $false))
                (global $error-syntax->name-handler-value (mut (ref eq)) (global.get $false))
@@ -65527,6 +66160,10 @@
                                              (i32.const 0)
                                              (global.get $false)
                                              (global.get $null)))
+                     (global.set $current-pseudo-random-generator-value
+                                 (struct.new $PseudoRandomGenerator
+                                             (i32.const 0)
+                                             (i32.const 0x9E3779B9)))
                      (global.set $current-thread-value
                                  (struct.new $Thread (i32.const 0)))
                      (global.set $always-evt

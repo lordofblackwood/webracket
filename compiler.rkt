@@ -680,18 +680,18 @@
 
 (define (wr-fixnum? x)
   (and (number? x)
-       (integer? x)
+       (exact-integer? x)
        (or (wr-signed-fixnum? x)
            (wr-unsigned-fixnum? x))))
 
 (define (wr-signed-fixnum? x)
   (and (number? x)
-       (integer? x)
+       (exact-integer? x)
        (<= s30-min x s30-max)))
 
 (define (wr-unsigned-fixnum? x)
   (and (number? x)
-       (integer? x)
+       (exact-integer? x)
        (<= u31-min x u31-max)))
 
 (define (wr-number? v)
@@ -1088,6 +1088,7 @@
       append* apply compose compose1 cartesian-product vector-count map andmap ormap
       append-map count for-each foldl foldr vector-map vector-map! filter-map      
       min max flmin flmax fxmin fxmax gcd lcm
+      call-with-semaphore
       make-instance instance-set-variable-value! instance-variable-value
       make-prefab-struct
       hash hasheq hasheqv hashalw
@@ -1108,6 +1109,7 @@
         [(fprintf) 2]
         [(sync) 0]
         [(sync/timeout) 1]
+        [(call-with-semaphore) 2]
         [(extend-parameterization) 1]
         [(unsafe-fxand unsafe-fxior unsafe-fxxor) 1]
         [(symbol<? keyword<? path<?
@@ -1129,6 +1131,7 @@
         [(fprintf) 2]
         [(sync) 0]
         [(sync/timeout) 1]
+        [(call-with-semaphore) 2]
         [(foldl foldr instance-set-variable-value!) 3]
         [(+ * unsafe-fx+ unsafe-fx* compose compose1 cartesian-product string-append-immutable gcd lcm hash hasheq hasheqv hashalw) 0]
         [else 1])))
@@ -1246,17 +1249,20 @@
        peek-string
        progress-evt?
        make-semaphore
+       current-pseudo-random-generator
        write-byte
        write-char
        get-output-bytes
        write-bytes
        write-string
        make-thread-cell
-       make-vector
-       make-string
-       make-bytes
-       vector-sort!
-       vector-sort
+	      make-vector
+	      make-string
+	      make-bytes
+	      syntax-source-module
+	      custom-print-quotable-accessor
+	      vector-sort!
+	      vector-sort
        struct->vector
        real->floating-point-bytes
        string-trim
@@ -1280,7 +1286,7 @@
                  hash-ref hash-ref-key real->floating-point-bytes vector-sort! vector-sort
                  ) 2]
          [(hash-update!) 3]
-        [(random flrandom unsafe-flrandom make-semaphore) 0]
+        [(random flrandom unsafe-flrandom make-semaphore current-pseudo-random-generator) 0]
         [(progress-evt? write-byte write-char get-output-bytes) 1]
          [(write-bytes write-string) 1]
          [else 1]))
@@ -1302,9 +1308,12 @@
                        write-bytes write-string) 4]
          [(peek-bytes! peek-string!) 5]
          [(peek-bytes peek-string) 3]
-         [(progress-evt? make-vector make-string make-bytes) 2]
-         [(make-semaphore) 1]
+	         [(progress-evt? make-vector make-string make-bytes) 2]
+	         [(syntax-source-module) 2]
+	         [(custom-print-quotable-accessor) 2]
+	         [(make-semaphore) 1]
          [(random) 2]
+         [(current-pseudo-random-generator) 1]
          [(flrandom unsafe-flrandom) 1]
          [(vector-sort! vector-sort) 4]
          [(real->floating-point-bytes) 5]
@@ -1404,16 +1413,26 @@
        current-error-port
        current-read-interaction
        load-on-demand-enabled
+       use-user-specific-search-paths
+       read-square-bracket-as-paren
+       read-curly-brace-as-paren
+       read-square-bracket-with-tag
+       read-curly-brace-with-tag
        read-accept-reader
        read-accept-lang
        read-accept-compiled
        read-accept-box
        read-accept-bar-quote
        read-accept-graph
+       read-syntax-accept-graph
        read-accept-dot
        read-accept-infix-dot
        read-accept-quasiquote
+       read-cdot
+       read-single-flonum
+       read-decimal-as-inexact
        read-case-sensitive
+       current-readtable
        print-syntax-width
        error-print-width
        error-print-source-location
@@ -1498,6 +1517,7 @@
        instantiate-linklet
        string-join
        string->bytes/utf-8
+       string->bytes/locale
        path->complete-path
        bytes->path
        string->path-element
@@ -1520,7 +1540,7 @@
      (λ (name)
        (case name
          [(raise hash->list hash-keys hash-values
-                 string-join string->bytes/utf-8 bytes->path
+                 string-join string->bytes/utf-8 string->bytes/locale bytes->path
                  string->path-element bytes->path-element datum->correlated
                  struct-type-property-predicate-procedure?) 1]
          [(procedure-arity-includes? procedure-reduce-arity) 2]
@@ -1546,7 +1566,7 @@
          [(bytes->path-element) 3]
          [(procedure-arity-includes?) 3]
          [(procedure-reduce-arity) 4]
-         [(string->bytes/utf-8) 4]
+         [(string->bytes/utf-8 string->bytes/locale) 4]
          [(hash-for-each hash-map hash-map/copy) 3]
          [(instantiate-linklet) 4]
          [(datum->correlated correlated-property inclusive-range inclusive-range-proc) 3]
@@ -1810,7 +1830,7 @@
 
   current-thread
   make-thread-cell thread-cell? thread-cell-ref thread-cell-set!
-  make-semaphore semaphore? semaphore-post semaphore-peek-evt semaphore-peek-evt?
+  make-semaphore semaphore? semaphore-post call-with-semaphore semaphore-peek-evt semaphore-peek-evt?
   sync sync/timeout
   unsafe-make-uninterruptible-lock
   unsafe-uninterruptible-lock-acquire
@@ -2009,6 +2029,7 @@
 
   number?
   real?
+  rational?
   integer?
   exact? exact-integer?
   exact-nonnegative-integer?
@@ -2036,7 +2057,11 @@
   bitwise-bit-field
   arithmetic-shift
   integer-length
+  current-pseudo-random-generator
+  make-pseudo-random-generator
+  pseudo-random-generator?
   random
+  random-seed
   current-compile-target-machine
   current-compile-realm
   system-big-endian?
@@ -2150,7 +2175,7 @@
   string-upcase string-downcase string-titlecase string-foldcase
   string-append string-append-immutable string-append* string-join
   string->list list->string
-  string->bytes/utf-8 string-utf-8-length string->immutable-string
+  string->bytes/utf-8 string->bytes/locale string-utf-8-length string->immutable-string
   non-empty-string?
   string-split
   string-trim
@@ -2187,16 +2212,26 @@
   current-read-interaction
   port-read-handler
   load-on-demand-enabled
+  use-user-specific-search-paths
+  read-square-bracket-as-paren
+  read-curly-brace-as-paren
+  read-square-bracket-with-tag
+  read-curly-brace-with-tag
   read-accept-reader
   read-accept-lang
   read-accept-compiled
   read-accept-box
   read-accept-bar-quote
   read-accept-graph
+  read-syntax-accept-graph
   read-accept-dot
   read-accept-infix-dot
   read-accept-quasiquote
+  read-cdot
+  read-single-flonum
+  read-decimal-as-inexact
   read-case-sensitive
+  current-readtable
   print-syntax-width
   error-print-width
   error-print-source-location
@@ -2222,6 +2257,8 @@
   call-with-output-string
   make-input-port
 
+  read
+  read-syntax
   read-byte
   read-char
   read-byte-or-special
@@ -2365,6 +2402,10 @@
   variable-reference-constant?
   internal-definition-context?
   liberal-define-context?
+  module-path-index-join
+  module-path-index-resolve
+  module-path-index-split
+  module-path-index-submodule
   module-path-index?
   module-path?
   resolved-module-path?
@@ -6947,9 +6988,13 @@
                     (? void?)                    
                     (? number?))) ; a bignum or rational number
            (if (number? v)
-               (if (not (or (wr-signed-fixnum? v) (flonum? v)))
-                   `(quote ,s ,(datum s (* 1.0 v))) ; convert to a flonum
-                   `(quote ,s ,(datum s v)))       ; fixnum or flonum
+               (cond
+                 [(not (real? v))
+                  `(quote ,s ,(datum s v))]
+                 [(not (or (wr-signed-fixnum? v) (flonum? v)))
+                  `(quote ,s ,(datum s (* 1.0 v)))] ; convert to a flonum
+                 [else
+                  `(quote ,s ,(datum s v))])        ; fixnum or flonum
                `(quote ,s ,(datum s v)))]          ; other literals
           [(? string? cs)  `(quote ,s ,(datum s v))]
           [(? bytes?  bs)  `(quote ,s ,(datum s v))]
@@ -17556,17 +17601,40 @@
              (append exacts-sorted (list m)))]
         [else exacts-sorted]))
 
-    (define (arity-markers->eq-expr markers)
-      (match markers
-        ['()       `(ref.cast (ref eq) (array.new_fixed $I32Array 0))]
-        [(list m)  (Imm m)]
-        [_
-         `(ref.cast (ref eq)
-                    (array.new_fixed $I32Array
-                                     ,(length markers)
-                                     ,@(for/list ([m (in-list markers)])
-                                         `(i32.const ,m))))]))
-    )
+	(define (arity-markers->eq-expr markers)
+	  (match markers
+	    ['()       `(ref.cast (ref eq) (array.new_fixed $I32Array 0))]
+	    [(list m)  (Imm m)]
+	    [_
+	     `(ref.cast (ref eq)
+	                (array.new_fixed $I32Array
+	                                 ,(length markers)
+	                                 ,@(for/list ([m (in-list markers)])
+	                                     `(i32.const ,m))))]))
+
+    (define (real-number-literal->expr v)
+      (cond
+        [(wr-signed-fixnum? v)
+         (Imm v)]
+        [(flonum? v)
+         (define l (case v
+                     [(+nan.0) 'nan] [(-nan.0) '-nan]
+                     [(+inf.0) 'inf] [(-inf.0) '-inf]
+                     [else v]))
+         `(struct.new $Flonum (i32.const 0) (f64.const ,l))]
+        [(and (number? v) (real? v))
+         `(struct.new $Flonum (i32.const 0) (f64.const ,(* 1.0 v)))]
+        [else
+         (raise-arguments-error 'webify
+                                "expected a real numeric literal"
+                                "literal" v)]))
+
+    (define (complex-number-literal->expr v)
+      `(struct.new $Complex
+                   (i32.const 0)
+                   ,(real-number-literal->expr (real-part v))
+                   ,(real-number-literal->expr (imag-part v))))
+	    )
 
   (ClosureAllocation : ClosureAllocation (ca dd) -> * ()
     [(closure ,s ,k ,in ,l ,ar ,ae1 ...)
@@ -17785,8 +17853,11 @@
                         [else
                          (let ([v (datum-value d)])
                            (cond
-                             ; We keep these for now, to get a more readable output.
-                             ; In all likelyhood (Imm '()), (Imm (void)), etc. are better.
+	                             ; We keep these for now, to get a more readable output.
+	                             ; In all likelyhood (Imm '()), (Imm (void)), etc. are better.
+	                             [(and (number? v)
+	                                   (not (real? v)))
+	                              (complex-number-literal->expr v)]
                              [(and (number? v)
                                    (not (or (wr-signed-fixnum? v)
                                             (flonum? v))))

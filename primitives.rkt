@@ -221,16 +221,26 @@
          call-with-escape-continuation
          port-read-handler
          load-on-demand-enabled
+         use-user-specific-search-paths
+         read-square-bracket-as-paren
+         read-curly-brace-as-paren
+         read-square-bracket-with-tag
+         read-curly-brace-with-tag
          read-accept-reader
          read-accept-lang
          read-accept-compiled
          read-accept-box
          read-accept-bar-quote
          read-accept-graph
+         read-syntax-accept-graph
          read-accept-dot
          read-accept-infix-dot
          read-accept-quasiquote
+         read-cdot
+         read-single-flonum
+         read-decimal-as-inexact
          read-case-sensitive
+         current-readtable
          reset-current-input-port!
          reset-current-output-port!
          reset-current-error-port!
@@ -380,9 +390,10 @@
 
  ;; 4.3 Numbers
 
-;; 4.3.1 Number Types
+ ;; 4.3.1 Number Types
  number?
  real?
+ rational?
  integer?
  exact?
  exact-integer?
@@ -472,7 +483,11 @@
   bitwise-bit-field
   arithmetic-shift
   integer-length
+  current-pseudo-random-generator
+  make-pseudo-random-generator
+  pseudo-random-generator?
   random 
+  random-seed
  ;; 4.3.2.7 Random Numbers
  ;; 4.3.2.8 Other Randomness Utilities (racket/random)
  ;; 4.3.2.9 Number–String Conversions
@@ -613,6 +628,7 @@
  
  string->list
  string->bytes/utf-8
+ string->bytes/locale
  string-utf-8-length
  string->immutable-string
  
@@ -1001,6 +1017,7 @@
  ;; 11 Threads and Synchronization
  current-thread
  make-semaphore semaphore? semaphore-post
+ call-with-semaphore
  semaphore-peek-evt semaphore-peek-evt?
  always-evt never-evt sync sync/timeout
  
@@ -1048,6 +1065,8 @@
  make-input-port
 
  ;; 13.2 Byte and String Input
+ read
+ read-syntax
  read-byte
  read-char
  read-byte-or-special
@@ -1124,6 +1143,10 @@
  internal-definition-context?
  liberal-define-context?
  module-path-index?
+ module-path-index-join
+ module-path-index-resolve
+ module-path-index-split
+ module-path-index-submodule
  module-path?
  resolved-module-path?
  resolved-module-path-name
@@ -1558,13 +1581,10 @@
       -1
       (sub1 (integer-length (bitwise-and n (- n))))))
 
-; This simplified version of random doesn't allow passing
-; a random number generator.
 (define random
   ;; Simple wrapper around Racket's `random` that exposes the same
-  ;; optional argument behaviour to the rest of the system.  The RNG
-  ;; state itself lives in `runtime-wasm.rkt` and is shared across
-  ;; invocations of the Wasm primitive.
+  ;; optional argument behaviour to the rest of the system.  In Wasm,
+  ;; lightweight generator objects live in `runtime-wasm.rkt`.
   (case-lambda
     [()        (racket:random)]
     [(k)       (racket:random k)]
@@ -3153,16 +3173,26 @@
   (lambda (_in) eof))
 
 (define load-on-demand-enabled (make-parameter #t))
+(define use-user-specific-search-paths (make-parameter #t))
+(define read-square-bracket-as-paren (make-parameter #t))
+(define read-curly-brace-as-paren (make-parameter #t))
+(define read-square-bracket-with-tag (make-parameter #f))
+(define read-curly-brace-with-tag (make-parameter #f))
 (define read-accept-reader      (make-parameter #t))
 (define read-accept-lang        (make-parameter #t))
 (define read-accept-compiled    (make-parameter #f))
 (define read-accept-box         (make-parameter #t))
 (define read-accept-bar-quote   (make-parameter #t))
 (define read-accept-graph       (make-parameter #t))
+(define read-syntax-accept-graph (make-parameter #f))
 (define read-accept-dot         (make-parameter #t))
 (define read-accept-infix-dot   (make-parameter #t))
 (define read-accept-quasiquote  (make-parameter #t))
+(define read-cdot               (make-parameter #f))
+(define read-single-flonum      (make-parameter #f))
+(define read-decimal-as-inexact (make-parameter #t))
 (define read-case-sensitive     (make-parameter #t))
+(define current-readtable       (make-parameter #f))
 
 (define (write-linklet-bundle-hash bundle out)
   (write bundle out))

@@ -45,11 +45,14 @@
     promise-predicate-plain
     force-identity
     promise-basic
-    sequence-list
-    promise-state
-    sequence-range
-    class-require
-    hash-comparator-semantics
+	    sequence-list
+	    promise-state
+	    sequence-range
+	    class-require
+	    class-basic
+	    format-basic
+	    match-basic
+	    hash-comparator-semantics
     set-comparator-semantics
     custom-write-require
     set-types-require
@@ -256,15 +259,24 @@
          (require racket/class)
          (provide y)
          (define y 42)))]
-    [(class-basic)
-     '((module use-class-basic racket/base
-         (require racket/class)
-         (provide y)
+	    [(class-basic)
+	     '((module use-class-basic racket/base
+	         (require racket/class)
+	         (provide y)
          (define counter%
            (class object%
              (super-new)
-             (define/public (value) 42)))
-         (define y (send (new counter%) value))))]
+	             (define/public (value) 42)))
+	         (define y (send (new counter%) value))))]
+	    [(match-basic)
+	     '((module use-match-basic racket/base
+	         (require racket/match)
+	         (provide y)
+	         (define (score v)
+	           (match v
+	             [(list 'answer n) n]
+	             [_ 0]))
+	         (define y (score '(answer 42)))))]
     [(hash-comparator-semantics)
      '((module use-hash-comparator-semantics racket/base
          (provide y)

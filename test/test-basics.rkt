@@ -479,6 +479,7 @@
                     (list "number?"
                           (and (equal? (number? 1)   #t)
                                (equal? (number? 1.5) #t)
+                               (equal? (number? 0+1i) #t)
                                (equal? (number? 'a)  #f)
                                (equal? (number? #f)  #f)
                                (equal? (procedure-arity number?) 1)))
@@ -493,6 +494,8 @@
                                 (equal? (number->string -1.25)  "-1.25")
                                 (equal? (number->string -1.0)   "-1.0")
                                 (equal? (number->string 0.0001) "0.0001")
+                                (equal? (number->string 0+1i)   "0+1i")
+                                (equal? (number->string 0-1i)   "0-1i")
                                 (equal? (number->string +inf.0) "+inf.0")
                                 (equal? (number->string -inf.0) "-inf.0")
                                 (equal? (number->string +nan.0) "+nan.0")))
@@ -516,8 +519,16 @@
                           (and (equal? (real? 1)      #t)
                                (equal? (real? 1.0)    #t)
                                (equal? (real? +nan.0) #t)
+                               (equal? (real? 0+1i)   #f)
                                (equal? (real? 'a)     #f)
                                (equal? (procedure-arity real?) 1)))
+                    (list "rational?"
+                          (and (equal? (rational? 1)      #t)
+                               (equal? (rational? 1.0)    #t)
+                               (equal? (rational? +inf.0) #f)
+                               (equal? (rational? +nan.0) #f)
+                               (equal? (rational? 'a)     #f)
+                               (equal? (procedure-arity rational?) 1)))
                     (list "inexact-real?"
                           (and (equal? (inexact-real? 1.0)    #t)
                                (equal? (inexact-real? 1)      #f)
@@ -866,7 +877,21 @@
                     (list "random k edge" (= (random 1) 0))
                     (list "random min max"
                           (let ([v (random -5 5)])
-                            (and (exact-integer? v) (<= -5 v) (< v 5))))))
+                            (and (exact-integer? v) (<= -5 v) (< v 5))))
+                    (list "pseudo-random-generator"
+                          (let ([g (make-pseudo-random-generator)])
+                            (and (pseudo-random-generator? g)
+                                 (let ([v (random 5 g)])
+                                   (and (exact-integer? v) (<= 0 v) (< v 5)))
+                                 (let ([v (random g)])
+                                   (and (inexact? v) (> v 0.0) (< v 1.0))))))
+                    (list "current-pseudo-random-generator"
+                          (let ([original (current-pseudo-random-generator)]
+                                [g (make-pseudo-random-generator)])
+                            (and (void? (current-pseudo-random-generator g))
+                                 (eq? (current-pseudo-random-generator) g)
+                                 (void? (random-seed 17))
+                                 (void? (current-pseudo-random-generator original)))))))
 
              (list "4.3.2.8 Other Randomness Utilities")
 
@@ -1535,6 +1560,16 @@
                       (and (equal? (string-utf-8-length s1) 8)
                            (equal? (string-utf-8-length "hello") 5)
                            (equal? (string-utf-8-length s2 1 4) 4))))
+
+              (list "string->bytes/locale"
+                    (and (bytes=? (string->bytes/locale "abc") #"abc")
+                         (bytes=? (string->bytes/locale "aλ") #"a\xce\xbb")
+                         (bytes=? (string->bytes/locale "abcdef" #f 1 4) #"bcd")))
+
+              (list "byte-regexp/envvar-name"
+                    (and (regexp-match? #rx#"^[^\0=]*$" #"PLTPLANETDIR")
+                         (regexp-match? #rx#"^[^\0=]*$" #"")
+                         (not (regexp-match? #rx#"^[^\0=]*$" #"A=B"))))
 
               (list "bytes-utf-8-length"
                     (let* ([b1 (bytes #xc3 #xa7 #xc3 #xb0 #xc3 #xb6 #xc2 #xa3)]
@@ -5269,38 +5304,64 @@
                        (and (procedure? default)
                             (eof-object? (default in)))))
 
-               (list "reader accept bootstrap parameters"
-                     (let ([load-delay (load-on-demand-enabled)]
-                           [reader     (read-accept-reader)]
-                           [lang       (read-accept-lang)]
-                           [compiled   (read-accept-compiled)]
-                           [box        (read-accept-box)]
-                           [bar-quote  (read-accept-bar-quote)]
-                           [graph      (read-accept-graph)]
-                           [dot        (read-accept-dot)]
-                           [infix-dot  (read-accept-infix-dot)]
-                           [quasiquote (read-accept-quasiquote)]
-                           [case-sens  (read-case-sensitive)])
-                       (and (boolean? load-delay)
-                            (boolean? reader)
-                            (boolean? lang)
-                            (boolean? compiled)
-                            (boolean? box)
-                            (boolean? bar-quote)
-                            (boolean? graph)
-                            (boolean? dot)
-                            (boolean? infix-dot)
-                            (boolean? quasiquote)
-                            (boolean? case-sens)
-                            (void? (load-on-demand-enabled #f))
-                            (equal? (load-on-demand-enabled) #f)
-                            (void? (load-on-demand-enabled load-delay))
-                            (void? (read-accept-reader #f))
-                            (equal? (read-accept-reader) #f)
-                            (void? (read-accept-reader reader))
-                            (void? (read-case-sensitive #f))
-                            (equal? (read-case-sensitive) #f)
-                            (void? (read-case-sensitive case-sens)))))
+               (list "reader bootstrap parameters/defaults"
+                     (let ([ok #t])
+                       (unless (boolean? (load-on-demand-enabled)) (set! ok #f))
+                       (unless (boolean? (use-user-specific-search-paths)) (set! ok #f))
+                       (unless (boolean? (read-accept-reader)) (set! ok #f))
+                       (unless (boolean? (read-accept-lang)) (set! ok #f))
+                       (unless (boolean? (read-accept-compiled)) (set! ok #f))
+                       (unless (boolean? (read-accept-box)) (set! ok #f))
+                       (unless (boolean? (read-accept-bar-quote)) (set! ok #f))
+                       (unless (boolean? (read-accept-graph)) (set! ok #f))
+                       ok))
+
+               (list "reader bracket bootstrap parameters"
+                     (let ([square-paren (read-square-bracket-as-paren)]
+                           [curly-paren (read-curly-brace-as-paren)]
+                           [square-tag (read-square-bracket-with-tag)]
+                           [curly-tag (read-curly-brace-with-tag)]
+                           [ok #t])
+                       (read-square-bracket-as-paren #f)
+                       (unless (eq? (read-square-bracket-as-paren) #f) (set! ok #f))
+                       (read-square-bracket-as-paren square-paren)
+                       (read-curly-brace-as-paren #f)
+                       (unless (eq? (read-curly-brace-as-paren) #f) (set! ok #f))
+                       (read-curly-brace-as-paren curly-paren)
+                       (read-square-bracket-with-tag #t)
+                       (unless (eq? (read-square-bracket-with-tag) #t) (set! ok #f))
+                       (read-square-bracket-with-tag square-tag)
+                       (read-curly-brace-with-tag #t)
+                       (unless (eq? (read-curly-brace-with-tag) #t) (set! ok #f))
+                       (read-curly-brace-with-tag curly-tag)
+                       ok))
+
+               (list "reader graph and numeric bootstrap parameters"
+                     (let ([syntax-graph (read-syntax-accept-graph)]
+                           [cdot (read-cdot)]
+                           [single-flo (read-single-flonum)]
+                           [decimal-inexact (read-decimal-as-inexact)]
+                           [ok #t])
+                       (read-syntax-accept-graph #t)
+                       (unless (eq? (read-syntax-accept-graph) #t) (set! ok #f))
+                       (read-syntax-accept-graph syntax-graph)
+                       (read-cdot #t)
+                       (unless (eq? (read-cdot) #t) (set! ok #f))
+                       (read-cdot cdot)
+                       (read-single-flonum #t)
+                       (unless (eq? (read-single-flonum) #t) (set! ok #f))
+                       (read-single-flonum single-flo)
+                       (read-decimal-as-inexact #f)
+                       (unless (eq? (read-decimal-as-inexact) #f) (set! ok #f))
+                       (read-decimal-as-inexact decimal-inexact)
+                       ok))
+
+               (list "reader current-readtable/bootstrap"
+                     (let ([ok #t])
+                       (unless (eq? (current-readtable) #f) (set! ok #f))
+                       (current-readtable #f)
+                       (unless (eq? (current-readtable) #f) (set! ok #f))
+                       ok))
 
                (list "close-input-port/custom-close-order"
                      (let ([port #f])
@@ -5654,6 +5715,19 @@
                            (equal? (semaphore-post s) (void))
                            (equal? (sync/timeout 0 s) s)
                            (equal? (sync/timeout 0 s) #f))))
+
+              (list "call-with-semaphore/basic"
+                    (let ([s (make-semaphore 1)]
+                          [seen #f])
+                      (and (equal? (call-with-semaphore s
+                                     (lambda (x)
+                                       (set! seen x)
+                                       (+ x 1))
+                                     #f
+                                     41)
+                                   42)
+                           (equal? seen 41)
+                           (equal? (sync/timeout 0 s) s))))
 
               (list "semaphore-peek-evt/basic"
                     (let* ([s (make-semaphore)]
@@ -7109,7 +7183,7 @@
 
               
               
-             )))
+             ))
 
 
  
