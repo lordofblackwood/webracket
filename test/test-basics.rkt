@@ -952,6 +952,9 @@
                           (and (equal? (single-flonum? 1.0) #f)
                                (equal? (single-flonum? 1) #f)
                                (equal? (procedure-arity single-flonum?) 1)))
+                    (list "flvector?"
+                          (and (equal? (flvector? 1.0) #f)
+                               (equal? (procedure-arity flvector?) 1)))
                     (list "single-flonum-available?"
                           (and (equal? (single-flonum-available?) #f)
                                (equal? (procedure-arity single-flonum-available?) 0)))
@@ -1056,6 +1059,9 @@
                     (list "fixnum?"
                           (and (equal? (fixnum? 1) #t)
                                (equal? (fixnum? 1.0) #f)))
+                    (list "fxvector?"
+                          (and (equal? (fxvector? 1) #f)
+                               (equal? (procedure-arity fxvector?) 1)))
                     (list "fxzero?"
                           (and (equal? (fxzero? 0) #t)
                                (equal? (fxzero? 1) #f)))

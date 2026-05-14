@@ -532,9 +532,11 @@
  flbit-field
  
  ;; 4.3.3.2 Flonum Vectors
+ flvector?
 
  ;; 4.3.4 Fixnums (racket/fixnum)
  ;; 4.3.4.1 Fixnum Arithmetic
+ fxvector?
  fxzero?
  fx+
  fx-
@@ -1105,8 +1107,11 @@
  ;; 14.1 Namespaces
  variable-reference?
  variable-reference->instance
+ variable-reference->resolved-module-path
+ variable-reference->module-source
  variable-reference-from-unsafe?
  variable-reference-constant?
+ resolved-module-path-name
  namespace?
  make-empty-namespace
  namespace-variable-value-simple

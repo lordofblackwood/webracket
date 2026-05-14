@@ -2141,6 +2141,8 @@
     (add-runtime-string-constant 'instance-mode?                "(or/c #f 'constant 'consistent)")
     (add-runtime-string-constant 'instance-or-false             "(or/c instance? #f)")
     (add-runtime-string-constant 'variable-reference?           "variable-reference?")
+    (add-runtime-string-constant 'variable-reference->module-source "variable-reference->module-source")
+    (add-runtime-string-constant 'variable-reference->resolved-module-path "variable-reference->resolved-module-path")
     (add-runtime-string-constant 'module-variable?              "module-variable?")
     (add-runtime-string-constant 'module-variable-reference?    "module-variable-reference?")
     (add-runtime-string-constant 'module-variable-same-length-vectors
@@ -10003,6 +10005,14 @@
                (result (ref eq))
                (global.get $false))
 
+         ;; flvector? : any/c -> boolean?
+         ;;   WebRacket does not have flvector values yet, so this predicate
+         ;;   is always false until a concrete flvector representation exists.
+         (func $flvector? (type $Prim1)
+               (param $v (ref eq)) ;; any/c
+               (result (ref eq))
+               (global.get $false))
+
          (func $inexact-real? (type $Prim1)
                ;; Returns #t for inexact real numbers (flonums that are not NaN)
                (param $z (ref eq))
@@ -12669,6 +12679,14 @@
                              (then (global.get $true))
                              (else (global.get $false))))
                    (else (global.get $false))))
+
+         ;; fxvector? : any/c -> boolean?
+         ;;   WebRacket does not have fxvector values yet, so this predicate
+         ;;   is always false until a concrete fxvector representation exists.
+         (func $fxvector? (type $Prim1)
+               (param $v (ref eq)) ;; any/c
+               (result (ref eq))
+               (global.get $false))
 
          (func $fx?/i32 (param $v (ref eq)) (result i32)
                (local $v/tag i32)
@@ -52948,6 +52966,15 @@
         ;;;
 
         ;; 14.1 Namespaces
+
+        ;; resolved-module-path-name : resolved-module-path? -> any/c
+        ;;   WebRacket does not model resolved-module-path values yet. For
+        ;;   already-lowered symbolic/path-like module names, this acts as the
+        ;;   identity; reinstate validation when resolved-module-path values land.
+        (func $resolved-module-path-name (type $Prim1)
+              (param $module-path (ref eq)) ;; resolved-module-path?
+              (result             (ref eq))
+              (local.get $module-path))
         
         ;; expander-namespace-struct?/i32 : any/c -> i32
         ;;   Recognize the expander's own authentic `namespace` struct. This is
@@ -52992,6 +53019,35 @@
               (if (i32.eqz (ref.test (ref $VariableReference) (local.get $varref)))
                   (then (call $raise-argument-error1
                               (global.get $symbol:variable-reference->instance)
+                              (global.get $string:variable-reference?)
+                              (local.get $varref))
+                        (unreachable)))
+              (global.get $false))
+
+        ;; variable-reference->module-source : variable-reference? -> (or/c symbol? path? #f)
+        ;;   WebRacket variable references do not yet retain source-module
+        ;;   identity. Returning #f matches Racket's top-level-reference result.
+        (func $variable-reference->module-source (type $Prim1)
+              (param $varref (ref eq)) ;; variable-reference?
+              (result (ref eq))
+              (if (i32.eqz (ref.test (ref $VariableReference) (local.get $varref)))
+                  (then (call $raise-argument-error1
+                              (global.get $symbol:variable-reference->module-source)
+                              (global.get $string:variable-reference?)
+                              (local.get $varref))
+                        (unreachable)))
+              (global.get $false))
+
+        ;; variable-reference->resolved-module-path : variable-reference? -> (or/c resolved-module-path? #f)
+        ;;   WebRacket variable references do not yet retain module path identity.
+        ;;   Returning #f matches Racket's top-level-reference result and is enough
+        ;;   for provider code that only needs a best-effort source label.
+        (func $variable-reference->resolved-module-path (type $Prim1)
+              (param $varref (ref eq)) ;; variable-reference?
+              (result (ref eq))
+              (if (i32.eqz (ref.test (ref $VariableReference) (local.get $varref)))
+                  (then (call $raise-argument-error1
+                              (global.get $symbol:variable-reference->resolved-module-path)
                               (global.get $string:variable-reference?)
                               (local.get $varref))
                         (unreachable)))

@@ -110,7 +110,12 @@
       promise-predicate-plain
       force-identity
       promise-basic
-      sequence-list)
+      sequence-list
+      promise-state
+      sequence-range
+      class-require
+      hash-comparator-semantics
+      set-comparator-semantics)
      (installed-runtime-smoke
       name
       (format "module case ~a reaches WebRacket runtime smoke" name)
@@ -132,9 +137,11 @@
             [(promise-require force-identity) #rx"(?m:^42$)"]
             [(promise-predicate-plain) #rx"(?m:^false$)"]
             [(promise-basic) #rx"(?m:^42$)"]
-            [(sequence-list) #rx"(?m:^3$)"]
+            [(promise-state) #rx"(?m:^true$)"]
+            [(sequence-list sequence-range) #rx"(?m:^3$)"]
+            [(hash-comparator-semantics set-comparator-semantics) #rx"(?m:^21$)"]
             [(hash-basic) #rx"(?m:^41$)"]
-            [(stream-rest combined-list-string-set) #rx"(?m:^42$)"]
+            [(stream-rest combined-list-string-set class-require) #rx"(?m:^42$)"]
             [else #rx"(?m:^false$)"])
           #rx"")
       '()

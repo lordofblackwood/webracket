@@ -46,6 +46,9 @@
     force-identity
     promise-basic
     sequence-list
+    promise-state
+    sequence-range
+    class-require
     custom-write-require
     set-types-require
     set-types-predicate))
@@ -225,11 +228,49 @@
          (provide y)
          (define p (delay (+ 20 22)))
          (define y (if (promise? p) (force p) 0))))]
+    [(promise-state)
+     '((module use-promise-state racket/base
+         (require racket/promise)
+         (provide y)
+         (define p (delay (+ 20 22)))
+         (define y
+           (and (not (promise-forced? p))
+                (not (promise-running? p))
+                (= (force p) 42)
+                (promise-forced? p)
+                (not (promise-running? p))))))]
     [(sequence-list)
      '((module use-sequence-list racket/base
          (require racket/sequence)
          (provide y)
          (define y (length (sequence->list '(a b c))))))]
+    [(sequence-range)
+     '((module use-sequence-range racket/base
+         (require racket/sequence)
+         (provide y)
+         (define y (length (sequence->list (in-range 3))))))]
+    [(class-require)
+     '((module use-class-require racket/base
+         (require racket/class)
+         (provide y)
+         (define y 42)))]
+    [(hash-comparator-semantics)
+     '((module use-hash-comparator-semantics racket/base
+         (provide y)
+         (define a (list 1))
+         (define b (list 1))
+         (define y
+           (+ (hash-count (hash a 1 b 2))
+              (* 10 (hash-count (hasheq a 1 b 2)))))))]
+    [(set-comparator-semantics)
+     '((module use-set-comparator-semantics racket/base
+         (require racket/set)
+         (provide y)
+         (define a (list 1))
+         (define b (list 1))
+         (define y
+           (+ (set-count (set a b))
+              (* 10 (set-count (seteq a b)))))))]
     [(custom-write-require)
      '((module use-custom-write-require racket/base
          (require racket/private/custom-write)

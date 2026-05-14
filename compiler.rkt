@@ -2059,8 +2059,10 @@
   fx->fl
   fl->fx
   fixnum-for-every-system?
+  fxvector?
 
   flonum?
+  flvector?
   double-flonum?
   single-flonum?
   single-flonum-available?
@@ -2348,8 +2350,11 @@
 
   variable-reference?
   variable-reference->instance
+  variable-reference->module-source
+  variable-reference->resolved-module-path
   variable-reference-from-unsafe?
   variable-reference-constant?
+  resolved-module-path-name
 
   js-log
 
