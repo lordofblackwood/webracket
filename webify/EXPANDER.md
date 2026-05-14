@@ -3684,6 +3684,13 @@ with the newer `../racket` checkout. Comparing `set-require` to `set?` or
 the current evidence says public `racket/set` operations do not provide a small
 non-printing path around the custom-write/pretty initialization frontier.
 
+The bounded runtime probe also supports ad hoc module cases from the dependency
+probe table. Direct require-only cases for `racket/private/set-types`,
+`racket/pretty`, and `racket/private/custom-write` all pass, each exporting an
+unrelated `42`. That means the current `racket/set` operation blocker is not
+one of those providers failing to instantiate by itself; it is the combined
+operation slice reaching the custom-write/pretty escaped-closure path.
+
 The operation smokes no longer fail at the old `stream?` provider ambiguity or
 at the `check-not-unsafe-undefined` lowering guard. The resolver has a narrow
 tie-breaker that prefers `racket/private/stream-cons` over `racket/private/for`
@@ -3699,3 +3706,15 @@ trip the guard. That means this is not a simple dependency-order bug; making
 set operations pass needs either avoiding that custom-write/pretty path for the
 exercised operation or supporting enough of the relevant continuation and
 pretty-print behavior without masking a real use-before-initialization check.
+
+For escape continuations, the next runtime direction is not to broaden the
+current bootstrap blindly. The Reference requires an escape continuation to be
+usable only during the dynamic extent of the
+`call-with-escape-continuation` call. WebRacket currently supports the expander
+and module probes' early-return shape with a private Wasm exception, but it
+does not invalidate the escape procedure after return or implement full
+prompt/barrier interaction. Local smokes now distinguish direct escape,
+escaping with an independent closure, and escaping with a closure that later
+reads a skipped `letrec` binding. The last case must keep raising the
+`unsafe-undefined` guard; better continuation support should preserve that
+behavior, not hide it.

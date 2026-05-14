@@ -6,7 +6,8 @@
          "module-extractor.rkt"
          "module-input.rkt"
          "module-protocol.rkt"
-         "module-registry.rkt")
+         "module-registry.rkt"
+         "probe-installed-module-deps.rkt")
 
 (define (export-name-member? name exports)
   (member name (map symbol->string exports)))
@@ -147,6 +148,25 @@
   (check-not-false
    (member '(racket/sequence "stream?" "racket/private/for" "stream?")
            stream-imports)))
+
+(test-case "Racket 9.2 racket/set operation dependency delta stays classified"
+  (define require-inputs (extract-case-inputs 'set-require))
+  (define predicate-inputs (extract-case-inputs 'set-predicate))
+  (define require-names (input-names require-inputs))
+  (define predicate-names (input-names predicate-inputs))
+  (check-equal? require-names
+                '(module-protocol use-set-require-only))
+  (define added (set-diff predicate-names require-names))
+  (for ([name (in-list '(racket/private/set
+                         racket/private/set-types
+                         racket/private/stream-cons
+                         racket/stream
+                         racket/pretty
+                         racket/private/custom-write))])
+    (check-not-false (memq name added)))
+  (check-equal?
+   (set-diff require-names predicate-names)
+   '(use-set-require-only)))
 
 (test-case "Racket 9.2 racket/private/for imports read for in-port"
   (define report (webify-module-path->report 'racket/private/for))

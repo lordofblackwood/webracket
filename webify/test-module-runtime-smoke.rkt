@@ -124,6 +124,42 @@
     '(provider-export-mismatch)
     #rx"missing-export")
    (local-runtime-smoke
+    "call-with-escape-continuation exits directly"
+    (list
+     (webify-module-linklet-input
+      'escape-direct
+      '(linklet () (y)
+         (define-values (y)
+           (call-with-escape-continuation
+            (lambda (escape)
+              (escape 42)))))
+      '()))
+    '(escape-direct)
+    '((escape-direct y))
+    #rx"(?m:^42$)"
+    '()
+    #f)
+   (local-runtime-smoke
+    "escape out of letrec RHS can return independent closure"
+    (list
+     (webify-module-linklet-input
+      'escape-letrec-independent
+      '(linklet () (y)
+         (define-values (y)
+           ((call-with-escape-continuation
+             (lambda (escape)
+               (letrec-values ([(x)
+                                (escape
+                                 (lambda ()
+                                   42))])
+                 x))))))
+      '()))
+    '(escape-letrec-independent)
+    '((escape-letrec-independent y))
+    #rx"(?m:^42$)"
+    '()
+    #f)
+   (local-runtime-smoke
     "escape out of letrec RHS preserves unsafe-undefined guard"
     (list
      (webify-module-linklet-input

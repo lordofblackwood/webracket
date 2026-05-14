@@ -154,6 +154,22 @@ require-only extracts only `module-protocol` and the root module, while
 yet found a public `racket/set` operation that exercises set logic without
 initializing the pretty/custom-write path.
 
+Direct provider probes narrow the same frontier further. Requiring
+`racket/private/set-types`, `racket/pretty`, or
+`racket/private/custom-write` and exporting an unrelated `42` all pass through
+the bounded runtime probe. So the current blocker is not isolated provider
+initialization; it is the operation-demanded combination that reaches the
+custom-write/pretty escaped-closure path.
+
+The escape-continuation decision is deliberately conservative. The Reference
+says an escape continuation can only be called during the dynamic extent of the
+`call-with-escape-continuation` call. WebRacket's current bootstrap
+implementation supports the useful early-return shape with a private Wasm
+exception, but it does not yet enforce dynamic invalidation or prompt/barrier
+semantics. That is sufficient for direct escape and for escaping with a closure
+that does not read skipped `letrec` bindings; it should not be used to paper
+over the real `unsafe-undefined` guard seen in the `racket/set` operation path.
+
 Source-module extraction compiles a supplied module-data list in one shared
 host namespace. Earlier declarations are installed before later modules are
 compiled, which lets quoted sibling requires resolve for dependency-first test

@@ -1,5 +1,13 @@
 #lang racket/base
 
+(provide known-module-cases
+         module-case-data
+         extract-case-inputs
+         input-names
+         set-diff
+         print-case-summary
+         print-case-delta)
+
 (require racket/cmdline
          racket/list
          racket/match
@@ -9,8 +17,15 @@
          "module-protocol.rkt"
          "primitive-demands.rkt")
 
-(define selected-case 'set-require)
-(define baseline-case #f)
+(define known-module-cases
+  '(set-require
+    set-predicate
+    set-count
+    set-member
+    stream-first
+    pretty-require
+    custom-write-require
+    set-types-require))
 
 ;; module-case-data : symbol? -> (listof source-module-datum?)
 ;;   Return a small installed-module source slice for dependency probing.
@@ -41,10 +56,26 @@
          (require racket/stream)
          (provide y)
          (define y (stream-first (stream 42)))))]
+    [(pretty-require)
+     '((module use-pretty-require racket/base
+         (require racket/pretty)
+         (provide y)
+         (define y 42)))]
+    [(custom-write-require)
+     '((module use-custom-write-require racket/base
+         (require racket/private/custom-write)
+         (provide y)
+         (define y 42)))]
+    [(set-types-require)
+     '((module use-set-types-require racket/base
+         (require racket/private/set-types)
+         (provide y)
+         (define y 42)))]
     [else
      (raise-user-error 'probe-installed-module-deps
-                       "unknown case ~a; expected one of set-require, set-predicate, set-count, set-member, stream-first"
-                       name)]))
+                       "unknown case ~a; expected one of ~a"
+                       name
+                       known-module-cases)]))
 
 ;; extract-case-inputs : symbol? -> (listof webify-module-linklet-input?)
 ;;   Extract the demand-sliced installed provider graph for one case.
@@ -93,19 +124,23 @@
   (printf "added-inputs: ~s\n" (set-diff current-names baseline-names))
   (printf "removed-inputs: ~s\n" (set-diff baseline-names current-names)))
 
-(command-line
- #:program "probe-installed-module-deps"
- #:once-each
- [("--case") name "case to extract"
-             (set! selected-case (string->symbol name))]
- [("--baseline") name "optional case to diff against"
-                 (set! baseline-case (string->symbol name))])
+(module+ main
+  (define selected-case 'set-require)
+  (define baseline-case #f)
 
-(define selected-inputs (extract-case-inputs selected-case))
-(print-case-summary selected-case selected-inputs)
-(when baseline-case
-  (newline)
-  (define baseline-inputs (extract-case-inputs baseline-case))
-  (print-case-summary baseline-case baseline-inputs)
-  (newline)
-  (print-case-delta baseline-case baseline-inputs selected-case selected-inputs))
+  (command-line
+   #:program "probe-installed-module-deps"
+   #:once-each
+   [("--case") name "case to extract"
+               (set! selected-case (string->symbol name))]
+   [("--baseline") name "optional case to diff against"
+                   (set! baseline-case (string->symbol name))])
+
+  (define selected-inputs (extract-case-inputs selected-case))
+  (print-case-summary selected-case selected-inputs)
+  (when baseline-case
+    (newline)
+    (define baseline-inputs (extract-case-inputs baseline-case))
+    (print-case-summary baseline-case baseline-inputs)
+    (newline)
+    (print-case-delta baseline-case baseline-inputs selected-case selected-inputs)))

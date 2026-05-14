@@ -8,6 +8,7 @@
          racket/port
          racket/runtime-path
          racket/string
+         "probe-installed-module-deps.rkt"
          "module-runtime-smoke.rkt"
          "test-installed-module-runtime.rkt")
 
@@ -18,6 +19,7 @@
 (define selected-index #f)
 (define selected-category #f)
 (define selected-name #f)
+(define selected-module-case #f)
 (define list-only? #f)
 (define worker? #f)
 
@@ -58,6 +60,28 @@
   (for ([entry (in-list (indexed-smokes))])
     (printf "~a\t~a\n" (car entry) (smoke-label (cdr entry)))))
 
+;; module-case-root : symbol? -> symbol?
+;;   Extract the root module name from a source-module probe case.
+(define (module-case-root name)
+  (match (module-case-data name)
+    [(cons `(module ,(? symbol? root) . ,_) _) root]
+    [_ (raise-arguments-error 'module-case-root
+                              "expected module case data with a root module"
+                              "case" name)]))
+
+;; module-case-smoke : symbol? -> installed-runtime-smoke?
+;;   Build an installed runtime smoke for one ad hoc source-module case.
+(define (module-case-smoke name)
+  (define root (module-case-root name))
+  (installed-runtime-smoke
+   name
+   (format "module case ~a reaches WebRacket runtime smoke" name)
+   (module-case-data name)
+   `((,root y))
+   #rx"(?m:^42$)"
+   '()
+   #f))
+
 ;; call-with-memory-limit : (or/c #f exact-positive-integer?) (-> any/c) -> any/c
 ;;   Optionally run thunk in a custodian-limited worker thread.
 (define (call-with-memory-limit limit-bytes thunk)
@@ -85,12 +109,17 @@
 ;; run-worker! : -> exact-integer?
 ;;   Run exactly one selected installed smoke in this process.
 (define (run-worker!)
-  (define matches (selected-smokes))
-  (unless (= (length matches) 1)
-    (raise-user-error 'probe-installed-runtime-smoke
-                      "worker selector matched ~a smokes; expected exactly 1"
-                      (length matches)))
-  (define smoke (cdar matches))
+  (define smoke
+    (cond
+      [selected-module-case
+       (module-case-smoke selected-module-case)]
+      [else
+       (define matches (selected-smokes))
+       (unless (= (length matches) 1)
+         (raise-user-error 'probe-installed-runtime-smoke
+                           "worker selector matched ~a smokes; expected exactly 1"
+                           (length matches)))
+       (cdar matches)]))
   (printf "worker-smoke: ~a\n" (smoke-label smoke))
   (when memory-mb
     (printf "worker-memory-limit-mb: ~a\n" memory-mb))
@@ -100,9 +129,9 @@
      (run-installed-runtime-smoke smoke)))
   0)
 
-;; run-child/bounded! : exact-nonnegative-integer? installed-runtime-smoke? -> exact-integer?
+;; run-child/bounded! : any/c installed-runtime-smoke? (listof string?) -> exact-integer?
 ;;   Run one smoke in a child Racket process and kill it on timeout.
-(define (run-child/bounded! index smoke)
+(define (run-child/bounded! label smoke selector-args)
   (define racket-bin (find-executable-path "racket"))
   (unless racket-bin
     (raise-user-error 'probe-installed-runtime-smoke
@@ -115,12 +144,12 @@
   (define args
     (append
      (list (path->string self-path)
-           "--worker"
-           "--index" (number->string index))
+           "--worker")
+     selector-args
      (if memory-mb
          (list "--memory-mb" (number->string memory-mb))
          '())))
-  (printf "probe-smoke: ~a\t~a\n" index (smoke-label smoke))
+  (printf "probe-smoke: ~a\t~a\n" label (smoke-label smoke))
   (printf "probe-timeout-seconds: ~a\n" timeout-seconds)
   (flush-output)
   (define-values (proc child-out child-in child-err)
@@ -159,14 +188,25 @@
   (cond
     [list-only?
      (show-smokes)
+     (for ([name (in-list known-module-cases)])
+       (printf "case:~a\tmodule case: ~a\n" name name))
      0]
+    [selected-module-case
+     (run-child/bounded!
+      (format "case:~a" selected-module-case)
+      (module-case-smoke selected-module-case)
+      (list "--module-case" (symbol->string selected-module-case)))]
     [else
      (define matches (selected-smokes))
      (when (null? matches)
        (raise-user-error 'probe-installed-runtime-smoke
                          "selector matched no installed runtime smokes"))
      (for/fold ([status 0]) ([entry (in-list matches)])
-       (define next-status (run-child/bounded! (car entry) (cdr entry)))
+       (define next-status
+         (run-child/bounded!
+          (car entry)
+          (cdr entry)
+          (list "--index" (number->string (car entry)))))
        (if (zero? status) next-status status))]))
 
 (command-line
@@ -185,7 +225,9 @@
  [("--category") category "run only smokes whose category matches the symbol"
                  (set! selected-category (string->symbol category))]
  [("--name") name "run only the smoke whose description exactly matches"
-            (set! selected-name name)])
+            (set! selected-name name)]
+ [("--module-case") name "run one source-module case from probe-installed-module-deps"
+                    (set! selected-module-case (string->symbol name))])
 
 (exit
  (if worker?
