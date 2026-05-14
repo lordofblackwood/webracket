@@ -15,7 +15,7 @@
 (define-runtime-path self-path "probe-installed-runtime-smoke.rkt")
 
 (define timeout-seconds 120)
-(define memory-mb #f)
+(define memory-mb 1024)
 (define selected-index #f)
 (define selected-category #f)
 (define selected-name #f)
@@ -98,9 +98,14 @@
       set-types-predicate
       stream-rest
       hash-basic
+      hash-kind-predicates
+      hash-map-basic
+      hash-clear-basic
       hash-iterate
       combined-list-string-set
-      multi-module-list-string-set)
+      multi-module-list-string-set
+      multi-module-reexport-installed
+      pretty-require)
      (installed-runtime-smoke
       name
       (format "module case ~a reaches WebRacket runtime smoke" name)
@@ -112,8 +117,13 @@
             [(set-member) #rx"(?m:^true$)"]
             [(set-add set-union) #rx"(?m:^3$)"]
             [(set-intersect) #rx"(?m:^1$)"]
+            [(hash-kind-predicates) #rx"(?m:^true$)"]
+            [(hash-map-basic) #rx"(?m:^3$)"]
+            [(hash-clear-basic) #rx"(?m:^42$)"]
             [(hash-iterate) #rx"(?m:^9$)"]
             [(multi-module-list-string-set) #rx"(?m:^12$)"]
+            [(multi-module-reexport-installed) #rx"(?m:^3$)"]
+            [(pretty-require) #rx"(?m:^42$)"]
             [(hash-basic) #rx"(?m:^41$)"]
             [(stream-rest combined-list-string-set) #rx"(?m:^42$)"]
             [else #rx"(?m:^false$)"])

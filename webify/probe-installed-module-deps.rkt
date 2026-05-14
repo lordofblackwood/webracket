@@ -33,9 +33,13 @@
     stream-first
     stream-rest
     hash-basic
+    hash-kind-predicates
+    hash-map-basic
+    hash-clear-basic
     hash-iterate
     combined-list-string-set
     multi-module-list-string-set
+    multi-module-reexport-installed
     pretty-require
     custom-write-require
     set-types-require
@@ -121,6 +125,25 @@
          (define y
            (hash-ref (hash-set (make-immutable-hash '((a . 1))) 'b 41)
                      'b))))]
+    [(hash-kind-predicates)
+     '((module use-hash-kind-predicates racket/base
+         (provide y)
+         (define y
+           (and (hash-equal? (hash 'a 1))
+                (hash-eq? (hasheq 'a 1))
+                (hash-eqv? (hasheqv 'a 1))))))]
+    [(hash-map-basic)
+     '((module use-hash-map-basic racket/base
+         (provide y)
+         (define y
+           (apply + (hash-map (make-immutable-hash '((a . 1) (b . 2)))
+                              (lambda (k v) v))))))]
+    [(hash-clear-basic)
+     '((module use-hash-clear-basic racket/base
+         (provide y)
+         (define y
+           (+ (hash-count (hash-clear (hash 'a 1 'b 2)))
+              (if (hash-equal? (hash-clear (hash 'a 1))) 42 0)))))]
     [(hash-iterate)
      '((module use-hash-iterate racket/base
          (provide y)
@@ -153,6 +176,24 @@
          (require racket/set 'set-provider 'string-provider)
          (provide y)
          (define y (+ (set-count selected) (string-length joined)))))]
+    [(multi-module-reexport-installed)
+     '((module values-provider racket/base
+         (require racket/list)
+         (provide picked)
+         (define picked (first '(40 41 42))))
+       (module values-reexport racket/base
+         (require 'values-provider racket/string)
+         (provide renamed)
+         (define renamed (string-append (number->string picked) "!")))
+       (module use-reexport-installed racket/base
+         (require 'values-reexport racket/string)
+         (provide y)
+         (define y (string-length renamed))))]
+    [(format-basic)
+     '((module use-format-basic racket/base
+         (require racket/format)
+         (provide y)
+         (define y (~a "web" 'racket #:separator "-"))))]
     [(pretty-require)
      '((module use-pretty-require racket/base
          (require racket/pretty)

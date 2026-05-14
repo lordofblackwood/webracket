@@ -507,6 +507,7 @@
 (define-primitive hash->linklet-bundle                      1                   (ordered))
 (define-primitive hash->linklet-directory                   1                   (ordered))
 (define-primitive hash->list                                [1 2]               (ordered))
+(define-primitive hash-clear                                1                   (allocates))
 (define-primitive hash-clear!                               1                   (ordered))
 (define-primitive hash-count                                1                   (pure))
 (define-primitive hash-empty?                               1                   (pure))

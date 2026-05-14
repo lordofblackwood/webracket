@@ -112,13 +112,22 @@ Current installed-extraction runtime smokes cover:
 - `racket/stream`: `stream-first` and `stream-rest`.
 - `racket/hash`: an immutable hash constructor, functional `hash-set`,
   `hash-ref`, and immutable hash traversal through `hash-keys`, `hash-values`,
-  `hash->list`, and `hash-for-each`.
+  `hash->list`, `hash-for-each`, `hash-map`, and `hash-clear`. The current
+  comparator coverage checks the public hash-kind predicates; full duplicate
+  behavior for non-symbol equal?/eqv?/eq? keys remains a separate semantic
+  milestone.
+- `racket/pretty`: a require-only installed-provider smoke.
 - `racket/function`: `compose`, `identity`, `compose1`, `negate`, and `const`.
 - Combined installed-library programs for `racket/list` + `racket/string`, for
   `racket/list` + `racket/string` + `racket/set`, and for a multi-module local
-  source graph whose providers require those installed libraries separately.
+  source graph whose providers require those installed libraries separately,
+  including a provider re-export graph.
 - Dependency-first local source modules with quoted sibling requires, such as
   `(require 'base-values)`, through a shared-provider transitive smoke.
+
+`racket/format` is a known next-library frontier, but not a passing Goal 1
+runtime smoke yet. A tiny `~a` source module currently fails during provider
+resolution on `resolved-module-path-name`, before WebRacket runtime execution.
 
 Current local-manifest runtime smokes cover hand-authored bridge shapes that do
 not depend on source extraction:

@@ -332,6 +332,43 @@
     #f)
    (installed-runtime-smoke
     'racket/hash
+    "installed hash comparison-kind predicates reach WebRacket runtime smoke"
+    '((module use-hash-kind-predicates racket/base
+        (provide y)
+        (define y
+          (and (hash-equal? (hash 'a 1))
+               (hash-eq? (hasheq 'a 1))
+               (hash-eqv? (hasheqv 'a 1))))))
+    '((use-hash-kind-predicates y))
+    #rx"(?m:^true$)"
+    '()
+    #f)
+   (installed-runtime-smoke
+    'racket/hash
+    "installed immutable hash-map reaches WebRacket runtime smoke"
+    '((module use-hash-map-basic racket/base
+        (provide y)
+        (define y
+          (apply + (hash-map (make-immutable-hash '((a . 1) (b . 2)))
+                             (lambda (k v) v))))))
+    '((use-hash-map-basic y))
+    #rx"(?m:^3$)"
+    '()
+    #f)
+   (installed-runtime-smoke
+    'racket/hash
+    "installed immutable hash-clear reaches WebRacket runtime smoke"
+    '((module use-hash-clear-basic racket/base
+        (provide y)
+        (define y
+          (+ (hash-count (hash-clear (hash 'a 1 'b 2)))
+             (if (hash-equal? (hash-clear (hash 'a 1))) 42 0)))))
+    '((use-hash-clear-basic y))
+    #rx"(?m:^42$)"
+    '()
+    #f)
+   (installed-runtime-smoke
+    'racket/hash
     "installed immutable hash iteration reaches WebRacket runtime smoke"
     '((module use-hash-iterate racket/base
         (provide y)
@@ -381,6 +418,25 @@
     '()
     #f)
    (installed-runtime-smoke
+    'local-source-installed-libraries
+    "installed provider re-export graph composes with installed libraries"
+    '((module values-provider racket/base
+        (require racket/list)
+        (provide picked)
+        (define picked (first '(40 41 42))))
+      (module values-reexport racket/base
+        (require 'values-provider racket/string)
+        (provide renamed)
+        (define renamed (string-append (number->string picked) "!")))
+      (module use-reexport-installed racket/base
+        (require 'values-reexport racket/string)
+        (provide y)
+        (define y (string-length renamed))))
+    '((use-reexport-installed y))
+    #rx"(?m:^3$)"
+    '()
+    #f)
+   (installed-runtime-smoke
     'local-source-transitive
     "installed source modules share a quoted local provider"
     '((module base-values racket/base
@@ -401,6 +457,17 @@
         (define y (+ left right))))
     '((use-transitive y))
     #rx"(?m:^83$)"
+    '()
+    #f)
+   (installed-runtime-smoke
+    'racket/pretty
+    "installed racket/pretty require graph reaches WebRacket runtime smoke"
+    '((module use-pretty-require racket/base
+        (require racket/pretty)
+        (provide y)
+        (define y 42)))
+    '((use-pretty-require y))
+    #rx"(?m:^42$)"
     '()
     #f)
    (installed-runtime-smoke

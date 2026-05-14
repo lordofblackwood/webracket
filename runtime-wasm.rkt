@@ -37354,6 +37354,27 @@
                     ;; Reset count to 0
                     (struct.set ,type $count (local.get $ht) (i32.const 0))))
 
+         ;; hash-clear : immutable-hash? -> immutable-hash?
+         ;;   Functionally clear immutable hashes. Chaperone/impersonator
+         ;;   traversal is not implemented; WebRacket returns a fresh empty
+         ;;   hash with the same comparison wrapper.
+         (func $hash-clear (type $Prim1)
+               (param $ht (ref eq)) ;; immutable hash table
+               (result    (ref eq))
+               (if (i32.eqz (ref.test (ref $Hash) (local.get $ht)))
+                   (then (call $raise-argument-error:hash-expected)
+                         (unreachable)))
+               (if (ref.test (ref $HashEqImmutable) (local.get $ht))
+                   (then (return (call $make-empty-immutable-hasheq))))
+               (if (ref.test (ref $HashEqvImmutable) (local.get $ht))
+                   (then (return (call $make-empty-immutable-hasheqv))))
+               (if (ref.test (ref $HashEqualImmutable) (local.get $ht))
+                   (then (return (call $make-empty-immutable-hash))))
+               (if (ref.test (ref $HashEqualAlwaysImmutable) (local.get $ht))
+                   (then (return (call $make-empty-immutable-hashalw))))
+               (call $raise-argument-error:hash-expected)
+               (unreachable))
+
 
          
          ;; hash-empty?

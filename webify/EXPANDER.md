@@ -3662,9 +3662,11 @@ as streams/sequences; the stream layer itself is not the current blocker.
 Installed-module runtime probes should now go through
 `webify/probe-installed-runtime-smoke.rkt` when possible. The tool imports the
 installed smoke list without running it, lists stable indexes, then runs a
-single selected smoke in a child Racket process with a hard timeout. That
-process-level boundary is deliberate: a Racket custodian limit alone would not
-reliably stop subprocesses used by extraction or WebRacket execution.
+single selected smoke in a child Racket process with a hard timeout and a
+default 1024 MiB worker memory limit. That process-level boundary is
+deliberate: a Racket custodian limit alone would not reliably stop subprocesses
+used by extraction or WebRacket execution, but the default memory cap prevents
+accidental unbounded installed-smoke runs.
 
 The first `racket/set` operation smokes now pass. A require-only source module
 that imports `racket/set`, exports `42`, and observes that export still serves
@@ -3675,11 +3677,20 @@ as the control case. Operation/update cases for `set?`, `set-count`,
 compilation, and WebRacket execution. `set-filter` is not in this current
 installed `racket/set` surface, so it is not a Goal 1 smoke yet.
 
-Immutable hash traversal now has a Goal 1 smoke too: `hash-keys`,
-`hash-values`, `hash->list`, and `hash-for-each` work over the current
-immutable hash wrappers through the generic iterator path. This is still
-symbol-keyed coverage, not proof that all immutable hash comparator semantics
-are complete.
+Immutable hash traversal now has Goal 1 smokes too: `hash-keys`,
+`hash-values`, `hash->list`, `hash-for-each`, `hash-map`, and `hash-clear` work
+over the current immutable hash wrappers. `hash-clear` returns a fresh empty
+immutable hash with the same comparison wrapper, matching the non-chaperone
+Reference behavior. The comparator-kind smoke checks `hash-equal?`, `hash-eq?`,
+and `hash-eqv?`; this is still not proof that all duplicate behavior for
+non-symbol equal?/eqv?/eq? keys is complete.
+
+The installed-provider graph coverage now includes a local provider re-export
+shape whose providers separately require installed libraries. A first
+`racket/pretty` require-only smoke also passes. A tiny `racket/format` `~a`
+candidate was tried and currently fails during provider resolution on
+`resolved-module-path-name`, so that belongs to the provider metadata frontier,
+not this runtime-smoke slice.
 
 When an installed runtime smoke fails after successful extraction, the bounded
 probe prints a compact graph prefix, missing primitive count, missing primitive

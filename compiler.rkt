@@ -2299,6 +2299,7 @@
   hash-set!
   hash-update!
   hash-remove!
+  hash-clear
   hash-clear!
   hash-has-key?
   hash-empty?

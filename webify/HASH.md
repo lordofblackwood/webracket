@@ -63,10 +63,12 @@ is not yet complete equal?-key or eq?-key immutable hash semantics.
 
 The Goal 1 installed smoke suite now includes small immutable hash paths:
 `make-immutable-hash`, functional `hash-set`, `hash-ref`, and traversal through
-`hash-keys`, `hash-values`, `hash->list`, and `hash-for-each`. These smokes are
-deliberately symbol-keyed, because symbol keys stay inside the supported
-comparator overlap. Duplicate-sensitive set/list behavior should not be used as
-evidence for full equal?-hash semantics until comparator routing is fixed.
+`hash-keys`, `hash-values`, `hash->list`, `hash-for-each`, `hash-map`, and
+`hash-clear`. These smokes are deliberately symbol-keyed, because symbol keys
+stay inside the supported comparator overlap. The suite also checks public
+hash-kind predicates such as `hash-equal?`, `hash-eq?`, and `hash-eqv?`, but
+duplicate-sensitive set/list behavior should not be used as evidence for full
+equal?-hash semantics until comparator routing is fixed.
 
 Ephemeron hash tables are also currently a strong fallback:
 `make-ephemeron-hasheq` returns an ordinary mutable `hasheq`. That is enough for
@@ -96,8 +98,10 @@ Now that immutable hashes and `hash-set` have a real persistent first slice,
 Webify no longer rewrites functional `hash-set` into `hash-set!`. Immutable hash
 traversal now reuses the shared private representation through generic iterator
 helpers, so public operations like `hash-keys`, `hash-values`, `hash->list`,
-and `hash-for-each` can run on immutable wrappers without copying them to a
-mutable table first.
+`hash-for-each`, and `hash-map` can run on immutable wrappers without copying
+them to a mutable table first. `hash-clear` is implemented as a same-wrapper
+empty immutable table, which matches the Reference's constant-time
+non-chaperone case; chaperone/impersonator hash traversal is not implemented.
 
 ## Semantic Gap Probe
 
