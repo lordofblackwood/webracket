@@ -3628,15 +3628,15 @@ There are three related but different Goal 1 tools:
 
 The current smoke matrix includes selected uses of `racket/bool`,
 `racket/fixnum`, `racket/list`, `racket/string`, `racket/vector`,
-`racket/function`, plus local manifest smokes for two-module composition,
-re-export/backing-provider resolution, renamed imports, multi-root
-shared-provider composition, negative primitive-preflight classification, and
-negative provider-export classification. Installed smokes also carry a category
-symbol, currently by library or combined-library slice, so the list can grow
-without losing which slice of Goal 1 each smoke is meant to protect. This is
-still a smoke matrix, not a compatibility promise for those libraries, but it
-is the standard place to turn newly working Goal 1 library slices into
-regressions.
+`racket/function`, expected-runtime-blocker smokes for `racket/set`, plus local
+manifest smokes for two-module composition, re-export/backing-provider
+resolution, renamed imports, multi-root shared-provider composition, negative
+primitive-preflight classification, and negative provider-export
+classification. Installed smokes also carry a category symbol, currently by
+library or combined-library slice, so the list can grow without losing which
+slice of Goal 1 each smoke is meant to protect. This is still a smoke matrix,
+not a compatibility promise for those libraries, but it is the standard place
+to turn newly working Goal 1 library slices into regressions.
 
 The harness also exposes `runtime-smoke-graph-audit`, a compact pre-runtime
 summary of a manifest's roots, input names, module-only dependency plan,
@@ -3650,8 +3650,9 @@ appear before source modules that use quoted sibling requires such as
 `(require 'base-values)`. This is still ahead-of-time host work for Goal 1, not
 browser-side namespace/eval support.
 
-The `racket/set` smoke is currently an expected failure, but it no longer fails
-at the old `stream?` provider ambiguity. The resolver has a narrow tie-breaker
-that prefers `racket/private/stream-cons` over `racket/private/for` for
-`stream?`; the current frontier is the lowering/runtime blocker
-`check-not-unsafe-undefined`.
+The `racket/set` smoke is currently an expected runtime failure, but it no
+longer fails at the old `stream?` provider ambiguity or at the
+`check-not-unsafe-undefined` lowering guard. The resolver has a narrow
+tie-breaker that prefers `racket/private/stream-cons` over `racket/private/for`
+for `stream?` where both are viable. The current frontier is a real guarded
+`unsafe-undefined` access that raises `exn:fail:contract:variable` at runtime.

@@ -59,7 +59,8 @@ Recent successful smokes:
 - `racket/string` graph resolution is clean.
 - Installed-module runtime smokes pass for selected uses of `racket/bool`,
   `racket/fixnum`, `racket/list`, `racket/string`, `racket/vector`, and
-  `racket/function`.
+  `racket/function`; `racket/set` reaches runtime and records a current
+  unsafe-undefined blocker.
 
 Known remaining work:
 
@@ -98,8 +99,9 @@ Current installed-extraction runtime smokes cover:
 - `racket/string`: `string-join` and `string-prefix?`.
 - `racket/vector`: `vector-member`, plus a combined `racket/vector` and
   `racket/list` provider-graph smoke.
-- `racket/set`: provider resolution gets past the `stream?` ambiguity; the
-  current smoke records the next lowering blocker, `check-not-unsafe-undefined`.
+- `racket/set`: provider resolution gets past the `stream?` ambiguity, and
+  `check-not-unsafe-undefined` lowers to a real guard. Current smokes record the
+  next blocker: a runtime `exn:fail:contract:variable` for `unsafe-undefined`.
 - `racket/function`: `compose`, `identity`, `compose1`, `negate`, and `const`.
 - Dependency-first local source modules with quoted sibling requires, such as
   `(require 'base-values)`, through a shared-provider transitive smoke.

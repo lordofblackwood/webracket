@@ -8,6 +8,7 @@
          lower-simple-parameters
          lower-trivial-continuation-prompts
          lower-trivial-continuation-marks
+         lower-unsafe-undefined-checks
          lower-hash-iteration-ops
          simplify-trivial-module-prompts
          lower-module-first-slice
@@ -266,6 +267,48 @@
 
   (lower v))
 
+;; lower-unsafe-undefined-checks : any/c -> any/c
+;;   Lower Schemify unsafe-undefined guards to explicit runtime checks.
+(define (lower-unsafe-undefined-checks v)
+  (define (guard v sym message)
+    (define val (gensym 'unsafe-undefined-val))
+    `(let ([,val ,(lower v)])
+       (if (eq? ,val unsafe-undefined)
+           (raise-arguments-error ,(lower sym) ,message)
+           ,val)))
+
+  (define (lower v)
+    (reannotate
+     v
+     (match v
+       [`(check-not-unsafe-undefined ,v ,sym)
+        (guard v sym "undefined; use before initialization")]
+       [`(check-not-unsafe-undefined/assign ,v ,sym)
+        (guard v sym "undefined; assignment before initialization")]
+       [`(lambda ,formals . ,body)
+        `(lambda ,formals . ,(lower-list body))]
+       [`(case-lambda [,formalss . ,bodyss] ...)
+        `(case-lambda ,@(for/list ([formals (in-list formalss)]
+                                   [body (in-list bodyss)])
+                          `[,formals . ,(lower-list body)]))]
+       [`(quote ,_)
+        v]
+       [`(,_ . ,_)
+        (lower-list v)]
+       [`,_
+        v])))
+
+  ;; lower-list : list? -> list?
+  ;;   Lower each wrapped list element.
+  (define (lower-list l)
+    (cond
+      [(wrap-null? l) '()]
+      [(wrap-pair? l) (cons (lower (wrap-car l))
+                            (lower-list (wrap-cdr l)))]
+      [else (lower l)]))
+
+  (lower v))
+
 ;; simplify-trivial-module-prompts : any/c -> any/c
 ;;   Erase direct module-prompt markers that do not need prompt behavior.
 (define (simplify-trivial-module-prompts v)
@@ -329,11 +372,12 @@
     (assert-first-slice-unsupported-free
      (lower-trivial-continuation-marks
       (simplify-trivial-module-prompts
-       (lower-hash-iteration-ops
-        (lower-trivial-continuation-prompts
-         (lower-simple-parameters
-          (simplify-compatibility-apps
-           (lower-module-variable-ops v)))))))))))
+       (lower-unsafe-undefined-checks
+        (lower-hash-iteration-ops
+         (lower-trivial-continuation-prompts
+          (lower-simple-parameters
+           (simplify-compatibility-apps
+            (lower-module-variable-ops v))))))))))))
 
 ;; lower-trivial-continuation-marks : any/c -> any/c
 ;;   Erase continuation marks while preserving key/value effects and order.
@@ -460,8 +504,6 @@
 (define (first-slice-unsupported-rator? v)
   (memq v '(#%app
             #%app/value
-            check-not-unsafe-undefined
-            check-not-unsafe-undefined/assign
             make-record-type-descriptor
             make-record-constructor-descriptor
             record-constructor

@@ -144,15 +144,26 @@
     #f)
    (installed-runtime-smoke
     'racket/set
-    "installed racket/set records current lowering blocker"
+    "installed racket/set count records current unsafe-undefined runtime blocker"
     '((module use-set racket/base
         (require racket/set)
         (provide y)
         (define y (set-count (set 1 2 2)))))
     '((use-set y))
     #rx"never-matches-success"
-    '(unsupported-runtime)
-    #rx"check-not-unsafe-undefined")
+    '(runtime-exception)
+    #rx"exn:fail:contract:variable")
+   (installed-runtime-smoke
+    'racket/set
+    "installed racket/set member records current unsafe-undefined runtime blocker"
+    '((module use-set-member racket/base
+        (require racket/set)
+        (provide y)
+        (define y (set-member? (set 'a 'b) 'b))))
+    '((use-set-member y))
+    #rx"never-matches-success"
+    '(runtime-exception)
+    #rx"exn:fail:contract:variable")
    (installed-runtime-smoke
     'local-source-transitive
     "installed source modules share a quoted local provider"

@@ -211,6 +211,34 @@
              (lambda ()
                (assert-first-slice-unsupported-free '(#%app f x)))))
 
+(test-case "unsafe-undefined guards lower to explicit runtime checks"
+  (define lowered
+    (lower-unsafe-undefined-checks
+     '(begin
+        (check-not-unsafe-undefined v 'x)
+        (check-not-unsafe-undefined/assign rhs 'x))))
+  (check-true (first-slice-unsupported-free? lowered))
+  (check-match
+   (normalize-symbols lowered)
+   (list
+    "begin"
+    (list "let"
+          (list (list (? string? val1) "v"))
+          (list "if"
+                (list "eq?" val1 "unsafe-undefined")
+                (list "raise-arguments-error"
+                      (list "quote" "x")
+                      "undefined; use before initialization")
+                val1))
+    (list "let"
+          (list (list (? string? val2) "rhs"))
+          (list "if"
+                (list "eq?" val2 "unsafe-undefined")
+                (list "raise-arguments-error"
+                      (list "quote" "x")
+                      "undefined; assignment before initialization")
+                val2)))))
+
 (test-case "module prompt is preserved as explicit helper"
   (define lowered
     (lower-module-variable-ops

@@ -316,7 +316,11 @@
                              "--dest" (path->string dest-dir)
                              (path->string program-path))
                        source-dir))
-      (check-equal? status 0 output)
+      (unless (zero? status)
+        (error 'run-composed-runtime-smoke
+               "WebRacket exited with status ~a\n~a"
+               status
+               output))
       (check-regexp-match expected-output output))
     (lambda ()
       (for ([dir (in-list (list source-dir dest-dir))])

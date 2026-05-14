@@ -125,6 +125,29 @@
            (map import-triple->printed
                 (webify-module-linklet-input-imports input)))))
 
+(test-case "Racket 9.2 racket/set stream? provider choices stay stable"
+  (define inputs
+    (webify-source-modules->discovered-resolved-linklet-inputs
+     '((module use-set racket/base
+         (require racket/set)
+         (provide y)
+         (define y (set-count (set 1 2 2)))))
+     #:extra-reports (list webify-module-protocol-report)
+     #:module-protocol-dependency webify-module-protocol-dependency
+     #:demand-slice? #t))
+  (define stream-imports
+    (for*/list ([input (in-list inputs)]
+                [triple (in-list (webify-module-linklet-input-imports input))]
+                #:when (eq? (car triple) 'stream?))
+      (cons (webify-module-linklet-input-name input)
+            (import-triple->printed triple))))
+  (check-not-false
+   (member '(racket/stream "stream?" "racket/private/stream-cons" "stream?")
+           stream-imports))
+  (check-not-false
+   (member '(racket/sequence "stream?" "racket/private/for" "stream?")
+           stream-imports)))
+
 (test-case "Racket 9.2 racket/private/for imports read for in-port"
   (define report (webify-module-path->report 'racket/private/for))
   (check-not-false
