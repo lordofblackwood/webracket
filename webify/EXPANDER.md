@@ -3628,9 +3628,11 @@ There are three related but different Goal 1 tools:
 
 The current smoke matrix includes selected uses of `racket/bool`,
 `racket/fixnum`, `racket/list`, `racket/string`, `racket/vector`,
-`racket/function`, and first `racket/set` operation smokes, plus local manifest
-smokes for two-module composition, re-export/backing-provider resolution,
-renamed imports, multi-root shared-provider composition, negative
+`racket/function`, `racket/stream`, `racket/hash`, first `racket/set`
+operation/update smokes, and a combined `racket/list` + `racket/string` +
+`racket/set` program, plus local manifest smokes for two-module composition,
+re-export/backing-provider resolution, renamed imports, multi-root
+shared-provider composition, negative
 primitive-preflight classification, and negative provider-export
 classification. Installed smokes also carry a category symbol, currently by
 library or combined-library slice, so the list can grow without losing which
@@ -3650,14 +3652,11 @@ appear before source modules that use quoted sibling requires such as
 `(require 'base-values)`. This is still ahead-of-time host work for Goal 1, not
 browser-side namespace/eval support.
 
-Manual `racket/stream` probes are passing: both a require-only module and a
-simple `(stream-first (stream 42))` source module pass through installed module
-extraction, provider discovery, composition, compilation, and WebRacket
-execution. This matters for the `racket/set` frontier because the Reference
-documents hash sets as streams/sequences; the stream layer itself is not the
-current blocker. Those probes are deliberately not in the default installed
-runtime suite yet, because that suite is expensive and new installed smokes
-should be promoted only when they directly guard the active frontier.
+`racket/stream` probes are now in the default installed runtime suite:
+`stream-first` and `stream-rest` pass through installed module extraction,
+provider discovery, composition, compilation, and WebRacket execution. This
+matters for the `racket/set` frontier because the Reference documents hash sets
+as streams/sequences; the stream layer itself is not the current blocker.
 
 Installed-module runtime probes should now go through
 `webify/probe-installed-runtime-smoke.rkt` when possible. The tool imports the
@@ -3668,9 +3667,10 @@ reliably stop subprocesses used by extraction or WebRacket execution.
 
 The first `racket/set` operation smokes now pass. A require-only source module
 that imports `racket/set`, exports `42`, and observes that export still serves
-as the control case, and operation cases for `set?`, `set-count`, `set-member?`,
-and the `racket/private/set-types` predicate all pass through extraction,
-composition, compilation, and WebRacket execution.
+as the control case. Operation/update cases for `set?`, `set-count`,
+`set-member?`, `set-add`, `set-remove`, `set-union`, `set->list`, and the
+`racket/private/set-types` predicate all pass through extraction, composition,
+compilation, and WebRacket execution.
 
 `webify/probe-installed-module-deps.rkt` makes that static audit repeatable
 with the newer `../racket` checkout. Comparing `set-require` to `set?` or
@@ -3690,6 +3690,12 @@ that `racket/private/set-types`, `racket/pretty`, or
 `set-types-predicate`, which requires `racket/private/set-types` and evaluates
 `(set? 42)`. It now pulls the same broad set/custom-write/pretty provider
 cluster and completes successfully.
+
+Output mismatches are hard probe failures. Earlier, a child process could log a
+RackUnit `check-regexp-match` failure and still exit normally, which made the
+parent print `probe-result: pass`. `run-composed-runtime-smoke` now raises an
+ordinary error when the WebRacket output does not match the expected regexp, so
+the bounded parent sees the failure reliably.
 
 Use `webify/probe-installed-runtime-smoke.rkt --preserve-dir DIR` for a runtime
 frontier transcript. The preserved `installed-source` directory has the

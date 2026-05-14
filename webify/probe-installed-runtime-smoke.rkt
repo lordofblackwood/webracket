@@ -84,7 +84,17 @@
         #rx"(?m:^42$)"
         #rx""))
   (case name
-    [(set-predicate set-count set-member set-types-predicate)
+    [(set-predicate
+      set-count
+      set-member
+      set-add
+      set-remove
+      set-union
+      set->list
+      set-types-predicate
+      stream-rest
+      hash-basic
+      combined-list-string-set)
      (installed-runtime-smoke
       name
       (format "module case ~a reaches WebRacket runtime smoke" name)
@@ -92,8 +102,11 @@
       observations
       (if observe?
           (case name
-            [(set-count) #rx"(?m:^2$)"]
+            [(set-count set->list) #rx"(?m:^2$)"]
             [(set-member) #rx"(?m:^true$)"]
+            [(set-add set-union) #rx"(?m:^3$)"]
+            [(hash-basic) #rx"(?m:^41$)"]
+            [(stream-rest combined-list-string-set) #rx"(?m:^42$)"]
             [else #rx"(?m:^false$)"])
           #rx"")
       '()

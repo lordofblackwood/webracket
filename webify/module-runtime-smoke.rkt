@@ -158,6 +158,15 @@
      expected-failure
      (webify-module-failure-message failure))))
 
+;; assert-runtime-output-match! : regexp? string? -> void?
+;;   Treat observed-output mismatches as hard probe failures, not soft RackUnit logs.
+(define (assert-runtime-output-match! expected-output output)
+  (unless (regexp-match? expected-output output)
+    (error 'run-composed-runtime-smoke
+           "WebRacket output did not match expected regexp\nexpected: ~s\noutput:\n~a"
+           expected-output
+           output)))
+
 ;; check-installed-runtime-failure : installed-runtime-smoke? webify-module-failure? -> void?
 ;;   Validate an expected installed-module smoke failure.
 (define (check-installed-runtime-failure smoke failure)
@@ -346,7 +355,7 @@
                "WebRacket exited with status ~a\n~a"
                status
                output))
-      (check-regexp-match expected-output output))
+      (assert-runtime-output-match! expected-output output))
     (lambda ()
       (preserve-runtime-directory! 'composed-source source-dir)
       (preserve-runtime-directory! 'composed-dest dest-dir)

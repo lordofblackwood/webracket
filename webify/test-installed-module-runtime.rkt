@@ -3,7 +3,27 @@
 (provide installed-runtime-smokes)
 
 (require rackunit
+         racket/runtime-path
+         racket/system
          "module-runtime-smoke.rkt")
+
+(define-runtime-path probe-installed-runtime-smoke-path
+  "probe-installed-runtime-smoke.rkt")
+
+;; getenv/default : string? string? -> string?
+;;   Read a test-control environment variable with a safe default.
+(define (getenv/default name default)
+  (or (getenv name) default))
+
+;; run-installed-runtime-smoke/bounded : exact-nonnegative-integer? -> exact-integer?
+;;   Run one installed smoke through the bounded probe wrapper.
+(define (run-installed-runtime-smoke/bounded index)
+  (system*/exit-code
+   (find-executable-path "racket")
+   (path->string probe-installed-runtime-smoke-path)
+   "--index" (number->string index)
+   "--timeout" (getenv/default "WEBIFY_INSTALLED_TEST_TIMEOUT_SECONDS" "120")
+   "--memory-mb" (getenv/default "WEBIFY_INSTALLED_TEST_MEMORY_MB" "1024")))
 
 (define installed-runtime-smokes
   (list
@@ -157,26 +177,129 @@
     #f)
    (installed-runtime-smoke
     'racket/set
-    "installed racket/set count records current unsafe-undefined runtime blocker"
+    "installed racket/set predicate reaches WebRacket runtime smoke"
+    '((module use-set-predicate racket/base
+        (require racket/set)
+        (provide y)
+        (define y (set? 42))))
+    '((use-set-predicate y))
+    #rx"(?m:^false$)"
+    '()
+    #f)
+   (installed-runtime-smoke
+    'racket/set
+    "installed racket/set count reaches WebRacket runtime smoke"
     '((module use-set racket/base
         (require racket/set)
         (provide y)
         (define y (set-count (set 1 2 2)))))
     '((use-set y))
-    #rx"never-matches-success"
-    '(runtime-exception)
-    #rx"exn:fail:contract:variable")
+    #rx"(?m:^2$)"
+    '()
+    #f)
    (installed-runtime-smoke
     'racket/set
-    "installed racket/set member records current unsafe-undefined runtime blocker"
+    "installed racket/set member reaches WebRacket runtime smoke"
     '((module use-set-member racket/base
         (require racket/set)
         (provide y)
         (define y (set-member? (set 'a 'b) 'b))))
     '((use-set-member y))
-    #rx"never-matches-success"
-    '(runtime-exception)
-    #rx"exn:fail:contract:variable")
+    #rx"(?m:^true$)"
+    '()
+    #f)
+   (installed-runtime-smoke
+    'racket/set
+    "installed racket/set add reaches WebRacket runtime smoke"
+    '((module use-set-add racket/base
+        (require racket/set)
+        (provide y)
+        (define y (set-count (set-add (set 1 2) 3)))))
+    '((use-set-add y))
+    #rx"(?m:^3$)"
+    '()
+    #f)
+   (installed-runtime-smoke
+    'racket/set
+    "installed racket/set remove reaches WebRacket runtime smoke"
+    '((module use-set-remove racket/base
+        (require racket/set)
+        (provide y)
+        (define y (set-member? (set-remove (set 'a 'b) 'a) 'a))))
+    '((use-set-remove y))
+    #rx"(?m:^false$)"
+    '()
+    #f)
+   (installed-runtime-smoke
+    'racket/set
+    "installed racket/set union reaches WebRacket runtime smoke"
+    '((module use-set-union racket/base
+        (require racket/set)
+        (provide y)
+        (define y (set-count (set-union (set 1 2) (set 2 3))))))
+    '((use-set-union y))
+    #rx"(?m:^3$)"
+    '()
+    #f)
+   (installed-runtime-smoke
+    'racket/set
+    "installed racket/set to-list reaches WebRacket runtime smoke"
+    '((module use-set-to-list racket/base
+        (require racket/set)
+        (provide y)
+        (define y (length (set->list (set 1 2))))))
+    '((use-set-to-list y))
+    #rx"(?m:^2$)"
+    '()
+    #f)
+   (installed-runtime-smoke
+    'racket/stream
+    "installed racket/stream first reaches WebRacket runtime smoke"
+    '((module use-stream-first racket/base
+        (require racket/stream)
+        (provide y)
+        (define y (stream-first (stream 42)))))
+    '((use-stream-first y))
+    #rx"(?m:^42$)"
+    '()
+    #f)
+   (installed-runtime-smoke
+    'racket/stream
+    "installed racket/stream rest reaches WebRacket runtime smoke"
+    '((module use-stream-rest racket/base
+        (require racket/stream)
+        (provide y)
+        (define y (stream-first (stream-rest (stream 40 42))))))
+    '((use-stream-rest y))
+    #rx"(?m:^42$)"
+    '()
+    #f)
+   (installed-runtime-smoke
+    'racket/hash
+    "installed immutable hash constructor and update reach WebRacket runtime smoke"
+    '((module use-hash-basic racket/base
+        (provide y)
+        (define y
+          (hash-ref (hash-set (make-immutable-hash '((a . 1))) 'b 41)
+                    'b))))
+    '((use-hash-basic y))
+    #rx"(?m:^41$)"
+    '()
+    #f)
+   (installed-runtime-smoke
+    'racket/list+racket/string+racket/set
+    "installed list string and set compose in WebRacket runtime smoke"
+    '((module use-combined-list-string-set racket/base
+        (require racket/list racket/string racket/set)
+        (provide y)
+        (define y
+          (+ (first '(37 38))
+             (string-length (string-join '("ab" "c") ""))
+             (set-count (set 'x 'y 'y))))))
+    '((use-combined-list-string-set y))
+    #rx"(?m:^42$)"
+    '()
+    #f)
    (installed-runtime-smoke
     'local-source-transitive
     "installed source modules share a quoted local provider"
@@ -258,11 +381,12 @@
 
 (module+ test
   (when (file-exists? racket92-bin)
-    (for ([smoke (in-list installed-runtime-smokes)])
+    (for ([smoke (in-list installed-runtime-smokes)]
+          [index (in-naturals)])
       (test-case (format "~a: ~a"
                          (installed-runtime-smoke-category smoke)
                          (installed-runtime-smoke-name smoke))
-        (run-installed-runtime-smoke smoke)))))
+        (check-equal? (run-installed-runtime-smoke/bounded index) 0)))))
 
 (module+ main
   (void))

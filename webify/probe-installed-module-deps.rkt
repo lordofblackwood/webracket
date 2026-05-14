@@ -22,7 +22,14 @@
     set-predicate
     set-count
     set-member
+    set-add
+    set-remove
+    set-union
+    set->list
     stream-first
+    stream-rest
+    hash-basic
+    combined-list-string-set
     pretty-require
     custom-write-require
     set-types-require
@@ -52,11 +59,50 @@
          (require racket/set)
          (provide y)
          (define y (set-member? (set 'a 'b) 'b))))]
+    [(set-add)
+     '((module use-set-add racket/base
+         (require racket/set)
+         (provide y)
+         (define y (set-count (set-add (set 1 2) 3)))))]
+    [(set-remove)
+     '((module use-set-remove racket/base
+         (require racket/set)
+         (provide y)
+         (define y (set-member? (set-remove (set 'a 'b) 'a) 'a))))]
+    [(set-union)
+     '((module use-set-union racket/base
+         (require racket/set)
+         (provide y)
+         (define y (set-count (set-union (set 1 2) (set 2 3))))))]
+    [(set->list)
+     '((module use-set-to-list racket/base
+         (require racket/set)
+         (provide y)
+         (define y (length (set->list (set 1 2))))))]
     [(stream-first)
      '((module use-stream-first racket/base
          (require racket/stream)
          (provide y)
          (define y (stream-first (stream 42)))))]
+    [(stream-rest)
+     '((module use-stream-rest racket/base
+         (require racket/stream)
+         (provide y)
+         (define y (stream-first (stream-rest (stream 40 42))))))]
+    [(hash-basic)
+     '((module use-hash-basic racket/base
+         (provide y)
+         (define y
+           (hash-ref (hash-set (make-immutable-hash '((a . 1))) 'b 41)
+                     'b))))]
+    [(combined-list-string-set)
+     '((module use-combined-list-string-set racket/base
+         (require racket/list racket/string racket/set)
+         (provide y)
+         (define y
+           (+ (first '(37 38))
+              (string-length (string-join '("ab" "c") ""))
+              (set-count (set 'x 'y 'y))))))]
     [(pretty-require)
      '((module use-pretty-require racket/base
          (require racket/pretty)

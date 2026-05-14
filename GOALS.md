@@ -99,15 +99,21 @@ Current installed-extraction runtime smokes cover:
 - `racket/vector`: `vector-member`, plus a combined `racket/vector` and
   `racket/list` provider-graph smoke.
 - `racket/set`: a require-only source module instantiates and returns a normal
-  value, and the first operation smokes now run too: `set?`, `set-count`,
-  `set-member?`, and the `racket/private/set-types` predicate case. Retiring
-  this frontier required small runtime pieces that the provider graph actually
-  executes: port struct-type-property identities, the unsafe struct-property
-  constructor alias, syntax-literal placeholders for serialization metadata,
+  value, and operation smokes now run too: `set?`, `set-count`, `set-member?`,
+  `set-add`, `set-remove`, `set-union`, `set->list`, and the
+  `racket/private/set-types` predicate case. Retiring this frontier required
+  small runtime pieces that the provider graph actually executes: port
+  struct-type-property identities, the unsafe struct-property constructor
+  alias, syntax-literal placeholders for serialization metadata,
   `current-load-relative-directory`, `prop:custom-print-quotable`,
   `procedure-arity?`, and the documented immutable hash association-list
   constructors.
+- `racket/stream`: `stream-first` and `stream-rest`.
+- `racket/hash`: an immutable hash constructor, functional `hash-set`, and
+  `hash-ref` smoke.
 - `racket/function`: `compose`, `identity`, `compose1`, `negate`, and `const`.
+- Combined installed-library programs for `racket/list` + `racket/string` and
+  for `racket/list` + `racket/string` + `racket/set`.
 - Dependency-first local source modules with quoted sibling requires, such as
   `(require 'base-values)`, through a shared-provider transitive smoke.
 
@@ -155,7 +161,7 @@ require-only extracts only `module-protocol` and the root module, while
 `set?` and `set-count` add the same broad provider cluster, including
 `racket/pretty` and `racket/private/custom-write`. The important update is that
 this broad provider cluster now initializes far enough for first set operations
-to run.
+and follow-on immutable set updates to run.
 
 Direct provider probes clarified a useful caveat: require-only cases that never
 use an imported binding are demand-sliced down to `module-protocol` plus the
@@ -173,6 +179,10 @@ JS/Wasm/WAT/map artifacts, and `installed-source` contains the extractor script
 and manifest. For the current set frontier, useful transcripts were generated
 under `/private/tmp/wr-goal1-set-types-predicate-after-immutable-hash` and
 `/private/tmp/wr-goal1-set-count-after-immutable-hash`.
+
+The runtime-smoke harness treats output mismatches as hard process failures.
+That matters for bounded probes: a mismatch should produce `probe-result: fail`
+instead of only a RackUnit log inside a child process that exits normally.
 
 The escape-continuation decision is deliberately conservative. The Reference
 says an escape continuation can only be called during the dynamic extent of the

@@ -61,6 +61,12 @@ the internal lookup/update path is still eqv?-based. That is enough for expander
 startup paths with symbol-like keys, where eq?, eqv?, and equal? agree, but it
 is not yet complete equal?-key or eq?-key immutable hash semantics.
 
+The Goal 1 installed smoke suite now includes a small immutable hash path:
+`make-immutable-hash`, functional `hash-set`, and `hash-ref`. That smoke is
+deliberately symbol-keyed, because symbol keys stay inside the supported
+comparator overlap. Duplicate-sensitive set/list behavior should not be used as
+evidence for full equal?-hash semantics until comparator routing is fixed.
+
 Ephemeron hash tables are also currently a strong fallback:
 `make-ephemeron-hasheq` returns an ordinary mutable `hasheq`. That is enough for
 expander intern/cache tables during startup, but it does not implement
