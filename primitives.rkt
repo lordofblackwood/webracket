@@ -1009,6 +1009,7 @@
  syntax-e
 
  syntax-source
+ syntax-source-module
  syntax-line
  syntax-column
  syntax-position
@@ -1105,12 +1106,26 @@
 
  
  ;; 14.1 Namespaces
+ compiled-expression?
+ compiled-module-expression?
+ readtable?
+ rename-transformer?
+ set!-transformer?
+ special-comment?
+ syntax-original?
+ syntax-tainted?
  variable-reference?
  variable-reference->instance
+ variable-reference->module-path-index
  variable-reference->resolved-module-path
  variable-reference->module-source
  variable-reference-from-unsafe?
  variable-reference-constant?
+ internal-definition-context?
+ liberal-define-context?
+ module-path-index?
+ module-path?
+ resolved-module-path?
  resolved-module-path-name
  namespace?
  make-empty-namespace
@@ -2519,6 +2534,9 @@
 
 (define (syntax-source stx)
   (racket:syntax-source stx))
+
+(define (syntax-source-module stx [source? #f])
+  (racket:syntax-source-module stx source?))
 
 (define (syntax-line stx)
   (racket:syntax-line stx))

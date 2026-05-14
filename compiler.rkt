@@ -2348,12 +2348,26 @@
   primitive-closure?
   primitive-result-arity
 
+  compiled-expression?
+  compiled-module-expression?
+  readtable?
+  rename-transformer?
+  set!-transformer?
+  special-comment?
+  syntax-original?
+  syntax-tainted?
   variable-reference?
   variable-reference->instance
+  variable-reference->module-path-index
   variable-reference->module-source
   variable-reference->resolved-module-path
   variable-reference-from-unsafe?
   variable-reference-constant?
+  internal-definition-context?
+  liberal-define-context?
+  module-path-index?
+  module-path?
+  resolved-module-path?
   resolved-module-path-name
 
   js-log
@@ -2397,6 +2411,7 @@
   syntax-e
   
   syntax-source
+  syntax-source-module
   syntax-line
   syntax-column
   syntax-position

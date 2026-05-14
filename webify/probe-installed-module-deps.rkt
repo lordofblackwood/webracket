@@ -49,6 +49,8 @@
     promise-state
     sequence-range
     class-require
+    hash-comparator-semantics
+    set-comparator-semantics
     custom-write-require
     set-types-require
     set-types-predicate))
@@ -254,6 +256,15 @@
          (require racket/class)
          (provide y)
          (define y 42)))]
+    [(class-basic)
+     '((module use-class-basic racket/base
+         (require racket/class)
+         (provide y)
+         (define counter%
+           (class object%
+             (super-new)
+             (define/public (value) 42)))
+         (define y (send (new counter%) value))))]
     [(hash-comparator-semantics)
      '((module use-hash-comparator-semantics racket/base
          (provide y)

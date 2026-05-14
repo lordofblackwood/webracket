@@ -415,12 +415,22 @@
 ;; relative-module-name : symbol? string? -> symbol?
 ;;   Resolve a relative module path from compiled metadata against a module name.
 (define (relative-module-name base-name relative-path)
+  (define (collapse-parts parts)
+    (let loop ([parts parts] [acc '()])
+      (match parts
+        ['() (reverse acc)]
+        [(cons "." more)
+         (loop more acc)]
+        [(cons ".." more)
+         (loop more (if (null? acc) acc (cdr acc)))]
+        [(cons part more)
+         (loop more (cons part acc))])))
   (define base-parts (string-split (symbol->string base-name) "/"))
   (define base-dir (reverse (cdr (reverse base-parts))))
   (define relative-parts
     (filter (lambda (part) (not (string=? part "")))
             (string-split relative-path "/")))
-  (define parts (append base-dir relative-parts))
+  (define parts (collapse-parts (append base-dir relative-parts)))
   (define last-part (car (reverse parts)))
   (define last-no-suffix
     (if (string-suffix? last-part ".rkt")
