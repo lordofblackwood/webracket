@@ -3687,10 +3687,24 @@ non-symbol equal?/eqv?/eq? keys is complete.
 
 The installed-provider graph coverage now includes a local provider re-export
 shape whose providers separately require installed libraries. A first
-`racket/pretty` require-only smoke also passes. A tiny `racket/format` `~a`
-candidate was tried and currently fails during provider resolution on
-`resolved-module-path-name`, so that belongs to the provider metadata frontier,
-not this runtime-smoke slice.
+`racket/pretty` require-only smoke also passes.
+
+The first `racket/promise` smokes pass: requiring the library, checking
+`promise?` on a non-promise, using `force` as identity on a non-promise, and
+forcing a simple `delay`. The runtime fix was in struct-type-property accessor
+semantics: an accessor called with a fallback must return that fallback when
+the target is not a struct or struct type. `racket/private/promise` relies on
+that behavior via `(promise-forcer v #f)`.
+
+The first `racket/sequence` operation smoke also passes:
+`(sequence->list '(a b c))`. A slightly richer constructor/consumer shape,
+`(sequence->list (in-range 3))`, reaches runtime but currently fails on missing
+`flvector?`; `fxvector?` is likely nearby because `racket/private/for` checks
+specialized vector sequence types.
+
+A tiny `racket/format` `~a` candidate was tried and currently fails during
+provider resolution on `resolved-module-path-name`, so that belongs to the
+provider metadata frontier, not this runtime-smoke slice.
 
 When an installed runtime smoke fails after successful extraction, the bounded
 probe prints a compact graph prefix, missing primitive count, missing primitive

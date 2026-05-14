@@ -105,7 +105,12 @@
       combined-list-string-set
       multi-module-list-string-set
       multi-module-reexport-installed
-      pretty-require)
+      pretty-require
+      promise-require
+      promise-predicate-plain
+      force-identity
+      promise-basic
+      sequence-list)
      (installed-runtime-smoke
       name
       (format "module case ~a reaches WebRacket runtime smoke" name)
@@ -124,6 +129,10 @@
             [(multi-module-list-string-set) #rx"(?m:^12$)"]
             [(multi-module-reexport-installed) #rx"(?m:^3$)"]
             [(pretty-require) #rx"(?m:^42$)"]
+            [(promise-require force-identity) #rx"(?m:^42$)"]
+            [(promise-predicate-plain) #rx"(?m:^false$)"]
+            [(promise-basic) #rx"(?m:^42$)"]
+            [(sequence-list) #rx"(?m:^3$)"]
             [(hash-basic) #rx"(?m:^41$)"]
             [(stream-rest combined-list-string-set) #rx"(?m:^42$)"]
             [else #rx"(?m:^false$)"])
@@ -202,7 +211,10 @@
   (define err (open-output-file err-path #:exists 'truncate/replace))
   (define args
     (append
-     (list (path->string self-path)
+     ;; Use source mode so local 8.12 probes are not derailed by stale `.zo`
+     ;; files produced by the newer Racket checkout used for extraction.
+     (list "-y"
+           (path->string self-path)
            "--worker")
      selector-args
      (if preserve-dir

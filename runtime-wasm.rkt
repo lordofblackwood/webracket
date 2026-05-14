@@ -49395,10 +49395,25 @@
                     (if (ref.test (ref $Struct) (local.get $target))
                         (then (local.set $struct (ref.cast (ref $Struct) (local.get $target)))
                               (local.set $std (struct.get $Struct $type (local.get $struct))))
-                        (else (call $raise-struct-type-property-accessor-contract
-                                    (local.get $prop)
-                                    (local.get $target))
-                              (unreachable)))))
+                        (else
+                         (if (ref.eq (local.get $fallback) (global.get $missing))
+                             (then (call $raise-struct-type-property-accessor-contract
+                                         (local.get $prop)
+                                         (local.get $target))
+                                   (unreachable))
+                             (else
+                              (local.set $fallback-proc?
+                                         (ref.eq (call $procedure? (local.get $fallback))
+                                                 (global.get $true)))
+                              (if (local.get $fallback-proc?)
+                                  (then (local.set $proc (ref.cast (ref $Procedure) (local.get $fallback)))
+                                        (local.set $inv (struct.get $Procedure $invoke (local.get $proc)))
+                                        (local.set $noargs (array.new $Args (global.get $null) (i32.const 0)))
+                                        (return_call_ref $ProcedureInvoker
+                                                         (local.get $proc)
+                                                         (local.get $noargs)
+                                                         (local.get $inv)))
+                                  (else (return (local.get $fallback))))))))))
 
                (local.set $sentinel (call $cons (global.get $false) (global.get $false)))
                (local.set $val

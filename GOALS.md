@@ -117,6 +117,11 @@ Current installed-extraction runtime smokes cover:
   behavior for non-symbol equal?/eqv?/eq? keys remains a separate semantic
   milestone.
 - `racket/pretty`: a require-only installed-provider smoke.
+- `racket/promise`: require-only, `promise?` on a plain value, `force` identity
+  on a non-promise, and `force` of a simple `delay`.
+- `racket/sequence`: a first `sequence->list` operation over a plain list.
+  The next constructor/consumer frontier is `in-range`, which currently reaches
+  runtime and asks for `flvector?`.
 - `racket/function`: `compose`, `identity`, `compose1`, `negate`, and `const`.
 - Combined installed-library programs for `racket/list` + `racket/string`, for
   `racket/list` + `racket/string` + `racket/set`, and for a multi-module local

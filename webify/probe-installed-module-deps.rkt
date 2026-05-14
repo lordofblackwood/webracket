@@ -41,6 +41,11 @@
     multi-module-list-string-set
     multi-module-reexport-installed
     pretty-require
+    promise-require
+    promise-predicate-plain
+    force-identity
+    promise-basic
+    sequence-list
     custom-write-require
     set-types-require
     set-types-predicate))
@@ -199,6 +204,32 @@
          (require racket/pretty)
          (provide y)
          (define y 42)))]
+    [(promise-require)
+     '((module use-promise-require racket/base
+         (require racket/promise)
+         (provide y)
+         (define y 42)))]
+    [(promise-predicate-plain)
+     '((module use-promise-predicate-plain racket/base
+         (require racket/promise)
+         (provide y)
+         (define y (promise? 42))))]
+    [(force-identity)
+     '((module use-force-identity racket/base
+         (require racket/promise)
+         (provide y)
+         (define y (force 42))))]
+    [(promise-basic)
+     '((module use-promise-basic racket/base
+         (require racket/promise)
+         (provide y)
+         (define p (delay (+ 20 22)))
+         (define y (if (promise? p) (force p) 0))))]
+    [(sequence-list)
+     '((module use-sequence-list racket/base
+         (require racket/sequence)
+         (provide y)
+         (define y (length (sequence->list '(a b c))))))]
     [(custom-write-require)
      '((module use-custom-write-require racket/base
          (require racket/private/custom-write)

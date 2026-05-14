@@ -471,6 +471,62 @@
     '()
     #f)
    (installed-runtime-smoke
+    'racket/promise
+    "installed racket/promise require graph reaches WebRacket runtime smoke"
+    '((module use-promise-require racket/base
+        (require racket/promise)
+        (provide y)
+        (define y 42)))
+    '((use-promise-require y))
+    #rx"(?m:^42$)"
+    '()
+    #f)
+   (installed-runtime-smoke
+    'racket/promise
+    "installed racket/promise predicate reaches WebRacket runtime smoke"
+    '((module use-promise-predicate-plain racket/base
+        (require racket/promise)
+        (provide y)
+        (define y (promise? 42))))
+    '((use-promise-predicate-plain y))
+    #rx"(?m:^false$)"
+    '()
+    #f)
+   (installed-runtime-smoke
+    'racket/promise
+    "installed racket/promise force identity reaches WebRacket runtime smoke"
+    '((module use-force-identity racket/base
+        (require racket/promise)
+        (provide y)
+        (define y (force 42))))
+    '((use-force-identity y))
+    #rx"(?m:^42$)"
+    '()
+    #f)
+   (installed-runtime-smoke
+    'racket/promise
+    "installed racket/promise delay force reaches WebRacket runtime smoke"
+    '((module use-promise-basic racket/base
+        (require racket/promise)
+        (provide y)
+        (define p (delay (+ 20 22)))
+        (define y (if (promise? p) (force p) 0))))
+    '((use-promise-basic y))
+    #rx"(?m:^42$)"
+    '()
+    #f)
+   (installed-runtime-smoke
+    'racket/sequence
+    "installed racket/sequence sequence->list reaches WebRacket runtime smoke"
+    '((module use-sequence-list racket/base
+        (require racket/sequence)
+        (provide y)
+        (define y (length (sequence->list '(a b c))))))
+    '((use-sequence-list y))
+    #rx"(?m:^3$)"
+    '()
+    #f)
+   (installed-runtime-smoke
     'racket/function
     "installed racket/function compose reaches WebRacket runtime smoke"
     '((module use-function-compose racket/base

@@ -4838,6 +4838,7 @@
                            (equal? (p-ref a-instance) 8)
                            (equal? (p-ref struct:plain (lambda () fallback-symbol)) fallback-symbol)
                            (equal? (p-ref plain-instance (lambda () 'instance-fallback)) 'instance-fallback)
+                           (equal? (p-ref 42 (lambda () 'non-struct-fallback)) 'non-struct-fallback)
                            (equal? (q? struct:c) #t)
                            (equal? (q? c-instance) #t)
                            (equal? (q-ref struct:c) 9)
