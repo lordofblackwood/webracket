@@ -19,10 +19,16 @@
   '(linklet () (.get-syntax-literal! .set-transformer!)
      (define-values (.get-syntax-literal!)
        (lambda args
-         (js-log
-          ".get-syntax-literal!: syntax literals are not supported by WebRacket module protocol yet")
-         (error '.get-syntax-literal!
-                "syntax literals are not supported by WebRacket module protocol yet")))
+         ;; Goal 1 runtime module execution can encounter syntax literals as
+         ;; serialization metadata, where a stable symbolic placeholder is
+         ;; enough as long as serialization itself is not exercised.
+         (if (and (pair? args) (symbol? (car args)))
+             (car args)
+             (if (and (pair? args) (number? (car args)))
+                 (string->symbol
+                  (string-append "webracket-syntax-literal:"
+                                 (number->string (car args))))
+                 'webracket-syntax-literal))))
      (define-values (.set-transformer!)
        (lambda args (void)))))
 
@@ -39,7 +45,7 @@
    webify-module-protocol-linklet
    #t
    '("synthetic Webify module protocol provider"
-     ".get-syntax-literal! is fail-fast because syntax/source-location literals are not implemented"
+     ".get-syntax-literal! returns stable placeholders for runtime metadata"
      ".set-transformer! is a runtime no-op in the current bridge")))
 
 ;; webify-module-protocol-input : webify-module-linklet-input?

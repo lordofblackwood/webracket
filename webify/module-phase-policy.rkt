@@ -16,10 +16,10 @@
   #:transparent)
 
 ;; webify-default-module-phase-policy : webify-module-phase-policy?
-;;   Current bridge policy: execute phase 0 only and fail fast for syntax literals.
+;;   Current bridge policy: execute phase 0 only and approximate syntax literals.
 (define webify-default-module-phase-policy
   (webify-module-phase-policy
    '(0)
    'metadata-visible-not-executed
    'runtime-no-op
-   'fail-fast-syntax-and-source-location-data))
+   'runtime-placeholder-syntax-and-source-location-data))

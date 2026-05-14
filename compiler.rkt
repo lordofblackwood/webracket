@@ -746,10 +746,13 @@
     prop:object-name
     prop:procedure
     prop:exn:srclocs
+    prop:input-port
+    prop:output-port
     prop:sealed
     prop:evt
     prop:authentic
     prop:custom-write
+    prop:custom-print-quotable
     prop:equal+hash
     always-evt
     never-evt
@@ -1379,6 +1382,9 @@
        gensym
        make-hasheq
        make-hasheqv
+       make-immutable-hash
+       make-immutable-hashalw
+       make-immutable-hasheq
        make-immutable-hasheqv
        make-hash
        make-hashalw
@@ -1421,7 +1427,8 @@
        current-compile-realm
        system-type
        current-directory
-       current-directory-for-user)
+       current-directory-for-user
+       current-load-relative-directory)
      'optional 0 1)
     (make-inline-specs
      '(raise-read-error
@@ -1504,6 +1511,7 @@
        make-struct-field-accessor
        make-struct-field-mutator
        make-struct-type-property
+       unsafe-make-struct-type-property/guard-calls-no-arguments
        make-treelist
        treelist-member?
        treelist-index-of
@@ -1519,7 +1527,10 @@
          [(number->string) 1]
          [(hash-for-each hash-map hash-map/copy correlated-property) 2]
          [(instantiate-linklet inclusive-range inclusive-range-proc) 2]
-         [(struct->list make-struct-type-property make-treelist) 1]
+         [(struct->list
+           make-struct-type-property
+           unsafe-make-struct-type-property/guard-calls-no-arguments
+           make-treelist) 1]
          [(treelist-member? treelist-index-of) 2]
          [(make-prefab-struct) 1]
          [(make-struct-type) 4]
@@ -1543,7 +1554,8 @@
          [(treelist-member? treelist-index-of) 3]
          [(make-struct-type) 11]
          [(make-struct-field-accessor make-struct-field-mutator) 5]
-         [(make-struct-type-property) 7]
+         [(make-struct-type-property
+           unsafe-make-struct-type-property/guard-calls-no-arguments) 7]
          [(make-treelist) 2]
          [(string-replace) 4]
          [else 3]))
@@ -1761,6 +1773,7 @@
   make-struct-field-accessor
   make-struct-field-mutator
   make-struct-type-property
+  unsafe-make-struct-type-property/guard-calls-no-arguments
 
   struct-constructor-procedure?
   struct-predicate-procedure?
@@ -2254,6 +2267,9 @@
   
   make-hasheq
   make-hasheqv
+  make-immutable-hash
+  make-immutable-hashalw
+  make-immutable-hasheq
   make-immutable-hasheqv
   make-hash
   make-hashalw
@@ -2316,6 +2332,7 @@
   procedure?
   procedure->external
   procedure-arity
+  procedure-arity?
   procedure-arity-mask
   procedure-arity-includes?
   procedure-reduce-arity
@@ -2399,6 +2416,8 @@
   ;; 13.8 Printer Extension
   custom-write?
   custom-write-accessor
+  custom-print-quotable?
+  custom-print-quotable-accessor
 
   ;; 4.8 Regular Expressions
   byte-pregexp
@@ -2508,6 +2527,7 @@
   build-path/convention-type
   current-directory
   current-directory-for-user
+  current-load-relative-directory
   path->complete-path
   path->directory-path
   cleanse-path

@@ -887,6 +887,9 @@
  
  make-hasheq
  make-hasheqv
+ make-immutable-hash
+ make-immutable-hashalw
+ make-immutable-hasheq
  make-immutable-hasheqv
  hash
  hashalw
@@ -923,6 +926,7 @@
  ;; 4.20 Procedures
  procedure? apply compose compose1 procedure-rename procedure->external
  procedure-arity procedure-arity-mask procedure-arity-includes?
+ procedure-arity?
  procedure-reduce-arity
  arity-at-least make-arity-at-least
  arity-at-least?
@@ -1027,9 +1031,11 @@
 
  port?
  input-port?
+ prop:input-port
  impersonator?
  impersonator-val
  output-port?
+ prop:output-port
  port-closed?
  close-input-port
  close-output-port
@@ -1091,6 +1097,9 @@
  (for-syntax prop:custom-write)
  custom-write?
  custom-write-accessor
+ prop:custom-print-quotable
+ custom-print-quotable?
+ custom-print-quotable-accessor
 
  
  ;; 14.1 Namespaces
@@ -1205,6 +1214,7 @@
  build-path/convention-type
  current-directory
  current-directory-for-user
+ current-load-relative-directory
  path->complete-path
  path->directory-path
  cleanse-path
@@ -1300,6 +1310,7 @@
  unsafe-flmin unsafe-flmax unsafe-flexpt
  unsafe-flrandom 
  unsafe-car unsafe-cdr
+ unsafe-make-struct-type-property/guard-calls-no-arguments
  unsafe-sealed-struct? unsafe-struct? unsafe-struct*-cas! unsafe-struct*-ref unsafe-struct*-set! unsafe-struct-ref unsafe-vector-length unsafe-vector-ref
  unsafe-vector*-length unsafe-vector*-set! unsafe-vector*-ref
  unsafe-vector-length unsafe-vector-set!
@@ -3172,6 +3183,23 @@
   (unless (webracket-uninterruptible-lock? lock)
     (error 'unsafe-uninterruptible-lock-release "expected an uninterruptible lock"))
   (void))
+
+(define unsafe-make-struct-type-property/guard-calls-no-arguments
+  (case-lambda
+    [(name)
+     (make-struct-type-property name)]
+    [(name guard)
+     (make-struct-type-property name guard)]
+    [(name guard supers)
+     (make-struct-type-property name guard supers)]
+    [(name guard supers can-impersonate?)
+     (make-struct-type-property name guard supers can-impersonate?)]
+    [(name guard supers can-impersonate? accessor-name)
+     (make-struct-type-property name guard supers can-impersonate? accessor-name)]
+    [(name guard supers can-impersonate? accessor-name contract-str)
+     (make-struct-type-property name guard supers can-impersonate? accessor-name contract-str)]
+    [(name guard supers can-impersonate? accessor-name contract-str realm)
+     (make-struct-type-property name guard supers can-impersonate? accessor-name contract-str realm)]))
 
 (define (result-arity-count v)
   (cond

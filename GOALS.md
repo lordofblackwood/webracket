@@ -59,8 +59,7 @@ Recent successful smokes:
 - `racket/string` graph resolution is clean.
 - Installed-module runtime smokes pass for selected uses of `racket/bool`,
   `racket/fixnum`, `racket/list`, `racket/string`, `racket/vector`, and
-  `racket/function`; `racket/set` reaches runtime and records a current
-  unsafe-undefined blocker.
+  `racket/function`; selected `racket/set` operations now instantiate and run.
 
 Known remaining work:
 
@@ -99,12 +98,15 @@ Current installed-extraction runtime smokes cover:
 - `racket/string`: `string-join` and `string-prefix?`.
 - `racket/vector`: `vector-member`, plus a combined `racket/vector` and
   `racket/list` provider-graph smoke.
-- `racket/set`: a require-only source module now instantiates and returns a
-  normal value, so the module graph itself is not the blocker. Provider
-  resolution gets past the `stream?` ambiguity, and `check-not-unsafe-undefined`
-  lowers to a real guard. Current operation smokes record the next blocker: a
-  runtime `exn:fail:contract:variable` for `unsafe-undefined` in
-  `racket/private/custom-write`'s tentative pretty-print path.
+- `racket/set`: a require-only source module instantiates and returns a normal
+  value, and the first operation smokes now run too: `set?`, `set-count`,
+  `set-member?`, and the `racket/private/set-types` predicate case. Retiring
+  this frontier required small runtime pieces that the provider graph actually
+  executes: port struct-type-property identities, the unsafe struct-property
+  constructor alias, syntax-literal placeholders for serialization metadata,
+  `current-load-relative-directory`, `prop:custom-print-quotable`,
+  `procedure-arity?`, and the documented immutable hash association-list
+  constructors.
 - `racket/function`: `compose`, `identity`, `compose1`, `negate`, and `const`.
 - Dependency-first local source modules with quoted sibling requires, such as
   `(require 'base-values)`, through a shared-provider transitive smoke.
@@ -119,8 +121,9 @@ not depend on source extraction:
 - Negative classification for missing primitive-table entries.
 - Negative classification for missing provider exports during composition.
 - Negative classification for an escape from a `letrec` RHS that later reads
-  the skipped binding, matching the current `racket/set` unsafe-undefined
-  frontier in a tiny manifest.
+  the skipped binding, preserving the old `racket/set` unsafe-undefined
+  frontier as a tiny manifest regression even though the installed set smokes
+  have moved past it.
 - Negative classification for the same guard through a two-module
   `racket/pretty` -> `racket/private/custom-write` shaped import, so the
   pretty/custom-write frontier is documented without requiring the full
@@ -150,26 +153,26 @@ Use `webify/probe-installed-module-deps.rkt` with the newer `../racket`
 checkout for provider-graph deltas. The current `racket/set` comparison is:
 require-only extracts only `module-protocol` and the root module, while
 `set?` and `set-count` add the same broad provider cluster, including
-`racket/pretty` and `racket/private/custom-write`. In other words, we have not
-yet found a public `racket/set` operation that exercises set logic without
-initializing the pretty/custom-write path.
+`racket/pretty` and `racket/private/custom-write`. The important update is that
+this broad provider cluster now initializes far enough for first set operations
+to run.
 
 Direct provider probes clarified a useful caveat: require-only cases that never
 use an imported binding are demand-sliced down to `module-protocol` plus the
 root module, so they do not prove provider initialization. The meaningful
 smaller operation is `(require racket/private/set-types)` plus `(set? 42)`;
-that pulls the same broad provider cluster and records the same
-`unsafe-undefined` runtime blocker. Running that probe with `--no-observe`
-still fails, so the current blocker is not result printing or `js-log`; it is
-module execution of the operation-demanded set/custom-write/pretty slice.
+that pulls the same broad provider cluster and now completes successfully.
+Earlier `--no-observe` probes were useful because they showed the retired
+blocker was not result printing or `js-log`; the failure was in module
+execution of the operation-demanded set/custom-write/pretty slice.
 
 Use `webify/probe-installed-runtime-smoke.rkt --preserve-dir DIR` to keep a
 runtime frontier transcript. The preserved `composed-source` directory contains
 the generated `module-runtime-run.rkt`, `composed-dest` contains the emitted
 JS/Wasm/WAT/map artifacts, and `installed-source` contains the extractor script
 and manifest. For the current set frontier, useful transcripts were generated
-under `/private/tmp/wr-goal1-frontier-set-types-predicate` and
-`/private/tmp/wr-goal1-frontier-set-count`.
+under `/private/tmp/wr-goal1-set-types-predicate-after-immutable-hash` and
+`/private/tmp/wr-goal1-set-count-after-immutable-hash`.
 
 The escape-continuation decision is deliberately conservative. The Reference
 says an escape continuation can only be called during the dynamic extent of the
@@ -178,7 +181,8 @@ implementation supports the useful early-return shape with a private Wasm
 exception, but it does not yet enforce dynamic invalidation or prompt/barrier
 semantics. That is sufficient for direct escape and for escaping with a closure
 that does not read skipped `letrec` bindings; it should not be used to paper
-over the real `unsafe-undefined` guard seen in the `racket/set` operation path.
+over real `unsafe-undefined` guards. The old `racket/set` guard path is still
+preserved as a local regression even though the installed set smokes now pass.
 
 Source-module extraction compiles a supplied module-data list in one shared
 host namespace. Earlier declarations are installed before later modules are

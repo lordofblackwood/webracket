@@ -103,7 +103,7 @@
           (with-handlers ([exn:fail:filesystem? void])
             (delete-directory/files dir))))))
 
-  (test-case "module protocol syntax literal calls fail fast"
+  (test-case "module protocol syntax literal calls return runtime placeholders"
     (define source-dir (make-temporary-file "webracket-module-protocol-syntax-src-~a" 'directory))
     (define dest-dir   (make-temporary-file "webracket-module-protocol-syntax-dest-~a" 'directory))
     (define source-path (build-path source-dir "module-protocol-syntax-run.rkt"))
@@ -153,9 +153,8 @@
                                "--dest" (path->string dest-dir)
                                (path->string source-path))
                          source-dir))
-        (define failure (webify-classify-runtime-output status output))
-        (check-true (webify-module-failure? failure))
-        (check-equal? (webify-module-failure-category failure) 'syntax-literal output))
+        (check-equal? status 0 output)
+        (check-regexp-match #rx"(?m:^Symbol\\(x\\)$)" output))
       (lambda ()
         (for ([dir (in-list (list source-dir dest-dir))])
           (with-handlers ([exn:fail:filesystem? void])

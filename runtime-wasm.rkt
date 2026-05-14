@@ -1632,6 +1632,10 @@
           procedure
           prop:exn:srclocs
           exn:srclocs
+          prop:input-port
+          input-port
+          prop:output-port
+          output-port
           pair
           prop:checked-procedure
           checked-procedure
@@ -1649,6 +1653,10 @@
           custom-write
           custom-write?
           custom-write-accessor
+          prop:custom-print-quotable
+          custom-print-quotable
+          custom-print-quotable?
+          custom-print-quotable-accessor
           prop:equal+hash
           equal+hash
 
@@ -1909,6 +1917,7 @@
     (add-runtime-string-constant 'struct-type?               "struct-type?")
     (add-runtime-string-constant 'sealed-struct-supertype     "sealed structure type cannot be used as a supertype")
     (add-runtime-string-constant 'custom-write?              "custom-write?")
+    (add-runtime-string-constant 'custom-print-quotable?     "custom-print-quotable?")
     (add-runtime-string-constant 'struct->list:on-opaque     "one of 'error, 'return-false, or 'skip")
     (add-runtime-string-constant 'struct:prefix              "struct:")
     
@@ -35153,6 +35162,109 @@
                             (br $walk)))
                (local.get $ht))
 
+         ;; make-immutable-hash : [(listof pair?) = null] -> immutable-hash?
+         ;;   Build an immutable equal?-hash from an association list. This
+         ;;   currently uses the shared HAMT backing store described above.
+         (func $make-immutable-hash (type $Prim01)
+               (param $assocs (ref eq)) ;; optional association list, default null
+               (result        (ref eq))
+               (local $ht    (ref eq))
+               (local $alist (ref eq))
+               (local $pair  (ref $Pair))
+               (local $kv    (ref eq))
+               (local $kvp   (ref $Pair))
+               (if (ref.eq (local.get $assocs) (global.get $missing))
+                   (then (local.set $assocs (global.get $null))))
+               (local.set $ht (call $make-empty-immutable-hash))
+               (local.set $alist (local.get $assocs))
+               (block $done
+                      (loop $walk
+                            (br_if $done (ref.eq (local.get $alist) (global.get $null)))
+                            (if (i32.eqz (ref.test (ref $Pair) (local.get $alist)))
+                                (then (call $raise-argument-error:pair-expected1 (local.get $alist))
+                                      (unreachable)))
+                            (local.set $pair (ref.cast (ref $Pair) (local.get $alist)))
+                            (local.set $kv (struct.get $Pair $a (local.get $pair)))
+                            (if (i32.eqz (ref.test (ref $Pair) (local.get $kv)))
+                                (then (call $raise-argument-error:pair-expected2 (local.get $kv))
+                                      (unreachable)))
+                            (local.set $kvp (ref.cast (ref $Pair) (local.get $kv)))
+                            (local.set $ht (call $immutable-hash-set
+                                                 (local.get $ht)
+                                                 (struct.get $Pair $a (local.get $kvp))
+                                                 (struct.get $Pair $d (local.get $kvp))))
+                            (local.set $alist (struct.get $Pair $d (local.get $pair)))
+                            (br $walk)))
+               (local.get $ht))
+
+         ;; make-immutable-hashalw : [(listof pair?) = null] -> immutable-hashalw?
+         ;;   Build an immutable equal-always?-hash from an association list.
+         (func $make-immutable-hashalw (type $Prim01)
+               (param $assocs (ref eq)) ;; optional association list, default null
+               (result        (ref eq))
+               (local $ht    (ref eq))
+               (local $alist (ref eq))
+               (local $pair  (ref $Pair))
+               (local $kv    (ref eq))
+               (local $kvp   (ref $Pair))
+               (if (ref.eq (local.get $assocs) (global.get $missing))
+                   (then (local.set $assocs (global.get $null))))
+               (local.set $ht (call $make-empty-immutable-hashalw))
+               (local.set $alist (local.get $assocs))
+               (block $done
+                      (loop $walk
+                            (br_if $done (ref.eq (local.get $alist) (global.get $null)))
+                            (if (i32.eqz (ref.test (ref $Pair) (local.get $alist)))
+                                (then (call $raise-argument-error:pair-expected1 (local.get $alist))
+                                      (unreachable)))
+                            (local.set $pair (ref.cast (ref $Pair) (local.get $alist)))
+                            (local.set $kv (struct.get $Pair $a (local.get $pair)))
+                            (if (i32.eqz (ref.test (ref $Pair) (local.get $kv)))
+                                (then (call $raise-argument-error:pair-expected2 (local.get $kv))
+                                      (unreachable)))
+                            (local.set $kvp (ref.cast (ref $Pair) (local.get $kv)))
+                            (local.set $ht (call $immutable-hashalw-set
+                                                 (local.get $ht)
+                                                 (struct.get $Pair $a (local.get $kvp))
+                                                 (struct.get $Pair $d (local.get $kvp))))
+                            (local.set $alist (struct.get $Pair $d (local.get $pair)))
+                            (br $walk)))
+               (local.get $ht))
+
+         ;; make-immutable-hasheq : [(listof pair?) = null] -> immutable-hasheq?
+         ;;   Build an immutable eq?-hash from an association list.
+         (func $make-immutable-hasheq (type $Prim01)
+               (param $assocs (ref eq)) ;; optional association list, default null
+               (result        (ref eq))
+               (local $ht    (ref eq))
+               (local $alist (ref eq))
+               (local $pair  (ref $Pair))
+               (local $kv    (ref eq))
+               (local $kvp   (ref $Pair))
+               (if (ref.eq (local.get $assocs) (global.get $missing))
+                   (then (local.set $assocs (global.get $null))))
+               (local.set $ht (call $make-empty-immutable-hasheq))
+               (local.set $alist (local.get $assocs))
+               (block $done
+                      (loop $walk
+                            (br_if $done (ref.eq (local.get $alist) (global.get $null)))
+                            (if (i32.eqz (ref.test (ref $Pair) (local.get $alist)))
+                                (then (call $raise-argument-error:pair-expected1 (local.get $alist))
+                                      (unreachable)))
+                            (local.set $pair (ref.cast (ref $Pair) (local.get $alist)))
+                            (local.set $kv (struct.get $Pair $a (local.get $pair)))
+                            (if (i32.eqz (ref.test (ref $Pair) (local.get $kv)))
+                                (then (call $raise-argument-error:pair-expected2 (local.get $kv))
+                                      (unreachable)))
+                            (local.set $kvp (ref.cast (ref $Pair) (local.get $kv)))
+                            (local.set $ht (call $immutable-hasheq-set
+                                                 (local.get $ht)
+                                                 (struct.get $Pair $a (local.get $kvp))
+                                                 (struct.get $Pair $d (local.get $kvp))))
+                            (local.set $alist (struct.get $Pair $d (local.get $pair)))
+                            (br $walk)))
+               (local.get $ht))
+
          ;; make-immutable-hasheqv : [(listof pair?)] -> immutable-hasheqv?
          ;;   Build an immutable eqv?-based hash from an association list. The
          ;;   optional list defaults to empty.
@@ -49952,6 +50064,31 @@
                                 (ref.cast (ref eq) (local.get $pred))
                                 (ref.cast (ref eq) (local.get $acc))))
 
+         ;; unsafe-make-struct-type-property/guard-calls-no-arguments :
+         ;;   symbol? [guard] [supers] [can-impersonate?] [accessor-name] [contract-str] [realm] -> values
+         ;;   CS exposes this unsafe operation as an alias of
+         ;;   make-struct-type-property. The "guard calls no arguments" part is
+         ;;   compile-time knowledge for optimizers; WebRacket delegates to the
+         ;;   same runtime implementation as the safe constructor.
+         (func $unsafe-make-struct-type-property/guard-calls-no-arguments
+               (type $Prim67)
+               (param $name               (ref eq)) ;; symbol?
+               (param $guard-info         (ref eq)) ;; optional guard/#f, default = #f
+               (param $supers-spec        (ref eq)) ;; optional list/#f, default = '()
+               (param $can-impersonate?   (ref eq)) ;; optional any/c, default = #f
+               (param $accessor-name-info (ref eq)) ;; optional symbol/string/#f, default = #f
+               (param $contract-info      (ref eq)) ;; optional string/symbol/#f, default = #f
+               (param $realm-info         (ref eq)) ;; optional symbol/#f, default = 'racket
+               (result                    (ref eq))
+               (call $make-struct-type-property
+                     (local.get $name)
+                     (local.get $guard-info)
+                     (local.get $supers-spec)
+                     (local.get $can-impersonate?)
+                     (local.get $accessor-name-info)
+                     (local.get $contract-info)
+                     (local.get $realm-info)))
+
          
          ;;;
          ;;; PROCEDURES
@@ -50349,6 +50486,48 @@
                      (global.get $string:procedure-arity?)
                      (local.get $v))
                (unreachable))
+
+         ;; procedure-arity? : any/c -> boolean?
+         ;;   A procedure arity is an exact nonnegative integer, an
+         ;;   arity-at-least value, or a proper list of those values.
+         (func $procedure-arity? (type $Prim1)
+               (param $v (ref eq))
+               (result   (ref eq))
+
+               (local $node  (ref eq))
+               (local $entry (ref eq))
+
+               (if (ref.eq (call $exact-nonnegative-integer? (local.get $v))
+                           (global.get $true))
+                   (then (return (global.get $true))))
+               (if (ref.eq (call $arity-at-least? (local.get $v))
+                           (global.get $true))
+                   (then (return (global.get $true))))
+               (if (ref.eq (call $list? (local.get $v)) (global.get $false))
+                   (then (return (global.get $false))))
+               (local.set $node (local.get $v))
+               (block $done
+                      (loop $loop
+                            (br_if $done (ref.eq (local.get $node)
+                                                 (global.get $null)))
+                            (local.set $entry
+                                       (struct.get $Pair $a
+                                                   (ref.cast (ref $Pair)
+                                                             (local.get $node))))
+                            (if (ref.eq (call $exact-nonnegative-integer?
+                                              (local.get $entry))
+                                        (global.get $false))
+                                (then
+                                 (if (ref.eq (call $arity-at-least?
+                                                   (local.get $entry))
+                                             (global.get $false))
+                                     (then (return (global.get $false))))))
+                            (local.set $node
+                                       (struct.get $Pair $d
+                                                   (ref.cast (ref $Pair)
+                                                             (local.get $node))))
+                            (br $loop)))
+               (global.get $true))
 
          (func $procedure-arity-value->field
                (param $who   (ref eq))
@@ -51585,6 +51764,84 @@
                                (global.get $string:custom-write?)
                                (local.get $v))
                          (unreachable)))
+
+               (local.get $prop-val))
+
+         (func $custom-print-quotable? (type $Prim1)
+               (param $v (ref eq))
+               (result   (ref eq))
+
+               (local $type      (ref null $StructType))
+               (local $struct    (ref $Struct))
+               (local $sentinel  (ref eq))
+               (local $prop-name (ref $Symbol))
+               (local $prop-val  (ref eq))
+
+               (if (ref.test (ref $Struct) (local.get $v))
+                   (then (local.set $struct (ref.cast (ref $Struct) (local.get $v)))
+                         (local.set $type   (struct.get $Struct $type (local.get $struct))))
+                   (else (if (ref.test (ref $StructType) (local.get $v))
+                             (then (local.set $type (ref.cast (ref $StructType) (local.get $v))))
+                             (else (return (global.get $false))))))
+
+               (local.set $prop-name
+                          (ref.cast (ref $Symbol) (global.get $symbol:prop:custom-print-quotable)))
+               (local.set $sentinel (call $cons (global.get $false) (global.get $false)))
+               (local.set $prop-val
+                          (call $struct-type-property-lookup-by-name
+                                (ref.as_non_null (local.get $type))
+                                (local.get $prop-name)
+                                (local.get $sentinel)))
+
+               (if (result (ref eq))
+                   (ref.eq (local.get $prop-val) (local.get $sentinel))
+                   (then (global.get $false))
+                   (else (global.get $true))))
+
+         (func $custom-print-quotable-accessor (type $Prim12)
+               (param $v        (ref eq))
+               (param $fallback (ref eq)) ;; optional fallback result, default = contract error
+               (result          (ref eq))
+
+               (local $type      (ref null $StructType))
+               (local $struct    (ref $Struct))
+               (local $sentinel  (ref eq))
+               (local $prop-name (ref $Symbol))
+               (local $prop-val  (ref eq))
+
+               (local.set $sentinel (call $cons (global.get $false) (global.get $false)))
+               (if (ref.test (ref $Struct) (local.get $v))
+                   (then (local.set $struct (ref.cast (ref $Struct) (local.get $v)))
+                         (local.set $type (struct.get $Struct $type (local.get $struct))))
+                   (else (if (ref.test (ref $StructType) (local.get $v))
+                             (then (local.set $type (ref.cast (ref $StructType) (local.get $v))))
+                             (else
+                              (if (ref.eq (local.get $fallback) (global.get $missing))
+                                  (then (call $raise-argument-error1
+                                              (global.get $symbol:custom-print-quotable-accessor)
+                                              (global.get $string:custom-print-quotable?)
+                                              (local.get $v))
+                                        (unreachable))
+                                  (else (return (local.get $fallback))))))))
+
+               (local.set $prop-name
+                          (ref.cast (ref $Symbol)
+                                    (global.get $symbol:prop:custom-print-quotable)))
+               (local.set $prop-val
+                          (call $struct-type-property-lookup-by-name
+                                (ref.as_non_null (local.get $type))
+                                (local.get $prop-name)
+                                (local.get $sentinel)))
+
+               (if (ref.eq (local.get $prop-val) (local.get $sentinel))
+                   (then
+                    (if (ref.eq (local.get $fallback) (global.get $missing))
+                        (then (call $raise-argument-error1
+                                    (global.get $symbol:custom-print-quotable-accessor)
+                                    (global.get $string:custom-print-quotable?)
+                                    (local.get $v))
+                              (unreachable))
+                        (else (return (local.get $fallback))))))
 
                (local.get $prop-val))
 
@@ -60085,6 +60342,37 @@
                      (global.set $current-directory-for-user-path (local.get $path))
                      (global.get $void))
 
+               ;; current-load-relative-directory : [(or/c path-string? #f)] -> (or/c path? #f) or void?
+               ;;   Reference: this parameter defaults to #f; when set to a path
+               ;;   or string, it is immediately converted to a complete path.
+               (func $current-load-relative-directory (type $Prim01)
+                     (param $path-raw (ref eq)) ;; optional path-string?/#f, default = current value
+                     (result          (ref eq))
+
+                     (local $path (ref $Path))
+
+                     (if (ref.eq (local.get $path-raw) (global.get $missing))
+                         (then (return (global.get $current-load-relative-directory-path))))
+                     (if (ref.eq (local.get $path-raw) (global.get $false))
+                         (then
+                          (global.set $current-load-relative-directory-path
+                                      (global.get $false))
+                          (return (global.get $void))))
+                     (local.set $path
+                                (call $path-string->path/checked
+                                      (global.get $symbol:current-load-relative-directory)
+                                      (local.get $path-raw)))
+                     (if (i32.eqz (call $path-bytes-absolute?
+                                        (struct.get $Path $bytes (local.get $path))))
+                         (then (local.set $path
+                                          (ref.cast (ref $Path)
+                                                    (call $path->complete-path
+                                                          (local.get $path)
+                                                          (global.get $missing))))))
+                     (global.set $current-load-relative-directory-path
+                                 (local.get $path))
+                     (global.get $void))
+
                (func $path->complete-path (type $Prim12)
                      (param $path-raw (ref eq)) ;; path-string?
                      (param $base-raw (ref eq)) ;; optional path-string?, default current-directory
@@ -64398,6 +64686,7 @@
                (global $system-path-convention   (mut (ref eq)) (ref.i31 (i32.const 0)))
                (global $current-directory-path   (mut (ref eq)) (ref.i31 (i32.const 0)))
                (global $current-directory-for-user-path (mut (ref eq)) (ref.i31 (i32.const 0)))
+               (global $current-load-relative-directory-path (mut (ref eq)) (global.get $false))
                (global $current-environment-variables-value (mut (ref eq)) (ref.i31 (i32.const 0)))
                (global $temporary-file-counter   (mut i32)      (i32.const 0))
                (global $current-input-port-value  (mut (ref eq)) (ref.i31 (i32.const 0)))
@@ -64438,6 +64727,8 @@
                (global $prop:object-name              (mut (ref eq)) (global.get $void))
                (global $prop:procedure                (mut (ref eq)) (global.get $void))
                (global $prop:exn:srclocs              (mut (ref eq)) (global.get $void))
+               (global $prop:input-port               (mut (ref eq)) (global.get $void))
+               (global $prop:output-port              (mut (ref eq)) (global.get $void))
                (global $prop:checked-procedure        (mut (ref eq)) (global.get $void))
                (global $prop:impersonator-of          (mut (ref eq)) (global.get $void))
                (global $prop:method-arity-error       (mut (ref eq)) (global.get $void))
@@ -64445,6 +64736,7 @@
                (global $prop:incomplete-arity         (mut (ref eq)) (global.get $void))
                (global $prop:authentic                (mut (ref eq)) (global.get $void))
                (global $prop:custom-write             (mut (ref eq)) (global.get $void))
+               (global $prop:custom-print-quotable    (mut (ref eq)) (global.get $void))
                (global $prop:equal+hash               (mut (ref eq)) (global.get $void))
                (global $equal+hash-recur/equal        (mut (ref eq)) (global.get $void))
                (global $equal+hash-recur/equal-always (mut (ref eq)) (global.get $void))
@@ -64592,6 +64884,30 @@
                                                  (global.get $null)
                                                  (global.get $false)
                                                  (global.get $false))))
+                     ;; Reference: prop:input-port and prop:output-port identify
+                     ;; structure types whose instances can stand in for ports.
+                     ;; This initializes the property identities needed by
+                     ;; racket/pretty; port coercion through the properties is
+                     ;; implemented when a primitive actually consumes the struct
+                     ;; as a port.
+                     (global.set $prop:input-port
+                                 (ref.cast (ref eq)
+                                           (call $make-struct-type-property-descriptor/checked
+                                                 (ref.cast (ref $Symbol)
+                                                           (global.get $symbol:prop:input-port))
+                                                 (global.get $false)
+                                                 (global.get $null)
+                                                 (global.get $false)
+                                                 (global.get $false))))
+                     (global.set $prop:output-port
+                                 (ref.cast (ref eq)
+                                           (call $make-struct-type-property-descriptor/checked
+                                                 (ref.cast (ref $Symbol)
+                                                           (global.get $symbol:prop:output-port))
+                                                 (global.get $false)
+                                                 (global.get $null)
+                                                 (global.get $false)
+                                                 (global.get $false))))
                      (global.set $prop:checked-procedure
                                  (ref.cast (ref eq)
                                            (call $make-struct-type-property-descriptor/checked
@@ -64651,6 +64967,15 @@
                                            (call $make-struct-type-property-descriptor/checked
                                                  (ref.cast (ref $Symbol)
                                                            (global.get $symbol:prop:custom-write))
+                                                 (global.get $false)
+                                                 (global.get $null)
+                                                 (global.get $false)
+                                                 (global.get $false))))
+                     (global.set $prop:custom-print-quotable
+                                 (ref.cast (ref eq)
+                                           (call $make-struct-type-property-descriptor/checked
+                                                 (ref.cast (ref $Symbol)
+                                                           (global.get $symbol:prop:custom-print-quotable))
                                                  (global.get $false)
                                                  (global.get $null)
                                                  (global.get $false)

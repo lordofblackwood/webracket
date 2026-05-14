@@ -3628,9 +3628,9 @@ There are three related but different Goal 1 tools:
 
 The current smoke matrix includes selected uses of `racket/bool`,
 `racket/fixnum`, `racket/list`, `racket/string`, `racket/vector`,
-`racket/function`, expected-runtime-blocker smokes for `racket/set`, plus local
-manifest smokes for two-module composition, re-export/backing-provider
-resolution, renamed imports, multi-root shared-provider composition, negative
+`racket/function`, and first `racket/set` operation smokes, plus local manifest
+smokes for two-module composition, re-export/backing-provider resolution,
+renamed imports, multi-root shared-provider composition, negative
 primitive-preflight classification, and negative provider-export
 classification. Installed smokes also carry a category symbol, currently by
 library or combined-library slice, so the list can grow without losing which
@@ -3666,13 +3666,11 @@ single selected smoke in a child Racket process with a hard timeout. That
 process-level boundary is deliberate: a Racket custodian limit alone would not
 reliably stop subprocesses used by extraction or WebRacket execution.
 
-The `racket/set` operation smokes are currently expected runtime failures, but
-`racket/set` is not blocked merely by being required. A require-only source
-module that imports `racket/set`, exports `42`, and observes that export passes
-through extraction, composition, compilation, and WebRacket execution. The
-static audit for that require-only slice contains only `module-protocol` and
-the root module; it does not pull `racket/private/custom-write` or
-`racket/pretty`.
+The first `racket/set` operation smokes now pass. A require-only source module
+that imports `racket/set`, exports `42`, and observes that export still serves
+as the control case, and operation cases for `set?`, `set-count`, `set-member?`,
+and the `racket/private/set-types` predicate all pass through extraction,
+composition, compilation, and WebRacket execution.
 
 `webify/probe-installed-module-deps.rkt` makes that static audit repeatable
 with the newer `../racket` checkout. Comparing `set-require` to `set?` or
@@ -3680,9 +3678,9 @@ with the newer `../racket` checkout. Comparing `set-require` to `set?` or
 `racket/private/set`, `racket/private/set-types`,
 `racket/private/stream-cons`, `racket/stream`, `racket/sequence`,
 `racket/private/generic*`, `racket/private/hash`, `racket/pretty`,
-`racket/private/custom-write`, and related list/map/kw/arity/port support. So
-the current evidence says public `racket/set` operations do not provide a small
-non-printing path around the custom-write/pretty initialization frontier.
+`racket/private/custom-write`, and related list/map/kw/arity/port support. The
+old custom-write/pretty initialization frontier is now retired for these smokes
+by implementing the runtime pieces that the graph actually executes.
 
 The bounded runtime probe also supports ad hoc module cases from the dependency
 probe table. A require-only case that exports an unrelated `42` is useful as a
@@ -3690,8 +3688,8 @@ control, but demand slicing removes unused imports; such a case does not prove
 that `racket/private/set-types`, `racket/pretty`, or
 `racket/private/custom-write` instantiated. The smaller meaningful operation is
 `set-types-predicate`, which requires `racket/private/set-types` and evaluates
-`(set? 42)`. It pulls the same broad set/custom-write/pretty provider cluster
-and records the same `unsafe-undefined` runtime blocker.
+`(set? 42)`. It now pulls the same broad set/custom-write/pretty provider
+cluster and completes successfully.
 
 Use `webify/probe-installed-runtime-smoke.rkt --preserve-dir DIR` for a runtime
 frontier transcript. The preserved `installed-source` directory has the
@@ -3704,27 +3702,23 @@ imported `set?`, while the dependency-first composition plan has
 linklet, `make-constructor-style-printer` contains the guarded
 `loc_47` access around `make-tentative-pretty-print-output-port`.
 
-Observation is not the cause of this frontier. Running `set-types-predicate`
-and `set-count` with `--no-observe` still reaches the same expected
-`exn:fail:contract:variable`, even though no export is logged with `js-log`.
-So less-invasive observation is now available for probes, but the current set
-failure happens during module execution of the operation-demanded slice.
+Observation was not the cause of the retired frontier. Earlier
+`--no-observe` runs reached the same failure as observed runs, which showed the
+problem happened during module execution of the operation-demanded slice. The
+set smokes now pass with normal observation enabled.
 
-The operation smokes no longer fail at the old `stream?` provider ambiguity or
-at the `check-not-unsafe-undefined` lowering guard. The resolver has a narrow
-tie-breaker that prefers `racket/private/stream-cons` over `racket/private/for`
-for `stream?` where both are viable. The current frontier is a real guarded
-`unsafe-undefined` access that raises `exn:fail:contract:variable` at runtime.
-Tracing the composed program points to `racket/private/custom-write`'s
-`make-constructor-style-printer`, specifically an escape from the `loc_47`
-`letrec` RHS around `make-tentative-pretty-print-output-port`. Focused local
+The operation smokes no longer fail at the old `stream?` provider ambiguity, at
+the `check-not-unsafe-undefined` lowering guard, or at the custom-write/pretty
+runtime initialization path. The resolver still has a narrow tie-breaker that
+prefers `racket/private/stream-cons` over `racket/private/for` for `stream?`
+where both are viable. Focused local
 manifest smokes now preserve both the raw control-flow shape and a two-module
 `racket/pretty` -> `racket/private/custom-write` shaped import: escaping from a
 `letrec` RHS and later calling a closure that reads the skipped binding must
-trip the guard. That means this is not a simple dependency-order bug; making
-set operations pass needs either avoiding that custom-write/pretty path for the
-exercised operation or supporting enough of the relevant continuation and
-pretty-print behavior without masking a real use-before-initialization check.
+trip the guard. That regression still matters even though the installed set
+smokes now pass, because it protects the use-before-initialization check from
+being accidentally erased while WebRacket gains more of the pretty/custom-write
+runtime surface.
 
 For escape continuations, the next runtime direction is not to broaden the
 current bootstrap blindly. The Reference requires an escape continuation to be

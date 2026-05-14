@@ -87,12 +87,17 @@
     [(set-predicate set-count set-member set-types-predicate)
      (installed-runtime-smoke
       name
-      (format "module case ~a records current unsafe-undefined runtime blocker" name)
+      (format "module case ~a reaches WebRacket runtime smoke" name)
       (module-case-data name)
       observations
-      #rx"never-matches-success"
-      '(runtime-exception)
-      #rx"exn:fail:contract:variable")]
+      (if observe?
+          (case name
+            [(set-count) #rx"(?m:^2$)"]
+            [(set-member) #rx"(?m:^true$)"]
+            [else #rx"(?m:^false$)"])
+          #rx"")
+      '()
+      #f)]
     [else
      (installed-runtime-smoke
       name

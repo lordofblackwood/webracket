@@ -16,7 +16,7 @@
                 'runtime-no-op)
   (check-equal? (webify-module-phase-policy-get-syntax-literal-policy
                  webify-default-module-phase-policy)
-                'fail-fast-syntax-and-source-location-data))
+                'runtime-placeholder-syntax-and-source-location-data))
 
 (module+ main
   (void))

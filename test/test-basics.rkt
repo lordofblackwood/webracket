@@ -4301,6 +4301,17 @@
                            (equal? (hash-count h) 2)
                            (equal? (hash-ref h 1) 'uno)
                            (equal? (hash-ref h 2) 'two))))
+              (list "make-immutable-hash variants"
+                    (let ([h   (make-immutable-hash '((1 . one) (2 . two) (1 . uno)))]
+                          [hal (make-immutable-hashalw '((1 . one)))]
+                          [heq (make-immutable-hasheq '((a . 1)))])
+                      (and (immutable-hash? h)
+                           (hash-equal? h)
+                           (hash-equal-always? hal)
+                           (hash-eq? heq)
+                           (equal? (hash-count h) 2)
+                           (equal? (hash-ref h 1) 'uno)
+                           (equal? (hash-ref h 2) 'two))))
               (list "hash-equal?"
                     (and (equal? (hash-equal? (make-hasheq))  #f)
                          (equal? (hash-equal? (make-hash))    #t)
