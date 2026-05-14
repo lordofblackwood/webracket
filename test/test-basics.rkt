@@ -85,6 +85,15 @@
                      (equal? ((procedure-reduce-arity (lambda xs xs) 2) 'a 'b) '(a b))
                      (with-handlers ([exn? (lambda (ex) #t)])
                        ((procedure-reduce-arity (lambda xs xs) 2) 'a))))
+              (list "procedure-reduce-arity-mask"
+                    (and
+                     (procedure? (procedure-reduce-arity-mask values 2))
+                     (equal? (procedure-arity (procedure-reduce-arity-mask values 2)) 1)
+                     (equal? ((procedure-reduce-arity-mask (lambda xs xs) 4) 'a 'b) '(a b))
+                     (equal? (procedure-arity (procedure-reduce-arity-mask (lambda xs xs) -4))
+                             (make-arity-at-least 2))
+                     (with-handlers ([exn? (lambda (ex) #t)])
+                       ((procedure-reduce-arity-mask (lambda xs xs) 4) 'a))))
               (list "closedapp: mutation with 0/1/2/3 free variables"
                     (and
                      ;; 0 free variables: mutation is local to the activation.
@@ -141,6 +150,13 @@
                                  (set! f (lambda () 2))
                                  (g)))
                              2)
+                     ;; Webify/Schemify modules use unsafe-undefined slots as
+                     ;; placeholders that are filled before safe code observes
+                     ;; them. The fill must not count as an early read.
+                     (equal? (let ([x unsafe-undefined])
+                               (set! x (lambda () x))
+                               (eq? (x) x))
+                             #t)
                      ;; Read/write interactions across three closures over same capture.
                      (equal? (let ([x 0])
                                (let ([setx! (lambda (v) (set! x v))]
@@ -410,6 +426,17 @@
               (list "unsafe-root-continuation-prompt-tag placeholder"
                     (eq? (unsafe-root-continuation-prompt-tag)
                          (unsafe-root-continuation-prompt-tag)))
+              (list "continuation-prompt-available? placeholder"
+                    (equal? (continuation-prompt-available?
+                             (unsafe-root-continuation-prompt-tag))
+                            #t))
+              (list "continuation-prompt-tag? placeholder"
+                    (and (equal? (continuation-prompt-tag?
+                                  (unsafe-root-continuation-prompt-tag))
+                                 #t)
+                         (equal? (continuation-prompt-tag? 'not-a-tag) #f)))
+              (list "continuation? placeholder"
+                    (equal? (continuation? (lambda (x) x)) #f))
               (list "dynamic-wind/basic"
                     (let ([seen '()])
                       (and (equal? (dynamic-wind
@@ -429,7 +456,8 @@
                                    'result)
                            (equal? seen '(body)))))
               (list "continuation-mark-set-first bootstrap placeholder"
-                    (and (equal? (continuation-mark-set-first
+                    (and (continuation-mark-set? (current-continuation-marks))
+                         (equal? (continuation-mark-set-first
                                   (current-continuation-marks)
                                   'missing)
                                  #f)
@@ -483,6 +511,12 @@
                                (equal? (number? 'a)  #f)
                                (equal? (number? #f)  #f)
                                (equal? (procedure-arity number?) 1)))
+                    (list "complex?"
+                          (and (equal? (complex? 1)    #t)
+                               (equal? (complex? 1.5)  #t)
+                               (equal? (complex? 0+1i) #t)
+                               (equal? (complex? 'a)   #f)
+                               (equal? (procedure-arity complex?) 1)))
                     (list "number->string"
                           (and  (equal? (number->string 42)     "42")
                                 (equal? (number->string 16 16)  "10")
@@ -2873,6 +2907,9 @@
 
               (list "impersonator?/none"
                     (equal? (impersonator? (vector 1 2 3)) #f))
+
+              (list "chaperone?/none"
+                    (equal? (chaperone? (vector 1 2 3)) #f))
 
               (list "make-impersonator-property/inert"
                     (let-values ([(prop has-prop? get-prop)
@@ -5717,6 +5754,52 @@
               (list "progress-evt?/two-arg"
                     (let ([port (open-input-string "ok")])
                       (equal? (progress-evt? #f port) #f)))
+
+              (list "channel/basic"
+                    (let ([ch (make-channel)])
+                      (and (equal? (channel? ch) #t)
+                           (equal? (channel-try-get ch) #f)
+                           (equal? (channel-put ch 'ok) (void))
+                           (equal? (channel-try-get ch) 'ok)
+                           (equal? (channel-try-get ch) #f))))
+
+              (list "channel/sync"
+                    (let* ([ch (make-channel)]
+                           [evt (channel-put-evt ch 'via-sync)])
+                      (and (equal? (channel-put-evt? evt) #t)
+                           (equal? (evt? ch) #t)
+                           (equal? (evt? evt) #t)
+                           (equal? (evt? 'not-an-event) #f)
+                           (equal? (sync/timeout 0 ch) #f)
+                           (equal? (sync/timeout 0 evt) evt)
+                           (equal? (sync/timeout 0 ch) 'via-sync))))
+
+              (list "custodian/basic"
+                    (let ([c (make-custodian)])
+                      (and (equal? (custodian? c) #t)
+                           (equal? (custodian-shut-down? c) #f)
+                           (equal? (custodian-shutdown-all c) (void))
+                           (equal? (custodian-shut-down? c) #t))))
+
+              (list "custodian-box/basic"
+                    (let* ([c (make-custodian)]
+                           [b (make-custodian-box c 'live)])
+                      (and (equal? (custodian-box? b) #t)
+                           (equal? (custodian-box-value b) 'live)
+                           (equal? (custodian-shutdown-all c) (void))
+                           (equal? (custodian-box-value b) #f))))
+
+              (list "date-predicates/placeholders"
+                    (and (equal? (date? 'not-a-date) #f)
+                         (equal? (date*? 'not-a-date) #f)
+                         (equal? (date-dst? 'not-a-date) #f)
+                         (equal? (date*-time-zone-name 'not-a-date) #f)))
+
+              (list "break-exn-predicates/placeholders"
+                    (and (equal? (exn:break? 'not-a-break) #f)
+                         (equal? (exn:break:hang-up? 'not-a-break) #f)
+                         (equal? (exn:break:terminate? 'not-a-break) #f)
+                         (equal? (exn:break-continuation 'not-a-break) #f)))
 
               (list "semaphore/basic"
                     (let ([s (make-semaphore)])

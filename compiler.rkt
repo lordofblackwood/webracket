@@ -1092,6 +1092,8 @@
       make-instance instance-set-variable-value! instance-variable-value
       make-prefab-struct
       hash hasheq hasheqv hashalw
+      bytes-convert
+      make-logger log-message
       format fprintf
       sync sync/timeout
       extend-parameterization
@@ -1111,6 +1113,8 @@
         [(sync/timeout) 1]
         [(call-with-semaphore) 2]
         [(extend-parameterization) 1]
+        [(make-logger) 0]
+        [(log-message) 3]
         [(unsafe-fxand unsafe-fxior unsafe-fxxor) 1]
         [(symbol<? keyword<? path<?
                    string=? string<? string<=? string>? string>=?
@@ -1118,6 +1122,7 @@
         [(apply) 2]
         [(foldl foldr instance-set-variable-value!) 3]
         [(make-instance make-prefab-struct) 1]
+        [(bytes-convert) 2]
         [else 2]))
     ; - max-proc
     (λ (_name) #f)
@@ -1133,6 +1138,9 @@
         [(sync/timeout) 1]
         [(call-with-semaphore) 2]
         [(foldl foldr instance-set-variable-value!) 3]
+        [(make-logger) 0]
+        [(log-message) 3]
+        [(bytes-convert) 2]
         [(+ * unsafe-fx+ unsafe-fx* compose compose1 cartesian-product string-append-immutable gcd lcm hash hasheq hasheqv hashalw) 0]
         [else 1])))
    (make-inline-specs '(= < > <= >=) 'variadic-args 1 #f 1)
@@ -1254,6 +1262,15 @@
        peek-string!
        peek-bytes
        peek-string
+       bytes-convert-end
+       port-write-handler
+       port-display-handler
+       port-print-handler
+       current-logger
+       current-custodian
+       make-custodian
+       log-level?
+       log-max-level
        progress-evt?
        make-semaphore
        current-pseudo-random-generator
@@ -1287,6 +1304,10 @@
          [(module-path-index-join) 2]
          [(syntax-property) 2]
          [(peek-bytes! peek-string!) 2]
+         [(bytes-convert-end) 1]
+         [(port-write-handler port-display-handler port-print-handler) 1]
+         [(log-level?) 2]
+         [(log-max-level) 1]
          [(string-trim string-split) 1]
          [(compile-linklet) 1]
          [(recompile-linklet) 1]
@@ -1297,7 +1318,7 @@
                  ) 2]
          [(hash-update!) 3]
         [(random flrandom unsafe-flrandom make-semaphore current-pseudo-random-generator
-                 get-installation-name) 0]
+                 get-installation-name current-logger current-custodian make-custodian) 0]
          [(progress-evt? write-byte write-char get-output-bytes) 1]
          [(write-bytes write-string) 1]
          [else 1]))
@@ -1319,6 +1340,10 @@
                        write-bytes write-string) 4]
          [(peek-bytes! peek-string!) 5]
          [(peek-bytes peek-string) 3]
+         [(bytes-convert-end) 4]
+         [(port-write-handler port-display-handler port-print-handler) 2]
+         [(log-level?) 3]
+         [(log-max-level) 2]
          [(progress-evt? make-vector make-string make-bytes) 2]
          [(syntax-source-module) 2]
          [(custom-print-quotable-accessor) 2]
@@ -1327,6 +1352,8 @@
          [(module-path-index-join) 3]
          [(random) 2]
          [(current-pseudo-random-generator) 1]
+         [(current-logger) 1]
+         [(current-custodian make-custodian) 1]
          [(flrandom unsafe-flrandom) 1]
          [(vector-sort! vector-sort) 4]
          [(real->floating-point-bytes) 5]
@@ -1397,6 +1424,9 @@
     (make-inline-specs
      '(continuation-mark-set-first)
      'optional 2 4)
+    (make-inline-specs
+     '(continuation-prompt-available?)
+     'optional 1 2)
     (make-inline-specs
      '(open-output-bytes
        open-output-string
@@ -1519,6 +1549,7 @@
      '(raise
        procedure-arity-includes?
        procedure-reduce-arity
+       procedure-reduce-arity-mask
        number->string
        struct-type-property-predicate-procedure?
        hash->list
@@ -1556,7 +1587,7 @@
                  string-join string->bytes/utf-8 string->bytes/locale bytes->path
                  string->path-element bytes->path-element datum->correlated
                  struct-type-property-predicate-procedure?) 1]
-         [(procedure-arity-includes? procedure-reduce-arity) 2]
+         [(procedure-arity-includes? procedure-reduce-arity procedure-reduce-arity-mask) 2]
          [(number->string) 1]
          [(hash-for-each hash-map hash-map/copy correlated-property) 2]
          [(instantiate-linklet inclusive-range inclusive-range-proc) 2]
@@ -1578,7 +1609,7 @@
          [(string->path-element) 2]
          [(bytes->path-element) 3]
          [(procedure-arity-includes?) 3]
-         [(procedure-reduce-arity) 4]
+         [(procedure-reduce-arity procedure-reduce-arity-mask) 4]
          [(string->bytes/utf-8 string->bytes/locale) 4]
          [(hash-for-each hash-map hash-map/copy) 3]
          [(instantiate-linklet) 4]
@@ -1599,7 +1630,8 @@
          [(treelist-member? treelist-index-of) 'prim:equal?]
          [(struct->list) 'symbol:error]
          [(string-join) 'string:space]
-         [(procedure-reduce-arity bytes->path path->complete-path string->path-element
+         [(procedure-reduce-arity procedure-reduce-arity-mask
+                       bytes->path path->complete-path string->path-element
                        bytes->path-element datum->correlated correlated-property
                        inclusive-range inclusive-range-proc) 'missing]
          [else 'false])))
@@ -1844,6 +1876,18 @@
   webracket-impersonator-property-predicate
 
   current-thread
+  current-custodian custodian? make-custodian
+  custodian-shutdown-all custodian-shut-down?
+  make-custodian-box custodian-box? custodian-box-value
+  date? date*?
+  date-second date-minute date-hour date-day date-month date-year
+  date-week-day date-year-day date-dst? date-time-zone-offset
+  date*-nanosecond date*-time-zone-name
+  exn:break? exn:break-continuation
+  exn:break:hang-up? exn:break:terminate?
+  make-channel channel? channel-get channel-try-get
+  channel-put channel-put-evt channel-put-evt?
+  evt?
   make-thread-cell thread-cell? thread-cell-ref thread-cell-set!
   make-semaphore semaphore? semaphore-post call-with-semaphore semaphore-peek-evt semaphore-peek-evt?
   sync sync/timeout
@@ -2043,6 +2087,7 @@
   add1 sub1 gcd lcm
 
   number?
+  complex?
   real?
   rational?
   integer?
@@ -2175,6 +2220,8 @@
   bytes?  make-bytes  bytes-ref  bytes-set!  bytes-length  subbytes bytes-copy!
   bytes-copy bytes-fill!
   bytes-append bytes-append* bytes-join
+  bytes-converter? bytes-open-converter bytes-close-converter
+  bytes-convert bytes-convert-end
   bytes->immutable-bytes
   bytes->string/utf-8
   bytes->string/latin-1
@@ -2221,6 +2268,7 @@
   impersonator-property?
   impersonator-property-accessor-procedure?
   impersonator?
+  chaperone?
   impersonator-val
   output-port?  
   port-closed?
@@ -2229,6 +2277,9 @@
   current-error-port
   current-read-interaction
   port-read-handler
+  port-write-handler
+  port-display-handler
+  port-print-handler
   load-on-demand-enabled
   use-user-specific-search-paths
   read-square-bracket-as-paren
@@ -2250,6 +2301,13 @@
   read-decimal-as-inexact
   read-case-sensitive
   current-readtable
+  current-logger
+  logger?
+  make-logger
+  logger-name
+  log-level?
+  log-max-level
+  log-message
   print-syntax-width
   error-print-width
   error-print-source-location
@@ -2395,6 +2453,7 @@
   procedure-arity-mask
   procedure-arity-includes?
   procedure-reduce-arity
+  procedure-reduce-arity-mask
   arity-at-least
   make-arity-at-least
   arity-at-least?
@@ -2457,8 +2516,12 @@
 
   ;; 10.5 Continuation Marks
   unsafe-root-continuation-prompt-tag ; stable placeholder; prompts unsupported
-  current-continuation-marks  ; dummy, always returns #f
+  current-continuation-marks  ; dummy, returns an empty mark set
+  continuation-mark-set?
   continuation-mark-set-first ; bootstrap stub; full continuation marks unsupported
+  continuation-prompt-available?
+  continuation-prompt-tag?
+  continuation?
   current-parameterization    ; poor-man dynamic parameterization overlay
   parameterization?           ; recognizes poor-man parameterization overlays
   extend-parameterization     ; poor-man parameterization overlay constructor

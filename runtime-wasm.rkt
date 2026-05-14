@@ -1893,6 +1893,7 @@
     (add-runtime-string-constant 'linklet                    "#<linklet>")
     (add-runtime-string-constant 'instance                   "#<instance>")
     (add-runtime-string-constant 'namespace                  "#<namespace>")
+    (add-runtime-string-constant 'continuation-mark-set      "#<continuation-mark-set>")
     (add-runtime-string-constant 'hash-less-namespace-colon  "#<namespace:")
     (add-runtime-string-constant 'empty                      "")
     (add-runtime-string-constant 'open-paren                 "(")
@@ -1964,10 +1965,13 @@
     (add-runtime-string-constant 'parameterization?          "parameterization?")
     (add-runtime-string-constant 'pseudo-random-generator?   "pseudo-random-generator?")
     (add-runtime-string-constant 'impersonator-property?     "impersonator-property?")
+    (add-runtime-string-constant 'custodian?                 "custodian?")
+    (add-runtime-string-constant 'custodian-box?             "custodian-box?")
     (add-runtime-string-constant 'mpair-or-null              "(or/c mpair? null?)")
     (add-runtime-string-constant 'catch*-matching-lengths    "same number of handlers as predicates")
     (add-runtime-string-constant 'real?                      "real?")
     (add-runtime-string-constant 'exact-nonnegative-integer? "exact-nonnegative-integer?")
+    (add-runtime-string-constant 'exact-integer?             "exact-integer?")
     (add-runtime-string-constant 'semaphore?                 "semaphore?")
     (add-runtime-string-constant 'evt?                       "evt?")
     (add-runtime-string-constant 'procedure-arity?           "procedure-arity?")
@@ -2003,6 +2007,8 @@
     (add-runtime-string-constant 'system-path-kind           "(or/c 'home-dir 'pref-dir 'pref-file 'temp-dir 'init-dir 'init-file 'config-dir 'host-config-dir 'addon-dir 'host-addon-dir 'cache-dir 'doc-dir 'desk-dir 'sys-dir 'exec-file 'run-file 'collects-dir 'host-collects-dir 'orig-dir)")
     (add-runtime-string-constant 'string-or-bytes            "(or/c string? bytes?)")
     (add-runtime-string-constant 'boolean?                   "boolean?")
+    (add-runtime-string-constant 'date?                      "date?")
+    (add-runtime-string-constant 'date*?                     "date*?")
     (add-runtime-string-constant 'racket-version             (version))
     (add-runtime-string-constant 'webracket-machine          "WebRacket")
     (add-runtime-string-constant 'uncaught-exception         "uncaught exception: ")
@@ -2010,7 +2016,63 @@
                                  "The callback attempted to return a WebRacket value with no JavaScript equivalent (i.e. without a FASL encoding): ")
     (add-runtime-symbol-constant 'wr-ref)
     (add-runtime-symbol-constant 'call-with-escape-continuation)
+    (add-runtime-symbol-constant 'current-logger)
+    (add-runtime-symbol-constant 'logger?)
+    (add-runtime-symbol-constant 'make-logger)
+    (add-runtime-symbol-constant 'logger-name)
+    (add-runtime-symbol-constant 'log-level?)
+    (add-runtime-symbol-constant 'log-max-level)
+    (add-runtime-symbol-constant 'log-message)
+    (add-runtime-symbol-constant 'bytes-converter?)
+    (add-runtime-symbol-constant 'bytes-open-converter)
+    (add-runtime-symbol-constant 'bytes-close-converter)
+    (add-runtime-symbol-constant 'bytes-convert)
+    (add-runtime-symbol-constant 'bytes-convert-end)
+    (add-runtime-symbol-constant 'complete)
+    (add-runtime-symbol-constant 'continues)
+    (add-runtime-symbol-constant 'make-channel)
+    (add-runtime-symbol-constant 'channel?)
+    (add-runtime-symbol-constant 'channel-get)
+    (add-runtime-symbol-constant 'channel-try-get)
+    (add-runtime-symbol-constant 'channel-put)
+    (add-runtime-symbol-constant 'channel-put-evt)
+    (add-runtime-symbol-constant 'channel-put-evt?)
+    (add-runtime-symbol-constant 'evt?)
+    (add-runtime-symbol-constant 'chaperone?)
+    (add-runtime-symbol-constant 'continuation-mark-set?)
+    (add-runtime-symbol-constant 'continuation-prompt-available?)
+    (add-runtime-symbol-constant 'continuation-prompt-tag?)
+    (add-runtime-symbol-constant 'continuation?)
+    (add-runtime-symbol-constant 'current-custodian)
+    (add-runtime-symbol-constant 'custodian?)
+    (add-runtime-symbol-constant 'make-custodian)
+    (add-runtime-symbol-constant 'custodian-shutdown-all)
+    (add-runtime-symbol-constant 'custodian-shut-down?)
+    (add-runtime-symbol-constant 'make-custodian-box)
+    (add-runtime-symbol-constant 'custodian-box?)
+    (add-runtime-symbol-constant 'custodian-box-value)
+    (add-runtime-symbol-constant 'date?)
+    (add-runtime-symbol-constant 'date*?)
+    (add-runtime-symbol-constant 'date-second)
+    (add-runtime-symbol-constant 'date-minute)
+    (add-runtime-symbol-constant 'date-hour)
+    (add-runtime-symbol-constant 'date-day)
+    (add-runtime-symbol-constant 'date-month)
+    (add-runtime-symbol-constant 'date-year)
+    (add-runtime-symbol-constant 'date-week-day)
+    (add-runtime-symbol-constant 'date-year-day)
+    (add-runtime-symbol-constant 'date-dst?)
+    (add-runtime-symbol-constant 'date-time-zone-offset)
+    (add-runtime-symbol-constant 'date*-nanosecond)
+    (add-runtime-symbol-constant 'date*-time-zone-name)
+    (add-runtime-symbol-constant 'exn:break?)
+    (add-runtime-symbol-constant 'exn:break-continuation)
+    (add-runtime-symbol-constant 'exn:break:hang-up?)
+    (add-runtime-symbol-constant 'exn:break:terminate?)
     (add-runtime-symbol-constant 'port-read-handler)
+    (add-runtime-symbol-constant 'port-write-handler)
+    (add-runtime-symbol-constant 'port-display-handler)
+    (add-runtime-symbol-constant 'port-print-handler)
     (add-runtime-symbol-constant 'load-on-demand-enabled)
     (add-runtime-symbol-constant 'read-square-bracket-as-paren)
     (add-runtime-symbol-constant 'read-curly-brace-as-paren)
@@ -2150,6 +2212,9 @@
     (add-runtime-string-constant 'listof-instance?              "(listof instance?)")
     (add-runtime-string-constant 'distinct-listof-symbol?       "(and/c (listof symbol?) distinct?)")
     (add-runtime-string-constant 'symbol-or-false               "(or/c symbol? #f)")
+    (add-runtime-string-constant 'logger?                       "logger?")
+    (add-runtime-string-constant 'bytes-converter?              "bytes-converter?")
+    (add-runtime-string-constant 'channel?                      "channel?")
     (add-runtime-string-constant 'instance-mode?                "(or/c #f 'constant 'consistent)")
     (add-runtime-string-constant 'instance-or-false             "(or/c instance? #f)")
     (add-runtime-string-constant 'variable-reference?           "variable-reference?")
@@ -2348,6 +2413,46 @@
           (type $Thread (sub $Heap
                              (struct
                                (field $hash (mut i32)))))
+          ;; Minimal logger objects. They are enough for racket/base modules
+          ;; that test logging levels before emitting; receivers/events can be
+          ;; layered on later if browser logging becomes a goal.
+          (type $Logger (sub $Heap
+                             (struct
+                               (field $hash (mut i32))
+                               (field $name (ref eq)))))
+          ;; Minimal byte converters. For now they represent the guaranteed
+          ;; UTF-8/locale-as-UTF-8 identity conversions used while booting
+          ;; module libraries; full transcoding belongs with richer I/O/rktio.
+          (type $BytesConverter (sub $Heap
+                                     (struct
+                                       (field $hash   (mut i32))
+                                       (field $closed (mut i32)))))
+          (type $Channel (sub $Heap
+                              (struct
+                                (field $hash  (mut i32))
+                                (field $ready (mut i32))
+                                (field $value (mut (ref eq))))))
+          (type $ChannelPutEvt (sub $Heap
+                                    (struct
+                                      (field $hash (mut i32))
+                                      (field $ch   (ref $Channel))
+                                      (field $v    (ref eq)))))
+          (type $ContinuationMarkSet (sub $Heap
+                                          (struct
+                                            (field $hash (mut i32)))))
+          ;; Minimal custodians for browser/module bootstrap. They track a
+          ;; shutdown bit so custodian boxes can report #f after shutdown, but
+          ;; WebRacket does not yet manage ports, threads, or memory by
+          ;; custodian.
+          (type $Custodian (sub $Heap
+                                (struct
+                                  (field $hash      (mut i32))
+                                  (field $shutdown? (mut i32)))))
+          (type $CustodianBox (sub $Heap
+                                   (struct
+                                     (field $hash (mut i32))
+                                     (field $cust (ref $Custodian))
+                                     (field $v    (mut (ref eq))))))
           (type $Semaphore (sub $Heap
                                 (struct
                                   (field $hash  (mut i32))
@@ -10022,6 +10127,15 @@
 	                                     (then (global.get $true))
 	                                     (else (global.get $false))))))))
 
+         ;; complex? : any/c -> boolean?
+         ;;   Racket defines complex? as number?. WebRacket currently has
+         ;;   fixnum, flonum, and a small complex representation, so delegate
+         ;;   to number? to keep the numeric tower predicate consistent.
+         (func $complex? (type $Prim1)
+               (param $v (ref eq))
+               (result (ref eq))
+               (return_call $number? (local.get $v)))
+
 	        (func $real? (type $Prim1)
 	              ;; Complex numbers are numbers, but they are not real.
 	              (param $v (ref eq))
@@ -16073,6 +16187,167 @@
                            (i32.const 0)          ;; hash
                            (i32.const 0)          ;; immutable = false
                            (local.get $a2)))
+
+         ;; bytes-converter? : any/c -> boolean?
+         ;;   Recognize WebRacket's minimal byte converters.
+         (func $bytes-converter? (type $Prim1)
+               ,@(make-predicate-body '$BytesConverter))
+
+         ;; bytes-open-converter : string? string? -> (or/c bytes-converter? #f)
+         ;;   Support the guaranteed UTF-8 identity cases used by module
+         ;;   startup. WebRacket currently treats locale encoding as UTF-8.
+         (func $bytes-open-converter (type $Prim2)
+               (param $from (ref eq)) ;; string?
+               (param $to   (ref eq)) ;; string?
+               (result      (ref eq))
+               (if (i32.eqz (ref.test (ref $String) (local.get $from)))
+                   (then (call $raise-check-string (local.get $from)) (unreachable)))
+               (if (i32.eqz (ref.test (ref $String) (local.get $to)))
+                   (then (call $raise-check-string (local.get $to)) (unreachable)))
+               (struct.new $BytesConverter (i32.const 0) (i32.const 0)))
+
+         ;; bytes-close-converter : bytes-converter? -> void?
+         ;;   Mark the minimal converter closed; it remains a converter? value,
+         ;;   matching Racket's predicate behavior after close.
+         (func $bytes-close-converter (type $Prim1)
+               (param $converter-raw (ref eq)) ;; bytes-converter?
+               (result               (ref eq))
+               (if (i32.eqz (ref.test (ref $BytesConverter) (local.get $converter-raw)))
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:bytes-close-converter)
+                               (global.get $string:bytes-converter?)
+                               (local.get $converter-raw))
+                         (unreachable)))
+               (struct.set $BytesConverter $closed
+                           (ref.cast (ref $BytesConverter) (local.get $converter-raw))
+                           (i32.const 1))
+               (global.get $void))
+
+         ;; bytes-convert : bytes-converter? bytes? [start end dest dest-start dest-end] -> values
+         ;;   Minimal identity conversion for UTF-8/locale-as-UTF-8. The
+         ;;   optional destination limit is accepted but this first slice only
+         ;;   supports complete copies that fit the destination.
+         (func $bytes-convert (type $Prim>=2)
+               (param $converter-raw (ref eq)) ;; bytes-converter?
+               (param $src-raw       (ref eq)) ;; bytes?
+               (param $rest          (ref eq)) ;; optional arguments
+               (result               (ref eq))
+
+               (local $src          (ref $Bytes))
+               (local $node         (ref eq))
+               (local $src-start    (ref eq))
+               (local $src-end      (ref eq))
+               (local $dest-raw     (ref eq))
+               (local $dest-start   (ref eq))
+               (local $slice        (ref eq))
+               (local $read-count   i32)
+
+               (if (i32.eqz (ref.test (ref $BytesConverter) (local.get $converter-raw)))
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:bytes-convert)
+                               (global.get $string:bytes-converter?)
+                               (local.get $converter-raw))
+                         (unreachable)))
+               (if (i32.eq
+                    (struct.get $BytesConverter $closed
+                                (ref.cast (ref $BytesConverter) (local.get $converter-raw)))
+                    (i32.const 1))
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:bytes-convert)
+                               (global.get $string:bytes-converter?)
+                               (local.get $converter-raw))
+                         (unreachable)))
+               (if (i32.eqz (ref.test (ref $Bytes) (local.get $src-raw)))
+                   (then (call $raise-check-bytes (local.get $src-raw)) (unreachable)))
+               (local.set $src (ref.cast (ref $Bytes) (local.get $src-raw)))
+               (local.set $src-start (ref.i31 (i32.const 0)))
+               (local.set $src-end
+                          (ref.i31
+                           (i32.shl
+                            (call $i8array-length (struct.get $Bytes $bs (local.get $src)))
+                            (i32.const 1))))
+               (local.set $dest-raw (global.get $false))
+               (local.set $dest-start (ref.i31 (i32.const 0)))
+               (local.set $node (local.get $rest))
+               (if (ref.test (ref $Pair) (local.get $node))
+                   (then
+                    (local.set $src-start (struct.get $Pair $a (ref.cast (ref $Pair) (local.get $node))))
+                    (local.set $node (struct.get $Pair $d (ref.cast (ref $Pair) (local.get $node))))))
+               (if (ref.test (ref $Pair) (local.get $node))
+                   (then
+                    (local.set $src-end (struct.get $Pair $a (ref.cast (ref $Pair) (local.get $node))))
+                    (local.set $node (struct.get $Pair $d (ref.cast (ref $Pair) (local.get $node))))))
+               (if (ref.test (ref $Pair) (local.get $node))
+                   (then
+                    (local.set $dest-raw (struct.get $Pair $a (ref.cast (ref $Pair) (local.get $node))))
+                    (local.set $node (struct.get $Pair $d (ref.cast (ref $Pair) (local.get $node))))))
+               (if (ref.test (ref $Pair) (local.get $node))
+                   (then
+                    (local.set $dest-start (struct.get $Pair $a (ref.cast (ref $Pair) (local.get $node))))))
+               (local.set $slice
+                          (call $subbytes
+                                (local.get $src-raw)
+                                (local.get $src-start)
+                                (local.get $src-end)))
+               (local.set $read-count
+                          (i32.sub
+                           (i32.shr_u (i31.get_u (ref.cast (ref i31) (local.get $src-end))) (i32.const 1))
+                           (i32.shr_u (i31.get_u (ref.cast (ref i31) (local.get $src-start))) (i32.const 1))))
+               (if (ref.eq (local.get $dest-raw) (global.get $false))
+                   (then
+                    (return
+                     (array.new_fixed $Values
+                                      3
+                                      (local.get $slice)
+                                      (ref.i31 (i32.shl (local.get $read-count) (i32.const 1)))
+                                      (global.get $symbol:complete)))))
+               (if (i32.eqz (ref.test (ref $Bytes) (local.get $dest-raw)))
+                   (then (call $raise-check-bytes (local.get $dest-raw)) (unreachable)))
+               (drop (call $bytes-copy!
+                           (local.get $dest-raw)
+                           (local.get $dest-start)
+                           (local.get $slice)
+                           (global.get $missing)
+                           (global.get $missing)))
+               (array.new_fixed $Values
+                                3
+                                (ref.i31 (i32.shl (local.get $read-count) (i32.const 1)))
+                                (ref.i31 (i32.shl (local.get $read-count) (i32.const 1)))
+                                (global.get $symbol:complete)))
+
+         ;; bytes-convert-end : bytes-converter? [dest dest-start dest-end] -> values
+         ;;   Identity converters have no shift sequence, so conversion ends
+         ;;   with empty output and 'complete.
+         (func $bytes-convert-end (type $Prim14)
+               (param $converter-raw (ref eq)) ;; bytes-converter?
+               (param $dest-raw      (ref eq)) ;; optional (or/c bytes? #f)
+               (param $dest-start    (ref eq)) ;; optional exact-nonnegative-integer?
+               (param $dest-end      (ref eq)) ;; optional bound, ignored
+               (result               (ref eq))
+               (if (i32.eqz (ref.test (ref $BytesConverter) (local.get $converter-raw)))
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:bytes-convert-end)
+                               (global.get $string:bytes-converter?)
+                               (local.get $converter-raw))
+                         (unreachable)))
+               (if (ref.eq (local.get $dest-raw) (global.get $missing))
+                   (then (local.set $dest-raw (global.get $false))))
+               (if (ref.eq (local.get $dest-raw) (global.get $false))
+                   (then
+                    (return
+                     (array.new_fixed $Values
+                                      2
+                                      (struct.new $Bytes
+                                                  (i32.const 0)
+                                                  (i32.const 0)
+                                                  (array.new_fixed $I8Array 0))
+                                      (global.get $symbol:complete)))))
+               (if (i32.eqz (ref.test (ref $Bytes) (local.get $dest-raw)))
+                   (then (call $raise-check-bytes (local.get $dest-raw)) (unreachable)))
+               (array.new_fixed $Values
+                                2
+                                (ref.i31 (i32.const 0))
+                                (global.get $symbol:complete)))
 
          (func $raise-expected-mutable-bytes (unreachable))
          
@@ -34042,6 +34317,9 @@
                ;       problem: set-boxed! is currently wrapped by drop in
                ;                the code generator. Add an rule that avoids
                ;                the drop for set-boxed!.
+               ;; Internal compiler boxes use unsafe-undefined as a placeholder.
+               ;; Reads through $unboxed are guarded above; writes must be able
+               ;; to fill the placeholder for Schemify/Webify lowered modules.
                (param $b (ref eq)) (param $v (ref eq))
                (result (ref eq))
                ; 1. Cast $b into a (ref $Box)
@@ -34050,8 +34328,6 @@
                           (block $ok (result (ref $Boxed))
                                  (br_on_cast $ok (ref eq) (ref $Boxed) (local.get $b))
                                  (return (global.get $error))))
-	               (if (ref.eq (struct.get $Boxed $v (local.get $B)) (global.get $unsafe-undefined))
-	                   (then (call $raise-letrec-placeholder-access)))
                ; 2. Set the contents
                (struct.set $Boxed $v (local.get $B) (local.get $v))
                ; 3. Return `void`
@@ -34246,6 +34522,227 @@
                (result (ref eq))
                (global.get $current-thread-value))
 
+         ;; logger? : any/c -> boolean?
+         ;;   Predicate for WebRacket's minimal logger objects.
+         (func $logger? (type $Prim1)
+               ,@(make-predicate-body '$Logger))
+
+         ;; make-logger : [(or/c symbol? #f)] ... -> logger?
+         ;;   Create an inert logger. Only the optional topic/name is retained;
+         ;;   parent and filter arguments are accepted but ignored for now.
+         (func $make-logger (type $Prim>=0)
+               (param $args (ref eq)) ;; list of optional logger arguments
+               (result      (ref eq))
+               (local $name (ref eq))
+               (local.set $name (global.get $false))
+               (if (ref.test (ref $Pair) (local.get $args))
+                   (then
+                    (local.set $name
+                               (struct.get $Pair $a
+                                           (ref.cast (ref $Pair) (local.get $args))))))
+               (if (i32.eqz (i32.or (ref.eq (local.get $name) (global.get $false))
+                                     (ref.test (ref $Symbol) (local.get $name))))
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:make-logger)
+                               (global.get $string:symbol-or-false)
+                               (local.get $name))
+                         (unreachable)))
+               (struct.new $Logger (i32.const 0) (local.get $name)))
+
+         ;; logger-name : logger? -> (or/c symbol? #f)
+         ;;   Return the topic/name carried by a minimal logger.
+         (func $logger-name (type $Prim1)
+               (param $logger-raw (ref eq)) ;; logger?
+               (result            (ref eq))
+               (if (i32.eqz (ref.test (ref $Logger) (local.get $logger-raw)))
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:logger-name)
+                               (global.get $string:logger?)
+                               (local.get $logger-raw))
+                         (unreachable)))
+               (struct.get $Logger $name
+                           (ref.cast (ref $Logger) (local.get $logger-raw))))
+
+         ;; current-logger : [logger?] -> logger? or void?
+         ;;   Parameter-like current logger. It participates in the existing
+         ;;   poor-man's parameterization table so parameterize can override it.
+         (func $current-logger (type $Prim01)
+               (param $logger-raw (ref eq)) ;; optional logger?
+               (result            (ref eq))
+               (if (ref.eq (local.get $logger-raw) (global.get $missing))
+                   (then (return (call $parameter-value-or-global
+                                       (global.get $prim:current-logger)
+                                       (global.get $current-logger-value)))))
+               (if (i32.eqz (ref.test (ref $Logger) (local.get $logger-raw)))
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:current-logger)
+                               (global.get $string:logger?)
+                               (local.get $logger-raw))
+                         (unreachable)))
+               (if (i32.eqz (ref.eq (global.get $current-parameterization-value)
+                                     (global.get $false)))
+                   (then (return (call $extend-current-parameterization!
+                                       (global.get $prim:current-logger)
+                                       (local.get $logger-raw)))))
+               (global.set $current-logger-value (local.get $logger-raw))
+               (global.get $void))
+
+         ;; log-level? : logger? log-level/c [(or/c symbol? #f)] -> #f
+         ;;   Logging is currently inert in WebRacket; returning #f keeps
+         ;;   library logging branches quiet without needing receivers/events.
+         (func $log-level? (type $Prim23)
+               (param $logger-raw (ref eq)) ;; logger?
+               (param $level      (ref eq)) ;; log-level/c, currently ignored
+               (param $topic      (ref eq)) ;; optional topic, currently ignored
+               (result            (ref eq))
+               (if (i32.eqz (ref.test (ref $Logger) (local.get $logger-raw)))
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:log-level?)
+                               (global.get $string:logger?)
+                               (local.get $logger-raw))
+                         (unreachable)))
+               (global.get $false))
+
+         ;; log-max-level : logger? [(or/c symbol? #f)] -> #f
+         ;;   Inert logger support reports no enabled levels.
+         (func $log-max-level (type $Prim12)
+               (param $logger-raw (ref eq)) ;; logger?
+               (param $topic      (ref eq)) ;; optional topic, currently ignored
+               (result            (ref eq))
+               (if (i32.eqz (ref.test (ref $Logger) (local.get $logger-raw)))
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:log-max-level)
+                               (global.get $string:logger?)
+                               (local.get $logger-raw))
+                         (unreachable)))
+               (global.get $false))
+
+         ;; log-message : logger? log-level/c any/c ... -> void?
+         ;;   Accept and discard log messages for the inert logger substrate.
+         (func $log-message (type $Prim>=3)
+               (param $logger-raw (ref eq)) ;; logger?
+               (param $level      (ref eq)) ;; log-level/c, currently ignored
+               (param $message    (ref eq)) ;; any/c, currently ignored
+               (param $rest       (ref eq)) ;; remaining optional args
+               (result            (ref eq))
+               (if (i32.eqz (ref.test (ref $Logger) (local.get $logger-raw)))
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:log-message)
+                               (global.get $string:logger?)
+                               (local.get $logger-raw))
+                         (unreachable)))
+               (global.get $void))
+
+         ;; make-channel : -> channel?
+         ;;   Create a single-threaded one-slot channel. Real Racket channels
+         ;;   synchronize senders and receivers; WebRacket will need scheduler
+         ;;   support before blocking semantics can be reinstated.
+         (func $make-channel (type $Prim0)
+               (result (ref eq))
+               (struct.new $Channel
+                           (i32.const 0)
+                           (i32.const 0)
+                           (global.get $false)))
+
+         ;; channel? : any/c -> boolean?
+         ;;   Predicate for WebRacket's lightweight channels.
+         (func $channel? (type $Prim1)
+               ,@(make-predicate-body '$Channel))
+
+         ;; channel-put-evt? : any/c -> boolean?
+         ;;   Predicate for lightweight channel put events.
+         (func $channel-put-evt? (type $Prim1)
+               ,@(make-predicate-body '$ChannelPutEvt))
+
+         ;; evt? : any/c -> boolean?
+         ;;   Recognize the synchronizable event values implemented by the
+         ;;   current single-threaded substrate.
+         (func $evt? (type $Prim1)
+               (param $v (ref eq)) ;; any/c
+               (result   (ref eq))
+               (if (ref.test (ref $AlwaysEvt) (local.get $v))
+                   (then (return (global.get $true))))
+               (if (ref.test (ref $NeverEvt) (local.get $v))
+                   (then (return (global.get $true))))
+               (if (ref.test (ref $Thread) (local.get $v))
+                   (then (return (global.get $true))))
+               (if (ref.test (ref $Semaphore) (local.get $v))
+                   (then (return (global.get $true))))
+               (if (ref.test (ref $SemaphorePeekEvt) (local.get $v))
+                   (then (return (global.get $true))))
+               (if (ref.test (ref $Channel) (local.get $v))
+                   (then (return (global.get $true))))
+               (if (ref.test (ref $ChannelPutEvt) (local.get $v))
+                   (then (return (global.get $true))))
+               (if (ref.test (ref $CustodianBox) (local.get $v))
+                   (then (return (global.get $true))))
+               (global.get $false))
+
+         ;; channel-put : channel? any/c -> void?
+         ;;   Store one pending value. Without a scheduler this does not block
+         ;;   waiting for a receiver; later puts overwrite the pending slot.
+         (func $channel-put (type $Prim2)
+               (param $ch-raw (ref eq)) ;; channel?
+               (param $v      (ref eq)) ;; any/c
+               (result        (ref eq))
+               (if (i32.eqz (ref.test (ref $Channel) (local.get $ch-raw)))
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:channel-put)
+                               (global.get $string:channel?)
+                               (local.get $ch-raw))
+                         (unreachable)))
+               (struct.set $Channel $value
+                           (ref.cast (ref $Channel) (local.get $ch-raw))
+                           (local.get $v))
+               (struct.set $Channel $ready
+                           (ref.cast (ref $Channel) (local.get $ch-raw))
+                           (i32.const 1))
+               (global.get $void))
+
+         ;; channel-try-get : channel? -> any/c
+         ;;   Return a pending value if one is available, otherwise #f.
+         (func $channel-try-get (type $Prim1)
+               (param $ch-raw (ref eq)) ;; channel?
+               (result        (ref eq))
+               (local $ch (ref $Channel))
+               (if (i32.eqz (ref.test (ref $Channel) (local.get $ch-raw)))
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:channel-try-get)
+                               (global.get $string:channel?)
+                               (local.get $ch-raw))
+                         (unreachable)))
+               (local.set $ch (ref.cast (ref $Channel) (local.get $ch-raw)))
+               (if (i32.eqz (struct.get $Channel $ready (local.get $ch)))
+                   (then (return (global.get $false))))
+               (struct.set $Channel $ready (local.get $ch) (i32.const 0))
+               (struct.get $Channel $value (local.get $ch)))
+
+         ;; channel-get : channel? -> any/c
+         ;;   Single-threaded approximation: consume a pending value or return
+         ;;   #f instead of blocking forever.
+         (func $channel-get (type $Prim1)
+               (param $ch-raw (ref eq)) ;; channel?
+               (result        (ref eq))
+               (return_call $channel-try-get (local.get $ch-raw)))
+
+         ;; channel-put-evt : channel? any/c -> channel-put-evt?
+         ;;   Build a synchronizable put event. In the current single-threaded
+         ;;   sync approximation it becomes ready immediately.
+         (func $channel-put-evt (type $Prim2)
+               (param $ch-raw (ref eq)) ;; channel?
+               (param $v      (ref eq)) ;; any/c
+               (result        (ref eq))
+               (if (i32.eqz (ref.test (ref $Channel) (local.get $ch-raw)))
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:channel-put-evt)
+                               (global.get $string:channel?)
+                               (local.get $ch-raw))
+                         (unreachable)))
+               (struct.new $ChannelPutEvt
+                           (i32.const 0)
+                           (ref.cast (ref $Channel) (local.get $ch-raw))
+                           (local.get $v)))
+
          ;; make-semaphore : [exact-nonnegative-integer? = 0] -> semaphore?
          ;;   Create a lightweight single-threaded semaphore.
          (func $make-semaphore (type $Prim01)
@@ -34429,6 +34926,8 @@
 
                (local $sema (ref $Semaphore))
                (local $peek (ref $SemaphorePeekEvt))
+               (local $ch   (ref $Channel))
+               (local $put  (ref $ChannelPutEvt))
 
                (if (ref.test (ref $AlwaysEvt) (local.get $evt))
                    (then (return (local.get $evt))))
@@ -34461,6 +34960,25 @@
                                   (i32.const 0))
                         (then (return (local.get $evt))))
                     (return (global.get $false))))
+               (if (ref.test (ref $Channel) (local.get $evt))
+                   (then
+                    (local.set $ch (ref.cast (ref $Channel) (local.get $evt)))
+                    (if (i32.eqz (struct.get $Channel $ready (local.get $ch)))
+                        (then (return (global.get $false))))
+                    (if (local.get $consume?)
+                        (then (struct.set $Channel $ready
+                                          (local.get $ch)
+                                          (i32.const 0))))
+                    (return (struct.get $Channel $value (local.get $ch)))))
+               (if (ref.test (ref $ChannelPutEvt) (local.get $evt))
+                   (then
+                    (local.set $put (ref.cast (ref $ChannelPutEvt) (local.get $evt)))
+                    (if (local.get $consume?)
+                        (then
+                         (drop (call $channel-put
+                                     (struct.get $ChannelPutEvt $ch (local.get $put))
+                                     (struct.get $ChannelPutEvt $v (local.get $put))))))
+                    (return (local.get $evt))))
                ;; Keep the first event layer permissive: other event kinds from
                ;; imported linklets can be added here as they become reachable.
                (global.get $false))
@@ -41226,6 +41744,11 @@
         (func $impersonator? (type $Prim1)
               (param $v (ref eq)) ;; any value
               (result   (ref eq)) ;; always #f; WebRacket has no impersonators
+              (global.get $false))
+
+        (func $chaperone? (type $Prim1)
+              (param $v (ref eq)) ;; any value
+              (result   (ref eq)) ;; always #f; WebRacket has no chaperones
               (global.get $false))
 
         (func $impersonator-val (type $Prim1)
@@ -49233,6 +49756,9 @@
               (ref.func $default-current-read-interaction)
               (ref.func $default-port-read-handler)
               (ref.func $default-port-read-handler/1)
+              (ref.func $default-port-write-handler)
+              (ref.func $default-port-display-handler)
+              (ref.func $default-port-print-handler)
 
               ;; Primitive invokers for the different shapes
               ,@(for/list ([shape (in-list primitive-shapes)])
@@ -51656,6 +52182,103 @@
                             (br $loop)))
                (local.get $mask))
 
+         (func $procedure-arity-mask-value->field
+               (param $who      (ref eq))
+               (param $mask-raw (ref eq)) ; exact-integer?
+               (result (ref eq))
+
+               (local $mask          i32)
+               (local $negative?     i32)
+               (local $at-least-from i32)
+               (local $limit         i32)
+               (local $i             i32)
+               (local $len           i32)
+               (local $out           i32)
+               (local $marker        i32)
+               (local $arr           (ref $I32Array))
+
+               (if (ref.eq (call $exact-integer? (local.get $mask-raw)) (global.get $false))
+                   (then
+                    (call $raise-argument-error1
+                          (local.get $who)
+                          (global.get $string:exact-integer?)
+                          (local.get $mask-raw))
+                    (unreachable)))
+               (local.set $mask
+                          (i32.shr_s
+                           (i31.get_s (ref.cast (ref i31) (local.get $mask-raw)))
+                           (i32.const 1)))
+               (local.set $negative? (i32.lt_s (local.get $mask) (i32.const 0)))
+               (local.set $at-least-from (i32.const 31))
+               (local.set $limit (i32.const 31))
+               (if (local.get $negative?)
+                   (then
+                    ;; Negative masks represent exact arities below the first
+                    ;; all-ones suffix plus an arity-at-least marker.
+                    (local.set $at-least-from (i32.const 0))
+                    (block $found
+                           (loop $find
+                                 (if (i32.eq (i32.shr_s
+                                              (local.get $mask)
+                                              (local.get $at-least-from))
+                                             (i32.const -1))
+                                     (then (br $found)))
+                                 (local.set $at-least-from
+                                            (i32.add (local.get $at-least-from)
+                                                     (i32.const 1)))
+                                 (br $find)))
+                    (local.set $limit (local.get $at-least-from))))
+
+               (local.set $i (i32.const 0))
+               (block $count-done
+                      (loop $count
+                            (br_if $count-done (i32.ge_u (local.get $i) (local.get $limit)))
+                            (if (i32.ne (i32.and (local.get $mask)
+                                                 (i32.shl (i32.const 1) (local.get $i)))
+                                        (i32.const 0))
+                                (then
+                                 (local.set $marker (local.get $i))
+                                 (local.set $len (i32.add (local.get $len) (i32.const 1)))))
+                            (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                            (br $count)))
+               (if (local.get $negative?)
+                   (then
+                    (local.set $marker
+                               (i32.sub (i32.const -1) (local.get $at-least-from)))
+                    (local.set $len (i32.add (local.get $len) (i32.const 1)))))
+               (if (i32.eqz (local.get $len))
+                   (then
+                    (return (ref.cast (ref eq)
+                                      (array.new_fixed $I32Array 0)))))
+               (if (i32.eq (local.get $len) (i32.const 1))
+                   (then
+                    (return (ref.i31 (i32.shl (local.get $marker) (i32.const 1))))))
+
+               (local.set $arr (call $i32array-make (local.get $len) (i32.const 0)))
+               (local.set $i (i32.const 0))
+               (local.set $out (i32.const 0))
+               (block $fill-done
+                      (loop $fill
+                            (br_if $fill-done (i32.ge_u (local.get $i) (local.get $limit)))
+                            (if (i32.ne (i32.and (local.get $mask)
+                                                 (i32.shl (i32.const 1) (local.get $i)))
+                                        (i32.const 0))
+                                (then
+                                 (call $i32array-set!
+                                       (local.get $arr)
+                                       (local.get $out)
+                                       (local.get $i))
+                                 (local.set $out (i32.add (local.get $out) (i32.const 1)))))
+                            (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                            (br $fill)))
+               (if (local.get $negative?)
+                   (then
+                    (call $i32array-set!
+                          (local.get $arr)
+                          (local.get $out)
+                          (i32.sub (i32.const -1) (local.get $at-least-from)))))
+               (ref.cast (ref eq) (local.get $arr)))
+
          ;; make-composed-procedure : list? boolean? -> procedure?
          ;;   Build the procedure returned by compose or compose1.
          (func $make-composed-procedure
@@ -51801,6 +52424,82 @@
 
                ;; Keep the original procedure as payload. The reduced wrapper
                ;; checks its new arity, then forwards the original user args.
+               (local.set $free (array.new_fixed $Free 1 (local.get $p)))
+               (struct.new $Closure
+                           (i32.const 0)
+                           (local.get $new-name)
+                           (local.get $new-arity)
+                           (local.get $new-realm)
+                           (ref.func $invoke-reduced-procedure)
+                           (local.get $new-name)
+                           (ref.func $dummy-code)
+                           (local.get $free)))
+
+         (func $procedure-reduce-arity-mask
+               (param $proc  (ref eq)) ; procedure?
+               (param $mask  (ref eq)) ; exact-integer?
+               (param $name  (ref eq)) ; (or/c symbol? #f), default #f
+               (param $realm (ref eq)) ; symbol?, default 'racket
+               (result (ref eq))
+
+               (local $p          (ref $Procedure))
+               (local $new-arity  (ref eq))
+               (local $new-mask   i32)
+               (local $old-mask   i32)
+               (local $new-name   (ref eq))
+               (local $new-realm  (ref eq))
+               (local $free       (ref $Free))
+
+               (local.set $new-arity (global.get $false))
+               (local.set $new-name  (global.get $false))
+               (local.set $new-realm (global.get $false))
+               (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
+                   (then (call $raise-argument-error:procedure-expected (local.get $proc))
+                         (unreachable)))
+               (local.set $p (ref.cast (ref $Procedure) (local.get $proc)))
+               (local.set $new-arity
+                          (call $procedure-arity-mask-value->field
+                                (global.get $symbol:procedure-reduce-arity-mask)
+                                (local.get $mask)))
+               (local.set $new-mask (call $procedure-arity-field->mask/i32 (local.get $new-arity)))
+               (local.set $old-mask (call $procedure-arity-mask/checked/i32 (local.get $p)))
+               (if (i32.ne (i32.and (local.get $new-mask)
+                                    (i32.xor (local.get $old-mask) (i32.const -1)))
+                           (i32.const 0))
+                   (then
+                    (call $raise-argument-error1
+                          (global.get $symbol:procedure-reduce-arity-mask)
+                          (global.get $string:exact-integer?)
+                          (local.get $mask))
+                    (unreachable)))
+
+               (if (ref.eq (local.get $name) (global.get $missing))
+                   (then (local.set $name (global.get $false))))
+               (if (ref.eq (local.get $name) (global.get $false))
+                   (then
+                    (local.set $new-name  (struct.get $Procedure $name (local.get $p)))
+                    (local.set $new-realm (struct.get $Procedure $realm (local.get $p))))
+                   (else
+                    (if (i32.eqz (ref.test (ref $Symbol) (local.get $name)))
+                        (then
+                         (call $raise-argument-error1
+                               (global.get $symbol:procedure-reduce-arity-mask)
+                               (global.get $string:symbol?)
+                               (local.get $name))
+                         (unreachable)))
+                    (local.set $new-name (local.get $name))
+                    (if (ref.eq (local.get $realm) (global.get $missing))
+                        (then (local.set $new-realm (global.get $symbol:racket)))
+                        (else
+                         (if (i32.eqz (ref.test (ref $Symbol) (local.get $realm)))
+                             (then
+                              (call $raise-argument-error1
+                                    (global.get $symbol:procedure-reduce-arity-mask)
+                                    (global.get $string:symbol?)
+                                    (local.get $realm))
+                              (unreachable)))
+                         (local.set $new-realm (local.get $realm))))))
+
                (local.set $free (array.new_fixed $Free 1 (local.get $p)))
                (struct.new $Closure
                            (i32.const 0)
@@ -52325,12 +53024,47 @@
 
          ;; 10.5 Continuation Marks
 
-         ;; current-continuation-marks : [continuation-prompt-tag?] -> #f
+         ;; current-continuation-marks : [continuation-prompt-tag?] -> continuation-mark-set?
          (func $current-continuation-marks (type $Prim01)
                ;; prompt-tag : continuation-prompt-tag? (optional, default = (default-continuation-prompt-tag))
-               ;; NOTE: WebRacket currently lacks continuation marks, so this stub always returns #f.
+               ;; NOTE: WebRacket currently lacks continuation marks, so this
+               ;; stub returns a fresh empty mark set. Reinstating real marks
+               ;; matters for mark-sensitive error reporting and protocols.
                (param $prompt-tag (ref eq))
                (result            (ref eq))
+               (struct.new $ContinuationMarkSet (i32.const 0)))
+
+         ;; continuation-mark-set? : any/c -> boolean?
+         ;;   Recognize WebRacket's opaque empty mark-set placeholder.
+         (func $continuation-mark-set? (type $Prim1)
+               ,@(make-predicate-body '$ContinuationMarkSet))
+
+         ;; continuation-prompt-available? : continuation-prompt-tag? [continuation?] -> boolean?
+         ;;   WebRacket does not implement prompt control yet. Returning #t is
+         ;;   the permissive bootstrap choice for libraries that merely check
+         ;;   whether an exception/control prompt is installed before raising.
+         (func $continuation-prompt-available? (type $Prim12)
+               (param $prompt-tag (ref eq)) ;; continuation-prompt-tag?, currently unchecked
+               (param $cont       (ref eq)) ;; optional continuation?, currently ignored
+               (result            (ref eq))
+               (global.get $true))
+
+         ;; continuation-prompt-tag? : any/c -> boolean?
+         ;;   Recognize WebRacket's stable root prompt placeholder. Full prompt
+         ;;   tag allocation should introduce a distinct prompt-tag type later.
+         (func $continuation-prompt-tag? (type $Prim1)
+               (param $v (ref eq))
+               (result   (ref eq))
+               (if (result (ref eq))
+                   (ref.eq (local.get $v) (global.get $symbol:root-continuation-prompt-tag))
+                   (then (global.get $true))
+                   (else (global.get $false))))
+
+         ;; continuation? : any/c -> boolean?
+         ;;   WebRacket does not expose first-class continuations yet.
+         (func $continuation? (type $Prim1)
+               (param $v (ref eq))
+               (result   (ref eq))
                (global.get $false))
 
          ;; continuation-mark-set-first : continuation-mark-set? any/c [any/c] [continuation-prompt-tag?] -> any/c
@@ -54129,8 +54863,203 @@
          ;; 14.5 Impersonators and chaperones
          ;; 14.6 Security Guards
          ;; 14.7 Custodians
+
+         ;; custodian? : any/c -> boolean?
+         ;;   Predicate for WebRacket's minimal custodian records.
+         (func $custodian? (type $Prim1)
+               ,@(make-predicate-body '$Custodian))
+
+         ;; current-custodian : [custodian?] -> custodian? or void?
+         ;;   Parameter-like current custodian. This currently determines the
+         ;;   custodian attached to byte converters and custodian boxes; full
+         ;;   resource ownership belongs with the future scheduler/rktio layer.
+         (func $current-custodian (type $Prim01)
+               (param $cust-raw (ref eq)) ;; optional custodian?
+               (result          (ref eq))
+               (if (ref.eq (local.get $cust-raw) (global.get $missing))
+                   (then (return (call $parameter-value-or-global
+                                       (global.get $prim:current-custodian)
+                                       (global.get $current-custodian-value)))))
+               (if (i32.eqz (ref.test (ref $Custodian) (local.get $cust-raw)))
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:current-custodian)
+                               (global.get $string:custodian?)
+                               (local.get $cust-raw))
+                         (unreachable)))
+               (if (i32.eqz (ref.eq (global.get $current-parameterization-value)
+                                     (global.get $false)))
+                   (then (return (call $extend-current-parameterization!
+                                       (global.get $prim:current-custodian)
+                                       (local.get $cust-raw)))))
+               (global.set $current-custodian-value (local.get $cust-raw))
+               (global.get $void))
+
+         ;; make-custodian : [custodian?] -> custodian?
+         ;;   Create a minimal custodian. The optional parent is validated but
+         ;;   not retained yet, so parent shutdown does not cascade.
+         (func $make-custodian (type $Prim01)
+               (param $parent-raw (ref eq)) ;; optional parent custodian
+               (result            (ref eq))
+               (if (ref.eq (local.get $parent-raw) (global.get $missing))
+                   (then (local.set $parent-raw
+                                    (call $current-custodian
+                                          (global.get $missing)))))
+               (if (i32.eqz (ref.test (ref $Custodian) (local.get $parent-raw)))
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:make-custodian)
+                               (global.get $string:custodian?)
+                               (local.get $parent-raw))
+                         (unreachable)))
+               (struct.new $Custodian (i32.const 0) (i32.const 0)))
+
+         ;; custodian-shutdown-all : custodian? -> void?
+         ;;   Mark a minimal custodian as shut down. WebRacket does not yet
+         ;;   close managed resources or cascade to children.
+         (func $custodian-shutdown-all (type $Prim1)
+               (param $cust-raw (ref eq)) ;; custodian?
+               (result          (ref eq))
+               (if (i32.eqz (ref.test (ref $Custodian) (local.get $cust-raw)))
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:custodian-shutdown-all)
+                               (global.get $string:custodian?)
+                               (local.get $cust-raw))
+                         (unreachable)))
+               (struct.set $Custodian $shutdown?
+                           (ref.cast (ref $Custodian) (local.get $cust-raw))
+                           (i32.const 1))
+               (global.get $void))
+
+         ;; custodian-shut-down? : custodian? -> boolean?
+         ;;   Report the shutdown bit on a minimal custodian.
+         (func $custodian-shut-down? (type $Prim1)
+               (param $cust-raw (ref eq)) ;; custodian?
+               (result          (ref eq))
+               (if (i32.eqz (ref.test (ref $Custodian) (local.get $cust-raw)))
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:custodian-shut-down?)
+                               (global.get $string:custodian?)
+                               (local.get $cust-raw))
+                         (unreachable)))
+               (if (result (ref eq))
+                   (struct.get $Custodian $shutdown?
+                               (ref.cast (ref $Custodian) (local.get $cust-raw)))
+                   (then (global.get $true))
+                   (else (global.get $false))))
+
+         ;; make-custodian-box : custodian? any/c -> custodian-box?
+         ;;   Attach a value to a minimal custodian. If the custodian is already
+         ;;   shut down, store #f as Racket specifies.
+         (func $make-custodian-box (type $Prim2)
+               (param $cust-raw (ref eq)) ;; custodian?
+               (param $v        (ref eq)) ;; any/c
+               (result          (ref eq))
+               (local $cust (ref $Custodian))
+               (if (i32.eqz (ref.test (ref $Custodian) (local.get $cust-raw)))
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:make-custodian-box)
+                               (global.get $string:custodian?)
+                               (local.get $cust-raw))
+                         (unreachable)))
+               (local.set $cust (ref.cast (ref $Custodian) (local.get $cust-raw)))
+               (if (struct.get $Custodian $shutdown? (local.get $cust))
+                   (then (local.set $v (global.get $false))))
+               (struct.new $CustodianBox
+                           (i32.const 0)
+                           (local.get $cust)
+                           (local.get $v)))
+
+         ;; custodian-box? : any/c -> boolean?
+         ;;   Predicate for WebRacket's minimal custodian boxes.
+         (func $custodian-box? (type $Prim1)
+               ,@(make-predicate-body '$CustodianBox))
+
+         ;; custodian-box-value : custodian-box? -> any/c
+         ;;   Return the box value, or #f after the attached custodian shuts down.
+         (func $custodian-box-value (type $Prim1)
+               (param $box-raw (ref eq)) ;; custodian-box?
+               (result         (ref eq))
+               (local $box  (ref $CustodianBox))
+               (local $cust (ref $Custodian))
+               (if (i32.eqz (ref.test (ref $CustodianBox) (local.get $box-raw)))
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:custodian-box-value)
+                               (global.get $string:custodian-box?)
+                               (local.get $box-raw))
+                         (unreachable)))
+               (local.set $box (ref.cast (ref $CustodianBox) (local.get $box-raw)))
+               (local.set $cust (struct.get $CustodianBox $cust (local.get $box)))
+               (if (struct.get $Custodian $shutdown? (local.get $cust))
+                   (then (return (global.get $false))))
+               (struct.get $CustodianBox $v (local.get $box)))
          ;; 14.8 Thread Groups
          ;; 14.9 Structure Inspectors
+
+         ;; date? : any/c -> boolean?
+         ;;   Placeholder predicate for the time/date structure family.
+         ;;   WebRacket does not yet construct Racket date records; module
+         ;;   bootstrap code currently only needs the predicate bound.
+         (func $date? (type $Prim1)
+               (param $v (ref eq)) ;; any/c
+               (result   (ref eq))
+               (global.get $false))
+
+         ;; date*? : any/c -> boolean?
+         ;;   Placeholder predicate for extended date records. Real support
+         ;;   will need the full `date`/`date*` structure layout plus
+         ;;   seconds->date/current-date conversion.
+         (func $date*? (type $Prim1)
+               (param $v (ref eq)) ;; any/c
+               (result   (ref eq))
+               (global.get $false))
+
+         ;; date-field-placeholder : date? -> any/c
+         ;;   Shared placeholder for date/date* accessors. Since `date?` and
+         ;;   `date*?` currently always return #f, real date values cannot be
+         ;;   produced yet; these bindings exist so serializers/contracts can
+         ;;   register the struct interface without failing at load time.
+         (func $date-field-placeholder (type $Prim1)
+               (param $v (ref eq)) ;; date?
+               (result   (ref eq))
+               (global.get $false))
+
+         (func $date-second           (type $Prim1) (param $v (ref eq)) (result (ref eq)) (return_call $date-field-placeholder (local.get $v)))
+         (func $date-minute           (type $Prim1) (param $v (ref eq)) (result (ref eq)) (return_call $date-field-placeholder (local.get $v)))
+         (func $date-hour             (type $Prim1) (param $v (ref eq)) (result (ref eq)) (return_call $date-field-placeholder (local.get $v)))
+         (func $date-day              (type $Prim1) (param $v (ref eq)) (result (ref eq)) (return_call $date-field-placeholder (local.get $v)))
+         (func $date-month            (type $Prim1) (param $v (ref eq)) (result (ref eq)) (return_call $date-field-placeholder (local.get $v)))
+         (func $date-year             (type $Prim1) (param $v (ref eq)) (result (ref eq)) (return_call $date-field-placeholder (local.get $v)))
+         (func $date-week-day         (type $Prim1) (param $v (ref eq)) (result (ref eq)) (return_call $date-field-placeholder (local.get $v)))
+         (func $date-year-day         (type $Prim1) (param $v (ref eq)) (result (ref eq)) (return_call $date-field-placeholder (local.get $v)))
+         (func $date-dst?             (type $Prim1) (param $v (ref eq)) (result (ref eq)) (return_call $date-field-placeholder (local.get $v)))
+         (func $date-time-zone-offset (type $Prim1) (param $v (ref eq)) (result (ref eq)) (return_call $date-field-placeholder (local.get $v)))
+         (func $date*-nanosecond      (type $Prim1) (param $v (ref eq)) (result (ref eq)) (return_call $date-field-placeholder (local.get $v)))
+         (func $date*-time-zone-name  (type $Prim1) (param $v (ref eq)) (result (ref eq)) (return_call $date-field-placeholder (local.get $v)))
+
+         ;; exn:break? : any/c -> boolean?
+         ;;   Break delivery is not implemented yet; WebRacket currently never
+         ;;   constructs exn:break values, but libraries install handlers that
+         ;;   need these predicates to be bound.
+         (func $exn:break? (type $Prim1)
+               (param $v (ref eq)) ;; any/c
+               (result   (ref eq))
+               (global.get $false))
+
+         ;; exn:break-continuation : exn:break? -> continuation?
+         ;;   Placeholder accessor paired with the inert break predicates.
+         (func $exn:break-continuation (type $Prim1)
+               (param $v (ref eq)) ;; exn:break?
+               (result   (ref eq))
+               (global.get $false))
+
+         (func $exn:break:hang-up? (type $Prim1)
+               (param $v (ref eq)) ;; any/c
+               (result   (ref eq))
+               (global.get $false))
+
+         (func $exn:break:terminate? (type $Prim1)
+               (param $v (ref eq)) ;; any/c
+               (result   (ref eq))
+               (global.get $false))
 
          ;; inspector? : any/c -> boolean?
          ;;   Permissive placeholder. The inspector value itself is represented
@@ -57374,6 +58303,10 @@
                (if (ref.test (ref $Namespace) (local.get $v))
                    (then (return (call $format/display:namespace
                                        (ref.cast (ref $Namespace) (local.get $v))))))
+               ;; --- Case: continuation-mark-set ---
+               (if (ref.test (ref $ContinuationMarkSet) (local.get $v))
+                   (then (return (ref.cast (ref $String)
+                                           (global.get $string:continuation-mark-set)))))
                ;; --- Case: variable-reference ---
                (if (ref.test (ref $VariableReference) (local.get $v))
                    (then (return (call $format/display:variable-reference
@@ -61434,6 +62367,120 @@
                          (then (return (global.get $default-port-read-handler-value)))
                          (else (return (local.get $handler))))
                      (unreachable))
+
+               ;; default-port-write-handler : any/c output-port? -> void?
+               ;;   Minimal default write handler. WebRacket currently shares
+               ;;   the formatter used by display/write until the full printer
+               ;;   modes and per-port handlers are implemented.
+               (func $default-port-write-handler (type $Prim2)
+                     (param $v   (ref eq)) ;; any/c
+                     (param $out (ref eq)) ;; output-port?
+                     (result     (ref eq))
+                     (drop (call $write-string
+                                 (call $format/display (local.get $v))
+                                 (local.get $out)
+                                 (global.get $missing)
+                                 (global.get $missing)))
+                     (global.get $void))
+
+               ;; default-port-display-handler : any/c output-port? -> void?
+               ;;   Minimal default display handler; see
+               ;;   default-port-write-handler for the current limitation.
+               (func $default-port-display-handler (type $Prim2)
+                     (param $v   (ref eq)) ;; any/c
+                     (param $out (ref eq)) ;; output-port?
+                     (result     (ref eq))
+                     (drop (call $write-string
+                                 (call $format/display (local.get $v))
+                                 (local.get $out)
+                                 (global.get $missing)
+                                 (global.get $missing)))
+                     (global.get $void))
+
+               ;; default-port-print-handler : any/c output-port? [0-or-1] -> void?
+               ;;   Minimal default print handler. The optional quote-depth
+               ;;   argument is accepted for Racket's port-print-handler shape
+               ;;   but ignored by WebRacket's current formatter.
+               (func $default-port-print-handler (type $Prim23)
+                     (param $v           (ref eq)) ;; any/c
+                     (param $out         (ref eq)) ;; output-port?
+                     (param $quote-depth (ref eq)) ;; optional (or/c 0 1), ignored
+                     (result             (ref eq))
+                     (drop (call $write-string
+                                 (call $format/display (local.get $v))
+                                 (local.get $out)
+                                 (global.get $missing)
+                                 (global.get $missing)))
+                     (global.get $void))
+
+               ;; port-write-handler : output-port? [procedure?] -> procedure? or void?
+               ;;   WebRacket accepts the setter protocol but currently keeps
+               ;;   string ports on the default handler. This is enough for
+               ;;   libraries that copy handlers while constructing ports; full
+               ;;   per-port handler storage should be added with richer ports.
+               (func $port-write-handler (type $Prim12)
+                     (param $out-raw     (ref eq)) ;; output-port?
+                     (param $handler-raw (ref eq)) ;; optional procedure?
+                     (result             (ref eq))
+                     (if (i32.eqz (ref.test (ref $OutputPort) (local.get $out-raw)))
+                         (then (call $raise-argument-error1
+                                     (global.get $symbol:port-write-handler)
+                                     (global.get $string:output-port?)
+                                     (local.get $out-raw))
+                               (unreachable)))
+                     (if (ref.eq (local.get $handler-raw) (global.get $missing))
+                         (then (return (global.get $default-port-write-handler-value))))
+                     (if (i32.eqz (ref.test (ref $Procedure) (local.get $handler-raw)))
+                         (then (call $raise-argument-error1
+                                     (global.get $symbol:port-write-handler)
+                                     (global.get $string:procedure?)
+                                     (local.get $handler-raw))
+                               (unreachable)))
+                     (global.get $void))
+
+               ;; port-display-handler : output-port? [procedure?] -> procedure? or void?
+               ;;   See port-write-handler for the current setter limitation.
+               (func $port-display-handler (type $Prim12)
+                     (param $out-raw     (ref eq)) ;; output-port?
+                     (param $handler-raw (ref eq)) ;; optional procedure?
+                     (result             (ref eq))
+                     (if (i32.eqz (ref.test (ref $OutputPort) (local.get $out-raw)))
+                         (then (call $raise-argument-error1
+                                     (global.get $symbol:port-display-handler)
+                                     (global.get $string:output-port?)
+                                     (local.get $out-raw))
+                               (unreachable)))
+                     (if (ref.eq (local.get $handler-raw) (global.get $missing))
+                         (then (return (global.get $default-port-display-handler-value))))
+                     (if (i32.eqz (ref.test (ref $Procedure) (local.get $handler-raw)))
+                         (then (call $raise-argument-error1
+                                     (global.get $symbol:port-display-handler)
+                                     (global.get $string:procedure?)
+                                     (local.get $handler-raw))
+                               (unreachable)))
+                     (global.get $void))
+
+               ;; port-print-handler : output-port? [procedure?] -> procedure? or void?
+               ;;   See port-write-handler for the current setter limitation.
+               (func $port-print-handler (type $Prim12)
+                     (param $out-raw     (ref eq)) ;; output-port?
+                     (param $handler-raw (ref eq)) ;; optional procedure?
+                     (result             (ref eq))
+                     (if (i32.eqz (ref.test (ref $OutputPort) (local.get $out-raw)))
+                         (then (call $raise-argument-error1
+                                     (global.get $symbol:port-print-handler)
+                                     (global.get $string:output-port?)
+                                     (local.get $out-raw))
+                               (unreachable)))
+                     (if (ref.eq (local.get $handler-raw) (global.get $missing))
+                         (then (return (global.get $default-port-print-handler-value))))
+                     (if (i32.eqz (ref.test (ref $Procedure) (local.get $handler-raw)))
+                         (then (call $raise-argument-error1
+                                     (global.get $symbol:port-print-handler)
+                                     (global.get $string:procedure?)
+                                     (local.get $handler-raw))
+                               (unreachable)))
+                     (global.get $void))
 
                ;; current-read-interaction : [procedure?] -> procedure? or void?
                ;;   Parameter for the interactive reader. The default returns
@@ -66138,7 +67185,12 @@
                (global $current-error-port-value  (mut (ref eq)) (ref.i31 (i32.const 0)))
                (global $current-print-value       (mut (ref eq)) (global.get $false))
                (global $current-read-interaction-value (mut (ref eq)) (global.get $false))
+               (global $current-logger-value      (mut (ref eq)) (global.get $false))
+               (global $current-custodian-value   (mut (ref eq)) (global.get $false))
                (global $default-port-read-handler-value (mut (ref eq)) (global.get $false))
+               (global $default-port-write-handler-value (mut (ref eq)) (global.get $false))
+               (global $default-port-display-handler-value (mut (ref eq)) (global.get $false))
+               (global $default-port-print-handler-value (mut (ref eq)) (global.get $false))
                (global $load-on-demand-enabled-value (mut (ref eq)) (global.get $true))
                (global $use-user-specific-search-paths-value (mut (ref eq)) (global.get $true))
                (global $read-square-bracket-as-paren-value (mut (ref eq)) (global.get $true))
@@ -66292,6 +67344,14 @@
                                              (i32.const 0x9E3779B9)))
                      (global.set $current-thread-value
                                  (struct.new $Thread (i32.const 0)))
+                     (global.set $current-logger-value
+                                 (struct.new $Logger
+                                             (i32.const 0)
+                                             (global.get $false)))
+                     (global.set $current-custodian-value
+                                 (struct.new $Custodian
+                                             (i32.const 0)
+                                             (i32.const 0)))
                      (global.set $always-evt
                                  (struct.new $AlwaysEvt (i32.const 0)))
                      (global.set $never-evt
@@ -66570,6 +67630,33 @@
                                             (global.get $the-racket/primitive-realm)
                                             (ref.func $primitive-invoke:shape-1)
                                             (ref.func $default-port-read-handler/1)
+                                            (global.get $false)))
+                    (global.set $default-port-write-handler-value
+                                (struct.new $PrimitiveProcedure
+                                            (i32.const 0)
+                                            (global.get $symbol:port-write-handler)
+                                            (ref.i31 (i32.const 4))
+                                            (global.get $the-racket/primitive-realm)
+                                            (ref.func $primitive-invoke:shape-2)
+                                            (ref.func $default-port-write-handler)
+                                            (global.get $false)))
+                    (global.set $default-port-display-handler-value
+                                (struct.new $PrimitiveProcedure
+                                            (i32.const 0)
+                                            (global.get $symbol:port-display-handler)
+                                            (ref.i31 (i32.const 4))
+                                            (global.get $the-racket/primitive-realm)
+                                            (ref.func $primitive-invoke:shape-2)
+                                            (ref.func $default-port-display-handler)
+                                            (global.get $false)))
+                    (global.set $default-port-print-handler-value
+                                (struct.new $PrimitiveProcedure
+                                            (i32.const 0)
+                                            (global.get $symbol:port-print-handler)
+                                            (ref.i31 (i32.const 4))
+                                            (global.get $the-racket/primitive-realm)
+                                            (ref.func $primitive-invoke:shape-23)
+                                            (ref.func $default-port-print-handler)
                                             (global.get $false)))
                     (global.set $error-syntax->string-handler-value
                                 (struct.new $PrimitiveProcedure

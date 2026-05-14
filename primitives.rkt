@@ -177,6 +177,11 @@
          exn:fail:syntax:missing-module-path
          exn:fail:syntax:unbound
          exn:fail:syntax:unbound?
+
+         exn:break?
+         exn:break-continuation
+         exn:break:hang-up?
+         exn:break:terminate?
          
          make-exn
          make-exn:fail
@@ -219,7 +224,47 @@
          call-with-parameterization
          call-with-continuation-barrier
          call-with-escape-continuation
+         current-logger
+         logger?
+         make-logger
+         logger-name
+         log-level?
+         log-max-level
+         log-message
+         make-channel
+         channel?
+         channel-get
+         channel-try-get
+         channel-put
+         channel-put-evt
+         channel-put-evt?
+         evt?
+         current-custodian
+         custodian?
+         make-custodian
+         custodian-shutdown-all
+         custodian-shut-down?
+         make-custodian-box
+         custodian-box?
+         custodian-box-value
+         date?
+         date*?
+         date-second
+         date-minute
+         date-hour
+         date-day
+         date-month
+         date-year
+         date-week-day
+         date-year-day
+         date-dst?
+         date-time-zone-offset
+         date*-nanosecond
+         date*-time-zone-name
          port-read-handler
+         port-write-handler
+         port-display-handler
+         port-print-handler
          load-on-demand-enabled
          use-user-specific-search-paths
          get-installation-name
@@ -393,6 +438,7 @@
 
  ;; 4.3.1 Number Types
  number?
+ complex?
  real?
  rational?
  integer?
@@ -648,6 +694,11 @@
  bytes-append
  bytes-append*
  bytes-join
+ bytes-converter?
+ bytes-open-converter
+ bytes-close-converter
+ bytes-convert
+ bytes-convert-end
  bytes->immutable-bytes
  byte?
  bytes->list
@@ -947,7 +998,7 @@
  procedure? apply compose compose1 procedure-rename procedure->external
  procedure-arity procedure-arity-mask procedure-arity-includes?
  procedure-arity?
- procedure-reduce-arity
+ procedure-reduce-arity procedure-reduce-arity-mask
  arity-at-least make-arity-at-least
  arity-at-least?
  arity-at-least-value
@@ -1006,10 +1057,14 @@
  ;; 10.5 Continuation Marks
  dynamic-wind
  call-with-continuation-barrier ; bootstrap approximation: invokes thunk
- unsafe-root-continuation-prompt-tag ; stable placeholder; prompts unsupported
- current-continuation-marks  ; dummy, always returns #f
- continuation-mark-set-first ; dummy, always returns #f
- current-parameterization    ; poor-man dynamic parameterization overlay
+unsafe-root-continuation-prompt-tag ; stable placeholder; prompts unsupported
+current-continuation-marks  ; dummy, returns an empty mark set
+continuation-mark-set?
+continuation-mark-set-first ; dummy, always returns #f
+continuation-prompt-available? ; prompt support is currently permissive
+continuation-prompt-tag?
+continuation?
+current-parameterization    ; poor-man dynamic parameterization overlay
  parameterization?           ; recognizes poor-man parameterization overlays
  extend-parameterization     ; poor-man parameterization overlay constructor
  reparameterize              ; bootstrap identity; full parameterizations unsupported
@@ -1018,6 +1073,18 @@
 
  ;; 11 Threads and Synchronization
  current-thread
+ current-custodian custodian? make-custodian
+ custodian-shutdown-all custodian-shut-down?
+ make-custodian-box custodian-box? custodian-box-value
+ date? date*? ; placeholders until date/date* structs are implemented
+ date-second date-minute date-hour date-day date-month date-year
+ date-week-day date-year-day date-dst? date-time-zone-offset
+ date*-nanosecond date*-time-zone-name
+ exn:break? exn:break-continuation
+ exn:break:hang-up? exn:break:terminate?
+ make-channel channel? channel-get channel-try-get
+ channel-put channel-put-evt channel-put-evt?
+ evt?
  make-semaphore semaphore? semaphore-post
  call-with-semaphore
  semaphore-peek-evt semaphore-peek-evt?
@@ -1060,6 +1127,7 @@
  webracket-impersonator-property-predicate
  prop:input-port
  impersonator?
+ chaperone?
  impersonator-val
  output-port?
  prop:output-port
