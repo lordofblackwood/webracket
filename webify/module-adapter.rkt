@@ -105,7 +105,7 @@
      `(lambda ,args
         ,@(for/list ([name (in-list import-names)]
                      [cell (in-list import-cell-args)])
-            `(define ,name (module-variable-ref/no-check ,cell)))
+            `(define ,name (module-variable-ref ,cell)))
         ,@body)]
     [_
      (raise-arguments-error 'bind-import-cells
@@ -252,7 +252,7 @@
      ,@(for/list ([cell-id (in-list cell-ids)]
                   [export  (in-list exports)])
          `(define ,cell-id (module-variable-make ',export)))
-     (,proc-id 'webify-instance ,@import-args ,@cell-ids)
+     (,proc-id (#%variable-reference) ,@import-args ,@cell-ids)
      ,@(for/list ([cell-id (in-list cell-ids)]
                   [export  (in-list exports)]
                   #:when (export-alias-enabled? define-export-aliases? export))

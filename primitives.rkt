@@ -222,6 +222,7 @@
          port-read-handler
          load-on-demand-enabled
          use-user-specific-search-paths
+         get-installation-name
          read-square-bracket-as-paren
          read-curly-brace-as-paren
          read-square-bracket-with-tag
@@ -505,6 +506,7 @@
  system-big-endian?
  system-type
  version
+ get-installation-name
 
  ;; 4.3.3 Flonums (racket/flonum)
  ;; 4.3.3.1 Flonum Arithmetic
@@ -1051,6 +1053,11 @@
 
  port?
  input-port?
+ impersonator-property?
+ impersonator-property-accessor-procedure?
+ make-impersonator-property
+ webracket-impersonator-property-accessor
+ webracket-impersonator-property-predicate
  prop:input-port
  impersonator?
  impersonator-val
@@ -3174,6 +3181,10 @@
 
 (define load-on-demand-enabled (make-parameter #t))
 (define use-user-specific-search-paths (make-parameter #t))
+(define (get-installation-name [config-table #hash()])
+  (unless (hash? config-table)
+    (raise-argument-error 'get-installation-name "hash?" config-table))
+  (hash-ref config-table 'installation-name (version)))
 (define read-square-bracket-as-paren (make-parameter #t))
 (define read-curly-brace-as-paren (make-parameter #t))
 (define read-square-bracket-with-tag (make-parameter #f))
@@ -3221,6 +3232,20 @@
 
 (define (impersonator-val v)
   (error 'impersonator-val "impersonators are not supported by WebRacket"))
+
+(define (webracket-impersonator-property-predicate v)
+  #f)
+
+(define webracket-impersonator-property-accessor
+  (case-lambda
+    [(v)
+     (raise-argument-error 'webracket-impersonator-property-accessor
+                           "impersonator with the property"
+                           v)]
+    [(v fallback)
+     (if (procedure? fallback)
+         (fallback)
+         fallback)]))
 
 (struct webracket-uninterruptible-lock ())
 

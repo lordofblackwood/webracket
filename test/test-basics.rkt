@@ -2874,6 +2874,16 @@
               (list "impersonator?/none"
                     (equal? (impersonator? (vector 1 2 3)) #f))
 
+              (list "make-impersonator-property/inert"
+                    (let-values ([(prop has-prop? get-prop)
+                                  (make-impersonator-property 'web-impersonator-prop)])
+                      (and (impersonator-property? prop)
+                           (impersonator-property-accessor-procedure? get-prop)
+                           (equal? (has-prop? 'plain-value) #f)
+                           (equal? (get-prop 'plain-value 'fallback) 'fallback)
+                           (equal? (get-prop 'plain-value (lambda () 'fallback-thunk))
+                                   'fallback-thunk))))
+
               (list "unsafe-struct?"
                     (let-values ([(struct:parent make-parent parent? parent-ref parent-set!)
                                   (make-struct-type 'unsafe-parent #f 1 0 #f)]
@@ -6793,7 +6803,9 @@
                          (equal? (liberal-define-context? 42) #f)
                          (equal? (module-path? 'racket/base) #t)
                          (equal? (module-path? "relative.rkt") #t)
+                         (equal? (module-path? '(submod "." deserialize)) #t)
                          (equal? (module-path? 42) #f)
+                         (module-path-index? (module-path-index-join 'racket/base #f))
                          (equal? (module-path-index? 42) #f)
                          (equal? (readtable? 42) #f)
                          (equal? (rename-transformer? 42) #f)

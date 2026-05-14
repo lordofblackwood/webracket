@@ -31,12 +31,12 @@
     [`("begin"
        ("define" "webify-linklet-proc$0" ,_)
        ("define" "webify-export-cell0$0" ,_)
-       ("webify-linklet-proc$0" ("quote" "webify-instance") "webify-export-cell0$0")
+       ("webify-linklet-proc$0" ("#%variable-reference") "webify-export-cell0$0")
        ("define" "x" ("module-variable-ref" "webify-export-cell0$0"))
        ("void")
        ("define" "webify-linklet-proc$1" ,_)
        ("define" "webify-export-cell0$1" ,_)
-       ("webify-linklet-proc$1" ("quote" "webify-instance") "webify-export-cell0$1")
+       ("webify-linklet-proc$1" ("#%variable-reference") "webify-export-cell0$1")
        ("define" "y" ("module-variable-ref" "webify-export-cell0$1"))
        ("void")
        ("void"))
@@ -81,13 +81,13 @@
     [`("begin"
        ("define" "webify-linklet-proc$0" ,_)
        ("define" "webify-export-cell0$0" ,_)
-       ("webify-linklet-proc$0" ("quote" "webify-instance") "webify-export-cell0$0")
+       ("webify-linklet-proc$0" ("#%variable-reference") "webify-export-cell0$0")
        ("define" "x" ("module-variable-ref" "webify-export-cell0$0"))
        ("void")
        ("define" "webify-linklet-proc$1" ,_)
        ("define" "webify-export-cell0$1" ,_)
        ("webify-linklet-proc$1"
-        ("quote" "webify-instance")
+        ("#%variable-reference")
         "webify-export-cell0$0"
         "webify-export-cell0$1")
        ("define" "y" ("module-variable-ref" "webify-export-cell0$1"))
@@ -99,6 +99,58 @@
   (define wat (wat-string (comp (datum->syntax #f combined))))
   (check-true (string-contains? wat "$module-variable-ref/no-check"))
   (check-true (string-contains? wat "$module-variable-define!")))
+
+(test-case "linklet composer resolves same-module import cells"
+  (define-values (combined _fragments _instances _exports-infos)
+    (compose-linklet-first-slices
+     (list
+      (webify-linklet-slice-spec
+       'a
+       '(linklet (([again x])) (x)
+          (define-values (x) (module-variable-ref/no-check again)))
+       '(((again a x)))))
+     #:tail '((void))))
+  (match (normalize-symbols combined)
+    [`("begin"
+       ("define" "webify-linklet-proc$0" ,_)
+       ("define" "webify-export-cell0$0" ,_)
+       ("webify-linklet-proc$0"
+        ("#%variable-reference")
+        "webify-export-cell0$0"
+        "webify-export-cell0$0")
+       ("define" "x" ("module-variable-ref" "webify-export-cell0$0"))
+       ("void")
+       ("void"))
+     (void)]
+    [other
+     (fail-check (format "unexpected same-module import composition shape: ~s" other))]))
+
+(test-case "linklet composer wraps primitive imports as constant cells"
+  (define-values (combined _fragments _instances _exports-infos)
+    (compose-linklet-first-slices
+     (list
+      (webify-linklet-slice-spec
+       'uses-cons
+       '(linklet (((kons cons))) (x)
+          (define-values (x) (kons 1 null)))
+       '(((kons #%kernel cons)))))
+     #:tail '((void))))
+  (match (normalize-symbols combined)
+    [`("begin"
+       ("define" "webify-linklet-proc$0" ,_)
+       ("define" "webify-export-cell0$0" ,_)
+       ("webify-linklet-proc$0"
+        ("#%variable-reference")
+        ("let" (("cell" ("module-variable-make" ("quote" "cons"))))
+          ("module-variable-define!" "cell" "cons" ("quote" "constant"))
+          "cell")
+        "webify-export-cell0$0")
+       ("define" "x" ("module-variable-ref" "webify-export-cell0$0"))
+       ("void")
+       ("void"))
+     (void)]
+    [other
+     (fail-check (format "unexpected primitive-import composition shape: ~s" other))]))
 
 (test-case "module composer splices adapted fragments"
   (define-values (first-datum first-instance)
@@ -124,12 +176,12 @@
     [`("begin"
        ("define" "webify-linklet-proc$0" ,_)
        ("define" "webify-export-cell0$0" ,_)
-       ("webify-linklet-proc$0" ("quote" "webify-instance") "webify-export-cell0$0")
+       ("webify-linklet-proc$0" ("#%variable-reference") "webify-export-cell0$0")
        ("define" "x" ("module-variable-ref" "webify-export-cell0$0"))
        ("void")
        ("define" "webify-linklet-proc$1" ,_)
        ("define" "webify-export-cell0$1" ,_)
-       ("webify-linklet-proc$1" ("quote" "webify-instance") "webify-export-cell0$1")
+       ("webify-linklet-proc$1" ("#%variable-reference") "webify-export-cell0$1")
        ("define" "y" ("module-variable-ref" "webify-export-cell0$1"))
        ("void")
        ("void"))
@@ -176,13 +228,13 @@
     [`("begin"
        ("define" "webify-linklet-proc$0" ,_)
        ("define" "webify-export-cell0$0" ,_)
-       ("webify-linklet-proc$0" ("quote" "webify-instance") "webify-export-cell0$0")
+       ("webify-linklet-proc$0" ("#%variable-reference") "webify-export-cell0$0")
        ("define" "x" ("module-variable-ref" "webify-export-cell0$0"))
        ("void")
        ("define" "webify-linklet-proc$1" ,_)
        ("define" "webify-export-cell0$1" ,_)
        ("webify-linklet-proc$1"
-        ("quote" "webify-instance")
+        ("#%variable-reference")
         "webify-export-cell0$0"
         "webify-export-cell0$1")
        ("define" "y" ("module-variable-ref" "webify-export-cell0$1"))
@@ -217,13 +269,13 @@
     [`("begin"
        ("define" "webify-linklet-proc$0" ,_)
        ("define" "webify-export-cell0$0" ,_)
-       ("webify-linklet-proc$0" ("quote" "webify-instance") "webify-export-cell0$0")
+       ("webify-linklet-proc$0" ("#%variable-reference") "webify-export-cell0$0")
        ("define" "x" ("module-variable-ref" "webify-export-cell0$0"))
        ("void")
        ("define" "webify-linklet-proc$1" ,_)
        ("define" "webify-export-cell0$1" ,_)
        ("webify-linklet-proc$1"
-        ("quote" "webify-instance")
+        ("#%variable-reference")
         "webify-export-cell0$0"
         "webify-export-cell0$1")
        ("define" "y" ("module-variable-ref" "webify-export-cell0$1"))
@@ -484,7 +536,7 @@
         (check-true (string-contains? wat "$make-struct-field-accessor"))
         (check-true (string-contains? wat "$make-struct-field-mutator"))
         (check-false (string-contains? wat "make-record-type-descriptor"))
-        (check-false (string-contains? wat "unsafe-struct*"))
+        (check-true (string-contains? wat "unsafe-struct*"))
         (write-datum-program! source-path combined)
         (define-values (status output)
           (run-webracket (list "--no-stdlib"
@@ -544,7 +596,7 @@
         (check-true (string-contains? wat "$make-struct-field-mutator"))
         (check-true (string-contains? wat "$module-variable-ref/no-check"))
         (check-false (string-contains? wat "make-record-type-descriptor"))
-        (check-false (string-contains? wat "unsafe-struct*"))
+        (check-true (string-contains? wat "unsafe-struct*"))
         (write-datum-program! source-path combined)
         (define-values (status output)
           (run-webracket (list "--no-stdlib"
@@ -596,7 +648,7 @@
         (check-true (string-contains? wat "$make-struct-type"))
         (check-true (string-contains? wat "$struct-type-property?"))
         (check-false (string-contains? wat "make-record-type-descriptor"))
-        (check-false (string-contains? wat "unsafe-struct*"))
+        (check-true (string-contains? wat "unsafe-struct*"))
         (write-datum-program! source-path combined)
         (define-values (status output)
           (run-webracket (list "--no-stdlib"
@@ -644,7 +696,7 @@
         (check-true (string-contains? wat "$make-struct-type"))
         (check-true (string-contains? wat "$module-variable-ref/no-check"))
         (check-false (string-contains? wat "make-record-type-descriptor"))
-        (check-false (string-contains? wat "unsafe-struct*"))
+        (check-true (string-contains? wat "unsafe-struct*"))
         (write-datum-program! source-path combined)
         (define-values (status output)
           (run-webracket (list "--no-stdlib"
@@ -692,7 +744,7 @@
         (check-true (string-contains? wat "$prop:sealed"))
         (check-true (string-contains? wat "$make-struct-type"))
         (check-false (string-contains? wat "make-record-type-descriptor"))
-        (check-false (string-contains? wat "unsafe-struct*"))
+        (check-true (string-contains? wat "unsafe-struct*"))
         (write-datum-program! source-path combined)
         (define-values (status output)
           (run-webracket (list "--no-stdlib"
@@ -763,7 +815,7 @@
         (check-true (string-contains? wat "$make-struct-type"))
         (check-true (string-contains? wat "$module-variable-ref/no-check"))
         (check-false (string-contains? wat "make-record-type-descriptor"))
-        (check-false (string-contains? wat "unsafe-struct*"))
+        (check-true (string-contains? wat "unsafe-struct*"))
         (write-datum-program! source-path combined)
         (define-values (status output)
           (run-webracket (list "--no-stdlib"
@@ -815,7 +867,7 @@
         (check-true (string-contains? wat "$struct-constructor/with-guard"))
         (check-true (string-contains? wat "$make-struct-type"))
         (check-false (string-contains? wat "make-record-type-descriptor"))
-        (check-false (string-contains? wat "unsafe-struct*"))
+        (check-true (string-contains? wat "unsafe-struct*"))
         (write-datum-program! source-path combined)
         (define-values (status output)
           (run-webracket (list "--no-stdlib"

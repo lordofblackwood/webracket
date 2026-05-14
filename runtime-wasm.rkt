@@ -1963,6 +1963,7 @@
     (add-runtime-string-constant 'output-port?               "output-port?")
     (add-runtime-string-constant 'parameterization?          "parameterization?")
     (add-runtime-string-constant 'pseudo-random-generator?   "pseudo-random-generator?")
+    (add-runtime-string-constant 'impersonator-property?     "impersonator-property?")
     (add-runtime-string-constant 'mpair-or-null              "(or/c mpair? null?)")
     (add-runtime-string-constant 'catch*-matching-lengths    "same number of handlers as predicates")
     (add-runtime-string-constant 'real?                      "real?")
@@ -2034,6 +2035,8 @@
     (add-runtime-symbol-constant 'error-print-source-location)
     (add-runtime-symbol-constant 'current-compile-target-machine)
     (add-runtime-symbol-constant 'current-compile-realm)
+    (add-runtime-symbol-constant 'installation-name)
+    (add-runtime-symbol-constant 'submod)
     (add-runtime-symbol-constant 'linklet)
     (add-runtime-symbol-constant '#%app)
     (add-runtime-symbol-constant '+)
@@ -2395,6 +2398,15 @@
                                          (field $hash     (mut i32))
                                          (field $base     (ref eq))
                                          (field $bindings (ref eq)))))
+
+          ;; WebRacket does not implement impersonators yet, but Racket
+          ;; libraries allocate impersonator-property descriptors at module
+          ;; initialization time. Keep a first-class descriptor so the public
+          ;; predicates work without pretending that impersonation is active.
+          (type $ImpersonatorProperty (sub $Heap
+                                           (struct
+                                             (field $hash (mut i32))
+                                             (field $name (ref eq)))))
 
           (type $Procedure
                 (sub $Heap
@@ -12847,6 +12859,29 @@
          ;;   Return the Racket version used to generate this WebRacket runtime.
          (func $version (type $Prim0) (result (ref eq))
                (global.get $string:racket-version))
+
+         ;; get-installation-name : [hash? = #hash()] -> string?
+         ;;   Approximate #%utils `get-installation-name` for browser module
+         ;;   loading. Racket falls back to `(version)` when the installation
+         ;;   config table has no `installation-name`; WebRacket currently uses
+         ;;   that fallback unconditionally after validating an explicit table.
+         (func $get-installation-name (type $Prim01)
+               (param $config-table (ref eq)) ;; optional configuration hash, default #hash()
+               (result              (ref eq))
+
+               (if (ref.eq (local.get $config-table) (global.get $missing))
+                   (then (return (global.get $string:racket-version))))
+               (if (i32.eqz (call $hash-leaf?/i32 (local.get $config-table)))
+                   (then
+                    (call $raise-argument-error1
+                          (global.get $symbol:get-installation-name)
+                          (global.get $string:hash?)
+                          (local.get $config-table))
+                    (unreachable)))
+               (call $hash-ref
+                     (local.get $config-table)
+                     (global.get $symbol:installation-name)
+                     (global.get $string:racket-version)))
 
          ;;;
          ;;;  4.3.4 Fixnums
@@ -41198,6 +41233,85 @@
               (result   (ref eq))
               (unreachable))
 
+        ;; make-impersonator-property : symbol? -> values impersonator-property? procedure? procedure?
+        ;;   Allocate a property descriptor and return inert predicate/accessor
+        ;;   procedures. WebRacket has no impersonators yet, so the predicate
+        ;;   always returns #f and the accessor only supports the documented
+        ;;   fallback path.
+        (func $make-impersonator-property (type $Prim1)
+              (param $name (ref eq)) ;; symbol?
+              (result      (ref eq)) ;; three values
+
+              (if (ref.eq (call $symbol? (local.get $name)) (global.get $false))
+                  (then (call $raise-argument-error1
+                              (global.get $symbol:make-impersonator-property)
+                              (global.get $string:symbol?)
+                              (local.get $name))
+                        (unreachable)))
+              (array.new_fixed $Values 3
+                               (struct.new $ImpersonatorProperty
+                                           (i32.const 0)
+                                           (local.get $name))
+                               (global.get $prim:webracket-impersonator-property-predicate)
+                               (global.get $prim:webracket-impersonator-property-accessor)))
+
+        ;; impersonator-property? : any/c -> boolean?
+        ;;   Recognize WebRacket's inert impersonator-property descriptors.
+        (func $impersonator-property? (type $Prim1)
+              (param $v (ref eq)) ;; candidate value
+              (result   (ref eq))
+              (if (result (ref eq))
+                  (ref.test (ref $ImpersonatorProperty) (local.get $v))
+                  (then (global.get $true))
+                  (else (global.get $false))))
+
+        ;; impersonator-property-accessor-procedure? : any/c -> boolean?
+        ;;   The only accessor procedure WebRacket can currently produce is
+        ;;   the inert fallback accessor returned by make-impersonator-property.
+        (func $impersonator-property-accessor-procedure? (type $Prim1)
+              (param $v (ref eq)) ;; candidate value
+              (result   (ref eq))
+              (if (result (ref eq))
+                  (ref.eq (local.get $v)
+                          (global.get $prim:webracket-impersonator-property-accessor))
+                  (then (global.get $true))
+                  (else (global.get $false))))
+
+        ;; webracket-impersonator-property-predicate : any/c -> boolean?
+        ;;   Inert predicate for the no-impersonator runtime.
+        (func $webracket-impersonator-property-predicate (type $Prim1)
+              (param $v (ref eq)) ;; any value
+              (result   (ref eq))
+              (global.get $false))
+
+        ;; webracket-impersonator-property-accessor : any/c [any/c] -> any/c
+        ;;   Inert accessor. With no fallback, Racket raises; with a fallback
+        ;;   procedure it tail-calls the procedure with zero arguments,
+        ;;   otherwise it returns the fallback value.
+        (func $webracket-impersonator-property-accessor (type $Prim12)
+              (param $v        (ref eq)) ;; any value
+              (param $fallback (ref eq)) ;; optional fallback, default = raise
+              (result          (ref eq))
+
+              (local $proc (ref $Procedure))
+              (local $inv  (ref $ProcedureInvoker))
+
+              (if (ref.eq (local.get $fallback) (global.get $missing))
+                  (then (call $raise-argument-error1
+                              (global.get $symbol:webracket-impersonator-property-accessor)
+                              (global.get $string:impersonator-property?)
+                              (local.get $v))
+                        (unreachable)))
+              (if (ref.eq (call $procedure? (local.get $fallback)) (global.get $true))
+                  (then
+                   (local.set $proc (ref.cast (ref $Procedure) (local.get $fallback)))
+                   (local.set $inv (struct.get $Procedure $invoke (local.get $proc)))
+                   (return_call_ref $ProcedureInvoker
+                                    (local.get $proc)
+                                    (array.new_fixed $Args 0)
+                                    (local.get $inv))))
+              (local.get $fallback))
+
         (func $output-port? (type $Prim1)
               ,@(make-predicate-body '$OutputPort))
 
@@ -53703,19 +53817,26 @@
 
         ;; module-path? : any/c -> boolean?
         ;;   Supports WebRacket's current lowered module-path values: symbols,
-        ;;   strings, and path values. Racket also accepts structured `(lib ...)`
-        ;;   and `(submod ...)` forms; add those when runtime probes need them.
+        ;;   strings, path values, and structured `(submod ...)` forms. The
+        ;;   structured check is intentionally permissive for now; module path
+        ;;   indexes only preserve the path datum and do not resolve modules.
         (func $module-path? (type $Prim1)
               (param $v (ref eq)) ;; any/c
               (result   (ref eq))
-              (if (result (ref eq))
-                  (ref.eq (call $symbol? (local.get $v)) (global.get $true))
-                  (then (global.get $true))
-                  (else
-                   (if (result (ref eq))
-                       (ref.eq (call $string? (local.get $v)) (global.get $true))
-                       (then (global.get $true))
-                       (else (call $path? (local.get $v)))))))
+              (local $pair (ref $Pair))
+              (if (ref.eq (call $symbol? (local.get $v)) (global.get $true))
+                  (then (return (global.get $true))))
+              (if (ref.eq (call $string? (local.get $v)) (global.get $true))
+                  (then (return (global.get $true))))
+              (if (ref.eq (call $path? (local.get $v)) (global.get $true))
+                  (then (return (global.get $true))))
+              (if (ref.test (ref $Pair) (local.get $v))
+                  (then
+                   (local.set $pair (ref.cast (ref $Pair) (local.get $v)))
+                   (if (ref.eq (struct.get $Pair $a (local.get $pair))
+                               (global.get $symbol:submod))
+                       (then (return (global.get $true))))))
+              (global.get $false))
 
         ;; module-path-index? : any/c -> boolean?
         ;;   Recognize WebRacket's small runtime module-path-index wrapper.
@@ -53731,6 +53852,8 @@
               (param $base   (ref eq)) ;; (or/c module-path-index? resolved-module-path? #f)
               (param $submod (ref eq)) ;; optional (or/c #f (non-empty-listof symbol?)), default = #f
               (result        (ref eq))
+              (if (ref.eq (local.get $submod) (global.get $missing))
+                  (then (local.set $submod (global.get $false))))
               (if (ref.eq (local.get $path) (global.get $false))
                   (then
                    (if (i32.eqz (ref.eq (local.get $base) (global.get $false)))
@@ -54774,9 +54897,12 @@
 	                                (global.get $symbol:module-variable-ref)
 	                                (local.get $cell)))
 	               (local.set $val (struct.get $ModuleVariable $value (local.get $mv)))
-	               (if (ref.eq (local.get $val) (global.get $undefined))
+	               (if (i32.or
+	                    (ref.eq (local.get $val) (global.get $undefined))
+	                    (ref.eq (local.get $val) (global.get $unsafe-undefined)))
 	                   (then (drop (call $raise-unbound-variable-reference
-	                                     (struct.get $ModuleVariable $name (local.get $mv))))))
+	                                     (struct.get $ModuleVariable $name (local.get $mv))))
+	                         (unreachable)))
 	               (local.get $val))
 
 	         (func $module-variable-ref/no-check (type $Prim1)

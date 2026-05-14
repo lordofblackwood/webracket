@@ -678,12 +678,14 @@
   (define report (webify-compile-module-extractor-spike module-datum))
   (cond
     [(webify-module-extractor-spike-manifest-ready? report)
-     (check-exn
-      #rx"missing-after-reflection"
-      (lambda ()
-        (webify-source-module->resolved-linklet-input
-         module-datum
-         #:module-protocol-dependency 'module-protocol)))
+     (define kernel-input
+       (webify-source-module->resolved-linklet-input
+        module-datum
+        #:module-protocol-dependency 'module-protocol))
+     (check-equal? (webify-module-linklet-input-imports kernel-input)
+                   '((.get-syntax-literal! module-protocol .get-syntax-literal!)
+                     (.set-transformer! module-protocol .set-transformer!)
+                     (first #%kernel first)))
      (define input
        (webify-source-module->resolved-linklet-input
         module-datum
@@ -1062,6 +1064,18 @@
      (list provider-report)))
   (check-equal? (webify-module-linklet-input-imports input)
                 `((1/reverse ,dependency ,provider-export))))
+
+(test-case "provider resolver handles same-module internalized imports"
+  (define report
+    (test-report 'setup/private/dirs
+                 '(((get-installation-name 1/get-installation-name)))
+                 '(get-installation-name installation-name)))
+  (define input
+    (webify-module-extractor-spike->resolved-linklet-input/providers
+     report
+     '()))
+  (check-equal? (webify-module-linklet-input-imports input)
+                '((1/get-installation-name #%utils get-installation-name))))
 
 (test-case "multi-report resolver threads compiled rename aliases"
   (define phase0-linklet

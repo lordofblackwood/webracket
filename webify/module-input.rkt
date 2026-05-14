@@ -231,10 +231,30 @@
                            (map car dependency-exports)))
   (cadr found))
 
+;; primitive-dependency? : symbol? -> boolean?
+;;   Recognize reflected origins for Racket's primitive/predefined modules.
+(define (primitive-dependency? dependency)
+  (and (memq dependency
+             '(#%kernel
+               #%utils
+               #%core
+               #%runtime
+               #%main
+               #%read
+               #%boot
+               #%unsafe
+               #%linklet
+               #%linklet-primitive
+               #%linklet-expander
+               #%expobs
+               #%place-struct
+               #%bootstrap-linklet))
+       #t))
+
 ;; kernel-dependency? : symbol? -> boolean?
 ;;   Recognize reflected origins for Racket's primitive kernel module.
 (define (kernel-dependency? dependency)
-  (eq? dependency '#%kernel))
+  (primitive-dependency? dependency))
 
 ;; symbolic-name=? : symbol? symbol? -> boolean?
 ;;   Compare generated linklet names by printed identity when eq? is too strict.
@@ -362,7 +382,7 @@
 ;;   Validate a selected provider/export pair and return the canonical export symbol.
 (define (validate-provider-export! who dependency-exports dependency provider-export)
   (cond
-    [(kernel-dependency? dependency)
+    [(primitive-dependency? dependency)
      (cond
        [(webify-primitive-name? provider-export) provider-export]
        [else
@@ -446,6 +466,20 @@
                                "candidate reasons"
                                (provider-candidate-reasons candidates))])]))
 
+;; compiled-primitive-alias-hints : (or/c symbol? #f) symbol? symbol? -> (or/c list? #f)
+;;   Recover a few primitive-module aliases that compiled metadata currently
+;;   exposes only as internalized imports. For example, setup/private/dirs
+;;   imports #%utils:get-installation-name as 1/get-installation-name and then
+;;   defines its own public get-installation-name, so export scanning alone
+;;   incorrectly resolves the import to the module's own export cell.
+(define (compiled-primitive-alias-hint module-name local external)
+  (cond
+    [(and (eq? module-name 'setup/private/dirs)
+          (eq? local '1/get-installation-name)
+          (eq? external 'get-installation-name))
+     '(#%utils get-installation-name)]
+    [else #f]))
+
 ;; webify-resolve-module-linklet-imports/outcomes : linklet dependency-exports keyword-args ... -> values
 ;;   Derive flat registry import triples and classify each resolution decision.
 (define (webify-resolve-module-linklet-imports/outcomes linklet
@@ -490,8 +524,19 @@
   (define resolved
     (for/list ([binding (in-list bindings)])
       (match-define (list local external) binding)
+      (define primitive-alias-hint
+        (compiled-primitive-alias-hint module-name local external))
       (match-define (list dependency provider-export status)
-        (resolve-import-source who dependency-exports* dependency-map alias-map hint-map local external))
+        (if primitive-alias-hint
+            (match primitive-alias-hint
+              [(list dependency provider-export)
+               (list dependency
+                     (validate-provider-export! who
+                                                dependency-exports*
+                                                dependency
+                                                provider-export)
+                     'resolved-by-compiled-primitive-alias)])
+            (resolve-import-source who dependency-exports* dependency-map alias-map hint-map local external)))
       (list (list local dependency provider-export)
             (webify-module-resolution-outcome local dependency provider-export status))))
   (values (map car resolved)

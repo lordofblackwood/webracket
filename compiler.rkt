@@ -1203,6 +1203,13 @@
      'fixed 2 2))
    (append
     (make-inline-specs/by-name
+     ;; Optional-arity primitives whose runtime entry points have fixed
+     ;; maximum arity are still emitted as direct calls. The inliner fills
+     ;; omitted optional slots with `(global.get $missing)` in
+     ;; inline-prim/optional below. Keep primitives like
+     ;; custom-print-quotable-accessor here instead of relying on generic
+     ;; procedure application, or one-argument direct calls will underflow the
+     ;; Wasm call signature.
      '(vector-copy!
        string-copy!
        bytes-copy!
@@ -1256,13 +1263,15 @@
        write-bytes
        write-string
        make-thread-cell
-	      make-vector
-	      make-string
-	      make-bytes
-	      syntax-source-module
-	      custom-print-quotable-accessor
-	      vector-sort!
-	      vector-sort
+       make-vector
+       make-string
+       make-bytes
+       get-installation-name
+       module-path-index-join
+       syntax-source-module
+       custom-print-quotable-accessor
+       vector-sort!
+       vector-sort
        struct->vector
        real->floating-point-bytes
        string-trim
@@ -1275,6 +1284,7 @@
        (case name
          [(vector-copy! string-copy! bytes-copy!) 3]
          [(substring subbytes vector-extend procedure-rename datum->syntax) 2]
+         [(module-path-index-join) 2]
          [(syntax-property) 2]
          [(peek-bytes! peek-string!) 2]
          [(string-trim string-split) 1]
@@ -1286,8 +1296,9 @@
                  hash-ref hash-ref-key real->floating-point-bytes vector-sort! vector-sort
                  ) 2]
          [(hash-update!) 3]
-        [(random flrandom unsafe-flrandom make-semaphore current-pseudo-random-generator) 0]
-        [(progress-evt? write-byte write-char get-output-bytes) 1]
+        [(random flrandom unsafe-flrandom make-semaphore current-pseudo-random-generator
+                 get-installation-name) 0]
+         [(progress-evt? write-byte write-char get-output-bytes) 1]
          [(write-bytes write-string) 1]
          [else 1]))
      (λ (name)
@@ -1308,10 +1319,12 @@
                        write-bytes write-string) 4]
          [(peek-bytes! peek-string!) 5]
          [(peek-bytes peek-string) 3]
-	         [(progress-evt? make-vector make-string make-bytes) 2]
-	         [(syntax-source-module) 2]
-	         [(custom-print-quotable-accessor) 2]
-	         [(make-semaphore) 1]
+         [(progress-evt? make-vector make-string make-bytes) 2]
+         [(syntax-source-module) 2]
+         [(custom-print-quotable-accessor) 2]
+         [(make-semaphore) 1]
+         [(get-installation-name) 1]
+         [(module-path-index-join) 3]
          [(random) 2]
          [(current-pseudo-random-generator) 1]
          [(flrandom unsafe-flrandom) 1]
@@ -1827,6 +1840,8 @@
 
   box? box box-immutable unbox unbox* set-box! set-box*! box-cas! unsafe-box*-cas!
   make-weak-box weak-box? weak-box-value
+  webracket-impersonator-property-accessor
+  webracket-impersonator-property-predicate
 
   current-thread
   make-thread-cell thread-cell? thread-cell-ref thread-cell-set!
@@ -2067,6 +2082,7 @@
   system-big-endian?
   system-type
   version
+  get-installation-name
 
   fixnum? fxzero?
   fx+ fx- fx*
@@ -2202,6 +2218,8 @@
 
   port?
   input-port?
+  impersonator-property?
+  impersonator-property-accessor-procedure?
   impersonator?
   impersonator-val
   output-port?  
@@ -2310,6 +2328,7 @@
   make-immutable-hashalw
   make-immutable-hasheq
   make-immutable-hasheqv
+  make-impersonator-property
   make-hash
   make-hashalw
   hash

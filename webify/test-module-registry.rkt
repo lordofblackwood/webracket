@@ -59,13 +59,13 @@
     [`("begin"
        ("define" "webify-linklet-proc$0" ,_)
        ("define" "webify-export-cell0$0" ,_)
-       ("webify-linklet-proc$0" ("quote" "webify-instance") "webify-export-cell0$0")
+       ("webify-linklet-proc$0" ("#%variable-reference") "webify-export-cell0$0")
        ("define" "x" ("module-variable-ref" "webify-export-cell0$0"))
        ("void")
        ("define" "webify-linklet-proc$1" ,_)
        ("define" "webify-export-cell0$1" ,_)
        ("webify-linklet-proc$1"
-        ("quote" "webify-instance")
+        ("#%variable-reference")
         "webify-export-cell0$0"
         "webify-export-cell0$1")
        ("define" "y" ("module-variable-ref" "webify-export-cell0$1"))
@@ -124,13 +124,13 @@
     [`("begin"
        ("define" "webify-linklet-proc$0" ,_)
        ("define" "webify-export-cell0$0" ,_)
-       ("webify-linklet-proc$0" ("quote" "webify-instance") "webify-export-cell0$0")
+       ("webify-linklet-proc$0" ("#%variable-reference") "webify-export-cell0$0")
        ("define" "x" ("module-variable-ref" "webify-export-cell0$0"))
        ("void")
        ("define" "webify-linklet-proc$1" ,_)
        ("define" "webify-export-cell0$1" ,_)
        ("webify-linklet-proc$1"
-        ("quote" "webify-instance")
+        ("#%variable-reference")
         "webify-export-cell0$0"
         "webify-export-cell0$1")
        ("define" "y" ("module-variable-ref" "webify-export-cell0$1"))

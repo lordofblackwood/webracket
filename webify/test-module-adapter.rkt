@@ -18,7 +18,7 @@
            ("define" "x" 3)
            ("module-variable-define!" "x1" "x" ("quote" "consistent"))))
        ("define" ,cell-id ("module-variable-make" ("quote" "x")))
-       (,proc-call-id ("quote" "webify-instance") ,cell-arg-id)
+       (,proc-call-id ("#%variable-reference") ,cell-arg-id)
        ("define" "x" ("module-variable-ref" ,cell-ref-id))
        ("void"))
      (check-equal? proc-id "webify-linklet-proc$0")
@@ -114,7 +114,7 @@
          ("lambda" ("instance-variable-reference")
            ("define" "x" 1)
            ("void")))
-       (,proc-call-id ("quote" "webify-instance"))
+       (,proc-call-id ("#%variable-reference"))
        ("void"))
      (check-equal? proc-id "webify-linklet-proc$0")
      (check-equal? proc-call-id proc-id)]
@@ -136,7 +136,7 @@
        ("define" ,proc-id ,_)
        ("define" ,cell0-id ("module-variable-make" ("quote" "x")))
        ("define" ,cell1-id ("module-variable-make" ("quote" "y")))
-       (,proc-call-id ("quote" "webify-instance") ,cell0-arg-id ,cell1-arg-id)
+       (,proc-call-id ("#%variable-reference") ,cell0-arg-id ,cell1-arg-id)
        ("define" "x" ("module-variable-ref" ,cell0-ref-id))
        ("define" "y" ("module-variable-ref" ,cell1-ref-id))
        ("void"))
@@ -163,7 +163,7 @@
     [`("begin"
        ("define" ,proc-id ,_)
        ("define" ,cell-id ("module-variable-make" ("quote" "x")))
-       (,proc-call-id ("quote" "webify-instance") ,cell-arg-id)
+       (,proc-call-id ("#%variable-reference") ,cell-arg-id)
        ("define" "x" ("module-variable-ref" ,cell-ref-id))
        ("void"))
      (check-equal? proc-id "webify-linklet-proc$0")
@@ -185,7 +185,7 @@
     [`("begin"
        ("define" ,proc-id ,_)
        ("define" ,cell-id ("module-variable-make" ("quote" "f")))
-       (,proc-call-id ("quote" "webify-instance") ,cell-arg-id)
+       (,proc-call-id ("#%variable-reference") ,cell-arg-id)
        ("define" "f" ("module-variable-ref" ,cell-ref-id))
        ("void"))
      (check-equal? proc-id "webify-linklet-proc$0")
@@ -209,7 +209,7 @@
     [`("begin"
        ("define" ,proc-id ,_)
        ("define" ,cell-id ("module-variable-make" ("quote" "webify-linklet-proc")))
-       (,proc-call-id ("quote" "webify-instance") ,cell-arg-id)
+       (,proc-call-id ("#%variable-reference") ,cell-arg-id)
        ("define" "webify-linklet-proc" ("module-variable-ref" ,cell-ref-id))
        ("void"))
      (check-equal? proc-id "webify-linklet-proc$0")
@@ -231,7 +231,7 @@
        ("define" ,proc-id ,_)
        ("define" ,cell0-id ("module-variable-make" ("quote" "webify-linklet-proc$0")))
        ("define" ,cell1-id ("module-variable-make" ("quote" "webify-export-cell0$0")))
-       (,proc-call-id ("quote" "webify-instance") ,cell0-arg-id ,cell1-arg-id)
+       (,proc-call-id ("#%variable-reference") ,cell0-arg-id ,cell1-arg-id)
        ("define" "webify-linklet-proc$0" ("module-variable-ref" ,cell0-ref-id))
        ("define" "webify-export-cell0$0" ("module-variable-ref" ,cell1-ref-id))
        ("void"))
@@ -287,13 +287,13 @@
     [`("begin"
        ("define" "webify-linklet-proc$0" ,_)
        ("define" "webify-export-cell0$0" ,_)
-       ("webify-linklet-proc$0" ("quote" "webify-instance") "webify-export-cell0$0")
+       ("webify-linklet-proc$0" ("#%variable-reference") "webify-export-cell0$0")
        ("define" "x" ("module-variable-ref" "webify-export-cell0$0"))
        ("void")
        ("define" "webify-linklet-proc$1" ,_)
        ("define" "webify-export-cell0$1" ,_)
        ("webify-linklet-proc$1"
-        ("quote" "webify-instance")
+        ("#%variable-reference")
         "webify-export-cell0$0"
         "webify-export-cell0$1")
        ("define" "y" ("module-variable-ref" "webify-export-cell0$1"))
@@ -322,7 +322,7 @@
     [`("begin"
        ("define" "webify-linklet-proc$0"
          ("lambda" ("instance-variable-reference" "reverse1" "y2")
-           ("define" "1/reverse" ("module-variable-ref/no-check" "reverse1"))
+           ("define" "1/reverse" ("module-variable-ref" "reverse1"))
            ("define" "y" ("1/reverse" ("quote" ("a" "b"))))
            ("module-variable-define!" "y2" "y" ("quote" "constant"))))
        . ,_)
