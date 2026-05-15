@@ -4449,6 +4449,21 @@
                                                      (equal? (car p) 0))
                                                    xs))
                                    1))))
+              (list "immutable HAMT removes emptied child branch"
+                    (let ([keys '(0 8 16 24 32 40 48 56 64)])
+                      (let build ([ks keys] [h (hasheqv)])
+                        (if (null? ks)
+                            (let remove ([ks keys] [h h])
+                              (if (null? ks)
+                                  (let ([h* (hash-set h 16 'again)])
+                                    (and (equal? (hash-count h) 0)
+                                         (null? (hash->list h))
+                                         (equal? (hash-count h*) 1)
+                                         (equal? (hash-ref h* 16) 'again)))
+                                  (remove (cdr ks)
+                                          (hash-remove h (car ks)))))
+                            (build (cdr ks)
+                                   (hash-set h (car ks) (car ks)))))))
               (list "hash immutable constructor"
                     (let* ([empty (hash)]
                            [h     (hash 'a 1 'b 2 'a 3)]

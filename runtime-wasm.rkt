@@ -38764,12 +38764,14 @@
                (param $shift i32)
                (result       (ref eq))
                (local $sv      (ref $StencilVector))
+               (local $newsv   (ref $StencilVector))
                (local $mask    i32)
                (local $bit     i32)
                (local $index   i32)
                (local $slot    (ref eq))
                (local $newslot (ref eq))
                (local.set $newslot (global.get $null))
+               (local.set $newsv (call $immutable-hamt-empty-node))
                (if (i32.eqz (ref.test (ref $StencilVector) (local.get $node)))
                    (then
                     (return_call $immutable-hamt-bucket-remove/kind
@@ -38813,6 +38815,19 @@
                                  (i32.const 0)
                                  (global.get $null)
                                  (i32.const 1))))
+               (if (ref.test (ref $StencilVector) (local.get $newslot))
+                   (then
+                    (local.set $newsv
+                               (ref.cast (ref $StencilVector)
+                                         (local.get $newslot)))
+                    (if (i32.eqz (struct.get $StencilVector $mask (local.get $newsv)))
+                        (then
+                         (return_call $$stencil-vector-update/core
+                                      (local.get $sv)
+                                      (local.get $bit)
+                                      (i32.const 0)
+                                      (global.get $null)
+                                      (i32.const 1))))))
                (return_call $$stencil-vector-update/core
                             (local.get $sv)
                             (local.get $bit)
