@@ -38354,14 +38354,10 @@
                (local.get $sv))
 
          ;; immutable-hamt-bnode-metadata : stencil-vector? -> i32
-         ;;   Read stored packed metadata, deriving it for pre-cache bnodes.
+         ;;   Read stored packed metadata. HAMT constructors/updates must cache it.
          (func $immutable-hamt-bnode-metadata
                (param $sv (ref $StencilVector))
                (result    i32)
-               (if (i32.eqz (struct.get $StencilVector $hash (local.get $sv)))
-                   (then
-                    (return_call $immutable-hamt-bnode-packed-metadata
-                                 (local.get $sv))))
                (struct.get $StencilVector $hash (local.get $sv)))
 
          ;; immutable-hamt-packed-metadata-present?/i32 : i32 i32 i32 -> i32
@@ -38965,6 +38961,45 @@
                            (i32.const 0)
                            (array.new $Array (global.get $missing) (i32.const 0)))))
 
+         ;; immutable-hamt-bnode-collapse-if-single : any/c -> any/c
+         ;;   Collapse a one-slot bnode when the slot can stand directly in its parent.
+         (func $immutable-hamt-bnode-collapse-if-single
+               (param $node (ref eq))
+               (result      (ref eq))
+               (local $sv        (ref $StencilVector))
+               (local $slot      (ref eq))
+               (local $collapsed (ref eq))
+               (if (i32.eqz (ref.test (ref $StencilVector) (local.get $node)))
+                   (then (return (local.get $node))))
+               (local.set $sv (ref.cast (ref $StencilVector) (local.get $node)))
+               (if (i32.ne (call $$stencil-vector-popcount/i32
+                                  (struct.get $StencilVector $mask (local.get $sv)))
+                            (i32.const 1))
+                   (then (return (local.get $node))))
+               (local.set $slot
+                          (array.get $Array
+                                     (struct.get $StencilVector $slots (local.get $sv))
+                                     (i32.const 0)))
+               (if (ref.test (ref $ImmutableHashEntry) (local.get $slot))
+                   (then (return (local.get $slot))))
+               (if (ref.test (ref $Pair) (local.get $slot))
+                   (then
+                    (local.set $collapsed
+                               (call $immutable-hamt-collapse-small-bucket
+                                     (local.get $slot)))
+                    (if (ref.test (ref $ImmutableHashEntry) (local.get $collapsed))
+                        (then (return (local.get $collapsed))))
+                    (return (local.get $node))))
+               (if (ref.test (ref $StencilVector) (local.get $slot))
+                   (then
+                    (local.set $collapsed
+                               (call $immutable-hamt-bnode-collapse-if-single
+                                     (local.get $slot)))
+                    (if (ref.eq (local.get $collapsed) (local.get $slot))
+                        (then (return (local.get $node))))
+                    (return (local.get $collapsed))))
+               (local.get $node))
+
          (func $immutable-hamt-bucket-length
                (param $bucket (ref eq)) ;; list of immutable hash entries
                (result        i32)
@@ -39512,15 +39547,16 @@
                                           (local.get $key)))))))
                (if (ref.eq (local.get $newslot) (global.get $null))
                    (then
-                    (return_call $immutable-hamt-store-bnode-metadata
-                                 (ref.cast
-                                  (ref $StencilVector)
-                                  (call $$stencil-vector-update/core
-                                        (local.get $sv)
-                                        (local.get $bit)
-                                        (i32.const 0)
-                                        (global.get $null)
-                                        (i32.const 1))))))
+                    (return_call $immutable-hamt-bnode-collapse-if-single
+                                 (call $immutable-hamt-store-bnode-metadata
+                                       (ref.cast
+                                        (ref $StencilVector)
+                                        (call $$stencil-vector-update/core
+                                              (local.get $sv)
+                                              (local.get $bit)
+                                              (i32.const 0)
+                                              (global.get $null)
+                                              (i32.const 1)))))))
                (if (ref.test (ref $StencilVector) (local.get $newslot))
                    (then
                     (local.set $newsv
@@ -39528,24 +39564,26 @@
                                          (local.get $newslot)))
                     (if (i32.eqz (struct.get $StencilVector $mask (local.get $newsv)))
                         (then
-                         (return_call $immutable-hamt-store-bnode-metadata
-                                      (ref.cast
-                                       (ref $StencilVector)
-                                       (call $$stencil-vector-update/core
-                                             (local.get $sv)
-                                             (local.get $bit)
-                                             (i32.const 0)
-                                             (global.get $null)
-                                             (i32.const 1))))))))
-               (return_call $immutable-hamt-store-bnode-metadata
-                            (ref.cast
-                             (ref $StencilVector)
-                             (call $$stencil-vector-update/core
-                                   (local.get $sv)
-                                   (local.get $bit)
-                                   (local.get $bit)
-                                   (call $cons (local.get $newslot) (global.get $null))
-                                   (i32.const 1)))))
+                         (return_call $immutable-hamt-bnode-collapse-if-single
+                                      (call $immutable-hamt-store-bnode-metadata
+                                            (ref.cast
+                                             (ref $StencilVector)
+                                             (call $$stencil-vector-update/core
+                                                   (local.get $sv)
+                                                   (local.get $bit)
+                                                   (i32.const 0)
+                                                   (global.get $null)
+                                                   (i32.const 1)))))))))
+               (return_call $immutable-hamt-bnode-collapse-if-single
+                            (call $immutable-hamt-store-bnode-metadata
+                                  (ref.cast
+                                   (ref $StencilVector)
+                                   (call $$stencil-vector-update/core
+                                         (local.get $sv)
+                                         (local.get $bit)
+                                         (local.get $bit)
+                                         (call $cons (local.get $newslot) (global.get $null))
+                                         (i32.const 1))))))
 
          (func $immutable-hasheqv-ref
                (type $Prim23)
@@ -40329,7 +40367,7 @@
                (param $key (ref eq)) ;; key to remove
                (result     (ref eq))
                (local $table (ref $HashEqvImmutable))
-               (local $root  (ref $StencilVector))
+               (local $root  (ref eq))
                (local $hash  i32)
                (if (i32.eqz (ref.test (ref $HashEqvImmutable) (local.get $ht)))
                    (then (call $raise-argument-error:hasheqv-expected (local.get $ht))
@@ -40340,8 +40378,7 @@
                    (then (return (local.get $ht))))
                (local.set $hash (call $eqv-hash/i32 (local.get $key)))
                (local.set $root
-                          (ref.cast (ref $StencilVector)
-                                    (struct.get $HashEqvImmutable $root (local.get $table))))
+                          (struct.get $HashEqvImmutable $root (local.get $table)))
                (if (i32.eqz
                     (call $immutable-hamt-node-has-key?/kind
                           (i32.const 1)
@@ -40354,13 +40391,12 @@
                            (i32.const 1))
                    (then (return (call $make-empty-immutable-hasheqv))))
                (local.set $root
-                          (ref.cast (ref $StencilVector)
-                                    (call $immutable-hamt-node-remove/kind
-                                          (i32.const 1)
-                                          (local.get $root)
-                                          (local.get $key)
-                                          (local.get $hash)
-                                          (i32.const 0))))
+                          (call $immutable-hamt-node-remove/kind
+                                (i32.const 1)
+                                (local.get $root)
+                                (local.get $key)
+                                (local.get $hash)
+                                (i32.const 0)))
                (struct.new $HashEqvImmutable
                            (i32.const 0)
                            (global.get $false)
@@ -40375,7 +40411,7 @@
                (param $key (ref eq)) ;; key to remove
                (result     (ref eq))
                (local $table (ref $HashEqImmutable))
-               (local $root  (ref $StencilVector))
+               (local $root  (ref eq))
                (local $hash  i32)
                (if (i32.eqz (ref.test (ref $HashEqImmutable) (local.get $ht)))
                    (then (call $raise-argument-error:hasheq-expected (local.get $ht))
@@ -40386,8 +40422,7 @@
                    (then (return (local.get $ht))))
                (local.set $hash (call $eq-hash/i32 (local.get $key)))
                (local.set $root
-                          (ref.cast (ref $StencilVector)
-                                    (struct.get $HashEqImmutable $root (local.get $table))))
+                          (struct.get $HashEqImmutable $root (local.get $table)))
                (if (i32.eqz
                     (call $immutable-hamt-node-has-key?/kind
                           (i32.const 0)
@@ -40400,13 +40435,12 @@
                            (i32.const 1))
                    (then (return (call $make-empty-immutable-hasheq))))
                (local.set $root
-                          (ref.cast (ref $StencilVector)
-                                    (call $immutable-hamt-node-remove/kind
-                                          (i32.const 0)
-                                          (local.get $root)
-                                          (local.get $key)
-                                          (local.get $hash)
-                                          (i32.const 0))))
+                          (call $immutable-hamt-node-remove/kind
+                                (i32.const 0)
+                                (local.get $root)
+                                (local.get $key)
+                                (local.get $hash)
+                                (i32.const 0)))
                (struct.new $HashEqImmutable
                            (i32.const 0)
                            (global.get $false)
@@ -40421,7 +40455,7 @@
                (param $key (ref eq)) ;; key to remove
                (result     (ref eq))
                (local $table (ref $HashEqualImmutable))
-               (local $root  (ref $StencilVector))
+               (local $root  (ref eq))
                (local $hash  i32)
                (if (i32.eqz (ref.test (ref $HashEqualImmutable) (local.get $ht)))
                    (then (call $raise-argument-error:hash-expected (local.get $ht))
@@ -40432,8 +40466,7 @@
                    (then (return (local.get $ht))))
                (local.set $hash (call $equal-hash/i32 (local.get $key)))
                (local.set $root
-                          (ref.cast (ref $StencilVector)
-                                    (struct.get $HashEqualImmutable $root (local.get $table))))
+                          (struct.get $HashEqualImmutable $root (local.get $table)))
                (if (i32.eqz
                     (call $immutable-hamt-node-has-key?/kind
                           (i32.const 2)
@@ -40446,13 +40479,12 @@
                            (i32.const 1))
                    (then (return (call $make-empty-immutable-hash))))
                (local.set $root
-                          (ref.cast (ref $StencilVector)
-                                    (call $immutable-hamt-node-remove/kind
-                                          (i32.const 2)
-                                          (local.get $root)
-                                          (local.get $key)
-                                          (local.get $hash)
-                                          (i32.const 0))))
+                          (call $immutable-hamt-node-remove/kind
+                                (i32.const 2)
+                                (local.get $root)
+                                (local.get $key)
+                                (local.get $hash)
+                                (i32.const 0)))
                (struct.new $HashEqualImmutable
                            (i32.const 0)
                            (global.get $false)
@@ -40467,7 +40499,7 @@
                (param $key (ref eq)) ;; key to remove
                (result     (ref eq))
                (local $table (ref $HashEqualAlwaysImmutable))
-               (local $root  (ref $StencilVector))
+               (local $root  (ref eq))
                (local $hash  i32)
                (if (i32.eqz (ref.test (ref $HashEqualAlwaysImmutable) (local.get $ht)))
                    (then (call $raise-argument-error:hashalw-expected (local.get $ht))
@@ -40478,8 +40510,7 @@
                    (then (return (local.get $ht))))
                (local.set $hash (call $equal-always-hash/i32 (local.get $key)))
                (local.set $root
-                          (ref.cast (ref $StencilVector)
-                                    (struct.get $HashEqualAlwaysImmutable $root (local.get $table))))
+                          (struct.get $HashEqualAlwaysImmutable $root (local.get $table)))
                (if (i32.eqz
                     (call $immutable-hamt-node-has-key?/kind
                           (i32.const 3)
@@ -40492,13 +40523,12 @@
                            (i32.const 1))
                    (then (return (call $make-empty-immutable-hashalw))))
                (local.set $root
-                          (ref.cast (ref $StencilVector)
-                                    (call $immutable-hamt-node-remove/kind
-                                          (i32.const 3)
-                                          (local.get $root)
-                                          (local.get $key)
-                                          (local.get $hash)
-                                          (i32.const 0))))
+                          (call $immutable-hamt-node-remove/kind
+                                (i32.const 3)
+                                (local.get $root)
+                                (local.get $key)
+                                (local.get $hash)
+                                (i32.const 0)))
                (struct.new $HashEqualAlwaysImmutable
                            (i32.const 0)
                            (global.get $false)

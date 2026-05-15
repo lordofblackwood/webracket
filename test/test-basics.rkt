@@ -5409,8 +5409,8 @@
                                        263169
                                        (2 1 0 1 0 1 1)
                                        263169
-                                       (1 1 0 0 1 1 1)
-                                       263169
+                                       (1 0 0 0 1 0 0)
+                                       0
                                        1
                                        (single 1)
                                        #t
@@ -5467,12 +5467,71 @@
                                            (equal? (hash-ref h* (list j)) j))
                                          expected)
                                  (equal? (length pairs) 89)
-                                 (equal? (length keys) 89)
-                                 (equal? (sort values <) expected)
-                                 (equal? (sort mapped <) expected)))
-                          (loop (+ i 1) (hash-set h (list i) i)))))
-              
-              ))
+	                                 (equal? (length keys) 89)
+	                                 (equal? (sort values <) expected)
+	                                 (equal? (sort mapped <) expected)))
+	                          (loop (+ i 1) (hash-set h (list i) i)))))
+
+	              (list "immutable HAMT cross-kind add/remove stress"
+	                    (let ()
+	                      (define eq-keys
+	                        '(k00 k01 k02 k03 k04 k05 k06 k07
+	                              k08 k09 k10 k11 k12 k13 k14 k15
+	                              k16 k17 k18 k19 k20 k21 k22 k23
+	                              k24 k25 k26 k27 k28 k29 k30 k31))
+	                      (define (keep? i)
+	                        (not (equal? (remainder i 3) 1)))
+	                      (define expected
+	                        (let loop ([i 0] [acc '()])
+	                          (cond
+	                            [(equal? i 32) (reverse acc)]
+	                            [(keep? i) (loop (+ i 1) (cons i acc))]
+	                            [else (loop (+ i 1) acc)])))
+	                      (define (exercise empty make-key same-key?)
+	                        (let* ([built
+	                                (let build ([i 0] [h empty])
+	                                  (if (equal? i 32)
+	                                      h
+	                                      (build (+ i 1)
+	                                             (hash-set h (make-key i) (* i 10)))))]
+	                               [trimmed
+	                                (let remove ([i 0] [h built])
+	                                  (if (equal? i 32)
+	                                      h
+	                                      (remove (+ i 1)
+	                                              (if (keep? i)
+	                                                  h
+	                                                  (hash-remove h (make-key i))))))]
+	                               [pairs (hash->list trimmed)])
+	                          (and (equal? (hash-count built) 32)
+	                               (equal? (hash-count trimmed) (length expected))
+	                               (andmap
+	                                (lambda (i)
+	                                  (and (hash-has-key? trimmed (make-key i))
+	                                       (equal? (hash-ref trimmed (make-key i)) (* i 10))
+	                                       (same-key? (hash-ref-key trimmed (make-key i))
+	                                                  (make-key i))))
+	                                expected)
+	                               (andmap
+	                                (lambda (i)
+	                                  (not (hash-has-key? trimmed (make-key i))))
+	                                '(1 4 7 10 13 16 19 22 25 28 31))
+	                               (equal? (sort (map cdr pairs) <)
+	                                       (map (lambda (i) (* i 10)) expected)))))
+	                      (and (exercise (hasheq)
+	                                     (lambda (i) (list-ref eq-keys i))
+	                                     eq?)
+	                           (exercise (hasheqv)
+	                                     (lambda (i) i)
+	                                     equal?)
+	                           (exercise (hash)
+	                                     (lambda (i) (list i))
+	                                     equal?)
+	                           (exercise (hashalw)
+	                                     (lambda (i) (list i))
+	                                     equal?))))
+
+	              ))
 
        (list "4.20.2 Reflecting on Procedures"
              (list
