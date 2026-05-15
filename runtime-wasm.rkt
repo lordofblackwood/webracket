@@ -11275,6 +11275,22 @@
                (local.set $v (array.get $Args (local.get $args) (i32.const 0)))
                (call $equal-hash-code (local.get $v)))
 
+         (func $equal+hash-recur/hash-always (type $ClosureCode)
+               (param $clos (ref $Closure))
+               (param $args (ref $Args))
+               (result (ref eq))
+
+               (local $argc i32)
+               (local $v    (ref eq))
+
+               (local.set $argc (array.len (local.get $args)))
+               (if (i32.ne (local.get $argc) (i32.const 1))
+                   (then (call $raise-arity-mismatch/proc (local.get $clos) (local.get $argc))
+                         (unreachable)))
+
+               (local.set $v (array.get $Args (local.get $args) (i32.const 0)))
+               (call $equal-always-hash-code (local.get $v)))
+
          (func $struct-equal+hash-apply
                (param $info  (ref $Array))
                (param $self  (ref eq))
@@ -11345,12 +11361,14 @@
                (local $inv      (ref $ProcedureInvoker))
                (local $args     (ref $Args))
                (local $mode-val (ref eq))
+               (local $recur    (ref eq))
                (local $result   (ref eq))
                (local $hash     (ref i31))
                (local $value    i32)
 
                ;; Initialize non-defaultable locals
                (local.set $mode-val (global.get $false))
+               (local.set $recur    (global.get $equal+hash-recur/hash-always))
                (local.set $result   (global.get $false))
 
                ;; Decode arguments
@@ -11360,7 +11378,8 @@
 
                (if (i32.eq (local.get $mode) (i32.const 0))
                    (then (local.set $mode-val (global.get $false)))
-                   (else (local.set $mode-val (global.get $true))))
+                   (else (local.set $mode-val (global.get $true))
+                         (local.set $recur (global.get $equal+hash-recur/hash))))
 
                (if (i32.eq (local.get $variant) (i32.const 3))
                    (then
@@ -11372,7 +11391,7 @@
                     (array.set $Args (local.get $args) (i32.const 0)
                                (ref.cast (ref eq) (local.get $self)))
                     (array.set $Args (local.get $args) (i32.const 1)
-                               (global.get $equal+hash-recur/hash))
+                               (local.get $recur))
                     (local.set $result
                                (call_ref $ProcedureInvoker
                                          (local.get $proc)
@@ -11387,7 +11406,7 @@
                     (array.set $Args (local.get $args) (i32.const 0)
                                (ref.cast (ref eq) (local.get $self)))
                     (array.set $Args (local.get $args) (i32.const 1)
-                               (global.get $equal+hash-recur/hash))
+                               (local.get $recur))
                     (array.set $Args (local.get $args) (i32.const 2) (local.get $mode-val))
                     (local.set $result
                                (call_ref $ProcedureInvoker
@@ -39326,7 +39345,7 @@
                    (then (call $raise-argument-error:hashalw-expected (local.get $ht))
                          (unreachable)))
                (local.set $table (ref.cast (ref $HashEqualAlwaysImmutable) (local.get $ht)))
-               (local.set $hash (call $equal-hash/i32 (local.get $key)))
+               (local.set $hash (call $equal-always-hash/i32 (local.get $key)))
                (if (ref.eq (struct.get $HashEqualAlwaysImmutable $root (local.get $table))
                            (global.get $missing))
                    (then (return_call $immutable-hamt-bucket-ref/kind
@@ -39354,7 +39373,7 @@
                    (then (call $raise-argument-error:hashalw-expected (local.get $ht))
                          (unreachable)))
                (local.set $table (ref.cast (ref $HashEqualAlwaysImmutable) (local.get $ht)))
-               (local.set $hash (call $equal-hash/i32 (local.get $key)))
+               (local.set $hash (call $equal-always-hash/i32 (local.get $key)))
                (if (ref.eq (struct.get $HashEqualAlwaysImmutable $root (local.get $table))
                            (global.get $missing))
                    (then (return_call $immutable-hamt-bucket-ref-key/kind
@@ -39384,7 +39403,7 @@
                (if (ref.eq (struct.get $HashEqualAlwaysImmutable $root (local.get $table))
                            (global.get $missing))
                    (then (return (global.get $false))))
-               (local.set $hash (call $equal-hash/i32 (local.get $key)))
+               (local.set $hash (call $equal-always-hash/i32 (local.get $key)))
                (if (result (ref eq))
                    (call $immutable-hamt-node-has-key?/kind
                          (i32.const 3)
@@ -39932,7 +39951,7 @@
                    (then (call $raise-argument-error:hashalw-expected (local.get $ht))
                          (unreachable)))
                (local.set $table (ref.cast (ref $HashEqualAlwaysImmutable) (local.get $ht)))
-               (local.set $hash  (call $equal-hash/i32 (local.get $key)))
+               (local.set $hash  (call $equal-always-hash/i32 (local.get $key)))
                (local.set $bit   (call $immutable-hamt-bit
                                         (local.get $hash)
                                         (i32.const 0)))
@@ -40610,7 +40629,7 @@
                (if (ref.eq (struct.get $HashEqualAlwaysImmutable $root (local.get $table))
                            (global.get $missing))
                    (then (return (local.get $ht))))
-               (local.set $hash (call $equal-hash/i32 (local.get $key)))
+               (local.set $hash (call $equal-always-hash/i32 (local.get $key)))
                (local.set $bit  (call $immutable-hamt-bit
                                        (local.get $hash)
                                        (i32.const 0)))
@@ -40817,8 +40836,8 @@
 
          ;; hashalw : any/c any/c ... -> immutable-hashalw?
          ;;   Build an immutable equal-always?-based hash from alternating keys
-         ;;   and values. It uses equal-hash/i32 for bucket selection, which is
-         ;;   safe because equal-always? implies equal?.
+         ;;   and values. It uses equal-always-hash/i32 for bucket selection,
+         ;;   so mutable subvalues hash by identity.
          (func $hashalw (type $Prim>=0)
                (param $args (ref eq)) ;; rest arguments as a list
                (result      (ref eq))
@@ -41552,7 +41571,8 @@
                       [type                       '($HashEqMutable
                                                     $HashEqvMutable
                                                     $HashEqualMutable
-                                                    $HashEqualAlwaysMutable)])
+                                                    $HashEqualAlwaysMutable)]
+                      [kind                       '(0 1 2 3)])
              `(func ,hash-ref-key/plain/checked
                     (param $table (ref ,type))
                     (param $key   (ref eq))
@@ -41572,7 +41592,9 @@
 
                     (local.set $entries  (struct.get ,type $entries (local.get $table)))
                     (local.set $capacity (i32.div_u (array.len (local.get $entries)) (i32.const 2)))
-                    (local.set $hash     (call $eq-hash/i32 (local.get $key)))
+                    (local.set $hash     (call $hash-key-hash/kind
+                                               (i32.const ,kind)
+                                               (local.get $key)))
                     (local.set $index    (i32.rem_u (local.get $hash) (local.get $capacity)))
                     (local.set $step     (i32.const 0))
                     (block $not-found
@@ -41590,7 +41612,10 @@
                                      (then
                                       (local.set $step (i32.add (local.get $step) (i32.const 1)))
                                       (br $probe)))
-                                 (if (ref.eq (local.get $k) (local.get $key))
+                                 (if (call $hash-key-matches?/kind
+                                           (i32.const ,kind)
+                                           (local.get $k)
+                                           (local.get $key))
                                      (then (return (local.get $k))))
                                  (local.set $step (i32.add (local.get $step) (i32.const 1)))
                                  (br $probe)))
@@ -41731,7 +41756,8 @@
                       [type                   '($HashEqMutable
                                                 $HashEqvMutable
                                                 $HashEqualMutable
-                                                $HashEqualAlwaysMutable)])
+                                                $HashEqualAlwaysMutable)]
+                      [kind                   '(0 1 2 3)])
              `(func ,hash-ref/plain/checked
                     (param $table (ref ,type))
                     (param $key   (ref eq))
@@ -41752,8 +41778,10 @@
                     ;; Get entries and compute capacity
                     (local.set $entries  (struct.get ,type $entries (local.get $table)))
                     (local.set $capacity (i32.div_u (array.len (local.get $entries)) (i32.const 2)))
-                    ;; Hash key (identity hash)
-                    (local.set $hash     (call $eq-hash/i32 (local.get $key)))
+                    ;; Hash key
+                    (local.set $hash     (call $hash-key-hash/kind
+                                               (i32.const ,kind)
+                                               (local.get $key)))
                     (local.set $index    (i32.rem_u (local.get $hash) (local.get $capacity)))
                     (local.set $step     (i32.const 0))
                     (block $not-found
@@ -41777,7 +41805,10 @@
                                       (local.set $step (i32.add (local.get $step) (i32.const 1)))
                                       (br $probe)))
                                  ;; Match? — return value at slot + 1
-                                 (if (ref.eq (local.get $k) (local.get $key))
+                                 (if (call $hash-key-matches?/kind
+                                           (i32.const ,kind)
+                                           (local.get $k)
+                                           (local.get $key))
                                      (then
                                       (return
                                        (array.get $Array
@@ -41948,6 +41979,48 @@
 
          (func $raise-hash-insert:table-full (unreachable))
 
+         ;; hash-key-hash/kind : i32 any/c -> i32
+         ;;   Compute the mutable hash-table probe hash for kind:
+         ;;   0 eq?, 1 eqv?, 2 equal?, 3 equal-always?.
+         (func $hash-key-hash/kind
+               (param $kind i32)
+               (param $key  (ref eq))
+               (result i32)
+
+               (if (i32.eq (local.get $kind) (i32.const 0))
+                   (then (return (call $eq-hash/i32 (local.get $key)))))
+               (if (i32.eq (local.get $kind) (i32.const 1))
+                   (then (return (call $eqv-hash/i32 (local.get $key)))))
+               (if (i32.eq (local.get $kind) (i32.const 2))
+                   (then (return (call $equal-hash/i32 (local.get $key)))))
+               (call $equal-always-hash/i32 (local.get $key)))
+
+         ;; hash-key-matches?/kind : i32 any/c any/c -> i32
+         ;;   Check mutable hash-table key equality for the same kind mapping
+         ;;   used by hash-key-hash/kind.
+         (func $hash-key-matches?/kind
+               (param $kind i32)
+               (param $a    (ref eq))
+               (param $b    (ref eq))
+               (result i32)
+
+               (if (i32.eq (local.get $kind) (i32.const 0))
+                   (then (return (ref.eq (local.get $a) (local.get $b)))))
+               (if (i32.eq (local.get $kind) (i32.const 1))
+                   (then (return (ref.eq (call $eqv?
+                                               (local.get $a)
+                                               (local.get $b))
+                                         (global.get $true)))))
+               (if (i32.eq (local.get $kind) (i32.const 2))
+                   (then (return (ref.eq (call $equal?
+                                               (local.get $a)
+                                               (local.get $b))
+                                         (global.get $true)))))
+               (ref.eq (call $equal-always?
+                             (local.get $a)
+                             (local.get $b))
+                       (global.get $true)))
+
 
          ,@(for/list ([set!/checked     '($hasheq-set!/mutable/checked
                                           $hasheqv-set!/mutable/checked
@@ -41964,7 +42037,8 @@
                       [maybe-resize     '($maybe-resize-hasheq
                                           $maybe-resize-hasheqv
                                           $maybe-resize-hashequal
-                                          $maybe-resize-hashalw)])
+                                          $maybe-resize-hashalw)]
+                      [kind             '(0 1 2 3)])
              
              `(func ,set!/checked
                     (param $table (ref ,type))
@@ -41986,7 +42060,9 @@
                     (local.set $entries  (struct.get ,type $entries (local.get $table)))
                     (local.set $capacity (i32.div_u (array.len (local.get $entries)) (i32.const 2)))
                     ;; Compute initial hash/index
-                    (local.set $hash  (call $eq-hash/i32 (local.get $key))) ; XXX
+                    (local.set $hash  (call $hash-key-hash/kind
+                                            (i32.const ,kind)
+                                            (local.get $key)))
                     (local.set $index (i32.rem_u (local.get $hash) (local.get $capacity)))
                     (local.set $step  (i32.const 0))
                     ;; No tombstone seen yet
@@ -42025,7 +42101,10 @@
                                                          (i32.add (struct.get ,type $count (local.get $table)) (i32.const 1)))
                                              (br $done)))
                                         ;; Key match — overwrite value
-                                        (if (ref.eq (local.get $k) (local.get $key))
+                                        (if (call $hash-key-matches?/kind
+                                                  (i32.const ,kind)
+                                                  (local.get $k)
+                                                  (local.get $key))
                                             (then
                                              (array.set $Array
                                                         (local.get $entries)
@@ -42154,7 +42233,8 @@
                       [set!/checked             '($hasheq-set!/mutable/checked
                                                   $hasheqv-set!/mutable/checked
                                                   $hash-set!/mutable/checked
-                                                  $hashalw-set!/mutable/checked)])
+                                                  $hashalw-set!/mutable/checked)]
+                      [kind                     '(0 1 2 3)])
              `(func ,hash-ref!/plain/checked
                     (param $table  (ref ,type))
                     (param $key    (ref eq))
@@ -42176,8 +42256,10 @@
                     ;; Get entries and compute capacity
                     (local.set $entries  (struct.get ,type $entries (local.get $table)))
                     (local.set $capacity (i32.div_u (array.len (local.get $entries)) (i32.const 2)))
-                    ;; Hash key (identity hash)
-                    (local.set $hash     (call $eq-hash/i32 (local.get $key)))
+                    ;; Hash key
+                    (local.set $hash     (call $hash-key-hash/kind
+                                               (i32.const ,kind)
+                                               (local.get $key)))
                     (local.set $index    (i32.rem_u (local.get $hash) (local.get $capacity)))
                     (local.set $step     (i32.const 0))
                     (block $not-found
@@ -42201,7 +42283,10 @@
                                       (local.set $step (i32.add (local.get $step) (i32.const 1)))
                                       (br $probe)))
                                  ;; Match? — return value at slot + 1
-                                 (if (ref.eq (local.get $k) (local.get $key))
+                                 (if (call $hash-key-matches?/kind
+                                           (i32.const ,kind)
+                                           (local.get $k)
+                                           (local.get $key))
                                      (then
                                       (return
                                        (array.get $Array
@@ -42353,7 +42438,8 @@
                       [set!/checked              '($hasheq-set!/mutable/checked
                                                    $hasheqv-set!/mutable/checked
                                                    $hash-set!/mutable/checked
-                                                   $hashalw-set!/mutable/checked)])
+                                                   $hashalw-set!/mutable/checked)]
+                      [kind                      '(0 1 2 3)])
              `(func ,hash-update/plain/checked
                     (param $table (ref ,type))
                     (param $key   (ref eq))
@@ -42383,8 +42469,10 @@
                     (local.set $finv    (struct.get $Procedure $invoke (local.get $proc)))
                     (local.set $args    (array.new $Args (global.get $null) (i32.const 1)))
 
-                    ;; Hash key (identity hash)
-                    (local.set $hash  (call $eq-hash/i32 (local.get $key)))
+                    ;; Hash key
+                    (local.set $hash  (call $hash-key-hash/kind
+                                            (i32.const ,kind)
+                                            (local.get $key)))
                     (local.set $index (i32.rem_u (local.get $hash) (local.get $capacity)))
                     (local.set $step  (i32.const 0))
                     (block $not-found
@@ -42408,7 +42496,10 @@
                                       (local.set $step (i32.add (local.get $step) (i32.const 1)))
                                       (br $probe)))
                                  ;; Match? — compute new value and overwrite existing entry
-                                 (if (ref.eq (local.get $k) (local.get $key))
+                                 (if (call $hash-key-matches?/kind
+                                           (i32.const ,kind)
+                                           (local.get $k)
+                                           (local.get $key))
                                      (then
                                       (local.set $old-value
                                                  (array.get $Array
@@ -42611,7 +42702,8 @@
                       [type            '($HashEqMutable
                                          $HashEqvMutable
                                          $HashEqualMutable
-                                         $HashEqualAlwaysMutable)])
+                                         $HashEqualAlwaysMutable)]
+                      [kind            '(0 1 2 3)])
              `(func ,remove!/checked
                     ;; Note: (global $tombstone) must be different from valid keys and $missing.
                     (param $ht  (ref ,type))
@@ -42629,7 +42721,9 @@
                     (local.set $entries  (struct.get ,type $entries (local.get $ht)))
                     (local.set $capacity (i32.div_u (array.len (local.get $entries)) (i32.const 2)))
                     ;; Compute hash and initial index
-                    (local.set $hash  (call $eq-hash/i32 (local.get $key))) ; XXX
+                    (local.set $hash  (call $hash-key-hash/kind
+                                            (i32.const ,kind)
+                                            (local.get $key)))
                     (local.set $index (i32.rem_u (local.get $hash) (local.get $capacity)))
                     (local.set $step  (i32.const 0))
                     ;; Probe loop
@@ -42647,7 +42741,10 @@
                                  ;; Stop if slot is missing
                                  (br_if $done (ref.eq (local.get $k) (global.get $missing)))
                                  ;; If key matches, remove
-                                 (if (ref.eq (local.get $k) (local.get $key))
+                                 (if (call $hash-key-matches?/kind
+                                           (i32.const ,kind)
+                                           (local.get $k)
+                                           (local.get $key))
                                      (then
                                       ;; Replace key and value with tombstone
                                       (array.set $Array (local.get $entries) (local.get $slot) (global.get $tombstone))
@@ -42900,7 +42997,8 @@
                       [type                   '($HashEqMutable
                                                 $HashEqvMutable
                                                 $HashEqualMutable
-                                                $HashEqualAlwaysMutable)])
+                                                $HashEqualAlwaysMutable)]
+                      [kind                   '(0 1 2 3)])
              `(func ,hash-has-key/plain/checked
                     (param $table (ref ,type))
                     (param $key   (ref eq))
@@ -42919,7 +43017,9 @@
                     (local.set $capacity (i32.div_u (array.len (local.get $entries)) (i32.const 2)))
 
                     ;; Hash key and compute initial index
-                    (local.set $hash  (call $eq-hash/i32 (local.get $key)))
+                    (local.set $hash  (call $hash-key-hash/kind
+                                            (i32.const ,kind)
+                                            (local.get $key)))
                     (local.set $index (i32.rem_u (local.get $hash) (local.get $capacity)))
                     (local.set $step  (i32.const 0))
 
@@ -42944,7 +43044,10 @@
                                       (local.set $step (i32.add (local.get $step) (i32.const 1)))
                                       (br $probe)))
                                  ;; Match: return #t
-                                 (if (ref.eq (local.get $k) (local.get $key))
+                                 (if (call $hash-key-matches?/kind
+                                           (i32.const ,kind)
+                                           (local.get $k)
+                                           (local.get $key))
                                      (then (return (global.get $true))))
                                  ;; Otherwise try next slot
                                  (local.set $step (i32.add (local.get $step) (i32.const 1)))
@@ -45518,6 +45621,64 @@
                 (i32.shl (call $equal-hash/i32 (local.get $v))
                          (i32.const 1))))
 
+         ;; equal-always-hash-code : any/c -> fixnum?
+         ;;   Compute a hash code consistent with equal-always?. Mutable
+         ;;   containers hash by identity; immutable containers hash
+         ;;   structurally with equal-always-hash/i32 for their contents.
+         (func $equal-always-hash-code (type $Prim1)
+               (param $v (ref eq))
+               (result (ref eq))
+
+               (ref.i31
+                (i32.shl (call $equal-always-hash/i32 (local.get $v))
+                         (i32.const 1))))
+
+         (func $equal-always-hash/i32
+               (param $v (ref eq))
+               (result i32)
+
+               (local $str (ref $String))
+               (local $bs  (ref $Bytes))
+               (local $kw  (ref $Keyword))
+
+               (if (ref.test (ref i31) (local.get $v))
+                   (then (return (call $eqv-hash/i32 (local.get $v)))))
+               (if (ref.test (ref $Flonum) (local.get $v))
+                   (then (return (call $eqv-hash/i32 (local.get $v)))))
+               (if (ref.test (ref $Complex) (local.get $v))
+                   (then (return (call $eqv-hash/i32 (local.get $v)))))
+               (if (ref.test (ref $String) (local.get $v))
+                   (then (local.set $str (ref.cast (ref $String) (local.get $v)))
+                         (if (i32.eq (struct.get $String $immutable (local.get $str))
+                                     (i32.const 1))
+                             (then (return (call $string-hash/i32 (local.get $str))))
+                             (else (return (call $eq-hash/i32 (local.get $v)))))))
+               (if (ref.test (ref $Keyword) (local.get $v))
+                   (then (local.set $kw (ref.cast (ref $Keyword) (local.get $v)))
+                         (return (call $string-hash/i32
+                                       (struct.get $Keyword $str (local.get $kw))))))
+               (if (ref.test (ref $Bytes) (local.get $v))
+                   (then (local.set $bs (ref.cast (ref $Bytes) (local.get $v)))
+                         (if (i32.eq (struct.get $Bytes $immutable (local.get $bs))
+                                     (i32.const 1))
+                             (then (return (call $bytes-hash/i32 (local.get $bs))))
+                             (else (return (call $eq-hash/i32 (local.get $v)))))))
+               (if (ref.test (ref $Pair) (local.get $v))
+                   (then (return_call $equal-always-hash/pair
+                                      (ref.cast (ref $Pair) (local.get $v)))))
+               (if (ref.test (ref $MPair) (local.get $v))
+                   (then (return (call $eq-hash/i32 (local.get $v)))))
+               (if (ref.test (ref $Box) (local.get $v))
+                   (then (return_call $equal-always-hash/box
+                                      (ref.cast (ref $Box) (local.get $v)))))
+               (if (ref.test (ref $Vector) (local.get $v))
+                   (then (return_call $equal-always-hash/vector
+                                      (ref.cast (ref $Vector) (local.get $v)))))
+               (if (ref.test (ref $Struct) (local.get $v))
+                   (then (return_call $equal-always-hash/struct
+                                      (ref.cast (ref $Struct) (local.get $v)))))
+               (return (call $eqv-hash/i32 (local.get $v))))
+
          (func $equal-hash/i32
                (param $v (ref eq))
                (result i32)
@@ -45671,6 +45832,105 @@
                             (br $loop)))
                (struct.set $Heap $hash (local.get $heap) (i32.const 0))
                (local.get $h))
+
+         (func $equal-always-hash/pair
+               (param $p (ref $Pair))
+               (result i32)
+
+               (local $heap (ref $Heap))
+               (local $h    i32)
+               (local $ha   i32)
+               (local $hd   i32)
+
+               (local.set $heap (ref.cast (ref $Heap) (local.get $p)))
+               (local.set $h (struct.get $Heap $hash (local.get $heap)))
+               (if (i32.eq (local.get $h) (i32.const -2147483648))
+                   (then (return (i32.const 0))))
+               (struct.set $Heap $hash (local.get $heap) (i32.const -2147483648))
+               (local.set $ha (call $equal-always-hash/i32 (struct.get $Pair $a (local.get $p))))
+               (local.set $hd (call $equal-always-hash/i32 (struct.get $Pair $d (local.get $p))))
+               (struct.set $Heap $hash (local.get $heap) (i32.const 0))
+               (i32.add (i32.mul (local.get $ha) (i32.const 33))
+                        (local.get $hd)))
+
+         (func $equal-always-hash/box
+               (param $b (ref $Box))
+               (result i32)
+
+               (local $heap (ref $Heap))
+               (local $h    i32)
+
+               (if (i32.ne (struct.get $Box $immutable (local.get $b)) (i32.const 1))
+                   (then (return (call $eq-hash/i32 (ref.cast (ref eq) (local.get $b))))))
+               (local.set $heap (ref.cast (ref $Heap) (local.get $b)))
+               (local.set $h (struct.get $Heap $hash (local.get $heap)))
+               (if (i32.eq (local.get $h) (i32.const -2147483648))
+                   (then (return (i32.const 0))))
+               (struct.set $Heap $hash (local.get $heap) (i32.const -2147483648))
+               (local.set $h (call $equal-always-hash/i32 (struct.get $Box $v (local.get $b))))
+               (struct.set $Heap $hash (local.get $heap) (i32.const 0))
+               (i32.add (i32.const 1) (local.get $h)))
+
+         (func $equal-always-hash/vector
+               (param $v (ref $Vector))
+               (result i32)
+
+               (local $heap (ref $Heap))
+               (local $arr  (ref $Array))
+               (local $len  i32)
+               (local $i    i32)
+               (local $h    i32)
+               (local $elem (ref eq))
+
+               (if (i32.ne (struct.get $Vector $immutable (local.get $v)) (i32.const 1))
+                   (then (return (call $eq-hash/i32 (ref.cast (ref eq) (local.get $v))))))
+               (local.set $heap (ref.cast (ref $Heap) (local.get $v)))
+               (local.set $h (struct.get $Heap $hash (local.get $heap)))
+               (if (i32.eq (local.get $h) (i32.const -2147483648))
+                   (then (return (i32.const 0))))
+               (struct.set $Heap $hash (local.get $heap) (i32.const -2147483648))
+               (local.set $arr (struct.get $Vector $arr (local.get $v)))
+               (local.set $len (array.len (local.get $arr)))
+               (local.set $i   (i32.const 0))
+               (local.set $h   (i32.const 0))
+               (block $done
+                      (loop $loop
+                            (br_if $done (i32.ge_u (local.get $i) (local.get $len)))
+                            (local.set $elem (array.get $Array (local.get $arr) (local.get $i)))
+                            (local.set $h (i32.add (i32.mul (local.get $h) (i32.const 33))
+                                                   (call $equal-always-hash/i32 (local.get $elem))))
+                            (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                            (br $loop)))
+               (struct.set $Heap $hash (local.get $heap) (i32.const 0))
+               (local.get $h))
+
+         (func $equal-always-hash/struct
+               (param $s (ref $Struct))
+               (result i32)
+
+               (local $type          (ref $StructType))
+               (local $prop-name     (ref $Symbol))
+               (local $prop-sentinel (ref eq))
+               (local $prop-val      (ref eq))
+               (local $prop-info     (ref $Array))
+
+               (local.set $type (struct.get $Struct $type (local.get $s)))
+               (local.set $prop-name (ref.cast (ref $Symbol)
+                                                (global.get $symbol:prop:equal+hash)))
+               (local.set $prop-sentinel (call $cons (global.get $false) (global.get $false)))
+               (local.set $prop-val
+                          (call $struct-type-property-lookup-by-name
+                                (local.get $type)
+                                (local.get $prop-name)
+                                (local.get $prop-sentinel)))
+               (if (i32.eqz (ref.eq (local.get $prop-val) (local.get $prop-sentinel)))
+                   (then
+                    (local.set $prop-info (ref.cast (ref $Array) (local.get $prop-val)))
+                    (return (call $struct-equal+hash-hash
+                                  (local.get $prop-info)
+                                  (local.get $s)
+                                  (i32.const 0)))))
+               (call $eqv-hash/i32 (ref.cast (ref eq) (local.get $s))))
 
          (func $equal-hash/struct
                (param $s (ref $Struct))
@@ -54494,6 +54754,7 @@
               (ref.func $equal+hash-recur/equal)            ; closure body
               (ref.func $equal+hash-recur/equal-always)     ; closure body
               (ref.func $equal+hash-recur/hash)             ; closure body
+              (ref.func $equal+hash-recur/hash-always)      ; closure body
               (ref.func $invoke-struct)
               (ref.func $primitive-invoke)
               (ref.func $invoke-reduced-procedure)
@@ -62705,7 +62966,7 @@
                                                (global.get $false)))))
 
                (local.set $val-arg (local.get $val))
-               (local.set $new-props (call $make-hash (global.get $missing)))
+               (local.set $new-props (call $make-hasheq (global.get $missing)))
                (local.set $pairs (call $hash->list (local.get $props) (global.get $false)))
                (local.set $list (local.get $pairs))
                (block $done
@@ -65746,7 +66007,7 @@
                      (local.set $props (global.get $syntax-empty-props))
                      (if (ref.eq (local.get $props) (global.get $undefined))
                          (then
-                          (local.set $props (call $make-hash (global.get $missing)))
+                          (local.set $props (call $make-hasheq (global.get $missing)))
                           (global.set $syntax-empty-props (local.get $props))))
                      (local.get $props))
 
@@ -72827,6 +73088,7 @@
                (global $equal+hash-recur/equal        (mut (ref eq)) (global.get $void))
                (global $equal+hash-recur/equal-always (mut (ref eq)) (global.get $void))
                (global $equal+hash-recur/hash         (mut (ref eq)) (global.get $void))
+               (global $equal+hash-recur/hash-always  (mut (ref eq)) (global.get $void))
                (global $break-enabled-key             (mut (ref eq)) (global.get $void))
                (global $exception-handler-key         (mut (ref eq)) (global.get $void))
                (global $parameterization-key          (mut (ref eq)) (global.get $void))
@@ -73120,6 +73382,16 @@
                                              (ref.func $invoke-closure)
                                              (global.get $false)
                                              (ref.func $equal+hash-recur/hash)
+                                             (array.new_fixed $Free 0)))
+                     (global.set $equal+hash-recur/hash-always
+                                 (struct.new $Closure
+                                             (i32.const 0)
+                                             (global.get $false)
+                                             (ref.i31 (i32.const 2))
+                                             (global.get $false)
+                                             (ref.func $invoke-closure)
+                                             (global.get $false)
+                                             (ref.func $equal+hash-recur/hash-always)
                                              (array.new_fixed $Free 0)))
                      
 

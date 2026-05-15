@@ -2576,6 +2576,7 @@
   eq-hash-code
   eqv-hash-code
   equal-hash-code
+  equal-always-hash-code
   
 
   keyword?

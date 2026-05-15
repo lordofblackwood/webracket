@@ -475,11 +475,11 @@
  eqv-hash-code
  equal-hash-code
  equal-always?
+ equal-always-hash-code
  ; equal?/recur
  ; equal-always?/recur
  ;; equal-hash-code/recur
  ;; equal-secondary-hash-code
- ;; equal-always-hash-code
  ;; equal-always-hash-code/recur
  ;; equal-always-secondary-hash-code
  prop:equal+hash
@@ -1076,6 +1076,7 @@
  eq-hash-code
  eqv-hash-code
  equal-hash-code
+ equal-always-hash-code
 
  mutable-hash-iterate-first
  mutable-hash-iterate-next

@@ -300,6 +300,21 @@
                         (eq? (equal-hash-code (vector 'a 'b)) (equal-hash-code (vector 'a 'b)))
                         (eq? (equal-hash-code (box 1))        (equal-hash-code (box 1)))))
 
+             (list "equal-always-hash-code"
+                   (let ([b (box 'a)]
+                         [v (vector 'a)]
+                         [iv1 (vector-immutable 'a)]
+                         [iv2 (vector-immutable 'a)]
+                         [ib1 (box-immutable 'a)]
+                         [ib2 (box-immutable 'a)])
+                     (and (fixnum? (equal-always-hash-code '(1 2)))
+                          (eq? (equal-always-hash-code b) (eq-hash-code b))
+                          (eq? (equal-always-hash-code v) (eq-hash-code v))
+                          (eq? (equal-always-hash-code iv1)
+                               (equal-always-hash-code iv2))
+                          (eq? (equal-always-hash-code ib1)
+                               (equal-always-hash-code ib2)))))
+
              (list "prop:equal+hash"
                    (let ()
                      (struct fish (size)
@@ -4702,6 +4717,36 @@
               (list "make-hashalw"
                     (let ([h (make-hashalw)])
                       (and (hash? h) (mutable-hash? h))))
+
+              (list "mutable equal hash structural keys"
+                    (let* ([stored (list 'a)]
+                           [lookup (list 'a)]
+                           [h      (make-hash)])
+                      (hash-set! h stored 'value)
+                      (and (not (eq? stored lookup))
+                           (equal? stored lookup)
+                           (equal? (hash-ref h lookup #f) 'value)
+                           (eq? (hash-ref-key h lookup) stored)
+                           (hash-has-key? h lookup)
+                           (begin
+                             (hash-remove! h lookup)
+                             (not (hash-has-key? h stored))))))
+
+              (list "mutable hashalw comparison keys"
+                    (let* ([stored (list 'a)]
+                           [lookup (list 'a)]
+                           [a      (box 'same)]
+                           [b      (box 'same)]
+                           [h      (make-hashalw)])
+                      (hash-set! h stored 'list)
+                      (hash-set! h a 'a)
+                      (hash-set! h b 'b)
+                      (and (equal? (hash-ref h lookup #f) 'list)
+                           (eq? (hash-ref-key h lookup) stored)
+                           (equal? (hash-ref h a #f) 'a)
+                           (equal? (hash-ref h b #f) 'b)
+                           (not (equal-always? a b))
+                           (equal? (hash-count h) 3))))
 
               (list "hash-set!"
                     (and (let ([h (make-hasheq)])

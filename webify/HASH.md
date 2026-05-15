@@ -64,7 +64,7 @@ comparison kind:
 - `hasheq`: `eq?` with `eq-hash/i32`
 - `hasheqv`: `eqv?` with `eqv-hash/i32`
 - `hash`: `equal?` with `equal-hash/i32`
-- `hashalw`: `equal-always?` with `equal-hash/i32`
+- `hashalw`: `equal-always?` with `equal-always-hash/i32`
 
 The current HAMT uses an 8-way stencil-vector node at each level, path-copying
 on set/remove. Small buckets are kept as lists of immutable hash entries; once
@@ -140,7 +140,7 @@ The next immutable-hash semantic milestone is parity with Racket's full HAMT
 details rather than the current practical subset:
 
 - match Racket CS's exact bnode/cnode packing strategy more closely
-- add key wrapping if equal?/equal-always? need it for cyclic or mutable data
+- add key wrapping if equal?/equal-always? need it for cyclic data
 - audit weak and ephemeron variants instead of keeping strong fallbacks
 - expose ordinary immutable `hash-iterate-*` paths directly if linklets require
   those names, rather than relying on the current generic iterator bridge

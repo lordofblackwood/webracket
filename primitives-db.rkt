@@ -429,6 +429,7 @@
 (define-primitive eq-hash-code                              1                   (ordered))
 (define-primitive eq?                                       2                   (pure foldable partial-foldable))
 (define-primitive equal-always?                             2                   (pure partial-foldable))
+(define-primitive equal-always-hash-code                    1                   (ordered))
 (define-primitive equal-hash-code                           1                   (ordered))
 (define-primitive equal?                                    2                   (pure foldable partial-foldable))
 (define-primitive error-module-path->string-handler         [0 1]               (ordered))
