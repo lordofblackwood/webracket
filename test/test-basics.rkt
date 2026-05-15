@@ -6713,20 +6713,96 @@
                      [filesystem      (exn:fail:filesystem "filesystem" marks)]
                      [filesystem-make (make-exn:fail:filesystem "made-filesystem" marks)]
                      [exists          (exn:fail:filesystem:exists "exists" marks)]
-                     [exists-make     (make-exn:fail:filesystem:exists "made-exists" marks)])
+                     [exists-make     (make-exn:fail:filesystem:exists "made-exists" marks)]
+                     [version         (exn:fail:filesystem:version "version" marks)]
+                     [version-make    (make-exn:fail:filesystem:version "made-version" marks)]
+                     [errno           (exn:fail:filesystem:errno "errno" marks (cons 2 'posix))]
+                     [errno-make      (make-exn:fail:filesystem:errno "made-errno" marks (cons 3 'windows))])
                 (and (equal? (exn:fail? filesystem) #t)
                      (equal? (exn:fail? filesystem-make) #t)
                      (equal? (exn:fail:filesystem? filesystem) #t)
                      (equal? (exn:fail:filesystem? filesystem-make) #t)
                      (equal? (exn:fail:filesystem? exists) #t)
                      (equal? (exn:fail:filesystem? exists-make) #t)
+                     (equal? (exn:fail:filesystem? version) #t)
+                     (equal? (exn:fail:filesystem? version-make) #t)
+                     (equal? (exn:fail:filesystem? errno) #t)
+                     (equal? (exn:fail:filesystem? errno-make) #t)
                      (equal? (exn:fail:filesystem:exists? filesystem) #f)
                      (equal? (exn:fail:filesystem:exists? exists) #t)
                      (equal? (exn:fail:filesystem:exists? exists-make) #t)
+                     (equal? (exn:fail:filesystem:version? filesystem) #f)
+                     (equal? (exn:fail:filesystem:version? version) #t)
+                     (equal? (exn:fail:filesystem:version? version-make) #t)
+                     (equal? (exn:fail:filesystem:errno? filesystem) #f)
+                     (equal? (exn:fail:filesystem:errno? errno) #t)
+                     (equal? (exn:fail:filesystem:errno? errno-make) #t)
+                     (equal? (exn:fail:filesystem:errno-errno errno) (cons 2 'posix))
+                     (equal? (exn:fail:filesystem:errno-errno errno-make) (cons 3 'windows))
                      (equal? (exn:fail:filesystem? (exn:fail "fail" marks)) #f)
                      (equal? (exn-message filesystem) "filesystem")
                      (equal? (exn-message filesystem-make) "made-filesystem")
-                     (equal? (exn-message exists) "exists"))))
+                     (equal? (exn-message exists) "exists")
+                     (equal? (exn-message version) "version")
+                     (equal? (exn-message errno) "errno"))))
+
+        (list "exn:fail:network structures"
+              (let* ([marks        '()]
+                     [network      (exn:fail:network "network" marks)]
+                     [network-make (make-exn:fail:network "made-network" marks)]
+                     [errno        (exn:fail:network:errno "errno" marks (cons 61 'posix))]
+                     [errno-make   (make-exn:fail:network:errno "made-errno" marks (cons 8 'gai))])
+                (and (equal? (exn:fail? network) #t)
+                     (equal? (exn:fail? network-make) #t)
+                     (equal? (exn:fail:network? network) #t)
+                     (equal? (exn:fail:network? network-make) #t)
+                     (equal? (exn:fail:network? errno) #t)
+                     (equal? (exn:fail:network? errno-make) #t)
+                     (equal? (exn:fail:network? (exn:fail "fail" marks)) #f)
+                     (equal? (exn:fail:network:errno? network) #f)
+                     (equal? (exn:fail:network:errno? errno) #t)
+                     (equal? (exn:fail:network:errno? errno-make) #t)
+                     (equal? (exn:fail:network:errno-errno errno) (cons 61 'posix))
+                     (equal? (exn:fail:network:errno-errno errno-make) (cons 8 'gai))
+                     (equal? (exn-message network) "network")
+                     (equal? (exn-message network-make) "made-network")
+                     (equal? (exn-message errno) "errno"))))
+
+        (list "exn:fail:out-of-memory structure"
+              (let* ([marks '()]
+                     [oom   (exn:fail:out-of-memory "oom" marks)]
+                     [made  (make-exn:fail:out-of-memory "made-oom" marks)])
+                (and (equal? (exn:fail? oom) #t)
+                     (equal? (exn:fail? made) #t)
+                     (equal? (exn:fail:out-of-memory? oom) #t)
+                     (equal? (exn:fail:out-of-memory? made) #t)
+                     (equal? (exn:fail:out-of-memory? (exn:fail "fail" marks)) #f)
+                     (equal? (exn-message oom) "oom")
+                     (equal? (exn-message made) "made-oom"))))
+
+        (list "exn:fail:unsupported structure"
+              (let* ([marks       '()]
+                     [unsupported (exn:fail:unsupported "unsupported" marks)]
+                     [made        (make-exn:fail:unsupported "made-unsupported" marks)])
+                (and (equal? (exn:fail? unsupported) #t)
+                     (equal? (exn:fail? made) #t)
+                     (equal? (exn:fail:unsupported? unsupported) #t)
+                     (equal? (exn:fail:unsupported? made) #t)
+                     (equal? (exn:fail:unsupported? (exn:fail "fail" marks)) #f)
+                     (equal? (exn-message unsupported) "unsupported")
+                     (equal? (exn-message made) "made-unsupported"))))
+
+        (list "exn:fail:user structure"
+              (let* ([marks '()]
+                     [user  (exn:fail:user "user" marks)]
+                     [made  (make-exn:fail:user "made-user" marks)])
+                (and (equal? (exn:fail? user) #t)
+                     (equal? (exn:fail? made) #t)
+                     (equal? (exn:fail:user? user) #t)
+                     (equal? (exn:fail:user? made) #t)
+                     (equal? (exn:fail:user? (exn:fail "fail" marks)) #f)
+                     (equal? (exn-message user) "user")
+                     (equal? (exn-message made) "made-user"))))
 
         (list "exn:fail:syntax structures"
               (let* ([marks          '()]

@@ -133,7 +133,14 @@
          struct:exn:fail:read:non-char
          struct:exn:fail:filesystem
          struct:exn:fail:filesystem:exists
+         struct:exn:fail:filesystem:version
+         struct:exn:fail:filesystem:errno
          struct:exn:fail:filesystem:missing-module
+         struct:exn:fail:network
+         struct:exn:fail:network:errno
+         struct:exn:fail:out-of-memory
+         struct:exn:fail:unsupported
+         struct:exn:fail:user
          struct:exn:fail:syntax
          struct:exn:fail:syntax:missing-module
          struct:exn:fail:syntax:unbound
@@ -172,9 +179,25 @@
          exn:fail:filesystem?
          exn:fail:filesystem:exists
          exn:fail:filesystem:exists?
+         exn:fail:filesystem:version
+         exn:fail:filesystem:version?
+         exn:fail:filesystem:errno
+         exn:fail:filesystem:errno?
+         exn:fail:filesystem:errno-errno
          exn:fail:filesystem:missing-module
          exn:fail:filesystem:missing-module?
          exn:fail:filesystem:missing-module-path
+         exn:fail:network
+         exn:fail:network?
+         exn:fail:network:errno
+         exn:fail:network:errno?
+         exn:fail:network:errno-errno
+         exn:fail:out-of-memory
+         exn:fail:out-of-memory?
+         exn:fail:unsupported
+         exn:fail:unsupported?
+         exn:fail:user
+         exn:fail:user?
 
          exn:fail:syntax
          exn:fail:syntax?
@@ -203,7 +226,14 @@
          make-exn:fail:read:non-char
          make-exn:fail:filesystem
          make-exn:fail:filesystem:exists
+         make-exn:fail:filesystem:version
+         make-exn:fail:filesystem:errno
          make-exn:fail:filesystem:missing-module
+         make-exn:fail:network
+         make-exn:fail:network:errno
+         make-exn:fail:out-of-memory
+         make-exn:fail:unsupported
+         make-exn:fail:user
          make-exn:fail:syntax
          make-exn:fail:syntax:missing-module
          make-exn:fail:syntax:unbound

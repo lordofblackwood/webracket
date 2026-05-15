@@ -776,6 +776,13 @@
     struct:exn:fail:read:non-char
     struct:exn:fail:filesystem
     struct:exn:fail:filesystem:exists
+    struct:exn:fail:filesystem:version
+    struct:exn:fail:filesystem:errno
+    struct:exn:fail:network
+    struct:exn:fail:network:errno
+    struct:exn:fail:out-of-memory
+    struct:exn:fail:unsupported
+    struct:exn:fail:user
     struct:exn:fail:syntax
     struct:exn:fail:syntax:missing-module
     struct:exn:fail:syntax:unbound
@@ -1819,6 +1826,29 @@
   exn:fail:filesystem:exists
   exn:fail:filesystem:exists?
   make-exn:fail:filesystem:exists
+  exn:fail:filesystem:version
+  exn:fail:filesystem:version?
+  make-exn:fail:filesystem:version
+  exn:fail:filesystem:errno
+  exn:fail:filesystem:errno?
+  make-exn:fail:filesystem:errno
+  exn:fail:filesystem:errno-errno
+  exn:fail:network
+  exn:fail:network?
+  make-exn:fail:network
+  exn:fail:network:errno
+  exn:fail:network:errno?
+  make-exn:fail:network:errno
+  exn:fail:network:errno-errno
+  exn:fail:out-of-memory
+  exn:fail:out-of-memory?
+  make-exn:fail:out-of-memory
+  exn:fail:unsupported
+  exn:fail:unsupported?
+  make-exn:fail:unsupported
+  exn:fail:user
+  exn:fail:user?
+  make-exn:fail:user
 
   exn:fail:syntax
   exn:fail:syntax?
@@ -3238,6 +3268,15 @@
                          kern-exn:fail:read:non-char kern-exn:fail:read:non-char?
                          kern-exn:fail:filesystem kern-exn:fail:filesystem?
                          kern-exn:fail:filesystem:exists kern-exn:fail:filesystem:exists?
+                         kern-exn:fail:filesystem:version kern-exn:fail:filesystem:version?
+                         kern-exn:fail:filesystem:errno kern-exn:fail:filesystem:errno?
+                         kern-exn:fail:filesystem:errno-errno
+                         kern-exn:fail:network kern-exn:fail:network?
+                         kern-exn:fail:network:errno kern-exn:fail:network:errno?
+                         kern-exn:fail:network:errno-errno
+                         kern-exn:fail:out-of-memory kern-exn:fail:out-of-memory?
+                         kern-exn:fail:unsupported kern-exn:fail:unsupported?
+                         kern-exn:fail:user kern-exn:fail:user?
                          kern-exn:fail:syntax kern-exn:fail:syntax?
                          kern-exn:fail:syntax-exprs
                          kern-exn:fail:syntax:missing-module kern-exn:fail:syntax:missing-module?
@@ -3275,6 +3314,22 @@
     [kern-exn:fail:filesystem?              #'exn:fail:filesystem?]
     [kern-exn:fail:filesystem:exists        #'exn:fail:filesystem:exists]
     [kern-exn:fail:filesystem:exists?       #'exn:fail:filesystem:exists?]
+    [kern-exn:fail:filesystem:version       #'exn:fail:filesystem:version]
+    [kern-exn:fail:filesystem:version?      #'exn:fail:filesystem:version?]
+    [kern-exn:fail:filesystem:errno         #'exn:fail:filesystem:errno]
+    [kern-exn:fail:filesystem:errno?        #'exn:fail:filesystem:errno?]
+    [kern-exn:fail:filesystem:errno-errno   #'exn:fail:filesystem:errno-errno]
+    [kern-exn:fail:network                  #'exn:fail:network]
+    [kern-exn:fail:network?                 #'exn:fail:network?]
+    [kern-exn:fail:network:errno            #'exn:fail:network:errno]
+    [kern-exn:fail:network:errno?           #'exn:fail:network:errno?]
+    [kern-exn:fail:network:errno-errno      #'exn:fail:network:errno-errno]
+    [kern-exn:fail:out-of-memory            #'exn:fail:out-of-memory]
+    [kern-exn:fail:out-of-memory?           #'exn:fail:out-of-memory?]
+    [kern-exn:fail:unsupported              #'exn:fail:unsupported]
+    [kern-exn:fail:unsupported?             #'exn:fail:unsupported?]
+    [kern-exn:fail:user                     #'exn:fail:user]
+    [kern-exn:fail:user?                    #'exn:fail:user?]
     [kern-exn:fail:syntax                   #'exn:fail:syntax]
     [kern-exn:fail:syntax?                  #'exn:fail:syntax?]
     [kern-exn:fail:syntax-exprs             #'exn:fail:syntax-exprs]

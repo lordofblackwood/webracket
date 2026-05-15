@@ -201,6 +201,13 @@
     exn:fail:read:non-char
     exn:fail:filesystem
     exn:fail:filesystem:exists
+    exn:fail:filesystem:version
+    exn:fail:filesystem:errno
+    exn:fail:network
+    exn:fail:network:errno
+    exn:fail:out-of-memory
+    exn:fail:unsupported
+    exn:fail:user
     exn:fail:syntax
     exn:fail:syntax:missing-module
     exn:fail:syntax:unbound
