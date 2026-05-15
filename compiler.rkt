@@ -747,6 +747,7 @@
 
 (define non-literal-constants
   '(prop:arity-string
+    impersonator-prop:application-mark
     prop:checked-procedure  
     prop:impersonator-of
     prop:incomplete-arity
@@ -2398,6 +2399,7 @@
   impersonator-property?
   impersonator-property-accessor-procedure?
   impersonator?
+  procedure-impersonator*?
   chaperone?
   impersonator-val
   output-port?  
@@ -2614,10 +2616,13 @@
   procedure-arity?
   procedure-arity-mask
   procedure-arity-includes?
+  procedure-result-arity
   procedure-specialize
   procedure-struct-type?
   procedure-reduce-arity
   procedure-reduce-arity-mask
+  unsafe-chaperone-procedure
+  unsafe-impersonate-procedure
   arity-at-least
   make-arity-at-least
   arity-at-least?

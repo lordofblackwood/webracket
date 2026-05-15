@@ -12,13 +12,18 @@
          print-goal1-dashboard)
 
 (require racket/cmdline
+         racket/file
          racket/list
          racket/match
+         racket/path
+         racket/runtime-path
          racket/string
          "module-extractor.rkt"
          "module-input.rkt"
          "module-protocol.rkt"
          "primitive-demands.rkt")
+
+(define-runtime-path self-path "probe-installed-module-deps.rkt")
 
 (define known-module-cases
   '(set-require
@@ -73,7 +78,10 @@
     contract-wrapper-basic
     class-require
     class-basic
+    format-require
+    format-single
     format-basic
+    format-number
     match-basic
     match-literal-default
     match-let-basic
@@ -111,7 +119,10 @@
     match-literal-default
     match-let-basic
     match-predicate
+    format-require
+    format-single
     format-basic
+    format-number
     keyword-optional-direct
     keyword-plain-direct
     values-call-with-values
@@ -267,11 +278,26 @@
          (require 'values-reexport racket/string)
          (provide y)
          (define y (string-length renamed))))]
+    [(format-require)
+     '((module use-format-require racket/base
+         (require racket/format)
+         (provide y)
+         (define y 42)))]
+    [(format-single)
+     '((module use-format-single racket/base
+         (require racket/format)
+         (provide y)
+         (define y (~a "web"))))]
     [(format-basic)
      '((module use-format-basic racket/base
          (require racket/format)
          (provide y)
          (define y (~a "web" 'racket #:separator "-"))))]
+    [(format-number)
+     '((module use-format-number racket/base
+         (require racket/format)
+         (provide y)
+         (define y (~a 42))))]
     [(keyword-optional-direct)
      '((module use-keyword-optional-direct racket/base
          (require racket/private/kw)
@@ -632,14 +658,17 @@
           (hash-ref summary 'extract-status)
           (or (hash-ref summary 'input-count #f) "-")
           (or (hash-ref summary 'primitive-demand-count #f) "-")
-          (or (hash-ref summary 'missing-primitive-count #f) "-")))
+          (or (hash-ref summary 'missing-primitive-count #f) "-"))
+  (flush-output))
 
 ;; print-goal1-summary : [#:compact? boolean?] -> void?
 ;;   Print provider-graph and primitive-demand status for Goal 1 cases.
-(define (print-goal1-summary #:compact? [compact? #f])
+(define (print-goal1-summary #:compact? [compact? #f]
+                             #:cases [cases goal1-module-cases])
   (when compact?
-    (printf "case\textract\tinputs\tprimitive-demands\tmissing-primitives\n"))
-  (for ([name (in-list goal1-module-cases)]
+    (printf "case\textract\tinputs\tprimitive-demands\tmissing-primitives\n")
+    (flush-output))
+  (for ([name (in-list cases)]
         [index (in-naturals)])
     (when (and (not compact?) (positive? index))
       (newline))
@@ -650,11 +679,137 @@
 
 ;; print-goal1-dashboard : -> void?
 ;;   Print the compact must-have library dependency dashboard.
-(define (print-goal1-dashboard)
+(define (print-goal1-dashboard #:cases [cases goal1-module-cases])
   (printf "Goal 1 must-have library dependency dashboard\n")
   (printf "case\textract\tinputs\tprimitive-demands\tmissing-primitives\n")
-  (for ([name (in-list goal1-module-cases)])
+  (flush-output)
+  (for ([name (in-list cases)])
     (print-goal1-case-compact (summarize-goal1-case name))))
+
+;; select-goal1-cases : (or/c #f exact-nonnegative-integer?) -> (listof symbol?)
+;;   Select an optional prefix of Goal 1 cases for quick bounded checks.
+(define (select-goal1-cases limit)
+  (cond
+    [(not limit) goal1-module-cases]
+    [else        (take goal1-module-cases
+                       (min limit (length goal1-module-cases)))]))
+
+;; call-with-memory-limit : (or/c #f exact-positive-integer?) (-> any/c) -> any/c
+;;   Optionally run thunk in a custodian-limited worker thread.
+(define (call-with-memory-limit limit-bytes thunk)
+  (cond
+    [(not limit-bytes)
+     (thunk)]
+    [else
+     (define ch (make-channel))
+     (define cust (make-custodian))
+     (custodian-limit-memory cust limit-bytes cust)
+     (parameterize ([current-custodian cust])
+       (thread
+        (lambda ()
+          (channel-put
+           ch
+           (with-handlers ([exn:fail? (lambda (exn) (list 'exn exn))])
+             (list 'values (call-with-values thunk list)))))))
+     (match (channel-get ch)
+       [(list 'values results) (apply values results)]
+       [(list 'exn exn)        (raise exn)])]))
+
+;; run-goal1-worker! : symbol? (or/c #f exact-positive-integer?) -> void?
+;;   Print one compact Goal 1 dependency row in a memory-limited worker.
+(define (run-goal1-worker! name memory-mb)
+  (call-with-memory-limit
+   (and memory-mb (* memory-mb 1024 1024))
+   (lambda ()
+     (print-goal1-case-compact (summarize-goal1-case name))
+     (flush-output))))
+
+;; run-goal1-child/bounded! : symbol? exact-positive-integer? (or/c #f exact-positive-integer?) -> exact-integer?
+;;   Run one Goal 1 extraction case in a child process with timeout protection.
+(define (run-goal1-child/bounded! name timeout-seconds memory-mb)
+  (fprintf (current-error-port)
+           "goal1-deps: starting ~a (timeout ~as, memory ~a MiB)\n"
+           name
+           timeout-seconds
+           (or memory-mb "unlimited"))
+  (flush-output (current-error-port))
+  (define exec-file (find-system-path 'exec-file))
+  (define racket-bin
+    (cond
+      [(and (path? exec-file)
+            (complete-path? exec-file))
+       exec-file]
+      [(and (path? exec-file)
+            (file-exists? exec-file))
+       (path->complete-path exec-file)]
+      [else
+       (find-executable-path (path->string exec-file))]))
+  (unless racket-bin
+    (raise-user-error 'probe-installed-module-deps
+                      "could not find current racket executable on PATH"))
+  (define tmp-dir (make-temporary-file "webracket-goal1-deps-~a" 'directory))
+  (define out-path (build-path tmp-dir "stdout.txt"))
+  (define err-path (build-path tmp-dir "stderr.txt"))
+  (define out (open-output-file out-path #:exists 'truncate/replace))
+  (define err (open-output-file err-path #:exists 'truncate/replace))
+  (define args
+    (append
+     (list "-y"
+           (path->string self-path)
+           "--goal1-worker"
+           "--case"
+           (symbol->string name))
+     (if memory-mb
+         (list "--memory-mb" (number->string memory-mb))
+         '())))
+  (define-values (proc child-out child-in child-err)
+    (apply subprocess out #f err 'new (path->string racket-bin) args))
+  (when child-out (close-input-port child-out))
+  (when child-in  (close-output-port child-in))
+  (when child-err (close-input-port child-err))
+  (define completed (sync/timeout timeout-seconds proc))
+  (unless completed
+    (subprocess-kill proc #t))
+  (subprocess-wait proc)
+  (close-output-port out)
+  (close-output-port err)
+  (define stdout (file->string out-path))
+  (define stderr (file->string err-path))
+  (define status (subprocess-status proc))
+  (delete-directory/files tmp-dir)
+  (cond
+    [(not completed)
+     (printf "~a\ttimeout\t-\t-\t-\n" name)
+     (flush-output)
+     (fprintf (current-error-port) "goal1-deps: timed out ~a\n" name)
+     (flush-output (current-error-port))
+     124]
+    [(and (integer? status) (zero? status))
+     (display stdout)
+     (flush-output)
+     (fprintf (current-error-port) "goal1-deps: finished ~a\n" name)
+     (flush-output (current-error-port))
+     0]
+    [else
+     (printf "~a\tworker-failed\t-\t-\t-\n" name)
+     (unless (string=? stdout "") (display stdout))
+     (unless (string=? stderr "")
+       (display stderr (current-error-port)))
+     (flush-output)
+     (fprintf (current-error-port) "goal1-deps: failed ~a\n" name)
+     (flush-output (current-error-port))
+     (if (integer? status) status 1)]))
+
+;; print-goal1-dashboard/bounded : exact-positive-integer? (or/c #f exact-positive-integer?) [#:cases (listof symbol?)] -> exact-integer?
+;;   Print the Goal 1 dashboard while isolating each extraction case.
+(define (print-goal1-dashboard/bounded timeout-seconds memory-mb
+                                       #:cases [cases goal1-module-cases])
+  (printf "Goal 1 must-have library dependency dashboard\n")
+  (printf "case\textract\tinputs\tprimitive-demands\tmissing-primitives\n")
+  (flush-output)
+  (for/fold ([status 0]) ([name (in-list cases)])
+    (define next-status (run-goal1-child/bounded! name timeout-seconds memory-mb))
+    (if (zero? status) next-status status)))
 
 (module+ main
   (define selected-case 'set-require)
@@ -662,6 +817,11 @@
   (define goal1? #f)
   (define goal1-compact? #f)
   (define goal1-dashboard? #f)
+  (define goal1-bounded? #f)
+  (define goal1-worker? #f)
+  (define timeout-seconds 120)
+  (define memory-mb 1024)
+  (define goal1-limit #f)
 
   (command-line
    #:program "probe-installed-module-deps"
@@ -676,19 +836,42 @@
                         (set! goal1? #t)
                         (set! goal1-compact? #t)]
    [("--goal1-dashboard") "print the compact Goal 1 must-have dashboard"
-                          (set! goal1-dashboard? #t)])
+                          (set! goal1-dashboard? #t)]
+   [("--goal1-compact-bounded") "print the compact Goal 1 dashboard with per-case child limits"
+                                (set! goal1-bounded? #t)]
+   [("--goal1-worker") "internal mode: print one compact Goal 1 dependency row"
+                       (set! goal1-worker? #t)]
+   [("--timeout") seconds "seconds before killing a child extraction process"
+                (set! timeout-seconds (string->number seconds))]
+   [("--memory-mb") mb "best-effort Racket worker memory limit in MiB"
+                  (set! memory-mb (string->number mb))]
+   [("--goal1-limit") n "limit Goal 1 dashboard modes to the first n cases"
+                      (set! goal1-limit (string->number n))])
 
-  (cond
-    [goal1-dashboard?
-     (print-goal1-dashboard)]
-    [goal1?
-     (print-goal1-summary #:compact? goal1-compact?)]
-    [else
-     (define selected-inputs (extract-case-inputs selected-case))
-     (print-case-summary selected-case selected-inputs)
-     (when baseline-case
-       (newline)
-       (define baseline-inputs (extract-case-inputs baseline-case))
-       (print-case-summary baseline-case baseline-inputs)
-       (newline)
-       (print-case-delta baseline-case baseline-inputs selected-case selected-inputs))]))
+  (define selected-goal1-cases (select-goal1-cases goal1-limit))
+  (define exit-status
+    (cond
+      [goal1-worker?
+       (run-goal1-worker! selected-case memory-mb)
+       0]
+      [goal1-bounded?
+       (print-goal1-dashboard/bounded timeout-seconds memory-mb
+                                      #:cases selected-goal1-cases)]
+      [goal1-dashboard?
+       (print-goal1-dashboard #:cases selected-goal1-cases)
+       0]
+      [goal1?
+       (print-goal1-summary #:compact? goal1-compact?
+                            #:cases selected-goal1-cases)
+       0]
+      [else
+       (define selected-inputs (extract-case-inputs selected-case))
+       (print-case-summary selected-case selected-inputs)
+       (when baseline-case
+         (newline)
+         (define baseline-inputs (extract-case-inputs baseline-case))
+         (print-case-summary baseline-case baseline-inputs)
+         (newline)
+         (print-case-delta baseline-case baseline-inputs selected-case selected-inputs))
+       0]))
+  (exit exit-status))

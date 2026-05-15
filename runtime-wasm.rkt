@@ -741,6 +741,8 @@
         treelist
         treelist-append
         module-call-with-prompt
+        unsafe-chaperone-procedure
+        unsafe-impersonate-procedure
         raise-argument-error
         raise-arguments-error
         vector-immutable
@@ -1655,6 +1657,7 @@
           prop:output-port
           output-port
           pair
+          impersonator-prop:application-mark
           prop:checked-procedure
           checked-procedure
           prop:impersonator-of
@@ -47982,6 +47985,15 @@
               (result   (ref eq)) ;; always #f; WebRacket has no impersonators
               (global.get $false))
 
+        ;; procedure-impersonator*? : any/c -> boolean?
+        ;;   Recognize procedure impersonators, including those created through
+        ;;   prop:impersonator-of. WebRacket has no impersonators yet, so the
+        ;;   conservative result is always #f.
+        (func $procedure-impersonator*? (type $Prim1)
+              (param $v (ref eq)) ;; any value
+              (result   (ref eq))
+              (global.get $false))
+
         (func $chaperone? (type $Prim1)
               (param $v (ref eq)) ;; any value
               (result   (ref eq)) ;; always #f; WebRacket has no chaperones
@@ -59274,6 +59286,57 @@
                      (local.set $i (i32.sub (local.get $i) (i32.const 1)))
                      (br $rev))
                (unreachable))
+
+
+         ;; procedure-result-arity : procedure? -> (or/c #f procedure-arity?)
+         ;;   Return known result arity. WebRacket currently does not track
+         ;;   result arity for closures, so report #f conservatively except
+         ;;   for primitive procedures, which store explicit metadata.
+         (func $procedure-result-arity (type $Prim1)
+               (param $proc (ref eq)) ;; procedure?
+               (result      (ref eq))
+
+               (if (ref.eq (call $procedure? (local.get $proc)) (global.get $false))
+                   (then (call $raise-argument-error:procedure-expected (local.get $proc))
+                         (unreachable)))
+               (if (ref.test (ref $PrimitiveProcedure) (local.get $proc))
+                   (then
+                    (return
+                     (struct.get $PrimitiveProcedure $result-arity
+                                 (ref.cast (ref $PrimitiveProcedure)
+                                           (local.get $proc))))))
+               (global.get $false))
+
+         ;; unsafe-chaperone-procedure : procedure? procedure? any/c ... -> procedure?
+         ;;   WebRacket does not implement chaperones yet. Preserve the useful
+         ;;   contract-wrapper behavior by returning the wrapper procedure,
+         ;;   which is responsible for delegating to the original procedure.
+         (func $unsafe-chaperone-procedure (type $Prim>=2)
+               (param $proc    (ref eq)) ;; original procedure
+               (param $wrapper (ref eq)) ;; replacement/wrapper procedure
+               (param $props   (ref eq)) ;; ignored property/value list
+               (result         (ref eq))
+
+               (if (ref.eq (call $procedure? (local.get $proc)) (global.get $false))
+                   (then (call $raise-argument-error:procedure-expected (local.get $proc))
+                         (unreachable)))
+               (if (ref.eq (call $procedure? (local.get $wrapper)) (global.get $false))
+                   (then (call $raise-argument-error:procedure-expected (local.get $wrapper))
+                         (unreachable)))
+               (local.get $wrapper))
+
+         ;; unsafe-impersonate-procedure : procedure? procedure? any/c ... -> procedure?
+         ;;   Same temporary representation as unsafe-chaperone-procedure.
+         (func $unsafe-impersonate-procedure (type $Prim>=2)
+               (param $proc    (ref eq)) ;; original procedure
+               (param $wrapper (ref eq)) ;; replacement procedure
+               (param $props   (ref eq)) ;; ignored property/value list
+               (result         (ref eq))
+
+               (return_call $unsafe-chaperone-procedure
+                            (local.get $proc)
+                            (local.get $wrapper)
+                            (local.get $props)))
 
 
 
@@ -74602,6 +74665,7 @@
                (global $prop:exn:srclocs              (mut (ref eq)) (global.get $void))
                (global $prop:input-port               (mut (ref eq)) (global.get $void))
                (global $prop:output-port              (mut (ref eq)) (global.get $void))
+               (global $impersonator-prop:application-mark (mut (ref eq)) (global.get $void))
                (global $prop:checked-procedure        (mut (ref eq)) (global.get $void))
                (global $prop:impersonator-of          (mut (ref eq)) (global.get $void))
                (global $prop:method-arity-error       (mut (ref eq)) (global.get $void))
@@ -74798,6 +74862,15 @@
                                                  (global.get $null)
                                                  (global.get $false)
                                                  (global.get $false))))
+                     ;; Reference: impersonator-prop:application-mark is an
+                     ;; impersonator property recognized by procedure
+                     ;; impersonators. WebRacket has no impersonators yet, but
+                     ;; contracts expect the property identity to exist.
+                     (global.set $impersonator-prop:application-mark
+                                 (ref.cast (ref eq)
+                                           (struct.new $ImpersonatorProperty
+                                                       (i32.const 0)
+                                                       (global.get $symbol:impersonator-prop:application-mark))))
                      (global.set $prop:checked-procedure
                                  (ref.cast (ref eq)
                                            (call $make-struct-type-property-descriptor/checked

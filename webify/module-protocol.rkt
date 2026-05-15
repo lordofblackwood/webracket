@@ -20,14 +20,17 @@
      (define-values (.get-syntax-literal!)
        (lambda args
          ;; Goal 1 runtime module execution can encounter syntax literals as
-         ;; serialization metadata, where a stable symbolic placeholder is
-         ;; enough as long as serialization itself is not exercised.
+         ;; serialization metadata. Numeric literals can also flow into
+         ;; source-location helpers, so use a stable srcloc placeholder instead
+         ;; of a bare symbol for those.
          (if (and (pair? args) (symbol? (car args)))
              (car args)
              (if (and (pair? args) (number? (car args)))
-                 (string->symbol
-                  (string-append "webracket-syntax-literal:"
-                                 (number->string (car args))))
+                 (srcloc
+                  (string->symbol
+                   (string-append "webracket-syntax-literal:"
+                                  (number->string (car args))))
+                  #f #f #f #f)
                  'webracket-syntax-literal))))
      (define-values (.set-transformer!)
        (lambda args (void)))))

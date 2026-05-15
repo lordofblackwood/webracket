@@ -2984,6 +2984,12 @@
               (list "impersonator?/none"
                     (equal? (impersonator? (vector 1 2 3)) #f))
 
+              (list "procedure-impersonator*?/none"
+                    (equal? (procedure-impersonator*? (lambda (x) x)) #f))
+
+              (list "procedure-result-arity/unknown-closure"
+                    (equal? (procedure-result-arity (lambda (x) x)) #f))
+
               (list "chaperone?/none"
                     (equal? (chaperone? (vector 1 2 3)) #f))
 

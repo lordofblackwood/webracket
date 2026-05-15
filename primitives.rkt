@@ -1102,10 +1102,12 @@
  ;; 4.20 Procedures
  procedure? apply compose compose1 checked-procedure-check-and-extract procedure-rename procedure-realm procedure->external
  procedure-arity procedure-arity-mask procedure-arity-includes?
+ procedure-result-arity
  procedure-specialize
  procedure-arity?
  procedure-struct-type?
  procedure-reduce-arity procedure-reduce-arity-mask
+ unsafe-chaperone-procedure unsafe-impersonate-procedure
  arity-at-least make-arity-at-least
  arity-at-least?
  arity-at-least-value
@@ -1247,8 +1249,10 @@ current-parameterization    ; poor-man dynamic parameterization overlay
  make-impersonator-property
  webracket-impersonator-property-accessor
  webracket-impersonator-property-predicate
+ impersonator-prop:application-mark
  prop:input-port
  impersonator?
+ procedure-impersonator*?
  chaperone?
  impersonator-val
  output-port?
@@ -3580,6 +3584,15 @@ current-parameterization    ; poor-man dynamic parameterization overlay
 
 (define (impersonator? v)
   #f)
+
+(define (procedure-impersonator*? v)
+  #f)
+
+(define (unsafe-chaperone-procedure proc wrapper . props)
+  wrapper)
+
+(define (unsafe-impersonate-procedure proc wrapper . props)
+  wrapper)
 
 (define (unsafe-struct*-cas! v k old new)
   (cond

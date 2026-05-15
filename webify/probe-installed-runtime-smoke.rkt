@@ -42,7 +42,10 @@
     values-let-values
     sequence-for/fold
     match-let-basic
+    match-predicate
+    keyword-optional-direct
     keyword-plain-direct
+    format-require
     class-basic))
 
 ;; smoke-label : installed-runtime-smoke? -> string?
@@ -150,7 +153,10 @@
       for/first-basic
       class-require
       class-basic
+      format-require
+      format-single
       format-basic
+      format-number
       match-basic
       match-literal-default
       match-let-basic
@@ -211,7 +217,10 @@
               match-let-basic
               match-predicate)
              #rx"(?m:^42$)"]
+            [(format-require) #rx"(?m:^42$)"]
+            [(format-single) #rx"(?m:^web$)"]
             [(format-basic) #rx"(?m:^web-racket$)"]
+            [(format-number) #rx"(?m:^42$)"]
             [(keyword-optional-direct) #rx"(?m:^4$)"]
             [(keyword-plain-direct) #rx"(?m:^42$)"]
             [(values-call-with-values values-let-values contract-wrapper-basic)
@@ -219,12 +228,12 @@
             [else #rx"(?m:^false$)"])
           #rx"")
       (case name
-        [(format-basic) '(binding-result-arity)]
+        [(format-single format-basic format-number) '(binding-result-arity)]
         [(contract-wrapper-basic) '(runtime-exception)]
         [else '()])
       (case name
-        [(format-basic) #rx"expected: 3"]
-        [(contract-wrapper-basic) #rx"source-location-source"]
+        [(format-single format-basic format-number) #rx"expected: 3"]
+        [(contract-wrapper-basic) #rx"call-with-immediate-continuation-mark"]
         [else #f]))]
     [else
      (installed-runtime-smoke
