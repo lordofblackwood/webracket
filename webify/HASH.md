@@ -51,24 +51,33 @@ The original hash is not mutated.
 
 The demodded regexp and expander linklets use immutable-looking local
 bookkeeping tables, such as `#hasheqv()` plus `hash-set` and
-`hash-iterate-*`. WebRacket currently has mutable hash runtime support and a
-first immutable HAMT slice. The public immutable constructors now have distinct
-wrapper types for `hash`, `hasheq`, and `hasheqv`, so predicates like
-`hash-equal?`, `hash-eq?`, and `hash-eqv?` can distinguish the public kind.
+`hash-iterate-*`. WebRacket now has mutable hash runtime support and a
+persistent immutable HAMT slice. The public immutable constructors have
+distinct wrapper types for `hash`, `hasheq`, `hasheqv`, and `hashalw`, so
+predicates like `hash-equal?`, `hash-eq?`, `hash-eqv?`, and
+`hash-equal-always?` can distinguish the public kind.
 
-Those wrappers still share the same private HAMT node/entry representation, and
-the internal lookup/update path is still eqv?-based. That is enough for expander
-startup paths with symbol-like keys, where eq?, eqv?, and equal? agree, but it
-is not yet complete equal?-key or eq?-key immutable hash semantics.
+Those wrappers share the same private HAMT node/entry representation, but
+lookup, update, removal, and `hash-ref-key` route through the wrapper's
+comparison kind:
 
-The Goal 1 installed smoke suite now includes small immutable hash paths:
+- `hasheq`: `eq?` with `eq-hash/i32`
+- `hasheqv`: `eqv?` with `eqv-hash/i32`
+- `hash`: `equal?` with `equal-hash/i32`
+- `hashalw`: `equal-always?` with `equal-hash/i32`
+
+The current HAMT uses an 8-way stencil-vector node at each level, path-copying
+on set/remove. Small buckets are kept as lists of immutable hash entries; once
+a bucket grows past the split threshold, it is redistributed into a child HAMT
+node. Updating an existing key replaces the bucket entry for traversal
+purposes, and removing the last entry from a child node prunes the empty branch.
+
+The Goal 1 installed smoke suite now includes immutable hash paths:
 `make-immutable-hash`, functional `hash-set`, `hash-ref`, and traversal through
 `hash-keys`, `hash-values`, `hash->list`, `hash-for-each`, `hash-map`, and
-`hash-clear`. These smokes are deliberately symbol-keyed, because symbol keys
-stay inside the supported comparator overlap. The suite also checks public
-hash-kind predicates such as `hash-equal?`, `hash-eq?`, and `hash-eqv?`, but
-duplicate-sensitive set/list behavior should not be used as evidence for full
-equal?-hash semantics until comparator routing is fixed.
+`hash-clear`. The unit tests also cover recursive bucket splits, path-copy
+removal, replacement without duplicate iterator entries, and the public
+hash-kind predicates.
 
 Ephemeron hash tables are also currently a strong fallback:
 `make-ephemeron-hasheq` returns an ordinary mutable `hasheq`. That is enough for
@@ -127,14 +136,11 @@ functional `hash-set` shape.
 
 ## Later Direction
 
-The next immutable-hash semantic milestone is comparator correctness. The
-runtime should keep the shared HAMT payload, but route wrapper operations through
-the appropriate key equality and hash-code functions:
+The next immutable-hash semantic milestone is parity with Racket's full HAMT
+details rather than the current practical subset:
 
-- `hasheq`: `eq?` and `eq-hash-code`
-- `hasheqv`: `eqv?` and `eqv-hash-code`
-- `hash`: `equal?` and `equal-hash-code`
-
-The remaining Webify hash bridge should be narrowed further when immutable hash
-iteration lands, so ordinary `hash-iterate-*` works on the immutable runtime
-representation instead of going through mutable iterator names.
+- match Racket CS's exact bnode/cnode packing strategy more closely
+- add key wrapping if equal?/equal-always? need it for cyclic or mutable data
+- audit weak and ephemeron variants instead of keeping strong fallbacks
+- expose ordinary immutable `hash-iterate-*` paths directly if linklets require
+  those names, rather than relying on the current generic iterator bridge
