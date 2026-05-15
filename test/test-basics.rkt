@@ -466,14 +466,22 @@
                                   'missing
                                   'none)
                                  'none)
-                         (equal? (continuation-mark-set-first
-                                  (current-continuation-marks)
-                                  'missing
-                                  'none
-                                  (unsafe-root-continuation-prompt-tag))
-                                 'none)
-                         (equal? (reparameterize 'paramz) 'paramz)
-                         (let* ([original (error-print-width)]
+                                 (equal? (continuation-mark-set-first
+                                          (current-continuation-marks)
+                                          'missing
+                                          'none
+                                          (unsafe-root-continuation-prompt-tag))
+                                         'none)
+                                 (parameter? current-input-port)
+                                 (parameter? current-output-port)
+                                 (parameter? current-error-port)
+                                 (parameter? current-logger)
+                                 (parameter? current-print)
+                                 (not (parameter? current-parameterization))
+                                 (not (parameter? add1))
+                                 (not (parameter? 42))
+                                 (equal? (reparameterize 'paramz) 'paramz)
+                                 (let* ([original (error-print-width)]
                                 [paramz (extend-parameterization
                                          (current-parameterization)
                                          error-print-width
@@ -4264,6 +4272,41 @@
                       (and (hash? h)
                            (mutable-hash? h))))        
 
+              (list "hash-placeholder constructors"
+                    (let ([h   (make-hash-placeholder '((a . 1)))]
+                          [heq (make-hasheq-placeholder '((a . 1)))]
+                          [hev (make-hasheqv-placeholder '((a . 1)))]
+                          [hal (make-hashalw-placeholder '((a . 1)))])
+                      (and (equal? (hash-placeholder? h) #t)
+                           (equal? (hash-placeholder? heq) #t)
+                           (equal? (hash-placeholder? hev) #t)
+                           (equal? (hash-placeholder? hal) #t)
+                           (equal? (hash-placeholder? (hash 'a 1)) #f)
+                           (with-handlers ([exn:fail:contract? (lambda (_ex) #t)])
+                             (make-hash-placeholder '(a))
+                             #f))))
+
+              (list "reader placeholders"
+                    (let ([ph (make-placeholder 'start)])
+                      (and (placeholder? ph)
+                           (not (placeholder? 'start))
+                           (equal? (placeholder-get ph) 'start)
+                           (void? (placeholder-set! ph 'done))
+                           (equal? (placeholder-get ph) 'done)
+                           (with-handlers ([exn:fail:contract? (lambda (_ex) #t)])
+                             (placeholder-get 'not-a-placeholder)
+                             #f)
+                           (with-handlers ([exn:fail:contract? (lambda (_ex) #t)])
+                             (placeholder-set! 'not-a-placeholder 'x)
+                             #f))))
+
+              (list "hash-weak?/strong-fallbacks"
+                    (and (equal? (hash-weak? (make-hash)) #f)
+                         (equal? (hash-weak? (make-weak-hash)) #f)
+                         (with-handlers ([exn:fail:contract? (lambda (_ex) #t)])
+                           (hash-weak? 'not-a-hash)
+                           #f)))
+
               (list "hash-eq?"
                     (and (equal? (hash-eq? (make-hasheq))  #t)
                          (equal? (hash-eq? (make-hash))    #f)
@@ -5242,7 +5285,7 @@
                                 '#(struct:vect-point2 3 4))))))))
 
 
- (list "13. Input and Output"
+       (list "13. Input and Output"
 
        (list "13.1 Ports"
              (list
@@ -5271,6 +5314,23 @@
                        (and (equal? (output-port? out) #t)
                             (equal? (output-port? (open-input-string "x")) #f)
                             (equal? (output-port? #f) #f))))
+
+               (list "file-stream-port?/string-ports"
+                     (and (equal? (file-stream-port? (open-input-string "x")) #f)
+                          (equal? (file-stream-port? (open-output-string)) #f)
+                          (equal? (file-stream-port? 42) #f)))
+
+               (list "file-stream-port?/vfs-file-ports"
+                     (let ([path "/app/data/file-stream-port-test.txt"])
+                       (call-with-output-file path
+                         (lambda (out)
+                           (write-string "ok" out))
+                         'binary
+                         'truncate/replace)
+                       (let ([in  (open-input-file path)]
+                             [out (open-output-file path 'binary 'append)])
+                         (and (equal? (file-stream-port? in) #t)
+                              (equal? (file-stream-port? out) #t)))))
 
                (list "port-closed?/close-input-port"
                      (let ([port (open-input-string "x")])
@@ -5755,6 +5815,26 @@
                     (let ([port (open-input-string "ok")])
                       (equal? (progress-evt? #f port) #f)))
 
+              (list "port-provides-progress-evts?/fallback"
+                    (and (equal? (port-provides-progress-evts?
+                                  (open-input-string "ok"))
+                                 #f)
+                         (with-handlers ([exn:fail:contract? (lambda (_ex) #t)])
+                           (port-provides-progress-evts? 'not-a-port)
+                           #f)))
+
+              (list "port-writes-atomic?/fallback"
+                    (and (equal? (port-writes-atomic? (open-output-string)) #f)
+                         (with-handlers ([exn:fail:contract? (lambda (_ex) #t)])
+                           (port-writes-atomic? 'not-a-port)
+                           #f)))
+
+              (list "port-writes-special?/ordinary-ports"
+                    (and (equal? (port-writes-special? (open-output-string)) #f)
+                         (with-handlers ([exn:fail:contract? (lambda (_ex) #t)])
+                           (port-writes-special? 'not-a-port)
+                           #f)))
+
               (list "channel/basic"
                     (let ([ch (make-channel)])
                       (and (equal? (channel? ch) #t)
@@ -5773,6 +5853,28 @@
                            (equal? (sync/timeout 0 ch) #f)
                            (equal? (sync/timeout 0 evt) evt)
                            (equal? (sync/timeout 0 ch) 'via-sync))))
+
+              (list "handle-evt/basic"
+                    (let* ([ch  (make-channel)]
+                           [evt (handle-evt ch (lambda (v) (list 'handled v)))])
+                      (and (equal? (handle-evt? evt) #t)
+                           (equal? (handle-evt? ch) #f)
+                           (equal? (evt? evt) #t)
+                           (equal? (sync/timeout 0 evt) #f)
+                           (equal? (channel-put ch 'ok) (void))
+                           (equal? (sync/timeout 0 evt) '(handled ok)))))
+
+              (list "logger/log-receiver"
+                    (let* ([logger (make-logger 'goal1)]
+                           [recv   (make-log-receiver logger 'info)])
+                      (and (equal? (logger? logger) #t)
+                           (equal? (logger-name logger) 'goal1)
+                           (equal? (log-receiver? recv) #t)
+                           (equal? (evt? recv) #t)
+                           (equal? (sync/timeout 0 recv) #f)
+                           (with-handlers ([exn:fail:contract? (lambda (_ex) #t)])
+                             (make-log-receiver 'not-a-logger 'info)
+                             #f))))
 
               (list "custodian/basic"
                     (let ([c (make-custodian)])

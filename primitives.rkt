@@ -271,17 +271,24 @@
          current-error-port
          current-read-interaction
          current-parameterization
+         parameter?
          parameterization?
          call-with-parameterization
          call-with-continuation-barrier
          call-with-escape-continuation
          current-logger
          logger?
+         log-receiver?
          make-logger
+         make-log-receiver
          logger-name
          log-level?
          log-max-level
          log-message
+         placeholder?
+         make-placeholder
+         placeholder-set!
+         placeholder-get
          make-channel
          channel?
          channel-get
@@ -320,6 +327,9 @@
          port-write-handler
          port-display-handler
          port-print-handler
+         port-provides-progress-evts?
+         port-writes-atomic?
+         port-writes-special?
          load-on-demand-enabled
          use-user-specific-search-paths
          get-installation-name
@@ -1021,6 +1031,16 @@
  hashalw
  hasheq
  hasheqv
+ placeholder?
+ hash-placeholder?
+ hash-weak?
+ make-placeholder
+ placeholder-set!
+ placeholder-get
+ make-hash-placeholder
+ make-hasheq-placeholder
+ make-hasheqv-placeholder
+ make-hashalw-placeholder
  make-hash
  make-hashalw
 
@@ -1122,6 +1142,7 @@ continuation-prompt-available? ; prompt support is currently permissive
 continuation-prompt-tag?
 continuation?
 current-parameterization    ; poor-man dynamic parameterization overlay
+ parameter?                  ; recognizes built-in parameter procedures
  parameterization?           ; recognizes poor-man parameterization overlays
  extend-parameterization     ; poor-man parameterization overlay constructor
  reparameterize              ; bootstrap identity; full parameterizations unsupported
@@ -1145,7 +1166,7 @@ current-parameterization    ; poor-man dynamic parameterization overlay
  exn:break:terminate make-exn:break:terminate exn:break:terminate?
  make-channel channel? channel-get channel-try-get
  channel-put channel-put-evt channel-put-evt?
- evt?
+ evt? handle-evt handle-evt?
  make-semaphore semaphore? semaphore-post
  call-with-semaphore
  semaphore-peek-evt semaphore-peek-evt?
@@ -1181,6 +1202,7 @@ current-parameterization    ; poor-man dynamic parameterization overlay
 
  port?
  input-port?
+ file-stream-port?
  impersonator-property?
  impersonator-property-accessor-procedure?
  make-impersonator-property
@@ -1216,6 +1238,9 @@ current-parameterization    ; poor-man dynamic parameterization overlay
  peek-bytes-avail!
  peek-bytes-avail!*
  progress-evt?
+ port-provides-progress-evts?
+ port-writes-atomic?
+ port-writes-special?
  
  byte-ready?
  char-ready?

@@ -1106,6 +1106,7 @@
       hash hasheq hasheqv hashalw
       bytes-convert
       make-logger log-message
+      make-log-receiver
       format fprintf
       sync sync/timeout
       extend-parameterization
@@ -1126,6 +1127,7 @@
         [(call-with-semaphore) 2]
         [(extend-parameterization) 1]
         [(make-logger) 0]
+        [(make-log-receiver) 2]
         [(log-message) 3]
         [(unsafe-fxand unsafe-fxior unsafe-fxxor) 1]
         [(symbol<? keyword<? path<?
@@ -1151,6 +1153,7 @@
         [(call-with-semaphore) 2]
         [(foldl foldr instance-set-variable-value!) 3]
         [(make-logger) 0]
+        [(make-log-receiver) 2]
         [(log-message) 3]
         [(bytes-convert) 2]
         [(+ * unsafe-fx+ unsafe-fx* compose compose1 cartesian-product string-append-immutable gcd lcm hash hasheq hasheqv hashalw) 0]
@@ -1941,7 +1944,7 @@
   exn:srclocs? exn:srclocs-accessor
   make-channel channel? channel-get channel-try-get
   channel-put channel-put-evt channel-put-evt?
-  evt?
+  evt? handle-evt handle-evt?
   make-thread-cell thread-cell? thread-cell-ref thread-cell-set!
   make-semaphore semaphore? semaphore-post call-with-semaphore semaphore-peek-evt semaphore-peek-evt?
   sync sync/timeout
@@ -2319,6 +2322,7 @@
 
   port?
   input-port?
+  file-stream-port?
   impersonator-property?
   impersonator-property-accessor-procedure?
   impersonator?
@@ -2357,7 +2361,9 @@
   current-readtable
   current-logger
   logger?
+  log-receiver?
   make-logger
+  make-log-receiver
   logger-name
   log-level?
   log-max-level
@@ -2402,6 +2408,9 @@
   peek-bytes-avail!
   peek-bytes-avail!*
   progress-evt?
+  port-provides-progress-evts?
+  port-writes-atomic?
+  port-writes-special?
 
   byte-ready?
   char-ready?
@@ -2447,6 +2456,16 @@
   hasheq
   hasheqv
   hashalw
+  placeholder?
+  hash-placeholder?
+  hash-weak?
+  make-placeholder
+  placeholder-set!
+  placeholder-get
+  make-hash-placeholder
+  make-hasheq-placeholder
+  make-hasheqv-placeholder
+  make-hashalw-placeholder
 
   make-weak-hasheq  ; for now same as make-hasheq
   make-weak-hasheqv ; for now same as make-hasheqv
@@ -2577,6 +2596,7 @@
   continuation-prompt-tag?
   continuation?
   current-parameterization    ; poor-man dynamic parameterization overlay
+  parameter?                  ; recognizes built-in parameter procedures
   parameterization?           ; recognizes poor-man parameterization overlays
   extend-parameterization     ; poor-man parameterization overlay constructor
   reparameterize              ; bootstrap identity; full parameterizations unsupported

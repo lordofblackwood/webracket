@@ -2015,12 +2015,18 @@
     (add-runtime-string-constant 'ephemeron?                 "ephemeron?")
     (add-runtime-string-constant 'keyword?                   "keyword?")
     (add-runtime-string-constant 'pair?                      "pair?")
+    (add-runtime-string-constant 'placeholder?               "placeholder?")
     (add-runtime-string-constant 'list?                      "list?")
     (add-runtime-string-constant 'bytes?                     "bytes?")
     (add-runtime-string-constant 'vector?                    "vector?")
     (add-runtime-string-constant 'port?                      "port?")
     (add-runtime-string-constant 'input-port?                "input-port?")
+    (add-runtime-string-constant 'file-stream-port?          "file-stream-port?")
     (add-runtime-string-constant 'output-port?               "output-port?")
+    (add-runtime-string-constant 'port-writes-atomic?        "port-writes-atomic?")
+    (add-runtime-string-constant 'port-writes-special?       "port-writes-special?")
+    (add-runtime-string-constant 'port-provides-progress-evts? "port-provides-progress-evts?")
+    (add-runtime-string-constant 'parameter?                 "parameter?")
     (add-runtime-string-constant 'parameterization?          "parameterization?")
     (add-runtime-string-constant 'pseudo-random-generator?   "pseudo-random-generator?")
     (add-runtime-string-constant 'impersonator-property?     "impersonator-property?")
@@ -2032,8 +2038,10 @@
     (add-runtime-string-constant 'exact-nonnegative-integer? "exact-nonnegative-integer?")
     (add-runtime-string-constant 'exact-integer?             "exact-integer?")
     (add-runtime-string-constant 'filesystem-errno           "(cons/c exact-integer? (or/c 'posix 'windows 'gai))")
+    (add-runtime-string-constant 'listof-pair?               "(listof pair?)")
     (add-runtime-string-constant 'semaphore?                 "semaphore?")
     (add-runtime-string-constant 'evt?                       "evt?")
+    (add-runtime-string-constant 'handle-evt?                "handle-evt?")
     (add-runtime-string-constant 'procedure-arity?           "procedure-arity?")
     (add-runtime-string-constant 'exn:srclocs?              "exn:srclocs?")
     (add-runtime-string-constant 'valid-argument             "valid argument")
@@ -2081,6 +2089,8 @@
     (add-runtime-symbol-constant 'call-with-escape-continuation)
     (add-runtime-symbol-constant 'current-logger)
     (add-runtime-symbol-constant 'logger?)
+    (add-runtime-symbol-constant 'log-receiver?)
+    (add-runtime-symbol-constant 'make-log-receiver)
     (add-runtime-symbol-constant 'make-logger)
     (add-runtime-symbol-constant 'logger-name)
     (add-runtime-symbol-constant 'log-level?)
@@ -2101,6 +2111,17 @@
     (add-runtime-symbol-constant 'channel-put-evt)
     (add-runtime-symbol-constant 'channel-put-evt?)
     (add-runtime-symbol-constant 'evt?)
+    (add-runtime-symbol-constant 'handle-evt)
+    (add-runtime-symbol-constant 'handle-evt?)
+    (add-runtime-symbol-constant 'hash-placeholder?)
+    (add-runtime-symbol-constant 'hash-weak?)
+    (add-runtime-symbol-constant 'make-placeholder)
+    (add-runtime-symbol-constant 'placeholder-set!)
+    (add-runtime-symbol-constant 'placeholder-get)
+    (add-runtime-symbol-constant 'make-hash-placeholder)
+    (add-runtime-symbol-constant 'make-hasheq-placeholder)
+    (add-runtime-symbol-constant 'make-hasheqv-placeholder)
+    (add-runtime-symbol-constant 'make-hashalw-placeholder)
     (add-runtime-symbol-constant 'chaperone?)
     (add-runtime-symbol-constant 'continuation-mark-set?)
     (add-runtime-symbol-constant 'continuation-prompt-available?)
@@ -2184,6 +2205,9 @@
     (add-runtime-symbol-constant 'port-write-handler)
     (add-runtime-symbol-constant 'port-display-handler)
     (add-runtime-symbol-constant 'port-print-handler)
+    (add-runtime-symbol-constant 'port-writes-atomic?)
+    (add-runtime-symbol-constant 'port-writes-special?)
+    (add-runtime-symbol-constant 'port-provides-progress-evts?)
     (add-runtime-symbol-constant 'load-on-demand-enabled)
     (add-runtime-symbol-constant 'read-square-bracket-as-paren)
     (add-runtime-symbol-constant 'read-curly-brace-as-paren)
@@ -2324,6 +2348,7 @@
     (add-runtime-string-constant 'distinct-listof-symbol?       "(and/c (listof symbol?) distinct?)")
     (add-runtime-string-constant 'symbol-or-false               "(or/c symbol? #f)")
     (add-runtime-string-constant 'logger?                       "logger?")
+    (add-runtime-string-constant 'log-receiver?                 "log-receiver?")
     (add-runtime-string-constant 'bytes-converter?              "bytes-converter?")
     (add-runtime-string-constant 'channel?                      "channel?")
     (add-runtime-string-constant 'instance-mode?                "(or/c #f 'constant 'consistent)")
@@ -2531,6 +2556,12 @@
                              (struct
                                (field $hash (mut i32))
                                (field $name (ref eq)))))
+          (type $LogReceiver (sub $Heap
+                                  (struct
+                                    (field $hash   (mut i32))
+                                    (field $logger (ref $Logger))
+                                    (field $level  (ref eq))
+                                    (field $topics (ref eq)))))
           ;; Minimal byte converters. For now they represent the guaranteed
           ;; UTF-8/locale-as-UTF-8 identity conversions used while booting
           ;; module libraries; full transcoding belongs with richer I/O/rktio.
@@ -2548,6 +2579,11 @@
                                       (field $hash (mut i32))
                                       (field $ch   (ref $Channel))
                                       (field $v    (ref eq)))))
+          (type $HandleEvt (sub $Heap
+                                (struct
+                                  (field $hash (mut i32))
+                                  (field $evt  (ref eq))
+                                  (field $proc (ref $Procedure)))))
           (type $ContinuationMarkSet (sub $Heap
                                           (struct
                                             (field $hash (mut i32)))))
@@ -3248,6 +3284,23 @@
                        (field $mutable? (ref eq))
                        (field $root     (ref eq))
                        (field $count    i32))))
+
+          ;; Reader-graph hash placeholders. Full graph resolution belongs with
+          ;; make-reader-graph/read; for now retain the association list and
+          ;; comparison kind so installed libraries can recognize placeholders.
+          (type $HashPlaceholder
+                (sub $Heap
+                     (struct
+                       (field $hash   (mut i32))
+                       (field $kind   i32)      ;; 0 equal?, 1 eq?, 2 eqv?, 3 equal-always?
+                       (field $assocs (ref eq)))))
+
+          ;; Reader-graph placeholders created by make-placeholder.
+          (type $Placeholder
+                (sub $Heap
+                     (struct
+                       (field $hash  (mut i32))
+                       (field $value (mut (ref eq))))))
 
 	          (type $VariableReference ; opaque value returned by #%variable-reference
 	                ; Minimal payload needed by variable-reference predicates.
@@ -36197,6 +36250,11 @@
          (func $logger? (type $Prim1)
                ,@(make-predicate-body '$Logger))
 
+         ;; log-receiver? : any/c -> boolean?
+         ;;   Predicate for inert log receivers.
+         (func $log-receiver? (type $Prim1)
+               ,@(make-predicate-body '$LogReceiver))
+
          ;; make-logger : [(or/c symbol? #f)] ... -> logger?
          ;;   Create an inert logger. Only the optional topic/name is retained;
          ;;   parent and filter arguments are accepted but ignored for now.
@@ -36218,6 +36276,26 @@
                                (local.get $name))
                          (unreachable)))
                (struct.new $Logger (i32.const 0) (local.get $name)))
+
+         ;; make-log-receiver : logger? log-level/c [(or/c #f symbol?)] ... -> log-receiver?
+         ;;   Create a synchronizable but never-ready receiver. WebRacket's
+         ;;   logger layer is currently inert, so no queued log events exist.
+         (func $make-log-receiver (type $Prim>=2)
+               (param $logger-raw (ref eq)) ;; logger?
+               (param $level      (ref eq)) ;; log-level/c, retained but not interpreted
+               (param $topics     (ref eq)) ;; topic filters
+               (result            (ref eq))
+               (if (i32.eqz (ref.test (ref $Logger) (local.get $logger-raw)))
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:make-log-receiver)
+                               (global.get $string:logger?)
+                               (local.get $logger-raw))
+                         (unreachable)))
+               (struct.new $LogReceiver
+                           (i32.const 0)
+                           (ref.cast (ref $Logger) (local.get $logger-raw))
+                           (local.get $level)
+                           (local.get $topics)))
 
          ;; logger-name : logger? -> (or/c symbol? #f)
          ;;   Return the topic/name carried by a minimal logger.
@@ -36324,6 +36402,24 @@
          (func $channel-put-evt? (type $Prim1)
                ,@(make-predicate-body '$ChannelPutEvt))
 
+         ;; handle-evt? : evt? -> boolean?
+         ;;   Recognize lightweight events created by handle-evt. Racket also
+         ;;   returns #t for choice events that contain handled events; WebRacket
+         ;;   does not model choice events yet.
+         (func $handle-evt? (type $Prim1)
+               (param $v (ref eq)) ;; evt?
+               (result   (ref eq))
+               (if (ref.eq (call $evt? (local.get $v)) (global.get $false))
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:handle-evt?)
+                               (global.get $string:evt?)
+                               (local.get $v))
+                         (unreachable)))
+               (if (result (ref eq))
+                   (ref.test (ref $HandleEvt) (local.get $v))
+                   (then (global.get $true))
+                   (else (global.get $false))))
+
          ;; evt? : any/c -> boolean?
          ;;   Recognize the synchronizable event values implemented by the
          ;;   current single-threaded substrate.
@@ -36343,6 +36439,10 @@
                (if (ref.test (ref $Channel) (local.get $v))
                    (then (return (global.get $true))))
                (if (ref.test (ref $ChannelPutEvt) (local.get $v))
+                   (then (return (global.get $true))))
+               (if (ref.test (ref $HandleEvt) (local.get $v))
+                   (then (return (global.get $true))))
+               (if (ref.test (ref $LogReceiver) (local.get $v))
                    (then (return (global.get $true))))
                (if (ref.test (ref $CustodianBox) (local.get $v))
                    (then (return (global.get $true))))
@@ -36412,6 +36512,29 @@
                            (i32.const 0)
                            (ref.cast (ref $Channel) (local.get $ch-raw))
                            (local.get $v)))
+
+         ;; handle-evt : evt? procedure? -> handle-evt?
+         ;;   Wrap an event with a handler to apply to its synchronization
+         ;;   result. This single-threaded approximation supports one-value
+         ;;   event results from the currently implemented event substrate.
+         (func $handle-evt (type $Prim2)
+               (param $evt-raw  (ref eq)) ;; evt?
+               (param $proc-raw (ref eq)) ;; procedure?
+               (result          (ref eq))
+               (if (ref.eq (call $evt? (local.get $evt-raw)) (global.get $false))
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:handle-evt)
+                               (global.get $string:evt?)
+                               (local.get $evt-raw))
+                         (unreachable)))
+               (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc-raw)))
+                   (then (call $raise-argument-error:procedure-expected
+                               (local.get $proc-raw))
+                         (unreachable)))
+               (struct.new $HandleEvt
+                           (i32.const 0)
+                           (local.get $evt-raw)
+                           (ref.cast (ref $Procedure) (local.get $proc-raw))))
 
          ;; make-semaphore : [exact-nonnegative-integer? = 0] -> semaphore?
          ;;   Create a lightweight single-threaded semaphore.
@@ -36598,6 +36721,10 @@
                (local $peek (ref $SemaphorePeekEvt))
                (local $ch   (ref $Channel))
                (local $put  (ref $ChannelPutEvt))
+               (local $handle (ref $HandleEvt))
+               (local $proc   (ref $Procedure))
+               (local $inv    (ref $ProcedureInvoker))
+               (local $r      (ref eq))
 
                (if (ref.test (ref $AlwaysEvt) (local.get $evt))
                    (then (return (local.get $evt))))
@@ -36649,6 +36776,25 @@
                                      (struct.get $ChannelPutEvt $ch (local.get $put))
                                      (struct.get $ChannelPutEvt $v (local.get $put))))))
                     (return (local.get $evt))))
+               (if (ref.test (ref $HandleEvt) (local.get $evt))
+                   (then
+                    (local.set $handle (ref.cast (ref $HandleEvt) (local.get $evt)))
+                    (local.set $r
+                               (call $sync-one
+                                     (struct.get $HandleEvt $evt (local.get $handle))
+                                     (local.get $consume?)))
+                    (if (ref.eq (local.get $r) (global.get $false))
+                        (then (return (global.get $false))))
+                    (local.set $proc (struct.get $HandleEvt $proc (local.get $handle)))
+                    (local.set $inv  (struct.get $Procedure $invoke (local.get $proc)))
+                    (return_call_ref $ProcedureInvoker
+                                     (local.get $proc)
+                                     (array.new_fixed $Args 1 (local.get $r))
+                                     (local.get $inv))))
+               ;; Log receivers are synchronizable events, but the current
+               ;; inert logger substrate never queues events.
+               (if (ref.test (ref $LogReceiver) (local.get $evt))
+                   (then (return (global.get $false))))
                ;; Keep the first event layer permissive: other event kinds from
                ;; imported linklets can be added here as they become reachable.
                (global.get $false))
@@ -37030,6 +37176,160 @@
                            (global.get $false)
                            (global.get $missing)
                            (i32.const 0)))
+
+         ;; hash-placeholder? : any/c -> boolean?
+         ;;   Recognize hash placeholders produced by make-hash-placeholder
+         ;;   and its comparison-kind variants.
+         (func $hash-placeholder? (type $Prim1)
+               (param $v (ref eq)) ;; any value
+               (result   (ref eq))
+               (if (result (ref eq))
+                   (ref.test (ref $HashPlaceholder) (local.get $v))
+                   (then (global.get $true))
+                   (else (global.get $false))))
+
+         ;; placeholder? : any/c -> boolean?
+         ;;   Recognize reader-graph placeholders created by make-placeholder.
+         (func $placeholder? (type $Prim1)
+               (param $v (ref eq)) ;; any value
+               (result   (ref eq))
+               (if (result (ref eq))
+                   (ref.test (ref $Placeholder) (local.get $v))
+                   (then (global.get $true))
+                   (else (global.get $false))))
+
+         ;; make-placeholder : any/c -> placeholder?
+         ;;   Create a mutable reader-graph placeholder cell.
+         (func $make-placeholder (type $Prim1)
+               (param $v (ref eq)) ;; initial value
+               (result   (ref eq))
+               (struct.new $Placeholder
+                           (i32.const 0)
+                           (local.get $v)))
+
+         ;; placeholder-set! : placeholder? any/c -> void?
+         ;;   Replace the value stored in a reader-graph placeholder.
+         (func $placeholder-set! (type $Prim2)
+               (param $ph-raw (ref eq)) ;; placeholder?
+               (param $v      (ref eq)) ;; new value
+               (result        (ref eq))
+
+               (if (i32.eqz (ref.test (ref $Placeholder) (local.get $ph-raw)))
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:placeholder-set!)
+                               (global.get $string:placeholder?)
+                               (local.get $ph-raw))
+                         (unreachable)))
+               (struct.set $Placeholder $value
+                           (ref.cast (ref $Placeholder) (local.get $ph-raw))
+                           (local.get $v))
+               (global.get $void))
+
+         ;; placeholder-get : placeholder? -> any/c
+         ;;   Return the current value stored in a reader-graph placeholder.
+         (func $placeholder-get (type $Prim1)
+               (param $ph-raw (ref eq)) ;; placeholder?
+               (result        (ref eq))
+
+               (if (i32.eqz (ref.test (ref $Placeholder) (local.get $ph-raw)))
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:placeholder-get)
+                               (global.get $string:placeholder?)
+                               (local.get $ph-raw))
+                         (unreachable)))
+               (struct.get $Placeholder $value
+                           (ref.cast (ref $Placeholder) (local.get $ph-raw))))
+
+         ;; hash-weak? : hash? -> boolean?
+         ;;   WebRacket weak-hash constructors are currently strong fallbacks,
+         ;;   so no hash table retains keys weakly yet.
+         (func $hash-weak? (type $Prim1)
+               (param $ht (ref eq)) ;; hash?
+               (result    (ref eq))
+               (if (ref.eq (call $hash? (local.get $ht)) (global.get $false))
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:hash-weak?)
+                               (global.get $string:hash?)
+                               (local.get $ht))
+                         (unreachable)))
+               (global.get $false))
+
+         ;; $make-hash-placeholder/kind : symbol? (listof pair?) i32 -> hash-placeholder?
+         ;;   Shared constructor for reader-graph hash placeholders.
+         (func $make-hash-placeholder/kind
+               (param $who    (ref eq))      ;; constructor name
+               (param $assocs (ref eq))      ;; association list
+               (param $kind   i32)           ;; comparison kind tag
+               (result        (ref eq))
+
+               (local $node  (ref eq))
+               (local $pair  (ref $Pair))
+               (local $first (ref eq))
+
+               (if (ref.eq (call $list? (local.get $assocs)) (global.get $false))
+                   (then (call $raise-argument-error1
+                               (local.get $who)
+                               (global.get $string:listof-pair?)
+                               (local.get $assocs))
+                         (unreachable)))
+               (local.set $node (local.get $assocs))
+               (block $done
+                      (loop $walk
+                            (br_if $done (ref.eq (local.get $node) (global.get $null)))
+                            (local.set $pair (ref.cast (ref $Pair) (local.get $node)))
+                            (local.set $first (struct.get $Pair $a (local.get $pair)))
+                            (if (i32.eqz (ref.test (ref $Pair) (local.get $first)))
+                                (then (call $raise-argument-error1
+                                            (local.get $who)
+                                            (global.get $string:listof-pair?)
+                                            (local.get $assocs))
+                                      (unreachable)))
+                            (local.set $node (struct.get $Pair $d (local.get $pair)))
+                            (br $walk)))
+               (struct.new $HashPlaceholder
+                           (i32.const 0)
+                           (local.get $kind)
+                           (local.get $assocs)))
+
+         ;; make-hash-placeholder : (listof pair?) -> hash-placeholder?
+         ;;   Equal?-based hash placeholder for make-reader-graph/read.
+         (func $make-hash-placeholder (type $Prim1)
+               (param $assocs (ref eq)) ;; association list
+               (result        (ref eq))
+               (call $make-hash-placeholder/kind
+                     (global.get $symbol:make-hash-placeholder)
+                     (local.get $assocs)
+                     (i32.const 0)))
+
+         ;; make-hasheq-placeholder : (listof pair?) -> hash-placeholder?
+         ;;   Eq?-based hash placeholder for make-reader-graph/read.
+         (func $make-hasheq-placeholder (type $Prim1)
+               (param $assocs (ref eq)) ;; association list
+               (result        (ref eq))
+               (call $make-hash-placeholder/kind
+                     (global.get $symbol:make-hasheq-placeholder)
+                     (local.get $assocs)
+                     (i32.const 1)))
+
+         ;; make-hasheqv-placeholder : (listof pair?) -> hash-placeholder?
+         ;;   Eqv?-based hash placeholder for make-reader-graph/read.
+         (func $make-hasheqv-placeholder (type $Prim1)
+               (param $assocs (ref eq)) ;; association list
+               (result        (ref eq))
+               (call $make-hash-placeholder/kind
+                     (global.get $symbol:make-hasheqv-placeholder)
+                     (local.get $assocs)
+                     (i32.const 2)))
+
+         ;; make-hashalw-placeholder : (listof pair?) -> hash-placeholder?
+         ;;   Equal-always?-based hash placeholder for make-reader-graph/read.
+         (func $make-hashalw-placeholder (type $Prim1)
+               (param $assocs (ref eq)) ;; association list
+               (result        (ref eq))
+               (call $make-hash-placeholder/kind
+                     (global.get $symbol:make-hashalw-placeholder)
+                     (local.get $assocs)
+                     (i32.const 3)))
 
          (func $immutable-hasheqv-bucket-index
                (param $mask i32)
@@ -43411,6 +43711,26 @@
         (func $input-port? (type $Prim1)
               ,@(make-predicate-body '$InputPort))
 
+        ;; file-stream-port? : any/c -> boolean?
+        ;;   Recognize VFS-backed file ports. WebRacket currently represents
+        ;;   input files as input-string ports with a path source name, while
+        ;;   output files have a dedicated OutputFilePort subtype.
+        (func $file-stream-port? (type $Prim1)
+              (param $v (ref eq)) ;; any value
+              (result   (ref eq))
+
+              (local $in (ref $InputStringPort))
+
+              (if (ref.test (ref $OutputFilePort) (local.get $v))
+                  (then (return (global.get $true))))
+              (if (ref.test (ref $InputStringPort) (local.get $v))
+                  (then
+                   (local.set $in (ref.cast (ref $InputStringPort) (local.get $v)))
+                   (if (ref.test (ref $Path)
+                                 (struct.get $InputStringPort $name (local.get $in)))
+                       (then (return (global.get $true))))))
+              (global.get $false))
+
         (func $impersonator? (type $Prim1)
               (param $v (ref eq)) ;; any value
               (result   (ref eq)) ;; always #f; WebRacket has no impersonators
@@ -44160,6 +44480,53 @@
                (param $in (ref eq)) ;; input-port? (optional, default = (current-input-port))
                (result    (ref eq))
                
+               (global.get $false))
+
+         ;; port-provides-progress-evts? : input-port? -> boolean?
+         ;;   Racket's built-in ports normally support progress events, but
+         ;;   WebRacket has not implemented port-progress-evt yet. Report #f
+         ;;   so libraries take their no-progress-event fallback paths.
+         (func $port-provides-progress-evts? (type $Prim1)
+               (param $in (ref eq)) ;; input-port?
+               (result    (ref eq))
+
+               (if (i32.eqz (ref.test (ref $InputPort) (local.get $in)))
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:port-provides-progress-evts?)
+                               (global.get $string:input-port?)
+                               (local.get $in))
+                         (unreachable)))
+               (global.get $false))
+
+         ;; port-writes-atomic? : output-port? -> boolean?
+         ;;   WebRacket output writes are sequential in the current runtime,
+         ;;   but the event-based atomic write protocol is not implemented.
+         ;;   Report #f so libraries avoid atomic-write event paths.
+         (func $port-writes-atomic? (type $Prim1)
+               (param $out (ref eq)) ;; output-port?
+               (result     (ref eq))
+
+               (if (i32.eqz (ref.test (ref $OutputPort) (local.get $out)))
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:port-writes-atomic?)
+                               (global.get $string:output-port?)
+                               (local.get $out))
+                         (unreachable)))
+               (global.get $false))
+
+         ;; port-writes-special? : output-port? -> boolean?
+         ;;   Racket's ordinary output ports reject special values. WebRacket
+         ;;   does not yet model custom output ports with write-special hooks.
+         (func $port-writes-special? (type $Prim1)
+               (param $out (ref eq)) ;; output-port?
+               (result     (ref eq))
+
+               (if (i32.eqz (ref.test (ref $OutputPort) (local.get $out)))
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:port-writes-special?)
+                               (global.get $string:output-port?)
+                               (local.get $out))
+                         (unreachable)))
                (global.get $false))
          
          (func $read-byte/custom  ; read byte from custom input port
@@ -54768,6 +55135,69 @@
          ;;   Recognize WebRacket's lightweight parameterization overlays.
          (func $parameterization? (type $Prim1)
                ,@(make-predicate-body '$Parameterization))
+
+         ;; parameter? : any/c -> boolean?
+         ;;   Recognize the built-in parameter procedures currently modeled by
+         ;;   WebRacket. User-created parameters need make-parameter support.
+         (func $parameter? (type $Prim1)
+               (param $v (ref eq)) ;; any/c
+               (result   (ref eq))
+
+               (if (ref.eq (local.get $v) (global.get $prim:current-input-port))
+                   (then (return (global.get $true))))
+               (if (ref.eq (local.get $v) (global.get $prim:current-output-port))
+                   (then (return (global.get $true))))
+               (if (ref.eq (local.get $v) (global.get $prim:current-error-port))
+                   (then (return (global.get $true))))
+               (if (ref.eq (local.get $v) (global.get $prim:current-logger))
+                   (then (return (global.get $true))))
+               (if (ref.eq (local.get $v) (global.get $prim:current-custodian))
+                   (then (return (global.get $true))))
+               (if (ref.eq (local.get $v) (global.get $prim:current-print))
+                   (then (return (global.get $true))))
+               (if (ref.eq (local.get $v) (global.get $prim:current-readtable))
+                   (then (return (global.get $true))))
+               (if (ref.eq (local.get $v) (global.get $prim:current-read-interaction))
+                   (then (return (global.get $true))))
+               (if (ref.eq (local.get $v) (global.get $prim:current-compile-target-machine))
+                   (then (return (global.get $true))))
+               (if (ref.eq (local.get $v) (global.get $prim:current-compile-realm))
+                   (then (return (global.get $true))))
+               (if (ref.eq (local.get $v) (global.get $prim:print-syntax-width))
+                   (then (return (global.get $true))))
+               (if (ref.eq (local.get $v) (global.get $prim:error-print-width))
+                   (then (return (global.get $true))))
+               (if (ref.eq (local.get $v) (global.get $prim:error-print-source-location))
+                   (then (return (global.get $true))))
+               (if (ref.eq (local.get $v) (global.get $prim:error-value->string-handler))
+                   (then (return (global.get $true))))
+               (if (ref.eq (local.get $v) (global.get $prim:error-syntax->string-handler))
+                   (then (return (global.get $true))))
+               (if (ref.eq (local.get $v) (global.get $prim:error-module-path->string-handler))
+                   (then (return (global.get $true))))
+               ,@(for/list ([primitive '($prim:load-on-demand-enabled
+                                          $prim:use-user-specific-search-paths
+                                          $prim:read-square-bracket-as-paren
+                                          $prim:read-curly-brace-as-paren
+                                          $prim:read-square-bracket-with-tag
+                                          $prim:read-curly-brace-with-tag
+                                          $prim:read-accept-reader
+                                          $prim:read-accept-lang
+                                          $prim:read-accept-compiled
+                                          $prim:read-accept-box
+                                          $prim:read-accept-bar-quote
+                                          $prim:read-accept-graph
+                                          $prim:read-syntax-accept-graph
+                                          $prim:read-accept-dot
+                                          $prim:read-accept-infix-dot
+                                          $prim:read-accept-quasiquote
+                                          $prim:read-cdot
+                                          $prim:read-single-flonum
+                                          $prim:read-decimal-as-inexact
+                                          $prim:read-case-sensitive)])
+                   `(if (ref.eq (local.get $v) (global.get ,primitive))
+                        (then (return (global.get $true)))))
+               (global.get $false))
 
          ;; reparameterize : any/c -> any/c
          ;;   Bootstrap identity for the extracted expander. The scoped
