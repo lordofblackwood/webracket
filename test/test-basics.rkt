@@ -4439,6 +4439,16 @@
                                            keys)))
                             (loop (cdr ks)
                                   (hash-set h (car ks) (car ks)))))))
+              (list "immutable HAMT update replaces iteration entry"
+                    (let* ([h  (hasheqv 0 'old 8 'eight 0 'new)]
+                           [xs (hash->list h)])
+                      (and (equal? (hash-count h) 2)
+                           (equal? (hash-ref h 0) 'new)
+                           (equal? (length xs) 2)
+                           (equal? (length (filter (lambda (p)
+                                                     (equal? (car p) 0))
+                                                   xs))
+                                   1))))
               (list "hash immutable constructor"
                     (let* ([empty (hash)]
                            [h     (hash 'a 1 'b 2 'a 3)]

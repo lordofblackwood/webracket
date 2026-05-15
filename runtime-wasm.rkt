@@ -38745,7 +38745,10 @@
                          (local.set $newslot
                                     (call $cons
                                           (local.get $entry)
-                                          (local.get $slot)))))))
+                                          (call $immutable-hamt-bucket-remove/kind
+                                                (local.get $kind)
+                                                (local.get $slot)
+                                                (local.get $key))))))))
                (return_call $$stencil-vector-update/core
                             (local.get $sv)
                             (local.get $bit)
