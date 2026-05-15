@@ -1104,6 +1104,8 @@
       make-instance instance-set-variable-value! instance-variable-value
       make-prefab-struct
       hash hasheq hasheqv hashalw
+      stencil-vector $system-stencil-vector unsafe-stencil-vector
+      stencil-vector-update $system-stencil-vector-update unsafe-stencil-vector-update
       bytes-convert
       make-logger log-message
       make-log-receiver
@@ -1135,6 +1137,8 @@
                    string-ci=? string-ci<? string-ci<=? string-ci>? string-ci>=?) 1]
         [(apply) 2]
         [(foldl foldr instance-set-variable-value!) 3]
+        [(stencil-vector-update $system-stencil-vector-update unsafe-stencil-vector-update) 3]
+        [(stencil-vector $system-stencil-vector unsafe-stencil-vector) 1]
         [(make-instance make-prefab-struct) 1]
         [(bytes-convert) 2]
         [else 2]))
@@ -1152,6 +1156,8 @@
         [(sync/timeout) 1]
         [(call-with-semaphore) 2]
         [(foldl foldr instance-set-variable-value!) 3]
+        [(stencil-vector-update $system-stencil-vector-update unsafe-stencil-vector-update) 3]
+        [(stencil-vector $system-stencil-vector unsafe-stencil-vector) 1]
         [(make-logger) 0]
         [(make-log-receiver) 2]
         [(log-message) 3]
@@ -2267,6 +2273,23 @@
   vector-split-at vector-split-at-right
   build-vector
   vector-set/copy 
+  stencil-vector
+  stencil-vector?
+  stencil-vector-length
+  stencil-vector-mask
+  stencil-vector-mask-width
+  stencil-vector-ref
+  stencil-vector-set!
+  stencil-vector-update
+  $stencil-vector?
+  $stencil-vector-length
+  $stencil-vector-mask
+  $stencil-vector-ref
+  $stencil-vector-set!
+  $system-stencil-vector
+  $system-stencil-vector?
+  $system-stencil-vector-truncate!
+  $system-stencil-vector-update
 
   ;; Treelists
   treelist?
@@ -2903,6 +2926,13 @@
   unsafe-vector-set!
   unsafe-vector*-set!
   unsafe-struct-set!
+
+  unsafe-stencil-vector
+  unsafe-stencil-vector-length
+  unsafe-stencil-vector-mask
+  unsafe-stencil-vector-ref
+  unsafe-stencil-vector-set!
+  unsafe-stencil-vector-update
 
   unsafe-string-length
 

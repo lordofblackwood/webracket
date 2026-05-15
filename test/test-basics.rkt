@@ -243,7 +243,8 @@
                     (equal? (equal? (make-vector 5 'a) (make-vector 5 'a)) #t)
                     (equal? (equal? (box "a") (box "a")) #t)
 
-                    ;; TODO: flvector, fxvector and stencil-vector are not implemented yet
+                    ;; TODO: flvector/fxvector are not implemented yet, and
+                    ;; stencil-vector equal?/hash-code support is still pending.
                     ;; (equal? (equal? (make-flvector 5 0.0) (make-flvector 5 0.0)) #t)
                     ;; (equal? (equal? (make-fxvector 5 0) (make-fxvector 5 0)) #t)
                     ;; (equal? (equal? (stencil-vector #b10010 'a 'b)
@@ -2924,6 +2925,44 @@
                            (equal? (vector*-set! v 1 'changed) (void))
                            (equal? (vector*-ref v 1) 'changed))))
 
+              (list "stencil-vector"
+                    (let ([sv (stencil-vector #b101 'a 'b)])
+                      (and (stencil-vector? sv)
+                           ($stencil-vector? sv)
+                           (equal? (stencil-vector-mask-width) 26)
+                           (equal? (stencil-vector-mask sv) #b101)
+                           (equal? (stencil-vector-length sv) 2)
+                           (equal? (stencil-vector-ref sv 0) 'a)
+                           (equal? (stencil-vector-ref sv 1) 'b))))
+
+              (list "stencil-vector-set!"
+                    (let ([sv (stencil-vector #b11 'a 'b)])
+                      (stencil-vector-set! sv 1 'c)
+                      (and (equal? (stencil-vector-ref sv 0) 'a)
+                           (equal? (stencil-vector-ref sv 1) 'c))))
+
+              (list "stencil-vector-update"
+                    (let* ([sv  (stencil-vector #b101 'a 'b)]
+                           [sv2 (stencil-vector-update sv #b001 #b010 'x)]
+                           [sv3 (stencil-vector-update sv2 #b100 #b100 'z)])
+                      (and (equal? (stencil-vector-mask sv2) #b110)
+                           (equal? (stencil-vector-length sv2) 2)
+                           (equal? (stencil-vector-ref sv2 0) 'x)
+                           (equal? (stencil-vector-ref sv2 1) 'b)
+                           (equal? (stencil-vector-mask sv3) #b110)
+                           (equal? (stencil-vector-ref sv3 0) 'x)
+                           (equal? (stencil-vector-ref sv3 1) 'z))))
+
+              (list "system-stencil-vector"
+                    (let* ([sv  ($system-stencil-vector #b101 'a 'b)]
+                           [sv2 ($system-stencil-vector-update sv #b001 #b010 'x)])
+                      (and (not (stencil-vector? sv))
+                           ($stencil-vector? sv)
+                           ($system-stencil-vector? sv)
+                           (equal? ($stencil-vector-mask sv2) #b110)
+                           (equal? ($stencil-vector-ref sv2 0) 'x)
+                           (equal? ($stencil-vector-ref sv2 1) 'b))))
+
               (list "unsafe-vector-length"
                     (equal? (unsafe-vector-length '#(1 2 3)) 3))
 
@@ -4349,6 +4388,40 @@
                            (equal? (hash-count h2) 3)
                            (equal? (hash-ref h2 'c) 4)
                            (equal? (hash-has-key? h 'c) #f))))
+              (list "immutable hasheqv many entries"
+                    (let loop ([i 0] [h (hasheqv)])
+                      (if (equal? i 80)
+                          (let check ([j 0] [h* (hash-remove h 17)])
+                            (cond
+                              [(equal? j 80)
+                               (and (equal? (hash-count h) 80)
+                                    (equal? (hash-count h*) 79)
+                                    (not (hash-has-key? h* 17)))]
+                              [(equal? j 17)
+                               (and (equal? (hash-ref h j) (* j 10))
+                                    (check (+ j 1) h*))]
+                              [else
+                               (and (equal? (hash-ref h j) (* j 10))
+                                    (equal? (hash-ref h* j) (* j 10))
+                                    (check (+ j 1) h*))]))
+                          (loop (+ i 1) (hash-set h i (* i 10))))))
+              (list "immutable hasheqv path-copy remove"
+                    (let loop ([i 0] [h (hasheqv)])
+                      (if (equal? i 80)
+                          (let ([h* (hash-remove h 27)])
+                            (and (equal? (hash-count h) 80)
+                                 (equal? (hash-count h*) 79)
+                                 (not (hash-has-key? h* 27))
+                                 (equal? (hash-ref h 27 #f) 27)
+                                 (eq? (hash-remove h* 27) h*)
+                                 (andmap (lambda (j)
+                                           (or (equal? j 27)
+                                               (equal? (hash-ref h* j #f) j)))
+                                         (let make ([j 0] [acc '()])
+                                           (if (equal? j 80)
+                                               acc
+                                               (make (+ j 1) (cons j acc)))))))
+                          (loop (+ i 1) (hash-set h i i)))))
               (list "hash immutable constructor"
                     (let* ([empty (hash)]
                            [h     (hash 'a 1 'b 2 'a 3)]
@@ -4379,6 +4452,35 @@
                            (equal? (hash-ref h 'c #f) #f)
                            (equal? (hash-count h2) 3)
                            (equal? (hash-ref h2 'c) 4))))
+              (list "immutable hasheq keeps eq? heap keys distinct"
+                    (let* ([a (box 'same)]
+                           [b (box 'same)]
+                           [h (hasheq a 'a)])
+                      (or (eq? a b)
+                          (and (equal? a b)
+                               (equal? (hash-ref h a #f) 'a)
+                               (equal? (hash-ref h b #f) #f)
+                               (equal? (hash-has-key? h b) #f)
+                               (eq? (hash-ref-key h a) a)
+                               (eq? (hash-remove h b) h)))))
+              (list "immutable hasheq path-copy remove"
+                    (let loop ([i 0] [keys '()] [h (hasheq)])
+                      (if (equal? i 70)
+                          (let* ([target (car (cdr keys))]
+                                 [h*     (hash-remove h target)])
+                            (and (equal? (hash-count h) 70)
+                                 (equal? (hash-count h*) 69)
+                                 (not (hash-has-key? h* target))
+                                 (eq? (hash-remove h* target) h*)
+                                 (andmap (lambda (k)
+                                           (or (eq? k target)
+                                               (equal? (hash-ref h* k #f)
+                                                       (hash-ref h k))))
+                                         keys)))
+                          (let ([k (box i)])
+                            (loop (+ i 1)
+                                  (cons k keys)
+                                  (hash-set h k i))))))
               (list "quoted hash literals are immutable"
                     (let* ([h-eq    '#hasheq((a . 1))]
                            [h-eqv   '#hasheqv((1 . one))]
@@ -4409,6 +4511,32 @@
                            (equal? (hash-count h2) 3)
                            (equal? (hash-ref h2 'c) 4)
                            (hash-has-key? h2 'c))))
+              (list "immutable hashalw uses structural keys"
+                    (let* ([stored (list 'a)]
+                           [lookup (list 'a)]
+                           [h      (hashalw stored 'value)]
+                           [h2     (hash-remove h lookup)])
+                      (and (not (eq? stored lookup))
+                           (equal? stored lookup)
+                           (equal? (hash-ref h lookup #f) 'value)
+                           (eq? (hash-ref-key h lookup) stored)
+                           (hash-has-key? h lookup)
+                           (equal? (hash-count h2) 0)
+                           (not (hash-has-key? h2 stored)))))
+              (list "immutable hashalw distinguishes mutable boxes"
+                    (let* ([a  (box 'same)]
+                           [b  (box 'same)]
+                           [h  (hashalw a 'a b 'b)]
+                           [h* (hash-remove h a)])
+                      (and (equal? a b)
+                           (not (equal-always? a b))
+                           (equal? (hash-count h) 2)
+                           (equal? (hash-ref h a #f) 'a)
+                           (equal? (hash-ref h b #f) 'b)
+                           (eq? (hash-ref-key h a) a)
+                           (eq? (hash-ref-key h b) b)
+                           (not (hash-has-key? h* a))
+                           (equal? (hash-ref h* b #f) 'b))))
               (list "hash-remove immutable"
                     (and (let* ([h  (hash 'a 1 'b 2)]
                                  [h2 (hash-remove h 'a)]
@@ -4555,7 +4683,12 @@
                                 (equal? (hash-ref-key h 'missing 'fallback) 'fallback)))
                          (let ([h (hasheqv 1 'one 2 'two)])
                            (and (equal? (hash-ref-key h 1) 1)
-                                (equal? (hash-ref-key h 3 'fallback) 'fallback)))))
+                                (equal? (hash-ref-key h 3 'fallback) 'fallback)))
+                         (let* ([stored (string #\a)]
+                                [lookup (string #\a)]
+                                [h      (hash stored 'value)])
+                           (and (not (eq? stored lookup))
+                                (eq? (hash-ref-key h lookup) stored)))))
 
               (list "hash-ref!"
                     (and (let ([h (make-hasheq)])
@@ -4864,6 +4997,35 @@
                              (unordered-equal? kvs expected)
                              (equal? (sort keys symbol<?) '(x y))
                              (equal? (sort vals <) '(10 20))))))
+
+              (list "immutable hash collision and iteration stress"
+                    (let loop ([i 0] [h (hash)])
+                      (if (equal? i 90)
+                          (let* ([h*       (hash-remove h (list 26))]
+                                 [pairs    (hash->list h*)]
+                                 [keys     (hash-keys h*)]
+                                 [values   (hash-values h*)]
+                                 [mapped   (hash-map h* (lambda (k v) v))]
+                                 [expected (reverse (let make ([j 0] [acc '()])
+                                             (cond
+                                               [(equal? j 90) acc]
+                                               [(equal? j 26) (make (+ j 1) acc)]
+                                               [else (make (+ j 1) (cons j acc))])))])
+                            (and (equal? (hash-count h) 90)
+                                 (equal? (hash-count h*) 89)
+                                 (not (hash-has-key? h* (list 26)))
+                                 (andmap (lambda (j)
+                                           (equal? (hash-ref h (list j)) j))
+                                         (let make ([j 0] [acc '()])
+                                           (if (equal? j 90) acc (make (+ j 1) (cons j acc)))))
+                                 (andmap (lambda (j)
+                                           (equal? (hash-ref h* (list j)) j))
+                                         expected)
+                                 (equal? (length pairs) 89)
+                                 (equal? (length keys) 89)
+                                 (equal? (sort values <) expected)
+                                 (equal? (sort mapped <) expected)))
+                          (loop (+ i 1) (hash-set h (list i) i)))))
               
               ))
 

@@ -940,6 +940,23 @@
  vector-sort! vector-sort
  build-vector
  vector-set/copy
+ stencil-vector
+ stencil-vector?
+ stencil-vector-length
+ stencil-vector-mask
+ stencil-vector-mask-width
+ stencil-vector-ref
+ stencil-vector-set!
+ stencil-vector-update
+ $stencil-vector?
+ $stencil-vector-length
+ $stencil-vector-mask
+ $stencil-vector-ref
+ $stencil-vector-set!
+ $system-stencil-vector
+ $system-stencil-vector?
+ $system-stencil-vector-truncate!
+ $system-stencil-vector-update
 
  ;; Treelists
  treelist?
@@ -1536,6 +1553,12 @@ current-parameterization    ; poor-man dynamic parameterization overlay
  unsafe-vector*-length unsafe-vector*-set! unsafe-vector*-ref
  unsafe-vector-length unsafe-vector-set!
  unsafe-struct-set!
+ unsafe-stencil-vector
+ unsafe-stencil-vector-length
+ unsafe-stencil-vector-mask
+ unsafe-stencil-vector-ref
+ unsafe-stencil-vector-set!
+ unsafe-stencil-vector-update
  unsafe-string-length
 
  unsafe-bytes-length
@@ -3277,6 +3300,159 @@ current-parameterization    ; poor-man dynamic parameterization overlay
 
 (define (webracket-literal-byte-pregexp source)
   (byte-pregexp source))
+
+(struct webracket-stencil-vector (system? mask slots) #:mutable #:transparent)
+
+(define stencil-vector-mask-width
+  (case-lambda
+    [() 26]))
+
+(define (check-stencil-mask who mask)
+  (unless (and (exact-integer? mask)
+               (<= 0 mask)
+               (< mask (arithmetic-shift 1 (stencil-vector-mask-width))))
+    (raise-argument-error who
+                          "(integer-in 0 (sub1 (expt 2 (stencil-vector-mask-width))))"
+                          mask))
+  mask)
+
+(define (webracket-bit-count n)
+  (let loop ([n n] [acc 0])
+    (if (zero? n)
+        acc
+        (loop (arithmetic-shift n -1)
+              (if (odd? n) (add1 acc) acc)))))
+
+(define (make-webracket-stencil-vector who system? mask vals)
+  (define m (check-stencil-mask who mask))
+  (define n (webracket-bit-count m))
+  (unless (= (length vals) n)
+    (raise-arguments-error who
+                           "mask does not match given number of items"
+                           "mask" mask
+                           "given items" (length vals)))
+  (webracket-stencil-vector system? m (list->vector vals)))
+
+(define (stencil-vector mask . vals)
+  (make-webracket-stencil-vector 'stencil-vector #f mask vals))
+
+(define ($system-stencil-vector mask . vals)
+  (make-webracket-stencil-vector '$system-stencil-vector #t mask vals))
+
+(define (stencil-vector? v)
+  (and (webracket-stencil-vector? v)
+       (not (webracket-stencil-vector-system? v))))
+
+(define ($stencil-vector? v)
+  (webracket-stencil-vector? v))
+
+(define ($system-stencil-vector? v)
+  (and (webracket-stencil-vector? v)
+       (webracket-stencil-vector-system? v)))
+
+(define (check-any-stencil-vector who v)
+  (unless (webracket-stencil-vector? v)
+    (raise-argument-error who "stencil-vector?" v))
+  v)
+
+(define (stencil-vector-length v)
+  (vector-length (webracket-stencil-vector-slots
+                  (check-any-stencil-vector 'stencil-vector-length v))))
+
+(define ($stencil-vector-length v)
+  (stencil-vector-length v))
+
+(define (stencil-vector-mask v)
+  (webracket-stencil-vector-mask
+   (check-any-stencil-vector 'stencil-vector-mask v)))
+
+(define ($stencil-vector-mask v)
+  (stencil-vector-mask v))
+
+(define (stencil-vector-ref v i)
+  (define sv (check-any-stencil-vector 'stencil-vector-ref v))
+  (vector-ref (webracket-stencil-vector-slots sv) i))
+
+(define ($stencil-vector-ref v i)
+  (stencil-vector-ref v i))
+
+(define (stencil-vector-set! v i val)
+  (define sv (check-any-stencil-vector 'stencil-vector-set! v))
+  (vector-set! (webracket-stencil-vector-slots sv) i val))
+
+(define ($stencil-vector-set! v i val)
+  (stencil-vector-set! v i val))
+
+(define (stencil-vector-update/core who v remove-bits add-bits vals #:system? [system? (webracket-stencil-vector-system? v)])
+  (define sv (check-any-stencil-vector who v))
+  (define old-mask (webracket-stencil-vector-mask sv))
+  (define rm (check-stencil-mask who remove-bits))
+  (define am (check-stencil-mask who add-bits))
+  (unless (= (bitwise-and old-mask rm) rm)
+    (raise-arguments-error who
+                           "mask of stencil vector does not have all bits in removal mask"
+                           "stencil vector" v
+                           "removal mask" remove-bits))
+  (unless (zero? (bitwise-and (bitwise-and old-mask (bitwise-not rm)) am))
+    (raise-arguments-error who
+                           "mask of stencil vector already has bits in addition mask"
+                           "stencil vector" v
+                           "addition mask" add-bits))
+  (unless (= (webracket-bit-count am) (length vals))
+    (raise-arguments-error who
+                           "addition mask does not match given number of items"
+                           "addition mask" add-bits
+                           "given items" (length vals)))
+  (define new-mask (bitwise-ior (bitwise-and old-mask (bitwise-not rm)) am))
+  (define old-slots (webracket-stencil-vector-slots sv))
+  (define new-slots (make-vector (webracket-bit-count new-mask)))
+  (let loop ([bit 1] [old-i 0] [new-i 0] [vals vals])
+    (cond
+      [(= new-i (vector-length new-slots))
+       (webracket-stencil-vector system? new-mask new-slots)]
+      [else
+       (define old-present? (not (zero? (bitwise-and old-mask bit))))
+       (define removed?     (not (zero? (bitwise-and rm bit))))
+       (define added?       (not (zero? (bitwise-and am bit))))
+       (define old-i* old-i)
+       (define new-i* new-i)
+       (define vals* vals)
+       (when old-present?
+         (unless removed?
+           (vector-set! new-slots new-i* (vector-ref old-slots old-i*))
+           (set! new-i* (add1 new-i*)))
+         (set! old-i* (add1 old-i*)))
+       (when added?
+         (vector-set! new-slots new-i* (car vals*))
+         (set! vals* (cdr vals*))
+         (set! new-i* (add1 new-i*)))
+       (loop (arithmetic-shift bit 1) old-i* new-i* vals*)])))
+
+(define (stencil-vector-update v remove-bits add-bits . vals)
+  (stencil-vector-update/core 'stencil-vector-update v remove-bits add-bits vals))
+
+(define ($system-stencil-vector-update v remove-bits add-bits . vals)
+  (stencil-vector-update/core '$system-stencil-vector-update
+                              v remove-bits add-bits vals
+                              #:system? #t))
+
+(define ($system-stencil-vector-truncate! v new-mask)
+  (define sv (check-any-stencil-vector '$system-stencil-vector-truncate! v))
+  (define m (check-stencil-mask '$system-stencil-vector-truncate! new-mask))
+  (when (> (webracket-bit-count m)
+           (vector-length (webracket-stencil-vector-slots sv)))
+    (raise-arguments-error '$system-stencil-vector-truncate!
+                           "new mask has more slots than stencil vector"
+                           "new mask" new-mask))
+  (set-webracket-stencil-vector-mask! sv m)
+  (void))
+
+(define unsafe-stencil-vector stencil-vector)
+(define unsafe-stencil-vector-length stencil-vector-length)
+(define unsafe-stencil-vector-mask stencil-vector-mask)
+(define unsafe-stencil-vector-ref stencil-vector-ref)
+(define unsafe-stencil-vector-set! stencil-vector-set!)
+(define unsafe-stencil-vector-update stencil-vector-update)
 
 (define (primitive->compiled-position v)
   #f)
