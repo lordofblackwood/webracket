@@ -4699,6 +4699,36 @@
                                            '(0 1 2 3 4 5 6))))
                             (build (+ i 1)
                                    (hash-set h (collide i) (* i 10)))))))
+              (list "immutable HAMT hashalw cnode full hash collision"
+                    (let ()
+                      (struct collide-always (n)
+                        #:property prop:equal+hash
+                        (list
+                         (lambda (self other recur mode)
+                           (and (collide-always? other)
+                                (if mode
+                                    #f
+                                    (recur (collide-always-n self)
+                                           (collide-always-n other)))))
+                         (lambda (self hash mode) 11)))
+                      (let build ([i 0] [h (hashalw)])
+                        (if (equal? i 7)
+                            (let* ([h*  (hash-remove h (collide-always 2))]
+                                   [h** (hash-set h* (collide-always 7) 70)]
+                                   [xs  (hash->list h**)])
+                              (and (equal? (hash-count h) 7)
+                                   (equal? (hash-count h*) 6)
+                                   (equal? (hash-count h**) 7)
+                                   (not (hash-has-key? h* (collide-always 2)))
+                                   (equal? (hash-ref h** (collide-always 7) #f) 70)
+                                   (equal? (length xs) 7)
+                                   (andmap (lambda (j)
+                                             (or (equal? j 2)
+                                                 (equal? (hash-ref h* (collide-always j) #f)
+                                                         (* j 10))))
+                                           '(0 1 2 3 4 5 6))))
+                            (build (+ i 1)
+                                   (hash-set h (collide-always i) (* i 10)))))))
               (list "hash-remove immutable"
                     (and (let* ([h  (hash 'a 1 'b 2)]
                                  [h2 (hash-remove h 'a)]
