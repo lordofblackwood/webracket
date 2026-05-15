@@ -5330,8 +5330,9 @@
                       (define (bnodes s)  (list-ref s 1))
                       (define (cnodes s)  (list-ref s 2))
                       (define (buckets s) (list-ref s 3))
-                      (define (depth s)   (list-ref s 4))
-                      (define (slots s)   (list-ref s 5))
+                      (define (inlines s) (list-ref s 4))
+                      (define (depth s)   (list-ref s 5))
+                      (define (slots s)   (list-ref s 6))
 
                       (define packed0
                         (webracket-internal-immutable-hamt-packed-bits 0 0))
@@ -5346,6 +5347,15 @@
                               (hash-set h (hashkey 'single 0) 'single)
                               (loop (+ i 1)
                                     (hash-set h (hashkey 'split i) i)))))
+                      (define inline-cycle
+                        (let* ([one   (hash-set (hash) (hashkey 'single 0) 0)]
+                               [two   (hash-set one (hashkey 'single 1) 1)]
+                               [one*  (hash-remove two (hashkey 'single 0))])
+                          (list (shape one)
+                                (shape two)
+                                (shape one*)
+                                (hash-ref one* (hashkey 'single 1) #f)
+                                (hash-has-key? one* (hashkey 'single 0)))))
                       (define deep
                         (let loop ([i 0] [h (hash)])
                           (if (equal? i 9)
@@ -5369,16 +5379,23 @@
                             [deep-shape      (shape deep)]
                             [collision-shape (shape full-collision)]
                             [collapsed-shape (shape collapsed)])
-                        (and (equal? packed0 '(0 2 512 131072 1))
+                        (and (equal? inline-cycle
+                                     '((1 1 0 0 1 1 1)
+                                       (2 1 0 1 0 1 1)
+                                       (1 1 0 0 1 1 1)
+                                       1
+                                       #f))
+                             (equal? packed0 '(0 2 512 131072 1))
                              (equal? packed9 '(1 4 1024 262144 2))
                              (equal? packed8/3 '(1 4 1024 262144 2))
-                             (equal? empty-shape '(0 0 0 0 0 0))
+                             (equal? empty-shape '(0 0 0 0 0 0 0))
                              (equal? (entries shallow-shape) 2)
                              (equal? (bnodes shallow-shape) 1)
                              (equal? (cnodes shallow-shape) 0)
-                             (equal? (buckets shallow-shape) 2)
+                             (equal? (buckets shallow-shape) 0)
+                             (equal? (inlines shallow-shape) 2)
                              (equal? (slots shallow-shape) 2)
-                             (equal? mixed-shape '(6 2 0 6 2 7))
+                             (equal? mixed-shape '(6 2 0 0 6 2 7))
                              (equal? (entries deep-shape) 9)
                              (>= (bnodes deep-shape) 2)
                              (equal? (cnodes deep-shape) 0)

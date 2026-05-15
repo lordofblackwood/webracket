@@ -125,8 +125,11 @@ An internal debug-only compiler hook,
 `--internal-bind-immutable-hash-debug-shape`. It returns:
 
 ```racket
-(list entries bnodes cnodes buckets max-depth slots)
+(list entries bnodes cnodes buckets inlines max-depth slots)
 ```
+
+Here `buckets` means real multi-entry bucket lists, while `inlines` counts
+direct `$ImmutableHashEntry` leaves.
 
 The same flag also enables
 `webracket-internal-immutable-hamt-packed-bits`, which returns:
@@ -134,6 +137,11 @@ The same flag also enables
 ```racket
 (list group child-bit key-bit value-bit current-bit)
 ```
+
+Lookup now derives a packed child/key/value metadata word from the current
+one-region bnode mask before checking whether a group is present. Set and
+remove still update the current one-region bnode representation; the packed word
+is reconstructed for lookup as an intermediate migration step.
 
 The hook is not exported as a public primitive; it exists so shape regression
 tests can verify that recursive bnodes, cnodes, and collapse-after-remove
