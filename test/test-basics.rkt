@@ -4732,6 +4732,23 @@
                              (hash-remove! h lookup)
                              (not (hash-has-key? h stored))))))
 
+              (list "mutable hasheqv numeric keys"
+                    (let* ([x (fl+ 1.0 0.0)]
+                           [y (fl+ 0.5 0.5)]
+                           [h (make-hasheqv)])
+                      (hash-set! h x 'one)
+                      (hash-set! h 0.0 'zero)
+                      (hash-set! h -0.0 'neg-zero)
+                      (and (eqv? x y)
+                           (not (eq? x y))
+                           (equal? (hash-ref h y #f) 'one)
+                           (equal? (hash-count h) 3)
+                           (equal? (hash-ref h 0.0 #f) 'zero)
+                           (equal? (hash-ref h -0.0 #f) 'neg-zero)
+                           (begin
+                             (hash-remove! h y)
+                             (not (hash-has-key? h x))))))
+
               (list "mutable hashalw comparison keys"
                     (let* ([stored (list 'a)]
                            [lookup (list 'a)]
@@ -4747,6 +4764,25 @@
                            (equal? (hash-ref h b #f) 'b)
                            (not (equal-always? a b))
                            (equal? (hash-count h) 3))))
+
+              (list "hash equality and hash codes"
+                    (let* ([h1  (hash (list 'a) 1 'b 2)]
+                           [h2  (hash (list 'a) 1 'b 2)]
+                           [heq (hasheq (string-copy "a") 1)]
+                           [hal1 (hashalw (box-immutable 'a) 1)]
+                           [hal2 (hashalw (box-immutable 'a) 1)]
+                           [m1  (make-hash)]
+                           [m2  (make-hash)])
+                      (hash-set! m1 (list 'a) 1)
+                      (hash-set! m2 (list 'a) 1)
+                      (and (equal? h1 h2)
+                           (eq? (equal-hash-code h1) (equal-hash-code h2))
+                           (not (equal? h1 heq))
+                           (equal? hal1 hal2)
+                           (eq? (equal-hash-code hal1) (equal-hash-code hal2))
+                           (equal? m1 m2)
+                           (eq? (equal-hash-code m1) (equal-hash-code m2))
+                           (not (equal? h1 m1)))))
 
               (list "hash-set!"
                     (and (let ([h (make-hasheq)])

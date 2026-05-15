@@ -84,6 +84,17 @@ Ephemeron hash tables are also currently a strong fallback:
 expander intern/cache tables during startup, but it does not implement
 ephemeron GC semantics.
 
+Weak and ephemeron support is intentionally a documented strong approximation
+for now. The constructors preserve the public API shape and key-comparison
+mode, which is enough for Goal 1 code that uses weak/ephemeron tables as
+startup caches or registries. They do not preserve GC-sensitive behavior:
+keys are not dropped when unreachable, ephemeron values do not participate in
+Racket's key/value reachability rule, and iteration never observes
+collector-driven disappearance. A real implementation should wait until the
+runtime has either Wasm-GC weak-reference hooks or a deliberate WebRacket weak
+reference layer instead of layering ad-hoc behavior on the current strong hash
+tables.
+
 Before WebRacket had immutable hash support, `webify/lower.rkt` temporarily
 lowered:
 
@@ -141,6 +152,7 @@ details rather than the current practical subset:
 
 - match Racket CS's exact bnode/cnode packing strategy more closely
 - add key wrapping if equal?/equal-always? need it for cyclic data
-- audit weak and ephemeron variants instead of keeping strong fallbacks
+- replace weak and ephemeron strong fallbacks when the runtime has weak
+  reference support
 - expose ordinary immutable `hash-iterate-*` paths directly if linklets require
   those names, rather than relying on the current generic iterator bridge
