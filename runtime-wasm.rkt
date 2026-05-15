@@ -43784,6 +43784,104 @@
               (param $pos (ref eq))  ;; iteration position
               (unreachable))
 
+        ;; hash-iterate-first : hash? -> (or/c #f exact-nonnegative-integer?)
+        ;;   Public hash iterator entry point for mutable and immutable hashes.
+        (func $hash-iterate-first (type $Prim1)
+              (param $ht (ref eq)) ;; hash table
+              (result    (ref eq))
+              (if (call $immutable-hash-leaf?/i32 (local.get $ht))
+                  (then
+                   (return_call $immutable-hash-iterate-first/public
+                                (local.get $ht))))
+              (return_call $mutable-hash-iterate-first (local.get $ht)))
+
+        ;; hash-iterate-next : hash? exact-nonnegative-integer? -> (or/c #f exact-nonnegative-integer?)
+        ;;   Public hash iterator successor for mutable and immutable hashes.
+        (func $hash-iterate-next (type $Prim12)
+              (param $ht  (ref eq)) ;; hash table
+              (param $pos (ref eq)) ;; iteration position
+              (result     (ref eq))
+              (if (call $immutable-hash-leaf?/i32 (local.get $ht))
+                  (then
+                   (return_call $immutable-hash-iterate-next/public
+                                (local.get $ht)
+                                (local.get $pos))))
+              (return_call $mutable-hash-iterate-next
+                           (local.get $ht)
+                           (local.get $pos)))
+
+        ;; hash-iterate-key : hash? exact-nonnegative-integer? [any/c] -> any/c
+        ;;   Public hash iterator key accessor. Optional bad-index value defaults to raising.
+        (func $hash-iterate-key (type $Prim13)
+              (param $ht        (ref eq)) ;; hash table
+              (param $pos       (ref eq)) ;; iteration position
+              (param $bad-index (ref eq)) ;; optional bad-index value, default = raise
+              (result           (ref eq))
+              (if (call $immutable-hash-leaf?/i32 (local.get $ht))
+                  (then
+                   (return_call $immutable-hash-iterate-key/public
+                                (local.get $ht)
+                                (local.get $pos)
+                                (local.get $bad-index))))
+              (return_call $mutable-hash-iterate-key
+                           (local.get $ht)
+                           (local.get $pos)
+                           (local.get $bad-index)))
+
+        ;; hash-iterate-value : hash? exact-nonnegative-integer? [any/c] -> any/c
+        ;;   Public hash iterator value accessor. Optional bad-index value defaults to raising.
+        (func $hash-iterate-value (type $Prim13)
+              (param $ht        (ref eq)) ;; hash table
+              (param $pos       (ref eq)) ;; iteration position
+              (param $bad-index (ref eq)) ;; optional bad-index value, default = raise
+              (result           (ref eq))
+              (if (call $immutable-hash-leaf?/i32 (local.get $ht))
+                  (then
+                   (return_call $immutable-hash-iterate-value/public
+                                (local.get $ht)
+                                (local.get $pos)
+                                (local.get $bad-index))))
+              (return_call $mutable-hash-iterate-value
+                           (local.get $ht)
+                           (local.get $pos)
+                           (local.get $bad-index)))
+
+        ;; hash-iterate-pair : hash? exact-nonnegative-integer? [any/c] -> pair?
+        ;;   Public hash iterator pair accessor. Optional bad-index value defaults to raising.
+        (func $hash-iterate-pair (type $Prim13)
+              (param $ht        (ref eq)) ;; hash table
+              (param $pos       (ref eq)) ;; iteration position
+              (param $bad-index (ref eq)) ;; optional bad-index value, default = raise
+              (result           (ref eq))
+              (if (call $immutable-hash-leaf?/i32 (local.get $ht))
+                  (then
+                   (return_call $immutable-hash-iterate-pair/public
+                                (local.get $ht)
+                                (local.get $pos)
+                                (local.get $bad-index))))
+              (return_call $mutable-hash-iterate-pair
+                           (local.get $ht)
+                           (local.get $pos)
+                           (local.get $bad-index)))
+
+        ;; hash-iterate-key+value : hash? exact-nonnegative-integer? [any/c] -> values
+        ;;   Public hash iterator key/value accessor. Optional bad-index value defaults to raising.
+        (func $hash-iterate-key+value (type $Prim13)
+              (param $ht        (ref eq)) ;; hash table
+              (param $pos       (ref eq)) ;; iteration position
+              (param $bad-index (ref eq)) ;; optional bad-index value, default = raise
+              (result           (ref eq))
+              (if (call $immutable-hash-leaf?/i32 (local.get $ht))
+                  (then
+                   (return_call $immutable-hash-iterate-key+value/public
+                                (local.get $ht)
+                                (local.get $pos)
+                                (local.get $bad-index))))
+              (return_call $mutable-hash-iterate-key+value
+                           (local.get $ht)
+                           (local.get $pos)
+                           (local.get $bad-index)))
+
 
         ;; mutable-hash-iterate-first
         (func $mutable-hash-iterate-first (type $Prim1)
@@ -45225,6 +45323,176 @@
               (if (ref.test (ref $Pair) (local.get $rest))
                   (then (return (local.get $rest))))
               (global.get $false))
+
+        ;; immutable-hash-iterate-index->entry/public : hash? fixnum [any/c] -> entry-or-bad
+        ;;   Resolve a public exact-nonnegative integer iterator index for an immutable hash.
+        (func $immutable-hash-iterate-index->entry/public
+              (param $ht        (ref eq)) ;; immutable hash table
+              (param $pos       (ref eq)) ;; public fixnum iteration index
+              (param $bad-index (ref eq)) ;; optional bad-index value, default = raise
+              (result           (ref eq))
+              (local $view    (ref $HashEqvImmutable))
+              (local $entries (ref eq))
+              (local $pair    (ref $Pair))
+              (local $index   i32)
+              (local.set $view (call $immutable-hash-as-hasheqv (local.get $ht)))
+              (block $bad
+                     (if (ref.eq (struct.get $HashEqvImmutable $root (local.get $view))
+                                 (global.get $missing))
+                         (then (br $bad)))
+                     (if (i32.eqz (ref.test (ref i31) (local.get $pos)))
+                         (then (br $bad)))
+                     (local.set $index
+                                (i31.get_u (ref.cast (ref i31) (local.get $pos))))
+                     (if (i32.and (local.get $index) (i32.const 1))
+                         (then (br $bad)))
+                     (local.set $index (i32.shr_u (local.get $index) (i32.const 1)))
+                     (if (i32.ge_u (local.get $index)
+                                   (struct.get $HashEqvImmutable $count (local.get $view)))
+                         (then (br $bad)))
+                     (local.set $entries
+                                (call $immutable-hamt-node->entries
+                                      (struct.get $HashEqvImmutable $root (local.get $view))
+                                      (global.get $null)))
+                     (block $found
+                            (loop $walk
+                                  (br_if $bad
+                                         (i32.eqz (ref.test (ref $Pair)
+                                                            (local.get $entries))))
+                                  (if (i32.eqz (local.get $index))
+                                      (then (br $found)))
+                                  (local.set $pair (ref.cast (ref $Pair)
+                                                             (local.get $entries)))
+                                  (local.set $entries (struct.get $Pair $d
+                                                                   (local.get $pair)))
+                                  (local.set $index (i32.sub (local.get $index)
+                                                             (i32.const 1)))
+                                  (br $walk)))
+                     (local.set $pair (ref.cast (ref $Pair) (local.get $entries)))
+                     (return (struct.get $Pair $a (local.get $pair))))
+              (if (ref.eq (local.get $bad-index) (global.get $missing))
+                  (then (call $raise-mutable-hash-iterate-bad-index (local.get $pos))
+                        (unreachable)))
+              (local.get $bad-index))
+
+        ;; immutable-hash-iterate-first/public : hash? -> (or/c #f exact-nonnegative-integer?)
+        ;;   Public immutable hash iterator first index.
+        (func $immutable-hash-iterate-first/public (type $Prim1)
+              (param $ht (ref eq)) ;; immutable hash table
+              (result    (ref eq))
+              (local $view (ref $HashEqvImmutable))
+              (local.set $view (call $immutable-hash-as-hasheqv (local.get $ht)))
+              (if (i32.eqz (struct.get $HashEqvImmutable $count (local.get $view)))
+                  (then (return (global.get $false))))
+              (ref.i31 (i32.const 0)))
+
+        ;; immutable-hash-iterate-next/public : hash? exact-nonnegative-integer? -> (or/c #f exact-nonnegative-integer?)
+        ;;   Public immutable hash iterator successor index.
+        (func $immutable-hash-iterate-next/public (type $Prim12)
+              (param $ht  (ref eq)) ;; immutable hash table
+              (param $pos (ref eq)) ;; public fixnum iteration index
+              (result     (ref eq))
+              (local $view  (ref $HashEqvImmutable))
+              (local $index i32)
+              (local.set $view (call $immutable-hash-as-hasheqv (local.get $ht)))
+              (if (i32.eqz (ref.test (ref i31) (local.get $pos)))
+                  (then (call $raise-check-fixnum (local.get $pos))
+                        (unreachable)))
+              (local.set $index
+                         (i31.get_u (ref.cast (ref i31) (local.get $pos))))
+              (if (i32.and (local.get $index) (i32.const 1))
+                  (then (call $raise-check-fixnum (local.get $pos))
+                        (unreachable)))
+              (local.set $index (i32.add (i32.shr_u (local.get $index) (i32.const 1))
+                                         (i32.const 1)))
+              (if (i32.ge_u (local.get $index)
+                            (struct.get $HashEqvImmutable $count (local.get $view)))
+                  (then (return (global.get $false))))
+              (ref.i31 (i32.shl (local.get $index) (i32.const 1))))
+
+        ;; immutable-hash-iterate-key/public : hash? exact-nonnegative-integer? [any/c] -> any/c
+        ;;   Public immutable hash iterator key accessor.
+        (func $immutable-hash-iterate-key/public (type $Prim13)
+              (param $ht        (ref eq)) ;; immutable hash table
+              (param $pos       (ref eq)) ;; public fixnum iteration index
+              (param $bad-index (ref eq)) ;; optional bad-index value, default = raise
+              (result           (ref eq))
+              (local $entry (ref eq))
+              (local.set $entry
+                         (call $immutable-hash-iterate-index->entry/public
+                               (local.get $ht)
+                               (local.get $pos)
+                               (local.get $bad-index)))
+              (if (i32.eqz (ref.test (ref $ImmutableHashEntry) (local.get $entry)))
+                  (then (return (local.get $entry))))
+              (struct.get $ImmutableHashEntry $key
+                          (ref.cast (ref $ImmutableHashEntry) (local.get $entry))))
+
+        ;; immutable-hash-iterate-value/public : hash? exact-nonnegative-integer? [any/c] -> any/c
+        ;;   Public immutable hash iterator value accessor.
+        (func $immutable-hash-iterate-value/public (type $Prim13)
+              (param $ht        (ref eq)) ;; immutable hash table
+              (param $pos       (ref eq)) ;; public fixnum iteration index
+              (param $bad-index (ref eq)) ;; optional bad-index value, default = raise
+              (result           (ref eq))
+              (local $entry (ref eq))
+              (local.set $entry
+                         (call $immutable-hash-iterate-index->entry/public
+                               (local.get $ht)
+                               (local.get $pos)
+                               (local.get $bad-index)))
+              (if (i32.eqz (ref.test (ref $ImmutableHashEntry) (local.get $entry)))
+                  (then (return (local.get $entry))))
+              (struct.get $ImmutableHashEntry $value
+                          (ref.cast (ref $ImmutableHashEntry) (local.get $entry))))
+
+        ;; immutable-hash-iterate-pair/public : hash? exact-nonnegative-integer? [any/c] -> pair?
+        ;;   Public immutable hash iterator pair accessor.
+        (func $immutable-hash-iterate-pair/public (type $Prim13)
+              (param $ht        (ref eq)) ;; immutable hash table
+              (param $pos       (ref eq)) ;; public fixnum iteration index
+              (param $bad-index (ref eq)) ;; optional bad-index value, default = raise
+              (result           (ref eq))
+              (local $entry (ref eq))
+              (local.set $entry
+                         (call $immutable-hash-iterate-index->entry/public
+                               (local.get $ht)
+                               (local.get $pos)
+                               (local.get $bad-index)))
+              (if (i32.eqz (ref.test (ref $ImmutableHashEntry) (local.get $entry)))
+                  (then
+                   (return (call $cons (local.get $entry) (local.get $entry)))))
+              (call $cons
+                    (struct.get $ImmutableHashEntry $key
+                                (ref.cast (ref $ImmutableHashEntry) (local.get $entry)))
+                    (struct.get $ImmutableHashEntry $value
+                                (ref.cast (ref $ImmutableHashEntry) (local.get $entry)))))
+
+        ;; immutable-hash-iterate-key+value/public : hash? exact-nonnegative-integer? [any/c] -> values
+        ;;   Public immutable hash iterator key/value accessor.
+        (func $immutable-hash-iterate-key+value/public (type $Prim13)
+              (param $ht        (ref eq)) ;; immutable hash table
+              (param $pos       (ref eq)) ;; public fixnum iteration index
+              (param $bad-index (ref eq)) ;; optional bad-index value, default = raise
+              (result           (ref eq))
+              (local $entry (ref eq))
+              (local.set $entry
+                         (call $immutable-hash-iterate-index->entry/public
+                               (local.get $ht)
+                               (local.get $pos)
+                               (local.get $bad-index)))
+              (if (i32.eqz (ref.test (ref $ImmutableHashEntry) (local.get $entry)))
+                  (then
+                   (return (array.new_fixed $Values 2
+                                            (local.get $entry)
+                                            (local.get $entry)))))
+              (array.new_fixed $Values 2
+                               (struct.get $ImmutableHashEntry $key
+                                           (ref.cast (ref $ImmutableHashEntry)
+                                                     (local.get $entry)))
+                               (struct.get $ImmutableHashEntry $value
+                                           (ref.cast (ref $ImmutableHashEntry)
+                                                     (local.get $entry)))))
 
         (func $unsafe-immutable-hash-iterate-first (type $Prim1)
               (param $ht (ref eq)) ;; immutable hash table

@@ -1,174 +1,123 @@
-# Hash Notes
+# Hash Implementation Notes
 
-Webify currently has a narrow hash bridge for demodded library linklets. That
-bridge is useful for continuing regexp work, but it is not full Racket hash
-semantics.
+WebRacket now has real mutable hash tables and persistent immutable hash
+tables. The immutable implementation is a Racket-CS-style HAMT over packed
+system stencil vectors, not the old Webify bridge that rewrote functional
+updates into mutable updates.
 
-## Racket CS Model
+Weak and ephemeron hash tables are intentionally out of scope for the current
+HAMT work. They remain documented strong approximations.
 
-Racket CS keeps mutable and immutable hashes as different representations.
+## Public Hash Kinds
 
-In `/Users/soegaard/Dropbox/GitHub/racket/racket/src/cs/rumble/hash.ss`,
-authentic hashes are either immutable `intmap`s or mutable hash records:
+Immutable hash constructors produce distinct wrapper types so the public
+predicates can preserve the requested comparison mode:
 
-```racket
-(define (authentic-hash? v) (or (intmap? v) (mutable-hash? v)))
+- `hasheq`: `eq?` keys, `eq-hash/i32`
+- `hasheqv`: `eqv?` keys, `eqv-hash/i32`
+- `hash`: `equal?` keys, `equal-hash/i32`
+- `hashalw`: `equal-always?` keys, `equal-always-hash/i32`
 
-(define (immutable-hash? v)
-  (or (intmap? v)
-      ...))
-```
+The wrappers store the public kind, the private HAMT root, and the entry count.
+The private HAMT node representation is shared across all four kinds; lookup,
+set, remove, `hash-ref-key`, and traversal dispatch through the wrapper's kind.
 
-Mutable hashes wrap Chez Scheme hashtables:
+Mutable hashes are separate open-addressing tables and are not backed by the
+immutable HAMT.
 
-```racket
-(define-record mutable-hash locked-iterable-hash
-  (ht)) ; Chez Scheme hashtable
-```
+## Racket CS Shape
 
-Immutable hashes are persistent `intmap`s. The current CS implementation lives
-mostly in `src/cs/rumble/hamt-stencil.ss`; older/alternate notes are in
-`src/cs/rumble/patricia.ss`. The immutable constructors start from empty
-`intmap` values and use `intmap-set`:
+Racket CS keeps mutable hashes and immutable hashes as different
+representations. In
+`/Users/soegaard/Dropbox/GitHub/racket/racket/src/cs/rumble/hash.ss`,
+mutable hashes wrap Chez Scheme hashtables, while immutable hashes are
+persistent intmaps. The current Racket CS immutable implementation is mostly in
+`src/cs/rumble/hamt-stencil.ss`.
 
-```racket
-(define-hash-constructors hasheqv make-immutable-hasheqv empty-hasheqv)
-```
+The important WebRacket alignment point is the immutable layout:
 
-Functional update is therefore persistent:
+- recursive bnodes are system stencil vectors
+- terminal full-hash collisions are explicit cnodes
+- bnode updates path-copy rather than mutate the original hash
+- equal/equal-always keys can carry cached hash data without changing the
+  public key returned by hash operations
 
-```racket
-(define (hash-set ht k v)
-  (cond
-   [(intmap? ht) (intmap-set ht k v)]
-   ...
-   [else error]))
-```
+## Immutable HAMT Layout
 
-The original hash is not mutated.
+WebRacket uses an 8-way HAMT. Each level consumes a 3-bit hash group. New bnodes
+are physical packed system stencil vectors:
 
-## Old Webify Bridge
+- `system? = 2` marks a stencil vector as a private HAMT bnode
+- the stencil vector mask is the packed metadata word
+- slot 0 is a static marker
+- the child region has 8 bits
+- the key region has 8 bits
+- the value region has 8 bits
+- a child bit means the slot contains a recursive bnode or cnode
+- a key/value bit pair means the slot contains an inline key/value entry
 
-The demodded regexp and expander linklets use immutable-looking local
-bookkeeping tables, such as `#hasheqv()` plus `hash-set` and
-`hash-iterate-*`. WebRacket now has mutable hash runtime support and a
-persistent immutable HAMT slice. The public immutable constructors have
-distinct wrapper types for `hash`, `hasheq`, `hasheqv`, and `hashalw`, so
-predicates like `hash-equal?`, `hash-eq?`, `hash-eqv?`, and
-`hash-equal-always?` can distinguish the public kind.
+Packed slot indexes are computed by popcounting metadata bits below the target
+bit. The packed metadata is also cached in the stencil vector's private hash
+field and read directly by lookup/update/traversal code.
 
-Those wrappers share the same private HAMT node/entry representation, but
-lookup, update, removal, and `hash-ref-key` route through the wrapper's
-comparison kind:
+Small collision buckets are represented as lists of `$ImmutableHashEntry`
+values. Once a bucket reaches the split threshold and more hash bits are
+available, it is redistributed into a child HAMT node. If all usable hash bits
+are exhausted, the collision is represented as `$ImmutableHashCNode`.
 
-- `hasheq`: `eq?` with `eq-hash/i32`
-- `hasheqv`: `eqv?` with `eqv-hash/i32`
-- `hash`: `equal?` with `equal-hash/i32`
-- `hashalw`: `equal-always?` with `equal-always-hash/i32`
+Singleton bnodes collapse on remove when the remaining slot can stand directly
+in the parent. For example, removing one key from a two-key same-slot branch can
+leave a direct `$ImmutableHashEntry` instead of a one-slot bnode.
 
-The current HAMT uses an 8-way stencil-vector bnode at each level,
-path-copying on set/remove. Small buckets are kept as lists of immutable hash
-entries; once a bucket grows past the split threshold, it is redistributed into
-a child HAMT node. If all usable hash bits are exhausted, WebRacket now uses an
-explicit cnode heap object, matching Racket CS's distinction between recursive
-bnodes and terminal collision nodes. Updating an existing key replaces the
-bucket/cnode entry for traversal purposes, and removing the last entry from a
-child node prunes the empty branch.
+## Entries And Wrapped Inline Keys
 
-The Goal 1 installed smoke suite now includes immutable hash paths:
-`make-immutable-hash`, functional `hash-set`, `hash-ref`, and traversal through
-`hash-keys`, `hash-values`, `hash->list`, `hash-for-each`, `hash-map`, and
-`hash-clear`. The unit tests also cover recursive bucket splits, deep bnode
-paths, cnode full-hash collisions, path-copy removal, replacement without
-duplicate iterator entries, and the public hash-kind predicates.
-
-## Packed Bnode Delta
-
-Racket CS's HAMT bnodes are packed system stencil vectors. A single stencil mask
-contains several regions:
-
-- a static field region
-- an 8-bit child region
-- an 8-bit key region
-- an 8-bit value region
-
-For a given 3-bit hash group, the child bit says that the slot contains a child
-bnode/cnode, while the key/value bits say that the slot contains an inline
-entry. Some Racket CS shapes can represent an implicit `#t` value by omitting a
-value bit. The equal?/equal-always? variants can also wrap keys so the HAMT can
-cache comparison-specific hash information without changing the public key.
-
-WebRacket now uses physical packed bnodes for new immutable hash HAMT nodes:
-
-- immutable hash wrappers store the public kind, root, and count outside the
-  HAMT root
-- bnodes are system stencil vectors marked with `system? = 2`
-- the stencil mask is the packed metadata word: static marker bit, child bits,
-  key bits, and value bits
-- slot 0 is the static marker; child/key/value slots are addressed by
-  popcounting the metadata below the target bit
-- inline entries are stored as separate key and value slots
-- terminal full-hash collisions are represented as explicit
-  `$ImmutableHashCNode` nodes, so packed bnodes keep the same bnode/cnode
-  distinction as the older compatibility path and Racket CS
-- equal?/equal-always? inline keys are privately wrapped with the cached
-  comparison-specific hash; public operations unwrap them before returning keys
-
-Lookup, `hash-ref-key`, `hash-has-key?`, set, remove, iteration, and debug-shape
-all understand the packed layout. Collision promotion reuses a stored inline
-key's cached hash when the key/value pair needs to become a recursive child or
-terminal cnode.
-
-An internal debug-only compiler hook,
-`webracket-internal-immutable-hash-debug-shape`, can be enabled with
-`--internal-bind-immutable-hash-debug-shape`. It returns:
+Full entries use `$ImmutableHashEntry`:
 
 ```racket
-(list entries bnodes cnodes buckets inlines max-depth slots)
+(key-hash key value)
 ```
 
-Here `buckets` means real multi-entry bucket lists, while `inlines` counts
-direct `$ImmutableHashEntry` leaves.
-
-The same flag also enables
-`webracket-internal-immutable-hamt-packed-bits`, which returns:
+Packed inline entries store key and value in separate stencil-vector slots. For
+`hash` and `hashalw`, the inline key slot uses a private
+`$ImmutableHashWrappedKey`:
 
 ```racket
-(list group child-bit key-bit value-bit current-bit)
+(kind key-hash key)
 ```
 
-Each private HAMT bnode stores the packed word in the stencil vector's private
-cache field too. Lookup reads that stored word directly; the derivation helper is
-now only for compatibility with older one-region bnodes and debugging.
+The wrapper exists only inside packed inline key slots. It lets promotion reuse
+the stored comparison-specific hash when an inline key/value pair becomes a
+recursive child or terminal cnode. Public operations unwrap before returning a
+key, so `hash-ref-key`, iteration, `hash->list`, `hash-keys`, and related
+operations expose the original key.
 
-Removal also collapses singleton bnodes when the remaining slot can stand
-directly in its parent. For example, removing one key from a two-key same-slot
-bucket leaves a direct `$ImmutableHashEntry` root instead of a one-slot bnode.
-That keeps the representation compact while preserving immutable path-copying.
+For `hasheq` and `hasheqv`, packed inline key slots store the raw key because
+the identity/eqv hash does not need this extra wrapper.
 
-The hook is not exported as a public primitive; it exists so shape regression
-tests can verify recursive bnodes, terminal buckets/cnodes, and
-collapse-after-remove behavior stay intact while we continue tightening parity
-with Racket CS.
+## Supported Operations
 
-Ephemeron hash tables are also currently a strong fallback:
-`make-ephemeron-hasheq` returns an ordinary mutable `hasheq`. That is enough for
-expander intern/cache tables during startup, but it does not implement
-ephemeron GC semantics.
+The immutable HAMT path supports the core public operations needed by Goal 1:
 
-Weak and ephemeron support is intentionally a documented strong approximation
-for now. The constructors preserve the public API shape and key-comparison
-mode, which is enough for Goal 1 code that uses weak/ephemeron tables as
-startup caches or registries. They do not preserve GC-sensitive behavior:
-keys are not dropped when unreachable, ephemeron values do not participate in
-Racket's key/value reachability rule, and iteration never observes
-collector-driven disappearance. A real implementation should wait until the
-runtime has either Wasm-GC weak-reference hooks or a deliberate WebRacket weak
-reference layer instead of layering ad-hoc behavior on the current strong hash
-tables.
+- constructors: `hash`, `hasheq`, `hasheqv`, `hashalw`
+- association-list constructors: `make-immutable-hash`,
+  `make-immutable-hasheq`, `make-immutable-hasheqv`,
+  `make-immutable-hashalw`
+- lookup: `hash-ref`, `hash-ref-key`, `hash-has-key?`
+- update: functional `hash-set`, `hash-remove`, `hash-clear`
+- predicates: `immutable-hash?`, `hash-equal?`, `hash-eq?`, `hash-eqv?`,
+  `hash-equal-always?`
+- traversal: `hash-keys`, `hash-values`, `hash->list`, `hash-for-each`,
+  `hash-map`, and public `hash-iterate-*` functions
 
-Before WebRacket had immutable hash support, `webify/lower.rkt` temporarily
-lowered:
+Functional update is persistent: `hash-set` and `hash-remove` return new hash
+wrappers and do not mutate the original hash.
+
+`hash-clear` returns a same-kind empty immutable table for immutable hashes,
+matching the Reference's constant-time non-chaperone case.
+
+## Webify Lowering
+
+The old Webify bridge temporarily lowered:
 
 ```racket
 (hash-set ht k v)
@@ -182,48 +131,75 @@ to:
   tmp)
 ```
 
-The bridge was safe only for local bookkeeping tables where the original table
-was not observed as an immutable value. It was not acceptable as general
-WebRacket or Webify semantics.
+That was only a stopgap for local bookkeeping tables where the original table
+was not observed. It was not valid immutable Racket semantics. Webify should no
+longer rewrite functional immutable `hash-set` into `hash-set!`.
 
-Now that immutable hashes and `hash-set` have a real persistent first slice,
-Webify no longer rewrites functional `hash-set` into `hash-set!`. Immutable hash
-traversal now reuses the shared private representation through generic iterator
-helpers, so public operations like `hash-keys`, `hash-values`, `hash->list`,
-`hash-for-each`, and `hash-map` can run on immutable wrappers without copying
-them to a mutable table first. `hash-clear` is implemented as a same-wrapper
-empty immutable table, which matches the Reference's constant-time
-non-chaperone case; chaperone/impersonator hash traversal is not implemented.
+`webify/test-lower.rkt` keeps a semantic-gap probe so the old bridge behavior
+does not accidentally return.
 
-## Semantic Gap Probe
+## Debug Hooks
 
-`webify/test-lower.rkt` contains a focused probe that intentionally locks in
-the old bridge's semantic gap, so it does not come back accidentally:
+The internal debug hook
+`webracket-internal-immutable-hash-debug-shape` is available only when the
+compiler is run with `--internal-bind-immutable-hash-debug-shape`. It returns:
 
 ```racket
-(let ([h0 (make-hasheqv)])
-  (let ([h1 (lowered-hash-set h0 'a 1)])
-    (list (eq? h0 h1)
-          (hash-ref h0 'a #f))))
+(list entries bnodes cnodes buckets inlines max-depth slots)
 ```
 
-The old bridge result was effectively:
+`buckets` counts real multi-entry bucket lists. `inlines` counts direct
+`$ImmutableHashEntry` leaves.
+
+The same flag enables `webracket-internal-immutable-hamt-packed-bits`, which
+returns:
 
 ```racket
-'(#t 1)
+(list group child-bit key-bit value-bit current-bit)
 ```
 
-Real immutable Racket semantics instead keep the original table unchanged and
-return a distinct updated immutable table. The current lowering preserves that
-functional `hash-set` shape.
+These hooks are intentionally not public primitives. They exist to make
+representation regressions visible while WebRacket continues toward larger
+module workloads.
 
-## Later Direction
+## Verification Coverage
 
-The remaining immutable-hash work is now outside the core HAMT representation:
+`test/test-basics.rkt` covers the current immutable HAMT behavior:
 
-- replace weak and ephemeron strong fallbacks when the runtime has weak
-  reference support
-- expose ordinary immutable `hash-iterate-*` paths directly if linklets require
-  those names, rather than relying on the current generic iterator bridge
-- compare more library-sized workloads against Racket CS for performance and
-  shape parity
+- all four immutable hash kinds
+- path-copying set/remove
+- duplicate-key update without duplicate traversal entries
+- recursive bucket splits
+- deep bnode paths
+- terminal cnode full-hash collisions
+- singleton branch collapse
+- packed metadata shape checks
+- cross-kind add/remove/update stress
+- private equal-key hash caching during packed inline promotion
+- public key unwrapping through `hash-ref-key` and traversal
+- public `hash-iterate-*` accessors over mutable and immutable hashes
+
+The bounded runner is `test/test-basics-runner.rkt`, which runs the suite with
+`--no-stdlib`, the debug hook enabled, and a memory limit.
+
+## Known Limitations
+
+The remaining hash limitations are outside the core immutable HAMT
+representation:
+
+- weak and ephemeron hash tables are strong fallbacks
+- weak/ephemeron keys are not dropped by GC
+- ephemeron key/value reachability semantics are not implemented
+- chaperone/impersonator hash behavior is not implemented
+- performance and shape parity should still be checked on library-sized
+  workloads, not only unit tests
+
+## Next Direction
+
+For Goal 1, HAMTs are no longer the main blocker. The useful next step is to
+return to module/library enablement and use the current immutable hash support
+against larger `racket/base`-adjacent libraries such as `racket/set`,
+`racket/sequence`, `racket/match`, `racket/format`, and `racket/promise`.
+
+Weak and ephemeron work should wait until WebRacket has a deliberate weak
+reference story instead of being layered onto the current strong hash tables.

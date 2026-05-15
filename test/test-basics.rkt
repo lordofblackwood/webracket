@@ -5211,6 +5211,59 @@
                         (and (equal? (sort (hash-values h)    (λ (x y) (< x y))) expected)
                              (equal? (sort (hash-values h #t) (λ (x y) (< x y))) expected)))))
 
+              (list "hash-iterate public mutable and immutable"
+                    (let ([m (make-hasheq)]
+                          [i (hash 'a 1 'b 2)])
+                      (hash-set! m 'a 1)
+                      (hash-set! m 'b 2)
+                      (define (unordered-equal? xs ys)
+                        (and (= (length xs) (length ys))
+                             (andmap (lambda (x) (member x ys)) xs)
+                             (andmap (lambda (y) (member y xs)) ys)))
+                      (define (collect h f)
+                        (let loop ([pos (hash-iterate-first h)] [acc '()] [positions '()])
+                          (if pos
+                              (loop (hash-iterate-next h pos)
+                                    (cons (f pos) acc)
+                                    (cons pos positions))
+                              (list acc positions))))
+                      (let* ([m-pairs+positions
+                              (collect m (lambda (pos)
+                                           (hash-iterate-pair m pos 'bad)))]
+                             [i-pairs+positions
+                              (collect i (lambda (pos)
+                                           (hash-iterate-pair i pos 'bad)))]
+                             [i-kvs
+                              (car (collect i
+                                            (lambda (pos)
+                                              (call-with-values
+                                               (lambda ()
+                                                 (hash-iterate-key+value i pos 'bad))
+                                               cons))))]
+                             [i-keys
+                              (car (collect i
+                                            (lambda (pos)
+                                              (hash-iterate-key i pos 'bad))))]
+                             [i-values
+                              (car (collect i
+                                            (lambda (pos)
+                                              (hash-iterate-value i pos 'bad))))]
+                             [expected '((a . 1) (b . 2))])
+                        (and (equal? (hash-iterate-first (hash)) #f)
+                             (andmap fixnum? (cadr i-pairs+positions))
+                             (unordered-equal? (car m-pairs+positions) expected)
+                             (unordered-equal? (car i-pairs+positions) expected)
+                             (unordered-equal? i-kvs expected)
+                             (equal? (sort i-keys symbol<?) '(a b))
+                             (equal? (sort i-values <) '(1 2))
+                             (equal? (hash-iterate-key i 999 'bad) 'bad)
+                             (equal? (hash-iterate-value i 999 'bad) 'bad)
+                             (equal? (hash-iterate-pair i 999 'bad) '(bad . bad))
+                             (equal? (call-with-values
+                                      (lambda ()
+                                        (hash-iterate-key+value i 999 'bad))
+                                      cons)
+                                     '(bad . bad))))))
 
               (list "mutable-hash-iterate"
                     (let ([empty (make-hash)]

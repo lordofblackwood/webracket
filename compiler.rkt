@@ -2115,6 +2115,12 @@
   mutable-hash-iterate-value
   mutable-hash-iterate-pair
   mutable-hash-iterate-key+value
+  hash-iterate-first
+  hash-iterate-next
+  hash-iterate-key
+  hash-iterate-value
+  hash-iterate-pair
+  hash-iterate-key+value
   unsafe-immutable-hash-iterate-first
   unsafe-immutable-hash-iterate-next
   unsafe-immutable-hash-iterate-key
