@@ -46,6 +46,8 @@
      'continuation-mark]
     [(regexp-match? #rx"datum->construction-expr: got: #rx" message)
      'regexp-literal]
+    [(regexp-match? #rx"raise-binding-result-arity-error: result arity mismatch" message)
+     'binding-result-arity]
     [(regexp-match? #rx"redefine a primitive at the top-level" message)
      'primitive-alias-collision]
     [(regexp-match? #rx"unsupported|not supported" message)

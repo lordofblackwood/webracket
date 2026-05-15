@@ -90,6 +90,12 @@
                (current-continuation-marks))))
   (check-equal? (webify-module-failure-category regexp-literal)
                 'regexp-literal)
+  (define binding-result-arity
+    (webify-classify-runtime-output
+     1
+     "raise-binding-result-arity-error: result arity mismatch;\n expected: 3\n received: 1"))
+  (check-equal? (webify-module-failure-category binding-result-arity)
+                'binding-result-arity)
   (check-false (webify-classify-runtime-output 0 "#t\n")))
 
 (module+ main

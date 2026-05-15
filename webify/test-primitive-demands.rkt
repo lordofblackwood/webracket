@@ -3,6 +3,7 @@
 (require rackunit
          "module-extractor.rkt"
          "module-input.rkt"
+         "probe-installed-module-deps.rkt"
          "primitive-demands.rkt")
 
 (test-case "primitive demand audit collects resolved primitive imports"
@@ -163,3 +164,20 @@
                 (webify-primitive-demand-sources d)))
         (webify-primitive-demand-report-demands report))
    '((#%kernel syntax-e ((kernel-user 0))))))
+
+(test-case "Goal 1 module matrix names are known probe cases"
+  (check-not-false (member 'promise-state goal1-module-cases))
+  (check-not-false (member 'sequence-range goal1-module-cases))
+  (check-not-false (member 'sequence-for/fold goal1-module-cases))
+  (check-not-false (member 'for/list-basic goal1-module-cases))
+  (check-not-false (member 'for*/list-basic goal1-module-cases))
+  (check-not-false (member 'for/in-list goal1-module-cases))
+  (check-not-false (member 'for/in-vector goal1-module-cases))
+  (check-not-false (member 'for/parallel-sequences goal1-module-cases))
+  (check-not-false (member 'for/control-clauses goal1-module-cases))
+  (check-not-false (member 'match-basic goal1-module-cases))
+  (check-not-false (member 'match-let-basic goal1-module-cases))
+  (check-not-false (member 'format-basic goal1-module-cases))
+  (check-not-false (member 'class-basic goal1-module-cases))
+  (for ([name (in-list goal1-module-cases)])
+    (check-not-false (member name known-module-cases))))

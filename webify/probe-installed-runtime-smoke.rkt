@@ -24,6 +24,23 @@
 (define no-observe? #f)
 (define list-only? #f)
 (define worker? #f)
+(define goal1-fast? #f)
+
+;; goal1-fast-module-cases : (listof symbol?)
+;;   Small must-have runtime subset for quick Goal 1 smoke checks.
+(define goal1-fast-module-cases
+  '(hash-basic
+    hash-iterate
+    set-count
+    set-union
+    promise-state
+    for/in-list
+    for/in-vector
+    for/parallel-sequences
+    for/control-clauses
+    sequence-for/fold
+    match-let-basic
+    class-basic))
 
 ;; smoke-label : installed-runtime-smoke? -> string?
 ;;   Render one installed smoke for list and worker diagnostics.
@@ -110,14 +127,33 @@
       promise-predicate-plain
       force-identity
       promise-basic
-	      sequence-list
-	      promise-state
-	      sequence-range
-	      class-require
-	      class-basic
-	      format-basic
-	      match-basic
-	      hash-comparator-semantics
+      promise-state
+      sequence-list
+      sequence-range
+      sequence-for/list
+      sequence-for/fold
+      sequence-for/vector
+      for/in-list
+      for/in-vector
+      for/in-string
+      for/in-range
+      for/in-naturals
+      for/parallel-sequences
+      for*/nested-sequences
+      for/control-clauses
+      for/list-basic
+      for/fold-basic
+      for*/list-basic
+      for/first-basic
+      class-require
+      class-basic
+      format-basic
+      match-basic
+      match-literal-default
+      match-let-basic
+      match-predicate
+      keyword-optional-direct
+      hash-comparator-semantics
       set-comparator-semantics)
      (installed-runtime-smoke
       name
@@ -141,15 +177,43 @@
             [(promise-predicate-plain) #rx"(?m:^false$)"]
             [(promise-basic) #rx"(?m:^42$)"]
             [(promise-state) #rx"(?m:^true$)"]
-            [(sequence-list sequence-range) #rx"(?m:^3$)"]
+            [(sequence-list
+              sequence-range
+              sequence-for/list
+              sequence-for/vector
+              for/list-basic
+              for/in-string)
+             #rx"(?m:^3$)"]
+            [(sequence-for/fold for/fold-basic) #rx"(?m:^6$)"]
+            [(for*/list-basic) #rx"(?m:^4$)"]
+            [(for/in-list for/in-vector for/parallel-sequences)
+             #rx"(?m:^42$)"]
+            [(for*/nested-sequences) #rx"(?m:^44$)"]
+            [(for/in-range) #rx"(?m:^24$)"]
+            [(for/in-naturals) #rx"(?m:^45$)"]
+            [(for/first-basic) #rx"(?m:^41$)"]
+            [(for/control-clauses) #rx"(?m:^3$)"]
             [(hash-comparator-semantics set-comparator-semantics) #rx"(?m:^21$)"]
             [(hash-basic) #rx"(?m:^41$)"]
-	            [(stream-rest combined-list-string-set class-require class-basic match-basic) #rx"(?m:^42$)"]
-	            [(format-basic) #rx"(?m:^web-racket$)"]
+            [(stream-rest
+              combined-list-string-set
+              class-require
+              class-basic
+              match-basic
+              match-literal-default
+              match-let-basic
+              match-predicate)
+             #rx"(?m:^42$)"]
+            [(format-basic) #rx"(?m:^web-racket$)"]
+            [(keyword-optional-direct) #rx"(?m:^4$)"]
             [else #rx"(?m:^false$)"])
           #rx"")
-      '()
-      #f)]
+      (case name
+        [(keyword-optional-direct) '(runtime-exception)]
+        [else '()])
+      (case name
+        [(keyword-optional-direct) #rx"procedure-realm"]
+        [else #f]))]
     [else
      (installed-runtime-smoke
       name
@@ -290,6 +354,14 @@
      (for ([name (in-list known-module-cases)])
        (printf "case:~a\tmodule case: ~a\n" name name))
      0]
+    [goal1-fast?
+     (for/fold ([status 0]) ([name (in-list goal1-fast-module-cases)])
+       (define next-status
+         (run-child/bounded!
+          (format "case:~a" name)
+          (module-case-smoke name (not no-observe?))
+          (list "--module-case" (symbol->string name))))
+       (if (zero? status) next-status status))]
     [selected-module-case
      (run-child/bounded!
       (format "case:~a" selected-module-case)
@@ -313,6 +385,8 @@
  #:once-each
  [("--list") "list installed runtime smokes without running them"
              (set! list-only? #t)]
+ [("--goal1-fast") "run a compact must-have Goal 1 runtime subset"
+                   (set! goal1-fast? #t)]
  [("--worker") "internal mode: run the selected smoke in this process"
                (set! worker? #t)]
  [("--timeout") seconds "seconds before killing a child smoke process"

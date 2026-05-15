@@ -516,6 +516,23 @@
     '()
     #f)
    (installed-runtime-smoke
+    'racket/promise
+    "installed racket/promise forced/running predicates reach WebRacket runtime smoke"
+    '((module use-promise-state racket/base
+        (require racket/promise)
+        (provide y)
+        (define p (delay (+ 20 22)))
+        (define y
+          (and (not (promise-forced? p))
+               (not (promise-running? p))
+               (= (force p) 42)
+               (promise-forced? p)
+               (not (promise-running? p))))))
+    '((use-promise-state y))
+    #rx"(?m:^(#t|true)$)"
+    '()
+    #f)
+   (installed-runtime-smoke
     'racket/sequence
     "installed racket/sequence sequence->list reaches WebRacket runtime smoke"
     '((module use-sequence-list racket/base
@@ -524,6 +541,199 @@
         (define y (length (sequence->list '(a b c))))))
     '((use-sequence-list y))
     #rx"(?m:^3$)"
+    '()
+    #f)
+   (installed-runtime-smoke
+    'racket/sequence
+    "installed racket/sequence range reaches WebRacket runtime smoke"
+    '((module use-sequence-range racket/base
+        (require racket/sequence)
+        (provide y)
+        (define y (length (sequence->list (in-range 3))))))
+    '((use-sequence-range y))
+    #rx"(?m:^3$)"
+    '()
+    #f)
+   (installed-runtime-smoke
+    'racket/sequence
+    "installed racket/sequence for/list reaches WebRacket runtime smoke"
+    '((module use-sequence-for-list racket/base
+        (require racket/sequence)
+        (provide y)
+        (define y (length (for/list ([x (in-list '(a b c))]) x)))))
+    '((use-sequence-for-list y))
+    #rx"(?m:^3$)"
+    '()
+    #f)
+   (installed-runtime-smoke
+    'racket/sequence
+    "installed racket/sequence for/fold reaches WebRacket runtime smoke"
+    '((module use-sequence-for-fold racket/base
+        (require racket/sequence)
+        (provide y)
+        (define y (for/fold ([sum 0]) ([x (in-range 4)]) (+ sum x)))))
+    '((use-sequence-for-fold y))
+    #rx"(?m:^6$)"
+    '()
+    #f)
+   (installed-runtime-smoke
+    'racket/for
+    "racket/base for/list reaches WebRacket runtime smoke"
+    '((module use-for-list-basic racket/base
+        (provide y)
+        (define y (length (for/list ([x '(a b c)]) x)))))
+    '((use-for-list-basic y))
+    #rx"(?m:^3$)"
+    '()
+    #f)
+   (installed-runtime-smoke
+    'racket/for
+    "racket/base for/fold reaches WebRacket runtime smoke"
+    '((module use-for-fold-basic racket/base
+        (provide y)
+        (define y (for/fold ([sum 0]) ([x '(1 2 3)]) (+ sum x)))))
+    '((use-for-fold-basic y))
+    #rx"(?m:^6$)"
+    '()
+    #f)
+   (installed-runtime-smoke
+    'racket/for
+    "racket/base for*/list reaches WebRacket runtime smoke"
+    '((module use-for-star-list-basic racket/base
+        (provide y)
+        (define y (length (for*/list ([x '(a b)] [y '(1 2)]) (list x y))))))
+    '((use-for-star-list-basic y))
+    #rx"(?m:^4$)"
+    '()
+    #f)
+   (installed-runtime-smoke
+    'racket/for
+    "racket/base for/list over in-list reaches WebRacket runtime smoke"
+    '((module use-for-in-list racket/base
+        (provide y)
+        (define y (apply + (for/list ([x (in-list '(10 20 12))]) x)))))
+    '((use-for-in-list y))
+    #rx"(?m:^42$)"
+    '()
+    #f)
+   (installed-runtime-smoke
+    'racket/for
+    "racket/base for/list over in-vector reaches WebRacket runtime smoke"
+    '((module use-for-in-vector racket/base
+        (provide y)
+        (define y (apply + (for/list ([x (in-vector '#(10 20 12))]) x)))))
+    '((use-for-in-vector y))
+    #rx"(?m:^42$)"
+    '()
+    #f)
+   (installed-runtime-smoke
+    'racket/for
+    "racket/base for/list parallel sequences reach WebRacket runtime smoke"
+    '((module use-for-parallel-sequences racket/base
+        (provide y)
+        (define y
+          (apply + (for/list ([x (in-list '(1 2 3))]
+                              [v (in-vector '#(10 20 6))])
+                     (+ x v))))))
+    '((use-for-parallel-sequences y))
+    #rx"(?m:^42$)"
+    '()
+    #f)
+   (installed-runtime-smoke
+    'racket/for
+    "racket/base for/fold control clauses reach WebRacket runtime smoke"
+    '((module use-for-control-clauses racket/base
+        (provide y)
+        (define y
+          (for/fold ([sum 0]) ([x (in-list '(1 2 3 4 5))]
+                               #:when (odd? x)
+                               #:unless (= x 1)
+                               #:break (> x 4))
+            (+ sum x)))))
+    '((use-for-control-clauses y))
+    #rx"(?m:^3$)"
+    '()
+    #f)
+   (installed-runtime-smoke
+    'racket/match
+    "installed racket/match basic pattern reaches WebRacket runtime smoke"
+    '((module use-match-basic racket/base
+        (require racket/match)
+        (provide y)
+        (define (score v)
+          (match v
+            [(list 'answer n) n]
+            [_ 0]))
+        (define y (score '(answer 42)))))
+    '((use-match-basic y))
+    #rx"(?m:^42$)"
+    '()
+    #f)
+   (installed-runtime-smoke
+    'racket/match
+    "installed racket/match default pattern reaches WebRacket runtime smoke"
+    '((module use-match-literal-default racket/base
+        (require racket/match)
+        (provide y)
+        (define y
+          (match '(other 17)
+            [(list 'answer n) n]
+            [_ 42]))))
+    '((use-match-literal-default y))
+    #rx"(?m:^42$)"
+    '()
+    #f)
+   (installed-runtime-smoke
+    'racket/match
+    "installed racket/match match-let reaches WebRacket runtime smoke"
+    '((module use-match-let-basic racket/base
+        (require racket/match)
+        (provide y)
+        (define y
+          (match-let ([(list a b c) '(10 20 12)])
+            (+ a b c)))))
+    '((use-match-let-basic y))
+    #rx"(?m:^42$)"
+    '()
+    #f)
+   (installed-runtime-smoke
+    'racket/match
+    "installed racket/match predicate pattern reaches WebRacket runtime smoke"
+    '((module use-match-predicate racket/base
+        (require racket/match)
+        (provide y)
+        (define y
+          (match 42
+            [(? number? n) n]
+            [_ 0]))))
+    '((use-match-predicate y))
+    #rx"(?m:^42$)"
+    '()
+    #f)
+   (installed-runtime-smoke
+    'racket/format
+    "installed racket/format reaches runtime but currently fails on binding result arity"
+    '((module use-format-basic racket/base
+        (require racket/format)
+        (provide y)
+        (define y (~a "web" 'racket #:separator "-"))))
+    '((use-format-basic y))
+    #rx"(?m:^web-racket$)"
+    '(binding-result-arity)
+    #rx"raise-binding-result-arity-error: result arity mismatch")
+   (installed-runtime-smoke
+    'racket/class
+    "installed racket/class basic object reaches WebRacket runtime smoke"
+    '((module use-class-basic racket/base
+        (require racket/class)
+        (provide y)
+        (define counter%
+          (class object%
+            (super-new)
+            (define/public (value) 42)))
+        (define y (send (new counter%) value))))
+    '((use-class-basic y))
+    #rx"(?m:^42$)"
     '()
     #f)
    (installed-runtime-smoke

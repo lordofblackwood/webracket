@@ -107,6 +107,30 @@
        (equal? (hash-ref h k2) 'value)
        (eq? (hash-ref-key h k2) k1)))
 
+(define (hash-keys-subset-basic-immutable)
+  (define h0 (hash 'a 1))
+  (define h1 (hash 'a 1 'b 2))
+  (define h2 (hash 'a 1 'b 2 'c 3))
+  (define heq0 (hasheq 'a 1))
+  (define heq1 (hasheq 'a 1 'b 2))
+  (and (hash-keys-subset? h0 h1)
+       (hash-keys-subset? h1 h2)
+       (not (hash-keys-subset? h2 h1))
+       (not (hash-keys-subset? h1 h0))
+       (hash-keys-subset? heq0 heq1)
+       (not (hash-keys-subset? heq1 heq0))))
+
+(define (immutable-equality-basic)
+  (define h1 (hash 'a 1 'b 2))
+  (define h2 (hash 'b 2 'a 1))
+  (define h3 (hash 'a 1 'b 3))
+  (define heq1 (hasheq 'a 1 'b 2))
+  (define heq2 (hasheq 'b 2 'a 1))
+  (and (equal? h1 h2)
+       (not (equal? h1 h3))
+       (equal? heq1 heq2)
+       (not (equal? h1 heq1))))
+
 (define (immutable-hash-constructor-kinds)
   (define h (make-immutable-hash '((a . 1) (b . 2))))
   (define heq (make-immutable-hasheq '((a . 1) (b . 2))))
@@ -190,6 +214,10 @@
               (immutable-iterator-invalid-index-defaults))
         (list "hash-ref-key retained key for equal immutable hash"
               (hash-ref-key-retains-equal-key))
+        (list "hash-keys-subset? basic immutable"
+              (hash-keys-subset-basic-immutable))
+        (list "immutable hash equality basic"
+              (immutable-equality-basic))
         (list "immutable hash constructor kinds"
               (immutable-hash-constructor-kinds))
         (list "cross-kind persistent update/remove"

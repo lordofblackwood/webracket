@@ -91,6 +91,12 @@ accidentally turning Goal 1 into Goal 2.
 
 Current installed-extraction runtime smokes cover:
 
+- Must-have Goal 1 library families now tracked in the dependency matrix:
+  `racket/set`, `racket/sequence`, `racket/match`, `racket/format`,
+  `racket/promise`, `racket/class`, immutable hashes, and `for`/`for*` forms
+  from `racket/base`. Use
+  `webify/probe-installed-module-deps.rkt --goal1-dashboard` for the compact
+  dependency view, or `--goal1-compact` when a script-friendly table is enough.
 - `racket/bool`: `boolean=?`.
 - `racket/fixnum`: `fx+`.
 - `racket/list`: `first`, `rest`, `add-between`, `range`, `reverse`, and a
@@ -118,10 +124,18 @@ Current installed-extraction runtime smokes cover:
   milestone.
 - `racket/pretty`: a require-only installed-provider smoke.
 - `racket/promise`: require-only, `promise?` on a plain value, `force` identity
-  on a non-promise, and `force` of a simple `delay`.
-- `racket/sequence`: a first `sequence->list` operation over a plain list.
-  The next constructor/consumer frontier is `in-range`, which currently reaches
-  runtime and asks for `flvector?`.
+  on a non-promise, `force` of a simple `delay`, and the basic
+  `promise-forced?`/`promise-running?` state predicates.
+- `racket/sequence`: `sequence->list` over a plain list, `in-range`,
+  `for/list`, `for/fold`, and `for/vector` coverage in the Goal 1 matrix.
+- `racket/base` `for` forms: `for/list`, `for/fold`, `for*/list`, and
+  `for/first` source-module cases are tracked as must-have iteration coverage.
+  The explicit producer matrix includes `in-list`, `in-vector`, `in-string`,
+  `in-range`, bounded `in-naturals`, parallel sequence clauses, nested
+  `for*/list` clauses, and `#:when`/`#:unless`/`#:break` control clauses.
+- `racket/match`: a basic list pattern, a default branch, `match-let`, and a
+  predicate pattern are tracked in the Goal 1 matrix.
+- `racket/class`: a basic object with a public method.
 - `racket/function`: `compose`, `identity`, `compose1`, `negate`, and `const`.
 - Combined installed-library programs for `racket/list` + `racket/string`, for
   `racket/list` + `racket/string` + `racket/set`, and for a multi-module local
@@ -131,8 +145,13 @@ Current installed-extraction runtime smokes cover:
   `(require 'base-values)`, through a shared-provider transitive smoke.
 
 `racket/format` is a known next-library frontier, but not a passing Goal 1
-runtime smoke yet. A tiny `~a` source module currently fails during provider
-resolution on `resolved-module-path-name`, before WebRacket runtime execution.
+runtime smoke yet. The tiny `~a` source module now extracts and reaches
+WebRacket runtime with zero missing primitive demands, then fails in a
+multi-value contract-wrapper path classified as `binding-result-arity`. A
+smaller `keyword-optional-direct` case checks the direct
+`make-keyword-procedure`/optional-keyword path separately, so the remaining
+`racket/format` blocker is more narrowly about the contract partial-application
+wrapper around `~a`, not basic keyword dispatch.
 
 Current local-manifest runtime smokes cover hand-authored bridge shapes that do
 not depend on source extraction:

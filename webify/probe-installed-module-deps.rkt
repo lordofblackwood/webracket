@@ -1,12 +1,15 @@
 #lang racket/base
 
 (provide known-module-cases
+         goal1-module-cases
          module-case-data
          extract-case-inputs
          input-names
          set-diff
          print-case-summary
-         print-case-delta)
+         print-case-delta
+         print-goal1-summary
+         print-goal1-dashboard)
 
 (require racket/cmdline
          racket/list
@@ -45,18 +48,73 @@
     promise-predicate-plain
     force-identity
     promise-basic
-	    sequence-list
-	    promise-state
-	    sequence-range
-	    class-require
-	    class-basic
-	    format-basic
-	    match-basic
-	    hash-comparator-semantics
+    promise-state
+    sequence-list
+    sequence-range
+    sequence-for/list
+    sequence-for/fold
+    sequence-for/vector
+    for/in-list
+    for/in-vector
+    for/in-string
+    for/in-range
+    for/in-naturals
+    for/parallel-sequences
+    for*/nested-sequences
+    for/control-clauses
+    for/list-basic
+    for/fold-basic
+    for*/list-basic
+    for/first-basic
+    keyword-optional-direct
+    class-require
+    class-basic
+    format-basic
+    match-basic
+    match-literal-default
+    match-let-basic
+    match-predicate
+    hash-comparator-semantics
     set-comparator-semantics
     custom-write-require
     set-types-require
     set-types-predicate))
+
+;; goal1-module-cases : (listof symbol?)
+;;   Small module-library matrix for Goal 1: module programs in the browser
+;;   without relying on browser-side eval.
+(define goal1-module-cases
+  '(promise-basic
+    promise-state
+    sequence-list
+    sequence-range
+    sequence-for/list
+    sequence-for/fold
+    sequence-for/vector
+    for/in-list
+    for/in-vector
+    for/in-string
+    for/in-range
+    for/in-naturals
+    for/parallel-sequences
+    for*/nested-sequences
+    for/control-clauses
+    for/list-basic
+    for/fold-basic
+    for*/list-basic
+    for/first-basic
+    match-basic
+    match-literal-default
+    match-let-basic
+    match-predicate
+    format-basic
+    keyword-optional-direct
+    class-basic
+    set-count
+    set-union
+    hash-basic
+    hash-iterate
+    combined-list-string-set))
 
 ;; module-case-data : symbol? -> (listof source-module-datum?)
 ;;   Return a small installed-module source slice for dependency probing.
@@ -207,6 +265,15 @@
          (require racket/format)
          (provide y)
          (define y (~a "web" 'racket #:separator "-"))))]
+    [(keyword-optional-direct)
+     '((module use-keyword-optional-direct racket/base
+         (require racket/private/kw)
+         (provide y)
+         (define f
+           (make-keyword-procedure
+            (lambda (kws kw-args . args)
+              (+ (length kws) (length kw-args) (length args)))))
+         (define y (f #:sep "-" 'a 'b))))]
     [(pretty-require)
      '((module use-pretty-require racket/base
          (require racket/pretty)
@@ -254,29 +321,130 @@
          (require racket/sequence)
          (provide y)
          (define y (length (sequence->list (in-range 3))))))]
+    [(sequence-for/list)
+     '((module use-sequence-for-list racket/base
+         (require racket/sequence)
+         (provide y)
+         (define y (length (for/list ([x (in-list '(a b c))]) x)))))]
+    [(sequence-for/fold)
+     '((module use-sequence-for-fold racket/base
+         (require racket/sequence)
+         (provide y)
+         (define y (for/fold ([sum 0]) ([x (in-range 4)]) (+ sum x)))))]
+    [(sequence-for/vector)
+     '((module use-sequence-for-vector racket/base
+         (require racket/sequence)
+         (provide y)
+         (define y (vector-length (for/vector ([x (in-vector '#(a b c))]) x)))))]
+    [(for/in-list)
+     '((module use-for-in-list racket/base
+         (provide y)
+         (define y (apply + (for/list ([x (in-list '(10 20 12))]) x)))))]
+    [(for/in-vector)
+     '((module use-for-in-vector racket/base
+         (provide y)
+         (define y (apply + (for/list ([x (in-vector '#(10 20 12))]) x)))))]
+    [(for/in-string)
+     '((module use-for-in-string racket/base
+         (provide y)
+         (define y
+           (for/fold ([sum 0]) ([ch (in-string "abc")])
+             (+ sum (if (char? ch) 1 0))))))]
+    [(for/in-range)
+     '((module use-for-in-range racket/base
+         (provide y)
+         (define y (for/fold ([sum 0]) ([x (in-range 7 10)]) (+ sum x)))))]
+    [(for/in-naturals)
+     '((module use-for-in-naturals racket/base
+         (provide y)
+         (define y
+           (for/fold ([sum 0]) ([x (in-naturals)] [v '(10 11 21)])
+             (+ sum x v)))))]
+    [(for/parallel-sequences)
+     '((module use-for-parallel-sequences racket/base
+         (provide y)
+         (define y
+           (apply + (for/list ([x (in-list '(1 2 3))]
+                               [v (in-vector '#(10 20 6))])
+                      (+ x v))))))]
+    [(for*/nested-sequences)
+     '((module use-for-star-nested-sequences racket/base
+         (provide y)
+         (define y
+           (apply + (for*/list ([x (in-list '(1 2))]
+                                [v (in-vector '#(10 9))])
+                      (+ x v))))))]
+    [(for/control-clauses)
+     '((module use-for-control-clauses racket/base
+         (provide y)
+         (define y
+           (for/fold ([sum 0]) ([x (in-list '(1 2 3 4 5))]
+                                #:when (odd? x)
+                                #:unless (= x 1)
+                                #:break (> x 4))
+             (+ sum x)))))]
+    [(for/list-basic)
+     '((module use-for-list-basic racket/base
+         (provide y)
+         (define y (length (for/list ([x '(a b c)]) x)))))]
+    [(for/fold-basic)
+     '((module use-for-fold-basic racket/base
+         (provide y)
+         (define y (for/fold ([sum 0]) ([x '(1 2 3)]) (+ sum x)))))]
+    [(for*/list-basic)
+     '((module use-for-star-list-basic racket/base
+         (provide y)
+         (define y (length (for*/list ([x '(a b)] [y '(1 2)]) (list x y))))))]
+    [(for/first-basic)
+     '((module use-for-first-basic racket/base
+         (provide y)
+         (define y (for/first ([x '(40 41 42)] #:when (> x 40)) x))))]
     [(class-require)
      '((module use-class-require racket/base
          (require racket/class)
          (provide y)
          (define y 42)))]
-	    [(class-basic)
-	     '((module use-class-basic racket/base
-	         (require racket/class)
-	         (provide y)
+    [(class-basic)
+     '((module use-class-basic racket/base
+         (require racket/class)
+         (provide y)
          (define counter%
            (class object%
              (super-new)
-	             (define/public (value) 42)))
-	         (define y (send (new counter%) value))))]
-	    [(match-basic)
-	     '((module use-match-basic racket/base
-	         (require racket/match)
-	         (provide y)
-	         (define (score v)
-	           (match v
-	             [(list 'answer n) n]
-	             [_ 0]))
-	         (define y (score '(answer 42)))))]
+             (define/public (value) 42)))
+         (define y (send (new counter%) value))))]
+    [(match-basic)
+     '((module use-match-basic racket/base
+         (require racket/match)
+         (provide y)
+         (define (score v)
+           (match v
+             [(list 'answer n) n]
+             [_ 0]))
+         (define y (score '(answer 42)))))]
+    [(match-literal-default)
+     '((module use-match-literal-default racket/base
+         (require racket/match)
+         (provide y)
+         (define y
+           (match '(other 17)
+             [(list 'answer n) n]
+             [_ 42]))))]
+    [(match-let-basic)
+     '((module use-match-let-basic racket/base
+         (require racket/match)
+         (provide y)
+         (define y
+           (match-let ([(list a b c) '(10 20 12)])
+             (+ a b c)))))]
+    [(match-predicate)
+     '((module use-match-predicate racket/base
+         (require racket/match)
+         (provide y)
+         (define y
+           (match 42
+             [(? number? n) n]
+             [_ 0]))))]
     [(hash-comparator-semantics)
      '((module use-hash-comparator-semantics racket/base
          (provide y)
@@ -344,13 +512,21 @@
 ;;   Print a compact dependency and primitive-demand summary.
 (define (print-case-summary name inputs)
   (define report (webify-module-linklet-inputs->primitive-demands inputs))
+  (define missing (webify-primitive-demand-report-missing report))
   (printf "case: ~a\n" name)
   (printf "input-count: ~a\n" (length inputs))
   (printf "inputs: ~s\n" (input-names inputs))
   (printf "primitive-demand-count: ~a\n"
           (length (webify-primitive-demand-report-demands report)))
   (printf "missing-primitive-demand-count: ~a\n"
-          (length (webify-primitive-demand-report-missing report))))
+          (length missing))
+  (unless (null? missing)
+    (printf "missing-primitive-demands: ~s\n"
+            (map (lambda (d)
+                   (list (webify-primitive-demand-module d)
+                         (webify-primitive-demand-name d)
+                         (webify-primitive-demand-sources d)))
+                 missing))))
 
 ;; print-case-delta : symbol? inputs symbol? inputs -> void?
 ;;   Print module-name deltas between two extracted cases.
@@ -362,9 +538,93 @@
   (printf "added-inputs: ~s\n" (set-diff current-names baseline-names))
   (printf "removed-inputs: ~s\n" (set-diff baseline-names current-names)))
 
+;; summarize-goal1-case : symbol? -> hash?
+;;   Compute provider-graph and primitive-demand status for one Goal 1 case.
+(define (summarize-goal1-case name)
+  (with-handlers ([exn:fail?
+                   (lambda (exn)
+                     (hasheq 'case name
+                             'extract-status 'failed
+                             'extract-error (exn-message exn)
+                             'input-count #f
+                             'input-names '()
+                             'primitive-demand-count #f
+                             'missing-primitive-count #f
+                             'missing-primitive-demands '()))])
+    (define inputs (extract-case-inputs name))
+    (define report (webify-module-linklet-inputs->primitive-demands inputs))
+    (define missing (webify-primitive-demand-report-missing report))
+    (hasheq 'case name
+            'extract-status 'ok
+            'input-count (length inputs)
+            'input-names (input-names inputs)
+            'primitive-demand-count
+            (length (webify-primitive-demand-report-demands report))
+            'missing-primitive-count (length missing)
+            'missing-primitive-demands
+            (map (lambda (d)
+                   (list (webify-primitive-demand-module d)
+                         (webify-primitive-demand-name d)
+                         (webify-primitive-demand-sources d)))
+                 missing))))
+
+;; print-goal1-case-verbose : hash? -> void?
+;;   Print the detailed per-case Goal 1 dependency summary.
+(define (print-goal1-case-verbose summary)
+  (printf "case: ~a\n" (hash-ref summary 'case))
+  (printf "extract-status: ~a\n" (hash-ref summary 'extract-status))
+  (cond
+    [(eq? (hash-ref summary 'extract-status) 'ok)
+     (printf "input-count: ~a\n" (hash-ref summary 'input-count))
+     (printf "inputs: ~s\n" (hash-ref summary 'input-names))
+     (printf "primitive-demand-count: ~a\n"
+             (hash-ref summary 'primitive-demand-count))
+     (printf "missing-primitive-demand-count: ~a\n"
+             (hash-ref summary 'missing-primitive-count))
+     (unless (zero? (hash-ref summary 'missing-primitive-count))
+       (printf "missing-primitive-demands: ~s\n"
+               (hash-ref summary 'missing-primitive-demands)))]
+    [else
+     (printf "extract-error: ~a\n" (hash-ref summary 'extract-error))]))
+
+;; print-goal1-case-compact : hash? -> void?
+;;   Print one compact dashboard row for a Goal 1 dependency case.
+(define (print-goal1-case-compact summary)
+  (printf "~a\t~a\t~a\t~a\t~a\n"
+          (hash-ref summary 'case)
+          (hash-ref summary 'extract-status)
+          (or (hash-ref summary 'input-count #f) "-")
+          (or (hash-ref summary 'primitive-demand-count #f) "-")
+          (or (hash-ref summary 'missing-primitive-count #f) "-")))
+
+;; print-goal1-summary : [#:compact? boolean?] -> void?
+;;   Print provider-graph and primitive-demand status for Goal 1 cases.
+(define (print-goal1-summary #:compact? [compact? #f])
+  (when compact?
+    (printf "case\textract\tinputs\tprimitive-demands\tmissing-primitives\n"))
+  (for ([name (in-list goal1-module-cases)]
+        [index (in-naturals)])
+    (when (and (not compact?) (positive? index))
+      (newline))
+    (define summary (summarize-goal1-case name))
+    (if compact?
+        (print-goal1-case-compact summary)
+        (print-goal1-case-verbose summary))))
+
+;; print-goal1-dashboard : -> void?
+;;   Print the compact must-have library dependency dashboard.
+(define (print-goal1-dashboard)
+  (printf "Goal 1 must-have library dependency dashboard\n")
+  (printf "case\textract\tinputs\tprimitive-demands\tmissing-primitives\n")
+  (for ([name (in-list goal1-module-cases)])
+    (print-goal1-case-compact (summarize-goal1-case name))))
+
 (module+ main
   (define selected-case 'set-require)
   (define baseline-case #f)
+  (define goal1? #f)
+  (define goal1-compact? #f)
+  (define goal1-dashboard? #f)
 
   (command-line
    #:program "probe-installed-module-deps"
@@ -372,13 +632,26 @@
    [("--case") name "case to extract"
                (set! selected-case (string->symbol name))]
    [("--baseline") name "optional case to diff against"
-                   (set! baseline-case (string->symbol name))])
+                   (set! baseline-case (string->symbol name))]
+   [("--goal1") "summarize the Goal 1 module-library matrix"
+                (set! goal1? #t)]
+   [("--goal1-compact") "summarize the Goal 1 matrix without provider lists"
+                        (set! goal1? #t)
+                        (set! goal1-compact? #t)]
+   [("--goal1-dashboard") "print the compact Goal 1 must-have dashboard"
+                          (set! goal1-dashboard? #t)])
 
-  (define selected-inputs (extract-case-inputs selected-case))
-  (print-case-summary selected-case selected-inputs)
-  (when baseline-case
-    (newline)
-    (define baseline-inputs (extract-case-inputs baseline-case))
-    (print-case-summary baseline-case baseline-inputs)
-    (newline)
-    (print-case-delta baseline-case baseline-inputs selected-case selected-inputs)))
+  (cond
+    [goal1-dashboard?
+     (print-goal1-dashboard)]
+    [goal1?
+     (print-goal1-summary #:compact? goal1-compact?)]
+    [else
+     (define selected-inputs (extract-case-inputs selected-case))
+     (print-case-summary selected-case selected-inputs)
+     (when baseline-case
+       (newline)
+       (define baseline-inputs (extract-case-inputs baseline-case))
+       (print-case-summary baseline-case baseline-inputs)
+       (newline)
+       (print-case-delta baseline-case baseline-inputs selected-case selected-inputs))]))
