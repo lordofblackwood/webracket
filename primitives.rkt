@@ -1100,7 +1100,7 @@
 
  
  ;; 4.20 Procedures
- procedure? apply compose compose1 checked-procedure-check-and-extract procedure-rename procedure->external
+ procedure? apply compose compose1 checked-procedure-check-and-extract procedure-rename procedure-realm procedure->external
  procedure-arity procedure-arity-mask procedure-arity-includes?
  procedure-specialize
  procedure-arity?

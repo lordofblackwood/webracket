@@ -2009,6 +2009,7 @@
     (add-runtime-string-constant 'hash-less-windows-path-colon         "#<windows-path:")
     (add-runtime-string-constant 'hash-less-struct-type-property-colon "#<struct-type-property:")
 
+    (add-runtime-string-constant 'procedure-realm           "procedure-realm")
     (add-runtime-string-constant 'procedure-struct-type?    "procedure-struct-type?")
     (add-runtime-string-constant 'string?                    "string?")
     (add-runtime-string-constant 'string-or-symbol?          "(or/c string? symbol?)")
@@ -2095,6 +2096,7 @@
     (add-runtime-symbol-constant 'call-with-escape-continuation)
     (add-runtime-symbol-constant 'current-logger)
     (add-runtime-symbol-constant 'logger?)
+    (add-runtime-symbol-constant 'procedure-realm)
     (add-runtime-symbol-constant 'procedure-struct-type?)
     (add-runtime-symbol-constant 'log-receiver?)
     (add-runtime-symbol-constant 'make-log-receiver)
@@ -58522,6 +58524,30 @@
                ;; Step 6: Not a supported procedure type
                (call $raise-argument-error:procedure-expected (local.get $proc))
                (unreachable))
+
+         ;; procedure-realm : procedure? -> symbol?
+         ;;   Return a procedure's realm, defaulting to 'racket when WebRacket
+         ;;   represents an applicable value without richer realm metadata.
+         (func $procedure-realm (type $Prim1)
+               (param $proc (ref eq)) ; procedure?
+               (result      (ref eq))
+
+               (local $p     (ref $Procedure))
+               (local $realm (ref eq))
+
+               (if (ref.eq (call $procedure? (local.get $proc)) (global.get $false))
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:procedure-realm)
+                               (global.get $string:procedure?)
+                               (local.get $proc))
+                         (unreachable)))
+
+               (local.set $p (ref.cast (ref $Procedure) (local.get $proc)))
+               (local.set $realm (struct.get $Procedure $realm (local.get $p)))
+               (if (result (ref eq))
+                   (ref.eq (local.get $realm) (global.get $false))
+                   (then (global.get $symbol:racket))
+                   (else (local.get $realm))))
          
          
          (func $raise-argument-error:procedure-expected

@@ -67,6 +67,10 @@
     for*/list-basic
     for/first-basic
     keyword-optional-direct
+    keyword-plain-direct
+    values-call-with-values
+    values-let-values
+    contract-wrapper-basic
     class-require
     class-basic
     format-basic
@@ -109,6 +113,9 @@
     match-predicate
     format-basic
     keyword-optional-direct
+    keyword-plain-direct
+    values-call-with-values
+    values-let-values
     class-basic
     set-count
     set-union
@@ -274,6 +281,36 @@
             (lambda (kws kw-args . args)
               (+ (length kws) (length kw-args) (length args)))))
          (define y (f #:sep "-" 'a 'b))))]
+    [(keyword-plain-direct)
+     '((module use-keyword-plain-direct racket/base
+         (require racket/private/kw)
+         (provide y)
+         (define f
+           (make-keyword-procedure
+            (lambda (kws kw-args . args) 0)
+            (lambda args (+ 40 (length args)))))
+         (define y (f 'a 'b))))]
+    [(values-call-with-values)
+     '((module use-values-call-with-values racket/base
+         (provide y)
+         (define y
+           (call-with-values
+            (lambda () (values 20 22))
+            +))))]
+    [(values-let-values)
+     '((module use-values-let-values racket/base
+         (provide y)
+         (define y
+           (let-values ([(a b) (values 20 22)])
+             (+ a b)))))]
+    [(contract-wrapper-basic)
+     '((module use-contract-wrapper-basic racket/base
+         (require racket/contract)
+         (provide y)
+         (define/contract (answer x)
+           (-> number? number?)
+           (+ x 1))
+         (define y (answer 41))))]
     [(pretty-require)
      '((module use-pretty-require racket/base
          (require racket/pretty)

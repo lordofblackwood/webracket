@@ -987,6 +987,7 @@
 (define-primitive procedure-struct-type?                    1                   (pure))
 (define-primitive procedure-reduce-arity                    [2 3 4]             (ordered))
 (define-primitive procedure-reduce-arity-mask               [2 3 4]             (ordered))
+(define-primitive procedure-realm                           1                   (pure))
 (define-primitive procedure-rename                          [2 3]               (ordered))
 (define-primitive procedure?                                1                   (pure foldable partial-foldable))
 (define-primitive progress-evt?                             [1 2]               (pure))

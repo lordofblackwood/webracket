@@ -38,8 +38,11 @@
     for/in-vector
     for/parallel-sequences
     for/control-clauses
+    values-call-with-values
+    values-let-values
     sequence-for/fold
     match-let-basic
+    keyword-plain-direct
     class-basic))
 
 ;; smoke-label : installed-runtime-smoke? -> string?
@@ -153,6 +156,10 @@
       match-let-basic
       match-predicate
       keyword-optional-direct
+      keyword-plain-direct
+      values-call-with-values
+      values-let-values
+      contract-wrapper-basic
       hash-comparator-semantics
       set-comparator-semantics)
      (installed-runtime-smoke
@@ -206,13 +213,18 @@
              #rx"(?m:^42$)"]
             [(format-basic) #rx"(?m:^web-racket$)"]
             [(keyword-optional-direct) #rx"(?m:^4$)"]
+            [(keyword-plain-direct) #rx"(?m:^42$)"]
+            [(values-call-with-values values-let-values contract-wrapper-basic)
+             #rx"(?m:^42$)"]
             [else #rx"(?m:^false$)"])
           #rx"")
       (case name
-        [(keyword-optional-direct) '(runtime-exception)]
+        [(format-basic) '(binding-result-arity)]
+        [(contract-wrapper-basic) '(runtime-exception)]
         [else '()])
       (case name
-        [(keyword-optional-direct) #rx"procedure-realm"]
+        [(format-basic) #rx"expected: 3"]
+        [(contract-wrapper-basic) #rx"source-location-source"]
         [else #f]))]
     [else
      (installed-runtime-smoke

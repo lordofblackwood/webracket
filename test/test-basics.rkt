@@ -8189,6 +8189,13 @@
                               (equal? (object-name renamed-2) 'again)
                               (equal? (object-name anon)      'anon))))
 
+                (list "procedure-realm"
+                      (let* ([anon    (lambda (x) x)]
+                             [renamed (procedure-rename anon 'named 'webracket-test)])
+                        (and (equal? (procedure-realm +)       'racket)
+                             (equal? (procedure-realm anon)    'racket)
+                             (equal? (procedure-realm renamed) 'webracket-test))))
+
                 ;; display, write, and print are in stdlib, so keep this
                 ;; disabled for the --no-stdlib test-basics run.
                 #;(list "procedure printing names"

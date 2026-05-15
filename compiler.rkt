@@ -2607,6 +2607,7 @@
   compose1
   checked-procedure-check-and-extract
   procedure-rename
+  procedure-realm
   procedure?
   procedure->external
   procedure-arity
