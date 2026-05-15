@@ -1285,6 +1285,8 @@
        port-display-handler
        port-print-handler
        current-logger
+       current-security-guard
+       make-security-guard
        current-custodian
        make-custodian
        log-level?
@@ -1338,7 +1340,9 @@
                  ) 2]
          [(hash-update!) 3]
         [(random flrandom unsafe-flrandom make-semaphore current-pseudo-random-generator
-                 get-installation-name current-logger current-custodian make-custodian) 0]
+                 get-installation-name current-logger current-security-guard
+                 current-custodian make-custodian) 0]
+        [(make-security-guard) 3]
          [(progress-evt? write-byte write-char get-output-bytes) 1]
          [(write-bytes write-string) 1]
          [else 1]))
@@ -1373,6 +1377,8 @@
          [(random) 2]
          [(current-pseudo-random-generator) 1]
          [(current-logger) 1]
+         [(current-security-guard) 1]
+         [(make-security-guard) 4]
          [(current-custodian make-custodian) 1]
          [(current-process-milliseconds) 1]
          [(seconds->date) 2]
@@ -1928,6 +1934,8 @@
   webracket-impersonator-property-predicate
 
   current-thread
+  subprocess?
+  current-security-guard security-guard? make-security-guard
   current-custodian custodian? make-custodian
   custodian-shutdown-all custodian-shut-down?
   make-custodian-box custodian-box? custodian-box-value
@@ -1946,7 +1954,7 @@
   channel-put channel-put-evt channel-put-evt?
   evt? handle-evt handle-evt?
   make-thread-cell thread-cell? thread-cell-ref thread-cell-set!
-  make-semaphore semaphore? semaphore-post call-with-semaphore semaphore-peek-evt semaphore-peek-evt?
+  make-semaphore semaphore? semaphore-post semaphore-try-wait? call-with-semaphore semaphore-peek-evt semaphore-peek-evt?
   sync sync/timeout
   unsafe-make-uninterruptible-lock
   unsafe-uninterruptible-lock-acquire
@@ -2314,7 +2322,7 @@
 
   symbol? symbol=? symbol<? 
   string->symbol symbol->string
-  string->uninterned-symbol string->unreadable-symbol symbol-interned?
+  string->uninterned-symbol string->unreadable-symbol symbol-interned? symbol-unreadable?
   symbol->immutable-string
   gensym
   
@@ -2525,6 +2533,7 @@
   procedure-arity?
   procedure-arity-mask
   procedure-arity-includes?
+  procedure-struct-type?
   procedure-reduce-arity
   procedure-reduce-arity-mask
   arity-at-least

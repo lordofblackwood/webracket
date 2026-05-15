@@ -476,6 +476,7 @@
                                  (parameter? current-output-port)
                                  (parameter? current-error-port)
                                  (parameter? current-logger)
+                                 (parameter? current-security-guard)
                                  (parameter? current-print)
                                  (not (parameter? current-parameterization))
                                  (not (parameter? add1))
@@ -1959,9 +1960,9 @@
                     (let ([s (string->unreadable-symbol "apple")])
                       (and (symbol? s)
                            (equal? (symbol->string s) "apple")
-                           ;; Temporary runtime approximation: WebRacket
-                           ;; represents unreadable symbols as uninterned.
-                           (not (symbol-interned? s)))))
+                           (equal? (symbol-interned? s) #f)
+                           (equal? (symbol-unreadable? s) #t)
+                           (equal? (symbol-unreadable? 'apple) #f))))
 
               (list "symbol<?"
                     (and (equal? (symbol<? 'a 'b)    #t)
@@ -4996,11 +4997,20 @@
                         (procedure-arity (plain 1))
                         #f)))
 
+              (list "procedure-struct-type?/plain"
+                    (let ()
+                      (struct plain (x))
+                      (and (equal? (procedure-struct-type? struct:plain) #f)
+                           (with-handlers ([exn:fail:contract? (lambda (_exn) #t)])
+                             (procedure-struct-type? 42)
+                             #f))))
+
               (list "prop:procedure/apply-field"
                     (let ()
                       (struct callable (f) #:property prop:procedure 0)
                       (define wrapped (callable (lambda (x y) (+ x y))))
                       (and (procedure? wrapped)
+                           (equal? (procedure-struct-type? struct:callable) #t)
                            (equal? (wrapped 2 3) 5))))
               
               (list "prop:procedure/apply-proc"
@@ -5013,6 +5023,7 @@
                           (counter-n self)))
                       (define c (counter 10))
                       (and (equal? (c 5) 15)
+                           (equal? (procedure-struct-type? struct:counter) #t)
                            (equal? (c -2) 13))))
 
               (list "prop:procedure/proc-spec-field"
@@ -5020,6 +5031,7 @@
                                   (make-struct-type 'p #f 1 0 #f null #f 0 '(0))])
                       (define p (make-p (lambda (x) (+ x 1))))
                       (and (procedure? p)
+                           (equal? (procedure-struct-type? struct:p) #t)
                            (equal? (p 41) 42))))
 
               (list "prop:procedure/proc-spec-procedure"
@@ -5031,6 +5043,7 @@
                            (+ (p-ref self 0) delta))))
                       (define p (make-p 10))
                       (and (procedure? p)
+                           (equal? (procedure-struct-type? struct:p) #t)
                            (equal? (p 5) 15))))
               
               ))
@@ -5876,6 +5889,26 @@
                              (make-log-receiver 'not-a-logger 'info)
                              #f))))
 
+              (list "security-guard/basic"
+                    (let* ([old (current-security-guard)]
+                           [g   (make-security-guard
+                                 old
+                                 (lambda (_who _path _modes) (void))
+                                 (lambda (_who _host _port _mode) (void)))])
+                      (and (equal? (security-guard? old) #t)
+                           (equal? (security-guard? g) #t)
+                           (equal? (security-guard? 'not-a-guard) #f)
+                           (equal? (current-security-guard g) (void))
+                           (eq? (current-security-guard) g)
+                           (equal? (current-security-guard old) (void))
+                           (eq? (current-security-guard) old)
+                           (with-handlers ([exn:fail:contract? (lambda (_ex) #t)])
+                             (make-security-guard 'not-a-guard void void)
+                             #f)
+                           (with-handlers ([exn:fail:contract? (lambda (_ex) #t)])
+                             (current-security-guard 'not-a-guard)
+                             #f))))
+
               (list "custodian/basic"
                     (let ([c (make-custodian)])
                       (and (equal? (custodian? c) #t)
@@ -5970,9 +6003,17 @@
                     (let ([s (make-semaphore)])
                       (and (equal? (semaphore? s) #t)
                            (equal? (sync/timeout 0 s) #f)
+                           (equal? (semaphore-try-wait? s) #f)
+                           (equal? (semaphore-post s) (void))
+                           (equal? (semaphore-try-wait? s) #t)
+                           (equal? (semaphore-try-wait? s) #f)
                            (equal? (semaphore-post s) (void))
                            (equal? (sync/timeout 0 s) s)
                            (equal? (sync/timeout 0 s) #f))))
+
+              (list "subprocess?/browser-stub"
+                    (and (equal? (subprocess? 42) #f)
+                         (equal? (subprocess? (current-thread)) #f)))
 
               (list "call-with-semaphore/basic"
                     (let ([s (make-semaphore 1)]

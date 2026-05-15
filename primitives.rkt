@@ -278,6 +278,9 @@
          call-with-escape-continuation
          current-logger
          logger?
+         current-security-guard
+         security-guard?
+         make-security-guard
          log-receiver?
          make-logger
          make-log-receiver
@@ -795,7 +798,7 @@
  string->uninterned-symbol
  string->unreadable-symbol
  symbol-interned?
- ; symbol-unreadable?
+ symbol-unreadable?
  gensym
 
  ;; 4.7.1
@@ -1073,6 +1076,7 @@
  procedure? apply compose compose1 procedure-rename procedure->external
  procedure-arity procedure-arity-mask procedure-arity-includes?
  procedure-arity?
+ procedure-struct-type?
  procedure-reduce-arity procedure-reduce-arity-mask
  arity-at-least make-arity-at-least
  arity-at-least?
@@ -1151,6 +1155,8 @@ current-parameterization    ; poor-man dynamic parameterization overlay
 
  ;; 11 Threads and Synchronization
  current-thread
+ subprocess? ; browser runtime has no OS subprocess values
+ current-security-guard security-guard? make-security-guard
  current-custodian custodian? make-custodian
  custodian-shutdown-all custodian-shut-down?
  make-custodian-box custodian-box? custodian-box-value
@@ -1167,7 +1173,7 @@ current-parameterization    ; poor-man dynamic parameterization overlay
  make-channel channel? channel-get channel-try-get
  channel-put channel-put-evt channel-put-evt?
  evt? handle-evt handle-evt?
- make-semaphore semaphore? semaphore-post
+ make-semaphore semaphore? semaphore-post semaphore-try-wait?
  call-with-semaphore
  semaphore-peek-evt semaphore-peek-evt?
  always-evt never-evt sync sync/timeout

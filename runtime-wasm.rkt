@@ -2009,6 +2009,7 @@
     (add-runtime-string-constant 'hash-less-windows-path-colon         "#<windows-path:")
     (add-runtime-string-constant 'hash-less-struct-type-property-colon "#<struct-type-property:")
 
+    (add-runtime-string-constant 'procedure-struct-type?    "procedure-struct-type?")
     (add-runtime-string-constant 'string?                    "string?")
     (add-runtime-string-constant 'string-or-symbol?          "(or/c string? symbol?)")
     (add-runtime-string-constant 'symbol?                    "symbol?")
@@ -2030,6 +2031,7 @@
     (add-runtime-string-constant 'parameterization?          "parameterization?")
     (add-runtime-string-constant 'pseudo-random-generator?   "pseudo-random-generator?")
     (add-runtime-string-constant 'impersonator-property?     "impersonator-property?")
+    (add-runtime-string-constant 'security-guard?            "security-guard?")
     (add-runtime-string-constant 'custodian?                 "custodian?")
     (add-runtime-string-constant 'custodian-box?             "custodian-box?")
     (add-runtime-string-constant 'mpair-or-null              "(or/c mpair? null?)")
@@ -2089,6 +2091,7 @@
     (add-runtime-symbol-constant 'call-with-escape-continuation)
     (add-runtime-symbol-constant 'current-logger)
     (add-runtime-symbol-constant 'logger?)
+    (add-runtime-symbol-constant 'procedure-struct-type?)
     (add-runtime-symbol-constant 'log-receiver?)
     (add-runtime-symbol-constant 'make-log-receiver)
     (add-runtime-symbol-constant 'make-logger)
@@ -2127,6 +2130,9 @@
     (add-runtime-symbol-constant 'continuation-prompt-available?)
     (add-runtime-symbol-constant 'continuation-prompt-tag?)
     (add-runtime-symbol-constant 'continuation?)
+    (add-runtime-symbol-constant 'current-security-guard)
+    (add-runtime-symbol-constant 'security-guard?)
+    (add-runtime-symbol-constant 'make-security-guard)
     (add-runtime-symbol-constant 'current-custodian)
     (add-runtime-symbol-constant 'custodian?)
     (add-runtime-symbol-constant 'make-custodian)
@@ -2595,6 +2601,17 @@
                                 (struct
                                   (field $hash      (mut i32))
                                   (field $shutdown? (mut i32)))))
+          ;; Minimal security guards. They preserve the value graph and
+          ;; current-security-guard parameter protocol used by racket/base
+          ;; modules. The access-checking hooks are not consulted yet; they
+          ;; belong with the VFS/network layer.
+          (type $SecurityGuard (sub $Heap
+                                    (struct
+                                      (field $hash          (mut i32))
+                                      (field $parent        (ref eq))
+                                      (field $file-guard    (ref $Procedure))
+                                      (field $network-guard (ref $Procedure))
+                                      (field $link-guard    (ref $Procedure)))))
           (type $CustodianBox (sub $Heap
                                    (struct
                                      (field $hash (mut i32))
@@ -3031,6 +3048,7 @@
                              (struct
                                (field $hash          (mut i32))          ;; cached hash
                                (field $name          (ref $String))      ;; symbol name (string)
+                               (field $unreadable?   i32)                ;; non-zero for unreadable symbols
                                (field $property-list (mut (ref eq))))))  ;; user-defined properties
           (type $Ephemeron (sub $Heap
                                 (struct
@@ -22560,6 +22578,7 @@
          ;;            (struct
          ;;              (field $hash          (mut i32))         ;; cached hash                 
          ;;              (field $name          (ref $String))     ;; symbol name (string)        
+         ;;              (field $unreadable?   i32)                ;; unreadable symbol marker
          ;;              (field $property-list (mut (ref eq))))))  ;; user-defined properties    
 
 
@@ -22668,6 +22687,7 @@
                (local.set $sym (struct.new $Symbol
                                            (i32.const 0)        ;; hash = 0 (not computed)
                                            (local.get $str)     ;; name
+                                           (i32.const 0)        ;; interned symbols are readable
                                            (global.get $null))) ;; empty property list
                ;; Insert it into the symbol table
                (call $symbol-table-insert
@@ -22697,16 +22717,23 @@
                (struct.new $Symbol
                            (i32.const 0)            ;; hash = 0 (deferred)
                            (local.get $str)         ;; name
+                           (i32.const 0)            ;; readable, but not interned
                            (global.get $null)))     ;; empty property list
 
          ;; string->unreadable-symbol : string? -> symbol?
-         ;;   Temporary unreadable-symbol approximation. The runtime does not
-         ;;   distinguish unreadable symbols yet, but expander-generated names
-         ;;   need a non-interned symbol that is not equal to a plain symbol.
+         ;;   Create a non-interned symbol marked as unreadable.
          (func $string->unreadable-symbol (type $Prim1)
                (param $v (ref eq)) ;; source string
                (result   (ref eq))
-               (call $string->uninterned-symbol (local.get $v)))
+               (if (ref.test (ref $String) (local.get $v))
+                   (then (return
+                          (struct.new $Symbol
+                                      (i32.const 0)
+                                      (ref.cast (ref $String) (local.get $v))
+                                      (i32.const 1)
+                                      (global.get $null)))))
+               (call $raise-string->uninterned-symbol:bad-argument (local.get $v))
+               (unreachable))
 
          (func $symbol-interned? (type $Prim1)
                (param $sym (ref eq))
@@ -22723,6 +22750,18 @@
                                        (ref.as_non_null (global.get $the-symbol-table)) (local.get $str)))
                ;; If found symbol == input symbol => interned
                (if (result (ref eq)) (ref.eq (local.get $found) (local.get $sym))
+                   (then (global.get $true))
+                   (else (global.get $false))))
+
+         (func $symbol-unreadable? (type $Prim1)
+               (param $sym (ref eq))
+               (result     (ref eq))
+
+               (if (i32.eqz (ref.test (ref $Symbol) (local.get $sym)))
+                   (then (call $raise-check-symbol (local.get $sym))))
+               (if (result (ref eq))
+                   (struct.get $Symbol $unreadable?
+                               (ref.cast (ref $Symbol) (local.get $sym)))
                    (then (global.get $true))
                    (else (global.get $false))))
 
@@ -22834,6 +22873,7 @@
                (struct.new $Symbol
                            (i32.const 0)        ;; hash = 0
                            (local.get $name)    ;; name
+                           (i32.const 0)        ;; gensyms are uninterned, not unreadable
                            (global.get $null))) ;; empty property list
          
          ;;;
@@ -36592,6 +36632,31 @@
                            (i32.add (struct.get $Semaphore $count (local.get $sema))
                                     (i32.const 1)))
                (global.get $void))
+
+         ;; semaphore-try-wait? : semaphore? -> boolean?
+         ;;   Non-blocking wait: decrement and return #t when a count is
+         ;;   available; otherwise return #f without changing the semaphore.
+         (func $semaphore-try-wait? (type $Prim1)
+               (param $sema-raw (ref eq)) ;; semaphore?
+               (result          (ref eq))
+
+               (local $sema (ref $Semaphore))
+               (if (i32.eqz (ref.test (ref $Semaphore) (local.get $sema-raw)))
+                   (then
+                    (call $raise-argument-error1
+                          (global.get $symbol:semaphore-try-wait?)
+                          (global.get $string:semaphore?)
+                          (local.get $sema-raw))
+                    (unreachable)))
+               (local.set $sema (ref.cast (ref $Semaphore) (local.get $sema-raw)))
+               (if (i32.le_s (struct.get $Semaphore $count (local.get $sema))
+                             (i32.const 0))
+                   (then (return (global.get $false))))
+               (struct.set $Semaphore $count
+                           (local.get $sema)
+                           (i32.sub (struct.get $Semaphore $count (local.get $sema))
+                                    (i32.const 1)))
+               (global.get $true))
 
          ;; call-with-semaphore : semaphore? procedure? [try-fail-thunk] arg ... -> any/c
          ;;   Single-threaded approximation of Racket's semaphore protocol:
@@ -53697,6 +53762,35 @@
                                 (local.get $sentinel)))
                (i32.eqz (ref.eq (local.get $prop-val) (local.get $sentinel))))
 
+         ;; procedure-struct-type? : struct-type? -> boolean?
+         ;;   Check whether instances of a structure type act as procedures.
+         (func $procedure-struct-type? (type $Prim1)
+               (param $type-raw (ref eq)) ;; struct-type?
+               (result          (ref eq))
+
+               (local $type     (ref $StructType))
+               (local $sentinel (ref eq))
+               (local $prop-val (ref eq))
+
+               (if (i32.eqz (ref.test (ref $StructType) (local.get $type-raw)))
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:procedure-struct-type?)
+                               (global.get $string:struct-type?)
+                               (local.get $type-raw))
+                         (unreachable)))
+               (local.set $type (ref.cast (ref $StructType) (local.get $type-raw)))
+               (local.set $sentinel (call $cons (global.get $false) (global.get $false)))
+               (local.set $prop-val
+                          (call $struct-type-property-lookup
+                                (local.get $type)
+                                (ref.cast (ref $StructTypeProperty)
+                                          (global.get $prop:procedure))
+                                (local.get $sentinel)))
+               (if (result (ref eq))
+                   (ref.eq (local.get $prop-val) (local.get $sentinel))
+                   (then (global.get $false))
+                   (else (global.get $true))))
+
          ;; procedure? : any/c -> boolean?
          ;;   Recognize procedures semantically; non-applicable structs are not procedures.
          (func $procedure? (type $Prim1)
@@ -55150,6 +55244,8 @@
                (if (ref.eq (local.get $v) (global.get $prim:current-error-port))
                    (then (return (global.get $true))))
                (if (ref.eq (local.get $v) (global.get $prim:current-logger))
+                   (then (return (global.get $true))))
+               (if (ref.eq (local.get $v) (global.get $prim:current-security-guard))
                    (then (return (global.get $true))))
                (if (ref.eq (local.get $v) (global.get $prim:current-custodian))
                    (then (return (global.get $true))))
@@ -56963,6 +57059,117 @@
          ;; 14.5 Impersonators and chaperones
          ;; 14.6 Security Guards
          ;; 14.7 Custodians
+
+         ;; subprocess? : any/c -> boolean?
+         ;;   Browsers cannot expose OS subprocess handles. Until WebRacket has
+         ;;   an explicit host-process abstraction, no value is a subprocess.
+         (func $subprocess? (type $Prim1)
+               (param $v (ref eq)) ;; any/c
+               (result   (ref eq))
+               (global.get $false))
+
+         ;; security-guard? : any/c -> boolean?
+         ;;   Predicate for WebRacket's minimal security guard records.
+         (func $security-guard? (type $Prim1)
+               ,@(make-predicate-body '$SecurityGuard))
+
+         ;; $security-guard-procedure/arity : symbol? any/c exact-nonnegative-integer? -> procedure?
+         ;;   Validate one access-check hook. WebRacket stores hooks for future
+         ;;   VFS/network checks, but does not consult them yet.
+         (func $security-guard-procedure/arity
+               (param $who (ref eq)) ;; symbol?
+               (param $proc-raw (ref eq)) ;; procedure?
+               (param $argc i32) ;; required argument count
+               (result (ref $Procedure))
+               (local $proc (ref $Procedure))
+
+               (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc-raw)))
+                   (then (call $raise-argument-error1
+                               (local.get $who)
+                               (global.get $string:procedure?)
+                               (local.get $proc-raw))
+                         (unreachable)))
+               (local.set $proc (ref.cast (ref $Procedure) (local.get $proc-raw)))
+               (if (i32.eqz (call $procedure-arity-includes?/checked/i32
+                                  (local.get $proc)
+                                  (local.get $argc)))
+                   (then (call $raise-argument-error1
+                               (local.get $who)
+                               (global.get $string:procedure?)
+                               (local.get $proc-raw))
+                         (unreachable)))
+               (local.get $proc))
+
+         ;; current-security-guard : [security-guard?] -> security-guard? or void?
+         ;;   Parameter-like current security guard. Access checks are not wired
+         ;;   into the browser VFS/network layer yet, but the value protocol is
+         ;;   enough for racket/base provider initialization.
+         (func $current-security-guard (type $Prim01)
+               (param $guard-raw (ref eq)) ;; optional security-guard?
+               (result           (ref eq))
+               (if (ref.eq (local.get $guard-raw) (global.get $missing))
+                   (then (return (call $parameter-value-or-global
+                                       (global.get $prim:current-security-guard)
+                                       (global.get $current-security-guard-value)))))
+               (if (i32.eqz (ref.test (ref $SecurityGuard) (local.get $guard-raw)))
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:current-security-guard)
+                               (global.get $string:security-guard?)
+                               (local.get $guard-raw))
+                         (unreachable)))
+               (if (i32.eqz (ref.eq (global.get $current-parameterization-value)
+                                     (global.get $false)))
+                   (then (return (call $extend-current-parameterization!
+                                       (global.get $prim:current-security-guard)
+                                       (local.get $guard-raw)))))
+               (global.set $current-security-guard-value (local.get $guard-raw))
+               (global.get $void))
+
+         ;; make-security-guard : security-guard? procedure? procedure? [procedure? or #f] -> security-guard?
+         ;;   Create a minimal security guard. The file guard must accept 3
+         ;;   arguments, the network guard must accept 4, and the optional
+         ;;   link guard defaults to void and must accept 3 when provided.
+         (func $make-security-guard (type $Prim34)
+               (param $parent-raw (ref eq)) ;; security-guard?
+               (param $file-raw   (ref eq)) ;; procedure accepting 3 args
+               (param $network-raw (ref eq)) ;; procedure accepting 4 args
+               (param $link-raw   (ref eq)) ;; optional procedure accepting 3 args or #f
+               (result            (ref eq))
+               (local $file    (ref $Procedure))
+               (local $network (ref $Procedure))
+               (local $link    (ref $Procedure))
+
+               (if (i32.eqz (ref.test (ref $SecurityGuard) (local.get $parent-raw)))
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:make-security-guard)
+                               (global.get $string:security-guard?)
+                               (local.get $parent-raw))
+                         (unreachable)))
+               (local.set $file
+                          (call $security-guard-procedure/arity
+                                (global.get $symbol:make-security-guard)
+                                (local.get $file-raw)
+                                (i32.const 3)))
+               (local.set $network
+                          (call $security-guard-procedure/arity
+                                (global.get $symbol:make-security-guard)
+                                (local.get $network-raw)
+                                (i32.const 4)))
+               (if (ref.eq (local.get $link-raw) (global.get $missing))
+                   (then (local.set $link-raw (global.get $prim:void))))
+               (if (ref.eq (local.get $link-raw) (global.get $false))
+                   (then (local.set $link-raw (global.get $prim:void))))
+               (local.set $link
+                          (call $security-guard-procedure/arity
+                                (global.get $symbol:make-security-guard)
+                                (local.get $link-raw)
+                                (i32.const 3)))
+               (struct.new $SecurityGuard
+                           (i32.const 0)
+                           (local.get $parent-raw)
+                           (local.get $file)
+                           (local.get $network)
+                           (local.get $link)))
 
          ;; custodian? : any/c -> boolean?
          ;;   Predicate for WebRacket's minimal custodian records.
@@ -69599,6 +69806,7 @@
                (global $current-print-value       (mut (ref eq)) (global.get $false))
                (global $current-read-interaction-value (mut (ref eq)) (global.get $false))
                (global $current-logger-value      (mut (ref eq)) (global.get $false))
+               (global $current-security-guard-value (mut (ref eq)) (global.get $false))
                (global $current-custodian-value   (mut (ref eq)) (global.get $false))
                (global $default-port-read-handler-value (mut (ref eq)) (global.get $false))
                (global $default-port-write-handler-value (mut (ref eq)) (global.get $false))
@@ -70017,6 +70225,13 @@
                     ;; Initialize variables holding primitives
                     ,@(initialize-primitives-as-globals)
                     ,@(initialize-ffi-primitives-as-globals)
+                    (global.set $current-security-guard-value
+                                (struct.new $SecurityGuard
+                                            (i32.const 0)
+                                            (global.get $false)
+                                            (ref.cast (ref $Procedure) (global.get $prim:void))
+                                            (ref.cast (ref $Procedure) (global.get $prim:void))
+                                            (ref.cast (ref $Procedure) (global.get $prim:void))))
                     (global.set $error-value->string-handler-value
                                 (struct.new $PrimitiveProcedure
                                             (i32.const 0)
