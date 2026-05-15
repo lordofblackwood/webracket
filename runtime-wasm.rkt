@@ -38360,6 +38360,127 @@
                (result    i32)
                (struct.get $StencilVector $hash (local.get $sv)))
 
+         ;; immutable-hamt-packed-bnode? : stencil-vector? -> boolean?
+         ;;   Recognize the future physical packed HAMT bnode marker.
+         (func $immutable-hamt-packed-bnode?
+               (param $sv (ref $StencilVector))
+               (result    i32)
+               (i32.eq (struct.get $StencilVector $system? (local.get $sv))
+                       (i32.const 2)))
+
+         ;; immutable-hamt-packed-index : packed-metadata bit -> exact-nonnegative-integer?
+         ;;   Dense slot index for a physical packed bnode bit; slot 0 is the static marker.
+         (func $immutable-hamt-packed-index
+               (param $metadata i32)
+               (param $bit      i32)
+               (result          i32)
+               (i32.popcnt
+                (i32.and (local.get $metadata)
+                         (i32.sub (local.get $bit) (i32.const 1)))))
+
+         ;; immutable-hamt-packed-slot : stencil-vector? bit -> any/c
+         ;;   Fetch the physical packed bnode slot for bit.
+         (func $immutable-hamt-packed-slot
+               (param $sv  (ref $StencilVector))
+               (param $bit i32)
+               (result     (ref eq))
+               (array.get $Array
+                          (struct.get $StencilVector $slots (local.get $sv))
+                          (call $immutable-hamt-packed-index
+                                (call $immutable-hamt-bnode-metadata (local.get $sv))
+                                (local.get $bit))))
+
+         ;; immutable-hamt-packed-child-slot : stencil-vector? i32 i32 -> any/c
+         ;;   Fetch a physical child-region slot for hash/shift.
+         (func $immutable-hamt-packed-child-slot
+               (param $sv    (ref $StencilVector))
+               (param $hash  i32)
+               (param $shift i32)
+               (result       (ref eq))
+               (call $immutable-hamt-packed-slot
+                     (local.get $sv)
+                     (call $immutable-hamt-packed-child-bit
+                           (local.get $hash)
+                           (local.get $shift))))
+
+         ;; immutable-hamt-packed-key-slot : stencil-vector? i32 i32 -> any/c
+         ;;   Fetch a physical inline-key slot for hash/shift.
+         (func $immutable-hamt-packed-key-slot
+               (param $sv    (ref $StencilVector))
+               (param $hash  i32)
+               (param $shift i32)
+               (result       (ref eq))
+               (call $immutable-hamt-packed-slot
+                     (local.get $sv)
+                     (call $immutable-hamt-packed-key-bit
+                           (local.get $hash)
+                           (local.get $shift))))
+
+         ;; immutable-hamt-packed-value-slot : stencil-vector? i32 i32 -> any/c
+         ;;   Fetch a physical inline-value slot for hash/shift.
+         (func $immutable-hamt-packed-value-slot
+               (param $sv    (ref $StencilVector))
+               (param $hash  i32)
+               (param $shift i32)
+               (result       (ref eq))
+               (call $immutable-hamt-packed-slot
+                     (local.get $sv)
+                     (call $immutable-hamt-packed-value-bit
+                           (local.get $hash)
+                           (local.get $shift))))
+
+         ;; immutable-hamt-empty-packed-node : -> stencil-vector?
+         ;;   Construct an empty physical packed bnode scaffold for the HAMT migration.
+         (func $immutable-hamt-empty-packed-node
+               (result (ref $StencilVector))
+               (local $sv (ref $StencilVector))
+               (local.set $sv
+                          (call $$make-stencil-vector/checked
+                                (i32.const 2)
+                                (i32.const 1)
+                                (array.new_fixed $Array 1 (global.get $missing))))
+               (struct.set $StencilVector $hash (local.get $sv) (i32.const 1))
+               (local.get $sv))
+
+         ;; immutable-hamt-store-packed-bnode-metadata : stencil-vector? -> stencil-vector?
+         ;;   Cache the physical packed bnode mask as metadata.
+         (func $immutable-hamt-store-packed-bnode-metadata
+               (param $sv (ref $StencilVector))
+               (result    (ref $StencilVector))
+               (struct.set $StencilVector $hash
+                           (local.get $sv)
+                           (struct.get $StencilVector $mask (local.get $sv)))
+               (local.get $sv))
+
+         ;; immutable-hamt-key-hash/kind : kind key -> i32
+         ;;   Compute the key hash for the immutable hash table's key mode.
+         (func $immutable-hamt-key-hash/kind
+               (param $kind i32)
+               (param $key  (ref eq))
+               (result      i32)
+               (if (i32.eq (local.get $kind) (i32.const 0))
+                   (then (return_call $eq-hash/i32 (local.get $key))))
+               (if (i32.eq (local.get $kind) (i32.const 1))
+                   (then (return_call $eqv-hash/i32 (local.get $key))))
+               (if (i32.eq (local.get $kind) (i32.const 2))
+                   (then (return_call $equal-hash/i32 (local.get $key))))
+               (return_call $equal-always-hash/i32 (local.get $key)))
+
+         ;; immutable-hamt-entry-for-key/kind : kind key value -> immutable-hash-entry?
+         ;;   Build an entry when a physical key/value inline slot is promoted.
+         (func $immutable-hamt-entry-for-key/kind
+               (param $kind  i32)
+               (param $key   (ref eq))
+               (param $value (ref eq))
+               (result       (ref $ImmutableHashEntry))
+               (struct.new $ImmutableHashEntry
+                           (i32.const 0)
+                           (call $immutable-hamt-key-hash/kind
+                                 (local.get $kind)
+                                 (local.get $key))
+                           (local.get $key)
+                           (local.get $value)))
+
          ;; immutable-hamt-packed-metadata-present?/i32 : i32 i32 i32 -> i32
          ;;   Check a packed child/key region for the active lookup group.
          (func $immutable-hamt-packed-metadata-present?/i32
@@ -38720,6 +38841,487 @@
                             (local.get $bucket)
                             (local.get $key)))
 
+         ;; immutable-hamt-key-matches?/kind : kind stored-key lookup-key -> boolean?
+         ;;   Compare keys using the immutable hash table's key mode.
+         (func $immutable-hamt-key-matches?/kind
+               (param $kind       i32)
+               (param $stored-key (ref eq))
+               (param $lookup-key (ref eq))
+               (result            i32)
+               (if (i32.eq (local.get $kind) (i32.const 0))
+                   (then (return (ref.eq (local.get $stored-key)
+                                         (local.get $lookup-key)))))
+               (if (i32.eq (local.get $kind) (i32.const 1))
+                   (then
+                    (return (ref.eq (call $eqv?
+                                          (local.get $stored-key)
+                                          (local.get $lookup-key))
+                                    (global.get $true)))))
+               (if (i32.eq (local.get $kind) (i32.const 2))
+                   (then
+                    (return (ref.eq (call $equal?
+                                          (local.get $stored-key)
+                                          (local.get $lookup-key))
+                                    (global.get $true)))))
+               (return (ref.eq (call $equal-always?
+                                     (local.get $stored-key)
+                                     (local.get $lookup-key))
+                               (global.get $true))))
+
+         ;; immutable-hamt-packed-node-ref/kind : kind bnode key hash shift fail -> any/c
+         ;;   Lookup through a physical packed bnode.
+         (func $immutable-hamt-packed-node-ref/kind
+               (param $kind  i32)
+               (param $sv    (ref $StencilVector))
+               (param $key   (ref eq))
+               (param $hash  i32)
+               (param $shift i32)
+               (param $fail  (ref eq))
+               (result       (ref eq))
+               (local $metadata  i32)
+               (local $child-bit i32)
+               (local $key-bit   i32)
+               (local $slot      (ref eq))
+               (local.set $metadata (call $immutable-hamt-bnode-metadata (local.get $sv)))
+               (local.set $child-bit
+                          (call $immutable-hamt-packed-child-bit
+                                (local.get $hash)
+                                (local.get $shift)))
+               (if (i32.ne (i32.and (local.get $metadata) (local.get $child-bit))
+                           (i32.const 0))
+                   (then
+                    (return_call $immutable-hamt-node-ref/kind
+                                 (local.get $kind)
+                                 (call $immutable-hamt-packed-child-slot
+                                       (local.get $sv)
+                                       (local.get $hash)
+                                       (local.get $shift))
+                                 (local.get $key)
+                                 (local.get $hash)
+                                 (i32.add (local.get $shift) (i32.const 3))
+                                 (local.get $fail))))
+               (local.set $key-bit
+                          (call $immutable-hamt-packed-key-bit
+                                (local.get $hash)
+                                (local.get $shift)))
+               (if (i32.eqz (i32.and (local.get $metadata) (local.get $key-bit)))
+                   (then (return_call $immutable-hamt-bucket-ref/kind
+                                      (local.get $kind)
+                                      (global.get $null)
+                                      (local.get $key)
+                                      (local.get $fail))))
+               (local.set $slot
+                          (call $immutable-hamt-packed-key-slot
+                                (local.get $sv)
+                                (local.get $hash)
+                                (local.get $shift)))
+               (if (call $immutable-hamt-key-matches?/kind
+                         (local.get $kind)
+                         (local.get $slot)
+                         (local.get $key))
+                   (then
+                    (return_call $immutable-hamt-packed-value-slot
+                                 (local.get $sv)
+                                 (local.get $hash)
+                                 (local.get $shift))))
+               (return_call $immutable-hamt-bucket-ref/kind
+                            (local.get $kind)
+                            (global.get $null)
+                            (local.get $key)
+                            (local.get $fail)))
+
+         ;; immutable-hamt-packed-node-ref-key/kind : kind bnode key hash shift fail -> any/c
+         ;;   Find the stored key through a physical packed bnode.
+         (func $immutable-hamt-packed-node-ref-key/kind
+               (param $kind  i32)
+               (param $sv    (ref $StencilVector))
+               (param $key   (ref eq))
+               (param $hash  i32)
+               (param $shift i32)
+               (param $fail  (ref eq))
+               (result       (ref eq))
+               (local $metadata  i32)
+               (local $child-bit i32)
+               (local $key-bit   i32)
+               (local $slot      (ref eq))
+               (local.set $metadata (call $immutable-hamt-bnode-metadata (local.get $sv)))
+               (local.set $child-bit
+                          (call $immutable-hamt-packed-child-bit
+                                (local.get $hash)
+                                (local.get $shift)))
+               (if (i32.ne (i32.and (local.get $metadata) (local.get $child-bit))
+                           (i32.const 0))
+                   (then
+                    (return_call $immutable-hamt-node-ref-key/kind
+                                 (local.get $kind)
+                                 (call $immutable-hamt-packed-child-slot
+                                       (local.get $sv)
+                                       (local.get $hash)
+                                       (local.get $shift))
+                                 (local.get $key)
+                                 (local.get $hash)
+                                 (i32.add (local.get $shift) (i32.const 3))
+                                 (local.get $fail))))
+               (local.set $key-bit
+                          (call $immutable-hamt-packed-key-bit
+                                (local.get $hash)
+                                (local.get $shift)))
+               (if (i32.eqz (i32.and (local.get $metadata) (local.get $key-bit)))
+                   (then (return_call $immutable-hamt-bucket-ref-key/kind
+                                      (local.get $kind)
+                                      (global.get $null)
+                                      (local.get $key)
+                                      (local.get $fail))))
+               (local.set $slot
+                          (call $immutable-hamt-packed-key-slot
+                                (local.get $sv)
+                                (local.get $hash)
+                                (local.get $shift)))
+               (if (call $immutable-hamt-key-matches?/kind
+                         (local.get $kind)
+                         (local.get $slot)
+                         (local.get $key))
+                   (then (return (local.get $slot))))
+               (return_call $immutable-hamt-bucket-ref-key/kind
+                            (local.get $kind)
+                            (global.get $null)
+                            (local.get $key)
+                            (local.get $fail)))
+
+         ;; immutable-hamt-packed-node-has-key?/kind : kind bnode key hash shift -> boolean?
+         ;;   Check a physical packed bnode for a key.
+         (func $immutable-hamt-packed-node-has-key?/kind
+               (param $kind  i32)
+               (param $sv    (ref $StencilVector))
+               (param $key   (ref eq))
+               (param $hash  i32)
+               (param $shift i32)
+               (result       i32)
+               (local $metadata  i32)
+               (local $child-bit i32)
+               (local $key-bit   i32)
+               (local.set $metadata (call $immutable-hamt-bnode-metadata (local.get $sv)))
+               (local.set $child-bit
+                          (call $immutable-hamt-packed-child-bit
+                                (local.get $hash)
+                                (local.get $shift)))
+               (if (i32.ne (i32.and (local.get $metadata) (local.get $child-bit))
+                           (i32.const 0))
+                   (then
+                    (return_call $immutable-hamt-node-has-key?/kind
+                                 (local.get $kind)
+                                 (call $immutable-hamt-packed-child-slot
+                                       (local.get $sv)
+                                       (local.get $hash)
+                                       (local.get $shift))
+                                 (local.get $key)
+                                 (local.get $hash)
+                                 (i32.add (local.get $shift) (i32.const 3)))))
+               (local.set $key-bit
+                          (call $immutable-hamt-packed-key-bit
+                                (local.get $hash)
+                                (local.get $shift)))
+               (if (i32.eqz (i32.and (local.get $metadata) (local.get $key-bit)))
+                   (then (return (i32.const 0))))
+               (return_call $immutable-hamt-key-matches?/kind
+                            (local.get $kind)
+                            (call $immutable-hamt-packed-key-slot
+                                  (local.get $sv)
+                                  (local.get $hash)
+                                  (local.get $shift))
+                            (local.get $key)))
+
+         ;; immutable-hamt-packed-node-set/kind : kind bnode entry key hash shift -> bnode
+         ;;   Functional update for a physical packed bnode.
+         (func $immutable-hamt-packed-node-set/kind
+               (param $kind  i32)
+               (param $sv    (ref $StencilVector))
+               (param $entry (ref $ImmutableHashEntry))
+               (param $key   (ref eq))
+               (param $hash  i32)
+               (param $shift i32)
+               (result       (ref eq))
+               (local $metadata     i32)
+               (local $child-bit    i32)
+               (local $key-bit      i32)
+               (local $value-bit    i32)
+               (local $stored-key   (ref eq))
+               (local $stored-value (ref eq))
+               (local $old-entry    (ref $ImmutableHashEntry))
+               (local $child        (ref eq))
+               (local.set $stored-key (global.get $null))
+               (local.set $stored-value (global.get $null))
+               (local.set $old-entry (local.get $entry))
+               (local.set $child (global.get $null))
+               (local.set $metadata (call $immutable-hamt-bnode-metadata (local.get $sv)))
+               (local.set $child-bit
+                          (call $immutable-hamt-packed-child-bit
+                                (local.get $hash)
+                                (local.get $shift)))
+               (local.set $key-bit
+                          (call $immutable-hamt-packed-key-bit
+                                (local.get $hash)
+                                (local.get $shift)))
+               (local.set $value-bit
+                          (call $immutable-hamt-packed-value-bit
+                                (local.get $hash)
+                                (local.get $shift)))
+               (if (i32.ne (i32.and (local.get $metadata) (local.get $child-bit))
+                           (i32.const 0))
+                   (then
+                    (local.set $child
+                               (call $immutable-hamt-node-set/kind
+                                     (local.get $kind)
+                                     (call $immutable-hamt-packed-child-slot
+                                           (local.get $sv)
+                                           (local.get $hash)
+                                           (local.get $shift))
+                                     (local.get $entry)
+                                     (local.get $key)
+                                     (local.get $hash)
+                                     (i32.add (local.get $shift) (i32.const 3))))
+                    (return_call $immutable-hamt-store-packed-bnode-metadata
+                                 (ref.cast
+                                  (ref $StencilVector)
+                                  (call $$stencil-vector-update/core
+                                        (local.get $sv)
+                                        (local.get $child-bit)
+                                        (local.get $child-bit)
+                                        (call $cons (local.get $child) (global.get $null))
+                                        (i32.const 2))))))
+               (if (i32.ne (i32.and (local.get $metadata) (local.get $key-bit))
+                           (i32.const 0))
+                   (then
+                    (local.set $stored-key
+                               (call $immutable-hamt-packed-key-slot
+                                     (local.get $sv)
+                                     (local.get $hash)
+                                     (local.get $shift)))
+                    (local.set $stored-value
+                               (call $immutable-hamt-packed-value-slot
+                                     (local.get $sv)
+                                     (local.get $hash)
+                                     (local.get $shift)))
+                    (if (call $immutable-hamt-key-matches?/kind
+                              (local.get $kind)
+                              (local.get $stored-key)
+                              (local.get $key))
+                        (then
+                         (return_call $immutable-hamt-store-packed-bnode-metadata
+                                      (ref.cast
+                                       (ref $StencilVector)
+                                       (call $$stencil-vector-update/core
+                                             (local.get $sv)
+                                             (i32.or (local.get $key-bit) (local.get $value-bit))
+                                             (i32.or (local.get $key-bit) (local.get $value-bit))
+                                             (call $cons
+                                                   (struct.get $ImmutableHashEntry $key (local.get $entry))
+                                                   (call $cons
+                                                         (struct.get $ImmutableHashEntry $value (local.get $entry))
+                                                         (global.get $null)))
+                                             (i32.const 2))))))
+                    (local.set $old-entry
+                               (call $immutable-hamt-entry-for-key/kind
+                                     (local.get $kind)
+                                     (local.get $stored-key)
+                                     (local.get $stored-value)))
+                    (if (i32.lt_u (local.get $shift) (i32.const 30))
+                        (then
+                         (local.set $child (call $immutable-hamt-empty-packed-node))
+                         (local.set $child
+                                    (call $immutable-hamt-packed-node-set/kind
+                                          (local.get $kind)
+                                          (ref.cast (ref $StencilVector) (local.get $child))
+                                          (local.get $old-entry)
+                                          (struct.get $ImmutableHashEntry $key (local.get $old-entry))
+                                          (struct.get $ImmutableHashEntry $key-hash (local.get $old-entry))
+                                          (i32.add (local.get $shift) (i32.const 3))))
+                         (local.set $child
+                                    (call $immutable-hamt-node-set/kind
+                                          (local.get $kind)
+                                          (local.get $child)
+                                          (local.get $entry)
+                                          (local.get $key)
+                                          (local.get $hash)
+                                          (i32.add (local.get $shift) (i32.const 3)))))
+                        (else
+                         (local.set $child
+                                    (call $cons
+                                          (local.get $entry)
+                                          (call $cons
+                                                (local.get $old-entry)
+                                                (global.get $null))))))
+                    (return_call $immutable-hamt-store-packed-bnode-metadata
+                                 (ref.cast
+                                  (ref $StencilVector)
+                                  (call $$stencil-vector-update/core
+                                        (local.get $sv)
+                                        (i32.or (local.get $key-bit) (local.get $value-bit))
+                                        (local.get $child-bit)
+                                        (call $cons (local.get $child) (global.get $null))
+                                        (i32.const 2))))))
+               (return_call $immutable-hamt-store-packed-bnode-metadata
+                            (ref.cast
+                             (ref $StencilVector)
+                             (call $$stencil-vector-update/core
+                                   (local.get $sv)
+                                   (i32.const 0)
+                                   (i32.or (local.get $key-bit) (local.get $value-bit))
+                                   (call $cons
+                                         (struct.get $ImmutableHashEntry $key (local.get $entry))
+                                         (call $cons
+                                               (struct.get $ImmutableHashEntry $value (local.get $entry))
+                                               (global.get $null)))
+                                   (i32.const 2)))))
+
+         ;; immutable-hamt-packed-bnode-collapse-if-single/kind : kind bnode -> any/c
+         ;;   Collapse a physical bnode with one inline key/value pair to an entry.
+         (func $immutable-hamt-packed-bnode-collapse-if-single/kind
+               (param $kind i32)
+               (param $sv   (ref $StencilVector))
+               (result      (ref eq))
+               (local $metadata i32)
+               (local $group    i32)
+               (local $key-bit  i32)
+               (local.set $metadata (call $immutable-hamt-bnode-metadata (local.get $sv)))
+               (if (i32.ne (i32.popcnt (local.get $metadata)) (i32.const 3))
+                   (then (return (local.get $sv))))
+               (local.set $group (i32.const 0))
+               (block $done
+                      (loop $loop
+                            (br_if $done (i32.ge_u (local.get $group) (i32.const 8)))
+                            (local.set $key-bit
+                                       (call $immutable-hamt-packed-key-bit
+                                             (local.get $group)
+                                             (i32.const 0)))
+                            (if (i32.ne (i32.and (local.get $metadata) (local.get $key-bit))
+                                        (i32.const 0))
+                                (then
+                                 (return_call $immutable-hamt-entry-for-key/kind
+                                              (local.get $kind)
+                                              (call $immutable-hamt-packed-slot
+                                                    (local.get $sv)
+                                                    (local.get $key-bit))
+                                              (call $immutable-hamt-packed-slot
+                                                    (local.get $sv)
+                                                    (call $immutable-hamt-packed-value-bit
+                                                          (local.get $group)
+                                                          (i32.const 0))))))
+                            (local.set $group (i32.add (local.get $group) (i32.const 1)))
+                            (br $loop)))
+               (local.get $sv))
+
+         ;; immutable-hamt-packed-node-remove/kind : kind bnode key hash shift -> any/c
+         ;;   Functional remove for a physical packed bnode.
+         (func $immutable-hamt-packed-node-remove/kind
+               (param $kind  i32)
+               (param $sv    (ref $StencilVector))
+               (param $key   (ref eq))
+               (param $hash  i32)
+               (param $shift i32)
+               (result       (ref eq))
+               (local $metadata  i32)
+               (local $child-bit i32)
+               (local $key-bit   i32)
+               (local $value-bit i32)
+               (local $slot      (ref eq))
+               (local $newslot   (ref eq))
+               (local.set $slot (global.get $null))
+               (local.set $newslot (global.get $null))
+               (local.set $metadata (call $immutable-hamt-bnode-metadata (local.get $sv)))
+               (local.set $child-bit
+                          (call $immutable-hamt-packed-child-bit
+                                (local.get $hash)
+                                (local.get $shift)))
+               (local.set $key-bit
+                          (call $immutable-hamt-packed-key-bit
+                                (local.get $hash)
+                                (local.get $shift)))
+               (local.set $value-bit
+                          (call $immutable-hamt-packed-value-bit
+                                (local.get $hash)
+                                (local.get $shift)))
+               (if (i32.ne (i32.and (local.get $metadata) (local.get $child-bit))
+                           (i32.const 0))
+                   (then
+                    (local.set $newslot
+                               (call $immutable-hamt-node-remove/kind
+                                     (local.get $kind)
+                                     (call $immutable-hamt-packed-child-slot
+                                           (local.get $sv)
+                                           (local.get $hash)
+                                           (local.get $shift))
+                                     (local.get $key)
+                                     (local.get $hash)
+                                     (i32.add (local.get $shift) (i32.const 3))))
+                    (if (ref.eq (local.get $newslot) (global.get $null))
+                        (then
+                         (return_call $immutable-hamt-packed-bnode-collapse-if-single/kind
+                                      (local.get $kind)
+                                      (call $immutable-hamt-store-packed-bnode-metadata
+                                            (ref.cast
+                                             (ref $StencilVector)
+                                             (call $$stencil-vector-update/core
+                                                   (local.get $sv)
+                                                   (local.get $child-bit)
+                                                   (i32.const 0)
+                                                   (global.get $null)
+                                                   (i32.const 2)))))))
+                    (if (ref.test (ref $ImmutableHashEntry) (local.get $newslot))
+                        (then
+                         (return_call $immutable-hamt-packed-bnode-collapse-if-single/kind
+                                      (local.get $kind)
+                                      (call $immutable-hamt-store-packed-bnode-metadata
+                                            (ref.cast
+                                             (ref $StencilVector)
+                                             (call $$stencil-vector-update/core
+                                                   (local.get $sv)
+                                                   (local.get $child-bit)
+                                                   (i32.or (local.get $key-bit) (local.get $value-bit))
+                                                   (call $cons
+                                                         (struct.get $ImmutableHashEntry $key
+                                                                     (ref.cast (ref $ImmutableHashEntry)
+                                                                               (local.get $newslot)))
+                                                         (call $cons
+                                                               (struct.get $ImmutableHashEntry $value
+                                                                           (ref.cast (ref $ImmutableHashEntry)
+                                                                                     (local.get $newslot)))
+                                                               (global.get $null)))
+                                                   (i32.const 2)))))))
+                    (return_call $immutable-hamt-store-packed-bnode-metadata
+                                 (ref.cast
+                                  (ref $StencilVector)
+                                  (call $$stencil-vector-update/core
+                                        (local.get $sv)
+                                        (local.get $child-bit)
+                                        (local.get $child-bit)
+                                        (call $cons (local.get $newslot) (global.get $null))
+                                        (i32.const 2))))))
+               (if (i32.eqz (i32.and (local.get $metadata) (local.get $key-bit)))
+                   (then (return (local.get $sv))))
+               (local.set $slot
+                          (call $immutable-hamt-packed-key-slot
+                                (local.get $sv)
+                                (local.get $hash)
+                                (local.get $shift)))
+               (if (i32.eqz
+                    (call $immutable-hamt-key-matches?/kind
+                          (local.get $kind)
+                          (local.get $slot)
+                          (local.get $key)))
+                   (then (return (local.get $sv))))
+               (return_call $immutable-hamt-packed-bnode-collapse-if-single/kind
+                            (local.get $kind)
+                            (call $immutable-hamt-store-packed-bnode-metadata
+                                  (ref.cast
+                                   (ref $StencilVector)
+                                   (call $$stencil-vector-update/core
+                                         (local.get $sv)
+                                         (i32.or (local.get $key-bit) (local.get $value-bit))
+                                         (i32.const 0)
+                                         (global.get $null)
+                                         (i32.const 2))))))
+
          (func $immutable-hamt-node-ref/kind
                (param $kind  i32)      ;; 0 eq?, 1 eqv?, 2 equal?, 3 equal-always?
                (param $node  (ref eq)) ;; HAMT node or bucket
@@ -38736,9 +39338,18 @@
                (local $slot  (ref eq))
                (local $slot-kind i32)
                (if (ref.test (ref $StencilVector) (local.get $node))
-                    (then
-                    (local.set $sv   (ref.cast (ref $StencilVector) (local.get $node)))
-                    (local.set $mask (struct.get $StencilVector $mask (local.get $sv)))
+	                    (then
+	                    (local.set $sv   (ref.cast (ref $StencilVector) (local.get $node)))
+	                    (if (call $immutable-hamt-packed-bnode? (local.get $sv))
+	                        (then
+	                         (return_call $immutable-hamt-packed-node-ref/kind
+	                                      (local.get $kind)
+	                                      (local.get $sv)
+	                                      (local.get $key)
+	                                      (local.get $hash)
+	                                      (local.get $shift)
+	                                      (local.get $fail))))
+	                    (local.set $mask (struct.get $StencilVector $mask (local.get $sv)))
                     (local.set $metadata
                                (call $immutable-hamt-bnode-metadata
                                      (local.get $sv)))
@@ -38817,9 +39428,18 @@
                (local $slot  (ref eq))
                (local $slot-kind i32)
                (if (ref.test (ref $StencilVector) (local.get $node))
-                   (then
-                    (local.set $sv   (ref.cast (ref $StencilVector) (local.get $node)))
-                    (local.set $mask (struct.get $StencilVector $mask (local.get $sv)))
+	                   (then
+	                    (local.set $sv   (ref.cast (ref $StencilVector) (local.get $node)))
+	                    (if (call $immutable-hamt-packed-bnode? (local.get $sv))
+	                        (then
+	                         (return_call $immutable-hamt-packed-node-ref-key/kind
+	                                      (local.get $kind)
+	                                      (local.get $sv)
+	                                      (local.get $key)
+	                                      (local.get $hash)
+	                                      (local.get $shift)
+	                                      (local.get $fail))))
+	                    (local.set $mask (struct.get $StencilVector $mask (local.get $sv)))
                     (local.set $metadata
                                (call $immutable-hamt-bnode-metadata
                                      (local.get $sv)))
@@ -38897,9 +39517,17 @@
                (local $slot  (ref eq))
                (local $slot-kind i32)
                (if (ref.test (ref $StencilVector) (local.get $node))
-                   (then
-                    (local.set $sv   (ref.cast (ref $StencilVector) (local.get $node)))
-                    (local.set $mask (struct.get $StencilVector $mask (local.get $sv)))
+	                   (then
+	                    (local.set $sv   (ref.cast (ref $StencilVector) (local.get $node)))
+	                    (if (call $immutable-hamt-packed-bnode? (local.get $sv))
+	                        (then
+	                         (return_call $immutable-hamt-packed-node-has-key?/kind
+	                                      (local.get $kind)
+	                                      (local.get $sv)
+	                                      (local.get $key)
+	                                      (local.get $hash)
+	                                      (local.get $shift))))
+	                    (local.set $mask (struct.get $StencilVector $mask (local.get $sv)))
                     (local.set $metadata
                                (call $immutable-hamt-bnode-metadata
                                      (local.get $sv)))
@@ -38955,11 +39583,7 @@
 
          (func $immutable-hamt-empty-node
                (result (ref $StencilVector))
-               (call $immutable-hamt-store-bnode-metadata
-                     (call $$make-stencil-vector/checked
-                           (i32.const 1)
-                           (i32.const 0)
-                           (array.new $Array (global.get $missing) (i32.const 0)))))
+               (call $immutable-hamt-empty-packed-node))
 
          ;; immutable-hamt-bnode-collapse-if-single : any/c -> any/c
          ;;   Collapse a one-slot bnode when the slot can stand directly in its parent.
@@ -39348,9 +39972,9 @@
                (local $index   i32)
                (local $slot    (ref eq))
                (local $newslot (ref eq))
-               (local.set $newslot (global.get $null))
-               (if (ref.test (ref $ImmutableHashCNode) (local.get $node))
-                   (then
+	               (local.set $newslot (global.get $null))
+	               (if (ref.test (ref $ImmutableHashCNode) (local.get $node))
+	                   (then
                     (return_call $immutable-hamt-cnode-set/kind
                                  (local.get $kind)
                                  (ref.cast (ref $ImmutableHashCNode)
@@ -39358,11 +39982,20 @@
                                  (local.get $entry)
                                  (local.get $key)
                                  (local.get $hash))))
-               (if (i32.eqz (ref.test (ref $StencilVector) (local.get $node)))
-                   (then
-                    (return (call $cons (local.get $entry) (local.get $node)))))
-               (local.set $sv   (ref.cast (ref $StencilVector) (local.get $node)))
-               (local.set $mask (struct.get $StencilVector $mask (local.get $sv)))
+	               (if (i32.eqz (ref.test (ref $StencilVector) (local.get $node)))
+	                   (then
+	                    (return (call $cons (local.get $entry) (local.get $node)))))
+	               (local.set $sv   (ref.cast (ref $StencilVector) (local.get $node)))
+	               (if (call $immutable-hamt-packed-bnode? (local.get $sv))
+	                   (then
+	                    (return_call $immutable-hamt-packed-node-set/kind
+	                                 (local.get $kind)
+	                                 (local.get $sv)
+	                                 (local.get $entry)
+	                                 (local.get $key)
+	                                 (local.get $hash)
+	                                 (local.get $shift))))
+	               (local.set $mask (struct.get $StencilVector $mask (local.get $sv)))
                (local.set $bit  (call $immutable-hamt-bit
                                       (local.get $hash)
                                       (local.get $shift)))
@@ -39500,14 +40133,22 @@
                                            (local.get $node))
                                  (local.get $key)
                                  (local.get $hash))))
-               (if (i32.eqz (ref.test (ref $StencilVector) (local.get $node)))
-                   (then
-                    (return_call $immutable-hamt-bucket-remove/kind
-                                 (local.get $kind)
-                                 (local.get $node)
-                                 (local.get $key))))
-               (local.set $sv   (ref.cast (ref $StencilVector) (local.get $node)))
-               (local.set $mask (struct.get $StencilVector $mask (local.get $sv)))
+	               (if (i32.eqz (ref.test (ref $StencilVector) (local.get $node)))
+	                   (then
+	                    (return_call $immutable-hamt-bucket-remove/kind
+	                                 (local.get $kind)
+	                                 (local.get $node)
+	                                 (local.get $key))))
+	               (local.set $sv   (ref.cast (ref $StencilVector) (local.get $node)))
+	               (if (call $immutable-hamt-packed-bnode? (local.get $sv))
+	                   (then
+	                    (return_call $immutable-hamt-packed-node-remove/kind
+	                                 (local.get $kind)
+	                                 (local.get $sv)
+	                                 (local.get $key)
+	                                 (local.get $hash)
+	                                 (local.get $shift))))
+	               (local.set $mask (struct.get $StencilVector $mask (local.get $sv)))
                (local.set $bit  (call $immutable-hamt-bit
                                       (local.get $hash)
                                       (local.get $shift)))
@@ -43707,9 +44348,9 @@
         ;;   The iteration position is a private list cursor. This keeps
         ;;   iteration independent of whether a root slot holds a bucket or a
         ;;   recursive HAMT child node.
-        (func $immutable-hash-as-hasheqv
-              (param $ht (ref eq)) ;; immutable hash table
-              (result    (ref $HashEqvImmutable))
+	        (func $immutable-hash-as-hasheqv
+	              (param $ht (ref eq)) ;; immutable hash table
+	              (result    (ref $HashEqvImmutable))
 
               (if (ref.test (ref $HashEqImmutable) (local.get $ht))
                   (then
@@ -43749,11 +44390,229 @@
                                 (struct.get $HashEqualAlwaysImmutable $count
                                             (ref.cast (ref $HashEqualAlwaysImmutable)
                                                       (local.get $ht)))))))
-              (call $raise-argument-error:hash-expected)
-              (unreachable))
+	              (call $raise-argument-error:hash-expected)
+	              (unreachable))
 
-        (func $immutable-hamt-node->entries
-              (param $node (ref eq)) ;; root/child stencil vector or entry bucket
+        ;; immutable-hamt-packed-node->entries : packed-bnode acc -> list?
+        ;;   Collect entries from a physical packed bnode.
+        (func $immutable-hamt-packed-node->entries
+              (param $sv  (ref $StencilVector))
+              (param $acc (ref eq))
+              (result     (ref eq))
+              (local $metadata  i32)
+              (local $group     i32)
+              (local $child-bit i32)
+              (local $key-bit   i32)
+              (local.set $metadata (call $immutable-hamt-bnode-metadata (local.get $sv)))
+              (local.set $group (i32.const 0))
+              (block $done
+                     (loop $loop
+                           (br_if $done (i32.ge_u (local.get $group) (i32.const 8)))
+                           (local.set $child-bit
+                                      (call $immutable-hamt-packed-child-bit
+                                            (local.get $group)
+                                            (i32.const 0)))
+                           (if (i32.ne (i32.and (local.get $metadata) (local.get $child-bit))
+                                       (i32.const 0))
+                               (then
+                                (local.set $acc
+                                           (call $immutable-hamt-node->entries
+                                                 (call $immutable-hamt-packed-slot
+                                                       (local.get $sv)
+                                                       (local.get $child-bit))
+                                                 (local.get $acc)))))
+                           (local.set $key-bit
+                                      (call $immutable-hamt-packed-key-bit
+                                            (local.get $group)
+                                            (i32.const 0)))
+                           (if (i32.ne (i32.and (local.get $metadata) (local.get $key-bit))
+                                       (i32.const 0))
+                               (then
+                                (local.set $acc
+                                           (call $cons
+                                                 (struct.new $ImmutableHashEntry
+                                                             (i32.const 0)
+                                                             (i32.const 0)
+                                                             (call $immutable-hamt-packed-slot
+                                                                   (local.get $sv)
+                                                                   (local.get $key-bit))
+                                                             (call $immutable-hamt-packed-slot
+                                                                   (local.get $sv)
+                                                                   (call $immutable-hamt-packed-value-bit
+                                                                         (local.get $group)
+                                                                         (i32.const 0))))
+                                                 (local.get $acc)))))
+                           (local.set $group (i32.add (local.get $group) (i32.const 1)))
+                           (br $loop)))
+              (local.get $acc))
+
+        ;; immutable-hamt-packed-node-entry-count : packed-bnode -> exact-nonnegative-integer?
+        ;;   Count inline entries and recursive child entries in a physical packed bnode.
+        (func $immutable-hamt-packed-node-entry-count
+              (param $sv (ref $StencilVector))
+              (result    i32)
+              (local $metadata  i32)
+              (local $group     i32)
+              (local $child-bit i32)
+              (local $key-bit   i32)
+              (local $count     i32)
+              (local.set $metadata (call $immutable-hamt-bnode-metadata (local.get $sv)))
+              (local.set $group (i32.const 0))
+              (local.set $count (i32.const 0))
+              (block $done
+                     (loop $loop
+                           (br_if $done (i32.ge_u (local.get $group) (i32.const 8)))
+                           (local.set $child-bit
+                                      (call $immutable-hamt-packed-child-bit
+                                            (local.get $group)
+                                            (i32.const 0)))
+                           (if (i32.ne (i32.and (local.get $metadata) (local.get $child-bit))
+                                       (i32.const 0))
+                               (then
+                                (local.set $count
+                                           (i32.add
+                                            (local.get $count)
+                                            (call $immutable-hamt-node-entry-count
+                                                  (call $immutable-hamt-packed-slot
+                                                        (local.get $sv)
+                                                        (local.get $child-bit)))))))
+                           (local.set $key-bit
+                                      (call $immutable-hamt-packed-key-bit
+                                            (local.get $group)
+                                            (i32.const 0)))
+                           (if (i32.ne (i32.and (local.get $metadata) (local.get $key-bit))
+                                       (i32.const 0))
+                               (then
+                                (local.set $count (i32.add (local.get $count) (i32.const 1)))))
+                           (local.set $group (i32.add (local.get $group) (i32.const 1)))
+                           (br $loop)))
+              (local.get $count))
+
+        ;; immutable-hamt-packed-node-child-count : packed-bnode counter-id -> exact-nonnegative-integer?
+        ;;   Count recursive child shapes in a physical packed bnode.
+        (func $immutable-hamt-packed-node-child-count
+              (param $sv      (ref $StencilVector))
+              (param $counter i32) ;; 0=bnodes, 1=cnodes, 2=buckets, 3=inlines, 4=slots
+              (result         i32)
+              (local $metadata  i32)
+              (local $group     i32)
+              (local $child-bit i32)
+              (local $key-bit   i32)
+              (local $count     i32)
+              (local.set $metadata (call $immutable-hamt-bnode-metadata (local.get $sv)))
+              (local.set $group (i32.const 0))
+              (local.set $count
+                         (if (result i32)
+                             (i32.eq (local.get $counter) (i32.const 0))
+                             (then (i32.const 1))
+                             (else
+                              (if (result i32)
+                                  (i32.eq (local.get $counter) (i32.const 4))
+                                  (then
+                                   ;; Do not count the static marker slot.
+                                   (i32.sub (i32.popcnt (local.get $metadata)) (i32.const 1)))
+                                  (else (i32.const 0))))))
+              (block $done
+                     (loop $loop
+                           (br_if $done (i32.ge_u (local.get $group) (i32.const 8)))
+                           (local.set $child-bit
+                                      (call $immutable-hamt-packed-child-bit
+                                            (local.get $group)
+                                            (i32.const 0)))
+                           (if (i32.ne (i32.and (local.get $metadata) (local.get $child-bit))
+                                       (i32.const 0))
+                               (then
+                                (local.set $count
+                                           (i32.add
+                                            (local.get $count)
+                                            (if (result i32)
+                                                (i32.eq (local.get $counter) (i32.const 0))
+                                                (then
+                                                 (call $immutable-hamt-node-bnode-count
+                                                       (call $immutable-hamt-packed-slot
+                                                             (local.get $sv)
+                                                             (local.get $child-bit))))
+                                                (else
+                                                 (if (result i32)
+                                                     (i32.eq (local.get $counter) (i32.const 1))
+                                                     (then
+                                                      (call $immutable-hamt-node-cnode-count
+                                                            (call $immutable-hamt-packed-slot
+                                                                  (local.get $sv)
+                                                                  (local.get $child-bit))))
+                                                     (else
+                                                      (if (result i32)
+                                                          (i32.eq (local.get $counter) (i32.const 2))
+                                                          (then
+                                                           (call $immutable-hamt-node-bucket-count
+                                                                 (call $immutable-hamt-packed-slot
+                                                                       (local.get $sv)
+                                                                       (local.get $child-bit))))
+                                                          (else
+                                                           (if (result i32)
+                                                               (i32.eq (local.get $counter) (i32.const 3))
+                                                               (then
+                                                                (call $immutable-hamt-node-inline-count
+                                                                      (call $immutable-hamt-packed-slot
+                                                                            (local.get $sv)
+                                                                            (local.get $child-bit))))
+                                                               (else
+                                                                (call $immutable-hamt-node-slot-count
+                                                                      (call $immutable-hamt-packed-slot
+                                                                            (local.get $sv)
+                                                                            (local.get $child-bit)))))))))))))))
+                           (local.set $key-bit
+                                      (call $immutable-hamt-packed-key-bit
+                                            (local.get $group)
+                                            (i32.const 0)))
+                           (if (i32.and
+                                (i32.eq (local.get $counter) (i32.const 3))
+                                (i32.ne (i32.and (local.get $metadata) (local.get $key-bit))
+                                        (i32.const 0)))
+                               (then
+                                (local.set $count (i32.add (local.get $count) (i32.const 1)))))
+                           (local.set $group (i32.add (local.get $group) (i32.const 1)))
+                           (br $loop)))
+              (local.get $count))
+
+        ;; immutable-hamt-packed-node-max-depth : packed-bnode depth -> exact-nonnegative-integer?
+        ;;   Return max depth through physical child slots.
+        (func $immutable-hamt-packed-node-max-depth
+              (param $sv    (ref $StencilVector))
+              (param $depth i32)
+              (result       i32)
+              (local $metadata  i32)
+              (local $group     i32)
+              (local $child-bit i32)
+              (local $max       i32)
+              (local $child     i32)
+              (local.set $metadata (call $immutable-hamt-bnode-metadata (local.get $sv)))
+              (local.set $group (i32.const 0))
+              (local.set $max (local.get $depth))
+              (block $done
+                     (loop $loop
+                           (br_if $done (i32.ge_u (local.get $group) (i32.const 8)))
+                           (local.set $child-bit
+                                      (call $immutable-hamt-packed-child-bit
+                                            (local.get $group)
+                                            (i32.const 0)))
+                           (if (i32.ne (i32.and (local.get $metadata) (local.get $child-bit))
+                                       (i32.const 0))
+                               (then
+                                (local.set $child
+                                           (call $immutable-hamt-node-max-depth
+                                                 (call $immutable-hamt-packed-slot
+                                                       (local.get $sv)
+                                                       (local.get $child-bit))
+                                                 (i32.add (local.get $depth) (i32.const 1))))
+                                (if (i32.gt_u (local.get $child) (local.get $max))
+                                    (then (local.set $max (local.get $child))))))
+                           (local.set $group (i32.add (local.get $group) (i32.const 1)))
+                           (br $loop)))
+              (local.get $max))
+
+	        (func $immutable-hamt-node->entries
+	              (param $node (ref eq)) ;; root/child stencil vector or entry bucket
               (param $acc  (ref eq)) ;; accumulated entry list
               (result      (ref eq))
               (local $sv     (ref $StencilVector))
@@ -43776,9 +44635,14 @@
                                                       (local.get $node)))
                                 (local.get $acc))))
               (if (ref.test (ref $StencilVector) (local.get $node))
-                  (then
-                   (local.set $sv    (ref.cast (ref $StencilVector) (local.get $node)))
-                   (local.set $slots (struct.get $StencilVector $slots (local.get $sv)))
+	                  (then
+	                   (local.set $sv    (ref.cast (ref $StencilVector) (local.get $node)))
+	                   (if (call $immutable-hamt-packed-bnode? (local.get $sv))
+	                       (then
+	                        (return_call $immutable-hamt-packed-node->entries
+	                                     (local.get $sv)
+	                                     (local.get $acc))))
+	                   (local.set $slots (struct.get $StencilVector $slots (local.get $sv)))
                    (local.set $len   (array.len (local.get $slots)))
                    (local.set $i     (i32.const 0))
                    (block $done-slots
@@ -43837,9 +44701,13 @@
                                             (ref.cast (ref $ImmutableHashCNode)
                                                       (local.get $node))))))
               (if (ref.test (ref $StencilVector) (local.get $node))
-                  (then
-                   (local.set $sv    (ref.cast (ref $StencilVector) (local.get $node)))
-                   (local.set $slots (struct.get $StencilVector $slots (local.get $sv)))
+	                  (then
+	                   (local.set $sv    (ref.cast (ref $StencilVector) (local.get $node)))
+	                   (if (call $immutable-hamt-packed-bnode? (local.get $sv))
+	                       (then
+	                        (return_call $immutable-hamt-packed-node-entry-count
+	                                     (local.get $sv))))
+	                   (local.set $slots (struct.get $StencilVector $slots (local.get $sv)))
                    (local.set $len   (array.len (local.get $slots)))
                    (local.set $i     (i32.const 0))
                    (local.set $count (i32.const 0))
@@ -43892,8 +44760,13 @@
                   (then (return (i32.const 0))))
               (if (i32.eqz (ref.test (ref $StencilVector) (local.get $node)))
                   (then (return (i32.const 0))))
-              (local.set $sv    (ref.cast (ref $StencilVector) (local.get $node)))
-              (local.set $slots (struct.get $StencilVector $slots (local.get $sv)))
+	              (local.set $sv    (ref.cast (ref $StencilVector) (local.get $node)))
+	              (if (call $immutable-hamt-packed-bnode? (local.get $sv))
+	                  (then
+	                   (return_call $immutable-hamt-packed-node-child-count
+	                                (local.get $sv)
+	                                (i32.const 0))))
+	              (local.set $slots (struct.get $StencilVector $slots (local.get $sv)))
               (local.set $len   (array.len (local.get $slots)))
               (local.set $i     (i32.const 0))
               (local.set $count (i32.const 1))
@@ -43928,8 +44801,13 @@
                   (then (return (i32.const 1))))
               (if (i32.eqz (ref.test (ref $StencilVector) (local.get $node)))
                   (then (return (i32.const 0))))
-              (local.set $sv    (ref.cast (ref $StencilVector) (local.get $node)))
-              (local.set $slots (struct.get $StencilVector $slots (local.get $sv)))
+	              (local.set $sv    (ref.cast (ref $StencilVector) (local.get $node)))
+	              (if (call $immutable-hamt-packed-bnode? (local.get $sv))
+	                  (then
+	                   (return_call $immutable-hamt-packed-node-child-count
+	                                (local.get $sv)
+	                                (i32.const 1))))
+	              (local.set $slots (struct.get $StencilVector $slots (local.get $sv)))
               (local.set $len   (array.len (local.get $slots)))
               (local.set $i     (i32.const 0))
               (local.set $count (i32.const 0))
@@ -43965,9 +44843,14 @@
               (if (ref.test (ref $ImmutableHashEntry) (local.get $node))
                   (then (return (i32.const 0))))
               (if (ref.test (ref $StencilVector) (local.get $node))
-                  (then
-                   (local.set $sv    (ref.cast (ref $StencilVector) (local.get $node)))
-                   (local.set $slots (struct.get $StencilVector $slots (local.get $sv)))
+	                  (then
+	                   (local.set $sv    (ref.cast (ref $StencilVector) (local.get $node)))
+	                   (if (call $immutable-hamt-packed-bnode? (local.get $sv))
+	                       (then
+	                        (return_call $immutable-hamt-packed-node-child-count
+	                                     (local.get $sv)
+	                                     (i32.const 2))))
+	                   (local.set $slots (struct.get $StencilVector $slots (local.get $sv)))
                    (local.set $len   (array.len (local.get $slots)))
                    (local.set $i     (i32.const 0))
                    (local.set $count (i32.const 0))
@@ -44007,8 +44890,13 @@
                   (then (return (i32.const 0))))
               (if (i32.eqz (ref.test (ref $StencilVector) (local.get $node)))
                   (then (return (i32.const 0))))
-              (local.set $sv    (ref.cast (ref $StencilVector) (local.get $node)))
-              (local.set $slots (struct.get $StencilVector $slots (local.get $sv)))
+	              (local.set $sv    (ref.cast (ref $StencilVector) (local.get $node)))
+	              (if (call $immutable-hamt-packed-bnode? (local.get $sv))
+	                  (then
+	                   (return_call $immutable-hamt-packed-node-child-count
+	                                (local.get $sv)
+	                                (i32.const 3))))
+	              (local.set $slots (struct.get $StencilVector $slots (local.get $sv)))
               (local.set $len   (array.len (local.get $slots)))
               (local.set $i     (i32.const 0))
               (local.set $count (i32.const 0))
@@ -44045,8 +44933,13 @@
                   (then (return (i32.const 0))))
               (if (i32.eqz (ref.test (ref $StencilVector) (local.get $node)))
                   (then (return (i32.const 0))))
-              (local.set $sv    (ref.cast (ref $StencilVector) (local.get $node)))
-              (local.set $slots (struct.get $StencilVector $slots (local.get $sv)))
+	              (local.set $sv    (ref.cast (ref $StencilVector) (local.get $node)))
+	              (if (call $immutable-hamt-packed-bnode? (local.get $sv))
+	                  (then
+	                   (return_call $immutable-hamt-packed-node-child-count
+	                                (local.get $sv)
+	                                (i32.const 4))))
+	              (local.set $slots (struct.get $StencilVector $slots (local.get $sv)))
               (local.set $len   (array.len (local.get $slots)))
               (local.set $i     (i32.const 0))
               (local.set $count (local.get $len))
@@ -44088,8 +44981,13 @@
                    (if (ref.test (ref $Pair) (local.get $node))
                        (then (return (local.get $depth))))
                    (return (i32.const 0))))
-              (local.set $sv    (ref.cast (ref $StencilVector) (local.get $node)))
-              (local.set $slots (struct.get $StencilVector $slots (local.get $sv)))
+	              (local.set $sv    (ref.cast (ref $StencilVector) (local.get $node)))
+	              (if (call $immutable-hamt-packed-bnode? (local.get $sv))
+	                  (then
+	                   (return_call $immutable-hamt-packed-node-max-depth
+	                                (local.get $sv)
+	                                (local.get $depth))))
+	              (local.set $slots (struct.get $StencilVector $slots (local.get $sv)))
               (local.set $len   (array.len (local.get $slots)))
               (local.set $i     (i32.const 0))
               (local.set $max   (local.get $depth))

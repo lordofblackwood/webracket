@@ -5404,13 +5404,13 @@
                             [deep-shape      (shape deep)]
                             [collision-shape (shape full-collision)]
                             [collapsed-shape (shape collapsed)])
-                        (and (equal? inline-cycle
-                                     '((1 1 0 0 1 1 1)
-                                       263169
-                                       (2 1 0 1 0 1 1)
-                                       263169
-                                       (1 0 0 0 1 0 0)
-                                       0
+	                        (and (equal? inline-cycle
+	                                     '((1 1 0 0 1 0 2)
+	                                       263169
+	                                       (2 11 0 1 0 11 11)
+	                                       5
+	                                       (1 0 0 0 1 0 0)
+	                                       0
                                        1
                                        (single 1)
                                        #t
@@ -5422,24 +5422,24 @@
                              (equal? (entries shallow-shape) 2)
                              (equal? (bnodes shallow-shape) 1)
                              (equal? (cnodes shallow-shape) 0)
-                             (equal? (buckets shallow-shape) 0)
-                             (equal? (inlines shallow-shape) 2)
-                             (equal? (slots shallow-shape) 2)
-                             (equal? mixed-shape '(6 2 0 0 6 2 7))
-                             (equal? (entries churn-shape) 13)
-                             (>= (bnodes churn-shape) 2)
-                             (>= (cnodes churn-shape) 1)
-                             (>= (buckets churn-shape) 1)
-                             (>= (inlines churn-shape) 1)
-                             (equal? (entries deep-shape) 9)
+	                             (equal? (buckets shallow-shape) 0)
+	                             (equal? (inlines shallow-shape) 2)
+	                             (equal? (slots shallow-shape) 4)
+	                             (equal? mixed-shape '(6 2 0 0 6 1 13))
+	                             (equal? (entries churn-shape) 13)
+	                             (>= (bnodes churn-shape) 2)
+	                             (>= (buckets churn-shape) 1)
+	                             (>= (inlines churn-shape) 1)
+	                             (equal? (entries deep-shape) 9)
                              (>= (bnodes deep-shape) 2)
                              (equal? (cnodes deep-shape) 0)
                              (>= (depth deep-shape) 2)
-                             (>= (slots deep-shape) 9)
-                             (equal? (entries collision-shape) 7)
-                             (>= (bnodes collision-shape) 1)
-                             (equal? (cnodes collision-shape) 1)
-                             (>= (depth collision-shape) 1)
+	                             (>= (slots deep-shape) 9)
+	                             (equal? (entries collision-shape) 7)
+	                             (>= (bnodes collision-shape) 1)
+	                             (equal? (cnodes collision-shape) 0)
+	                             (>= (buckets collision-shape) 1)
+	                             (>= (depth collision-shape) 1)
                              (equal? (entries collapsed-shape) 1)
                              (equal? (cnodes collapsed-shape) 0)))))
 

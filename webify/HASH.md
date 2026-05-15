@@ -98,27 +98,25 @@ entry. Some Racket CS shapes can represent an implicit `#t` value by omitting a
 value bit. The equal?/equal-always? variants can also wrap keys so the HAMT can
 cache comparison-specific hash information without changing the public key.
 
-WebRacket's current representation deliberately keeps the physical layout
-simpler while the semantics are still settling:
+WebRacket now uses physical packed bnodes for new immutable hash HAMT nodes:
 
 - immutable hash wrappers store the public kind, root, and count outside the
   HAMT root
-- bnodes use one 8-bit mask region, where each dense slot is either an inline
-  entry, an entry bucket, a child bnode, or a cnode
-- entries are explicit `$ImmutableHashEntry` records, so values are always
-  stored explicitly
-- terminal full-hash collisions use an explicit `$ImmutableHashCNode`
+- bnodes are system stencil vectors marked with `system? = 2`
+- the stencil mask is the packed metadata word: static marker bit, child bits,
+  key bits, and value bits
+- slot 0 is the static marker; child/key/value slots are addressed by
+  popcounting the metadata below the target bit
+- inline entries are stored as separate key and value slots
+- terminal full-hash collisions are still represented as ordinary buckets in the
+  current packed path; the older explicit `$ImmutableHashCNode` remains supported
+  for existing/probed nodes
 - equal?/equal-always? keys are not wrapped yet
 
-The runtime now has prototype packed-slot helpers for the Racket CS child, key,
-and value bit positions. The active `immutable-hamt-bit` operation routes
-through the shared 3-bit group helper, but the storage layout is still the
-current WebRacket one-region bnode layout. That gives us a small, testable step
-toward the CS layout without risking a wholesale representation switch.
-Single-entry leaves are now stored directly as `$ImmutableHashEntry` values; a
-second entry in the same slot promotes that direct entry to the old explicit
-bucket list. That is a narrow inline-entry prototype, not yet the full Racket CS
-inline key/value bnode representation.
+Lookup, `hash-ref-key`, `hash-has-key?`, set, remove, iteration, and debug-shape
+all understand the packed layout. Collision promotion recomputes a stored inline
+key's hash from the hash kind when the key/value pair needs to become a recursive
+child or terminal bucket.
 
 An internal debug-only compiler hook,
 `webracket-internal-immutable-hash-debug-shape`, can be enabled with
@@ -138,21 +136,19 @@ The same flag also enables
 (list group child-bit key-bit value-bit current-bit)
 ```
 
-Set and remove still update the current one-region bnode representation, but
-each private HAMT bnode stores the derived packed word in the stencil vector's
-private cache field after construction/update. Lookup reads that stored word
-directly; the derivation helper is now for construction and debugging, not the
-hot path.
+Each private HAMT bnode stores the packed word in the stencil vector's private
+cache field too. Lookup reads that stored word directly; the derivation helper is
+now only for compatibility with older one-region bnodes and debugging.
 
 Removal also collapses singleton bnodes when the remaining slot can stand
 directly in its parent. For example, removing one key from a two-key same-slot
 bucket leaves a direct `$ImmutableHashEntry` root instead of a one-slot bnode.
-That keeps the current representation compact while preserving the future path
-to a physical Racket CS packed bnode layout.
+That keeps the representation compact while preserving immutable path-copying.
 
 The hook is not exported as a public primitive; it exists so shape regression
-tests can verify that recursive bnodes, cnodes, and collapse-after-remove
-behavior stay intact while we continue moving toward the packed layout.
+tests can verify recursive bnodes, terminal buckets/cnodes, and
+collapse-after-remove behavior stay intact while we continue tightening parity
+with Racket CS.
 
 Ephemeron hash tables are also currently a strong fallback:
 `make-ephemeron-hasheq` returns an ordinary mutable `hasheq`. That is enough for
@@ -222,10 +218,11 @@ functional `hash-set` shape.
 
 ## Later Direction
 
-The next immutable-hash semantic milestone is tighter parity with Racket CS's
-packed bnode details rather than the current practical subset:
+The next immutable-hash semantic milestone is tighter parity with the remaining
+Racket CS HAMT details:
 
-- match Racket CS's exact packed child/key/value bit regions more closely
+- restore/promote terminal full-hash collision buckets to explicit cnodes in the
+  physical packed path
 - add key wrapping if equal?/equal-always? need it for cyclic data
 - replace weak and ephemeron strong fallbacks when the runtime has weak
   reference support
