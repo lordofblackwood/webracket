@@ -363,6 +363,8 @@
   'webracket-internal-immutable-hash-debug-shape)
 (define internal-immutable-hamt-packed-bits-symbol
   'webracket-internal-immutable-hamt-packed-bits)
+(define internal-immutable-hash-root-metadata-symbol
+  'webracket-internal-immutable-hash-root-metadata)
 
 ;; closure-conversion-progress-port : -> output-port?
 ;;   Return the diagnostic port for closure-conversion progress reports.
@@ -927,6 +929,7 @@
                (or (and (eq? sym internal-treelist-debug-shape-symbol) 1)
                    (and (eq? sym internal-immutable-hash-debug-shape-symbol) 1)
                    (and (eq? sym internal-immutable-hamt-packed-bits-symbol) 2)
+                   (and (eq? sym internal-immutable-hash-root-metadata-symbol) 1)
                    (ffi-primitive-arity sym)
                    (let ([desc (primitive->description sym)])
                      (and desc (primitive-description-arity desc)))))))
@@ -3045,6 +3048,8 @@
                 (eq? v internal-immutable-hash-debug-shape-symbol))
            (and (current-internal-immutable-hash-debug-shape?)
                 (eq? v internal-immutable-hamt-packed-bits-symbol))
+           (and (current-internal-immutable-hash-debug-shape?)
+                (eq? v internal-immutable-hash-root-metadata-symbol))
            (set-member? primitives-set v))
        #t))
 
@@ -7815,6 +7820,11 @@
                                                         (raise-syntax-error
                                                          'α-rename
                                                          "compiler-private immutable HAMT packed-bit hook is unavailable without --internal-bind-immutable-hash-debug-shape"
+                                                         (variable-id x))]
+                                                       [(eq? s internal-immutable-hash-root-metadata-symbol)
+                                                        (raise-syntax-error
+                                                         'α-rename
+                                                         "compiler-private immutable hash root-metadata hook is unavailable without --internal-bind-immutable-hash-debug-shape"
                                                          (variable-id x))]
                                                        [(inside-module?)
                                                         (raise-syntax-error
@@ -18488,6 +18498,8 @@
           (inline-prim/fixed 'immutable-hash-debug-shape ae1 1)]
          [(eq? sym internal-immutable-hamt-packed-bits-symbol)
           (inline-prim/fixed 'immutable-hamt-packed-bits ae1 2)]
+         [(eq? sym internal-immutable-hash-root-metadata-symbol)
+          (inline-prim/fixed 'immutable-hash-root-metadata ae1 1)]
          [(eq? sym 'treelist)
           `(call $treelist ,(build-rest-args (AExpr* ae1)))]
          [(eq? sym 'treelist-append)

@@ -5352,10 +5352,34 @@
                                [two   (hash-set one (hashkey 'single 1) 1)]
                                [one*  (hash-remove two (hashkey 'single 0))])
                           (list (shape one)
+                                (webracket-internal-immutable-hash-root-metadata one)
                                 (shape two)
+                                (webracket-internal-immutable-hash-root-metadata two)
                                 (shape one*)
+                                (webracket-internal-immutable-hash-root-metadata one*)
                                 (hash-ref one* (hashkey 'single 1) #f)
+                                (let ([k (hash-ref-key one* (hashkey 'single 1) #f)])
+                                  (list (hashkey-mode k) (hashkey-n k)))
+                                (hash-has-key? one* (hashkey 'single 1))
                                 (hash-has-key? one* (hashkey 'single 0)))))
+                      (define churn
+                        (let build ([i 0] [h (hash)])
+                          (if (equal? i 16)
+                              (let remove ([j 3] [h h])
+                                (if (equal? j 6)
+                                    h
+                                    (remove (+ j 1)
+                                            (hash-remove h
+                                                         (hashkey
+                                                          'split
+                                                          j)))))
+                              (build (+ i 1)
+                                     (hash-set h
+                                               (hashkey
+                                                (if (< i 3) 'single
+                                                    (if (< i 8) 'split 'collide))
+                                                i)
+                                               i)))))
                       (define deep
                         (let loop ([i 0] [h (hash)])
                           (if (equal? i 9)
@@ -5376,14 +5400,20 @@
                       (let ([empty-shape     (shape (hasheq))]
                             [shallow-shape   (shape shallow)]
                             [mixed-shape     (shape mixed)]
+                            [churn-shape     (shape churn)]
                             [deep-shape      (shape deep)]
                             [collision-shape (shape full-collision)]
                             [collapsed-shape (shape collapsed)])
                         (and (equal? inline-cycle
                                      '((1 1 0 0 1 1 1)
+                                       263169
                                        (2 1 0 1 0 1 1)
+                                       263169
                                        (1 1 0 0 1 1 1)
+                                       263169
                                        1
+                                       (single 1)
+                                       #t
                                        #f))
                              (equal? packed0 '(0 2 512 131072 1))
                              (equal? packed9 '(1 4 1024 262144 2))
@@ -5396,6 +5426,11 @@
                              (equal? (inlines shallow-shape) 2)
                              (equal? (slots shallow-shape) 2)
                              (equal? mixed-shape '(6 2 0 0 6 2 7))
+                             (equal? (entries churn-shape) 13)
+                             (>= (bnodes churn-shape) 2)
+                             (>= (cnodes churn-shape) 1)
+                             (>= (buckets churn-shape) 1)
+                             (>= (inlines churn-shape) 1)
                              (equal? (entries deep-shape) 9)
                              (>= (bnodes deep-shape) 2)
                              (equal? (cnodes deep-shape) 0)

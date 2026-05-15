@@ -140,8 +140,10 @@ The same flag also enables
 
 Lookup now derives a packed child/key/value metadata word from the current
 one-region bnode mask before checking whether a group is present. Set and
-remove still update the current one-region bnode representation; the packed word
-is reconstructed for lookup as an intermediate migration step.
+remove still update the current one-region bnode representation, but each
+private HAMT bnode stores the derived packed word in the stencil vector's
+private cache field after construction/update. Lookup reads that stored word and
+falls back to deriving it only for older or malformed bnodes.
 
 The hook is not exported as a public primitive; it exists so shape regression
 tests can verify that recursive bnodes, cnodes, and collapse-after-remove
