@@ -3213,6 +3213,26 @@
                        (field $init-position-arg  (mut (ref eq)))    ; optional, default = 1
                        (field $buffer-mode-arg    (mut (ref eq)))))) ; optional, default = #f
 
+          (type $CustomOutputPort
+                (sub $OutputPort
+                     (struct
+                       (field $hash  (mut i32))
+                       (field $name  (mut (ref eq)))                 ; the port name   (any/c)
+                       (field $closed (mut i32))                      ; 0 = open, 1 = closed
+                       (field $bytes (mut (ref $Bytes)))             ; unused scratch bytes
+                       (field $len   (mut i32))                      ; unused length placeholder
+                       (field $idx   (mut i32))                      ; known byte position
+                       (field $loc   (mut (ref $Location)))          ; current location
+                       (field $write-proc             (mut (ref eq))) ; output-port? or procedure?
+                       (field $close-proc             (mut (ref eq))) ; procedure?
+                       (field $write-special-proc     (mut (ref eq))) ; optional
+                       (field $get-write-evt-proc     (mut (ref eq))) ; optional
+                       (field $get-write-special-proc (mut (ref eq))) ; optional
+                       (field $get-location-proc      (mut (ref eq))) ; optional
+                       (field $count-lines-proc       (mut (ref eq))) ; optional, default = void
+                       (field $init-position-arg      (mut (ref eq))) ; optional, default = 1
+                       (field $buffer-mode-arg        (mut (ref eq)))))) ; optional, default = #f
+
           
           (type $Hash   ; abstract super type for hashtables
                 (sub $Heap
@@ -44350,7 +44370,11 @@
               (param $p (ref eq)) ;; output-port?
               (result   (ref eq))
 
-              (local $port (ref $OutputPort))
+              (local $port       (ref $OutputPort))
+              (local $custom     (ref $CustomOutputPort))
+              (local $close-proc (ref eq))
+              (local $f          (ref $Procedure))
+              (local $finv       (ref $ProcedureInvoker))
 
               (if (i32.eqz (ref.test (ref $OutputPort) (local.get $p)))
                   (then (call $raise-argument-error1
@@ -44362,6 +44386,17 @@
               (if (struct.get $OutputPort $closed (local.get $port))
                   (then (return (global.get $void))))
               (drop (call $flush-output (local.get $p)))
+              (if (ref.test (ref $CustomOutputPort) (local.get $p))
+                  (then
+                   (local.set $custom (ref.cast (ref $CustomOutputPort) (local.get $p)))
+                   (local.set $close-proc
+                              (struct.get $CustomOutputPort $close-proc (local.get $custom)))
+                   (local.set $f (ref.cast (ref $Procedure) (local.get $close-proc)))
+                   (local.set $finv (struct.get $Procedure $invoke (local.get $f)))
+                   (drop (call_ref $ProcedureInvoker
+                                   (local.get $f)
+                                   (array.new_fixed $Args 0)
+                                   (local.get $finv)))))
               (struct.set $OutputPort $closed (local.get $port) (i32.const 1))
               (global.get $void))
         
@@ -44387,7 +44422,43 @@
               (param $p (ref eq))
               (result   (ref eq))              
               (global.get $true))
-        
+
+         ;; file-position* : port? -> (or/c exact-nonnegative-integer? #f)
+         ;;   Return the known byte position for WebRacket string/VFS ports.
+         ;;   Other future port kinds should return #f when the position is
+         ;;   unknown instead of raising.
+         (func $file-position* (type $Prim1)
+               (param $p (ref eq)) ;; port?
+               (result   (ref eq))
+
+               (local $port (ref $Port))
+
+               (if (i32.eqz (ref.test (ref $Port) (local.get $p)))
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:file-position*)
+                               (global.get $string:port?)
+                               (local.get $p))
+                         (unreachable)))
+               (local.set $port (ref.cast (ref $Port) (local.get $p)))
+               (if (struct.get $Port $closed (local.get $port))
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:file-position*)
+                               (global.get $string:port?)
+                               (local.get $p))
+                         (unreachable)))
+               (if (ref.test (ref $InputPort) (local.get $p))
+                   (then (return (ref.i31
+                                  (i32.shl
+                                   (struct.get $InputPort $idx
+                                               (ref.cast (ref $InputPort) (local.get $p)))
+                                   (i32.const 1))))))
+               (if (ref.test (ref $OutputPort) (local.get $p))
+                   (then (return (ref.i31
+                                  (i32.shl
+                                   (struct.get $OutputPort $idx
+                                               (ref.cast (ref $OutputPort) (local.get $p)))
+                                   (i32.const 1))))))
+               (global.get $false))
 
          (func $port-next-location (type $Prim1)
                (param $p (ref eq))
@@ -44767,6 +44838,108 @@
                            (local.get $count-lines!)  ;; $count-lines-proc
                            (local.get $init-position) ;; $init-position-arg
                            (local.get $buffer-mode))) ;; $buffer-mode-arg
+
+         ;; make-output-port : any/c evt? (or/c output-port? procedure?) procedure? ... -> output-port?
+         ;;   First useful custom-output-port slice: support byte/string writes
+         ;;   via either an output-port delegate or a five-argument write
+         ;;   procedure. Events and special writes are stored but not modeled
+         ;;   by the current single-threaded runtime.
+         (func $make-output-port (type $Prim>=4)
+               (param $name  (ref eq)) ;; any/c
+               (param $evt   (ref eq)) ;; evt?; accepted but not used yet
+               (param $write (ref eq)) ;; output-port? or procedure?
+               (param $close (ref eq)) ;; procedure?
+               (param $rest  (ref eq)) ;; optional arguments
+               (result       (ref eq))
+
+               (local $args              (ref eq))
+               (local $node              (ref $Pair))
+               (local $arg               (ref eq))
+               (local $count             i32)
+               (local $write-special     (ref eq))
+               (local $get-write-evt     (ref eq))
+               (local $get-write-special (ref eq))
+               (local $get-location      (ref eq))
+               (local $count-lines!      (ref eq))
+               (local $init-position     (ref eq))
+               (local $buffer-mode       (ref eq))
+               (local $loc               (ref $Location))
+               (local $bytes             (ref $Bytes))
+
+               (local.set $write-special     (global.get $false))
+               (local.set $get-write-evt     (global.get $false))
+               (local.set $get-write-special (global.get $false))
+               (local.set $get-location      (global.get $false))
+               (local.set $count-lines!      (global.get $void))
+               (local.set $init-position     (ref.i31 (i32.shl (i32.const 1) (i32.const 1))))
+               (local.set $buffer-mode       (global.get $false))
+
+               (local.set $args  (local.get $rest))
+               (local.set $count (i32.const 0))
+               (block $done
+                      (loop $loop
+                            (if (ref.eq (local.get $args) (global.get $null))
+                                (then (br $done)))
+                            (local.set $node  (ref.cast (ref $Pair) (local.get $args)))
+                            (local.set $arg   (struct.get $Pair $a (local.get $node)))
+                            (local.set $args  (struct.get $Pair $d (local.get $node)))
+                            (local.set $count (i32.add (local.get $count) (i32.const 1)))
+                            (if (i32.gt_u (local.get $count) (i32.const 7))
+                                (then (call $primitive-invoke:raise-arity-error
+                                            (ref.cast (ref $PrimitiveProcedure)
+                                                      (global.get $prim:make-output-port))
+                                            (local.get $count))
+                                      (unreachable)))
+                            (if (i32.eq (local.get $count) (i32.const 1))
+                                (then (local.set $write-special (local.get $arg)))
+                                (else
+                                 (if (i32.eq (local.get $count) (i32.const 2))
+                                     (then (local.set $get-write-evt (local.get $arg)))
+                                     (else
+                                      (if (i32.eq (local.get $count) (i32.const 3))
+                                          (then (local.set $get-write-special (local.get $arg)))
+                                          (else
+                                           (if (i32.eq (local.get $count) (i32.const 4))
+                                               (then (local.set $get-location (local.get $arg)))
+                                               (else
+                                                (if (i32.eq (local.get $count) (i32.const 5))
+                                                    (then (local.set $count-lines! (local.get $arg)))
+                                                    (else
+                                                     (if (i32.eq (local.get $count) (i32.const 6))
+                                                         (then (local.set $init-position (local.get $arg)))
+                                                         (else (local.set $buffer-mode (local.get $arg))))))))))))))
+                            (br $loop)))
+
+               (if (i32.eqz (i32.or (ref.test (ref $OutputPort) (local.get $write))
+                                    (ref.test (ref $Procedure) (local.get $write))))
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:make-output-port)
+                               (global.get $string:output-port?)
+                               (local.get $write))
+                         (unreachable)))
+               (if (ref.eq (call $procedure? (local.get $close)) (global.get $false))
+                   (then (call $raise-argument-error:procedure-expected (local.get $close))
+                         (unreachable)))
+
+               (local.set $bytes (ref.cast (ref $Bytes)    (global.get $bytes:empty)))
+               (local.set $loc   (ref.cast (ref $Location) (call $make-initial-location)))
+               (struct.new $CustomOutputPort
+                           (i32.const 0)                  ;; $hash
+                           (local.get $name)              ;; $name
+                           (i32.const 0)                  ;; $closed
+                           (local.get $bytes)             ;; $bytes placeholder
+                           (i32.const 0)                  ;; $len placeholder
+                           (i32.const 0)                  ;; $idx known byte position
+                           (local.get $loc)               ;; $loc
+                           (local.get $write)             ;; $write-proc
+                           (local.get $close)             ;; $close-proc
+                           (local.get $write-special)     ;; $write-special-proc
+                           (local.get $get-write-evt)     ;; $get-write-evt-proc
+                           (local.get $get-write-special) ;; $get-write-special-proc
+                           (local.get $get-location)      ;; $get-location-proc
+                           (local.get $count-lines!)      ;; $count-lines-proc
+                           (local.get $init-position)     ;; $init-position-arg
+                           (local.get $buffer-mode)))     ;; $buffer-mode-arg
 
 
          (func $eof-object? (type $Prim1)
@@ -47232,6 +47405,74 @@
                ;; Delegate to write-char with the newline character.
                (call $write-char ,(Imm #\newline) (local.get $out)))
 
+         ;; write-bytes/custom : custom-output-port? bytes? i32 i32 -> exact-nonnegative-integer? or #f
+         ;;   Dispatch a byte slice to a custom output port's delegate.
+         (func $write-bytes/custom
+               (param $port (ref $CustomOutputPort)) ;; custom-output-port?
+               (param $bstr (ref $Bytes))            ;; bytes?
+               (param $from i32)                     ;; start byte
+               (param $to   i32)                     ;; end byte
+               (result      (ref eq))
+
+               (local $delegate (ref eq))
+               (local $proc     (ref $Procedure))
+               (local $inv      (ref $ProcedureInvoker))
+               (local $args     (ref $Args))
+               (local $result   (ref eq))
+               (local $n        i32)
+
+               (if (struct.get $CustomOutputPort $closed (local.get $port))
+                   (then (call $raise-output-port-closed
+                               (global.get $string:write-byte:output-port-closed))
+                         (unreachable)))
+               (local.set $delegate
+                          (struct.get $CustomOutputPort $write-proc (local.get $port)))
+               (if (ref.test (ref $OutputPort) (local.get $delegate))
+                   (then
+                    (local.set $result
+                               (call $write-bytes
+                                     (ref.cast (ref eq) (local.get $bstr))
+                                     (local.get $delegate)
+                                     (ref.i31 (i32.shl (local.get $from) (i32.const 1)))
+                                     (ref.i31 (i32.shl (local.get $to)   (i32.const 1)))))
+                    (if (ref.test (ref i31) (local.get $result))
+                        (then
+                         (local.set $n (i32.shr_u
+                                        (i31.get_u (ref.cast (ref i31) (local.get $result)))
+                                        (i32.const 1)))
+                         (struct.set $CustomOutputPort $idx
+                                     (local.get $port)
+                                     (i32.add
+                                      (struct.get $CustomOutputPort $idx (local.get $port))
+                                      (local.get $n)))))
+                    (return (local.get $result))))
+
+               (local.set $proc (ref.cast (ref $Procedure) (local.get $delegate)))
+               (local.set $inv  (struct.get $Procedure $invoke (local.get $proc)))
+               (local.set $args
+                          (array.new_fixed $Args 5
+                                           (ref.cast (ref eq) (local.get $bstr))
+                                           (ref.i31 (i32.shl (local.get $from) (i32.const 1)))
+                                           (ref.i31 (i32.shl (local.get $to)   (i32.const 1)))
+                                           (global.get $false)
+                                           (global.get $true)))
+               (local.set $result
+                          (call $expect-one-value
+                                (call_ref $ProcedureInvoker
+                                          (local.get $proc)
+                                          (local.get $args)
+                                          (local.get $inv))))
+               (if (ref.test (ref i31) (local.get $result))
+                   (then
+                    (local.set $n (i32.shr_u
+                                   (i31.get_u (ref.cast (ref i31) (local.get $result)))
+                                   (i32.const 1)))
+                    (struct.set $CustomOutputPort $idx
+                                (local.get $port)
+                                (i32.add
+                                 (struct.get $CustomOutputPort $idx (local.get $port))
+                                 (local.get $n)))))
+               (local.get $result))
 
          ;; Like Racket's write-bytes, but currently only string ports are supported
          ;; as output destinations.
@@ -47263,7 +47504,7 @@
                (if (ref.eq (local.get $out) (global.get $missing))
                    (then (local.set $out (call $current-output-port
                                                (global.get $missing)))))
-               (if (i32.eqz (ref.test (ref $OutputStringPort) (local.get $out)))
+               (if (i32.eqz (ref.test (ref $OutputPort) (local.get $out)))
                    (then (call $raise-check-string-port (local.get $out)) (unreachable)))
                ;; --- Decode optional start index ---
                (if (ref.eq (local.get $start) (global.get $missing))
@@ -47290,6 +47531,15 @@
                    (then (call $raise-bad-bytes-range (local.get $bstr) (local.get $from) (local.get $to)) (unreachable)))
 
                (local.set $count (i32.sub (local.get $to) (local.get $from)))
+               (if (ref.test (ref $CustomOutputPort) (local.get $out))
+                   (then
+                    (return_call $write-bytes/custom
+                                 (ref.cast (ref $CustomOutputPort) (local.get $out))
+                                 (local.get $bs)
+                                 (local.get $from)
+                                 (local.get $to))))
+               (if (i32.eqz (ref.test (ref $OutputPort) (local.get $out)))
+                   (then (call $raise-check-string-port (local.get $out)) (unreachable)))
                ;; --- Write the requested slice byte by byte ---
                (local.set $i (i32.const 0))
                (block $done
@@ -54198,6 +54448,19 @@
                                      (then (global.get $true))
                                      (else (global.get $false))))))
                (global.get $true))
+
+         ;; procedure-specialize : procedure? -> procedure?
+         ;;   Validate and return the procedure. Racket uses this as an
+         ;;   optimization hint; WebRacket currently has no procedure
+         ;;   specializer to invoke.
+         (func $procedure-specialize (type $Prim1)
+               (param $proc (ref eq)) ;; procedure?
+               (result      (ref eq))
+
+               (if (ref.eq (call $procedure? (local.get $proc)) (global.get $false))
+                   (then (call $raise-argument-error:procedure-expected (local.get $proc))
+                         (unreachable)))
+               (local.get $proc))
 
          ; Notes: repacking of arguments are done in $invoke-closure,
          ;        so no repacking is needed in $apply.
@@ -65617,6 +65880,17 @@
                                     $read-single-flonum
                                     $read-decimal-as-inexact
                                     $read-case-sensitive
+                                    $print-pair-curly-braces
+                                    $print-mpair-curly-braces
+                                    $print-unreadable
+                                    $print-graph
+                                    $print-struct
+                                    $print-box
+                                    $print-vector-length
+                                    $print-hash-table
+                                    $print-boolean-long-form
+                                    $print-reader-abbreviations
+                                    $print-as-expression
                                     $error-print-source-location)]
                              [symbol '($symbol:load-on-demand-enabled
                                        $symbol:use-user-specific-search-paths
@@ -65638,6 +65912,17 @@
                                        $symbol:read-single-flonum
                                        $symbol:read-decimal-as-inexact
                                        $symbol:read-case-sensitive
+                                       $symbol:print-pair-curly-braces
+                                       $symbol:print-mpair-curly-braces
+                                       $symbol:print-unreadable
+                                       $symbol:print-graph
+                                       $symbol:print-struct
+                                       $symbol:print-box
+                                       $symbol:print-vector-length
+                                       $symbol:print-hash-table
+                                       $symbol:print-boolean-long-form
+                                       $symbol:print-reader-abbreviations
+                                       $symbol:print-as-expression
                                        $symbol:error-print-source-location)]
                              [global '($load-on-demand-enabled-value
                                        $use-user-specific-search-paths-value
@@ -65659,6 +65944,17 @@
                                        $read-single-flonum-value
                                        $read-decimal-as-inexact-value
                                        $read-case-sensitive-value
+                                       $print-pair-curly-braces-value
+                                       $print-mpair-curly-braces-value
+                                       $print-unreadable-value
+                                       $print-graph-value
+                                       $print-struct-value
+                                       $print-box-value
+                                       $print-vector-length-value
+                                       $print-hash-table-value
+                                       $print-boolean-long-form-value
+                                       $print-reader-abbreviations-value
+                                       $print-as-expression-value
                                        $error-print-source-location-value)]
                              [primitive '($prim:load-on-demand-enabled
                                           $prim:use-user-specific-search-paths
@@ -65680,6 +65976,17 @@
                                           $prim:read-single-flonum
                                           $prim:read-decimal-as-inexact
                                           $prim:read-case-sensitive
+                                          $prim:print-pair-curly-braces
+                                          $prim:print-mpair-curly-braces
+                                          $prim:print-unreadable
+                                          $prim:print-graph
+                                          $prim:print-struct
+                                          $prim:print-box
+                                          $prim:print-vector-length
+                                          $prim:print-hash-table
+                                          $prim:print-boolean-long-form
+                                          $prim:print-reader-abbreviations
+                                          $prim:print-as-expression
                                           $prim:error-print-source-location)])
                    `(func ,name (type $Prim01)
                           (param $v (ref eq)) ;; optional boolean?
@@ -70305,6 +70612,17 @@
                (global $read-decimal-as-inexact-value  (mut (ref eq)) (global.get $true))
                (global $read-case-sensitive-value      (mut (ref eq)) (global.get $true))
                (global $current-readtable-value        (mut (ref eq)) (global.get $false))
+               (global $print-pair-curly-braces-value       (mut (ref eq)) (global.get $false))
+               (global $print-mpair-curly-braces-value      (mut (ref eq)) (global.get $true))
+               (global $print-unreadable-value              (mut (ref eq)) (global.get $true))
+               (global $print-graph-value                   (mut (ref eq)) (global.get $false))
+               (global $print-struct-value                  (mut (ref eq)) (global.get $true))
+               (global $print-box-value                     (mut (ref eq)) (global.get $true))
+               (global $print-vector-length-value           (mut (ref eq)) (global.get $false))
+               (global $print-hash-table-value              (mut (ref eq)) (global.get $true))
+               (global $print-boolean-long-form-value       (mut (ref eq)) (global.get $false))
+               (global $print-reader-abbreviations-value    (mut (ref eq)) (global.get $false))
+               (global $print-as-expression-value           (mut (ref eq)) (global.get $true))
                (global $print-syntax-width-value       (mut (ref eq)) (ref.i31 (i32.const 512)))
                (global $error-print-width-value        (mut (ref eq)) (ref.i31 (i32.const 512)))
                (global $error-print-source-location-value (mut (ref eq)) (global.get $true))

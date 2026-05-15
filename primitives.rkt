@@ -1078,6 +1078,7 @@
  ;; 4.20 Procedures
  procedure? apply compose compose1 checked-procedure-check-and-extract procedure-rename procedure->external
  procedure-arity procedure-arity-mask procedure-arity-includes?
+ procedure-specialize
  procedure-arity?
  procedure-struct-type?
  procedure-reduce-arity procedure-reduce-arity-mask
@@ -1285,6 +1286,8 @@ current-parameterization    ; poor-man dynamic parameterization overlay
  string-port?
  open-input-string open-output-string get-output-string
  open-input-bytes  open-output-bytes  get-output-bytes
+ make-output-port
+ file-position*
  port-next-location
  port-count-lines!
  port-counts-lines?

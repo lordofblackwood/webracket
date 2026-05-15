@@ -443,6 +443,31 @@
       (define-values (1/reverse) 'reverse-proc)
       (void))))
 
+(test-case "report slicing keeps initializer dependencies"
+  (define phase0-linklet
+    '(linklet (((install! install!))) (visible)
+       (define-values (helper) (lambda () 'installed))
+       (define-values (visible) 42)
+       (define-values (unused) 'unused)
+       (install! helper)))
+  (define report
+    (webify-module-extractor-spike
+     'init-provider
+     '(#f)
+     '(0)
+     (list (webify-module-bundle-entry 0 'linklet '(((install! install!))) '(visible) phase0-linklet #f))
+     '(((install! install!)))
+     '(visible)
+     phase0-linklet
+     #t
+     '()))
+  (define sliced (webify-module-extractor-spike/slice-exports report '(visible)))
+  (define sliced-linklet (webify-module-extractor-spike-phase0-linklet-datum sliced))
+  (check-equal? (webify-linklet-import-bindings sliced-linklet)
+                '((install! install!)))
+  (check-regexp-match #rx"helper" (format "~s" sliced-linklet))
+  (check-false (regexp-match? #rx"unused" (format "~s" sliced-linklet))))
+
 (test-case "extractor report graph resolves module inputs"
   (define dep-report
     (webify-module-extractor-spike

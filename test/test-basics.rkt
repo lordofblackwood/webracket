@@ -69,6 +69,13 @@
                      (equal? (procedure? call-with-escape-continuation) #t)
                      (equal? (procedure? (case-lambda ((x) x) ((x y) (+ x y)))) #t)                  
                      (equal? (procedure-arity procedure?) 1)))
+              (list "procedure-specialize"
+                    (let ([proc (lambda (x) x)])
+                      (and
+                       (procedure? (procedure-specialize proc))
+                       (eq? (procedure-specialize proc) proc)
+                       (equal? ((procedure-specialize proc) 'ok) 'ok)
+                       (equal? (procedure-arity procedure-specialize) 1))))
               (list "call-with-escape-continuation/bootstrap"
                     (and
                      (equal? (call-with-escape-continuation
@@ -5356,6 +5363,20 @@
                             (equal? (port? out) #t)
                             (equal? (port? 42) #f))))
 
+              (list "file-position*/string-ports"
+                    (let ([in  (open-input-string "λx")]
+                          [out (open-output-string)])
+                      (and (equal? (file-position* in) 0)
+                           (equal? (read-byte in) 206)
+                           (equal? (file-position* in) 1)
+                           (equal? (read-byte in) 187)
+                           (equal? (file-position* in) 2)
+                           (equal? (write-string "ok" out) 2)
+                           (equal? (file-position* out) 2)
+                           (with-handlers ([exn:fail:contract? (lambda (_ex) #t)])
+                             (file-position* 42)
+                             #f))))
+
                (list "input-port?/only-input"
                      (let* ([in  (open-input-bytes (bytes 1 2 3))]
                             [out (open-output-string)])
@@ -5894,6 +5915,30 @@
                     (and (equal? (port-writes-special? (open-output-string)) #f)
                          (with-handlers ([exn:fail:contract? (lambda (_ex) #t)])
                            (port-writes-special? 'not-a-port)
+                           #f)))
+
+              (list "make-output-port/write-bytes"
+                    (let ([seen #""])
+                      (let ([port (make-output-port
+                                   'sink
+                                   always-evt
+                                   (lambda (bs start end non-block? breakable?)
+                                     (set! seen (subbytes bs start end))
+                                     (- end start))
+                                   void)])
+                        (and (output-port? port)
+                             (equal? (write-bytes #"abcdef" port 2 5) 3)
+                             (equal? seen #"cde")
+                             (equal? (file-position* port) 3)))))
+
+              (list "printer boolean parameters"
+                    (and (equal? (print-graph) #f)
+                         (void? (print-graph #t))
+                         (equal? (print-graph) #t)
+                         (void? (print-struct #f))
+                         (equal? (print-struct) #f)
+                         (with-handlers ([exn:fail:contract? (lambda (_ex) #t)])
+                           (print-box 'yes)
                            #f)))
 
               (list "channel/basic"

@@ -703,6 +703,44 @@
        (list local dependency provider-export)]
       [_ #f]))))
 
+;; import-groups->provider-coverage-aliases : import-groups candidates dependency-exports imports -> aliases
+;;   Resolve a whole import group when exactly one required provider exports every name in the group.
+(define (import-groups->provider-coverage-aliases groups
+                                                  required-module-candidates
+                                                  dependency-exports
+                                                  explicit-locals)
+  (define phase0-modules
+    (remove-duplicates
+     (for/list ([candidate (in-list required-module-candidates)]
+                #:when (= 0 (car candidate)))
+       (cadr candidate))
+     eq?))
+  (define (dependency-exports-external? dependency external)
+    (define row (assoc dependency dependency-exports))
+    (and row
+         (for/or ([export (in-list (cadr row))])
+           (symbolic-name=? export external))))
+  (append*
+   (for/list ([group (in-list groups)])
+     (define unresolved-bindings
+       (filter (lambda (binding) (not (memq (car binding) explicit-locals)))
+               group))
+     (cond
+       [(null? unresolved-bindings) '()]
+       [else
+        (define covering-modules
+          (for/list ([module (in-list phase0-modules)]
+                     #:when (for/and ([binding (in-list unresolved-bindings)])
+                              (match-define (list _local external) binding)
+                              (dependency-exports-external? module external)))
+            module))
+        (match covering-modules
+          [(list module)
+           (for/list ([binding (in-list unresolved-bindings)])
+             (match-define (list local external) binding)
+             (list local module external))]
+          [_ '()])]))))
+
 ;; webify-module-extractor-spike-import-map : report -> webify-module-import-map?
 ;;   Build an observational import-map report from phase-0, data, and decl linklets.
 (define (webify-module-extractor-spike-import-map report)
@@ -1063,6 +1101,19 @@
                                "module" (webify-module-extractor-spike-name report)
                                "export" export))
       descriptor))
+  (define initializer-forms
+    (filter (lambda (form)
+              (define-values (ids _rhs) (linklet-definition form))
+              (not ids))
+            body))
+  ;; Linklet initializer forms always run, so their free variables must seed
+  ;; the slice just like demanded exports. Otherwise an initializer can survive
+  ;; while its imports or helper definitions are removed.
+  (define initializer-needed
+    (remove-duplicates
+     (append*
+      (for/list ([form (in-list initializer-forms)])
+        (linklet-expr-free-vars form)))))
   (define definition-table (make-hasheq))
   (for ([form (in-list body)])
     (define-values (ids rhs) (linklet-definition form))
@@ -1071,8 +1122,10 @@
         (hash-set! definition-table id (list ids rhs form)))))
   (define needed
     (remove-duplicates
-     (for/list ([descriptor (in-list demanded-export-descriptors)])
-       (car descriptor))))
+     (append
+      (for/list ([descriptor (in-list demanded-export-descriptors)])
+        (car descriptor))
+      initializer-needed)))
   (let loop ([queue needed])
     (cond
       [(null? queue) (void)]
@@ -1241,6 +1294,49 @@
   (define final-by-name (make-hasheq))
   (for ([report (in-list (append extra-reports root-reports))])
     (hash-set! final-by-name (webify-module-extractor-spike-name report) report))
+  (define (final-reports)
+    (filter values
+            (for/list ([report (in-list discovered-reports)])
+              (hash-ref final-by-name
+                        (webify-module-extractor-spike-name report)
+                        #f))))
+  (define (ordered-final-reports)
+    (define final-table
+      (for/hasheq ([report (in-list (final-reports))])
+        (values (webify-module-extractor-spike-name report) report)))
+    (define planned '())
+    (define permanent (hasheq))
+    (define temporary (hasheq))
+    (define (visit report)
+      (define name (webify-module-extractor-spike-name report))
+      (cond
+        [(hash-has-key? permanent name) (void)]
+        [(hash-has-key? temporary name)
+         ;; The Racket module require graph should be acyclic. If metadata
+         ;; disagrees, keep discovery order instead of failing the extractor.
+         (void)]
+        [else
+         (set! temporary (hash-set temporary name #t))
+         (for ([module (in-list (runtime-required-modules report))])
+           (define dependency (hash-ref final-table module #f))
+           (when dependency
+             (visit dependency)))
+         (set! temporary (hash-remove temporary name))
+         (set! permanent (hash-set permanent name #t))
+         (set! planned (cons report planned))]))
+    (for ([report (in-list (final-reports))])
+      (visit report))
+    (reverse planned))
+  (define (runtime-required-modules report)
+    (define self-name (webify-module-extractor-spike-name report))
+    (remove-duplicates
+     (for/list ([candidate (in-list (webify-module-import-map-required-module-candidates
+                                     (webify-module-extractor-spike-import-map report)))]
+                #:when (and (= 0 (car candidate))
+                            (not (eq? (cadr candidate) self-name))
+                            (hash-has-key? reports-by-name (cadr candidate))))
+       (cadr candidate))
+     eq?))
   (define demanded (make-hasheq))
   (define (new-exports module exports)
     (define old (hash-ref demanded module '()))
@@ -1262,33 +1358,55 @@
         discovered-reports
         #:dependencies dependencies
         #:module-protocol-dependency module-protocol-dependency))))
-  (let loop ([queue (filter values (map record-demand! initial-demands))])
-    (cond
-      [(null? queue)
-       (filter values
-               (for/list ([report (in-list discovered-reports)])
-                 (hash-ref final-by-name
-                           (webify-module-extractor-spike-name report)
-                           #f)))]
-      [else
-       (define demand (car queue))
-       (define module (webify-module-export-demand-module demand))
-       (define report (hash-ref reports-by-name module #f))
-       (define next-demands '())
-       (when (and report (not (hash-ref root/extra-names module #f)))
-         (define sliced
-           (webify-module-extractor-spike/slice-exports
-            report
-            (hash-ref demanded module)))
-         (hash-set! final-by-name module sliced)
-         (set! next-demands
-               (webify-module-extractor-spike-import-export-demands
-                sliced
-                discovered-reports
-                #:dependencies dependencies
-                #:module-protocol-dependency module-protocol-dependency)))
-       (loop (append (cdr queue)
-                     (filter values (map record-demand! next-demands))))])))
+  (define (process-export-demands! demands)
+    (let loop ([queue (filter values (map record-demand! demands))])
+      (unless (null? queue)
+        (define demand (car queue))
+        (define module (webify-module-export-demand-module demand))
+        (define report (hash-ref reports-by-name module #f))
+        (define next-demands '())
+        (when (and report (not (hash-ref root/extra-names module #f)))
+          (define sliced
+            (webify-module-extractor-spike/slice-exports
+             report
+             (hash-ref demanded module)))
+          (hash-set! final-by-name module sliced)
+          (set! next-demands
+                (webify-module-extractor-spike-import-export-demands
+                 sliced
+                 discovered-reports
+                 #:dependencies dependencies
+                 #:module-protocol-dependency module-protocol-dependency)))
+        (loop (append (cdr queue)
+                      (filter values (map record-demand! next-demands)))))))
+  (define (process-init-closure!)
+    (let loop ()
+      (define changed? #f)
+      (define next-demands '())
+      (for ([report (in-list (final-reports))])
+        (for ([module (in-list (runtime-required-modules report))])
+          (unless (hash-has-key? final-by-name module)
+            (define provider-report (hash-ref reports-by-name module #f))
+            (when provider-report
+              (define sliced
+                (webify-module-extractor-spike/slice-exports provider-report '()))
+              (hash-set! final-by-name module sliced)
+              (set! changed? #t)
+              (set! next-demands
+                    (append
+                     (webify-module-extractor-spike-import-export-demands
+                      sliced
+                      discovered-reports
+                      #:dependencies dependencies
+                      #:module-protocol-dependency module-protocol-dependency)
+                     next-demands))))))
+      (when (pair? next-demands)
+        (process-export-demands! next-demands))
+      (when (or changed? (pair? next-demands))
+        (loop))))
+  (process-export-demands! initial-demands)
+  (process-init-closure!)
+  (ordered-final-reports))
 
 (define (webify-module-extractor-spikes->discovered-resolved-linklet-inputs
          reports
@@ -1338,6 +1456,9 @@
     (unless (symbol? module-protocol-dependency)
       (raise-argument-error who "symbol?" module-protocol-dependency)))
   (define bindings (webify-linklet-import-bindings linklet))
+  (define unresolved-groups
+    (filter (lambda (group) (not (protocol-import-group? group)))
+            (linklet-datum-import-groups linklet)))
   (define module-protocol-bindings (filter module-protocol-import-binding? bindings))
   (define module-bindings (filter (lambda (binding)
                                     (not (module-protocol-import-binding? binding)))
@@ -1366,9 +1487,22 @@
              [(list local _dependency _export) local]
              [(list _importer local _dependency _export) local])))
        (define explicit-locals (map car dependencies))
+       (define grouped-provider-aliases
+         (import-groups->provider-coverage-aliases
+          unresolved-groups
+          required-module-candidates
+          dependency-exports
+          (append explicit-locals
+                  reflection-hint-locals
+                  (for/list ([alias (in-list (append import-aliases
+                                                      (resolve-compiled-rename-aliases
+                                                       require-rename-aliases
+                                                       dependency-exports)))])
+                    (car alias)))))
        (define explicit-or-alias-locals
          (append explicit-locals
                  reflection-hint-locals
+                 (map car grouped-provider-aliases)
                  (for/list ([alias (in-list (append import-aliases
                                                      (resolve-compiled-rename-aliases
                                                       require-rename-aliases
@@ -1454,6 +1588,7 @@
         #:reflection-hints reflection-hints
         #:import-aliases
         (append import-aliases
+                grouped-provider-aliases
                 (resolve-compiled-rename-aliases require-rename-aliases dependency-exports)))]))
   (define triples-by-import
     (for/hasheq ([triple (in-list (append module-protocol-triples module-triples))])
@@ -1486,6 +1621,16 @@
    (for/list ([row (in-list dependency-exports)])
      (match-define (list name exports) row)
      (webify-module-linklet-input name `(linklet () ,exports (void)) '()))))
+
+;; dependency-exports/include-self : report dependency-exports -> dependency-exports
+;;   Add the report's own export row for compiled linklets that import a
+;;   same-module binding under an internalized local name.
+(define (dependency-exports/include-self report dependency-exports)
+  (define self-row (webify-module-extractor-spike-dependency-exports report))
+  (match-define (list self-name _self-exports) self-row)
+  (if (assoc self-name dependency-exports)
+      dependency-exports
+      (cons self-row dependency-exports)))
 
 ;; compiled-module->extractor-spike : symbol? any/c -> webify-module-extractor-spike?
 ;;   Convert one machine-independent compiled module to an extractor report.
@@ -1873,6 +2018,8 @@
   (define raw-linklet (webify-module-extractor-spike-phase0-linklet-datum report))
   (define provider-dependency-exports
     (webify-module-extractor-spikes-dependency-exports provider-reports))
+  (define provider+self-dependency-exports
+    (dependency-exports/include-self report provider-dependency-exports))
   (webify-module-linklet-input
    (webify-module-extractor-spike-name report)
    (webify-normalize-linklet-imports raw-linklet)
@@ -1880,8 +2027,8 @@
     who
     raw-linklet
     (or dependency-exports
-        provider-dependency-exports)
-    provider-dependency-exports
+        provider+self-dependency-exports)
+    provider+self-dependency-exports
     dependencies
     (webify-module-import-map-import-aliases import-map)
     (webify-module-import-map-require-rename-aliases import-map)

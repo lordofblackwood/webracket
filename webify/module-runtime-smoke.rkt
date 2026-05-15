@@ -126,11 +126,13 @@
              #:extra-reports (list webify-module-protocol-report)
              #:module-protocol-dependency webify-module-protocol-dependency
              #:demand-slice? #t))
+          (define manifest-root-names
+            (map webify-module-linklet-input-name inputs))
           (call-with-output-file ,(path->string manifest-path)
             (lambda (out)
               (write
                `(webify-module-linklet-manifest
-                 (roots ,root-names)
+                 (roots ,manifest-root-names)
                  ,@(for/list ([input (in-list inputs)])
                      `(input ,(webify-module-linklet-input-name input)
                              ,(webify-module-linklet-input-linklet input)
@@ -293,7 +295,8 @@
        (define input (input-ref name))
        (for ([source (in-list (webify-module-linklet-input-imports input))])
          (match-define (list _local dependency _export) source)
-         (unless (primitive-module-name? dependency)
+         (unless (or (primitive-module-name? dependency)
+                     (eq? dependency name))
            (visit dependency (cons name path))))
        (set! temporary (hash-remove temporary name))
        (set! permanent (hash-set permanent name #t))

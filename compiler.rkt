@@ -1511,6 +1511,17 @@
        read-decimal-as-inexact
        read-case-sensitive
        current-readtable
+       print-pair-curly-braces
+       print-mpair-curly-braces
+       print-unreadable
+       print-graph
+       print-struct
+       print-box
+       print-vector-length
+       print-hash-table
+       print-boolean-long-form
+       print-reader-abbreviations
+       print-as-expression
        print-syntax-width
        error-print-width
        error-print-source-location
@@ -1672,20 +1683,22 @@
          [else 'false])))
    (make-inline-specs/by-name
     '(make-input-port
+      make-output-port
       peek-bytes-avail!
       peek-bytes-avail!*)
     'optional-rest
     (λ (name)
       (case name
-        [(make-input-port) 4]
+        [(make-input-port make-output-port) 4]
         [else 2]))
     (λ (name)
       (case name
         [(make-input-port) 10]
+        [(make-output-port) 11]
         [else 6]))
     (λ (name)
       (case name
-        [(make-input-port) 4]
+        [(make-input-port make-output-port) 4]
         [else 1])))))
   )
 
@@ -2387,6 +2400,17 @@
   log-level?
   log-max-level
   log-message
+  print-pair-curly-braces
+  print-mpair-curly-braces
+  print-unreadable
+  print-graph
+  print-struct
+  print-box
+  print-vector-length
+  print-hash-table
+  print-boolean-long-form
+  print-reader-abbreviations
+  print-as-expression
   print-syntax-width
   error-print-width
   error-print-source-location
@@ -2408,6 +2432,8 @@
   open-output-string
   get-output-bytes
   get-output-string
+  make-output-port
+  file-position*
 
   call-with-output-string
   make-input-port
@@ -2546,6 +2572,7 @@
   procedure-arity?
   procedure-arity-mask
   procedure-arity-includes?
+  procedure-specialize
   procedure-struct-type?
   procedure-reduce-arity
   procedure-reduce-arity-mask
