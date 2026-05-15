@@ -4594,6 +4594,31 @@
                            (eq? (hash-ref-key h b) b)
                            (not (hash-has-key? h* a))
                            (equal? (hash-ref h* b #f) 'b))))
+              (list "immutable equal HAMT caches packed inline key hashes"
+                    (let ([hash-calls (box 0)])
+                      (struct counted (n)
+                        #:property prop:equal+hash
+                        (list
+                         (lambda (self other recur)
+                           (and (counted? other)
+                                (equal? (counted-n self) (counted-n other))))
+                         (lambda (self hash)
+                           (set-box! hash-calls (+ (unbox hash-calls) 1))
+                           1)
+                         (lambda (self hash)
+                           (set-box! hash-calls (+ (unbox hash-calls) 1))
+                           1)))
+                      (let* ([k0 (counted 0)]
+                             [h0 (hash-set (hash) k0 'zero)]
+                             [calls-after-first (unbox hash-calls)]
+                             [h1 (hash-set h0 (counted 1) 'one)]
+                             [stored (hash-ref-key h1 (counted 0) #f)])
+                        (and (equal? calls-after-first 1)
+                             (equal? (unbox hash-calls) 3)
+                             (counted? stored)
+                             (equal? (counted-n stored) 0)
+                             (equal? (hash-ref h1 (counted 1) #f) 'one)
+                             (equal? (unbox hash-calls) 4)))))
               (list "immutable equal HAMT recursive bucket split"
                     (let ([keys '(0 8 16 24 32 40 48 56 64)])
                       (let loop ([ks keys] [h (hash)])

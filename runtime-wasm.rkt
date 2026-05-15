@@ -3328,6 +3328,17 @@
                        (field $key       (ref eq))
                        (field $value     (ref eq)))))
 
+          ;; Private packed-inline key wrapper. Equal?/equal-always? HAMTs use
+          ;; this only in physical bnode key slots so promotion can reuse the
+          ;; cached hash while public APIs still expose the original key.
+          (type $ImmutableHashWrappedKey
+                (sub $Heap
+                     (struct
+                       (field $hash     (mut i32))
+                       (field $kind     i32)
+                       (field $key-hash i32)
+                       (field $key      (ref eq)))))
+
           (type $ImmutableHashCNode
                 (sub $Heap
                      (struct
@@ -38458,6 +38469,12 @@
                (param $kind i32)
                (param $key  (ref eq))
                (result      i32)
+               (if (ref.test (ref $ImmutableHashWrappedKey) (local.get $key))
+                   (then
+                    (return
+                     (struct.get $ImmutableHashWrappedKey $key-hash
+                                 (ref.cast (ref $ImmutableHashWrappedKey)
+                                           (local.get $key))))))
                (if (i32.eq (local.get $kind) (i32.const 0))
                    (then (return_call $eq-hash/i32 (local.get $key))))
                (if (i32.eq (local.get $kind) (i32.const 1))
@@ -38465,6 +38482,47 @@
                (if (i32.eq (local.get $kind) (i32.const 2))
                    (then (return_call $equal-hash/i32 (local.get $key))))
                (return_call $equal-always-hash/i32 (local.get $key)))
+
+         ;; immutable-hamt-wrap-inline-key/kind : kind key hash -> key-or-wrapper
+         ;;   Cache equal?/equal-always? hashes in packed inline key slots.
+         (func $immutable-hamt-wrap-inline-key/kind
+               (param $kind i32)
+               (param $key  (ref eq))
+               (param $hash i32)
+               (result      (ref eq))
+               (if (i32.lt_u (local.get $kind) (i32.const 2))
+                   (then (return (local.get $key))))
+               (struct.new $ImmutableHashWrappedKey
+                           (i32.const 0)
+                           (local.get $kind)
+                           (local.get $hash)
+                           (local.get $key)))
+
+         ;; immutable-hamt-inline-key-unwrap : key-or-wrapper -> key
+         ;;   Recover the public key from a private packed inline wrapper.
+         (func $immutable-hamt-inline-key-unwrap
+               (param $key (ref eq))
+               (result     (ref eq))
+               (if (ref.test (ref $ImmutableHashWrappedKey) (local.get $key))
+                   (then
+                    (return
+                     (struct.get $ImmutableHashWrappedKey $key
+                                 (ref.cast (ref $ImmutableHashWrappedKey)
+                                           (local.get $key))))))
+               (local.get $key))
+
+         ;; immutable-hamt-inline-key-cached-hash : key-or-wrapper -> i32
+         ;;   Return a packed inline wrapper's cached hash, or 0 for raw keys.
+         (func $immutable-hamt-inline-key-cached-hash
+               (param $key (ref eq))
+               (result     i32)
+               (if (ref.test (ref $ImmutableHashWrappedKey) (local.get $key))
+                   (then
+                    (return
+                     (struct.get $ImmutableHashWrappedKey $key-hash
+                                 (ref.cast (ref $ImmutableHashWrappedKey)
+                                           (local.get $key))))))
+               (i32.const 0))
 
          ;; immutable-hamt-entry-for-key/kind : kind key value -> immutable-hash-entry?
          ;;   Build an entry when a physical key/value inline slot is promoted.
@@ -38478,7 +38536,8 @@
                            (call $immutable-hamt-key-hash/kind
                                  (local.get $kind)
                                  (local.get $key))
-                           (local.get $key)
+                           (call $immutable-hamt-inline-key-unwrap
+                                 (local.get $key))
                            (local.get $value)))
 
          ;; immutable-hamt-packed-metadata-present?/i32 : i32 i32 i32 -> i32
@@ -38849,22 +38908,26 @@
                (param $lookup-key (ref eq))
                (result            i32)
                (if (i32.eq (local.get $kind) (i32.const 0))
-                   (then (return (ref.eq (local.get $stored-key)
+                   (then (return (ref.eq (call $immutable-hamt-inline-key-unwrap
+                                                (local.get $stored-key))
                                          (local.get $lookup-key)))))
                (if (i32.eq (local.get $kind) (i32.const 1))
                    (then
                     (return (ref.eq (call $eqv?
-                                          (local.get $stored-key)
+                                          (call $immutable-hamt-inline-key-unwrap
+                                                (local.get $stored-key))
                                           (local.get $lookup-key))
                                     (global.get $true)))))
                (if (i32.eq (local.get $kind) (i32.const 2))
                    (then
                     (return (ref.eq (call $equal?
-                                          (local.get $stored-key)
+                                          (call $immutable-hamt-inline-key-unwrap
+                                                (local.get $stored-key))
                                           (local.get $lookup-key))
                                     (global.get $true)))))
                (return (ref.eq (call $equal-always?
-                                     (local.get $stored-key)
+                                     (call $immutable-hamt-inline-key-unwrap
+                                           (local.get $stored-key))
                                      (local.get $lookup-key))
                                (global.get $true))))
 
@@ -38981,7 +39044,9 @@
                          (local.get $kind)
                          (local.get $slot)
                          (local.get $key))
-                   (then (return (local.get $slot))))
+                   (then
+                    (return_call $immutable-hamt-inline-key-unwrap
+                                 (local.get $slot))))
                (return_call $immutable-hamt-bucket-ref-key/kind
                             (local.get $kind)
                             (global.get $null)
@@ -39115,7 +39180,12 @@
                                              (i32.or (local.get $key-bit) (local.get $value-bit))
                                              (i32.or (local.get $key-bit) (local.get $value-bit))
                                              (call $cons
-                                                   (struct.get $ImmutableHashEntry $key (local.get $entry))
+                                                   (call $immutable-hamt-wrap-inline-key/kind
+                                                         (local.get $kind)
+                                                         (struct.get $ImmutableHashEntry $key
+                                                                     (local.get $entry))
+                                                         (struct.get $ImmutableHashEntry $key-hash
+                                                                     (local.get $entry)))
                                                    (call $cons
                                                          (struct.get $ImmutableHashEntry $value (local.get $entry))
                                                          (global.get $null)))
@@ -39168,7 +39238,10 @@
                                    (i32.const 0)
                                    (i32.or (local.get $key-bit) (local.get $value-bit))
                                    (call $cons
-                                         (struct.get $ImmutableHashEntry $key (local.get $entry))
+                                         (call $immutable-hamt-wrap-inline-key/kind
+                                               (local.get $kind)
+                                               (struct.get $ImmutableHashEntry $key (local.get $entry))
+                                               (struct.get $ImmutableHashEntry $key-hash (local.get $entry)))
                                          (call $cons
                                                (struct.get $ImmutableHashEntry $value (local.get $entry))
                                                (global.get $null)))
@@ -39279,9 +39352,14 @@
                                                    (local.get $child-bit)
                                                    (i32.or (local.get $key-bit) (local.get $value-bit))
                                                    (call $cons
-                                                         (struct.get $ImmutableHashEntry $key
-                                                                     (ref.cast (ref $ImmutableHashEntry)
-                                                                               (local.get $newslot)))
+                                                         (call $immutable-hamt-wrap-inline-key/kind
+                                                               (local.get $kind)
+                                                               (struct.get $ImmutableHashEntry $key
+                                                                           (ref.cast (ref $ImmutableHashEntry)
+                                                                                     (local.get $newslot)))
+                                                               (struct.get $ImmutableHashEntry $key-hash
+                                                                           (ref.cast (ref $ImmutableHashEntry)
+                                                                                     (local.get $newslot))))
                                                          (call $cons
                                                                (struct.get $ImmutableHashEntry $value
                                                                            (ref.cast (ref $ImmutableHashEntry)
@@ -44432,10 +44510,14 @@
                                            (call $cons
                                                  (struct.new $ImmutableHashEntry
                                                              (i32.const 0)
-                                                             (i32.const 0)
-                                                             (call $immutable-hamt-packed-slot
-                                                                   (local.get $sv)
-                                                                   (local.get $key-bit))
+                                                             (call $immutable-hamt-inline-key-cached-hash
+                                                                   (call $immutable-hamt-packed-slot
+                                                                         (local.get $sv)
+                                                                         (local.get $key-bit)))
+                                                             (call $immutable-hamt-inline-key-unwrap
+                                                                   (call $immutable-hamt-packed-slot
+                                                                         (local.get $sv)
+                                                                         (local.get $key-bit)))
                                                              (call $immutable-hamt-packed-slot
                                                                    (local.get $sv)
                                                                    (call $immutable-hamt-packed-value-bit

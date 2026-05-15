@@ -111,12 +111,13 @@ WebRacket now uses physical packed bnodes for new immutable hash HAMT nodes:
 - terminal full-hash collisions are represented as explicit
   `$ImmutableHashCNode` nodes, so packed bnodes keep the same bnode/cnode
   distinction as the older compatibility path and Racket CS
-- equal?/equal-always? keys are not wrapped yet
+- equal?/equal-always? inline keys are privately wrapped with the cached
+  comparison-specific hash; public operations unwrap them before returning keys
 
 Lookup, `hash-ref-key`, `hash-has-key?`, set, remove, iteration, and debug-shape
-all understand the packed layout. Collision promotion recomputes a stored inline
-key's hash from the hash kind when the key/value pair needs to become a recursive
-child or terminal cnode.
+all understand the packed layout. Collision promotion reuses a stored inline
+key's cached hash when the key/value pair needs to become a recursive child or
+terminal cnode.
 
 An internal debug-only compiler hook,
 `webracket-internal-immutable-hash-debug-shape`, can be enabled with
@@ -218,13 +219,11 @@ functional `hash-set` shape.
 
 ## Later Direction
 
-The next immutable-hash semantic milestone is tighter parity with the remaining
-Racket CS HAMT details:
+The remaining immutable-hash work is now outside the core HAMT representation:
 
-- restore/promote terminal full-hash collision buckets to explicit cnodes in the
-  physical packed path
-- add key wrapping if equal?/equal-always? need it for cyclic data
 - replace weak and ephemeron strong fallbacks when the runtime has weak
   reference support
 - expose ordinary immutable `hash-iterate-*` paths directly if linklets require
   those names, rather than relying on the current generic iterator bridge
+- compare more library-sized workloads against Racket CS for performance and
+  shape parity
