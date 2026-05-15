@@ -363,6 +363,7 @@
          read-syntax
          ;; stdlib/writing.rkt
          current-print
+         print-values
          print-pair-curly-braces
          print-mpair-curly-braces
          print-unreadable
@@ -995,6 +996,7 @@
 
  ;; Printing Parameters
  current-print
+ print-values
 
  ;; 4.15 Hash Tables
  hash?
@@ -1004,6 +1006,7 @@
  hash-equal-always?
 
  hash-ref hash-ref-key hash-ref! hash-set hash-set! hash-remove hash-remove! hash-clear hash-clear!
+ hash-copy
  hash-update!
  hash-has-key?
  hash-empty?
@@ -1073,7 +1076,7 @@
 
  
  ;; 4.20 Procedures
- procedure? apply compose compose1 procedure-rename procedure->external
+ procedure? apply compose compose1 checked-procedure-check-and-extract procedure-rename procedure->external
  procedure-arity procedure-arity-mask procedure-arity-includes?
  procedure-arity?
  procedure-struct-type?
@@ -1138,6 +1141,8 @@
  ;; 10.5 Continuation Marks
  dynamic-wind
  call-with-continuation-barrier ; bootstrap approximation: invokes thunk
+make-continuation-mark-key
+continuation-mark-key?
 unsafe-root-continuation-prompt-tag ; stable placeholder; prompts unsupported
 current-continuation-marks  ; dummy, returns an empty mark set
 continuation-mark-set?
@@ -1174,6 +1179,7 @@ current-parameterization    ; poor-man dynamic parameterization overlay
  make-channel channel? channel-get channel-try-get
  channel-put channel-put-evt channel-put-evt?
  evt? handle-evt handle-evt?
+ make-will-executor will-executor? will-register will-try-execute will-execute
  make-semaphore semaphore? semaphore-post semaphore-try-wait?
  call-with-semaphore
  semaphore-peek-evt semaphore-peek-evt?
@@ -3309,6 +3315,10 @@ current-parameterization    ; poor-man dynamic parameterization overlay
     [(marks key) #f]
     [(marks key none-v) none-v]
     [(marks key none-v prompt-tag) none-v]))
+
+(define (print-values . vs)
+  (for-each (current-print) vs)
+  (apply values vs))
 
 (define (current-parameterization)
   '(webracket-parameterization))

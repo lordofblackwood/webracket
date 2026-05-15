@@ -2045,6 +2045,7 @@
     (add-runtime-string-constant 'semaphore?                 "semaphore?")
     (add-runtime-string-constant 'evt?                       "evt?")
     (add-runtime-string-constant 'handle-evt?                "handle-evt?")
+    (add-runtime-string-constant 'will-executor?             "will-executor?")
     (add-runtime-string-constant 'thread?                    "thread?")
     (add-runtime-string-constant 'thread-group?              "thread-group?")
     (add-runtime-string-constant 'procedure-arity?           "procedure-arity?")
@@ -2119,6 +2120,11 @@
     (add-runtime-symbol-constant 'evt?)
     (add-runtime-symbol-constant 'handle-evt)
     (add-runtime-symbol-constant 'handle-evt?)
+    (add-runtime-symbol-constant 'make-will-executor)
+    (add-runtime-symbol-constant 'will-executor?)
+    (add-runtime-symbol-constant 'will-register)
+    (add-runtime-symbol-constant 'will-execute)
+    (add-runtime-symbol-constant 'will-try-execute)
     (add-runtime-symbol-constant 'hash-placeholder?)
     (add-runtime-symbol-constant 'hash-weak?)
     (add-runtime-symbol-constant 'make-placeholder)
@@ -2605,6 +2611,20 @@
                                   (field $hash (mut i32))
                                   (field $evt  (ref eq))
                                   (field $proc (ref $Procedure)))))
+          ;; Minimal will executors. WebRacket does not expose GC-driven
+          ;; finalization yet, so registrations are retained to preserve
+          ;; references, but no wills become ready for execution.
+          (type $WillExecutor (sub $Heap
+                                   (struct
+                                     (field $hash          (mut i32))
+                                     (field $registrations (mut (ref eq))))))
+          ;; Opaque continuation-mark keys. Full continuation marks are still
+          ;; stubbed, but libraries use fresh key allocation as opaque identity
+          ;; tokens during startup.
+          (type $ContinuationMarkKey (sub $Heap
+                                          (struct
+                                            (field $hash (mut i32))
+                                            (field $name (ref eq)))))
           (type $ContinuationMarkSet (sub $Heap
                                           (struct
                                             (field $hash (mut i32)))))
@@ -36578,6 +36598,8 @@
                    (then (return (global.get $true))))
                (if (ref.test (ref $HandleEvt) (local.get $v))
                    (then (return (global.get $true))))
+               (if (ref.test (ref $WillExecutor) (local.get $v))
+                   (then (return (global.get $true))))
                (if (ref.test (ref $LogReceiver) (local.get $v))
                    (then (return (global.get $true))))
                (if (ref.test (ref $CustodianBox) (local.get $v))
@@ -36870,6 +36892,91 @@
                            (i32.const 0)
                            (ref.cast (ref $Semaphore) (local.get $sema-raw))))
 
+         ;; make-will-executor : -> will-executor?
+         ;;   Create an inert will executor. Registrations are retained, but
+         ;;   WebRacket has no GC finalization hook to make wills ready.
+         (func $make-will-executor (type $Prim0)
+               (result (ref eq))
+               (struct.new $WillExecutor
+                           (i32.const 0)
+                           (global.get $null)))
+
+         ;; will-executor? : any/c -> boolean?
+         ;;   Recognize WebRacket's minimal will executor records.
+         (func $will-executor? (type $Prim1)
+               ,@(make-predicate-body '$WillExecutor))
+
+         ;; will-register : will-executor? any/c procedure? -> void?
+         ;;   Retain the registration so the will procedure remains strongly
+         ;;   referenced. No registration becomes ready until finalization is
+         ;;   implemented.
+         (func $will-register (type $Prim3)
+               (param $executor-raw (ref eq)) ;; will-executor?
+               (param $v            (ref eq)) ;; registered value
+               (param $proc-raw     (ref eq)) ;; procedure accepting 1 arg
+               (result              (ref eq))
+               (local $executor (ref $WillExecutor))
+               (local $proc     (ref $Procedure))
+
+               (if (i32.eqz (ref.test (ref $WillExecutor) (local.get $executor-raw)))
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:will-register)
+                               (global.get $string:will-executor?)
+                               (local.get $executor-raw))
+                         (unreachable)))
+               (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc-raw)))
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:will-register)
+                               (global.get $string:procedure?)
+                               (local.get $proc-raw))
+                         (unreachable)))
+               (local.set $proc (ref.cast (ref $Procedure) (local.get $proc-raw)))
+               (if (i32.eqz (call $procedure-arity-includes?/checked/i32
+                                  (local.get $proc)
+                                  (i32.const 1)))
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:will-register)
+                               (global.get $string:procedure?)
+                               (local.get $proc-raw))
+                         (unreachable)))
+               (local.set $executor
+                          (ref.cast (ref $WillExecutor) (local.get $executor-raw)))
+               (struct.set $WillExecutor $registrations
+                           (local.get $executor)
+                           (call $cons
+                                 (call $cons (local.get $v) (local.get $proc-raw))
+                                 (struct.get $WillExecutor $registrations
+                                             (local.get $executor))))
+               (global.get $void))
+
+         ;; will-try-execute : will-executor? [any/c = #f] -> any/c
+         ;;   Return the default because no GC-discovered wills are ready in
+         ;;   the current runtime.
+         (func $will-try-execute (type $Prim12)
+               (param $executor-raw (ref eq)) ;; will-executor?
+               (param $default      (ref eq)) ;; optional default, default = #f
+               (result              (ref eq))
+               (if (i32.eqz (ref.test (ref $WillExecutor) (local.get $executor-raw)))
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:will-try-execute)
+                               (global.get $string:will-executor?)
+                               (local.get $executor-raw))
+                         (unreachable)))
+               (if (result (ref eq))
+                   (ref.eq (local.get $default) (global.get $missing))
+                   (then (global.get $false))
+                   (else (local.get $default))))
+
+         ;; will-execute : will-executor? -> any/c
+         ;;   Blocking is unavailable without a scheduler/finalizer queue, so
+         ;;   this behaves like an immediate unsuccessful poll.
+         (func $will-execute (type $Prim1)
+               (param $executor-raw (ref eq)) ;; will-executor?
+               (result              (ref eq))
+               (call $will-try-execute
+                     (local.get $executor-raw)
+                     (global.get $false)))
+
          ;; $sync-one : evt? boolean? -> any/c
          ;;   Return the selected event value, or #f when it is not ready.
          ;;   Semaphore events consume when requested; peek events do not.
@@ -36955,6 +37062,10 @@
                ;; Log receivers are synchronizable events, but the current
                ;; inert logger substrate never queues events.
                (if (ref.test (ref $LogReceiver) (local.get $evt))
+                   (then (return (global.get $false))))
+               ;; Will executors are events when a GC-discovered will is ready.
+               ;; WebRacket does not expose finalization yet.
+               (if (ref.test (ref $WillExecutor) (local.get $evt))
                    (then (return (global.get $false))))
                ;; Keep the first event layer permissive: other event kinds from
                ;; imported linklets can be added here as they become reachable.
@@ -39532,6 +39643,66 @@
                                           (local.get $key)
                                           (local.get $val)))))
               (unreachable))
+
+         ;; hash-copy : hash? -> (and/c hash? (not/c immutable?))
+         ;;   Return a mutable hash with the same mappings and comparison mode.
+         ;;   WebRacket currently models weak/ephemeron tables as strong tables,
+         ;;   so key-holding strength is preserved only up to that existing
+         ;;   approximation.
+         (func $hash-copy (type $Prim1)
+               (param $ht (ref eq)) ;; source hash table
+               (result    (ref eq))
+
+               (local $dst (ref eq))
+               (local $pos (ref eq))
+               (local $key (ref eq))
+               (local $val (ref eq))
+
+               (local.set $dst (call $make-empty-hash))
+               (if (i32.eqz (ref.test (ref $Hash) (local.get $ht)))
+                   (then (call $raise-argument-error:hash-expected)
+                         (unreachable)))
+
+               (if (i32.or
+                    (ref.test (ref $HashEqMutable) (local.get $ht))
+                    (ref.test (ref $HashEqImmutable) (local.get $ht)))
+                   (then (local.set $dst (call $make-empty-hasheq)))
+                   (else
+                    (if (i32.or
+                         (ref.test (ref $HashEqvMutable) (local.get $ht))
+                         (ref.test (ref $HashEqvImmutable) (local.get $ht)))
+                        (then (local.set $dst (call $make-empty-hasheqv)))
+                        (else
+                         (if (i32.or
+                              (ref.test (ref $HashEqualAlwaysMutable) (local.get $ht))
+                              (ref.test (ref $HashEqualAlwaysImmutable) (local.get $ht)))
+                             (then (local.set $dst (call $make-empty-hashalw)))
+                             (else (local.set $dst (call $make-empty-hash))))))))
+
+               (local.set $pos (call $mutable-hash-iterate-first (local.get $ht)))
+               (block $done
+                      (loop $walk
+                            (br_if $done (ref.eq (local.get $pos) (global.get $false)))
+                            (local.set $key
+                                       (call $mutable-hash-iterate-key
+                                             (local.get $ht)
+                                             (local.get $pos)
+                                             (global.get $missing)))
+                            (local.set $val
+                                       (call $mutable-hash-iterate-value
+                                             (local.get $ht)
+                                             (local.get $pos)
+                                             (global.get $missing)))
+                            (drop (call $hash-set!
+                                        (local.get $dst)
+                                        (local.get $key)
+                                        (local.get $val)))
+                            (local.set $pos
+                                       (call $mutable-hash-iterate-next
+                                             (local.get $ht)
+                                             (local.get $pos)))
+                            (br $walk)))
+               (local.get $dst))
 
          
          ,@(for/list ([hash-set         '($hasheq-set!
@@ -53896,6 +54067,124 @@
                    (then (global.get $false))
                    (else (global.get $true))))
 
+         ;; checked-procedure-check-and-extract :
+         ;;   struct-type? any/c (any/c any/c any/c -> any/c) any/c any/c -> any/c
+         ;;   Runtime helper for prop:checked-procedure. Racket CS uses this in
+         ;;   keyword-procedure fast paths: if `v` is an instance of `type`, has
+         ;;   prop:checked-procedure, and its first field accepts v1/v2, return
+         ;;   its second field; otherwise delegate to the fallback procedure.
+         ;;   WebRacket does not implement impersonators yet, so raw struct
+         ;;   field access matches unsafe-struct*-ref for currently supported
+         ;;   values.
+         (func $checked-procedure-check-and-extract (type $Prim5)
+               (param $type-raw     (ref eq)) ;; struct-type?
+               (param $v            (ref eq)) ;; candidate checked procedure
+               (param $fallback-raw (ref eq)) ;; fallback procedure
+               (param $v1           (ref eq)) ;; checker argument 1
+               (param $v2           (ref eq)) ;; checker argument 2
+               (result              (ref eq))
+
+               (local $type        (ref $StructType))
+               (local $fallback    (ref $Procedure))
+               (local $struct      (ref $Struct))
+               (local $struct-type (ref $StructType))
+               (local $sentinel    (ref eq))
+               (local $prop-val    (ref eq))
+               (local $fields      (ref $Array))
+               (local $checker     (ref $Procedure))
+               (local $extracted   (ref eq))
+               (local $args2       (ref $Args))
+               (local $args3       (ref $Args))
+               (local $accepted    (ref eq))
+
+               (if (i32.eqz (ref.test (ref $StructType) (local.get $type-raw)))
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:checked-procedure-check-and-extract)
+                               (global.get $string:struct-type?)
+                               (local.get $type-raw))
+                         (unreachable)))
+               (local.set $type (ref.cast (ref $StructType) (local.get $type-raw)))
+
+               (if (i32.eqz (ref.test (ref $Procedure) (local.get $fallback-raw)))
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:checked-procedure-check-and-extract)
+                               (global.get $string:procedure?)
+                               (local.get $fallback-raw))
+                         (unreachable)))
+               (local.set $fallback (ref.cast (ref $Procedure) (local.get $fallback-raw)))
+
+               (if (i32.eqz (ref.test (ref $Struct) (local.get $v)))
+                   (then
+                    (local.set $args3 (array.new_fixed $Args 3
+                                                       (local.get $v)
+                                                       (local.get $v1)
+                                                       (local.get $v2)))
+                    (return_call_ref $ProcedureInvoker
+                                     (local.get $fallback)
+                                     (local.get $args3)
+                                     (struct.get $Procedure $invoke (local.get $fallback)))))
+
+               (local.set $struct      (ref.cast (ref $Struct) (local.get $v)))
+               (local.set $struct-type (struct.get $Struct $type (local.get $struct)))
+
+               (if (i32.eqz (call $struct-type-is-a?/i32
+                                   (ref.cast (ref eq) (local.get $struct-type))
+                                   (ref.cast (ref eq) (local.get $type))))
+                   (then
+                    (local.set $args3 (array.new_fixed $Args 3
+                                                       (local.get $v)
+                                                       (local.get $v1)
+                                                       (local.get $v2)))
+                    (return_call_ref $ProcedureInvoker
+                                     (local.get $fallback)
+                                     (local.get $args3)
+                                     (struct.get $Procedure $invoke (local.get $fallback)))))
+
+               (local.set $sentinel (call $cons (global.get $false) (global.get $false)))
+               (local.set $prop-val
+                          (call $struct-type-property-lookup
+                                (local.get $struct-type)
+                                (ref.cast (ref $StructTypeProperty)
+                                          (global.get $prop:checked-procedure))
+                                (local.get $sentinel)))
+               (if (ref.eq (local.get $prop-val) (local.get $sentinel))
+                   (then
+                    (local.set $args3 (array.new_fixed $Args 3
+                                                       (local.get $v)
+                                                       (local.get $v1)
+                                                       (local.get $v2)))
+                    (return_call_ref $ProcedureInvoker
+                                     (local.get $fallback)
+                                     (local.get $args3)
+                                     (struct.get $Procedure $invoke (local.get $fallback)))))
+
+               (local.set $fields (struct.get $Struct $fields (local.get $struct)))
+               (local.set $checker
+                          (ref.cast (ref $Procedure)
+                                    (array.get $Array (local.get $fields) (i32.const 0))))
+               (local.set $extracted (array.get $Array (local.get $fields) (i32.const 1)))
+               (local.set $args2 (array.new_fixed $Args 2
+                                                  (local.get $v1)
+                                                  (local.get $v2)))
+               (local.set $accepted
+                          (call $expect-one-value
+                                (call_ref $ProcedureInvoker
+                                          (local.get $checker)
+                                          (local.get $args2)
+                                          (struct.get $Procedure $invoke (local.get $checker)))))
+               (if (result (ref eq))
+                   (ref.eq (local.get $accepted) (global.get $false))
+                   (then
+                    (local.set $args3 (array.new_fixed $Args 3
+                                                       (local.get $v)
+                                                       (local.get $v1)
+                                                       (local.get $v2)))
+                    (return_call_ref $ProcedureInvoker
+                                     (local.get $fallback)
+                                     (local.get $args3)
+                                     (struct.get $Procedure $invoke (local.get $fallback))))
+                   (else (local.get $extracted))))
+
          ;; procedure? : any/c -> boolean?
          ;;   Recognize procedures semantically; non-applicable structs are not procedures.
          (func $procedure? (type $Prim1)
@@ -55259,6 +55548,32 @@
                (global.get $symbol:root-continuation-prompt-tag))
 
          ;; 10.5 Continuation Marks
+
+         ;; make-continuation-mark-key : [symbol?] -> continuation-mark-key?
+         ;;   Allocate a fresh opaque key. The optional symbol defaults to #f
+         ;;   in WebRacket for now; Racket uses it only for printing.
+         (func $make-continuation-mark-key (type $Prim01)
+               (param $name-raw (ref eq)) ;; optional symbol?, default = fresh print name
+               (result          (ref eq))
+               (if (i32.and
+                    (i32.eqz (ref.eq (local.get $name-raw) (global.get $missing)))
+                    (i32.eqz (ref.test (ref $Symbol) (local.get $name-raw))))
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:make-continuation-mark-key)
+                               (global.get $string:symbol?)
+                               (local.get $name-raw))
+                         (unreachable)))
+               (struct.new $ContinuationMarkKey
+                           (i32.const 0)
+                           (if (result (ref eq))
+                               (ref.eq (local.get $name-raw) (global.get $missing))
+                               (then (global.get $false))
+                               (else (local.get $name-raw)))))
+
+         ;; continuation-mark-key? : any/c -> boolean?
+         ;;   Recognize keys allocated by make-continuation-mark-key.
+         (func $continuation-mark-key? (type $Prim1)
+               ,@(make-predicate-body '$ContinuationMarkKey))
 
          ;; current-continuation-marks : [continuation-prompt-tag?] -> continuation-mark-set?
          (func $current-continuation-marks (type $Prim01)
@@ -64988,6 +65303,56 @@
                          (then (return (global.get $error))))
                      (global.set $current-print-value (local.get $printer-raw))
                      (global.get $void))
+
+               ;; print-values : any/c ... -> any/c ...
+               ;;   Module-begin helper from racket/private/modbeg. It prints
+               ;;   each result through current-print and returns the original
+               ;;   values unchanged.
+               (func $print-values (type $Prim>=0)
+                     (param $args-raw (ref eq)) ;; rest arguments as $Args
+                     (result          (ref eq))
+
+                     (local $args    (ref $Args))
+                     (local $arr     (ref $Array))
+                     (local $printer (ref $Procedure))
+                     (local $inv     (ref $ProcedureInvoker))
+                     (local $one     (ref $Args))
+                     (local $len     i32)
+                     (local $i       i32)
+                     (local $v       (ref eq))
+
+                     (local.set $args (array.new $Args (global.get $null) (i32.const 0)))
+                     (local.set $arr  (call $make-array (i32.const 0) (global.get $null)))
+                     (if (ref.test (ref $Args) (local.get $args-raw))
+                         (then
+                          (local.set $args (ref.cast (ref $Args) (local.get $args-raw)))
+                          (local.set $len  (array.len (local.get $args)))
+                          (local.set $arr  (call $make-array (local.get $len) (global.get $null)))
+                          (array.copy $Array $Args
+                                      (local.get $arr) (i32.const 0)
+                                      (local.get $args) (i32.const 0)
+                                      (local.get $len)))
+                         (else
+                          (local.set $arr (call $list->array (local.get $args-raw)))
+                          (local.set $len (array.len (local.get $arr)))))
+                     (local.set $printer
+                                (ref.cast (ref $Procedure)
+                                          (call $current-print (global.get $missing))))
+                     (local.set $inv (struct.get $Procedure $invoke (local.get $printer)))
+                     (local.set $i   (i32.const 0))
+                     (block $done
+                            (loop $loop
+                                  (br_if $done (i32.ge_u (local.get $i) (local.get $len)))
+                                  (local.set $v (array.get $Array (local.get $arr) (local.get $i)))
+                                  (local.set $one (array.new_fixed $Args 1 (local.get $v)))
+                                  (drop (call_ref $ProcedureInvoker
+                                                  (local.get $printer)
+                                                  (local.get $one)
+                                                  (local.get $inv)))
+                                  (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                                  (br $loop)))
+
+                     (call $values (local.get $args-raw)))
 
                ;; default-current-read-interaction : any/c input-port? -> eof-object?
                ;;   Bootstrap reader used by current-read-interaction. The

@@ -1295,6 +1295,7 @@
        log-max-level
        progress-evt?
        make-semaphore
+       will-try-execute
        current-pseudo-random-generator
        write-byte
        write-char
@@ -1372,6 +1373,7 @@
          [(log-level?) 3]
          [(log-max-level) 2]
          [(progress-evt? make-vector make-string make-bytes) 2]
+         [(will-try-execute) 2]
          [(syntax-source-module) 2]
          [(custom-print-quotable-accessor) 2]
          [(make-semaphore) 1]
@@ -1463,6 +1465,7 @@
      '(open-output-bytes
        open-output-string
        current-continuation-marks
+       make-continuation-mark-key
        gensym
        make-hasheq
        make-hasheqv
@@ -1958,6 +1961,7 @@
   make-channel channel? channel-get channel-try-get
   channel-put channel-put-evt channel-put-evt?
   evt? handle-evt handle-evt?
+  make-will-executor will-executor? will-register will-try-execute will-execute
   make-thread-cell thread-cell? thread-cell-ref thread-cell-set!
   make-semaphore semaphore? semaphore-post semaphore-try-wait? call-with-semaphore semaphore-peek-evt semaphore-peek-evt?
   sync sync/timeout
@@ -1966,6 +1970,7 @@
   unsafe-uninterruptible-lock-release
   current-environment-variables environment-variables? environment-variables-ref
   current-print
+  print-values
 
   mpair? mcons mcar mcdr set-mcar! set-mcdr!
   
@@ -2504,6 +2509,7 @@
   hash-remove!
   hash-clear
   hash-clear!
+  hash-copy
   hash-has-key?
   hash-empty?
   hash-count
@@ -2532,6 +2538,7 @@
   apply
   compose
   compose1
+  checked-procedure-check-and-extract
   procedure-rename
   procedure?
   procedure->external
@@ -2603,6 +2610,8 @@
   srcloc->string
 
   ;; 10.5 Continuation Marks
+  make-continuation-mark-key
+  continuation-mark-key?
   unsafe-root-continuation-prompt-tag ; stable placeholder; prompts unsupported
   current-continuation-marks  ; dummy, returns an empty mark set
   continuation-mark-set?

@@ -456,59 +456,65 @@
                                    'result)
                            (equal? seen '(body)))))
               (list "continuation-mark-set-first bootstrap placeholder"
-                    (and (continuation-mark-set? (current-continuation-marks))
-                         (equal? (continuation-mark-set-first
-                                  (current-continuation-marks)
-                                  'missing)
-                                 #f)
-                         (equal? (continuation-mark-set-first
-                                  (current-continuation-marks)
-                                  'missing
-                                  'none)
-                                 'none)
-                                 (equal? (continuation-mark-set-first
-                                          (current-continuation-marks)
-                                          'missing
-                                          'none
-                                          (unsafe-root-continuation-prompt-tag))
-                                         'none)
-                                 (parameter? current-input-port)
-                                 (parameter? current-output-port)
-                                 (parameter? current-error-port)
-                                 (parameter? current-logger)
-                                 (parameter? current-security-guard)
-                                 (parameter? current-print)
-                                 (not (parameter? current-parameterization))
-                                 (not (parameter? add1))
-                                 (not (parameter? 42))
-                                 (equal? (reparameterize 'paramz) 'paramz)
-                                 (let* ([original (error-print-width)]
-                                [paramz (extend-parameterization
-                                         (current-parameterization)
-                                         error-print-width
-                                         80
-                                         error-print-width
-                                         81)])
-                           (and (equal? (error-print-width) original)
-                                (equal? (call-with-parameterization
-                                         paramz
-                                         (lambda ()
-                                           (error-print-width)))
-                                        81)
-                                (equal? (error-print-width) original)
-                                (equal? (call-with-parameterization
-                                         paramz
-                                         (lambda ()
-                                           (error-print-width 90)
-                                           (let loop ([i 50])
-                                             (if (= i 0)
-                                                 (error-print-width)
-                                                 (begin
-                                                   (error-print-width 80)
-                                                   (error-print-width 90)
-                                                   (loop (- i 1)))))))
-                                        90)
-                                (equal? (error-print-width) original)))))))
+                    (let ([key-a (make-continuation-mark-key)]
+                          [key-b (make-continuation-mark-key 'named)])
+                      (and (continuation-mark-key? key-a)
+                           (continuation-mark-key? key-b)
+                           (equal? (continuation-mark-key? 'named) #f)
+                           (equal? (equal? key-a key-b) #f)
+                           (continuation-mark-set? (current-continuation-marks))
+                           (equal? (continuation-mark-set-first
+                                    (current-continuation-marks)
+                                    key-a)
+                                   #f)
+                           (equal? (continuation-mark-set-first
+                                    (current-continuation-marks)
+                                    key-a
+                                    'none)
+                                   'none)
+                           (equal? (continuation-mark-set-first
+                                    (current-continuation-marks)
+                                    key-b
+                                    'none
+                                    (unsafe-root-continuation-prompt-tag))
+                                   'none)
+                           (parameter? current-input-port)
+                           (parameter? current-output-port)
+                           (parameter? current-error-port)
+                           (parameter? current-logger)
+                           (parameter? current-security-guard)
+                           (parameter? current-print)
+                           (not (parameter? current-parameterization))
+                           (not (parameter? add1))
+                           (not (parameter? 42))
+                           (equal? (reparameterize 'paramz) 'paramz)
+                           (let* ([original (error-print-width)]
+                                  [paramz (extend-parameterization
+                                           (current-parameterization)
+                                           error-print-width
+                                           80
+                                           error-print-width
+                                           81)])
+                             (and (equal? (error-print-width) original)
+                                  (equal? (call-with-parameterization
+                                           paramz
+                                           (lambda ()
+                                             (error-print-width)))
+                                          81)
+                                  (equal? (error-print-width) original)
+                                  (equal? (call-with-parameterization
+                                           paramz
+                                           (lambda ()
+                                             (error-print-width 90)
+                                             (let loop ([i 50])
+                                               (if (= i 0)
+                                                   (error-print-width)
+                                                   (begin
+                                                     (error-print-width 80)
+                                                     (error-print-width 90)
+                                                     (loop (- i 1)))))))
+                                          90)
+                                  (equal? (error-print-width) original))))))))
        
        (list "4.3 Numbers"
              (list "4.3.1 Number Types"
@@ -4654,6 +4660,18 @@
                              (hash-set! h 'b 2)
                              (equal? (hash-count h) 2)))))
 
+              (list "hash-copy"
+                    (let* ([h (hash 'a 1 'b 2)]
+                           [c (hash-copy h)])
+                      (and (hash? c)
+                           (not (immutable? c))
+                           (hash-equal? c)
+                           (equal? (hash-count c) 2)
+                           (equal? (hash-ref c 'a) 1)
+                           (begin (hash-set! c 'c 3)
+                                  (and (equal? (hash-count c) 3)
+                                       (equal? (hash-has-key? h 'c) #f))))))
+
               (list "hash->list"
                     (let ([<< (λ (x y) (< (car x) (car y)))])
                       (let ([h (make-hasheq)])
@@ -4984,6 +5002,30 @@
                     (list (equal? (struct-type-property? prop:procedure) #t)))
               (list "prop:evt/builtin"
                     (equal? (struct-type-property? prop:evt) #t))
+
+              (list "prop:checked-procedure/check-and-extract"
+                    (let ()
+                      (struct checked (ok proc)
+                        #:property prop:checked-procedure #t)
+                      (define c
+                        (checked
+                         (lambda (kws argc)
+                           (and (equal? kws '(#:x))
+                                (equal? argc 2)))
+                         (lambda args (cons 'fast args))))
+                      (define (fallback v kws argc)
+                        (list 'fallback v kws argc))
+                      (and
+                       (equal? ((checked-procedure-check-and-extract
+                                  struct:checked c fallback '(#:x) 2)
+                                'a 'b)
+                               '(fast a b))
+                       (equal? (checked-procedure-check-and-extract
+                                struct:checked c fallback '(#:y) 2)
+                               (list 'fallback c '(#:y) 2))
+                       (equal? (checked-procedure-check-and-extract
+                                struct:checked 'not-checked fallback '(#:x) 2)
+                               '(fallback not-checked (#:x) 2)))))
 
               (list "procedure?/plain-struct"
                     (let ()
@@ -6063,6 +6105,17 @@
                            (equal? (sync/timeout 0 s) s)
                            (equal? (sync/timeout 0 e) #f))))
 
+              (list "will-executor?/inert"
+                    (let ([we (make-will-executor)])
+                      (and (equal? (will-executor? we) #t)
+                           (equal? (will-executor? 42) #f)
+                           (equal? (evt? we) #t)
+                           (equal? (sync/timeout 0 we) #f)
+                           (equal? (will-register we 'value (lambda (v) v)) (void))
+                           (equal? (will-try-execute we) #f)
+                           (equal? (will-try-execute we 'none) 'none)
+                           (equal? (will-execute we) #f))))
+
               (list "always-never-evt/basic"
                     (and (equal? (sync/timeout 0 always-evt) always-evt)
                          (equal? (sync/timeout 0 never-evt) #f)
@@ -6465,6 +6518,21 @@
              (list
               (list "current-print/default"
                     (procedure? (current-print)))
+              (list "print-values/current-print"
+                    (let ([seen '()]
+                          [old (current-print)])
+                      (dynamic-wind
+                       (lambda () (current-print (lambda (v) (set! seen (cons v seen)))))
+                       (lambda ()
+                         (and (equal? (call-with-values
+                                       (lambda ()
+                                         (call-with-values
+                                          (lambda () (values 'a 'b))
+                                          print-values))
+                                       list)
+                                      '(a b))
+                              (equal? seen '(b a))))
+                       (lambda () (current-print old)))))
               (list "print-syntax-width parameter"
                     (let ([original (print-syntax-width)])
                       (and (equal? original 256)
