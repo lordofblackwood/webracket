@@ -3317,9 +3317,9 @@
                        (field $count    (mut i32)))))        ;; number of key/value pairs currently stored
 
           ;; Private immutable hash support. Racket CS represents immutable
-          ;; hashes as HAMTs over system stencil vectors. WebRacket uses the
-          ;; same system-stencil root shape for its current one-level HAMT
-          ;; slice, while collision buckets remain ordinary lists for now.
+          ;; hashes as HAMTs over system stencil vectors. WebRacket mirrors
+          ;; the same split at the runtime boundary: stencil vectors are
+          ;; bnodes, while terminal full-hash collisions use explicit cnodes.
           (type $ImmutableHashEntry
                 (sub $Heap
                      (struct
@@ -3327,6 +3327,13 @@
                        (field $key-hash  i32)
                        (field $key       (ref eq))
                        (field $value     (ref eq)))))
+
+          (type $ImmutableHashCNode
+                (sub $Heap
+                     (struct
+                       (field $hash     (mut i32))
+                       (field $key-hash i32)
+                       (field $content  (ref eq)))))
 
           (type $HashEqImmutable
                 (sub $HashEq
@@ -38516,11 +38523,27 @@
                                            (local.get $hash)
                                            (i32.add (local.get $shift) (i32.const 3))
                                            (local.get $fail))))
+                    (if (ref.test (ref $ImmutableHashCNode) (local.get $slot))
+                        (then (return_call $immutable-hamt-cnode-ref/kind
+                                           (local.get $kind)
+                                           (ref.cast (ref $ImmutableHashCNode)
+                                                     (local.get $slot))
+                                           (local.get $key)
+                                           (local.get $hash)
+                                           (local.get $fail))))
                     (return_call $immutable-hamt-bucket-ref/kind
                                  (local.get $kind)
                                  (local.get $slot)
                                  (local.get $key)
                                  (local.get $fail))))
+               (if (ref.test (ref $ImmutableHashCNode) (local.get $node))
+                   (then (return_call $immutable-hamt-cnode-ref/kind
+                                      (local.get $kind)
+                                      (ref.cast (ref $ImmutableHashCNode)
+                                                (local.get $node))
+                                      (local.get $key)
+                                      (local.get $hash)
+                                      (local.get $fail))))
                (return_call $immutable-hamt-bucket-ref/kind
                             (local.get $kind)
                             (local.get $node)
@@ -38570,11 +38593,27 @@
                                            (local.get $hash)
                                            (i32.add (local.get $shift) (i32.const 3))
                                            (local.get $fail))))
+                    (if (ref.test (ref $ImmutableHashCNode) (local.get $slot))
+                        (then (return_call $immutable-hamt-cnode-ref-key/kind
+                                           (local.get $kind)
+                                           (ref.cast (ref $ImmutableHashCNode)
+                                                     (local.get $slot))
+                                           (local.get $key)
+                                           (local.get $hash)
+                                           (local.get $fail))))
                     (return_call $immutable-hamt-bucket-ref-key/kind
                                  (local.get $kind)
                                  (local.get $slot)
                                  (local.get $key)
                                  (local.get $fail))))
+               (if (ref.test (ref $ImmutableHashCNode) (local.get $node))
+                   (then (return_call $immutable-hamt-cnode-ref-key/kind
+                                      (local.get $kind)
+                                      (ref.cast (ref $ImmutableHashCNode)
+                                                (local.get $node))
+                                      (local.get $key)
+                                      (local.get $hash)
+                                      (local.get $fail))))
                (return_call $immutable-hamt-bucket-ref-key/kind
                             (local.get $kind)
                             (local.get $node)
@@ -38618,10 +38657,24 @@
                                            (local.get $key)
                                            (local.get $hash)
                                            (i32.add (local.get $shift) (i32.const 3)))))
+                    (if (ref.test (ref $ImmutableHashCNode) (local.get $slot))
+                        (then (return_call $immutable-hamt-cnode-has-key?/kind
+                                           (local.get $kind)
+                                           (ref.cast (ref $ImmutableHashCNode)
+                                                     (local.get $slot))
+                                           (local.get $key)
+                                           (local.get $hash))))
                     (return_call $immutable-hamt-bucket-has-key?/kind
                                  (local.get $kind)
                                  (local.get $slot)
                                  (local.get $key))))
+               (if (ref.test (ref $ImmutableHashCNode) (local.get $node))
+                   (then (return_call $immutable-hamt-cnode-has-key?/kind
+                                      (local.get $kind)
+                                      (ref.cast (ref $ImmutableHashCNode)
+                                                (local.get $node))
+                                      (local.get $key)
+                                      (local.get $hash))))
                (return_call $immutable-hamt-bucket-has-key?/kind
                             (local.get $kind)
                             (local.get $node)
@@ -38720,6 +38773,149 @@
                             (br $scan)))
                (local.get $result))
 
+         ;; immutable-hamt-cnode-ref/kind : kind cnode key key-hash fail -> any/c
+         ;;   Lookup in a terminal full-hash collision node.
+         (func $immutable-hamt-cnode-ref/kind
+               (param $kind  i32) ;; 0 eq?, 1 eqv?, 2 equal?, 3 equal-always?
+               (param $cnode (ref $ImmutableHashCNode))
+               (param $key   (ref eq))
+               (param $hash  i32)
+               (param $fail  (ref eq))
+               (result       (ref eq))
+
+               (if (i32.ne (local.get $hash)
+                           (struct.get $ImmutableHashCNode $key-hash
+                                       (local.get $cnode)))
+                   (then (return (local.get $fail))))
+               (return_call $immutable-hamt-bucket-ref/kind
+                            (local.get $kind)
+                            (struct.get $ImmutableHashCNode $content
+                                        (local.get $cnode))
+                            (local.get $key)
+                            (local.get $fail)))
+
+         ;; immutable-hamt-cnode-ref-key/kind : kind cnode key key-hash fail -> any/c
+         ;;   Find the stored key in a terminal full-hash collision node.
+         (func $immutable-hamt-cnode-ref-key/kind
+               (param $kind  i32) ;; 0 eq?, 1 eqv?, 2 equal?, 3 equal-always?
+               (param $cnode (ref $ImmutableHashCNode))
+               (param $key   (ref eq))
+               (param $hash  i32)
+               (param $fail  (ref eq))
+               (result       (ref eq))
+
+               (if (i32.ne (local.get $hash)
+                           (struct.get $ImmutableHashCNode $key-hash
+                                       (local.get $cnode)))
+                   (then (return (local.get $fail))))
+               (return_call $immutable-hamt-bucket-ref-key/kind
+                            (local.get $kind)
+                            (struct.get $ImmutableHashCNode $content
+                                        (local.get $cnode))
+                            (local.get $key)
+                            (local.get $fail)))
+
+         ;; immutable-hamt-cnode-has-key?/kind : kind cnode key key-hash -> i32
+         ;;   Check a terminal full-hash collision node for a key.
+         (func $immutable-hamt-cnode-has-key?/kind
+               (param $kind  i32) ;; 0 eq?, 1 eqv?, 2 equal?, 3 equal-always?
+               (param $cnode (ref $ImmutableHashCNode))
+               (param $key   (ref eq))
+               (param $hash  i32)
+               (result       i32)
+
+               (if (i32.ne (local.get $hash)
+                           (struct.get $ImmutableHashCNode $key-hash
+                                       (local.get $cnode)))
+                   (then (return (i32.const 0))))
+               (return_call $immutable-hamt-bucket-has-key?/kind
+                            (local.get $kind)
+                            (struct.get $ImmutableHashCNode $content
+                                        (local.get $cnode))
+                            (local.get $key)))
+
+         ;; immutable-hamt-cnode-set/kind : kind cnode entry key key-hash -> cnode
+         ;;   Update or extend a terminal full-hash collision node.
+         (func $immutable-hamt-cnode-set/kind
+               (param $kind  i32)
+               (param $cnode (ref $ImmutableHashCNode))
+               (param $entry (ref $ImmutableHashEntry))
+               (param $key   (ref eq))
+               (param $hash  i32)
+               (result       (ref eq))
+
+               (if (i32.ne (local.get $hash)
+                           (struct.get $ImmutableHashCNode $key-hash
+                                       (local.get $cnode)))
+                   (then
+                    ;; This should not occur for a real cnode path, but keeping
+                    ;; the new entry preserves lookup safety if a malformed tree
+                    ;; reaches this helper.
+                    (return
+                     (struct.new $ImmutableHashCNode
+                                 (i32.const 0)
+                                 (struct.get $ImmutableHashCNode $key-hash
+                                             (local.get $cnode))
+                                 (call $cons
+                                       (local.get $entry)
+                                       (struct.get $ImmutableHashCNode $content
+                                                   (local.get $cnode)))))))
+               (struct.new $ImmutableHashCNode
+                           (i32.const 0)
+                           (local.get $hash)
+                           (call $cons
+                                 (local.get $entry)
+                                 (call $immutable-hamt-bucket-remove/kind
+                                       (local.get $kind)
+                                       (struct.get $ImmutableHashCNode $content
+                                                   (local.get $cnode))
+                                       (local.get $key)))))
+
+         ;; immutable-hamt-cnode-remove/kind : kind cnode key key-hash -> bucket/cnode
+         ;;   Remove a key, collapsing an empty cnode to null.
+         (func $immutable-hamt-cnode-remove/kind
+               (param $kind  i32)
+               (param $cnode (ref $ImmutableHashCNode))
+               (param $key   (ref eq))
+               (param $hash  i32)
+               (result       (ref eq))
+               (local $content (ref eq))
+
+               (if (i32.ne (local.get $hash)
+                           (struct.get $ImmutableHashCNode $key-hash
+                                       (local.get $cnode)))
+                   (then (return (local.get $cnode))))
+               (local.set $content
+                          (call $immutable-hamt-bucket-remove/kind
+                                (local.get $kind)
+                                (struct.get $ImmutableHashCNode $content
+                                            (local.get $cnode))
+                                (local.get $key)))
+               (if (ref.eq (local.get $content) (global.get $null))
+                   (then (return (global.get $null))))
+               (if (i32.le_u (call $immutable-hamt-bucket-length
+                                    (local.get $content))
+                              (i32.const 1))
+                   (then (return (local.get $content))))
+               (struct.new $ImmutableHashCNode
+                           (i32.const 0)
+                           (local.get $hash)
+                           (local.get $content)))
+
+         ;; immutable-hamt-bucket->cnode : bucket entry -> cnode
+         ;;   Build a terminal full-hash collision node.
+         (func $immutable-hamt-bucket->cnode
+               (param $bucket    (ref eq))
+               (param $new-entry (ref $ImmutableHashEntry))
+               (result           (ref $ImmutableHashCNode))
+               (struct.new $ImmutableHashCNode
+                           (i32.const 0)
+                           (struct.get $ImmutableHashEntry $key-hash
+                                       (local.get $new-entry))
+                           (call $cons
+                                 (local.get $new-entry)
+                                 (local.get $bucket))))
+
          (func $immutable-hamt-bucket->node/kind
                (param $kind      i32)
                (param $bucket    (ref eq))
@@ -38777,6 +38973,15 @@
                (local $slot    (ref eq))
                (local $newslot (ref eq))
                (local.set $newslot (global.get $null))
+               (if (ref.test (ref $ImmutableHashCNode) (local.get $node))
+                   (then
+                    (return_call $immutable-hamt-cnode-set/kind
+                                 (local.get $kind)
+                                 (ref.cast (ref $ImmutableHashCNode)
+                                           (local.get $node))
+                                 (local.get $entry)
+                                 (local.get $key)
+                                 (local.get $hash))))
                (if (i32.eqz (ref.test (ref $StencilVector) (local.get $node)))
                    (then
                     (return (call $cons (local.get $entry) (local.get $node)))))
@@ -38815,32 +39020,58 @@
                                      (local.get $hash)
                                      (i32.add (local.get $shift) (i32.const 3)))))
                    (else
-                    (if (i32.and
-                         (i32.eqz
-                          (call $immutable-hamt-bucket-has-key?/kind
-                                (local.get $kind)
-                                (local.get $slot)
-                                (local.get $key)))
-                         (i32.and
-                          (i32.lt_u (local.get $shift) (i32.const 24))
-                          (i32.ge_u
-                           (call $immutable-hamt-bucket-length (local.get $slot))
-                           (i32.const 4))))
+                    (if (ref.test (ref $ImmutableHashCNode) (local.get $slot))
                         (then
                          (local.set $newslot
-                                    (call $immutable-hamt-bucket->node/kind
+                                    (call $immutable-hamt-cnode-set/kind
+                                          (local.get $kind)
+                                          (ref.cast (ref $ImmutableHashCNode)
+                                                    (local.get $slot))
+                                          (local.get $entry)
+                                          (local.get $key)
+                                          (local.get $hash))))
+                        (else
+                         (if (i32.and
+                              (i32.eqz
+                               (call $immutable-hamt-bucket-has-key?/kind
+                                     (local.get $kind)
+                                     (local.get $slot)
+                                     (local.get $key)))
+                              (i32.and
+                               (i32.lt_u (local.get $shift) (i32.const 30))
+                               (i32.ge_u
+                                (call $immutable-hamt-bucket-length (local.get $slot))
+                                (i32.const 4))))
+                             (then
+                              (local.set $newslot
+                                         (call $immutable-hamt-bucket->node/kind
+                                               (local.get $kind)
+                                               (local.get $slot)
+                                               (local.get $entry)
+                                               (i32.add (local.get $shift) (i32.const 3)))))
+                             (else
+                              (if (i32.and
+                                   (i32.eqz
+                                    (call $immutable-hamt-bucket-has-key?/kind
                                           (local.get $kind)
                                           (local.get $slot)
-                                          (local.get $entry)
-                                          (i32.add (local.get $shift) (i32.const 3)))))
-                        (else
-                         (local.set $newslot
-                                    (call $cons
-                                          (local.get $entry)
-                                          (call $immutable-hamt-bucket-remove/kind
-                                                (local.get $kind)
-                                                (local.get $slot)
-                                                (local.get $key))))))))
+                                          (local.get $key)))
+                                   (i32.ge_u
+                                    (call $immutable-hamt-bucket-length (local.get $slot))
+                                    (i32.const 4)))
+                                  (then
+                                   (local.set $newslot
+                                              (call $immutable-hamt-bucket->cnode
+                                                    (local.get $slot)
+                                                    (local.get $entry))))
+                                  (else
+                                   (local.set $newslot
+                                              (call $cons
+                                                    (local.get $entry)
+                                                    (call $immutable-hamt-bucket-remove/kind
+                                                          (local.get $kind)
+                                                          (local.get $slot)
+                                                          (local.get $key))))))))))))
                (return_call $$stencil-vector-update/core
                             (local.get $sv)
                             (local.get $bit)
@@ -38864,6 +39095,14 @@
                (local $newslot (ref eq))
                (local.set $newslot (global.get $null))
                (local.set $newsv (call $immutable-hamt-empty-node))
+               (if (ref.test (ref $ImmutableHashCNode) (local.get $node))
+                   (then
+                    (return_call $immutable-hamt-cnode-remove/kind
+                                 (local.get $kind)
+                                 (ref.cast (ref $ImmutableHashCNode)
+                                           (local.get $node))
+                                 (local.get $key)
+                                 (local.get $hash))))
                (if (i32.eqz (ref.test (ref $StencilVector) (local.get $node)))
                    (then
                     (return_call $immutable-hamt-bucket-remove/kind
@@ -38894,11 +39133,21 @@
                                      (local.get $hash)
                                      (i32.add (local.get $shift) (i32.const 3)))))
                    (else
-                    (local.set $newslot
-                               (call $immutable-hamt-bucket-remove/kind
-                                     (local.get $kind)
-                                     (local.get $slot)
-                                     (local.get $key)))))
+                    (if (ref.test (ref $ImmutableHashCNode) (local.get $slot))
+                        (then
+                         (local.set $newslot
+                                    (call $immutable-hamt-cnode-remove/kind
+                                          (local.get $kind)
+                                          (ref.cast (ref $ImmutableHashCNode)
+                                                    (local.get $slot))
+                                          (local.get $key)
+                                          (local.get $hash))))
+                        (else
+                         (local.set $newslot
+                                    (call $immutable-hamt-bucket-remove/kind
+                                          (local.get $kind)
+                                          (local.get $slot)
+                                          (local.get $key)))))))
                (if (ref.eq (local.get $newslot) (global.get $null))
                    (then
                     (return_call $$stencil-vector-update/core
@@ -43113,6 +43362,13 @@
               (local $slot   (ref eq))
               (local $bucket (ref eq))
               (local $pair   (ref $Pair))
+              (if (ref.test (ref $ImmutableHashCNode) (local.get $node))
+                  (then
+                   (return_call $immutable-hamt-node->entries
+                                (struct.get $ImmutableHashCNode $content
+                                            (ref.cast (ref $ImmutableHashCNode)
+                                                      (local.get $node)))
+                                (local.get $acc))))
               (if (ref.test (ref $StencilVector) (local.get $node))
                   (then
                    (local.set $sv    (ref.cast (ref $StencilVector) (local.get $node)))

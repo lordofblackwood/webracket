@@ -4628,6 +4628,77 @@
                                            keys)))
                             (loop (cdr ks)
                                   (hash-set h (car ks) (car ks)))))))
+              (list "immutable HAMT deep bnode stress"
+                    (let ([keys '(0 8 16 24 32 40 48 56
+                                    64 72 80 88 96 104 112 120
+                                    128 136 144 152 160 168 176 184)])
+                      (let build ([ks keys] [hqv (hasheqv)] [heq (hash)] [halw (hashalw)])
+                        (if (null? ks)
+                            (let* ([hqv* (hash-remove hqv 88)]
+                                   [heq* (hash-remove heq 96)]
+                                   [halw* (hash-remove halw 104)])
+                              (and (equal? (hash-count hqv) 24)
+                                   (equal? (hash-count hqv*) 23)
+                                   (not (hash-has-key? hqv* 88))
+                                   (equal? (hash-count heq*) 23)
+                                   (not (hash-has-key? heq* 96))
+                                   (equal? (hash-count halw*) 23)
+                                   (not (hash-has-key? halw* 104))
+                                   (andmap (lambda (k)
+                                             (and (or (equal? k 88)
+                                                      (equal? (hash-ref hqv* k #f) k))
+                                                  (or (equal? k 96)
+                                                      (equal? (hash-ref heq* k #f) k))
+                                                  (or (equal? k 104)
+                                                      (equal? (hash-ref halw* k #f) k))))
+                                           keys)))
+                            (build (cdr ks)
+                                   (hash-set hqv (car ks) (car ks))
+                                   (hash-set heq (car ks) (car ks))
+                                   (hash-set halw (car ks) (car ks)))))))
+              (list "immutable HAMT cnode full hash collision"
+                    (let ()
+                      (struct collide (n)
+                        #:property prop:equal+hash
+                        (list
+                         (lambda (self other recur)
+                           (and (collide? other)
+                                (equal? (collide-n self) (collide-n other))))
+                         (lambda (self hash) 7)
+                         (lambda (self hash) 7)))
+                      (let build ([i 0] [h (hash)])
+                        (if (equal? i 7)
+                            (let* ([h*  (hash-remove h (collide 3))]
+                                   [h** (hash-set h* (collide 7) 70)]
+                                   [h1  (hash-remove
+                                         (hash-remove
+                                          (hash-remove
+                                           (hash-remove
+                                            (hash-remove
+                                             (hash-remove h (collide 0))
+                                             (collide 1))
+                                            (collide 2))
+                                           (collide 3))
+                                          (collide 4))
+                                         (collide 5))]
+                                   [h1* (hash-set h1 (collide 8) 80)]
+                                   [xs  (hash->list h**)])
+                              (and (equal? (hash-count h) 7)
+                                   (equal? (hash-count h*) 6)
+                                   (equal? (hash-count h**) 7)
+                                   (equal? (hash-count h1) 1)
+                                   (equal? (hash-ref h1 (collide 6) #f) 60)
+                                   (equal? (hash-ref h1* (collide 8) #f) 80)
+                                   (not (hash-has-key? h* (collide 3)))
+                                   (equal? (hash-ref h** (collide 7) #f) 70)
+                                   (equal? (length xs) 7)
+                                   (andmap (lambda (j)
+                                             (or (equal? j 3)
+                                                 (equal? (hash-ref h* (collide j) #f)
+                                                         (* j 10))))
+                                           '(0 1 2 3 4 5 6))))
+                            (build (+ i 1)
+                                   (hash-set h (collide i) (* i 10)))))))
               (list "hash-remove immutable"
                     (and (let* ([h  (hash 'a 1 'b 2)]
                                  [h2 (hash-remove h 'a)]

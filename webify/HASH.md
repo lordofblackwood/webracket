@@ -66,18 +66,21 @@ comparison kind:
 - `hash`: `equal?` with `equal-hash/i32`
 - `hashalw`: `equal-always?` with `equal-always-hash/i32`
 
-The current HAMT uses an 8-way stencil-vector node at each level, path-copying
-on set/remove. Small buckets are kept as lists of immutable hash entries; once
-a bucket grows past the split threshold, it is redistributed into a child HAMT
-node. Updating an existing key replaces the bucket entry for traversal
-purposes, and removing the last entry from a child node prunes the empty branch.
+The current HAMT uses an 8-way stencil-vector bnode at each level,
+path-copying on set/remove. Small buckets are kept as lists of immutable hash
+entries; once a bucket grows past the split threshold, it is redistributed into
+a child HAMT node. If all usable hash bits are exhausted, WebRacket now uses an
+explicit cnode heap object, matching Racket CS's distinction between recursive
+bnodes and terminal collision nodes. Updating an existing key replaces the
+bucket/cnode entry for traversal purposes, and removing the last entry from a
+child node prunes the empty branch.
 
 The Goal 1 installed smoke suite now includes immutable hash paths:
 `make-immutable-hash`, functional `hash-set`, `hash-ref`, and traversal through
 `hash-keys`, `hash-values`, `hash->list`, `hash-for-each`, `hash-map`, and
-`hash-clear`. The unit tests also cover recursive bucket splits, path-copy
-removal, replacement without duplicate iterator entries, and the public
-hash-kind predicates.
+`hash-clear`. The unit tests also cover recursive bucket splits, deep bnode
+paths, cnode full-hash collisions, path-copy removal, replacement without
+duplicate iterator entries, and the public hash-kind predicates.
 
 Ephemeron hash tables are also currently a strong fallback:
 `make-ephemeron-hasheq` returns an ordinary mutable `hasheq`. That is enough for
@@ -147,10 +150,10 @@ functional `hash-set` shape.
 
 ## Later Direction
 
-The next immutable-hash semantic milestone is parity with Racket's full HAMT
-details rather than the current practical subset:
+The next immutable-hash semantic milestone is tighter parity with Racket CS's
+packed bnode details rather than the current practical subset:
 
-- match Racket CS's exact bnode/cnode packing strategy more closely
+- match Racket CS's exact packed child/key/value bit regions more closely
 - add key wrapping if equal?/equal-always? need it for cyclic data
 - replace weak and ephemeron strong fallbacks when the runtime has weak
   reference support
