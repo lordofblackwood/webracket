@@ -108,15 +108,15 @@ WebRacket now uses physical packed bnodes for new immutable hash HAMT nodes:
 - slot 0 is the static marker; child/key/value slots are addressed by
   popcounting the metadata below the target bit
 - inline entries are stored as separate key and value slots
-- terminal full-hash collisions are still represented as ordinary buckets in the
-  current packed path; the older explicit `$ImmutableHashCNode` remains supported
-  for existing/probed nodes
+- terminal full-hash collisions are represented as explicit
+  `$ImmutableHashCNode` nodes, so packed bnodes keep the same bnode/cnode
+  distinction as the older compatibility path and Racket CS
 - equal?/equal-always? keys are not wrapped yet
 
 Lookup, `hash-ref-key`, `hash-has-key?`, set, remove, iteration, and debug-shape
 all understand the packed layout. Collision promotion recomputes a stored inline
 key's hash from the hash kind when the key/value pair needs to become a recursive
-child or terminal bucket.
+child or terminal cnode.
 
 An internal debug-only compiler hook,
 `webracket-internal-immutable-hash-debug-shape`, can be enabled with

@@ -5400,14 +5400,18 @@
                       (let ([empty-shape     (shape (hasheq))]
                             [shallow-shape   (shape shallow)]
                             [mixed-shape     (shape mixed)]
+                            [mixed-meta      (webracket-internal-immutable-hash-root-metadata mixed)]
                             [churn-shape     (shape churn)]
+                            [churn-meta      (webracket-internal-immutable-hash-root-metadata churn)]
                             [deep-shape      (shape deep)]
+                            [deep-meta       (webracket-internal-immutable-hash-root-metadata deep)]
                             [collision-shape (shape full-collision)]
+                            [collision-meta  (webracket-internal-immutable-hash-root-metadata full-collision)]
                             [collapsed-shape (shape collapsed)])
 	                        (and (equal? inline-cycle
 	                                     '((1 1 0 0 1 0 2)
 	                                       263169
-	                                       (2 11 0 1 0 11 11)
+	                                       (2 11 1 0 0 11 11)
 	                                       5
 	                                       (1 0 0 0 1 0 0)
 	                                       0
@@ -5426,20 +5430,25 @@
 	                             (equal? (inlines shallow-shape) 2)
 	                             (equal? (slots shallow-shape) 4)
 	                             (equal? mixed-shape '(6 2 0 0 6 1 13))
+                             (equal? mixed-meta 263171)
 	                             (equal? (entries churn-shape) 13)
 	                             (>= (bnodes churn-shape) 2)
-	                             (>= (buckets churn-shape) 1)
+                             (>= (cnodes churn-shape) 1)
+	                             (equal? (buckets churn-shape) 0)
 	                             (>= (inlines churn-shape) 1)
+                             (equal? churn-meta 71)
 	                             (equal? (entries deep-shape) 9)
                              (>= (bnodes deep-shape) 2)
                              (equal? (cnodes deep-shape) 0)
                              (>= (depth deep-shape) 2)
 	                             (>= (slots deep-shape) 9)
+                             (equal? deep-meta 3)
 	                             (equal? (entries collision-shape) 7)
 	                             (>= (bnodes collision-shape) 1)
-	                             (equal? (cnodes collision-shape) 0)
-	                             (>= (buckets collision-shape) 1)
+	                             (equal? (cnodes collision-shape) 1)
+	                             (equal? (buckets collision-shape) 0)
 	                             (>= (depth collision-shape) 1)
+                             (equal? collision-meta 65)
                              (equal? (entries collapsed-shape) 1)
                              (equal? (cnodes collapsed-shape) 0)))))
 
@@ -5530,6 +5539,77 @@
 	                           (exercise (hashalw)
 	                                     (lambda (i) (list i))
 	                                     equal?))))
+
+              (list "immutable HAMT larger deterministic cross-kind stress"
+                    (let ()
+                      (define (keep? i)
+                        (not (equal? (remainder i 7) 3)))
+                      (define (updated-value i)
+                        (if (equal? (remainder i 5) 0)
+                            (+ 1000 i)
+                            (* i 10)))
+                      (define expected
+                        (let loop ([i 0] [acc '()])
+                          (cond
+                            [(equal? i 96) (reverse acc)]
+                            [(keep? i) (loop (+ i 1) (cons i acc))]
+                            [else (loop (+ i 1) acc)])))
+                      (define (exercise empty make-key same-key?)
+                        (let* ([built
+                                (let build ([i 0] [h empty])
+                                  (if (equal? i 96)
+                                      h
+                                      (build (+ i 1)
+                                             (hash-set h (make-key i) (* i 10)))))]
+                               [updated
+                                (let update ([i 0] [h built])
+                                  (if (equal? i 96)
+                                      h
+                                      (update (+ i 1)
+                                              (if (equal? (remainder i 5) 0)
+                                                  (hash-set h (make-key i) (updated-value i))
+                                                  h))))]
+                               [trimmed
+                                (let remove ([i 0] [h updated])
+                                  (if (equal? i 96)
+                                      h
+                                      (remove (+ i 1)
+                                              (if (keep? i)
+                                                  h
+                                                  (hash-remove h (make-key i))))))]
+                               [pairs (hash->list trimmed)])
+                          (and (equal? (hash-count built) 96)
+                               (equal? (hash-count updated) 96)
+                               (equal? (hash-count trimmed) (length expected))
+                               (andmap
+                                (lambda (i)
+                                  (and (hash-has-key? trimmed (make-key i))
+                                       (equal? (hash-ref trimmed (make-key i))
+                                               (updated-value i))
+                                       (same-key? (hash-ref-key trimmed (make-key i))
+                                                  (make-key i))))
+                                expected)
+                               (let absent ([i 0])
+                                 (cond
+                                   [(equal? i 96) #t]
+                                   [(keep? i) (absent (+ i 1))]
+                                   [else
+                                    (and (not (hash-has-key? trimmed (make-key i)))
+                                         (absent (+ i 1)))]))
+                               (equal? (sort (map cdr pairs) <)
+                                       (sort (map updated-value expected) <)))))
+                      (and (exercise (hasheq)
+                                     (lambda (i) i)
+                                     equal?)
+                           (exercise (hasheqv)
+                                     (lambda (i) i)
+                                     equal?)
+                           (exercise (hash)
+                                     (lambda (i) (list (remainder (* i 37) 101) i))
+                                     equal?)
+                           (exercise (hashalw)
+                                     (lambda (i) (list (remainder (* i 37) 101) i))
+                                     equal?))))
 
 	              ))
 

@@ -39146,11 +39146,11 @@
                                           (i32.add (local.get $shift) (i32.const 3)))))
                         (else
                          (local.set $child
-                                    (call $cons
-                                          (local.get $entry)
+                                    (call $immutable-hamt-bucket->cnode
                                           (call $cons
                                                 (local.get $old-entry)
-                                                (global.get $null))))))
+                                                (global.get $null))
+                                          (local.get $entry)))))
                     (return_call $immutable-hamt-store-packed-bnode-metadata
                                  (ref.cast
                                   (ref $StencilVector)
