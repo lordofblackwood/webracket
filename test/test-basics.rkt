@@ -5256,6 +5256,52 @@
                              (equal? (sort keys symbol<?) '(x y))
                              (equal? (sort vals <) '(10 20))))))
 
+              (list "unsafe-immutable-hash-iterate cnode"
+                    (let ()
+                      (struct collide (n)
+                        #:property prop:equal+hash
+                        (list
+                         (lambda (self other recur)
+                           (and (collide? other)
+                                (equal? (collide-n self) (collide-n other))))
+                         (lambda (self hash) 13)
+                         (lambda (self hash) 13)))
+
+                      (define h
+                        (let build ([i 0] [h (hash)])
+                          (if (equal? i 7)
+                              h
+                              (build (+ i 1)
+                                     (hash-set h (collide i) (* i 10))))))
+
+                      (define (collect f)
+                        (let loop ([pos (unsafe-immutable-hash-iterate-first h)] [acc '()])
+                          (if pos
+                              (loop (unsafe-immutable-hash-iterate-next h pos)
+                                    (cons (f pos) acc))
+                              acc)))
+
+                      (let* ([pairs (collect (lambda (pos)
+                                               (unsafe-immutable-hash-iterate-pair h pos)))]
+                             [kvs   (collect (lambda (pos)
+                                               (call-with-values
+                                                (lambda ()
+                                                  (unsafe-immutable-hash-iterate-key+value h pos))
+                                                cons)))]
+                             [keys  (collect (lambda (pos)
+                                               (unsafe-immutable-hash-iterate-key h pos)))]
+                             [vals  (collect (lambda (pos)
+                                               (unsafe-immutable-hash-iterate-value h pos)))])
+                        (and (equal? (length pairs) 7)
+                             (equal? (length kvs) 7)
+                             (equal? (length keys) 7)
+                             (equal? (sort vals <) '(0 10 20 30 40 50 60))
+                             (andmap (lambda (j)
+                                       (and (member (cons (collide j) (* j 10)) pairs)
+                                            (member (cons (collide j) (* j 10)) kvs)
+                                            #t))
+                                     '(0 1 2 3 4 5 6))))))
+
               (list "immutable hash collision and iteration stress"
                     (let loop ([i 0] [h (hash)])
                       (if (equal? i 90)
