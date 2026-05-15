@@ -5333,6 +5333,12 @@
                           (equal? (file-stream-port? (open-output-string)) #f)
                           (equal? (file-stream-port? 42) #f)))
 
+               (list "terminal-port?/browser-ports"
+                     (and (equal? (terminal-port? (open-input-string "x")) #f)
+                          (equal? (terminal-port? (open-output-string)) #f)
+                          (equal? (terminal-port? (current-output-port)) #f)
+                          (equal? (terminal-port? 42) #f)))
+
                (list "file-stream-port?/vfs-file-ports"
                      (let ([path "/app/data/file-stream-port-test.txt"])
                        (call-with-output-file path
@@ -6014,6 +6020,24 @@
               (list "subprocess?/browser-stub"
                     (and (equal? (subprocess? 42) #f)
                          (equal? (subprocess? (current-thread)) #f)))
+
+              (list "thread?/single-thread"
+                    (let ([thd (current-thread)])
+                      (and (equal? (thread? thd) #t)
+                           (equal? (thread? 42) #f)
+                           (equal? (thread-running? thd) #t)
+                           (equal? (thread-dead? thd) #f))))
+
+              (list "thread-group?/minimal"
+                    (let* ([root (current-thread-group)]
+                           [child (make-thread-group root)])
+                      (and (equal? (thread-group? root) #t)
+                           (equal? (thread-group? child) #t)
+                           (equal? (thread-group? 42) #f)
+                           (equal? (current-thread-group child) (void))
+                           (eq? (current-thread-group) child)
+                           (equal? (current-thread-group root) (void))
+                           (eq? (current-thread-group) root))))
 
               (list "call-with-semaphore/basic"
                     (let ([s (make-semaphore 1)]

@@ -1155,6 +1155,7 @@ current-parameterization    ; poor-man dynamic parameterization overlay
 
  ;; 11 Threads and Synchronization
  current-thread
+ thread? thread-dead? thread-running? thread-group? make-thread-group current-thread-group
  subprocess? ; browser runtime has no OS subprocess values
  current-security-guard security-guard? make-security-guard
  current-custodian custodian? make-custodian
@@ -1209,6 +1210,7 @@ current-parameterization    ; poor-man dynamic parameterization overlay
  port?
  input-port?
  file-stream-port?
+ terminal-port?
  impersonator-property?
  impersonator-property-accessor-procedure?
  make-impersonator-property

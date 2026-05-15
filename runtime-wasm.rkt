@@ -2023,6 +2023,7 @@
     (add-runtime-string-constant 'port?                      "port?")
     (add-runtime-string-constant 'input-port?                "input-port?")
     (add-runtime-string-constant 'file-stream-port?          "file-stream-port?")
+    (add-runtime-string-constant 'terminal-port?             "terminal-port?")
     (add-runtime-string-constant 'output-port?               "output-port?")
     (add-runtime-string-constant 'port-writes-atomic?        "port-writes-atomic?")
     (add-runtime-string-constant 'port-writes-special?       "port-writes-special?")
@@ -2044,6 +2045,8 @@
     (add-runtime-string-constant 'semaphore?                 "semaphore?")
     (add-runtime-string-constant 'evt?                       "evt?")
     (add-runtime-string-constant 'handle-evt?                "handle-evt?")
+    (add-runtime-string-constant 'thread?                    "thread?")
+    (add-runtime-string-constant 'thread-group?              "thread-group?")
     (add-runtime-string-constant 'procedure-arity?           "procedure-arity?")
     (add-runtime-string-constant 'exn:srclocs?              "exn:srclocs?")
     (add-runtime-string-constant 'valid-argument             "valid argument")
@@ -2130,6 +2133,12 @@
     (add-runtime-symbol-constant 'continuation-prompt-available?)
     (add-runtime-symbol-constant 'continuation-prompt-tag?)
     (add-runtime-symbol-constant 'continuation?)
+    (add-runtime-symbol-constant 'thread?)
+    (add-runtime-symbol-constant 'thread-dead?)
+    (add-runtime-symbol-constant 'thread-running?)
+    (add-runtime-symbol-constant 'thread-group?)
+    (add-runtime-symbol-constant 'make-thread-group)
+    (add-runtime-symbol-constant 'current-thread-group)
     (add-runtime-symbol-constant 'current-security-guard)
     (add-runtime-symbol-constant 'security-guard?)
     (add-runtime-symbol-constant 'make-security-guard)
@@ -2555,6 +2564,12 @@
           (type $Thread (sub $Heap
                              (struct
                                (field $hash (mut i32)))))
+          ;; Minimal thread groups for single-threaded WebRacket. They retain
+          ;; parent links for API compatibility, but scheduling is unaffected.
+          (type $ThreadGroup (sub $Heap
+                                  (struct
+                                    (field $hash   (mut i32))
+                                    (field $parent (ref eq)))))
           ;; Minimal logger objects. They are enough for racket/base modules
           ;; that test logging levels before emitting; receivers/events can be
           ;; layered on later if browser logging becomes a goal.
@@ -36285,6 +36300,87 @@
                (result (ref eq))
                (global.get $current-thread-value))
 
+         ;; thread? : any/c -> boolean?
+         ;;   Recognize WebRacket's single stable thread token.
+         (func $thread? (type $Prim1)
+               ,@(make-predicate-body '$Thread))
+
+         ;; thread-dead? : thread? -> boolean?
+         ;;   WebRacket is single-threaded; its current thread token remains
+         ;;   live for the duration of the program.
+         (func $thread-dead? (type $Prim1)
+               (param $thd (ref eq)) ;; thread?
+               (result     (ref eq))
+               (if (i32.eqz (ref.test (ref $Thread) (local.get $thd)))
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:thread-dead?)
+                               (global.get $string:thread?)
+                               (local.get $thd))
+                         (unreachable)))
+               (global.get $false))
+
+         ;; thread-running? : thread? -> boolean?
+         ;;   In single-threaded WebRacket the stable thread token is always
+         ;;   running while user code can observe it.
+         (func $thread-running? (type $Prim1)
+               (param $thd (ref eq)) ;; thread?
+               (result     (ref eq))
+               (if (i32.eqz (ref.test (ref $Thread) (local.get $thd)))
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:thread-running?)
+                               (global.get $string:thread?)
+                               (local.get $thd))
+                         (unreachable)))
+               (global.get $true))
+
+         ;; thread-group? : any/c -> boolean?
+         ;;   Recognize WebRacket's minimal thread group records.
+         (func $thread-group? (type $Prim1)
+               ,@(make-predicate-body '$ThreadGroup))
+
+         ;; current-thread-group : [thread-group?] -> thread-group? or void?
+         ;;   Parameter-like current thread group for future thread creation.
+         ;;   Scheduling is not modeled in single-threaded WebRacket.
+         (func $current-thread-group (type $Prim01)
+               (param $group-raw (ref eq)) ;; optional thread-group?
+               (result           (ref eq))
+               (if (ref.eq (local.get $group-raw) (global.get $missing))
+                   (then (return (call $parameter-value-or-global
+                                       (global.get $prim:current-thread-group)
+                                       (global.get $current-thread-group-value)))))
+               (if (i32.eqz (ref.test (ref $ThreadGroup) (local.get $group-raw)))
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:current-thread-group)
+                               (global.get $string:thread-group?)
+                               (local.get $group-raw))
+                         (unreachable)))
+               (if (i32.eqz (ref.eq (global.get $current-parameterization-value)
+                                     (global.get $false)))
+                   (then (return (call $extend-current-parameterization!
+                                       (global.get $prim:current-thread-group)
+                                       (local.get $group-raw)))))
+               (global.set $current-thread-group-value (local.get $group-raw))
+               (global.get $void))
+
+         ;; make-thread-group : [thread-group? = (current-thread-group)] -> thread-group?
+         ;;   Create a minimal child thread group.
+         (func $make-thread-group (type $Prim01)
+               (param $parent-raw (ref eq)) ;; optional thread-group?, default = current-thread-group
+               (result            (ref eq))
+               (if (ref.eq (local.get $parent-raw) (global.get $missing))
+                   (then (local.set $parent-raw
+                                    (call $current-thread-group
+                                          (global.get $missing)))))
+               (if (i32.eqz (ref.test (ref $ThreadGroup) (local.get $parent-raw)))
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:make-thread-group)
+                               (global.get $string:thread-group?)
+                               (local.get $parent-raw))
+                         (unreachable)))
+               (struct.new $ThreadGroup
+                           (i32.const 0)
+                           (local.get $parent-raw)))
+
          ;; logger? : any/c -> boolean?
          ;;   Predicate for WebRacket's minimal logger objects.
          (func $logger? (type $Prim1)
@@ -43794,6 +43890,15 @@
                    (if (ref.test (ref $Path)
                                  (struct.get $InputStringPort $name (local.get $in)))
                        (then (return (global.get $true))))))
+              (global.get $false))
+
+        ;; terminal-port? : any/c -> boolean?
+        ;;   WebRacket currently has string/VFS/browser ports, but no
+        ;;   interactive terminal port. The predicate is intentionally false
+        ;;   until a terminal-backed port subtype exists.
+        (func $terminal-port? (type $Prim1)
+              (param $v (ref eq)) ;; any value
+              (result   (ref eq))
               (global.get $false))
 
         (func $impersonator? (type $Prim1)
@@ -55244,6 +55349,8 @@
                (if (ref.eq (local.get $v) (global.get $prim:current-error-port))
                    (then (return (global.get $true))))
                (if (ref.eq (local.get $v) (global.get $prim:current-logger))
+                   (then (return (global.get $true))))
+               (if (ref.eq (local.get $v) (global.get $prim:current-thread-group))
                    (then (return (global.get $true))))
                (if (ref.eq (local.get $v) (global.get $prim:current-security-guard))
                    (then (return (global.get $true))))
@@ -69840,6 +69947,7 @@
                (global $current-compile-realm-value (mut (ref eq)) (global.get $false))
                (global $current-parameterization-value (mut (ref eq)) (global.get $false))
                (global $current-pseudo-random-generator-value (mut (ref eq)) (global.get $false))
+               (global $current-thread-group-value (mut (ref eq)) (global.get $false))
                (global $error-value->string-handler-value (mut (ref eq)) (global.get $false))
                (global $error-syntax->string-handler-value (mut (ref eq)) (global.get $false))
                (global $error-syntax->name-handler-value (mut (ref eq)) (global.get $false))
@@ -69965,6 +70073,10 @@
                                              (i32.const 0x9E3779B9)))
                      (global.set $current-thread-value
                                  (struct.new $Thread (i32.const 0)))
+                     (global.set $current-thread-group-value
+                                 (struct.new $ThreadGroup
+                                             (i32.const 0)
+                                             (global.get $false)))
                      (global.set $current-logger-value
                                  (struct.new $Logger
                                              (i32.const 0)

@@ -1285,6 +1285,8 @@
        port-display-handler
        port-print-handler
        current-logger
+       current-thread-group
+       make-thread-group
        current-security-guard
        make-security-guard
        current-custodian
@@ -1340,7 +1342,8 @@
                  ) 2]
          [(hash-update!) 3]
         [(random flrandom unsafe-flrandom make-semaphore current-pseudo-random-generator
-                 get-installation-name current-logger current-security-guard
+                 get-installation-name current-logger current-thread-group make-thread-group
+                 current-security-guard
                  current-custodian make-custodian) 0]
         [(make-security-guard) 3]
          [(progress-evt? write-byte write-char get-output-bytes) 1]
@@ -1377,6 +1380,7 @@
          [(random) 2]
          [(current-pseudo-random-generator) 1]
          [(current-logger) 1]
+         [(current-thread-group make-thread-group) 1]
          [(current-security-guard) 1]
          [(make-security-guard) 4]
          [(current-custodian make-custodian) 1]
@@ -1934,6 +1938,7 @@
   webracket-impersonator-property-predicate
 
   current-thread
+  thread? thread-dead? thread-running? thread-group? make-thread-group current-thread-group
   subprocess?
   current-security-guard security-guard? make-security-guard
   current-custodian custodian? make-custodian
@@ -2331,6 +2336,7 @@
   port?
   input-port?
   file-stream-port?
+  terminal-port?
   impersonator-property?
   impersonator-property-accessor-procedure?
   impersonator?
