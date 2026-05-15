@@ -4422,6 +4422,23 @@
                                                acc
                                                (make (+ j 1) (cons j acc)))))))
                           (loop (+ i 1) (hash-set h i i)))))
+              (list "immutable HAMT recursive bucket split"
+                    (let ([keys '(0 8 16 24 32 40 48 56 64)])
+                      (let loop ([ks keys] [h (hasheqv)])
+                        (if (null? ks)
+                            (let* ([h* (hash-remove h 24)]
+                                   [h** (hash-set h* 72 72)])
+                              (and (equal? (hash-count h) 9)
+                                   (equal? (hash-count h*) 8)
+                                   (equal? (hash-count h**) 9)
+                                   (not (hash-has-key? h* 24))
+                                   (equal? (hash-ref h** 72 #f) 72)
+                                   (andmap (lambda (k)
+                                             (or (equal? k 24)
+                                                 (equal? (hash-ref h* k #f) k)))
+                                           keys)))
+                            (loop (cdr ks)
+                                  (hash-set h (car ks) (car ks)))))))
               (list "hash immutable constructor"
                     (let* ([empty (hash)]
                            [h     (hash 'a 1 'b 2 'a 3)]
@@ -4537,6 +4554,40 @@
                            (eq? (hash-ref-key h b) b)
                            (not (hash-has-key? h* a))
                            (equal? (hash-ref h* b #f) 'b))))
+              (list "immutable equal HAMT recursive bucket split"
+                    (let ([keys '(0 8 16 24 32 40 48 56 64)])
+                      (let loop ([ks keys] [h (hash)])
+                        (if (null? ks)
+                            (let* ([h* (hash-remove h 32)]
+                                   [h** (hash-set h* 72 72)])
+                              (and (equal? (hash-count h) 9)
+                                   (equal? (hash-count h*) 8)
+                                   (equal? (hash-count h**) 9)
+                                   (not (hash-has-key? h* 32))
+                                   (equal? (hash-ref h** 72 #f) 72)
+                                   (andmap (lambda (k)
+                                             (or (equal? k 32)
+                                                 (equal? (hash-ref h* k #f) k)))
+                                           keys)))
+                            (loop (cdr ks)
+                                  (hash-set h (car ks) (car ks)))))))
+              (list "immutable hashalw HAMT recursive bucket split"
+                    (let ([keys '(0 8 16 24 32 40 48 56 64)])
+                      (let loop ([ks keys] [h (hashalw)])
+                        (if (null? ks)
+                            (let* ([h* (hash-remove h 40)]
+                                   [h** (hash-set h* 72 72)])
+                              (and (equal? (hash-count h) 9)
+                                   (equal? (hash-count h*) 8)
+                                   (equal? (hash-count h**) 9)
+                                   (not (hash-has-key? h* 40))
+                                   (equal? (hash-ref h** 72 #f) 72)
+                                   (andmap (lambda (k)
+                                             (or (equal? k 40)
+                                                 (equal? (hash-ref h* k #f) k)))
+                                           keys)))
+                            (loop (cdr ks)
+                                  (hash-set h (car ks) (car ks)))))))
               (list "hash-remove immutable"
                     (and (let* ([h  (hash 'a 1 'b 2)]
                                  [h2 (hash-remove h 'a)]
