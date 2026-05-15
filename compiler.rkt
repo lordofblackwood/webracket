@@ -361,6 +361,8 @@
   'webracket-internal-treelist-debug-shape)
 (define internal-immutable-hash-debug-shape-symbol
   'webracket-internal-immutable-hash-debug-shape)
+(define internal-immutable-hamt-packed-bits-symbol
+  'webracket-internal-immutable-hamt-packed-bits)
 
 ;; closure-conversion-progress-port : -> output-port?
 ;;   Return the diagnostic port for closure-conversion progress reports.
@@ -924,6 +926,7 @@
              (λ ()
                (or (and (eq? sym internal-treelist-debug-shape-symbol) 1)
                    (and (eq? sym internal-immutable-hash-debug-shape-symbol) 1)
+                   (and (eq? sym internal-immutable-hamt-packed-bits-symbol) 2)
                    (ffi-primitive-arity sym)
                    (let ([desc (primitive->description sym)])
                      (and desc (primitive-description-arity desc)))))))
@@ -3040,6 +3043,8 @@
                 (eq? v internal-treelist-debug-shape-symbol))
            (and (current-internal-immutable-hash-debug-shape?)
                 (eq? v internal-immutable-hash-debug-shape-symbol))
+           (and (current-internal-immutable-hash-debug-shape?)
+                (eq? v internal-immutable-hamt-packed-bits-symbol))
            (set-member? primitives-set v))
        #t))
 
@@ -7805,6 +7810,11 @@
                                                         (raise-syntax-error
                                                          'α-rename
                                                          "compiler-private immutable hash shape hook is unavailable without --internal-bind-immutable-hash-debug-shape"
+                                                         (variable-id x))]
+                                                       [(eq? s internal-immutable-hamt-packed-bits-symbol)
+                                                        (raise-syntax-error
+                                                         'α-rename
+                                                         "compiler-private immutable HAMT packed-bit hook is unavailable without --internal-bind-immutable-hash-debug-shape"
                                                          (variable-id x))]
                                                        [(inside-module?)
                                                         (raise-syntax-error
@@ -18476,6 +18486,8 @@
           (inline-prim/fixed 'treelist-debug-shape ae1 1)]
          [(eq? sym internal-immutable-hash-debug-shape-symbol)
           (inline-prim/fixed 'immutable-hash-debug-shape ae1 1)]
+         [(eq? sym internal-immutable-hamt-packed-bits-symbol)
+          (inline-prim/fixed 'immutable-hamt-packed-bits ae1 2)]
          [(eq? sym 'treelist)
           `(call $treelist ,(build-rest-args (AExpr* ae1)))]
          [(eq? sym 'treelist-append)

@@ -103,8 +103,8 @@ simpler while the semantics are still settling:
 
 - immutable hash wrappers store the public kind, root, and count outside the
   HAMT root
-- bnodes use one 8-bit mask region, where each dense slot is either an entry
-  bucket, a child bnode, or a cnode
+- bnodes use one 8-bit mask region, where each dense slot is either an inline
+  entry, an entry bucket, a child bnode, or a cnode
 - entries are explicit `$ImmutableHashEntry` records, so values are always
   stored explicitly
 - terminal full-hash collisions use an explicit `$ImmutableHashCNode`
@@ -115,6 +115,10 @@ and value bit positions. The active `immutable-hamt-bit` operation routes
 through the shared 3-bit group helper, but the storage layout is still the
 current WebRacket one-region bnode layout. That gives us a small, testable step
 toward the CS layout without risking a wholesale representation switch.
+Single-entry leaves are now stored directly as `$ImmutableHashEntry` values; a
+second entry in the same slot promotes that direct entry to the old explicit
+bucket list. That is a narrow inline-entry prototype, not yet the full Racket CS
+inline key/value bnode representation.
 
 An internal debug-only compiler hook,
 `webracket-internal-immutable-hash-debug-shape`, can be enabled with
@@ -122,6 +126,13 @@ An internal debug-only compiler hook,
 
 ```racket
 (list entries bnodes cnodes buckets max-depth slots)
+```
+
+The same flag also enables
+`webracket-internal-immutable-hamt-packed-bits`, which returns:
+
+```racket
+(list group child-bit key-bit value-bit current-bit)
 ```
 
 The hook is not exported as a public primitive; it exists so shape regression
