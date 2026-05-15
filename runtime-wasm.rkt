@@ -38299,51 +38299,550 @@
                                           (local.get $inv)))
                         (else (local.get $fail))))))
 
+         (func $immutable-hamt-bit
+               (param $hash  i32) ;; key hash
+               (param $shift i32) ;; HAMT shift in multiples of 3
+               (result       i32)
+               (i32.shl (i32.const 1)
+                        (i32.and (i32.shr_u (local.get $hash)
+                                            (local.get $shift))
+                                 (i32.const 7))))
+
+         (func $immutable-hamt-bucket-ref/kind
+               (param $kind   i32)      ;; 0 eq?, 1 eqv?, 2 equal?, 3 equal-always?
+               (param $bucket (ref eq)) ;; list of immutable hash entries
+               (param $key    (ref eq)) ;; lookup key
+               (param $fail   (ref eq)) ;; failure result/procedure/missing
+               (result        (ref eq))
+               (if (i32.eq (local.get $kind) (i32.const 0))
+                   (then (return_call $immutable-hasheq-bucket-ref
+                                      (local.get $bucket)
+                                      (local.get $key)
+                                      (local.get $fail))))
+               (if (i32.eq (local.get $kind) (i32.const 1))
+                   (then (return_call $immutable-hasheqv-bucket-ref
+                                      (local.get $bucket)
+                                      (local.get $key)
+                                      (local.get $fail))))
+               (if (i32.eq (local.get $kind) (i32.const 2))
+                   (then (return_call $immutable-hash-bucket-ref
+                                      (local.get $bucket)
+                                      (local.get $key)
+                                      (local.get $fail))))
+               (return_call $immutable-hashalw-bucket-ref
+                            (local.get $bucket)
+                            (local.get $key)
+                            (local.get $fail)))
+
+         (func $immutable-hamt-bucket-ref-key/kind
+               (param $kind   i32)      ;; 0 eq?, 1 eqv?, 2 equal?, 3 equal-always?
+               (param $bucket (ref eq)) ;; list of immutable hash entries
+               (param $key    (ref eq)) ;; lookup key
+               (param $fail   (ref eq)) ;; failure result/procedure/missing
+               (result        (ref eq))
+               (if (i32.eq (local.get $kind) (i32.const 0))
+                   (then (return_call $immutable-hasheq-bucket-ref-key
+                                      (local.get $bucket)
+                                      (local.get $key)
+                                      (local.get $fail))))
+               (if (i32.eq (local.get $kind) (i32.const 1))
+                   (then (return_call $immutable-hasheqv-bucket-ref-key
+                                      (local.get $bucket)
+                                      (local.get $key)
+                                      (local.get $fail))))
+               (if (i32.eq (local.get $kind) (i32.const 2))
+                   (then (return_call $immutable-hash-bucket-ref-key
+                                      (local.get $bucket)
+                                      (local.get $key)
+                                      (local.get $fail))))
+               (return_call $immutable-hashalw-bucket-ref-key
+                            (local.get $bucket)
+                            (local.get $key)
+                            (local.get $fail)))
+
+         (func $immutable-hamt-bucket-has-key?/kind
+               (param $kind   i32)      ;; 0 eq?, 1 eqv?, 2 equal?, 3 equal-always?
+               (param $bucket (ref eq)) ;; list of immutable hash entries
+               (param $key    (ref eq)) ;; lookup key
+               (result        i32)
+               (if (i32.eq (local.get $kind) (i32.const 0))
+                   (then (return_call $immutable-hasheq-bucket-has-key?
+                                      (local.get $bucket)
+                                      (local.get $key))))
+               (if (i32.eq (local.get $kind) (i32.const 1))
+                   (then (return_call $immutable-hasheqv-bucket-has-key?
+                                      (local.get $bucket)
+                                      (local.get $key))))
+               (if (i32.eq (local.get $kind) (i32.const 2))
+                   (then (return_call $immutable-hash-bucket-has-key?
+                                      (local.get $bucket)
+                                      (local.get $key))))
+               (return_call $immutable-hashalw-bucket-has-key?
+                            (local.get $bucket)
+                            (local.get $key)))
+
+         (func $immutable-hamt-node-ref/kind
+               (param $kind  i32)      ;; 0 eq?, 1 eqv?, 2 equal?, 3 equal-always?
+               (param $node  (ref eq)) ;; HAMT node or bucket
+               (param $key   (ref eq)) ;; lookup key
+               (param $hash  i32)      ;; key hash
+               (param $shift i32)      ;; HAMT shift in multiples of 3
+               (param $fail  (ref eq)) ;; failure result/procedure/missing
+               (result       (ref eq))
+               (local $sv    (ref $StencilVector))
+               (local $mask  i32)
+               (local $bit   i32)
+               (local $index i32)
+               (local $slot  (ref eq))
+               (if (ref.test (ref $StencilVector) (local.get $node))
+                   (then
+                    (local.set $sv   (ref.cast (ref $StencilVector) (local.get $node)))
+                    (local.set $mask (struct.get $StencilVector $mask (local.get $sv)))
+                    (local.set $bit
+                               (call $immutable-hamt-bit
+                                     (local.get $hash)
+                                     (local.get $shift)))
+                    (if (i32.eqz (i32.and (local.get $mask) (local.get $bit)))
+                        (then (return_call $immutable-hamt-bucket-ref/kind
+                                           (local.get $kind)
+                                           (global.get $null)
+                                           (local.get $key)
+                                           (local.get $fail))))
+                    (local.set $index (call $immutable-hasheqv-bucket-index
+                                            (local.get $mask)
+                                            (local.get $bit)))
+                    (local.set $slot
+                               (array.get $Array
+                                          (struct.get $StencilVector $slots
+                                                      (local.get $sv))
+                                          (local.get $index)))
+                    (if (ref.test (ref $StencilVector) (local.get $slot))
+                        (then (return_call $immutable-hamt-node-ref/kind
+                                           (local.get $kind)
+                                           (local.get $slot)
+                                           (local.get $key)
+                                           (local.get $hash)
+                                           (i32.add (local.get $shift) (i32.const 3))
+                                           (local.get $fail))))
+                    (return_call $immutable-hamt-bucket-ref/kind
+                                 (local.get $kind)
+                                 (local.get $slot)
+                                 (local.get $key)
+                                 (local.get $fail))))
+               (return_call $immutable-hamt-bucket-ref/kind
+                            (local.get $kind)
+                            (local.get $node)
+                            (local.get $key)
+                            (local.get $fail)))
+
+         (func $immutable-hamt-node-ref-key/kind
+               (param $kind  i32)      ;; 0 eq?, 1 eqv?, 2 equal?, 3 equal-always?
+               (param $node  (ref eq)) ;; HAMT node or bucket
+               (param $key   (ref eq)) ;; lookup key
+               (param $hash  i32)      ;; key hash
+               (param $shift i32)      ;; HAMT shift in multiples of 3
+               (param $fail  (ref eq)) ;; failure result/procedure/missing
+               (result       (ref eq))
+               (local $sv    (ref $StencilVector))
+               (local $mask  i32)
+               (local $bit   i32)
+               (local $index i32)
+               (local $slot  (ref eq))
+               (if (ref.test (ref $StencilVector) (local.get $node))
+                   (then
+                    (local.set $sv   (ref.cast (ref $StencilVector) (local.get $node)))
+                    (local.set $mask (struct.get $StencilVector $mask (local.get $sv)))
+                    (local.set $bit
+                               (call $immutable-hamt-bit
+                                     (local.get $hash)
+                                     (local.get $shift)))
+                    (if (i32.eqz (i32.and (local.get $mask) (local.get $bit)))
+                        (then (return_call $immutable-hamt-bucket-ref-key/kind
+                                           (local.get $kind)
+                                           (global.get $null)
+                                           (local.get $key)
+                                           (local.get $fail))))
+                    (local.set $index (call $immutable-hasheqv-bucket-index
+                                            (local.get $mask)
+                                            (local.get $bit)))
+                    (local.set $slot
+                               (array.get $Array
+                                          (struct.get $StencilVector $slots
+                                                      (local.get $sv))
+                                          (local.get $index)))
+                    (if (ref.test (ref $StencilVector) (local.get $slot))
+                        (then (return_call $immutable-hamt-node-ref-key/kind
+                                           (local.get $kind)
+                                           (local.get $slot)
+                                           (local.get $key)
+                                           (local.get $hash)
+                                           (i32.add (local.get $shift) (i32.const 3))
+                                           (local.get $fail))))
+                    (return_call $immutable-hamt-bucket-ref-key/kind
+                                 (local.get $kind)
+                                 (local.get $slot)
+                                 (local.get $key)
+                                 (local.get $fail))))
+               (return_call $immutable-hamt-bucket-ref-key/kind
+                            (local.get $kind)
+                            (local.get $node)
+                            (local.get $key)
+                            (local.get $fail)))
+
+         (func $immutable-hamt-node-has-key?/kind
+               (param $kind  i32)      ;; 0 eq?, 1 eqv?, 2 equal?, 3 equal-always?
+               (param $node  (ref eq)) ;; HAMT node or bucket
+               (param $key   (ref eq)) ;; lookup key
+               (param $hash  i32)      ;; key hash
+               (param $shift i32)      ;; HAMT shift in multiples of 3
+               (result       i32)
+               (local $sv    (ref $StencilVector))
+               (local $mask  i32)
+               (local $bit   i32)
+               (local $index i32)
+               (local $slot  (ref eq))
+               (if (ref.test (ref $StencilVector) (local.get $node))
+                   (then
+                    (local.set $sv   (ref.cast (ref $StencilVector) (local.get $node)))
+                    (local.set $mask (struct.get $StencilVector $mask (local.get $sv)))
+                    (local.set $bit
+                               (call $immutable-hamt-bit
+                                     (local.get $hash)
+                                     (local.get $shift)))
+                    (if (i32.eqz (i32.and (local.get $mask) (local.get $bit)))
+                        (then (return (i32.const 0))))
+                    (local.set $index (call $immutable-hasheqv-bucket-index
+                                            (local.get $mask)
+                                            (local.get $bit)))
+                    (local.set $slot
+                               (array.get $Array
+                                          (struct.get $StencilVector $slots
+                                                      (local.get $sv))
+                                          (local.get $index)))
+                    (if (ref.test (ref $StencilVector) (local.get $slot))
+                        (then (return_call $immutable-hamt-node-has-key?/kind
+                                           (local.get $kind)
+                                           (local.get $slot)
+                                           (local.get $key)
+                                           (local.get $hash)
+                                           (i32.add (local.get $shift) (i32.const 3)))))
+                    (return_call $immutable-hamt-bucket-has-key?/kind
+                                 (local.get $kind)
+                                 (local.get $slot)
+                                 (local.get $key))))
+               (return_call $immutable-hamt-bucket-has-key?/kind
+                            (local.get $kind)
+                            (local.get $node)
+                            (local.get $key)))
+
+         (func $immutable-hamt-empty-node
+               (result (ref $StencilVector))
+               (call $$make-stencil-vector/checked
+                     (i32.const 1)
+                     (i32.const 0)
+                     (array.new $Array (global.get $missing) (i32.const 0))))
+
+         (func $immutable-hamt-bucket-length
+               (param $bucket (ref eq)) ;; list of immutable hash entries
+               (result        i32)
+               (local $node (ref eq))
+               (local $n    i32)
+               (local.set $node (local.get $bucket))
+               (block $done
+                      (loop $scan
+                            (br_if $done
+                                   (ref.eq (local.get $node) (global.get $null)))
+                            (if (i32.eqz (ref.test (ref $Pair) (local.get $node)))
+                                (then (br $done)))
+                            (local.set $n (i32.add (local.get $n) (i32.const 1)))
+                            (local.set $node
+                                       (struct.get $Pair $d
+                                                   (ref.cast (ref $Pair)
+                                                             (local.get $node))))
+                            (br $scan)))
+               (local.get $n))
+
+         (func $immutable-hamt-entry-matches?/kind
+               (param $kind  i32)
+               (param $entry (ref $ImmutableHashEntry))
+               (param $key   (ref eq))
+               (result       i32)
+               (if (i32.eq (local.get $kind) (i32.const 0))
+                   (then (return (ref.eq
+                                  (struct.get $ImmutableHashEntry $key
+                                              (local.get $entry))
+                                  (local.get $key)))))
+               (if (i32.eq (local.get $kind) (i32.const 1))
+                   (then (return (ref.eq
+                                  (call $eqv?
+                                        (struct.get $ImmutableHashEntry $key
+                                                    (local.get $entry))
+                                        (local.get $key))
+                                  (global.get $true)))))
+               (if (i32.eq (local.get $kind) (i32.const 2))
+                   (then (return (ref.eq
+                                  (call $equal?
+                                        (struct.get $ImmutableHashEntry $key
+                                                    (local.get $entry))
+                                        (local.get $key))
+                                  (global.get $true)))))
+               (return (ref.eq
+                        (call $equal-always?
+                              (struct.get $ImmutableHashEntry $key
+                                          (local.get $entry))
+                              (local.get $key))
+                        (global.get $true))))
+
+         (func $immutable-hamt-bucket-remove/kind
+               (param $kind   i32)
+               (param $bucket (ref eq))
+               (param $key    (ref eq))
+               (result        (ref eq))
+               (local $node   (ref eq))
+               (local $pair   (ref $Pair))
+               (local $entry  (ref $ImmutableHashEntry))
+               (local $result (ref eq))
+               (local.set $node   (local.get $bucket))
+               (local.set $result (global.get $null))
+               (block $done
+                      (loop $scan
+                            (br_if $done
+                                   (ref.eq (local.get $node) (global.get $null)))
+                            (if (i32.eqz (ref.test (ref $Pair) (local.get $node)))
+                                (then (br $done)))
+                            (local.set $pair (ref.cast (ref $Pair) (local.get $node)))
+                            (local.set $entry
+                                       (ref.cast (ref $ImmutableHashEntry)
+                                                 (struct.get $Pair $a (local.get $pair))))
+                            (if (i32.eqz
+                                 (call $immutable-hamt-entry-matches?/kind
+                                       (local.get $kind)
+                                       (local.get $entry)
+                                       (local.get $key)))
+                                (then
+                                 (local.set $result
+                                            (call $cons
+                                                  (local.get $entry)
+                                                  (local.get $result)))))
+                            (local.set $node (struct.get $Pair $d (local.get $pair)))
+                            (br $scan)))
+               (local.get $result))
+
+         (func $immutable-hamt-bucket->node/kind
+               (param $kind      i32)
+               (param $bucket    (ref eq))
+               (param $new-entry (ref $ImmutableHashEntry))
+               (param $shift     i32)
+               (result           (ref eq))
+               (local $node  (ref eq))
+               (local $scan  (ref eq))
+               (local $pair  (ref $Pair))
+               (local $entry (ref $ImmutableHashEntry))
+               (local.set $node (call $immutable-hamt-empty-node))
+               (local.set $scan (local.get $bucket))
+               (block $done
+                      (loop $walk
+                            (br_if $done
+                                   (ref.eq (local.get $scan) (global.get $null)))
+                            (if (i32.eqz (ref.test (ref $Pair) (local.get $scan)))
+                                (then (br $done)))
+                            (local.set $pair (ref.cast (ref $Pair) (local.get $scan)))
+                            (local.set $entry
+                                       (ref.cast (ref $ImmutableHashEntry)
+                                                 (struct.get $Pair $a (local.get $pair))))
+                            (local.set $node
+                                       (call $immutable-hamt-node-set/kind
+                                             (local.get $kind)
+                                             (local.get $node)
+                                             (local.get $entry)
+                                             (struct.get $ImmutableHashEntry $key
+                                                         (local.get $entry))
+                                             (struct.get $ImmutableHashEntry $key-hash
+                                                         (local.get $entry))
+                                             (local.get $shift)))
+                            (local.set $scan (struct.get $Pair $d (local.get $pair)))
+                            (br $walk)))
+               (call $immutable-hamt-node-set/kind
+                     (local.get $kind)
+                     (local.get $node)
+                     (local.get $new-entry)
+                     (struct.get $ImmutableHashEntry $key (local.get $new-entry))
+                     (struct.get $ImmutableHashEntry $key-hash (local.get $new-entry))
+                     (local.get $shift)))
+
+         (func $immutable-hamt-node-set/kind
+               (param $kind  i32)
+               (param $node  (ref eq))
+               (param $entry (ref $ImmutableHashEntry))
+               (param $key   (ref eq))
+               (param $hash  i32)
+               (param $shift i32)
+               (result       (ref eq))
+               (local $sv      (ref $StencilVector))
+               (local $mask    i32)
+               (local $bit     i32)
+               (local $index   i32)
+               (local $slot    (ref eq))
+               (local $newslot (ref eq))
+               (local.set $newslot (global.get $null))
+               (if (i32.eqz (ref.test (ref $StencilVector) (local.get $node)))
+                   (then
+                    (return (call $cons (local.get $entry) (local.get $node)))))
+               (local.set $sv   (ref.cast (ref $StencilVector) (local.get $node)))
+               (local.set $mask (struct.get $StencilVector $mask (local.get $sv)))
+               (local.set $bit  (call $immutable-hamt-bit
+                                      (local.get $hash)
+                                      (local.get $shift)))
+               (if (i32.eqz (i32.and (local.get $mask) (local.get $bit)))
+                   (then
+                    (return_call $$stencil-vector-update/core
+                                 (local.get $sv)
+                                 (i32.const 0)
+                                 (local.get $bit)
+                                 (call $cons
+                                       (call $cons
+                                             (local.get $entry)
+                                             (global.get $null))
+                                       (global.get $null))
+                                 (i32.const 1))))
+               (local.set $index (call $immutable-hasheqv-bucket-index
+                                       (local.get $mask)
+                                       (local.get $bit)))
+               (local.set $slot
+                          (array.get $Array
+                                     (struct.get $StencilVector $slots (local.get $sv))
+                                     (local.get $index)))
+               (if (ref.test (ref $StencilVector) (local.get $slot))
+                   (then
+                    (local.set $newslot
+                               (call $immutable-hamt-node-set/kind
+                                     (local.get $kind)
+                                     (local.get $slot)
+                                     (local.get $entry)
+                                     (local.get $key)
+                                     (local.get $hash)
+                                     (i32.add (local.get $shift) (i32.const 3)))))
+                   (else
+                    (if (i32.and
+                         (i32.eqz
+                          (call $immutable-hamt-bucket-has-key?/kind
+                                (local.get $kind)
+                                (local.get $slot)
+                                (local.get $key)))
+                         (i32.and
+                          (i32.lt_u (local.get $shift) (i32.const 24))
+                          (i32.ge_u
+                           (call $immutable-hamt-bucket-length (local.get $slot))
+                           (i32.const 4))))
+                        (then
+                         (local.set $newslot
+                                    (call $immutable-hamt-bucket->node/kind
+                                          (local.get $kind)
+                                          (local.get $slot)
+                                          (local.get $entry)
+                                          (i32.add (local.get $shift) (i32.const 3)))))
+                        (else
+                         (local.set $newslot
+                                    (call $cons
+                                          (local.get $entry)
+                                          (local.get $slot)))))))
+               (return_call $$stencil-vector-update/core
+                            (local.get $sv)
+                            (local.get $bit)
+                            (local.get $bit)
+                            (call $cons (local.get $newslot) (global.get $null))
+                            (i32.const 1)))
+
+         (func $immutable-hamt-node-remove/kind
+               (param $kind  i32)
+               (param $node  (ref eq))
+               (param $key   (ref eq))
+               (param $hash  i32)
+               (param $shift i32)
+               (result       (ref eq))
+               (local $sv      (ref $StencilVector))
+               (local $mask    i32)
+               (local $bit     i32)
+               (local $index   i32)
+               (local $slot    (ref eq))
+               (local $newslot (ref eq))
+               (local.set $newslot (global.get $null))
+               (if (i32.eqz (ref.test (ref $StencilVector) (local.get $node)))
+                   (then
+                    (return_call $immutable-hamt-bucket-remove/kind
+                                 (local.get $kind)
+                                 (local.get $node)
+                                 (local.get $key))))
+               (local.set $sv   (ref.cast (ref $StencilVector) (local.get $node)))
+               (local.set $mask (struct.get $StencilVector $mask (local.get $sv)))
+               (local.set $bit  (call $immutable-hamt-bit
+                                      (local.get $hash)
+                                      (local.get $shift)))
+               (if (i32.eqz (i32.and (local.get $mask) (local.get $bit)))
+                   (then (return (local.get $node))))
+               (local.set $index (call $immutable-hasheqv-bucket-index
+                                       (local.get $mask)
+                                       (local.get $bit)))
+               (local.set $slot
+                          (array.get $Array
+                                     (struct.get $StencilVector $slots (local.get $sv))
+                                     (local.get $index)))
+               (if (ref.test (ref $StencilVector) (local.get $slot))
+                   (then
+                    (local.set $newslot
+                               (call $immutable-hamt-node-remove/kind
+                                     (local.get $kind)
+                                     (local.get $slot)
+                                     (local.get $key)
+                                     (local.get $hash)
+                                     (i32.add (local.get $shift) (i32.const 3)))))
+                   (else
+                    (local.set $newslot
+                               (call $immutable-hamt-bucket-remove/kind
+                                     (local.get $kind)
+                                     (local.get $slot)
+                                     (local.get $key)))))
+               (if (ref.eq (local.get $newslot) (global.get $null))
+                   (then
+                    (return_call $$stencil-vector-update/core
+                                 (local.get $sv)
+                                 (local.get $bit)
+                                 (i32.const 0)
+                                 (global.get $null)
+                                 (i32.const 1))))
+               (return_call $$stencil-vector-update/core
+                            (local.get $sv)
+                            (local.get $bit)
+                            (local.get $bit)
+                            (call $cons (local.get $newslot) (global.get $null))
+                            (i32.const 1)))
+
          (func $immutable-hasheqv-ref
                (type $Prim23)
                (param $ht      (ref eq)) ;; immutable hasheqv
                (param $key     (ref eq)) ;; lookup key
                (param $failure (ref eq)) ;; optional failure, default raises
                (result         (ref eq))
-               (local $table  (ref $HashEqvImmutable))
-               (local $root   (ref $StencilVector))
-               (local $mask   i32)
-               (local $hash   i32)
-               (local $bit    i32)
-               (local $index  i32)
-               (local $bucket (ref eq))
+               (local $table (ref $HashEqvImmutable))
+               (local $hash  i32)
                (if (i32.eqz (ref.test (ref $HashEqvImmutable) (local.get $ht)))
                    (then (call $raise-argument-error:hasheqv-expected (local.get $ht))
                          (unreachable)))
                (local.set $table (ref.cast (ref $HashEqvImmutable) (local.get $ht)))
+               (local.set $hash (call $eqv-hash/i32 (local.get $key)))
                (if (ref.eq (struct.get $HashEqvImmutable $root (local.get $table))
                            (global.get $missing))
-                   (then (return (call $immutable-hasheqv-bucket-ref
-                                       (global.get $null)
-                                       (local.get $key)
-                                       (local.get $failure)))))
-               (local.set $root
-                          (ref.cast (ref $StencilVector)
-                                    (struct.get $HashEqvImmutable $root (local.get $table))))
-               (local.set $hash (call $eqv-hash/i32 (local.get $key)))
-               (local.set $bit  (i32.shl (i32.const 1)
-                                          (i32.rem_u (local.get $hash) (i32.const 26))))
-               (local.set $mask (struct.get $StencilVector $mask (local.get $root)))
-               (if (i32.eqz (i32.and (local.get $mask) (local.get $bit)))
-                   (then (return (call $immutable-hasheqv-bucket-ref
-                                       (global.get $null)
-                                       (local.get $key)
-                                       (local.get $failure)))))
-               (local.set $index (call $immutable-hasheqv-bucket-index
-                                        (local.get $mask)
-                                        (local.get $bit)))
-               (local.set $bucket
-                          (array.get $Array
-                                     (struct.get $StencilVector $slots (local.get $root))
-                                     (local.get $index)))
-               (return_call $immutable-hasheqv-bucket-ref
-                            (local.get $bucket)
+                   (then (return_call $immutable-hamt-bucket-ref/kind
+                                      (i32.const 1)
+                                      (global.get $null)
+                                      (local.get $key)
+                                      (local.get $failure))))
+               (return_call $immutable-hamt-node-ref/kind
+                            (i32.const 1)
+                            (struct.get $HashEqvImmutable $root (local.get $table))
                             (local.get $key)
+                            (local.get $hash)
+                            (i32.const 0)
                             (local.get $failure)))
 
          (func $immutable-hasheq-ref
@@ -38352,45 +38851,26 @@
                (param $key     (ref eq)) ;; lookup key
                (param $failure (ref eq)) ;; optional failure, default raises
                (result         (ref eq))
-               (local $table  (ref $HashEqImmutable))
-               (local $root   (ref $StencilVector))
-               (local $mask   i32)
-               (local $hash   i32)
-               (local $bit    i32)
-               (local $index  i32)
-               (local $bucket (ref eq))
+               (local $table (ref $HashEqImmutable))
+               (local $hash  i32)
                (if (i32.eqz (ref.test (ref $HashEqImmutable) (local.get $ht)))
                    (then (call $raise-argument-error:hasheq-expected (local.get $ht))
                          (unreachable)))
                (local.set $table (ref.cast (ref $HashEqImmutable) (local.get $ht)))
+               (local.set $hash (call $eq-hash/i32 (local.get $key)))
                (if (ref.eq (struct.get $HashEqImmutable $root (local.get $table))
                            (global.get $missing))
-                   (then (return (call $immutable-hasheq-bucket-ref
-                                       (global.get $null)
-                                       (local.get $key)
-                                       (local.get $failure)))))
-               (local.set $root
-                          (ref.cast (ref $StencilVector)
-                                    (struct.get $HashEqImmutable $root (local.get $table))))
-               (local.set $hash (call $eq-hash/i32 (local.get $key)))
-               (local.set $bit  (i32.shl (i32.const 1)
-                                          (i32.rem_u (local.get $hash) (i32.const 26))))
-               (local.set $mask (struct.get $StencilVector $mask (local.get $root)))
-               (if (i32.eqz (i32.and (local.get $mask) (local.get $bit)))
-                   (then (return (call $immutable-hasheq-bucket-ref
-                                       (global.get $null)
-                                       (local.get $key)
-                                       (local.get $failure)))))
-               (local.set $index (call $immutable-hasheqv-bucket-index
-                                        (local.get $mask)
-                                        (local.get $bit)))
-               (local.set $bucket
-                          (array.get $Array
-                                     (struct.get $StencilVector $slots (local.get $root))
-                                     (local.get $index)))
-               (return_call $immutable-hasheq-bucket-ref
-                            (local.get $bucket)
+                   (then (return_call $immutable-hamt-bucket-ref/kind
+                                      (i32.const 0)
+                                      (global.get $null)
+                                      (local.get $key)
+                                      (local.get $failure))))
+               (return_call $immutable-hamt-node-ref/kind
+                            (i32.const 0)
+                            (struct.get $HashEqImmutable $root (local.get $table))
                             (local.get $key)
+                            (local.get $hash)
+                            (i32.const 0)
                             (local.get $failure)))
 
          (func $immutable-hasheqv-ref-key
@@ -38399,45 +38879,26 @@
                (param $key     (ref eq)) ;; lookup key
                (param $failure (ref eq)) ;; optional failure, default raises
                (result         (ref eq))
-               (local $table  (ref $HashEqvImmutable))
-               (local $root   (ref $StencilVector))
-               (local $mask   i32)
-               (local $hash   i32)
-               (local $bit    i32)
-               (local $index  i32)
-               (local $bucket (ref eq))
+               (local $table (ref $HashEqvImmutable))
+               (local $hash  i32)
                (if (i32.eqz (ref.test (ref $HashEqvImmutable) (local.get $ht)))
                    (then (call $raise-argument-error:hasheqv-expected (local.get $ht))
                          (unreachable)))
                (local.set $table (ref.cast (ref $HashEqvImmutable) (local.get $ht)))
+               (local.set $hash (call $eqv-hash/i32 (local.get $key)))
                (if (ref.eq (struct.get $HashEqvImmutable $root (local.get $table))
                            (global.get $missing))
-                   (then (return (call $immutable-hasheqv-bucket-ref-key
-                                       (global.get $null)
-                                       (local.get $key)
-                                       (local.get $failure)))))
-               (local.set $root
-                          (ref.cast (ref $StencilVector)
-                                    (struct.get $HashEqvImmutable $root (local.get $table))))
-               (local.set $hash (call $eqv-hash/i32 (local.get $key)))
-               (local.set $bit  (i32.shl (i32.const 1)
-                                          (i32.rem_u (local.get $hash) (i32.const 26))))
-               (local.set $mask (struct.get $StencilVector $mask (local.get $root)))
-               (if (i32.eqz (i32.and (local.get $mask) (local.get $bit)))
-                   (then (return (call $immutable-hasheqv-bucket-ref-key
-                                       (global.get $null)
-                                       (local.get $key)
-                                       (local.get $failure)))))
-               (local.set $index (call $immutable-hasheqv-bucket-index
-                                        (local.get $mask)
-                                        (local.get $bit)))
-               (local.set $bucket
-                          (array.get $Array
-                                     (struct.get $StencilVector $slots (local.get $root))
-                                     (local.get $index)))
-               (return_call $immutable-hasheqv-bucket-ref-key
-                            (local.get $bucket)
+                   (then (return_call $immutable-hamt-bucket-ref-key/kind
+                                      (i32.const 1)
+                                      (global.get $null)
+                                      (local.get $key)
+                                      (local.get $failure))))
+               (return_call $immutable-hamt-node-ref-key/kind
+                            (i32.const 1)
+                            (struct.get $HashEqvImmutable $root (local.get $table))
                             (local.get $key)
+                            (local.get $hash)
+                            (i32.const 0)
                             (local.get $failure)))
 
          (func $immutable-hasheq-ref-key
@@ -38446,45 +38907,26 @@
                (param $key     (ref eq)) ;; lookup key
                (param $failure (ref eq)) ;; optional failure, default raises
                (result         (ref eq))
-               (local $table  (ref $HashEqImmutable))
-               (local $root   (ref $StencilVector))
-               (local $mask   i32)
-               (local $hash   i32)
-               (local $bit    i32)
-               (local $index  i32)
-               (local $bucket (ref eq))
+               (local $table (ref $HashEqImmutable))
+               (local $hash  i32)
                (if (i32.eqz (ref.test (ref $HashEqImmutable) (local.get $ht)))
                    (then (call $raise-argument-error:hasheq-expected (local.get $ht))
                          (unreachable)))
                (local.set $table (ref.cast (ref $HashEqImmutable) (local.get $ht)))
+               (local.set $hash (call $eq-hash/i32 (local.get $key)))
                (if (ref.eq (struct.get $HashEqImmutable $root (local.get $table))
                            (global.get $missing))
-                   (then (return (call $immutable-hasheq-bucket-ref-key
-                                       (global.get $null)
-                                       (local.get $key)
-                                       (local.get $failure)))))
-               (local.set $root
-                          (ref.cast (ref $StencilVector)
-                                    (struct.get $HashEqImmutable $root (local.get $table))))
-               (local.set $hash (call $eq-hash/i32 (local.get $key)))
-               (local.set $bit  (i32.shl (i32.const 1)
-                                          (i32.rem_u (local.get $hash) (i32.const 26))))
-               (local.set $mask (struct.get $StencilVector $mask (local.get $root)))
-               (if (i32.eqz (i32.and (local.get $mask) (local.get $bit)))
-                   (then (return (call $immutable-hasheq-bucket-ref-key
-                                       (global.get $null)
-                                       (local.get $key)
-                                       (local.get $failure)))))
-               (local.set $index (call $immutable-hasheqv-bucket-index
-                                        (local.get $mask)
-                                        (local.get $bit)))
-               (local.set $bucket
-                          (array.get $Array
-                                     (struct.get $StencilVector $slots (local.get $root))
-                                     (local.get $index)))
-               (return_call $immutable-hasheq-bucket-ref-key
-                            (local.get $bucket)
+                   (then (return_call $immutable-hamt-bucket-ref-key/kind
+                                      (i32.const 0)
+                                      (global.get $null)
+                                      (local.get $key)
+                                      (local.get $failure))))
+               (return_call $immutable-hamt-node-ref-key/kind
+                            (i32.const 0)
+                            (struct.get $HashEqImmutable $root (local.get $table))
                             (local.get $key)
+                            (local.get $hash)
+                            (i32.const 0)
                             (local.get $failure)))
 
          (func $immutable-hasheqv-has-key?
@@ -38492,13 +38934,8 @@
                (param $ht  (ref eq)) ;; immutable hasheqv
                (param $key (ref eq)) ;; lookup key
                (result     (ref eq))
-               (local $table  (ref $HashEqvImmutable))
-               (local $root   (ref $StencilVector))
-               (local $mask   i32)
-               (local $hash   i32)
-               (local $bit    i32)
-               (local $index  i32)
-               (local $bucket (ref eq))
+               (local $table (ref $HashEqvImmutable))
+               (local $hash  i32)
                (if (i32.eqz (ref.test (ref $HashEqvImmutable) (local.get $ht)))
                    (then (call $raise-argument-error:hasheqv-expected (local.get $ht))
                          (unreachable)))
@@ -38506,26 +38943,14 @@
                (if (ref.eq (struct.get $HashEqvImmutable $root (local.get $table))
                            (global.get $missing))
                    (then (return (global.get $false))))
-               (local.set $root
-                          (ref.cast (ref $StencilVector)
-                                    (struct.get $HashEqvImmutable $root (local.get $table))))
                (local.set $hash (call $eqv-hash/i32 (local.get $key)))
-               (local.set $bit  (i32.shl (i32.const 1)
-                                          (i32.rem_u (local.get $hash) (i32.const 26))))
-               (local.set $mask (struct.get $StencilVector $mask (local.get $root)))
-               (if (i32.eqz (i32.and (local.get $mask) (local.get $bit)))
-                   (then (return (global.get $false))))
-               (local.set $index (call $immutable-hasheqv-bucket-index
-                                        (local.get $mask)
-                                        (local.get $bit)))
-               (local.set $bucket
-                          (array.get $Array
-                                     (struct.get $StencilVector $slots (local.get $root))
-                                     (local.get $index)))
                (if (result (ref eq))
-                   (call $immutable-hasheqv-bucket-has-key?
-                         (local.get $bucket)
-                         (local.get $key))
+                   (call $immutable-hamt-node-has-key?/kind
+                         (i32.const 1)
+                         (struct.get $HashEqvImmutable $root (local.get $table))
+                         (local.get $key)
+                         (local.get $hash)
+                         (i32.const 0))
                    (then (global.get $true))
                    (else (global.get $false))))
 
@@ -38534,13 +38959,8 @@
                (param $ht  (ref eq)) ;; immutable hasheq
                (param $key (ref eq)) ;; lookup key
                (result     (ref eq))
-               (local $table  (ref $HashEqImmutable))
-               (local $root   (ref $StencilVector))
-               (local $mask   i32)
-               (local $hash   i32)
-               (local $bit    i32)
-               (local $index  i32)
-               (local $bucket (ref eq))
+               (local $table (ref $HashEqImmutable))
+               (local $hash  i32)
                (if (i32.eqz (ref.test (ref $HashEqImmutable) (local.get $ht)))
                    (then (call $raise-argument-error:hasheq-expected (local.get $ht))
                          (unreachable)))
@@ -38548,26 +38968,14 @@
                (if (ref.eq (struct.get $HashEqImmutable $root (local.get $table))
                            (global.get $missing))
                    (then (return (global.get $false))))
-               (local.set $root
-                          (ref.cast (ref $StencilVector)
-                                    (struct.get $HashEqImmutable $root (local.get $table))))
                (local.set $hash (call $eq-hash/i32 (local.get $key)))
-               (local.set $bit  (i32.shl (i32.const 1)
-                                          (i32.rem_u (local.get $hash) (i32.const 26))))
-               (local.set $mask (struct.get $StencilVector $mask (local.get $root)))
-               (if (i32.eqz (i32.and (local.get $mask) (local.get $bit)))
-                   (then (return (global.get $false))))
-               (local.set $index (call $immutable-hasheqv-bucket-index
-                                        (local.get $mask)
-                                        (local.get $bit)))
-               (local.set $bucket
-                          (array.get $Array
-                                     (struct.get $StencilVector $slots (local.get $root))
-                                     (local.get $index)))
                (if (result (ref eq))
-                   (call $immutable-hasheq-bucket-has-key?
-                         (local.get $bucket)
-                         (local.get $key))
+                   (call $immutable-hamt-node-has-key?/kind
+                         (i32.const 0)
+                         (struct.get $HashEqImmutable $root (local.get $table))
+                         (local.get $key)
+                         (local.get $hash)
+                         (i32.const 0))
                    (then (global.get $true))
                    (else (global.get $false))))
 
@@ -38813,45 +39221,26 @@
                (param $key     (ref eq)) ;; lookup key
                (param $failure (ref eq)) ;; optional failure, default raises
                (result         (ref eq))
-               (local $table  (ref $HashEqualImmutable))
-               (local $root   (ref $StencilVector))
-               (local $mask   i32)
-               (local $hash   i32)
-               (local $bit    i32)
-               (local $index  i32)
-               (local $bucket (ref eq))
+               (local $table (ref $HashEqualImmutable))
+               (local $hash  i32)
                (if (i32.eqz (ref.test (ref $HashEqualImmutable) (local.get $ht)))
                    (then (call $raise-argument-error:hash-expected (local.get $ht))
                          (unreachable)))
                (local.set $table (ref.cast (ref $HashEqualImmutable) (local.get $ht)))
+               (local.set $hash (call $equal-hash/i32 (local.get $key)))
                (if (ref.eq (struct.get $HashEqualImmutable $root (local.get $table))
                            (global.get $missing))
-                   (then (return (call $immutable-hash-bucket-ref
-                                       (global.get $null)
-                                       (local.get $key)
-                                       (local.get $failure)))))
-               (local.set $root
-                          (ref.cast (ref $StencilVector)
-                                    (struct.get $HashEqualImmutable $root (local.get $table))))
-               (local.set $hash (call $equal-hash/i32 (local.get $key)))
-               (local.set $bit  (i32.shl (i32.const 1)
-                                          (i32.rem_u (local.get $hash) (i32.const 26))))
-               (local.set $mask (struct.get $StencilVector $mask (local.get $root)))
-               (if (i32.eqz (i32.and (local.get $mask) (local.get $bit)))
-                   (then (return (call $immutable-hash-bucket-ref
-                                       (global.get $null)
-                                       (local.get $key)
-                                       (local.get $failure)))))
-               (local.set $index (call $immutable-hasheqv-bucket-index
-                                        (local.get $mask)
-                                        (local.get $bit)))
-               (local.set $bucket
-                          (array.get $Array
-                                     (struct.get $StencilVector $slots (local.get $root))
-                                     (local.get $index)))
-               (return_call $immutable-hash-bucket-ref
-                            (local.get $bucket)
+                   (then (return_call $immutable-hamt-bucket-ref/kind
+                                      (i32.const 2)
+                                      (global.get $null)
+                                      (local.get $key)
+                                      (local.get $failure))))
+               (return_call $immutable-hamt-node-ref/kind
+                            (i32.const 2)
+                            (struct.get $HashEqualImmutable $root (local.get $table))
                             (local.get $key)
+                            (local.get $hash)
+                            (i32.const 0)
                             (local.get $failure)))
 
          (func $immutable-hash-ref-key
@@ -38860,45 +39249,26 @@
                (param $key     (ref eq)) ;; lookup key
                (param $failure (ref eq)) ;; optional failure, default raises
                (result         (ref eq))
-               (local $table  (ref $HashEqualImmutable))
-               (local $root   (ref $StencilVector))
-               (local $mask   i32)
-               (local $hash   i32)
-               (local $bit    i32)
-               (local $index  i32)
-               (local $bucket (ref eq))
+               (local $table (ref $HashEqualImmutable))
+               (local $hash  i32)
                (if (i32.eqz (ref.test (ref $HashEqualImmutable) (local.get $ht)))
                    (then (call $raise-argument-error:hash-expected (local.get $ht))
                          (unreachable)))
                (local.set $table (ref.cast (ref $HashEqualImmutable) (local.get $ht)))
+               (local.set $hash (call $equal-hash/i32 (local.get $key)))
                (if (ref.eq (struct.get $HashEqualImmutable $root (local.get $table))
                            (global.get $missing))
-                   (then (return (call $immutable-hash-bucket-ref-key
-                                       (global.get $null)
-                                       (local.get $key)
-                                       (local.get $failure)))))
-               (local.set $root
-                          (ref.cast (ref $StencilVector)
-                                    (struct.get $HashEqualImmutable $root (local.get $table))))
-               (local.set $hash (call $equal-hash/i32 (local.get $key)))
-               (local.set $bit  (i32.shl (i32.const 1)
-                                          (i32.rem_u (local.get $hash) (i32.const 26))))
-               (local.set $mask (struct.get $StencilVector $mask (local.get $root)))
-               (if (i32.eqz (i32.and (local.get $mask) (local.get $bit)))
-                   (then (return (call $immutable-hash-bucket-ref-key
-                                       (global.get $null)
-                                       (local.get $key)
-                                       (local.get $failure)))))
-               (local.set $index (call $immutable-hasheqv-bucket-index
-                                        (local.get $mask)
-                                        (local.get $bit)))
-               (local.set $bucket
-                          (array.get $Array
-                                     (struct.get $StencilVector $slots (local.get $root))
-                                     (local.get $index)))
-               (return_call $immutable-hash-bucket-ref-key
-                            (local.get $bucket)
+                   (then (return_call $immutable-hamt-bucket-ref-key/kind
+                                      (i32.const 2)
+                                      (global.get $null)
+                                      (local.get $key)
+                                      (local.get $failure))))
+               (return_call $immutable-hamt-node-ref-key/kind
+                            (i32.const 2)
+                            (struct.get $HashEqualImmutable $root (local.get $table))
                             (local.get $key)
+                            (local.get $hash)
+                            (i32.const 0)
                             (local.get $failure)))
 
          (func $immutable-hash-has-key?
@@ -38906,13 +39276,8 @@
                (param $ht  (ref eq)) ;; immutable hash
                (param $key (ref eq)) ;; lookup key
                (result     (ref eq))
-               (local $table  (ref $HashEqualImmutable))
-               (local $root   (ref $StencilVector))
-               (local $mask   i32)
-               (local $hash   i32)
-               (local $bit    i32)
-               (local $index  i32)
-               (local $bucket (ref eq))
+               (local $table (ref $HashEqualImmutable))
+               (local $hash  i32)
                (if (i32.eqz (ref.test (ref $HashEqualImmutable) (local.get $ht)))
                    (then (call $raise-argument-error:hash-expected (local.get $ht))
                          (unreachable)))
@@ -38920,26 +39285,14 @@
                (if (ref.eq (struct.get $HashEqualImmutable $root (local.get $table))
                            (global.get $missing))
                    (then (return (global.get $false))))
-               (local.set $root
-                          (ref.cast (ref $StencilVector)
-                                    (struct.get $HashEqualImmutable $root (local.get $table))))
                (local.set $hash (call $equal-hash/i32 (local.get $key)))
-               (local.set $bit  (i32.shl (i32.const 1)
-                                          (i32.rem_u (local.get $hash) (i32.const 26))))
-               (local.set $mask (struct.get $StencilVector $mask (local.get $root)))
-               (if (i32.eqz (i32.and (local.get $mask) (local.get $bit)))
-                   (then (return (global.get $false))))
-               (local.set $index (call $immutable-hasheqv-bucket-index
-                                        (local.get $mask)
-                                        (local.get $bit)))
-               (local.set $bucket
-                          (array.get $Array
-                                     (struct.get $StencilVector $slots (local.get $root))
-                                     (local.get $index)))
                (if (result (ref eq))
-                   (call $immutable-hash-bucket-has-key?
-                         (local.get $bucket)
-                         (local.get $key))
+                   (call $immutable-hamt-node-has-key?/kind
+                         (i32.const 2)
+                         (struct.get $HashEqualImmutable $root (local.get $table))
+                         (local.get $key)
+                         (local.get $hash)
+                         (i32.const 0))
                    (then (global.get $true))
                    (else (global.get $false))))
 
@@ -38949,45 +39302,26 @@
                (param $key     (ref eq)) ;; lookup key
                (param $failure (ref eq)) ;; optional failure, default raises
                (result         (ref eq))
-               (local $table  (ref $HashEqualAlwaysImmutable))
-               (local $root   (ref $StencilVector))
-               (local $mask   i32)
-               (local $hash   i32)
-               (local $bit    i32)
-               (local $index  i32)
-               (local $bucket (ref eq))
+               (local $table (ref $HashEqualAlwaysImmutable))
+               (local $hash  i32)
                (if (i32.eqz (ref.test (ref $HashEqualAlwaysImmutable) (local.get $ht)))
                    (then (call $raise-argument-error:hashalw-expected (local.get $ht))
                          (unreachable)))
                (local.set $table (ref.cast (ref $HashEqualAlwaysImmutable) (local.get $ht)))
+               (local.set $hash (call $equal-hash/i32 (local.get $key)))
                (if (ref.eq (struct.get $HashEqualAlwaysImmutable $root (local.get $table))
                            (global.get $missing))
-                   (then (return (call $immutable-hashalw-bucket-ref
-                                       (global.get $null)
-                                       (local.get $key)
-                                       (local.get $failure)))))
-               (local.set $root
-                          (ref.cast (ref $StencilVector)
-                                    (struct.get $HashEqualAlwaysImmutable $root (local.get $table))))
-               (local.set $hash (call $equal-hash/i32 (local.get $key)))
-               (local.set $bit  (i32.shl (i32.const 1)
-                                          (i32.rem_u (local.get $hash) (i32.const 26))))
-               (local.set $mask (struct.get $StencilVector $mask (local.get $root)))
-               (if (i32.eqz (i32.and (local.get $mask) (local.get $bit)))
-                   (then (return (call $immutable-hashalw-bucket-ref
-                                       (global.get $null)
-                                       (local.get $key)
-                                       (local.get $failure)))))
-               (local.set $index (call $immutable-hasheqv-bucket-index
-                                        (local.get $mask)
-                                        (local.get $bit)))
-               (local.set $bucket
-                          (array.get $Array
-                                     (struct.get $StencilVector $slots (local.get $root))
-                                     (local.get $index)))
-               (return_call $immutable-hashalw-bucket-ref
-                            (local.get $bucket)
+                   (then (return_call $immutable-hamt-bucket-ref/kind
+                                      (i32.const 3)
+                                      (global.get $null)
+                                      (local.get $key)
+                                      (local.get $failure))))
+               (return_call $immutable-hamt-node-ref/kind
+                            (i32.const 3)
+                            (struct.get $HashEqualAlwaysImmutable $root (local.get $table))
                             (local.get $key)
+                            (local.get $hash)
+                            (i32.const 0)
                             (local.get $failure)))
 
          (func $immutable-hashalw-ref-key
@@ -38996,45 +39330,26 @@
                (param $key     (ref eq)) ;; lookup key
                (param $failure (ref eq)) ;; optional failure, default raises
                (result         (ref eq))
-               (local $table  (ref $HashEqualAlwaysImmutable))
-               (local $root   (ref $StencilVector))
-               (local $mask   i32)
-               (local $hash   i32)
-               (local $bit    i32)
-               (local $index  i32)
-               (local $bucket (ref eq))
+               (local $table (ref $HashEqualAlwaysImmutable))
+               (local $hash  i32)
                (if (i32.eqz (ref.test (ref $HashEqualAlwaysImmutable) (local.get $ht)))
                    (then (call $raise-argument-error:hashalw-expected (local.get $ht))
                          (unreachable)))
                (local.set $table (ref.cast (ref $HashEqualAlwaysImmutable) (local.get $ht)))
+               (local.set $hash (call $equal-hash/i32 (local.get $key)))
                (if (ref.eq (struct.get $HashEqualAlwaysImmutable $root (local.get $table))
                            (global.get $missing))
-                   (then (return (call $immutable-hashalw-bucket-ref-key
-                                       (global.get $null)
-                                       (local.get $key)
-                                       (local.get $failure)))))
-               (local.set $root
-                          (ref.cast (ref $StencilVector)
-                                    (struct.get $HashEqualAlwaysImmutable $root (local.get $table))))
-               (local.set $hash (call $equal-hash/i32 (local.get $key)))
-               (local.set $bit  (i32.shl (i32.const 1)
-                                          (i32.rem_u (local.get $hash) (i32.const 26))))
-               (local.set $mask (struct.get $StencilVector $mask (local.get $root)))
-               (if (i32.eqz (i32.and (local.get $mask) (local.get $bit)))
-                   (then (return (call $immutable-hashalw-bucket-ref-key
-                                       (global.get $null)
-                                       (local.get $key)
-                                       (local.get $failure)))))
-               (local.set $index (call $immutable-hasheqv-bucket-index
-                                        (local.get $mask)
-                                        (local.get $bit)))
-               (local.set $bucket
-                          (array.get $Array
-                                     (struct.get $StencilVector $slots (local.get $root))
-                                     (local.get $index)))
-               (return_call $immutable-hashalw-bucket-ref-key
-                            (local.get $bucket)
+                   (then (return_call $immutable-hamt-bucket-ref-key/kind
+                                      (i32.const 3)
+                                      (global.get $null)
+                                      (local.get $key)
+                                      (local.get $failure))))
+               (return_call $immutable-hamt-node-ref-key/kind
+                            (i32.const 3)
+                            (struct.get $HashEqualAlwaysImmutable $root (local.get $table))
                             (local.get $key)
+                            (local.get $hash)
+                            (i32.const 0)
                             (local.get $failure)))
 
          (func $immutable-hashalw-has-key?
@@ -39042,13 +39357,8 @@
                (param $ht  (ref eq)) ;; immutable hashalw
                (param $key (ref eq)) ;; lookup key
                (result     (ref eq))
-               (local $table  (ref $HashEqualAlwaysImmutable))
-               (local $root   (ref $StencilVector))
-               (local $mask   i32)
-               (local $hash   i32)
-               (local $bit    i32)
-               (local $index  i32)
-               (local $bucket (ref eq))
+               (local $table (ref $HashEqualAlwaysImmutable))
+               (local $hash  i32)
                (if (i32.eqz (ref.test (ref $HashEqualAlwaysImmutable) (local.get $ht)))
                    (then (call $raise-argument-error:hashalw-expected (local.get $ht))
                          (unreachable)))
@@ -39056,26 +39366,14 @@
                (if (ref.eq (struct.get $HashEqualAlwaysImmutable $root (local.get $table))
                            (global.get $missing))
                    (then (return (global.get $false))))
-               (local.set $root
-                          (ref.cast (ref $StencilVector)
-                                    (struct.get $HashEqualAlwaysImmutable $root (local.get $table))))
                (local.set $hash (call $equal-hash/i32 (local.get $key)))
-               (local.set $bit  (i32.shl (i32.const 1)
-                                          (i32.rem_u (local.get $hash) (i32.const 26))))
-               (local.set $mask (struct.get $StencilVector $mask (local.get $root)))
-               (if (i32.eqz (i32.and (local.get $mask) (local.get $bit)))
-                   (then (return (global.get $false))))
-               (local.set $index (call $immutable-hasheqv-bucket-index
-                                        (local.get $mask)
-                                        (local.get $bit)))
-               (local.set $bucket
-                          (array.get $Array
-                                     (struct.get $StencilVector $slots (local.get $root))
-                                     (local.get $index)))
                (if (result (ref eq))
-                   (call $immutable-hashalw-bucket-has-key?
-                         (local.get $bucket)
-                         (local.get $key))
+                   (call $immutable-hamt-node-has-key?/kind
+                         (i32.const 3)
+                         (struct.get $HashEqualAlwaysImmutable $root (local.get $table))
+                         (local.get $key)
+                         (local.get $hash)
+                         (i32.const 0))
                    (then (global.get $true))
                    (else (global.get $false))))
 
@@ -39108,14 +39406,46 @@
                          (unreachable)))
                (local.set $table (ref.cast (ref $HashEqvImmutable) (local.get $ht)))
                (local.set $hash  (call $eqv-hash/i32 (local.get $key)))
-               (local.set $bit   (i32.shl (i32.const 1)
-                                           (i32.rem_u (local.get $hash) (i32.const 26))))
+               (local.set $bit   (call $immutable-hamt-bit
+                                        (local.get $hash)
+                                        (i32.const 0)))
                (local.set $entry
                           (struct.new $ImmutableHashEntry
                                       (i32.const 0)
                                       (local.get $hash)
                                       (local.get $key)
                                       (local.get $val)))
+               (local.set $root-any (struct.get $HashEqvImmutable $root (local.get $table)))
+               (if (ref.eq (local.get $root-any) (global.get $missing))
+                   (then
+                    (local.set $root-any (call $immutable-hamt-empty-node)))
+                   (else
+                    (local.set $exists?
+                               (call $immutable-hamt-node-has-key?/kind
+                                     (i32.const 1)
+                                     (local.get $root-any)
+                                     (local.get $key)
+                                     (local.get $hash)
+                                     (i32.const 0)))))
+               (local.set $root-any
+                          (call $immutable-hamt-node-set/kind
+                                (i32.const 1)
+                                (local.get $root-any)
+                                (local.get $entry)
+                                (local.get $key)
+                                (local.get $hash)
+                                (i32.const 0)))
+               (local.set $new-count
+                          (i32.add (struct.get $HashEqvImmutable $count (local.get $table))
+                                   (if (result i32) (local.get $exists?)
+                                       (then (i32.const 0))
+                                       (else (i32.const 1)))))
+               (return
+                (struct.new $HashEqvImmutable
+                            (i32.const 0)
+                            (global.get $false)
+                            (local.get $root-any)
+                            (local.get $new-count)))
                (local.set $root-any (struct.get $HashEqvImmutable $root (local.get $table)))
                (if (ref.eq (local.get $root-any) (global.get $missing))
                    (then
@@ -39247,14 +39577,46 @@
                          (unreachable)))
                (local.set $table (ref.cast (ref $HashEqImmutable) (local.get $ht)))
                (local.set $hash  (call $eq-hash/i32 (local.get $key)))
-               (local.set $bit   (i32.shl (i32.const 1)
-                                           (i32.rem_u (local.get $hash) (i32.const 26))))
+               (local.set $bit   (call $immutable-hamt-bit
+                                        (local.get $hash)
+                                        (i32.const 0)))
                (local.set $entry
                           (struct.new $ImmutableHashEntry
                                       (i32.const 0)
                                       (local.get $hash)
                                       (local.get $key)
                                       (local.get $val)))
+               (local.set $root-any (struct.get $HashEqImmutable $root (local.get $table)))
+               (if (ref.eq (local.get $root-any) (global.get $missing))
+                   (then
+                    (local.set $root-any (call $immutable-hamt-empty-node)))
+                   (else
+                    (local.set $exists?
+                               (call $immutable-hamt-node-has-key?/kind
+                                     (i32.const 0)
+                                     (local.get $root-any)
+                                     (local.get $key)
+                                     (local.get $hash)
+                                     (i32.const 0)))))
+               (local.set $root-any
+                          (call $immutable-hamt-node-set/kind
+                                (i32.const 0)
+                                (local.get $root-any)
+                                (local.get $entry)
+                                (local.get $key)
+                                (local.get $hash)
+                                (i32.const 0)))
+               (local.set $new-count
+                          (i32.add (struct.get $HashEqImmutable $count (local.get $table))
+                                   (if (result i32) (local.get $exists?)
+                                       (then (i32.const 0))
+                                       (else (i32.const 1)))))
+               (return
+                (struct.new $HashEqImmutable
+                            (i32.const 0)
+                            (global.get $false)
+                            (local.get $root-any)
+                            (local.get $new-count)))
                (local.set $root-any (struct.get $HashEqImmutable $root (local.get $table)))
                (if (ref.eq (local.get $root-any) (global.get $missing))
                    (then
@@ -39384,14 +39746,46 @@
                          (unreachable)))
                (local.set $table (ref.cast (ref $HashEqualImmutable) (local.get $ht)))
                (local.set $hash  (call $equal-hash/i32 (local.get $key)))
-               (local.set $bit   (i32.shl (i32.const 1)
-                                           (i32.rem_u (local.get $hash) (i32.const 26))))
+               (local.set $bit   (call $immutable-hamt-bit
+                                        (local.get $hash)
+                                        (i32.const 0)))
                (local.set $entry
                           (struct.new $ImmutableHashEntry
                                       (i32.const 0)
                                       (local.get $hash)
                                       (local.get $key)
                                       (local.get $val)))
+               (local.set $root-any (struct.get $HashEqualImmutable $root (local.get $table)))
+               (if (ref.eq (local.get $root-any) (global.get $missing))
+                   (then
+                    (local.set $root-any (call $immutable-hamt-empty-node)))
+                   (else
+                    (local.set $exists?
+                               (call $immutable-hamt-node-has-key?/kind
+                                     (i32.const 2)
+                                     (local.get $root-any)
+                                     (local.get $key)
+                                     (local.get $hash)
+                                     (i32.const 0)))))
+               (local.set $root-any
+                          (call $immutable-hamt-node-set/kind
+                                (i32.const 2)
+                                (local.get $root-any)
+                                (local.get $entry)
+                                (local.get $key)
+                                (local.get $hash)
+                                (i32.const 0)))
+               (local.set $new-count
+                          (i32.add (struct.get $HashEqualImmutable $count (local.get $table))
+                                   (if (result i32) (local.get $exists?)
+                                       (then (i32.const 0))
+                                       (else (i32.const 1)))))
+               (return
+                (struct.new $HashEqualImmutable
+                            (i32.const 0)
+                            (global.get $false)
+                            (local.get $root-any)
+                            (local.get $new-count)))
                (local.set $root-any (struct.get $HashEqualImmutable $root (local.get $table)))
                (if (ref.eq (local.get $root-any) (global.get $missing))
                    (then
@@ -39521,14 +39915,47 @@
                          (unreachable)))
                (local.set $table (ref.cast (ref $HashEqualAlwaysImmutable) (local.get $ht)))
                (local.set $hash  (call $equal-hash/i32 (local.get $key)))
-               (local.set $bit   (i32.shl (i32.const 1)
-                                           (i32.rem_u (local.get $hash) (i32.const 26))))
+               (local.set $bit   (call $immutable-hamt-bit
+                                        (local.get $hash)
+                                        (i32.const 0)))
                (local.set $entry
                           (struct.new $ImmutableHashEntry
                                       (i32.const 0)
                                       (local.get $hash)
                                       (local.get $key)
                                       (local.get $val)))
+               (local.set $root-any (struct.get $HashEqualAlwaysImmutable $root (local.get $table)))
+               (if (ref.eq (local.get $root-any) (global.get $missing))
+                   (then
+                    (local.set $root-any (call $immutable-hamt-empty-node)))
+                   (else
+                    (local.set $exists?
+                               (call $immutable-hamt-node-has-key?/kind
+                                     (i32.const 3)
+                                     (local.get $root-any)
+                                     (local.get $key)
+                                     (local.get $hash)
+                                     (i32.const 0)))))
+               (local.set $root-any
+                          (call $immutable-hamt-node-set/kind
+                                (i32.const 3)
+                                (local.get $root-any)
+                                (local.get $entry)
+                                (local.get $key)
+                                (local.get $hash)
+                                (i32.const 0)))
+               (local.set $new-count
+                          (i32.add (struct.get $HashEqualAlwaysImmutable $count
+                                               (local.get $table))
+                                   (if (result i32) (local.get $exists?)
+                                       (then (i32.const 0))
+                                       (else (i32.const 1)))))
+               (return
+                (struct.new $HashEqualAlwaysImmutable
+                            (i32.const 0)
+                            (global.get $false)
+                            (local.get $root-any)
+                            (local.get $new-count)))
                (local.set $root-any (struct.get $HashEqualAlwaysImmutable $root (local.get $table)))
                (if (ref.eq (local.get $root-any) (global.get $missing))
                    (then
@@ -39664,11 +40091,39 @@
                            (global.get $missing))
                    (then (return (local.get $ht))))
                (local.set $hash (call $eqv-hash/i32 (local.get $key)))
-               (local.set $bit  (i32.shl (i32.const 1)
-                                          (i32.rem_u (local.get $hash) (i32.const 26))))
+               (local.set $bit  (call $immutable-hamt-bit
+                                       (local.get $hash)
+                                       (i32.const 0)))
                (local.set $root
                           (ref.cast (ref $StencilVector)
                                     (struct.get $HashEqvImmutable $root (local.get $table))))
+               (if (i32.eqz
+                    (call $immutable-hamt-node-has-key?/kind
+                          (i32.const 1)
+                          (local.get $root)
+                          (local.get $key)
+                          (local.get $hash)
+                          (i32.const 0)))
+                   (then (return (local.get $ht))))
+               (if (i32.eq (struct.get $HashEqvImmutable $count (local.get $table))
+                           (i32.const 1))
+                   (then (return (call $make-empty-immutable-hasheqv))))
+               (local.set $root
+                          (ref.cast (ref $StencilVector)
+                                    (call $immutable-hamt-node-remove/kind
+                                          (i32.const 1)
+                                          (local.get $root)
+                                          (local.get $key)
+                                          (local.get $hash)
+                                          (i32.const 0))))
+               (return
+                (struct.new $HashEqvImmutable
+                            (i32.const 0)
+                            (global.get $false)
+                            (local.get $root)
+                            (i32.sub (struct.get $HashEqvImmutable $count
+                                                 (local.get $table))
+                                     (i32.const 1))))
                (local.set $old-mask (struct.get $StencilVector $mask (local.get $root)))
                (if (i32.eqz (i32.and (local.get $old-mask) (local.get $bit)))
                    (then (return (local.get $ht))))
@@ -39804,11 +40259,39 @@
                            (global.get $missing))
                    (then (return (local.get $ht))))
                (local.set $hash (call $eq-hash/i32 (local.get $key)))
-               (local.set $bit  (i32.shl (i32.const 1)
-                                          (i32.rem_u (local.get $hash) (i32.const 26))))
+               (local.set $bit  (call $immutable-hamt-bit
+                                       (local.get $hash)
+                                       (i32.const 0)))
                (local.set $root
                           (ref.cast (ref $StencilVector)
                                     (struct.get $HashEqImmutable $root (local.get $table))))
+               (if (i32.eqz
+                    (call $immutable-hamt-node-has-key?/kind
+                          (i32.const 0)
+                          (local.get $root)
+                          (local.get $key)
+                          (local.get $hash)
+                          (i32.const 0)))
+                   (then (return (local.get $ht))))
+               (if (i32.eq (struct.get $HashEqImmutable $count (local.get $table))
+                           (i32.const 1))
+                   (then (return (call $make-empty-immutable-hasheq))))
+               (local.set $root
+                          (ref.cast (ref $StencilVector)
+                                    (call $immutable-hamt-node-remove/kind
+                                          (i32.const 0)
+                                          (local.get $root)
+                                          (local.get $key)
+                                          (local.get $hash)
+                                          (i32.const 0))))
+               (return
+                (struct.new $HashEqImmutable
+                            (i32.const 0)
+                            (global.get $false)
+                            (local.get $root)
+                            (i32.sub (struct.get $HashEqImmutable $count
+                                                 (local.get $table))
+                                     (i32.const 1))))
                (local.set $old-mask (struct.get $StencilVector $mask (local.get $root)))
                (if (i32.eqz (i32.and (local.get $old-mask) (local.get $bit)))
                    (then (return (local.get $ht))))
@@ -39942,11 +40425,39 @@
                            (global.get $missing))
                    (then (return (local.get $ht))))
                (local.set $hash (call $equal-hash/i32 (local.get $key)))
-               (local.set $bit  (i32.shl (i32.const 1)
-                                          (i32.rem_u (local.get $hash) (i32.const 26))))
+               (local.set $bit  (call $immutable-hamt-bit
+                                       (local.get $hash)
+                                       (i32.const 0)))
                (local.set $root
                           (ref.cast (ref $StencilVector)
                                     (struct.get $HashEqualImmutable $root (local.get $table))))
+               (if (i32.eqz
+                    (call $immutable-hamt-node-has-key?/kind
+                          (i32.const 2)
+                          (local.get $root)
+                          (local.get $key)
+                          (local.get $hash)
+                          (i32.const 0)))
+                   (then (return (local.get $ht))))
+               (if (i32.eq (struct.get $HashEqualImmutable $count (local.get $table))
+                           (i32.const 1))
+                   (then (return (call $make-empty-immutable-hash))))
+               (local.set $root
+                          (ref.cast (ref $StencilVector)
+                                    (call $immutable-hamt-node-remove/kind
+                                          (i32.const 2)
+                                          (local.get $root)
+                                          (local.get $key)
+                                          (local.get $hash)
+                                          (i32.const 0))))
+               (return
+                (struct.new $HashEqualImmutable
+                            (i32.const 0)
+                            (global.get $false)
+                            (local.get $root)
+                            (i32.sub (struct.get $HashEqualImmutable $count
+                                                 (local.get $table))
+                                     (i32.const 1))))
                (local.set $old-mask (struct.get $StencilVector $mask (local.get $root)))
                (if (i32.eqz (i32.and (local.get $old-mask) (local.get $bit)))
                    (then (return (local.get $ht))))
@@ -40082,11 +40593,39 @@
                            (global.get $missing))
                    (then (return (local.get $ht))))
                (local.set $hash (call $equal-hash/i32 (local.get $key)))
-               (local.set $bit  (i32.shl (i32.const 1)
-                                          (i32.rem_u (local.get $hash) (i32.const 26))))
+               (local.set $bit  (call $immutable-hamt-bit
+                                       (local.get $hash)
+                                       (i32.const 0)))
                (local.set $root
                           (ref.cast (ref $StencilVector)
                                     (struct.get $HashEqualAlwaysImmutable $root (local.get $table))))
+               (if (i32.eqz
+                    (call $immutable-hamt-node-has-key?/kind
+                          (i32.const 3)
+                          (local.get $root)
+                          (local.get $key)
+                          (local.get $hash)
+                          (i32.const 0)))
+                   (then (return (local.get $ht))))
+               (if (i32.eq (struct.get $HashEqualAlwaysImmutable $count (local.get $table))
+                           (i32.const 1))
+                   (then (return (call $make-empty-immutable-hashalw))))
+               (local.set $root
+                          (ref.cast (ref $StencilVector)
+                                    (call $immutable-hamt-node-remove/kind
+                                          (i32.const 3)
+                                          (local.get $root)
+                                          (local.get $key)
+                                          (local.get $hash)
+                                          (i32.const 0))))
+               (return
+                (struct.new $HashEqualAlwaysImmutable
+                            (i32.const 0)
+                            (global.get $false)
+                            (local.get $root)
+                            (i32.sub (struct.get $HashEqualAlwaysImmutable $count
+                                                 (local.get $table))
+                                     (i32.const 1))))
                (local.set $old-mask (struct.get $StencilVector $mask (local.get $root)))
                (if (i32.eqz (i32.and (local.get $old-mask) (local.get $bit)))
                    (then (return (local.get $ht))))
@@ -43241,9 +43780,9 @@
         ;;   immutable hashes. WebRacket's immutable hashes share a compact
         ;;   root-node representation, so all immutable hash kinds are wrapped
         ;;   as a temporary $HashEqvImmutable and walked by the helpers below.
-        ;;   The iteration position is a fixnum packing (slot << 16) | bucket.
-        ;;   This bootstrap slice implements the two-argument accessor forms;
-        ;;   Racket's optional bad-index variants can be added when needed.
+        ;;   The iteration position is a private list cursor. This keeps
+        ;;   iteration independent of whether a root slot holds a bucket or a
+        ;;   recursive HAMT child node.
         (func $immutable-hash-as-hasheqv
               (param $ht (ref eq)) ;; immutable hash table
               (result    (ref $HashEqvImmutable))
@@ -43289,87 +43828,94 @@
               (call $raise-argument-error:hash-expected)
               (unreachable))
 
-        (func $immutable-hash-pack-iterate-position
-              (param $slot   i32) ;; root slot index
-              (param $bucket i32) ;; bucket-list offset
-              (result        (ref eq))
-              (ref.i31
-               (i32.shl
-                (i32.or (i32.shl (local.get $slot) (i32.const 16))
-                        (local.get $bucket))
-                (i32.const 1))))
+        (func $immutable-hamt-node->entries
+              (param $node (ref eq)) ;; root/child stencil vector or entry bucket
+              (param $acc  (ref eq)) ;; accumulated entry list
+              (result      (ref eq))
+              (local $sv     (ref $StencilVector))
+              (local $slots  (ref $Array))
+              (local $len    i32)
+              (local $i      i32)
+              (local $slot   (ref eq))
+              (local $bucket (ref eq))
+              (local $pair   (ref $Pair))
+              (if (ref.test (ref $StencilVector) (local.get $node))
+                  (then
+                   (local.set $sv    (ref.cast (ref $StencilVector) (local.get $node)))
+                   (local.set $slots (struct.get $StencilVector $slots (local.get $sv)))
+                   (local.set $len   (array.len (local.get $slots)))
+                   (local.set $i     (i32.const 0))
+                   (block $done-slots
+                          (loop $slot-loop
+                                (br_if $done-slots
+                                       (i32.ge_u (local.get $i) (local.get $len)))
+                                (local.set $slot
+                                           (array.get $Array
+                                                      (local.get $slots)
+                                                      (local.get $i)))
+                                (local.set $acc
+                                           (call $immutable-hamt-node->entries
+                                                 (local.get $slot)
+                                                 (local.get $acc)))
+                                (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                                (br $slot-loop)))
+                   (return (local.get $acc))))
+              (local.set $bucket (local.get $node))
+              (block $done-bucket
+                     (loop $bucket-loop
+                           (br_if $done-bucket
+                                  (ref.eq (local.get $bucket) (global.get $null)))
+                           (if (i32.eqz (ref.test (ref $Pair) (local.get $bucket)))
+                               (then (br $done-bucket)))
+                           (local.set $pair (ref.cast (ref $Pair) (local.get $bucket)))
+                           (if (ref.test (ref $ImmutableHashEntry)
+                                         (struct.get $Pair $a (local.get $pair)))
+                               (then
+                                (local.set $acc
+                                           (call $cons
+                                                 (struct.get $Pair $a (local.get $pair))
+                                                 (local.get $acc)))))
+                           (local.set $bucket (struct.get $Pair $d (local.get $pair)))
+                           (br $bucket-loop)))
+              (local.get $acc))
 
         (func $immutable-hasheqv-iterate-first
               (param $table (ref $HashEqvImmutable)) ;; immutable hash table
               (result       (ref eq))
               (local $root-any (ref eq))
-              (local $root     (ref $StencilVector))
-              (local $slots    (ref $Array))
-              (local $len      i32)
-              (local $slot     i32)
-              (local $bucket   (ref eq))
+              (local $entries  (ref eq))
 
               (local.set $root-any (struct.get $HashEqvImmutable $root (local.get $table)))
               (if (ref.eq (local.get $root-any) (global.get $missing))
                   (then (return (global.get $false))))
-              (local.set $root  (ref.cast (ref $StencilVector) (local.get $root-any)))
-              (local.set $slots (struct.get $StencilVector $slots (local.get $root)))
-              (local.set $len   (array.len (local.get $slots)))
-              (local.set $slot  (i32.const 0))
-              (block $done
-                     (loop $loop
-                           (br_if $done (i32.ge_u (local.get $slot) (local.get $len)))
-                           (local.set $bucket (array.get $Array (local.get $slots) (local.get $slot)))
-                           (if (ref.test (ref $Pair) (local.get $bucket))
-                               (then (return (call $immutable-hash-pack-iterate-position
-                                                   (local.get $slot)
-                                                   (i32.const 0)))))
-                           (local.set $slot (i32.add (local.get $slot) (i32.const 1)))
-                           (br $loop)))
-              (global.get $false))
+              (local.set $entries
+                         (call $immutable-hamt-node->entries
+                               (local.get $root-any)
+                               (global.get $null)))
+              (if (ref.eq (local.get $entries) (global.get $null))
+                  (then (return (global.get $false))))
+              (local.get $entries))
 
         (func $immutable-hasheqv-iterate-entry
               (param $table     (ref $HashEqvImmutable)) ;; immutable hash table
-              (param $pos       (ref eq))                ;; packed iteration position
+              (param $pos       (ref eq))                ;; private list cursor
               (param $bad-index (ref eq))                ;; optional bad-index value, default = raise
               (result           (ref eq))                ;; entry or bad-index result
-              (local $root-any (ref eq))
-              (local $root     (ref $StencilVector))
-              (local $slots    (ref $Array))
-              (local $raw      i32)
-              (local $slot     i32)
-              (local $bucket-i i32)
-              (local $i        i32)
-              (local $node     (ref eq))
-              (local $pair     (ref $Pair))
+              (local $pair  (ref $Pair))
+              (local $entry (ref eq))
 
               (block $bad
-                     (if (i32.eqz (ref.test (ref i31) (local.get $pos)))
+                     (if (ref.eq (struct.get $HashEqvImmutable $root (local.get $table))
+                                 (global.get $missing))
                          (then (br $bad)))
-                     (local.set $raw (i31.get_u (ref.cast (ref i31) (local.get $pos))))
-                     (if (i32.and (local.get $raw) (i32.const 1))
+                     (if (i32.eqz (ref.test (ref $Pair) (local.get $pos)))
                          (then (br $bad)))
-                     (local.set $raw      (i32.shr_u (local.get $raw) (i32.const 1)))
-                     (local.set $slot     (i32.shr_u (local.get $raw) (i32.const 16)))
-                     (local.set $bucket-i (i32.and (local.get $raw) (i32.const 65535)))
-                     (local.set $root-any (struct.get $HashEqvImmutable $root (local.get $table)))
-                     (if (ref.eq (local.get $root-any) (global.get $missing))
+                     (local.set $pair (ref.cast (ref $Pair) (local.get $pos)))
+                     (local.set $entry (struct.get $Pair $a (local.get $pair)))
+                     (if (i32.eqz (ref.test (ref $ImmutableHashEntry)
+                                            (local.get $entry)))
                          (then (br $bad)))
-                     (local.set $root  (ref.cast (ref $StencilVector) (local.get $root-any)))
-                     (local.set $slots (struct.get $StencilVector $slots (local.get $root)))
-                     (if (i32.ge_u (local.get $slot) (array.len (local.get $slots)))
-                         (then (br $bad)))
-                     (local.set $node (array.get $Array (local.get $slots) (local.get $slot)))
-                     (local.set $i    (i32.const 0))
-                     (loop $scan
-                           (if (i32.eqz (ref.test (ref $Pair) (local.get $node)))
-                               (then (br $bad)))
-                           (local.set $pair (ref.cast (ref $Pair) (local.get $node)))
-                           (if (i32.eq (local.get $i) (local.get $bucket-i))
-                               (then (return (struct.get $Pair $a (local.get $pair)))))
-                           (local.set $node (struct.get $Pair $d (local.get $pair)))
-                           (local.set $i (i32.add (local.get $i) (i32.const 1)))
-                           (br $scan)))
+                     (return (local.get $entry)))
               (if (ref.eq (local.get $bad-index) (global.get $missing))
                   (then (call $raise-mutable-hash-iterate-bad-index (local.get $pos))
                         (unreachable)))
@@ -43377,56 +43923,19 @@
 
         (func $immutable-hasheqv-iterate-next
               (param $table (ref $HashEqvImmutable)) ;; immutable hash table
-              (param $pos   (ref eq))                ;; packed iteration position
+              (param $pos   (ref eq))                ;; private list cursor
               (result       (ref eq))
-              (local $root-any (ref eq))
-              (local $root     (ref $StencilVector))
-              (local $slots    (ref $Array))
-              (local $raw      i32)
-              (local $slot     i32)
-              (local $bucket-i i32)
-              (local $i        i32)
-              (local $len      i32)
-              (local $node     (ref eq))
-              (local $pair     (ref $Pair))
+              (local $pair (ref $Pair))
+              (local $rest (ref eq))
 
               (drop (call $immutable-hasheqv-iterate-entry
                           (local.get $table)
                           (local.get $pos)
                           (global.get $missing)))
-              (local.set $raw      (i32.shr_u (i31.get_u (ref.cast (ref i31) (local.get $pos))) (i32.const 1)))
-              (local.set $slot     (i32.shr_u (local.get $raw) (i32.const 16)))
-              (local.set $bucket-i (i32.and (local.get $raw) (i32.const 65535)))
-              (local.set $root-any (struct.get $HashEqvImmutable $root (local.get $table)))
-              (local.set $root     (ref.cast (ref $StencilVector) (local.get $root-any)))
-              (local.set $slots    (struct.get $StencilVector $slots (local.get $root)))
-              (local.set $node     (array.get $Array (local.get $slots) (local.get $slot)))
-              (local.set $i        (i32.const 0))
-              (block $bucket-done
-                     (loop $bucket-scan
-                           (local.set $pair (ref.cast (ref $Pair) (local.get $node)))
-                           (if (i32.eq (local.get $i) (local.get $bucket-i))
-                               (then
-                                (if (ref.test (ref $Pair) (struct.get $Pair $d (local.get $pair)))
-                                    (then (return (call $immutable-hash-pack-iterate-position
-                                                        (local.get $slot)
-                                                        (i32.add (local.get $bucket-i) (i32.const 1)))))
-                                    (else (br $bucket-done)))))
-                           (local.set $node (struct.get $Pair $d (local.get $pair)))
-                           (local.set $i (i32.add (local.get $i) (i32.const 1)))
-                           (br $bucket-scan)))
-              (local.set $len  (array.len (local.get $slots)))
-              (local.set $slot (i32.add (local.get $slot) (i32.const 1)))
-              (block $done
-                     (loop $slot-scan
-                           (br_if $done (i32.ge_u (local.get $slot) (local.get $len)))
-                           (local.set $node (array.get $Array (local.get $slots) (local.get $slot)))
-                           (if (ref.test (ref $Pair) (local.get $node))
-                               (then (return (call $immutable-hash-pack-iterate-position
-                                                   (local.get $slot)
-                                                   (i32.const 0)))))
-                           (local.set $slot (i32.add (local.get $slot) (i32.const 1)))
-                           (br $slot-scan)))
+              (local.set $pair (ref.cast (ref $Pair) (local.get $pos)))
+              (local.set $rest (struct.get $Pair $d (local.get $pair)))
+              (if (ref.test (ref $Pair) (local.get $rest))
+                  (then (return (local.get $rest))))
               (global.get $false))
 
         (func $unsafe-immutable-hash-iterate-first (type $Prim1)
