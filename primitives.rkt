@@ -121,6 +121,9 @@
          error
 
          struct:exn
+         struct:exn:break
+         struct:exn:break:hang-up
+         struct:exn:break:terminate
          struct:exn:fail
          struct:exn:fail:contract
          struct:exn:fail:contract:arity
@@ -199,6 +202,9 @@
          exn:fail:user
          exn:fail:user?
 
+         exn:srclocs?
+         exn:srclocs-accessor
+
          exn:fail:syntax
          exn:fail:syntax?
          exn:fail:syntax-exprs
@@ -208,12 +214,18 @@
          exn:fail:syntax:unbound
          exn:fail:syntax:unbound?
 
+         exn:break
          exn:break?
          exn:break-continuation
+         exn:break:hang-up
          exn:break:hang-up?
+         exn:break:terminate
          exn:break:terminate?
          
          make-exn
+         make-exn:break
+         make-exn:break:hang-up
+         make-exn:break:terminate
          make-exn:fail
          make-exn:fail:contract
          make-exn:fail:contract:arity
@@ -1080,6 +1092,8 @@
  ;; 10.2 Exceptions
  call-with-exception-handler
  prop:exn:srclocs
+ exn:srclocs?
+ exn:srclocs-accessor
  raise
  raise-argument-error
  raise-arguments-error
@@ -1126,8 +1140,9 @@ current-parameterization    ; poor-man dynamic parameterization overlay
  current-seconds current-inexact-milliseconds current-milliseconds
  current-process-milliseconds current-gc-milliseconds seconds->date
  current-date
- exn:break? exn:break-continuation
- exn:break:hang-up? exn:break:terminate?
+ exn:break make-exn:break exn:break? exn:break-continuation
+ exn:break:hang-up make-exn:break:hang-up exn:break:hang-up?
+ exn:break:terminate make-exn:break:terminate exn:break:terminate?
  make-channel channel? channel-get channel-try-get
  channel-put channel-put-evt channel-put-evt?
  evt?

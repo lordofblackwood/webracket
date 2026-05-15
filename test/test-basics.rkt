@@ -5842,11 +5842,27 @@
               (list "time/current-date"
                     (date*? (current-date)))
 
-              (list "break-exn-predicates/placeholders"
-                    (and (equal? (exn:break? 'not-a-break) #f)
-                         (equal? (exn:break:hang-up? 'not-a-break) #f)
-                         (equal? (exn:break:terminate? 'not-a-break) #f)
-                         (equal? (exn:break-continuation 'not-a-break) #f)))
+              (list "break-exn-structures"
+                    (call-with-escape-continuation
+                     (lambda (k)
+                       (let* ([marks      '()]
+                              [break      (exn:break "break" marks k)]
+                              [made       (make-exn:break "made-break" marks k)]
+                              [hang-up    (exn:break:hang-up "hang-up" marks k)]
+                              [terminate  (make-exn:break:terminate "terminate" marks k)])
+                         (and (equal? (exn? break) #t)
+                              (equal? (exn:break? break) #t)
+                              (equal? (exn:break? made) #t)
+                              (equal? (exn:break? hang-up) #t)
+                              (equal? (exn:break? terminate) #t)
+                              (equal? (exn:break? 'not-a-break) #f)
+                              (equal? (exn:break:hang-up? break) #f)
+                              (equal? (exn:break:hang-up? hang-up) #t)
+                              (equal? (exn:break:terminate? break) #f)
+                              (equal? (exn:break:terminate? terminate) #t)
+                              (equal? (exn:break-continuation break) k)
+                              (equal? (exn-message hang-up) "hang-up")
+                              (equal? (exn-message terminate) "terminate"))))))
 
               (list "semaphore/basic"
                     (let ([s (make-semaphore)])
@@ -6698,6 +6714,10 @@
                      (equal? (exn:fail:read? read-make) #t)
                      (equal? (exn:fail:read-srclocs read) locs)
                      (equal? (exn:fail:read-srclocs read-make) locs)
+                     (equal? (exn:srclocs? read) #t)
+                     (equal? (exn:srclocs? eof) #t)
+                     (equal? (exn:srclocs? non-char) #t)
+                     (equal? ((exn:srclocs-accessor read) read) locs)
                      (equal? (exn:fail:read:eof? eof) #t)
                      (equal? (exn:fail:read:eof? eof-make) #t)
                      (equal? (exn:fail:read:non-char? non-char) #t)
@@ -6706,7 +6726,15 @@
                      (equal? (exn-message eof) "eof"))))
 
         (list "prop:exn:srclocs property"
-              (struct-type-property? prop:exn:srclocs))
+              (let ([locs (list (srcloc 'custom 1 0 1 1))])
+                (struct custom-exn exn (srclocs)
+                  #:property prop:exn:srclocs
+                  (lambda (e) (custom-exn-srclocs e)))
+                (let ([ex (custom-exn "custom" '() locs)])
+                  (and (struct-type-property? prop:exn:srclocs)
+                       (equal? (exn:srclocs? ex) #t)
+                       (equal? ((exn:srclocs-accessor ex) ex) locs)
+                       (equal? (exn:srclocs? (exn "plain" '())) #f)))))
 
         (list "exn:fail:filesystem structures"
               (let* ([marks           '()]

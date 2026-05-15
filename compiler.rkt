@@ -764,6 +764,9 @@
     parameterization-key
 
     struct:exn
+    struct:exn:break
+    struct:exn:break:hang-up
+    struct:exn:break:terminate
     struct:exn:fail
     struct:exn:fail:contract
     struct:exn:fail:contract:arity
@@ -1932,8 +1935,10 @@
   current-seconds current-inexact-milliseconds current-milliseconds
   current-process-milliseconds current-gc-milliseconds seconds->date
   current-date
-  exn:break? exn:break-continuation
-  exn:break:hang-up? exn:break:terminate?
+  exn:break make-exn:break exn:break? exn:break-continuation
+  exn:break:hang-up make-exn:break:hang-up exn:break:hang-up?
+  exn:break:terminate make-exn:break:terminate exn:break:terminate?
+  exn:srclocs? exn:srclocs-accessor
   make-channel channel? channel-get channel-try-get
   channel-put channel-put-evt channel-put-evt?
   evt?
@@ -3277,6 +3282,11 @@
                          kern-exn:fail:out-of-memory kern-exn:fail:out-of-memory?
                          kern-exn:fail:unsupported kern-exn:fail:unsupported?
                          kern-exn:fail:user kern-exn:fail:user?
+                         kern-exn:break kern-exn:break?
+                         kern-exn:break-continuation
+                         kern-exn:break:hang-up kern-exn:break:hang-up?
+                         kern-exn:break:terminate kern-exn:break:terminate?
+                         kern-exn:srclocs? kern-exn:srclocs-accessor
                          kern-exn:fail:syntax kern-exn:fail:syntax?
                          kern-exn:fail:syntax-exprs
                          kern-exn:fail:syntax:missing-module kern-exn:fail:syntax:missing-module?
@@ -3288,6 +3298,15 @@
     [kern-exn?                              #'exn?]
     [kern-exn-message                       #'exn-message]
     [kern-exn-continuation-marks            #'exn-continuation-marks]
+    [kern-exn:break                         #'exn:break]
+    [kern-exn:break?                        #'exn:break?]
+    [kern-exn:break-continuation            #'exn:break-continuation]
+    [kern-exn:break:hang-up                 #'exn:break:hang-up]
+    [kern-exn:break:hang-up?                #'exn:break:hang-up?]
+    [kern-exn:break:terminate               #'exn:break:terminate]
+    [kern-exn:break:terminate?              #'exn:break:terminate?]
+    [kern-exn:srclocs?                      #'exn:srclocs?]
+    [kern-exn:srclocs-accessor              #'exn:srclocs-accessor]
     [kern-exn:fail                          #'exn:fail]  
     [kern-exn:fail?                         #'exn:fail?] 
     [kern-exn:fail:contract                 #'exn:fail:contract]

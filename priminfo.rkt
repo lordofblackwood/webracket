@@ -189,6 +189,9 @@
 
 (define exception-constructors
   '(exn
+    exn:break
+    exn:break:hang-up
+    exn:break:terminate
     exn:fail
     exn:fail:contract
     exn:fail:contract:arity
