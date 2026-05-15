@@ -287,6 +287,7 @@
          ;; Program Debug
          #:print-top-level-results? print-top-level-results?
          #:internal-bind-treelist-debug-shape? internal-bind-treelist-debug-shape?
+         #:internal-bind-immutable-hash-debug-shape? internal-bind-immutable-hash-debug-shape?
          ;; Reflection
          #:console-bridge?   console-bridge?    ; adds WR on the JS side
          ;; Populate the Virtual File System
@@ -432,7 +433,9 @@
                      [current-enable-simplify? enable-simplify?]
                      [current-print-top-level-results? print-top-level-results?]
                      [current-internal-treelist-debug-shape?
-                      internal-bind-treelist-debug-shape?])
+                      internal-bind-treelist-debug-shape?]
+                     [current-internal-immutable-hash-debug-shape?
+                      internal-bind-immutable-hash-debug-shape?])
         (comp stx-with-stdlib))))
   (define t-compile-end (now-ms))
 

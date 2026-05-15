@@ -36,8 +36,13 @@
 
 (test-case "test-basics has no false leaves"
   (define-values (status output)
-    (run-webracket (list "--no-stdlib" "-r" "test/test-basics.rkt")
-                   repo-root))
+    (run-webracket (list "--no-stdlib"
+                         "--internal-bind-immutable-hash-debug-shape"
+                         "-r"
+                         "test/test-basics.rkt")
+                   repo-root
+                   #:timeout-seconds 180
+                   #:memory-mb 4096))
   (check-equal? status 0 output)
   (define datum (read-single-datum output))
   (define failures (false-leaf-paths datum))

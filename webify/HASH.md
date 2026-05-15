@@ -82,6 +82,52 @@ The Goal 1 installed smoke suite now includes immutable hash paths:
 paths, cnode full-hash collisions, path-copy removal, replacement without
 duplicate iterator entries, and the public hash-kind predicates.
 
+## Packed Bnode Delta
+
+Racket CS's HAMT bnodes are packed system stencil vectors. A single stencil mask
+contains several regions:
+
+- a static field region
+- an 8-bit child region
+- an 8-bit key region
+- an 8-bit value region
+
+For a given 3-bit hash group, the child bit says that the slot contains a child
+bnode/cnode, while the key/value bits say that the slot contains an inline
+entry. Some Racket CS shapes can represent an implicit `#t` value by omitting a
+value bit. The equal?/equal-always? variants can also wrap keys so the HAMT can
+cache comparison-specific hash information without changing the public key.
+
+WebRacket's current representation deliberately keeps the physical layout
+simpler while the semantics are still settling:
+
+- immutable hash wrappers store the public kind, root, and count outside the
+  HAMT root
+- bnodes use one 8-bit mask region, where each dense slot is either an entry
+  bucket, a child bnode, or a cnode
+- entries are explicit `$ImmutableHashEntry` records, so values are always
+  stored explicitly
+- terminal full-hash collisions use an explicit `$ImmutableHashCNode`
+- equal?/equal-always? keys are not wrapped yet
+
+The runtime now has prototype packed-slot helpers for the Racket CS child, key,
+and value bit positions. The active `immutable-hamt-bit` operation routes
+through the shared 3-bit group helper, but the storage layout is still the
+current WebRacket one-region bnode layout. That gives us a small, testable step
+toward the CS layout without risking a wholesale representation switch.
+
+An internal debug-only compiler hook,
+`webracket-internal-immutable-hash-debug-shape`, can be enabled with
+`--internal-bind-immutable-hash-debug-shape`. It returns:
+
+```racket
+(list entries bnodes cnodes buckets max-depth slots)
+```
+
+The hook is not exported as a public primitive; it exists so shape regression
+tests can verify that recursive bnodes, cnodes, and collapse-after-remove
+behavior stay intact while we continue moving toward the packed layout.
+
 Ephemeron hash tables are also currently a strong fallback:
 `make-ephemeron-hasheq` returns an ordinary mutable `hasheq`. That is enough for
 expander intern/cache tables during startup, but it does not implement

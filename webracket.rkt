@@ -32,6 +32,7 @@
 (define letrec-strategy (make-parameter 'waddell))
 (define print-top-level-results? (make-parameter #f))
 (define internal-bind-treelist-debug-shape? (make-parameter #f))
+(define internal-bind-immutable-hash-debug-shape? (make-parameter #f))
 (define console-bridge? (make-parameter #f))
 
 (define browser         (make-parameter #f))
@@ -192,6 +193,9 @@
    [("--internal-bind-treelist-debug-shape")
     "Enable compiler recognition of the private treelist shape hook for internal smokes"
     (internal-bind-treelist-debug-shape? #t)]
+   [("--internal-bind-immutable-hash-debug-shape")
+    "Enable compiler recognition of the private immutable hash shape hook for internal smokes"
+    (internal-bind-immutable-hash-debug-shape? #t)]
    [("--console-bridge") "Install the browser console bridge as globalThis.WR"
                          (console-bridge? #t)]
    [("--no-console-bridge") "Do not install the browser console bridge (default)"
@@ -284,6 +288,8 @@
                      #:print-top-level-results? (print-top-level-results?)
                      #:internal-bind-treelist-debug-shape?
                      (internal-bind-treelist-debug-shape?)
+                     #:internal-bind-immutable-hash-debug-shape?
+                     (internal-bind-immutable-hash-debug-shape?)
                      #:console-bridge? (console-bridge?)
                      #:vfs-preloads (reverse (vfs-preloads))
                      #:vfs-mounts   (reverse (vfs-mounts))

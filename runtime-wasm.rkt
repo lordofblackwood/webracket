@@ -38168,6 +38168,52 @@
                 (i32.and (local.get $mask)
                          (i32.sub (local.get $bit) (i32.const 1)))))
 
+         ;; immutable-hamt-packed-group-index : i32 i32 -> i32
+         ;;   Extract the 3-bit HAMT group used by the current 8-way layout.
+         (func $immutable-hamt-packed-group-index
+               (param $hash  i32) ;; key hash
+               (param $shift i32) ;; HAMT shift in multiples of 3
+               (result       i32)
+               (i32.and (i32.shr_u (local.get $hash)
+                                    (local.get $shift))
+                        (i32.const 7)))
+
+         ;; immutable-hamt-packed-child-bit : i32 i32 -> i32
+         ;;   Prototype Racket CS-style child-region bit: static field + group.
+         (func $immutable-hamt-packed-child-bit
+               (param $hash  i32) ;; key hash
+               (param $shift i32) ;; HAMT shift in multiples of 3
+               (result       i32)
+               (i32.shl (i32.const 1)
+                        (i32.add (i32.const 1)
+                                 (call $immutable-hamt-packed-group-index
+                                       (local.get $hash)
+                                       (local.get $shift)))))
+
+         ;; immutable-hamt-packed-key-bit : i32 i32 -> i32
+         ;;   Prototype Racket CS-style key-region bit.
+         (func $immutable-hamt-packed-key-bit
+               (param $hash  i32) ;; key hash
+               (param $shift i32) ;; HAMT shift in multiples of 3
+               (result       i32)
+               (i32.shl (i32.const 1)
+                        (i32.add (i32.const 9)
+                                 (call $immutable-hamt-packed-group-index
+                                       (local.get $hash)
+                                       (local.get $shift)))))
+
+         ;; immutable-hamt-packed-value-bit : i32 i32 -> i32
+         ;;   Prototype Racket CS-style value-region bit.
+         (func $immutable-hamt-packed-value-bit
+               (param $hash  i32) ;; key hash
+               (param $shift i32) ;; HAMT shift in multiples of 3
+               (result       i32)
+               (i32.shl (i32.const 1)
+                        (i32.add (i32.const 17)
+                                 (call $immutable-hamt-packed-group-index
+                                       (local.get $hash)
+                                       (local.get $shift)))))
+
          (func $immutable-hasheqv-bucket-has-key?
                (param $bucket (ref eq)) ;; list of immutable hash entries
                (param $key    (ref eq)) ;; lookup key
@@ -38403,9 +38449,9 @@
                (param $shift i32) ;; HAMT shift in multiples of 3
                (result       i32)
                (i32.shl (i32.const 1)
-                        (i32.and (i32.shr_u (local.get $hash)
-                                            (local.get $shift))
-                                 (i32.const 7))))
+                        (call $immutable-hamt-packed-group-index
+                              (local.get $hash)
+                              (local.get $shift))))
 
          (func $immutable-hamt-bucket-ref/kind
                (param $kind   i32)      ;; 0 eq?, 1 eqv?, 2 equal?, 3 equal-always?
@@ -43408,6 +43454,309 @@
                            (local.set $bucket (struct.get $Pair $d (local.get $pair)))
                            (br $bucket-loop)))
               (local.get $acc))
+
+        ;; immutable-hamt-node-entry-count : any/c -> exact-nonnegative-integer?
+        ;;   Count immutable hash entries reachable from a private HAMT node.
+        (func $immutable-hamt-node-entry-count
+              (param $node (ref eq)) ;; root/child stencil vector, cnode, or entry bucket
+              (result      i32)
+              (local $sv     (ref $StencilVector))
+              (local $slots  (ref $Array))
+              (local $len    i32)
+              (local $i      i32)
+              (local $count  i32)
+              (local $slot   (ref eq))
+              (local $bucket (ref eq))
+              (local $pair   (ref $Pair))
+              (if (ref.test (ref $ImmutableHashCNode) (local.get $node))
+                  (then
+                   (return_call $immutable-hamt-node-entry-count
+                                (struct.get $ImmutableHashCNode $content
+                                            (ref.cast (ref $ImmutableHashCNode)
+                                                      (local.get $node))))))
+              (if (ref.test (ref $StencilVector) (local.get $node))
+                  (then
+                   (local.set $sv    (ref.cast (ref $StencilVector) (local.get $node)))
+                   (local.set $slots (struct.get $StencilVector $slots (local.get $sv)))
+                   (local.set $len   (array.len (local.get $slots)))
+                   (local.set $i     (i32.const 0))
+                   (local.set $count (i32.const 0))
+                   (block $done-slots
+                          (loop $slot-loop
+                                (br_if $done-slots
+                                       (i32.ge_u (local.get $i) (local.get $len)))
+                                (local.set $slot
+                                           (array.get $Array
+                                                      (local.get $slots)
+                                                      (local.get $i)))
+                                (local.set $count
+                                           (i32.add
+                                            (local.get $count)
+                                            (call $immutable-hamt-node-entry-count
+                                                  (local.get $slot))))
+                                (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                                (br $slot-loop)))
+                   (return (local.get $count))))
+              (local.set $bucket (local.get $node))
+              (local.set $count  (i32.const 0))
+              (block $done-bucket
+                     (loop $bucket-loop
+                           (br_if $done-bucket
+                                  (ref.eq (local.get $bucket) (global.get $null)))
+                           (if (i32.eqz (ref.test (ref $Pair) (local.get $bucket)))
+                               (then (br $done-bucket)))
+                           (local.set $pair (ref.cast (ref $Pair) (local.get $bucket)))
+                           (if (ref.test (ref $ImmutableHashEntry)
+                                         (struct.get $Pair $a (local.get $pair)))
+                               (then
+                                (local.set $count
+                                           (i32.add (local.get $count) (i32.const 1)))))
+                           (local.set $bucket (struct.get $Pair $d (local.get $pair)))
+                           (br $bucket-loop)))
+              (local.get $count))
+
+        ;; immutable-hamt-node-bnode-count : any/c -> exact-nonnegative-integer?
+        ;;   Count recursive bnodes in a private HAMT node.
+        (func $immutable-hamt-node-bnode-count
+              (param $node (ref eq)) ;; root/child stencil vector, cnode, or entry bucket
+              (result      i32)
+              (local $sv    (ref $StencilVector))
+              (local $slots (ref $Array))
+              (local $len   i32)
+              (local $i     i32)
+              (local $count i32)
+              (local $slot  (ref eq))
+              (if (ref.test (ref $ImmutableHashCNode) (local.get $node))
+                  (then (return (i32.const 0))))
+              (if (i32.eqz (ref.test (ref $StencilVector) (local.get $node)))
+                  (then (return (i32.const 0))))
+              (local.set $sv    (ref.cast (ref $StencilVector) (local.get $node)))
+              (local.set $slots (struct.get $StencilVector $slots (local.get $sv)))
+              (local.set $len   (array.len (local.get $slots)))
+              (local.set $i     (i32.const 0))
+              (local.set $count (i32.const 1))
+              (block $done
+                     (loop $loop
+                           (br_if $done (i32.ge_u (local.get $i) (local.get $len)))
+                           (local.set $slot
+                                      (array.get $Array
+                                                 (local.get $slots)
+                                                 (local.get $i)))
+                           (local.set $count
+                                      (i32.add
+                                       (local.get $count)
+                                       (call $immutable-hamt-node-bnode-count
+                                             (local.get $slot))))
+                           (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                           (br $loop)))
+              (local.get $count))
+
+        ;; immutable-hamt-node-cnode-count : any/c -> exact-nonnegative-integer?
+        ;;   Count terminal collision nodes in a private HAMT node.
+        (func $immutable-hamt-node-cnode-count
+              (param $node (ref eq)) ;; root/child stencil vector, cnode, or entry bucket
+              (result      i32)
+              (local $sv    (ref $StencilVector))
+              (local $slots (ref $Array))
+              (local $len   i32)
+              (local $i     i32)
+              (local $count i32)
+              (local $slot  (ref eq))
+              (if (ref.test (ref $ImmutableHashCNode) (local.get $node))
+                  (then (return (i32.const 1))))
+              (if (i32.eqz (ref.test (ref $StencilVector) (local.get $node)))
+                  (then (return (i32.const 0))))
+              (local.set $sv    (ref.cast (ref $StencilVector) (local.get $node)))
+              (local.set $slots (struct.get $StencilVector $slots (local.get $sv)))
+              (local.set $len   (array.len (local.get $slots)))
+              (local.set $i     (i32.const 0))
+              (local.set $count (i32.const 0))
+              (block $done
+                     (loop $loop
+                           (br_if $done (i32.ge_u (local.get $i) (local.get $len)))
+                           (local.set $slot
+                                      (array.get $Array
+                                                 (local.get $slots)
+                                                 (local.get $i)))
+                           (local.set $count
+                                      (i32.add
+                                       (local.get $count)
+                                       (call $immutable-hamt-node-cnode-count
+                                             (local.get $slot))))
+                           (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                           (br $loop)))
+              (local.get $count))
+
+        ;; immutable-hamt-node-bucket-count : any/c -> exact-nonnegative-integer?
+        ;;   Count non-empty ordinary entry buckets in a private HAMT node.
+        (func $immutable-hamt-node-bucket-count
+              (param $node (ref eq)) ;; root/child stencil vector, cnode, or entry bucket
+              (result      i32)
+              (local $sv    (ref $StencilVector))
+              (local $slots (ref $Array))
+              (local $len   i32)
+              (local $i     i32)
+              (local $count i32)
+              (local $slot  (ref eq))
+              (if (ref.test (ref $ImmutableHashCNode) (local.get $node))
+                  (then (return (i32.const 0))))
+              (if (ref.test (ref $StencilVector) (local.get $node))
+                  (then
+                   (local.set $sv    (ref.cast (ref $StencilVector) (local.get $node)))
+                   (local.set $slots (struct.get $StencilVector $slots (local.get $sv)))
+                   (local.set $len   (array.len (local.get $slots)))
+                   (local.set $i     (i32.const 0))
+                   (local.set $count (i32.const 0))
+                   (block $done
+                          (loop $loop
+                                (br_if $done (i32.ge_u (local.get $i) (local.get $len)))
+                                (local.set $slot
+                                           (array.get $Array
+                                                      (local.get $slots)
+                                                      (local.get $i)))
+                                (local.set $count
+                                           (i32.add
+                                            (local.get $count)
+                                            (call $immutable-hamt-node-bucket-count
+                                                  (local.get $slot))))
+                                (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                                (br $loop)))
+                   (return (local.get $count))))
+              (if (ref.test (ref $Pair) (local.get $node))
+                  (then (return (i32.const 1))))
+              (i32.const 0))
+
+        ;; immutable-hamt-node-slot-count : any/c -> exact-nonnegative-integer?
+        ;;   Count dense slots stored in bnode stencil vectors.
+        (func $immutable-hamt-node-slot-count
+              (param $node (ref eq)) ;; root/child stencil vector, cnode, or entry bucket
+              (result      i32)
+              (local $sv    (ref $StencilVector))
+              (local $slots (ref $Array))
+              (local $len   i32)
+              (local $i     i32)
+              (local $count i32)
+              (local $slot  (ref eq))
+              (if (ref.test (ref $ImmutableHashCNode) (local.get $node))
+                  (then (return (i32.const 0))))
+              (if (i32.eqz (ref.test (ref $StencilVector) (local.get $node)))
+                  (then (return (i32.const 0))))
+              (local.set $sv    (ref.cast (ref $StencilVector) (local.get $node)))
+              (local.set $slots (struct.get $StencilVector $slots (local.get $sv)))
+              (local.set $len   (array.len (local.get $slots)))
+              (local.set $i     (i32.const 0))
+              (local.set $count (local.get $len))
+              (block $done
+                     (loop $loop
+                           (br_if $done (i32.ge_u (local.get $i) (local.get $len)))
+                           (local.set $slot
+                                      (array.get $Array
+                                                 (local.get $slots)
+                                                 (local.get $i)))
+                           (local.set $count
+                                      (i32.add
+                                       (local.get $count)
+                                       (call $immutable-hamt-node-slot-count
+                                             (local.get $slot))))
+                           (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                           (br $loop)))
+              (local.get $count))
+
+        ;; immutable-hamt-node-max-depth : any/c exact-nonnegative-integer? -> exact-nonnegative-integer?
+        ;;   Return the deepest bnode/cnode/bucket depth in a private HAMT node.
+        (func $immutable-hamt-node-max-depth
+              (param $node  (ref eq)) ;; root/child stencil vector, cnode, or entry bucket
+              (param $depth i32)      ;; current node depth
+              (result       i32)
+              (local $sv    (ref $StencilVector))
+              (local $slots (ref $Array))
+              (local $len   i32)
+              (local $i     i32)
+              (local $max   i32)
+              (local $child i32)
+              (local $slot  (ref eq))
+              (if (ref.test (ref $ImmutableHashCNode) (local.get $node))
+                  (then (return (local.get $depth))))
+              (if (i32.eqz (ref.test (ref $StencilVector) (local.get $node)))
+                  (then
+                   (if (ref.test (ref $Pair) (local.get $node))
+                       (then (return (local.get $depth))))
+                   (return (i32.const 0))))
+              (local.set $sv    (ref.cast (ref $StencilVector) (local.get $node)))
+              (local.set $slots (struct.get $StencilVector $slots (local.get $sv)))
+              (local.set $len   (array.len (local.get $slots)))
+              (local.set $i     (i32.const 0))
+              (local.set $max   (local.get $depth))
+              (block $done
+                     (loop $loop
+                           (br_if $done (i32.ge_u (local.get $i) (local.get $len)))
+                           (local.set $slot
+                                      (array.get $Array
+                                                 (local.get $slots)
+                                                 (local.get $i)))
+                           (local.set $child
+                                      (call $immutable-hamt-node-max-depth
+                                            (local.get $slot)
+                                            (i32.add (local.get $depth) (i32.const 1))))
+                           (if (i32.gt_u (local.get $child) (local.get $max))
+                               (then (local.set $max (local.get $child))))
+                           (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                           (br $loop)))
+              (local.get $max))
+
+        ;; immutable-hash-debug-shape : hash? -> list?
+        ;;   Internal-only HAMT shape probe: (entries bnodes cnodes buckets max-depth slots).
+        (func $immutable-hash-debug-shape (type $Prim1)
+              (param $ht (ref eq)) ;; immutable hash table
+              (result    (ref eq))
+              (local $view (ref $HashEqvImmutable))
+              (local $root (ref eq))
+              (local $entries i32)
+              (local $bnodes  i32)
+              (local $cnodes  i32)
+              (local $buckets i32)
+              (local $depth   i32)
+              (local $slots   i32)
+              (local.set $view (call $immutable-hash-as-hasheqv (local.get $ht)))
+              (local.set $root (struct.get $HashEqvImmutable $root (local.get $view)))
+              (block $has-root
+                     (br_if $has-root
+                            (i32.eqz (ref.eq (local.get $root) (global.get $missing))))
+                     (return
+                      (call $cons
+                            (ref.i31 (i32.const 0))
+                            (call $cons
+                                  (ref.i31 (i32.const 0))
+                                  (call $cons
+                                        (ref.i31 (i32.const 0))
+                                        (call $cons
+                                              (ref.i31 (i32.const 0))
+                                              (call $cons
+                                                    (ref.i31 (i32.const 0))
+                                                    (call $cons
+                                                          (ref.i31 (i32.const 0))
+                                                          (global.get $null)))))))))
+              (local.set $entries (call $immutable-hamt-node-entry-count (local.get $root)))
+              (local.set $bnodes  (call $immutable-hamt-node-bnode-count  (local.get $root)))
+              (local.set $cnodes  (call $immutable-hamt-node-cnode-count  (local.get $root)))
+              (local.set $buckets (call $immutable-hamt-node-bucket-count (local.get $root)))
+              (local.set $depth   (call $immutable-hamt-node-max-depth
+                                        (local.get $root)
+                                        (i32.const 0)))
+              (local.set $slots   (call $immutable-hamt-node-slot-count   (local.get $root)))
+              (call $cons
+                    (ref.i31 (i32.shl (local.get $entries) (i32.const 1)))
+                    (call $cons
+                          (ref.i31 (i32.shl (local.get $bnodes) (i32.const 1)))
+                          (call $cons
+                                (ref.i31 (i32.shl (local.get $cnodes) (i32.const 1)))
+                                (call $cons
+                                      (ref.i31 (i32.shl (local.get $buckets) (i32.const 1)))
+                                      (call $cons
+                                            (ref.i31 (i32.shl (local.get $depth) (i32.const 1)))
+                                            (call $cons
+                                                  (ref.i31 (i32.shl (local.get $slots) (i32.const 1)))
+                                                  (global.get $null))))))))
 
         (func $immutable-hasheqv-iterate-first
               (param $table (ref $HashEqvImmutable)) ;; immutable hash table

@@ -349,6 +349,8 @@
 ;; When true, the compiler recognizes one compiler-private identifier and
 ;; lowers it directly to the runtime-only treelist shape helper.
 (define current-internal-treelist-debug-shape? (make-parameter #f))
+;; Same idea for immutable hash HAMT shape probes.
+(define current-internal-immutable-hash-debug-shape? (make-parameter #f))
 (define current-closure-conversion-progress? (make-parameter #f))
 (define current-closure-conversion-progress-interval (make-parameter 1000))
 (define current-closure-conversion-progress-port (make-parameter #f))
@@ -357,6 +359,8 @@
   'webracket-print-top-level-results-sentinel)
 (define internal-treelist-debug-shape-symbol
   'webracket-internal-treelist-debug-shape)
+(define internal-immutable-hash-debug-shape-symbol
+  'webracket-internal-immutable-hash-debug-shape)
 
 ;; closure-conversion-progress-port : -> output-port?
 ;;   Return the diagnostic port for closure-conversion progress reports.
@@ -919,6 +923,7 @@
   (hash-ref! primitive-arity-cache sym
              (λ ()
                (or (and (eq? sym internal-treelist-debug-shape-symbol) 1)
+                   (and (eq? sym internal-immutable-hash-debug-shape-symbol) 1)
                    (ffi-primitive-arity sym)
                    (let ([desc (primitive->description sym)])
                      (and desc (primitive-description-arity desc)))))))
@@ -3033,6 +3038,8 @@
            (and (variable? v) (primitive? (variable-id v)))
            (and (current-internal-treelist-debug-shape?)
                 (eq? v internal-treelist-debug-shape-symbol))
+           (and (current-internal-immutable-hash-debug-shape?)
+                (eq? v internal-immutable-hash-debug-shape-symbol))
            (set-member? primitives-set v))
        #t))
 
@@ -7793,6 +7800,11 @@
                                                         (raise-syntax-error
                                                          'α-rename
                                                          "compiler-private treelist shape hook is unavailable without --internal-bind-treelist-debug-shape"
+                                                         (variable-id x))]
+                                                       [(eq? s internal-immutable-hash-debug-shape-symbol)
+                                                        (raise-syntax-error
+                                                         'α-rename
+                                                         "compiler-private immutable hash shape hook is unavailable without --internal-bind-immutable-hash-debug-shape"
                                                          (variable-id x))]
                                                        [(inside-module?)
                                                         (raise-syntax-error
@@ -18462,6 +18474,8 @@
           (build-rest-args (AExpr* ae1))]
          [(eq? sym internal-treelist-debug-shape-symbol)
           (inline-prim/fixed 'treelist-debug-shape ae1 1)]
+         [(eq? sym internal-immutable-hash-debug-shape-symbol)
+          (inline-prim/fixed 'immutable-hash-debug-shape ae1 1)]
          [(eq? sym 'treelist)
           `(call $treelist ,(build-rest-args (AExpr* ae1)))]
          [(eq? sym 'treelist-append)

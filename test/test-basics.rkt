@@ -5302,6 +5302,74 @@
                                             #t))
                                      '(0 1 2 3 4 5 6))))))
 
+              (list "immutable-hash-debug-shape"
+                    (let ()
+                      (struct hashkey (mode n)
+                        #:property prop:equal+hash
+                        (list
+                         (lambda (self other recur)
+                           (and (hashkey? other)
+                                (equal? (hashkey-mode self) (hashkey-mode other))
+                                (equal? (hashkey-n self) (hashkey-n other))))
+                         (lambda (self hash)
+                           (if (equal? (hashkey-mode self) 'split)
+                               (* (hashkey-n self) 8)
+                               13))
+                         (lambda (self hash)
+                           (if (equal? (hashkey-mode self) 'split)
+                               (* (hashkey-n self) 8)
+                               13))))
+
+                      (define (shape h)
+                        (webracket-internal-immutable-hash-debug-shape h))
+                      (define (entries s) (list-ref s 0))
+                      (define (bnodes s)  (list-ref s 1))
+                      (define (cnodes s)  (list-ref s 2))
+                      (define (buckets s) (list-ref s 3))
+                      (define (depth s)   (list-ref s 4))
+                      (define (slots s)   (list-ref s 5))
+
+                      (define shallow (hasheq 'x 1 'y 2))
+                      (define deep
+                        (let loop ([i 0] [h (hash)])
+                          (if (equal? i 9)
+                              h
+                              (loop (+ i 1) (hash-set h (hashkey 'split i) i)))))
+                      (define full-collision
+                        (let loop ([i 0] [h (hash)])
+                          (if (equal? i 7)
+                              h
+                              (loop (+ i 1)
+                                    (hash-set h (hashkey 'collide i) (* i 10))))))
+                      (define collapsed
+                        (let loop ([i 0] [h full-collision])
+                          (if (equal? i 6)
+                              h
+                              (loop (+ i 1) (hash-remove h (hashkey 'collide i))))))
+
+                      (let ([empty-shape     (shape (hasheq))]
+                            [shallow-shape   (shape shallow)]
+                            [deep-shape      (shape deep)]
+                            [collision-shape (shape full-collision)]
+                            [collapsed-shape (shape collapsed)])
+                        (and (equal? empty-shape '(0 0 0 0 0 0))
+                             (equal? (entries shallow-shape) 2)
+                             (equal? (bnodes shallow-shape) 1)
+                             (equal? (cnodes shallow-shape) 0)
+                             (equal? (buckets shallow-shape) 2)
+                             (equal? (slots shallow-shape) 2)
+                             (equal? (entries deep-shape) 9)
+                             (>= (bnodes deep-shape) 2)
+                             (equal? (cnodes deep-shape) 0)
+                             (>= (depth deep-shape) 2)
+                             (>= (slots deep-shape) 9)
+                             (equal? (entries collision-shape) 7)
+                             (>= (bnodes collision-shape) 1)
+                             (equal? (cnodes collision-shape) 1)
+                             (>= (depth collision-shape) 1)
+                             (equal? (entries collapsed-shape) 1)
+                             (equal? (cnodes collapsed-shape) 0)))))
+
               (list "immutable hash collision and iteration stress"
                     (let loop ([i 0] [h (hash)])
                       (if (equal? i 90)
