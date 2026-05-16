@@ -27,9 +27,7 @@
     print-vector-length))
 
 (define temporary-primitive-owned-public-helpers
-  '(format
-    fprintf
-    raise-argument-error
+  '(raise-argument-error
     raise-arguments-error
     read
     read-syntax))

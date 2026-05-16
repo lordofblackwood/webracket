@@ -75,7 +75,6 @@
 ;; names until ownership is moved fully to the stdlib module.
 (define stdlib-primitive-owned-export-symbols
   '(empty-hash empty-hasheq empty-hasheqv
-    fprintf format
     hash-code-combine hash-code-combine*
     hash-code-combine-unordered hash-code-combine-unordered*
     current-print

@@ -134,6 +134,10 @@
    output))
 
 (test-case "exception ownership lists classify temporary primitive helpers"
+  (check-false (memq 'format stdlib-primitive-owned-export-symbols)
+               "format is primitive-backed for now, but not a stdlib export")
+  (check-false (memq 'fprintf stdlib-primitive-owned-export-symbols)
+               "fprintf is primitive-backed for now, but not a stdlib export")
   (for ([sym (in-list '(raise-argument-error
                         raise-arguments-error
                         read

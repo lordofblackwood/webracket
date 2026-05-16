@@ -119,8 +119,10 @@ The first adapter files are:
 racket-src/io/format/printf-adapter.rkt ; WebRacket-facing print/port proxy
 racket-src/io/format/printf-web.rkt     ; adapted do-printf require surface
 racket-src/io/format/main-web.rkt       ; adapted public format API
+webify/io-format-provider.rkt           ; ownership/readiness metadata
 webify/test-io-format-adapter.rkt       ; host-side behavior smoke
 webify/test-io-format-main-adapter.rkt  ; host-side public API smoke
+webify/test-io-format-provider.rkt      ; provider ownership smoke
 ```
 
 `printf-web.rkt` intentionally keeps the upstream `do-printf` body and changes
@@ -137,6 +139,19 @@ The long-term path is to compose the staged original Racket `io/format`
 implementation into WebRacket once module composition can use those provider
 modules directly. Avoid adding a second WebRacket-specific formatter to
 `stdlib/`; `stdlib/writing.rkt` should own only the writing/printing substrate.
+
+Current ownership status:
+
+```racket
+format   ; primitive now, staged original `io/format` provider next
+fprintf  ; primitive now, staged original `io/format` provider next
+printf   ; staged original `io/format` provider target
+eprintf  ; staged original `io/format` provider target
+```
+
+The provider smoke confirms that the staged original-Racket-derived provider
+already covers directives such as `~x`, `~o`, `~b`, and `~c` that the current
+bootstrap primitive formatter does not fully cover.
 
 ## Minimal Direct Dependencies
 
