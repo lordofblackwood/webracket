@@ -31,6 +31,7 @@
          installed-runtime-inputs-missing-primitive-demands
          webify-module-linklet-manifest->runtime-smoke-graph-audit
          run-installed-runtime-smoke
+         run-installed-runtime-smokes
          run-local-runtime-smoke)
 
 (require racket/file
@@ -359,9 +360,9 @@
    #:import-keys           #f)
   (void))
 
-;; run-composed-runtime-smoke : webify-module-linklet-manifest? observations regexp? -> void?
-;;   Compose a resolved manifest, run it with WebRacket, and check observed output.
-(define (run-composed-runtime-smoke manifest observations expected-output)
+;; run-composed-runtime-smoke/output : webify-module-linklet-manifest? (loader -> datum?) -> string?
+;;   Compose a resolved manifest, run it with WebRacket, and return observed output.
+(define (run-composed-runtime-smoke/output manifest build-program)
   (define source-dir (make-temporary-file "webracket-module-runtime-src-~a" 'directory))
   (define dest-dir   (make-temporary-file "webracket-module-runtime-dest-~a" 'directory))
   (define program-path (build-path source-dir "module-runtime-run.rkt"))
@@ -375,7 +376,7 @@
       (instantiate-loader! loader (webify-module-linklet-manifest-roots manifest))
       (write-datum-program!
        program-path
-       (webify-module-loader-observe loader observations))
+       (build-program loader))
       (define-values (status output)
         (run-webracket (list "--no-stdlib"
                              "-r"
@@ -387,13 +388,23 @@
                "WebRacket exited with status ~a\n~a"
                status
                output))
-      (assert-runtime-output-match! expected-output output))
+      output)
     (lambda ()
       (preserve-runtime-directory! 'composed-source source-dir)
       (preserve-runtime-directory! 'composed-dest dest-dir)
       (for ([dir (in-list (list source-dir dest-dir))])
         (with-handlers ([exn:fail:filesystem? void])
           (delete-directory/files dir))))))
+
+;; run-composed-runtime-smoke : webify-module-linklet-manifest? observations regexp? -> void?
+;;   Compose a resolved manifest, run it with WebRacket, and check observed output.
+(define (run-composed-runtime-smoke manifest observations expected-output)
+  (define output
+    (run-composed-runtime-smoke/output
+     manifest
+     (lambda (loader)
+       (webify-module-loader-observe loader observations))))
+  (assert-runtime-output-match! expected-output output))
 
 ;; run-local-runtime-smoke : local-runtime-smoke? -> void?
 ;;   Run one hand-authored module-linklet manifest through the WebRacket runtime.
@@ -458,5 +469,121 @@
          (check-installed-runtime-failure smoke failure)]))
     (lambda ()
       (preserve-runtime-directory! 'installed-source source-dir)
+      (with-handlers ([exn:fail:filesystem? void])
+        (delete-directory/files source-dir)))))
+
+;; batch-marker : exact-nonnegative-integer? installed-runtime-smoke? -> string?
+;;   Build a unique output marker for one smoke inside a batched runtime run.
+(define (batch-marker i smoke)
+  (format "__WEBRACKET_RUNTIME_SMOKE_BEGIN__~a__~a"
+          i
+          (installed-runtime-smoke-category smoke)))
+
+;; output-after-marker : string? string? (or/c string? #f) -> string?
+;;   Extract the output segment following marker and before next-marker.
+(define (output-after-marker output marker next-marker)
+  (define start-match
+    (regexp-match-positions (regexp-quote marker) output))
+  (unless start-match
+    (error 'run-installed-runtime-smokes
+           "batched smoke output did not contain marker ~s\noutput:\n~a"
+           marker
+           output))
+  (define start (cdr (car start-match)))
+  (define end
+    (cond
+      [next-marker
+       (define next-match
+         (regexp-match-positions (regexp-quote next-marker) output start))
+       (if next-match (caar next-match) (string-length output))]
+      [else
+       (string-length output)]))
+  (substring output start end))
+
+;; check-batched-output! : (listof installed-runtime-smoke?) string? -> void?
+;;   Check each smoke's expected output in its marker-delimited segment.
+(define (check-batched-output! smokes output)
+  (define markers
+    (for/list ([smoke (in-list smokes)]
+               [i (in-naturals)])
+      (batch-marker i smoke)))
+  (for ([smoke (in-list smokes)]
+        [marker (in-list markers)]
+        [next-marker (in-list (append (cdr markers) (list #f)))])
+    (define segment (output-after-marker output marker next-marker))
+    (unless (regexp-match? (installed-runtime-smoke-expected-output smoke)
+                           segment)
+      (error 'run-installed-runtime-smokes
+             "batched smoke ~a output did not match expected regexp\nexpected: ~s\nsegment:\n~a\nfull output:\n~a"
+             (installed-runtime-smoke-name smoke)
+             (installed-runtime-smoke-expected-output smoke)
+             segment
+             output))))
+
+;; run-installed-runtime-smokes : (listof installed-runtime-smoke?) -> void?
+;;   Extract, compose, compile, and run a batch of expected-pass smokes together.
+(define (run-installed-runtime-smokes smokes)
+  (when (null? smokes)
+    (raise-argument-error 'run-installed-runtime-smokes
+                          "non-empty list?"
+                          smokes))
+  (for ([smoke (in-list smokes)])
+    (unless (installed-runtime-smoke? smoke)
+      (raise-argument-error 'run-installed-runtime-smokes
+                            "installed-runtime-smoke?"
+                            smoke))
+    (unless (and (null? (installed-runtime-smoke-allowed-failures smoke))
+                 (not (installed-runtime-smoke-expected-failure smoke)))
+      (raise-arguments-error 'run-installed-runtime-smokes
+                             "batched smokes must be expected-pass cases"
+                             "smoke" (installed-runtime-smoke-name smoke))))
+  (define source-dir (make-temporary-file "webracket-installed-runtime-batch-src-~a" 'directory))
+  (define manifest-path (build-path source-dir "installed-inputs.rktd"))
+  (define extractor-path (build-path source-dir "extract-installed.rkt"))
+  (dynamic-wind
+    void
+    (lambda ()
+      (write-extractor-script!
+       extractor-path
+       manifest-path
+       (append-map installed-runtime-smoke-module-data smokes))
+      (define-values (extract-status extract-output)
+        (run-racket92/extract
+         racket92-bin
+         extractor-path
+         (build-path source-dir "compiled")))
+      (unless (zero? extract-status)
+        (define failure (webify-classify-runtime-output extract-status extract-output))
+        (error 'run-installed-runtime-smokes
+               "batched extraction failed as ~a:\n~a"
+               (webify-module-failure-category failure)
+               (webify-module-failure-message failure)))
+      (define manifest (read-webify-module-linklet-manifest manifest-path))
+      (define output
+        (with-handlers ([exn:fail?
+                         (lambda (exn)
+                           (print-runtime-smoke-failure-summary manifest)
+                           (raise exn))])
+          (run-composed-runtime-smoke/output
+           manifest
+           (lambda (loader)
+             (define tail-forms
+               (append
+                (append-map
+                 (lambda (smoke i)
+                   (append
+                    `((js-log ,(batch-marker i smoke)))
+                    (for/list ([observation (in-list (installed-runtime-smoke-observations smoke))])
+                      (match-define (list name export) observation)
+                      `(js-log
+                        (module-variable-ref
+                         ,(webify-module-loader-lookup-export-cell loader name export))))))
+                 smokes
+                 (range (length smokes)))
+                '((void))))
+             (webify-module-loader-compose-program loader tail-forms)))))
+      (check-batched-output! smokes output))
+    (lambda ()
+      (preserve-runtime-directory! 'installed-batch-source source-dir)
       (with-handlers ([exn:fail:filesystem? void])
         (delete-directory/files source-dir)))))

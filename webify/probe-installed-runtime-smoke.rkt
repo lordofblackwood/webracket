@@ -1,6 +1,7 @@
 #lang racket/base
 
 (require racket/cmdline
+         racket/async-channel
          racket/file
          racket/list
          racket/match
@@ -24,7 +25,12 @@
 (define no-observe? #f)
 (define list-only? #f)
 (define worker? #f)
+(define batch-worker? #f)
 (define goal1-fast? #f)
+(define batch-size 1)
+(define jobs 1)
+(define goal1-limit #f)
+(define selected-module-cases '())
 
 ;; goal1-fast-module-cases : (listof symbol?)
 ;;   Small must-have runtime subset for quick Goal 1 smoke checks.
@@ -292,7 +298,27 @@
       observations
       expected-simple-output
       '()
-      #f)]))
+     #f)]))
+
+;; parse-module-case-list : string? -> (listof symbol?)
+;;   Parse a comma-separated module-case list for batched workers.
+(define (parse-module-case-list text)
+  (filter-map (lambda (part)
+                (define trimmed (string-trim part))
+                (and (not (string=? trimmed ""))
+                     (string->symbol trimmed)))
+              (string-split text ",")))
+
+;; chunk-list : (listof any/c) exact-positive-integer? -> (listof (listof any/c))
+;;   Split xs into chunks of at most n items.
+(define (chunk-list xs n)
+  (let loop ([xs xs] [chunks '()])
+    (cond
+      [(null? xs) (reverse chunks)]
+      [else
+       (define-values (front rest)
+         (split-at xs (min n (length xs))))
+       (loop rest (cons front chunks))])))
 
 ;; call-with-memory-limit : (or/c #f exact-positive-integer?) (-> any/c) -> any/c
 ;;   Optionally run thunk in a custodian-limited worker thread.
@@ -340,6 +366,27 @@
    (lambda ()
      (parameterize ([current-runtime-smoke-preserve-dir preserve-dir])
        (run-installed-runtime-smoke smoke))))
+  0)
+
+;; run-batch-worker! : -> exact-integer?
+;;   Run selected source-module smokes as one composed runtime program.
+(define (run-batch-worker!)
+  (when (null? selected-module-cases)
+    (raise-user-error 'probe-installed-runtime-smoke
+                      "batch worker requires --module-cases"))
+  (define smokes
+    (for/list ([name (in-list selected-module-cases)])
+      (module-case-smoke name (not no-observe?))))
+  (printf "worker-smoke-batch-count: ~a\n" (length smokes))
+  (printf "worker-smoke-batch-cases: ~a\n"
+          (string-join (map symbol->string selected-module-cases) ","))
+  (when memory-mb
+    (printf "worker-memory-limit-mb: ~a\n" memory-mb))
+  (call-with-memory-limit
+   (and memory-mb (* memory-mb 1024 1024))
+   (lambda ()
+     (parameterize ([current-runtime-smoke-preserve-dir preserve-dir])
+       (run-installed-runtime-smokes smokes))))
   0)
 
 ;; run-child/bounded! : any/c installed-runtime-smoke? (listof string?) -> exact-integer?
@@ -415,6 +462,89 @@
      (printf "probe-result: fail status=~a\n" status)
      (if (integer? status) status 1)]))
 
+;; run-module-case-batch/bounded! : (listof symbol?) -> exact-integer?
+;;   Run a source-module case batch in a child process and kill it on timeout.
+(define (run-module-case-batch/bounded! names)
+  (define label
+    (format "batch:~a"
+            (string-join (map symbol->string names) ",")))
+  (define smoke
+    (module-case-smoke (car names) (not no-observe?)))
+  (run-child/bounded!
+   label
+   smoke
+   (list "--batch-worker"
+         "--module-cases"
+         (string-join (map symbol->string names) ","))))
+
+;; run-module-case-chunk/bounded! : (listof symbol?) -> exact-integer?
+;;   Run a batch, then rerun individual cases to isolate a failing batch.
+(define (run-module-case-chunk/bounded! names)
+  (cond
+    [(= (length names) 1)
+     (define name (car names))
+     (run-child/bounded!
+      (format "case:~a" name)
+      (module-case-smoke name (not no-observe?))
+      (list "--module-case" (symbol->string name)))]
+    [else
+     (define batch-status (run-module-case-batch/bounded! names))
+     (cond
+       [(zero? batch-status) 0]
+       [else
+        (printf "probe-batch-fallback: rerunning ~a cases individually\n"
+                (length names))
+        (for/fold ([status batch-status]) ([name (in-list names)])
+          (define next-status
+            (run-child/bounded!
+             (format "case:~a" name)
+             (module-case-smoke name (not no-observe?))
+             (list "--module-case" (symbol->string name))))
+          (if (zero? status) next-status status))])]))
+
+;; run-thunks : (listof (-> exact-integer?)) -> exact-integer?
+;;   Run parent probe tasks serially or across a bounded number of lanes.
+(define (run-thunks thunks)
+  (cond
+    [(or (<= jobs 1) (<= (length thunks) 1))
+     (for/fold ([status 0]) ([thunk (in-list thunks)])
+       (define next-status (thunk))
+       (if (zero? status) next-status status))]
+    [else
+     (define task-ch (make-async-channel))
+     (define result-ch (make-channel))
+     (define worker-count (min jobs (length thunks)))
+     (for ([worker-index (in-range worker-count)])
+       (thread
+        (lambda ()
+          (let loop ()
+            (define task (async-channel-get task-ch))
+            (cond
+              [(not task)
+               (channel-put result-ch (cons worker-index #f))]
+              [else
+               (define status
+                 (with-handlers ([exn:fail?
+                                  (lambda (exn)
+                                    (displayln (exn-message exn)
+                                               (current-error-port))
+                                    1)])
+                   ((cdr task))))
+               (channel-put result-ch (cons (car task) status))
+               (loop)])))))
+     (for ([thunk (in-list thunks)]
+           [index (in-naturals)])
+       (async-channel-put task-ch (cons index thunk)))
+     (for ([_ (in-range worker-count)])
+       (async-channel-put task-ch #f))
+     (let loop ([remaining (+ (length thunks) worker-count)] [status 0])
+       (cond
+         [(zero? remaining) status]
+         [else
+          (match-define (cons _ result) (channel-get result-ch))
+          (loop (sub1 remaining)
+                (if (and result (zero? status)) result status))]))]))
+
 ;; run-parent! : -> exact-integer?
 ;;   List or run selected installed smokes one at a time with a hard timeout.
 (define (run-parent!)
@@ -425,13 +555,16 @@
        (printf "case:~a\tmodule case: ~a\n" name name))
      0]
     [goal1-fast?
-     (for/fold ([status 0]) ([name (in-list goal1-fast-module-cases)])
-       (define next-status
-         (run-child/bounded!
-          (format "case:~a" name)
-          (module-case-smoke name (not no-observe?))
-          (list "--module-case" (symbol->string name))))
-       (if (zero? status) next-status status))]
+     (define selected-cases
+       (if goal1-limit
+           (take goal1-fast-module-cases
+                 (min goal1-limit (length goal1-fast-module-cases)))
+           goal1-fast-module-cases))
+     (define chunks (chunk-list selected-cases batch-size))
+     (run-thunks
+      (for/list ([names (in-list chunks)])
+        (lambda ()
+          (run-module-case-chunk/bounded! names))))]
     [selected-module-case
      (run-child/bounded!
       (format "case:~a" selected-module-case)
@@ -442,13 +575,13 @@
      (when (null? matches)
        (raise-user-error 'probe-installed-runtime-smoke
                          "selector matched no installed runtime smokes"))
-     (for/fold ([status 0]) ([entry (in-list matches)])
-       (define next-status
-         (run-child/bounded!
-          (car entry)
-          (cdr entry)
-          (list "--index" (number->string (car entry)))))
-       (if (zero? status) next-status status))]))
+     (run-thunks
+      (for/list ([entry (in-list matches)])
+        (lambda ()
+          (run-child/bounded!
+           (car entry)
+           (cdr entry)
+           (list "--index" (number->string (car entry)))))))]))
 
 (command-line
  #:program "probe-installed-runtime-smoke"
@@ -459,10 +592,18 @@
                    (set! goal1-fast? #t)]
  [("--worker") "internal mode: run the selected smoke in this process"
                (set! worker? #t)]
+ [("--batch-worker") "internal mode: run selected module cases as one batch"
+                     (set! batch-worker? #t)]
  [("--timeout") seconds "seconds before killing a child smoke process"
                 (set! timeout-seconds (string->number seconds))]
  [("--memory-mb") mb "best-effort Racket worker memory limit in MiB"
                   (set! memory-mb (string->number mb))]
+ [("--batch-size") n "module cases per child for --goal1-fast (default 1)"
+                  (set! batch-size (max 1 (string->number n)))]
+ [("--jobs") n "parent-side child processes to run concurrently (default 1)"
+             (set! jobs (max 1 (string->number n)))]
+ [("--goal1-limit") n "limit --goal1-fast to the first n cases"
+                    (set! goal1-limit (string->number n))]
  [("--preserve-dir") dir "copy generated runtime-smoke artifacts into dir"
                      (set! preserve-dir dir)]
  [("--no-observe") "for --module-case, instantiate without logging an export"
@@ -474,9 +615,12 @@
  [("--name") name "run only the smoke whose description exactly matches"
             (set! selected-name name)]
  [("--module-case") name "run one source-module case from probe-installed-module-deps"
-                    (set! selected-module-case (string->symbol name))])
+                    (set! selected-module-case (string->symbol name))]
+ [("--module-cases") names "comma-separated source-module cases for --batch-worker"
+                     (set! selected-module-cases (parse-module-case-list names))])
 
 (exit
- (if worker?
-     (run-worker!)
-     (run-parent!)))
+ (cond
+   [batch-worker? (run-batch-worker!)]
+   [worker?       (run-worker!)]
+   [else          (run-parent!)]))

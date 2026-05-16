@@ -53,6 +53,10 @@
          racket/runtime-path
          racket/syntax
          "browser-options.rkt"
+         (only-in "stdlib/module-exports.rkt"
+                  stdlib-module-alias-symbols
+                  stdlib-module-private-forms+bindings
+                  stdlib-definition-form-symbols)
          "compiler.rkt"
          "define-foreign.rkt")
 
@@ -214,6 +218,50 @@
       (define #,sentinel-id (void))
       #,stx))
 
+;; stdlib-cell-symbol : exact-nonnegative-integer? -> symbol?
+;;   Produce a private top-level cell name for a stdlib export alias.
+(define (stdlib-cell-symbol i)
+  (string->symbol (format "webify-stdlib-export-cell$~a" i)))
+
+;; add-module-stdlib : syntax? boolean? -> syntax?
+;;   Evaluate the selected stdlib root with private top-level names, publish
+;;   chosen exports through module-variable cells, then append the user program.
+(define (add-module-stdlib stx browser?)
+  (define-values (stdlib-forms bindings)
+    (stdlib-module-private-forms+bindings browser?))
+  (define alias-set
+    (for/hasheq ([export (in-list (stdlib-module-alias-symbols browser?))])
+      (values export #t)))
+  (define alias-bindings
+    (filter (λ (binding) (hash-ref alias-set (car binding) #f))
+            bindings))
+  (define private->binding
+    (for/hasheq ([binding (in-list alias-bindings)])
+      (values (cdr binding) binding)))
+  (define public->cell
+    (for/hasheq ([binding (in-list alias-bindings)]
+                 [i (in-naturals)])
+      (values (car binding) (stdlib-cell-symbol i))))
+  (define (alias-forms-after form)
+    (for*/list ([private (in-list (stdlib-definition-form-symbols form))]
+                [binding (in-value (hash-ref private->binding private #f))]
+                #:when binding
+                [alias-form (in-list
+                             (let* ([public (car binding)]
+                                    [cell (hash-ref public->cell public)])
+                               `((define ,cell (module-variable-make ',public))
+                                 (module-variable-define! ,cell ,private 'constant)
+                                 (define ,public (module-variable-ref ,cell)))))])
+      alias-form))
+  (define stdlib-program-forms
+    (append-map (λ (form) (cons form (alias-forms-after form)))
+                stdlib-forms))
+  (with-syntax ([(stdlib-form ...) (map (λ (form) (datum->syntax stx form stx))
+                                        stdlib-program-forms)])
+    #`(begin
+        stdlib-form ...
+        #,stx)))
+
 ;;;
 ;;; Available Primitives
 ;;;
@@ -358,14 +406,14 @@
     (cond
       [(and stdlib? browser?)
        (when verbose?
-         (displayln "Including `stdlib/stdlib-for-browser.rkt`" (current-error-port)))
-       #`(begin
-           (include/reader "stdlib/stdlib-for-browser.rkt" read-syntax/skip-first-line)
-           #,stx-for-compile)]
+         (displayln "Composing module stdlib root `stdlib/stdlib-for-browser.rkt`"
+                    (current-error-port)))
+       (add-module-stdlib stx-for-compile #t)]
       [stdlib?
-       #`(begin
-           (include/reader "stdlib/stdlib.rkt" read-syntax/skip-first-line)
-           #,stx-for-compile)] ; stx is a begin form
+       (when verbose?
+         (displayln "Composing module stdlib root `stdlib/stdlib.rkt`"
+                    (current-error-port)))
+       (add-module-stdlib stx-for-compile #f)]
       [else
        stx-for-compile]))
   (define t-add-stdlib-end (now-ms))
