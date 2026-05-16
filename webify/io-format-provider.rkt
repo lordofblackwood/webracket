@@ -9,7 +9,10 @@
          io-format-current-primitive-symbols
          io-format-provider-module
          io-format-provider-ready?
-         io-format-provider-status)
+         io-format-provider-status
+         io-format-bootstrap-retirement-blockers
+         io-format-bootstrap-retirement-ready?
+         check-io-format-bootstrap-retirement-ready!)
 
 (require racket/list
          racket/runtime-path)
@@ -39,3 +42,21 @@
           (if (memq name io-format-current-primitive-symbols)
               'primitive-now/staged-original-next
               'staged-original-ready))))
+
+(define io-format-bootstrap-retirement-blockers
+  '(staged-provider-runtime-smoke-needs-explicit-print-substrate
+    public-format-alias-still-collides-with-primitive))
+
+;; io-format-bootstrap-retirement-ready? : -> boolean?
+;;   Report whether public primitive `format`/`fprintf` can be retired.
+(define (io-format-bootstrap-retirement-ready?)
+  (null? io-format-bootstrap-retirement-blockers))
+
+;; check-io-format-bootstrap-retirement-ready! : -> void?
+;;   Executable guard for primitive-retirement work.
+(define (check-io-format-bootstrap-retirement-ready!)
+  (unless (io-format-bootstrap-retirement-ready?)
+    (raise-arguments-error
+     'check-io-format-bootstrap-retirement-ready!
+     "bootstrap format primitives are not ready to retire"
+     "blockers" io-format-bootstrap-retirement-blockers)))

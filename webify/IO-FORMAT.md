@@ -124,6 +124,7 @@ webify/test-io-format-adapter.rkt       ; host-side behavior smoke
 webify/test-io-format-main-adapter.rkt  ; host-side public API smoke
 webify/test-io-format-provider.rkt      ; provider ownership smoke
 webify/test-io-format-composition.rkt   ; module-variable provider fixture
+webify/test-io-format-extraction.rkt    ; source/extracted provider smoke
 ```
 
 `printf-web.rkt` intentionally keeps the upstream `do-printf` body and changes

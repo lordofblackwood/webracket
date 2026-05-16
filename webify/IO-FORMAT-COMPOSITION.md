@@ -30,6 +30,12 @@ eprintf
 - The provider fixture composes with public top-level aliases disabled. That is
   intentional while `format` is still a primitive; the safe bridge shape is
   cell access first, public aliasing later.
+- `webify/test-io-format-extraction.rkt` proves a tiny source module can be
+  compiled, extracted to a registry-ready linklet input, composed cell-only, and
+  run under `--no-stdlib`.
+- The same extraction path can resolve the staged `main-web.rkt`,
+  `printf-web.rkt`, and `printf-adapter.rkt` provider graph into registry-ready
+  inputs when supplied with a small `map2` shim and module-protocol cells.
 
 ## Blockers For Direct Provider Composition
 
@@ -57,6 +63,10 @@ Other practical blockers:
   extraction must preserve the small adapted require graph.
 - The provider uses host `racket/base` bindings in tests. Runtime composition
   must map those to WebRacket primitives or composed provider exports.
+- The extracted staged graph currently still needs an explicit print substrate:
+  `printf-adapter.rkt` closes over helpers such as `display`, so the direct
+  runtime smoke is blocked under `--no-stdlib` until those dependencies are
+  explicit provider imports or primitives.
 - Public `format` and `fprintf` still exist as compiler/runtime primitives.
   Their public primitive ownership must be retired or renamed before the staged
   provider can export those names at top level without ambiguity.
