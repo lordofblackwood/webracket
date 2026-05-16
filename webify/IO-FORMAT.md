@@ -110,6 +110,18 @@ That is much smaller than the full transitive `io/print/main.rkt` closure, so
 the preferred next implementation path is an adapter/proxy for these names, not
 a blind copy of all print and host support.
 
+The first adapter files are:
+
+```text
+racket-src/io/format/printf-adapter.rkt ; WebRacket-facing print/port proxy
+racket-src/io/format/printf-web.rkt     ; adapted do-printf require surface
+webify/test-io-format-adapter.rkt       ; host-side behavior smoke
+```
+
+`printf-web.rkt` intentionally keeps the upstream `do-printf` body and changes
+only the require surface. It is not part of the byte-for-byte upstream sync
+guard.
+
 ## Minimal Direct Dependencies
 
 `io/format/main.rkt` directly requires:

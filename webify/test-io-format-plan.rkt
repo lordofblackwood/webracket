@@ -87,5 +87,9 @@
                   write-string
                   write-via-handler)))
 
+(test-case "adapted printf keeps upstream body"
+  (check-equal? (io-format-normalized-printf-body "format/printf-web.rkt")
+                (io-format-normalized-printf-body "format/printf.rkt")))
+
 (module+ main
   (void))

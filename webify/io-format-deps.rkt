@@ -31,6 +31,7 @@
          io-print-regexp-hook-exports
          io-format-printf-adapter-candidate-symbols
          io-format-printf-adapter-symbols
+         io-format-normalized-printf-body
          io-format-local-closure-report
          io-format-local-closure-report?
          io-format-local-closure-report-present
@@ -116,6 +117,15 @@
         (if (eof-object? form)
             (reverse forms)
             (loop (cons form forms)))))))
+
+;; io-format-normalized-printf-body : path-string? -> (listof any/c)
+;;   Return printf forms after its require block. This lets tests compare the
+;;   adapted file with the upstream-staged copy while ignoring the intentional
+;;   adapter require change.
+(define (io-format-normalized-printf-body file)
+  (filter (lambda (form)
+            (not (and (pair? form) (eq? 'require (car form)))))
+          (io-format-file-forms file)))
 
 ;; require-spec-path : any/c -> (or/c path-string? #f)
 ;;   Extract the source path from the require specs used by io/format.
