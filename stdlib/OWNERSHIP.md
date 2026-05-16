@@ -224,6 +224,9 @@ Recommendation: port/compose `io/format` in stages. Start with
 substrate is stable. Do not try to replace all of `stdlib/writing.rkt` in one
 move; `io/print/main.rkt` pulls in a much larger printing subsystem.
 
+See `webify/IO-FORMAT.md` for the focused staging plan and the source-level
+guard that confirms `io/format` itself does not depend on regexp.
+
 ## Guardrail
 
 `webify/check-stdlib-primitive-collisions.rkt` checks that generated stdlib
