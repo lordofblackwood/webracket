@@ -19,6 +19,7 @@
          do-print
          error-print-width
          error-value->string
+         print-boolean-long-form
          print-unreadable
          write-string)
 
@@ -26,6 +27,7 @@
 
 ;; Adapter parameter defaults chosen to match Racket's ordinary error printing.
 (define error-print-width (make-parameter 1024))
+(define print-boolean-long-form (make-parameter #f))
 (define print-unreadable (make-parameter #t))
 
 ;; ->core-output-port : output-port? [symbol?] -> output-port?

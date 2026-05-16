@@ -110,12 +110,17 @@ That is much smaller than the full transitive `io/print/main.rkt` closure, so
 the preferred next implementation path is an adapter/proxy for these names, not
 a blind copy of all print and host support.
 
+`format/main-web.rkt` additionally uses `print-boolean-long-form` for the
+single-argument boolean fast path.
+
 The first adapter files are:
 
 ```text
 racket-src/io/format/printf-adapter.rkt ; WebRacket-facing print/port proxy
 racket-src/io/format/printf-web.rkt     ; adapted do-printf require surface
+racket-src/io/format/main-web.rkt       ; adapted public format API
 webify/test-io-format-adapter.rkt       ; host-side behavior smoke
+webify/test-io-format-main-adapter.rkt  ; host-side public API smoke
 ```
 
 `printf-web.rkt` intentionally keeps the upstream `do-printf` body and changes

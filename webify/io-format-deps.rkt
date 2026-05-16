@@ -90,6 +90,7 @@
     do-write
     error-print-width
     error-value->string
+    print-boolean-long-form
     print-unreadable
     print-via-handler
     write-string
