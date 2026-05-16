@@ -1,7 +1,19 @@
 #lang racket/base
 
-(require rackunit
+(require racket/file
+         rackunit
          "io-format-deps.rkt")
+
+(test-case "staged io/format files are copied from upstream"
+  (for ([file (in-list (append io-format-source-files
+                               '("print/regexp.rkt")))])
+    (define staged (io-format-file->path file))
+    (define upstream (build-path upstream-io-source-root file))
+    (check-true (file-exists? staged) file)
+    (check-true (file-exists? upstream) file)
+    (check-equal? (file->bytes staged)
+                  (file->bytes upstream)
+                  file)))
 
 (test-case "io/format parser sources do not use regexp"
   (for ([summary (in-list (io-format-summaries))])

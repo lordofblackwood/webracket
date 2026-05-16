@@ -1,7 +1,13 @@
 # `io/format` Staging Plan
 
 WebRacket should replace the temporary `stdlib/writing.rkt` formatting layer
-with Racket's `../racket/racket/src/io/format` implementation in small pieces.
+with a staged copy of Racket's `io/format` implementation in small pieces. The
+staged source lives in:
+
+```text
+racket-src/io/
+```
+
 The important first boundary is that `io/format` itself does not depend on the
 regexp implementation.
 
@@ -10,8 +16,8 @@ regexp implementation.
 The format parser in:
 
 ```text
-../racket/racket/src/io/format/main.rkt
-../racket/racket/src/io/format/printf.rkt
+racket-src/io/format/main.rkt
+racket-src/io/format/printf.rkt
 ```
 
 scans the format string manually with `string-ref` and dispatches on `~`
@@ -21,8 +27,8 @@ directives. It does not use `regexp`, `#rx`, `#px`, `regexp-match`, or
 The nearby regexp dependency is in the printing layer:
 
 ```text
-../racket/racket/src/io/print/main.rkt
-../racket/racket/src/io/print/regexp.rkt
+racket-src/io/print/main.rkt
+racket-src/io/print/regexp.rkt
 ```
 
 `io/print/regexp.rkt` exports only a hook:
@@ -44,6 +50,17 @@ The guard script:
 ```
 
 checks this source-level boundary.
+
+The staged files currently copied from upstream are:
+
+```text
+racket-src/io/format/main.rkt
+racket-src/io/format/printf.rkt
+racket-src/io/print/regexp.rkt
+```
+
+Additional `io` files should be copied into `racket-src/io/` only when the
+next probe needs them.
 
 ## Minimal Direct Dependencies
 

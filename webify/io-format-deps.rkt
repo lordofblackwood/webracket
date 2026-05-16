@@ -14,6 +14,7 @@
          racket/string)
 
 (provide io-source-root
+         upstream-io-source-root
          io-format-source-files
          io-format-file->path
          io-format-file-forms
@@ -29,7 +30,8 @@
          io-print-regexp-hook-exports
          io-format-summaries)
 
-(define-runtime-path io-source-root "../../racket/racket/src/io")
+(define-runtime-path io-source-root "../racket-src/io")
+(define-runtime-path upstream-io-source-root "../../racket/racket/src/io")
 
 (define io-format-source-files
   '("format/main.rkt"
@@ -55,7 +57,7 @@
   #:transparent)
 
 ;; io-format-file->path : path-string? -> path?
-;;   Resolve an io source path relative to ../racket/racket/src/io.
+;;   Resolve a staged io source path relative to racket-src/io.
 (define (io-format-file->path file)
   (build-path io-source-root file))
 
