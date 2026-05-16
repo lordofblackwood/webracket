@@ -29,6 +29,8 @@
          io-format-source-summary-direct-require-specs
          io-format-source-summary-regexp-symbols
          io-print-regexp-hook-exports
+         io-format-printf-adapter-candidate-symbols
+         io-format-printf-adapter-symbols
          io-format-local-closure-report
          io-format-local-closure-report?
          io-format-local-closure-report-present
@@ -77,6 +79,20 @@
     regexp-replace
     regexp-replace*
     regexp-split))
+
+(define io-format-printf-adapter-candidate-symbols
+  '(->core-output-port
+    PRINT-MODE/UNQUOTED
+    display-via-handler
+    do-display
+    do-print
+    do-write
+    error-print-width
+    error-value->string
+    print-unreadable
+    print-via-handler
+    write-string
+    write-via-handler))
 
 (struct io-format-source-summary (file direct-requires direct-require-specs regexp-symbols)
   #:transparent)
@@ -246,6 +262,18 @@
             eq?))
    symbol<?))
 
+;; io-format-printf-adapter-symbols : -> (listof symbol?)
+;;   Return the small imported surface from print/error/port support that
+;;   format/printf.rkt actually mentions.
+(define (io-format-printf-adapter-symbols)
+  (sort
+   (filter (lambda (sym) (memq sym io-format-printf-adapter-candidate-symbols))
+           (remove-duplicates
+            (append-map datum-symbols
+                        (io-format-file-forms "format/printf.rkt"))
+            eq?))
+   symbol<?))
+
 ;; provide-symbols : any/c -> (listof symbol?)
 ;;   Extract simple provided identifiers.
 (define (provide-symbols form)
@@ -287,6 +315,8 @@
             (io-format-source-summary-regexp-symbols summary)))
   (printf "print-regexp-hook-exports: ~s\n"
           (io-print-regexp-hook-exports))
+  (printf "printf-adapter-symbols: ~s\n"
+          (io-format-printf-adapter-symbols))
   (define closure (io-format-local-require-closure io-format-source-files))
   (printf "local-closure-present (~a): ~s\n"
           (length (io-format-local-closure-report-present closure))

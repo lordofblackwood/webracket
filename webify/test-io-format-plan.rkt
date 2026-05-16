@@ -72,5 +72,20 @@
    (for/or ([path (in-list (io-format-local-closure-report-external report))])
      (regexp-match? #rx"/racket-src/common/check[.]rkt$" path))))
 
+(test-case "printf adapter surface stays small"
+  (check-equal? (io-format-printf-adapter-symbols)
+                '(->core-output-port
+                  PRINT-MODE/UNQUOTED
+                  display-via-handler
+                  do-display
+                  do-print
+                  do-write
+                  error-print-width
+                  error-value->string
+                  print-unreadable
+                  print-via-handler
+                  write-string
+                  write-via-handler)))
+
 (module+ main
   (void))

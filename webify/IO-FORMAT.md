@@ -89,6 +89,27 @@ The next provider milestone should decide whether to copy the missing print
 and port helpers, or to introduce a smaller adapter around the operations that
 `format/printf.rkt` actually calls.
 
+The current adapter surface used by `format/printf.rkt` is:
+
+```racket
+->core-output-port
+PRINT-MODE/UNQUOTED
+display-via-handler
+do-display
+do-print
+do-write
+error-print-width
+error-value->string
+print-unreadable
+print-via-handler
+write-string
+write-via-handler
+```
+
+That is much smaller than the full transitive `io/print/main.rkt` closure, so
+the preferred next implementation path is an adapter/proxy for these names, not
+a blind copy of all print and host support.
+
 ## Minimal Direct Dependencies
 
 `io/format/main.rkt` directly requires:
