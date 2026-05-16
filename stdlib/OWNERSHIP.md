@@ -129,7 +129,8 @@ Do not add a new `stdlib/` implementation of `format`, `fprintf`,
 stdlib-owned exports. The replacement path for the whole format family is to
 compose the original Racket `io/format` modules staged under `racket-src/io/`.
 See `webify/io-format-provider.rkt` for the current provider ownership
-metadata.
+metadata, and `webify/IO-FORMAT-COMPOSITION.md` for the composition blockers
+and retirement checklist.
 
 `stdlib/intmap.rkt` is also transitional. Its public `intmap-*` exports are
 bridge scaffolding unless a future design explicitly keeps them public.
