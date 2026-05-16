@@ -1107,6 +1107,8 @@
  procedure-arity?
  procedure-struct-type?
  procedure-reduce-arity procedure-reduce-arity-mask
+ chaperone-procedure
+ chaperone-struct
  unsafe-chaperone-procedure unsafe-impersonate-procedure
  arity-at-least make-arity-at-least
  arity-at-least?
@@ -1141,6 +1143,7 @@
  
  ;; 10.1 Multiple Values
  values
+ call-with-immediate-continuation-mark
  call-with-values
 
  ;; 10.2 Exceptions
@@ -3506,6 +3509,11 @@ current-parameterization    ; poor-man dynamic parameterization overlay
     [(marks key none-v) none-v]
     [(marks key none-v prompt-tag) none-v]))
 
+(define call-with-immediate-continuation-mark
+  (case-lambda
+    [(key proc) (proc #f)]
+    [(key proc default-v) (proc default-v)]))
+
 (define (print-values . vs)
   (for-each (current-print) vs)
   (apply values vs))
@@ -3587,6 +3595,17 @@ current-parameterization    ; poor-man dynamic parameterization overlay
 
 (define (procedure-impersonator*? v)
   #f)
+
+(define (chaperone-procedure proc wrapper . props)
+  (cond
+    [(procedure? wrapper) wrapper]
+    [(not wrapper) proc]
+    [else (raise-argument-error 'chaperone-procedure
+                                "(or/c procedure? #f)"
+                                wrapper)]))
+
+(define (chaperone-struct v . args)
+  v)
 
 (define (unsafe-chaperone-procedure proc wrapper . props)
   wrapper)

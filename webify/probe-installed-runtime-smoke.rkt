@@ -46,6 +46,9 @@
     keyword-optional-direct
     keyword-plain-direct
     format-require
+    format-single
+    format-number
+    format-basic
     class-basic))
 
 ;; smoke-label : installed-runtime-smoke? -> string?
@@ -227,14 +230,8 @@
              #rx"(?m:^42$)"]
             [else #rx"(?m:^false$)"])
           #rx"")
-      (case name
-        [(format-single format-basic format-number) '(binding-result-arity)]
-        [(contract-wrapper-basic) '(runtime-exception)]
-        [else '()])
-      (case name
-        [(format-single format-basic format-number) #rx"expected: 3"]
-        [(contract-wrapper-basic) #rx"call-with-immediate-continuation-mark"]
-        [else #f]))]
+      '()
+      #f)]
     [else
      (installed-runtime-smoke
       name

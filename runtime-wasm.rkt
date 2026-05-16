@@ -741,6 +741,8 @@
         treelist
         treelist-append
         module-call-with-prompt
+        chaperone-procedure
+        chaperone-struct
         unsafe-chaperone-procedure
         unsafe-impersonate-procedure
         raise-argument-error
@@ -1972,6 +1974,8 @@
     (add-runtime-string-constant 'dot-zo                     ".zo")
     (add-runtime-string-constant 'id                         "id")
     (add-runtime-string-constant 'regexp?                    "regexp?")
+    (add-runtime-string-constant 'regexp-replace             "regexp-replace")
+    (add-runtime-string-constant 'regexp-replace*            "regexp-replace*")
     (add-runtime-string-constant 'g                          "g")
 
     (add-runtime-string-constant 'struct-type-descriptor     "#<struct-type-descriptor>")
@@ -2036,6 +2040,7 @@
     (add-runtime-string-constant 'parameterization?          "parameterization?")
     (add-runtime-string-constant 'pseudo-random-generator?   "pseudo-random-generator?")
     (add-runtime-string-constant 'impersonator-property?     "impersonator-property?")
+    (add-runtime-string-constant 'procedure-or-false?       "(or/c procedure? #f)")
     (add-runtime-string-constant 'security-guard?            "security-guard?")
     (add-runtime-string-constant 'custodian?                 "custodian?")
     (add-runtime-string-constant 'custodian-box?             "custodian-box?")
@@ -23561,6 +23566,70 @@
                (return_call $regexp-match?/string-subset
                             (ref.cast (ref $Regexp) (local.get $rx-raw))
                             (ref.cast (ref $String) (local.get $s-raw))))
+
+         ;; regexp-replace/subset : regexp? string? string? boolean? -> string?
+         ;;   Bootstrap replacement support for simple string-backed regexp
+         ;;   values. It intentionally treats the stored regexp source as a
+         ;;   literal string; full regexp replacement belongs to the demodded
+         ;;   regexp library.
+         (func $regexp-replace/subset
+               (param $rx-raw  (ref eq)) ;; regexp? or string?
+               (param $input   (ref eq)) ;; string? or bytes?
+               (param $insert  (ref eq)) ;; string? for the subset
+               (param $all?    (ref eq)) ;; boolean?
+               (result         (ref eq))
+
+               (local $source (ref eq))
+
+               (local.set $source (global.get $false))
+               (if (i32.eqz (ref.test (ref $String) (local.get $input)))
+                   (then (return (local.get $input))))
+               (if (i32.eqz (ref.test (ref $String) (local.get $insert)))
+                   (then (return (local.get $input))))
+               (if (ref.test (ref $String) (local.get $rx-raw))
+                   (then (local.set $source (local.get $rx-raw)))
+                   (else
+                    (if (i32.eqz (ref.test (ref $Regexp) (local.get $rx-raw)))
+                        (then (return (local.get $input))))
+                    (local.set $source
+                               (struct.get $Regexp $source
+                                           (ref.cast (ref $Regexp)
+                                                     (local.get $rx-raw))))))
+               (if (i32.eqz (ref.test (ref $String) (local.get $source)))
+                   (then (return (local.get $input))))
+               (return_call $string-replace
+                            (local.get $input)
+                            (local.get $source)
+                            (local.get $insert)
+                            (local.get $all?)))
+
+         ;; regexp-replace : regexp? string? string? [bytes?] -> string?
+         ;;   Bootstrap subset: literal string replacement only.
+         (func $regexp-replace (type $Prim34)
+               (param $rx-raw (ref eq)) ;; regexp?, byte-regexp?, string?, or bytes?
+               (param $input  (ref eq)) ;; string? or bytes?
+               (param $insert (ref eq)) ;; string?, bytes?, or procedure?
+               (param $prefix (ref eq)) ;; optional bytes?, default = #"", ignored by subset
+               (result        (ref eq))
+               (return_call $regexp-replace/subset
+                            (local.get $rx-raw)
+                            (local.get $input)
+                            (local.get $insert)
+                            (global.get $false)))
+
+         ;; regexp-replace* : regexp? string? string? [bytes?] -> string?
+         ;;   Bootstrap subset: literal string replacement only.
+         (func $regexp-replace* (type $Prim>=3)
+               (param $rx-raw (ref eq)) ;; regexp?, byte-regexp?, string?, or bytes?
+               (param $input  (ref eq)) ;; string? or bytes?
+               (param $insert (ref eq)) ;; string?, bytes?, or procedure?
+               (param $rest   (ref eq)) ;; optional start/end/prefix args, ignored by subset
+               (result        (ref eq))
+               (return_call $regexp-replace/subset
+                            (local.get $rx-raw)
+                            (local.get $input)
+                            (local.get $insert)
+                            (global.get $true)))
 
          ;;;
          ;;; 4.9 KEYWORDS
@@ -47945,11 +48014,133 @@
         ;;   output ports keep a mutable byte buffer that grows as data is
         ;;   written.
 
+        ;; struct-has-property?/i32 : any/c struct-type-property? -> i32
+        ;;   Check whether a struct instance's type has a property.
+        (func $struct-has-property?/i32
+              (param $v    (ref eq))
+              (param $prop (ref $StructTypeProperty))
+              (result      i32)
+
+              (local $type     (ref $StructType))
+              (local $sentinel (ref eq))
+              (local $prop-val (ref eq))
+
+              (if (i32.eqz (ref.test (ref $Struct) (local.get $v)))
+                  (then (return (i32.const 0))))
+              (local.set $type
+                         (struct.get $Struct $type
+                                     (ref.cast (ref $Struct) (local.get $v))))
+              (local.set $sentinel (call $cons (global.get $false)
+                                         (global.get $false)))
+              (local.set $prop-val
+                         (call $struct-type-property-lookup
+                               (local.get $type)
+                               (local.get $prop)
+                               (local.get $sentinel)))
+              (i32.eqz (ref.eq (local.get $prop-val) (local.get $sentinel))))
+
+        ;; input-port-like?/i32 : any/c -> i32
+        ;;   Recognize native input ports and prop:input-port wrappers.
+        (func $input-port-like?/i32
+              (param $v (ref eq))
+              (result   i32)
+              (if (ref.test (ref $InputPort) (local.get $v))
+                  (then (return (i32.const 1))))
+              (call $struct-has-property?/i32
+                    (local.get $v)
+                    (ref.cast (ref $StructTypeProperty)
+                              (global.get $prop:input-port))))
+
+        ;; output-port-like?/i32 : any/c -> i32
+        ;;   Recognize native output ports and prop:output-port wrappers.
+        (func $output-port-like?/i32
+              (param $v (ref eq))
+              (result   i32)
+              (if (ref.test (ref $OutputPort) (local.get $v))
+                  (then (return (i32.const 1))))
+              (call $struct-has-property?/i32
+                    (local.get $v)
+                    (ref.cast (ref $StructTypeProperty)
+                              (global.get $prop:output-port))))
+
+        ;; prop-output-port-target : any/c -> (or/c output-port? #f)
+        ;;   Resolve a prop:output-port wrapper to its underlying output port.
+        ;;   The Reference allows either a direct output port or a field index
+        ;;   whose immutable field contains an output port. If the property is
+        ;;   present but unusable, Racket uses a discard port; WebRacket has no
+        ;;   discard-port subtype yet, so return #f and let callers follow their
+        ;;   existing unsupported-output-port path.
+        (func $prop-output-port-target
+              (param $v (ref eq))
+              (result   (ref eq))
+
+              (local $struct   (ref $Struct))
+              (local $type     (ref $StructType))
+              (local $sentinel (ref eq))
+              (local $prop-val (ref eq))
+              (local $raw      i32)
+              (local $idx      i32)
+              (local $fields   (ref $Array))
+              (local $field-v  (ref eq))
+
+              (if (ref.test (ref $OutputPort) (local.get $v))
+                  (then (return (local.get $v))))
+              (if (i32.eqz (ref.test (ref $Struct) (local.get $v)))
+                  (then (return (global.get $false))))
+              (local.set $struct (ref.cast (ref $Struct) (local.get $v)))
+              (local.set $type   (struct.get $Struct $type (local.get $struct)))
+              (local.set $sentinel (call $cons (global.get $false)
+                                         (global.get $false)))
+              (local.set $prop-val
+                         (call $struct-type-property-lookup
+                               (local.get $type)
+                               (ref.cast (ref $StructTypeProperty)
+                                         (global.get $prop:output-port))
+                               (local.get $sentinel)))
+              (if (ref.eq (local.get $prop-val) (local.get $sentinel))
+                  (then (return (global.get $false))))
+              (if (ref.test (ref $OutputPort) (local.get $prop-val))
+                  (then (return (local.get $prop-val))))
+              (if (i32.eqz (ref.test (ref i31) (local.get $prop-val)))
+                  (then (return (global.get $false))))
+              (local.set $raw (i31.get_u (ref.cast (ref i31) (local.get $prop-val))))
+              (if (i32.and (local.get $raw) (i32.const 1))
+                  (then (return (global.get $false))))
+              (local.set $idx (i32.shr_u (local.get $raw) (i32.const 1)))
+              (local.set $fields (struct.get $Struct $fields (local.get $struct)))
+              (if (i32.ge_u (local.get $idx) (array.len (local.get $fields)))
+                  (then (return (global.get $false))))
+              (local.set $field-v (array.get $Array (local.get $fields) (local.get $idx)))
+              (if (result (ref eq))
+                  (ref.test (ref $OutputPort) (local.get $field-v))
+                  (then (local.get $field-v))
+                  (else (global.get $false))))
+
+        ;; port-like?/i32 : any/c -> i32
+        ;;   Recognize native ports and prop:input-port/prop:output-port wrappers.
+        (func $port-like?/i32
+              (param $v (ref eq))
+              (result   i32)
+              (if (ref.test (ref $Port) (local.get $v))
+                  (then (return (i32.const 1))))
+              (i32.or (call $input-port-like?/i32 (local.get $v))
+                      (call $output-port-like?/i32 (local.get $v))))
+
         (func $port? (type $Prim1)
-              ,@(make-predicate-body '$Port))
+              (param $v (ref eq)) ;; any/c
+              (result   (ref eq))
+              (if (result (ref eq))
+                  (call $port-like?/i32 (local.get $v))
+                  (then (global.get $true))
+                  (else (global.get $false))))
 
         (func $input-port? (type $Prim1)
-              ,@(make-predicate-body '$InputPort))
+              (param $v (ref eq)) ;; any/c
+              (result   (ref eq))
+              (if (result (ref eq))
+                  (call $input-port-like?/i32 (local.get $v))
+                  (then (global.get $true))
+                  (else (global.get $false))))
 
         ;; file-stream-port? : any/c -> boolean?
         ;;   Recognize VFS-backed file ports. WebRacket currently represents
@@ -48084,7 +48275,12 @@
               (local.get $fallback))
 
         (func $output-port? (type $Prim1)
-              ,@(make-predicate-body '$OutputPort))
+              (param $v (ref eq)) ;; any/c
+              (result   (ref eq))
+              (if (result (ref eq))
+                  (call $output-port-like?/i32 (local.get $v))
+                  (then (global.get $true))
+                  (else (global.get $false))))
 
         (func $port-closed? (type $Prim1)
               (param $p (ref eq)) ;; port?
@@ -48363,10 +48559,21 @@
 
                (local $port (ref null $Port))
                (local $loc  (ref null $Location))
-               ;; 1. Check and cast $p to (ref $Port)
+               ;; 1. Check and cast $p to (ref $Port). Some Goal 1 formatter
+               ;; paths can pass higher-level port wrappers before WebRacket
+               ;; fully models prop:input-port/prop:output-port. Preserve the
+               ;; Reference-mandated three-result shape; when possible, resolve
+               ;; prop:output-port to the underlying native port first.
                (if (ref.test (ref $Port) (local.get $p))
                    (then (local.set $port (ref.cast (ref $Port) (local.get $p))))
-                   (else (return (global.get $false))))
+                   (else
+                    (local.set $p (call $prop-output-port-target (local.get $p)))
+                    (if (ref.test (ref $Port) (local.get $p))
+                        (then (local.set $port (ref.cast (ref $Port) (local.get $p))))
+                        (else (return (array.new_fixed $Values 3
+                                                       (global.get $false)
+                                                       (global.get $false)
+                                                       (global.get $false)))))))
                ;; 2. Get location struct from the port
                (local.set $loc (struct.get $Port $loc (local.get $port)))
                ;; 3. Extract and return as fixed array of 3 elements
@@ -48917,7 +49124,7 @@
                (param $out (ref eq)) ;; output-port?
                (result     (ref eq))
 
-               (if (i32.eqz (ref.test (ref $OutputPort) (local.get $out)))
+               (if (i32.eqz (call $output-port-like?/i32 (local.get $out)))
                    (then (call $raise-argument-error1
                                (global.get $symbol:port-writes-atomic?)
                                (global.get $string:output-port?)
@@ -48932,7 +49139,7 @@
                (param $out (ref eq)) ;; output-port?
                (result     (ref eq))
 
-               (if (i32.eqz (ref.test (ref $OutputPort) (local.get $out)))
+               (if (i32.eqz (call $output-port-like?/i32 (local.get $out)))
                    (then (call $raise-argument-error1
                                (global.get $symbol:port-writes-special?)
                                (global.get $string:output-port?)
@@ -51040,6 +51247,9 @@
                (if (ref.eq (local.get $out) (global.get $missing))
                    (then (local.set $out (call $current-output-port
                                                (global.get $missing)))))
+               (if (i32.eqz (ref.test (ref $OutputPort) (local.get $out)))
+                   (then (local.set $out (call $prop-output-port-target
+                                               (local.get $out)))))
                (if (ref.test (ref $OutputStringPort) (local.get $out))
                    (then (local.set $sp (ref.cast (ref $OutputStringPort) (local.get $out))))
                    (else (return (global.get $false))))
@@ -51402,6 +51612,9 @@
                    (then (local.set $out (call $current-output-port
                                                (global.get $missing)))))
                (if (i32.eqz (ref.test (ref $OutputPort) (local.get $out)))
+                   (then (local.set $out (call $prop-output-port-target
+                                               (local.get $out)))))
+               (if (i32.eqz (ref.test (ref $OutputPort) (local.get $out)))
                    (then (call $raise-check-string-port (local.get $out)) (unreachable)))
                ;; --- Decode optional start index ---
                (if (ref.eq (local.get $start) (global.get $missing))
@@ -51486,7 +51699,7 @@
                (if (ref.eq (local.get $out) (global.get $missing))
                    (then (local.set $out (call $current-output-port
                                                (global.get $missing)))))
-               (if (i32.eqz (ref.test (ref $OutputStringPort) (local.get $out)))
+               (if (i32.eqz (call $output-port-like?/i32 (local.get $out)))
                    (then (call $raise-check-string-port (local.get $out)) (unreachable)))
                ;; --- Decode optional start index ---
                (if (ref.eq (local.get $start) (global.get $missing))
@@ -58181,10 +58394,66 @@
                (local.set $prop-val
                           (call $struct-type-property-lookup
                                 (local.get $type)
-                                (ref.cast (ref $StructTypeProperty)
+                               (ref.cast (ref $StructTypeProperty)
                                           (global.get $prop:procedure))
                                 (local.get $sentinel)))
                (i32.eqz (ref.eq (local.get $prop-val) (local.get $sentinel))))
+
+         ;; struct-procedure-delegate : any/c -> (or/c procedure? #f)
+         ;;   Resolve a field-based prop:procedure struct to its delegate
+         ;;   procedure. This mirrors invoke-struct's field-index case so
+         ;;   reflection such as procedure-arity sees the real callable arity.
+         (func $struct-procedure-delegate
+               (param $v (ref eq))
+               (result   (ref eq))
+
+               (local $struct      (ref $Struct))
+               (local $type        (ref $StructType))
+               (local $sentinel    (ref eq))
+               (local $prop-val    (ref eq))
+               (local $idx         i32)
+               (local $super       (ref eq))
+               (local $super-type  (ref null $StructType))
+               (local $super-count i32)
+               (local $abs-index   i32)
+               (local $fields      (ref $Array))
+               (local $target      (ref eq))
+
+               (if (i32.eqz (ref.test (ref $Struct) (local.get $v)))
+                   (then (return (global.get $false))))
+               (local.set $struct (ref.cast (ref $Struct) (local.get $v)))
+               (local.set $type   (struct.get $Struct $type (local.get $struct)))
+               (local.set $sentinel (call $cons (global.get $false) (global.get $false)))
+               (local.set $prop-val
+                          (call $struct-type-property-lookup
+                                (local.get $type)
+                                (ref.cast (ref $StructTypeProperty)
+                                          (global.get $prop:procedure))
+                                (local.get $sentinel)))
+               (if (ref.eq (local.get $prop-val) (local.get $sentinel))
+                   (then (return (global.get $false))))
+               (if (i32.eqz (ref.test (ref i31) (local.get $prop-val)))
+                   (then (return (global.get $false))))
+               (local.set $idx (i32.shr_u
+                                (i31.get_u (ref.cast (ref i31) (local.get $prop-val)))
+                                (i32.const 1)))
+               (local.set $super (struct.get $StructType $super (local.get $type)))
+               (local.set $super-type (ref.null $StructType))
+               (local.set $super-count (i32.const 0))
+               (if (i32.eqz (ref.eq (local.get $super) (global.get $false)))
+                   (then (local.set $super-type (ref.cast (ref $StructType) (local.get $super)))
+                         (local.set $super-count
+                                    (struct.get $StructType $field-count
+                                                (local.get $super-type)))))
+               (local.set $fields (struct.get $Struct $fields (local.get $struct)))
+               (local.set $abs-index (i32.add (local.get $super-count) (local.get $idx)))
+               (if (i32.ge_u (local.get $abs-index) (array.len (local.get $fields)))
+                   (then (return (global.get $false))))
+               (local.set $target (array.get $Array (local.get $fields) (local.get $abs-index)))
+               (if (result (ref eq))
+                   (ref.test (ref $Procedure) (local.get $target))
+                   (then (local.get $target))
+                   (else (global.get $false))))
 
          ;; procedure-struct-type? : struct-type? -> boolean?
          ;;   Check whether instances of a structure type act as procedures.
@@ -59251,9 +59520,23 @@
                (local $elem      (ref eq))
                (local $arity-i32 i32)
                (local $value     i32)
+               (local $delegate  (ref eq))
 
                ;; Initialize non-defaultable locals
                (local.set $elem (global.get $false))
+               (local.set $delegate (global.get $false))
+
+               ;; Applicable structs should reflect the arity of their
+               ;; field-based prop:procedure delegate, not their wrapper
+               ;; struct's internal zero-arity application shell.
+               (if (ref.test (ref $Struct) (local.get $p))
+                   (then
+                    (local.set $delegate (call $struct-procedure-delegate
+                                               (local.get $p)))
+                    (if (ref.test (ref $Procedure) (local.get $delegate))
+                        (then (return_call $procedure-arity/checked
+                                           (ref.cast (ref $Procedure)
+                                                     (local.get $delegate)))))))
 
                ;; 1. Extract arity field (either a fixnum (ref i31) or an $I32Array of markers)
                (local.set $a (struct.get $Procedure $arity (local.get $p)))
@@ -59306,6 +59589,43 @@
                                  (ref.cast (ref $PrimitiveProcedure)
                                            (local.get $proc))))))
                (global.get $false))
+
+         ;; chaperone-procedure : procedure? (or/c procedure? #f) any/c ... -> procedure?
+         ;;   Reference chaperones interpose on calls while preserving
+         ;;   chaperone-of? constraints. WebRacket does not implement real
+         ;;   chaperones yet, so use the same Goal-1 bridge as the unsafe
+         ;;   variant: a wrapper procedure becomes the callable result, and
+         ;;   #f means "no interposition", so the original procedure is kept.
+         (func $chaperone-procedure (type $Prim>=2)
+               (param $proc    (ref eq)) ;; original procedure
+               (param $wrapper (ref eq)) ;; wrapper procedure or #f
+               (param $props   (ref eq)) ;; ignored property/value list
+               (result         (ref eq))
+
+               (if (ref.eq (call $procedure? (local.get $proc)) (global.get $false))
+                   (then (call $raise-argument-error:procedure-expected (local.get $proc))
+                         (unreachable)))
+               (if (ref.eq (local.get $wrapper) (global.get $false))
+                   (then (return (local.get $proc))))
+               (if (ref.eq (call $procedure? (local.get $wrapper)) (global.get $false))
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:chaperone-procedure)
+                               (global.get $string:procedure-or-false?)
+                               (local.get $wrapper))
+                         (unreachable)))
+               (local.get $wrapper))
+
+         ;; chaperone-struct : any/c any/c ... -> any/c
+         ;;   Full Racket interposes on struct accessors, mutators, property
+         ;;   accessors, and struct-info. WebRacket has no chaperone wrappers
+         ;;   yet; for Goal 1, preserve identity and ignore interposition so
+         ;;   contract-heavy libraries can instantiate their helper structs.
+         (func $chaperone-struct (type $Prim>=1)
+               (param $v    (ref eq)) ;; value to chaperone
+               (param $args (ref eq)) ;; ignored struct/type/proc/property args
+               (result      (ref eq))
+
+               (local.get $v))
 
          ;; unsafe-chaperone-procedure : procedure? procedure? any/c ... -> procedure?
          ;;   WebRacket does not implement chaperones yet. Preserve the useful
@@ -59378,6 +59698,17 @@
                (local $arity i32)
                (local $mask  i32)
                (local $start i32)
+               (local $delegate (ref eq))
+
+               (local.set $delegate (global.get $false))
+               (if (ref.test (ref $Struct) (local.get $proc))
+                   (then
+                    (local.set $delegate (call $struct-procedure-delegate
+                                               (local.get $proc)))
+                    (if (ref.test (ref $Procedure) (local.get $delegate))
+                        (then (return_call $procedure-arity-mask/checked/i32
+                                           (ref.cast (ref $Procedure)
+                                                     (local.get $delegate)))))))
 
                ;; Step 1: inspect the procedure arity representation
                (local.set $a (struct.get $Procedure $arity (local.get $proc)))
@@ -59784,6 +60115,37 @@
                (global.get $symbol:root-continuation-prompt-tag))
 
          ;; 10.5 Continuation Marks
+
+         ;; call-with-immediate-continuation-mark : any/c (any/c -> any/c) [any/c] -> any/c
+         ;;   WebRacket currently erases with-continuation-mark frames, so the
+         ;;   current frame has no mark to inspect. Follow the Reference's
+         ;;   "not found" behavior and tail-call proc with default-v, whose
+         ;;   optional default is #f.
+         (func $call-with-immediate-continuation-mark (type $Prim23)
+               (param $key       (ref eq)) ;; any/c, ignored until real marks exist
+               (param $proc-raw  (ref eq)) ;; procedure?
+               (param $default-v (ref eq)) ;; optional any/c, default = #f
+               (result           (ref eq))
+
+               (local $proc (ref $Procedure))
+               (local $inv  (ref $ProcedureInvoker))
+               (local $arg  (ref eq))
+
+               (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc-raw)))
+                   (then (call $raise-argument-error:procedure-expected
+                               (local.get $proc-raw))
+                         (unreachable)))
+               (local.set $proc (ref.cast (ref $Procedure) (local.get $proc-raw)))
+               (local.set $inv  (struct.get $Procedure $invoke (local.get $proc)))
+               (local.set $arg
+                          (if (result (ref eq))
+                              (ref.eq (local.get $default-v) (global.get $missing))
+                              (then (global.get $false))
+                              (else (local.get $default-v))))
+               (return_call_ref $ProcedureInvoker
+                                (local.get $proc)
+                                (array.new_fixed $Args 1 (local.get $arg))
+                                (local.get $inv)))
 
          ;; make-continuation-mark-key : [symbol?] -> continuation-mark-key?
          ;;   Allocate a fresh opaque key. The optional symbol defaults to #f

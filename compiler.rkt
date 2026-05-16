@@ -1123,6 +1123,7 @@
       make-log-receiver
       format fprintf
       sync sync/timeout
+      chaperone-procedure chaperone-struct
       extend-parameterization
       string-append-immutable string-append* bytes-append*)
     ; - kind
@@ -1138,6 +1139,8 @@
         [(fprintf) 2]
         [(sync) 0]
         [(sync/timeout) 1]
+        [(chaperone-struct) 1]
+        [(chaperone-procedure) 2]
         [(call-with-semaphore) 2]
         [(extend-parameterization) 1]
         [(make-logger) 0]
@@ -1166,6 +1169,8 @@
         [(fprintf) 2]
         [(sync) 0]
         [(sync/timeout) 1]
+        [(chaperone-struct) 1]
+        [(chaperone-procedure) 2]
         [(call-with-semaphore) 2]
         [(foldl foldr instance-set-variable-value!) 3]
         [(stencil-vector-update $system-stencil-vector-update unsafe-stencil-vector-update) 3]
@@ -1476,6 +1481,15 @@
     (make-inline-specs
      '(continuation-mark-set-first)
      'optional 2 4)
+    (make-inline-specs
+     '(call-with-immediate-continuation-mark)
+     'optional 2 3)
+    (make-inline-specs
+     '(regexp-replace)
+     'optional 3 4)
+    (make-inline-specs
+     '(regexp-replace*)
+     'optional-rest 3 6 3)
     (make-inline-specs
      '(continuation-prompt-available?)
      'optional 1 2)
@@ -2402,6 +2416,8 @@
   procedure-impersonator*?
   chaperone?
   impersonator-val
+  chaperone-procedure
+  chaperone-struct
   output-port?  
   port-closed?
   current-input-port
@@ -2661,6 +2677,7 @@
   js-log
 
   ;; 10. Control Flow
+  call-with-immediate-continuation-mark
   call-with-values
   call-with-continuation-barrier ; bootstrap approximation: invokes thunk
   call-with-escape-continuation ; bootstrap approximation: no non-local escape
@@ -2744,6 +2761,8 @@
   pregexp?
   regexp-match
   regexp-match?
+  regexp-replace
+  regexp-replace*
   regexp?
   webracket-literal-byte-pregexp
   webracket-literal-byte-regexp

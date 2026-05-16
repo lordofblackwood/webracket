@@ -28,6 +28,15 @@
                          (let ([a (procedure-arity (lambda x x))])
                            (and (arity-at-least? a)
                                 (equal? (arity-at-least-value a) 0)))))
+              (list "procedure-arity: prop:procedure field"
+                    (let ()
+                      (struct callable (proc) #:property prop:procedure 0)
+                      (define p (callable (lambda xs xs)))
+                      (define a (procedure-arity p))
+                      (and (procedure? p)
+                           (arity-at-least? a)
+                           (equal? (arity-at-least-value a) 0)
+                           (procedure-arity-includes? p 5))))
               (list "case-lambda"
                     (list (equal? (procedure? (case-lambda)) #t)
                           (equal? (procedure? (case-lambda [(x) x])) #t)
@@ -2053,6 +2062,10 @@
                                  #f)
                          (equal? (regexp-match (byte-regexp #"([^;]*);(.*)") #"c;d")
                                  (list #"c;d" #"c" #"d"))))
+              (list "regexp-replace bootstrap subset"
+                    (and (equal? (regexp-replace #rx"\n" "a\nb" " ") "a b")
+                         (equal? (regexp-replace* #rx"-" "a-b-c" "_") "a_b_c")
+                         (equal? (regexp-replace #rx"z" "abc" "x") "abc")))
               (list "datum-intern-literal bootstrap"
                     (let ([s (string #\a #\b)]
                           [b (bytes 1 2)])
@@ -2990,8 +3003,29 @@
               (list "procedure-result-arity/unknown-closure"
                     (equal? (procedure-result-arity (lambda (x) x)) #f))
 
+              (list "call-with-immediate-continuation-mark/default"
+                    (equal? (call-with-immediate-continuation-mark
+                             'k
+                             (lambda (v) v)
+                             'fallback)
+                            'fallback))
+
               (list "chaperone?/none"
                     (equal? (chaperone? (vector 1 2 3)) #f))
+
+              (list "chaperone-procedure/bridge"
+                    (let* ([proc (lambda (x) (+ x 1))]
+                           [wrapped (chaperone-procedure proc
+                                                         (lambda (x) (+ x 2)))])
+                      (and (procedure? wrapped)
+                           (equal? (wrapped 40) 42)
+                           (eq? (chaperone-procedure proc #f) proc))))
+
+              (list "chaperone-struct/identity-bridge"
+                    (let ()
+                      (struct point (x))
+                      (define p (point 42))
+                      (eq? (chaperone-struct p point? #f) p)))
 
               (list "make-impersonator-property/inert"
                     (let-values ([(prop has-prop? get-prop)
@@ -6747,6 +6781,25 @@
                            (port-writes-special? 'not-a-port)
                            #f)))
 
+              (list "prop:output-port predicates"
+                    (let ()
+                      (struct sink (port) #:property prop:output-port 0)
+                      (define out (sink (open-output-string)))
+                      (and (port? out)
+                           (output-port? out)
+                           (not (input-port? out))
+                           (equal? (port-writes-special? out) #f))))
+
+              (list "prop:output-port write-string"
+                    (let ()
+                      (struct sink (port) #:property prop:output-port 0)
+                      (define under (open-output-string))
+                      (define out (sink under))
+                      (write-string "ok" out)
+                      (and (equal? (get-output-string under) "ok")
+                           (let-values ([(line col pos) (port-next-location out)])
+                             (equal? (list line col pos) '(1 2 3))))))
+
               (list "make-output-port/write-bytes"
                     (let ([seen #""])
                       (let ([port (make-output-port
@@ -7560,7 +7613,8 @@
                                   (equal? (loc) '(2 0 3)))
                            (begin (write-byte 9 port)
                                   (equal? (loc) '(2 8 4)))
-                           (equal? (port-next-location 42) #f))))))
+                           (let-values ([(line col pos) (port-next-location 42)])
+                             (equal? (list line col pos) '(#f #f #f))))))))
        )
 
              (list "10.2 Exceptions"
