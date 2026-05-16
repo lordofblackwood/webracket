@@ -96,6 +96,42 @@
   (check-false (memq 'raise-argument-error aliases))
   (check-false (memq 'read aliases)))
 
+(test-case "legacy intmap exports are classified as transitional"
+  (for ([sym (in-list '(intmap?
+                        intmap-ref
+                        intmap-set
+                        intmap-iterate-first
+                        unsafe-intmap-iterate-next))])
+    (check-not-false (memq sym stdlib-transitional-export-symbols)
+                     (format "~a should be transitional" sym)))
+  (for ([sym (in-list '(empty-hash
+                        empty-hasheq
+                        empty-hasheqv
+                        hash-code-combine
+                        hash-code-combine*
+                        hash-code-combine-unordered
+                        hash-code-combine-unordered*))])
+    (check-not-false (memq sym stdlib-primitive-owned-export-symbols)
+                     (format "~a should be primitive/HAMT-owned" sym))))
+
+(test-case "browser stdlib root compiles browser-only export"
+  (define-values (status output)
+    (run-temp-webracket
+     "(void sxml->dom)\n"
+     (list "--browser" "--stdlib")))
+  (check-equal? status 0 output))
+
+(test-case "node stdlib root does not expose browser-only export"
+  (define-values (status output)
+    (run-temp-webracket
+     "(js-log sxml->dom)\n"
+     (list "-r" "--stdlib")))
+  (check-not-equal? status 0 output)
+  (check-true
+   (or (string-contains? output "sxml->dom")
+       (string-contains? output "unbound"))
+   output))
+
 (test-case "exception ownership lists classify temporary primitive helpers"
   (for ([sym (in-list '(format
                         fprintf

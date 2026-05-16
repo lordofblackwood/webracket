@@ -53,6 +53,10 @@
     (remove* expected-primitive-owned-exports primitive-owned eq?))
   (printf "stdlib-root: ~a\n" (if browser? 'browser 'node))
   (printf "stdlib-primitive-owned-exports: ~s\n" primitive-owned)
+  (printf "stdlib-transitional-exports: ~s\n"
+          (sort (filter (lambda (sym) (set-member? exports sym))
+                        stdlib-transitional-export-symbols)
+                symbol<?))
   (printf "stdlib-alias-count: ~a\n" (set-count aliases))
   (unless (null? alias-collisions)
     (error 'check-stdlib-primitive-collisions

@@ -129,6 +129,53 @@ stdlib/writing.rkt  ; temporary; use ../racket/racket/src/io/format/
 `stdlib/intmap.rkt` is also transitional. Its public `intmap-*` exports are
 bridge scaffolding unless a future design explicitly keeps them public.
 
+Current legacy hash/intmap classification:
+
+```racket
+;; Transitional stdlib aliases. Do not build new code against these names.
+intmap?
+intmap-equal?
+intmap-eqv?
+intmap-eq?
+intmap-count
+intmap-empty?
+intmap-ref
+intmap-ref-key
+intmap-has-key?
+intmap-set
+intmap-remove
+intmap-fold
+intmap-for-each
+intmap-map
+intmap-hash-code
+intmap-keys-subset?
+intmap-iterate-first
+intmap-iterate-next
+intmap-iterate-pair
+intmap-iterate-key
+intmap-iterate-value
+intmap-iterate-key+value
+unsafe-intmap-iterate-first
+unsafe-intmap-iterate-next
+unsafe-intmap-iterate-pair
+unsafe-intmap-iterate-key
+unsafe-intmap-iterate-value
+unsafe-intmap-iterate-key+value
+
+;; Runtime/HAMT-owned public values for now.
+empty-hash
+empty-hasheq
+empty-hasheqv
+hash-code-combine
+hash-code-combine*
+hash-code-combine-unordered
+hash-code-combine-unordered*
+```
+
+The long-term immutable-hash implementation should use the runtime HAMT work,
+not the abandoned `stdlib/hash.rkt` or the `stdlib/intmap.rkt` Patricia-tree
+scaffolding.
+
 ## Browser Stdlib
 
 Browser-only helpers should remain owned by `stdlib/stdlib-for-browser.rkt`:
@@ -144,6 +191,38 @@ attribute-marker?
 add-children!
 raise-sxml-*
 ```
+
+## `io/format` Reconnaissance
+
+The Racket source split under `../racket/racket/src/io/` is more granular than
+the current `stdlib/writing.rkt` file:
+
+```text
+io/format/main.rkt      ; format, fprintf, printf, eprintf
+io/format/printf.rkt    ; do-printf and format-string validation/emission
+io/print/main.rkt       ; display, write, print, newline
+io/print/parameter.rkt  ; print parameter family
+io/error/value-string.rkt ; error-value->string registration bridge
+```
+
+Important dependencies seen in the first reading:
+
+```text
+io/format/main.rkt needs current-output-port/current-error-port,
+open-output-string, get-output-string, string/bytes conversion, and do-printf.
+
+io/format/printf.rkt needs display/write/print handlers, error-value->string,
+error-print-width, parameterize, and the output-port layer.
+
+io/print/main.rkt needs core output ports, custom-write properties, print
+configuration, graph detection, vectors, lists, hashes, regexp printing, and
+the print parameter family.
+```
+
+Recommendation: port/compose `io/format` in stages. Start with
+`io/format/main.rkt` and `io/format/printf.rkt` once the needed port and print
+substrate is stable. Do not try to replace all of `stdlib/writing.rkt` in one
+move; `io/print/main.rkt` pulls in a much larger printing subsystem.
 
 ## Guardrail
 

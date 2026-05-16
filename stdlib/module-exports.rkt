@@ -17,7 +17,8 @@
          stdlib-definition-form-symbols
          stdlib-node-files
          stdlib-browser-files
-         stdlib-primitive-owned-export-symbols)
+         stdlib-primitive-owned-export-symbols
+         stdlib-transitional-export-symbols)
 
 (define-runtime-path stdlib-dir ".")
 
@@ -37,6 +38,36 @@
 
 (define stdlib-browser-files
   '("browser.rkt"))
+
+(define stdlib-transitional-export-symbols
+  '(unsafe-intmap-iterate-key+value
+    unsafe-intmap-iterate-value
+    unsafe-intmap-iterate-key
+    unsafe-intmap-iterate-pair
+    unsafe-intmap-iterate-next
+    unsafe-intmap-iterate-first
+    intmap-iterate-key+value
+    intmap-iterate-value
+    intmap-iterate-key
+    intmap-iterate-pair
+    intmap-iterate-next
+    intmap-iterate-first
+    intmap-keys-subset?
+    intmap-hash-code
+    intmap-map
+    intmap-for-each
+    intmap-fold
+    intmap-remove
+    intmap-set
+    intmap-has-key?
+    intmap-ref-key
+    intmap-ref
+    intmap-empty?
+    intmap-count
+    intmap-eq?
+    intmap-eqv?
+    intmap-equal?
+    intmap?))
 
 ;; Public stdlib exports that intentionally remain compiler/runtime primitives
 ;; at the top level for now. The module wrapper still evaluates the stdlib
