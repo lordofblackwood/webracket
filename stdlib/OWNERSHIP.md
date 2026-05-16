@@ -109,9 +109,6 @@ print
 displayln
 writeln
 println
-printf
-eprintf
-fprintf*
 ```
 
 ## Do Not Finish In `stdlib/`
@@ -123,8 +120,14 @@ into final implementations.
 stdlib/hash.rkt     ; abandoned immutable hash attempt; runtime HAMT is the path
 stdlib/regexp.rkt   ; obsolete; use ../racket/racket/src/regexp/
 stdlib/reading.rkt  ; temporary; use ../racket/racket/src/expander/read/
-stdlib/writing.rkt  ; temporary; use ../racket/racket/src/io/format/
+stdlib/writing.rkt  ; temporary printing substrate; use ../racket/racket/src/io/
 ```
+
+Do not add a new `stdlib/` implementation of `format`, `fprintf`,
+`fprintf*`, `printf`, or `eprintf`. Current programs get `format` and
+`fprintf` from compiler/runtime primitives. The replacement path for the whole
+format family is to compose the original Racket `io/format` modules staged
+under `racket-src/io/`.
 
 `stdlib/intmap.rkt` is also transitional. Its public `intmap-*` exports are
 bridge scaffolding unless a future design explicitly keeps them public.

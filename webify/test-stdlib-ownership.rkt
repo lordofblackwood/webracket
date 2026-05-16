@@ -93,6 +93,7 @@
   (check-not-false (memq 'error aliases))
   (check-not-false (memq 'raise-argument-error* aliases))
   (check-false (memq 'format aliases))
+  (check-false (memq 'fprintf aliases))
   (check-false (memq 'raise-argument-error aliases))
   (check-false (memq 'read aliases)))
 
@@ -133,9 +134,7 @@
    output))
 
 (test-case "exception ownership lists classify temporary primitive helpers"
-  (for ([sym (in-list '(format
-                        fprintf
-                        raise-argument-error
+  (for ([sym (in-list '(raise-argument-error
                         raise-arguments-error
                         read
                         read-syntax))])
@@ -177,6 +176,19 @@
    (or (string-contains? output "error-message->adjusted-string")
        (string-contains? output "unbound"))
    output))
+
+(test-case "primitive-owned format helpers remain visible with --stdlib"
+  (define-values (status output)
+    (run-temp-webracket
+     (string-append
+      "(define out (open-output-string))\n"
+      "(fprintf out \"io ~a ~s\" \"ok\" '(1 2))\n"
+      "(js-log (get-output-string out))\n"
+      "(js-log (format \"fmt ~a\" 'ok))\n")
+     (list "-r" "--stdlib")))
+  (check-equal? status 0 output)
+  (check-regexp-match #rx"(?m:^io ok \\(1 2\\)$)" output)
+  (check-regexp-match #rx"(?m:^fmt ok$)" output))
 
 (module+ main
   (void))

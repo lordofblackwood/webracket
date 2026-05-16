@@ -127,6 +127,17 @@ webify/test-io-format-main-adapter.rkt  ; host-side public API smoke
 only the require surface. It is not part of the byte-for-byte upstream sync
 guard.
 
+The WebRacket stdlib no longer carries its own hand-written implementation of
+the format family. For the moment, public `format` and `fprintf` remain
+compiler/runtime primitives, because they are needed by current programs and
+because enabling stdlib aliases for them would recreate the stdlib primitive
+collision.
+
+The long-term path is to compose the staged original Racket `io/format`
+implementation into WebRacket once module composition can use those provider
+modules directly. Avoid adding a second WebRacket-specific formatter to
+`stdlib/`; `stdlib/writing.rkt` should own only the writing/printing substrate.
+
 ## Minimal Direct Dependencies
 
 `io/format/main.rkt` directly requires:
@@ -168,7 +179,7 @@ internal print submodule edge remains visible.
 4. Keep `io/print/regexp.rkt` as a hook-only module with
    `printable-regexp? => #f`.
 5. Move `format` and `fprintf` out of the temporary primitive-owned overlap
-   list only after the provider smoke passes.
+   list after their compiler primitive ownership is retired or renamed.
 6. Integrate the demodularized regexp provider later, then install
    `set-printable-regexp?!`.
 
