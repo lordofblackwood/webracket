@@ -31,24 +31,64 @@
 (define goal1-fast-module-cases
   '(hash-basic
     hash-iterate
+    hash-kind-predicates
+    hash-map-basic
+    hash-clear-basic
+    hash-comparator-semantics
     set-count
     set-union
+    set-member
+    set-add
+    set-remove
+    set->list
+    set-intersect
+    set-subtract
+    set-symmetric-difference
+    set-map
+    set-comparator-semantics
+    set-types-predicate
+    stream-first
+    stream-rest
+    promise-require
+    promise-predicate-plain
+    force-identity
+    promise-basic
     promise-state
+    sequence-list
+    sequence-range
+    sequence-for/list
+    sequence-for/vector
     for/in-list
     for/in-vector
+    for/in-string
+    for/in-range
+    for/in-naturals
     for/parallel-sequences
+    for*/nested-sequences
     for/control-clauses
+    for/list-basic
+    for/fold-basic
+    for*/list-basic
+    for/first-basic
     values-call-with-values
     values-let-values
     sequence-for/fold
+    match-basic
+    match-literal-default
     match-let-basic
     match-predicate
+    multi-module-list-string-set
+    multi-module-reexport-installed
+    custom-write-require
     keyword-optional-direct
     keyword-plain-direct
     format-require
     format-single
     format-number
     format-basic
+    format-write
+    format-align
+    format-fprintf-port
     class-basic))
 
 ;; smoke-label : installed-runtime-smoke? -> string?
@@ -121,7 +161,9 @@
       set-subtract
       set-symmetric-difference
       set-map
+      set-types-require
       set-types-predicate
+      stream-first
       stream-rest
       hash-basic
       hash-kind-predicates
@@ -160,6 +202,10 @@
       format-single
       format-basic
       format-number
+      format-write
+      format-print
+      format-align
+      format-fprintf-port
       match-basic
       match-literal-default
       match-let-basic
@@ -180,6 +226,8 @@
           (case name
             [(set-count set->list set-symmetric-difference set-map) #rx"(?m:^2$)"]
             [(set-member) #rx"(?m:^true$)"]
+            [(set-remove set-subtract set-types-predicate promise-predicate-plain)
+             #rx"(?m:^false$)"]
             [(set-add set-union) #rx"(?m:^3$)"]
             [(set-intersect) #rx"(?m:^1$)"]
             [(hash-kind-predicates) #rx"(?m:^true$)"]
@@ -188,9 +236,8 @@
             [(hash-iterate) #rx"(?m:^9$)"]
             [(multi-module-list-string-set) #rx"(?m:^12$)"]
             [(multi-module-reexport-installed) #rx"(?m:^3$)"]
-            [(pretty-require) #rx"(?m:^42$)"]
+            [(pretty-require set-types-require) #rx"(?m:^42$)"]
             [(promise-require force-identity) #rx"(?m:^42$)"]
-            [(promise-predicate-plain) #rx"(?m:^false$)"]
             [(promise-basic) #rx"(?m:^42$)"]
             [(promise-state) #rx"(?m:^true$)"]
             [(sequence-list
@@ -211,8 +258,10 @@
             [(for/control-clauses) #rx"(?m:^3$)"]
             [(hash-comparator-semantics set-comparator-semantics) #rx"(?m:^21$)"]
             [(hash-basic) #rx"(?m:^41$)"]
-            [(stream-rest
+            [(stream-first
+              stream-rest
               combined-list-string-set
+              custom-write-require
               class-require
               class-basic
               match-basic
@@ -224,6 +273,9 @@
             [(format-single) #rx"(?m:^web$)"]
             [(format-basic) #rx"(?m:^web-racket$)"]
             [(format-number) #rx"(?m:^42$)"]
+            [(format-write) #rx"(?m:^web$)"]
+            [(format-align) #rx"(?m:^  web$)"]
+            [(format-fprintf-port) #rx"(?m:^ok$)"]
             [(keyword-optional-direct) #rx"(?m:^4$)"]
             [(keyword-plain-direct) #rx"(?m:^42$)"]
             [(values-call-with-values values-let-values contract-wrapper-basic)

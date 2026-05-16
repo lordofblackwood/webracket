@@ -82,6 +82,9 @@
     format-single
     format-basic
     format-number
+    format-write
+    format-align
+    format-fprintf-port
     match-basic
     match-literal-default
     match-let-basic
@@ -123,11 +126,38 @@
     format-single
     format-basic
     format-number
+    format-write
+    format-align
+    format-fprintf-port
     keyword-optional-direct
     keyword-plain-direct
     values-call-with-values
     values-let-values
     class-basic
+    stream-first
+    stream-rest
+    promise-require
+    promise-predicate-plain
+    force-identity
+    promise-basic
+    set-member
+    set-add
+    set-remove
+    set->list
+    set-intersect
+    set-subtract
+    set-symmetric-difference
+    set-map
+    set-comparator-semantics
+    hash-kind-predicates
+    hash-map-basic
+    hash-clear-basic
+    hash-comparator-semantics
+    multi-module-list-string-set
+    multi-module-reexport-installed
+    custom-write-require
+    set-types-require
+    set-types-predicate
     set-count
     set-union
     hash-basic
@@ -298,6 +328,29 @@
          (require racket/format)
          (provide y)
          (define y (~a 42))))]
+    [(format-write)
+     '((module use-format-write racket/base
+         (require racket/format)
+         (provide y)
+         (define y (~s 'web))))]
+    [(format-print)
+     '((module use-format-print racket/base
+         (require racket/format)
+         (provide y)
+         (define y (~v 'web))))]
+    [(format-align)
+     '((module use-format-align racket/base
+         (require racket/format)
+         (provide y)
+         (define y (~a "web" #:min-width 5 #:align 'right))))]
+    [(format-fprintf-port)
+     '((module use-format-fprintf-port racket/base
+         (require racket/format)
+         (provide y)
+         (struct sink (port) #:property prop:output-port 0)
+         (define out (open-output-string))
+         (fprintf (sink out) "~a" "ok")
+         (define y (get-output-string out))))]
     [(keyword-optional-direct)
      '((module use-keyword-optional-direct racket/base
          (require racket/private/kw)

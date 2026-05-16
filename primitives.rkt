@@ -1109,6 +1109,9 @@
  procedure-reduce-arity procedure-reduce-arity-mask
  chaperone-procedure
  chaperone-struct
+ chaperone-vector
+ chaperone-box
+ chaperone-hash
  unsafe-chaperone-procedure unsafe-impersonate-procedure
  arity-at-least make-arity-at-least
  arity-at-least?
@@ -3606,6 +3609,16 @@ current-parameterization    ; poor-man dynamic parameterization overlay
 
 (define (chaperone-struct v . args)
   v)
+
+(define (chaperone-vector vec ref-proc set-proc . props)
+  vec)
+
+(define (chaperone-box box unbox-proc set-proc . props)
+  box)
+
+(define (chaperone-hash hash ref-proc set-proc remove-proc key-proc
+                        . maybe-clear/equal-key/props)
+  hash)
 
 (define (unsafe-chaperone-procedure proc wrapper . props)
   wrapper)

@@ -3027,6 +3027,22 @@
                       (define p (point 42))
                       (eq? (chaperone-struct p point? #f) p)))
 
+              (list "chaperone-vector-box-hash/identity-bridge"
+                    (let ([v (vector 1 2)]
+                          [b (box 1)]
+                          [h (hash 'a 1)])
+                      (and (eq? (chaperone-vector v #f #f) v)
+                           (eq? (chaperone-box b
+                                               (lambda (box v) v)
+                                               (lambda (box v) v))
+                                b)
+                           (eq? (chaperone-hash h
+                                                (lambda (hash key) (values key values))
+                                                (lambda (hash key val) (values key val))
+                                                (lambda (hash key) key)
+                                                (lambda (hash key) key))
+                                h))))
+
               (list "make-impersonator-property/inert"
                     (let-values ([(prop has-prop? get-prop)
                                   (make-impersonator-property 'web-impersonator-prop)])
@@ -8252,7 +8268,7 @@
                 (list "procedure-realm"
                       (let* ([anon    (lambda (x) x)]
                              [renamed (procedure-rename anon 'named 'webracket-test)])
-                        (and (equal? (procedure-realm +)       'racket)
+                        (and (equal? (procedure-realm +)       'racket/primitive)
                              (equal? (procedure-realm anon)    'racket)
                              (equal? (procedure-realm renamed) 'webracket-test))))
 

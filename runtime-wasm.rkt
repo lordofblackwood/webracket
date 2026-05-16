@@ -743,6 +743,9 @@
         module-call-with-prompt
         chaperone-procedure
         chaperone-struct
+        chaperone-vector
+        chaperone-box
+        chaperone-hash
         unsafe-chaperone-procedure
         unsafe-impersonate-procedure
         raise-argument-error
@@ -2028,6 +2031,7 @@
     (add-runtime-string-constant 'list?                      "list?")
     (add-runtime-string-constant 'bytes?                     "bytes?")
     (add-runtime-string-constant 'vector?                    "vector?")
+    (add-runtime-string-constant 'box?                       "box?")
     (add-runtime-string-constant 'port?                      "port?")
     (add-runtime-string-constant 'input-port?                "input-port?")
     (add-runtime-string-constant 'file-stream-port?          "file-stream-port?")
@@ -59626,6 +59630,61 @@
                (result      (ref eq))
 
                (local.get $v))
+
+         ;; chaperone-vector : vector? (or/c procedure? #f) (or/c procedure? #f) any/c ... -> vector?
+         ;;   Goal-1 identity bridge. Full Racket interposes on vector ref/set;
+         ;;   WebRacket currently has no chaperone wrapper representation.
+         (func $chaperone-vector (type $Prim>=3)
+               (param $vec      (ref eq)) ;; vector?
+               (param $ref-proc (ref eq)) ;; ignored ref interposer
+               (param $set-proc (ref eq)) ;; ignored set interposer
+               (param $props    (ref eq)) ;; ignored property/value list
+               (result          (ref eq))
+
+               (if (i32.eqz (ref.test (ref $Vector) (local.get $vec)))
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:chaperone-vector)
+                               (global.get $string:vector?)
+                               (local.get $vec))
+                         (unreachable)))
+               (local.get $vec))
+
+         ;; chaperone-box : box? procedure? procedure? any/c ... -> box?
+         ;;   Goal-1 identity bridge. Full Racket interposes on unbox/set-box!;
+         ;;   WebRacket currently has no chaperone wrapper representation.
+         (func $chaperone-box (type $Prim>=3)
+               (param $box        (ref eq)) ;; box?
+               (param $unbox-proc (ref eq)) ;; ignored unbox interposer
+               (param $set-proc   (ref eq)) ;; ignored set interposer
+               (param $props      (ref eq)) ;; ignored property/value list
+               (result            (ref eq))
+
+               (if (i32.eqz (ref.test (ref $Box) (local.get $box)))
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:chaperone-box)
+                               (global.get $string:box?)
+                               (local.get $box))
+                         (unreachable)))
+               (local.get $box))
+
+         ;; chaperone-hash : hash? procedure? procedure? procedure? procedure? any/c ... -> hash?
+         ;;   Goal-1 identity bridge. Full Racket interposes on hash access,
+         ;;   update, remove, key extraction, and optional clear/equal-key
+         ;;   operations; WebRacket currently keeps the original hash.
+         (func $chaperone-hash (type $Prim>=3)
+               (param $hash     (ref eq)) ;; hash?
+               (param $ref-proc (ref eq)) ;; ignored ref interposer
+               (param $set-proc (ref eq)) ;; ignored set interposer
+               (param $rest     (ref eq)) ;; remove/key/optional/properties
+               (result          (ref eq))
+
+               (if (ref.eq (call $hash? (local.get $hash)) (global.get $false))
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:chaperone-hash)
+                               (global.get $string:hash?)
+                               (local.get $hash))
+                         (unreachable)))
+               (local.get $hash))
 
          ;; unsafe-chaperone-procedure : procedure? procedure? any/c ... -> procedure?
          ;;   WebRacket does not implement chaperones yet. Preserve the useful

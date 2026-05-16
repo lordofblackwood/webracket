@@ -1123,7 +1123,7 @@
       make-log-receiver
       format fprintf
       sync sync/timeout
-      chaperone-procedure chaperone-struct
+      chaperone-procedure chaperone-struct chaperone-vector chaperone-box chaperone-hash
       extend-parameterization
       string-append-immutable string-append* bytes-append*)
     ; - kind
@@ -1141,6 +1141,8 @@
         [(sync/timeout) 1]
         [(chaperone-struct) 1]
         [(chaperone-procedure) 2]
+        [(chaperone-vector chaperone-box) 3]
+        [(chaperone-hash) 5]
         [(call-with-semaphore) 2]
         [(extend-parameterization) 1]
         [(make-logger) 0]
@@ -1171,6 +1173,7 @@
         [(sync/timeout) 1]
         [(chaperone-struct) 1]
         [(chaperone-procedure) 2]
+        [(chaperone-vector chaperone-box chaperone-hash) 3]
         [(call-with-semaphore) 2]
         [(foldl foldr instance-set-variable-value!) 3]
         [(stencil-vector-update $system-stencil-vector-update unsafe-stencil-vector-update) 3]
@@ -2418,6 +2421,9 @@
   impersonator-val
   chaperone-procedure
   chaperone-struct
+  chaperone-vector
+  chaperone-box
+  chaperone-hash
   output-port?  
   port-closed?
   current-input-port
