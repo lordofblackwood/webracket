@@ -5,8 +5,7 @@
          "io-format-deps.rkt")
 
 (test-case "staged io/format files are copied from upstream"
-  (for ([file (in-list (append io-format-source-files
-                               '("print/regexp.rkt")))])
+  (for ([file (in-list io-format-staged-source-files)])
     (define staged (io-format-file->path file))
     (define upstream (build-path upstream-io-source-root file))
     (check-true (file-exists? staged) file)
@@ -60,6 +59,18 @@
 (test-case "regexp is only an io/print hook in this staging slice"
   (check-equal? (io-print-regexp-hook-exports)
                 '(printable-regexp? set-printable-regexp?!)))
+
+(test-case "staged direct slice exposes remaining transitive dependencies"
+  (define report (io-format-local-require-closure io-format-source-files))
+  (for ([file (in-list io-format-source-files)])
+    (check-not-false (member file (io-format-local-closure-report-present report))))
+  (check-false (member "format/printf.rkt"
+                       (io-format-local-closure-report-missing report)))
+  (check-not-false (member "print/custom-write.rkt"
+                           (io-format-local-closure-report-missing report)))
+  (check-not-false
+   (for/or ([path (in-list (io-format-local-closure-report-external report))])
+     (regexp-match? #rx"/racket-src/common/check[.]rkt$" path))))
 
 (module+ main
   (void))

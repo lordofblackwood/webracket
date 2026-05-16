@@ -20,14 +20,25 @@ The upstream checkout was clean when these files were recorded.
 ## Files Currently Staged
 
 ```text
+racket-src/io/common/check.rkt
+racket-src/io/error/value-string.rkt
 racket-src/io/format/main.rkt
 racket-src/io/format/printf.rkt
+racket-src/io/port/output-port.rkt
+racket-src/io/port/parameter.rkt
+racket-src/io/port/string-output.rkt
+racket-src/io/port/string-port.rkt
+racket-src/io/print/main.rkt
+racket-src/io/print/mode.rkt
+racket-src/io/print/parameter.rkt
 racket-src/io/print/regexp.rkt
+racket-src/io/string/convert.rkt
 ```
 
-These files are intentionally copied as a minimal `io/format` staging slice.
-Do not copy all of `../racket/racket/src/io/` at once; add files only when a
-focused probe or provider composition needs them.
+These files are intentionally copied as a minimal `io/format` staging slice:
+the format sources, the print regexp hook, and the direct dependencies needed
+for the first provider probe. Do not copy all of `../racket/racket/src/io/` at
+once; add files only when a focused probe or provider composition needs them.
 
 ## Sync Guard
 

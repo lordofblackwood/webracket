@@ -54,13 +54,40 @@ checks this source-level boundary.
 The staged files currently copied from upstream are:
 
 ```text
+racket-src/io/common/check.rkt
+racket-src/io/error/value-string.rkt
 racket-src/io/format/main.rkt
 racket-src/io/format/printf.rkt
+racket-src/io/port/output-port.rkt
+racket-src/io/port/parameter.rkt
+racket-src/io/port/string-output.rkt
+racket-src/io/port/string-port.rkt
+racket-src/io/print/main.rkt
+racket-src/io/print/mode.rkt
+racket-src/io/print/parameter.rkt
 racket-src/io/print/regexp.rkt
+racket-src/io/string/convert.rkt
 ```
 
 Additional `io` files should be copied into `racket-src/io/` only when the
 next probe needs them.
+
+The dependency guard also reports the current local transitive closure. The
+first direct slice is present, but `print/main.rkt` still points at many
+unstaged print and port helpers, and `common/check.rkt` intentionally exposes
+that some shared Racket CS support lives outside `src/io`.
+
+Current closure shape:
+
+```text
+present staged files: 13
+missing io transitive files: 32
+external shared support files: 1
+```
+
+The next provider milestone should decide whether to copy the missing print
+and port helpers, or to introduce a smaller adapter around the operations that
+`format/printf.rkt` actually calls.
 
 ## Minimal Direct Dependencies
 
