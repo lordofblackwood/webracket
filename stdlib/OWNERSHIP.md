@@ -11,6 +11,12 @@ which names are expected to move to real Racket subsystem ports later.
 uses `stdlib/module-exports.rkt` to rewrite stdlib definitions to private names
 and expose selected public names through `module-variable` cells.
 
+This is an interim bridge, not full Racket module support. It preserves
+script-style `--stdlib` compatibility while avoiding top-level primitive
+redefinition collisions. The long-term shape should compose real module/linklet
+providers, so this private-name rewrite should not grow into a second module
+system.
+
 The browser stdlib root is separate:
 
 ```text

@@ -1,10 +1,18 @@
 #lang racket/base
 
 (require racket/file
+         racket/list
+         racket/match
          racket/string
          rackunit
          "test-module-support.rkt"
          "../stdlib/module-exports.rkt")
+
+;; symbols-subset? : (listof symbol?) (listof symbol?) -> boolean?
+;;   Check whether every symbol in xs appears in ys.
+(define (symbols-subset? xs ys)
+  (for/and ([x (in-list xs)])
+    (and (memq x ys) #t)))
 
 ;; write-program! : path-string? string? -> void?
 ;;   Write a temporary source program for stdlib bridge smokes.
@@ -33,6 +41,60 @@
       (for ([dir (in-list (list source-dir dest-dir))])
         (with-handlers ([exn:fail:filesystem? void])
           (delete-directory/files dir))))))
+
+;; forms-contain? : (any/c -> boolean?) (listof any/c) -> boolean?
+;;   Recursively search generated bridge forms.
+(define (forms-contain? pred forms)
+  (define (walk v)
+    (or (pred v)
+        (cond
+          [(pair? v)   (or (walk (car v)) (walk (cdr v)))]
+          [(vector? v) (for/or ([elem (in-vector v)]) (walk elem))]
+          [else        #f])))
+  (for/or ([form (in-list forms)])
+    (walk form)))
+
+(test-case "node and browser stdlib roots expose distinct public surfaces"
+  (define node-exports (stdlib-module-export-symbols #f))
+  (define browser-exports (stdlib-module-export-symbols #t))
+  (check-not-false (memq 'displayln node-exports))
+  (check-not-false (memq 'sxml->dom browser-exports))
+  (check-false (memq 'sxml->dom node-exports))
+  (check-true (symbols-subset? node-exports browser-exports)))
+
+(test-case "stdlib bridge rewrites public definitions to private names"
+  (define-values (forms bindings) (stdlib-module-private-forms+bindings #f))
+  (define error-binding (assoc 'error bindings))
+  (define raise-star-binding (assoc 'raise-argument-error* bindings))
+  (check-not-false error-binding)
+  (check-not-false raise-star-binding)
+  (check-true (symbol? (cdr error-binding)))
+  (check-true (regexp-match? #rx"^webify-stdlib-private\\$"
+                             (symbol->string (cdr error-binding))))
+  (check-true
+   (forms-contain?
+    (lambda (v)
+      (match v
+        [`(define-values ,names . ,_)
+         (and (member (cdr error-binding) names) #t)]
+        [_ #f]))
+    forms))
+  (check-false
+   (forms-contain?
+    (lambda (v)
+      (match v
+        [`(define-values ,names . ,_)
+         (and (member 'error names) #t)]
+        [_ #f]))
+    forms)))
+
+(test-case "stdlib bridge aliases skip primitive-owned exports"
+  (define aliases (stdlib-module-alias-symbols #f))
+  (check-not-false (memq 'error aliases))
+  (check-not-false (memq 'raise-argument-error* aliases))
+  (check-false (memq 'format aliases))
+  (check-false (memq 'raise-argument-error aliases))
+  (check-false (memq 'read aliases)))
 
 (test-case "exception ownership lists classify temporary primitive helpers"
   (for ([sym (in-list '(format
