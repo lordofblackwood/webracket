@@ -96,7 +96,8 @@ internal print submodule edge remains visible.
 
 1. Stabilize in-memory output ports:
    `open-output-string`, `get-output-string`, `write-string`, and enough
-   `output-port?` support for `fprintf`.
+   `output-port?` support for `fprintf`. The focused no-stdlib smoke is
+   `webify/test-io-format-substrate.rkt`.
 2. Compose or port `io/format/printf.rkt` behind a focused probe.
 3. Compose or port `io/format/main.rkt`.
 4. Keep `io/print/regexp.rkt` as a hook-only module with
