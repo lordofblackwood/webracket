@@ -9,7 +9,8 @@
          print-case-summary
          print-case-delta
          print-goal1-summary
-         print-goal1-dashboard)
+         print-goal1-dashboard
+         print-primitive-ownership-collisions)
 
 (require racket/cmdline
          racket/file
@@ -860,11 +861,12 @@
 (define (run-goal1-child/bounded! name timeout-seconds memory-mb)
   (call-with-goal1-output-lock
    (lambda ()
-     (printf "goal1-deps: starting ~a (timeout ~as, memory ~a MiB)\n"
-             name
-             timeout-seconds
-             (or memory-mb "unlimited"))
-     (flush-output)))
+     (fprintf (current-error-port)
+              "goal1-deps: starting ~a (timeout ~as, memory ~a MiB)\n"
+              name
+              timeout-seconds
+              (or memory-mb "unlimited"))
+     (flush-output (current-error-port))))
   (define exec-file (find-system-path 'exec-file))
   (define racket-bin
     (cond
@@ -915,16 +917,16 @@
       (lambda ()
         (printf "~a\ttimeout\t-\t-\t-\t-\n" name)
         (flush-output)
-        (printf "goal1-deps: timed out ~a\n" name)
-        (flush-output)))
+        (fprintf (current-error-port) "goal1-deps: timed out ~a\n" name)
+        (flush-output (current-error-port))))
      124]
     [(and (integer? status) (zero? status))
      (call-with-goal1-output-lock
       (lambda ()
         (display stdout)
         (flush-output)
-        (printf "goal1-deps: finished ~a\n" name)
-        (flush-output)))
+        (fprintf (current-error-port) "goal1-deps: finished ~a\n" name)
+        (flush-output (current-error-port))))
      0]
     [else
      (call-with-goal1-output-lock
@@ -932,10 +934,10 @@
         (printf "~a\tworker-failed\t-\t-\t-\t-\n" name)
         (unless (string=? stdout "") (display stdout))
         (unless (string=? stderr "")
-          (display stderr))
+          (display stderr (current-error-port)))
         (flush-output)
-        (printf "goal1-deps: failed ~a\n" name)
-        (flush-output)))
+        (fprintf (current-error-port) "goal1-deps: failed ~a\n" name)
+        (flush-output (current-error-port))))
      (if (integer? status) status 1)]))
 
 ;; run-goal1-children/bounded! : (listof symbol?) exact-positive-integer?
@@ -998,6 +1000,13 @@
   (flush-output)
   (run-goal1-children/bounded! cases timeout-seconds memory-mb jobs))
 
+;; print-primitive-ownership-collisions : -> void?
+;;   Print provider-owned names that still exist in the runtime primitive DB.
+(define (print-primitive-ownership-collisions)
+  (printf "runtime-owned-but-provider-shadowed\n")
+  (for ([name (in-list (webify-primitive-provider-shadowed-names))])
+    (printf "~a\n" name)))
+
 (module+ main
   (define selected-case 'set-require)
   (define baseline-case #f)
@@ -1006,6 +1015,7 @@
   (define goal1-dashboard? #f)
   (define goal1-bounded? #f)
   (define goal1-worker? #f)
+  (define primitive-ownership-collisions? #f)
   (define timeout-seconds 120)
   (define memory-mb 1024)
   (define goal1-limit #f)
@@ -1029,6 +1039,9 @@
                                 (set! goal1-bounded? #t)]
    [("--goal1-worker") "internal mode: print one compact Goal 1 dependency row"
                        (set! goal1-worker? #t)]
+   [("--primitive-ownership-collisions")
+    "list provider-owned public names that still exist as compiler primitives"
+    (set! primitive-ownership-collisions? #t)]
    [("--timeout") seconds "seconds before killing a child extraction process"
                 (set! timeout-seconds (string->number seconds))]
    [("--memory-mb") mb "best-effort Racket worker memory limit in MiB"
@@ -1041,6 +1054,9 @@
   (define selected-goal1-cases (select-goal1-cases goal1-limit))
   (define exit-status
     (cond
+      [primitive-ownership-collisions?
+       (print-primitive-ownership-collisions)
+       0]
       [goal1-worker?
        (run-goal1-worker! selected-case memory-mb)
        0]

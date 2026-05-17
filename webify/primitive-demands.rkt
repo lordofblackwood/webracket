@@ -21,7 +21,8 @@
          webify-module-reports->primitive-demands
          webify-primitive-demand-report-missing
          webify-primitive-name-ownership
-         webify-primitive-demand-report-ownership-counts)
+         webify-primitive-demand-report-ownership-counts
+         webify-primitive-provider-shadowed-names)
 
 (require racket/list
          racket/match
@@ -349,6 +350,16 @@
 
 (define primitive-db-keys-set
   (list->seteq (primitive-db-keys)))
+
+;; webify-primitive-provider-shadowed-names : -> (listof symbol?)
+;;   Return public provider-owned names that still exist in the primitive DB.
+(define (webify-primitive-provider-shadowed-names)
+  (sort
+   (filter (lambda (name)
+             (and (set-member? provider-owned-primitive-symbols-set name)
+                  (set-member? primitive-db-keys-set name)))
+           provider-owned-primitive-symbols)
+   symbol<?*))
 
 ;; webify-primitive-name-ownership : symbol? -> symbol?
 ;;   Classify a primitive-like public name for dashboard diagnostics.

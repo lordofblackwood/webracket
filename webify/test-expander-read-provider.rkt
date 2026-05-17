@@ -6,6 +6,9 @@
          "read-provider.rkt"
          "test-module-support.rkt")
 
+(define shared-expander-read-cache-dir
+  (make-temporary-file "webracket-expander-read-shared-cache-~a" 'directory))
+
 ;; write-program! : path-string? string? -> void?
 ;;   Write a temporary source program for expander/read provider smokes.
 (define (write-program! path text)
@@ -34,22 +37,16 @@
         (with-handlers ([exn:fail:filesystem? void])
           (delete-directory/files dir))))))
 
-;; run-temp-webracket/fresh-provider-cache : string? (listof string?)
-;;                                      -> (values exact-integer? string?)
-;;   Isolate expander/read tests from stale generated provider artifacts.
-(define (run-temp-webracket/fresh-provider-cache source args)
-  (define cache-dir (make-temporary-file "webracket-expander-read-cache-~a" 'directory))
-  (dynamic-wind
-    void
-    (lambda ()
-      (run-temp-webracket
-       source
-       (append args
-               (list "--provider-cache-dir" (path->string cache-dir)
-                     "--clear-provider-cache"))))
-    (lambda ()
-      (with-handlers ([exn:fail:filesystem? void])
-        (delete-directory/files cache-dir)))))
+;; run-temp-webracket/shared-provider-cache : string? (listof string?)
+;;                                       -> (values exact-integer? string?)
+;;   Isolate expander/read tests from the default cache while sharing one warm
+;;   cache inside this test file.
+(define (run-temp-webracket/shared-provider-cache source args)
+  (run-temp-webracket
+   source
+   (append args
+           (list "--provider-cache-dir"
+                 (path->string shared-expander-read-cache-dir)))))
 
 (test-case "expander/read lowered cache fingerprints include public alias policy"
   (define cache-dir (make-temporary-file "webracket-read-provider-cache-policy-~a" 'directory))
@@ -91,7 +88,7 @@
 
 (test-case "expander/read provider exposes Webify-owned reader aliases"
   (define-values (status output)
-    (run-temp-webracket/fresh-provider-cache
+    (run-temp-webracket/shared-provider-cache
      (string-append
       "(define in (open-input-string \"(1 2) 42\"))\n"
       "(js-log (webify-expander-read in))\n"
@@ -105,7 +102,7 @@
 
 (test-case "expander/read provider handles string ports and datum classes"
   (define-values (status output)
-    (run-temp-webracket/fresh-provider-cache
+    (run-temp-webracket/shared-provider-cache
      (string-append
       "(define in (open-input-string \"#; ignored 'sym #(1 2 3) \\\"λ\\\"\" 'reader-smoke))\n"
       "(js-log (webify-expander-read in))\n"
@@ -124,7 +121,7 @@
 
 (test-case "expander/read provider publishes public reader aliases"
   (define-values (status output)
-    (run-temp-webracket/fresh-provider-cache
+    (run-temp-webracket/shared-provider-cache
      (string-append
       "(define in (open-input-string \"42\"))\n"
       "(js-log (read in))\n"
@@ -144,4 +141,6 @@
                 '("true" "true" "false" "true")))
 
 (module+ main
+  (with-handlers ([exn:fail:filesystem? void])
+    (delete-directory/files shared-expander-read-cache-dir))
   (void))

@@ -82,16 +82,25 @@ The separate `read-syntax` track has started with:
   first syntax-aware dependency.
 - `racket-src/expander/common/performance.rkt`, copied after the first probe
   showed it was the next missing dependency.
+- `racket-src/expander/syntax/syntax.rkt`, copied after the next probe showed
+  that `read-syntax.rkt` needs the expander's syntax-object representation.
 - `webify/read-syntax-provider.rkt` and
   `webify/check-read-syntax-provider.rkt`, a focused demod probe for this
   track.
 
 The current ratchet test expects the probe to reach the next missing file:
-`racket-src/expander/syntax/syntax.rkt`. The probe is expected to reveal
-additional missing `expander/syntax`, `expander/namespace`, `expander/eval`,
-and `expander/compile` dependencies before it can flatten successfully. Plain
-public `read-syntax` should stay unpublished until that dependency story is
-understood.
+`racket-src/expander/compile/serialize-property.rkt`. The probe is expected to
+reveal additional missing `expander/syntax`, `expander/namespace`,
+`expander/eval`, and `expander/compile` dependencies before it can flatten
+successfully. Plain public `read-syntax` should stay unpublished until that
+dependency story is understood.
+
+The dependency sequence so far is intentionally ratcheted by
+`webify/test-read-syntax-provider.rkt`:
+
+- `syntax/read-syntax.rkt` exposed `common/performance.rkt`.
+- `common/performance.rkt` exposed `syntax/syntax.rkt`.
+- `syntax/syntax.rkt` exposed `compile/serialize-property.rkt`.
 
 ## Missing Before Public Replacement
 
