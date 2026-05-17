@@ -22,6 +22,7 @@
          webify-primitive-demand-report-missing
          webify-primitive-name-ownership
          webify-primitive-demand-report-ownership-counts
+         webify-provider-owned-primitive-provider
          webify-primitive-provider-shadowed-names)
 
 (require racket/list
@@ -61,6 +62,15 @@
    (append webify-read-public-alias-symbols
            webify-regexp-provider-owned-symbols
            io-format-provider-owned-symbols)))
+
+(define provider-owned-primitive-provider-table
+  (for/hasheq ([name (in-list provider-owned-primitive-symbols)])
+    (values name
+            (cond
+              [(memq name webify-read-public-alias-symbols) 'expander/read]
+              [(memq name webify-regexp-provider-owned-symbols) 'regexp]
+              [(memq name io-format-provider-owned-symbols) 'io/format]
+              [else 'unknown]))))
 
 (define provider-owned-primitive-symbols-set
   (list->seteq provider-owned-primitive-symbols))
@@ -360,6 +370,11 @@
                   (set-member? primitive-db-keys-set name)))
            provider-owned-primitive-symbols)
    symbol<?*))
+
+;; webify-provider-owned-primitive-provider : symbol? -> (or/c symbol? #f)
+;;   Return the staged provider that owns a provider-owned public name.
+(define (webify-provider-owned-primitive-provider name)
+  (hash-ref provider-owned-primitive-provider-table name #f))
 
 ;; webify-primitive-name-ownership : symbol? -> symbol?
 ;;   Classify a primitive-like public name for dashboard diagnostics.

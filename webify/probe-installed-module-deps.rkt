@@ -1000,12 +1000,21 @@
   (flush-output)
   (run-goal1-children/bounded! cases timeout-seconds memory-mb jobs))
 
-;; print-primitive-ownership-collisions : -> void?
+;; print-primitive-ownership-collisions : boolean? -> void?
 ;;   Print provider-owned names that still exist in the runtime primitive DB.
-(define (print-primitive-ownership-collisions)
-  (printf "runtime-owned-but-provider-shadowed\n")
-  (for ([name (in-list (webify-primitive-provider-shadowed-names))])
-    (printf "~a\n" name)))
+(define (print-primitive-ownership-collisions tsv?)
+  (cond
+    [tsv?
+     (printf "name\townership\tprovider\n")
+     (for ([name (in-list (webify-primitive-provider-shadowed-names))])
+       (printf "~a\t~a\t~a\n"
+               name
+               (webify-primitive-name-ownership name)
+               (webify-provider-owned-primitive-provider name)))]
+    [else
+     (printf "runtime-owned-but-provider-shadowed\n")
+     (for ([name (in-list (webify-primitive-provider-shadowed-names))])
+       (printf "~a\n" name))]))
 
 (module+ main
   (define selected-case 'set-require)
@@ -1016,6 +1025,7 @@
   (define goal1-bounded? #f)
   (define goal1-worker? #f)
   (define primitive-ownership-collisions? #f)
+  (define primitive-ownership-collisions-tsv? #f)
   (define timeout-seconds 120)
   (define memory-mb 1024)
   (define goal1-limit #f)
@@ -1042,6 +1052,10 @@
    [("--primitive-ownership-collisions")
     "list provider-owned public names that still exist as compiler primitives"
     (set! primitive-ownership-collisions? #t)]
+   [("--primitive-ownership-collisions-tsv")
+    "list provider-owned public primitive collisions as TSV"
+    (set! primitive-ownership-collisions? #t)
+    (set! primitive-ownership-collisions-tsv? #t)]
    [("--timeout") seconds "seconds before killing a child extraction process"
                 (set! timeout-seconds (string->number seconds))]
    [("--memory-mb") mb "best-effort Racket worker memory limit in MiB"
@@ -1055,7 +1069,7 @@
   (define exit-status
     (cond
       [primitive-ownership-collisions?
-       (print-primitive-ownership-collisions)
+       (print-primitive-ownership-collisions primitive-ownership-collisions-tsv?)
        0]
       [goal1-worker?
        (run-goal1-worker! selected-case memory-mb)

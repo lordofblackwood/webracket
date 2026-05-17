@@ -175,7 +175,9 @@
                 'runtime-preferred)
   (check-equal? (webify-primitive-name-ownership 'not-a-webracket-name)
                 'unknown)
-  (check-not-false (member 'read (webify-primitive-provider-shadowed-names))))
+  (check-not-false (member 'read (webify-primitive-provider-shadowed-names)))
+  (check-equal? (webify-provider-owned-primitive-provider 'read)
+                'expander/read))
 
 (test-case "primitive demand ownership counts summarize reports"
   (define input

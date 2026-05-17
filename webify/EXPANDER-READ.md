@@ -84,16 +84,19 @@ The separate `read-syntax` track has started with:
   showed it was the next missing dependency.
 - `racket-src/expander/syntax/syntax.rkt`, copied after the next probe showed
   that `read-syntax.rkt` needs the expander's syntax-object representation.
+- `racket-src/expander/compile/serialize-property.rkt` and
+  `racket-src/expander/compile/serialize-state.rkt`, copied as the paired
+  serialization support that `syntax/syntax.rkt` requires.
 - `webify/read-syntax-provider.rkt` and
   `webify/check-read-syntax-provider.rkt`, a focused demod probe for this
   track.
 
 The current ratchet test expects the probe to reach the next missing file:
-`racket-src/expander/compile/serialize-property.rkt`. The probe is expected to
-reveal additional missing `expander/syntax`, `expander/namespace`,
-`expander/eval`, and `expander/compile` dependencies before it can flatten
-successfully. Plain public `read-syntax` should stay unpublished until that
-dependency story is understood.
+`racket-src/expander/common/set.rkt`. The probe is expected to reveal
+additional missing `expander/syntax`, `expander/namespace`, `expander/eval`,
+and `expander/compile` dependencies before it can flatten successfully. Plain
+public `read-syntax` should stay unpublished until that dependency story is
+understood.
 
 The dependency sequence so far is intentionally ratcheted by
 `webify/test-read-syntax-provider.rkt`:
@@ -101,6 +104,8 @@ The dependency sequence so far is intentionally ratcheted by
 - `syntax/read-syntax.rkt` exposed `common/performance.rkt`.
 - `common/performance.rkt` exposed `syntax/syntax.rkt`.
 - `syntax/syntax.rkt` exposed `compile/serialize-property.rkt`.
+- `compile/serialize-property.rkt` and `compile/serialize-state.rkt` exposed
+  `common/set.rkt`.
 
 ## Missing Before Public Replacement
 
