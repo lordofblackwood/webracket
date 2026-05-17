@@ -22,10 +22,17 @@ webify-expander-current-readtable
 webify-expander-string->number
 ```
 
-The provider deliberately does not publish plain `read` yet. `read`,
-`read-syntax`, `string->number`, `current-readtable`, and the `read-accept-*`
-parameters are still primitive or stdlib-owned public names. Publishing a
-top-level `(define read ...)` today collides with primitive ownership.
+The provider also publishes plain public `read` from the
+`webify-expander-read` module-variable cell while the flag is active. The
+compiler is parameterized so this one provider-owned public name can shadow the
+runtime stub instead of being compiled as a direct primitive.
+
+Installed-module composition has a matching import-cell override: when a
+linklet imports primitive `read` from a primitive module such as `#%kernel`,
+the runtime-smoke composer can supply the expander/read provider cell instead
+of synthesizing a fresh cell around the `$read` primitive procedure. This is
+needed because module linklets receive imports through cells; a top-level
+alias alone does not affect those imported cells.
 
 ## What Works
 
@@ -42,32 +49,49 @@ Focused runtime smokes cover:
 - `#;` datum comments.
 - Port location continuity after reads.
 
-The installed-module probe inventory now includes ordinary public `read` cases
-for lists, vectors, symbol/string sequences, and datum comments. They are not
-part of the passing Goal 1 fast set yet: public `read` is still a loud runtime
-stub, so these cases are tracking probes for the later ownership swap.
+The installed-module probe inventory includes ordinary public `read` cases for
+lists, vectors, symbol/string sequences, and datum comments. These now pass
+when the probe harness enables `--expander-read-provider`, and they are in the
+Goal 1 fast set.
+
+The public runtime stub is still present for builds that do not enable the
+provider flag. That fallback now formats input/output string ports as
+`#<input-port>` and `#<output-port>` in its error path instead of falling into
+the formatter's unknown-datatype branch.
+
+## Read-Syntax Track
+
+`read-syntax` is intentionally not part of the public handoff yet. The staged
+`read/main.rkt` root exports datum `read` and `read-language`; syntax-aware
+reading lives behind the upstream `read/api.rkt` and
+`syntax/read-syntax.rkt` path. That path should be tracked separately because
+it brings syntax objects, source locations, and syntax-reader behavior into the
+surface area.
+
+The next `read-syntax` milestone should stage the smallest source slice that
+exports `read-syntax` under a Webify-owned alias, for example
+`webify-expander-read-syntax`, without publishing plain `read-syntax` until
+the syntax provider dependency story is clear.
 
 ## Missing Before Public Replacement
 
-- Decide public ownership for `read`, `read-syntax`, `string->number`,
+- Decide public ownership for `read-syntax`, `string->number`,
   `current-readtable`, and `read-accept-*`.
-- Remove or rename old primitive/stdlib-owned public names before publishing
-  provider aliases with those names.
 - Audit optional keyword behavior around the upstream reader's `read` entry.
 - Decide whether `read-syntax` comes from `expander/read/api.rkt` or a later
   syntax-aware provider slice.
 - Test reader extensions: `#reader`, `#lang`, compiled-code reading, and custom
   readtables.
-- Keep the provider behind `--expander-read-provider` until the duplicate-WAT
-  identifier problem from unconditional stdlib composition is understood.
-- Replace the current public `read` runtime stub, which still raises
-  `reader-unsupported` and even exposes a formatter gap when it tries to report
-  an input port in the error message.
+- Keep the provider behind `--expander-read-provider` until the larger stdlib
+  and provider-composition story is settled. A small `--stdlib
+  --expander-read-provider` hello smoke did not reproduce the earlier duplicate
+  WAT identifier problem, but the check is not proof that every stdlib/provider
+  composition is clean.
+- Remove or narrow the current public `read` runtime stub once the staged
+  provider is no longer optional.
 
 ## Recommendation
 
-The next safe step is to move one public name at a time. Start with `read` in a
-focused branch: remove public primitive ownership for `read`, compose this
-provider under stdlib, publish `read` as a module-variable alias to
-`webify-expander-read`, then run the Goal 1 `read-*` probes and the existing
-port tests.
+The next safe step is to keep moving one public name at a time. Public `read`
+has a staged handoff now; the next candidates are the reader parameters and
+`current-readtable`, followed by a separate `read-syntax` provider slice.

@@ -2013,6 +2013,8 @@
     (add-runtime-string-constant 'hash-less-procedure-colon            "#<procedure:")
     (add-runtime-string-constant 'hash-less-primitive-colon            "#<primitive:")
     (add-runtime-string-constant 'hash-less-path-colon                 "#<path:")
+    (add-runtime-string-constant 'hash-less-input-port                 "#<input-port>")
+    (add-runtime-string-constant 'hash-less-output-port                "#<output-port>")
     (add-runtime-string-constant 'hash-less-treelist                   "#<treelist>")
     (add-runtime-string-constant 'hash-less-treelist-colon-space       "#<treelist: ")
     (add-runtime-string-constant 'hash-less-unix-path-colon            "#<unix-path:")
@@ -66081,6 +66083,13 @@
                (if (ref.test (ref $Path) (local.get $v))
                    (then (return (call $format/display:path
                                            (ref.cast (ref $Path) (local.get $v))))))
+               ;; --- Case: string ports ---
+               (if (ref.test (ref $InputPort) (local.get $v))
+                   (then (return (ref.cast (ref $String)
+                                           (global.get $string:hash-less-input-port)))))
+               (if (ref.test (ref $OutputPort) (local.get $v))
+                   (then (return (ref.cast (ref $String)
+                                           (global.get $string:hash-less-output-port)))))
                ;; --- Fallback ---
                (call $raise-format/display:unknown-datatype)
                (unreachable))

@@ -32,6 +32,24 @@
 (define goal1-limit #f)
 (define selected-module-cases '())
 
+(define expander-read-module-cases
+  '(read-list
+    read-vector
+    read-symbol-string
+    read-comment))
+
+;; module-case-needs-expander-read-provider? : symbol? -> boolean?
+;;   Select tracking probes that exercise public `read` via expander/read.
+(define (module-case-needs-expander-read-provider? name)
+  (memq name expander-read-module-cases))
+
+;; module-cases-extra-webracket-args : (listof symbol?) -> (listof string?)
+;;   Extra driver flags needed by special provider-backed module cases.
+(define (module-cases-extra-webracket-args names)
+  (if (ormap module-case-needs-expander-read-provider? names)
+      '("--expander-read-provider")
+      '()))
+
 ;; goal1-fast-module-cases : (listof symbol?)
 ;;   Small must-have runtime subset for quick Goal 1 smoke checks.
 (define goal1-fast-module-cases
@@ -380,7 +398,12 @@
   (call-with-memory-limit
    (and memory-mb (* memory-mb 1024 1024))
    (lambda ()
-     (parameterize ([current-runtime-smoke-preserve-dir preserve-dir])
+     (parameterize ([current-runtime-smoke-preserve-dir preserve-dir]
+                    [current-runtime-smoke-extra-webracket-args
+                     (if selected-module-case
+                         (module-cases-extra-webracket-args
+                          (list selected-module-case))
+                         '())])
        (run-installed-runtime-smoke smoke))))
   0)
 
@@ -401,7 +424,9 @@
   (call-with-memory-limit
    (and memory-mb (* memory-mb 1024 1024))
    (lambda ()
-     (parameterize ([current-runtime-smoke-preserve-dir preserve-dir])
+     (parameterize ([current-runtime-smoke-preserve-dir preserve-dir]
+                    [current-runtime-smoke-extra-webracket-args
+                     (module-cases-extra-webracket-args selected-module-cases)])
        (run-installed-runtime-smokes smokes))))
   0)
 

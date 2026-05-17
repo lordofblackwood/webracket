@@ -152,6 +152,33 @@
     [other
      (fail-check (format "unexpected primitive-import composition shape: ~s" other))]))
 
+(test-case "linklet composer can override primitive import cells"
+  (define-values (combined _fragments _instances _exports-infos)
+    (parameterize ([current-composer-primitive-import-cell-overrides
+                    (hasheq 'read 'webify-expander-read-export-cell$webify-expander-read)])
+      (compose-linklet-first-slices
+       (list
+        (webify-linklet-slice-spec
+         'uses-read
+         '(linklet (((r read))) (x)
+            (define-values (x) r))
+         '(((r #%kernel read)))))
+       #:tail '((void)))))
+  (match (normalize-symbols combined)
+    [`("begin"
+       ("define" "webify-linklet-proc$0" ,_)
+       ("define" "webify-export-cell0$0" ,_)
+       ("webify-linklet-proc$0"
+        ("#%variable-reference")
+        "webify-expander-read-export-cell$webify-expander-read"
+        "webify-export-cell0$0")
+       ("define" "x" ("module-variable-ref" "webify-export-cell0$0"))
+       ("void")
+       ("void"))
+     (void)]
+    [other
+     (fail-check (format "unexpected primitive-import override shape: ~s" other))]))
+
 (test-case "module composer splices adapted fragments"
   (define-values (first-datum first-instance)
     (first-slice->module-instance-datum

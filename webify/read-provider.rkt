@@ -202,12 +202,21 @@
   (string->symbol (format "webify-expander-read-export-cell$~a" export)))
 
 ;; webify-read-public-alias-forms : (hash/c symbol? symbol?) -> (listof datum?)
-;;   Bind Webify-owned public names to generated expander/read provider cells.
+;;   Bind public names to generated expander/read provider cells.
 (define (webify-read-public-alias-forms export-cells)
-  (for/list ([export (in-list webify-read-export-symbols)])
-    (define cell (hash-ref export-cells export))
-    `(begin
-       (define ,(webify-read-private-cell-symbol export)
-         ,cell)
-       (define ,export
-         (module-variable-ref ,(webify-read-private-cell-symbol export))))))
+  (define webify-owned-forms
+    (for/list ([export (in-list webify-read-export-symbols)])
+      (define cell (hash-ref export-cells export))
+      `(begin
+         (define ,(webify-read-private-cell-symbol export)
+           ,cell)
+         (define ,export
+           (module-variable-ref ,(webify-read-private-cell-symbol export))))))
+  (append
+   webify-owned-forms
+   ;; Public `read` is intentionally a separate alias over the staged provider
+   ;; cell. The compiler must be parameterized to let this binding shadow the
+   ;; runtime stub, otherwise alpha-renaming rejects the primitive redefinition.
+   `((define read
+       (module-variable-ref
+        ,(webify-read-private-cell-symbol 'webify-expander-read))))))

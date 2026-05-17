@@ -28,6 +28,7 @@
          runtime-smoke-graph-audit-missing-primitive-demands
          racket92-bin
          current-runtime-smoke-preserve-dir
+         current-runtime-smoke-extra-webracket-args
          installed-runtime-inputs-missing-primitive-demands
          webify-module-linklet-manifest->runtime-smoke-graph-audit
          run-installed-runtime-smoke
@@ -43,12 +44,23 @@
          racket/system
          rackunit
          "module-diagnostics.rkt"
+         "module-composer.rkt"
          "primitive-demands.rkt"
+         "read-provider.rkt"
          "test-module-support.rkt")
 
 (define-runtime-path repo-root "..")
 (define racket92-bin (build-path repo-root "../racket/racket/bin/racket"))
 (define current-runtime-smoke-preserve-dir (make-parameter #f))
+(define current-runtime-smoke-extra-webracket-args (make-parameter '()))
+
+;; runtime-smoke-primitive-import-overrides : -> hasheq?
+;;   Route primitive import cells to staged providers when their driver flag is active.
+(define (runtime-smoke-primitive-import-overrides)
+  (if (member "--expander-read-provider" (current-runtime-smoke-extra-webracket-args))
+      (hasheq 'read
+              (webify-read-private-cell-symbol 'webify-expander-read))
+      (hasheq)))
 
 (struct installed-runtime-smoke
   (category
@@ -373,15 +385,18 @@
       (check-primitive-demands! inputs)
       (define registry (webify-module-linklet-manifest->registry manifest))
       (define loader (make-webify-module-loader registry))
-      (instantiate-loader! loader (webify-module-linklet-manifest-roots manifest))
+      (parameterize ([current-composer-primitive-import-cell-overrides
+                      (runtime-smoke-primitive-import-overrides)])
+        (instantiate-loader! loader (webify-module-linklet-manifest-roots manifest)))
       (write-datum-program!
        program-path
        (build-program loader))
       (define-values (status output)
-        (run-webracket (list "--no-stdlib"
-                             "-r"
-                             "--dest" (path->string dest-dir)
-                             (path->string program-path))
+        (run-webracket (append (current-runtime-smoke-extra-webracket-args)
+                               (list "--no-stdlib"
+                                     "-r"
+                                     "--dest" (path->string dest-dir)
+                                     (path->string program-path)))
                        source-dir))
       (unless (zero? status)
         (error 'run-composed-runtime-smoke

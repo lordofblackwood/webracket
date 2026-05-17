@@ -838,7 +838,11 @@
                      [current-internal-treelist-debug-shape?
                       internal-bind-treelist-debug-shape?]
                      [current-internal-immutable-hash-debug-shape?
-                      internal-bind-immutable-hash-debug-shape?])
+                      internal-bind-immutable-hash-debug-shape?]
+                     [current-provider-owned-primitive-aliases
+                      (if expander-read-provider?
+                          '(read)
+                          '())])
         (comp stx-with-stdlib))))
   (define t-compile-end (now-ms))
 

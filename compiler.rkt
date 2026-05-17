@@ -351,6 +351,7 @@
 (define current-internal-treelist-debug-shape? (make-parameter #f))
 ;; Same idea for immutable hash HAMT shape probes.
 (define current-internal-immutable-hash-debug-shape? (make-parameter #f))
+(define current-provider-owned-primitive-aliases (make-parameter '()))
 (define current-closure-conversion-progress? (make-parameter #f))
 (define current-closure-conversion-progress-interval (make-parameter 1000))
 (define current-closure-conversion-progress-port (make-parameter #f))
@@ -3068,6 +3069,30 @@
            (set-member? primitives-set v))
        #t))
 
+;; primitive-symbol : any/c -> (or/c symbol? #f)
+;;   Extract the surface symbol used for primitive ownership decisions.
+(define (primitive-symbol v)
+  (cond
+    [(syntax? v)   (syntax-e v)]
+    [(variable? v) (primitive-symbol (variable-id v))]
+    [(symbol? v)   v]
+    [else          #f]))
+
+;; provider-owned-primitive-alias? : any/c -> boolean?
+;;   Detect public primitive names deliberately shadowed by a provider export.
+(define (provider-owned-primitive-alias? v)
+  (define sym (primitive-symbol v))
+  (and sym
+       (memq sym (current-provider-owned-primitive-aliases))
+       (primitive? sym)
+       #t))
+
+;; compiler-primitive? : any/c -> boolean?
+;;   Check whether v should still compile as a direct runtime primitive.
+(define (compiler-primitive? v)
+  (and (primitive? v)
+       (not (provider-owned-primitive-alias? v))))
+
 ;; These primitives are runtime protocols, not ordinary library exports, in the
 ;; current Webify expander bundle. If a provider wrapper shadows one of these
 ;; names, calls must still target WebRacket's primitive implementation.
@@ -3079,12 +3104,7 @@
 ;; runtime-preferred-primitive-alias? : any/c -> boolean?
 ;;   Detect primitive names whose top-level aliases should not shadow runtime.
 (define (runtime-preferred-primitive-alias? v)
-  (define sym
-    (cond
-      [(syntax? v)   (syntax-e v)]
-      [(variable? v) (syntax-e (variable-id v))]
-      [(symbol? v)   v]
-      [else          #f]))
+  (define sym (primitive-symbol v))
   (and sym
        (set-member? runtime-preferred-primitive-aliases-set sym)
        (primitive? sym)
@@ -5134,7 +5154,7 @@
                 #f])
              (nanopass-case (LFE Expr) e0
                [,x0
-                (and (primitive? (variable-id x0))
+                (and (compiler-primitive? (variable-id x0))
                      (Quote s #t))]
                [else
                 #f]))]
@@ -6039,7 +6059,7 @@
          (nanopass-case (LFE Expr) e
            [(app ,s0 ,e0 ,e1 ...)
             (if (and (variable? e0)
-                     (primitive? (variable-id e0))
+                     (compiler-primitive? (variable-id e0))
                      (eq? 'values (syntax-e (variable-id e0)))
                      (= 1 (length e1)))
                 (car e1)
@@ -7672,7 +7692,7 @@
       #f)
     (define (initial-binding x)
       (cond [(reserved-target-language-keyword? x) => values]
-            [(primitive? (variable-id (rename-env-variable x))) x]
+            [(compiler-primitive? (variable-id (rename-env-variable x))) x]
             [else                                             #f]))
     (define (lookup ρ x)
       (or (ρ-ref ρ x)
@@ -7754,7 +7774,8 @@
                                                        (values `(define-values ,s (,x ...) ,e) ρ)))]
                                           [else
                                            ; TODO - lift this restriction?
-                                           (define x-prim (ormap (λ (x) (and (primitive? (variable-id x))
+                                           (define x-prim (ormap (λ (x) (and (compiler-primitive?
+                                                                              (variable-id x))
                                                                              (variable-id x)))
                                                                  x))
                                            (when x-prim
@@ -8673,7 +8694,7 @@
                   #f]))))
       (define (letrec-simple-primitive-application? rator rands)
         (and (variable? rator)
-             (primitive? (variable-id rator))
+             (compiler-primitive? (variable-id rator))
              (not (special-primitive? rator))
              (let ([rator-kind (letrec-primitive-order-class rator)])
                (and (memq rator-kind '(pure allocates))
@@ -10031,10 +10052,10 @@
                                      `(primapp   ,s ,x              ,e1 ...)]
     [(app ,s (top ,s0 ,x) ,[e1] ...) (guard (runtime-preferred-primitive-alias? x))
                                      `(primapp   ,s ,x              ,e1 ...)]
-    [(app ,s ,x           ,[e1] ...) (guard (primitive? x))  (if (special-primitive? x) ; like 
+    [(app ,s ,x           ,[e1] ...) (guard (compiler-primitive? x))  (if (special-primitive? x) ; like 
                                                                  `(app       ,s ,x              ,e1 ...)
                                                                  `(primapp   ,s ,x              ,e1 ...))]
-    [(app ,s (top ,s0 ,x) ,[e1] ...) (guard (primitive? x))  (if (special-primitive? x)
+    [(app ,s (top ,s0 ,x) ,[e1] ...) (guard (compiler-primitive? x))  (if (special-primitive? x)
                                                                  `(app       ,s ,x              ,e1 ...)
                                                                  `(primapp   ,s ,x              ,e1 ...))]
     [(app ,s (λ ,s1 ,[f] ,[e]) ,[e1] ...)             `(closedapp ,s ,`(λ ,s1 ,f ,e) ,e1 ...)]
@@ -10903,7 +10924,7 @@
   (AExpr : AExpr (AE xs) -> AExpr (xs)
     [,x       (define sym (variable-id x))
               (cond
-                [(primitive? sym)            (values AE empty-set)]         ; immediate constants
+                [(compiler-primitive? sym)   (values AE empty-set)]         ; immediate constants
                 [(and (syntax? sym)
                       (non-literal-constant? (syntax-e sym)))
                  (values AE empty-set)]         ; value stored in a global

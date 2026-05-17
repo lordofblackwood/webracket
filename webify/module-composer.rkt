@@ -16,6 +16,7 @@
          webify-module-fragment?
          webify-module-fragment-datum
          webify-module-fragment-instance
+         current-composer-primitive-import-cell-overrides
          webify-compose-module-fragments
          webify-compose-module-fragments-syntax
          webify-compose-lowered-first-slices
@@ -29,6 +30,30 @@
 (struct webify-lowered-slice-spec (name expr importss import-sources exports) #:transparent)
 (struct webify-linklet-slice-spec (name linklet import-sources) #:transparent)
 (struct webify-module-fragment (datum instance) #:transparent)
+
+(define current-composer-primitive-import-cell-overrides
+  (make-parameter (hasheq)))
+
+;; composer-primitive-module-name? : any/c -> boolean?
+;;   Recognize predefined modules whose imports are supplied by WebRacket primitives.
+(define (composer-primitive-module-name? name)
+  (and (symbol? name)
+       (memq name
+             '(#%kernel
+               #%core
+               #%runtime
+               #%main
+               #%read
+               #%utils
+               #%boot
+               #%unsafe
+               #%linklet
+               #%linklet-primitive
+               #%linklet-expander
+               #%expobs
+               #%place-struct
+               #%bootstrap-linklet))
+       #t))
 
 ;; validate-begin-datum! : symbol? any/c -> void?
 ;;   Reject generated fragments that cannot be spliced into top-level code.
@@ -214,17 +239,27 @@
 (define (import-source->mapping who instances source)
   (validate-import-source! who source)
   (match-define (list import-name instance-name export-name) source)
-  (define instance
-    (hash-ref instances
-              instance-name
-              (lambda ()
-                (raise-arguments-error who
-                                       "import source references an unknown instance"
-                                       "instance" instance-name
-                                       "import" import-name
-                                       "available instances" (hash-keys instances)))))
   (cons import-name
-        (webify-module-instance-export-cell-id instance export-name)))
+        (cond
+          [(composer-primitive-module-name? instance-name)
+           (hash-ref
+            (current-composer-primitive-import-cell-overrides)
+            export-name
+            (lambda ()
+              `(let ([cell (module-variable-make ',export-name)])
+                 (module-variable-define! cell ,export-name 'constant)
+                 cell)))]
+          [else
+           (define instance
+             (hash-ref instances
+                       instance-name
+                       (lambda ()
+                         (raise-arguments-error who
+                                                "import source references an unknown instance"
+                                                "instance" instance-name
+                                                "import" import-name
+                                                "available instances" (hash-keys instances)))))
+           (webify-module-instance-export-cell-id instance export-name)])))
 
 ;; import-sources->envs : hash? (listof (listof source?)) -> (listof hash?)
 ;;   Resolve grouped import source triples to grouped import cell environments.
@@ -268,6 +303,10 @@
       (define importss (webify-lowered-slice-spec-importss spec))
       (define import-sources (webify-lowered-slice-spec-import-sources spec))
       (define exports (webify-lowered-slice-spec-exports spec))
+      (define self-instance
+        (make-webify-module-instance name exports #:reserved reserved))
+      (define instances/self
+        (hash-set instances name self-instance))
       (when (and (null? importss)
                  (not (null? import-sources)))
         (raise-arguments-error who
@@ -286,9 +325,10 @@
              name
              (webify-lowered-slice-spec-expr spec)
              importss
-             (import-sources->envs who instances import-sources)
+             (import-sources->envs who instances/self import-sources)
              exports
              #:reserved reserved
+             #:instance self-instance
              #:define-export-aliases? define-export-aliases?)))
       (values (cons (webify-module-fragment datum instance) reverse-fragments)
               (hash-set instances name instance)
@@ -357,6 +397,10 @@
       (define raw-import-sources (webify-linklet-slice-spec-import-sources spec))
       (define import-sources
         (normalize-linklet-import-sources who name importss raw-import-sources))
+      (define self-instance
+        (make-webify-module-instance name exports #:reserved reserved))
+      (define instances/self
+        (hash-set instances name self-instance))
       (when (and (null? importss)
                  (not (null? import-sources)))
         (raise-arguments-error who
@@ -382,9 +426,10 @@
              name
              expr
              importss
-             (import-sources->envs who instances import-sources)
+             (import-sources->envs who instances/self import-sources)
              exports
              #:reserved reserved
+             #:instance self-instance
              #:define-export-aliases? define-export-aliases?)))
       (values (cons (webify-module-fragment datum instance) reverse-fragments)
               (hash-set instances name instance)
