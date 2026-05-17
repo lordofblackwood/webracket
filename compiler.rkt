@@ -351,7 +351,16 @@
 (define current-internal-treelist-debug-shape? (make-parameter #f))
 ;; Same idea for immutable hash HAMT shape probes.
 (define current-internal-immutable-hash-debug-shape? (make-parameter #f))
-(define current-provider-owned-primitive-aliases (make-parameter '()))
+(define current-provider-owned-primitive-aliases
+  (make-parameter (seteq)
+    (lambda (aliases)
+      (cond
+        [(set? aliases) aliases]
+        [(list? aliases) (list->seteq aliases)]
+        [else
+         (raise-argument-error 'current-provider-owned-primitive-aliases
+                               "(or/c set? (listof symbol?))"
+                               aliases)]))))
 (define current-closure-conversion-progress? (make-parameter #f))
 (define current-closure-conversion-progress-interval (make-parameter 1000))
 (define current-closure-conversion-progress-port (make-parameter #f))
@@ -3083,7 +3092,7 @@
 (define (provider-owned-primitive-alias? v)
   (define sym (primitive-symbol v))
   (and sym
-       (memq sym (current-provider-owned-primitive-aliases))
+       (set-member? (current-provider-owned-primitive-aliases) sym)
        (primitive? sym)
        #t))
 
@@ -18293,10 +18302,10 @@
         => (lambda (unwrapped)
              (record-used-primitive! unwrapped)
              (PrimRef (variable (datum->syntax (variable-id x) unwrapped))))]
-       [(memq s primitives)
+       [(compiler-primitive? s)
         (record-used-primitive! s)
         (PrimRef x)]
-       [(memq sym primitives)
+       [(compiler-primitive? sym)
         (record-used-primitive! sym)
         (PrimRef x)]
        [(top-variable? x)
