@@ -22,10 +22,13 @@ webify-expander-current-readtable
 webify-expander-string->number
 ```
 
-The provider also publishes plain public `read` from the
-`webify-expander-read` module-variable cell while the flag is active. The
-compiler is parameterized so this one provider-owned public name can shadow the
-runtime stub instead of being compiled as a direct primitive.
+The provider also publishes public reader aliases from the matching
+`webify-expander-*` module-variable cells while the flag is active. This now
+includes `read`, `current-readtable`, `string->number`, `make-readtable`,
+`readtable?`, `readtable-mapping`, `current-reader-guard`, the `read-accept-*`
+family, and related reader parameters/helpers. The compiler is parameterized so
+these provider-owned public names can shadow the temporary runtime stubs instead
+of being compiled as direct primitives.
 
 Installed-module composition has a matching import-cell override: when a
 linklet imports primitive `read` from a primitive module such as `#%kernel`,
@@ -64,19 +67,21 @@ the formatter's unknown-datatype branch.
 `read-syntax` is intentionally not part of the public handoff yet. The staged
 `read/main.rkt` root exports datum `read` and `read-language`; syntax-aware
 reading lives behind the upstream `read/api.rkt` and
-`syntax/read-syntax.rkt` path. That path should be tracked separately because
-it brings syntax objects, source locations, and syntax-reader behavior into the
-surface area.
+`syntax/read-syntax.rkt` path. That path is tracked separately because it brings
+syntax objects, source locations, and syntax-reader behavior into the surface
+area. The staged source tree already contains `read/api.rkt`, but the
+`syntax/read-syntax.rkt` dependency has not been copied into `racket-src/` or
+flattened as a provider root yet.
 
-The next `read-syntax` milestone should stage the smallest source slice that
-exports `read-syntax` under a Webify-owned alias, for example
-`webify-expander-read-syntax`, without publishing plain `read-syntax` until
-the syntax provider dependency story is clear.
+The next `read-syntax` milestone should copy the smallest upstream
+`expander/syntax` dependency slice, then add a separate provider root that
+exports `read-syntax` under a Webify-owned alias such as
+`webify-expander-read-syntax`, without publishing plain `read-syntax` until the
+syntax provider dependency story is clear.
 
 ## Missing Before Public Replacement
 
-- Decide public ownership for `read-syntax`, `string->number`,
-  `current-readtable`, and `read-accept-*`.
+- Decide public ownership for `read-syntax`.
 - Audit optional keyword behavior around the upstream reader's `read` entry.
 - Decide whether `read-syntax` comes from `expander/read/api.rkt` or a later
   syntax-aware provider slice.

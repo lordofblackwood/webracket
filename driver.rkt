@@ -80,6 +80,7 @@
                   webify-read-linklet
                   webify-read-lowered-provider-cache-path
                   webify-read-public-alias-forms
+                  webify-read-public-alias-symbols
                   webify-read-source-fingerprint)
          (only-in "webify/module-adapter.rkt"
                   first-slice-top-level-export-cell-ids
@@ -381,14 +382,16 @@
 
 ;; read-provider-forms : #:public-aliases? boolean? -> (listof datum?)
 ;;   Compose the cached original-Racket expander/read provider and optionally
-;;   publish its Webify-owned `webify-expander-*` names. This intentionally does
-;;   not publish `read` yet, since `read` remains primitive-owned until the
-;;   public ownership cleanup is done.
+;;   publish its Webify-owned `webify-expander-*` names plus public reader
+;;   aliases owned by the provider.
 (define (read-provider-forms #:public-aliases? [public-aliases? #f])
   (define cache-path
     (webify-read-lowered-provider-cache-path (current-provider-cache-dir)))
   (define fingerprint
-    `(expander-read-lowered-provider-cache 1 ,public-aliases? ,(webify-read-source-fingerprint)))
+    `(expander-read-lowered-provider-cache 2
+                                           ,public-aliases?
+                                           ,webify-read-public-alias-symbols
+                                           ,(webify-read-source-fingerprint)))
   (define cached (read-provider-cache cache-path fingerprint))
   (cond
     [cached
@@ -841,7 +844,7 @@
                       internal-bind-immutable-hash-debug-shape?]
                      [current-provider-owned-primitive-aliases
                       (if expander-read-provider?
-                          '(read)
+                          webify-read-public-alias-symbols
                           '())])
         (comp stx-with-stdlib))))
   (define t-compile-end (now-ms))

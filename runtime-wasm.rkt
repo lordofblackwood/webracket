@@ -70218,13 +70218,22 @@
                ;; port-write-handler : output-port? [procedure?] -> procedure? or void?
                ;;   WebRacket accepts the setter protocol but currently keeps
                ;;   string ports on the default handler. This is enough for
-               ;;   libraries that copy handlers while constructing ports; full
-               ;;   per-port handler storage should be added with richer ports.
+               ;;   libraries that copy handlers while constructing ports. A
+               ;;   prop:output-port wrapper is accepted when it resolves to an
+               ;;   underlying native output port; full per-port handler storage
+               ;;   should be added with richer ports.
                (func $port-write-handler (type $Prim12)
                      (param $out-raw     (ref eq)) ;; output-port?
                      (param $handler-raw (ref eq)) ;; optional procedure?
                      (result             (ref eq))
-                     (if (i32.eqz (ref.test (ref $OutputPort) (local.get $out-raw)))
+                     (local $out (ref eq))
+                     (local.set $out
+                                (if (result (ref eq))
+                                    (ref.test (ref $OutputPort) (local.get $out-raw))
+                                    (then (local.get $out-raw))
+                                    (else (call $prop-output-port-target
+                                                (local.get $out-raw)))))
+                     (if (i32.eqz (ref.test (ref $OutputPort) (local.get $out)))
                          (then (call $raise-argument-error1
                                      (global.get $symbol:port-write-handler)
                                      (global.get $string:output-port?)
@@ -70246,7 +70255,14 @@
                      (param $out-raw     (ref eq)) ;; output-port?
                      (param $handler-raw (ref eq)) ;; optional procedure?
                      (result             (ref eq))
-                     (if (i32.eqz (ref.test (ref $OutputPort) (local.get $out-raw)))
+                     (local $out (ref eq))
+                     (local.set $out
+                                (if (result (ref eq))
+                                    (ref.test (ref $OutputPort) (local.get $out-raw))
+                                    (then (local.get $out-raw))
+                                    (else (call $prop-output-port-target
+                                                (local.get $out-raw)))))
+                     (if (i32.eqz (ref.test (ref $OutputPort) (local.get $out)))
                          (then (call $raise-argument-error1
                                      (global.get $symbol:port-display-handler)
                                      (global.get $string:output-port?)
@@ -70268,7 +70284,14 @@
                      (param $out-raw     (ref eq)) ;; output-port?
                      (param $handler-raw (ref eq)) ;; optional procedure?
                      (result             (ref eq))
-                     (if (i32.eqz (ref.test (ref $OutputPort) (local.get $out-raw)))
+                     (local $out (ref eq))
+                     (local.set $out
+                                (if (result (ref eq))
+                                    (ref.test (ref $OutputPort) (local.get $out-raw))
+                                    (then (local.get $out-raw))
+                                    (else (call $prop-output-port-target
+                                                (local.get $out-raw)))))
+                     (if (i32.eqz (ref.test (ref $OutputPort) (local.get $out)))
                          (then (call $raise-argument-error1
                                      (global.get $symbol:port-print-handler)
                                      (global.get $string:output-port?)

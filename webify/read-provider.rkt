@@ -13,6 +13,8 @@
          webify-read-linklet
          webify-read-lowered-provider-cache-path
          webify-read-private-cell-symbol
+         webify-read-public-alias-pairs
+         webify-read-public-alias-symbols
          webify-read-public-alias-forms)
 
 (require racket/file
@@ -67,6 +69,38 @@
     webify-expander-special-comment-value
     webify-expander-special-comment?
     webify-expander-string->number))
+
+(define webify-read-public-alias-pairs
+  '((current-reader-guard . webify-expander-current-reader-guard)
+    (current-readtable . webify-expander-current-readtable)
+    (make-readtable . webify-expander-make-readtable)
+    (make-special-comment . webify-expander-make-special-comment)
+    (read . webify-expander-read)
+    (read-accept-box . webify-expander-read-accept-box)
+    (read-accept-compiled . webify-expander-read-accept-compiled)
+    (read-accept-dot . webify-expander-read-accept-dot)
+    (read-accept-graph . webify-expander-read-accept-graph)
+    (read-accept-infix-dot . webify-expander-read-accept-infix-dot)
+    (read-accept-lang . webify-expander-read-accept-lang)
+    (read-accept-quasiquote . webify-expander-read-accept-quasiquote)
+    (read-accept-reader . webify-expander-read-accept-reader)
+    (read-cdot . webify-expander-read-cdot)
+    (read-curly-brace-as-paren . webify-expander-read-curly-brace-as-paren)
+    (read-curly-brace-with-tag . webify-expander-read-curly-brace-with-tag)
+    (read-decimal-as-inexact . webify-expander-read-decimal-as-inexact)
+    (read-language . webify-expander-read-language)
+    (read-single-flonum . webify-expander-read-single-flonum)
+    (read-square-bracket-as-paren . webify-expander-read-square-bracket-as-paren)
+    (read-square-bracket-with-tag . webify-expander-read-square-bracket-with-tag)
+    (read-syntax-accept-graph . webify-expander-read-syntax-accept-graph)
+    (readtable-mapping . webify-expander-readtable-mapping)
+    (readtable? . webify-expander-readtable?)
+    (special-comment-value . webify-expander-special-comment-value)
+    (special-comment? . webify-expander-special-comment?)
+    (string->number . webify-expander-string->number)))
+
+(define webify-read-public-alias-symbols
+  (map car webify-read-public-alias-pairs))
 
 (define webify-read-default-cache-root
   (build-path (find-system-path 'temp-dir) "webracket-read-provider-cache"))
@@ -214,9 +248,13 @@
            (module-variable-ref ,(webify-read-private-cell-symbol export))))))
   (append
    webify-owned-forms
-   ;; Public `read` is intentionally a separate alias over the staged provider
-   ;; cell. The compiler must be parameterized to let this binding shadow the
-   ;; runtime stub, otherwise alpha-renaming rejects the primitive redefinition.
-   `((define read
-       (module-variable-ref
-        ,(webify-read-private-cell-symbol 'webify-expander-read))))))
+   ;; Public aliases are intentionally separate aliases over staged provider
+   ;; cells. The compiler is parameterized to let these bindings shadow the
+   ;; temporary primitive/runtime stubs, otherwise alpha-renaming rejects the
+   ;; primitive redefinitions.
+   (for/list ([alias (in-list webify-read-public-alias-pairs)])
+     (define public-name (car alias))
+     (define export-name (cdr alias))
+     `(define ,public-name
+        (module-variable-ref
+         ,(webify-read-private-cell-symbol export-name))))))

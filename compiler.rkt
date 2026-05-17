@@ -7694,11 +7694,34 @@
       (cond [(reserved-target-language-keyword? x) => values]
             [(compiler-primitive? (variable-id (rename-env-variable x))) x]
             [else                                             #f]))
+    (define top-bindings-by-symbol
+      (for/hasheq ([top-binding (in-list top-bindings)]
+                   #:do [(define sym (syntax-e (variable-id top-binding)))]
+                   #:when (symbol? sym))
+        (values sym top-binding)))
+    (define seen-top-bindings empty-set)
+    (define seen-top-binding-symbols (make-hasheq))
+    (define (seen-top-binding? x)
+      (set-in? x seen-top-bindings))
+    (define (seen-top-binding-symbol? sym)
+      (hash-ref seen-top-binding-symbols sym #f))
+    (define (provider-owned-top-binding x)
+      (and (variable? x)
+           (provider-owned-primitive-alias? x)
+           (symbol? (syntax-e (variable-id x)))
+           (let ([top-binding (hash-ref top-bindings-by-symbol
+                                        (syntax-e (variable-id x))
+                                        #f)])
+             (and top-binding
+                  (seen-top-binding-symbol? (syntax-e (variable-id x)))
+                  top-binding))))
     (define (lookup ρ x)
       (or (ρ-ref ρ x)
+          (provider-owned-top-binding x)
           (initial-binding x)))
     (define (lookup/lexical ρ x)
       (or (ρ-ref/lexical ρ x)
+          (provider-owned-top-binding x)
           (initial-binding x)))
     (define (lookup/expr ρ x)
       (if (lexical-bound-variable? x)
@@ -7720,11 +7743,12 @@
     (define (rename**        xss ρ) (map2* rename* xss ρ))
     (define (top-binding? x)
       (ormap (λ (top-binding) (id=? x top-binding)) top-bindings))
-    (define seen-top-bindings empty-set)
-    (define (seen-top-binding? x)
-      (set-in? x seen-top-bindings))
     (define (remember-top-level! xs)
-      (set! seen-top-bindings (set-union seen-top-bindings (ids->id-set xs))))
+      (set! seen-top-bindings (set-union seen-top-bindings (ids->id-set xs)))
+      (for ([x (in-list xs)])
+        (define sym (syntax-e (variable-id x)))
+        (when (symbol? sym)
+          (hash-set! seen-top-binding-symbols sym #t))))
     (define (TopLevelForm*    xs ρ) (map2* TopLevelForm xs ρ))
     (define (ModuleLevelForm* xs ρ) (map2* ModuleLevelForm xs ρ))
     (define (Formals*         fs ρ) (map2* Formals fs ρ))
@@ -10925,6 +10949,8 @@
     [,x       (define sym (variable-id x))
               (cond
                 [(compiler-primitive? sym)   (values AE empty-set)]         ; immediate constants
+                [(provider-owned-primitive-alias? sym)
+                 (values AE empty-set)]         ; provider-published top-level alias
                 [(and (syntax? sym)
                       (non-literal-constant? (syntax-e sym)))
                  (values AE empty-set)]         ; value stored in a global
@@ -18162,7 +18188,7 @@
                         (cond
                           [(eq? sym 'empty-treelist)
                            '(global.get $empty-treelist)]
-                          [(memq sym primitives)
+                          [(compiler-primitive? sym)
                            (record-used-primitive! sym)
                            (PrimRef x)] ; reference to primitive
                           [else

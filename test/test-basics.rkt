@@ -6816,6 +6816,14 @@
                            (let-values ([(line col pos) (port-next-location out)])
                              (equal? (list line col pos) '(1 2 3))))))
 
+              (list "prop:output-port handlers"
+                    (let ()
+                      (struct sink (port) #:property prop:output-port 0)
+                      (define out (sink (open-output-string)))
+                      (and (procedure? (port-write-handler out))
+                           (procedure? (port-display-handler out))
+                           (procedure? (port-print-handler out)))))
+
               (list "make-output-port/write-bytes"
                     (let ([seen #""])
                       (let ([port (make-output-port

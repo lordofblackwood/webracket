@@ -180,6 +180,23 @@
   (check-regexp-match #rx"(?m:^λ$)" output)
   (check-regexp-match #rx"(?m:^1$)" output))
 
+(test-case "expander/read provider publishes public reader aliases"
+  (define-values (status output)
+    (run-temp-webracket
+     (string-append
+      "(define in (open-input-string \"42\"))\n"
+      "(js-log (read in))\n"
+      "(js-log (not (current-readtable)))\n"
+      "(read-accept-reader #t)\n"
+      "(js-log (read-accept-reader))\n"
+      "(read-accept-reader #f)\n"
+      "(js-log (read-accept-reader))\n")
+     (list "-r" "--no-stdlib" "--no-io-format-provider" "--expander-read-provider")))
+  (check-equal? status 0 output)
+  (check-regexp-match #rx"(?m:^42$)" output)
+  (check-equal? (regexp-match* #rx"(?m:^(true|false)$)" output)
+                '("true" "true" "false")))
+
 (test-case "format public alias depends on io/format provider"
   (define-values (status output)
     (run-temp-webracket
