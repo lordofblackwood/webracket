@@ -1005,12 +1005,13 @@
 (define (print-primitive-ownership-collisions tsv?)
   (cond
     [tsv?
-     (printf "name\townership\tprovider\n")
+     (printf "name\townership\tprovider\tstatus\n")
      (for ([name (in-list (webify-primitive-provider-shadowed-names))])
-       (printf "~a\t~a\t~a\n"
+       (printf "~a\t~a\t~a\t~a\n"
                name
                (webify-primitive-name-ownership name)
-               (webify-provider-owned-primitive-provider name)))]
+               (webify-provider-owned-primitive-provider name)
+               (webify-primitive-provider-shadowed-status name)))]
     [else
      (printf "runtime-owned-but-provider-shadowed\n")
      (for ([name (in-list (webify-primitive-provider-shadowed-names))])

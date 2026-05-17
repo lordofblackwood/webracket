@@ -177,7 +177,9 @@
                 'unknown)
   (check-not-false (member 'read (webify-primitive-provider-shadowed-names)))
   (check-equal? (webify-provider-owned-primitive-provider 'read)
-                'expander/read))
+                'expander/read)
+  (check-equal? (webify-primitive-provider-shadowed-status 'read)
+                'temporary))
 
 (test-case "primitive demand ownership counts summarize reports"
   (define input

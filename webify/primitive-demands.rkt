@@ -23,6 +23,7 @@
          webify-primitive-name-ownership
          webify-primitive-demand-report-ownership-counts
          webify-provider-owned-primitive-provider
+         webify-primitive-provider-shadowed-status
          webify-primitive-provider-shadowed-names)
 
 (require racket/list
@@ -375,6 +376,14 @@
 ;;   Return the staged provider that owns a provider-owned public name.
 (define (webify-provider-owned-primitive-provider name)
   (hash-ref provider-owned-primitive-provider-table name #f))
+
+;; webify-primitive-provider-shadowed-status : symbol? -> symbol?
+;;   Return cleanup status for provider-owned names still present as primitives.
+(define (webify-primitive-provider-shadowed-status name)
+  (case (webify-provider-owned-primitive-provider name)
+    [(expander/read) 'temporary]
+    [(regexp io/format) 'remove-primitive-later]
+    [else 'review]))
 
 ;; webify-primitive-name-ownership : symbol? -> symbol?
 ;;   Classify a primitive-like public name for dashboard diagnostics.
