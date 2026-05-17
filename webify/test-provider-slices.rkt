@@ -34,11 +34,12 @@
         (with-handlers ([exn:fail:filesystem? void])
           (delete-directory/files dir))))))
 
-(test-case "provider-slice report lists active io/format and regexp"
+(test-case "provider-slice report lists active io/format, regexp, and staged expander/read"
   (define report (string-join (provider-slice-report-lines) "\n"))
   (check-true (string-contains? report "io/format\tdefault: enabled") report)
   (check-true (string-contains? report "regexp\tdefault: enabled") report)
-  (check-true (string-contains? report "whole staged regexp/ tree") report))
+  (check-true (string-contains? report "whole staged regexp/ tree") report)
+  (check-true (string-contains? report "expander/read\tdefault: disabled\tstatus: staged") report))
 
 (test-case "provider cache flags expose verbose cache decisions"
   (define cache-dir (make-temporary-file "webracket-provider-cache-flag-~a" 'directory))

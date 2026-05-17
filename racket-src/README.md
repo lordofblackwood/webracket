@@ -6,7 +6,8 @@ stdlib files.
 
 ## Upstream Source
 
-The current staged `io` files and the copied `regexp/` tree were copied from:
+The current staged `io` files, the copied `regexp/` tree, and the first
+`expander/read` slice were copied from:
 
 ```text
 repository: ../racket
@@ -59,10 +60,28 @@ The shared `racket-src/common/check.rkt` helper is included because
 `regexp/main.rkt` requires it through the same relative path that the upstream
 `src/regexp/` tree uses.
 
+### `expander/read` Slice
+
+```text
+racket-src/expander/common/
+racket-src/expander/host/string-to-number.rkt
+racket-src/expander/read/
+racket-src/expander/read-provider-root.rkt
+```
+
+The reader is staged as a provider candidate before replacing WebRacket's old
+stdlib reader. The copied `read/` tree is mostly self-contained, but it needs a
+small set of `expander/common/` helpers and the host `string-to-number` helper
+for number parsing. `read-provider-root.rkt` is WebRacket-local glue: it
+re-exports the upstream reader entry points under `webify-expander-*` names so
+the demodularized linklet has Webify-owned exports and does not collide with
+existing public names such as `read` and `string->number`.
+
 ## Sync Guard
 
 `webify/test-io-format-plan.rkt` currently checks that the staged `io` files
 are byte-for-byte identical to the upstream files at `../racket/racket/src/io/`.
-The regexp provider tests check the copied tree exists and that the demod
-command uses the staged source. When WebRacket starts adapting a staged file,
-update the corresponding test and document the local divergence here.
+The regexp and expander/read provider tests check the copied trees exist and
+that the demod commands use staged source. When WebRacket starts adapting a
+staged file, update the corresponding test and document the local divergence
+here.

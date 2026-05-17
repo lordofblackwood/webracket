@@ -10,6 +10,7 @@
 (require racket/format
          racket/string
          "io-format-bridge.rkt"
+         "read-provider.rkt"
          "regexp-provider.rkt")
 
 (struct provider-slice
@@ -29,7 +30,13 @@
     #t
     'active
     webify-regexp-export-symbols
-    "whole staged regexp/ tree demodularized to one cached linklet; composed by default")))
+    "whole staged regexp/ tree demodularized to one cached linklet; composed by default")
+   (provider-slice
+    'expander/read
+    #f
+    'staged
+    webify-read-export-symbols
+    "staged original-Racket expander/read provider; demodularized and cached, not public-composed yet")))
 
 ;; provider-slice-by-name : symbol? -> (or/c provider-slice? #f)
 ;;   Look up a known provider slice.

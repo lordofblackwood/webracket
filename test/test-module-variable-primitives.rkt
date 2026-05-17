@@ -10,6 +10,14 @@
 
 (define-runtime-path repo-root "..")
 (define-runtime-path webracket-rkt "../webracket.rkt")
+(define sibling-racket
+  (build-path repo-root ".." "racket" "racket" "bin" "racket"))
+
+;; racket-executable : -> path-string?
+;;   Prefer the sibling Racket checkout used for current Webify/linklet work.
+(define (racket-executable)
+  (or (and (file-exists? sibling-racket) sibling-racket)
+      (find-executable-path "racket")))
 
 ;; module-variable-primitives : (listof symbol?)
 ;;   Lowered module-variable helper names that must be visible as primitives.
@@ -41,7 +49,7 @@
                    [current-error-port stderr]
                    [current-directory cwd])
       (apply system*/exit-code
-             (find-executable-path "racket")
+             (racket-executable)
              (path->string webracket-rkt)
              args)))
   (values status

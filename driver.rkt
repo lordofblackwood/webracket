@@ -868,6 +868,13 @@
 ;;;
 
 (define (read-top-level-from-file filename)
+  (define (webracket-lang-line? line)
+    (and (string? line)
+         (regexp-match? #px"^#lang[ \t]+webracket([ \t].*)?$" line)))
+  (define starts-with-webracket-lang?
+    (call-with-input-file filename
+      (λ (port)
+        (webracket-lang-line? (read-line port 'any)))))
   (define (read-forms port)
     (let loop ([forms '()])
       (define stx (read-syntax filename port))      
@@ -879,6 +886,12 @@
       (port-count-lines! port)
       (with-module-reading-parameterization
         (λ ()
+          ;; `webracket.rkt` compiles script-style top-level programs. A source
+          ;; that starts with `#lang webracket` uses the same body language, so
+          ;; skip the language line here instead of asking Racket to resolve the
+          ;; checkout as an installed `webracket/lang/reader` collection.
+          (when starts-with-webracket-lang?
+            (void (read-line port 'any)))
           (define forms (read-forms port))
           (datum->syntax
            #f
