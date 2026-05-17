@@ -95,12 +95,14 @@ The separate `read-syntax` track has started with:
   `racket-src/expander/syntax/datum-map.rkt`, copied together because preserved
   syntax properties directly depend on the datum walker used by `datum->syntax`
   traversal.
+- `racket-src/expander/syntax/taint-object.rkt`, copied after syntax objects
+  exposed taint propagation support for compound datum content.
 - `webify/read-syntax-provider.rkt` and
   `webify/check-read-syntax-provider.rkt`, a focused demod probe for this
   track.
 
 The current ratchet test expects the probe to reach the next missing file:
-`racket-src/expander/syntax/taint-object.rkt`. The full dependency table now
+`racket-src/expander/syntax/weaker-inspector.rkt`. The full dependency table now
 lives in `webify/SYNTAX-SLICE.md`. The probe is expected to reveal
 additional missing `expander/syntax`, `expander/namespace`, `expander/eval`,
 and `expander/compile` dependencies before it can flatten successfully. Plain
@@ -119,6 +121,7 @@ The dependency sequence so far is intentionally ratcheted by
 - `namespace/inspector.rkt` exposed `syntax/preserved.rkt`.
 - `syntax/preserved.rkt` exposed `syntax/datum-map.rkt`; after copying both,
   the next boundary is `syntax/taint-object.rkt`.
+- `syntax/taint-object.rkt` exposed `syntax/weaker-inspector.rkt`.
 
 ## Primitive Ownership Cleanup Statuses
 

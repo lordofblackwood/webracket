@@ -579,6 +579,19 @@
         stdlib-form ...
         #,stx)))
 
+;; provider-owned-primitive-alias-symbols : ... -> (listof symbol?)
+;;   Compute public primitive names that must resolve through provider cells.
+(define (provider-owned-primitive-alias-symbols
+         #:expander-read-provider? [expander-read-provider? #f]
+         #:io-format-provider? [io-format-provider? #f])
+  (append webify-regexp-export-symbols
+          (if expander-read-provider?
+              webify-read-public-alias-symbols
+              '())
+          (if io-format-provider?
+              webify-io-format-export-symbols
+              '())))
+
 ;;;
 ;;; Available Primitives
 ;;;
@@ -831,13 +844,9 @@
   (current-pass-timings?   timings?)
   (define t-compile-start (now-ms))
   (define provider-owned-primitive-aliases
-    (append webify-regexp-export-symbols
-            (if expander-read-provider?
-                webify-read-public-alias-symbols
-                '())
-            (if stdlib-io-format-provider?
-                webify-io-format-export-symbols
-                '())))
+    (provider-owned-primitive-alias-symbols
+     #:expander-read-provider? expander-read-provider?
+     #:io-format-provider? stdlib-io-format-provider?))
   (define wat
     (with-handlers (#;[exn:fail? (λ (e)
                                  (error 'drive-compilation

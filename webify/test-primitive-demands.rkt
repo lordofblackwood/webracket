@@ -277,3 +277,15 @@
   (check-not-false (member 'class-basic goal1-module-cases))
   (for ([name (in-list goal1-module-cases)])
     (check-not-false (member name known-module-cases))))
+
+(test-case "new reader Goal 1 cases extract without missing primitive demands"
+  (for ([name (in-list '(read-regexp-literal
+                         read-pregexp-literal
+                         read-hash-literal
+                         read-port-location
+                         read-accept-dot-param))])
+    (define inputs (extract-case-inputs name))
+    (define report (webify-module-linklet-inputs->primitive-demands inputs))
+    (check-equal? (webify-primitive-demand-report-missing report)
+                  '()
+                  (format "~a should have no missing primitive demands" name))))

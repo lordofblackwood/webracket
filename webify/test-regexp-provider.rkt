@@ -3,12 +3,16 @@
 (require racket/file
          racket/list
          racket/path
+         racket/runtime-path
          racket/string
+         racket/system
          rackunit
          (only-in "../driver.rkt"
                   regexp-provider-forms)
          "provider-slices.rkt"
          "regexp-provider.rkt")
+
+(define-runtime-path webracket-rkt "../webracket.rkt")
 
 (test-case "regexp provider slice is staged and enabled by default"
   (define slice (provider-slice-by-name 'regexp))
@@ -87,6 +91,37 @@
   (define forms-2 (regexp-provider-forms #:public-aliases? #t))
   (check-equal? (length forms-2) (length forms-1))
   (check-true (positive? (length forms-2))))
+
+(test-case "regexp direct call compiles with no stdlib and no io/format provider"
+  (define tmp-dir (make-temporary-file "webracket-regexp-no-stdlib-~a" 'directory))
+  (dynamic-wind
+    void
+    (lambda ()
+      (define source-path (build-path tmp-dir "regexp-no-stdlib.rkt"))
+      (define wat-path (build-path tmp-dir "regexp-no-stdlib.wat"))
+      (define wasm-path (build-path tmp-dir "regexp-no-stdlib.wasm"))
+      (define host-path (build-path tmp-dir "regexp-no-stdlib.js"))
+      (call-with-output-file source-path
+        (lambda (out)
+          (displayln "(regexp-match? #rx\"a+\" \"cat\")" out))
+        #:exists 'truncate)
+      (define status
+        (system*/exit-code
+         (find-system-path 'exec-file)
+         "-y"
+         (path->string webracket-rkt)
+         "--no-stdlib"
+         "--no-io-format-provider"
+         "--wat-file" (path->string wat-path)
+         "--wasm-file" (path->string wasm-path)
+         "--host-file" (path->string host-path)
+         (path->string source-path)))
+      (check-equal? status 0)
+      (check-true (file-exists? wat-path))
+      (check-true (file-exists? wasm-path)))
+    (lambda ()
+      (with-handlers ([exn:fail:filesystem? void])
+        (delete-directory/files tmp-dir)))))
 
 (module+ main
   (void))
