@@ -34,12 +34,16 @@ metadata instead of raw source require syntax. Smokes pass for simple local
 requires, `only-in`, `rename-in`, `prefix-in`, a custom
 `define-require-syntax` transformer that expands to a local file, shared local
 dependencies, a one-hop local re-export, flattening-vs-bridge parity on the
-simple local require case, and a staged `format` provider-backed program.
-Collection/provider requires are left to provider discovery instead of local
-file traversal. Keep the bridge opt-in until the driver composes that
-provider-discovery path directly; plain local graphs are default candidates,
-but `#lang webracket/base` should not silently choose different architectures
-by require shape.
+simple local require case, a staged `format` provider-backed program, a direct
+provider route check, and local graph extraction in the presence of collection
+requires. Collection/provider requires are left to provider discovery instead
+of local file traversal. The bridge driver can select that provider-discovery
+path with an in-memory provider report cache and demand slicing when reports
+actually demand providers outside the ordinary `#lang webracket/base` language
+root, but direct `racket/list` runtime smokes are still too slow for default
+coverage. Keep the bridge opt-in until provider coverage and turnaround time
+are less experimental; the local-only bridge is now the preferred default
+candidate rather than just a local-module experiment.
 
 Reader resolution uses Racket's normal collection search via
 `collection-file-path`. The driver does not add checkout-specific fallback

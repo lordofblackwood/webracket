@@ -162,13 +162,21 @@ Current bridge readiness:
   to a local file is discovered without driver-side knowledge of the custom
   require form.
 - Passing provider route check: collection/provider requires are not treated as
-  local files by graph extraction; extracted reports can route them through
-  provider discovery.
-- Default-switch policy: keep `--webracket-base-module-bridge` opt-in until the
-  driver bridge composes collection/provider requires directly, not just in the
-  lower-level discovery test. Plain local graphs are now strong enough to be
-  default candidates, but the overall `#lang webracket/base` default should not
-  split behavior by require shape yet.
+  local files by graph extraction. The driver bridge can select a discovered
+  registry with an in-memory provider report cache and demand-slice the
+  required provider graph when compiled reports demand providers outside the
+  ordinary `#lang webracket/base` language root.
+- Default candidate matrix:
+  `local-only` passes through both the old transitional path and the bridge;
+  `provider-free staged helpers`, such as the current `format` provider smoke,
+  remain on the fast closed-local bridge route; `provider-only` and
+  `local+provider` currently route to discovered-provider composition but are
+  too slow for default runtime smokes with `racket/list`; richer
+  phase/import-provider graphs remain unsupported.
+- Default-switch policy: keep `--webracket-base-module-bridge` opt-in for now,
+  but treat the local-only bridge as the preferred candidate. The remaining
+  blocker is provider-graph performance and ambiguity, not local module
+  semantics.
 - Still intentionally unsupported in the bridge graph extractor: richer local
   phase/import-provider composition in the driver path.
 
