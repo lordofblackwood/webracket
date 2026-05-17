@@ -140,6 +140,36 @@
   (check-equal? (regexp-match* #rx"(?m:^(true|false)$)" output)
                 '("true" "true" "false" "true")))
 
+(test-case "expander/read provider handles regexp, hash, locations, and dot policy"
+  (define-values (status output)
+    (run-temp-webracket/shared-provider-cache
+     (string-append
+      "(define rx (read (open-input-string \"#rx\\\"a+\\\"\")))\n"
+      "(define px (read (open-input-string \"#px\\\"(a|b)+\\\"\")))\n"
+      "(define h (read (open-input-string \"#hash((a . 41))\")))\n"
+      "(define in (open-input-string \"abc\\n42\" 'loc-smoke))\n"
+      "(port-count-lines! in)\n"
+      "(read in)\n"
+      "(let-values ([(line col pos) (port-next-location in)])\n"
+      "  (js-log (regexp-match? rx \"cat\"))\n"
+      "  (js-log (regexp-match? px \"zzabba\"))\n"
+      "  (js-log (hash-ref h 'a))\n"
+      "  (js-log line)\n"
+      "  (js-log col)\n"
+      "  (js-log pos))\n"
+      "(define old-dot (read-accept-dot))\n"
+      "(read-accept-dot #t)\n"
+      "(js-log (read-accept-dot))\n"
+      "(read-accept-dot old-dot)\n")
+     (list "-r" "--no-stdlib" "--no-io-format-provider" "--expander-read-provider")))
+  (check-equal? status 0 output)
+  (check-equal? (regexp-match* #rx"(?m:^true$)" output)
+                '("true" "true" "true"))
+  (check-regexp-match #rx"(?m:^41$)" output)
+  (check-regexp-match #rx"(?m:^1$)" output)
+  (check-regexp-match #rx"(?m:^3$)" output)
+  (check-regexp-match #rx"(?m:^4$)" output))
+
 (module+ main
   (with-handlers ([exn:fail:filesystem? void])
     (delete-directory/files shared-expander-read-cache-dir))

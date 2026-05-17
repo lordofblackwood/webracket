@@ -5,7 +5,7 @@
          rackunit
          "read-syntax-provider.rkt")
 
-(test-case "read-syntax staging reaches the next missing weaker-inspector dependency"
+(test-case "read-syntax staging reaches the next missing property dependency"
   (define cache-dir (make-temporary-file "webracket-read-syntax-boundary-~a" 'directory))
   (dynamic-wind
     void
@@ -14,10 +14,10 @@
         (webify-read-syntax-demod! cache-dir))
       (check-equal? status 1 output)
       (check-true
-       (string-contains? output "racket-src/expander/syntax/weaker-inspector.rkt")
+       (string-contains? output "racket-src/expander/syntax/property.rkt")
        output)
       (check-false
-       (string-contains? output "racket-src/expander/syntax/taint-object.rkt\n  system error")
+       (string-contains? output "racket-src/expander/syntax/weaker-inspector.rkt\n  system error")
        output))
     (lambda ()
       (with-handlers ([exn:fail:filesystem? void])

@@ -103,7 +103,10 @@
       (define host-path (build-path tmp-dir "regexp-no-stdlib.js"))
       (call-with-output-file source-path
         (lambda (out)
-          (displayln "(regexp-match? #rx\"a+\" \"cat\")" out))
+          (displayln "(regexp-match? (regexp \"a+\") \"cat\")" out)
+          (displayln "(regexp-match? (pregexp \"(a|b)+\") \"zzabba\")" out)
+          (displayln "(regexp-match? (byte-regexp #\"a+\") #\"cat\")" out)
+          (displayln "(regexp-match? (byte-pregexp #\"(a|b)+\") #\"zzabba\")" out))
         #:exists 'truncate)
       (define status
         (system*/exit-code
