@@ -12,8 +12,8 @@
    #:once-each
    [("--cache-dir") dir "cache directory for demod artifacts"
                     (set! cache-root (string->path dir))])
-  (define-values (status output)
-    (webify-read-syntax-demod! cache-root))
+  (define-values (status output _out-rktl)
+    (webify-read-syntax-demod! #:cache-root cache-root))
   (printf "read-syntax-demod-status: ~a\n" status)
   (unless (string=? output "")
     (display output))

@@ -170,6 +170,59 @@
   (check-regexp-match #rx"(?m:^3$)" output)
   (check-regexp-match #rx"(?m:^4$)" output))
 
+(test-case "private expander/read-syntax provider exposes Webify-owned aliases"
+  (define-values (status output)
+    (run-temp-webracket/shared-provider-cache
+     (string-append
+      "(define in (open-input-string \"(1 2) #(a b) \\\"λ\\\"\" 'syntax-src))\n"
+      "(port-count-lines! in)\n"
+      "(define s1 (webify-expander-read-syntax 'syntax-src in))\n"
+      "(define s2 (webify-expander-read-syntax 'syntax-src in))\n"
+      "(define s3 (webify-expander-read-syntax 'syntax-src in))\n"
+      "(js-log (car (webify-expander-syntax->datum s1)))\n"
+      "(js-log (vector-length (webify-expander-syntax->datum s2)))\n"
+      "(js-log (webify-expander-syntax->datum s3))\n"
+      "(js-log (eq? (webify-expander-syntax-source s1) 'syntax-src))\n"
+      "(js-log (webify-expander-syntax-line s1))\n"
+      "(js-log (webify-expander-syntax-column s1))\n"
+      "(js-log (webify-expander-syntax-position s1))\n")
+     (list "-r" "--no-stdlib" "--no-io-format-provider"
+           "--expander-read-syntax-provider")))
+  (check-equal? status 0 output)
+  (check-regexp-match #rx"(?m:^1$)" output)
+  (check-regexp-match #rx"(?m:^2$)" output)
+  (check-regexp-match #rx"(?m:^λ$)" output)
+  (check-regexp-match #rx"(?m:^true$)" output)
+  (check-regexp-match #rx"(?m:^0$)" output))
+
+(test-case "private expander/read-syntax provider rejects reader extensions deliberately"
+  (define-values (status output)
+    (run-temp-webracket/shared-provider-cache
+     (string-append
+      "(with-handlers ([exn:fail? (lambda (e) (js-log \"reader-extension-rejected\"))])\n"
+      "  (webify-expander-read-syntax 'src\n"
+      "                               (open-input-string \"#reader racket/base 42\" 'src))\n"
+      "  (js-log \"unexpected-reader-extension-success\"))\n")
+     (list "-r" "--no-stdlib" "--no-io-format-provider"
+           "--expander-read-syntax-provider")))
+  (check-equal? status 0 output)
+  (check-regexp-match #rx"reader-extension-rejected" output)
+  (check-false (regexp-match? #rx"unexpected-reader-extension-success" output)))
+
+(test-case "private expander/read-syntax provider rejects compiled-code input deliberately"
+  (define-values (status output)
+    (run-temp-webracket/shared-provider-cache
+     (string-append
+      "(with-handlers ([exn:fail? (lambda (e) (js-log \"compiled-code-rejected\"))])\n"
+      "  (webify-expander-read-syntax 'src\n"
+      "                               (open-input-string \"#~\" 'src))\n"
+      "  (js-log \"unexpected-compiled-code-success\"))\n")
+     (list "-r" "--no-stdlib" "--no-io-format-provider"
+           "--expander-read-syntax-provider")))
+  (check-equal? status 0 output)
+  (check-regexp-match #rx"compiled-code-rejected" output)
+  (check-false (regexp-match? #rx"unexpected-compiled-code-success" output)))
+
 (module+ main
   (with-handlers ([exn:fail:filesystem? void])
     (delete-directory/files shared-expander-read-cache-dir))

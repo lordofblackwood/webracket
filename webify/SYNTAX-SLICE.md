@@ -55,3 +55,20 @@ The public boundary is still intentionally closed:
 - The namespace modules are shells, not a browser-side namespace/eval system.
 - Public `read-syntax` aliases should stay unpublished until the flattened
   provider is composed through WebRacket and tested in the browser runtime.
+
+## Private WebRacket Composition
+
+`webracket.rkt` can now compose the private provider with:
+
+```text
+--expander-read-syntax-provider
+```
+
+This exposes only `webify-expander-*` aliases for `read-syntax` and same-slice
+syntax inspection helpers. It intentionally does not expose public
+`read-syntax`; the public handoff waits on the `#lang`/reader-extension story.
+
+The focused WebRacket smoke covers simple datums, vectors, strings, and source
+locations. Negative smokes confirm that reader-extension dynamic loading and
+compiled-code input fail deliberately instead of silently crossing into an
+unsupported namespace/eval path.

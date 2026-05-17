@@ -55,6 +55,8 @@
   (make-parameter #t)) ; use staged original-Racket io/format provider by default
 (define expander-read-provider?
   (make-parameter #f)) ; experimental staged original-Racket expander/read provider
+(define expander-read-syntax-provider?
+  (make-parameter #f)) ; private staged original-Racket read-syntax provider
 (define provider-cache-dir (make-parameter #f))
 (define clear-provider-cache? (make-parameter #f))
 (define force-provider-cache-refresh? (make-parameter #f))
@@ -230,6 +232,12 @@
    [("--no-expander-read-provider")
     "Disable staged original-Racket expander/read provider (default)"
     (expander-read-provider? #f)]
+   [("--expander-read-syntax-provider")
+    "Compose private staged original-Racket read-syntax provider"
+    (expander-read-syntax-provider? #t)]
+   [("--no-expander-read-syntax-provider")
+    "Disable private staged original-Racket read-syntax provider (default)"
+    (expander-read-syntax-provider? #f)]
    [("--provider-cache-dir") dirname
                              "Use <dirname> for provider-slice caches"
                              (provider-cache-dir dirname)]
@@ -336,6 +344,8 @@
                      #:stdlib?       (stdlib?)
                      #:stdlib-io-format-provider? (stdlib-io-format-provider?)
                      #:expander-read-provider? (expander-read-provider?)
+                     #:expander-read-syntax-provider?
+                     (expander-read-syntax-provider?)
                      #:provider-cache-dir
                      (or (provider-cache-dir) webify-regexp-default-cache-root)
                      #:clear-provider-cache? (clear-provider-cache?)

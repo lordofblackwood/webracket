@@ -126,6 +126,36 @@ tiny syntax object. The full dependency table lives in
 until this provider is composed through WebRacket and tested in the browser
 runtime.
 
+The private provider is now composable through `webracket.rkt` with:
+
+```text
+--expander-read-syntax-provider
+```
+
+That switch publishes only Webify-owned aliases:
+
+```text
+webify-expander-read-syntax
+webify-expander-read-syntax/recursive
+webify-expander-syntax->datum
+webify-expander-syntax-source
+webify-expander-syntax-line
+webify-expander-syntax-column
+webify-expander-syntax-position
+```
+
+It deliberately does not publish public `read-syntax` yet. The current public
+handoff decision is: keep `read-syntax` private until `#lang`, `#reader`,
+compiled-code input, and namespace/eval boundaries are specified. The private
+slice rejects reader-extension dynamic loading and compiled-code hooks
+deliberately; those are negative smokes, not accidental gaps.
+
+One cache wrinkle matters: lowered provider-form caches are not freely
+interchangeable across independently lowered providers, because generated
+symbol/data identifiers can collide. The read-syntax path therefore uses its
+own demod bootstrap cache and a read-syntax-specific cached regexp slice when
+composed next to the regexp provider.
+
 The dependency sequence so far is intentionally ratcheted by
 `webify/test-read-syntax-provider.rkt`:
 
@@ -170,7 +200,9 @@ a provider-owned public name is still present in the primitive database:
 
 - Decide public ownership for `read-syntax`.
 - Compose the private read-syntax provider through WebRacket instead of only
-  instantiating the flattened linklet under host Racket.
+  instantiating the flattened linklet under host Racket. Done for the private
+  `--expander-read-syntax-provider` path; browser-specific coverage still
+  remains.
 - Audit optional keyword behavior around the upstream reader's `read` entry.
 - Test reader extensions: `#reader`, `#lang`, compiled-code reading, and custom
   readtables.
