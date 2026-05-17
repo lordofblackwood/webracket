@@ -100,16 +100,24 @@
 
 (define-runtime-path webracket-root ".")
 
-(define webracket-collection-parent
-  (simplify-path (build-path webracket-root "..")))
+;; webracket/base-reader-path : -> (or/c path? #f)
+;;   Resolve the installed `webracket/base` reader through Racket's collection search.
+(define (webracket/base-reader-path)
+  (collection-file-path "reader.rkt"
+                        "webracket"
+                        "base"
+                        "lang"
+                        #:fail (lambda (_msg) #f)))
 
-;; call-with-webracket-collection-path : (-> any/c) -> any/c
-;;   Make this checkout visible as collection `webracket` while reading #lang modules.
-(define (call-with-webracket-collection-path thunk)
-  (parameterize ([current-library-collection-paths
-                  (cons webracket-collection-parent
-                        (current-library-collection-paths))])
-    (thunk)))
+;; ensure-webracket/base-reader! : -> void?
+;;   Fail early unless normal Racket collection resolution can find the reader.
+(define (ensure-webracket/base-reader!)
+  (unless (webracket/base-reader-path)
+    (raise-arguments-error
+     'read-top-level-from-file
+     "cannot resolve #lang webracket/base through Racket's collection search"
+     "reader" '(lib "webracket/base/lang/reader.rkt")
+     "hint" "install/link the webracket collection or set PLTCOLLECTS")))
 
 ;;;
 ;;; FFI Files
@@ -1112,27 +1120,164 @@
   (and (string? line)
        (regexp-match? #px"^#lang[ \t]+webracket/base([ \t].*)?$" line)))
 
-;; module-form->top-level : syntax? -> syntax?
-;;   Transitional #lang webracket/base support for the top-level compiler path.
-(define (module-form->top-level stx)
+(define (module-export-cell-symbol module-name export)
+  (string->symbol (format "webify-module-export-cell$~a$~a" module-name export)))
+
+(define (module-private-symbol module-name name)
+  (string->symbol (format "webify-module-private$~a$~a" module-name name)))
+
+(define (simple-provide-exports form)
+  (match form
+    [`(provide ,exports ...)
+     (filter symbol? exports)]
+    [_ '()]))
+
+(define (simple-local-require-paths form)
+  (match form
+    [`(require ,specs ...)
+     (for/list ([spec (in-list specs)]
+                #:when (string? spec))
+       spec)]
+    [_ '()]))
+
+(define (simple-defined-symbols forms)
+  (append-map stdlib-definition-form-symbols forms))
+
+(define (module-rename-reference renames v)
+  (cond
+    [(symbol? v)
+     (hash-ref renames v v)]
+    [(pair? v)
+     (match v
+       [`(quote . ,_) v]
+       [`(quote-syntax . ,_) v]
+       [`(syntax . ,_) v]
+       [`(quasiquote . ,_) v]
+       [else
+        (cons (module-rename-reference renames (car v))
+              (module-rename-reference renames (cdr v)))])]
+    [(vector? v)
+     (list->vector
+      (for/list ([elem (in-vector v)])
+        (module-rename-reference renames elem)))]
+    [else v]))
+
+(define (module-rename-definition-name renames name)
+  (hash-ref renames name name))
+
+(define (module-rename-top-level-form renames form)
+  (match form
+    [`(define (,name . ,formals) . ,body)
+     `(define (,(module-rename-definition-name renames name) . ,formals)
+        ,@(map (lambda (expr) (module-rename-reference renames expr)) body))]
+    [`(define ,name . ,rhs)
+     `(define ,(module-rename-definition-name renames name)
+        ,@(map (lambda (expr) (module-rename-reference renames expr)) rhs))]
+    [`(define-values ,names . ,rhs)
+     `(define-values ,(map (lambda (name) (module-rename-definition-name renames name))
+                           names)
+        ,@(map (lambda (expr) (module-rename-reference renames expr)) rhs))]
+    [else
+     (module-rename-reference renames form)]))
+
+;; read-webracket/base-module : path-string? -> syntax?
+;;   Read a WebRacket module source through normal Racket module reading.
+(define (read-webracket/base-module filename)
+  (call-with-input-file filename
+    (lambda (port)
+      (port-count-lines! port)
+      (with-module-reading-parameterization
+        (lambda ()
+          (ensure-webracket/base-reader!)
+          (read-syntax filename port))))))
+
+;; module-stx->name+body : syntax? -> values
+;;   Extract the module name and body from a #lang webracket/base module datum.
+(define (module-stx->name+body stx)
   (define datum (syntax->datum stx))
-  (define body
-    (match datum
-      [`(module ,_name webracket/base (#%module-begin ,forms ...))
-       forms]
-      [`(module ,_name webracket/base ,forms ...)
-       forms]
-      [_
-       (raise-arguments-error
-        'read-top-level-from-file
-        "expected a #lang webracket/base module"
-        "datum" datum)]))
+  (match datum
+    [`(module ,(? symbol? name) webracket/base (#%module-begin ,forms ...))
+     (values name forms)]
+    [`(module ,(? symbol? name) webracket/base ,forms ...)
+     (values name forms)]
+    [_
+     (raise-arguments-error
+      'read-top-level-from-file
+      "expected a #lang webracket/base module"
+      "datum" datum)]))
+
+;; webracket/base-module->top-level-forms : path-string? [hash?] [boolean?] -> values
+;;   Inline simple local string requires for the transitional top-level path.
+(define (webracket/base-module->top-level-forms filename [seen (make-hash)] [root? #t])
+  (define resolved (simplify-path (path->complete-path filename)))
+  (cond
+    [(hash-ref seen resolved #f)
+     (values '() '())]
+    [else
+     (hash-set! seen resolved #t)
+     (define stx (read-webracket/base-module resolved))
+     (define-values (module-name body) (module-stx->name+body stx))
+     (define source-dir (or (path-only resolved) (current-directory)))
+     (define require-paths (append-map simple-local-require-paths body))
+     (define-values (required-forms _required-exports)
+       (for/fold ([forms '()]
+                  [exports '()])
+                 ([req (in-list require-paths)])
+         (define req-path (simplify-path (build-path source-dir req)))
+         (define-values (req-forms req-exports)
+           (webracket/base-module->top-level-forms req-path seen #f))
+         (values (append forms req-forms)
+                 (append exports req-exports))))
+     (define exports (append-map simple-provide-exports body))
+     (define body-top-level-forms
+       (filter (lambda (form)
+                 (not (and (pair? form)
+                           (memq (car form) '(provide module+ require)))))
+               body))
+     (define private-renames
+       (if root?
+           (hasheq)
+           (for/hasheq ([name (in-list (simple-defined-symbols body-top-level-forms))]
+                        #:unless (memq name exports))
+             (values name (module-private-symbol module-name name)))))
+     (define top-level-forms
+       (if root?
+           body-top-level-forms
+           (map (lambda (form) (module-rename-top-level-form private-renames form))
+                body-top-level-forms)))
+     (define export-forms
+       (for/list ([export (in-list exports)])
+         (define cell (module-export-cell-symbol module-name export))
+         `(begin
+            (define ,cell (module-variable-make ',export))
+            (module-variable-define! ,cell ,export 'constant))))
+     (values (append required-forms top-level-forms export-forms)
+             exports)]))
+
+;; module-form->top-level : path-string? -> syntax?
+;;   Transitional #lang webracket/base support for the top-level compiler path.
+(define (module-file->top-level filename)
+  (define-values (forms _exports)
+    (webracket/base-module->top-level-forms filename))
+  (datum->syntax #f `(begin ,@forms)))
+
+;; module-form->top-level : syntax? -> syntax?
+;;   Transitional helper for tests that already have a module syntax object.
+(define (module-form->top-level stx)
+  (define-values (module-name body) (module-stx->name+body stx))
+  (define exports (append-map simple-provide-exports body))
   (define top-level-forms
     (filter (lambda (form)
               (not (and (pair? form)
-                        (memq (car form) '(provide module+)))))
+                        (memq (car form) '(provide module+ require)))))
             body))
-  (datum->syntax stx `(begin ,@top-level-forms) stx))
+  (define export-forms
+    (for/list ([export (in-list exports)])
+      (define cell (module-export-cell-symbol module-name export))
+      `(begin
+         (define ,cell (module-variable-make ',export))
+         (module-variable-define! ,cell ,export 'constant))))
+  (datum->syntax stx `(begin ,@top-level-forms ,@export-forms) stx))
 
 (define (read-top-level-from-file filename)
   (define first-line
@@ -1164,9 +1309,7 @@
              (define forms (read-forms port))
              (datum->syntax #f `(begin ,@forms))]
             [starts-with-webracket/base-lang?
-             (call-with-webracket-collection-path
-              (lambda ()
-                (module-form->top-level (read-syntax filename port))))]
+             (module-file->top-level filename)]
             [else
              (define forms (read-forms port))
              (datum->syntax #f `(begin ,@forms))]))))))

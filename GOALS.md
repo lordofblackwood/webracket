@@ -61,6 +61,12 @@ Implemented or partially implemented:
   existing top-level compiler path. This is enough for executable module-style
   programs that do not need arbitrary user `require`s yet; full provider-graph
   execution of the language module remains a deeper Goal 1 milestone.
+- The driver resolves the `webracket/base` reader with Racket's normal
+  collection search. It does not add checkout-specific fallback paths, so
+  uninstalled development checkouts must be exposed explicitly via
+  `PLTCOLLECTS`, collection links, or package installation. The transitional
+  path also handles simple local string requires by inlining required
+  `#lang webracket/base` sources before the root body.
 - Module-linklet inputs and manifests.
 - Module registry, module instances, and module-variable cells.
 - Import/export resolution for extracted module graphs.

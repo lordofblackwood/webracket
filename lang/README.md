@@ -14,6 +14,11 @@ declarations such as `provide`, and compiles the body through the existing
 top-level compiler path. Full module-provider execution is still tracked as a
 future Goal 1 step.
 
+Reader resolution uses Racket's normal collection search via
+`collection-file-path`. The driver does not add checkout-specific fallback
+paths; an uninstalled development checkout must be made visible explicitly,
+such as through `PLTCOLLECTS`, a collection link, or package installation.
+
 `racket/base` is the foundation for `webracket/base`, not one of the optional
 library add-ons. The next Goal 1 surface should layer selected libraries from
 the larger `racket` language on top of that foundation, such as `racket/list`,

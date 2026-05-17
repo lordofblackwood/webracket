@@ -49,7 +49,7 @@
     (racket/bool     exported extracts partial runs)
     (racket/bytes    exported extracts partial partial)
     (racket/dict     exported extracts partial partial)
-    (racket/format   exported extracts partial frontier)
+    (racket/format   exported extracts partial runs)
     (racket/function exported extracts partial runs)
     (racket/include  exported expands  partial host-only)
     (racket/list     exported extracts partial runs)
