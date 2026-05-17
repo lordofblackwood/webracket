@@ -1,10 +1,18 @@
 #lang racket/base
 
-(require rackunit
+(require racket/file
+         racket/list
+         racket/runtime-path
+         racket/string
+         racket/system
+         rackunit
          "module-extractor.rkt"
          "module-input.rkt"
          "probe-installed-module-deps.rkt"
          "primitive-demands.rkt")
+
+(define-runtime-path probe-installed-module-deps-path
+  "probe-installed-module-deps.rkt")
 
 (test-case "primitive demand audit collects resolved primitive imports"
   (define input
@@ -202,6 +210,39 @@
                   (runtime-owned-but-provider-shadowed . 1)
                   (runtime-preferred . 1)
                   (unknown . 1))))
+
+(test-case "primitive ownership TSV exposes cleanup status"
+  (define tmp-dir (make-temporary-file "webracket-ownership-tsv-~a" 'directory))
+  (dynamic-wind
+    void
+    (lambda ()
+      (define out-path (build-path tmp-dir "out.tsv"))
+      (define err-path (build-path tmp-dir "err.txt"))
+      (define status
+        (call-with-output-file out-path
+          #:exists 'truncate
+          (lambda (out)
+            (call-with-output-file err-path
+              #:exists 'truncate
+              (lambda (err)
+                (parameterize ([current-output-port out]
+                               [current-error-port err])
+                  (system*/exit-code
+                   (find-system-path 'exec-file)
+                   "-y"
+                   (path->string probe-installed-module-deps-path)
+                   "--primitive-ownership-collisions-tsv")))))))
+      (define stdout (file->string out-path))
+      (define stderr (file->string err-path))
+      (check-equal? status 0 stderr)
+      (define lines (string-split stdout "\n" #:trim? #t))
+      (check-equal? (first lines) "name\townership\tprovider\tstatus")
+      (check-not-false
+       (member "read\truntime-owned-but-provider-shadowed\texpander/read\ttemporary"
+               (rest lines))))
+    (lambda ()
+      (with-handlers ([exn:fail:filesystem? void])
+        (delete-directory/files tmp-dir)))))
 
 (test-case "Goal 1 module matrix names are known probe cases"
   (check-not-false (member 'promise-state goal1-module-cases))

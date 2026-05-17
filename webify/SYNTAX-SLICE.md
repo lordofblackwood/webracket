@@ -25,13 +25,14 @@ The ratchet test is:
 | `racket-src/expander/compile/serialize-property.rkt` | Provides serialization struct properties used by syntax objects. | `compile/serialize-state.rkt` |
 | `racket-src/expander/compile/serialize-state.rkt` | Paired serialization state support required by `syntax/syntax.rkt`. | `common/set.rkt` |
 | `racket-src/expander/common/set.rkt` | Lightweight expander set abstraction used by serialization and syntax state. | `namespace/inspector.rkt` |
+| `racket-src/expander/namespace/inspector.rkt` | Provides `current-module-code-inspector`, a parameter-like namespace value required by syntax objects. | `syntax/preserved.rkt` |
 
 ## Current Boundary
 
 The current expected missing file is:
 
 ```text
-racket-src/expander/namespace/inspector.rkt
+racket-src/expander/syntax/preserved.rkt
 ```
 
 Do not publish public `read-syntax` aliases until this staged slice has a

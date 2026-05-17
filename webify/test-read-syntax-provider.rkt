@@ -5,7 +5,7 @@
          rackunit
          "read-syntax-provider.rkt")
 
-(test-case "read-syntax staging reaches the next missing namespace dependency"
+(test-case "read-syntax staging reaches the next missing syntax dependency"
   (define cache-dir (make-temporary-file "webracket-read-syntax-boundary-~a" 'directory))
   (dynamic-wind
     void
@@ -14,10 +14,10 @@
         (webify-read-syntax-demod! cache-dir))
       (check-equal? status 1 output)
       (check-true
-       (string-contains? output "racket-src/expander/namespace/inspector.rkt")
+       (string-contains? output "racket-src/expander/syntax/preserved.rkt")
        output)
       (check-false
-       (string-contains? output "racket-src/expander/common/set.rkt\n  system error")
+       (string-contains? output "racket-src/expander/namespace/inspector.rkt\n  system error")
        output))
     (lambda ()
       (with-handlers ([exn:fail:filesystem? void])

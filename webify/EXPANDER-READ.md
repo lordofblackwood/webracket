@@ -89,12 +89,14 @@ The separate `read-syntax` track has started with:
   serialization support that `syntax/syntax.rkt` requires.
 - `racket-src/expander/common/set.rkt`, copied after the serialization support
   exposed the expander's lightweight set abstraction.
+- `racket-src/expander/namespace/inspector.rkt`, copied after `common/set.rkt`
+  exposed the syntax object's module-code-inspector parameter dependency.
 - `webify/read-syntax-provider.rkt` and
   `webify/check-read-syntax-provider.rkt`, a focused demod probe for this
   track.
 
 The current ratchet test expects the probe to reach the next missing file:
-`racket-src/expander/namespace/inspector.rkt`. The full dependency table now
+`racket-src/expander/syntax/preserved.rkt`. The full dependency table now
 lives in `webify/SYNTAX-SLICE.md`. The probe is expected to reveal
 additional missing `expander/syntax`, `expander/namespace`, `expander/eval`,
 and `expander/compile` dependencies before it can flatten successfully. Plain
@@ -110,6 +112,21 @@ The dependency sequence so far is intentionally ratcheted by
 - `compile/serialize-property.rkt` and `compile/serialize-state.rkt` exposed
   `common/set.rkt`.
 - `common/set.rkt` exposed `namespace/inspector.rkt`.
+- `namespace/inspector.rkt` exposed `syntax/preserved.rkt`.
+
+## Primitive Ownership Cleanup Statuses
+
+The primitive ownership collision report uses a `status` column to explain why
+a provider-owned public name is still present in the primitive database:
+
+- `temporary`: a runtime primitive exists only as a bridge while the provider
+  is optional or incomplete. `read` is in this class while
+  `--expander-read-provider` remains opt-in.
+- `remove-primitive-later`: the replacement provider path is already the
+  intended owner, but the runtime primitive is still useful during migration.
+  Current examples include regexp and `io/format` names.
+- `review`: no settled ownership decision has been made yet. Treat these names
+  as cleanup work, not as evidence that both definitions should remain public.
 
 ## Missing Before Public Replacement
 
