@@ -135,9 +135,9 @@
 
 (test-case "exception ownership lists classify temporary primitive helpers"
   (check-false (memq 'format stdlib-primitive-owned-export-symbols)
-               "format is primitive-backed for now, but not a stdlib export")
+               "format is provided by staged io/format, not the temporary stdlib")
   (check-false (memq 'fprintf stdlib-primitive-owned-export-symbols)
-               "fprintf is primitive-backed for now, but not a stdlib export")
+               "fprintf is provided by staged io/format, not the temporary stdlib")
   (for ([sym (in-list '(raise-argument-error
                         raise-arguments-error
                         read
@@ -180,19 +180,6 @@
    (or (string-contains? output "error-message->adjusted-string")
        (string-contains? output "unbound"))
    output))
-
-(test-case "primitive-owned format helpers remain visible with --stdlib"
-  (define-values (status output)
-    (run-temp-webracket
-     (string-append
-      "(define out (open-output-string))\n"
-      "(fprintf out \"io ~a ~s\" \"ok\" '(1 2))\n"
-      "(js-log (get-output-string out))\n"
-      "(js-log (format \"fmt ~a\" 'ok))\n")
-     (list "-r" "--stdlib")))
-  (check-equal? status 0 output)
-  (check-regexp-match #rx"(?m:^io ok \\(1 2\\)$)" output)
-  (check-regexp-match #rx"(?m:^fmt ok$)" output))
 
 (module+ main
   (void))

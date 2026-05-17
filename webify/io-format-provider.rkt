@@ -21,7 +21,7 @@
   '(format fprintf printf eprintf))
 
 (define io-format-current-primitive-symbols
-  '(format fprintf))
+  '())
 
 (define-runtime-path io-format-provider-module
   "../racket-src/io/format/main-web.rkt")
@@ -44,8 +44,7 @@
               'staged-original-ready))))
 
 (define io-format-bootstrap-retirement-blockers
-  '(staged-provider-runtime-smoke-needs-explicit-print-substrate
-    public-format-alias-still-collides-with-primitive))
+  '())
 
 ;; io-format-bootstrap-retirement-ready? : -> boolean?
 ;;   Report whether public primitive `format`/`fprintf` can be retired.

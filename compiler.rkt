@@ -1121,7 +1121,6 @@
       bytes-convert
       make-logger log-message
       make-log-receiver
-      format fprintf
       sync sync/timeout
       chaperone-procedure chaperone-struct chaperone-vector chaperone-box chaperone-hash
       extend-parameterization
@@ -1135,8 +1134,7 @@
         [(- / unsafe-fx- fx-/wraparound unsafe-fx-/wraparound min max
              flmin flmax unsafe-flmin unsafe-flmax
              fxmin fxmax unsafe-fxmin unsafe-fxmax
-             append* string-append* bytes-append* list* format) 1]
-        [(fprintf) 2]
+             append* string-append* bytes-append* list*) 1]
         [(sync) 0]
         [(sync/timeout) 1]
         [(chaperone-struct) 1]
@@ -1168,7 +1166,6 @@
         [(extend-parameterization) 1]
         [(vector-count map andmap ormap append-map count for-each vector-map vector-map! filter-map
                        instance-variable-value) 2]
-        [(fprintf) 2]
         [(sync) 0]
         [(sync/timeout) 1]
         [(chaperone-struct) 1]
@@ -1487,12 +1484,6 @@
     (make-inline-specs
      '(call-with-immediate-continuation-mark)
      'optional 2 3)
-    (make-inline-specs
-     '(regexp-replace)
-     'optional 3 4)
-    (make-inline-specs
-     '(regexp-replace*)
-     'optional-rest 3 6 3)
     (make-inline-specs
      '(continuation-prompt-available?)
      'optional 1 2)
@@ -1836,9 +1827,6 @@
   raise-arguments-error
   raise-read-error
   raise-read-eof-error
-  format
-  fprintf
-
   exn
   exn?
   exn-message
@@ -2759,17 +2747,7 @@
   custom-print-quotable-accessor
 
   ;; 4.8 Regular Expressions
-  byte-pregexp
-  byte-pregexp?
-  byte-regexp
-  byte-regexp?
   datum-intern-literal
-  pregexp?
-  regexp-match
-  regexp-match?
-  regexp-replace
-  regexp-replace*
-  regexp?
   webracket-literal-byte-pregexp
   webracket-literal-byte-regexp
   webracket-literal-pregexp
@@ -7335,10 +7313,10 @@
                `(quote ,s ,(datum s v)))]          ; other literals
           [(? string? cs)  `(quote ,s ,(datum s v))]
           [(? bytes?  bs)  `(quote ,s ,(datum s v))]
-          [(? byte-pregexp? rx) `(app ,h ,(var:webracket-literal-byte-pregexp) ,(loop (object-name rx)))]
-          [(? byte-regexp?  rx) `(app ,h ,(var:webracket-literal-byte-regexp)  ,(loop (object-name rx)))]
-          [(? pregexp?      rx) `(app ,h ,(var:webracket-literal-pregexp)      ,(loop (object-name rx)))]
-          [(? regexp?       rx) `(app ,h ,(var:webracket-literal-regexp)       ,(loop (object-name rx)))]
+          [(? byte-pregexp? rx) `(app ,h ,(variable #'byte-pregexp) ,(loop (object-name rx)))]
+          [(? byte-regexp?  rx) `(app ,h ,(variable #'byte-regexp)  ,(loop (object-name rx)))]
+          [(? pregexp?      rx) `(app ,h ,(variable #'pregexp)      ,(loop (object-name rx)))]
+          [(? regexp?       rx) `(app ,h ,(variable #'regexp)       ,(loop (object-name rx)))]
           [(? symbol? sym) `(quote ,s ,(datum s v))]
           [(? pair? p)     `(app ,h ,(var:cons) ,(loop (car p)) ,(loop (cdr p)))]
           [(? vector? v)   (let ([vs (map loop (vector->list v))])

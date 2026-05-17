@@ -3,10 +3,33 @@
 Webify should treat Racket's regexp implementation as a library layer, not as a
 hand-written WebAssembly primitive pile.
 
+The source staged for WebRacket lives at:
+
+```text
+racket-src/regexp/
+```
+
+Unlike `io/format`, the regexp slice intentionally copies the whole upstream
+directory. The Racket CS build already knows how to demodularize that graph to
+one closed linklet, so the WebRacket path should be:
+
+```text
+racket-src/regexp/          ; copied upstream regexp source tree
+racket-src/common/check.rkt ; shared helper required by regexp/main.rkt
+        ↓
+bootstrap-run demod cache   ; `webify/regexp-provider.rkt`
+        ↓
+regexp.rktl                 ; one cached closed linklet
+        ↓
+lowered provider forms      ; cached top-level forms
+        ↓
+Webify provider slice       ; composed by default
+```
+
 ## Demod Artifact
 
 The Racket CS build already flattens the regexp source tree into a single
-linklet. The recipe is in:
+linklet. The upstream recipe is in:
 
 ```text
 /Users/soegaard/Dropbox/GitHub/racket/racket/src/regexp/main.zuo
@@ -18,7 +41,7 @@ The important target invokes the expander bootstrap runner, not
 ```sh
 /Users/soegaard/Dropbox/GitHub/racket/racket/bin/racket \
   /Users/soegaard/Dropbox/GitHub/racket/racket/src/expander/bootstrap-run.rkt \
-  -t /Users/soegaard/Dropbox/GitHub/racket/racket/src/regexp/main.rkt \
+  -t /Users/soegaard/Dropbox/GitHub/webracket/racket-src/regexp/main.rkt \
   -c /private/tmp/webracket-regexp-cache \
   -k /Users/soegaard/Dropbox/GitHub/racket/racket \
   -s -x \
@@ -27,8 +50,30 @@ The important target invokes the expander bootstrap runner, not
   -o /private/tmp/webracket-regexp.rktl
 ```
 
-That command produced `/private/tmp/webracket-regexp.rktl`, a flattened linklet
-of roughly 472 KB in this checkout. The expander reported:
+`webify/regexp-provider.rkt` builds this command and defaults the cache root to
+the host temporary directory. A caller can pass another cache root to get a
+stable artifact location for a test run or provider build. The cache is guarded
+by a fingerprint of `racket-src/regexp/` plus `racket-src/common/check.rkt`;
+changing staged source regenerates the demodded linklet.
+
+The driver also caches the lowered provider top-level forms in the same cache
+root. That avoids re-running first-slice lowering for every WebRacket compile
+when the staged regexp sources are unchanged.
+
+The command-line driver exposes cache controls:
+
+```sh
+--provider-cache-dir DIR
+--clear-provider-cache
+--force-provider-cache-refresh
+```
+
+With `--verbose`, provider composition reports cache hits and misses for the
+demodded regexp linklet, the lowered regexp provider forms, and other provider
+slices that share the same cache directory.
+
+An earlier command produced `/private/tmp/webracket-regexp.rktl`, a flattened
+linklet of roughly 472 KB in this checkout. The expander reported:
 
 ```text
 Traversed 103 modules
@@ -82,24 +127,8 @@ access and no longer introduces Chez-style struct allocation:
 
 ```text
 run-first-slice-top-level regexp-linklet ; succeeds
-comp first-slice-output                 ; succeeds
-startup smoke with (js-log 123)         ; succeeds
-(regexp? (regexp "a"))                  ; succeeds
-(regexp-match? (regexp "a") "a")        ; succeeds
-(regexp-match (regexp "a") "cat")       ; succeeds
-(regexp-match? (regexp "ab") "xxabyy")  ; succeeds
-(regexp-match? (regexp "[ab]") "b")     ; succeeds
-(regexp-match (regexp "(a)") "cat")     ; succeeds
-(regexp-match? (regexp "a*") "bbb")     ; succeeds
-(regexp-match? (regexp "a+") "bbb")     ; succeeds
-(regexp-match? (regexp "^a") "ba")      ; succeeds
-(regexp-match? (regexp "^a") "ab")      ; succeeds
-(regexp-match? (byte-regexp #"a") #"cat") ; succeeds
-(regexp-match? (pregexp "a|b") "b")     ; succeeds
-(regexp-match? (regexp "a?") "bbb")     ; succeeds
-(regexp-match-positions (regexp "a") "cat") ; succeeds
-(regexp-replace (regexp "a") "cat" "o") ; succeeds
-(regexp-replace* (regexp "a") "banana" "o") ; succeeds
+comp first-slice-output                 ; blocked by primitive alias collision
+startup smoke with public exports       ; blocked by the same ownership issue
 ```
 
 That means the regexp layer gets through demod and into Webify's first-slice
@@ -107,8 +136,16 @@ adapter, and the starred raw accessor/mutator shape is no longer the immediate
 blocker. Webify used to create a Chez/Schemify `unsafe-struct` call while
 inlining known constructors, but the regexp linklet itself does not contain that
 form. The WebRacket target now keeps constructor procedures from
-`make-struct-type` instead of inventing a Chez allocation primitive. The startup
-smoke additionally needs three intentionally small lowerings:
+`make-struct-type` instead of inventing a Chez allocation primitive.
+
+The current integration shape mirrors the `io/format` migration: the provider
+is composed through module-variable cells, and the compiler no longer treats
+public regexp exports as primitive-owned names. Compiled regexp literals are
+lowered to public provider constructors such as `regexp`, `pregexp`,
+`byte-regexp`, and `byte-pregexp`.
+
+The historical startup smoke needed these intentionally small lowerings, which
+remain relevant when the ownership collision is removed:
 
 - `make-parameter` becomes a mutable closure with optional guard support, but no
   `parameterize` semantics.
@@ -127,8 +164,9 @@ smoke additionally needs three intentionally small lowerings:
   immutable-looking tables and breaks expander/regexp paths once `#hasheqv()`
   is represented as an immutable hash.
 
-The exported constructor and basic matcher path now work for literal strings,
-simple character classes, a basic capture group, repetition, and start anchors:
+Earlier direct top-level runtime probes confirmed these exported constructor
+and basic matcher paths before the primitive ownership guard started rejecting
+the public aliases:
 
 ```racket
 (regexp? (regexp "a"))
@@ -149,17 +187,17 @@ simple character classes, a basic capture group, repetition, and start anchors:
 (regexp-replace* (regexp "a") "banana" "o")
 ```
 
-That exercises parsing, conversion, validation, matcher compilation, and
-allocation of the final regexp struct for a literal character pattern, plus the
-fast string matcher used by `regexp-match?` and `regexp-match`. The capture
-case also exercises group-size bookkeeping in the validator. Repetition and
-anchor cases exercise matcher paths that can succeed without consuming input,
-fail after scanning, and respect the start-position condition. The byte and
-pregexp cases show that the exported byte constructors and parse-config variants
-are usable on small examples. The positions and replacement cases exercise
-non-boolean result construction and string substitution.
+Those probes exercised parsing, conversion, validation, matcher compilation,
+allocation of the final regexp struct, capture bookkeeping, repetition, anchors,
+byte regexp constructors, pregexp variants, position results, and replacement.
+They should be restored as provider-cell runtime smokes once the public export
+collision is resolved.
 
 ## Immediate Lesson
+
+The regexp provider slice is staged, cache-aware, and composed by default,
+including under `--no-stdlib`. Regular expressions are therefore part of the
+baseline runtime surface, not an optional stdlib add-on.
 
 The next Webify experiment should move from these first-order smoke tests to
 broader conformance and integration:
@@ -170,6 +208,6 @@ broader conformance and integration:
 literal regexp compilation through Webify
 ```
 
-Once basic matching works, regexp literals can later be lifted into calls to the
-linklet's `regexp`, `byte-regexp`, `pregexp`, and `byte-pregexp` exports,
-mirroring the literal lifting strategy in `src/cs/convert.rkt`.
+Regexp literals now route through the provider constructors. The old
+`webracket-literal-*regexp` primitives remain only as quarantined bootstrap
+helpers and should not be extended with public regexp behavior.

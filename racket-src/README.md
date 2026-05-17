@@ -1,12 +1,12 @@
 # Staged Racket Sources
 
-This directory contains small, staged copies of upstream Racket source files
-that WebRacket is adapting incrementally. These files are not handwritten
-WebRacket stdlib files.
+This directory contains staged copies of upstream Racket source files that
+WebRacket is adapting incrementally. These files are not handwritten WebRacket
+stdlib files.
 
 ## Upstream Source
 
-The current staged `io` files were copied from:
+The current staged `io` files and the copied `regexp/` tree were copied from:
 
 ```text
 repository: ../racket
@@ -18,6 +18,8 @@ branch:    codex/fix-url-port-ephemeral-reuse
 The upstream checkout was clean when these files were recorded.
 
 ## Files Currently Staged
+
+### Minimal `io/format` Slice
 
 ```text
 racket-src/io/common/check.rkt
@@ -40,9 +42,27 @@ the format sources, the print regexp hook, and the direct dependencies needed
 for the first provider probe. Do not copy all of `../racket/racket/src/io/` at
 once; add files only when a focused probe or provider composition needs them.
 
+### Whole `regexp/` Slice
+
+```text
+racket-src/common/check.rkt
+racket-src/regexp/
+```
+
+The regexp implementation is staged as the complete upstream source tree. That
+is intentional: Racket CS already demodularizes `src/regexp/main.rkt` into one
+closed linklet, and WebRacket should reuse that shape instead of maintaining a
+handwritten regexp stdlib. The cache-aware provider helper in
+`webify/regexp-provider.rkt` runs the demodularizer against
+`racket-src/regexp/main.rkt` and writes one reusable `regexp.rktl` artifact.
+The shared `racket-src/common/check.rkt` helper is included because
+`regexp/main.rkt` requires it through the same relative path that the upstream
+`src/regexp/` tree uses.
+
 ## Sync Guard
 
-`webify/test-io-format-plan.rkt` currently checks that the staged files are
-byte-for-byte identical to the upstream files at `../racket/racket/src/io/`.
-When WebRacket starts adapting a staged file, update that test and document the
-local divergence here.
+`webify/test-io-format-plan.rkt` currently checks that the staged `io` files
+are byte-for-byte identical to the upstream files at `../racket/racket/src/io/`.
+The regexp provider tests check the copied tree exists and that the demod
+command uses the staged source. When WebRacket starts adapting a staged file,
+update the corresponding test and document the local divergence here.

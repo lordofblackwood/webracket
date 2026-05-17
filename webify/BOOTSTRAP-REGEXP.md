@@ -1,9 +1,10 @@
 # Bootstrap Regexp Support
 
-Webify currently has a deliberately small regexp compatibility layer in
-`runtime-wasm.rkt`. Its purpose is to let the extracted expander reach startup
-milestones before the demodularized regexp library is available in WebRacket.
-It is not intended to be a full regexp implementation.
+Webify historically had a deliberately small regexp compatibility layer in
+`runtime-wasm.rkt`. Its purpose was to let the extracted expander reach startup
+milestones before the demodularized regexp library was available in WebRacket.
+It is not intended to be a full regexp implementation, and public regexp
+ownership now belongs to the demodularized provider slice.
 
 ## Implemented Pieces
 
@@ -49,12 +50,22 @@ names before exercising the more interesting module and configuration paths.
 
 ## Replacement Direction
 
-The intended replacement is still the demodularized regexp implementation, not
-an expanding collection of runtime special cases. New bootstrap cases should be
-added only when they unblock expander startup, should be documented here, and
-should include a focused probe or `test/test-basics.rkt` case that names the
-limited behavior.
+The intended replacement is the demodularized regexp implementation, not an
+expanding collection of runtime special cases. The provider slice is now
+composed by default, including under `--no-stdlib`, and public names such as
+`regexp`, `regexp-match?`, and `regexp-replace*` are provider-owned instead of
+compiler primitives.
 
-Once the demodularized regexp library is available, these runtime bootstrap
-helpers should either delegate to it or be reduced to literal constructors and
-predicates.
+The remaining runtime support is quarantined to low-level helpers retained for
+bootstrap/fallback compatibility:
+
+```racket
+webracket-literal-regexp
+webracket-literal-pregexp
+webracket-literal-byte-regexp
+webracket-literal-byte-pregexp
+```
+
+Normal compiled regexp literals now route through the provider constructors,
+not these helpers. New public regexp behavior should be added to the provider
+path, not to `runtime-wasm.rkt` as another bootstrap subset.

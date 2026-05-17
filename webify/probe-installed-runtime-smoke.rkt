@@ -95,6 +95,9 @@
     format-write
     format-align
     format-fprintf-port
+    regexp-literal
+    regexp-capture
+    regexp-replace
     class-basic))
 
 ;; smoke-label : installed-runtime-smoke? -> string?
@@ -212,6 +215,9 @@
       format-print
       format-align
       format-fprintf-port
+      regexp-literal
+      regexp-capture
+      regexp-replace
       match-basic
       match-literal-default
       match-let-basic
@@ -282,6 +288,9 @@
             [(format-write) #rx"(?m:^web$)"]
             [(format-align) #rx"(?m:^  web$)"]
             [(format-fprintf-port) #rx"(?m:^ok$)"]
+            [(regexp-literal) #rx"(?m:^true$)"]
+            [(regexp-capture) #rx"(?m:^2$)"]
+            [(regexp-replace) #rx"(?m:^bonono$)"]
             [(keyword-optional-direct) #rx"(?m:^4$)"]
             [(keyword-plain-direct) #rx"(?m:^42$)"]
             [(values-call-with-values values-let-values contract-wrapper-basic)

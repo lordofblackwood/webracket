@@ -27,9 +27,14 @@
 ;;;
 
 (require (only-in syntax/modread    with-module-reading-parameterization)
-         (only-in racket/path       file-name-from-path path-only path-get-extension
-                                    find-relative-path)
-         (only-in racket/file       make-directory* make-temporary-file)
+         (only-in racket/path       file-name-from-path
+                                    find-relative-path
+                                    path-only
+                                    path-get-extension)
+         (only-in racket/file       delete-directory/files
+                                    find-files
+                                    make-directory*
+                                    make-temporary-file)
          (only-in racket/port       open-output-nowhere with-output-to-string)
          (only-in racket/pretty     pretty-write)
          (only-in racket/format     ~a)
@@ -37,6 +42,7 @@
          #;(only-in "lang/reader.rkt" read-syntax)
          (only-in "assembler.rkt"   run wat->wasm runtime)
          (only-in racket/list       append* append-map remove-duplicates)
+         (only-in racket/match      match)
          setup/dirs
          (only-in "parameters.rkt"  current-ffi-foreigns
                                     current-ffi-imports-wat
@@ -57,8 +63,28 @@
                   stdlib-module-alias-symbols
                   stdlib-module-private-forms+bindings
                   stdlib-definition-form-symbols)
+         (only-in "webify/io-format-bridge.rkt"
+                  webify-io-format-root-name
+                  webify-io-format-registry
+                  webify-io-format-private-alias-forms
+                  webify-io-format-public-alias-forms)
+         (only-in "webify/regexp-provider.rkt"
+                  webify-regexp-default-cache-root
+                  webify-regexp-export-symbols
+                  webify-regexp-lowered-provider-cache-path
+                  webify-regexp-linklet
+                  webify-regexp-public-alias-forms
+                  webify-regexp-source-fingerprint)
+         (only-in "webify/module-adapter.rkt"
+                  first-slice-top-level-export-cell-ids
+                  webify-linklet-first-slice-top-level)
+         (only-in "webify/module-registry.rkt"
+                  webify-compose-module-registry/roots/composition
+                  webify-module-composition-with-tail)
          "compiler.rkt"
          "define-foreign.rkt")
+
+(define-runtime-path webracket-root ".")
 
 ;;;
 ;;; FFI Files
@@ -223,10 +249,209 @@
 (define (stdlib-cell-symbol i)
   (string->symbol (format "webify-stdlib-export-cell$~a" i)))
 
-;; add-module-stdlib : syntax? boolean? -> syntax?
+(define current-provider-cache-dir
+  (make-parameter webify-regexp-default-cache-root))
+
+(define current-provider-cache-force?
+  (make-parameter #f))
+
+(define current-provider-cache-verbose?
+  (make-parameter #f))
+
+;; provider-cache-path : path-string? ... -> path?
+;;   Build a cache path under the active provider cache directory.
+(define (provider-cache-path . elems)
+  (apply build-path (current-provider-cache-dir) elems))
+
+;; path-fingerprint : symbol? exact-integer? (listof path?) -> any/c
+;;   Fingerprint files using path, size, and mtime.
+(define (path-fingerprint tag version paths)
+  `(,tag
+    ,version
+    ,@(for/list ([path (in-list (sort (map simplify-path paths)
+                                      string<?
+                                      #:key path->string))])
+        (list (path->string path)
+              (file-size path)
+              (file-or-directory-modify-seconds path)))))
+
+;; read-provider-cache : path? any/c -> (or/c any/c #f)
+;;   Read a provider cache payload when its fingerprint matches.
+(define (read-provider-cache cache-path fingerprint)
+  (and (not (current-provider-cache-force?))
+       (file-exists? cache-path)
+       (with-handlers ([exn:fail? (lambda (_exn) #f)])
+         (match (call-with-input-file cache-path read)
+           [`(,cached-fingerprint ,payload)
+            (and (equal? cached-fingerprint fingerprint) payload)]
+           [_ #f]))))
+
+;; write-provider-cache! : path? any/c any/c -> void?
+;;   Write one fingerprinted provider cache payload.
+(define (write-provider-cache! cache-path fingerprint payload)
+  (make-directory* (path-only cache-path))
+  (call-with-output-file cache-path
+    (lambda (out)
+      (write (list fingerprint payload) out)
+      (newline out))
+    #:exists 'truncate/replace))
+
+;; provider-cache-log : string? any/c ... -> void?
+;;   Print provider cache diagnostics in verbose mode.
+(define (provider-cache-log fmt . args)
+  (when (current-provider-cache-verbose?)
+    (apply fprintf (current-error-port)
+           (string-append "provider-cache: " fmt "\n")
+           args)))
+
+;; io-format-source-fingerprint : -> any/c
+;;   Fingerprint the staged io/format provider inputs.
+(define (io-format-source-fingerprint)
+  (path-fingerprint
+   'io-format-provider-cache
+   1
+   (cons (build-path webracket-root "webify/io-format-bridge.rkt")
+         (find-files file-exists? (build-path webracket-root "racket-src/io")))))
+
+;; provider-slice-forms : symbol? #:public-aliases? boolean? -> (listof datum?)
+;;   Compose a provider slice and expose export cells, optionally publishing
+;;   public top-level aliases.
+(define (provider-slice-forms name #:public-aliases? [public-aliases? #f])
+  (case name
+    [(io/format)
+     (io-format-provider-forms #:public-aliases? public-aliases?)]
+    [(regexp)
+     (regexp-provider-forms #:public-aliases? public-aliases?)]
+    [else
+     (error 'provider-slice-forms "provider slice is not runtime-integrated yet: ~a" name)]))
+
+;; io-format-provider-forms : #:public-aliases? boolean? -> (listof datum?)
+;;   Compose the staged original-Racket io/format provider and expose export
+;;   cells, optionally publishing public top-level aliases.
+(define (io-format-provider-forms #:public-aliases? [public-aliases? #f])
+  (define cache-path
+    (provider-cache-path
+     (if public-aliases?
+         "io-format-provider-public.rktd"
+         "io-format-provider-private.rktd")))
+  (define fingerprint
+    `(io-format-lowered-provider-cache 1 ,public-aliases? ,(io-format-source-fingerprint)))
+  (define cached (read-provider-cache cache-path fingerprint))
+  (cond
+    [cached
+     (provider-cache-log "io/format lowered forms hit: ~a" cache-path)
+     cached]
+    [else
+     (provider-cache-log "io/format lowered forms miss; rebuilding: ~a" cache-path)
+     (define composition
+       (webify-compose-module-registry/roots/composition
+        (webify-io-format-registry)
+        (list webify-io-format-root-name)
+        #:define-export-aliases? #f
+        #:serializable?-box     #f
+        #:datum-intern?         #f
+        #:target                #f
+        #:allow-set!-undefined? #f
+        #:unsafe-mode?          #f
+        #:enforce-constant?     #t
+        #:allow-inline?         #t
+        #:no-prompt?            #f
+        #:prim-knowns           (hasheq)
+        #:primitives            (hasheq)
+        #:compiler-query        (lambda (v) #f)
+        #:get-import-knowns     (lambda (key) (values #f #f #f))
+        #:import-keys           #f))
+     (define forms
+       (cdr (webify-module-composition-with-tail
+             composition
+             ((if public-aliases?
+                  webify-io-format-public-alias-forms
+                  webify-io-format-private-alias-forms)
+              composition))))
+     (write-provider-cache! cache-path fingerprint forms)
+     forms]))
+
+;; regexp-provider-forms : #:public-aliases? boolean? -> (listof datum?)
+;;   Compose the cached original-Racket regexp provider and expose export cells,
+;;   optionally publishing public top-level aliases.
+(define (regexp-provider-forms #:public-aliases? [public-aliases? #f])
+  (define cache-path
+    (webify-regexp-lowered-provider-cache-path public-aliases?
+                                              (current-provider-cache-dir)))
+  (define fingerprint
+    `(regexp-lowered-provider-cache 1 ,public-aliases? ,(webify-regexp-source-fingerprint)))
+  (define cached (read-provider-cache cache-path fingerprint))
+  (cond
+    [cached
+     (provider-cache-log "regexp lowered forms hit: ~a" cache-path)
+     cached]
+    [else
+     (provider-cache-log "regexp lowered forms miss; rebuilding: ~a" cache-path)
+     (define lk
+       (webify-regexp-linklet #:cache-root (current-provider-cache-dir)
+                              #:force? (current-provider-cache-force?)
+                              #:verbose? (current-provider-cache-verbose?)))
+     (define-values (provider-stx exports _exports-info)
+       (webify-linklet-first-slice-top-level
+        lk
+        #:define-export-aliases? #f
+        #:serializable?-box     #f
+        #:datum-intern?         #f
+        #:target                #f
+        #:allow-set!-undefined? #f
+        #:unsafe-mode?          #f
+        #:enforce-constant?     #t
+        #:allow-inline?         #t
+        #:no-prompt?            #f
+        #:prim-knowns           (hasheq)
+        #:primitives            (hasheq)
+        #:compiler-query        (lambda (v) #f)
+        #:get-import-knowns     (lambda (key) (values #f #f #f))
+        #:import-keys           #f))
+     (unless (equal? (sort exports symbol<?)
+                     (sort webify-regexp-export-symbols symbol<?))
+       (error 'regexp-provider-forms
+              "unexpected regexp exports: ~s"
+              exports))
+     (define export-cells
+       (first-slice-top-level-export-cell-ids exports))
+     (define forms
+       (append
+        (cdr (syntax->datum provider-stx))
+        (if public-aliases?
+            (webify-regexp-public-alias-forms export-cells)
+            '())))
+     (write-provider-cache! cache-path fingerprint forms)
+     forms]))
+
+;; add-io-format-provider : syntax? -> syntax?
+;;   Prepend only the staged io/format provider, without the old stdlib root.
+(define (add-io-format-provider stx)
+  (define provider-forms
+    (append
+     (provider-slice-forms 'regexp #:public-aliases? #t)
+     (provider-slice-forms 'io/format #:public-aliases? #t)))
+  (with-syntax ([(provider-form ...) (map (lambda (form) (datum->syntax stx form stx))
+                                          provider-forms)])
+    #`(begin
+        provider-form ...
+        #,stx)))
+
+;; add-regexp-provider : syntax? -> syntax?
+;;   Prepend only the always-available regexp provider slice.
+(define (add-regexp-provider stx)
+  (define regexp-forms
+    (provider-slice-forms 'regexp #:public-aliases? #t))
+  (with-syntax ([(regexp-form ...) (map (lambda (form) (datum->syntax stx form stx))
+                                        regexp-forms)])
+    #`(begin
+        regexp-form ...
+        #,stx)))
+
+;; add-module-stdlib : syntax? boolean? #:io-format-provider? boolean? -> syntax?
 ;;   Evaluate the selected stdlib root with private top-level names, publish
 ;;   chosen exports through module-variable cells, then append the user program.
-(define (add-module-stdlib stx browser?)
+(define (add-module-stdlib stx browser? #:io-format-provider? [io-format-provider? #f])
   (define-values (stdlib-forms bindings)
     (stdlib-module-private-forms+bindings browser?))
   (define alias-set
@@ -254,8 +479,12 @@
                                  (define ,public (module-variable-ref ,cell)))))])
       alias-form))
   (define stdlib-program-forms
-    (append-map (λ (form) (cons form (alias-forms-after form)))
-                stdlib-forms))
+    (append (provider-slice-forms 'regexp #:public-aliases? #t)
+            (if io-format-provider?
+                (provider-slice-forms 'io/format #:public-aliases? #t)
+                '())
+            (append-map (λ (form) (cons form (alias-forms-after form)))
+                        stdlib-forms)))
   (with-syntax ([(stdlib-form ...) (map (λ (form) (datum->syntax stx form stx))
                                         stdlib-program-forms)])
     #`(begin
@@ -346,7 +575,12 @@
          ;; Foreign Function Interface
          #:ffi-files         ffi-files    ; list of file paths for .ffi files
          ;; Standard Library
-         #:stdlib?           stdlib?)     ; can be turned off for testing the compiler
+         #:stdlib?           stdlib?      ; can be turned off for testing the compiler
+         #:stdlib-io-format-provider? [stdlib-io-format-provider? #t]
+         ;; Provider Cache
+         #:provider-cache-dir [provider-cache-dir webify-regexp-default-cache-root]
+         #:clear-provider-cache? [clear-provider-cache? #f]
+         #:force-provider-cache-refresh? [force-provider-cache-refresh? #f])
 
   (define exit-code       0)
   (define compile-timings #f)
@@ -358,6 +592,22 @@
   (current-tree-shake? tree-shake?)
   (current-runtime-primitive-report-path tree-shake-report)
   (set-browser-mode! browser?)
+  (define provider-cache-path
+    (let ([p (if (path? provider-cache-dir)
+                 provider-cache-dir
+                 (string->path provider-cache-dir))])
+      (path->complete-path p)))
+  (current-provider-cache-dir provider-cache-path)
+  (current-provider-cache-force? force-provider-cache-refresh?)
+  (current-provider-cache-verbose? verbose?)
+  (when clear-provider-cache?
+    (provider-cache-log "clearing cache directory: ~a" provider-cache-path)
+    (with-handlers ([exn:fail:filesystem? void])
+      (delete-directory/files provider-cache-path)))
+  (when verbose?
+    (provider-cache-log "cache directory: ~a" provider-cache-path)
+    (when force-provider-cache-refresh?
+      (provider-cache-log "force refresh enabled")))
 
   ; 0. Check that `filename` exists and is a source file.
   (ensure-source-file! 'drive-compilation filename)
@@ -408,14 +658,26 @@
        (when verbose?
          (displayln "Composing module stdlib root `stdlib/stdlib-for-browser.rkt`"
                     (current-error-port)))
-       (add-module-stdlib stx-for-compile #t)]
+       (add-module-stdlib stx-for-compile
+                           #t
+                           #:io-format-provider? stdlib-io-format-provider?)]
       [stdlib?
        (when verbose?
          (displayln "Composing module stdlib root `stdlib/stdlib.rkt`"
                     (current-error-port)))
-       (add-module-stdlib stx-for-compile #f)]
+       (add-module-stdlib stx-for-compile
+                           #f
+                           #:io-format-provider? stdlib-io-format-provider?)]
+      [stdlib-io-format-provider?
+       (when verbose?
+         (displayln "Composing module stdlib-free `io/format` provider"
+                    (current-error-port)))
+       (add-io-format-provider stx-for-compile)]
       [else
-       stx-for-compile]))
+       (when verbose?
+         (displayln "Composing module stdlib-free `regexp` provider"
+                    (current-error-port)))
+       (add-regexp-provider stx-for-compile)]))
   (define t-add-stdlib-end (now-ms))
 
   (define t-preflight-start (now-ms))

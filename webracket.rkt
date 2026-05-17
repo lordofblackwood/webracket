@@ -10,7 +10,11 @@
 
 ;; usage: racket webracket.rkt [ <option> ... ] [<files>] ...
 
-(require "driver.rkt")
+(require "driver.rkt"
+         (only-in "webify/provider-slices.rkt"
+                  provider-slice-report-lines)
+         (only-in "webify/regexp-provider.rkt"
+                  webify-regexp-default-cache-root))
 
 
 (define run-after       (make-parameter #f))
@@ -25,6 +29,7 @@
 (define timings?        (make-parameter #f))
 (define pretty-wat?     (make-parameter #f))
 (define list-primitives? (make-parameter #f))
+(define list-provider-slices? (make-parameter #f))
 (define enable-cc-analysis? (make-parameter #f))
 (define enable-simplify? (make-parameter #f))
 (define tree-shake?     (make-parameter #t))
@@ -46,6 +51,11 @@
 (define source-filename (make-parameter #f))   ; the file to compile
 
 (define stdlib?         (make-parameter #t))   ; include standard library by default
+(define stdlib-io-format-provider?
+  (make-parameter #t)) ; use staged original-Racket io/format provider by default
+(define provider-cache-dir (make-parameter #f))
+(define clear-provider-cache? (make-parameter #f))
+(define force-provider-cache-refresh? (make-parameter #f))
 
 (define (normalize-vfs-preload-path-for-duplicates path)
   (regexp-replace #px"/+$" path ""))
@@ -170,6 +180,8 @@
                         (pretty-wat? #f)]
    [("--list-primitives") "Print the list of all primitives and exit"
                           (list-primitives? #t)]
+   [("--list-provider-slices") "Print original-Racket provider slices and exit"
+                               (list-provider-slices? #t)]
    [("--enable-cc-analysis") "Enable the new closure-conversion analysis"
                              (enable-cc-analysis? #t)]
    [("--enable-simplify") "Run the early simplify-LFE pass"
@@ -204,6 +216,20 @@
                              (stdlib? #t)]
    [("--no-stdlib")          "Do not include the standard library"
                              (stdlib? #f)]
+   [("--io-format-provider" "--stdlib-io-format-provider")
+    "Compose staged original-Racket io/format provider (default)"
+    (stdlib-io-format-provider? #t)]
+   [("--no-io-format-provider" "--no-stdlib-io-format-provider")
+    "Disable staged original-Racket io/format provider for debugging"
+    (stdlib-io-format-provider? #f)]
+   [("--provider-cache-dir") dirname
+                             "Use <dirname> for provider-slice caches"
+                             (provider-cache-dir dirname)]
+   [("--clear-provider-cache") "Delete the provider cache directory before compiling"
+                               (clear-provider-cache? #t)]
+   [("--force-provider-cache-refresh")
+    "Regenerate provider cache artifacts even when fingerprints match"
+    (force-provider-cache-refresh? #t)]
    
 
    #:once-any ; only one flag from this group
@@ -256,6 +282,10 @@
    (for ([name (in-list (list-available-primitives #:ffi-files (ffi-files)))])
      (displayln name))
    (exit 0)]
+  [(list-provider-slices?)
+   (for ([line (in-list (provider-slice-report-lines))])
+     (displayln line))
+   (exit 0)]
   [else
    (unless (= (length positional-filenames) 1)
      (error 'webracket
@@ -295,7 +325,13 @@
                      #:vfs-mounts   (reverse (vfs-mounts))
                      #:run-after?    (run-after)
                      #:ffi-files     (ffi-files)
-                     #:stdlib?       (stdlib?)))
+                     #:stdlib?       (stdlib?)
+                     #:stdlib-io-format-provider? (stdlib-io-format-provider?)
+                     #:provider-cache-dir
+                     (or (provider-cache-dir) webify-regexp-default-cache-root)
+                     #:clear-provider-cache? (clear-provider-cache?)
+                     #:force-provider-cache-refresh?
+                     (force-provider-cache-refresh?)))
 
 (unless (zero? exit-code)
   (exit exit-code))

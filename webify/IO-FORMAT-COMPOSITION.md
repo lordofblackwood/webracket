@@ -22,22 +22,36 @@ eprintf
   changes only the require surface.
 - `racket-src/io/format/main-web.rkt` exposes the public format family through
   the adapted `do-printf`.
-- `webify/io-format-provider.rkt` records that `format` and `fprintf` are
-  primitive-backed now, but should move to the staged original provider.
+- `webify/io-format-provider.rkt` records that the public format family is now
+  owned by the staged original provider.
 - `webify/test-io-format-composition.rkt` proves the existing module registry
   can compose a provider fixture with the same export names and expose them
   through module-variable cells.
-- The provider fixture composes with public top-level aliases disabled. That is
-  intentional while `format` is still a primitive; the safe bridge shape is
-  cell access first, public aliasing later.
+- The provider fixture can still compose with public top-level aliases disabled
+  for cell-only tests, but the default command-line path now publishes public
+  provider aliases. This includes `--no-stdlib`, which omits the old WebRacket
+  stdlib root but still composes this small `io/format` provider slice unless
+  disabled.
 - `webify/test-io-format-extraction.rkt` proves a tiny source module can be
   compiled, extracted to a registry-ready linklet input, composed cell-only, and
   run under `--no-stdlib`.
+- `webify/io-format-bridge.rkt` owns the reusable staged provider graph,
+  including the map shim, module-protocol cells, registry inputs, private
+  stdlib cell aliases, and public aliases.
+- The driver now caches the lowered `io/format` provider forms in the shared
+  provider cache. The cache is fingerprinted from `racket-src/io/` plus the
+  bridge module, and it participates in `--provider-cache-dir`,
+  `--clear-provider-cache`, `--force-provider-cache-refresh`, and verbose
+  provider-cache diagnostics.
 - The same extraction path can resolve the staged `main-web.rkt`,
   `printf-web.rkt`, and `printf-adapter.rkt` provider graph into registry-ready
   inputs when supplied with a small `map2` shim and module-protocol cells.
+- The resolved staged graph now runs under `--no-stdlib` through
+  module-variable cells. The runtime smoke calls the extracted provider's
+  `format` export and covers representative `~a`, `~s`, `~~`, `~x`, `~o`,
+  `~b`, and `~c` directives.
 
-## Blockers For Direct Provider Composition
+## Remaining Caveats
 
 `main-web.rkt` is not yet directly consumed by Webify's module composer because
 it is a host Racket module:
@@ -57,41 +71,50 @@ modules. To compose `main-web.rkt` directly, Webify needs one of these paths:
 - Keep an explicit generated adapter only as a mechanical artifact derived from
   the staged original sources, not as hand-written `stdlib/` code.
 
-Other practical blockers:
+The provider still requires `printf-adapter.rkt` and `printf-web.rkt`, so
+dependency extraction must preserve the small adapted require graph.
 
-- The provider requires `printf-adapter.rkt` and `printf-web.rkt`, so dependency
-  extraction must preserve the small adapted require graph.
-- The provider uses host `racket/base` bindings in tests. Runtime composition
-  must map those to WebRacket primitives or composed provider exports.
-- The extracted staged graph currently still needs an explicit print substrate:
-  `printf-adapter.rkt` closes over helpers such as `display`, so the direct
-  runtime smoke is blocked under `--no-stdlib` until those dependencies are
-  explicit provider imports or primitives.
-- Public `format` and `fprintf` still exist as compiler/runtime primitives.
-  Their public primitive ownership must be retired or renamed before the staged
-  provider can export those names at top level without ambiguity.
+The print substrate blocker was retired by routing the adapter through
+`port-display-handler`, `port-write-handler`, and `port-print-handler` instead
+of public `display`, `write`, and `print` bindings.
 
-## Retirement Checklist For Bootstrap `format`/`fprintf`
+One caveat remains in the adapter: `~v` is routed through write handling for
+now. WebRacket has `port-print-handler` as a primitive, but the full Racket
+print-handler protocol is not complete enough for this provider path yet.
 
-Before removing primitive ownership:
+## Retired Bootstrap `format`/`fprintf` Checklist
+
+The public bootstrap primitive ownership has been retired:
 
 1. Compose the staged `io/format` provider, not a hand-written `stdlib/`
    replacement.
 2. Prove provider exports are available through module-variable cells in a
-   `--no-stdlib` runtime smoke.
+   `--no-stdlib` runtime smoke. This is done for representative format calls.
 3. Add behavior coverage for `~a`, `~s`, `~v`, `~e`, `~~`, `~n`, `~%`, `~x`,
    `~o`, `~b`, `~c`, whitespace skipping, argument-count errors, and argument
-   type errors.
+   type errors. Host-side coverage exists for this set; runtime coverage should
+   continue to grow around `~v`, `~e`, newlines, and error paths.
 4. Remove `format` and `fprintf` from compiler primitive tables only after the
-   provider path is available in the default `--stdlib` composition.
+   provider path is available in the default `--stdlib` composition. This is
+   done. The default command-line path now composes the provider, including
+   with `--no-stdlib`. A debugging switch remains:
+
+   ```sh
+   --no-io-format-provider
+   ```
+
+   Private cells such as `webify-io-format-export-cell$format` are still
+   exposed for focused bridge tests.
 5. Update `primitives.rkt` so `#lang webracket` keeps the same public surface,
    either by requiring/composing the provider or by documenting any temporary
-   fallback.
+   fallback. The host-side language still re-exports Racket's `format` family;
+   compiled WebRacket gets the provider through `--stdlib`.
 6. Update inliner/arity handling for any direct primitive call sites that
-   previously expected variadic primitive `format` or `fprintf`.
+   previously expected variadic primitive `format` or `fprintf`. This is done
+   by removing those names from the primitive/inliner tables.
 7. Keep low-level runtime helpers such as `$format/display` if they are still
    needed by error reporting or printing internals, but do not expose them as
-   public `format`.
+   public `format`. `$format/display` remains internal runtime support.
 
 The expected user-visible improvement after provider ownership is richer Racket
 format directive coverage, including directives that the current bootstrap

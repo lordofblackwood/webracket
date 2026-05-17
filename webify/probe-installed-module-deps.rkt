@@ -78,6 +78,9 @@
     contract-wrapper-basic
     class-require
     class-basic
+    regexp-literal
+    regexp-capture
+    regexp-replace
     format-require
     format-single
     format-basic
@@ -134,6 +137,9 @@
     values-call-with-values
     values-let-values
     class-basic
+    regexp-literal
+    regexp-capture
+    regexp-replace
     stream-first
     stream-rest
     promise-require
@@ -529,6 +535,18 @@
              (super-new)
              (define/public (value) 42)))
          (define y (send (new counter%) value))))]
+    [(regexp-literal)
+     '((module use-regexp-literal racket/base
+         (provide y)
+         (define y (regexp-match? #rx"a+" "cat"))))]
+    [(regexp-capture)
+     '((module use-regexp-capture racket/base
+         (provide y)
+         (define y (length (regexp-match #rx"(a)" "cat")))))]
+    [(regexp-replace)
+     '((module use-regexp-replace racket/base
+         (provide y)
+         (define y (regexp-replace* #rx"a" "banana" "o"))))]
     [(match-basic)
      '((module use-match-basic racket/base
          (require racket/match)
