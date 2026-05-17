@@ -4,6 +4,33 @@ Webify should treat Racket's expander like the regexp layer: a Racket library
 implementation that can be flattened to a closed linklet, then lowered toward
 WebRacket one blocker at a time.
 
+## Full-Expander Oracle
+
+The whole expander is useful as an oracle even when it is too large to make the
+default browser artifact. Use:
+
+```sh
+../racket/racket/bin/racket webify/expander-oracle.rkt
+```
+
+The oracle runs Racket's closed expander extraction, reads the generated
+linklet, and reports conservative primitive-table demands without lowering or
+compiling the linklet through WebRacket. This keeps the query small enough to
+run during planning, while still reflecting the subsystem boundary that Racket
+itself extracts.
+
+Machine-readable modes:
+
+```sh
+../racket/racket/bin/racket webify/expander-oracle.rkt --primitive-demands-tsv
+../racket/racket/bin/racket webify/expander-oracle.rkt --missing-primitives-tsv
+```
+
+Treat the output as an implementation guide, not as proof that the full
+expander should ship as one browser module. Goal 1 should continue to compose
+small provider artifacts where possible; Goal 2 can reuse the whole-expander
+path when `eval`, expansion, and namespace behavior become the target.
+
 ## Source Notes
 
 The expander README is in:
