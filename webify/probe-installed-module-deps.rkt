@@ -25,6 +25,13 @@
 
 (define-runtime-path self-path "probe-installed-module-deps.rkt")
 
+(define goal1-output-semaphore (make-semaphore 1))
+
+;; call-with-goal1-output-lock : (-> any/c) -> any/c
+;;   Serialize parent-side dashboard output from parallel bounded workers.
+(define (call-with-goal1-output-lock thunk)
+  (call-with-semaphore goal1-output-semaphore thunk))
+
 (define known-module-cases
   '(set-require
     set-predicate
@@ -851,12 +858,13 @@
 ;; run-goal1-child/bounded! : symbol? exact-positive-integer? (or/c #f exact-positive-integer?) -> exact-integer?
 ;;   Run one Goal 1 extraction case in a child process with timeout protection.
 (define (run-goal1-child/bounded! name timeout-seconds memory-mb)
-  (fprintf (current-error-port)
-           "goal1-deps: starting ~a (timeout ~as, memory ~a MiB)\n"
-           name
-           timeout-seconds
-           (or memory-mb "unlimited"))
-  (flush-output (current-error-port))
+  (call-with-goal1-output-lock
+   (lambda ()
+     (printf "goal1-deps: starting ~a (timeout ~as, memory ~a MiB)\n"
+             name
+             timeout-seconds
+             (or memory-mb "unlimited"))
+     (flush-output)))
   (define exec-file (find-system-path 'exec-file))
   (define racket-bin
     (cond
@@ -903,37 +911,92 @@
   (delete-directory/files tmp-dir)
   (cond
     [(not completed)
-     (printf "~a\ttimeout\t-\t-\t-\t-\n" name)
-     (flush-output)
-     (fprintf (current-error-port) "goal1-deps: timed out ~a\n" name)
-     (flush-output (current-error-port))
+     (call-with-goal1-output-lock
+      (lambda ()
+        (printf "~a\ttimeout\t-\t-\t-\t-\n" name)
+        (flush-output)
+        (printf "goal1-deps: timed out ~a\n" name)
+        (flush-output)))
      124]
     [(and (integer? status) (zero? status))
-     (display stdout)
-     (flush-output)
-     (fprintf (current-error-port) "goal1-deps: finished ~a\n" name)
-     (flush-output (current-error-port))
+     (call-with-goal1-output-lock
+      (lambda ()
+        (display stdout)
+        (flush-output)
+        (printf "goal1-deps: finished ~a\n" name)
+        (flush-output)))
      0]
     [else
-     (printf "~a\tworker-failed\t-\t-\t-\t-\n" name)
-     (unless (string=? stdout "") (display stdout))
-     (unless (string=? stderr "")
-       (display stderr (current-error-port)))
-     (flush-output)
-     (fprintf (current-error-port) "goal1-deps: failed ~a\n" name)
-     (flush-output (current-error-port))
+     (call-with-goal1-output-lock
+      (lambda ()
+        (printf "~a\tworker-failed\t-\t-\t-\t-\n" name)
+        (unless (string=? stdout "") (display stdout))
+        (unless (string=? stderr "")
+          (display stderr))
+        (flush-output)
+        (printf "goal1-deps: failed ~a\n" name)
+        (flush-output)))
      (if (integer? status) status 1)]))
 
-;; print-goal1-dashboard/bounded : exact-positive-integer? (or/c #f exact-positive-integer?) [#:cases (listof symbol?)] -> exact-integer?
+;; run-goal1-children/bounded! : (listof symbol?) exact-positive-integer?
+;;                             (or/c #f exact-positive-integer?)
+;;                             exact-positive-integer?
+;;                          -> exact-integer?
+;;   Run bounded Goal 1 child extractions across a limited number of lanes.
+(define (run-goal1-children/bounded! cases timeout-seconds memory-mb jobs)
+  (cond
+    [(or (<= jobs 1) (<= (length cases) 1))
+     (for/fold ([status 0]) ([name (in-list cases)])
+       (define next-status (run-goal1-child/bounded! name timeout-seconds memory-mb))
+       (if (zero? status) next-status status))]
+    [else
+     (define work-ch (make-channel))
+     (define result-ch (make-channel))
+     (define worker-count (min jobs (length cases)))
+     (for ([worker-index (in-range worker-count)])
+       (thread
+        (lambda ()
+          (let loop ()
+            (define name (channel-get work-ch))
+            (cond
+              [(eq? name 'stop)
+               (channel-put result-ch (cons worker-index #f))]
+              [else
+               (define status
+                 (with-handlers ([exn:fail?
+                                  (lambda (exn)
+                                    (fprintf (current-error-port)
+                                             "goal1-deps: worker ~a crashed on ~a: ~a\n"
+                                             worker-index
+                                             name
+                                             (exn-message exn))
+                                    1)])
+                   (run-goal1-child/bounded! name timeout-seconds memory-mb)))
+               (channel-put result-ch (cons worker-index status))
+               (loop)])))))
+     (thread
+      (lambda ()
+        (for ([name (in-list cases)])
+          (channel-put work-ch name))
+        (for ([_ (in-range worker-count)])
+          (channel-put work-ch 'stop))))
+     (let loop ([remaining (+ (length cases) worker-count)] [status 0])
+       (cond
+         [(zero? remaining) status]
+         [else
+          (match-define (cons _worker-index next-status) (channel-get result-ch))
+          (loop (sub1 remaining)
+                (if (and next-status (zero? status)) next-status status))]))]))
+
+;; print-goal1-dashboard/bounded : exact-positive-integer? (or/c #f exact-positive-integer?) [#:cases (listof symbol?)] [#:jobs exact-positive-integer?] -> exact-integer?
 ;;   Print the Goal 1 dashboard while isolating each extraction case.
 (define (print-goal1-dashboard/bounded timeout-seconds memory-mb
-                                       #:cases [cases goal1-module-cases])
+                                       #:cases [cases goal1-module-cases]
+                                       #:jobs [jobs 1])
   (printf "Goal 1 must-have library dependency dashboard\n")
   (printf "case\textract\tinputs\tprimitive-demands\tmissing-primitives\townership\n")
   (flush-output)
-  (for/fold ([status 0]) ([name (in-list cases)])
-    (define next-status (run-goal1-child/bounded! name timeout-seconds memory-mb))
-    (if (zero? status) next-status status)))
+  (run-goal1-children/bounded! cases timeout-seconds memory-mb jobs))
 
 (module+ main
   (define selected-case 'set-require)
@@ -946,6 +1009,7 @@
   (define timeout-seconds 120)
   (define memory-mb 1024)
   (define goal1-limit #f)
+  (define jobs 1)
 
   (command-line
    #:program "probe-installed-module-deps"
@@ -969,6 +1033,8 @@
                 (set! timeout-seconds (string->number seconds))]
    [("--memory-mb") mb "best-effort Racket worker memory limit in MiB"
                   (set! memory-mb (string->number mb))]
+   [("--jobs") n "child extraction processes to run concurrently in bounded Goal 1 modes"
+             (set! jobs (max 1 (string->number n)))]
    [("--goal1-limit") n "limit Goal 1 dashboard modes to the first n cases"
                       (set! goal1-limit (string->number n))])
 
@@ -980,7 +1046,8 @@
        0]
       [goal1-bounded?
        (print-goal1-dashboard/bounded timeout-seconds memory-mb
-                                      #:cases selected-goal1-cases)]
+                                      #:cases selected-goal1-cases
+                                      #:jobs jobs)]
       [goal1-dashboard?
        (print-goal1-dashboard #:cases selected-goal1-cases)
        0]

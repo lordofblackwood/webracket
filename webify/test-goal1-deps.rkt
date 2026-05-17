@@ -17,5 +17,7 @@
      "--timeout"
      "120"
      "--memory-mb"
-     "1024"))
+     "1024"
+     "--jobs"
+     "2"))
   (exit status))

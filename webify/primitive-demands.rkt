@@ -356,6 +356,9 @@
   (cond
     [(set-member? runtime-preferred-primitive-symbols-set name)
      'runtime-preferred]
+    [(and (set-member? provider-owned-primitive-symbols-set name)
+          (set-member? primitive-db-keys-set name))
+     'runtime-owned-but-provider-shadowed]
     [(set-member? provider-owned-primitive-symbols-set name)
      'provider-owned]
     [(set-member? primitive-db-keys-set name)
@@ -373,7 +376,11 @@
                    (webify-primitive-demand-name demand))
                   add1
                   0))
-  (for/list ([key (in-list '(runtime-owned provider-owned runtime-preferred unknown))]
+  (for/list ([key (in-list '(runtime-owned
+                             runtime-owned-but-provider-shadowed
+                             provider-owned
+                             runtime-preferred
+                             unknown))]
              #:when (positive? (hash-ref counts key 0)))
     (cons key (hash-ref counts key))))
 

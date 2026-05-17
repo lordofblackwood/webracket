@@ -80,14 +80,18 @@ The separate `read-syntax` track has started with:
   `webify-expander-read-syntax/recursive`.
 - `racket-src/expander/syntax/read-syntax.rkt`, copied from upstream as the
   first syntax-aware dependency.
+- `racket-src/expander/common/performance.rkt`, copied after the first probe
+  showed it was the next missing dependency.
 - `webify/read-syntax-provider.rkt` and
   `webify/check-read-syntax-provider.rkt`, a focused demod probe for this
   track.
 
-The probe is expected to reveal additional missing `expander/syntax`,
-`expander/namespace`, `expander/eval`, and `expander/compile` dependencies
-before it can flatten successfully. Plain public `read-syntax` should stay
-unpublished until that dependency story is understood.
+The current ratchet test expects the probe to reach the next missing file:
+`racket-src/expander/syntax/syntax.rkt`. The probe is expected to reveal
+additional missing `expander/syntax`, `expander/namespace`, `expander/eval`,
+and `expander/compile` dependencies before it can flatten successfully. Plain
+public `read-syntax` should stay unpublished until that dependency story is
+understood.
 
 ## Missing Before Public Replacement
 

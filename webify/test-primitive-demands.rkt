@@ -167,7 +167,8 @@
 
 (test-case "primitive demand ownership classifies runtime and provider names"
   (check-equal? (webify-primitive-name-ownership 'cons) 'runtime-owned)
-  (check-equal? (webify-primitive-name-ownership 'read) 'provider-owned)
+  (check-equal? (webify-primitive-name-ownership 'read)
+                'runtime-owned-but-provider-shadowed)
   (check-equal? (webify-primitive-name-ownership 'regexp-match?) 'provider-owned)
   (check-equal? (webify-primitive-name-ownership 'format) 'provider-owned)
   (check-equal? (webify-primitive-name-ownership 'call-with-parameterization)
@@ -193,7 +194,7 @@
     (webify-module-linklet-inputs->primitive-demands (list input)))
   (check-equal? (webify-primitive-demand-report-ownership-counts report)
                 '((runtime-owned . 1)
-                  (provider-owned . 1)
+                  (runtime-owned-but-provider-shadowed . 1)
                   (runtime-preferred . 1)
                   (unknown . 1))))
 
