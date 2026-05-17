@@ -1,9 +1,18 @@
 #lang racket/base
 
+(provide node-exports
+         browser-exports
+         browser-only
+         staged-original-racket-owned
+         webracket-base-owned
+         temporary-stdlib-owned
+         report-stdlib-surface)
+
 (require racket/list
          "../driver.rkt"
          "../stdlib/module-exports.rkt"
-         "io-format-provider.rkt")
+         "io-format-provider.rkt"
+         "webracket-base-surface.rkt")
 
 (define (sorted-symbols xs)
   (sort (remove-duplicates xs eq?) symbol<?))
@@ -28,19 +37,30 @@
 (define staged-original-racket-owned
   io-format-provider-symbols)
 
+(define webracket-base-owned
+  (append (list webracket-base-foundation)
+          webracket-base-addon-libraries))
+
 (define temporary-stdlib-owned
   (remove-symbols
    (stdlib-module-alias-symbols #f)
    (append stdlib-transitional-export-symbols
            staged-original-racket-owned)))
 
-(report-line "node exports" (sorted-symbols node-exports))
-(report-line "browser-only exports" (sorted-symbols browser-only))
-(report-line "node primitive-owned overlaps" (sorted-symbols (primitive-owned node-exports)))
-(report-line "browser primitive-owned overlaps" (sorted-symbols (primitive-owned browser-exports)))
-(report-line "node stdlib aliases" (sorted-symbols (stdlib-module-alias-symbols #f)))
-(report-line "browser stdlib aliases" (sorted-symbols (stdlib-module-alias-symbols #t)))
-(report-line "staged original Racket providers" (sorted-symbols staged-original-racket-owned))
-(report-line "temporary stdlib-owned aliases" (sorted-symbols temporary-stdlib-owned))
-(report-line "transitional stdlib exports" (sorted-symbols stdlib-transitional-export-symbols))
-(report-line "temporary primitive-owned exports" (sorted-symbols stdlib-primitive-owned-export-symbols))
+;; report-stdlib-surface : -> void?
+;;   Print the current public ownership split for stdlib migration work.
+(define (report-stdlib-surface)
+  (report-line "node exports" (sorted-symbols node-exports))
+  (report-line "browser-only exports" (sorted-symbols browser-only))
+  (report-line "node primitive-owned overlaps" (sorted-symbols (primitive-owned node-exports)))
+  (report-line "browser primitive-owned overlaps" (sorted-symbols (primitive-owned browser-exports)))
+  (report-line "node stdlib aliases" (sorted-symbols (stdlib-module-alias-symbols #f)))
+  (report-line "browser stdlib aliases" (sorted-symbols (stdlib-module-alias-symbols #t)))
+  (report-line "staged original Racket providers" (sorted-symbols staged-original-racket-owned))
+  (report-line "webracket/base foundation+addons" (sorted-symbols webracket-base-owned))
+  (report-line "temporary stdlib-owned aliases" (sorted-symbols temporary-stdlib-owned))
+  (report-line "transitional stdlib exports" (sorted-symbols stdlib-transitional-export-symbols))
+  (report-line "temporary primitive-owned exports" (sorted-symbols stdlib-primitive-owned-export-symbols)))
+
+(module+ main
+  (report-stdlib-surface))

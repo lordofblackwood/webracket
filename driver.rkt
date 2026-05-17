@@ -100,6 +100,17 @@
 
 (define-runtime-path webracket-root ".")
 
+(define webracket-collection-parent
+  (simplify-path (build-path webracket-root "..")))
+
+;; call-with-webracket-collection-path : (-> any/c) -> any/c
+;;   Make this checkout visible as collection `webracket` while reading #lang modules.
+(define (call-with-webracket-collection-path thunk)
+  (parameterize ([current-library-collection-paths
+                  (cons webracket-collection-parent
+                        (current-library-collection-paths))])
+    (thunk)))
+
 ;;;
 ;;; FFI Files
 ;;; 
@@ -1093,14 +1104,45 @@
 ;;; READ TOP-LEVEL FORMS FROM FILE 
 ;;;
 
+(define (webracket-script-lang-line? line)
+  (and (string? line)
+       (regexp-match? #px"^#lang[ \t]+webracket([ \t].*)?$" line)))
+
+(define (webracket-base-lang-line? line)
+  (and (string? line)
+       (regexp-match? #px"^#lang[ \t]+webracket/base([ \t].*)?$" line)))
+
+;; module-form->top-level : syntax? -> syntax?
+;;   Transitional #lang webracket/base support for the top-level compiler path.
+(define (module-form->top-level stx)
+  (define datum (syntax->datum stx))
+  (define body
+    (match datum
+      [`(module ,_name webracket/base (#%module-begin ,forms ...))
+       forms]
+      [`(module ,_name webracket/base ,forms ...)
+       forms]
+      [_
+       (raise-arguments-error
+        'read-top-level-from-file
+        "expected a #lang webracket/base module"
+        "datum" datum)]))
+  (define top-level-forms
+    (filter (lambda (form)
+              (not (and (pair? form)
+                        (memq (car form) '(provide module+)))))
+            body))
+  (datum->syntax stx `(begin ,@top-level-forms) stx))
+
 (define (read-top-level-from-file filename)
-  (define (webracket-lang-line? line)
-    (and (string? line)
-         (regexp-match? #px"^#lang[ \t]+webracket([ \t].*)?$" line)))
-  (define starts-with-webracket-lang?
+  (define first-line
     (call-with-input-file filename
       (λ (port)
-        (webracket-lang-line? (read-line port 'any)))))
+        (read-line port 'any))))
+  (define starts-with-webracket-lang?
+    (webracket-script-lang-line? first-line))
+  (define starts-with-webracket/base-lang?
+    (webracket-base-lang-line? first-line))
   (define (read-forms port)
     (let loop ([forms '()])
       (define stx (read-syntax filename port))      
@@ -1116,13 +1158,18 @@
           ;; that starts with `#lang webracket` uses the same body language, so
           ;; skip the language line here instead of asking Racket to resolve the
           ;; checkout as an installed `webracket/lang/reader` collection.
-          (when starts-with-webracket-lang?
-            (void (read-line port 'any)))
-          (define forms (read-forms port))
-          (datum->syntax
-           #f
-           `(begin
-              ,@forms)))))))
+          (cond
+            [starts-with-webracket-lang?
+             (void (read-line port 'any))
+             (define forms (read-forms port))
+             (datum->syntax #f `(begin ,@forms))]
+            [starts-with-webracket/base-lang?
+             (call-with-webracket-collection-path
+              (lambda ()
+                (module-form->top-level (read-syntax filename port))))]
+            [else
+             (define forms (read-forms port))
+             (datum->syntax #f `(begin ,@forms))]))))))
 
 ;;;
 ;;; WRITE WAT TO FILE

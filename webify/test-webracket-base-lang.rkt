@@ -96,6 +96,56 @@
       (with-handlers ([exn:fail:filesystem? void])
         (delete-directory/files source-dir)))))
 
+(test-case "#lang webracket/base runs through the driver as module-language input"
+  (define source-dir (make-temporary-file "webracket-base-driver-src-~a" 'directory))
+  (define dest-dir   (make-temporary-file "webracket-base-driver-dest-~a" 'directory))
+  (define source-path (build-path source-dir "base-driver-smoke.rkt"))
+  (dynamic-wind
+    void
+    (lambda ()
+      (call-with-output-file source-path
+        (lambda (out)
+          (display "#lang webracket/base\n(js-log (+ 40 2))\n" out))
+        #:exists 'truncate/replace)
+      (define-values (status output)
+        (run-webracket (list "-r" "--no-stdlib" "--no-io-format-provider"
+                             "--dest" (path->string dest-dir)
+                             (path->string source-path))
+                       source-dir
+                       #:timeout-seconds 120
+                       #:memory-mb 1024))
+      (check-equal? status 0 output)
+      (check-regexp-match #rx"(?m:^42$)" output))
+    (lambda ()
+      (for ([dir (in-list (list source-dir dest-dir))])
+        (with-handlers ([exn:fail:filesystem? void])
+          (delete-directory/files dir))))))
+
+(test-case "#lang webracket/base reaches staged format provider through the driver"
+  (define source-dir (make-temporary-file "webracket-base-format-src-~a" 'directory))
+  (define dest-dir   (make-temporary-file "webracket-base-format-dest-~a" 'directory))
+  (define source-path (build-path source-dir "base-format-smoke.rkt"))
+  (dynamic-wind
+    void
+    (lambda ()
+      (call-with-output-file source-path
+        (lambda (out)
+          (display "#lang webracket/base\n(js-log (format \"fmt ~a ~s ~e\" 'ok 'write '(err)))\n" out))
+        #:exists 'truncate/replace)
+      (define-values (status output)
+        (run-webracket (list "-r" "--no-stdlib"
+                             "--dest" (path->string dest-dir)
+                             (path->string source-path))
+                       source-dir
+                       #:timeout-seconds 120
+                       #:memory-mb 1024))
+      (check-equal? status 0 output)
+      (check-regexp-match #rx"(?m:^fmt ok write \\(err\\)$)" output))
+    (lambda ()
+      (for ([dir (in-list (list source-dir dest-dir))])
+        (with-handlers ([exn:fail:filesystem? void])
+          (delete-directory/files dir))))))
+
 (test-case "webracket/base surface manifest distinguishes foundation and add-ons"
   (check-equal? webracket-base-foundation 'racket/base)
   (check-false (memq 'racket/base webracket-base-addon-libraries))

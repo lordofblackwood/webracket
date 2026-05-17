@@ -8,6 +8,12 @@ The module-oriented Goal 1 path starts with `#lang webracket/base`, whose
 reader lives in `base/lang/reader.rkt` and expands through host Racket as a
 normal module using language `webracket/base`.
 
+The command-line driver currently supports `#lang webracket/base` with a
+transitional bridge: it reads the source as a normal module, strips module-only
+declarations such as `provide`, and compiles the body through the existing
+top-level compiler path. Full module-provider execution is still tracked as a
+future Goal 1 step.
+
 `racket/base` is the foundation for `webracket/base`, not one of the optional
 library add-ons. The next Goal 1 surface should layer selected libraries from
 the larger `racket` language on top of that foundation, such as `racket/list`,

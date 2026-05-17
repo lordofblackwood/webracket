@@ -56,6 +56,11 @@ Implemented or partially implemented:
 
 - A first `#lang webracket/base` module language that host Racket reads as a
   real module, while preserving the existing `#lang webracket` script path.
+- Transitional driver support for `#lang webracket/base`: the source is read
+  through the normal module reader, then its module body is lowered to the
+  existing top-level compiler path. This is enough for executable module-style
+  programs that do not need arbitrary user `require`s yet; full provider-graph
+  execution of the language module remains a deeper Goal 1 milestone.
 - Module-linklet inputs and manifests.
 - Module registry, module instances, and module-variable cells.
 - Import/export resolution for extracted module graphs.
@@ -211,6 +216,8 @@ the common format surface through the staged `io/format` provider path, while
 the old textual stdlib formatter is being retired. For now, keep the frontier
 focused on `format`, `fprintf`, `printf`, `eprintf`, and common `~a`/`~s`/`~e`
 paths; postpone full `~v` coverage until the ordinary format bridge is stable.
+A `#lang webracket/base` driver smoke now verifies provider-backed `format`
+with `~a`, `~s`, and `~e`.
 
 Current local-manifest runtime smokes cover hand-authored bridge shapes that do
 not depend on source extraction:
