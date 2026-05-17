@@ -30,13 +30,14 @@ The ratchet test is:
 | `racket-src/expander/syntax/datum-map.rkt` | Traverses datum shapes that `datum->syntax` preserves, including vectors, boxes, prefab structs, and immutable hashes. | `syntax/taint-object.rkt` |
 | `racket-src/expander/syntax/taint-object.rkt` | Tracks syntax taint propagation for compound datum content. | `syntax/weaker-inspector.rkt` |
 | `racket-src/expander/syntax/weaker-inspector.rkt` | Chooses the weaker of two inspectors while preserving `#f` for inaccessible syntax content. | `syntax/property.rkt` |
+| `racket-src/expander/syntax/property.rkt` | Implements syntax-property access, preservation checks, symbol-key listing, removal, and internal property predicates. | `syntax/taint.rkt` |
 
 ## Current Boundary
 
 The current expected missing file is:
 
 ```text
-racket-src/expander/syntax/property.rkt
+racket-src/expander/syntax/taint.rkt
 ```
 
 Do not publish public `read-syntax` aliases until this staged slice has a

@@ -97,6 +97,10 @@ Current installed-extraction runtime smokes cover:
   from `racket/base`. Use
   `webify/probe-installed-module-deps.rkt --goal1-dashboard` for the compact
   dependency view, or `--goal1-compact` when a script-friendly table is enough.
+  For longer runs, prefer the bounded parallel form, for example
+  `--goal1-compact-bounded --goal1-limit 50 --timeout 120 --memory-mb 1024
+  --jobs 4`. Bounded progress lines start with `#`, so the TSV rows remain
+  readable while the run still shows which child cases are active.
 - `racket/bool`: `boolean=?`.
 - `racket/fixnum`: `fx+`.
 - `racket/list`: `first`, `rest`, `add-between`, `range`, `reverse`, and a

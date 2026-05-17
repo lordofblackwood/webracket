@@ -897,12 +897,11 @@
 (define (run-goal1-child/bounded! name timeout-seconds memory-mb)
   (call-with-goal1-output-lock
    (lambda ()
-     (fprintf (current-error-port)
-              "goal1-deps: starting ~a (timeout ~as, memory ~a MiB)\n"
-              name
-              timeout-seconds
-              (or memory-mb "unlimited"))
-     (flush-output (current-error-port))))
+     (printf "# goal1-deps starting ~a (timeout ~as, memory ~a MiB)\n"
+             name
+             timeout-seconds
+             (or memory-mb "unlimited"))
+     (flush-output)))
   (define exec-file (find-system-path 'exec-file))
   (define racket-bin
     (cond
@@ -953,16 +952,16 @@
       (lambda ()
         (printf "~a\ttimeout\t-\t-\t-\t-\n" name)
         (flush-output)
-        (fprintf (current-error-port) "goal1-deps: timed out ~a\n" name)
-        (flush-output (current-error-port))))
+        (printf "# goal1-deps timed out ~a\n" name)
+        (flush-output)))
      124]
     [(and (integer? status) (zero? status))
      (call-with-goal1-output-lock
       (lambda ()
         (display stdout)
         (flush-output)
-        (fprintf (current-error-port) "goal1-deps: finished ~a\n" name)
-        (flush-output (current-error-port))))
+        (printf "# goal1-deps finished ~a\n" name)
+        (flush-output)))
      0]
     [else
      (call-with-goal1-output-lock
