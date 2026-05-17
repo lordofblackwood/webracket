@@ -215,6 +215,10 @@
       format-print
       format-align
       format-fprintf-port
+      read-list
+      read-vector
+      read-symbol-string
+      read-comment
       regexp-literal
       regexp-capture
       regexp-replace
@@ -288,6 +292,9 @@
             [(format-write) #rx"(?m:^web$)"]
             [(format-align) #rx"(?m:^  web$)"]
             [(format-fprintf-port) #rx"(?m:^ok$)"]
+            [(read-list read-vector) #rx"(?m:^3$)"]
+            [(read-symbol-string) #rx"(?m:^6$)"]
+            [(read-comment) #rx"(?m:^42$)"]
             [(regexp-literal) #rx"(?m:^true$)"]
             [(regexp-capture) #rx"(?m:^2$)"]
             [(regexp-replace) #rx"(?m:^bonono$)"]

@@ -75,6 +75,12 @@
                   webify-regexp-linklet
                   webify-regexp-public-alias-forms
                   webify-regexp-source-fingerprint)
+         (only-in "webify/read-provider.rkt"
+                  webify-read-export-symbols
+                  webify-read-linklet
+                  webify-read-lowered-provider-cache-path
+                  webify-read-public-alias-forms
+                  webify-read-source-fingerprint)
          (only-in "webify/module-adapter.rkt"
                   first-slice-top-level-export-cell-ids
                   webify-linklet-first-slice-top-level)
@@ -322,6 +328,8 @@
      (io-format-provider-forms #:public-aliases? public-aliases?)]
     [(regexp)
      (regexp-provider-forms #:public-aliases? public-aliases?)]
+    [(expander/read)
+     (read-provider-forms #:public-aliases? public-aliases?)]
     [else
      (error 'provider-slice-forms "provider slice is not runtime-integrated yet: ~a" name)]))
 
@@ -368,6 +376,60 @@
                   webify-io-format-public-alias-forms
                   webify-io-format-private-alias-forms)
               composition))))
+     (write-provider-cache! cache-path fingerprint forms)
+     forms]))
+
+;; read-provider-forms : #:public-aliases? boolean? -> (listof datum?)
+;;   Compose the cached original-Racket expander/read provider and optionally
+;;   publish its Webify-owned `webify-expander-*` names. This intentionally does
+;;   not publish `read` yet, since `read` remains primitive-owned until the
+;;   public ownership cleanup is done.
+(define (read-provider-forms #:public-aliases? [public-aliases? #f])
+  (define cache-path
+    (webify-read-lowered-provider-cache-path (current-provider-cache-dir)))
+  (define fingerprint
+    `(expander-read-lowered-provider-cache 1 ,public-aliases? ,(webify-read-source-fingerprint)))
+  (define cached (read-provider-cache cache-path fingerprint))
+  (cond
+    [cached
+     (provider-cache-log "expander/read lowered forms hit: ~a" cache-path)
+     cached]
+    [else
+     (provider-cache-log "expander/read lowered forms miss; rebuilding: ~a" cache-path)
+     (define lk
+       (webify-read-linklet #:cache-root (current-provider-cache-dir)
+                            #:force? (current-provider-cache-force?)
+                            #:verbose? (current-provider-cache-verbose?)))
+     (define-values (provider-stx exports _exports-info)
+       (webify-linklet-first-slice-top-level
+        lk
+        #:define-export-aliases? #f
+        #:serializable?-box     #f
+        #:datum-intern?         #f
+        #:target                #f
+        #:allow-set!-undefined? #f
+        #:unsafe-mode?          #f
+        #:enforce-constant?     #t
+        #:allow-inline?         #t
+        #:no-prompt?            #f
+        #:prim-knowns           (hasheq)
+        #:primitives            (hasheq)
+        #:compiler-query        (lambda (v) #f)
+        #:get-import-knowns     (lambda (key) (values #f #f #f))
+        #:import-keys           #f))
+     (unless (equal? (sort exports symbol<?)
+                     (sort webify-read-export-symbols symbol<?))
+       (error 'read-provider-forms
+              "unexpected expander/read exports: ~s"
+              exports))
+     (define export-cells
+       (first-slice-top-level-export-cell-ids exports))
+     (define forms
+       (append
+        (cdr (syntax->datum provider-stx))
+        (if public-aliases?
+            (webify-read-public-alias-forms export-cells)
+            '())))
      (write-provider-cache! cache-path fingerprint forms)
      forms]))
 
@@ -424,12 +486,15 @@
      (write-provider-cache! cache-path fingerprint forms)
      forms]))
 
-;; add-io-format-provider : syntax? -> syntax?
+;; add-io-format-provider : syntax? #:expander-read-provider? boolean? -> syntax?
 ;;   Prepend only the staged io/format provider, without the old stdlib root.
-(define (add-io-format-provider stx)
+(define (add-io-format-provider stx #:expander-read-provider? [expander-read-provider? #f])
   (define provider-forms
     (append
      (provider-slice-forms 'regexp #:public-aliases? #t)
+     (if expander-read-provider?
+         (provider-slice-forms 'expander/read #:public-aliases? #t)
+         '())
      (provider-slice-forms 'io/format #:public-aliases? #t)))
   (with-syntax ([(provider-form ...) (map (lambda (form) (datum->syntax stx form stx))
                                           provider-forms)])
@@ -448,10 +513,26 @@
         regexp-form ...
         #,stx)))
 
-;; add-module-stdlib : syntax? boolean? #:io-format-provider? boolean? -> syntax?
+;; add-expander-read-provider : syntax? -> syntax?
+;;   Prepend regexp plus the staged expander/read provider with Webify-owned
+;;   aliases for focused replacement trials.
+(define (add-expander-read-provider stx)
+  (define provider-forms
+    (append
+     (provider-slice-forms 'regexp #:public-aliases? #t)
+     (provider-slice-forms 'expander/read #:public-aliases? #t)))
+  (with-syntax ([(provider-form ...) (map (lambda (form) (datum->syntax stx form stx))
+                                          provider-forms)])
+    #`(begin
+        provider-form ...
+        #,stx)))
+
+;; add-module-stdlib : syntax? boolean? #:io-format-provider? boolean? #:expander-read-provider? boolean? -> syntax?
 ;;   Evaluate the selected stdlib root with private top-level names, publish
 ;;   chosen exports through module-variable cells, then append the user program.
-(define (add-module-stdlib stx browser? #:io-format-provider? [io-format-provider? #f])
+(define (add-module-stdlib stx browser?
+                           #:io-format-provider? [io-format-provider? #f]
+                           #:expander-read-provider? [expander-read-provider? #f])
   (define-values (stdlib-forms bindings)
     (stdlib-module-private-forms+bindings browser?))
   (define alias-set
@@ -482,6 +563,9 @@
     (append (provider-slice-forms 'regexp #:public-aliases? #t)
             (if io-format-provider?
                 (provider-slice-forms 'io/format #:public-aliases? #t)
+                '())
+            (if expander-read-provider?
+                (provider-slice-forms 'expander/read #:public-aliases? #t)
                 '())
             (append-map (λ (form) (cons form (alias-forms-after form)))
                         stdlib-forms)))
@@ -577,6 +661,7 @@
          ;; Standard Library
          #:stdlib?           stdlib?      ; can be turned off for testing the compiler
          #:stdlib-io-format-provider? [stdlib-io-format-provider? #t]
+         #:expander-read-provider? [expander-read-provider? #f]
          ;; Provider Cache
          #:provider-cache-dir [provider-cache-dir webify-regexp-default-cache-root]
          #:clear-provider-cache? [clear-provider-cache? #f]
@@ -660,19 +745,27 @@
                     (current-error-port)))
        (add-module-stdlib stx-for-compile
                            #t
-                           #:io-format-provider? stdlib-io-format-provider?)]
+                           #:io-format-provider? stdlib-io-format-provider?
+                           #:expander-read-provider? expander-read-provider?)]
       [stdlib?
        (when verbose?
          (displayln "Composing module stdlib root `stdlib/stdlib.rkt`"
                     (current-error-port)))
        (add-module-stdlib stx-for-compile
                            #f
-                           #:io-format-provider? stdlib-io-format-provider?)]
+                           #:io-format-provider? stdlib-io-format-provider?
+                           #:expander-read-provider? expander-read-provider?)]
       [stdlib-io-format-provider?
        (when verbose?
          (displayln "Composing module stdlib-free `io/format` provider"
                     (current-error-port)))
-       (add-io-format-provider stx-for-compile)]
+       (add-io-format-provider stx-for-compile
+                               #:expander-read-provider? expander-read-provider?)]
+      [expander-read-provider?
+       (when verbose?
+         (displayln "Composing module stdlib-free `expander/read` provider"
+                    (current-error-port)))
+       (add-expander-read-provider stx-for-compile)]
       [else
        (when verbose?
          (displayln "Composing module stdlib-free `regexp` provider"

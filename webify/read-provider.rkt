@@ -10,7 +10,10 @@
          webify-read-source-fingerprint
          webify-read-demod-command
          webify-read-demod!
-         webify-read-linklet)
+         webify-read-linklet
+         webify-read-lowered-provider-cache-path
+         webify-read-private-cell-symbol
+         webify-read-public-alias-forms)
 
 (require racket/file
          racket/list
@@ -69,6 +72,13 @@
   (build-path (find-system-path 'temp-dir) "webracket-read-provider-cache"))
 
 (define read-cache-format-version 1)
+
+;; webify-read-lowered-provider-cache-path : [path-string?] -> path?
+;;   Return the cache file for lowered provider forms.
+(define (webify-read-lowered-provider-cache-path
+         [cache-root webify-read-default-cache-root])
+  (define root (if (path? cache-root) cache-root (string->path cache-root)))
+  (build-path root "expander-read-provider.rktd"))
 
 ;; webify-read-cache-paths : [path-string?] -> (values path? path? path?)
 ;;   Return the flattened linklet, dependency file, and bootstrap cache paths.
@@ -181,3 +191,23 @@
            status
            output))
   (call-with-input-file out-rktl read))
+
+;; webify-read-private-cell-symbol : symbol? -> symbol?
+;;   Private top-level cell used to publish provider exports safely.
+(define (webify-read-private-cell-symbol export)
+  (unless (memq export webify-read-export-symbols)
+    (raise-argument-error 'webify-read-private-cell-symbol
+                          "expander/read export symbol"
+                          export))
+  (string->symbol (format "webify-expander-read-export-cell$~a" export)))
+
+;; webify-read-public-alias-forms : (hash/c symbol? symbol?) -> (listof datum?)
+;;   Bind Webify-owned public names to generated expander/read provider cells.
+(define (webify-read-public-alias-forms export-cells)
+  (for/list ([export (in-list webify-read-export-symbols)])
+    (define cell (hash-ref export-cells export))
+    `(begin
+       (define ,(webify-read-private-cell-symbol export)
+         ,cell)
+       (define ,export
+         (module-variable-ref ,(webify-read-private-cell-symbol export))))))

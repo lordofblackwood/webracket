@@ -53,6 +53,8 @@
 (define stdlib?         (make-parameter #t))   ; include standard library by default
 (define stdlib-io-format-provider?
   (make-parameter #t)) ; use staged original-Racket io/format provider by default
+(define expander-read-provider?
+  (make-parameter #f)) ; experimental staged original-Racket expander/read provider
 (define provider-cache-dir (make-parameter #f))
 (define clear-provider-cache? (make-parameter #f))
 (define force-provider-cache-refresh? (make-parameter #f))
@@ -222,6 +224,12 @@
    [("--no-io-format-provider" "--no-stdlib-io-format-provider")
     "Disable staged original-Racket io/format provider for debugging"
     (stdlib-io-format-provider? #f)]
+   [("--expander-read-provider")
+    "Compose staged original-Racket expander/read provider with Webify-owned aliases"
+    (expander-read-provider? #t)]
+   [("--no-expander-read-provider")
+    "Disable staged original-Racket expander/read provider (default)"
+    (expander-read-provider? #f)]
    [("--provider-cache-dir") dirname
                              "Use <dirname> for provider-slice caches"
                              (provider-cache-dir dirname)]
@@ -327,6 +335,7 @@
                      #:ffi-files     (ffi-files)
                      #:stdlib?       (stdlib?)
                      #:stdlib-io-format-provider? (stdlib-io-format-provider?)
+                     #:expander-read-provider? (expander-read-provider?)
                      #:provider-cache-dir
                      (or (provider-cache-dir) webify-regexp-default-cache-root)
                      #:clear-provider-cache? (clear-provider-cache?)

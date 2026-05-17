@@ -36,7 +36,7 @@
     #f
     'staged
     webify-read-export-symbols
-    "staged original-Racket expander/read provider; demodularized and cached, not public-composed yet")))
+    "staged original-Racket expander/read provider; enable with --expander-read-provider for Webify-owned public aliases")))
 
 ;; provider-slice-by-name : symbol? -> (or/c provider-slice? #f)
 ;;   Look up a known provider slice.

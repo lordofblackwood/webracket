@@ -78,6 +78,10 @@
     contract-wrapper-basic
     class-require
     class-basic
+    read-list
+    read-vector
+    read-symbol-string
+    read-comment
     regexp-literal
     regexp-capture
     regexp-replace
@@ -539,6 +543,24 @@
      '((module use-regexp-literal racket/base
          (provide y)
          (define y (regexp-match? #rx"a+" "cat"))))]
+    [(read-list)
+     '((module use-read-list racket/base
+         (provide y)
+         (define y (length (read (open-input-string "(1 2 3)"))))))]
+    [(read-vector)
+     '((module use-read-vector racket/base
+         (provide y)
+         (define y (vector-length (read (open-input-string "#(1 2 3)"))))))]
+    [(read-symbol-string)
+     '((module use-read-symbol-string racket/base
+         (provide y)
+         (define in (open-input-string "sym \"web\""))
+         (define y (+ (string-length (symbol->string (read in)))
+                      (string-length (read in))))))]
+    [(read-comment)
+     '((module use-read-comment racket/base
+         (provide y)
+         (define y (read (open-input-string "#; ignored 42")))))]
     [(regexp-capture)
      '((module use-regexp-capture racket/base
          (provide y)

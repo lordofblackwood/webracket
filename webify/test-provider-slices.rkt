@@ -147,6 +147,39 @@
   (check-regexp-match #rx"(?m:^cot$)" output)
   (check-regexp-match #rx"(?m:^bonono$)" output))
 
+(test-case "expander/read provider exposes Webify-owned reader aliases"
+  (define-values (status output)
+    (run-temp-webracket
+     (string-append
+      "(define in (open-input-string \"(1 2) 42\"))\n"
+      "(js-log (webify-expander-read in))\n"
+      "(js-log (webify-expander-read in))\n"
+      "(js-log (eof-object? (webify-expander-read in)))\n")
+     (list "-r" "--no-stdlib" "--no-io-format-provider" "--expander-read-provider")))
+  (check-equal? status 0 output)
+  (check-regexp-match #rx"car: 1" output)
+  (check-regexp-match #rx"(?m:^42$)" output)
+  (check-regexp-match #rx"(?m:^true$)" output))
+
+(test-case "expander/read provider handles string ports and datum classes"
+  (define-values (status output)
+    (run-temp-webracket
+     (string-append
+      "(define in (open-input-string \"#; ignored 'sym #(1 2 3) \\\"λ\\\"\" 'reader-smoke))\n"
+      "(js-log (webify-expander-read in))\n"
+      "(js-log (vector-length (webify-expander-read in)))\n"
+      "(js-log (webify-expander-read in))\n"
+      "(let-values ([(line col pos) (port-next-location in)])\n"
+      "  (js-log line)\n"
+      "  (js-log col)\n"
+      "  (js-log pos))\n")
+     (list "-r" "--no-stdlib" "--no-io-format-provider" "--expander-read-provider")))
+  (check-equal? status 0 output)
+  (check-regexp-match #rx"car: Symbol\\(quote\\)" output)
+  (check-regexp-match #rx"(?m:^3$)" output)
+  (check-regexp-match #rx"(?m:^λ$)" output)
+  (check-regexp-match #rx"(?m:^1$)" output))
+
 (test-case "format public alias depends on io/format provider"
   (define-values (status output)
     (run-temp-webracket
