@@ -69,15 +69,15 @@ the formatter's unknown-datatype branch.
 reading lives behind the upstream `read/api.rkt` and
 `syntax/read-syntax.rkt` path. That path is tracked separately because it brings
 syntax objects, source locations, and syntax-reader behavior into the surface
-area. The staged source tree already contains `read/api.rkt`, but the
-`syntax/read-syntax.rkt` dependency has not been copied into `racket-src/` or
-flattened as a provider root yet.
+area.
 
 The separate `read-syntax` track has started with:
 
 - `racket-src/expander/read-syntax-provider-root.rkt`, a private provider root
   that exports `webify-expander-read-syntax` and
-  `webify-expander-read-syntax/recursive`.
+  `webify-expander-read-syntax/recursive`. It also exports private
+  `webify-expander-syntax-*` inspection helpers so host-side tests can inspect
+  syntax objects with the same struct identity as the flattened provider.
 - `racket-src/expander/syntax/read-syntax.rkt`, copied from upstream as the
   first syntax-aware dependency.
 - `racket-src/expander/common/performance.rkt`, copied after the first probe
@@ -101,17 +101,30 @@ The separate `read-syntax` track has started with:
   exposed inspector lattice support used by syntax-property handling.
 - `racket-src/expander/syntax/property.rkt`, copied after weaker-inspector
   exposed public syntax-property operations and the taint-content dependency.
+- `racket-src/expander/syntax/taint.rkt`, copied after syntax-property exposed
+  public syntax taint operations.
+- `racket-src/expander/syntax/original.rkt`, copied after taint exposed the
+  original-delimiter property dependency used by `read-syntax`.
+- `racket-src/expander/eval/dynamic-require.rkt`, a Goal 1 stub that rejects
+  reader-extension dynamic loading instead of pulling in browser-side eval.
+- `racket-src/expander/namespace/api-module.rkt`,
+  `racket-src/expander/namespace/namespace.rkt`, and
+  `racket-src/expander/namespace/registry.rkt`, Goal 1 namespace shells needed
+  by the reader-extension checks.
+- `racket-src/expander/syntax/srcloc.rkt`, copied after the namespace shells
+  exposed source-location accessors.
+- `racket-src/expander/compile/read-linklet.rkt`, a Goal 1 stub that rejects
+  compiled-code reading while allowing ordinary source syntax reads to flatten.
 - `webify/read-syntax-provider.rkt` and
   `webify/check-read-syntax-provider.rkt`, a focused demod probe for this
   track.
 
-The current ratchet test expects the probe to reach the next missing file:
-`racket-src/expander/syntax/taint.rkt`. The full dependency table now
-lives in `webify/SYNTAX-SLICE.md`. The probe is expected to reveal
-additional missing `expander/syntax`, `expander/namespace`, `expander/eval`,
-and `expander/compile` dependencies before it can flatten successfully. Plain
-public `read-syntax` should stay unpublished until that dependency story is
-understood.
+The current ratchet test now expects private-provider demodularization to
+succeed and then instantiates the flattened linklet under host Racket to read a
+tiny syntax object. The full dependency table lives in
+`webify/SYNTAX-SLICE.md`. Plain public `read-syntax` should stay unpublished
+until this provider is composed through WebRacket and tested in the browser
+runtime.
 
 The dependency sequence so far is intentionally ratcheted by
 `webify/test-read-syntax-provider.rkt`:
@@ -128,6 +141,16 @@ The dependency sequence so far is intentionally ratcheted by
 - `syntax/taint-object.rkt` exposed `syntax/weaker-inspector.rkt`.
 - `syntax/weaker-inspector.rkt` exposed `syntax/property.rkt`.
 - `syntax/property.rkt` exposed `syntax/taint.rkt`.
+- `syntax/taint.rkt` exposed `syntax/original.rkt`.
+- `syntax/original.rkt` exposed `eval/dynamic-require.rkt`; the Goal 1 track
+  uses a private rejecting stub.
+- The dynamic-require stub exposed namespace declaration and registry modules;
+  those are private shells, not a general namespace implementation.
+- The namespace shells exposed `syntax/srcloc.rkt`.
+- `syntax/srcloc.rkt` exposed `compile/read-linklet.rkt`; the Goal 1 track
+  uses a private rejecting stub for compiled-code input.
+- The upstream reader's `default-read-handler` cache required the same
+  `++global-ok` allowance already used by the larger expander extraction.
 
 ## Primitive Ownership Cleanup Statuses
 
@@ -146,9 +169,9 @@ a provider-owned public name is still present in the primitive database:
 ## Missing Before Public Replacement
 
 - Decide public ownership for `read-syntax`.
+- Compose the private read-syntax provider through WebRacket instead of only
+  instantiating the flattened linklet under host Racket.
 - Audit optional keyword behavior around the upstream reader's `read` entry.
-- Decide whether `read-syntax` comes from `expander/read/api.rkt` or a later
-  syntax-aware provider slice.
 - Test reader extensions: `#reader`, `#lang`, compiled-code reading, and custom
   readtables.
 - Keep the provider behind `--expander-read-provider` until the larger stdlib

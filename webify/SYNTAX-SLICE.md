@@ -31,15 +31,27 @@ The ratchet test is:
 | `racket-src/expander/syntax/taint-object.rkt` | Tracks syntax taint propagation for compound datum content. | `syntax/weaker-inspector.rkt` |
 | `racket-src/expander/syntax/weaker-inspector.rkt` | Chooses the weaker of two inspectors while preserving `#f` for inaccessible syntax content. | `syntax/property.rkt` |
 | `racket-src/expander/syntax/property.rkt` | Implements syntax-property access, preservation checks, symbol-key listing, removal, and internal property predicates. | `syntax/taint.rkt` |
+| `racket-src/expander/syntax/taint.rkt` | Provides the public syntax taint predicates and taint transformer used by property handling. | `syntax/original.rkt` |
+| `racket-src/expander/syntax/original.rkt` | Provides the original-delimiter property symbol used by `read-syntax`. | `eval/dynamic-require.rkt` |
+| `racket-src/expander/eval/dynamic-require.rkt` | Goal 1 stub that rejects reader-extension dynamic loading such as `#reader`. | `namespace/api-module.rkt` |
+| `racket-src/expander/namespace/api-module.rkt` | Goal 1 stub for module-declaration checks made by reader-extension paths. | `namespace/namespace.rkt` |
+| `racket-src/expander/namespace/namespace.rkt` | Goal 1 namespace shell used only far enough for private read-syntax extraction. | `namespace/registry.rkt` |
+| `racket-src/expander/namespace/registry.rkt` | Goal 1 registry shell whose lock helper simply calls its thunk. | `syntax/srcloc.rkt` |
+| `racket-src/expander/syntax/srcloc.rkt` | Provides source-location accessors used by syntax-reading paths. | `compile/read-linklet.rkt` |
+| `racket-src/expander/compile/read-linklet.rkt` | Goal 1 stub that rejects compiled-code reading while allowing ordinary source syntax reads to flatten. | flattened provider succeeds |
 
 ## Current Boundary
 
-The current expected missing file is:
+There is no longer a missing-file boundary for the private provider slice. The
+demodularizer flattens the first `read-syntax` slice, and a host-side linklet
+smoke can read a tiny syntax object from an input string.
 
-```text
-racket-src/expander/syntax/taint.rkt
-```
+The public boundary is still intentionally closed:
 
-Do not publish public `read-syntax` aliases until this staged slice has a
-clear provider boundary and the transitive syntax/namespace dependencies are
-understood.
+- Reader extensions that need dynamic module loading are rejected by the
+  private `eval/dynamic-require.rkt` stub.
+- Compiled-code reading is rejected by the private `compile/read-linklet.rkt`
+  stub.
+- The namespace modules are shells, not a browser-side namespace/eval system.
+- Public `read-syntax` aliases should stay unpublished until the flattened
+  provider is composed through WebRacket and tested in the browser runtime.

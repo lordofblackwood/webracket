@@ -28,7 +28,12 @@
 
 (define webify-read-syntax-export-symbols
   '(webify-expander-read-syntax
-    webify-expander-read-syntax/recursive))
+    webify-expander-read-syntax/recursive
+    webify-expander-syntax->datum
+    webify-expander-syntax-source
+    webify-expander-syntax-line
+    webify-expander-syntax-column
+    webify-expander-syntax-position))
 
 ;; webify-read-syntax-demod-command : path-string? -> (listof string?)
 ;;   Build the demodularizer command for the isolated read-syntax probe.
@@ -42,6 +47,9 @@
         "-s" "-x"
         "--depends" (path->string (build-path root "read-syntax-dep.rktd"))
         "--no-global"
+        ;; The upstream reader caches the default input-port handler in this
+        ;; global. Keep the allowance private to the provider extraction.
+        "++global-ok" "default-read-handler"
         "-o" (path->string (build-path root "read-syntax.rktl"))))
 
 ;; webify-read-syntax-demod! : path-string? -> (values exact-integer? string?)
