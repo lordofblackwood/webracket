@@ -147,20 +147,30 @@ criteria are:
   `module-protocol` included explicitly.
 - Runtime driver smokes run local module graphs through module-variable cells,
   not through textual flattening.
-- Unsupported forms, such as `only-in`, `rename-in`, collection requires, and
-  phase imports, fail clearly at graph extraction or provider resolution.
+- Unsupported forms fail clearly at graph extraction or provider resolution.
 - The bridge has enough provider coverage for the current `webracket/base`
   supported subset.
 
 Current bridge readiness:
 
 - Passing: simple local require, flattening-vs-bridge parity for the simple
-  local require case, shared local dependencies, one local re-export hop, and a
-  staged `format` provider smoke.
-- Passing diagnostics: unsupported require specs fail during module-bridge
-  graph extraction and retain the unsupported spec in the error message.
-- Still intentionally unsupported: `only-in`, `rename-in`, collection requires,
-  and phase imports in the bridge graph extractor.
+  local require case, `only-in`, `rename-in`, `prefix-in`, shared local
+  dependencies, one local re-export hop, and a staged `format` provider smoke.
+- Passing metadata discovery: local dependencies are recovered from the
+  expanded/compiled import map instead of raw source require syntax. A
+  `define-require-syntax` smoke confirms that a require transformer expanding
+  to a local file is discovered without driver-side knowledge of the custom
+  require form.
+- Passing provider route check: collection/provider requires are not treated as
+  local files by graph extraction; extracted reports can route them through
+  provider discovery.
+- Default-switch policy: keep `--webracket-base-module-bridge` opt-in until the
+  driver bridge composes collection/provider requires directly, not just in the
+  lower-level discovery test. Plain local graphs are now strong enough to be
+  default candidates, but the overall `#lang webracket/base` default should not
+  split behavior by require shape yet.
+- Still intentionally unsupported in the bridge graph extractor: richer local
+  phase/import-provider composition in the driver path.
 
 The machine-readable tracking source for this surface is
 `webify/webracket-base-surface.rkt`. Its status rows intentionally separate:

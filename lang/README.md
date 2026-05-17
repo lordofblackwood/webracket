@@ -29,11 +29,17 @@ this path behind the flag until it covers the supported `webracket/base`
 surface; it is the candidate replacement for the transitional source-level
 lowering, not an additional parser to grow indefinitely.
 
-The bridge currently passes smokes for simple local requires, shared local
+The bridge currently recovers local dependencies from expanded/compiled import
+metadata instead of raw source require syntax. Smokes pass for simple local
+requires, `only-in`, `rename-in`, `prefix-in`, a custom
+`define-require-syntax` transformer that expands to a local file, shared local
 dependencies, a one-hop local re-export, flattening-vs-bridge parity on the
-simple local require case, and a staged `format` provider-backed program. It
-still deliberately rejects richer require specs such as `only-in`, `rename-in`,
-collection requires, and phase imports.
+simple local require case, and a staged `format` provider-backed program.
+Collection/provider requires are left to provider discovery instead of local
+file traversal. Keep the bridge opt-in until the driver composes that
+provider-discovery path directly; plain local graphs are default candidates,
+but `#lang webracket/base` should not silently choose different architectures
+by require shape.
 
 Reader resolution uses Racket's normal collection search via
 `collection-file-path`. The driver does not add checkout-specific fallback

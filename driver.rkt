@@ -99,6 +99,9 @@
                   webify-module-linklet-inputs->registry)
          (only-in "webify/module-extractor.rkt"
                   webify-compile-module-report
+                  webify-module-import-map-required-module-candidates
+                  webify-module-report-import-map
+                  webify-module-report-name
                   webify-module-reports->resolved-linklet-inputs)
          (only-in "webify/module-protocol.rkt"
                   webify-module-protocol-input
@@ -1156,6 +1159,29 @@
        spec)]
     [_ '()]))
 
+(define (candidate-module-symbol->relative-rkt-path candidate)
+  (and (symbol? candidate)
+       (string->path (string-append (symbol->string candidate) ".rkt"))))
+
+(define (webracket/base-report-local-dependency-paths report source-dir)
+  (define import-map (webify-module-report-import-map report))
+  (define self-name (webify-module-report-name report))
+  (remove-duplicates
+   (for/list ([candidate (in-list (webify-module-import-map-required-module-candidates
+                                    import-map))]
+              #:when (= 0 (car candidate))
+              #:do [(define module-name (cadr candidate))
+                    (define relative-path
+                      (candidate-module-symbol->relative-rkt-path module-name))
+                    (define path
+                      (and relative-path
+                           (simplify-path (build-path source-dir relative-path))))]
+              #:when (and path
+                          (not (eq? module-name self-name))
+                          (file-exists? path)))
+     path)
+   equal?))
+
 (define (simple-defined-symbols forms)
   (append-map stdlib-definition-form-symbols forms))
 
@@ -1290,8 +1316,8 @@
      (syntax->datum (read-webracket/base-module resolved)))))
 
 ;; webracket/base-file->local-module-graph : path-string? -> webracket/base-local-module-graph?
-;;   Extract a plain-local-require module graph for the module bridge path.
-(define (webracket/base-file->local-module-graph filename)
+;;   Extract local module reports for the module bridge path.
+(define (webracket/base-file->local-module-reports filename)
   (define visiting (make-hash))
   (define permanent (make-hash))
   (define reports '())
@@ -1307,19 +1333,26 @@
         "path" resolved)]
       [else
        (hash-set! visiting resolved #t)
-       (define stx (read-webracket/base-module resolved))
-       (define-values (module-name body) (module-stx->name+body stx))
        (define source-dir (or (path-only resolved) (current-directory)))
-       (for ([req (in-list (append-map simple-local-require-paths body))])
-         (visit (simplify-path (build-path source-dir req))))
        (define report
-         (parameterize ([current-directory source-dir])
-           (webify-compile-module-report (syntax->datum stx))))
+         (compile-webracket/base-module-file-report resolved))
+       (define module-name (webify-module-report-name report))
+       (for ([dep-path (in-list (webracket/base-report-local-dependency-paths
+                                 report
+                                 source-dir))])
+         (visit dep-path))
        (set! reports (append reports (list report)))
        (hash-remove! visiting resolved)
        (hash-set! permanent resolved module-name)
        module-name]))
   (define root (visit filename))
+  (values root reports))
+
+;; webracket/base-file->local-module-graph : path-string? -> webracket/base-local-module-graph?
+;;   Build a closed local module graph for the module bridge path.
+(define (webracket/base-file->local-module-graph filename)
+  (define-values (root reports)
+    (webracket/base-file->local-module-reports filename))
   (define registry
     (webify-module-linklet-inputs->registry
      (cons webify-module-protocol-input
