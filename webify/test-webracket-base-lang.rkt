@@ -3,9 +3,15 @@
 (require racket/file
          racket/path
          racket/runtime-path
+         racket/string
          rackunit
          syntax/modread
-         (only-in "../driver.rkt" read-top-level-from-file)
+         (only-in "../driver.rkt"
+                  read-top-level-from-file
+                  webracket/base-file->local-module-graph
+                  webracket/base-local-module-graph-root
+                  webracket/base-local-module-graph-reports
+                  webracket/base-local-module-graph-registry)
          "test-module-support.rkt"
          "webracket-base-surface.rkt")
 
@@ -71,12 +77,38 @@
 (define (read-module-file path)
   (call-with-webracket-collection-path
    (lambda ()
-     (call-with-input-file path
-       (lambda (in)
-         (port-count-lines! in)
-         (with-module-reading-parameterization
-           (lambda ()
-             (read-syntax path in))))))))
+     (define resolved (simplify-path (path->complete-path path)))
+     (parameterize ([current-directory (or (path-only resolved)
+                                           (current-directory))])
+       (call-with-input-file resolved
+         (lambda (in)
+           (port-count-lines! in)
+           (with-module-reading-parameterization
+             (lambda ()
+               (read-syntax resolved in)))))))))
+
+;; compile-module-file-report : path-string? -> webify-module-report?
+;;   Compile one module file while resolving relative requires from its directory.
+(define (compile-module-file-report path)
+  (call-with-webracket-collection-path
+   (lambda ()
+     (define resolved (simplify-path (path->complete-path path)))
+     (parameterize ([current-directory (or (path-only resolved)
+                                           (current-directory))])
+       (webify-compile-module-report
+        (syntax->datum (read-module-file resolved)))))))
+
+;; js-log-module-variable-ref-observation? : any/c -> boolean?
+;;   Recognize a normalized observation that reads a composed module export cell.
+(define (js-log-module-variable-ref-observation? datum)
+  (and (list? datum)
+       (= (length datum) 2)
+       (equal? (car datum) "js-log")
+       (let ([arg (cadr datum)])
+         (and (list? arg)
+              (= (length arg) 2)
+              (equal? (car arg) "module-variable-ref")
+              (string? (cadr arg))))))
 
 (test-case "#lang webracket/base reads as a real module"
   (define source-dir (make-temporary-file "webracket-base-lang-src-~a" 'directory))
@@ -215,6 +247,31 @@
         (with-handlers ([exn:fail:filesystem? void])
           (delete-directory/files dir))))))
 
+(test-case "#lang webracket/base module bridge reaches staged format provider"
+  (define source-dir (make-temporary-file "webracket-base-bridge-format-src-~a" 'directory))
+  (define dest-dir   (make-temporary-file "webracket-base-bridge-format-dest-~a" 'directory))
+  (define source-path (build-path source-dir "base-bridge-format-smoke.rkt"))
+  (dynamic-wind
+    void
+    (lambda ()
+      (call-with-output-file source-path
+        (lambda (out)
+          (display "#lang webracket/base\n(js-log (format \"fmt ~a ~s\" 'ok 'write))\n" out))
+        #:exists 'truncate/replace)
+      (define-values (status output)
+        (run-webracket/base
+         (list "-r" "--no-stdlib"
+               "--webracket-base-module-bridge"
+               "--dest" (path->string dest-dir)
+               (path->string source-path))
+         source-dir))
+      (check-equal? status 0 output)
+      (check-regexp-match #rx"(?m:^fmt ok write$)" output))
+    (lambda ()
+      (for ([dir (in-list (list source-dir dest-dir))])
+        (with-handlers ([exn:fail:filesystem? void])
+          (delete-directory/files dir))))))
+
 (test-case "#lang webracket/base supports a simple local string require"
   (define source-dir (make-temporary-file "webracket-base-local-require-src-~a" 'directory))
   (define dest-dir   (make-temporary-file "webracket-base-local-require-dest-~a" 'directory))
@@ -239,6 +296,36 @@
          source-dir))
       (check-equal? status 0 output)
       (check-regexp-match #rx"(?m:^42$)" output))
+    (lambda ()
+      (for ([dir (in-list (list source-dir dest-dir))])
+        (with-handlers ([exn:fail:filesystem? void])
+          (delete-directory/files dir))))))
+
+(test-case "#lang webracket/base rejects unsupported transitional require specs"
+  (define source-dir (make-temporary-file "webracket-base-unsupported-require-src-~a" 'directory))
+  (define dest-dir   (make-temporary-file "webracket-base-unsupported-require-dest-~a" 'directory))
+  (define lib-path   (build-path source-dir "lib.rkt"))
+  (define main-path  (build-path source-dir "main.rkt"))
+  (dynamic-wind
+    void
+    (lambda ()
+      (call-with-output-file lib-path
+        (lambda (out)
+          (display "#lang webracket/base\n(provide add2)\n(define (add2 x) (+ x 2))\n" out))
+        #:exists 'truncate/replace)
+      (call-with-output-file main-path
+        (lambda (out)
+          (display "#lang webracket/base\n(require (only-in \"lib.rkt\" add2))\n(js-log (add2 40))\n" out))
+        #:exists 'truncate/replace)
+      (define-values (status output)
+        (run-webracket/base
+         (list "-r" "--no-stdlib" "--no-io-format-provider"
+               "--dest" (path->string dest-dir)
+               (path->string main-path))
+         source-dir))
+      (check-not-equal? status 0 output)
+      (check-regexp-match #rx"unsupported #lang webracket/base local require spec"
+                          output))
     (lambda ()
       (for ([dir (in-list (list source-dir dest-dir))])
         (with-handlers ([exn:fail:filesystem? void])
@@ -274,6 +361,233 @@
          source-dir))
       (check-not-equal? status 0 output)
       (check-regexp-match #rx"helper" output))
+    (lambda ()
+      (for ([dir (in-list (list source-dir dest-dir))])
+        (with-handlers ([exn:fail:filesystem? void])
+          (delete-directory/files dir))))))
+
+(test-case "#lang webracket/base local modules extract as module reports"
+  (define source-dir (make-temporary-file "webracket-base-report-graph-src-~a" 'directory))
+  (define lib-path   (build-path source-dir "lib.rkt"))
+  (define main-path  (build-path source-dir "main.rkt"))
+  (dynamic-wind
+    void
+    (lambda ()
+      (call-with-output-file lib-path
+        (lambda (out)
+          (display "#lang webracket/base\n(provide add2)\n(define (add2 x) (+ x 2))\n" out))
+        #:exists 'truncate/replace)
+      (call-with-output-file main-path
+        (lambda (out)
+          (display "#lang webracket/base\n(require \"lib.rkt\")\n(provide answer)\n(define answer (add2 40))\n" out))
+        #:exists 'truncate/replace)
+      (define lib-report (compile-module-file-report lib-path))
+      (define main-report (compile-module-file-report main-path))
+      (check-equal? (webify-module-report-name lib-report) 'lib)
+      (check-equal? (webify-module-report-name main-report) 'main)
+      (check-not-false (member 'add2 (webify-module-report-phase0-exports lib-report)))
+      (check-not-false (member 'answer (webify-module-report-phase0-exports main-report))))
+    (lambda ()
+      (with-handlers ([exn:fail:filesystem? void])
+        (delete-directory/files source-dir)))))
+
+(test-case "#lang webracket/base local files extract as a module graph"
+  (define source-dir (make-temporary-file "webracket-base-local-graph-src-~a" 'directory))
+  (define lib-path   (build-path source-dir "lib.rkt"))
+  (define main-path  (build-path source-dir "main.rkt"))
+  (dynamic-wind
+    void
+    (lambda ()
+      (call-with-output-file lib-path
+        (lambda (out)
+          (display "#lang webracket/base\n(provide add2)\n(define (add2 x) (+ x 2))\n" out))
+        #:exists 'truncate/replace)
+      (call-with-output-file main-path
+        (lambda (out)
+          (display "#lang webracket/base\n(require \"lib.rkt\")\n(provide answer)\n(define answer (add2 40))\n" out))
+        #:exists 'truncate/replace)
+      (define graph
+        (call-with-webracket-collection-path
+         (lambda ()
+           (webracket/base-file->local-module-graph main-path))))
+      (check-equal? (webracket/base-local-module-graph-root graph) 'main)
+      (check-equal?
+       (map webify-module-report-name
+            (webracket/base-local-module-graph-reports graph))
+       '(lib main))
+      (check-equal?
+       (webify-module-registry-plan
+        (webracket/base-local-module-graph-registry graph)
+        '(main))
+       '(module-protocol lib main)))
+    (lambda ()
+      (with-handlers ([exn:fail:filesystem? void])
+        (delete-directory/files source-dir)))))
+
+(test-case "equivalent local graph composes through module registry"
+  (define module-data
+    '((module lib racket/base
+        (provide add2)
+        (define (add2 x) (+ x 2)))
+      (module main racket/base
+        (require 'lib)
+        (provide answer)
+        (define answer (add2 40)))))
+  (define registry
+    (webify-module-linklet-inputs->registry
+     (cons webify-module-protocol-input
+           (webify-source-modules->resolved-linklet-inputs
+            module-data
+            #:module-protocol-dependency webify-module-protocol-dependency))))
+  (check-equal? (webify-module-registry-plan registry '(main))
+                '(module-protocol lib main))
+  (define-values (observed _fragments _exports _exports-info)
+    (compose-module-registry/roots+observations registry '(main) '((main answer))))
+  (check-not-false
+   (for/or ([datum (in-list (normalize-symbols observed))])
+     (js-log-module-variable-ref-observation? datum)))
+  (check-true (string-contains? (wat-string (comp (datum->syntax #f observed)))
+                                "$module-variable-ref")))
+
+(test-case "flattened and composed two-module paths both observe answer"
+  (define source-dir (make-temporary-file "webracket-base-flat-vs-composed-src-~a" 'directory))
+  (define dest-dir   (make-temporary-file "webracket-base-flat-vs-composed-dest-~a" 'directory))
+  (define lib-path   (build-path source-dir "lib.rkt"))
+  (define main-path  (build-path source-dir "main.rkt"))
+  (dynamic-wind
+    void
+    (lambda ()
+      (call-with-output-file lib-path
+        (lambda (out)
+          (display "#lang webracket/base\n(provide answer)\n(define answer 42)\n" out))
+        #:exists 'truncate/replace)
+      (call-with-output-file main-path
+        (lambda (out)
+          (display "#lang webracket/base\n(require \"lib.rkt\")\n(js-log answer)\n" out))
+        #:exists 'truncate/replace)
+      (define-values (status output)
+        (run-webracket/base
+         (list "-r" "--no-stdlib" "--no-io-format-provider"
+               "--dest" (path->string dest-dir)
+               (path->string main-path))
+         source-dir))
+      (check-equal? status 0 output)
+      (check-regexp-match #rx"(?m:^42$)" output)
+      (define registry
+        (webify-module-linklet-inputs->registry
+         (cons webify-module-protocol-input
+               (webify-source-modules->resolved-linklet-inputs
+                '((module lib racket/base
+                    (provide answer)
+                    (define answer 42)))
+                #:module-protocol-dependency webify-module-protocol-dependency))))
+      (define-values (observed _fragments _exports _exports-info)
+        (compose-module-registry/roots+observations registry '(lib) '((lib answer))))
+      (check-not-false
+       (for/or ([datum (in-list (normalize-symbols observed))])
+         (js-log-module-variable-ref-observation? datum))))
+    (lambda ()
+      (for ([dir (in-list (list source-dir dest-dir))])
+        (with-handlers ([exn:fail:filesystem? void])
+          (delete-directory/files dir))))))
+
+(test-case "#lang webracket/base module bridge flag runs a local require graph"
+  (define source-dir (make-temporary-file "webracket-base-bridge-run-src-~a" 'directory))
+  (define dest-dir   (make-temporary-file "webracket-base-bridge-run-dest-~a" 'directory))
+  (define lib-path   (build-path source-dir "lib.rkt"))
+  (define main-path  (build-path source-dir "main.rkt"))
+  (dynamic-wind
+    void
+    (lambda ()
+      (call-with-output-file lib-path
+        (lambda (out)
+          (display "#lang webracket/base\n(provide add2)\n(define (add2 x) (+ x 2))\n" out))
+        #:exists 'truncate/replace)
+      (call-with-output-file main-path
+        (lambda (out)
+          (display "#lang webracket/base\n(require \"lib.rkt\")\n(js-log (add2 40))\n" out))
+        #:exists 'truncate/replace)
+      (define-values (status output)
+        (run-webracket/base
+         (list "-r" "--no-stdlib" "--no-io-format-provider"
+               "--webracket-base-module-bridge"
+               "--dest" (path->string dest-dir)
+               (path->string main-path))
+         source-dir))
+      (check-equal? status 0 output)
+      (check-regexp-match #rx"(?m:^42$)" output))
+    (lambda ()
+      (for ([dir (in-list (list source-dir dest-dir))])
+        (with-handlers ([exn:fail:filesystem? void])
+          (delete-directory/files dir))))))
+
+(test-case "#lang webracket/base flattening and bridge agree on simple local require"
+  (define source-dir (make-temporary-file "webracket-base-bridge-agree-src-~a" 'directory))
+  (define flat-dir   (make-temporary-file "webracket-base-bridge-agree-flat-dest-~a" 'directory))
+  (define bridge-dir (make-temporary-file "webracket-base-bridge-agree-bridge-dest-~a" 'directory))
+  (define lib-path   (build-path source-dir "lib.rkt"))
+  (define main-path  (build-path source-dir "main.rkt"))
+  (dynamic-wind
+    void
+    (lambda ()
+      (call-with-output-file lib-path
+        (lambda (out)
+          (display "#lang webracket/base\n(provide add2)\n(define (add2 x) (+ x 2))\n" out))
+        #:exists 'truncate/replace)
+      (call-with-output-file main-path
+        (lambda (out)
+          (display "#lang webracket/base\n(require \"lib.rkt\")\n(js-log (add2 40))\n" out))
+        #:exists 'truncate/replace)
+      (define-values (flat-status flat-output)
+        (run-webracket/base
+         (list "-r" "--no-stdlib" "--no-io-format-provider"
+               "--dest" (path->string flat-dir)
+               (path->string main-path))
+         source-dir))
+      (define-values (bridge-status bridge-output)
+        (run-webracket/base
+         (list "-r" "--no-stdlib" "--no-io-format-provider"
+               "--webracket-base-module-bridge"
+               "--dest" (path->string bridge-dir)
+               (path->string main-path))
+         source-dir))
+      (check-equal? flat-status 0 flat-output)
+      (check-equal? bridge-status 0 bridge-output)
+      (check-regexp-match #rx"(?m:^42$)" flat-output)
+      (check-regexp-match #rx"(?m:^42$)" bridge-output))
+    (lambda ()
+      (for ([dir (in-list (list source-dir flat-dir bridge-dir))])
+        (with-handlers ([exn:fail:filesystem? void])
+          (delete-directory/files dir))))))
+
+(test-case "#lang webracket/base module bridge rejects unsupported require specs"
+  (define source-dir (make-temporary-file "webracket-base-bridge-reject-src-~a" 'directory))
+  (define dest-dir   (make-temporary-file "webracket-base-bridge-reject-dest-~a" 'directory))
+  (define lib-path   (build-path source-dir "lib.rkt"))
+  (define main-path  (build-path source-dir "main.rkt"))
+  (dynamic-wind
+    void
+    (lambda ()
+      (call-with-output-file lib-path
+        (lambda (out)
+          (display "#lang webracket/base\n(provide add2)\n(define (add2 x) (+ x 2))\n" out))
+        #:exists 'truncate/replace)
+      (call-with-output-file main-path
+        (lambda (out)
+          (display "#lang webracket/base\n(require (only-in \"lib.rkt\" add2))\n(js-log (add2 40))\n" out))
+        #:exists 'truncate/replace)
+      (define-values (status output)
+        (run-webracket/base
+         (list "-r" "--no-stdlib" "--no-io-format-provider"
+               "--webracket-base-module-bridge"
+               "--dest" (path->string dest-dir)
+               (path->string main-path))
+         source-dir))
+      (check-not-equal? status 0 output)
+      (check-regexp-match #rx"module bridge graph extraction failed"
+                          output)
+      (check-regexp-match #rx"unsupported #lang webracket/base local require spec"
+                          output))
     (lambda ()
       (for ([dir (in-list (list source-dir dest-dir))])
         (with-handlers ([exn:fail:filesystem? void])
@@ -318,6 +632,46 @@
         (with-handlers ([exn:fail:filesystem? void])
           (delete-directory/files dir))))))
 
+(test-case "#lang webracket/base module bridge handles shared local dependency"
+  (define source-dir (make-temporary-file "webracket-base-bridge-multi-src-~a" 'directory))
+  (define dest-dir   (make-temporary-file "webracket-base-bridge-multi-dest-~a" 'directory))
+  (define core-path  (build-path source-dir "core.rkt"))
+  (define a-path     (build-path source-dir "a.rkt"))
+  (define b-path     (build-path source-dir "b.rkt"))
+  (define main-path  (build-path source-dir "main.rkt"))
+  (dynamic-wind
+    void
+    (lambda ()
+      (call-with-output-file core-path
+        (lambda (out)
+          (display "#lang webracket/base\n(provide base)\n(define base 20)\n" out))
+        #:exists 'truncate/replace)
+      (call-with-output-file a-path
+        (lambda (out)
+          (display "#lang webracket/base\n(require \"core.rkt\")\n(provide a-val)\n(define a-val (+ base 1))\n" out))
+        #:exists 'truncate/replace)
+      (call-with-output-file b-path
+        (lambda (out)
+          (display "#lang webracket/base\n(require \"core.rkt\")\n(provide b-val)\n(define b-val (+ base 1))\n" out))
+        #:exists 'truncate/replace)
+      (call-with-output-file main-path
+        (lambda (out)
+          (display "#lang webracket/base\n(require \"a.rkt\" \"b.rkt\")\n(js-log (+ a-val b-val))\n" out))
+        #:exists 'truncate/replace)
+      (define-values (status output)
+        (run-webracket/base
+         (list "-r" "--no-stdlib" "--no-io-format-provider"
+               "--webracket-base-module-bridge"
+               "--dest" (path->string dest-dir)
+               (path->string main-path))
+         source-dir))
+      (check-equal? status 0 output)
+      (check-regexp-match #rx"(?m:^42$)" output))
+    (lambda ()
+      (for ([dir (in-list (list source-dir dest-dir))])
+        (with-handlers ([exn:fail:filesystem? void])
+          (delete-directory/files dir))))))
+
 (test-case "#lang webracket/base supports one local re-export hop"
   (define source-dir (make-temporary-file "webracket-base-reexport-src-~a" 'directory))
   (define dest-dir   (make-temporary-file "webracket-base-reexport-dest-~a" 'directory))
@@ -342,6 +696,41 @@
       (define-values (status output)
         (run-webracket/base
          (list "-r" "--no-stdlib" "--no-io-format-provider"
+               "--dest" (path->string dest-dir)
+               (path->string main-path))
+         source-dir))
+      (check-equal? status 0 output)
+      (check-regexp-match #rx"(?m:^42$)" output))
+    (lambda ()
+      (for ([dir (in-list (list source-dir dest-dir))])
+        (with-handlers ([exn:fail:filesystem? void])
+          (delete-directory/files dir))))))
+
+(test-case "#lang webracket/base module bridge handles one local re-export hop"
+  (define source-dir (make-temporary-file "webracket-base-bridge-reexport-src-~a" 'directory))
+  (define dest-dir   (make-temporary-file "webracket-base-bridge-reexport-dest-~a" 'directory))
+  (define a-path     (build-path source-dir "a.rkt"))
+  (define b-path     (build-path source-dir "b.rkt"))
+  (define main-path  (build-path source-dir "main.rkt"))
+  (dynamic-wind
+    void
+    (lambda ()
+      (call-with-output-file a-path
+        (lambda (out)
+          (display "#lang webracket/base\n(provide answer)\n(define answer 42)\n" out))
+        #:exists 'truncate/replace)
+      (call-with-output-file b-path
+        (lambda (out)
+          (display "#lang webracket/base\n(require \"a.rkt\")\n(provide answer)\n" out))
+        #:exists 'truncate/replace)
+      (call-with-output-file main-path
+        (lambda (out)
+          (display "#lang webracket/base\n(require \"b.rkt\")\n(js-log answer)\n" out))
+        #:exists 'truncate/replace)
+      (define-values (status output)
+        (run-webracket/base
+         (list "-r" "--no-stdlib" "--no-io-format-provider"
+               "--webracket-base-module-bridge"
                "--dest" (path->string dest-dir)
                (path->string main-path))
          source-dir))

@@ -9,10 +9,31 @@ reader lives in `base/lang/reader.rkt` and expands through host Racket as a
 normal module using language `webracket/base`.
 
 The command-line driver currently supports `#lang webracket/base` with a
-transitional bridge: it reads the source as a normal module, strips module-only
-declarations such as `provide`, and compiles the body through the existing
-top-level compiler path. Full module-provider execution is still tracked as a
-future Goal 1 step.
+transitional bridge: it reads the source as a normal module, lowers a tiny
+subset of local module structure, and compiles the resulting body through the
+existing top-level compiler path. This is scaffolding, not the intended module
+semantics.
+
+The transitional require subset is deliberately small. Plain local string
+requires such as `(require "lib.rkt")` are accepted for smoke tests. Unsupported
+require specs, including `only-in`, `rename-in`, collection imports, and phase
+imports, must fail clearly instead of being approximated here. The intended
+direction is to use Webify's module report/registry/composer pipeline and then
+delete this source-level lowering.
+
+An opt-in bridge for that direction is available with
+`--webracket-base-module-bridge`. In that mode, the driver extracts a local
+`#lang webracket/base` graph, builds a module registry with `module-protocol`,
+and composes the root through module instances and module-variable cells. Keep
+this path behind the flag until it covers the supported `webracket/base`
+surface; it is the candidate replacement for the transitional source-level
+lowering, not an additional parser to grow indefinitely.
+
+The bridge currently passes smokes for simple local requires, shared local
+dependencies, a one-hop local re-export, flattening-vs-bridge parity on the
+simple local require case, and a staged `format` provider-backed program. It
+still deliberately rejects richer require specs such as `only-in`, `rename-in`,
+collection requires, and phase imports.
 
 Reader resolution uses Racket's normal collection search via
 `collection-file-path`. The driver does not add checkout-specific fallback

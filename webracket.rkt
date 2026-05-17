@@ -57,6 +57,8 @@
   (make-parameter #f)) ; experimental staged original-Racket expander/read provider
 (define expander-read-syntax-provider?
   (make-parameter #f)) ; private staged original-Racket read-syntax provider
+(define webracket-base-module-bridge?
+  (make-parameter #f)) ; experimental #lang webracket/base module bridge
 (define provider-cache-dir (make-parameter #f))
 (define clear-provider-cache? (make-parameter #f))
 (define force-provider-cache-refresh? (make-parameter #f))
@@ -238,6 +240,9 @@
    [("--no-expander-read-syntax-provider")
     "Disable private staged original-Racket read-syntax provider (default)"
     (expander-read-syntax-provider? #f)]
+   [("--webracket-base-module-bridge")
+    "Compile #lang webracket/base through the experimental local module bridge"
+    (webracket-base-module-bridge? #t)]
    [("--provider-cache-dir") dirname
                              "Use <dirname> for provider-slice caches"
                              (provider-cache-dir dirname)]
@@ -346,6 +351,8 @@
                      #:expander-read-provider? (expander-read-provider?)
                      #:expander-read-syntax-provider?
                      (expander-read-syntax-provider?)
+                     #:webracket-base-module-bridge?
+                     (webracket-base-module-bridge?)
                      #:provider-cache-dir
                      (or (provider-cache-dir) webify-regexp-default-cache-root)
                      #:clear-provider-cache? (clear-provider-cache?)

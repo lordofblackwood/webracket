@@ -95,6 +95,14 @@
          (only-in "webify/module-registry.rkt"
                   webify-compose-module-registry/roots/composition
                   webify-module-composition-with-tail)
+         (only-in "webify/module-input.rkt"
+                  webify-module-linklet-inputs->registry)
+         (only-in "webify/module-extractor.rkt"
+                  webify-compile-module-report
+                  webify-module-reports->resolved-linklet-inputs)
+         (only-in "webify/module-protocol.rkt"
+                  webify-module-protocol-input
+                  webify-module-protocol-dependency)
          "compiler.rkt"
          "define-foreign.rkt")
 
@@ -790,6 +798,7 @@
          #:stdlib-io-format-provider? [stdlib-io-format-provider? #t]
          #:expander-read-provider? [expander-read-provider? #f]
          #:expander-read-syntax-provider? [expander-read-syntax-provider? #f]
+         #:webracket-base-module-bridge? [webracket-base-module-bridge? #f]
          ;; Provider Cache
          #:provider-cache-dir [provider-cache-dir webify-regexp-default-cache-root]
          #:clear-provider-cache? [clear-provider-cache? #f]
@@ -831,7 +840,9 @@
     (with-handlers ([exn:fail? (λ (e)
                                  (error 'drive-compilation
                                         (~a "read failed: " (exn-message e))))])
-      (read-top-level-from-file filename)))
+      (read-top-level-from-file
+       filename
+       #:webracket-base-module-bridge? webracket-base-module-bridge?)))
   (define t-read-source-end (now-ms))
   (define stx-for-compile
     (if print-top-level-results?
@@ -1135,8 +1146,13 @@
 (define (simple-local-require-paths form)
   (match form
     [`(require ,specs ...)
-     (for/list ([spec (in-list specs)]
-                #:when (string? spec))
+     (for/list ([spec (in-list specs)])
+       (unless (string? spec)
+         (raise-arguments-error
+          'read-top-level-from-file
+          "unsupported #lang webracket/base local require spec"
+          "spec" spec
+          "supported" "plain local string requires, such as (require \"lib.rkt\")"))
        spec)]
     [_ '()]))
 
@@ -1261,6 +1277,98 @@
     (webracket/base-module->top-level-forms filename))
   (datum->syntax #f `(begin ,@forms)))
 
+(struct webracket/base-local-module-graph (root reports registry)
+  #:transparent)
+
+;; compile-webracket/base-module-file-report : path-string? -> webify-module-report?
+;;   Compile one module file while resolving relative requires from its directory.
+(define (compile-webracket/base-module-file-report filename)
+  (define resolved (simplify-path (path->complete-path filename)))
+  (parameterize ([current-directory (or (path-only resolved)
+                                        (current-directory))])
+    (webify-compile-module-report
+     (syntax->datum (read-webracket/base-module resolved)))))
+
+;; webracket/base-file->local-module-graph : path-string? -> webracket/base-local-module-graph?
+;;   Extract a plain-local-require module graph for the module bridge path.
+(define (webracket/base-file->local-module-graph filename)
+  (define visiting (make-hash))
+  (define permanent (make-hash))
+  (define reports '())
+  (define (visit path)
+    (define resolved (simplify-path (path->complete-path path)))
+    (cond
+      [(hash-ref permanent resolved #f)
+       => (lambda (name) name)]
+      [(hash-ref visiting resolved #f)
+       (raise-arguments-error
+        'read-top-level-from-file
+        "#lang webracket/base local module cycle is not supported"
+        "path" resolved)]
+      [else
+       (hash-set! visiting resolved #t)
+       (define stx (read-webracket/base-module resolved))
+       (define-values (module-name body) (module-stx->name+body stx))
+       (define source-dir (or (path-only resolved) (current-directory)))
+       (for ([req (in-list (append-map simple-local-require-paths body))])
+         (visit (simplify-path (build-path source-dir req))))
+       (define report
+         (parameterize ([current-directory source-dir])
+           (webify-compile-module-report (syntax->datum stx))))
+       (set! reports (append reports (list report)))
+       (hash-remove! visiting resolved)
+       (hash-set! permanent resolved module-name)
+       module-name]))
+  (define root (visit filename))
+  (define registry
+    (webify-module-linklet-inputs->registry
+     (cons webify-module-protocol-input
+           (webify-module-reports->resolved-linklet-inputs
+            reports
+            #:module-protocol-dependency webify-module-protocol-dependency))))
+  (webracket/base-local-module-graph root reports registry))
+
+;; module-file->module-bridge-top-level : path-string? -> syntax?
+;;   Compose a local #lang webracket/base graph through module instances.
+(define (module-file->module-bridge-top-level filename)
+  (define graph
+    (with-handlers ([exn:fail?
+                     (lambda (e)
+                       (raise-arguments-error
+                        'read-top-level-from-file
+                        "#lang webracket/base module bridge graph extraction failed"
+                        "file" filename
+                        "message" (exn-message e)))])
+      (webracket/base-file->local-module-graph filename)))
+  (define composition
+    (with-handlers ([exn:fail?
+                     (lambda (e)
+                       (raise-arguments-error
+                        'read-top-level-from-file
+                        "#lang webracket/base module bridge composition failed"
+                        "root" (webracket/base-local-module-graph-root graph)
+                        "message" (exn-message e)))])
+      (webify-compose-module-registry/roots/composition
+       (webracket/base-local-module-graph-registry graph)
+       (list (webracket/base-local-module-graph-root graph))
+       #:define-export-aliases? #f
+       #:serializable?-box     #f
+       #:datum-intern?         #f
+       #:target                #f
+       #:allow-set!-undefined? #f
+       #:unsafe-mode?          #f
+       #:enforce-constant?     #t
+       #:allow-inline?         #t
+       #:no-prompt?            #f
+       #:prim-knowns           (hasheq)
+       #:primitives            (hasheq)
+       #:compiler-query        (lambda (v) #f)
+       #:get-import-knowns     (lambda (key) (values #f #f #f))
+       #:import-keys           #f)))
+  (datum->syntax
+   #f
+   (webify-module-composition-with-tail composition '((void)))))
+
 ;; module-form->top-level : syntax? -> syntax?
 ;;   Transitional helper for tests that already have a module syntax object.
 (define (module-form->top-level stx)
@@ -1279,7 +1387,9 @@
          (module-variable-define! ,cell ,export 'constant))))
   (datum->syntax stx `(begin ,@top-level-forms ,@export-forms) stx))
 
-(define (read-top-level-from-file filename)
+(define (read-top-level-from-file filename
+                                  #:webracket-base-module-bridge?
+                                  [webracket-base-module-bridge? #f])
   (define first-line
     (call-with-input-file filename
       (λ (port)
@@ -1290,7 +1400,7 @@
     (webracket-base-lang-line? first-line))
   (define (read-forms port)
     (let loop ([forms '()])
-      (define stx (read-syntax filename port))      
+      (define stx (read-syntax filename port))
       (if (eof-object? stx)
           (reverse forms)
           (loop (cons stx forms)))))
@@ -1309,7 +1419,9 @@
              (define forms (read-forms port))
              (datum->syntax #f `(begin ,@forms))]
             [starts-with-webracket/base-lang?
-             (module-file->top-level filename)]
+             (if webracket-base-module-bridge?
+                 (module-file->module-bridge-top-level filename)
+                 (module-file->top-level filename))]
             [else
              (define forms (read-forms port))
              (datum->syntax #f `(begin ,@forms))]))))))

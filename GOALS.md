@@ -67,6 +67,15 @@ Implemented or partially implemented:
   `PLTCOLLECTS`, collection links, or package installation. The transitional
   path also handles simple local string requires by inlining required
   `#lang webracket/base` sources before the root body.
+- The source-level local require lowering is intentionally not growing into a
+  module system. It accepts only plain local string requires for smoke tests and
+  rejects richer require specs clearly. The next intended path is extracting
+  local module reports and composing them through Webify's module registry.
+- An opt-in `--webracket-base-module-bridge` driver path now extracts a local
+  `#lang webracket/base` graph, composes it through module instances, and runs
+  exports through module-variable cells. This is the replacement candidate for
+  the transitional source-level lowering, but it remains behind a flag while
+  the supported module subset is still small.
 - Module-linklet inputs and manifests.
 - Module registry, module instances, and module-variable cells.
 - Import/export resolution for extracted module graphs.
@@ -124,6 +133,34 @@ systems:
 The for-syntax surface should include the `racket/base` compile-time bindings,
 because ordinary module expansion expects them. Additional for-syntax exports
 should be added only when a concrete module-language smoke needs them.
+
+### `#lang webracket/base` Driver Cutover
+
+The transitional source-level lowering should be deleted only after the module
+bridge path is the normal driver path for the supported subset. The cutover
+criteria are:
+
+- Local graph extraction works from a root `#lang webracket/base` file and
+  follows plain local string requires without checkout-specific collection
+  fallbacks.
+- The extracted reports compose through `webify-module-registry` with
+  `module-protocol` included explicitly.
+- Runtime driver smokes run local module graphs through module-variable cells,
+  not through textual flattening.
+- Unsupported forms, such as `only-in`, `rename-in`, collection requires, and
+  phase imports, fail clearly at graph extraction or provider resolution.
+- The bridge has enough provider coverage for the current `webracket/base`
+  supported subset.
+
+Current bridge readiness:
+
+- Passing: simple local require, flattening-vs-bridge parity for the simple
+  local require case, shared local dependencies, one local re-export hop, and a
+  staged `format` provider smoke.
+- Passing diagnostics: unsupported require specs fail during module-bridge
+  graph extraction and retain the unsupported spec in the error message.
+- Still intentionally unsupported: `only-in`, `rename-in`, collection requires,
+  and phase imports in the bridge graph extractor.
 
 The machine-readable tracking source for this surface is
 `webify/webracket-base-surface.rkt`. Its status rows intentionally separate:
