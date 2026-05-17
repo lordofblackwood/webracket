@@ -36,7 +36,11 @@
   '(read-list
     read-vector
     read-symbol-string
-    read-comment))
+    read-comment
+    read-public-list
+    read-current-readtable
+    read-accept-reader-param
+    read-string->number))
 
 ;; module-case-needs-expander-read-provider? : symbol? -> boolean?
 ;;   Select tracking probes that exercise public `read` via expander/read.
@@ -60,6 +64,8 @@
     hash-clear-basic
     hash-comparator-semantics
     set-count
+    set-require
+    set-predicate
     set-union
     set-member
     set-add
@@ -70,6 +76,7 @@
     set-symmetric-difference
     set-map
     set-comparator-semantics
+    set-types-require
     set-types-predicate
     stream-first
     stream-rest
@@ -113,6 +120,10 @@
     format-write
     format-align
     format-fprintf-port
+    read-public-list
+    read-current-readtable
+    read-accept-reader-param
+    read-string->number
     regexp-literal
     regexp-capture
     regexp-replace
@@ -177,7 +188,8 @@
         #rx"(?m:^42$)"
         #rx""))
   (case name
-    [(set-predicate
+    [(set-require
+      set-predicate
       set-count
       set-member
       set-add
@@ -237,6 +249,10 @@
       read-vector
       read-symbol-string
       read-comment
+      read-public-list
+      read-current-readtable
+      read-accept-reader-param
+      read-string->number
       regexp-literal
       regexp-capture
       regexp-replace
@@ -260,7 +276,8 @@
           (case name
             [(set-count set->list set-symmetric-difference set-map) #rx"(?m:^2$)"]
             [(set-member) #rx"(?m:^true$)"]
-            [(set-remove set-subtract set-types-predicate promise-predicate-plain)
+            [(set-require set-types-require pretty-require) #rx"(?m:^42$)"]
+            [(set-predicate set-remove set-subtract set-types-predicate promise-predicate-plain)
              #rx"(?m:^false$)"]
             [(set-add set-union) #rx"(?m:^3$)"]
             [(set-intersect) #rx"(?m:^1$)"]
@@ -270,7 +287,7 @@
             [(hash-iterate) #rx"(?m:^9$)"]
             [(multi-module-list-string-set) #rx"(?m:^12$)"]
             [(multi-module-reexport-installed) #rx"(?m:^3$)"]
-            [(pretty-require set-types-require) #rx"(?m:^42$)"]
+            [(pretty-require) #rx"(?m:^42$)"]
             [(promise-require force-identity) #rx"(?m:^42$)"]
             [(promise-basic) #rx"(?m:^42$)"]
             [(promise-state) #rx"(?m:^true$)"]
@@ -310,9 +327,12 @@
             [(format-write) #rx"(?m:^web$)"]
             [(format-align) #rx"(?m:^  web$)"]
             [(format-fprintf-port) #rx"(?m:^ok$)"]
-            [(read-list read-vector) #rx"(?m:^3$)"]
+            [(read-list read-vector read-public-list) #rx"(?m:^3$)"]
             [(read-symbol-string) #rx"(?m:^6$)"]
             [(read-comment) #rx"(?m:^42$)"]
+            [(read-current-readtable read-accept-reader-param)
+             #rx"(?m:^true$)"]
+            [(read-string->number) #rx"(?m:^42$)"]
             [(regexp-literal) #rx"(?m:^true$)"]
             [(regexp-capture) #rx"(?m:^2$)"]
             [(regexp-replace) #rx"(?m:^bonono$)"]

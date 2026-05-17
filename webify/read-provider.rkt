@@ -127,7 +127,11 @@
 (define (webify-read-source-paths)
   (sort
    (map simplify-path
-        (find-files file-exists? webify-read-source-root))
+        (append
+         (list webify-read-provider-source)
+         (find-files file-exists? (build-path webify-read-source-root "read"))
+         (find-files file-exists? (build-path webify-read-source-root "common"))
+         (find-files file-exists? (build-path webify-read-source-root "host"))))
    string<?
    #:key path->string))
 

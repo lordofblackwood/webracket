@@ -4,6 +4,7 @@
          racket/string
          rackunit
          "provider-slices.rkt"
+         "read-provider.rkt"
          "test-module-support.rkt")
 
 ;; write-program! : path-string? string? -> void?
@@ -34,6 +35,24 @@
         (with-handlers ([exn:fail:filesystem? void])
           (delete-directory/files dir))))))
 
+;; run-temp-webracket/fresh-provider-cache : string? (listof string?)
+;;                                      -> (values exact-integer? string?)
+;;   Run a provider smoke with an isolated cache so stale generated providers
+;;   cannot affect focused tests.
+(define (run-temp-webracket/fresh-provider-cache source args)
+  (define cache-dir (make-temporary-file "webracket-provider-slice-cache-~a" 'directory))
+  (dynamic-wind
+    void
+    (lambda ()
+      (run-temp-webracket
+       source
+       (append args
+               (list "--provider-cache-dir" (path->string cache-dir)
+                     "--clear-provider-cache"))))
+    (lambda ()
+      (with-handlers ([exn:fail:filesystem? void])
+        (delete-directory/files cache-dir)))))
+
 (test-case "provider-slice report lists active io/format, regexp, and staged expander/read"
   (define report (string-join (provider-slice-report-lines) "\n"))
   (check-true (string-contains? report "io/format\tdefault: enabled") report)
@@ -58,6 +77,44 @@
       (check-regexp-match #rx"provider-cache: regexp lowered forms miss" output)
       (check-regexp-match #rx"provider-cache: regexp demod miss" output)
       (check-regexp-match #rx"(?m:^true$)" output))
+    (lambda ()
+      (with-handlers ([exn:fail:filesystem? void])
+        (delete-directory/files cache-dir)))))
+
+(test-case "expander/read lowered cache fingerprints include public alias policy"
+  (define cache-dir (make-temporary-file "webracket-read-provider-cache-policy-~a" 'directory))
+  (dynamic-wind
+    void
+    (lambda ()
+      (define source "(define in (open-input-string \"42\"))\n(js-log (read in))\n")
+      (define-values (first-status first-output)
+        (run-temp-webracket
+         source
+         (list "-v" "-r" "--no-stdlib" "--no-io-format-provider"
+               "--expander-read-provider"
+               "--provider-cache-dir" (path->string cache-dir)
+               "--clear-provider-cache")))
+      (check-equal? first-status 0 first-output)
+      (check-regexp-match #rx"provider-cache: expander/read lowered forms miss"
+                          first-output)
+      (define cache-path (webify-read-lowered-provider-cache-path cache-dir))
+      (check-true (file-exists? cache-path)
+                  (path->string cache-path))
+      (define cache-entry (call-with-input-file cache-path read))
+      (check-match cache-entry (list _ _))
+      (define fingerprint (car cache-entry))
+      (check-not-false (member webify-read-public-alias-symbols fingerprint)
+                       (format "fingerprint did not include alias policy: ~s"
+                               fingerprint))
+      (define-values (second-status second-output)
+        (run-temp-webracket
+         source
+         (list "-v" "-r" "--no-stdlib" "--no-io-format-provider"
+               "--expander-read-provider"
+               "--provider-cache-dir" (path->string cache-dir))))
+      (check-equal? second-status 0 second-output)
+      (check-regexp-match #rx"provider-cache: expander/read lowered forms hit"
+                          second-output))
     (lambda ()
       (with-handlers ([exn:fail:filesystem? void])
         (delete-directory/files cache-dir)))))
@@ -149,7 +206,7 @@
 
 (test-case "expander/read provider exposes Webify-owned reader aliases"
   (define-values (status output)
-    (run-temp-webracket
+    (run-temp-webracket/fresh-provider-cache
      (string-append
       "(define in (open-input-string \"(1 2) 42\"))\n"
       "(js-log (webify-expander-read in))\n"
@@ -163,7 +220,7 @@
 
 (test-case "expander/read provider handles string ports and datum classes"
   (define-values (status output)
-    (run-temp-webracket
+    (run-temp-webracket/fresh-provider-cache
      (string-append
       "(define in (open-input-string \"#; ignored 'sym #(1 2 3) \\\"λ\\\"\" 'reader-smoke))\n"
       "(js-log (webify-expander-read in))\n"
@@ -182,7 +239,7 @@
 
 (test-case "expander/read provider publishes public reader aliases"
   (define-values (status output)
-    (run-temp-webracket
+    (run-temp-webracket/fresh-provider-cache
      (string-append
       "(define in (open-input-string \"42\"))\n"
       "(js-log (read in))\n"
@@ -190,12 +247,16 @@
       "(read-accept-reader #t)\n"
       "(js-log (read-accept-reader))\n"
       "(read-accept-reader #f)\n"
-      "(js-log (read-accept-reader))\n")
+      "(js-log (read-accept-reader))\n"
+      "(js-log (string->number \"42\"))\n"
+      "(js-log (eq? (read-language (open-input-string \"42\")\n"
+      "                         (lambda () 'no-lang))\n"
+      "              'no-lang))\n")
      (list "-r" "--no-stdlib" "--no-io-format-provider" "--expander-read-provider")))
   (check-equal? status 0 output)
   (check-regexp-match #rx"(?m:^42$)" output)
   (check-equal? (regexp-match* #rx"(?m:^(true|false)$)" output)
-                '("true" "true" "false")))
+                '("true" "true" "false" "true")))
 
 (test-case "format public alias depends on io/format provider"
   (define-values (status output)

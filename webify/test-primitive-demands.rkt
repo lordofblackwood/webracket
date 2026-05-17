@@ -165,6 +165,38 @@
         (webify-primitive-demand-report-demands report))
    '((#%kernel syntax-e ((kernel-user 0))))))
 
+(test-case "primitive demand ownership classifies runtime and provider names"
+  (check-equal? (webify-primitive-name-ownership 'cons) 'runtime-owned)
+  (check-equal? (webify-primitive-name-ownership 'read) 'provider-owned)
+  (check-equal? (webify-primitive-name-ownership 'regexp-match?) 'provider-owned)
+  (check-equal? (webify-primitive-name-ownership 'format) 'provider-owned)
+  (check-equal? (webify-primitive-name-ownership 'call-with-parameterization)
+                'runtime-preferred)
+  (check-equal? (webify-primitive-name-ownership 'not-a-webracket-name)
+                'unknown))
+
+(test-case "primitive demand ownership counts summarize reports"
+  (define input
+    (webify-module-linklet-input
+     'ownership-probe
+     '(linklet (((cons cons)
+                 (read read)
+                 (call-with-parameterization call-with-parameterization)
+                 (missing missing)))
+        (out)
+        (define-values (out) cons))
+     '((cons #%kernel cons)
+       (read #%kernel read)
+       (call-with-parameterization #%kernel call-with-parameterization)
+       (missing #%kernel not-a-webracket-name))))
+  (define report
+    (webify-module-linklet-inputs->primitive-demands (list input)))
+  (check-equal? (webify-primitive-demand-report-ownership-counts report)
+                '((runtime-owned . 1)
+                  (provider-owned . 1)
+                  (runtime-preferred . 1)
+                  (unknown . 1))))
+
 (test-case "Goal 1 module matrix names are known probe cases"
   (check-not-false (member 'promise-state goal1-module-cases))
   (check-not-false (member 'sequence-range goal1-module-cases))
@@ -178,6 +210,11 @@
   (check-not-false (member 'match-basic goal1-module-cases))
   (check-not-false (member 'match-let-basic goal1-module-cases))
   (check-not-false (member 'format-basic goal1-module-cases))
+  (check-not-false (member 'read-public-list goal1-module-cases))
+  (check-not-false (member 'read-current-readtable goal1-module-cases))
+  (check-not-false (member 'read-accept-reader-param goal1-module-cases))
+  (check-not-false (member 'read-string->number goal1-module-cases))
+  (check-false (member 'read-language-no-lang goal1-module-cases))
   (check-not-false (member 'class-basic goal1-module-cases))
   (for ([name (in-list goal1-module-cases)])
     (check-not-false (member name known-module-cases))))

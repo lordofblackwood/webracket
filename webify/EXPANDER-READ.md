@@ -73,11 +73,21 @@ area. The staged source tree already contains `read/api.rkt`, but the
 `syntax/read-syntax.rkt` dependency has not been copied into `racket-src/` or
 flattened as a provider root yet.
 
-The next `read-syntax` milestone should copy the smallest upstream
-`expander/syntax` dependency slice, then add a separate provider root that
-exports `read-syntax` under a Webify-owned alias such as
-`webify-expander-read-syntax`, without publishing plain `read-syntax` until the
-syntax provider dependency story is clear.
+The separate `read-syntax` track has started with:
+
+- `racket-src/expander/read-syntax-provider-root.rkt`, a private provider root
+  that exports `webify-expander-read-syntax` and
+  `webify-expander-read-syntax/recursive`.
+- `racket-src/expander/syntax/read-syntax.rkt`, copied from upstream as the
+  first syntax-aware dependency.
+- `webify/read-syntax-provider.rkt` and
+  `webify/check-read-syntax-provider.rkt`, a focused demod probe for this
+  track.
+
+The probe is expected to reveal additional missing `expander/syntax`,
+`expander/namespace`, `expander/eval`, and `expander/compile` dependencies
+before it can flatten successfully. Plain public `read-syntax` should stay
+unpublished until that dependency story is understood.
 
 ## Missing Before Public Replacement
 

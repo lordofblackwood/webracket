@@ -82,6 +82,10 @@
     read-vector
     read-symbol-string
     read-comment
+    read-public-list
+    read-current-readtable
+    read-accept-reader-param
+    read-string->number
     regexp-literal
     regexp-capture
     regexp-replace
@@ -144,6 +148,10 @@
     regexp-literal
     regexp-capture
     regexp-replace
+    read-public-list
+    read-current-readtable
+    read-accept-reader-param
+    read-string->number
     stream-first
     stream-rest
     promise-require
@@ -561,6 +569,23 @@
      '((module use-read-comment racket/base
          (provide y)
          (define y (read (open-input-string "#; ignored 42")))))]
+    [(read-public-list)
+     '((module use-read-public-list racket/base
+         (provide y)
+         (define y (length (read (open-input-string "(1 2 3)"))))))]
+    [(read-current-readtable)
+     '((module use-read-current-readtable racket/base
+         (provide y)
+         (define y (not (current-readtable)))))]
+    [(read-accept-reader-param)
+     '((module use-read-accept-reader-param racket/base
+         (provide y)
+         (read-accept-reader #t)
+         (define y (read-accept-reader))))]
+    [(read-string->number)
+     '((module use-read-string-to-number racket/base
+         (provide y)
+         (define y (string->number "42"))))]
     [(regexp-capture)
      '((module use-regexp-capture racket/base
          (provide y)
@@ -706,7 +731,8 @@
                              'input-names '()
                              'primitive-demand-count #f
                              'missing-primitive-count #f
-                             'missing-primitive-demands '()))])
+                             'missing-primitive-demands '()
+                             'ownership-counts '()))])
     (define inputs (extract-case-inputs name))
     (define report (webify-module-linklet-inputs->primitive-demands inputs))
     (define missing (webify-primitive-demand-report-missing report))
@@ -717,6 +743,8 @@
             'primitive-demand-count
             (length (webify-primitive-demand-report-demands report))
             'missing-primitive-count (length missing)
+            'ownership-counts
+            (webify-primitive-demand-report-ownership-counts report)
             'missing-primitive-demands
             (map (lambda (d)
                    (list (webify-primitive-demand-module d)
@@ -737,6 +765,8 @@
              (hash-ref summary 'primitive-demand-count))
      (printf "missing-primitive-demand-count: ~a\n"
              (hash-ref summary 'missing-primitive-count))
+     (printf "primitive-ownership-counts: ~s\n"
+             (hash-ref summary 'ownership-counts))
      (unless (zero? (hash-ref summary 'missing-primitive-count))
        (printf "missing-primitive-demands: ~s\n"
                (hash-ref summary 'missing-primitive-demands)))]
@@ -746,12 +776,13 @@
 ;; print-goal1-case-compact : hash? -> void?
 ;;   Print one compact dashboard row for a Goal 1 dependency case.
 (define (print-goal1-case-compact summary)
-  (printf "~a\t~a\t~a\t~a\t~a\n"
+  (printf "~a\t~a\t~a\t~a\t~a\t~a\n"
           (hash-ref summary 'case)
           (hash-ref summary 'extract-status)
           (or (hash-ref summary 'input-count #f) "-")
           (or (hash-ref summary 'primitive-demand-count #f) "-")
-          (or (hash-ref summary 'missing-primitive-count #f) "-"))
+          (or (hash-ref summary 'missing-primitive-count #f) "-")
+          (or (hash-ref summary 'ownership-counts #f) "-"))
   (flush-output))
 
 ;; print-goal1-summary : [#:compact? boolean?] -> void?
@@ -759,7 +790,7 @@
 (define (print-goal1-summary #:compact? [compact? #f]
                              #:cases [cases goal1-module-cases])
   (when compact?
-    (printf "case\textract\tinputs\tprimitive-demands\tmissing-primitives\n")
+    (printf "case\textract\tinputs\tprimitive-demands\tmissing-primitives\townership\n")
     (flush-output))
   (for ([name (in-list cases)]
         [index (in-naturals)])
@@ -774,7 +805,7 @@
 ;;   Print the compact must-have library dependency dashboard.
 (define (print-goal1-dashboard #:cases [cases goal1-module-cases])
   (printf "Goal 1 must-have library dependency dashboard\n")
-  (printf "case\textract\tinputs\tprimitive-demands\tmissing-primitives\n")
+  (printf "case\textract\tinputs\tprimitive-demands\tmissing-primitives\townership\n")
   (flush-output)
   (for ([name (in-list cases)])
     (print-goal1-case-compact (summarize-goal1-case name))))
@@ -872,7 +903,7 @@
   (delete-directory/files tmp-dir)
   (cond
     [(not completed)
-     (printf "~a\ttimeout\t-\t-\t-\n" name)
+     (printf "~a\ttimeout\t-\t-\t-\t-\n" name)
      (flush-output)
      (fprintf (current-error-port) "goal1-deps: timed out ~a\n" name)
      (flush-output (current-error-port))
@@ -884,7 +915,7 @@
      (flush-output (current-error-port))
      0]
     [else
-     (printf "~a\tworker-failed\t-\t-\t-\n" name)
+     (printf "~a\tworker-failed\t-\t-\t-\t-\n" name)
      (unless (string=? stdout "") (display stdout))
      (unless (string=? stderr "")
        (display stderr (current-error-port)))
@@ -898,7 +929,7 @@
 (define (print-goal1-dashboard/bounded timeout-seconds memory-mb
                                        #:cases [cases goal1-module-cases])
   (printf "Goal 1 must-have library dependency dashboard\n")
-  (printf "case\textract\tinputs\tprimitive-demands\tmissing-primitives\n")
+  (printf "case\textract\tinputs\tprimitive-demands\tmissing-primitives\townership\n")
   (flush-output)
   (for/fold ([status 0]) ([name (in-list cases)])
     (define next-status (run-goal1-child/bounded! name timeout-seconds memory-mb))

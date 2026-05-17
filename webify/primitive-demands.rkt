@@ -19,14 +19,21 @@
          webify-linklet-primitive-table-key-demands
          webify-module-linklet-inputs->primitive-demands
          webify-module-reports->primitive-demands
-         webify-primitive-demand-report-missing)
+         webify-primitive-demand-report-missing
+         webify-primitive-name-ownership
+         webify-primitive-demand-report-ownership-counts)
 
 (require racket/list
          racket/match
          racket/runtime-path
+         racket/set
          (only-in "../primitives-db.rkt"
                   primitive-db
                   primitive-info-name)
+         (only-in "read-provider.rkt"
+                  webify-read-public-alias-symbols)
+         (only-in "regexp-provider.rkt"
+                  webify-regexp-provider-owned-symbols)
          (rename-in "module-extractor-spike.rkt"
                     [webify-module-extractor-spike?
                      webify-module-report?]
@@ -41,6 +48,24 @@
 (struct webify-primitive-demand (module name sources) #:transparent)
 (struct webify-primitive-table-request (module sources) #:transparent)
 (struct webify-primitive-demand-report (demands table-requests) #:transparent)
+
+(define runtime-preferred-primitive-symbols
+  '(call-with-parameterization))
+
+(define io-format-provider-owned-symbols
+  '(format fprintf printf eprintf))
+
+(define provider-owned-primitive-symbols
+  (remove-duplicates
+   (append webify-read-public-alias-symbols
+           webify-regexp-provider-owned-symbols
+           io-format-provider-owned-symbols)))
+
+(define provider-owned-primitive-symbols-set
+  (list->seteq provider-owned-primitive-symbols))
+
+(define runtime-preferred-primitive-symbols-set
+  (list->seteq runtime-preferred-primitive-symbols))
 
 ;; primitive-module-names : (listof symbol?)
 ;;   Known primitive/predefined modules whose imports are supplied by the runtime.
@@ -321,6 +346,36 @@
 (define (primitive-db-keys)
   (for/list ([info (in-list primitive-db)])
     (primitive-info-name info)))
+
+(define primitive-db-keys-set
+  (list->seteq (primitive-db-keys)))
+
+;; webify-primitive-name-ownership : symbol? -> symbol?
+;;   Classify a primitive-like public name for dashboard diagnostics.
+(define (webify-primitive-name-ownership name)
+  (cond
+    [(set-member? runtime-preferred-primitive-symbols-set name)
+     'runtime-preferred]
+    [(set-member? provider-owned-primitive-symbols-set name)
+     'provider-owned]
+    [(set-member? primitive-db-keys-set name)
+     'runtime-owned]
+    [else
+     'unknown]))
+
+;; webify-primitive-demand-report-ownership-counts : report? -> (listof pair?)
+;;   Count demand names by ownership class for compact dashboards.
+(define (webify-primitive-demand-report-ownership-counts report)
+  (define counts (make-hasheq))
+  (for ([demand (in-list (webify-primitive-demand-report-demands report))])
+    (hash-update! counts
+                  (webify-primitive-name-ownership
+                   (webify-primitive-demand-name demand))
+                  add1
+                  0))
+  (for/list ([key (in-list '(runtime-owned provider-owned runtime-preferred unknown))]
+             #:when (positive? (hash-ref counts key 0)))
+    (cons key (hash-ref counts key))))
 
 ;; primitive-table-keys : symbol? -> (listof symbol?)
 ;;   Read available primitive keys for preflight diagnostics.
