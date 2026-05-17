@@ -34,12 +34,28 @@ In this model, the browser does not need to expand source code or compile new
 code at runtime. The host/development machine does the heavy lifting, and the
 browser receives an executable WebRacket/Wasm artifact.
 
+There are two source-language entry points:
+
+- `#lang webracket` remains a script-compatible driver input. `webracket.rkt`
+  recognizes the line and compiles the remaining forms as a top-level program.
+- `#lang webracket/base` is the Goal 1 module-language path. Host Racket reads
+  and expands it as a normal module using language `webracket/base`, and Webify
+  can then consume the resulting module/linklet information.
+
+For `webracket/base`, `racket/base` is the foundation: it supplies the core
+module-language forms and basic runtime bindings that make ordinary modules
+expand. The curated Goal 1 library surface is the layer above that foundation,
+chosen from the libraries that the larger `racket` language adds around
+`racket/base`.
+
 ### Current Progress
 
 This goal is actively progressing.
 
 Implemented or partially implemented:
 
+- A first `#lang webracket/base` module language that host Racket reads as a
+  real module, while preserving the existing `#lang webracket` script path.
 - Module-linklet inputs and manifests.
 - Module registry, module instances, and module-variable cells.
 - Import/export resolution for extracted module graphs.
@@ -69,6 +85,48 @@ Known remaining work:
   prioritize primitives that are actually executed by useful programs.
 - Continue improving diagnostics so failures classify as graph-resolution,
   unsupported-runtime, compiler, or runtime errors.
+
+### `webracket/base` Library Shape
+
+The first `webracket/base` milestone should not claim that every binding
+exported by full `racket/base` already executes correctly in WebRacket. It uses
+`racket/base` as the module-language foundation, then grows a deliberately
+tested library surface.
+
+Good initial add-on candidates are the libraries already represented in Goal 1
+smokes or close to the current browser runtime:
+
+- `racket/bool`, `racket/bytes`, `racket/dict`, `racket/format`,
+  `racket/function`, `racket/include`, `racket/list`, `racket/local`,
+  `racket/match`, `racket/math`, `racket/path`, `racket/port`,
+  `racket/promise`, `racket/sequence`, `racket/set`, `racket/shared`,
+  `racket/stream`, `racket/string`, and `racket/vector`.
+
+Libraries that should remain separate milestones for now are the ones that pull
+harder on contracts, OS services, networking, parallelism, or larger object
+systems:
+
+- `racket/class`, `racket/cmdline`, `racket/contract`, `racket/file`,
+  `racket/future`, `racket/place`, `racket/pretty`, `racket/system`,
+  `racket/tcp`, `racket/udp`, and `racket/unit`.
+
+The for-syntax surface should include the `racket/base` compile-time bindings,
+because ordinary module expansion expects them. Additional for-syntax exports
+should be added only when a concrete module-language smoke needs them.
+
+The machine-readable tracking source for this surface is
+`webify/webracket-base-surface.rkt`. Its status rows intentionally separate:
+
+- `exported`: the library is re-exported by `webracket/base`.
+- `extracts`: a representative module can be read/expanded and Webify can
+  extract module/linklet metadata.
+- `composes`: the provider graph can be composed into module instances and
+  export cells.
+- `runs`: representative compiled code reaches the WebRacket runtime smoke.
+
+Some syntactic libraries, such as `racket/include`, `racket/local`, and
+`racket/shared`, are tracked as `host-only` runtime rows because their main
+effect is during host expansion.
 
 ### Current Goal 1 Supported Subset
 
@@ -148,14 +206,11 @@ Current installed-extraction runtime smokes cover:
 - Dependency-first local source modules with quoted sibling requires, such as
   `(require 'base-values)`, through a shared-provider transitive smoke.
 
-`racket/format` is a known next-library frontier, but not a passing Goal 1
-runtime smoke yet. The tiny `~a` source module now extracts and reaches
-WebRacket runtime with zero missing primitive demands, then fails in a
-multi-value contract-wrapper path classified as `binding-result-arity`. A
-smaller `keyword-optional-direct` case checks the direct
-`make-keyword-procedure`/optional-keyword path separately, so the remaining
-`racket/format` blocker is more narrowly about the contract partial-application
-wrapper around `~a`, not basic keyword dispatch.
+`racket/format` is the active next-library frontier. `webracket/base` exports
+the common format surface through the staged `io/format` provider path, while
+the old textual stdlib formatter is being retired. For now, keep the frontier
+focused on `format`, `fprintf`, `printf`, `eprintf`, and common `~a`/`~s`/`~e`
+paths; postpone full `~v` coverage until the ordinary format bridge is stable.
 
 Current local-manifest runtime smokes cover hand-authored bridge shapes that do
 not depend on source extraction:
