@@ -39,5 +39,18 @@
    '("module\tname\tsources"
      "#%kernel\tmissing-name\t(full-expander)")))
 
+(test-case "expander oracle has no missing primitive demands"
+  (define tmp-dir (make-temporary-file "webracket-expander-oracle-run-~a" 'directory))
+  (dynamic-wind
+    void
+    (lambda ()
+      (define report (webify-expander-oracle-run! tmp-dir #:verbose? #f))
+      (check-equal? (webify-expander-oracle-report-linklet-import-count report) 0)
+      (check-equal? (webify-expander-oracle-report-missing-primitive-demands report)
+                    '()))
+    (lambda ()
+      (with-handlers ([exn:fail:filesystem? void])
+        (delete-directory/files tmp-dir)))))
+
 (module+ main
   (void))

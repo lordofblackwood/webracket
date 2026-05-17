@@ -26,13 +26,15 @@ The ratchet test is:
 | `racket-src/expander/compile/serialize-state.rkt` | Paired serialization state support required by `syntax/syntax.rkt`. | `common/set.rkt` |
 | `racket-src/expander/common/set.rkt` | Lightweight expander set abstraction used by serialization and syntax state. | `namespace/inspector.rkt` |
 | `racket-src/expander/namespace/inspector.rkt` | Provides `current-module-code-inspector`, a parameter-like namespace value required by syntax objects. | `syntax/preserved.rkt` |
+| `racket-src/expander/syntax/preserved.rkt` | Wraps preserved syntax-property values and checks serializable property content. | `syntax/datum-map.rkt` |
+| `racket-src/expander/syntax/datum-map.rkt` | Traverses datum shapes that `datum->syntax` preserves, including vectors, boxes, prefab structs, and immutable hashes. | `syntax/taint-object.rkt` |
 
 ## Current Boundary
 
 The current expected missing file is:
 
 ```text
-racket-src/expander/syntax/preserved.rkt
+racket-src/expander/syntax/taint-object.rkt
 ```
 
 Do not publish public `read-syntax` aliases until this staged slice has a

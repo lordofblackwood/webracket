@@ -65,6 +65,7 @@
                   stdlib-definition-form-symbols)
          (only-in "webify/io-format-bridge.rkt"
                   webify-io-format-root-name
+                  webify-io-format-export-symbols
                   webify-io-format-registry
                   webify-io-format-private-alias-forms
                   webify-io-format-public-alias-forms)
@@ -829,6 +830,14 @@
   (current-pass-dump-limit dump-passes-limit)
   (current-pass-timings?   timings?)
   (define t-compile-start (now-ms))
+  (define provider-owned-primitive-aliases
+    (append webify-regexp-export-symbols
+            (if expander-read-provider?
+                webify-read-public-alias-symbols
+                '())
+            (if stdlib-io-format-provider?
+                webify-io-format-export-symbols
+                '())))
   (define wat
     (with-handlers (#;[exn:fail? (λ (e)
                                  (error 'drive-compilation
@@ -843,9 +852,7 @@
                      [current-internal-immutable-hash-debug-shape?
                       internal-bind-immutable-hash-debug-shape?]
                      [current-provider-owned-primitive-aliases
-                      (if expander-read-provider?
-                          webify-read-public-alias-symbols
-                          '())])
+                      provider-owned-primitive-aliases])
         (comp stx-with-stdlib))))
   (define t-compile-end (now-ms))
 

@@ -144,6 +144,12 @@ public regexp exports as primitive-owned names. Compiled regexp literals are
 lowered to public provider constructors such as `regexp`, `pregexp`,
 `byte-regexp`, and `byte-pregexp`.
 
+The driver now composes the regexp provider for normal compilations even when
+`--no-stdlib` is used, and regexp public names are included in the compiler's
+provider-owned alias set. That means direct references like `regexp-match?`
+should resolve through the provider cell path instead of silently falling back
+to older runtime primitive stubs.
+
 The historical startup smoke needed these intentionally small lowerings, which
 remain relevant when the ownership collision is removed:
 

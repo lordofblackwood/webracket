@@ -94,6 +94,11 @@
     read-current-readtable
     read-accept-reader-param
     read-string->number
+    read-regexp-literal
+    read-pregexp-literal
+    read-hash-literal
+    read-port-location
+    read-accept-dot-param
     regexp-literal
     regexp-capture
     regexp-replace
@@ -160,6 +165,11 @@
     read-current-readtable
     read-accept-reader-param
     read-string->number
+    read-regexp-literal
+    read-pregexp-literal
+    read-hash-literal
+    read-port-location
+    read-accept-dot-param
     stream-first
     stream-rest
     promise-require
@@ -594,6 +604,32 @@
      '((module use-read-string-to-number racket/base
          (provide y)
          (define y (string->number "42"))))]
+    [(read-regexp-literal)
+     '((module use-read-regexp-literal racket/base
+         (provide y)
+         (define y (regexp? (read (open-input-string "#rx\"a+\""))))))]
+    [(read-pregexp-literal)
+     '((module use-read-pregexp-literal racket/base
+         (provide y)
+         (define y (pregexp? (read (open-input-string "#px\"a+\""))))))]
+    [(read-hash-literal)
+     '((module use-read-hash-literal racket/base
+         (provide y)
+         (define y (hash-ref (read (open-input-string "#hash((a . 41))")) 'a))))]
+    [(read-port-location)
+     '((module use-read-port-location racket/base
+         (provide y)
+         (define in (open-input-string "abc\n42"))
+         (port-count-lines! in)
+         (read in)
+         (define-values (line col pos) (port-next-location in))
+         (define y (+ line col pos))))]
+    [(read-accept-dot-param)
+     '((module use-read-accept-dot-param racket/base
+         (provide y)
+         (define old (read-accept-dot))
+         (read-accept-dot #t)
+         (define y (and (read-accept-dot) old))))]
     [(regexp-capture)
      '((module use-regexp-capture racket/base
          (provide y)
