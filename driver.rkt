@@ -1069,9 +1069,30 @@
                       expander-read-provider?
                       expander-read-syntax-provider?))
          (displayln
-          "Skipping temporary stdlib/provider prelude for module-language input"
+          "Skipping temporary stdlib root for module-language input; composing provider slices only"
           (current-error-port)))
-       stx-for-compile]
+       (cond
+         [stdlib-io-format-provider?
+          (add-io-format-provider stx-for-compile
+                                  #:expander-read-provider? expander-read-provider?
+                                  #:expander-read-syntax-provider? expander-read-syntax-provider?)]
+         [expander-read-provider?
+          (add-expander-read-provider stx-for-compile
+                                      #:expander-read-syntax-provider?
+                                      expander-read-syntax-provider?)]
+         [expander-read-syntax-provider?
+          (with-syntax ([(provider-form ...)
+                         (map (lambda (form)
+                                (datum->syntax stx-for-compile form stx-for-compile))
+                              (append
+                               (regexp-provider-forms #:public-aliases? #t
+                                                      #:cache-context 'read-syntax)
+                               (provider-slice-forms 'expander/read-syntax)))])
+            #`(begin
+                provider-form ...
+                #,stx-for-compile))]
+         [else
+          (add-regexp-provider stx-for-compile)])]
       [(and stdlib? browser?)
        (when verbose?
          (displayln "Composing module stdlib root `stdlib/stdlib-for-browser.rkt`"

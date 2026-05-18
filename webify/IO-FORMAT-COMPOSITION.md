@@ -78,9 +78,11 @@ The print substrate blocker was retired by routing the adapter through
 `port-display-handler`, `port-write-handler`, and `port-print-handler` instead
 of public `display`, `write`, and `print` bindings.
 
-One caveat remains in the adapter: `~v` is routed through write handling for
-now. WebRacket has `port-print-handler` as a primitive, but the full Racket
-print-handler protocol is not complete enough for this provider path yet.
+`~v` now routes through `port-print-handler`, and the runtime accepts a custom
+print handler for this path. One caveat remains: WebRacket currently treats the
+print handler as process-wide instead of storing it per port, so this is the
+right protocol direction but not the final Racket-compatible port-handler
+implementation.
 
 ## Retired Bootstrap `format`/`fprintf` Checklist
 
@@ -92,8 +94,9 @@ The public bootstrap primitive ownership has been retired:
    `--no-stdlib` runtime smoke. This is done for representative format calls.
 3. Add behavior coverage for `~a`, `~s`, `~v`, `~e`, `~~`, `~n`, `~%`, `~x`,
    `~o`, `~b`, `~c`, whitespace skipping, argument-count errors, and argument
-   type errors. Host-side coverage exists for this set; runtime coverage should
-   continue to grow around `~v`, `~e`, newlines, and error paths.
+   type errors. Host-side coverage exists for this set; runtime coverage now
+   includes a `~v` custom print-handler smoke, and should continue to grow
+   around `~e`, newlines, and error paths.
 4. Remove `format` and `fprintf` from compiler primitive tables only after the
    provider path is available in the default `--stdlib` composition. This is
    done. The default command-line path now composes the provider, including

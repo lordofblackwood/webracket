@@ -102,6 +102,18 @@
   (check-regexp-match #rx"(?m:^no-stdlib ff 10 101 Z$)" output)
   (check-regexp-match #rx"(?m:^fmt ok \\(err\\)$)" output))
 
+(test-case "format provider routes ~v through the print handler"
+  (define-values (status output)
+    (run-temp-webracket
+     (string-append
+      "(define out (open-output-string))\n"
+      "(port-print-handler out (lambda (v o quote-depth) (write-string \"PRINTED\" o)))\n"
+      "(fprintf out \"~a|~v\" \"x\" \"x\")\n"
+      "(js-log (get-output-string out))\n")
+     (list "-r" "--no-stdlib")))
+  (check-equal? status 0 output)
+  (check-regexp-match #rx"(?m:^x\\|PRINTED$)" output))
+
 (test-case "format is absent when io/format provider is disabled"
   (define-values (status output)
     (run-temp-webracket

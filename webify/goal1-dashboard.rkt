@@ -101,7 +101,7 @@
     `(("main.rkt" . "#lang webracket/full\n(js-log (format \"fmt ~a\" 'web))\n"))
     "main.rkt"
     #rx"(?m:^fmt web$)"
-    '("--no-io-format-provider"))
+    '())
    (goal1-dashboard-case
     'format-provider
     'staged-provider-slice

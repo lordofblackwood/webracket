@@ -1554,7 +1554,9 @@
       ; This file adds more symbols to `runtime-symbol-constants` so
       ; we need to wait removing duplicates until here.
       (set! runtime-symbol-constants
-            (remove-duplicates runtime-symbol-constants eq? #:key car))
+            (remove-duplicates runtime-symbol-constants
+                               string=?
+                               #:key (lambda (ns) (symbol->string (car ns)))))
       (append*
        (for/list ([ns (reverse runtime-symbol-constants)])
          (define name                (first ns))
@@ -1566,8 +1568,10 @@
                `(global ,$symbol:name (mut (ref eq))        ,(Imm #f))))))
     
     (define (initialize-runtime-symbol-constants)
-      #;(set! runtime-symbol-constants
-              (remove-duplicates runtime-symbol-constants eq? #:key car))
+      (set! runtime-symbol-constants
+            (remove-duplicates runtime-symbol-constants
+                               string=?
+                               #:key (lambda (ns) (symbol->string (car ns)))))
       (for/list ([ns (reverse runtime-symbol-constants)])
         (define name         (first ns))
         (define symbol       (second ns))
@@ -70319,7 +70323,9 @@
                      (global.get $void))
 
                ;; port-print-handler : output-port? [procedure?] -> procedure? or void?
-               ;;   See port-write-handler for the current setter limitation.
+               ;;   WebRacket does not yet store handlers per port. The setter
+               ;;   updates the process-wide print handler, which is enough for
+               ;;   the staged io/format `~v` path to honor print handling.
                (func $port-print-handler (type $Prim12)
                      (param $out-raw     (ref eq)) ;; output-port?
                      (param $handler-raw (ref eq)) ;; optional procedure?
@@ -70345,6 +70351,8 @@
                                      (global.get $string:procedure?)
                                      (local.get $handler-raw))
                                (unreachable)))
+                     (global.set $default-port-print-handler-value
+                                 (local.get $handler-raw))
                      (global.get $void))
 
                ;; current-read-interaction : [procedure?] -> procedure? or void?
@@ -75608,9 +75616,9 @@
                                 (struct.new $PrimitiveProcedure
                                             (i32.const 0)
                                             (global.get $symbol:port-print-handler)
-                                            (ref.i31 (i32.const 4))
+                                            (ref.i31 (i32.const 12))
                                             (global.get $the-racket/primitive-realm)
-                                            (ref.func $primitive-invoke:shape-23)
+                                            (ref.func $primitive-invoke:shape-14)
                                             (ref.func $default-port-print-handler)
                                             (global.get $false)))
                     (global.set $error-syntax->string-handler-value

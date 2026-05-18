@@ -6,6 +6,11 @@
 ;;; transitive closure. It provides only the names that `format/printf.rkt`
 ;;; actually uses, delegating to the host/WebRacket-visible print and port
 ;;; surface. That keeps the next WebRacket provider step small.
+;;;
+;;; The adapter deliberately routes printing through port handler primitives
+;;; instead of the public `display`, `write`, and `print` bindings. That keeps
+;;; the staged provider usable in `--no-stdlib` module composition, where those
+;;; public names may not exist yet.
 
 (require racket/port)
 
@@ -23,7 +28,7 @@
          print-unreadable
          write-string)
 
-(define PRINT-MODE/UNQUOTED 'unquoted)
+(define PRINT-MODE/UNQUOTED 0)
 
 ;; Adapter parameter defaults chosen to match Racket's ordinary error printing.
 (define error-print-width (make-parameter 1024))
@@ -40,17 +45,20 @@
 ;; display-via-handler : symbol? any/c output-port? -> void?
 ;;   Adapter for io/print's display handler path.
 (define (display-via-handler who v o)
-  (display v (->core-output-port o who)))
+  (define core-o (->core-output-port o who))
+  ((port-display-handler core-o) v core-o))
 
 ;; write-via-handler : symbol? any/c output-port? -> void?
 ;;   Adapter for io/print's write handler path.
 (define (write-via-handler who v o)
-  (write v (->core-output-port o who)))
+  (define core-o (->core-output-port o who))
+  ((port-write-handler core-o) v core-o))
 
 ;; print-via-handler : symbol? any/c output-port? any/c -> void?
 ;;   Adapter for io/print's print handler path.
-(define (print-via-handler who v o _mode)
-  (print v (->core-output-port o who)))
+(define (print-via-handler who v o mode)
+  (define core-o (->core-output-port o who))
+  ((port-print-handler core-o) v core-o mode))
 
 ;; do-display : symbol? any/c output-port? [exact-nonnegative-integer?] -> void?
 ;;   Width-aware display adapter. The initial WebRacket bridge ignores width.
@@ -72,7 +80,7 @@
 (define (error-value->string v)
   (define o (open-output-string))
   (parameterize ([print-unreadable #t])
-    (write v o))
+    (write-via-handler 'error-value->string v o))
   (define str (get-output-string o))
   (define width (error-print-width))
   (cond

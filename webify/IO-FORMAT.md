@@ -132,28 +132,68 @@ only the require surface. It is not part of the byte-for-byte upstream sync
 guard.
 
 The WebRacket stdlib no longer carries its own hand-written implementation of
-the format family. For the moment, public `format` and `fprintf` remain
-compiler/runtime primitives, because they are needed by current programs and
-because enabling stdlib aliases for them would recreate the stdlib primitive
-collision.
+the format family. Public `format` and `fprintf` are now provided by the staged
+original-Racket-derived `io/format` bridge when `--stdlib` is enabled, not by
+compiler/runtime primitive bindings.
 
-The long-term path is to compose the staged original Racket `io/format`
-implementation into WebRacket once module composition can use those provider
-modules directly. Avoid adding a second WebRacket-specific formatter to
-`stdlib/`; `stdlib/writing.rkt` should own only the writing/printing substrate.
+Avoid adding a second WebRacket-specific formatter to `stdlib/`;
+`stdlib/writing.rkt` should own only the writing/printing substrate.
 
 Current ownership status:
 
 ```racket
-format   ; primitive now, staged original `io/format` provider next
-fprintf  ; primitive now, staged original `io/format` provider next
-printf   ; staged original `io/format` provider target
-eprintf  ; staged original `io/format` provider target
+format   ; staged original `io/format` provider
+fprintf  ; staged original `io/format` provider
+printf   ; staged original `io/format` provider
+eprintf  ; staged original `io/format` provider
 ```
 
 The provider smoke confirms that the staged original-Racket-derived provider
 already covers directives such as `~x`, `~o`, `~b`, and `~c` that the current
 bootstrap primitive formatter does not fully cover.
+
+The extracted staged provider now also runs under `--no-stdlib` when accessed
+through module-variable cells. The key implementation detail is that
+`printf-adapter.rkt` routes display/write/print work through the lower-level
+port handler primitives where possible:
+
+```racket
+port-display-handler
+port-write-handler
+```
+
+That keeps the provider from depending on public `display`, `write`, or
+`print` top-level aliases while the module-based stdlib bridge is still being
+retired in pieces.
+
+`~v` now routes through `port-print-handler`, so custom print handlers are
+honored by the staged provider. WebRacket still does not store handlers per
+port; setting a print handler currently updates the process-wide print handler.
+That is enough for the `io/format` provider path, but it is not the final
+Racket-compatible port-handler story.
+
+The reusable bridge is:
+
+```text
+webify/io-format-bridge.rkt
+```
+
+The provider integration flag is enabled by default, including with
+`--no-stdlib`:
+
+```text
+--io-format-provider
+```
+
+It composes the staged provider into the `--stdlib` program and exposes public
+aliases for `format`, `fprintf`, `printf`, and `eprintf`, plus private cells
+such as `webify-io-format-export-cell$format`. Use
+`--no-io-format-provider` only as a debugging fallback.
+
+With `--no-stdlib`, the old WebRacket stdlib root is still omitted, but this
+small `io/format` provider slice is composed unless explicitly disabled. That
+lets low-level smokes use Racket-compatible formatting without pulling in the
+reader, exception helpers, evaluation helpers, or browser stdlib pieces.
 
 See `webify/IO-FORMAT-COMPOSITION.md` for the direct-composition blockers and
 the bootstrap primitive retirement checklist.
@@ -194,12 +234,15 @@ internal print submodule edge remains visible.
    `open-output-string`, `get-output-string`, `write-string`, and enough
    `output-port?` support for `fprintf`. The focused no-stdlib smoke is
    `webify/test-io-format-substrate.rkt`.
-2. Compose or port `io/format/printf.rkt` behind a focused probe.
-3. Compose or port `io/format/main.rkt`.
+2. Compose or port `io/format/printf.rkt` behind a focused probe. This is now
+   covered by `printf-web.rkt` plus the explicit handler-based adapter.
+3. Compose or port `io/format/main.rkt`. This now composes and runs cell-only
+   through `webify/test-io-format-extraction.rkt`.
 4. Keep `io/print/regexp.rkt` as a hook-only module with
    `printable-regexp? => #f`.
-5. Move `format` and `fprintf` out of the temporary primitive-owned overlap
-   list after their compiler primitive ownership is retired or renamed.
+5. Move `format` and `fprintf` out of compiler primitive ownership after the
+   default `--stdlib` bridge can publish the staged provider exports without a
+   public alias collision. This is done; the retirement gate should pass.
 6. Integrate the demodularized regexp provider later, then install
    `set-printable-regexp?!`.
 

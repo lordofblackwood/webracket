@@ -138,9 +138,9 @@ Run it with:
 | --- | --- | --- | --- |
 | Local `#lang webracket/base` modules | works | `goal1-dashboard` local rows | No legacy stdlib prelude required. |
 | Local require/re-export graphs | works | `test-webracket-base-lang.rkt` and dashboard local rows | Still intentionally rejects unsupported source-level require forms. |
-| Curated `webracket/full` add-ons | partial, not runtime-complete | `webracket-full-dashboard.rkt`, `goal1-dashboard` installed-provider rows | The current dashboard intentionally exposes unbound re-export gaps such as `set` and `format`. |
+| Curated `webracket/full` add-ons | partial, not runtime-complete | `webracket-full-dashboard.rkt`, `goal1-dashboard` installed-provider rows | The staged `format` row now runs; the current dashboard still exposes unrelated gaps such as `set`. |
 | `regexp` provider | works for representative cases | staged provider tests and dashboard staged-provider row | Always-available provider slice; not textual stdlib. |
-| `io/format` provider | works for representative cases | provider slice tests and format dashboard row | Public format family is provider-owned. |
+| `io/format` provider | works for representative cases | provider slice tests and format dashboard row | Public format family is provider-owned; `~v` routes through `port-print-handler` with process-wide handler storage for now. |
 | `expander/read` provider | staged/partial | `test-expander-read-provider.rkt` | Enabled explicitly for read-provider cases. |
 | `io/print` provider | staged seed | `test-io-print-extraction.rkt` | Cell-only seed works; custom-write/graph semantics still blocked. |
 | Legacy `stdlib/` | retiring | `STDLIB-RETIREMENT.md` | Script compatibility only, not Goal 1 module infrastructure. |
