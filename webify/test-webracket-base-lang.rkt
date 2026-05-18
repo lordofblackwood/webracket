@@ -87,6 +87,14 @@
                    #:timeout-seconds 120
                    #:memory-mb 1024)))
 
+;; timing-parse-node-count : string? -> (or/c exact-nonnegative-integer? #f)
+;;   Extract the parse node count from the compiler timing table.
+(define (timing-parse-node-count output)
+  (for/or ([line (in-list (string-split output "\n"))])
+    (match (regexp-match #rx"^  parse[ ]+:.*[ ]([0-9]+)$" line)
+      [(list _ count) (string->number count)]
+      [_ #f])))
+
 ;; call-with-webracket-collection-path : (-> any/c) -> any/c
 ;;   Make the checkout visible as collection `webracket` for #lang tests.
 (define (call-with-webracket-collection-path thunk)
@@ -254,6 +262,38 @@
          source-dir))
       (check-equal? status 0 output)
       (check-regexp-match #rx"(?m:^42$)" output))
+    (lambda ()
+      (for ([dir (in-list (list source-dir dest-dir))])
+        (with-handlers ([exn:fail:filesystem? void])
+          (delete-directory/files dir))))))
+
+(test-case "#lang webracket/base 42 stays on the tiny module bridge path"
+  (define source-dir (make-temporary-file "webracket-base-timing-src-~a" 'directory))
+  (define dest-dir   (make-temporary-file "webracket-base-timing-dest-~a" 'directory))
+  (define source-path (build-path source-dir "base42.rkt"))
+  (dynamic-wind
+    void
+    (lambda ()
+      (call-with-output-file source-path
+        (lambda (out)
+          (display "#lang webracket/base\n42\n" out))
+        #:exists 'truncate/replace)
+      (define-values (status output)
+        (run-webracket/base
+         (list "--timings"
+               "--dest" (path->string dest-dir)
+               (path->string source-path))
+         source-dir))
+      (check-equal? status 0 output)
+      (check-regexp-match #rx"=== Read Source Details ===" output)
+      (for ([label (in-list '("module-bridge-extract"
+                              "module-bridge-register"
+                              "module-bridge-compose"))])
+        (check-regexp-match (regexp (regexp-quote label)) output))
+      (define parse-nodes (timing-parse-node-count output))
+      (check-not-false parse-nodes output)
+      (check-true (< parse-nodes 5000)
+                  (format "parse node count unexpectedly grew: ~a" parse-nodes)))
     (lambda ()
       (for ([dir (in-list (list source-dir dest-dir))])
         (with-handlers ([exn:fail:filesystem? void])
@@ -755,8 +795,14 @@
   (for ([name (in-list '(racket/list racket/string racket/vector racket/function))])
     (check-not-false (assoc name rows)
                      (symbol->string name)))
-  (check-equal? (list-ref (assoc 'racket/vector rows) 5) 'allowlisted)
-  (check-equal? (list-ref (assoc 'racket/promise rows) 5) 'not-allowlisted))
+  (define vector-row (assoc 'racket/vector rows))
+  (define promise-row (assoc 'racket/promise rows))
+  (check-equal? (length vector-row) 8)
+  (check-equal? (list-ref vector-row 5) 'allowlisted)
+  (check-equal? (list-ref vector-row 6) 'passes)
+  (check-equal? (list-ref vector-row 7) 'module-composition-partial)
+  (check-equal? (list-ref promise-row 5) 'not-allowlisted)
+  (check-equal? (list-ref promise-row 7) 'module-composition-partial))
 
 (test-case "#lang webracket/base provider allowlist covers current Goal 1 trials"
   (for ([name (in-list '(racket/list
@@ -773,6 +819,36 @@
   (check-false (webify-provider-trial-module-allowed? 'racket/private/for))
   (check-false (webify-provider-trial-module-allowed? 'racket/private/set))
   (check-false (webify-provider-trial-module-allowed? 'racket/math)))
+
+(test-case "#lang webracket/base runs an allowlisted provider without stdlib"
+  (define source-dir (make-temporary-file "webracket-base-provider-only-src-~a" 'directory))
+  (define dest-dir   (make-temporary-file "webracket-base-provider-only-dest-~a" 'directory))
+  (define source-path (build-path source-dir "provider-only.rkt"))
+  (dynamic-wind
+    void
+    (lambda ()
+      (call-with-output-file source-path
+        (lambda (out)
+          (display
+           (string-append
+            "#lang webracket/base\n"
+            "(require (only-in racket/bool xor))\n"
+            "(js-log (xor #t #f))\n")
+           out))
+        #:exists 'truncate/replace)
+      (define-values (status output)
+        (run-webracket/base
+         (list "-r" "--no-stdlib" "--no-io-format-provider"
+               "--webracket-module-bridge"
+               "--dest" (path->string dest-dir)
+               (path->string source-path))
+         source-dir))
+      (check-equal? status 0 output)
+      (check-regexp-match #rx"(?m:^true$)" output))
+    (lambda ()
+      (for ([dir (in-list (list source-dir dest-dir))])
+        (with-handlers ([exn:fail:filesystem? void])
+          (delete-directory/files dir))))))
 
 (test-case "#lang webracket/base classifies curated installed provider demands"
   (define source-dir (make-temporary-file "webracket-base-curated-providers-src-~a" 'directory))
@@ -1013,10 +1089,10 @@
         (with-handlers ([exn:fail:filesystem? void])
           (delete-directory/files dir))))))
 
-(test-case "#lang webracket/base flattening and bridge agree on simple local require"
+(test-case "#lang webracket/base default bridge and forced bridge agree on simple local require"
   (define source-dir (make-temporary-file "webracket-base-bridge-agree-src-~a" 'directory))
-  (define flat-dir   (make-temporary-file "webracket-base-bridge-agree-flat-dest-~a" 'directory))
-  (define bridge-dir (make-temporary-file "webracket-base-bridge-agree-bridge-dest-~a" 'directory))
+  (define default-dir (make-temporary-file "webracket-base-bridge-agree-default-dest-~a" 'directory))
+  (define forced-dir  (make-temporary-file "webracket-base-bridge-agree-forced-dest-~a" 'directory))
   (define lib-path   (build-path source-dir "lib.rkt"))
   (define main-path  (build-path source-dir "main.rkt"))
   (dynamic-wind
@@ -1030,25 +1106,25 @@
         (lambda (out)
           (display "#lang webracket/base\n(require \"lib.rkt\")\n(js-log (add2 40))\n" out))
         #:exists 'truncate/replace)
-      (define-values (flat-status flat-output)
+      (define-values (default-status default-output)
         (run-webracket/base
          (list "-r" "--no-stdlib" "--no-io-format-provider"
-               "--dest" (path->string flat-dir)
+               "--dest" (path->string default-dir)
                (path->string main-path))
          source-dir))
-      (define-values (bridge-status bridge-output)
+      (define-values (forced-status forced-output)
         (run-webracket/base
          (list "-r" "--no-stdlib" "--no-io-format-provider"
                "--webracket-module-bridge"
-               "--dest" (path->string bridge-dir)
+               "--dest" (path->string forced-dir)
                (path->string main-path))
          source-dir))
-      (check-equal? flat-status 0 flat-output)
-      (check-equal? bridge-status 0 bridge-output)
-      (check-regexp-match #rx"(?m:^42$)" flat-output)
-      (check-regexp-match #rx"(?m:^42$)" bridge-output))
+      (check-equal? default-status 0 default-output)
+      (check-equal? forced-status 0 forced-output)
+      (check-regexp-match #rx"(?m:^42$)" default-output)
+      (check-regexp-match #rx"(?m:^42$)" forced-output))
     (lambda ()
-      (for ([dir (in-list (list source-dir flat-dir bridge-dir))])
+      (for ([dir (in-list (list source-dir default-dir forced-dir))])
         (with-handlers ([exn:fail:filesystem? void])
           (delete-directory/files dir))))))
 

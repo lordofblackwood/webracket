@@ -9,18 +9,20 @@ The module-oriented Goal 1 path starts with `#lang webracket/base` and
 `webracket/base` is the small `racket/base`-like foundation, while
 `webracket/full` is the curated batteries-included surface.
 
-The command-line driver currently supports both module languages with a
-transitional bridge: it reads the source as a normal module, lowers a tiny
-subset of local module structure, and compiles the resulting body through the
-existing top-level compiler path. This is scaffolding, not the intended module
-semantics.
+The command-line driver currently supports both module languages with a module
+bridge: it reads the source as a normal module, extracts module reports, builds
+a small module registry, composes module instances, and compiles the resulting
+top-level bootstrap through the existing compiler path. This is still
+scaffolding, but the source-level flattening path is no longer the normal path
+for local-only modules.
 
-The transitional require subset is deliberately small. Plain local string
-requires such as `(require "lib.rkt")` are accepted for smoke tests. Unsupported
-require specs, including `only-in`, `rename-in`, collection imports, and phase
-imports, must fail clearly instead of being approximated here. The intended
-direction is to use Webify's module report/registry/composer pipeline and then
-delete this source-level lowering.
+The local bridge subset is deliberately small, but it is metadata-driven rather
+than raw require-syntax driven. Plain local string requires, `only-in`,
+`rename-in`, `prefix-in`, shared local dependencies, and one-hop local
+re-exports are covered by smokes. Unsupported require shapes and phase imports
+must fail clearly instead of being approximated here. The intended direction is
+to keep moving behavior into Webify's module report/registry/composer pipeline
+and delete any remaining source-level fallback.
 
 The module bridge is now the default for local-only `#lang webracket/base` and
 `#lang webracket/full` graphs. The driver extracts a local graph, builds a
@@ -33,18 +35,15 @@ The bridge currently recovers local dependencies from expanded/compiled import
 metadata instead of raw source require syntax. Smokes pass for simple local
 requires, `only-in`, `rename-in`, `prefix-in`, a custom
 `define-require-syntax` transformer that expands to a local file, shared local
-dependencies, a one-hop local re-export, flattening-vs-bridge parity on the
-simple local require case, a staged `format` provider-backed program, a direct
-provider route check, and local graph extraction in the presence of collection
+dependencies, a one-hop local re-export, a provider-only `racket/bool` runtime
+smoke without stdlib, and local graph extraction in the presence of collection
 requires. Collection/provider requires are left to provider discovery instead
 of local file traversal. The bridge driver can select that provider-discovery
 path with an in-memory provider report cache and demand slicing when reports
 actually demand providers outside the ordinary `#lang webracket/base` language
-root, but direct `racket/list` runtime smokes are still too slow for default
-coverage. Keep the bridge opt-in until provider coverage and turnaround time
-are less experimental; the local-only bridge is now the preferred default
-candidate rather than just a local-module experiment. Verbose driver mode logs
-per-provider fetch timing and provider-cache hit/miss totals for this path.
+root, but direct broad-provider runtime smokes are still too slow for default
+coverage. Verbose driver mode logs per-provider fetch timing and
+provider-cache hit/miss totals for this path.
 The current discovery-only smokes use a tiny fake `racket/list` provider
 cluster and compare it with real extraction-only provider demands. The first
 provider-trial manifest covers small clusters from `racket/list`,
@@ -75,4 +74,12 @@ The current full add-on list and status vocabulary live in
 `webify/webracket-full-surface.rkt`. A library can be exported by
 `webracket/full` before every one of its bindings has full runtime coverage,
 but the status table must say whether it merely expands/extracts, composes, or
-has representative runtime smokes.
+has representative runtime smokes. The companion dashboard prints TSV/JSON rows
+with export status, provider allowlist status, direct runtime-smoke status, and
+the current last-known blocker.
+
+The old textual `stdlib/` is legacy top-level compatibility for script-style
+programs. It should not become a dependency of `#lang webracket/base` or
+`#lang webracket/full`; module-language programs should get functionality from
+original Racket providers, staged providers such as regexp/read/format, or
+explicit WebRacket primitives.

@@ -98,10 +98,19 @@ providers, not from stdlib text.
 `--timings` prints a `Read Source Details` table for this path. A tiny
 `#lang webracket/base` program currently spends little time in module reading,
 extraction, registration, or composition; most time is still in the compiler
-pipeline after the module bridge has produced a top-level program.
+pipeline after the module bridge has produced a top-level program. A regression
+test now keeps `#lang webracket/base` followed by `42` on the tiny module-bridge
+path by checking the bridge timing rows and guarding the parse node count.
 
 Installed provider reports are also cached under the active provider cache
 directory. This is deliberately conservative: cache rows are keyed by module
 name, cache format version, and Racket version, and they store a plain datum
 representation of the extracted report instead of reader-dependent struct
 syntax.
+
+`webify/webracket-full-dashboard.rkt` is the compact status view for the
+curated `webracket/full` surface. Its TSV/JSON columns distinguish "exported by
+the language" from "allowed as an external provider" and from "has a direct
+runtime smoke." That separation is important while the old stdlib is being
+retired: a library can be part of the intended module language without being
+implemented by textual stdlib inclusion.

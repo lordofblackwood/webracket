@@ -170,6 +170,8 @@ Current bridge readiness:
   read, bridge extraction, registration, and composition. For the tiny
   `#lang webracket/base` program `42`, those rows show the module bridge is not
   the main cost; the compiler pipeline, especially later core passes, dominates.
+  A regression test keeps that program on the tiny bridge path and guards
+  against accidental parse-size growth.
 - Provider caching: installed provider reports are cached as plain datums under
   the active provider cache directory, so repeated provider discovery can skip
   re-extracting stable providers.
@@ -195,12 +197,11 @@ Current bridge readiness:
   required provider graph when compiled reports demand providers outside the
   ordinary `#lang webracket/base` language root.
 - Default candidate matrix:
-  `local-only` passes through both the old transitional path and the bridge;
-  `provider-free staged helpers`, such as the current `format` provider smoke,
-  remain on the fast closed-local bridge route; `provider-only` and
-  `local+provider` currently route to discovered-provider composition but are
-  too slow for default runtime smokes with `racket/list`; richer
-  phase/import-provider graphs remain unsupported.
+  `local-only` defaults to the module bridge; `provider-free staged helpers`,
+  such as the current `format` provider smoke, remain on the fast closed-local
+  bridge route; `provider-only` and `local+provider` can route to
+  discovered-provider composition, with narrow runtime smoke coverage for
+  `racket/bool`; richer phase/import-provider graphs remain unsupported.
 - Default-switch policy: keep the local `#lang webracket/base` module bridge
   opt-in for now, even though it is the preferred candidate for local-only
   programs. Making it the default before external-provider cases are cheap and
@@ -245,6 +246,11 @@ Current bridge readiness:
 - Default-switch policy: local-only module graphs use the bridge by default.
   Provider-demanding module graphs still need explicit bridge forcing while
   provider-graph performance and ambiguity remain under active development.
+- Current dashboard policy: `webify/webracket-full-dashboard.rkt` reports
+  machine-readable TSV/JSON rows with exported status, provider allowlist
+  status, direct runtime-smoke status, and last-known blocker. This keeps
+  "language surface", "provider bridge coverage", and "runtime proof" visibly
+  separate.
 - Still intentionally unsupported in the bridge graph extractor: richer local
   phase/import-provider composition in the driver path.
 
@@ -263,6 +269,12 @@ The current module-path policy is documented in `webify/GOAL1-MODULES.md`.
 That document is the reminder that Goal 1 work should advance provider graph
 correctness, module composition, and original-Racket provider replacement
 rather than backend tuning.
+
+The textual `stdlib/` remains legacy compatibility for script-style programs.
+It is not the direction for `#lang webracket/base` or `#lang webracket/full`.
+For Goal 1 modules, functionality should come from module providers, staged
+original Racket sources such as regexp/read/io-format, or deliberately exposed
+WebRacket primitives.
 
 Some syntactic libraries, such as `racket/include`, `racket/local`, and
 `racket/shared`, are tracked as `host-only` runtime rows because their main
