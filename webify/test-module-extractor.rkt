@@ -224,6 +224,55 @@
     (check-true (positive?
                  (webify-provider-trial-report-provider-cache-misses report)))))
 
+(test-case "provider trial reports closure size and demand-slice delta"
+  (for ([report (in-list (webify-provider-trial-run-all))])
+    (define demand-summary
+      (webify-provider-trial-report-demand-summary report))
+    (define full-summary
+      (webify-provider-trial-report-full-summary report))
+    (define delta
+      (webify-provider-trial-closure-summary-delta demand-summary full-summary))
+    (check-true (positive?
+                 (webify-provider-trial-closure-summary-input-count
+                  demand-summary)))
+    (check-true
+     (>= (webify-provider-trial-closure-summary-input-count full-summary)
+         (webify-provider-trial-closure-summary-input-count demand-summary)))
+    (check-true (hash-has-key? delta 'inputs))
+    (check-pred list?
+                (webify-provider-trial-closure-summary-largest-inputs
+                 demand-summary))
+    (define summary-datum
+      (webify-provider-trial-report->summary-datum report))
+    (check-equal? (hash-ref summary-datum 'module)
+                  (webify-provider-trial-module
+                   (webify-provider-trial-report-trial report)))
+    (check-true (hash-has-key? summary-datum 'largest-inputs))))
+
+(test-case "synthetic provider-shaped registry compiles without real provider graph"
+  (define provider-input
+    (webify-module-linklet-input
+     'synthetic/provider
+     '(linklet () (fake-first)
+        (define-values (fake-first) 'ok))
+     '()))
+  (define main-input
+    (webify-module-linklet-input
+     'main
+     '(linklet (((fake-first fake-first))) (answer)
+        (define-values (answer) fake-first))
+     '((fake-first synthetic/provider fake-first))))
+  (define registry
+    (webify-module-linklet-inputs->registry
+     (list provider-input main-input)))
+  (define-values (observed _fragments _instances _exports-info)
+    (compose-module-registry/roots+observations registry
+                                                '(main)
+                                                '((main answer))))
+  (check-true
+   (string-contains? (wat-string (comp (datum->syntax #f observed)))
+                     "$module-variable-ref")))
+
 (test-case "stable provider-report resolver handles internalized imports"
   (define importer-report
     (webify-module-report

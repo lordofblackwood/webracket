@@ -12,6 +12,8 @@
          webify-provider-trial-report-elapsed-ms
          webify-provider-trial-report-export-demands
          webify-provider-trial-report-input-names
+         webify-provider-trial-report-demand-summary
+         webify-provider-trial-report-full-summary
          webify-provider-trial-report-primitive-report
          webify-provider-trial-report-missing-primitives
          webify-provider-trial-report-provider-cache-hits
@@ -23,7 +25,21 @@
          webify-provider-trial-ref
          webify-provider-trial-run
          webify-provider-trial-run-all
-         webify-provider-trial-report-primitive-ownership-counts)
+         webify-provider-trial-input-summary
+         webify-provider-trial-input-summary?
+         webify-provider-trial-input-summary-name
+         webify-provider-trial-input-summary-import-count
+         webify-provider-trial-input-summary-export-count
+         webify-provider-trial-closure-summary
+         webify-provider-trial-closure-summary?
+         webify-provider-trial-closure-summary-input-count
+         webify-provider-trial-closure-summary-linklet-count
+         webify-provider-trial-closure-summary-import-count
+         webify-provider-trial-closure-summary-export-count
+         webify-provider-trial-closure-summary-largest-inputs
+         webify-provider-trial-closure-summary-delta
+         webify-provider-trial-report-primitive-ownership-counts
+         webify-provider-trial-report->summary-datum)
 
 (require racket/list
          "module-input.rkt"
@@ -37,12 +53,99 @@
    elapsed-ms
    export-demands
    input-names
+   demand-summary
+   full-summary
    primitive-report
    missing-primitives
    provider-cache-hits
    provider-cache-misses
    error-message)
   #:transparent)
+(struct webify-provider-trial-input-summary
+  (name import-count export-count)
+  #:transparent)
+(struct webify-provider-trial-closure-summary
+  (input-count linklet-count import-count export-count largest-inputs)
+  #:transparent)
+
+;; input-export-count : webify-module-linklet-input? -> exact-nonnegative-integer?
+;;   Count linklet exports for a resolved module input.
+(define (input-export-count input)
+  (with-handlers ([exn:fail? (lambda (_exn) 0)])
+    (length
+     (webify-normalize-linklet-exports
+      (webify-module-linklet-input-linklet input)))))
+
+;; input-summary : webify-module-linklet-input? -> input-summary?
+;;   Summarize one resolved input for closure-size diagnostics.
+(define (input-summary input)
+  (webify-provider-trial-input-summary
+   (webify-module-linklet-input-name input)
+   (length (webify-module-linklet-input-imports input))
+   (input-export-count input)))
+
+;; closure-summary : (listof webify-module-linklet-input?) -> closure-summary?
+;;   Summarize a provider closure without retaining full linklets.
+(define (closure-summary inputs)
+  (define summaries (map input-summary inputs))
+  (define largest
+    (take (sort summaries
+                >
+                #:key (lambda (summary)
+                        (+ (webify-provider-trial-input-summary-import-count summary)
+                           (webify-provider-trial-input-summary-export-count summary))))
+          (min 5 (length summaries))))
+  (webify-provider-trial-closure-summary
+   (length inputs)
+   (length inputs)
+   (for/sum ([summary (in-list summaries)])
+     (webify-provider-trial-input-summary-import-count summary))
+   (for/sum ([summary (in-list summaries)])
+     (webify-provider-trial-input-summary-export-count summary))
+   largest))
+
+;; report-summary : webify-module-report? -> input-summary?
+;;   Summarize an extracted report without resolving its imports.
+(define (report-summary report)
+  (webify-provider-trial-input-summary
+   (webify-module-report-name report)
+   (length (webify-module-report-phase0-imports report))
+   (length (webify-module-report-phase0-exports report))))
+
+;; report-closure-summary : (listof webify-module-report?) -> closure-summary?
+;;   Summarize a full extracted provider closure without resolving imports.
+(define (report-closure-summary reports)
+  (define summaries (map report-summary reports))
+  (define largest
+    (take (sort summaries
+                >
+                #:key (lambda (summary)
+                        (+ (webify-provider-trial-input-summary-import-count summary)
+                           (webify-provider-trial-input-summary-export-count summary))))
+          (min 5 (length summaries))))
+  (webify-provider-trial-closure-summary
+   (length reports)
+   (for/sum ([report (in-list reports)])
+     (length (webify-module-report-bundle-entries report)))
+   (for/sum ([summary (in-list summaries)])
+     (webify-provider-trial-input-summary-import-count summary))
+   (for/sum ([summary (in-list summaries)])
+     (webify-provider-trial-input-summary-export-count summary))
+   largest))
+
+;; webify-provider-trial-closure-summary-delta : demand full -> hash?
+;;   Compare demand-sliced and full provider closures.
+(define (webify-provider-trial-closure-summary-delta demand full)
+  (hasheq
+   'inputs
+   (- (webify-provider-trial-closure-summary-input-count full)
+      (webify-provider-trial-closure-summary-input-count demand))
+   'imports
+   (- (webify-provider-trial-closure-summary-import-count full)
+      (webify-provider-trial-closure-summary-import-count demand))
+   'exports
+   (- (webify-provider-trial-closure-summary-export-count full)
+      (webify-provider-trial-closure-summary-export-count demand))))
 
 ;; webify-provider-trials : (listof webify-provider-trial?)
 ;;   Small external-provider discovery-only cases that are not runtime defaults.
@@ -116,6 +219,8 @@
                       (- (current-inexact-milliseconds) start-ms)
                       '()
                       '()
+                      (closure-summary '())
+                      (closure-summary '())
                       (webify-primitive-demand-report '() '())
                       '()
                       (webify-module-provider-cache-hit-count provider-cache)
@@ -132,6 +237,13 @@
          (webify-module-provider-cache-ref provider-cache name))
        #:module-protocol-dependency webify-module-protocol-dependency
        #:demand-slice? #t))
+    (define full-reports
+      (webify-module-reports->required-provider-closure
+       (list webify-module-protocol-report importer-report)
+       #:fetch-provider
+       (lambda (name)
+         (webify-module-provider-cache-ref provider-cache name))
+       #:skip-unfetchable? #t))
     (define provider-report
       (webify-module-provider-cache-ref provider-cache
                                         (webify-provider-trial-module trial)))
@@ -148,6 +260,8 @@
      (- (current-inexact-milliseconds) start-ms)
      export-demands
      (map webify-module-linklet-input-name inputs)
+     (closure-summary inputs)
+     (report-closure-summary full-reports)
      primitive-report
      (webify-primitive-demand-report-missing primitive-report)
      (webify-module-provider-cache-hit-count provider-cache)
@@ -167,3 +281,46 @@
   (define primitive-report
     (webify-provider-trial-report-primitive-report report))
   (webify-primitive-demand-report-ownership-counts primitive-report))
+
+;; webify-provider-trial-report->summary-datum : report? -> datum?
+;;   Convert a trial report to a cacheable dashboard summary.
+(define (webify-provider-trial-report->summary-datum report)
+  (define trial (webify-provider-trial-report-trial report))
+  (define demand-summary (webify-provider-trial-report-demand-summary report))
+  (define full-summary (webify-provider-trial-report-full-summary report))
+  (define primitive-report
+    (webify-provider-trial-report-primitive-report report))
+  (hasheq
+   'module (webify-provider-trial-module trial)
+   'exports (webify-provider-trial-exports trial)
+   'status (webify-provider-trial-report-status report)
+   'elapsed-ms (webify-provider-trial-report-elapsed-ms report)
+   'inputs (webify-provider-trial-report-input-names report)
+   'demand-input-count
+   (webify-provider-trial-closure-summary-input-count demand-summary)
+   'full-input-count
+   (webify-provider-trial-closure-summary-input-count full-summary)
+   'demand-import-count
+   (webify-provider-trial-closure-summary-import-count demand-summary)
+   'full-import-count
+   (webify-provider-trial-closure-summary-import-count full-summary)
+   'demand-export-count
+   (webify-provider-trial-closure-summary-export-count demand-summary)
+   'full-export-count
+   (webify-provider-trial-closure-summary-export-count full-summary)
+   'largest-inputs
+   (for/list ([summary (in-list
+                        (webify-provider-trial-closure-summary-largest-inputs
+                         demand-summary))])
+     (list (webify-provider-trial-input-summary-name summary)
+           (webify-provider-trial-input-summary-import-count summary)
+           (webify-provider-trial-input-summary-export-count summary)))
+   'primitive-demands
+   (length (webify-primitive-demand-report-demands primitive-report))
+   'missing-primitives
+   (length (webify-provider-trial-report-missing-primitives report))
+   'ownership
+   (webify-provider-trial-report-primitive-ownership-counts report)
+   'cache-hits (webify-provider-trial-report-provider-cache-hits report)
+   'cache-misses (webify-provider-trial-report-provider-cache-misses report)
+   'error-message (webify-provider-trial-report-error-message report)))

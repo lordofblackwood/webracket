@@ -187,9 +187,14 @@ Current bridge readiness:
   the temporary allowlist for external providers in the bridge. A provider
   trial dashboard reports resolved inputs, primitive-demand counts,
   missing-primitive counts, primitive ownership, and cache hit/miss totals.
+  It also reports demand-sliced versus full extracted closure sizes and can
+  cache dashboard summaries on disk for fast repeated inspection.
   First attempts to promote allowlisted real providers to full runtime smokes
   still hit the 120-second child bound, so runtime promotion remains a
   performance/composition milestone rather than a completed default smoke.
+  A bounded phase probe now shows the immediate timeout frontier for
+  `racket/bool` is provider-graph discovery, before module composition,
+  WebRacket compilation, Wasm assembly, or JavaScript execution.
 - Default-switch policy: keep `--webracket-base-module-bridge` opt-in for now,
   but treat the local-only bridge as the preferred candidate. The remaining
   blocker is provider-graph performance and ambiguity, not local module
