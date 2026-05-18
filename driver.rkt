@@ -102,6 +102,8 @@
                   webify-compile-module-report
                   webify-module-import-map-required-module-candidates
                   webify-module-path->report
+                  webify-module-provider-cache-hit-count
+                  webify-module-provider-cache-miss-count
                   webify-module-provider-cache-ref
                   webify-module-reports->discovered-registry
                   webify-module-report-import-map
@@ -1405,13 +1407,18 @@
        (define provider-cache
          (make-webify-module-provider-cache
           (webracket/base-fetch-provider/timed fetch-provider)))
-       (webify-module-reports->discovered-registry
-        reports
-        #:extra-reports (list webify-module-protocol-report)
-        #:fetch-provider (lambda (name)
-                           (webify-module-provider-cache-ref provider-cache name))
-        #:module-protocol-dependency webify-module-protocol-dependency
-        #:demand-slice? #t)]
+       (define registry
+         (webify-module-reports->discovered-registry
+          reports
+          #:extra-reports (list webify-module-protocol-report)
+          #:fetch-provider (lambda (name)
+                             (webify-module-provider-cache-ref provider-cache name))
+          #:module-protocol-dependency webify-module-protocol-dependency
+          #:demand-slice? #t))
+       (provider-cache-log "#lang webracket/base provider cache: ~a hit(s), ~a miss(es)"
+                           (webify-module-provider-cache-hit-count provider-cache)
+                           (webify-module-provider-cache-miss-count provider-cache))
+       registry]
       [else
        (webify-module-linklet-inputs->registry
         (cons webify-module-protocol-input

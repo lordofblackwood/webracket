@@ -181,6 +181,10 @@ Current bridge readiness:
   `webracket/primitives`, avoiding the previous ambiguity with `racket/linklet`.
   A discovery-only smoke composes a tiny `racket/list` provider report for the
   single `first` export without running a full WebRacket runtime compilation.
+  Provider-cache hit/miss counters are tracked for this path, and a small
+  provider-trial manifest now covers discovery-only demand checks for
+  `racket/list:first`, `racket/string:string-prefix?`, and
+  `racket/bool:boolean=?`.
 - Default-switch policy: keep `--webracket-base-module-bridge` opt-in for now,
   but treat the local-only bridge as the preferred candidate. The remaining
   blocker is provider-graph performance and ambiguity, not local module

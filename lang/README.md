@@ -44,10 +44,12 @@ root, but direct `racket/list` runtime smokes are still too slow for default
 coverage. Keep the bridge opt-in until provider coverage and turnaround time
 are less experimental; the local-only bridge is now the preferred default
 candidate rather than just a local-module experiment. Verbose driver mode logs
-per-provider fetch timing for this path, and the current discovery-only smoke
-uses a tiny fake `racket/list` provider for the single `first` export so the
-bridge can test provider composition without launching the full installed
-provider graph.
+per-provider fetch timing and provider-cache hit/miss totals for this path.
+The current discovery-only smokes use a tiny fake `racket/list` provider for
+the single `first` export and compare it with real extraction-only provider
+demands. The first provider-trial manifest covers `racket/list:first`,
+`racket/string:string-prefix?`, and `racket/bool:boolean=?` without launching
+full WebRacket runtime compilation for those installed provider graphs.
 
 Reader resolution uses Racket's normal collection search via
 `collection-file-path`. The driver does not add checkout-specific fallback

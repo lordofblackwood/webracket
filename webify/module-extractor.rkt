@@ -82,6 +82,8 @@
  webify-module-provider-cache?
  make-webify-module-provider-cache
  webify-module-provider-cache-ref
+webify-module-provider-cache-hit-count
+webify-module-provider-cache-miss-count
 webify-module-provider-cache-names
 webify-module-provider-cache-count
 webify-normalize-linklet-imports

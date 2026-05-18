@@ -2,6 +2,7 @@
 
 (require rackunit
          racket/string
+         "provider-trials.rkt"
          "test-module-support.rkt")
 
 ;; synthetic-report : symbol? (listof symbol?) -> webify-module-report?
@@ -83,6 +84,99 @@
                 '(dep use-dep))
   (check-equal? (map webify-module-linklet-input-imports inputs)
                 '(() ((x dep x)))))
+
+(test-case "provider cache reports hits and misses"
+  (define fetch-count 0)
+  (define cache
+    (make-webify-module-provider-cache
+     (lambda (name)
+       (set! fetch-count (add1 fetch-count))
+       (webify-module-report
+        name
+        '(#f)
+        '(0)
+        '()
+        '()
+        '(x)
+        '(linklet () (x) (define-values (x) 'x))
+        #t
+        '()))))
+  (void (webify-module-provider-cache-ref cache 'racket/list))
+  (void (webify-module-provider-cache-ref cache 'racket/list))
+  (check-equal? fetch-count 1)
+  (check-equal? (webify-module-provider-cache-miss-count cache) 1)
+  (check-equal? (webify-module-provider-cache-hit-count cache) 1)
+  (check-equal? (webify-module-provider-cache-count cache) 1)
+  (check-equal? (webify-module-provider-cache-names cache) '(racket/list)))
+
+(test-case "provider trial manifest lists initial discovery-only cases"
+  (check-equal? (map webify-provider-trial-module webify-provider-trials)
+                '(racket/list racket/string racket/bool))
+  (check-equal? (webify-provider-trial-exports
+                 (webify-provider-trial-ref 'racket/list))
+                '(first)))
+
+(test-case "real racket/list provider discovery stays extraction-only"
+  (define trial (webify-provider-trial-ref 'racket/list))
+  (define start-ms (current-inexact-milliseconds))
+  (define importer-report
+    (webify-compile-module-report (webify-provider-trial-source trial)))
+  (define provider-report
+    (webify-module-path->report (webify-provider-trial-module trial)))
+  (define demands
+    (webify-module-report-import-export-demands
+     importer-report
+     (list provider-report)
+     #:module-protocol-dependency webify-module-protocol-dependency))
+  (define elapsed-ms (- (current-inexact-milliseconds) start-ms))
+  (check-true (< elapsed-ms 10000.0))
+  (check-equal?
+   demands
+   (list (webify-module-export-demand 'module-protocol
+                                      '(.get-syntax-literal! .set-transformer!))
+         (webify-module-export-demand 'racket/list '(first)))))
+
+(test-case "real and fake racket/list first demands agree"
+  (define trial (webify-provider-trial-ref 'racket/list))
+  (define importer-report
+    (webify-compile-module-report (webify-provider-trial-source trial)))
+  (define fake-list-report
+    (webify-module-report
+     'racket/list
+     '(#f)
+     '(0)
+     '()
+     '()
+     '(first)
+     '(linklet () (first)
+        (define-values (first) 'first))
+     #t
+     '()))
+  (define real-list-report
+    (webify-module-path->report 'racket/list))
+  (define (demands provider-report)
+    (webify-module-report-import-export-demands
+     importer-report
+     (list provider-report)
+     #:module-protocol-dependency webify-module-protocol-dependency))
+  (check-equal? (demands real-list-report)
+                (demands fake-list-report)))
+
+(test-case "provider trial manifest resolves real discovery-only demands"
+  (for ([trial (in-list webify-provider-trials)])
+    (define importer-report
+      (webify-compile-module-report (webify-provider-trial-source trial)))
+    (define provider-report
+      (webify-module-path->report (webify-provider-trial-module trial)))
+    (define demands
+      (webify-module-report-import-export-demands
+       importer-report
+       (list provider-report)
+       #:module-protocol-dependency webify-module-protocol-dependency))
+    (check-not-false
+     (member (webify-module-export-demand (webify-provider-trial-module trial)
+                                          (webify-provider-trial-exports trial))
+             demands))))
 
 (test-case "stable provider-report resolver handles internalized imports"
   (define importer-report

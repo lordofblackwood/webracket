@@ -59,6 +59,8 @@
          webify-module-provider-cache?
          make-webify-module-provider-cache
          webify-module-provider-cache-ref
+         webify-module-provider-cache-hit-count
+         webify-module-provider-cache-miss-count
          webify-module-provider-cache-names
          webify-module-provider-cache-count
          webify-module-extractor-spike-dependency-exports
@@ -129,7 +131,7 @@
    notes)
   #:transparent)
 
-(struct webify-module-provider-cache (fetch-provider table) #:transparent)
+(struct webify-module-provider-cache (fetch-provider table hits misses) #:transparent)
 (struct webify-module-export-demand (module exports) #:transparent)
 (struct webify-module-export-demand-reason (module export importer import local) #:transparent)
 
@@ -872,7 +874,7 @@
 (define (make-webify-module-provider-cache [fetch-provider webify-module-path->extractor-spike])
   (unless (procedure? fetch-provider)
     (raise-argument-error 'make-webify-module-provider-cache "procedure?" fetch-provider))
-  (webify-module-provider-cache fetch-provider (make-hasheq)))
+  (webify-module-provider-cache fetch-provider (make-hasheq) (box 0) (box 0)))
 
 ;; webify-module-provider-cache-ref : webify-module-provider-cache? symbol? -> report
 ;;   Fetch and cache an installed-provider report by module name.
@@ -884,10 +886,14 @@
   (unless (symbol? name)
     (raise-argument-error 'webify-module-provider-cache-ref "symbol?" name))
   (define table (webify-module-provider-cache-table cache))
-  (hash-ref
-   table
-   name
-   (lambda ()
+  (cond
+    [(hash-has-key? table name)
+     (set-box! (webify-module-provider-cache-hits cache)
+               (add1 (unbox (webify-module-provider-cache-hits cache))))
+     (hash-ref table name)]
+    [else
+     (set-box! (webify-module-provider-cache-misses cache)
+               (add1 (unbox (webify-module-provider-cache-misses cache))))
      (define report ((webify-module-provider-cache-fetch-provider cache) name))
      (unless (webify-module-extractor-spike? report)
        (raise-arguments-error 'webify-module-provider-cache-ref
@@ -900,7 +906,25 @@
                               "module" name
                               "report name" (webify-module-extractor-spike-name report)))
      (hash-set! table name report)
-     report)))
+     report]))
+
+;; webify-module-provider-cache-hit-count : webify-module-provider-cache? -> exact-nonnegative-integer?
+;;   Return the number of provider-cache hits.
+(define (webify-module-provider-cache-hit-count cache)
+  (unless (webify-module-provider-cache? cache)
+    (raise-argument-error 'webify-module-provider-cache-hit-count
+                          "webify-module-provider-cache?"
+                          cache))
+  (unbox (webify-module-provider-cache-hits cache)))
+
+;; webify-module-provider-cache-miss-count : webify-module-provider-cache? -> exact-nonnegative-integer?
+;;   Return the number of provider-cache misses.
+(define (webify-module-provider-cache-miss-count cache)
+  (unless (webify-module-provider-cache? cache)
+    (raise-argument-error 'webify-module-provider-cache-miss-count
+                          "webify-module-provider-cache?"
+                          cache))
+  (unbox (webify-module-provider-cache-misses cache)))
 
 ;; webify-module-provider-cache-names : webify-module-provider-cache? -> (listof symbol?)
 ;;   Return cached module names.
