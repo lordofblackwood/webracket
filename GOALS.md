@@ -173,6 +173,13 @@ Current bridge readiness:
   `local+provider` currently route to discovered-provider composition but are
   too slow for default runtime smokes with `racket/list`; richer
   phase/import-provider graphs remain unsupported.
+- Default-switch policy: keep the local `#lang webracket/base` module bridge
+  opt-in for now, even though it is the preferred candidate for local-only
+  programs. Making it the default before external-provider cases are cheap and
+  well guarded would turn driver-side approximation into a second module
+  system. The next default cutover should happen only after unsupported
+  provider shapes fail clearly and the slow provider route is isolated from
+  fast CI.
 - Current provider-discovery instrumentation:
   the bridge classifier now has focused tests for language-root-only,
   local-only, and external `racket/list` demand shapes. Verbose driver mode
@@ -262,6 +269,19 @@ Current installed-extraction runtime smokes cover:
   `--goal1-compact-bounded --goal1-limit 50 --timeout 120 --memory-mb 1024
   --jobs 4`. Bounded progress lines start with `#`, so the TSV rows remain
   readable while the run still shows which child cases are active.
+- The compact runtime probe is split into fast and slow tiers. Use
+  `webify/probe-installed-runtime-smoke.rkt --goal1-fast` for the quick
+  representative runtime lane. It keeps fast representatives for
+  `racket/vector`, `racket/function`, and `racket/promise`, while moving
+  known slow-but-passing representatives such as `set-count` and
+  `format-basic` to `--goal1-slow`. The slow tier automatically passes
+  `--timings` through to WebRacket children and prints `probe-elapsed-ms`, so
+  we can distinguish extraction/composition/compile/assembly/runtime cost from
+  a real semantic failure.
+- Primitive/predefined module roots such as `#%kernel`, `#%runtime`, and
+  `webracket/primitives` are centralized in `webify/primitive-modules.rkt`.
+  The composer, registry, module input validator, and primitive-demand scanner
+  now share one classification instead of maintaining parallel ad hoc lists.
 - `racket/bool`: `boolean=?`.
 - `racket/fixnum`: `fx+`.
 - `racket/list`: `first`, `rest`, `add-between`, `range`, `reverse`, and a

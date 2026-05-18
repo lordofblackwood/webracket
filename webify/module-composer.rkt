@@ -25,7 +25,8 @@
 (require racket/list
          racket/match
          "first-slice.rkt"
-         "module-instance.rkt")
+         "module-instance.rkt"
+         "primitive-modules.rkt")
 
 (struct webify-lowered-slice-spec (name expr importss import-sources exports) #:transparent)
 (struct webify-linklet-slice-spec (name linklet import-sources) #:transparent)
@@ -33,28 +34,6 @@
 
 (define current-composer-primitive-import-cell-overrides
   (make-parameter (hasheq)))
-
-;; composer-primitive-module-name? : any/c -> boolean?
-;;   Recognize predefined modules whose imports are supplied by WebRacket primitives.
-(define (composer-primitive-module-name? name)
-  (and (symbol? name)
-       (memq name
-             '(#%kernel
-               #%core
-               #%runtime
-               #%main
-               #%read
-               #%utils
-               #%boot
-               #%unsafe
-               #%linklet
-               #%linklet-primitive
-               #%linklet-expander
-               #%expobs
-               #%place-struct
-               #%bootstrap-linklet
-               webracket/primitives))
-       #t))
 
 ;; validate-begin-datum! : symbol? any/c -> void?
 ;;   Reject generated fragments that cannot be spliced into top-level code.
@@ -242,7 +221,7 @@
   (match-define (list import-name instance-name export-name) source)
   (cons import-name
         (cond
-          [(composer-primitive-module-name? instance-name)
+          [(primitive-module-name? instance-name)
            (hash-ref
             (current-composer-primitive-import-cell-overrides)
             export-name

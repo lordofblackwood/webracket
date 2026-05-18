@@ -29,6 +29,7 @@
 (require racket/list
          racket/match
          "../primitives-db.rkt"
+         "primitive-modules.rkt"
          "module-registry.rkt")
 
 (struct webify-module-linklet-input (name linklet imports) #:transparent)
@@ -231,31 +232,10 @@
                            (map car dependency-exports)))
   (cadr found))
 
-;; primitive-dependency? : symbol? -> boolean?
-;;   Recognize reflected origins for Racket's primitive/predefined modules.
-(define (primitive-dependency? dependency)
-  (and (memq dependency
-             '(#%kernel
-               #%utils
-               #%core
-               #%runtime
-               #%main
-               #%read
-               #%boot
-               #%unsafe
-               #%linklet
-               #%linklet-primitive
-               #%linklet-expander
-               #%expobs
-               #%place-struct
-               #%bootstrap-linklet
-               webracket/primitives))
-       #t))
-
 ;; kernel-dependency? : symbol? -> boolean?
 ;;   Recognize reflected origins for Racket's primitive kernel module.
 (define (kernel-dependency? dependency)
-  (primitive-dependency? dependency))
+  (primitive-module-name? dependency))
 
 ;; symbolic-name=? : symbol? symbol? -> boolean?
 ;;   Compare generated linklet names by printed identity when eq? is too strict.
@@ -383,7 +363,7 @@
 ;;   Validate a selected provider/export pair and return the canonical export symbol.
 (define (validate-provider-export! who dependency-exports dependency provider-export)
   (cond
-    [(primitive-dependency? dependency)
+    [(primitive-module-name? dependency)
      (cond
        [(webify-primitive-name? provider-export) provider-export]
        [else

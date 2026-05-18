@@ -44,6 +44,7 @@
                      webify-module-report-name]
                     [webify-module-extractor-spike-bundle-entries
                      webify-module-report-bundle-entries])
+         "primitive-modules.rkt"
          "module-input.rkt")
 
 (define-runtime-path primitives-path "../primitives.rkt")
@@ -78,32 +79,6 @@
 
 (define runtime-preferred-primitive-symbols-set
   (list->seteq runtime-preferred-primitive-symbols))
-
-;; primitive-module-names : (listof symbol?)
-;;   Known primitive/predefined modules whose imports are supplied by the runtime.
-(define primitive-module-names
-  '(#%kernel
-    #%core
-    #%runtime
-    #%main
-    #%read
-    #%utils
-    #%boot
-    #%unsafe
-    #%linklet
-    #%linklet-primitive
-    #%linklet-expander
-    #%expobs
-    #%place-struct
-    #%bootstrap-linklet
-    webracket/primitives))
-
-;; primitive-module-name? : any/c -> boolean?
-;;   Recognize primitive/predefined module names used by Racket's expander.
-(define (primitive-module-name? name)
-  (and (symbol? name)
-       (memq name primitive-module-names)
-       #t))
 
 ;; symbol<?* : symbol? symbol? -> boolean?
 ;;   Sort symbols by printed name.

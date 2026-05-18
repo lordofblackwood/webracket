@@ -26,33 +26,12 @@
 (require racket/list
          racket/match
          "module-composer.rkt"
-         "module-instance.rkt")
+         "module-instance.rkt"
+         "primitive-modules.rkt")
 
 (struct webify-module-registry (entries) #:transparent)
 (struct webify-module-registry-entry (name linklet importss imports exports) #:transparent)
 (struct webify-module-composition (datum fragments instances exports-infos) #:transparent)
-
-;; registry-primitive-module-name? : any/c -> boolean?
-;;   Recognize predefined modules whose imports are supplied by the runtime.
-(define (registry-primitive-module-name? name)
-  (and (symbol? name)
-       (memq name
-             '(#%kernel
-               #%core
-               #%runtime
-               #%main
-               #%read
-               #%utils
-               #%boot
-               #%unsafe
-               #%linklet
-               #%linklet-primitive
-               #%linklet-expander
-               #%expobs
-               #%place-struct
-               #%bootstrap-linklet
-               webracket/primitives))
-       #t))
 
 ;; make-webify-module-registry : -> webify-module-registry?
 ;;   Create an empty mutable registry of named linklet slices.
@@ -232,7 +211,7 @@
     (define entry (webify-module-registry-ref registry name))
     (for ([source (in-list (webify-module-registry-entry-imports entry))])
       (match-define (list import dependency export) source)
-      (unless (or (registry-primitive-module-name? dependency)
+      (unless (or (primitive-module-name? dependency)
                   (eq? dependency name)
                   (hash-has-key? seen dependency))
         (raise-arguments-error who
@@ -257,7 +236,7 @@
 (define (entry-module-dependencies entry)
   (define name (webify-module-registry-entry-name entry))
   (filter (lambda (dependency)
-            (and (not (registry-primitive-module-name? dependency))
+            (and (not (primitive-module-name? dependency))
                  (not (eq? dependency name))))
           (entry-dependencies entry)))
 

@@ -391,18 +391,21 @@
       (write-datum-program!
        program-path
        (build-program loader))
+      (define webracket-args
+        (append (current-runtime-smoke-extra-webracket-args)
+                (list "--no-stdlib"
+                      "-r"
+                      "--dest" (path->string dest-dir)
+                      (path->string program-path))))
       (define-values (status output)
-        (run-webracket (append (current-runtime-smoke-extra-webracket-args)
-                               (list "--no-stdlib"
-                                     "-r"
-                                     "--dest" (path->string dest-dir)
-                                     (path->string program-path)))
-                       source-dir))
+        (run-webracket webracket-args source-dir))
       (unless (zero? status)
         (error 'run-composed-runtime-smoke
                "WebRacket exited with status ~a\n~a"
                status
                output))
+      (when (member "--timings" webracket-args)
+        (display output))
       output)
     (lambda ()
       (preserve-runtime-directory! 'composed-source source-dir)

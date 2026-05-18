@@ -27,6 +27,9 @@
 (define worker? #f)
 (define batch-worker? #f)
 (define goal1-fast? #f)
+(define goal1-slow? #f)
+(define runtime-timings? #f)
+(define extra-webracket-args '())
 (define batch-size 1)
 (define jobs 1)
 (define goal1-limit #f)
@@ -50,9 +53,14 @@
 ;; module-cases-extra-webracket-args : (listof symbol?) -> (listof string?)
 ;;   Extra driver flags needed by special provider-backed module cases.
 (define (module-cases-extra-webracket-args names)
-  (if (ormap module-case-needs-expander-read-provider? names)
-      '("--expander-read-provider")
-      '()))
+  (append
+   (if (ormap module-case-needs-expander-read-provider? names)
+       '("--expander-read-provider")
+       '())
+   (if runtime-timings?
+       '("--timings")
+       '())
+   extra-webracket-args))
 
 ;; goal1-fast-module-cases : (listof symbol?)
 ;;   Small must-have runtime subset for quick Goal 1 smoke checks.
@@ -63,7 +71,6 @@
     hash-map-basic
     hash-clear-basic
     hash-comparator-semantics
-    set-count
     set-require
     set-predicate
     set-union
@@ -121,7 +128,6 @@
     format-require
     format-single
     format-number
-    format-basic
     format-write
     format-align
     format-fprintf-port
@@ -133,6 +139,12 @@
     regexp-capture
     regexp-replace
     class-basic))
+
+;; goal1-slow-module-cases : (listof symbol?)
+;;   Passing Goal 1 smokes that are too slow for the compact fast tier.
+(define goal1-slow-module-cases
+  '(set-count
+    format-basic))
 
 ;; smoke-label : installed-runtime-smoke? -> string?
 ;;   Render one installed smoke for list and worker diagnostics.
@@ -488,6 +500,7 @@
 ;; run-child/bounded! : any/c installed-runtime-smoke? (listof string?) -> exact-integer?
 ;;   Run one smoke in a child Racket process and kill it on timeout.
 (define (run-child/bounded! label smoke selector-args)
+  (define start-ms (current-inexact-milliseconds))
   (define exec-file (find-system-path 'exec-file))
   (define racket-bin
     (cond
@@ -522,6 +535,9 @@
      (if no-observe?
          (list "--no-observe")
          '())
+     (if runtime-timings?
+         (list "--runtime-timings")
+         '())
      (if memory-mb
          (list "--memory-mb" (number->string memory-mb))
          '())))
@@ -547,6 +563,10 @@
     (display stderr (current-error-port)))
   (define status (subprocess-status proc))
   (delete-directory/files tmp-dir)
+  (define elapsed-ms
+    (inexact->exact
+     (round (- (current-inexact-milliseconds) start-ms))))
+  (printf "probe-elapsed-ms: ~a\n" elapsed-ms)
   (cond
     [(not completed)
      (printf "probe-result: timeout\n")
@@ -655,6 +675,10 @@
   (cond
     [list-only?
      (show-smokes)
+     (for ([name (in-list goal1-fast-module-cases)])
+       (printf "goal1-fast-case:~a\tmodule case: ~a\n" name name))
+     (for ([name (in-list goal1-slow-module-cases)])
+       (printf "goal1-slow-case:~a\tmodule case: ~a\n" name name))
      (for ([name (in-list known-module-cases)])
        (printf "case:~a\tmodule case: ~a\n" name name))
      0]
@@ -664,6 +688,18 @@
            (take goal1-fast-module-cases
                  (min goal1-limit (length goal1-fast-module-cases)))
            goal1-fast-module-cases))
+     (define chunks (chunk-list selected-cases batch-size))
+     (run-thunks
+      (for/list ([names (in-list chunks)])
+        (lambda ()
+          (run-module-case-chunk/bounded! names))))]
+    [goal1-slow?
+     (set! runtime-timings? #t)
+     (define selected-cases
+       (if goal1-limit
+           (take goal1-slow-module-cases
+                 (min goal1-limit (length goal1-slow-module-cases)))
+           goal1-slow-module-cases))
      (define chunks (chunk-list selected-cases batch-size))
      (run-thunks
       (for/list ([names (in-list chunks)])
@@ -694,6 +730,14 @@
              (set! list-only? #t)]
  [("--goal1-fast") "run a compact must-have Goal 1 runtime subset"
                    (set! goal1-fast? #t)]
+ [("--goal1-slow") "run slow-but-passing Goal 1 runtime subset with timings"
+                   (set! goal1-slow? #t)
+                   (set! runtime-timings? #t)]
+ [("--runtime-timings") "pass --timings through to child WebRacket runs"
+                        (set! runtime-timings? #t)]
+ [("--extra-webracket-arg") arg "pass one extra argument through to child WebRacket runs"
+                            (set! extra-webracket-args
+                                  (append extra-webracket-args (list arg)))]
  [("--worker") "internal mode: run the selected smoke in this process"
                (set! worker? #t)]
  [("--batch-worker") "internal mode: run selected module cases as one batch"
@@ -702,11 +746,11 @@
                 (set! timeout-seconds (string->number seconds))]
  [("--memory-mb") mb "best-effort Racket worker memory limit in MiB"
                   (set! memory-mb (string->number mb))]
- [("--batch-size") n "module cases per child for --goal1-fast (default 1)"
+ [("--batch-size") n "module cases per child for Goal 1 tiers (default 1)"
                   (set! batch-size (max 1 (string->number n)))]
  [("--jobs") n "parent-side child processes to run concurrently (default 1)"
              (set! jobs (max 1 (string->number n)))]
- [("--goal1-limit") n "limit --goal1-fast to the first n cases"
+ [("--goal1-limit") n "limit the selected Goal 1 tier to the first n cases"
                     (set! goal1-limit (string->number n))]
  [("--preserve-dir") dir "copy generated runtime-smoke artifacts into dir"
                      (set! preserve-dir dir)]
