@@ -396,6 +396,32 @@
       #:frontier-limit 2
       #:fetch-provider (lambda (name) (hash-ref provider-table name))))))
 
+(test-case "provider discovery can cut selected providers before fetching"
+  (define root-report (synthetic-report 'root '(dep/a dep/cut)))
+  (define dep-a-report (synthetic-report 'dep/a '()))
+  (define fetched '())
+  (define trace-box (box '()))
+  (define closure
+    (webify-module-reports->required-provider-closure
+     (list root-report)
+     #:skip-provider? (lambda (name) (eq? name 'dep/cut))
+     #:trace-box trace-box
+     #:fetch-provider
+     (lambda (name)
+       (set! fetched (append fetched (list name)))
+       (case name
+         [(dep/a) dep-a-report]
+         [else (error 'fetch-provider "unexpected fetch: ~s" name)]))))
+  (check-equal? (map webify-module-report-name closure)
+                '(root dep/a))
+  (check-equal? fetched '(dep/a))
+  (check-not-false
+   (for/or ([event (in-list (unbox trace-box))])
+     (and (eq? (webify-module-provider-discovery-trace-event-provider event)
+               'dep/cut)
+          (eq? (webify-module-provider-discovery-trace-event-status event)
+               'cut)))))
+
 (test-case "stable provider closure skips unfetchable candidates"
   (define root-report (synthetic-report 'root '(dep/a dep/missing)))
   (define dep-a-report (synthetic-report 'dep/a '()))

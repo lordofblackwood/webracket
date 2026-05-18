@@ -192,14 +192,19 @@ Current bridge readiness:
   First attempts to promote allowlisted real providers to full runtime smokes
   still hit the 120-second child bound, so runtime promotion remains a
   performance/composition milestone rather than a completed default smoke.
-  A bounded phase probe now shows the immediate timeout frontier for
-  `racket/bool` is provider-graph discovery, before module composition,
-  WebRacket compilation, Wasm assembly, or JavaScript execution. The same probe
-  can now print per-provider trace rows and stop at a provider frontier limit;
-  with a 10-second bound and a 12-row trace prefix, `racket/bool` had already
-  produced more than 21k provider trace events, mostly cached
-  `unresolved-import-candidate` checks. That points at repeated candidate scans
-  as the next optimization target, not slow single-provider extraction.
+  A bounded phase probe now shows the immediate timeout frontier for the
+  `racket/list`, `racket/string`, and `racket/bool` trials is provider-graph
+  discovery, before module composition, WebRacket compilation, Wasm assembly,
+  or JavaScript execution. The same probe can print per-provider trace rows,
+  grouped trace counters, and stop at a provider frontier limit. The first
+  `racket/bool` probe produced more than 21k provider trace events, mostly
+  cached `unresolved-import-candidate` checks. Candidate-report memoization
+  reduced the 10-second traces for the three trial modules to about 1.9k-2.0k
+  rows, but they still time out at the provider-discovery stage. A
+  `--cut-language-root` experiment that cuts `webracket/base` and
+  `webracket/base/main` lets `racket/bool` finish provider discovery in about
+  one second and reach `compile-to-wat`, so the next bottleneck is the
+  language-root provider edge, not the small provider itself.
 - Default-switch policy: keep `--webracket-base-module-bridge` opt-in for now,
   but treat the local-only bridge as the preferred candidate. The remaining
   blocker is provider-graph performance and ambiguity, not local module

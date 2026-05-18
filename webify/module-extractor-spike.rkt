@@ -1238,6 +1238,7 @@
          reports
          #:fetch-provider [fetch-provider webify-module-path->extractor-spike]
          #:skip-unfetchable? [skip-unfetchable? #t]
+         #:skip-provider? [skip-provider? (lambda (name) #f)]
          #:trace-box [trace-box #f]
          #:frontier-limit [frontier-limit #f])
   (define who 'webify-module-extractor-spikes->required-provider-closure)
@@ -1247,6 +1248,8 @@
     (raise-argument-error who "procedure?" fetch-provider))
   (unless (boolean? skip-unfetchable?)
     (raise-argument-error who "boolean?" skip-unfetchable?))
+  (unless (procedure? skip-provider?)
+    (raise-argument-error who "procedure?" skip-provider?))
   (unless (or (not trace-box) (box? trace-box))
     (raise-argument-error who "(or/c #f box?)" trace-box))
   (unless (or (not frontier-limit) (exact-positive-integer? frontier-limit))
@@ -1256,6 +1259,8 @@
       (raise-argument-error who "webify-module-extractor-spike?" report)))
   (define reports-by-name (make-hasheq))
   (define depths-by-name (make-hasheq))
+  (define unresolved-candidate-reports-cache (make-hasheq))
+  (define unresolved-candidate-cache (make-hash))
   (define ordered '())
   (define (trace! provider demander depth cached? reason elapsed-ms status)
     (when trace-box
@@ -1302,6 +1307,9 @@
            [cached-report
             (trace! name demander (hash-ref depths-by-name name demander-depth) #t reason 0 'cached)
             cached-report]
+           [(skip-provider? name)
+            (trace! name demander (add1 demander-depth) #f reason 0 'cut)
+            #f]
            [else
             (define start-ms (current-inexact-milliseconds))
             (define provider-report
@@ -1338,32 +1346,42 @@
                provider-report])]))
        (for ([name (in-list (webify-module-extractor-spike-required-provider-names report))])
          (fetch-report name 'required-provider))
+       (define (unresolved-candidate-reports)
+         (hash-ref!
+          unresolved-candidate-reports-cache
+          demander
+          (lambda ()
+            (filter
+             values
+             (for/list ([candidate (in-list (webify-module-import-map-required-module-candidates import-map))]
+                        #:when (= 0 (car candidate)))
+               (fetch-report (cadr candidate) 'unresolved-import-candidate))))))
+       (define (process-unresolved-external! external)
+         (define key (list demander external))
+         (unless (hash-ref unresolved-candidate-cache key #f)
+           (hash-set! unresolved-candidate-cache key #t)
+           (define candidate-reports (unresolved-candidate-reports))
+           (define directly-exported?
+             (for/or ([candidate-report (in-list candidate-reports)])
+               (for/or ([export (in-list (webify-module-extractor-spike-phase0-exports
+                                          candidate-report))])
+                 (symbolic-name=? export external))))
+           (unless directly-exported?
+             (for ([candidate-report (in-list candidate-reports)])
+               (for ([alias (in-list
+                             (compiled-provides-provider-aliases
+                              (webify-module-import-map-decl-provides-expression
+                               (webify-module-extractor-spike-import-map candidate-report))
+                              (webify-module-import-map-data-module-path-indexes
+                               (webify-module-extractor-spike-import-map candidate-report))
+                              (webify-module-extractor-spike-name candidate-report)
+                              external))])
+                 (match-define (list dependency _provider-export) alias)
+                 (fetch-report dependency 'compiled-provide-alias))))))
        (for* ([group (in-list (webify-module-import-map-unresolved-import-groups import-map))]
               [binding (in-list group)])
          (match-define (list _local external) binding)
-         (define candidate-reports
-           (filter
-            values
-            (for/list ([candidate (in-list (webify-module-import-map-required-module-candidates import-map))]
-                       #:when (= 0 (car candidate)))
-              (fetch-report (cadr candidate) 'unresolved-import-candidate))))
-         (define directly-exported?
-           (for/or ([candidate-report (in-list candidate-reports)])
-             (for/or ([export (in-list (webify-module-extractor-spike-phase0-exports
-                                        candidate-report))])
-               (symbolic-name=? export external))))
-         (unless directly-exported?
-           (for ([candidate-report (in-list candidate-reports)])
-             (for ([alias (in-list
-                           (compiled-provides-provider-aliases
-                            (webify-module-import-map-decl-provides-expression
-                             (webify-module-extractor-spike-import-map candidate-report))
-                            (webify-module-import-map-data-module-path-indexes
-                             (webify-module-extractor-spike-import-map candidate-report))
-                            (webify-module-extractor-spike-name candidate-report)
-                            external))])
-               (match-define (list dependency _provider-export) alias)
-               (fetch-report dependency 'compiled-provide-alias)))))
+         (process-unresolved-external! external))
        (loop (append (cdr queue) new-reports))])))
 
 ;; webify-module-extractor-spikes->discovered-resolved-linklet-inputs : reports ... -> inputs
@@ -1501,6 +1519,7 @@
          #:extra-reports [extra-reports '()]
          #:fetch-provider [fetch-provider webify-module-path->extractor-spike]
          #:skip-unfetchable? [skip-unfetchable? #t]
+         #:skip-provider? [skip-provider? (lambda (name) #f)]
          #:trace-box [trace-box #f]
          #:frontier-limit [frontier-limit #f]
          #:dependencies [dependencies '()]
@@ -1516,6 +1535,7 @@
      (append extra-reports reports)
      #:fetch-provider fetch-provider
      #:skip-unfetchable? skip-unfetchable?
+     #:skip-provider? skip-provider?
      #:trace-box trace-box
      #:frontier-limit frontier-limit))
   (define resolved-reports
@@ -1538,6 +1558,7 @@
          #:extra-reports [extra-reports '()]
          #:fetch-provider [fetch-provider webify-module-path->extractor-spike]
          #:skip-unfetchable? [skip-unfetchable? #t]
+         #:skip-provider? [skip-provider? (lambda (name) #f)]
          #:trace-box [trace-box #f]
          #:frontier-limit [frontier-limit #f]
          #:dependencies [dependencies '()]
@@ -1560,6 +1581,7 @@
         (append extra-reports reports)
         #:fetch-provider fetch-provider
         #:skip-unfetchable? skip-unfetchable?
+        #:skip-provider? skip-provider?
         #:trace-box trace-box
         #:frontier-limit frontier-limit))))
   (define resolved-reports

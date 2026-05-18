@@ -11,10 +11,7 @@
          racket/string
          (only-in "../compiler.rkt" comp)
          (only-in "../driver.rkt"
-                  webracket/base-file->local-module-reports
-                  webracket/base-local-module-graph-registry
-                  webracket/base-local-module-graph-root
-                  webracket/base-reports->module-graph)
+                  webracket/base-file->local-module-reports)
          "module-extractor.rkt"
          "module-input.rkt"
          "module-protocol.rkt"
@@ -131,6 +128,7 @@
     (call-with-timeout timeout-seconds 'discover-provider-graph thunk))
   (define elapsed (- (now-ms) start))
   (printf "stage-result\tdiscover-provider-graph\t~a\t~a\n" status elapsed)
+  (print-trace-counters! (unbox trace-box))
   (print-trace! (unbox trace-box) trace-limit)
   (flush-output)
   (case status
@@ -153,6 +151,28 @@
   (when (> (length trace) limit)
     (printf "provider-trace-truncated\t~a\t~a\n" limit (length trace))))
 
+;; print-trace-counters! : (listof trace-event?) -> void?
+;;   Print compact trace counters grouped by reason, status, and cache mode.
+(define (print-trace-counters! trace)
+  (define counts (make-hash))
+  (for ([event (in-list trace)])
+    (define key
+      (list (webify-module-provider-discovery-trace-event-reason event)
+            (webify-module-provider-discovery-trace-event-status event)
+            (if (webify-module-provider-discovery-trace-event-cached? event)
+                'cached
+                'uncached)))
+    (hash-update! counts key add1 0))
+  (for ([key (in-list (sort (hash-keys counts)
+                            string<?
+                            #:key (lambda (key) (format "~s" key))))])
+    (match-define (list reason status cache-status) key)
+    (printf "provider-trace-count\t~a\t~a\t~a\t~a\n"
+            reason
+            status
+            cache-status
+            (hash-ref counts key))))
+
 ;; print-stage-timings! : alist? -> void?
 ;;   Print split provider-discovery substep timings.
 (define (print-stage-timings! timings)
@@ -164,6 +184,7 @@
   (define timeout-seconds 120)
   (define frontier-limit #f)
   (define trace-limit 40)
+  (define cut-language-root? #f)
   (command-line
    #:program "probe-webracket-base-provider-phases"
    #:once-each
@@ -174,7 +195,9 @@
    [("--frontier-limit") n "stop provider discovery after N providers"
                          (set! frontier-limit (string->number n))]
    [("--trace-limit") n "provider trace rows to print"
-                      (set! trace-limit (string->number n))])
+                      (set! trace-limit (string->number n))]
+   [("--cut-language-root") "experiment: cut webracket/base language providers from external discovery"
+                            (set! cut-language-root? #t)])
   (define trial (webify-provider-trial-ref trial-name))
   (define source-dir (make-temporary-file "webracket-base-provider-phase-src-~a" 'directory))
   (define source-path (build-path source-dir "main.rkt"))
@@ -203,10 +226,13 @@
               #:module-protocol-dependency webify-module-protocol-dependency
               #:demand-slice? #t
               #:trace-box trace-box
-              #:frontier-limit frontier-limit))))
+              #:frontier-limit frontier-limit
+              #:skip-provider?
+              (lambda (name)
+                (and cut-language-root?
+                     (memq name '(webracket/base webracket/base/main))))))))
         (print-stage-timings!
          (webify-module-provider-discovery-stages-timings stages))
-        (print-trace! (unbox trace-box) trace-limit)
         (define registry
           (run-stage! 'build-module-registry
                       timeout-seconds
