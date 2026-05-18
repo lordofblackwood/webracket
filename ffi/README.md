@@ -32,14 +32,18 @@ ffi/temp.ffi
 - `lib/libs/*` is the legacy `include-lib` compatibility location while those
   libraries are migrated to modules.
 
-`webracket/unsafe/console` is currently a primitive-backed shim so module
-programs can require the raw console names. `webracket/unsafe/math` and
-`webracket/unsafe/temp` are generated unsafe modules whose bindings call the
+`webracket/unsafe/console`, `webracket/unsafe/math`, and
+`webracket/unsafe/temp` are migrated unsafe modules whose bindings call the
 private `unsafe-ffi-primitive` hook. For `#lang webracket/base` and
 `#lang webracket/full` programs, the driver infers the matching `.ffi` bundle
-from required providers such as `js/math` or `webracket/unsafe/math`, so users
-do not need to pass `--ffi math` by hand. Their export sets are checked against
-their `.ffi` declarations.
+from required providers such as `js/console`, `js/math`, or
+`webracket/unsafe/math`, so users do not need to pass `--ffi console` or
+`--ffi math` by hand. Their export sets are checked against their `.ffi`
+declarations. The shared module-to-bundle mapping lives in
+`webify/ffi-module-registry.rkt` and is discovered from existing `ffi/*.ffi`,
+`js/*.rkt`, and `unsafe/*.rkt` files. Adding `ffi/foo.ffi` plus
+`unsafe/foo.rkt` and/or `js/foo.rkt` makes the module provider infer
+`foo.ffi` without editing the registry.
 
 
 dom.ffi

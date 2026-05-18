@@ -27,6 +27,7 @@
          (only-in "provider-trials.rkt"
                   webify-provider-trial-module-allowlist
                   webify-provider-trial-module-allowed?)
+         "ffi-module-registry.rkt"
          "unsafe-ffi-module.rkt"
          "test-module-support.rkt"
          "webracket-base-surface.rkt"
@@ -322,6 +323,39 @@
          source-dir))
       (check-equal? status 0 output)
       (check-regexp-match #rx"(?m:^42$)" output))
+    (lambda ()
+      (for ([dir (in-list (list source-dir dest-dir))])
+        (with-handlers ([exn:fail:filesystem? void])
+          (delete-directory/files dir))))))
+
+(test-case "#lang webracket/full runs representative curated libraries"
+  (define source-dir (make-temporary-file "webracket-full-curated-src-~a" 'directory))
+  (define dest-dir   (make-temporary-file "webracket-full-curated-dest-~a" 'directory))
+  (define source-path (build-path source-dir "full-curated-smoke.rkt"))
+  (dynamic-wind
+    void
+    (lambda ()
+      (call-with-output-file source-path
+        (lambda (out)
+          (display
+           (string-append
+            "#lang webracket/full\n"
+            "(define joined (string-join (map number->string '(1 2 3)) \"\"))\n"
+            "(define picked (match '(alpha beta) [(list _ y) y]))\n"
+            "(define vec-pos (vector-member 'b '#(a b c)))\n"
+            "(define bytes-len (bytes-length #\"abc\"))\n"
+            "(define bool-bonus (if (boolean=? #t (not #f)) 3 0))\n"
+            "(js-log (+ (string-length joined) vec-pos bytes-len bool-bonus))\n")
+           out))
+        #:exists 'truncate/replace)
+      (define-values (status output)
+        (run-webracket/base
+         (list "-r" "--no-stdlib" "--no-io-format-provider"
+               "--dest" (path->string dest-dir)
+               (path->string source-path))
+         source-dir))
+      (check-equal? status 0 output)
+      (check-regexp-match #rx"(?m:^10$)" output))
     (lambda ()
       (for ([dir (in-list (list source-dir dest-dir))])
         (with-handlers ([exn:fail:filesystem? void])
@@ -1452,6 +1486,26 @@
   (check-not-false (memq 'temp-x temp-exports))
   (check-not-false (memq 'temp-set-x! temp-exports)))
 
+(test-case "FFI module registry maps public and unsafe providers to bundles"
+  (check-equal? (map ffi-module-registry-row-module ffi-module-registry-rows)
+                '(js/console
+                  js/math
+                  js/temp
+                  webracket/unsafe/console
+                  webracket/unsafe/math
+                  webracket/unsafe/temp))
+  (for ([row (in-list '((js/console console.ffi)
+                        (webracket/unsafe/console console.ffi)
+                        (js/math math.ffi)
+                        (webracket/unsafe/math math.ffi)
+                        (js/temp temp.ffi)
+                        (webracket/unsafe/temp temp.ffi)))])
+    (check-equal? (module-provider->ffi-filename (car row))
+                  (symbol->string (cadr row))
+                  (symbol->string (car row)))
+    (check-not-false (module-provider->ffi-path (car row))
+                     (symbol->string (car row)))))
+
 (test-case "package info declares a multi-collection install story"
   (define info-path (build-path repo-root "info.rkt"))
   (define source (file->string info-path))
@@ -1507,7 +1561,7 @@
         (with-handlers ([exn:fail:filesystem? void])
           (delete-directory/files dir))))))
 
-(test-case "#lang webracket/base can require js/console"
+(test-case "#lang webracket/base infers ffi/console from required js/console"
   (define source-dir (make-temporary-file "webracket-js-console-src-~a" 'directory))
   (define dest-dir   (make-temporary-file "webracket-js-console-dest-~a" 'directory))
   (define source-path (build-path source-dir "use-console.rkt"))

@@ -79,17 +79,16 @@ WebRacket-specific host interop is tracked separately from Racket libraries.
 JS, browser, or Node bindings should be added through WebRacket provider
 modules instead of as accidental ambient top-level names.
 
-The first public wrapper pilot is `(require js/console)`, backed by
-`webracket/unsafe/console`. The unsafe layer corresponds to `ffi/console.ffi`.
-The second pilot is `(require js/math)`, backed by generated metadata from
-`ffi/math.ffi`; its unsafe layer now resolves active `.ffi` primitive closures
-through `unsafe-ffi-primitive`. For module-language programs, required
-providers such as `js/math`, `webracket/unsafe/math`, `js/temp`, and
-`webracket/unsafe/temp` automatically infer their matching `.ffi` bundles, so
-runtime users should not need manual `--ffi` options for those modules. The
-public `js/*` layer is where checked, Rackety wrappers belong. Use `browser/*`
-for DOM/window/document APIs instead of mixing those names into the JavaScript
-built-in namespace.
+The first public wrappers are `(require js/console)`, `(require js/math)`, and
+`(require js/temp)`, backed by `webracket/unsafe/console`,
+`webracket/unsafe/math`, and `webracket/unsafe/temp`. Their unsafe layers
+resolve active `.ffi` primitive closures through `unsafe-ffi-primitive`. For
+module-language programs, these providers automatically infer their matching
+`.ffi` bundles through the discovered registry in
+`webify/ffi-module-registry.rkt`, so runtime users should not need manual
+`--ffi` options for migrated modules. The public `js/*` layer is where checked,
+Rackety wrappers belong. Use `browser/*` for DOM/window/document APIs instead
+of mixing those names into the JavaScript built-in namespace.
 
 The current full add-on list and status vocabulary live in
 `webify/webracket-full-surface.rkt`. A library can be exported by
@@ -98,6 +97,12 @@ but the status table must say whether it merely expands/extracts, composes, or
 has representative runtime smokes. The companion dashboard prints TSV/JSON rows
 with export status, provider allowlist status, direct runtime-smoke status, and
 the current last-known blocker.
+
+The direct `#lang webracket/full` runtime smoke intentionally covers only the
+bindings that the current language surface actually makes runnable. Deeper
+`racket/set`, `racket/sequence`, `racket/match`, and `racket/format` coverage
+lives in the bounded provider runtime-smoke matrix until the full language
+surface is ready to re-export those bindings directly.
 
 The old textual `stdlib/` is legacy top-level compatibility for script-style
 programs. It should not become a dependency of `#lang webracket/base` or

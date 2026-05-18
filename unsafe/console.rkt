@@ -1,6 +1,9 @@
 #lang racket/base
 
-(require "../js.rkt")
+;; Generated-style unsafe surface for `ffi/console.ffi`.
+;; Raw exports resolve to active `.ffi` primitive closures at compile time.
+
+(require (only-in "../primitives.rkt" unsafe-ffi-primitive))
 
 (provide js-console-log
          js-console-info
@@ -26,142 +29,98 @@
          js-console-profile-end
          js-console-exception)
 
-;; This module is the unsafe/raw console binding surface corresponding to
-;; `ffi/console.ffi`. For now it is a primitive-backed shim so module programs
-;; can require the raw names; the generator should replace these definitions
-;; with direct `.ffi` import-backed exports.
-
-;; js-console-log : any/c -> void?
+;; js-console-log : ffi (value) -> ()
 ;;   Raw console log binding.
-(define (js-console-log args)
-  (js-log args)
-  (void))
+(define js-console-log (unsafe-ffi-primitive 'js-console-log))
 
-;; js-console-info : any/c -> void?
+;; js-console-info : ffi (value) -> ()
 ;;   Raw console info binding.
-(define (js-console-info args)
-  (js-log args)
-  (void))
+(define js-console-info (unsafe-ffi-primitive 'js-console-info))
 
-;; js-console-warn : any/c -> void?
-;;   Raw console warning binding.
-(define (js-console-warn args)
-  (js-log args)
-  (void))
+;; js-console-warn : ffi (value) -> ()
+;;   Raw console warn binding.
+(define js-console-warn (unsafe-ffi-primitive 'js-console-warn))
 
-;; js-console-error : any/c -> void?
+;; js-console-error : ffi (value) -> ()
 ;;   Raw console error binding.
-(define (js-console-error args)
-  (js-log args)
-  (void))
+(define js-console-error (unsafe-ffi-primitive 'js-console-error))
 
-;; js-console-debug : any/c -> void?
+;; js-console-debug : ffi (value) -> ()
 ;;   Raw console debug binding.
-(define (js-console-debug args)
-  (js-log args)
-  (void))
+(define js-console-debug (unsafe-ffi-primitive 'js-console-debug))
 
-;; js-console-assert : any/c -> void?
+;; js-console-assert : ffi (value) -> ()
 ;;   Raw console assert binding.
-(define (js-console-assert args)
-  (js-log args)
-  (void))
+(define js-console-assert (unsafe-ffi-primitive 'js-console-assert))
 
-;; js-console-clear : -> void?
+;; js-console-clear : ffi () -> ()
 ;;   Raw console clear binding.
-(define (js-console-clear)
-  (void))
+(define js-console-clear (unsafe-ffi-primitive 'js-console-clear))
 
-;; js-console-dir : any/c -> void?
+;; js-console-dir : ffi (value) -> ()
 ;;   Raw console dir binding.
-(define (js-console-dir args)
-  (js-log args)
-  (void))
+(define js-console-dir (unsafe-ffi-primitive 'js-console-dir))
 
-;; js-console-dirxml : any/c -> void?
+;; js-console-dirxml : ffi (value) -> ()
 ;;   Raw console dirxml binding.
-(define (js-console-dirxml args)
-  (js-log args)
-  (void))
+(define js-console-dirxml (unsafe-ffi-primitive 'js-console-dirxml))
 
-;; js-console-table : any/c -> void?
+;; js-console-table : ffi (value) -> ()
 ;;   Raw console table binding.
-(define (js-console-table args)
-  (js-log args)
-  (void))
+(define js-console-table (unsafe-ffi-primitive 'js-console-table))
 
-;; js-console-group : any/c -> void?
+;; js-console-group : ffi (value) -> ()
 ;;   Raw console group binding.
-(define (js-console-group args)
-  (js-log args)
-  (void))
+(define js-console-group (unsafe-ffi-primitive 'js-console-group))
 
-;; js-console-group-collapsed : any/c -> void?
+;; js-console-group-collapsed : ffi (value) -> ()
 ;;   Raw console collapsed group binding.
-(define (js-console-group-collapsed args)
-  (js-log args)
-  (void))
+(define js-console-group-collapsed
+  (unsafe-ffi-primitive 'js-console-group-collapsed))
 
-;; js-console-group-end : -> void?
+;; js-console-group-end : ffi () -> ()
 ;;   Raw console group-end binding.
-(define (js-console-group-end)
-  (void))
+(define js-console-group-end (unsafe-ffi-primitive 'js-console-group-end))
 
-;; js-console-count : any/c -> void?
+;; js-console-count : ffi (value) -> ()
 ;;   Raw console count binding.
-(define (js-console-count args)
-  (js-log args)
-  (void))
+(define js-console-count (unsafe-ffi-primitive 'js-console-count))
 
-;; js-console-count-reset : any/c -> void?
+;; js-console-count-reset : ffi (value) -> ()
 ;;   Raw console count-reset binding.
-(define (js-console-count-reset args)
-  (js-log args)
-  (void))
+(define js-console-count-reset
+  (unsafe-ffi-primitive 'js-console-count-reset))
 
-;; js-console-time : any/c -> void?
+;; js-console-time : ffi (value) -> ()
 ;;   Raw console time binding.
-(define (js-console-time args)
-  (js-log args)
-  (void))
+(define js-console-time (unsafe-ffi-primitive 'js-console-time))
 
-;; js-console-time-end : any/c -> void?
+;; js-console-time-end : ffi (value) -> ()
 ;;   Raw console time-end binding.
-(define (js-console-time-end args)
-  (js-log args)
-  (void))
+(define js-console-time-end (unsafe-ffi-primitive 'js-console-time-end))
 
-;; js-console-time-log : any/c -> void?
+;; js-console-time-log : ffi (value) -> ()
 ;;   Raw console time-log binding.
-(define (js-console-time-log args)
-  (js-log args)
-  (void))
+(define js-console-time-log (unsafe-ffi-primitive 'js-console-time-log))
 
-;; js-console-time-stamp : any/c -> void?
+;; js-console-time-stamp : ffi (value) -> ()
 ;;   Raw console time-stamp binding.
-(define (js-console-time-stamp args)
-  (js-log args)
-  (void))
+(define js-console-time-stamp
+  (unsafe-ffi-primitive 'js-console-time-stamp))
 
-;; js-console-trace : any/c -> void?
+;; js-console-trace : ffi (value) -> ()
 ;;   Raw console trace binding.
-(define (js-console-trace args)
-  (js-log args)
-  (void))
+(define js-console-trace (unsafe-ffi-primitive 'js-console-trace))
 
-;; js-console-profile : any/c -> void?
+;; js-console-profile : ffi (value) -> ()
 ;;   Raw console profile binding.
-(define (js-console-profile args)
-  (js-log args)
-  (void))
+(define js-console-profile (unsafe-ffi-primitive 'js-console-profile))
 
-;; js-console-profile-end : any/c -> void?
+;; js-console-profile-end : ffi (value) -> ()
 ;;   Raw console profile-end binding.
-(define (js-console-profile-end args)
-  (js-log args)
-  (void))
+(define js-console-profile-end
+  (unsafe-ffi-primitive 'js-console-profile-end))
 
-;; js-console-exception : any/c -> void?
+;; js-console-exception : ffi (value) -> ()
 ;;   Raw console exception binding.
-(define (js-console-exception args)
-  (js-console-error args))
+(define js-console-exception (unsafe-ffi-primitive 'js-console-exception))

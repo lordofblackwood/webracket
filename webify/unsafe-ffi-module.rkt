@@ -22,13 +22,9 @@
                   foreign-racket-name
                   foreign-argument-types
                   foreign-result-types)
+         "ffi-module-registry.rkt"
          racket/format
-         racket/list
-         racket/runtime-path)
-
-(define-runtime-path console-ffi-path "../ffi/console.ffi")
-(define-runtime-path math-ffi-path "../ffi/math.ffi")
-(define-runtime-path temp-ffi-path "../ffi/temp.ffi")
+         racket/list)
 
 ;; ffi-file->unsafe-export-symbols : path-string? -> (listof symbol?)
 ;;   Return the raw binding names that an unsafe module must export.
@@ -111,21 +107,24 @@
 ;; unsafe-ffi-module-parity-rows : -> (listof row?)
 ;;   Compare all migrated unsafe FFI modules that currently have `.ffi` owners.
 (define (unsafe-ffi-module-parity-rows)
-  (list (build-unsafe-ffi-module-parity-row 'webracket/unsafe/console console-ffi-path)
-        (build-unsafe-ffi-module-parity-row 'webracket/unsafe/math math-ffi-path)
-        (build-unsafe-ffi-module-parity-row 'webracket/unsafe/temp temp-ffi-path)))
+  (for/list ([module-name (in-list (migrated-unsafe-ffi-modules))])
+    (build-unsafe-ffi-module-parity-row module-name
+                                        (module-provider->ffi-path module-name))))
 
 ;; unsafe-console-ffi-export-symbols : -> (listof symbol?)
 ;;   Return the raw console binding names declared by ffi/console.ffi.
 (define (unsafe-console-ffi-export-symbols)
-  (ffi-file->unsafe-export-symbols console-ffi-path))
+  (ffi-file->unsafe-export-symbols
+   (module-provider->ffi-path 'webracket/unsafe/console)))
 
 ;; unsafe-math-ffi-export-symbols : -> (listof symbol?)
 ;;   Return the raw Math binding names declared by ffi/math.ffi.
 (define (unsafe-math-ffi-export-symbols)
-  (ffi-file->unsafe-export-symbols math-ffi-path))
+  (ffi-file->unsafe-export-symbols
+   (module-provider->ffi-path 'webracket/unsafe/math)))
 
 ;; unsafe-temp-ffi-export-symbols : -> (listof symbol?)
 ;;   Return the raw temp binding names declared by ffi/temp.ffi.
 (define (unsafe-temp-ffi-export-symbols)
-  (ffi-file->unsafe-export-symbols temp-ffi-path))
+  (ffi-file->unsafe-export-symbols
+   (module-provider->ffi-path 'webracket/unsafe/temp)))

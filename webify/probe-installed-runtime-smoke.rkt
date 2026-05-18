@@ -491,6 +491,10 @@
   (cond
     [(regexp-match? #rx"runtime-smoke-failure-" output)
      'runtime-composition-failed]
+    [(regexp-match? #rx"unsafe-ffi-primitive|ffi file not found|foreign import|FFI" output)
+     'ffi-resolution-failed]
+    [(regexp-match? #rx"unsupported providers|external provider is not in the Goal 1 trial allowlist|unknown module|cannot resolve #lang" output)
+     'provider-graph-failed]
     [(regexp-match? #rx"missing primitive-table entries" output)
      'missing-primitives]
     [(regexp-match? #rx"batched extraction failed|extract-installed" output)

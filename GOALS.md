@@ -106,8 +106,9 @@ Known remaining work:
 - Use the runtime-gap audit to prioritize missing Wasm primitives.
 - Avoid adding broad runtime support just because a primitive appears in a graph;
   prioritize primitives that are actually executed by useful programs.
-- Continue improving diagnostics so failures classify as graph-resolution,
-  unsupported-runtime, compiler, or runtime errors.
+- Continue improving diagnostics so failures classify as provider-graph,
+  FFI-resolution, missing-primitive, unsupported-runtime, compiler, or runtime
+  errors.
 
 ### `webracket/base` And `webracket/full` Library Shape
 
@@ -280,14 +281,16 @@ WebRacket-specific host bindings need their own provider story. The first
 explicit JS debug provider is `webracket/js`, currently a tiny owner for
 `js-log`. FFI modules use a layered shape: `.ffi` declarations describe raw
 imports, `webracket/unsafe/*` exposes raw names, and `js/*` exposes public
-wrappers. Console is the first runnable pilot:
-`ffi/console.ffi -> webracket/unsafe/console -> js/console`. Math is the first
-generated import-backed pilot:
-`ffi/math.ffi -> webracket/unsafe/math -> js/math`; its unsafe bindings are
+wrappers. Console, Math, and the small temp benchmark module are now migrated
+unsafe-FFI pilots:
+`ffi/console.ffi -> webracket/unsafe/console -> js/console`,
+`ffi/math.ffi -> webracket/unsafe/math -> js/math`, and
+`ffi/temp.ffi -> webracket/unsafe/temp -> js/temp`. Their unsafe bindings are
 declared, export-checked, and resolved through active `.ffi` primitive closures.
 For module-language programs, the driver infers required `.ffi` bundles from
-the provider graph for generated unsafe modules such as `js/math` and
-`js/temp`, so users should not need manual `--ffi` flags for those providers.
+the provider graph via the discovered registry in
+`webify/ffi-module-registry.rkt`, so users should not need manual `--ffi` flags
+for migrated providers.
 Future JavaScript/browser/Node bindings should grow as modules such as
 `js/console`, `js/math`, `browser/dom`, and `webracket/unsafe/*`, while
 low-level Wasm imports remain runtime helpers. Use `js/*` for JavaScript

@@ -126,6 +126,8 @@
          (only-in "webify/provider-trials.rkt"
                   webify-provider-trial-module-allowed?
                   webify-provider-trial-module-allowlist)
+         (only-in "webify/ffi-module-registry.rkt"
+                  module-provider->ffi-filename)
          "compiler.rkt"
          "define-foreign.rkt")
 
@@ -223,18 +225,6 @@
                #:when (include-lib->ffi-filename lib-name))
       (include-lib->ffi-filename lib-name)))
   (remove-duplicates inferred))
-
-;; module-provider->ffi-filename : symbol? -> (or/c path-string? #f)
-;;   Return the ffi bundle that a WebRacket module provider needs at runtime.
-(define module-provider->ffi-filename-table
-  '((js/math               . "math.ffi")
-    (webracket/unsafe/math . "math.ffi")
-    (js/temp               . "temp.ffi")
-    (webracket/unsafe/temp . "temp.ffi")))
-
-(define (module-provider->ffi-filename module-name)
-  (define maybe (assq module-name module-provider->ffi-filename-table))
-  (and maybe (cdr maybe)))
 
 ;; module-source->inferred-ffi-files : path-string? (listof path-string?) -> (listof path-string?)
 ;;   Infer ffi bundles from the actual module-provider graph.
