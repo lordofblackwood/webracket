@@ -114,6 +114,9 @@
                   webify-module-protocol-input
                   webify-module-protocol-report
                   webify-module-protocol-dependency)
+         (only-in "webify/provider-trials.rkt"
+                  webify-provider-trial-module-allowed?
+                  webify-provider-trial-module-allowlist)
          "compiler.rkt"
          "define-foreign.rkt")
 
@@ -1395,6 +1398,21 @@
                       (- (now-ms) start-ms))
   report)
 
+;; webracket/base-check-external-provider-allowlist! : reports -> void?
+;;   Keep the temporary bridge from silently growing unsupported providers.
+(define (webracket/base-check-external-provider-allowlist! reports)
+  (define external-names (webracket/base-external-provider-names reports))
+  (define unsupported
+    (filter (lambda (name)
+              (not (webify-provider-trial-module-allowed? name)))
+            external-names))
+  (unless (null? unsupported)
+    (raise-arguments-error
+     'webracket/base-reports->module-graph
+     "#lang webracket/base external provider is not in the Goal 1 trial allowlist"
+     "unsupported providers" unsupported
+     "allowed providers" webify-provider-trial-module-allowlist)))
+
 ;; webracket/base-reports->module-graph : symbol? reports keyword-args -> graph
 ;;   Build a bridge graph from already-extracted reports.
 (define (webracket/base-reports->module-graph root
@@ -1404,6 +1422,7 @@
   (define registry
     (cond
       [(webracket/base-reports-demand-external-providers? reports)
+       (webracket/base-check-external-provider-allowlist! reports)
        (define provider-cache
          (make-webify-module-provider-cache
           (webracket/base-fetch-provider/timed fetch-provider)))

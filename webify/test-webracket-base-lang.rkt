@@ -564,6 +564,28 @@
       (with-handlers ([exn:fail:filesystem? void])
         (delete-directory/files source-dir)))))
 
+(test-case "#lang webracket/base provider discovery rejects providers outside the trial allowlist"
+  (define source-dir (make-temporary-file "webracket-base-provider-reject-src-~a" 'directory))
+  (define main-path  (build-path source-dir "main.rkt"))
+  (dynamic-wind
+    void
+    (lambda ()
+      (call-with-output-file main-path
+        (lambda (out)
+          (display "#lang webracket/base\n(require (only-in racket/math sqr))\n(provide answer)\n(define answer sqr)\n" out))
+        #:exists 'truncate/replace)
+      (define-values (root reports)
+        (call-with-webracket-collection-path
+         (lambda ()
+           (webracket/base-file->local-module-reports main-path))))
+      (check-exn
+       #rx"external provider is not in the Goal 1 trial allowlist"
+       (lambda ()
+         (webracket/base-reports->module-graph root reports))))
+    (lambda ()
+      (with-handlers ([exn:fail:filesystem? void])
+        (delete-directory/files source-dir)))))
+
 (test-case "#lang webracket/base bridge discovers require-transformer local dependency from metadata"
   (define source-dir (make-temporary-file "webracket-base-require-syntax-src-~a" 'directory))
   (define lib-path   (build-path source-dir "lib.rkt"))

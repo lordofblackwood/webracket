@@ -5,6 +5,29 @@
          "provider-trials.rkt"
          "test-module-support.rkt")
 
+;; demand-member? : symbol? (listof symbol?) demands -> boolean?
+;;   Check a demand by provider and export set, ignoring compiled export order.
+(define (demand-member? module exports demands)
+  (define (same-export? expected actual)
+    (define expected-string (symbol->string expected))
+    (define actual-string (symbol->string actual))
+    (or (string=? expected-string actual-string)
+        (regexp-match? (regexp (format "^~a[0-9]+[.][0-9]+$"
+                                        (regexp-quote expected-string)))
+                       actual-string)
+        (regexp-match? (regexp (format "^~a[.][0-9]+$"
+                                        (regexp-quote expected-string)))
+                       actual-string)))
+  (define (exports-match? actuals)
+    (and (= (length exports) (length actuals))
+         (andmap (lambda (expected)
+                   (for/or ([actual (in-list actuals)])
+                     (same-export? expected actual)))
+                 exports)))
+  (for/or ([demand (in-list demands)])
+    (and (eq? module (webify-module-export-demand-module demand))
+         (exports-match? (webify-module-export-demand-exports demand)))))
+
 ;; synthetic-report : symbol? (listof symbol?) -> webify-module-report?
 ;;   Build a small manifest-ready report with decoded phase-0 provider metadata.
 (define (synthetic-report name requires)
@@ -114,7 +137,9 @@
                 '(racket/list racket/string racket/bool))
   (check-equal? (webify-provider-trial-exports
                  (webify-provider-trial-ref 'racket/list))
-                '(first)))
+                '(first rest filter-map append-map))
+  (check-true (webify-provider-trial-module-allowed? 'racket/list))
+  (check-false (webify-provider-trial-module-allowed? 'racket/math)))
 
 (test-case "real racket/list provider discovery stays extraction-only"
   (define trial (webify-provider-trial-ref 'racket/list))
@@ -131,12 +156,15 @@
   (define elapsed-ms (- (current-inexact-milliseconds) start-ms))
   (check-true (< elapsed-ms 10000.0))
   (check-equal?
-   demands
-   (list (webify-module-export-demand 'module-protocol
-                                      '(.get-syntax-literal! .set-transformer!))
-         (webify-module-export-demand 'racket/list '(first)))))
+   (car demands)
+   (webify-module-export-demand 'module-protocol
+                                '(.get-syntax-literal! .set-transformer!)))
+  (check-true
+   (demand-member? 'racket/list
+                   '(first rest filter-map append-map)
+                   demands)))
 
-(test-case "real and fake racket/list first demands agree"
+(test-case "real and fake racket/list cluster demands agree"
   (define trial (webify-provider-trial-ref 'racket/list))
   (define importer-report
     (webify-compile-module-report (webify-provider-trial-source trial)))
@@ -147,9 +175,12 @@
      '(0)
      '()
      '()
-     '(first)
-     '(linklet () (first)
-        (define-values (first) 'first))
+     '(first rest filter-map append-map)
+     '(linklet () (first rest filter-map append-map)
+        (define-values (first) 'first)
+        (define-values (rest) 'rest)
+        (define-values (filter-map) 'filter-map)
+        (define-values (append-map) 'append-map))
      #t
      '()))
   (define real-list-report
@@ -173,10 +204,25 @@
        importer-report
        (list provider-report)
        #:module-protocol-dependency webify-module-protocol-dependency))
+    (check-true
+     (demand-member? (webify-provider-trial-module trial)
+                     (webify-provider-trial-exports trial)
+                     demands))))
+
+(test-case "provider trial reports primitive demands and cache counts"
+  (for ([report (in-list (webify-provider-trial-run-all))])
+    (check-equal? (webify-provider-trial-report-status report) 'ok)
+    (check-true (positive? (webify-provider-trial-report-elapsed-ms report)))
     (check-not-false
-     (member (webify-module-export-demand (webify-provider-trial-module trial)
-                                          (webify-provider-trial-exports trial))
-             demands))))
+     (member (webify-provider-trial-module
+              (webify-provider-trial-report-trial report))
+             (webify-provider-trial-report-input-names report)))
+    (check-pred list?
+                (webify-provider-trial-report-missing-primitives report))
+    (check-pred list?
+                (webify-provider-trial-report-primitive-ownership-counts report))
+    (check-true (positive?
+                 (webify-provider-trial-report-provider-cache-misses report)))))
 
 (test-case "stable provider-report resolver handles internalized imports"
   (define importer-report

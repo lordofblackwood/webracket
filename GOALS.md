@@ -182,9 +182,14 @@ Current bridge readiness:
   A discovery-only smoke composes a tiny `racket/list` provider report for the
   single `first` export without running a full WebRacket runtime compilation.
   Provider-cache hit/miss counters are tracked for this path, and a small
-  provider-trial manifest now covers discovery-only demand checks for
-  `racket/list:first`, `racket/string:string-prefix?`, and
-  `racket/bool:boolean=?`.
+  provider-trial manifest now covers discovery-only demand checks for clusters
+  in `racket/list`, `racket/string`, and `racket/bool`. The manifest is also
+  the temporary allowlist for external providers in the bridge. A provider
+  trial dashboard reports resolved inputs, primitive-demand counts,
+  missing-primitive counts, primitive ownership, and cache hit/miss totals.
+  First attempts to promote allowlisted real providers to full runtime smokes
+  still hit the 120-second child bound, so runtime promotion remains a
+  performance/composition milestone rather than a completed default smoke.
 - Default-switch policy: keep `--webracket-base-module-bridge` opt-in for now,
   but treat the local-only bridge as the preferred candidate. The remaining
   blocker is provider-graph performance and ambiguity, not local module

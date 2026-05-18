@@ -78,6 +78,7 @@
  webify-module-linklet-inputs->primitive-demands
  webify-module-reports->primitive-demands
  webify-primitive-demand-report-missing
+ webify-primitive-demand-report-ownership-counts
  webify-module-provider-cache
  webify-module-provider-cache?
  make-webify-module-provider-cache
