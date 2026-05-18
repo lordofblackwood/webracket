@@ -11,7 +11,9 @@
          racket/string
          (only-in "../compiler.rkt" comp)
          (only-in "../driver.rkt"
-                  webracket/base-file->local-module-reports)
+                  webracket/base-external-provider-names
+                  webracket/base-file->local-module-reports
+                  webracket/base-language-provider-name?)
          "module-extractor.rkt"
          "module-input.rkt"
          "module-protocol.rkt"
@@ -179,12 +181,36 @@
   (for ([timing (in-list timings)])
     (printf "provider-substage\t~a\t~a\n" (car timing) (cdr timing))))
 
+;; print-provider-demand-summary! : (listof report?) -> void?
+;;   Print the local/language/external split in initial provider demand.
+(define (print-provider-demand-summary! reports)
+  (define local-names (map webify-module-report-name reports))
+  (define required-names
+    (remove-duplicates
+     (append*
+      (for/list ([report (in-list reports)])
+        (webify-module-report-required-provider-names report)))
+     eq?))
+  (define local-demanded
+    (filter (lambda (name) (memq name local-names)) required-names))
+  (define language-demanded
+    (filter webracket/base-language-provider-name? required-names))
+  (define external-demanded
+    (webracket/base-external-provider-names reports))
+  (printf "provider-demand-count\tlocal\t~a\n" (length local-demanded))
+  (printf "provider-demand-count\tlanguage-root\t~a\n" (length language-demanded))
+  (printf "provider-demand-count\texternal\t~a\n" (length external-demanded))
+  (for ([name (in-list external-demanded)])
+    (printf "provider-demand\texternal\t~a\n" name))
+  (for ([name (in-list language-demanded)])
+    (printf "provider-demand\tlanguage-root\t~a\n" name)))
+
 (module+ main
   (define trial-name 'racket/bool)
   (define timeout-seconds 120)
   (define frontier-limit #f)
   (define trace-limit 40)
-  (define cut-language-root? #f)
+  (define cut-language-root? #t)
   (command-line
    #:program "probe-webracket-base-provider-phases"
    #:once-each
@@ -196,8 +222,10 @@
                          (set! frontier-limit (string->number n))]
    [("--trace-limit") n "provider trace rows to print"
                       (set! trace-limit (string->number n))]
-   [("--cut-language-root") "experiment: cut webracket/base language providers from external discovery"
-                            (set! cut-language-root? #t)])
+   [("--cut-language-root") "cut webracket/base language providers from external discovery (default)"
+                            (set! cut-language-root? #t)]
+   [("--include-language-root") "experiment: include webracket/base language providers in external discovery"
+                                (set! cut-language-root? #f)])
   (define trial (webify-provider-trial-ref trial-name))
   (define source-dir (make-temporary-file "webracket-base-provider-phase-src-~a" 'directory))
   (define source-path (build-path source-dir "main.rkt"))
@@ -213,6 +241,7 @@
                       timeout-seconds
                       (lambda ()
                         (webracket/base-file->local-module-reports source-path))))
+        (print-provider-demand-summary! reports)
         (define trace-box (box '()))
         (define stages
           (run-provider-discovery-stage!
@@ -230,7 +259,7 @@
               #:skip-provider?
               (lambda (name)
                 (and cut-language-root?
-                     (memq name '(webracket/base webracket/base/main))))))))
+                     (webracket/base-language-provider-name? name)))))))
         (print-stage-timings!
          (webify-module-provider-discovery-stages-timings stages))
         (define registry

@@ -200,11 +200,13 @@ Current bridge readiness:
   `racket/bool` probe produced more than 21k provider trace events, mostly
   cached `unresolved-import-candidate` checks. Candidate-report memoization
   reduced the 10-second traces for the three trial modules to about 1.9k-2.0k
-  rows, but they still time out at the provider-discovery stage. A
-  `--cut-language-root` experiment that cuts `webracket/base` and
-  `webracket/base/main` lets `racket/bool` finish provider discovery in about
-  one second and reach `compile-to-wat`, so the next bottleneck is the
-  language-root provider edge, not the small provider itself.
+  rows, but they still timed out at the provider-discovery stage. The bridge now
+  cuts `webracket/base` language-root providers during external discovery by
+  default. With that policy, the bounded phase probe reaches `compile-to-wat`
+  for `racket/bool`, `racket/list`, and `racket/string`; provider discovery is
+  roughly 0.5s for `racket/bool` and 1.5s for the list/string trials on the
+  current machine. The probe also prints a local/language-root/external demand
+  split, so future graph growth is easier to attribute.
 - Default-switch policy: keep `--webracket-base-module-bridge` opt-in for now,
   but treat the local-only bridge as the preferred candidate. The remaining
   blocker is provider-graph performance and ambiguity, not local module

@@ -1432,6 +1432,7 @@
           #:extra-reports (list webify-module-protocol-report)
           #:fetch-provider (lambda (name)
                              (webify-module-provider-cache-ref provider-cache name))
+          #:skip-provider? webracket/base-language-provider-name?
           #:module-protocol-dependency webify-module-protocol-dependency
           #:demand-slice? #t))
        (provider-cache-log "#lang webracket/base provider cache: ~a hit(s), ~a miss(es)"

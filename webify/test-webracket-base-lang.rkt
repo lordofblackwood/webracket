@@ -16,6 +16,8 @@
                   webracket/base-local-module-graph-registry
                   webracket/base-reports->module-graph
                   webracket/base-reports-demand-external-providers?)
+         (only-in "module-extractor.rkt"
+                  webify-compile-module-report)
          "test-module-support.rkt"
          "webracket-base-surface.rkt")
 
@@ -563,6 +565,38 @@
     (lambda ()
       (with-handlers ([exn:fail:filesystem? void])
         (delete-directory/files source-dir)))))
+
+(test-case "#lang webracket/base provider discovery cuts language-root providers"
+  (call-with-webracket-collection-path
+   (lambda ()
+     (define root-report
+       (webify-compile-module-report
+        '(module main racket/base
+           (require (only-in racket/list first))
+           (provide answer)
+           (define answer first))))
+     (define list-report
+       (webify-compile-module-report
+        '(module racket/list racket/base
+           (require webracket/base/main)
+           (provide first)
+           (define first 'first))))
+     (define fetched '())
+     (define graph
+       (webracket/base-reports->module-graph
+        'main
+        (list root-report)
+        #:fetch-provider
+        (lambda (name)
+          (set! fetched (append fetched (list name)))
+          (case name
+            [(racket/list) list-report]
+            [else (error 'fetch-provider "unexpected fetch: ~s" name)]))))
+     (check-equal? fetched '(racket/list))
+     (check-equal? (webify-module-registry-plan
+                    (webracket/base-local-module-graph-registry graph)
+                    '(main))
+                   '(module-protocol racket/list main)))))
 
 (test-case "#lang webracket/base provider discovery rejects providers outside the trial allowlist"
   (define source-dir (make-temporary-file "webracket-base-provider-reject-src-~a" 'directory))

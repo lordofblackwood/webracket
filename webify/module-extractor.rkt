@@ -163,6 +163,7 @@ webify-linklet-import-bindings
          reports
          #:extra-reports [extra-reports '()]
          #:fetch-provider [fetch-provider webify-module-path->extractor-spike]
+         #:skip-provider? [skip-provider? (lambda (name) #f)]
          #:dependencies [dependencies '()]
          #:module-protocol-dependency [module-protocol-dependency #f]
          #:demand-slice? [demand-slice? #f])
@@ -171,6 +172,7 @@ webify-linklet-import-bindings
     reports
     #:extra-reports extra-reports
     #:fetch-provider fetch-provider
+    #:skip-provider? skip-provider?
     #:dependencies dependencies
     #:module-protocol-dependency module-protocol-dependency
     #:demand-slice? demand-slice?)))
@@ -181,6 +183,7 @@ webify-linklet-import-bindings
          module-data
          #:extra-reports [extra-reports '()]
          #:fetch-provider [fetch-provider webify-module-path->extractor-spike]
+         #:skip-provider? [skip-provider? (lambda (name) #f)]
          #:dependencies [dependencies '()]
          #:module-protocol-dependency [module-protocol-dependency #f]
          #:demand-slice? [demand-slice? #f])
@@ -189,6 +192,7 @@ webify-linklet-import-bindings
     module-data
     #:extra-reports extra-reports
     #:fetch-provider fetch-provider
+    #:skip-provider? skip-provider?
     #:dependencies dependencies
     #:module-protocol-dependency module-protocol-dependency
     #:demand-slice? demand-slice?)))
