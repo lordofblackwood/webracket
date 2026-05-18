@@ -55,6 +55,21 @@
          webify-module-extractor-spike-import-export-demand-reasons
          webify-module-extractor-spike/slice-exports
          webify-module-extractor-spikes->discovered-resolved-linklet-inputs
+         webify-module-provider-discovery-run-stages
+         webify-module-provider-discovery-stages?
+         webify-module-provider-discovery-stages-discovered-reports
+         webify-module-provider-discovery-stages-resolved-reports
+         webify-module-provider-discovery-stages-inputs
+         webify-module-provider-discovery-stages-timings
+         webify-module-provider-discovery-trace-event
+         webify-module-provider-discovery-trace-event?
+         webify-module-provider-discovery-trace-event-provider
+         webify-module-provider-discovery-trace-event-demander
+         webify-module-provider-discovery-trace-event-depth
+         webify-module-provider-discovery-trace-event-cached?
+         webify-module-provider-discovery-trace-event-reason
+         webify-module-provider-discovery-trace-event-elapsed-ms
+         webify-module-provider-discovery-trace-event-status
          webify-module-provider-cache
          webify-module-provider-cache?
          make-webify-module-provider-cache
@@ -134,6 +149,13 @@
 (struct webify-module-provider-cache (fetch-provider table hits misses) #:transparent)
 (struct webify-module-export-demand (module exports) #:transparent)
 (struct webify-module-export-demand-reason (module export importer import local) #:transparent)
+(struct webify-module-provider-discovery-stages
+  (discovered-reports resolved-reports inputs timings)
+  #:constructor-name make-webify-module-provider-discovery-stages
+  #:transparent)
+(struct webify-module-provider-discovery-trace-event
+  (provider demander depth cached? reason elapsed-ms status)
+  #:transparent)
 
 ;; maybe-decompile-linklet : (or/c procedure? #f)
 ;;   Use the newer decompiler API when the host Racket provides it.
@@ -1215,7 +1237,9 @@
 (define (webify-module-extractor-spikes->required-provider-closure
          reports
          #:fetch-provider [fetch-provider webify-module-path->extractor-spike]
-         #:skip-unfetchable? [skip-unfetchable? #t])
+         #:skip-unfetchable? [skip-unfetchable? #t]
+         #:trace-box [trace-box #f]
+         #:frontier-limit [frontier-limit #f])
   (define who 'webify-module-extractor-spikes->required-provider-closure)
   (unless (list? reports)
     (raise-argument-error who "(listof webify-module-extractor-spike?)" reports))
@@ -1223,11 +1247,32 @@
     (raise-argument-error who "procedure?" fetch-provider))
   (unless (boolean? skip-unfetchable?)
     (raise-argument-error who "boolean?" skip-unfetchable?))
+  (unless (or (not trace-box) (box? trace-box))
+    (raise-argument-error who "(or/c #f box?)" trace-box))
+  (unless (or (not frontier-limit) (exact-positive-integer? frontier-limit))
+    (raise-argument-error who "(or/c #f exact-positive-integer?)" frontier-limit))
   (for ([report (in-list reports)])
     (unless (webify-module-extractor-spike? report)
       (raise-argument-error who "webify-module-extractor-spike?" report)))
   (define reports-by-name (make-hasheq))
+  (define depths-by-name (make-hasheq))
   (define ordered '())
+  (define (trace! provider demander depth cached? reason elapsed-ms status)
+    (when trace-box
+      (set-box!
+       trace-box
+       (append
+        (unbox trace-box)
+        (list (webify-module-provider-discovery-trace-event
+               provider demander depth cached? reason elapsed-ms status))))))
+  (define (check-frontier! reason)
+    (when (and frontier-limit (> (hash-count reports-by-name) frontier-limit))
+      (raise-arguments-error
+       who
+       "provider discovery frontier limit reached"
+       "limit" frontier-limit
+       "reason" reason
+       "frontier" (map webify-module-extractor-spike-name ordered))))
   (define (record! report)
     (define name (webify-module-extractor-spike-name report))
     (cond
@@ -1235,28 +1280,44 @@
       [else
        (hash-set! reports-by-name name report)
        (set! ordered (append ordered (list report)))
+       (check-frontier! name)
        #t]))
   (for ([report (in-list reports)])
-    (record! report))
+    (when (record! report)
+      (hash-set! depths-by-name
+                 (webify-module-extractor-spike-name report)
+                 0)))
   (let loop ([queue reports])
     (cond
       [(null? queue) ordered]
       [else
        (define report (car queue))
+       (define demander (webify-module-extractor-spike-name report))
+       (define demander-depth (hash-ref depths-by-name demander 0))
+       (define import-map (webify-module-extractor-spike-import-map report))
        (define new-reports '())
-       (define (fetch-report name)
+       (define (fetch-report name reason)
+         (define cached-report (hash-ref reports-by-name name #f))
          (cond
-           [(hash-ref reports-by-name name #f)]
+           [cached-report
+            (trace! name demander (hash-ref depths-by-name name demander-depth) #t reason 0 'cached)
+            cached-report]
            [else
+            (define start-ms (current-inexact-milliseconds))
             (define provider-report
               (with-handlers ([exn:fail?
                                (lambda (exn)
-                                 (if skip-unfetchable?
-                                     #f
-                                     (raise exn)))])
+                                 (trace! name demander (add1 demander-depth) #f reason
+                                         (- (current-inexact-milliseconds) start-ms)
+                                         'failed)
+                                 (if skip-unfetchable? #f (raise exn)))])
                 (fetch-provider name)))
             (cond
-              [(not provider-report) #f]
+              [(not provider-report)
+               (trace! name demander (add1 demander-depth) #f reason
+                       (- (current-inexact-milliseconds) start-ms)
+                       'skipped)
+               #f]
               [else
                (unless (webify-module-extractor-spike? provider-report)
                  (raise-arguments-error who
@@ -1268,12 +1329,15 @@
                                         "provider report name does not match requested module"
                                         "module" name
                                         "report name" (webify-module-extractor-spike-name provider-report)))
+               (hash-set! depths-by-name name (add1 demander-depth))
+               (trace! name demander (add1 demander-depth) #f reason
+                       (- (current-inexact-milliseconds) start-ms)
+                       'fetched)
                (when (record! provider-report)
                  (set! new-reports (append new-reports (list provider-report))))
                provider-report])]))
        (for ([name (in-list (webify-module-extractor-spike-required-provider-names report))])
-         (fetch-report name))
-       (define import-map (webify-module-extractor-spike-import-map report))
+         (fetch-report name 'required-provider))
        (for* ([group (in-list (webify-module-import-map-unresolved-import-groups import-map))]
               [binding (in-list group)])
          (match-define (list _local external) binding)
@@ -1282,7 +1346,7 @@
             values
             (for/list ([candidate (in-list (webify-module-import-map-required-module-candidates import-map))]
                        #:when (= 0 (car candidate)))
-              (fetch-report (cadr candidate)))))
+              (fetch-report (cadr candidate) 'unresolved-import-candidate))))
          (define directly-exported?
            (for/or ([candidate-report (in-list candidate-reports)])
              (for/or ([export (in-list (webify-module-extractor-spike-phase0-exports
@@ -1299,7 +1363,7 @@
                             (webify-module-extractor-spike-name candidate-report)
                             external))])
                (match-define (list dependency _provider-export) alias)
-               (fetch-report dependency)))))
+               (fetch-report dependency 'compiled-provide-alias)))))
        (loop (append (cdr queue) new-reports))])))
 
 ;; webify-module-extractor-spikes->discovered-resolved-linklet-inputs : reports ... -> inputs
@@ -1437,6 +1501,8 @@
          #:extra-reports [extra-reports '()]
          #:fetch-provider [fetch-provider webify-module-path->extractor-spike]
          #:skip-unfetchable? [skip-unfetchable? #t]
+         #:trace-box [trace-box #f]
+         #:frontier-limit [frontier-limit #f]
          #:dependencies [dependencies '()]
          #:module-protocol-dependency [module-protocol-dependency #f]
          #:demand-slice? [demand-slice? #f])
@@ -1449,7 +1515,9 @@
     (webify-module-extractor-spikes->required-provider-closure
      (append extra-reports reports)
      #:fetch-provider fetch-provider
-     #:skip-unfetchable? skip-unfetchable?))
+     #:skip-unfetchable? skip-unfetchable?
+     #:trace-box trace-box
+     #:frontier-limit frontier-limit))
   (define resolved-reports
     (if demand-slice?
         (demand-slice-discovered-reports reports
@@ -1462,6 +1530,62 @@
    resolved-reports
    #:dependencies dependencies
    #:module-protocol-dependency module-protocol-dependency))
+
+;; webify-module-provider-discovery-run-stages : reports ... -> stages?
+;;   Run provider discovery as split stages for diagnostics.
+(define (webify-module-provider-discovery-run-stages
+         reports
+         #:extra-reports [extra-reports '()]
+         #:fetch-provider [fetch-provider webify-module-path->extractor-spike]
+         #:skip-unfetchable? [skip-unfetchable? #t]
+         #:trace-box [trace-box #f]
+         #:frontier-limit [frontier-limit #f]
+         #:dependencies [dependencies '()]
+         #:module-protocol-dependency [module-protocol-dependency #f]
+         #:demand-slice? [demand-slice? #f])
+  (define timings '())
+  (define (timed label thunk)
+    (define start-ms (current-inexact-milliseconds))
+    (define result (thunk))
+    (set! timings
+          (append timings
+                  (list (cons label
+                              (- (current-inexact-milliseconds) start-ms)))))
+    result)
+  (define discovered-reports
+    (timed
+     'fetch-provider-closure
+     (lambda ()
+       (webify-module-extractor-spikes->required-provider-closure
+        (append extra-reports reports)
+        #:fetch-provider fetch-provider
+        #:skip-unfetchable? skip-unfetchable?
+        #:trace-box trace-box
+        #:frontier-limit frontier-limit))))
+  (define resolved-reports
+    (timed
+     'demand-slice
+     (lambda ()
+       (if demand-slice?
+           (demand-slice-discovered-reports reports
+                                            extra-reports
+                                            discovered-reports
+                                            dependencies
+                                            module-protocol-dependency)
+           discovered-reports))))
+  (define inputs
+    (timed
+     'resolve-inputs
+     (lambda ()
+       (webify-module-extractor-spikes->resolved-linklet-inputs
+        resolved-reports
+        #:dependencies dependencies
+        #:module-protocol-dependency module-protocol-dependency))))
+  (make-webify-module-provider-discovery-stages
+   discovered-reports
+   resolved-reports
+   inputs
+   timings))
 
 ;; resolve-extracted-linklet-imports : symbol? linklet-datum ... -> imports
 ;;   Classify extracted imports and turn supported ones into flat bridge triples.

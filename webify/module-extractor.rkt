@@ -49,6 +49,21 @@
  webify-module-export-demand-reason-importer
  webify-module-export-demand-reason-import
  webify-module-export-demand-reason-local
+ webify-module-provider-discovery-run-stages
+ webify-module-provider-discovery-stages?
+ webify-module-provider-discovery-stages-discovered-reports
+ webify-module-provider-discovery-stages-resolved-reports
+ webify-module-provider-discovery-stages-inputs
+ webify-module-provider-discovery-stages-timings
+ webify-module-provider-discovery-trace-event
+ webify-module-provider-discovery-trace-event?
+ webify-module-provider-discovery-trace-event-provider
+ webify-module-provider-discovery-trace-event-demander
+ webify-module-provider-discovery-trace-event-depth
+ webify-module-provider-discovery-trace-event-cached?
+ webify-module-provider-discovery-trace-event-reason
+ webify-module-provider-discovery-trace-event-elapsed-ms
+ webify-module-provider-discovery-trace-event-status
  webify-source-module->dependency-exports
  webify-source-modules->dependency-exports
  webify-source-module->linklet-input

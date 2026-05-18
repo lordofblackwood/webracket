@@ -55,7 +55,9 @@ instead of silently widening the experimental module system.
 The provider-trial dashboard can cache summary rows on disk and reports
 demand-sliced versus full extracted closure sizes. The bounded provider phase
 probe currently places the `racket/bool` timeout in provider-graph discovery,
-before composition or WebRacket compilation.
+before composition or WebRacket compilation. It also supports provider trace
+rows and a frontier limit; the first `racket/bool` trace points at repeated
+cached unresolved-import candidate checks as the likely next bottleneck.
 
 Reader resolution uses Racket's normal collection search via
 `collection-file-path`. The driver does not add checkout-specific fallback

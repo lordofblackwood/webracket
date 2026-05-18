@@ -194,7 +194,12 @@ Current bridge readiness:
   performance/composition milestone rather than a completed default smoke.
   A bounded phase probe now shows the immediate timeout frontier for
   `racket/bool` is provider-graph discovery, before module composition,
-  WebRacket compilation, Wasm assembly, or JavaScript execution.
+  WebRacket compilation, Wasm assembly, or JavaScript execution. The same probe
+  can now print per-provider trace rows and stop at a provider frontier limit;
+  with a 10-second bound and a 12-row trace prefix, `racket/bool` had already
+  produced more than 21k provider trace events, mostly cached
+  `unresolved-import-candidate` checks. That points at repeated candidate scans
+  as the next optimization target, not slow single-provider extraction.
 - Default-switch policy: keep `--webracket-base-module-bridge` opt-in for now,
   but treat the local-only bridge as the preferred candidate. The remaining
   blocker is provider-graph performance and ambiguity, not local module

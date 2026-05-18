@@ -357,6 +357,45 @@
                 '(dep/a dep/b dep/c))
   (check-equal? (sort fetched symbol<?) '(dep/a dep/b dep/c)))
 
+(test-case "provider discovery trace records reasons, depth, cache, and frontier"
+  (define root-report (synthetic-report 'root '(dep/a dep/b)))
+  (define dep-a-report (synthetic-report 'dep/a '(dep/c)))
+  (define dep-b-report (synthetic-report 'dep/b '(dep/c)))
+  (define dep-c-report (synthetic-report 'dep/c '()))
+  (define provider-table
+    (hasheq 'dep/a dep-a-report
+            'dep/b dep-b-report
+            'dep/c dep-c-report))
+  (define trace-box (box '()))
+  (define closure
+    (webify-module-reports->required-provider-closure
+     (list root-report)
+     #:trace-box trace-box
+     #:fetch-provider (lambda (name) (hash-ref provider-table name))))
+  (check-equal? (car (map webify-module-report-name closure)) 'root)
+  (check-equal? (sort (cdr (map webify-module-report-name closure)) symbol<?)
+                '(dep/a dep/b dep/c))
+  (define trace (unbox trace-box))
+  (check-not-false
+   (for/or ([event (in-list trace)])
+     (and (eq? (webify-module-provider-discovery-trace-event-provider event)
+               'dep/c)
+          (webify-module-provider-discovery-trace-event-cached? event))))
+  (check-not-false
+   (for/or ([event (in-list trace)])
+     (and (eq? (webify-module-provider-discovery-trace-event-provider event)
+               'dep/a)
+          (= (webify-module-provider-discovery-trace-event-depth event) 1)
+          (eq? (webify-module-provider-discovery-trace-event-reason event)
+               'required-provider))))
+  (check-exn
+   #rx"provider discovery frontier limit reached"
+   (lambda ()
+     (webify-module-reports->required-provider-closure
+      (list root-report)
+      #:frontier-limit 2
+      #:fetch-provider (lambda (name) (hash-ref provider-table name))))))
+
 (test-case "stable provider closure skips unfetchable candidates"
   (define root-report (synthetic-report 'root '(dep/a dep/missing)))
   (define dep-a-report (synthetic-report 'dep/a '()))
