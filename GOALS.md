@@ -285,6 +285,9 @@ wrappers. Console is the first runnable pilot:
 generated import-backed pilot:
 `ffi/math.ffi -> webracket/unsafe/math -> js/math`; its unsafe bindings are
 declared, export-checked, and resolved through active `.ffi` primitive closures.
+For module-language programs, the driver infers required `.ffi` bundles from
+the provider graph for generated unsafe modules such as `js/math` and
+`js/temp`, so users should not need manual `--ffi` flags for those providers.
 Future JavaScript/browser/Node bindings should grow as modules such as
 `js/console`, `js/math`, `browser/dom`, and `webracket/unsafe/*`, while
 low-level Wasm imports remain runtime helpers. Use `js/*` for JavaScript

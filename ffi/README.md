@@ -35,9 +35,11 @@ ffi/temp.ffi
 `webracket/unsafe/console` is currently a primitive-backed shim so module
 programs can require the raw console names. `webracket/unsafe/math` and
 `webracket/unsafe/temp` are generated unsafe modules whose bindings call the
-private `unsafe-ffi-primitive` hook, so compiling users must include the
-matching `.ffi` bundle, for example `--ffi math`. Their export sets are checked
-against their `.ffi` declarations.
+private `unsafe-ffi-primitive` hook. For `#lang webracket/base` and
+`#lang webracket/full` programs, the driver infers the matching `.ffi` bundle
+from required providers such as `js/math` or `webracket/unsafe/math`, so users
+do not need to pass `--ffi math` by hand. Their export sets are checked against
+their `.ffi` declarations.
 
 
 dom.ffi

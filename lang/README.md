@@ -83,10 +83,13 @@ The first public wrapper pilot is `(require js/console)`, backed by
 `webracket/unsafe/console`. The unsafe layer corresponds to `ffi/console.ffi`.
 The second pilot is `(require js/math)`, backed by generated metadata from
 `ffi/math.ffi`; its unsafe layer now resolves active `.ffi` primitive closures
-through `unsafe-ffi-primitive`, so runtime users still need the matching FFI
-bundle such as `--ffi math`. The public `js/*` layer is where checked, Rackety
-wrappers belong. Use `browser/*` for DOM/window/document APIs instead of mixing
-those names into the JavaScript built-in namespace.
+through `unsafe-ffi-primitive`. For module-language programs, required
+providers such as `js/math`, `webracket/unsafe/math`, `js/temp`, and
+`webracket/unsafe/temp` automatically infer their matching `.ffi` bundles, so
+runtime users should not need manual `--ffi` options for those modules. The
+public `js/*` layer is where checked, Rackety wrappers belong. Use `browser/*`
+for DOM/window/document APIs instead of mixing those names into the JavaScript
+built-in namespace.
 
 The current full add-on list and status vocabulary live in
 `webify/webracket-full-surface.rkt`. A library can be exported by

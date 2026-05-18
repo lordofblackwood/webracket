@@ -1482,7 +1482,7 @@
         (with-handlers ([exn:fail:filesystem? void])
           (delete-directory/files dir))))))
 
-(test-case "#lang webracket/base can require and call js/math with --ffi math"
+(test-case "#lang webracket/base infers ffi/math from required js/math"
   (define source-dir (make-temporary-file "webracket-js-math-src-~a" 'directory))
   (define dest-dir   (make-temporary-file "webracket-js-math-dest-~a" 'directory))
   (define source-path (build-path source-dir "use-math.rkt"))
@@ -1497,7 +1497,6 @@
         (run-webracket/base
          (list "-r" "--no-stdlib" "--no-io-format-provider"
                "--webracket-module-bridge"
-               "--ffi" "math"
                "--dest" (path->string dest-dir)
                (path->string source-path))
          source-dir))

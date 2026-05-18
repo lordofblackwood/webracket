@@ -224,6 +224,40 @@
       (include-lib->ffi-filename lib-name)))
   (remove-duplicates inferred))
 
+;; module-provider->ffi-filename : symbol? -> (or/c path-string? #f)
+;;   Return the ffi bundle that a WebRacket module provider needs at runtime.
+(define module-provider->ffi-filename-table
+  '((js/math               . "math.ffi")
+    (webracket/unsafe/math . "math.ffi")
+    (js/temp               . "temp.ffi")
+    (webracket/unsafe/temp . "temp.ffi")))
+
+(define (module-provider->ffi-filename module-name)
+  (define maybe (assq module-name module-provider->ffi-filename-table))
+  (and maybe (cdr maybe)))
+
+;; module-source->inferred-ffi-files : path-string? (listof path-string?) -> (listof path-string?)
+;;   Infer ffi bundles from the actual module-provider graph.
+(define (module-source->inferred-ffi-files filename ffi-files)
+  (define suppressed-ffi-stems
+    (remove-duplicates
+     (filter values (map ffi-filename-stem ffi-files))))
+  (define-values (_root reports)
+    (webracket/base-file->local-module-reports filename))
+  (define provider-names
+    (remove-duplicates
+     (append (map webify-module-report-name reports)
+             (append-map webify-module-report-required-provider-names reports))
+     eq?))
+  (for/list ([provider-name (in-list provider-names)]
+             #:do [(define ffi-filename
+                     (module-provider->ffi-filename provider-name))]
+             #:when ffi-filename
+             #:unless (member (ffi-filename-stem ffi-filename)
+                              suppressed-ffi-stems
+                              equal?))
+    ffi-filename))
+
 ;; default-ffi-files : boolean? -> (listof path-string?)
 ;;   Return the bundled FFI files enabled by default for the target.
 (define (default-ffi-files browser?)
@@ -234,8 +268,8 @@
 ;; merged-ffi-files : symbol? boolean? (listof path-string?) [syntax?] -> (listof path?)
 ;;   Resolve and deduplicate default, explicit, and inferred ffi files.
 ;;     explicit: from the command line
-;;     inferred: from include-lib
-(define (merged-ffi-files who browser? ffi-files [stx #f])
+;;     inferred: from include-lib and module-provider requires
+(define (merged-ffi-files who browser? ffi-files [stx #f] #:source-filename [source-filename #f])
   (define resolved-base-ffi-files
     (remove-duplicates
      (resolve-ffi-files! who
@@ -245,10 +279,17 @@
     (if stx
         (source->inferred-ffi-files stx resolved-base-ffi-files)
         '()))
+  (define module-inferred-ffi-files
+    (if (and source-filename (current-source-module-language))
+        (module-source->inferred-ffi-files source-filename
+                                           (append resolved-base-ffi-files
+                                                   inferred-ffi-files))
+        '()))
   (remove-duplicates
    (resolve-ffi-files! who
                        (append resolved-base-ffi-files
-                               inferred-ffi-files))))
+                               inferred-ffi-files
+                               module-inferred-ffi-files))))
 
 ;;;
 ;;; Include Files
@@ -1001,7 +1042,11 @@
   ; 2. Handle ffi-files.
   (define t-ffi-setup-start  (now-ms))
   (define resolved-ffi-files
-    (merged-ffi-files 'drive-compilation browser? ffi-files stx))
+    (merged-ffi-files 'drive-compilation
+                      browser?
+                      ffi-files
+                      stx
+                      #:source-filename filename))
 
   (define ffi-foreigns  '()) ; list of `foreign` structures
   (define ffi-imports   '()) ; list of wat
