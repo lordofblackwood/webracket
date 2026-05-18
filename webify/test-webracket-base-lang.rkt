@@ -12,6 +12,7 @@
                   cached-installed-provider-report
                   current-provider-cache-dir
                   current-provider-cache-force?
+                  provider-report-cache-entries
                   read-top-level-from-file
                   webracket/base-external-provider-names
                   webracket/base-file->local-module-graph
@@ -28,6 +29,7 @@
                   webify-provider-trial-module-allowed?)
          "test-module-support.rkt"
          "webracket-base-surface.rkt"
+         "webracket-full-dashboard.rkt"
          "webracket-full-surface.rkt")
 
 (define-runtime-path repo-root* "..")
@@ -308,7 +310,7 @@
         (with-handlers ([exn:fail:filesystem? void])
           (delete-directory/files dir))))))
 
-(test-case "#lang webracket/base reaches staged format provider through the driver"
+(test-case "#lang webracket/base does not compose temporary format provider"
   (define source-dir (make-temporary-file "webracket-base-format-src-~a" 'directory))
   (define dest-dir   (make-temporary-file "webracket-base-format-dest-~a" 'directory))
   (define source-path (build-path source-dir "base-format-smoke.rkt"))
@@ -325,14 +327,14 @@
                "--dest" (path->string dest-dir)
                (path->string source-path))
          source-dir))
-      (check-equal? status 0 output)
-      (check-regexp-match #rx"(?m:^fmt ok write \\(err\\)$)" output))
+      (check-not-equal? status 0 output)
+      (check-regexp-match #rx"format" output))
     (lambda ()
       (for ([dir (in-list (list source-dir dest-dir))])
         (with-handlers ([exn:fail:filesystem? void])
           (delete-directory/files dir))))))
 
-(test-case "#lang webracket/base module bridge reaches staged format provider"
+(test-case "#lang webracket/base forced bridge does not compose temporary format provider"
   (define source-dir (make-temporary-file "webracket-base-bridge-format-src-~a" 'directory))
   (define dest-dir   (make-temporary-file "webracket-base-bridge-format-dest-~a" 'directory))
   (define source-path (build-path source-dir "base-bridge-format-smoke.rkt"))
@@ -346,12 +348,12 @@
       (define-values (status output)
         (run-webracket/base
          (list "-r" "--no-stdlib"
-               "--webracket-base-module-bridge"
+               "--webracket-module-bridge"
                "--dest" (path->string dest-dir)
                (path->string source-path))
          source-dir))
-      (check-equal? status 0 output)
-      (check-regexp-match #rx"(?m:^fmt ok write$)" output))
+      (check-not-equal? status 0 output)
+      (check-regexp-match #rx"format" output))
     (lambda ()
       (for ([dir (in-list (list source-dir dest-dir))])
         (with-handlers ([exn:fail:filesystem? void])
@@ -406,7 +408,7 @@
          (lambda ()
            (syntax->datum
             (read-top-level-from-file main-path
-                                      #:webracket-base-module-bridge? #f)))))
+                                      #:webracket-module-bridge? #f)))))
       (check-true
        (let loop ([v lowered])
          (cond
@@ -739,10 +741,22 @@
         (define report-2 (cached-installed-provider-report 'racket/list fetch))
         (check-equal? fetch-count 1)
         (check-equal? (webify-module-report-name report-1) 'racket/list)
-        (check-equal? (webify-module-report-name report-2) 'racket/list)))
+        (check-equal? (webify-module-report-name report-2) 'racket/list)
+        (define entries (provider-report-cache-entries))
+        (check-equal? (length entries) 1)
+        (check-regexp-match #rx"racket_list[.]rktd$"
+                            (path->string (caar entries)))))
     (lambda ()
       (with-handlers ([exn:fail:filesystem? void])
         (delete-directory/files cache-dir)))))
+
+(test-case "webracket/full dashboard tracks curated provider rows"
+  (define rows (webracket-full-dashboard-rows))
+  (for ([name (in-list '(racket/list racket/string racket/vector racket/function))])
+    (check-not-false (assoc name rows)
+                     (symbol->string name)))
+  (check-equal? (list-ref (assoc 'racket/vector rows) 5) 'allowlisted)
+  (check-equal? (list-ref (assoc 'racket/promise rows) 5) 'not-allowlisted))
 
 (test-case "#lang webracket/base provider allowlist covers current Goal 1 trials"
   (for ([name (in-list '(racket/list
@@ -988,7 +1002,7 @@
       (define-values (status output)
         (run-webracket/base
          (list "-r" "--no-stdlib" "--no-io-format-provider"
-               "--webracket-base-module-bridge"
+               "--webracket-module-bridge"
                "--dest" (path->string dest-dir)
                (path->string main-path))
          source-dir))
@@ -1025,7 +1039,7 @@
       (define-values (bridge-status bridge-output)
         (run-webracket/base
          (list "-r" "--no-stdlib" "--no-io-format-provider"
-               "--webracket-base-module-bridge"
+               "--webracket-module-bridge"
                "--dest" (path->string bridge-dir)
                (path->string main-path))
          source-dir))
@@ -1057,7 +1071,7 @@
       (define-values (status output)
         (run-webracket/base
          (list "-r" "--no-stdlib" "--no-io-format-provider"
-               "--webracket-base-module-bridge"
+               "--webracket-module-bridge"
                "--dest" (path->string dest-dir)
                (path->string main-path))
          source-dir))
@@ -1087,7 +1101,7 @@
       (define-values (status output)
         (run-webracket/base
          (list "-r" "--no-stdlib" "--no-io-format-provider"
-               "--webracket-base-module-bridge"
+               "--webracket-module-bridge"
                "--dest" (path->string dest-dir)
                (path->string main-path))
          source-dir))
@@ -1117,7 +1131,7 @@
       (define-values (status output)
         (run-webracket/base
          (list "-r" "--no-stdlib" "--no-io-format-provider"
-               "--webracket-base-module-bridge"
+               "--webracket-module-bridge"
                "--dest" (path->string dest-dir)
                (path->string main-path))
          source-dir))
@@ -1196,7 +1210,7 @@
       (define-values (status output)
         (run-webracket/base
          (list "-r" "--no-stdlib" "--no-io-format-provider"
-               "--webracket-base-module-bridge"
+               "--webracket-module-bridge"
                "--dest" (path->string dest-dir)
                (path->string main-path))
          source-dir))
@@ -1265,7 +1279,7 @@
       (define-values (status output)
         (run-webracket/base
          (list "-r" "--no-stdlib" "--no-io-format-provider"
-               "--webracket-base-module-bridge"
+               "--webracket-module-bridge"
                "--dest" (path->string dest-dir)
                (path->string main-path))
          source-dir))

@@ -57,11 +57,12 @@
   (make-parameter #f)) ; experimental staged original-Racket expander/read provider
 (define expander-read-syntax-provider?
   (make-parameter #f)) ; private staged original-Racket read-syntax provider
-(define webracket-base-module-bridge?
-  (make-parameter #f)) ; experimental #lang webracket/base/full module bridge
+(define webracket-module-bridge?
+  (make-parameter #f)) ; force #lang webracket/base/full module bridge
 (define provider-cache-dir (make-parameter #f))
 (define clear-provider-cache? (make-parameter #f))
 (define force-provider-cache-refresh? (make-parameter #f))
+(define provider-cache-report? (make-parameter #f))
 
 (define (normalize-vfs-preload-path-for-duplicates path)
   (regexp-replace #px"/+$" path ""))
@@ -240,15 +241,15 @@
    [("--no-expander-read-syntax-provider")
     "Disable private staged original-Racket read-syntax provider (default)"
     (expander-read-syntax-provider? #f)]
-   [("--webracket-base-module-bridge")
-    "Compile #lang webracket/base or full through the experimental local module bridge"
-    (webracket-base-module-bridge? #t)]
    [("--webracket-module-bridge")
-    "Alias for --webracket-base-module-bridge"
-    (webracket-base-module-bridge? #t)]
+    "Force #lang webracket/base or full through the module bridge"
+    (webracket-module-bridge? #t)]
    [("--provider-cache-dir") dirname
                              "Use <dirname> for provider-slice caches"
                              (provider-cache-dir dirname)]
+   [("--provider-cache-report")
+    "Print installed-provider report cache entries and exit"
+    (provider-cache-report? #t)]
    [("--clear-provider-cache") "Delete the provider cache directory before compiling"
                                (clear-provider-cache? #t)]
    [("--force-provider-cache-refresh")
@@ -310,6 +311,16 @@
    (for ([line (in-list (provider-slice-report-lines))])
      (displayln line))
    (exit 0)]
+  [(provider-cache-report?)
+   (current-provider-cache-dir
+    (path->complete-path
+     (if (provider-cache-dir)
+         (string->path (provider-cache-dir))
+         webify-regexp-default-cache-root)))
+   (for ([entry (in-list (provider-report-cache-entries))])
+     (match-define (list path size mtime) entry)
+     (printf "~a\t~a\t~a\n" path size mtime))
+   (exit 0)]
   [else
    (unless (= (length positional-filenames) 1)
      (error 'webracket
@@ -354,8 +365,8 @@
                      #:expander-read-provider? (expander-read-provider?)
                      #:expander-read-syntax-provider?
                      (expander-read-syntax-provider?)
-                     #:webracket-base-module-bridge?
-                     (webracket-base-module-bridge?)
+                     #:webracket-module-bridge?
+                     (webracket-module-bridge?)
                      #:provider-cache-dir
                      (or (provider-cache-dir) webify-regexp-default-cache-root)
                      #:clear-provider-cache? (clear-provider-cache?)

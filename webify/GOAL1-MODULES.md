@@ -87,8 +87,13 @@ and replacing temporary stdlib pieces with original Racket module sources.
 The driver now tries the module bridge by default for `#lang webracket/base`
 and `#lang webracket/full` files whose extracted graph has no installed
 provider demands after language-root providers are cut. If external providers
-remain, the driver falls back to the transitional top-level lowering unless the
-explicit module-bridge flag is supplied.
+remain, the driver falls back to the transitional top-level lowering unless
+`--webracket-module-bridge` is supplied.
+
+Module-language inputs deliberately skip the temporary stdlib and unconditional
+provider prelude. The old textual stdlib remains useful for script-style
+top-level compatibility, but Goal 1 modules should be composed from modules and
+providers, not from stdlib text.
 
 `--timings` prints a `Read Source Details` table for this path. A tiny
 `#lang webracket/base` program currently spends little time in module reading,

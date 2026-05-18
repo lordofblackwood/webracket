@@ -336,10 +336,33 @@
 (define current-read-source-timing-rows
   (make-parameter '()))
 
+(define current-source-module-language
+  (make-parameter #f))
+
 ;; provider-cache-path : path-string? ... -> path?
 ;;   Build a cache path under the active provider cache directory.
 (define (provider-cache-path . elems)
   (apply build-path (current-provider-cache-dir) elems))
+
+;; provider-report-cache-directory : -> path?
+;;   Return the directory used for installed provider report cache entries.
+(define (provider-report-cache-directory)
+  (provider-cache-path "installed-provider-reports"))
+
+;; provider-report-cache-entries : -> (listof (list/c path? integer? integer?))
+;;   Report installed-provider cache files for diagnostics and tests.
+(define (provider-report-cache-entries)
+  (define dir (provider-report-cache-directory))
+  (if (directory-exists? dir)
+      (sort
+       (for/list ([path (in-list (find-files file-exists? dir))]
+                  #:when (file-exists? path))
+         (list path
+               (file-size path)
+               (file-or-directory-modify-seconds path)))
+       string<?
+       #:key (lambda (entry) (path->string (car entry))))
+      '()))
 
 ;; driver-timing-add! : symbol? exact-integer? -> void?
 ;;   Record fine-grained source-reading timing rows for `--timings`.
@@ -923,7 +946,7 @@
          #:stdlib-io-format-provider? [stdlib-io-format-provider? #t]
          #:expander-read-provider? [expander-read-provider? #f]
          #:expander-read-syntax-provider? [expander-read-syntax-provider? #f]
-         #:webracket-base-module-bridge? [webracket-base-module-bridge? #f]
+         #:webracket-module-bridge? [webracket-module-bridge? #f]
          ;; Provider Cache
          #:provider-cache-dir [provider-cache-dir webify-regexp-default-cache-root]
          #:clear-provider-cache? [clear-provider-cache? #f]
@@ -932,6 +955,7 @@
   (define exit-code       0)
   (define compile-timings #f)
   (define t-driver-start (now-ms))
+  (current-source-module-language #f)
 
   (current-browser? browser?)
   (current-enable-cc-analysis? enable-cc-analysis?)
@@ -967,7 +991,7 @@
                                         (~a "read failed: " (exn-message e))))])
       (read-top-level-from-file
        filename
-       #:webracket-base-module-bridge? webracket-base-module-bridge?)))
+       #:webracket-module-bridge? webracket-module-bridge?)))
   (define t-read-source-end (now-ms))
   (define stx-for-compile
     (if print-top-level-results?
@@ -1003,6 +1027,16 @@
   (define t-add-stdlib-start (now-ms))
   (define stx-with-stdlib
     (cond
+      [(current-source-module-language)
+       (when (and verbose?
+                  (or stdlib?
+                      stdlib-io-format-provider?
+                      expander-read-provider?
+                      expander-read-syntax-provider?))
+         (displayln
+          "Skipping temporary stdlib/provider prelude for module-language input"
+          (current-error-port)))
+       stx-for-compile]
       [(and stdlib? browser?)
        (when verbose?
          (displayln "Composing module stdlib root `stdlib/stdlib-for-browser.rkt`"
@@ -1705,9 +1739,10 @@
   (datum->syntax stx `(begin ,@top-level-forms ,@export-forms) stx))
 
 (define (read-top-level-from-file filename
-                                  #:webracket-base-module-bridge?
-                                  [webracket-base-module-bridge? #f])
+                                  #:webracket-module-bridge?
+                                  [webracket-module-bridge? #f])
   (current-read-source-timing-rows '())
+  (current-source-module-language #f)
   (define first-line
     (call-with-input-file filename
       (λ (port)
@@ -1733,15 +1768,19 @@
           ;; checkout as an installed `webracket/lang/reader` collection.
           (cond
             [starts-with-webracket-lang?
+             (current-source-module-language #f)
              (void (read-line port 'any))
              (define forms (read-forms port))
              (datum->syntax #f `(begin ,@forms))]
             [starts-with-webracket/base-lang?
-             (if webracket-base-module-bridge?
+             (current-source-module-language
+              (webracket-module-lang-line->language first-line))
+             (if webracket-module-bridge?
                  (module-file->module-bridge-top-level filename)
                  (or (module-file->module-bridge-top-level/local-only filename)
                      (module-file->top-level filename)))]
             [else
+             (current-source-module-language #f)
              (define forms (read-forms port))
              (datum->syntax #f `(begin ,@forms))]))))))
 

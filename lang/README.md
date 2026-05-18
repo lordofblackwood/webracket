@@ -22,13 +22,12 @@ imports, must fail clearly instead of being approximated here. The intended
 direction is to use Webify's module report/registry/composer pipeline and then
 delete this source-level lowering.
 
-An opt-in bridge for that direction is available with
-`--webracket-base-module-bridge`. In that mode, the driver extracts a local
-`#lang webracket/base` graph, builds a module registry with `module-protocol`,
-and composes the root through module instances and module-variable cells. Keep
-this path behind the flag until it covers the supported `webracket/base`
-surface; it is the candidate replacement for the transitional source-level
-lowering, not an additional parser to grow indefinitely.
+The module bridge is now the default for local-only `#lang webracket/base` and
+`#lang webracket/full` graphs. The driver extracts a local graph, builds a
+module registry with `module-protocol`, and composes the root through module
+instances and module-variable cells. The `--webracket-module-bridge` flag only
+forces this path for provider-demanding modules while provider graph support is
+still experimental.
 
 The bridge currently recovers local dependencies from expanded/compiled import
 metadata instead of raw source require syntax. Smokes pass for simple local

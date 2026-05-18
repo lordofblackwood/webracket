@@ -76,11 +76,9 @@ Implemented or partially implemented:
   module system. It accepts only plain local string requires for smoke tests and
   rejects richer require specs clearly. The next intended path is extracting
   local module reports and composing them through Webify's module registry.
-- An opt-in `--webracket-base-module-bridge` driver path now extracts a local
-  `#lang webracket/base` graph, composes it through module instances, and runs
-  exports through module-variable cells. This is the replacement candidate for
-  the transitional source-level lowering, but it remains behind a flag while
-  the supported module subset is still small.
+- `#lang webracket/base` and `#lang webracket/full` local-only module graphs
+  now use the module bridge by default. The explicit `--webracket-module-bridge`
+  flag remains only to force the bridge for provider-demanding module inputs.
 - Module-linklet inputs and manifests.
 - Module registry, module instances, and module-variable cells.
 - Import/export resolution for extracted module graphs.
@@ -244,10 +242,9 @@ Current bridge readiness:
   roughly 0.5s for `racket/bool` and 1.5s for the list/string trials on the
   current machine. The probe also prints a local/language-root/external demand
   split, so future graph growth is easier to attribute.
-- Default-switch policy: keep `--webracket-base-module-bridge` opt-in for now,
-  but treat the local-only bridge as the preferred candidate. The remaining
-  blocker is provider-graph performance and ambiguity, not local module
-  semantics.
+- Default-switch policy: local-only module graphs use the bridge by default.
+  Provider-demanding module graphs still need explicit bridge forcing while
+  provider-graph performance and ambiguity remain under active development.
 - Still intentionally unsupported in the bridge graph extractor: richer local
   phase/import-provider composition in the driver path.
 
