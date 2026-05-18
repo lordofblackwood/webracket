@@ -329,6 +329,7 @@
 (define-primitive current-code-inspector                    0                   (ordered))
 (define-primitive current-compile-realm                     [0 1]               (ordered))
 (define-primitive current-compile-target-machine            [0 1]               (ordered))
+(define-primitive unsafe-ffi-primitive                      1                   (pure restricted))
 (define-primitive unsafe-root-continuation-prompt-tag       0                   (pure))
 (define-primitive current-directory                         [0 1]               (ordered))
 (define-primitive current-directory-for-user                [0 1]               (ordered))

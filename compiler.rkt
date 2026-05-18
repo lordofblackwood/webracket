@@ -2679,6 +2679,7 @@
   resolved-module-path-name
 
   js-log
+  unsafe-ffi-primitive
 
   ;; 10. Control Flow
   call-with-immediate-continuation-mark

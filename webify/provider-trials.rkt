@@ -198,8 +198,10 @@
 (define webify-provider-trial-support-modules
   '(js/console
     js/math
+    js/temp
     webracket/unsafe/console
-    webracket/unsafe/math))
+    webracket/unsafe/math
+    webracket/unsafe/temp))
 
 ;; webify-provider-trial-module-allowlist : (listof symbol?)
 ;;   External providers allowed in the temporary #lang webracket/base bridge.

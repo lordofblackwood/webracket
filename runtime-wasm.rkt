@@ -197,6 +197,11 @@
            (symbol? (cadr form))
            (cadr form)))
 
+    (set! active-ffi-imports-wat
+          (remove-duplicates active-ffi-imports-wat eq? #:key module-func-name))
+    (set! active-ffi-funcs-wat
+          (remove-duplicates active-ffi-funcs-wat eq? #:key module-func-name))
+
     (define (module-global-name form)
       (and (pair? form)
            (eq? (car form) 'global)
@@ -3723,109 +3728,109 @@
               (param i32) (result i32))
 
         ;; Math functions
-        (func $js-math-abs
+        (func $js-raw-math-abs
               (import "math" "abs")
               (param f64) (result f64))
-        (func $js-math-acos
+        (func $js-raw-math-acos
               (import "math" "acos")
               (param f64) (result f64))
-        (func $js-math-acosh
+        (func $js-raw-math-acosh
               (import "math" "acosh")
               (param f64) (result f64))
-        (func $js-math-asin
+        (func $js-raw-math-asin
               (import "math" "asin")
               (param f64) (result f64))
-        (func $js-math-asinh
+        (func $js-raw-math-asinh
               (import "math" "asinh")
               (param f64) (result f64))
-        (func $js-math-atan
+        (func $js-raw-math-atan
               (import "math" "atan")
               (param f64) (result f64))
-        (func $js-math-atan2
+        (func $js-raw-math-atan2
               (import "math" "atan2")
               (param f64) (param f64) (result f64))
-        (func $js-math-atanh
+        (func $js-raw-math-atanh
               (import "math" "atanh")
               (param f64) (result f64))
-        (func $js-math-cbrt
+        (func $js-raw-math-cbrt
               (import "math" "cbrt")
               (param f64) (result f64))
-        (func $js-math-ceil
+        (func $js-raw-math-ceil
               (import "math" "ceil")
               (param f64) (result f64))
-        (func $js-math-clz32
+        (func $js-raw-math-clz32
               (import "math" "clz32")
               (param i32) (result i32))
-        (func $js-math-cos
+        (func $js-raw-math-cos
               (import "math" "cos")
               (param f64) (result f64))
-        (func $js-math-cosh
+        (func $js-raw-math-cosh
               (import "math" "cosh")
               (param f64) (result f64))
-        (func $js-math-exp
+        (func $js-raw-math-exp
               (import "math" "exp")
               (param f64) (result f64))
-        (func $js-math-expm1
+        (func $js-raw-math-expm1
               (import "math" "expm1")
               (param f64) (result f64))
-        (func $js-math-floor
+        (func $js-raw-math-floor
               (import "math" "floor")
               (param f64) (result f64))
-        (func $js-math-fround
+        (func $js-raw-math-fround
               (import "math" "fround")
               (param f64) (result f64))
-        (func $js-math-hypot
+        (func $js-raw-math-hypot
               (import "math" "hypot")
               (param f64) (param f64) (result f64))
-        (func $js-math-imul
+        (func $js-raw-math-imul
               (import "math" "imul")
               (param i32) (param i32) (result i32))
-        (func $js-math-log
+        (func $js-raw-math-log
               (import "math" "log")
               (param f64) (result f64))
-        (func $js-math-log10
+        (func $js-raw-math-log10
               (import "math" "log10")
               (param f64) (result f64))
-        (func $js-math-log1p
+        (func $js-raw-math-log1p
               (import "math" "log1p")
               (param f64) (result f64))
-        (func $js-math-log2
+        (func $js-raw-math-log2
               (import "math" "log2")
               (param f64) (result f64))
-        (func $js-math-max
+        (func $js-raw-math-max
               (import "math" "max")
               (param f64) (param f64) (result f64))
-        (func $js-math-min
+        (func $js-raw-math-min
               (import "math" "min")
               (param f64) (param f64) (result f64))
-        (func $js-math-pow
+        (func $js-raw-math-pow
               (import "math" "pow")
               (param f64) (param f64) (result f64))
-        (func $js-math-random
+        (func $js-raw-math-random
               (import "math" "random")
               (result f64))
-        (func $js-math-round
+        (func $js-raw-math-round
               (import "math" "round")
               (param f64) (result f64))
-        (func $js-math-sign
+        (func $js-raw-math-sign
               (import "math" "sign")
               (param f64) (result f64))
-        (func $js-math-sin
+        (func $js-raw-math-sin
               (import "math" "sin")
               (param f64) (result f64))
-        (func $js-math-sinh
+        (func $js-raw-math-sinh
               (import "math" "sinh")
               (param f64) (result f64))
-        (func $js-math-sqrt
+        (func $js-raw-math-sqrt
               (import "math" "sqrt")
               (param f64) (result f64))
-        (func $js-math-tan
+        (func $js-raw-math-tan
               (import "math" "tan")
               (param f64) (result f64))
-        (func $js-math-tanh
+        (func $js-raw-math-tanh
               (import "math" "tanh")
               (param f64) (result f64))
-        (func $js-math-trunc
+        (func $js-raw-math-trunc
               (import "math" "trunc")
               (param f64) (result f64))
 
@@ -3878,6 +3883,25 @@
 
          ,@active-ffi-funcs-wat   ; generated from "driver.rkt" in "define-foreign.rkt"
          
+         ;; unsafe-ffi-primitive : symbol? -> procedure?
+         ;;   Resolve generated unsafe FFI module aliases to active `.ffi` primitive closures.
+         (func $unsafe-ffi-primitive (type $Prim1)
+               (param $name (ref eq)) ;; quoted FFI primitive symbol
+               (result (ref eq))
+               (local $proc (ref eq))
+               (if (ref.is_null (global.get $unsafe-ffi-primitive-table))
+                   (then (call $initialize-unsafe-ffi-primitive-table)))
+               (local.set $proc
+                          (call $hasheq-ref/plain
+                                (ref.cast (ref $HashEqMutable)
+                                          (global.get $unsafe-ffi-primitive-table))
+                                (local.get $name)
+                                (global.get $missing)))
+               (if (ref.eq (local.get $proc) (global.get $missing))
+                   (then
+                    (call $raise-unexpected-argument (local.get $name))
+                    (unreachable)))
+               (local.get $proc))
 
          ;;;
          ;;; Exceptions
@@ -6094,6 +6118,8 @@
          ;; The current WebRacket bridge implements the one-argument lookup
          ;; path needed by the expander startup path.
          (global $primitive-table-user-installed (mut (ref null $HashEqMutable)) (ref.null $HashEqMutable))
+         ;; Symbol -> primitive procedure table for generated unsafe FFI modules.
+         (global $unsafe-ffi-primitive-table (mut (ref null $HashEqMutable)) (ref.null $HashEqMutable))
 
          (func $initialize-the-symbol-table
                (if (ref.is_null (global.get $the-symbol-table))
@@ -6109,6 +6135,20 @@
                     (global.set $primitive-table-user-installed
                                 (ref.cast (ref $HashEqMutable)
                                           (call $make-empty-hasheq))))))
+
+         (func $initialize-unsafe-ffi-primitive-table
+               (if (ref.is_null (global.get $unsafe-ffi-primitive-table))
+                   (then
+                    (global.set $unsafe-ffi-primitive-table
+                                (ref.cast (ref $HashEqMutable)
+                                          (call $make-empty-hasheq)))
+                    ,@(for/list ([f (in-list active-ffi-foreigns)])
+                        (define pr (foreign-racket-name f))
+                        `(call $hasheq-set!/mutable/checked
+                               (ref.cast (ref $HashEqMutable)
+                                         (global.get $unsafe-ffi-primitive-table))
+                               (global.get ,($ (string->symbol (~a "symbol:" pr))))
+                               (global.get ,($ (prim: pr))))))))
 
          
          ;;;
@@ -12361,7 +12401,7 @@
                    (if (i32.eqz (i32.and (local.get $bits) (i32.const 1)))
                        (then
                         (local.set $i32 (i32.shr_s (local.get $bits) (i32.const 1)))
-                        (local.set $f64 (f64.floor (call $js-math-sqrt (f64.convert_i32_s (local.get $i32)))))
+                        (local.set $f64 (f64.floor (call $js-raw-math-sqrt (f64.convert_i32_s (local.get $i32)))))
                         (if (i32.ge_s (local.get $i32) (i32.const 0))
                             (then
                              (local.set $i32 (i32.trunc_f64_s (local.get $f64)))
@@ -12380,7 +12420,7 @@
                        (then
                         (return (struct.new $Flonum
                                             (i32.const 0)
-                                            (f64.floor (call $js-math-sqrt (local.get $f64))))))
+                                            (f64.floor (call $js-raw-math-sqrt (local.get $f64))))))
                        (else (call $raise-expected-number (local.get $n))
                              (unreachable)))))
 
@@ -12408,7 +12448,7 @@
                    (if (i32.eqz (i32.and (local.get $bits) (i32.const 1)))
                        (then
                         (local.set $i32 (i32.shr_s (local.get $bits) (i32.const 1)))
-                        (local.set $sqrtf (f64.floor (call $js-math-sqrt (f64.convert_i32_s (local.get $i32)))))
+                        (local.set $sqrtf (f64.floor (call $js-raw-math-sqrt (f64.convert_i32_s (local.get $i32)))))
                         (if (i32.ge_s (local.get $i32) (i32.const 0))
                             (then
                              (local.set $sq   (i32.trunc_f64_s (local.get $sqrtf)))
@@ -12432,7 +12472,7 @@
                    (local.set $f64 (struct.get $Flonum $v (local.get $fl)))
                    (if (f64.eq (f64.floor (local.get $f64)) (local.get $f64))
                        (then
-                        (local.set $sqrtf (f64.floor (call $js-math-sqrt (local.get $f64))))
+                        (local.set $sqrtf (f64.floor (call $js-raw-math-sqrt (local.get $f64))))
                         (local.set $remf (f64.sub (local.get $f64) (f64.mul (local.get $sqrtf) (local.get $sqrtf))))
                         (return (array.new_fixed $Values 2
                                                   (struct.new $Flonum (i32.const 0) (local.get $sqrtf))
@@ -12466,7 +12506,7 @@
               (if (f64.eq (local.get $base) (f64.const 1.0))
                   (then (return (f64.const 1.0))))
 
-              (call $js-math-pow (local.get $base) (local.get $exp)))
+              (call $js-raw-math-pow (local.get $base) (local.get $exp)))
         
         (func $expt (type $Prim2)
               (param $z (ref eq))
@@ -12562,7 +12602,7 @@
                         (if (i32.eqz (local.get $bits))
                             (then (return (ref.i31 (i32.const 2))))
                             (else
-                             (local.set $f64 (call $js-math-exp (f64.convert_i32_s (local.get $bits))))
+                             (local.set $f64 (call $js-raw-math-exp (f64.convert_i32_s (local.get $bits))))
                              (return (struct.new $Flonum (i32.const 0) (local.get $f64))))))
                        (else (call $raise-expected-number (local.get $x))
                              (unreachable)))))
@@ -12572,7 +12612,7 @@
                   (then
                    (local.set $fl (ref.cast (ref $Flonum) (local.get $x)))
                    (local.set $f64 (struct.get $Flonum $v (local.get $fl)))
-                   (return (struct.new $Flonum (i32.const 0) (call $js-math-exp (local.get $f64))))))
+                   (return (struct.new $Flonum (i32.const 0) (call $js-raw-math-exp (local.get $f64))))))
 
               ;; Not a number
               (call $raise-expected-number (local.get $x))
@@ -12603,7 +12643,7 @@
                              (if (i32.eq (local.get $bits) (i32.const 1))
                                  (then (return (ref.i31 (i32.const 0)))))
                              (local.set $res
-                                        (call $js-math-log (f64.convert_i32_s (local.get $bits))))
+                                        (call $js-raw-math-log (f64.convert_i32_s (local.get $bits))))
                              (return (struct.new $Flonum (i32.const 0) (local.get $res))))
                             (else (call $raise-expected-number (local.get $z)) (unreachable)))))
                    (if (ref.test (ref $Flonum) (local.get $z))
@@ -12611,7 +12651,7 @@
                         (local.set $fl (ref.cast (ref $Flonum) (local.get $z)))
                         (local.set $zf64 (struct.get $Flonum $v (local.get $fl)))
                         (return (struct.new $Flonum (i32.const 0)
-                                            (call $js-math-log (local.get $zf64))))))
+                                            (call $js-raw-math-log (local.get $zf64))))))
                    (call $raise-expected-number (local.get $z))
                    (unreachable))
                   (else
@@ -12649,8 +12689,8 @@
                              (local.set $bf64 (struct.get $Flonum $v (local.get $fl))))
                             (else (call $raise-expected-number (local.get $b)) (unreachable)))))
                    (local.set $res
-                              (f64.div (call $js-math-log (local.get $zf64))
-                                       (call $js-math-log (local.get $bf64))))
+                              (f64.div (call $js-raw-math-log (local.get $zf64))
+                                       (call $js-raw-math-log (local.get $bf64))))
                    (return (struct.new $Flonum (i32.const 0) (local.get $res)))))
               ;; Ensure static fallthrough is unreachable for the validator.
               (unreachable))
@@ -13293,7 +13333,7 @@
                     (if (i32.eqz (i32.and (local.get $bits) (i32.const 1)))
                         (then
                          (local.set $f64
-                                    (call $js-math-sqrt
+                                    (call $js-raw-math-sqrt
                                           (f64.convert_i32_s
                                            (i32.shr_s (local.get $bits) (i32.const 1)))))
                          (if (f64.eq (f64.floor (local.get $f64)) (local.get $f64))
@@ -13312,7 +13352,7 @@
                     (local.set $f64 (struct.get $Flonum $v (local.get $fl)))
                     (return (struct.new $Flonum
                                         (i32.const 0)
-                                        (call $js-math-sqrt (local.get $f64))))))
+                                        (call $js-raw-math-sqrt (local.get $f64))))))
 
                ;; Not a number
                (call $raise-expected-number (local.get $x))
@@ -13467,17 +13507,17 @@
 
         ;; Trigonometric functions
         ;               name js            inbits outbits
-        ,@(let ([ops '((sin  $js-math-sin  0      0)    ;  sin(0) = 0
-                       (cos  $js-math-cos  0      2)    ;  cos(0) = 1
-                       (tan  $js-math-tan  0      0)    ;  tan(0) = 0
-                       (asin $js-math-asin 0      0)    ; asin(0) = 0
-                       (acos $js-math-acos 2      0)    ; acos(1) = 0
-                       (sinh  $js-math-sinh  0      0) ;  sinh(0) = 0
-                       (cosh  $js-math-cosh  0      2) ;  cosh(0) = 1
-                       (tanh  $js-math-tanh  0      0) ;  tanh(0) = 0
-                       (asinh $js-math-asinh 0      0) ; asinh(0) = 0
-                       (acosh $js-math-acosh 2      0) ; acosh(1) = 0
-                       (atanh $js-math-atanh 0      0))]) ; atanh(0) = 0
+        ,@(let ([ops '((sin  $js-raw-math-sin  0      0)    ;  sin(0) = 0
+                       (cos  $js-raw-math-cos  0      2)    ;  cos(0) = 1
+                       (tan  $js-raw-math-tan  0      0)    ;  tan(0) = 0
+                       (asin $js-raw-math-asin 0      0)    ; asin(0) = 0
+                       (acos $js-raw-math-acos 2      0)    ; acos(1) = 0
+                       (sinh  $js-raw-math-sinh  0      0) ;  sinh(0) = 0
+                       (cosh  $js-raw-math-cosh  0      2) ;  cosh(0) = 1
+                       (tanh  $js-raw-math-tanh  0      0) ;  tanh(0) = 0
+                       (asinh $js-raw-math-asinh 0      0) ; asinh(0) = 0
+                       (acosh $js-raw-math-acosh 2      0) ; acosh(1) = 0
+                       (atanh $js-raw-math-atanh 0      0))]) ; atanh(0) = 0
             ;; inbits and outbits are raw i31 fixnum encodings.
             ;; They mark trivial exact identities of trig functions
             ;; (e.g. sin 0 = 0, cos 0 = 1, acos 1 = 0).  
@@ -13557,7 +13597,7 @@
                        (then (return ,(Imm 0))))
                    (return (struct.new $Flonum
                                        (i32.const 0)
-                                       (call $js-math-atan (local.get $y/f64))))))
+                                       (call $js-raw-math-atan (local.get $y/f64))))))
 
               ;; Decode x for the two-argument case.
               (if (ref.test (ref i31) (local.get $x))
@@ -13577,7 +13617,7 @@
 
               (struct.new $Flonum
                           (i32.const 0)
-                          (call $js-math-atan2 (local.get $y/f64) (local.get $x/f64))))
+                          (call $js-raw-math-atan2 (local.get $y/f64) (local.get $x/f64))))
 
         ;; Angle conversion functions
         ,@(let ([ops '((degrees->radians 0.017453292519943295)
@@ -13676,10 +13716,10 @@
                          (i32.trunc_f64_s
                           (f64.floor
                            (f64.mul
-                            (call $js-math-log (local.get $f64))
+                            (call $js-raw-math-log (local.get $f64))
                             (f64.const 0.4342944819032518)))))
               (local.set $p
-                         (call $js-math-pow
+                         (call $js-raw-math-pow
                                (f64.const 10)
                                (f64.convert_i32_s (local.get $m))))
 
@@ -15949,21 +15989,21 @@
                        (flceiling  (f64.ceil (local.get $a/f64)))
                        (fltruncate (f64.trunc (local.get $a/f64)))
                        (flsingle   (f64.promote_f32 (f32.demote_f64 (local.get $a/f64))))
-                       (flsin      (call $js-math-sin   (local.get $a/f64)))
-                       (flcos      (call $js-math-cos   (local.get $a/f64)))
-                       (fltan      (call $js-math-tan   (local.get $a/f64)))
-                       (flasin     (call $js-math-asin  (local.get $a/f64)))
-                       (flacos     (call $js-math-acos  (local.get $a/f64)))
-                       (flatan     (call $js-math-atan  (local.get $a/f64)))
-                       (flsinh     (call $js-math-sinh  (local.get $a/f64)))
-                       (flcosh     (call $js-math-cosh  (local.get $a/f64)))
-                       (fltanh     (call $js-math-tanh  (local.get $a/f64)))
-                       (flasinh    (call $js-math-asinh (local.get $a/f64)))
-                       (flacosh    (call $js-math-acosh (local.get $a/f64)))
-                       (flatanh    (call $js-math-atanh (local.get $a/f64)))
-                       (fllog      (call $js-math-log  (local.get $a/f64)))
-                       (flexp      (call $js-math-exp  (local.get $a/f64)))
-                       (flsqrt     (call $js-math-sqrt (local.get $a/f64))))])
+                       (flsin      (call $js-raw-math-sin   (local.get $a/f64)))
+                       (flcos      (call $js-raw-math-cos   (local.get $a/f64)))
+                       (fltan      (call $js-raw-math-tan   (local.get $a/f64)))
+                       (flasin     (call $js-raw-math-asin  (local.get $a/f64)))
+                       (flacos     (call $js-raw-math-acos  (local.get $a/f64)))
+                       (flatan     (call $js-raw-math-atan  (local.get $a/f64)))
+                       (flsinh     (call $js-raw-math-sinh  (local.get $a/f64)))
+                       (flcosh     (call $js-raw-math-cosh  (local.get $a/f64)))
+                       (fltanh     (call $js-raw-math-tanh  (local.get $a/f64)))
+                       (flasinh    (call $js-raw-math-asinh (local.get $a/f64)))
+                       (flacosh    (call $js-raw-math-acosh (local.get $a/f64)))
+                       (flatanh    (call $js-raw-math-atanh (local.get $a/f64)))
+                       (fllog      (call $js-raw-math-log  (local.get $a/f64)))
+                       (flexp      (call $js-raw-math-exp  (local.get $a/f64)))
+                       (flsqrt     (call $js-raw-math-sqrt (local.get $a/f64))))])
              (append
               (for/list ([p ops])
                 (define name (car p))
@@ -75511,6 +75551,7 @@
                     ;; Initialize variables holding primitives
                     ,@(initialize-primitives-as-globals)
                     ,@(initialize-ffi-primitives-as-globals)
+                    (call $initialize-unsafe-ffi-primitive-table)
                     (global.set $current-security-guard-value
                                 (struct.new $SecurityGuard
                                             (i32.const 0)
@@ -75669,11 +75710,12 @@
      "ffi-wrapper-filter"
      (λ ()
        (define active-ffi-primitive-names
-         (if (current-tree-shake?)
+         (if (and (current-tree-shake?)
+                  (not (memq 'unsafe-ffi-primitive used-primitives)))
              (sort
               (filter (λ (pr) (hash-ref ffi-primitive-name-set pr #f))
                       (remove-duplicates used-primitives))
-              symbol<?)
+             symbol<?)
              (sort (hash-keys ffi-primitive-name-set) symbol<?)))
        (set! active-ffi-foreigns
              (for/list ([f (in-list all-ffi-foreigns)]
@@ -75684,17 +75726,23 @@
        (define active-ffi-func-name-set
          (list->eq-set (map (λ (f) ($ (foreign-racket-name f))) active-ffi-foreigns)))
        (set! active-ffi-imports-wat
-             (for/list ([form (in-list (current-ffi-imports-wat))]
-                        #:do [(define name (module-func-name form))]
-                        #:when (and name
-                                    (hash-ref active-ffi-import-name-set name #f)))
-               form))
+             (remove-duplicates
+              (for/list ([form (in-list (current-ffi-imports-wat))]
+                         #:do [(define name (module-func-name form))]
+                         #:when (and name
+                                     (hash-ref active-ffi-import-name-set name #f)))
+                form)
+              eq?
+              #:key module-func-name))
        (set! active-ffi-funcs-wat
-             (for/list ([form (in-list (current-ffi-funcs-wat))]
-                        #:do [(define name (module-func-name form))]
-                        #:when (and name
-                                    (hash-ref active-ffi-func-name-set name #f)))
-               form))))
+             (remove-duplicates
+              (for/list ([form (in-list (current-ffi-funcs-wat))]
+                         #:do [(define name (module-func-name form))]
+                         #:when (and name
+                                     (hash-ref active-ffi-func-name-set name #f)))
+                form)
+              eq?
+              #:key module-func-name))))
     (define full-module
       (time-runtime-step "tree-shake-build-module" build-runtime-module))
     (define analysis

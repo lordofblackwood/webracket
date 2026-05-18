@@ -7,8 +7,8 @@ to normal module providers.
 New module-based code should prefer explicit requires:
 
 - `(require js/console)` replaces `(include-lib console)`.
-- `(require js/math)` is the first Math provider shape, but its unsafe layer is
-  still placeholder-backed until direct `.ffi` module imports are available.
+- `(require js/math)` is backed by `ffi/math.ffi`; compile runtime users with
+  the matching FFI bundle while automatic module-to-FFI inference grows.
 
 Migration status:
 
@@ -16,6 +16,7 @@ Migration status:
 - `math`: no legacy include file existed; `js/math` starts directly as a module.
 - Other files: still legacy include-lib wrappers.
 
-When migrating another file, put raw bindings under `webracket/unsafe/*`, public
-wrappers under an appropriate collection such as `js/*` or `browser/*`, and keep
-this manifest current until `include-lib` can be retired.
+When migrating another file, put raw bindings under `webracket/unsafe/*`.
+Use `js/*` for JavaScript built-ins and host-object wrappers, and reserve
+`browser/*` for DOM/window/document APIs. Keep this manifest current until
+`include-lib` can be retired.

@@ -282,12 +282,14 @@ explicit JS debug provider is `webracket/js`, currently a tiny owner for
 imports, `webracket/unsafe/*` exposes raw names, and `js/*` exposes public
 wrappers. Console is the first runnable pilot:
 `ffi/console.ffi -> webracket/unsafe/console -> js/console`. Math is the first
-generated metadata pilot:
+generated import-backed pilot:
 `ffi/math.ffi -> webracket/unsafe/math -> js/math`; its unsafe bindings are
-declared and export-checked, but still use placeholders until direct
-import-backed provider instances exist. Future JavaScript/browser/Node
-bindings should grow as modules such as `js/console`, `js/math`, `browser/dom`,
-and `webracket/unsafe/*`, while low-level Wasm imports remain runtime helpers.
+declared, export-checked, and resolved through active `.ffi` primitive closures.
+Future JavaScript/browser/Node bindings should grow as modules such as
+`js/console`, `js/math`, `browser/dom`, and `webracket/unsafe/*`, while
+low-level Wasm imports remain runtime helpers. Use `js/*` for JavaScript
+built-ins and host-object helpers; reserve `browser/*` for DOM/window/document
+APIs.
 User-facing FFI names should not be added as ambient top-level conveniences
 unless a language module deliberately re-exports them.
 

@@ -3,8 +3,19 @@
 (provide ffi-file->unsafe-export-symbols
          ffi-file->unsafe-binding-datums
          ffi-file->unsafe-module-source
+         unsafe-ffi-module-parity-row
+         unsafe-ffi-module-parity-row?
+         unsafe-ffi-module-parity-row-module
+         unsafe-ffi-module-parity-row-ffi-path
+         unsafe-ffi-module-parity-row-declared-exports
+         unsafe-ffi-module-parity-row-actual-exports
+         unsafe-ffi-module-parity-row-missing
+         unsafe-ffi-module-parity-row-extra
+         unsafe-ffi-module-parity-row-ok?
+         unsafe-ffi-module-parity-rows
          unsafe-console-ffi-export-symbols
-         unsafe-math-ffi-export-symbols)
+         unsafe-math-ffi-export-symbols
+         unsafe-temp-ffi-export-symbols)
 
 (require (only-in "../define-foreign.rkt" ffi-file->foreigns)
          (only-in "../structs.rkt"
@@ -12,10 +23,12 @@
                   foreign-argument-types
                   foreign-result-types)
          racket/format
+         racket/list
          racket/runtime-path)
 
 (define-runtime-path console-ffi-path "../ffi/console.ffi")
 (define-runtime-path math-ffi-path "../ffi/math.ffi")
+(define-runtime-path temp-ffi-path "../ffi/temp.ffi")
 
 ;; ffi-file->unsafe-export-symbols : path-string? -> (listof symbol?)
 ;;   Return the raw binding names that an unsafe module must export.
@@ -37,9 +50,8 @@
   (string-append
    "#lang racket/base\n\n"
    ";; Generated from a WebRacket .ffi declaration file.\n"
-   ";; Replace individual placeholder bodies with direct import-backed code\n"
-   ";; as the module bridge grows first-class .ffi support.\n\n"
-   (format "(require ~s)\n\n" require-path)
+   ";; Raw exports are compiler-recognized aliases for active .ffi primitives.\n\n"
+   (format "(require (only-in ~s unsafe-ffi-primitive))\n\n" require-path)
    "(provide"
    (apply string-append
           (for/list ([binding (in-list bindings)])
@@ -51,14 +63,57 @@
       (define name (car binding))
       (define arg-types (cadr binding))
       (define result-types (caddr binding))
-      (format ";; ~a : ffi ~s -> ~s\n;;   Placeholder raw binding generated for ~a.\n(define ~a\n  (make-unsafe-ffi-placeholder '~a ~a))\n\n"
+      (format ";; ~a : ffi ~s -> ~s\n;;   Raw binding generated for ~a.\n(define ~a (unsafe-ffi-primitive '~a))\n\n"
               name
               arg-types
               result-types
               module-name
               name
-              name
-              (length arg-types))))))
+              name)))))
+
+(struct unsafe-ffi-module-parity-row
+  (module ffi-path declared-exports actual-exports missing extra)
+  #:transparent)
+
+;; unsafe-ffi-module-parity-row-ok? : row? -> boolean?
+;;   Check whether one unsafe module exactly matches its `.ffi` declarations.
+(define (unsafe-ffi-module-parity-row-ok? row)
+  (and (null? (unsafe-ffi-module-parity-row-missing row))
+       (null? (unsafe-ffi-module-parity-row-extra row))))
+
+;; unsafe-module-runtime-exports : module-path? -> (listof symbol?)
+;;   Reflect phase-0 value exports for a loadable unsafe module.
+(define (unsafe-module-runtime-exports module-path)
+  (define collection-paths (current-library-collection-paths))
+  (parameterize ([current-namespace (make-base-namespace)])
+    (current-library-collection-paths collection-paths)
+    (namespace-require module-path)
+    (define-values (value-exports _syntax-exports)
+      (module->exports module-path))
+    (define phase-0 (assoc 0 value-exports))
+    (if phase-0
+        (map car (cdr phase-0))
+        '())))
+
+;; build-unsafe-ffi-module-parity-row : module-path? path-string? -> row?
+;;   Compare one migrated unsafe module's exports against its `.ffi` file.
+(define (build-unsafe-ffi-module-parity-row module-path ffi-path)
+  (define declared (sort (ffi-file->unsafe-export-symbols ffi-path) symbol<?))
+  (define actual   (sort (unsafe-module-runtime-exports module-path) symbol<?))
+  (unsafe-ffi-module-parity-row
+   module-path
+   ffi-path
+   declared
+   actual
+   (remove* actual declared)
+   (remove* declared actual)))
+
+;; unsafe-ffi-module-parity-rows : -> (listof row?)
+;;   Compare all migrated unsafe FFI modules that currently have `.ffi` owners.
+(define (unsafe-ffi-module-parity-rows)
+  (list (build-unsafe-ffi-module-parity-row 'webracket/unsafe/console console-ffi-path)
+        (build-unsafe-ffi-module-parity-row 'webracket/unsafe/math math-ffi-path)
+        (build-unsafe-ffi-module-parity-row 'webracket/unsafe/temp temp-ffi-path)))
 
 ;; unsafe-console-ffi-export-symbols : -> (listof symbol?)
 ;;   Return the raw console binding names declared by ffi/console.ffi.
@@ -69,3 +124,8 @@
 ;;   Return the raw Math binding names declared by ffi/math.ffi.
 (define (unsafe-math-ffi-export-symbols)
   (ffi-file->unsafe-export-symbols math-ffi-path))
+
+;; unsafe-temp-ffi-export-symbols : -> (listof symbol?)
+;;   Return the raw temp binding names declared by ffi/temp.ffi.
+(define (unsafe-temp-ffi-export-symbols)
+  (ffi-file->unsafe-export-symbols temp-ffi-path))

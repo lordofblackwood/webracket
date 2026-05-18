@@ -1591,6 +1591,7 @@ current-parameterization    ; poor-man dynamic parameterization overlay
  external-number->flonum
  external-string->string
  js-log
+ unsafe-ffi-primitive
  webracket-debug-allocation-budget!
  webracket-debug-allocation-counters
  webracket-debug-invoke-budget!
@@ -1828,6 +1829,11 @@ current-parameterization    ; poor-man dynamic parameterization overlay
 
 (define (js-log x)
   (displayln x))
+
+(define (unsafe-ffi-primitive name)
+  (lambda args
+    (error name
+           "unsafe FFI primitive placeholder is only executable after WebRacket compilation")))
 
 (define webracket-debug-allocation-budget-value 0)
 

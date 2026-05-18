@@ -1424,20 +1424,33 @@
   (define generated
     (ffi-file->unsafe-module-source "ffi/math.ffi"
                                     'webracket/unsafe/math
-                                    "ffi-placeholder.rkt"))
+                                    "../primitives.rkt"))
   (check-true (string-contains? generated "(provide\n js-math-abs"))
   (check-true (string-contains? generated "\n js-math-sqrt\n"))
   (check-true (string-contains? generated
-                                 "make-unsafe-ffi-placeholder 'js-math-atan2 2")))
+                                 "(define js-math-atan2 (unsafe-ffi-primitive 'js-math-atan2)")))
 
-(test-case "js/math has public wrappers and unsafe exports match ffi/math.ffi"
+(test-case "migrated unsafe FFI modules match their .ffi declarations"
+  (define rows
+    (call-with-webracket-collection-path unsafe-ffi-module-parity-rows))
+  (check-equal? (map unsafe-ffi-module-parity-row-module rows)
+                '(webracket/unsafe/console
+                  webracket/unsafe/math
+                  webracket/unsafe/temp))
+  (for ([row (in-list rows)])
+    (check-true (unsafe-ffi-module-parity-row-ok? row)
+                (format "~a missing=~s extra=~s"
+                        (unsafe-ffi-module-parity-row-module row)
+                        (unsafe-ffi-module-parity-row-missing row)
+                        (unsafe-ffi-module-parity-row-extra row)))))
+
+(test-case "js/math and js/temp have public wrappers"
   (define math-exports (module-runtime-export-symbols 'js/math))
-  (define unsafe-exports (module-runtime-export-symbols 'webracket/unsafe/math))
-  (define declared-exports (unsafe-math-ffi-export-symbols))
+  (define temp-exports (module-runtime-export-symbols 'js/temp))
   (check-not-false (memq 'math-sqrt math-exports))
   (check-not-false (memq 'math-random math-exports))
-  (check-equal? (sorted-symbols unsafe-exports)
-                (sorted-symbols declared-exports)))
+  (check-not-false (memq 'temp-x temp-exports))
+  (check-not-false (memq 'temp-set-x! temp-exports)))
 
 (test-case "package info declares a multi-collection install story"
   (define info-path (build-path repo-root "info.rkt"))
@@ -1469,7 +1482,7 @@
         (with-handlers ([exn:fail:filesystem? void])
           (delete-directory/files dir))))))
 
-(test-case "#lang webracket/base can require js/math"
+(test-case "#lang webracket/base can require and call js/math with --ffi math"
   (define source-dir (make-temporary-file "webracket-js-math-src-~a" 'directory))
   (define dest-dir   (make-temporary-file "webracket-js-math-dest-~a" 'directory))
   (define source-path (build-path source-dir "use-math.rkt"))
@@ -1478,17 +1491,18 @@
     (lambda ()
       (call-with-output-file source-path
         (lambda (out)
-          (display "#lang webracket/base\n(require js/math)\n(js-log \"math-module\")\n" out))
+          (display "#lang webracket/base\n(require js/math)\n(js-log (math-sqrt 9.0))\n" out))
         #:exists 'truncate/replace)
       (define-values (status output)
         (run-webracket/base
          (list "-r" "--no-stdlib" "--no-io-format-provider"
                "--webracket-module-bridge"
+               "--ffi" "math"
                "--dest" (path->string dest-dir)
                (path->string source-path))
          source-dir))
       (check-equal? status 0 output)
-      (check-regexp-match #rx"math-module" output))
+      (check-regexp-match #rx"(^|[\r\n])3([\r\n]|$)" output))
     (lambda ()
       (for ([dir (in-list (list source-dir dest-dir))])
         (with-handlers ([exn:fail:filesystem? void])

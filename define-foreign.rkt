@@ -444,6 +444,7 @@
     [(foreign racket-name module-name host-name argument-types result-types)
      (define $racket-name          (string->symbol (~a "$" racket-name)))
      (define $racket-name/imported (string->symbol (~a $racket-name "/imported")))
+     (define $prim-type            (string->symbol (~a "$Prim" (length argument-types))))
 
      (define (fasl-needed? t) (member t '(string string/symbol value)))
      (define fasl-needed-for-arguments? (ormap fasl-needed? argument-types))
@@ -455,6 +456,7 @@
      (define (import-index argument-index) (+ (* 2 local-start-index) argument-index))
      
      `(func ,$racket-name
+            (type ,$prim-type)
             ;; Arguments
             ,@(for/list ([t argument-types])  `(param (ref eq)))
 

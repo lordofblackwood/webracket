@@ -16,22 +16,28 @@ ffi/console.ffi
 ffi/math.ffi
   -> webracket/unsafe/math
   -> js/math
+
+ffi/temp.ffi
+  -> webracket/unsafe/temp
+  -> js/temp
 ```
 
 - `ffi/*.ffi` declares raw imported names, host module names, arities, result
   conventions, and documentation metadata.
 - `webracket/unsafe/*` exposes raw/unsafe WebRacket binding names such as
   `js-console-log`.
-- `js/*` and future `browser/*` modules expose safe, Rackety wrappers such as
-  `console-log`.
+- `js/*` modules expose JavaScript built-in or host-object wrappers such as
+  `console-log` and `math-sqrt`.
+- `browser/*` is reserved for DOM/window/document-style browser APIs.
 - `lib/libs/*` is the legacy `include-lib` compatibility location while those
   libraries are migrated to modules.
 
 `webracket/unsafe/console` is currently a primitive-backed shim so module
-programs can require the raw console names. `webracket/unsafe/math` is a
-generated placeholder module that validates `.ffi` export and arity metadata.
-Both export sets are checked against their `.ffi` declarations; the long-term
-direction is to generate unsafe modules whose bodies bind direct `.ffi` imports.
+programs can require the raw console names. `webracket/unsafe/math` and
+`webracket/unsafe/temp` are generated unsafe modules whose bindings call the
+private `unsafe-ffi-primitive` hook, so compiling users must include the
+matching `.ffi` bundle, for example `--ffi math`. Their export sets are checked
+against their `.ffi` declarations.
 
 
 dom.ffi
