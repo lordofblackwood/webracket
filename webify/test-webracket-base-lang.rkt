@@ -1,6 +1,8 @@
 #lang racket/base
 
 (require racket/file
+         racket/list
+         racket/match
          racket/path
          racket/runtime-path
          racket/string
@@ -18,8 +20,12 @@
                   webracket/base-reports-demand-external-providers?)
          (only-in "module-extractor.rkt"
                   webify-compile-module-report)
+         (only-in "provider-trials.rkt"
+                  webify-provider-trial-module-allowlist
+                  webify-provider-trial-module-allowed?)
          "test-module-support.rkt"
-         "webracket-base-surface.rkt")
+         "webracket-base-surface.rkt"
+         "webracket-full-surface.rkt")
 
 (define-runtime-path repo-root* "..")
 (define repo-root (simplify-path repo-root*))
@@ -30,6 +36,11 @@
 
 (define path-list-separator
   (if (eq? (system-type 'os) 'windows) ";" ":"))
+
+;; sorted-symbols : (listof symbol?) -> (listof symbol?)
+;;   Compare provider-name sets without depending on discovery order.
+(define (sorted-symbols symbols)
+  (sort symbols symbol<?))
 
 ;; webracket-collection-env : -> (listof string?)
 ;;   Make child Racket processes resolve this checkout as collection `webracket`.
@@ -104,6 +115,22 @@
        (webify-compile-module-report
         (syntax->datum (read-module-file resolved)))))))
 
+;; synthetic-provider-report : symbol? (listof symbol?) -> webify-module-report?
+;;   Build a tiny provider report for bridge graph-composition tests.
+(define (synthetic-provider-report name exports)
+  (webify-module-report
+   name
+   '(#f)
+   '(0)
+   '()
+   '()
+   exports
+   `(linklet () ,exports
+      ,@(for/list ([export (in-list exports)])
+          `(define-values (,export) ',export)))
+   #t
+   '()))
+
 ;; js-log-module-variable-ref-observation? : any/c -> boolean?
 ;;   Recognize a normalized observation that reads a composed module export cell.
 (define (js-log-module-variable-ref-observation? datum)
@@ -140,8 +167,8 @@
       (with-handlers ([exn:fail:filesystem? void])
         (delete-directory/files source-dir)))))
 
-(test-case "#lang webracket/base exposes the first curated add-on surface"
-  (define source-dir (make-temporary-file "webracket-base-surface-src-~a" 'directory))
+(test-case "#lang webracket/full exposes the curated add-on surface"
+  (define source-dir (make-temporary-file "webracket-full-surface-src-~a" 'directory))
   (define source-path (build-path source-dir "surface-smoke.rkt"))
   (dynamic-wind
     void
@@ -150,7 +177,7 @@
         (lambda (out)
           (display
            (string-append
-            "#lang webracket/base\n"
+            "#lang webracket/full\n"
             "(provide joined matched set-size forced formatted vec-pos bool-ok bytes-len)\n"
             "(define joined (string-join (map number->string (list 1 2 3)) \",\"))\n"
             "(define matched (match '(a b) [(list x y) (symbol->string y)]))\n"
@@ -164,7 +191,7 @@
         #:exists 'truncate/replace)
       (define module-stx (read-module-file source-path))
       (check-match (syntax->datum module-stx)
-                   `(module surface-smoke webracket/base . ,_))
+                   `(module surface-smoke webracket/full . ,_))
       (define report
         (call-with-webracket-collection-path
          (lambda ()
@@ -188,6 +215,30 @@
       (call-with-output-file source-path
         (lambda (out)
           (display "#lang webracket/base\n(js-log (+ 40 2))\n" out))
+        #:exists 'truncate/replace)
+      (define-values (status output)
+        (run-webracket/base
+         (list "-r" "--no-stdlib" "--no-io-format-provider"
+               "--dest" (path->string dest-dir)
+               (path->string source-path))
+         source-dir))
+      (check-equal? status 0 output)
+      (check-regexp-match #rx"(?m:^42$)" output))
+    (lambda ()
+      (for ([dir (in-list (list source-dir dest-dir))])
+        (with-handlers ([exn:fail:filesystem? void])
+          (delete-directory/files dir))))))
+
+(test-case "#lang webracket/full runs through the driver as module-language input"
+  (define source-dir (make-temporary-file "webracket-full-driver-src-~a" 'directory))
+  (define dest-dir   (make-temporary-file "webracket-full-driver-dest-~a" 'directory))
+  (define source-path (build-path source-dir "full-driver-smoke.rkt"))
+  (dynamic-wind
+    void
+    (lambda ()
+      (call-with-output-file source-path
+        (lambda (out)
+          (display "#lang webracket/full\n(js-log (+ 40 2))\n" out))
         #:exists 'truncate/replace)
       (define-values (status output)
         (run-webracket/base
@@ -616,6 +667,120 @@
        #rx"external provider is not in the Goal 1 trial allowlist"
        (lambda ()
          (webracket/base-reports->module-graph root reports))))
+    (lambda ()
+      (with-handlers ([exn:fail:filesystem? void])
+        (delete-directory/files source-dir)))))
+
+(test-case "#lang webracket/base provider allowlist covers current Goal 1 trials"
+  (for ([name (in-list '(racket/list
+                         racket/string
+                         racket/bool
+                         racket/vector
+                         racket/function))])
+    (check-not-false (memq name webify-provider-trial-module-allowlist)
+                     (symbol->string name))
+    (check-true (webify-provider-trial-module-allowed? name)
+                (symbol->string name)))
+  (check-false (webify-provider-trial-module-allowed? 'racket/promise))
+  (check-false (webify-provider-trial-module-allowed? 'racket/private/promise))
+  (check-false (webify-provider-trial-module-allowed? 'racket/private/for))
+  (check-false (webify-provider-trial-module-allowed? 'racket/private/set))
+  (check-false (webify-provider-trial-module-allowed? 'racket/math)))
+
+(test-case "#lang webracket/base classifies curated installed provider demands"
+  (define source-dir (make-temporary-file "webracket-base-curated-providers-src-~a" 'directory))
+  (define cases
+    '((vector   racket/vector   "(require (only-in racket/vector vector-member))\n(provide answer)\n(define answer vector-member)\n")
+      (function racket/function "(require (only-in racket/function identity))\n(provide answer)\n(define answer identity)\n")
+      (promise  (racket/promise racket/private/promise) "(require (only-in racket/promise force))\n(provide answer)\n(define answer force)\n")
+      (stream   (racket/stream racket/private/for) "(require (only-in racket/stream stream-first))\n(provide answer)\n(define answer stream-first)\n")
+      (set      (racket/set racket/private/set) "(require (only-in racket/set set-count))\n(provide answer)\n(define answer set-count)\n")))
+  (dynamic-wind
+    void
+    (lambda ()
+      (for ([case-row (in-list cases)])
+        (match-define (list label expected-provider body) case-row)
+        (define source-path
+          (build-path source-dir (format "~a.rkt" label)))
+        (call-with-output-file source-path
+          (lambda (out)
+            (fprintf out "#lang webracket/base\n~a" body))
+          #:exists 'truncate/replace)
+        (define reports
+          (call-with-webracket-collection-path
+           (lambda ()
+             (define-values (_root reports)
+               (webracket/base-file->local-module-reports source-path))
+             reports)))
+        (check-equal? (sorted-symbols (webracket/base-external-provider-names reports))
+                      (sorted-symbols
+                       (if (list? expected-provider)
+                           expected-provider
+                           (list expected-provider))))
+        (check-true (webracket/base-reports-demand-external-providers? reports))))
+    (lambda ()
+      (with-handlers ([exn:fail:filesystem? void])
+        (delete-directory/files source-dir)))))
+
+(test-case "#lang webracket/base composes a local module plus curated installed providers"
+  (define source-dir (make-temporary-file "webracket-base-local-installed-src-~a" 'directory))
+  (define lib-path   (build-path source-dir "lib.rkt"))
+  (define main-path  (build-path source-dir "main.rkt"))
+  (dynamic-wind
+    void
+    (lambda ()
+      (call-with-output-file lib-path
+        (lambda (out)
+          (display "#lang webracket/base\n(provide local-answer)\n(define local-answer 40)\n" out))
+        #:exists 'truncate/replace)
+      (call-with-output-file main-path
+        (lambda (out)
+          (display
+           (string-append
+            "#lang webracket/base\n"
+            "(require \"lib.rkt\"\n"
+            "         (only-in racket/vector vector-member)\n"
+            "         (only-in racket/function identity))\n"
+            "(provide answer)\n"
+            "(define answer (list local-answer vector-member identity))\n")
+           out))
+        #:exists 'truncate/replace)
+      (define-values (root reports)
+        (call-with-webracket-collection-path
+         (lambda ()
+           (webracket/base-file->local-module-reports main-path))))
+      (check-equal? root 'main)
+      (check-equal? (sorted-symbols (webracket/base-external-provider-names reports))
+                    (sorted-symbols
+                     '(racket/vector
+                       racket/function)))
+      (define fetched '())
+      (define graph
+        (webracket/base-reports->module-graph
+         root
+         reports
+         #:fetch-provider
+         (lambda (name)
+           (set! fetched (append fetched (list name)))
+           (case name
+             [(racket/vector)   (synthetic-provider-report name '(vector-member))]
+             [(racket/function) (synthetic-provider-report name '(identity))]
+             [else (error 'fetch-provider "unexpected fetch: ~s" name)]))))
+      (check-equal? (sorted-symbols fetched)
+                    (sorted-symbols
+                     '(racket/vector
+                       racket/function)))
+      (define plan
+        (webify-module-registry-plan
+         (webracket/base-local-module-graph-registry graph)
+         '(main)))
+      (check-equal? (last plan) 'main)
+      (for ([name (in-list '(module-protocol
+                             lib
+                             racket/vector
+                             racket/function))])
+        (check-not-false (memq name plan)
+                         (symbol->string name))))
     (lambda ()
       (with-handlers ([exn:fail:filesystem? void])
         (delete-directory/files source-dir)))))
@@ -1057,23 +1222,34 @@
       (with-handlers ([exn:fail:filesystem? void])
         (delete-directory/files source-dir)))))
 
-(test-case "webracket/base surface manifest distinguishes foundation and add-ons"
+(test-case "webracket/base surface manifest stays small"
   (check-equal? webracket-base-foundation 'racket/base)
-  (check-false (memq 'racket/base webracket-base-addon-libraries))
+  (check-equal? webracket-base-addon-libraries '())
+  (check-equal? webracket-base-surface-statuses
+                '((racket/base exported extracts partial partial)))
   (for ([name (in-list '(racket/list racket/string racket/vector racket/function
                                      racket/bool racket/promise racket/sequence
                                      racket/set racket/match racket/format))])
-    (check-not-false (memq name webracket-base-addon-libraries)
-                     (symbol->string name)))
-  (check-not-false (assoc 'racket/format webracket-base-surface-statuses))
-  (check-not-false (assoc 'racket/list webracket-base-surface-statuses)))
+    (check-not-false (memq name webracket-base-deferred-libraries)
+                     (symbol->string name))))
 
-(test-case "webracket/base surface statuses cover every curated add-on"
-  (define status-names (map car webracket-base-surface-statuses))
-  (for ([name (in-list webracket-base-addon-libraries)])
+(test-case "webracket/full surface manifest distinguishes foundation and add-ons"
+  (check-equal? webracket-full-foundation 'racket/base)
+  (check-false (memq 'racket/base webracket-full-addon-libraries))
+  (for ([name (in-list '(racket/list racket/string racket/vector racket/function
+                                     racket/bool racket/promise racket/sequence
+                                     racket/set racket/match racket/format))])
+    (check-not-false (memq name webracket-full-addon-libraries)
+                     (symbol->string name)))
+  (check-not-false (assoc 'racket/format webracket-full-surface-statuses))
+  (check-not-false (assoc 'racket/list webracket-full-surface-statuses)))
+
+(test-case "webracket/full surface statuses cover every curated add-on"
+  (define status-names (map car webracket-full-surface-statuses))
+  (for ([name (in-list webracket-full-addon-libraries)])
     (check-not-false (memq name status-names)
                      (symbol->string name)))
-  (check-equal? (assoc 'racket/format webracket-base-surface-statuses)
+  (check-equal? (assoc 'racket/format webracket-full-surface-statuses)
                 '(racket/format exported extracts partial runs)))
 
 (test-case "#lang webracket remains script-compatible in the driver"

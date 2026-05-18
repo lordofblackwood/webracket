@@ -5,6 +5,7 @@
          browser-only
          staged-original-racket-owned
          webracket-base-owned
+         webracket-full-owned
          temporary-stdlib-owned
          report-stdlib-surface)
 
@@ -12,7 +13,8 @@
          "../driver.rkt"
          "../stdlib/module-exports.rkt"
          "io-format-provider.rkt"
-         "webracket-base-surface.rkt")
+         "webracket-base-surface.rkt"
+         "webracket-full-surface.rkt")
 
 (define (sorted-symbols xs)
   (sort (remove-duplicates xs eq?) symbol<?))
@@ -41,6 +43,10 @@
   (append (list webracket-base-foundation)
           webracket-base-addon-libraries))
 
+(define webracket-full-owned
+  (append (list webracket-full-foundation)
+          webracket-full-addon-libraries))
+
 (define temporary-stdlib-owned
   (remove-symbols
    (stdlib-module-alias-symbols #f)
@@ -57,7 +63,8 @@
   (report-line "node stdlib aliases" (sorted-symbols (stdlib-module-alias-symbols #f)))
   (report-line "browser stdlib aliases" (sorted-symbols (stdlib-module-alias-symbols #t)))
   (report-line "staged original Racket providers" (sorted-symbols staged-original-racket-owned))
-  (report-line "webracket/base foundation+addons" (sorted-symbols webracket-base-owned))
+  (report-line "webracket/base foundation" (sorted-symbols webracket-base-owned))
+  (report-line "webracket/full foundation+addons" (sorted-symbols webracket-full-owned))
   (report-line "temporary stdlib-owned aliases" (sorted-symbols temporary-stdlib-owned))
   (report-line "transitional stdlib exports" (sorted-symbols stdlib-transitional-export-symbols))
   (report-line "temporary primitive-owned exports" (sorted-symbols stdlib-primitive-owned-export-symbols)))

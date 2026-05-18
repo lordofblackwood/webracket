@@ -122,24 +122,35 @@
 
 (define-runtime-path webracket-root ".")
 
-;; webracket/base-reader-path : -> (or/c path? #f)
-;;   Resolve the installed `webracket/base` reader through Racket's collection search.
-(define (webracket/base-reader-path)
+;; webracket/module-reader-path : (or/c 'base 'full) -> (or/c path? #f)
+;;   Resolve an installed WebRacket module reader through Racket's collection search.
+(define (webracket/module-reader-path language)
   (collection-file-path "reader.rkt"
                         "webracket"
-                        "base"
+                        (symbol->string language)
                         "lang"
                         #:fail (lambda (_msg) #f)))
 
-;; ensure-webracket/base-reader! : -> void?
+;; webracket/base-reader-path : -> (or/c path? #f)
+;;   Resolve the installed `webracket/base` reader through Racket's collection search.
+(define (webracket/base-reader-path)
+  (webracket/module-reader-path 'base))
+
+;; ensure-webracket/module-reader! : (or/c 'base 'full) -> void?
 ;;   Fail early unless normal Racket collection resolution can find the reader.
-(define (ensure-webracket/base-reader!)
-  (unless (webracket/base-reader-path)
+(define (ensure-webracket/module-reader! language)
+  (unless (webracket/module-reader-path language)
     (raise-arguments-error
      'read-top-level-from-file
-     "cannot resolve #lang webracket/base through Racket's collection search"
-     "reader" '(lib "webracket/base/lang/reader.rkt")
+     (format "cannot resolve #lang webracket/~a through Racket's collection search"
+             language)
+     "reader" `(lib ,(format "webracket/~a/lang/reader.rkt" language))
      "hint" "install/link the webracket collection or set PLTCOLLECTS")))
+
+;; ensure-webracket/base-reader! : -> void?
+;;   Compatibility wrapper for tests and older driver helpers.
+(define (ensure-webracket/base-reader!)
+  (ensure-webracket/module-reader! 'base))
 
 ;;;
 ;;; FFI Files
@@ -1145,6 +1156,22 @@
   (and (string? line)
        (regexp-match? #px"^#lang[ \t]+webracket/base([ \t].*)?$" line)))
 
+(define (webracket-module-lang-line? line)
+  (and (string? line)
+       (regexp-match? #px"^#lang[ \t]+webracket/(base|full)([ \t].*)?$" line)))
+
+(define (webracket-module-lang-line->language line)
+  (define match
+    (and (string? line)
+         (regexp-match #px"^#lang[ \t]+webracket/(base|full)([ \t].*)?$" line)))
+  (and match (string->symbol (cadr match))))
+
+(define (webracket-module-source-language filename)
+  (call-with-input-file filename
+    (lambda (port)
+      (or (webracket-module-lang-line->language (read-line port 'any))
+          'base))))
+
 (define (module-export-cell-symbol module-name export)
   (string->symbol (format "webify-module-export-cell$~a$~a" module-name export)))
 
@@ -1233,30 +1260,39 @@
     [else
      (module-rename-reference renames form)]))
 
-;; read-webracket/base-module : path-string? -> syntax?
+;; read-webracket/module : path-string? (or/c 'base 'full) -> syntax?
 ;;   Read a WebRacket module source through normal Racket module reading.
-(define (read-webracket/base-module filename)
+(define (read-webracket/module filename language)
   (call-with-input-file filename
     (lambda (port)
       (port-count-lines! port)
       (with-module-reading-parameterization
         (lambda ()
-          (ensure-webracket/base-reader!)
+          (ensure-webracket/module-reader! language)
           (read-syntax filename port))))))
 
+;; read-webracket/base-module : path-string? -> syntax?
+;;   Compatibility wrapper for WebRacket module readers.
+(define (read-webracket/base-module filename)
+  (read-webracket/module filename (webracket-module-source-language filename)))
+
 ;; module-stx->name+body : syntax? -> values
-;;   Extract the module name and body from a #lang webracket/base module datum.
+;;   Extract the module name and body from a #lang webracket/base or full datum.
 (define (module-stx->name+body stx)
   (define datum (syntax->datum stx))
   (match datum
-    [`(module ,(? symbol? name) webracket/base (#%module-begin ,forms ...))
+    [`(module ,(? symbol? name) ,(and language
+                                      (or 'webracket/base 'webracket/full))
+              (#%module-begin ,forms ...))
      (values name forms)]
-    [`(module ,(? symbol? name) webracket/base ,forms ...)
+    [`(module ,(? symbol? name) ,(and language
+                                      (or 'webracket/base 'webracket/full))
+              ,forms ...)
      (values name forms)]
     [_
      (raise-arguments-error
       'read-top-level-from-file
-      "expected a #lang webracket/base module"
+      "expected a #lang webracket/base or #lang webracket/full module"
       "datum" datum)]))
 
 ;; webracket/base-module->top-level-forms : path-string? [hash?] [boolean?] -> values
@@ -1365,6 +1401,8 @@
   (memq name
         '(webracket/base/main
           webracket/base
+          webracket/full/main
+          webracket/full
           webracket/core
           webracket/primitives
           racket/private/pre-base
@@ -1523,7 +1561,7 @@
   (define starts-with-webracket-lang?
     (webracket-script-lang-line? first-line))
   (define starts-with-webracket/base-lang?
-    (webracket-base-lang-line? first-line))
+    (webracket-module-lang-line? first-line))
   (define (read-forms port)
     (let loop ([forms '()])
       (define stx (read-syntax filename port))

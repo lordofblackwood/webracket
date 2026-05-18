@@ -58,7 +58,7 @@
 (define expander-read-syntax-provider?
   (make-parameter #f)) ; private staged original-Racket read-syntax provider
 (define webracket-base-module-bridge?
-  (make-parameter #f)) ; experimental #lang webracket/base module bridge
+  (make-parameter #f)) ; experimental #lang webracket/base/full module bridge
 (define provider-cache-dir (make-parameter #f))
 (define clear-provider-cache? (make-parameter #f))
 (define force-provider-cache-refresh? (make-parameter #f))
@@ -241,7 +241,10 @@
     "Disable private staged original-Racket read-syntax provider (default)"
     (expander-read-syntax-provider? #f)]
    [("--webracket-base-module-bridge")
-    "Compile #lang webracket/base through the experimental local module bridge"
+    "Compile #lang webracket/base or full through the experimental local module bridge"
+    (webracket-base-module-bridge? #t)]
+   [("--webracket-module-bridge")
+    "Alias for --webracket-base-module-bridge"
     (webracket-base-module-bridge? #t)]
    [("--provider-cache-dir") dirname
                              "Use <dirname> for provider-slice caches"

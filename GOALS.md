@@ -34,19 +34,23 @@ In this model, the browser does not need to expand source code or compile new
 code at runtime. The host/development machine does the heavy lifting, and the
 browser receives an executable WebRacket/Wasm artifact.
 
-There are two source-language entry points:
+There are three source-language entry points:
 
 - `#lang webracket` remains a script-compatible driver input. `webracket.rkt`
   recognizes the line and compiles the remaining forms as a top-level program.
 - `#lang webracket/base` is the Goal 1 module-language path. Host Racket reads
-  and expands it as a normal module using language `webracket/base`, and Webify
-  can then consume the resulting module/linklet information.
+  and expands it as a normal module using language `webracket/base`. This
+  language is intentionally small: `racket/base` plus WebRacket-specific
+  essentials such as `js-log`.
+- `#lang webracket/full` is the curated batteries-included Goal 1 language. It
+  uses the same module bridge machinery, but re-exports the selected
+  browser-plausible libraries that had previously drifted into
+  `webracket/base`.
 
 For `webracket/base`, `racket/base` is the foundation: it supplies the core
 module-language forms and basic runtime bindings that make ordinary modules
-expand. The curated Goal 1 library surface is the layer above that foundation,
-chosen from the libraries that the larger `racket` language adds around
-`racket/base`.
+expand. The curated Goal 1 library surface belongs to `webracket/full`, chosen
+from the libraries that the larger `racket` language adds around `racket/base`.
 
 ### Current Progress
 
@@ -54,8 +58,9 @@ This goal is actively progressing.
 
 Implemented or partially implemented:
 
-- A first `#lang webracket/base` module language that host Racket reads as a
-  real module, while preserving the existing `#lang webracket` script path.
+- First `#lang webracket/base` and `#lang webracket/full` module languages that
+  host Racket reads as real modules, while preserving the existing
+  `#lang webracket` script path.
 - Transitional driver support for `#lang webracket/base`: the source is read
   through the normal module reader, then its module body is lowered to the
   existing top-level compiler path. This is enough for executable module-style
@@ -106,12 +111,15 @@ Known remaining work:
 - Continue improving diagnostics so failures classify as graph-resolution,
   unsupported-runtime, compiler, or runtime errors.
 
-### `webracket/base` Library Shape
+### `webracket/base` And `webracket/full` Library Shape
 
-The first `webracket/base` milestone should not claim that every binding
-exported by full `racket/base` already executes correctly in WebRacket. It uses
-`racket/base` as the module-language foundation, then grows a deliberately
-tested library surface.
+`webracket/base` should stay close to Racket's `racket/base`: a small
+foundation plus WebRacket-specific essentials. It should not silently become
+the WebRacket version of the larger `racket` language.
+
+`webracket/full` is the deliberately broader language. It uses `racket/base` as
+the module-language foundation, then grows a deliberately tested library
+surface.
 
 Good initial add-on candidates are the libraries already represented in Goal 1
 smokes or close to the current browser runtime:
@@ -156,6 +164,17 @@ Current bridge readiness:
 - Passing: simple local require, flattening-vs-bridge parity for the simple
   local require case, `only-in`, `rename-in`, `prefix-in`, shared local
   dependencies, one local re-export hop, and a staged `format` provider smoke.
+- Passing front-end/provider checks: the bridge now classifies curated
+  installed-provider demands for `racket/vector`, `racket/function`,
+  `racket/promise`, `racket/stream`, and `racket/set`, and a local module plus
+  currently allowlisted installed-provider graph (`racket/vector` plus
+  `racket/function`) composes against synthetic provider reports without
+  invoking the backend. `racket/promise`, `racket/stream`, and `racket/set`
+  are classified but not yet allowlisted for bridge discovery, because their
+  representative provider trials still expose unresolved reflected exports.
+  `racket/format` remains on the staged `io/format` path for now; the
+  installed `racket/format` module pulls a larger contract/location provider
+  cluster.
 - Passing metadata discovery: local dependencies are recovered from the
   expanded/compiled import map instead of raw source require syntax. A
   `define-require-syntax` smoke confirms that a require transformer expanding
@@ -221,15 +240,21 @@ Current bridge readiness:
 - Still intentionally unsupported in the bridge graph extractor: richer local
   phase/import-provider composition in the driver path.
 
-The machine-readable tracking source for this surface is
-`webify/webracket-base-surface.rkt`. Its status rows intentionally separate:
+The machine-readable tracking sources are `webify/webracket-base-surface.rkt`
+for the small base language and `webify/webracket-full-surface.rkt` for the
+curated full language. The full surface status rows intentionally separate:
 
-- `exported`: the library is re-exported by `webracket/base`.
+- `exported`: the library is re-exported by `webracket/full`.
 - `extracts`: a representative module can be read/expanded and Webify can
   extract module/linklet metadata.
 - `composes`: the provider graph can be composed into module instances and
   export cells.
 - `runs`: representative compiled code reaches the WebRacket runtime smoke.
+
+The current module-path policy is documented in `webify/GOAL1-MODULES.md`.
+That document is the reminder that Goal 1 work should advance provider graph
+correctness, module composition, and original-Racket provider replacement
+rather than backend tuning.
 
 Some syntactic libraries, such as `racket/include`, `racket/local`, and
 `racket/shared`, are tracked as `host-only` runtime rows because their main
