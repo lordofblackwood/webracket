@@ -8,11 +8,14 @@
          syntax/modread
          (only-in "../driver.rkt"
                   read-top-level-from-file
+                  webracket/base-external-provider-names
                   webracket/base-file->local-module-graph
                   webracket/base-file->local-module-reports
                   webracket/base-local-module-graph-root
                   webracket/base-local-module-graph-reports
-                  webracket/base-local-module-graph-registry)
+                  webracket/base-local-module-graph-registry
+                  webracket/base-reports->module-graph
+                  webracket/base-reports-demand-external-providers?)
          "test-module-support.rkt"
          "webracket-base-surface.rkt")
 
@@ -466,6 +469,97 @@
          #:module-protocol-dependency webify-module-protocol-dependency))
       (check-equal? (webify-module-registry-plan registry '(main))
                     '(module-protocol racket/list main)))
+    (lambda ()
+      (with-handlers ([exn:fail:filesystem? void])
+        (delete-directory/files source-dir)))))
+
+(test-case "#lang webracket/base classifies external provider demands"
+  (define source-dir (make-temporary-file "webracket-base-provider-classifier-src-~a" 'directory))
+  (define plain-path (build-path source-dir "plain.rkt"))
+  (define lib-path   (build-path source-dir "lib.rkt"))
+  (define local-path (build-path source-dir "local.rkt"))
+  (define list-path  (build-path source-dir "list.rkt"))
+  (dynamic-wind
+    void
+    (lambda ()
+      (call-with-output-file plain-path
+        (lambda (out)
+          (display "#lang webracket/base\n(js-log 42)\n" out))
+        #:exists 'truncate/replace)
+      (call-with-output-file lib-path
+        (lambda (out)
+          (display "#lang webracket/base\n(provide answer)\n(define answer 42)\n" out))
+        #:exists 'truncate/replace)
+      (call-with-output-file local-path
+        (lambda (out)
+          (display "#lang webracket/base\n(require \"lib.rkt\")\n(js-log answer)\n" out))
+        #:exists 'truncate/replace)
+      (call-with-output-file list-path
+        (lambda (out)
+          (display "#lang webracket/base\n(require racket/list)\n(js-log (first '(42 99)))\n" out))
+        #:exists 'truncate/replace)
+      (define (reports path)
+        (call-with-webracket-collection-path
+         (lambda ()
+           (define-values (_root reports) (webracket/base-file->local-module-reports path))
+           reports)))
+      (check-equal? (webracket/base-external-provider-names (reports plain-path)) '())
+      (check-false (webracket/base-reports-demand-external-providers? (reports plain-path)))
+      (check-equal? (webracket/base-external-provider-names (reports local-path)) '())
+      (check-false (webracket/base-reports-demand-external-providers? (reports local-path)))
+      (check-equal? (webracket/base-external-provider-names (reports list-path))
+                    '(racket/list))
+      (check-true (webracket/base-reports-demand-external-providers? (reports list-path))))
+    (lambda ()
+      (with-handlers ([exn:fail:filesystem? void])
+        (delete-directory/files source-dir)))))
+
+(test-case "#lang webracket/base provider discovery composes with a tiny allowlisted provider"
+  (define source-dir (make-temporary-file "webracket-base-provider-allowlist-src-~a" 'directory))
+  (define main-path  (build-path source-dir "main.rkt"))
+  (dynamic-wind
+    void
+    (lambda ()
+      (call-with-output-file main-path
+        (lambda (out)
+          (display "#lang webracket/base\n(require (only-in racket/list first))\n(provide answer)\n(define answer first)\n" out))
+        #:exists 'truncate/replace)
+      (define-values (root reports)
+        (call-with-webracket-collection-path
+         (lambda ()
+           (webracket/base-file->local-module-reports main-path))))
+      (define list-report
+        (webify-module-report
+         'racket/list
+         '(#f)
+         '(0)
+         '()
+         '()
+         '(first)
+         '(linklet () (first)
+            (define-values (first) 'first))
+         #t
+         '()))
+      (define graph
+        (webracket/base-reports->module-graph
+         root
+         reports
+         #:fetch-provider
+         (lambda (name)
+           (check-equal? name 'racket/list)
+           list-report)))
+      (check-equal? (webify-module-registry-plan
+                     (webracket/base-local-module-graph-registry graph)
+                     '(main))
+                    '(module-protocol racket/list main))
+      (check-equal?
+       (webify-module-report-import-export-demands
+        (car reports)
+        (list list-report)
+        #:module-protocol-dependency webify-module-protocol-dependency)
+       (list (webify-module-export-demand 'module-protocol
+                                           '(.get-syntax-literal! .set-transformer!))
+             (webify-module-export-demand 'racket/list '(first)))))
     (lambda ()
       (with-handlers ([exn:fail:filesystem? void])
         (delete-directory/files source-dir)))))

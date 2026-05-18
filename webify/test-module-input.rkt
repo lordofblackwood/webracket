@@ -397,6 +397,16 @@
                 '((1/syntax? racket/private/pre-base syntax?)))
   (check-equal? (map webify-module-resolution-outcome-status preferred-outcomes)
                 '(resolved-by-export-scan/provider-precedence))
+  (define-values (syntax-source-imports syntax-source-outcomes)
+    (webify-resolve-module-linklet-imports/outcomes
+     '(linklet (([1/syntax-source syntax-source])) (y)
+        (define-values (y) 1/syntax-source))
+     '((webracket/primitives (syntax-source))
+       (racket/linklet (syntax-source)))))
+  (check-equal? syntax-source-imports
+                '((1/syntax-source webracket/primitives syntax-source)))
+  (check-equal? (map webify-module-resolution-outcome-status syntax-source-outcomes)
+                '(resolved-by-compiled-primitive-alias))
   (check-exn
    #rx"dependency does not export required name"
    (lambda ()

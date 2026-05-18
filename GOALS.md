@@ -173,6 +173,14 @@ Current bridge readiness:
   `local+provider` currently route to discovered-provider composition but are
   too slow for default runtime smokes with `racket/list`; richer
   phase/import-provider graphs remain unsupported.
+- Current provider-discovery instrumentation:
+  the bridge classifier now has focused tests for language-root-only,
+  local-only, and external `racket/list` demand shapes. Verbose driver mode
+  reports per-provider fetch timing for the discovered-provider path. A narrow
+  resolver rule maps compiled `1/syntax-source` imports to
+  `webracket/primitives`, avoiding the previous ambiguity with `racket/linklet`.
+  A discovery-only smoke composes a tiny `racket/list` provider report for the
+  single `first` export without running a full WebRacket runtime compilation.
 - Default-switch policy: keep `--webracket-base-module-bridge` opt-in for now,
   but treat the local-only bridge as the preferred candidate. The remaining
   blocker is provider-graph performance and ambiguity, not local module

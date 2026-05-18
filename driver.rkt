@@ -1368,21 +1368,43 @@
 ;; webracket/base-reports-demand-external-providers? : (listof webify-module-report?) -> boolean?
 ;;   Check whether a bridge graph needs installed-provider discovery.
 (define (webracket/base-reports-demand-external-providers? reports)
-  (define local-provider-names (map webify-module-report-name reports))
-  (for/or ([report (in-list reports)])
-    (for/or ([name (in-list (webify-module-report-required-provider-names report))])
-      (not (or (memq name local-provider-names)
-               (webracket/base-language-provider-name? name))))))
+  (pair? (webracket/base-external-provider-names reports)))
 
-;; webracket/base-file->local-module-graph : path-string? -> webracket/base-local-module-graph?
-;;   Build a local root graph plus demanded provider reports for the module bridge.
-(define (webracket/base-file->local-module-graph filename)
-  (define-values (root reports)
-    (webracket/base-file->local-module-reports filename))
+;; webracket/base-external-provider-names : (listof webify-module-report?) -> (listof symbol?)
+;;   List required providers outside local reports and the language root.
+(define (webracket/base-external-provider-names reports)
+  (define local-provider-names (map webify-module-report-name reports))
+  (remove-duplicates
+   (for*/list ([report (in-list reports)]
+               [name (in-list (webify-module-report-required-provider-names report))]
+               #:unless (or (memq name local-provider-names)
+                            (webracket/base-language-provider-name? name)))
+     name)
+   eq?))
+
+;; webracket/base-fetch-provider/timed : (symbol? -> webify-module-report?) -> symbol? -> webify-module-report?
+;;   Wrap provider extraction with verbose timing diagnostics.
+(define ((webracket/base-fetch-provider/timed fetch-provider) name)
+  (define start-ms (now-ms))
+  (provider-cache-log "#lang webracket/base provider fetch start: ~a" name)
+  (define report (fetch-provider name))
+  (provider-cache-log "#lang webracket/base provider fetch done: ~a (~ams)"
+                      name
+                      (- (now-ms) start-ms))
+  report)
+
+;; webracket/base-reports->module-graph : symbol? reports keyword-args -> graph
+;;   Build a bridge graph from already-extracted reports.
+(define (webracket/base-reports->module-graph root
+                                             reports
+                                             #:fetch-provider
+                                             [fetch-provider webify-module-path->report])
   (define registry
     (cond
       [(webracket/base-reports-demand-external-providers? reports)
-       (define provider-cache (make-webify-module-provider-cache webify-module-path->report))
+       (define provider-cache
+         (make-webify-module-provider-cache
+          (webracket/base-fetch-provider/timed fetch-provider)))
        (webify-module-reports->discovered-registry
         reports
         #:extra-reports (list webify-module-protocol-report)
@@ -1397,6 +1419,13 @@
                reports
                #:module-protocol-dependency webify-module-protocol-dependency)))]))
   (webracket/base-local-module-graph root reports registry))
+
+;; webracket/base-file->local-module-graph : path-string? -> webracket/base-local-module-graph?
+;;   Build a local root graph plus demanded provider reports for the module bridge.
+(define (webracket/base-file->local-module-graph filename)
+  (define-values (root reports)
+    (webracket/base-file->local-module-reports filename))
+  (webracket/base-reports->module-graph root reports))
 
 ;; module-file->module-bridge-top-level : path-string? -> syntax?
 ;;   Compose a local #lang webracket/base graph through module instances.

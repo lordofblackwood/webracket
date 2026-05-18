@@ -43,7 +43,11 @@ actually demand providers outside the ordinary `#lang webracket/base` language
 root, but direct `racket/list` runtime smokes are still too slow for default
 coverage. Keep the bridge opt-in until provider coverage and turnaround time
 are less experimental; the local-only bridge is now the preferred default
-candidate rather than just a local-module experiment.
+candidate rather than just a local-module experiment. Verbose driver mode logs
+per-provider fetch timing for this path, and the current discovery-only smoke
+uses a tiny fake `racket/list` provider for the single `first` export so the
+bridge can test provider composition without launching the full installed
+provider graph.
 
 Reader resolution uses Racket's normal collection search via
 `collection-file-path`. The driver does not add checkout-specific fallback

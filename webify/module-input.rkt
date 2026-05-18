@@ -478,6 +478,9 @@
           (eq? local '1/get-installation-name)
           (eq? external 'get-installation-name))
      '(#%utils get-installation-name)]
+    [(and (eq? local '1/syntax-source)
+          (eq? external 'syntax-source))
+     '(webracket/primitives syntax-source)]
     [else #f]))
 
 ;; webify-resolve-module-linklet-imports/outcomes : linklet dependency-exports keyword-args ... -> values
