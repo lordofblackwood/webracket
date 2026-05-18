@@ -109,3 +109,6 @@ programs. It should not become a dependency of `#lang webracket/base` or
 `#lang webracket/full`; module-language programs should get functionality from
 original Racket providers, staged providers such as regexp/read/format, or
 explicit WebRacket primitives.
+See `STDLIB-RETIREMENT.md` for the current ownership split. Formatting is
+already provider-owned by `racket-src/io/format`; the legacy writing/printing
+surface is still mixed runtime/script compatibility.

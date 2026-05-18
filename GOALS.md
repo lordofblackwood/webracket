@@ -277,6 +277,12 @@ For Goal 1 modules, functionality should come from module providers, staged
 original Racket sources such as regexp/read/io-format, or deliberately exposed
 WebRacket primitives.
 
+`STDLIB-RETIREMENT.md` is the current ownership plan. In particular,
+`format`, `fprintf`, `printf`, and `eprintf` are owned by the staged
+`racket-src/io/format` provider, not by `stdlib/`; `write`, `display`, `print`,
+and print parameters remain a mixed runtime/legacy-script area until their
+substrate is audited separately.
+
 WebRacket-specific host bindings need their own provider story. The first
 explicit JS debug provider is `webracket/js`, currently a tiny owner for
 `js-log`. FFI modules use a layered shape: `.ffi` declarations describe raw
