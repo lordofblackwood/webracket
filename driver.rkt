@@ -106,8 +106,17 @@
                   webify-module-provider-cache-miss-count
                   webify-module-provider-cache-ref
                   webify-module-reports->discovered-registry
+                  webify-module-report
+                  webify-module-report-bundle-entries
+                  webify-module-report-bundle-keys
+                  webify-module-report-directory-keys
                   webify-module-report-import-map
+                  webify-module-report-manifest-ready?
                   webify-module-report-name
+                  webify-module-report-notes
+                  webify-module-report-phase0-exports
+                  webify-module-report-phase0-imports
+                  webify-module-report-phase0-linklet-datum
                   webify-module-report-required-provider-names
                   webify-module-reports->resolved-linklet-inputs)
          (only-in "webify/module-protocol.rkt"
@@ -324,10 +333,28 @@
 (define current-provider-cache-verbose?
   (make-parameter #f))
 
+(define current-read-source-timing-rows
+  (make-parameter '()))
+
 ;; provider-cache-path : path-string? ... -> path?
 ;;   Build a cache path under the active provider cache directory.
 (define (provider-cache-path . elems)
   (apply build-path (current-provider-cache-dir) elems))
+
+;; driver-timing-add! : symbol? exact-integer? -> void?
+;;   Record fine-grained source-reading timing rows for `--timings`.
+(define (driver-timing-add! name elapsed-ms)
+  (current-read-source-timing-rows
+   (append (current-read-source-timing-rows)
+           (list (list (symbol->string name) elapsed-ms)))))
+
+;; with-driver-timing : symbol? (-> any/c) -> any/c
+;;   Time a small driver phase and append it to the source-reading rows.
+(define (with-driver-timing name thunk)
+  (define start-ms (now-ms))
+  (begin0
+    (thunk)
+    (driver-timing-add! name (- (now-ms) start-ms))))
 
 ;; path-fingerprint : symbol? exact-integer? (listof path?) -> any/c
 ;;   Fingerprint files using path, size, and mtime.
@@ -369,6 +396,79 @@
     (apply fprintf (current-error-port)
            (string-append "provider-cache: " fmt "\n")
            args)))
+
+;; provider-cache-symbol-segment : symbol? -> string?
+;;   Make a conservative filename segment for provider report cache rows.
+(define (provider-cache-symbol-segment name)
+  (regexp-replace* #px"[^A-Za-z0-9_.-]"
+                   (symbol->string name)
+                   "_"))
+
+;; provider-report->cache-datum : webify-module-report? -> datum?
+;;   Serialize provider reports without relying on reader-visible struct types.
+(define (provider-report->cache-datum report)
+  `(provider-report
+    ,(webify-module-report-name report)
+    ,(webify-module-report-directory-keys report)
+    ,(webify-module-report-bundle-keys report)
+    ,(webify-module-report-phase0-imports report)
+    ,(webify-module-report-bundle-entries report)
+    ,(webify-module-report-phase0-exports report)
+    ,(webify-module-report-phase0-linklet-datum report)
+    ,(webify-module-report-manifest-ready? report)
+    ,(webify-module-report-notes report)))
+
+;; cache-datum->provider-report : datum? -> webify-module-report?
+;;   Rehydrate the conservative provider-report cache representation.
+(define (cache-datum->provider-report datum)
+  (match datum
+    [`(provider-report
+       ,name
+       ,directory-keys
+       ,bundle-keys
+       ,phase0-imports
+       ,bundle-entries
+       ,phase0-exports
+       ,phase0-linklet-datum
+       ,manifest-ready?
+       ,notes)
+     (webify-module-report name
+                           directory-keys
+                           bundle-keys
+                           phase0-imports
+                           bundle-entries
+                           phase0-exports
+                           phase0-linklet-datum
+                           manifest-ready?
+                           notes)]
+    [else #f]))
+
+;; cached-installed-provider-report : symbol? (symbol? -> report?) -> report?
+;;   Reuse extracted installed-provider reports across driver runs.
+(define (cached-installed-provider-report name fetch-provider)
+  (define cache-path
+    (provider-cache-path
+     "installed-provider-reports"
+     (string-append (provider-cache-symbol-segment name) ".rktd")))
+  (define fingerprint
+    `(installed-provider-report-cache 1 ,name ,(version)))
+  (define cached (read-provider-cache cache-path fingerprint))
+  (cond
+    [cached
+     (provider-cache-log "installed provider report hit: ~a" name)
+     (or (cache-datum->provider-report cached)
+         (let ()
+           (provider-cache-log "installed provider report cache unreadable; extracting: ~a" name)
+           (define report (fetch-provider name))
+           (write-provider-cache! cache-path
+                                  fingerprint
+                                  (provider-report->cache-datum report))
+           report))]
+    [else
+     (provider-cache-log "installed provider report miss; extracting: ~a" name)
+     (define report (fetch-provider name))
+     (write-provider-cache! cache-path fingerprint (provider-report->cache-datum report))
+     report]))
 
 ;; io-format-source-fingerprint : -> any/c
 ;;   Fingerprint the staged io/format provider inputs.
@@ -1111,7 +1211,8 @@
                                compile-total-ms
                                t-run-ms
                                driver-total-ms))
-    (define driver-rows
+  (define read-detail-rows (current-read-source-timing-rows))
+  (define driver-rows
       (append
        (list (list "ffi-setup"        ffi-setup-ms)
              (list "read-source"      read-source-ms)
@@ -1132,6 +1233,9 @@
              (list "total"      compile-total-ms))))
     (displayln "=== Driver Timings ===")
     (displayln (format-timing-table driver-rows))
+    (when (pair? read-detail-rows)
+      (displayln "=== Read Source Details ===")
+      (displayln (format-timing-table read-detail-rows)))
     (displayln "=== Compile Pipeline ===")
     (displayln overall-table)
     (define pass-table (current-pass-timing-table))
@@ -1263,13 +1367,16 @@
 ;; read-webracket/module : path-string? (or/c 'base 'full) -> syntax?
 ;;   Read a WebRacket module source through normal Racket module reading.
 (define (read-webracket/module filename language)
-  (call-with-input-file filename
-    (lambda (port)
-      (port-count-lines! port)
-      (with-module-reading-parameterization
-        (lambda ()
-          (ensure-webracket/module-reader! language)
-          (read-syntax filename port))))))
+  (with-driver-timing
+   'module-read
+   (lambda ()
+     (call-with-input-file filename
+       (lambda (port)
+         (port-count-lines! port)
+         (with-module-reading-parameterization
+           (lambda ()
+             (ensure-webracket/module-reader! language)
+             (read-syntax filename port))))))))
 
 ;; read-webracket/base-module : path-string? -> syntax?
 ;;   Compatibility wrapper for WebRacket module readers.
@@ -1405,6 +1512,7 @@
           webracket/full
           webracket/core
           webracket/primitives
+          racket/base
           racket/private/pre-base
           racket/private/modbeg)))
 
@@ -1430,7 +1538,7 @@
 (define ((webracket/base-fetch-provider/timed fetch-provider) name)
   (define start-ms (now-ms))
   (provider-cache-log "#lang webracket/base provider fetch start: ~a" name)
-  (define report (fetch-provider name))
+  (define report (cached-installed-provider-report name fetch-provider))
   (provider-cache-log "#lang webracket/base provider fetch done: ~a (~ams)"
                       name
                       (- (now-ms) start-ms))
@@ -1496,42 +1604,87 @@
 ;;   Compose a local #lang webracket/base graph through module instances.
 (define (module-file->module-bridge-top-level filename)
   (define graph
-    (with-handlers ([exn:fail?
-                     (lambda (e)
-                       (raise-arguments-error
-                        'read-top-level-from-file
-                        "#lang webracket/base module bridge graph extraction failed"
-                        "file" filename
-                        "message" (exn-message e)))])
-      (webracket/base-file->local-module-graph filename)))
+    (with-driver-timing
+     'module-bridge-extract
+     (lambda ()
+       (with-handlers ([exn:fail?
+                        (lambda (e)
+                          (raise-arguments-error
+                           'read-top-level-from-file
+                           "#lang webracket/base module bridge graph extraction failed"
+                           "file" filename
+                           "message" (exn-message e)))])
+         (webracket/base-file->local-module-graph filename)))))
   (define composition
-    (with-handlers ([exn:fail?
-                     (lambda (e)
-                       (raise-arguments-error
-                        'read-top-level-from-file
-                        "#lang webracket/base module bridge composition failed"
-                        "root" (webracket/base-local-module-graph-root graph)
-                        "message" (exn-message e)))])
-      (webify-compose-module-registry/roots/composition
-       (webracket/base-local-module-graph-registry graph)
-       (list (webracket/base-local-module-graph-root graph))
-       #:define-export-aliases? #f
-       #:serializable?-box     #f
-       #:datum-intern?         #f
-       #:target                #f
-       #:allow-set!-undefined? #f
-       #:unsafe-mode?          #f
-       #:enforce-constant?     #t
-       #:allow-inline?         #t
-       #:no-prompt?            #f
-       #:prim-knowns           (hasheq)
-       #:primitives            (hasheq)
-       #:compiler-query        (lambda (v) #f)
-       #:get-import-knowns     (lambda (key) (values #f #f #f))
-       #:import-keys           #f)))
+    (with-driver-timing
+     'module-bridge-compose
+     (lambda ()
+       (with-handlers ([exn:fail?
+                        (lambda (e)
+                          (raise-arguments-error
+                           'read-top-level-from-file
+                           "#lang webracket/base module bridge composition failed"
+                           "root" (webracket/base-local-module-graph-root graph)
+                           "message" (exn-message e)))])
+         (webify-compose-module-registry/roots/composition
+          (webracket/base-local-module-graph-registry graph)
+          (list (webracket/base-local-module-graph-root graph))
+          #:define-export-aliases? #f
+          #:serializable?-box     #f
+          #:datum-intern?         #f
+          #:target                #f
+          #:allow-set!-undefined? #f
+          #:unsafe-mode?          #f
+          #:enforce-constant?     #t
+          #:allow-inline?         #t
+          #:no-prompt?            #f
+          #:prim-knowns           (hasheq)
+          #:primitives            (hasheq)
+          #:compiler-query        (lambda (v) #f)
+          #:get-import-knowns     (lambda (key) (values #f #f #f))
+          #:import-keys           #f)))))
   (datum->syntax
    #f
    (webify-module-composition-with-tail composition '((void)))))
+
+;; module-file->module-bridge-top-level/local-only : path-string? -> (or/c syntax? #f)
+;;   Use the module bridge by default only when no installed providers are needed.
+(define (module-file->module-bridge-top-level/local-only filename)
+  (define-values (root reports)
+    (with-driver-timing
+     'module-bridge-extract
+     (lambda ()
+       (webracket/base-file->local-module-reports filename))))
+  (and (not (webracket/base-reports-demand-external-providers? reports))
+       (let ([graph
+              (with-driver-timing
+               'module-bridge-register
+               (lambda ()
+                 (webracket/base-reports->module-graph root reports)))])
+         (define composition
+           (with-driver-timing
+            'module-bridge-compose
+            (lambda ()
+              (webify-compose-module-registry/roots/composition
+               (webracket/base-local-module-graph-registry graph)
+               (list (webracket/base-local-module-graph-root graph))
+               #:define-export-aliases? #f
+               #:serializable?-box     #f
+               #:datum-intern?         #f
+               #:target                #f
+               #:allow-set!-undefined? #f
+               #:unsafe-mode?          #f
+               #:enforce-constant?     #t
+               #:allow-inline?         #t
+               #:no-prompt?            #f
+               #:prim-knowns           (hasheq)
+               #:primitives            (hasheq)
+               #:compiler-query        (lambda (v) #f)
+               #:get-import-knowns     (lambda (key) (values #f #f #f))
+               #:import-keys           #f))))
+         (datum->syntax
+          #f
+          (webify-module-composition-with-tail composition '((void)))))))
 
 ;; module-form->top-level : syntax? -> syntax?
 ;;   Transitional helper for tests that already have a module syntax object.
@@ -1554,6 +1707,7 @@
 (define (read-top-level-from-file filename
                                   #:webracket-base-module-bridge?
                                   [webracket-base-module-bridge? #f])
+  (current-read-source-timing-rows '())
   (define first-line
     (call-with-input-file filename
       (λ (port)
@@ -1585,7 +1739,8 @@
             [starts-with-webracket/base-lang?
              (if webracket-base-module-bridge?
                  (module-file->module-bridge-top-level filename)
-                 (module-file->top-level filename))]
+                 (or (module-file->module-bridge-top-level/local-only filename)
+                     (module-file->top-level filename)))]
             [else
              (define forms (read-forms port))
              (datum->syntax #f `(begin ,@forms))]))))))

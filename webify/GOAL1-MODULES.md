@@ -81,3 +81,22 @@ milestone fails for correctness.
 
 The near-term work is provider graph correctness, module composition coverage,
 and replacing temporary stdlib pieces with original Racket module sources.
+
+## Current Local-Only Default
+
+The driver now tries the module bridge by default for `#lang webracket/base`
+and `#lang webracket/full` files whose extracted graph has no installed
+provider demands after language-root providers are cut. If external providers
+remain, the driver falls back to the transitional top-level lowering unless the
+explicit module-bridge flag is supplied.
+
+`--timings` prints a `Read Source Details` table for this path. A tiny
+`#lang webracket/base` program currently spends little time in module reading,
+extraction, registration, or composition; most time is still in the compiler
+pipeline after the module bridge has produced a top-level program.
+
+Installed provider reports are also cached under the active provider cache
+directory. This is deliberately conservative: cache rows are keyed by module
+name, cache format version, and Racket version, and they store a plain datum
+representation of the extracted report instead of reader-dependent struct
+syntax.

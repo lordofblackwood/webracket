@@ -164,6 +164,17 @@ Current bridge readiness:
 - Passing: simple local require, flattening-vs-bridge parity for the simple
   local require case, `only-in`, `rename-in`, `prefix-in`, shared local
   dependencies, one local re-export hop, and a staged `format` provider smoke.
+- Default local-only path: `#lang webracket/base` and `#lang webracket/full`
+  sources whose extracted reports demand no installed providers now use the
+  module bridge by default. Provider-demanding programs still fall back to the
+  transitional path unless the explicit bridge flag is supplied.
+- Timing visibility: `--timings` now prints read-source detail rows for module
+  read, bridge extraction, registration, and composition. For the tiny
+  `#lang webracket/base` program `42`, those rows show the module bridge is not
+  the main cost; the compiler pipeline, especially later core passes, dominates.
+- Provider caching: installed provider reports are cached as plain datums under
+  the active provider cache directory, so repeated provider discovery can skip
+  re-extracting stable providers.
 - Passing front-end/provider checks: the bridge now classifies curated
   installed-provider demands for `racket/vector`, `racket/function`,
   `racket/promise`, `racket/stream`, and `racket/set`, and a local module plus
