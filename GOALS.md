@@ -280,8 +280,8 @@ WebRacket primitives.
 `STDLIB-RETIREMENT.md` is the current ownership plan. In particular,
 `format`, `fprintf`, `printf`, and `eprintf` are owned by the staged
 `racket-src/io/format` provider, not by `stdlib/`; `write`, `display`, `print`,
-and print parameters remain a mixed runtime/legacy-script area until their
-substrate is audited separately. The executable guard is
+and newline variants should be owned by staged `racket-src/io/print`, while
+print parameters and port handlers remain runtime substrate. The executable guard is
 `webify/check-stdlib-primitive-collisions.rkt`, which fails if provider-owned or
 temporary-stdlib-owned public names accidentally become new compiler primitives.
 

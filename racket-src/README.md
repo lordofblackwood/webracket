@@ -43,6 +43,10 @@ the format sources, the print regexp hook, and the direct dependencies needed
 for the first provider probe. Do not copy all of `../racket/racket/src/io/` at
 once; add files only when a focused probe or provider composition needs them.
 
+The print seed files are also the planned owner for high-level `write`,
+`display`, `print`, and newline variants. The current provider plan and blocker
+list live in `webify/IO-PRINT.md` and `webify/io-print-provider.rkt`.
+
 ### Whole `regexp/` Slice
 
 ```text

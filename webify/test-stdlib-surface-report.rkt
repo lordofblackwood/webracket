@@ -56,10 +56,10 @@
                   (symbol->string name)))
   (for ([name (in-list '(write display print))])
     (check-equal? (stdlib-symbol-owner name)
-                  'future-print-provider
+                  'replace-with-original-racket-provider
                   (symbol->string name))
     (check-equal? (stdlib-symbol-replacement name)
-                  'future-print-provider
+                  'racket-src/io/print
                   (symbol->string name))))
 
 (test-case "webracket/base ownership report keeps racket/base as foundation"

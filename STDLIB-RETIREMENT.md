@@ -59,8 +59,12 @@ The current machine-readable split is:
 
 - runtime substrate: print parameters and handlers such as `current-print`,
   `print-syntax-width`, and `error-value->string-handler`,
-- future high-level provider: `write`, `display`, and `print`,
+- staged high-level provider: `write`, `display`, and `print` via
+  `racket-src/io/print`,
 - staged formatting provider: `format`, `fprintf`, `printf`, and `eprintf`.
+
+See `webify/IO-PRINT.md` for the staged print-provider plan and the current
+blockers.
 
 ## Reading And Regexps
 

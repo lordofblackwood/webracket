@@ -32,6 +32,7 @@
          "../driver.rkt"
          "../stdlib/module-exports.rkt"
          "io-format-provider.rkt"
+         "io-print-provider.rkt"
          "webracket-base-surface.rkt"
          "webracket-full-surface.rkt")
 
@@ -63,7 +64,9 @@
           '(read read-syntax)))
 
 (define runtime-writing-substrate-symbols
-  '(current-print
+  (append
+   io-print-runtime-substrate-symbols
+   '(current-print
     error-print-width
     error-value->string-handler
     print-as-expression
@@ -77,15 +80,10 @@
     print-struct
     print-syntax-width
     print-unreadable
-    print-vector-length))
+    print-vector-length)))
 
 (define high-level-printing-provider-symbols
-  '(display
-    displayln
-    print
-    println
-    write
-    writeln))
+  io-print-provider-symbols)
 
 (define legacy-printing-script-symbols
   '(fprintf
@@ -184,7 +182,7 @@
     [(memq name staged-original-racket-owned) 'racket-src/io/format]
     [(memq name '(read read-syntax)) 'expander/read]
     [(memq name runtime-writing-substrate-symbols) 'runtime-primitive]
-    [(memq name high-level-printing-provider-symbols) 'future-print-provider]
+    [(memq name high-level-printing-provider-symbols) 'racket-src/io/print]
     [(memq name legacy-printing-script-symbols) 'racket-src/io/format]
     [(memq name stdlib-transitional-export-symbols) 'none]
     [(memq name stdlib-primitive-owned-export-symbols) 'runtime-primitive]
@@ -199,7 +197,7 @@
     [(memq name runtime-writing-substrate-symbols)
      'runtime-writing-substrate]
     [(memq name high-level-printing-provider-symbols)
-     'future-print-provider]
+     'replace-with-original-racket-provider]
     [(memq name legacy-printing-script-symbols)
      'replace-with-original-racket-provider]
     [(memq name stdlib-transitional-export-symbols)
@@ -242,7 +240,7 @@
   (report-line "staged original Racket providers" (sorted-symbols staged-original-racket-owned))
   (report-line "provider-owned public symbols" (sorted-symbols provider-owned-public-symbols))
   (report-line "runtime writing substrate" (sorted-symbols runtime-writing-substrate-symbols))
-  (report-line "future high-level printing provider" (sorted-symbols high-level-printing-provider-symbols))
+  (report-line "staged io/print high-level provider" (sorted-symbols high-level-printing-provider-symbols))
   (report-line "webracket/base foundation" (sorted-symbols webracket-base-owned))
   (report-line "webracket/full foundation+addons" (sorted-symbols webracket-full-owned))
   (report-line "temporary stdlib-owned aliases" (sorted-symbols temporary-stdlib-owned))
