@@ -24,6 +24,10 @@ The report has two levels:
 - `stdlib-file` rows classify whole legacy files.
 - `stdlib-symbol` rows classify public names and replacements.
 
+`webify/check-stdlib-primitive-collisions.rkt` is the executable guard. It
+checks that newly added compiler primitives do not silently take ownership of
+names that the report classifies as provider-owned or temporary-stdlib-owned.
+
 ## Formatting
 
 `format`, `fprintf`, `printf`, and `eprintf` are not stdlib-owned. They are
@@ -36,6 +40,10 @@ owned by the staged original-Racket `io/format` provider:
 `stdlib/formatting-numbers.rkt` is therefore marked
 `replace-with-original-racket-provider`.
 
+Module-language programs do not get a textual stdlib prelude. If formatting is
+needed by module-language input, it should arrive through provider/module
+composition, not by falling back to `stdlib/`.
+
 ## Writing And Printing
 
 `write`, `display`, `print`, print parameters, and port write handlers are a
@@ -46,6 +54,13 @@ file blindly. The next step is to separate:
 - runtime-owned port/write substrate,
 - provider-owned high-level printing, if we stage original Racket support,
 - script-only aliases that can disappear with `--stdlib`.
+
+The current machine-readable split is:
+
+- runtime substrate: print parameters and handlers such as `current-print`,
+  `print-syntax-width`, and `error-value->string-handler`,
+- future high-level provider: `write`, `display`, and `print`,
+- staged formatting provider: `format`, `fprintf`, `printf`, and `eprintf`.
 
 ## Reading And Regexps
 

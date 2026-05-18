@@ -11,7 +11,14 @@
                  (symbol->string name))
     (check-equal? (stdlib-symbol-owner name)
                   'replace-with-original-racket-provider
+                  (symbol->string name))
+    (check-equal? (stdlib-symbol-replacement name)
+                  'racket-src/io/format
                   (symbol->string name))))
+
+(test-case "provider-owned public names are explicit"
+  (check-equal? (sort provider-owned-public-symbols symbol<?)
+                '(eprintf format fprintf printf read read-syntax)))
 
 (test-case "stdlib file ownership records obsolete and mixed areas"
   (define by-file
@@ -33,9 +40,27 @@
 (test-case "read ownership points away from stdlib"
   (check-equal? (stdlib-symbol-owner 'read)
                 'replace-with-original-racket-provider)
+  (check-equal? (stdlib-symbol-replacement 'read) 'expander/read)
   (check-equal? (stdlib-symbol-owner 'read-syntax)
                 'replace-with-original-racket-provider)
+  (check-equal? (stdlib-symbol-replacement 'read-syntax) 'expander/read)
   (check-equal? (stdlib-symbol-owner 'unsafe-intmap-ref) 'temporary-stdlib-owned))
+
+(test-case "writing and printing ownership is split"
+  (for ([name (in-list '(current-print print-syntax-width print-unreadable))])
+    (check-equal? (stdlib-symbol-owner name)
+                  'runtime-writing-substrate
+                  (symbol->string name))
+    (check-equal? (stdlib-symbol-replacement name)
+                  'runtime-primitive
+                  (symbol->string name)))
+  (for ([name (in-list '(write display print))])
+    (check-equal? (stdlib-symbol-owner name)
+                  'future-print-provider
+                  (symbol->string name))
+    (check-equal? (stdlib-symbol-replacement name)
+                  'future-print-provider
+                  (symbol->string name))))
 
 (test-case "webracket/base ownership report keeps racket/base as foundation"
   (check-not-false (memq webracket-base-foundation webracket-base-owned))

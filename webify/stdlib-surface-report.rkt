@@ -4,6 +4,10 @@
          browser-exports
          browser-only
          staged-original-racket-owned
+         provider-owned-public-symbols
+         runtime-writing-substrate-symbols
+         high-level-printing-provider-symbols
+         legacy-printing-script-symbols
          webracket-base-owned
          webracket-full-owned
          temporary-stdlib-owned
@@ -21,6 +25,7 @@
          stdlib-symbol-ownership-row-replacement
          stdlib-symbol-ownership-rows
          stdlib-symbol-owner
+         stdlib-symbol-replacement
          report-stdlib-surface)
 
 (require racket/list
@@ -52,6 +57,40 @@
 
 (define staged-original-racket-owned
   io-format-provider-symbols)
+
+(define provider-owned-public-symbols
+  (append staged-original-racket-owned
+          '(read read-syntax)))
+
+(define runtime-writing-substrate-symbols
+  '(current-print
+    error-print-width
+    error-value->string-handler
+    print-as-expression
+    print-boolean-long-form
+    print-box
+    print-graph
+    print-hash-table
+    print-mpair-curly-braces
+    print-pair-curly-braces
+    print-reader-abbreviations
+    print-struct
+    print-syntax-width
+    print-unreadable
+    print-vector-length))
+
+(define high-level-printing-provider-symbols
+  '(display
+    displayln
+    print
+    println
+    write
+    writeln))
+
+(define legacy-printing-script-symbols
+  '(fprintf
+    printf
+    eprintf))
 
 (define webracket-base-owned
   (append (list webracket-base-foundation)
@@ -144,6 +183,9 @@
   (cond
     [(memq name staged-original-racket-owned) 'racket-src/io/format]
     [(memq name '(read read-syntax)) 'expander/read]
+    [(memq name runtime-writing-substrate-symbols) 'runtime-primitive]
+    [(memq name high-level-printing-provider-symbols) 'future-print-provider]
+    [(memq name legacy-printing-script-symbols) 'racket-src/io/format]
     [(memq name stdlib-transitional-export-symbols) 'none]
     [(memq name stdlib-primitive-owned-export-symbols) 'runtime-primitive]
     [else 'legacy-script-only]))
@@ -153,6 +195,12 @@
     [(memq name staged-original-racket-owned)
      'replace-with-original-racket-provider]
     [(memq name '(read read-syntax))
+     'replace-with-original-racket-provider]
+    [(memq name runtime-writing-substrate-symbols)
+     'runtime-writing-substrate]
+    [(memq name high-level-printing-provider-symbols)
+     'future-print-provider]
+    [(memq name legacy-printing-script-symbols)
      'replace-with-original-racket-provider]
     [(memq name stdlib-transitional-export-symbols)
      'legacy-script-only]
@@ -177,6 +225,11 @@
 (define (stdlib-symbol-owner name)
   (symbol-owner name))
 
+;; stdlib-symbol-replacement : symbol? -> symbol?
+;;   Return the planned replacement provider/category for a public stdlib-adjacent name.
+(define (stdlib-symbol-replacement name)
+  (symbol-replacement name))
+
 ;; report-stdlib-surface : -> void?
 ;;   Print the current public ownership split for stdlib migration work.
 (define (report-stdlib-surface)
@@ -187,6 +240,9 @@
   (report-line "node stdlib aliases" (sorted-symbols (stdlib-module-alias-symbols #f)))
   (report-line "browser stdlib aliases" (sorted-symbols (stdlib-module-alias-symbols #t)))
   (report-line "staged original Racket providers" (sorted-symbols staged-original-racket-owned))
+  (report-line "provider-owned public symbols" (sorted-symbols provider-owned-public-symbols))
+  (report-line "runtime writing substrate" (sorted-symbols runtime-writing-substrate-symbols))
+  (report-line "future high-level printing provider" (sorted-symbols high-level-printing-provider-symbols))
   (report-line "webracket/base foundation" (sorted-symbols webracket-base-owned))
   (report-line "webracket/full foundation+addons" (sorted-symbols webracket-full-owned))
   (report-line "temporary stdlib-owned aliases" (sorted-symbols temporary-stdlib-owned))

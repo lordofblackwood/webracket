@@ -7,7 +7,8 @@
 (require racket/list
          racket/set
          "../driver.rkt"
-         "../stdlib/module-exports.rkt")
+         "../stdlib/module-exports.rkt"
+         "stdlib-surface-report.rkt")
 
 (define runtime-primitive-substrate
   '(current-print
@@ -39,6 +40,41 @@
          eq?)
         symbol<?))
 
+(define provider-owned-primitive-transition-allowlist
+  '(read
+    read-syntax))
+
+(define runtime-writing-primitive-transition-allowlist
+  runtime-writing-substrate-symbols)
+
+(define (unexpected-provider-owned-primitives)
+  (define primitives (list->seteq (list-available-primitives)))
+  (define provider-owned (list->seteq provider-owned-public-symbols))
+  (sort
+   (remove* provider-owned-primitive-transition-allowlist
+            (set->list (set-intersect primitives provider-owned))
+            eq?)
+   symbol<?))
+
+(define (unexpected-temporary-stdlib-primitives)
+  (define primitives (list->seteq (list-available-primitives)))
+  (define temporary-owned
+    (list->seteq
+     (for/list ([row (in-list stdlib-symbol-ownership-rows)]
+                #:when (eq? (stdlib-symbol-ownership-row-owner row)
+                            'temporary-stdlib-owned))
+       (stdlib-symbol-ownership-row-name row))))
+  (sort (set->list (set-intersect primitives temporary-owned)) symbol<?))
+
+(define (unexpected-writing-substrate-primitives)
+  (define primitives (list->seteq (list-available-primitives)))
+  (define writing-substrate (list->seteq runtime-writing-substrate-symbols))
+  (sort
+   (remove* runtime-writing-primitive-transition-allowlist
+            (set->list (set-intersect primitives writing-substrate))
+            eq?)
+   symbol<?))
+
 (define (check-root! browser?)
   (define exports (list->seteq (stdlib-module-export-symbols browser?)))
   (define aliases (list->seteq (stdlib-module-alias-symbols browser?)))
@@ -69,4 +105,30 @@
 
 (check-root! #f)
 (check-root! #t)
+(define provider-owned-primitive-collisions
+  (unexpected-provider-owned-primitives))
+(define temporary-stdlib-primitive-collisions
+  (unexpected-temporary-stdlib-primitives))
+(define writing-substrate-primitive-collisions
+  (unexpected-writing-substrate-primitives))
+(printf "provider-owned-primitive-transition-allowlist: ~s\n"
+        provider-owned-primitive-transition-allowlist)
+(printf "provider-owned-primitive-collisions: ~s\n"
+        provider-owned-primitive-collisions)
+(printf "temporary-stdlib-primitive-collisions: ~s\n"
+        temporary-stdlib-primitive-collisions)
+(printf "writing-substrate-primitive-collisions: ~s\n"
+        writing-substrate-primitive-collisions)
+(unless (null? provider-owned-primitive-collisions)
+  (error 'check-stdlib-primitive-collisions
+         "provider-owned public names unexpectedly remain compiler primitives: ~s"
+         provider-owned-primitive-collisions))
+(unless (null? temporary-stdlib-primitive-collisions)
+  (error 'check-stdlib-primitive-collisions
+         "temporary stdlib-owned public names unexpectedly became compiler primitives: ~s"
+         temporary-stdlib-primitive-collisions))
+(unless (null? writing-substrate-primitive-collisions)
+  (error 'check-stdlib-primitive-collisions
+         "unclassified writing substrate primitive names: ~s"
+         writing-substrate-primitive-collisions))
 (displayln "stdlib primitive ownership guard passed")

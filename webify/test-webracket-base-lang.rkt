@@ -161,6 +161,19 @@
               (equal? (car arg) "module-variable-ref")
               (string? (cadr arg))))))
 
+;; datum-contains-symbol? : any/c symbol? -> boolean?
+;;   Search a lowered datum tree for a symbol.
+(define (datum-contains-symbol? datum needle)
+  (cond
+    [(eq? datum needle) #t]
+    [(pair? datum)
+     (or (datum-contains-symbol? (car datum) needle)
+         (datum-contains-symbol? (cdr datum) needle))]
+    [(vector? datum)
+     (for/or ([elem (in-vector datum)])
+       (datum-contains-symbol? elem needle))]
+    [else #f]))
+
 ;; module-runtime-export-symbols : symbol? -> (listof symbol?)
 ;;   List phase-0 value exports for an already-loadable module path.
 (define (module-runtime-export-symbols module-path)
@@ -488,13 +501,65 @@
             (read-top-level-from-file main-path
                                       #:webracket-module-bridge? #f)))))
       (check-true
-       (let loop ([v lowered])
-         (cond
-           [(eq? v 'module-variable-ref) #t]
-           [(pair? v) (or (loop (car v)) (loop (cdr v)))]
-           [(vector? v) (for/or ([elem (in-vector v)]) (loop elem))]
-           [else #f]))
+       (datum-contains-symbol? lowered 'module-variable-ref)
        (format "~s" lowered)))
+    (lambda ()
+      (with-handlers ([exn:fail:filesystem? void])
+        (delete-directory/files source-dir)))))
+
+(test-case "#lang webracket/base module path skips stdlib even when flags request it"
+  (define source-dir (make-temporary-file "webracket-base-stdlib-skip-src-~a" 'directory))
+  (define dest-dir   (make-temporary-file "webracket-base-stdlib-skip-dest-~a" 'directory))
+  (define source-path (build-path source-dir "main.rkt"))
+  (dynamic-wind
+    void
+    (lambda ()
+      (call-with-output-file source-path
+        (lambda (out)
+          (display "#lang webracket/base\n(js-log 42)\n" out))
+        #:exists 'truncate/replace)
+      (define-values (status output)
+        (run-webracket/base
+         (list "-v" "-r" "--stdlib"
+               "--dest" (path->string dest-dir)
+               (path->string source-path))
+         source-dir))
+      (check-equal? status 0 output)
+      (check-regexp-match #rx"Skipping temporary stdlib/provider prelude for module-language input"
+                          output)
+      (check-regexp-match #rx"(?m:^42$)" output))
+    (lambda ()
+      (for ([dir (in-list (list source-dir dest-dir))])
+        (with-handlers ([exn:fail:filesystem? void])
+          (delete-directory/files dir))))))
+
+(test-case "#lang webracket/base provider-first lowered form has no stdlib cells"
+  (define source-dir (make-temporary-file "webracket-base-provider-first-src-~a" 'directory))
+  (define lib-path   (build-path source-dir "lib.rkt"))
+  (define main-path  (build-path source-dir "main.rkt"))
+  (dynamic-wind
+    void
+    (lambda ()
+      (call-with-output-file lib-path
+        (lambda (out)
+          (display "#lang webracket/base\n(provide answer)\n(define answer 42)\n" out))
+        #:exists 'truncate/replace)
+      (call-with-output-file main-path
+        (lambda (out)
+          (display "#lang webracket/base\n(require \"lib.rkt\")\n(js-log answer)\n" out))
+        #:exists 'truncate/replace)
+      (define lowered
+        (call-with-webracket-collection-path
+         (lambda ()
+           (syntax->datum
+            (read-top-level-from-file main-path
+                                      #:webracket-module-bridge? #f)))))
+      (check-true (datum-contains-symbol? lowered 'module-variable-ref)
+                  (format "~s" lowered))
+      (check-false (datum-contains-symbol? lowered 'webify-stdlib-export-cell$0)
+                   (format "~s" lowered))
+      (check-false (datum-contains-symbol? lowered 'webify-io-format-export-cell$format)
+                   (format "~s" lowered)))
     (lambda ()
       (with-handlers ([exn:fail:filesystem? void])
         (delete-directory/files source-dir)))))
