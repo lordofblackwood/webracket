@@ -32,6 +32,28 @@
 (struct webify-module-registry-entry (name linklet importss imports exports) #:transparent)
 (struct webify-module-composition (datum fragments instances exports-infos) #:transparent)
 
+;; registry-primitive-module-name? : any/c -> boolean?
+;;   Recognize predefined modules whose imports are supplied by the runtime.
+(define (registry-primitive-module-name? name)
+  (and (symbol? name)
+       (memq name
+             '(#%kernel
+               #%core
+               #%runtime
+               #%main
+               #%read
+               #%utils
+               #%boot
+               #%unsafe
+               #%linklet
+               #%linklet-primitive
+               #%linklet-expander
+               #%expobs
+               #%place-struct
+               #%bootstrap-linklet
+               webracket/primitives))
+       #t))
+
 ;; make-webify-module-registry : -> webify-module-registry?
 ;;   Create an empty mutable registry of named linklet slices.
 (define (make-webify-module-registry)
@@ -210,7 +232,9 @@
     (define entry (webify-module-registry-ref registry name))
     (for ([source (in-list (webify-module-registry-entry-imports entry))])
       (match-define (list import dependency export) source)
-      (unless (hash-has-key? seen dependency)
+      (unless (or (registry-primitive-module-name? dependency)
+                  (eq? dependency name)
+                  (hash-has-key? seen dependency))
         (raise-arguments-error who
                                "registry import dependency must appear earlier in the composition order"
                                "name" name
@@ -227,6 +251,15 @@
      (match-define (list _import dependency _export) source)
      dependency)
    eq?))
+
+;; entry-module-dependencies : webify-module-registry-entry? -> (listof symbol?)
+;;   Return dependencies that require another composed module instance.
+(define (entry-module-dependencies entry)
+  (define name (webify-module-registry-entry-name entry))
+  (filter (lambda (dependency)
+            (and (not (registry-primitive-module-name? dependency))
+                 (not (eq? dependency name))))
+          (entry-dependencies entry)))
 
 ;; validate-roots! : symbol? any/c -> void?
 ;;   Reject root lists that cannot drive a dependency plan.
@@ -315,7 +348,7 @@
       [else
        (set! temporary (hash-set temporary name #t))
        (define entry (webify-module-registry-ref registry name))
-       (for ([dependency (in-list (entry-dependencies entry))])
+       (for ([dependency (in-list (entry-module-dependencies entry))])
          (visit dependency (cons name path)))
        (set! temporary (hash-remove temporary name))
        (set! permanent (hash-set permanent name #t))

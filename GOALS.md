@@ -251,10 +251,13 @@ Current installed-extraction runtime smokes cover:
 
 - Must-have Goal 1 library families now tracked in the dependency matrix:
   `racket/set`, `racket/sequence`, `racket/match`, `racket/format`,
-  `racket/promise`, `racket/class`, immutable hashes, and `for`/`for*` forms
-  from `racket/base`. Use
+  `racket/promise`, `racket/function`, `racket/vector`, `racket/class`,
+  immutable hashes, and `for`/`for*` forms from `racket/base`. Use
   `webify/probe-installed-module-deps.rkt --goal1-dashboard` for the compact
   dependency view, or `--goal1-compact` when a script-friendly table is enough.
+  The dependency dashboard now has explicit `compile-to-wat` and `runtime`
+  columns; pure extraction rows report those stages as `not-run`, while the
+  runtime probe emits `probe-dashboard` rows for bounded execution attempts.
   For longer runs, prefer the bounded parallel form, for example
   `--goal1-compact-bounded --goal1-limit 50 --timeout 120 --memory-mb 1024
   --jobs 4`. Bounded progress lines start with `#`, so the TSV rows remain
@@ -266,17 +269,12 @@ Current installed-extraction runtime smokes cover:
 - `racket/string`: `string-join` and `string-prefix?`.
 - `racket/vector`: `vector-member`, plus a combined `racket/vector` and
   `racket/list` provider-graph smoke.
-- `racket/set`: a require-only source module instantiates and returns a normal
-  value, and operation smokes now run too: `set?`, `set-count`, `set-member?`,
-  `set-add`, `set-remove`, `set-union`, `set->list`, `set-intersect`,
-  `set-subtract`, `set-symmetric-difference`, `set-map`, and the
-  `racket/private/set-types` predicate case. Retiring this frontier required
-  small runtime pieces that the provider graph actually executes: port
-  struct-type-property identities, the unsafe struct-property constructor
-  alias, syntax-literal placeholders for serialization metadata,
-  `current-load-relative-directory`, `prop:custom-print-quotable`,
-  `procedure-arity?`, and the documented immutable hash association-list
-  constructors.
+- `racket/set`: require-only and operation cases remain in the dependency
+  matrix. The current representative `set-count` case extracts with no missing
+  primitive demands and passes the runtime probe under a 120s bound after the
+  `webracket/primitives` root was classified correctly. Treat set as a
+  size/performance frontier for shorter feedback loops, not a missing-primitive
+  frontier.
 - `racket/stream`: `stream-first` and `stream-rest`.
 - `racket/hash`: an immutable hash constructor, functional `hash-set`,
   `hash-ref`, and immutable hash traversal through `hash-keys`, `hash-values`,
@@ -287,7 +285,8 @@ Current installed-extraction runtime smokes cover:
 - `racket/pretty`: a require-only installed-provider smoke.
 - `racket/promise`: require-only, `promise?` on a plain value, `force` identity
   on a non-promise, `force` of a simple `delay`, and the basic
-  `promise-forced?`/`promise-running?` state predicates.
+  `promise-forced?`/`promise-running?` state predicates. The representative
+  `promise-basic` module case now passes the runtime probe again.
 - `racket/sequence`: `sequence->list` over a plain list, `in-range`,
   `for/list`, `for/fold`, and `for/vector` coverage in the Goal 1 matrix.
 - `racket/base` `for` forms: `for/list`, `for/fold`, `for*/list`, and
@@ -299,6 +298,10 @@ Current installed-extraction runtime smokes cover:
   predicate pattern are tracked in the Goal 1 matrix.
 - `racket/class`: a basic object with a public method.
 - `racket/function`: `compose`, `identity`, `compose1`, `negate`, and `const`.
+  The representative `function-compose` module case passes the runtime probe.
+- `racket/vector`: `vector-member` is represented in both installed runtime
+  smokes and the Goal 1 module-case matrix; the `vector-member-basic` module
+  case passes the runtime probe.
 - Combined installed-library programs for `racket/list` + `racket/string`, for
   `racket/list` + `racket/string` + `racket/set`, and for a multi-module local
   source graph whose providers require those installed libraries separately,
@@ -306,13 +309,16 @@ Current installed-extraction runtime smokes cover:
 - Dependency-first local source modules with quoted sibling requires, such as
   `(require 'base-values)`, through a shared-provider transitive smoke.
 
-`racket/format` is the active next-library frontier. `webracket/base` exports
-the common format surface through the staged `io/format` provider path, while
-the old textual stdlib formatter is being retired. For now, keep the frontier
-focused on `format`, `fprintf`, `printf`, `eprintf`, and common `~a`/`~s`/`~e`
-paths; postpone full `~v` coverage until the ordinary format bridge is stable.
-A `#lang webracket/base` driver smoke now verifies provider-backed `format`
-with `~a`, `~s`, and `~e`.
+`racket/format` is still an active next-library frontier. `webracket/base`
+exports the common format surface through the staged `io/format` provider path,
+while the old textual stdlib formatter is being retired. The installed
+`format-basic` module case extracts with no missing primitive demands after the
+`webracket/primitives` root classification fix and passes the runtime probe
+under a 120s bound. For now, keep the frontier focused on `format`, `fprintf`,
+`printf`, `eprintf`, and common `~a`/`~s`/`~e` paths; postpone full `~v`
+coverage until the ordinary format bridge is stable. A
+`#lang webracket/base` driver smoke now verifies provider-backed `format` with
+`~a`, `~s`, and `~e`.
 
 Current local-manifest runtime smokes cover hand-authored bridge shapes that do
 not depend on source extraction:

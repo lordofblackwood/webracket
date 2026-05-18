@@ -248,7 +248,8 @@
                #%linklet-expander
                #%expobs
                #%place-struct
-               #%bootstrap-linklet))
+               #%bootstrap-linklet
+               webracket/primitives))
        #t))
 
 ;; kernel-dependency? : symbol? -> boolean?

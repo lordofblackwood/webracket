@@ -85,6 +85,11 @@
     force-identity
     promise-basic
     promise-state
+    vector-require
+    vector-member-basic
+    function-compose
+    function-identity
+    function-negate
     sequence-list
     sequence-range
     sequence-for/list
@@ -218,6 +223,11 @@
       force-identity
       promise-basic
       promise-state
+      vector-require
+      vector-member-basic
+      function-compose
+      function-identity
+      function-negate
       sequence-list
       sequence-range
       sequence-for/list
@@ -291,6 +301,9 @@
             [(promise-require force-identity) #rx"(?m:^42$)"]
             [(promise-basic) #rx"(?m:^42$)"]
             [(promise-state) #rx"(?m:^true$)"]
+            [(vector-require function-compose function-identity) #rx"(?m:^42$)"]
+            [(vector-member-basic) #rx"(?m:^1$)"]
+            [(function-negate) #rx"(?m:^true$)"]
             [(sequence-list
               sequence-range
               sequence-for/list
@@ -450,6 +463,28 @@
        (run-installed-runtime-smokes smokes))))
   0)
 
+;; print-runtime-dashboard-row : any/c symbol? symbol? symbol? -> void?
+;;   Print a compact compile/runtime status row for bounded smoke dashboards.
+(define (print-runtime-dashboard-row label compile-to-wat runtime detail)
+  (printf "probe-dashboard\t~a\tcompile-to-wat\t~a\truntime\t~a\tdetail\t~a\n"
+          label
+          compile-to-wat
+          runtime
+          detail))
+
+;; runtime-failure-detail : string? string? -> symbol?
+;;   Classify a failed child smoke from the diagnostics it already emitted.
+(define (runtime-failure-detail stdout stderr)
+  (define output (string-append stdout "\n" stderr))
+  (cond
+    [(regexp-match? #rx"runtime-smoke-failure-" output)
+     'runtime-composition-failed]
+    [(regexp-match? #rx"missing primitive-table entries" output)
+     'missing-primitives]
+    [(regexp-match? #rx"batched extraction failed|extract-installed" output)
+     'extract-failed]
+    [else 'failed]))
+
 ;; run-child/bounded! : any/c installed-runtime-smoke? (listof string?) -> exact-integer?
 ;;   Run one smoke in a child Racket process and kill it on timeout.
 (define (run-child/bounded! label smoke selector-args)
@@ -515,12 +550,20 @@
   (cond
     [(not completed)
      (printf "probe-result: timeout\n")
+     (print-runtime-dashboard-row label 'unknown 'timeout 'child-timeout)
      124]
     [(and (integer? status) (zero? status))
      (printf "probe-result: pass\n")
+     (print-runtime-dashboard-row label 'pass 'pass 'ok)
      0]
     [else
      (printf "probe-result: fail status=~a\n" status)
+     (define detail (runtime-failure-detail stdout stderr))
+     (print-runtime-dashboard-row
+      label
+      (if (eq? detail 'runtime-composition-failed) 'pass 'unknown)
+      'fail
+      detail)
      (if (integer? status) status 1)]))
 
 ;; run-module-case-batch/bounded! : (listof symbol?) -> exact-integer?

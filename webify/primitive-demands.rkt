@@ -95,7 +95,8 @@
     #%linklet-expander
     #%expobs
     #%place-struct
-    #%bootstrap-linklet))
+    #%bootstrap-linklet
+    webracket/primitives))
 
 ;; primitive-module-name? : any/c -> boolean?
 ;;   Recognize primitive/predefined module names used by Racket's expander.

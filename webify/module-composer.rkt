@@ -52,7 +52,8 @@
                #%linklet-expander
                #%expobs
                #%place-struct
-               #%bootstrap-linklet))
+               #%bootstrap-linklet
+               webracket/primitives))
        #t))
 
 ;; validate-begin-datum! : symbol? any/c -> void?

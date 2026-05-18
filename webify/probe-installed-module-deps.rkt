@@ -62,6 +62,11 @@
     force-identity
     promise-basic
     promise-state
+    vector-require
+    vector-member-basic
+    function-compose
+    function-identity
+    function-negate
     sequence-list
     sequence-range
     sequence-for/list
@@ -176,6 +181,11 @@
     promise-predicate-plain
     force-identity
     promise-basic
+    vector-require
+    vector-member-basic
+    function-compose
+    function-identity
+    function-negate
     set-member
     set-add
     set-remove
@@ -463,6 +473,31 @@
                 (= (force p) 42)
                 (promise-forced? p)
                 (not (promise-running? p))))))]
+    [(vector-require)
+     '((module use-vector-require racket/base
+         (require racket/vector)
+         (provide y)
+         (define y 42)))]
+    [(vector-member-basic)
+     '((module use-vector-member-basic racket/base
+         (require racket/vector)
+         (provide y)
+         (define y (vector-member 2 (vector 1 2 3)))))]
+    [(function-compose)
+     '((module use-function-compose racket/base
+         (require racket/function)
+         (provide y)
+         (define y ((compose add1 add1) 40))))]
+    [(function-identity)
+     '((module use-function-identity racket/base
+         (require racket/function)
+         (provide y)
+         (define y (identity 42))))]
+    [(function-negate)
+     '((module use-function-negate racket/base
+         (require racket/function)
+         (provide y)
+         (define y ((negate symbol?) 42))))]
     [(sequence-list)
      '((module use-sequence-list racket/base
          (require racket/sequence)
@@ -770,6 +805,8 @@
                    (lambda (exn)
                      (hasheq 'case name
                              'extract-status 'failed
+                             'compile-to-wat-status 'unknown
+                             'runtime-status 'unknown
                              'extract-error (exn-message exn)
                              'input-count #f
                              'input-names '()
@@ -782,6 +819,8 @@
     (define missing (webify-primitive-demand-report-missing report))
     (hasheq 'case name
             'extract-status 'ok
+            'compile-to-wat-status 'not-run
+            'runtime-status 'not-run
             'input-count (length inputs)
             'input-names (input-names inputs)
             'primitive-demand-count
@@ -801,6 +840,10 @@
 (define (print-goal1-case-verbose summary)
   (printf "case: ~a\n" (hash-ref summary 'case))
   (printf "extract-status: ~a\n" (hash-ref summary 'extract-status))
+  (printf "compile-to-wat-status: ~a\n"
+          (hash-ref summary 'compile-to-wat-status 'unknown))
+  (printf "runtime-status: ~a\n"
+          (hash-ref summary 'runtime-status 'unknown))
   (cond
     [(eq? (hash-ref summary 'extract-status) 'ok)
      (printf "input-count: ~a\n" (hash-ref summary 'input-count))
@@ -820,9 +863,11 @@
 ;; print-goal1-case-compact : hash? -> void?
 ;;   Print one compact dashboard row for a Goal 1 dependency case.
 (define (print-goal1-case-compact summary)
-  (printf "~a\t~a\t~a\t~a\t~a\t~a\n"
+  (printf "~a\t~a\t~a\t~a\t~a\t~a\t~a\t~a\n"
           (hash-ref summary 'case)
           (hash-ref summary 'extract-status)
+          (hash-ref summary 'compile-to-wat-status 'unknown)
+          (hash-ref summary 'runtime-status 'unknown)
           (or (hash-ref summary 'input-count #f) "-")
           (or (hash-ref summary 'primitive-demand-count #f) "-")
           (or (hash-ref summary 'missing-primitive-count #f) "-")
@@ -834,7 +879,7 @@
 (define (print-goal1-summary #:compact? [compact? #f]
                              #:cases [cases goal1-module-cases])
   (when compact?
-    (printf "case\textract\tinputs\tprimitive-demands\tmissing-primitives\townership\n")
+    (printf "case\textract\tcompile-to-wat\truntime\tinputs\tprimitive-demands\tmissing-primitives\townership\n")
     (flush-output))
   (for ([name (in-list cases)]
         [index (in-naturals)])
@@ -849,7 +894,7 @@
 ;;   Print the compact must-have library dependency dashboard.
 (define (print-goal1-dashboard #:cases [cases goal1-module-cases])
   (printf "Goal 1 must-have library dependency dashboard\n")
-  (printf "case\textract\tinputs\tprimitive-demands\tmissing-primitives\townership\n")
+  (printf "case\textract\tcompile-to-wat\truntime\tinputs\tprimitive-demands\tmissing-primitives\townership\n")
   (flush-output)
   (for ([name (in-list cases)])
     (print-goal1-case-compact (summarize-goal1-case name))))
@@ -950,7 +995,7 @@
     [(not completed)
      (call-with-goal1-output-lock
       (lambda ()
-        (printf "~a\ttimeout\t-\t-\t-\t-\n" name)
+        (printf "~a\ttimeout\tunknown\tunknown\t-\t-\t-\t-\n" name)
         (flush-output)
         (printf "# goal1-deps timed out ~a\n" name)
         (flush-output)))
@@ -966,7 +1011,7 @@
     [else
      (call-with-goal1-output-lock
       (lambda ()
-        (printf "~a\tworker-failed\t-\t-\t-\t-\n" name)
+        (printf "~a\tworker-failed\tunknown\tunknown\t-\t-\t-\t-\n" name)
         (unless (string=? stdout "") (display stdout))
         (unless (string=? stderr "")
           (display stderr (current-error-port)))
@@ -1031,7 +1076,7 @@
                                        #:cases [cases goal1-module-cases]
                                        #:jobs [jobs 1])
   (printf "Goal 1 must-have library dependency dashboard\n")
-  (printf "case\textract\tinputs\tprimitive-demands\tmissing-primitives\townership\n")
+  (printf "case\textract\tcompile-to-wat\truntime\tinputs\tprimitive-demands\tmissing-primitives\townership\n")
   (flush-output)
   (run-goal1-children/bounded! cases timeout-seconds memory-mb jobs))
 
