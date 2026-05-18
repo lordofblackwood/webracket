@@ -1417,6 +1417,33 @@
     (check-not-false (memq name unsafe-exports)
                      (symbol->string name))))
 
+(test-case "unsafe FFI generator records export and arity metadata"
+  (define binding-datums (ffi-file->unsafe-binding-datums "ffi/math.ffi"))
+  (check-not-false (member '(js-math-random () (f64)) binding-datums))
+  (check-not-false (member '(js-math-atan2 (f64 f64) (f64)) binding-datums))
+  (define generated
+    (ffi-file->unsafe-module-source "ffi/math.ffi"
+                                    'webracket/unsafe/math
+                                    "ffi-placeholder.rkt"))
+  (check-true (string-contains? generated "(provide\n js-math-abs"))
+  (check-true (string-contains? generated "\n js-math-sqrt\n"))
+  (check-true (string-contains? generated
+                                 "make-unsafe-ffi-placeholder 'js-math-atan2 2")))
+
+(test-case "js/math has public wrappers and unsafe exports match ffi/math.ffi"
+  (define math-exports (module-runtime-export-symbols 'js/math))
+  (define unsafe-exports (module-runtime-export-symbols 'webracket/unsafe/math))
+  (define declared-exports (unsafe-math-ffi-export-symbols))
+  (check-not-false (memq 'math-sqrt math-exports))
+  (check-not-false (memq 'math-random math-exports))
+  (check-equal? (sorted-symbols unsafe-exports)
+                (sorted-symbols declared-exports)))
+
+(test-case "package info declares a multi-collection install story"
+  (define info-path (build-path repo-root "info.rkt"))
+  (define source (file->string info-path))
+  (check-true (string-contains? source "(define collection 'multi)")))
+
 (test-case "#lang webracket/base can require the explicit JS FFI provider"
   (define source-dir (make-temporary-file "webracket-js-provider-src-~a" 'directory))
   (define dest-dir   (make-temporary-file "webracket-js-provider-dest-~a" 'directory))
@@ -1437,6 +1464,31 @@
          source-dir))
       (check-equal? status 0 output)
       (check-regexp-match #rx"(?m:^ffi-module$)" output))
+    (lambda ()
+      (for ([dir (in-list (list source-dir dest-dir))])
+        (with-handlers ([exn:fail:filesystem? void])
+          (delete-directory/files dir))))))
+
+(test-case "#lang webracket/base can require js/math"
+  (define source-dir (make-temporary-file "webracket-js-math-src-~a" 'directory))
+  (define dest-dir   (make-temporary-file "webracket-js-math-dest-~a" 'directory))
+  (define source-path (build-path source-dir "use-math.rkt"))
+  (dynamic-wind
+    void
+    (lambda ()
+      (call-with-output-file source-path
+        (lambda (out)
+          (display "#lang webracket/base\n(require js/math)\n(js-log \"math-module\")\n" out))
+        #:exists 'truncate/replace)
+      (define-values (status output)
+        (run-webracket/base
+         (list "-r" "--no-stdlib" "--no-io-format-provider"
+               "--webracket-module-bridge"
+               "--dest" (path->string dest-dir)
+               (path->string source-path))
+         source-dir))
+      (check-equal? status 0 output)
+      (check-regexp-match #rx"math-module" output))
     (lambda ()
       (for ([dir (in-list (list source-dir dest-dir))])
         (with-handlers ([exn:fail:filesystem? void])

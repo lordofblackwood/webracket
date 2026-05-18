@@ -12,6 +12,10 @@ The intended module layering is:
 ffi/console.ffi
   -> webracket/unsafe/console
   -> js/console
+
+ffi/math.ffi
+  -> webracket/unsafe/math
+  -> js/math
 ```
 
 - `ffi/*.ffi` declares raw imported names, host module names, arities, result
@@ -24,9 +28,10 @@ ffi/console.ffi
   libraries are migrated to modules.
 
 `webracket/unsafe/console` is currently a primitive-backed shim so module
-programs can require the raw console names. Its export set is checked against
-`ffi/console.ffi`; the long-term direction is to generate the whole unsafe
-module body directly from these `.ffi` specs.
+programs can require the raw console names. `webracket/unsafe/math` is a
+generated placeholder module that validates `.ffi` export and arity metadata.
+Both export sets are checked against their `.ffi` declarations; the long-term
+direction is to generate unsafe modules whose bodies bind direct `.ffi` imports.
 
 
 dom.ffi

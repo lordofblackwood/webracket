@@ -134,3 +134,17 @@ compose programs that require raw console names. Its exports are checked
 against `ffi/console.ffi`, and legacy `(include-lib console)` remains covered
 while examples migrate. Replacing the shim body with a generated `.ffi`-backed
 module is the next FFI-generator milestone.
+
+The math pilot uses the same split:
+
+```
+ffi/math.ffi
+  -> webracket/unsafe/math
+  -> js/math
+```
+
+Unlike console, math currently uses generated placeholder bodies. That is
+intentional: it proves the export/arity metadata and provider names without
+pretending direct `.ffi` imports are already module-instance bindings. The next
+runtime milestone is to make these generated unsafe modules bind to actual FFI
+primitives inside the composed provider graph.

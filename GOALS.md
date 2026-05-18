@@ -278,16 +278,18 @@ WebRacket primitives.
 
 WebRacket-specific host bindings need their own provider story. The first
 explicit JS debug provider is `webracket/js`, currently a tiny owner for
-`js-log`. The first layered FFI pilot is console:
-`ffi/console.ffi` declares the raw imports, `webracket/unsafe/console` exposes
-the raw `js-console-*` surface, and `js/console` exposes safe wrappers such as
-`console-log`. The unsafe console module is currently a primitive-backed shim;
-the long-term direction is to generate unsafe modules from `.ffi` specs.
-Future JavaScript/browser/Node bindings should grow as modules such as
-`js/console`, `browser/dom`, and `webracket/unsafe/*`, while low-level Wasm
-imports remain runtime helpers. User-facing FFI names should not be added as
-ambient top-level conveniences unless a language module deliberately re-exports
-them.
+`js-log`. FFI modules use a layered shape: `.ffi` declarations describe raw
+imports, `webracket/unsafe/*` exposes raw names, and `js/*` exposes public
+wrappers. Console is the first runnable pilot:
+`ffi/console.ffi -> webracket/unsafe/console -> js/console`. Math is the first
+generated metadata pilot:
+`ffi/math.ffi -> webracket/unsafe/math -> js/math`; its unsafe bindings are
+declared and export-checked, but still use placeholders until direct
+import-backed provider instances exist. Future JavaScript/browser/Node
+bindings should grow as modules such as `js/console`, `js/math`, `browser/dom`,
+and `webracket/unsafe/*`, while low-level Wasm imports remain runtime helpers.
+User-facing FFI names should not be added as ambient top-level conveniences
+unless a language module deliberately re-exports them.
 
 Some syntactic libraries, such as `racket/include`, `racket/local`, and
 `racket/shared`, are tracked as `host-only` runtime rows because their main

@@ -61,7 +61,10 @@ cached unresolved-import candidate checks as the likely next bottleneck.
 Reader resolution uses Racket's normal collection search via
 `collection-file-path`. The driver does not add checkout-specific fallback
 paths; an uninstalled development checkout must be made visible explicitly,
-such as through `PLTCOLLECTS`, a collection link, or package installation.
+such as through `PLTCOLLECTS`, a collection link, or package installation. The
+repository is declared as a multi-collection package so sibling collections
+such as `webracket` and `js` are installed together instead of relying on
+checkout-specific parent-directory guesses.
 
 `racket/base` is the foundation for `webracket/base`, not one of the optional
 library add-ons. The broader Goal 1 surface is `webracket/full`, which layers
@@ -77,9 +80,11 @@ JS, browser, or Node bindings should be added through WebRacket provider
 modules instead of as accidental ambient top-level names.
 
 The first public wrapper pilot is `(require js/console)`, backed by
-`webracket/unsafe/console`. The unsafe layer corresponds to `ffi/console.ffi`
-and should eventually be generated from that declaration file. The public
-`js/console` layer is where checked, Rackety wrappers belong.
+`webracket/unsafe/console`. The unsafe layer corresponds to `ffi/console.ffi`.
+The second pilot is `(require js/math)`, backed by generated metadata from
+`ffi/math.ffi`; it validates the raw/public module shape without claiming direct
+Math imports are module-bound yet. The public `js/*` layer is where checked,
+Rackety wrappers belong.
 
 The current full add-on list and status vocabulary live in
 `webify/webracket-full-surface.rkt`. A library can be exported by

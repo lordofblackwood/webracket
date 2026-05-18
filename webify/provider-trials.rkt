@@ -197,7 +197,9 @@
 ;;   Private transitive providers that curated public trials currently demand.
 (define webify-provider-trial-support-modules
   '(js/console
-    webracket/unsafe/console))
+    js/math
+    webracket/unsafe/console
+    webracket/unsafe/math))
 
 ;; webify-provider-trial-module-allowlist : (listof symbol?)
 ;;   External providers allowed in the temporary #lang webracket/base bridge.
