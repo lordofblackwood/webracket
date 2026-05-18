@@ -115,6 +115,36 @@ runtime smoke." That separation is important while the old stdlib is being
 retired: a library can be part of the intended module language without being
 implemented by textual stdlib inclusion.
 
+`webify/goal1-dashboard.rkt` is the compact no-stdlib runtime dashboard. It is
+deliberately smaller than `probe-installed-runtime-smoke.rkt`: it runs a few
+representative `#lang webracket/base` and `#lang webracket/full` programs with
+`--no-stdlib`, reports provider-cache events and one compact failure note, and
+separates rows into:
+
+- `local-module-graph`, for local-only module composition;
+- `installed-provider-graph`, for curated `webracket/full` add-ons;
+- `staged-provider-slice`, for always-available staged providers such as
+  regexp.
+
+Run it with:
+
+```sh
+../racket/racket/bin/racket webify/goal1-dashboard.rkt --tsv --timeout 120 --memory-mb 1024
+```
+
+## Current Readiness
+
+| Area | Status | Evidence | Notes |
+| --- | --- | --- | --- |
+| Local `#lang webracket/base` modules | works | `goal1-dashboard` local rows | No legacy stdlib prelude required. |
+| Local require/re-export graphs | works | `test-webracket-base-lang.rkt` and dashboard local rows | Still intentionally rejects unsupported source-level require forms. |
+| Curated `webracket/full` add-ons | partial, not runtime-complete | `webracket-full-dashboard.rkt`, `goal1-dashboard` installed-provider rows | The current dashboard intentionally exposes unbound re-export gaps such as `set` and `format`. |
+| `regexp` provider | works for representative cases | staged provider tests and dashboard staged-provider row | Always-available provider slice; not textual stdlib. |
+| `io/format` provider | works for representative cases | provider slice tests and format dashboard row | Public format family is provider-owned. |
+| `expander/read` provider | staged/partial | `test-expander-read-provider.rkt` | Enabled explicitly for read-provider cases. |
+| `io/print` provider | staged seed | `test-io-print-extraction.rkt` | Cell-only seed works; custom-write/graph semantics still blocked. |
+| Legacy `stdlib/` | retiring | `STDLIB-RETIREMENT.md` | Script compatibility only, not Goal 1 module infrastructure. |
+
 FFI bindings follow the same ownership rule. `webracket/js` is the initial
 WebRacket-specific provider for JavaScript interop and currently exports
 `js-log`. `webracket/base` and `webracket/full` re-export it intentionally, but

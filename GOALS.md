@@ -285,6 +285,11 @@ print parameters and port handlers remain runtime substrate. The executable guar
 `webify/check-stdlib-primitive-collisions.rkt`, which fails if provider-owned or
 temporary-stdlib-owned public names accidentally become new compiler primitives.
 
+The fast Goal 1 health check is `webify/goal1-dashboard.rkt`. It runs a compact
+no-stdlib module-language matrix and reports local-module, installed-provider,
+staged-provider, provider-cache, and compact failure-note status without
+invoking the full installed runtime probe suite.
+
 WebRacket-specific host bindings need their own provider story. The first
 explicit JS debug provider is `webracket/js`, currently a tiny owner for
 `js-log`. FFI modules use a layered shape: `.ffi` declarations describe raw

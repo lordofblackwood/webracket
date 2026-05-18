@@ -1,0 +1,333 @@
+#lang racket/base
+
+;;; Compact Goal 1 no-stdlib runtime dashboard.
+;;;
+;;; This is intentionally much smaller than the installed-provider probes. It
+;;; answers "does a representative module-language program run without the
+;;; legacy stdlib?" and records enough cache information to diagnose slow runs.
+
+(provide goal1-dashboard-case
+         goal1-dashboard-case?
+         goal1-dashboard-case-name
+         goal1-dashboard-case-category
+         goal1-dashboard-case-libraries
+         goal1-dashboard-cases
+         goal1-dashboard-row
+         goal1-dashboard-row?
+         goal1-dashboard-row-name
+         goal1-dashboard-row-category
+         goal1-dashboard-row-libraries
+         goal1-dashboard-row-status
+         goal1-dashboard-row-detail
+         goal1-dashboard-row-note
+         goal1-dashboard-row-cache-events
+         goal1-dashboard-row-cache-files-before
+         goal1-dashboard-row-cache-files-after
+         run-goal1-dashboard
+         print-goal1-dashboard)
+
+(require json
+         racket/cmdline
+         racket/file
+         racket/list
+         racket/match
+         racket/path
+         racket/runtime-path
+         racket/string
+         "test-module-support.rkt")
+
+(define-runtime-path repo-root* "..")
+
+(define repo-root
+  (simplify-path repo-root*))
+
+(define repo-parent
+  (let-values ([(base _name _must-be-dir?) (split-path repo-root)])
+    base))
+
+(define path-list-separator
+  (if (eq? (system-type 'os) 'windows) ";" ":"))
+
+(struct goal1-dashboard-case
+  (name category libraries files main expected args)
+  #:transparent)
+
+(struct goal1-dashboard-row
+  (name category libraries status detail note cache-events cache-files-before cache-files-after)
+  #:transparent)
+
+(define goal1-dashboard-cases
+  (list
+   (goal1-dashboard-case
+    'base-local-expression
+    'local-module-graph
+    '(webracket/base)
+    `(("main.rkt" . "#lang webracket/base\n(js-log (+ 40 2))\n"))
+    "main.rkt"
+    #rx"(?m:^42$)"
+    '("--no-io-format-provider"))
+   (goal1-dashboard-case
+    'base-local-require
+    'local-module-graph
+    '(webracket/base)
+    `(("lib.rkt" . "#lang webracket/base\n(provide add2)\n(define (add2 x) (+ x 2))\n")
+      ("main.rkt" . "#lang webracket/base\n(require \"lib.rkt\")\n(js-log (add2 40))\n"))
+    "main.rkt"
+    #rx"(?m:^42$)"
+    '("--no-io-format-provider"))
+   (goal1-dashboard-case
+    'full-curated-core
+    'installed-provider-graph
+    '(racket/bool racket/bytes racket/list racket/match racket/promise
+                  racket/sequence racket/set racket/string racket/vector)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/full\n"
+         "(define joined (string-join (map number->string '(1 2 3)) \"\"))\n"
+         "(define picked (match '(alpha beta) [(list _ y) y]))\n"
+         "(define set-size (set-count (set 1 2 2)))\n"
+         "(define forced (force (delay (+ 20 22))))\n"
+         "(define vec-pos (vector-member 'b '#(a b c)))\n"
+         "(define bool-bonus (if (boolean=? #t (not #f)) 3 0))\n"
+         "(define bytes-len (bytes-length #\"abc\"))\n"
+         "(js-log (+ (string-length joined) vec-pos set-size bool-bonus bytes-len))\n")))
+    "main.rkt"
+    #rx"(?m:^12$)"
+    '("--no-io-format-provider"))
+   (goal1-dashboard-case
+    'full-format
+    'installed-provider-graph
+    '(racket/format)
+    `(("main.rkt" . "#lang webracket/full\n(js-log (format \"fmt ~a\" 'web))\n"))
+    "main.rkt"
+    #rx"(?m:^fmt web$)"
+    '("--no-io-format-provider"))
+   (goal1-dashboard-case
+    'format-provider
+    'staged-provider-slice
+    '(io/format)
+    `(("main.rkt" . "(js-log (format \"fmt ~a\" 'web))\n"))
+    "main.rkt"
+    #rx"(?m:^fmt web$)"
+    '())
+   (goal1-dashboard-case
+    'regexp-provider-literal
+    'staged-provider-slice
+    '(regexp)
+    `(("main.rkt" . "(js-log (regexp-match? #rx\"a+\" \"cat\"))\n"))
+    "main.rkt"
+    #rx"(?m:^true$)"
+    '("--no-io-format-provider"))))
+
+;; collection-env-value : -> string?
+;;   Make child Racket processes resolve this checkout as collection `webracket`.
+(define (collection-env-value)
+  (format "~a~a~a"
+          (string-join (list (path->string repo-parent)
+                             (path->string repo-root))
+                       path-list-separator)
+          path-list-separator
+          (or (getenv "PLTCOLLECTS") "")))
+
+;; cache-file-count : path? -> exact-nonnegative-integer?
+;;   Count provider-cache files recursively.
+(define (cache-file-count cache-dir)
+  (if (directory-exists? cache-dir)
+      (for/sum ([path (in-list (find-files file-exists? cache-dir))]
+                #:when (file-exists? path))
+        1)
+      0))
+
+;; cache-events : string? exact-nonnegative-integer? exact-nonnegative-integer? -> symbol?
+;;   Summarize provider-cache diagnostics from a dashboard run.
+(define (cache-events output before after)
+  (define hit? (regexp-match? #rx"provider-cache: .* hit" output))
+  (define miss? (regexp-match? #rx"provider-cache: .* miss" output))
+  (cond
+    [(and hit? miss?) 'mixed]
+    [hit? 'hit]
+    [miss? 'miss]
+    [(> after before) 'wrote-cache]
+    [(positive? after) 'warm-no-event]
+    [else 'none]))
+
+;; write-case-files! : path? goal1-dashboard-case? -> path?
+;;   Materialize one dashboard case in a temporary source directory.
+(define (write-case-files! dir c)
+  (for ([entry (in-list (goal1-dashboard-case-files c))])
+    (define path (build-path dir (car entry)))
+    (make-directory* (or (path-only path) dir))
+    (call-with-output-file path
+      (lambda (out) (display (cdr entry) out))
+      #:exists 'truncate/replace))
+  (build-path dir (goal1-dashboard-case-main c)))
+
+;; classify-detail : exact-integer? string? regexp? -> symbol?
+;;   Classify a compact dashboard result.
+(define (classify-detail status output expected)
+  (cond
+    [(= status 124) 'timeout]
+    [(and (zero? status) (regexp-match? expected output)) 'ok]
+    [(zero? status) 'output-mismatch]
+    [(regexp-match? #rx"Skipping temporary stdlib/provider prelude for module-language input" output)
+     'module-language-prelude-skip-but-failed]
+    [(regexp-match? #rx"external provider is not in the Goal 1 trial allowlist|unsupported providers" output)
+     'provider-graph-failed]
+    [(regexp-match? #rx"unbound identifier|undefined" output) 'unbound]
+    [else 'failed]))
+
+;; output-note : exact-integer? string? -> string?
+;;   Keep one compact diagnostic line for failed dashboard rows.
+(define (output-note status output)
+  (define normalized
+    (string-replace (string-trim output) "\t" " "))
+  (cond
+    [(string=? normalized "") (format "exit ~a with no output" status)]
+    [else
+     (define lines
+       (filter
+        (lambda (line)
+          (not (regexp-match? #rx"^provider-cache: cache directory:" line)))
+        (string-split normalized "\n")))
+     (define line (if (null? lines)
+                      (first (string-split normalized "\n"))
+                      (first lines)))
+     (if (> (string-length line) 160)
+         (string-append (substring line 0 157) "...")
+         line)]))
+
+;; run-goal1-dashboard-case : case path? exact-positive-integer? exact-positive-integer? -> row
+;;   Run one compact Goal 1 case through `webracket.rkt -r --no-stdlib`.
+(define (run-goal1-dashboard-case c cache-dir timeout-seconds memory-mb)
+  (define source-dir (make-temporary-file "webracket-goal1-dashboard-src-~a" 'directory))
+  (define dest-dir   (make-temporary-file "webracket-goal1-dashboard-dest-~a" 'directory))
+  (dynamic-wind
+    void
+    (lambda ()
+      (define source-path (write-case-files! source-dir c))
+      (define before (cache-file-count cache-dir))
+      (define-values (status output)
+        (parameterize ([current-environment-variables
+                        (environment-variables-copy
+                         (current-environment-variables))])
+          (environment-variables-set!
+           (current-environment-variables)
+           #"PLTCOLLECTS"
+           (string->bytes/utf-8 (collection-env-value)))
+          (run-webracket
+           (append
+            (list "-v" "-r" "--no-stdlib"
+                  "--provider-cache-dir" (path->string cache-dir)
+                  "--dest" (path->string dest-dir))
+            (goal1-dashboard-case-args c)
+            (list (path->string source-path)))
+           source-dir
+           #:timeout-seconds timeout-seconds
+           #:memory-mb memory-mb)))
+      (define after (cache-file-count cache-dir))
+      (define detail
+        (classify-detail status output (goal1-dashboard-case-expected c)))
+      (goal1-dashboard-row
+       (goal1-dashboard-case-name c)
+       (goal1-dashboard-case-category c)
+       (goal1-dashboard-case-libraries c)
+       (if (eq? detail 'ok) 'pass 'fail)
+       detail
+       (if (eq? detail 'ok) "" (output-note status output))
+       (cache-events output before after)
+       before
+       after))
+    (lambda ()
+      (for ([dir (in-list (list source-dir dest-dir))])
+        (with-handlers ([exn:fail:filesystem? void])
+          (delete-directory/files dir))))))
+
+;; run-goal1-dashboard : keyword-args -> (listof goal1-dashboard-row?)
+;;   Run the compact Goal 1 no-stdlib dashboard.
+(define (run-goal1-dashboard #:cache-dir [cache-dir (make-temporary-file "webracket-goal1-dashboard-cache-~a" 'directory)]
+                             #:timeout-seconds [timeout-seconds 120]
+                             #:memory-mb [memory-mb 1024]
+                             #:cases [cases goal1-dashboard-cases])
+  (for/list ([c (in-list cases)])
+    (run-goal1-dashboard-case c cache-dir timeout-seconds memory-mb)))
+
+(define (row->jsexpr row)
+  (hasheq 'name (symbol->string (goal1-dashboard-row-name row))
+          'category (symbol->string (goal1-dashboard-row-category row))
+          'libraries (map symbol->string (goal1-dashboard-row-libraries row))
+          'status (symbol->string (goal1-dashboard-row-status row))
+          'detail (symbol->string (goal1-dashboard-row-detail row))
+          'note (goal1-dashboard-row-note row)
+          'cache_events (symbol->string (goal1-dashboard-row-cache-events row))
+          'cache_files_before (goal1-dashboard-row-cache-files-before row)
+          'cache_files_after (goal1-dashboard-row-cache-files-after row)))
+
+;; print-goal1-dashboard : keyword-args -> void?
+;;   Print compact Goal 1 no-stdlib dashboard rows.
+(define (print-goal1-dashboard #:tsv? [tsv? #f]
+                               #:json? [json? #f]
+                               #:list? [list? #f]
+                               #:cache-dir [cache-dir #f]
+                               #:timeout-seconds [timeout-seconds 120]
+                               #:memory-mb [memory-mb 1024])
+  (cond
+    [list?
+     (for ([c (in-list goal1-dashboard-cases)])
+       (printf "~a\tcategory\t~a\tlibraries\t~a\n"
+               (goal1-dashboard-case-name c)
+               (goal1-dashboard-case-category c)
+               (string-join (map symbol->string (goal1-dashboard-case-libraries c))
+                            ",")))]
+    [else
+     (define actual-cache-dir
+       (or cache-dir
+           (make-temporary-file "webracket-goal1-dashboard-cache-~a" 'directory)))
+     (define rows
+       (run-goal1-dashboard #:cache-dir actual-cache-dir
+                            #:timeout-seconds timeout-seconds
+                            #:memory-mb memory-mb))
+     (cond
+       [json?
+        (write-json (map row->jsexpr rows))
+        (newline)]
+       [else
+        (when tsv?
+          (displayln
+           "name\tcategory\tlibraries\tstatus\tdetail\tnote\tcache-events\tcache-files-before\tcache-files-after"))
+        (for ([row (in-list rows)])
+          (printf "~a\t~a\t~a\t~a\t~a\t~a\t~a\t~a\t~a\n"
+                  (goal1-dashboard-row-name row)
+                  (goal1-dashboard-row-category row)
+                  (string-join (map symbol->string (goal1-dashboard-row-libraries row))
+                               ",")
+                  (goal1-dashboard-row-status row)
+                  (goal1-dashboard-row-detail row)
+                  (goal1-dashboard-row-note row)
+                  (goal1-dashboard-row-cache-events row)
+                  (goal1-dashboard-row-cache-files-before row)
+                  (goal1-dashboard-row-cache-files-after row)))])]))
+
+(module+ main
+  (define tsv? #f)
+  (define json? #f)
+  (define list? #f)
+  (define cache-dir #f)
+  (define timeout-seconds 120)
+  (define memory-mb 1024)
+  (command-line
+   #:once-each
+   [("--tsv") "print TSV rows" (set! tsv? #t)]
+   [("--json") "print JSON rows" (set! json? #t)]
+   [("--list") "list compact dashboard cases without running them" (set! list? #t)]
+   [("--provider-cache-dir") dir "provider cache directory"
+                             (set! cache-dir (string->path dir))]
+   [("--timeout") n "per-case timeout in seconds"
+                  (set! timeout-seconds (string->number n))]
+   [("--memory-mb") n "per-case memory limit in MiB"
+                    (set! memory-mb (string->number n))])
+  (print-goal1-dashboard #:tsv? tsv?
+                         #:json? json?
+                         #:list? list?
+                         #:cache-dir cache-dir
+                         #:timeout-seconds timeout-seconds
+                         #:memory-mb memory-mb))
