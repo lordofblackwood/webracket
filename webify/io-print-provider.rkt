@@ -36,13 +36,22 @@
     write-string))
 
 (define io-print-staged-source-files
-  '("print/main.rkt"
+  '("print/bytes.rkt"
+    "print/char.rkt"
+    "print/config.rkt"
+    "print/custom-write.rkt"
+    "print/main.rkt"
+    "print/main-web.rkt"
     "print/mode.rkt"
+    "print/more-pending.rkt"
     "print/parameter.rkt"
-    "print/regexp.rkt"))
+    "print/regexp.rkt"
+    "print/string.rkt"
+    "print/symbol.rkt"
+    "print/write-with-max.rkt"))
 
 (define-runtime-path io-print-provider-module
-  "../racket-src/io/print/main.rkt")
+  "../racket-src/io/print/main-web.rkt")
 
 (define io-print-bootstrap-blockers
   '((missing-staged-closure

@@ -13,10 +13,11 @@
     (define staged (build-path staged-io-root file))
     (define upstream (build-path upstream-io-root file))
     (check-true (file-exists? staged) file)
-    (check-true (file-exists? upstream) file)
-    (check-equal? (file->bytes staged)
-                  (file->bytes upstream)
-                  file)))
+    (unless (equal? file "print/main-web.rkt")
+      (check-true (file-exists? upstream) file)
+      (check-equal? (file->bytes staged)
+                    (file->bytes upstream)
+                    file))))
 
 (test-case "high-level printing has staged io ownership"
   (check-equal? io-print-provider-symbols

@@ -26,10 +26,19 @@ That means the right long-term split is:
 The staged seed currently lives in:
 
 ```text
+racket-src/io/print/bytes.rkt
+racket-src/io/print/char.rkt
+racket-src/io/print/config.rkt
+racket-src/io/print/custom-write.rkt
 racket-src/io/print/main.rkt
+racket-src/io/print/main-web.rkt
 racket-src/io/print/mode.rkt
+racket-src/io/print/more-pending.rkt
 racket-src/io/print/parameter.rkt
 racket-src/io/print/regexp.rkt
+racket-src/io/print/string.rkt
+racket-src/io/print/symbol.rkt
+racket-src/io/print/write-with-max.rkt
 ```
 
 These files are copied from upstream Racket. The guard is:
@@ -37,6 +46,10 @@ These files are copied from upstream Racket. The guard is:
 ```sh
 ../racket/racket/bin/racket webify/test-io-print-provider.rkt
 ```
+
+`main-web.rkt` is WebRacket-local adapter glue. It is intentionally not
+byte-for-byte upstream source; it gives the module bridge a cell-only provider
+target while the full upstream `main.rkt` closure is being staged.
 
 ## Why Not Reuse `io/format`'s Adapter?
 
@@ -77,6 +90,16 @@ Current blockers:
 - Default printing needs graph/cycle detection semantics before replacing
   `stdlib/writing.rkt`.
 
+The dependency reporter is:
+
+```sh
+../racket/racket/bin/racket webify/io-print-deps.rkt
+```
+
+It currently shows the first helper slice as present while larger helpers such
+as `graph.rkt`, `hash.rkt`, `list.rkt`, `mlist.rkt`, `named.rkt`,
+`recur-handler.rkt`, and `vector.rkt` remain intentionally unstaged.
+
 ## First Implementation Slice
 
 The first practical provider slice should not try to copy all of `src/io`.
@@ -88,3 +111,9 @@ Instead:
 4. Prove `display`, `write`, and `print` work through provider cells with
    `--no-stdlib`.
 5. Only then publish public aliases for module-language programs.
+
+The first cell-only smoke is:
+
+```sh
+../racket/racket/bin/racket webify/test-io-print-extraction.rkt
+```
