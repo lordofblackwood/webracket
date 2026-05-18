@@ -20,7 +20,7 @@
          racket/stream
          racket/string
          racket/vector
-         (only-in "../core.rkt" js-log)
+         "../js/main.rkt"
          (for-syntax racket/base)
          (for-syntax racket/splicing)
          (for-syntax "../browser-options.rkt"))
@@ -47,7 +47,7 @@
          (all-from-out racket/stream)
          (all-from-out racket/string)
          (all-from-out racket/vector)
-         js-log
+         (all-from-out "../js/main.rkt")
          (for-syntax (all-from-out racket/base))
          (for-syntax (all-from-out racket/splicing))
          (for-syntax (all-from-out "../browser-options.rkt")))

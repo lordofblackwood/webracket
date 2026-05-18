@@ -40,8 +40,8 @@ There are three source-language entry points:
   recognizes the line and compiles the remaining forms as a top-level program.
 - `#lang webracket/base` is the Goal 1 module-language path. Host Racket reads
   and expands it as a normal module using language `webracket/base`. This
-  language is intentionally small: `racket/base` plus WebRacket-specific
-  essentials such as `js-log`.
+  language is intentionally small: `racket/base` plus deliberately selected
+  WebRacket-specific modules such as `webracket/js`.
 - `#lang webracket/full` is the curated batteries-included Goal 1 language. It
   uses the same module bridge machinery, but re-exports the selected
   browser-plausible libraries that had previously drifted into
@@ -275,6 +275,19 @@ It is not the direction for `#lang webracket/base` or `#lang webracket/full`.
 For Goal 1 modules, functionality should come from module providers, staged
 original Racket sources such as regexp/read/io-format, or deliberately exposed
 WebRacket primitives.
+
+WebRacket-specific host bindings need their own provider story. The first
+explicit JS debug provider is `webracket/js`, currently a tiny owner for
+`js-log`. The first layered FFI pilot is console:
+`ffi/console.ffi` declares the raw imports, `webracket/unsafe/console` exposes
+the raw `js-console-*` surface, and `js/console` exposes safe wrappers such as
+`console-log`. The unsafe console module is currently a primitive-backed shim;
+the long-term direction is to generate unsafe modules from `.ffi` specs.
+Future JavaScript/browser/Node bindings should grow as modules such as
+`js/console`, `browser/dom`, and `webracket/unsafe/*`, while low-level Wasm
+imports remain runtime helpers. User-facing FFI names should not be added as
+ambient top-level conveniences unless a language module deliberately re-exports
+them.
 
 Some syntactic libraries, such as `racket/include`, `racket/local`, and
 `racket/shared`, are tracked as `host-only` runtime rows because their main

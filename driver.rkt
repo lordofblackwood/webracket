@@ -1544,6 +1544,8 @@
           webracket/base
           webracket/full/main
           webracket/full
+          webracket/js/main
+          webracket/js
           webracket/core
           webracket/primitives
           racket/base

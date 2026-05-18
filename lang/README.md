@@ -70,6 +70,17 @@ such as `racket/list`, `racket/string`, `racket/set`, `racket/sequence`,
 `racket/match`, `racket/format`, `racket/promise`, and related
 browser-plausible modules.
 
+WebRacket-specific host interop is tracked separately from Racket libraries.
+`webracket/js` is the first explicit FFI provider and currently owns `js-log`.
+`webracket/base` and `webracket/full` re-export it for compatibility, but new
+JS, browser, or Node bindings should be added through WebRacket provider
+modules instead of as accidental ambient top-level names.
+
+The first public wrapper pilot is `(require js/console)`, backed by
+`webracket/unsafe/console`. The unsafe layer corresponds to `ffi/console.ffi`
+and should eventually be generated from that declaration file. The public
+`js/console` layer is where checked, Rackety wrappers belong.
+
 The current full add-on list and status vocabulary live in
 `webify/webracket-full-surface.rkt`. A library can be exported by
 `webracket/full` before every one of its bindings has full runtime coverage,

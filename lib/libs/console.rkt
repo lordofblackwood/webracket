@@ -6,6 +6,8 @@
 
 ;; This library wraps the low-level `js-console-*` bindings with checked
 ;; `console-*` helpers for browser-side code loaded via `include-lib`.
+;; Legacy note: new module-based programs should use `(require js/console)`.
+;; Keep this file text-includable until old `include-lib console` programs move.
 
 ;; console-textish->string : symbol? (or/c string? symbol?) -> string?
 ;;   Convert a label-like value to the string expected by browser console methods.

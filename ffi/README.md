@@ -3,6 +3,31 @@ FFI - WebRacket Bindings
 
 This folder contains bindings for various JavaScript libraries.
 
+The `.ffi` files are declaration specs for raw host imports. They are not the
+intended public module surface.
+
+The intended module layering is:
+
+```
+ffi/console.ffi
+  -> webracket/unsafe/console
+  -> js/console
+```
+
+- `ffi/*.ffi` declares raw imported names, host module names, arities, result
+  conventions, and documentation metadata.
+- `webracket/unsafe/*` exposes raw/unsafe WebRacket binding names such as
+  `js-console-log`.
+- `js/*` and future `browser/*` modules expose safe, Rackety wrappers such as
+  `console-log`.
+- `lib/libs/*` is the legacy `include-lib` compatibility location while those
+  libraries are migrated to modules.
+
+`webracket/unsafe/console` is currently a primitive-backed shim so module
+programs can require the raw console names. Its export set is checked against
+`ffi/console.ffi`; the long-term direction is to generate the whole unsafe
+module body directly from these `.ffi` specs.
+
 
 dom.ffi
 -------

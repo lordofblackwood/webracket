@@ -114,3 +114,23 @@ the language" from "allowed as an external provider" and from "has a direct
 runtime smoke." That separation is important while the old stdlib is being
 retired: a library can be part of the intended module language without being
 implemented by textual stdlib inclusion.
+
+FFI bindings follow the same ownership rule. `webracket/js` is the initial
+WebRacket-specific provider for JavaScript interop and currently exports
+`js-log`. `webracket/base` and `webracket/full` re-export it intentionally, but
+future browser or Node APIs should live in explicit provider modules rather
+than growing the primitive/top-level surface by accident.
+
+The console pilot uses the intended split:
+
+```
+ffi/console.ffi
+  -> webracket/unsafe/console
+  -> js/console
+```
+
+The unsafe module is currently a primitive-backed shim so the module bridge can
+compose programs that require raw console names. Its exports are checked
+against `ffi/console.ffi`, and legacy `(include-lib console)` remains covered
+while examples migrate. Replacing the shim body with a generated `.ffi`-backed
+module is the next FFI-generator milestone.

@@ -27,6 +27,7 @@
          (only-in "provider-trials.rkt"
                   webify-provider-trial-module-allowlist
                   webify-provider-trial-module-allowed?)
+         "unsafe-ffi-module.rkt"
          "test-module-support.rkt"
          "webracket-base-surface.rkt"
          "webracket-full-dashboard.rkt"
@@ -51,7 +52,9 @@
 ;;   Make child Racket processes resolve this checkout as collection `webracket`.
 (define (webracket-collection-env)
   (list (format "PLTCOLLECTS=~a~a~a"
-                (path->string repo-parent)
+                (string-join (list (path->string repo-parent)
+                                   (path->string repo-root))
+                             path-list-separator)
                 path-list-separator
                 (or (getenv "PLTCOLLECTS") ""))))
 
@@ -99,7 +102,8 @@
 ;;   Make the checkout visible as collection `webracket` for #lang tests.
 (define (call-with-webracket-collection-path thunk)
   (parameterize ([current-library-collection-paths
-                  (cons repo-parent (current-library-collection-paths))])
+                  (append (list repo-parent repo-root)
+                          (current-library-collection-paths))])
     (thunk)))
 
 ;; read-module-file : path-string? -> syntax?
@@ -1391,6 +1395,141 @@
     (lambda ()
       (with-handlers ([exn:fail:filesystem? void])
         (delete-directory/files source-dir)))))
+
+(test-case "webracket/js owns the explicit JS debug binding"
+  (define js-exports (module-runtime-export-symbols 'webracket/js))
+  (define base-exports (module-runtime-export-symbols 'webracket/base))
+  (check-not-false (memq 'js-log js-exports))
+  (check-not-false (memq 'js-log base-exports)))
+
+(test-case "js/console wraps the unsafe console layer"
+  (define console-exports (module-runtime-export-symbols 'js/console))
+  (define unsafe-exports (module-runtime-export-symbols 'webracket/unsafe/console))
+  (check-not-false (memq 'console-log console-exports))
+  (check-not-false (memq 'js-console-log unsafe-exports)))
+
+(test-case "webracket/unsafe/console exports match ffi/console.ffi declarations"
+  (define unsafe-exports (module-runtime-export-symbols 'webracket/unsafe/console))
+  (define declared-exports (unsafe-console-ffi-export-symbols))
+  (check-equal? (sorted-symbols unsafe-exports)
+                (sorted-symbols declared-exports))
+  (for ([name (in-list declared-exports)])
+    (check-not-false (memq name unsafe-exports)
+                     (symbol->string name))))
+
+(test-case "#lang webracket/base can require the explicit JS FFI provider"
+  (define source-dir (make-temporary-file "webracket-js-provider-src-~a" 'directory))
+  (define dest-dir   (make-temporary-file "webracket-js-provider-dest-~a" 'directory))
+  (define source-path (build-path source-dir "use-js.rkt"))
+  (dynamic-wind
+    void
+    (lambda ()
+      (call-with-output-file source-path
+        (lambda (out)
+          (display "#lang webracket/base\n(require webracket/js)\n(js-log \"ffi-module\")\n" out))
+        #:exists 'truncate/replace)
+      (define-values (status output)
+        (run-webracket/base
+         (list "-r" "--no-stdlib" "--no-io-format-provider"
+               "--webracket-module-bridge"
+               "--dest" (path->string dest-dir)
+               (path->string source-path))
+         source-dir))
+      (check-equal? status 0 output)
+      (check-regexp-match #rx"(?m:^ffi-module$)" output))
+    (lambda ()
+      (for ([dir (in-list (list source-dir dest-dir))])
+        (with-handlers ([exn:fail:filesystem? void])
+          (delete-directory/files dir))))))
+
+(test-case "#lang webracket/base can require js/console"
+  (define source-dir (make-temporary-file "webracket-js-console-src-~a" 'directory))
+  (define dest-dir   (make-temporary-file "webracket-js-console-dest-~a" 'directory))
+  (define source-path (build-path source-dir "use-console.rkt"))
+  (dynamic-wind
+    void
+    (lambda ()
+      (call-with-output-file source-path
+        (lambda (out)
+          (display "#lang webracket/base\n(require js/console)\n(console-log \"console-module\")\n" out))
+        #:exists 'truncate/replace)
+      (define-values (status output)
+        (run-webracket/base
+         (list "-r" "--no-stdlib" "--no-io-format-provider"
+               "--webracket-module-bridge"
+               "--dest" (path->string dest-dir)
+               (path->string source-path))
+         source-dir))
+      (check-equal? status 0 output)
+      (check-regexp-match #rx"console-module" output))
+    (lambda ()
+      (for ([dir (in-list (list source-dir dest-dir))])
+        (with-handlers ([exn:fail:filesystem? void])
+          (delete-directory/files dir))))))
+
+(test-case "#lang webracket/base can opt into webracket/unsafe/console"
+  (define source-dir (make-temporary-file "webracket-unsafe-console-src-~a" 'directory))
+  (define dest-dir   (make-temporary-file "webracket-unsafe-console-dest-~a" 'directory))
+  (define source-path (build-path source-dir "use-unsafe-console.rkt"))
+  (dynamic-wind
+    void
+    (lambda ()
+      (call-with-output-file source-path
+        (lambda (out)
+          (display
+           (string-append
+            "#lang webracket/base\n"
+            "(require webracket/unsafe/console)\n"
+            "(js-console-log (vector \"raw-console-module\"))\n")
+           out))
+        #:exists 'truncate/replace)
+      (define-values (status output)
+        (run-webracket/base
+         (list "-r" "--no-stdlib" "--no-io-format-provider"
+               "--webracket-module-bridge"
+               "--dest" (path->string dest-dir)
+               (path->string source-path))
+         source-dir))
+      (check-equal? status 0 output)
+      (check-regexp-match #rx"raw-console-module" output))
+    (lambda ()
+      (for ([dir (in-list (list source-dir dest-dir))])
+        (with-handlers ([exn:fail:filesystem? void])
+          (delete-directory/files dir))))))
+
+(test-case "legacy include-lib console remains usable during module migration"
+  (define source-dir
+    (build-path repo-root
+                "tmp"
+                (format "webracket-legacy-console-src-~a"
+                        (current-inexact-milliseconds))))
+  (define dest-dir
+    (build-path repo-root
+                "tmp"
+                (format "webracket-legacy-console-dest-~a"
+                        (current-inexact-milliseconds))))
+  (define source-path (build-path source-dir "legacy-console.rkt"))
+  (dynamic-wind
+    void
+    (lambda ()
+      (make-directory* source-dir)
+      (make-directory* dest-dir)
+      (call-with-output-file source-path
+        (lambda (out)
+          (display "(include-lib console)\n(console-log \"legacy-console\")\n" out))
+        #:exists 'truncate/replace)
+      (define-values (status output)
+        (run-webracket/base
+         (list "-r"
+               "--dest" (path->string dest-dir)
+               (path->string source-path))
+         source-dir))
+      (check-equal? status 0 output)
+      (check-regexp-match #rx"legacy-console" output))
+    (lambda ()
+      (for ([dir (in-list (list source-dir dest-dir))])
+        (with-handlers ([exn:fail:filesystem? void])
+          (delete-directory/files dir))))))
 
 (test-case "webracket/base surface manifest stays small"
   (check-equal? webracket-base-foundation 'racket/base)

@@ -20,6 +20,7 @@
          webify-provider-trial-report-provider-cache-misses
          webify-provider-trial-report-error-message
          webify-provider-trials
+         webify-provider-trial-support-modules
          webify-provider-trial-module-allowlist
          webify-provider-trial-module-allowed?
          webify-provider-trial-ref
@@ -176,12 +177,33 @@
     '(module use-bool racket/base
        (require (only-in racket/bool xor boolean=?))
        (provide answer)
-       (define answer (list xor boolean=?))))))
+       (define answer (list xor boolean=?))))
+   (webify-provider-trial
+    'racket/vector
+    '(vector-member)
+    '(module use-vector racket/base
+       (require (only-in racket/vector vector-member))
+       (provide answer)
+       (define answer vector-member)))
+   (webify-provider-trial
+    'racket/function
+    '(identity negate const)
+    '(module use-function racket/base
+       (require (only-in racket/function identity negate const))
+       (provide answer)
+       (define answer (list identity negate const))))))
+
+;; webify-provider-trial-support-modules : (listof symbol?)
+;;   Private transitive providers that curated public trials currently demand.
+(define webify-provider-trial-support-modules
+  '(js/console
+    webracket/unsafe/console))
 
 ;; webify-provider-trial-module-allowlist : (listof symbol?)
 ;;   External providers allowed in the temporary #lang webracket/base bridge.
 (define webify-provider-trial-module-allowlist
-  (map webify-provider-trial-module webify-provider-trials))
+  (append (map webify-provider-trial-module webify-provider-trials)
+          webify-provider-trial-support-modules))
 
 ;; webify-provider-trial-module-allowed? : symbol? -> boolean?
 ;;   Check whether an external provider is in the discovery trial manifest.
