@@ -34,9 +34,20 @@
                   "write-with-max.rkt")))
 
 (test-case "first io/print helper slice is staged"
-  (for ([file (in-list io-print-first-helper-slice)])
+  (for ([file (in-list (append io-print-first-helper-slice
+                               '("print/graph.rkt"
+                                 "print/hash.rkt"
+                                 "print/list.rkt"
+                                 "print/mlist.rkt"
+                                 "print/named.rkt"
+                                 "print/recur-handler.rkt"
+                                 "print/vector.rkt")))])
     (check-true (file-exists? (io-print-file->path file)) file)
     (check-not-false (member file io-print-staged-source-files) file)))
+
+(test-case "minimal io/print port support seed is staged"
+  (for ([file (in-list io-print-staged-port-source-files)])
+    (check-true (file-exists? (io-print-file->path file)) file)))
 
 (test-case "io/print closure reports remaining missing helpers"
   (define closure (io-print-local-require-closure io-print-source-files))
@@ -52,13 +63,25 @@
     (check-not-false
      (member file (io-print-local-closure-report-present closure))
      file))
-  (for ([file (in-list '("print/graph.rkt"
+  (for ([file (in-list '("port/max-output-port.rkt"
+                         "port/nowhere.rkt"
+                         "print/graph.rkt"
                          "print/hash.rkt"
                          "print/list.rkt"
                          "print/mlist.rkt"
                          "print/named.rkt"
                          "print/recur-handler.rkt"
                          "print/vector.rkt"))])
+    (check-not-false
+     (member file (io-print-local-closure-report-present closure))
+     file))
+  (for ([file (in-list '("error/message.rkt"
+                         "port/bytes-output.rkt"
+                         "port/bytes-port.rkt"
+                         "port/input-port.rkt"
+                         "port/lock.rkt"
+                         "port/port.rkt"
+                         "string/number.rkt"))])
     (check-not-false
      (member file (io-print-local-closure-report-missing closure))
      file)))

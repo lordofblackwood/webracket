@@ -9,6 +9,7 @@
 (provide io-print-provider-symbols
          io-print-runtime-substrate-symbols
          io-print-staged-source-files
+         io-print-staged-port-source-files
          io-print-provider-module
          io-print-provider-status
          io-print-provider-ready?
@@ -40,23 +41,32 @@
     "print/char.rkt"
     "print/config.rkt"
     "print/custom-write.rkt"
+    "print/graph.rkt"
+    "print/hash.rkt"
+    "print/list.rkt"
     "print/main.rkt"
     "print/main-web.rkt"
+    "print/mlist.rkt"
     "print/mode.rkt"
     "print/more-pending.rkt"
+    "print/named.rkt"
     "print/parameter.rkt"
     "print/regexp.rkt"
+    "print/recur-handler.rkt"
     "print/string.rkt"
     "print/symbol.rkt"
+    "print/vector.rkt"
     "print/write-with-max.rkt"))
+
+(define io-print-staged-port-source-files
+  '("port/max-output-port.rkt"
+    "port/nowhere.rkt"))
 
 (define-runtime-path io-print-provider-module
   "../racket-src/io/print/main-web.rkt")
 
 (define io-print-bootstrap-blockers
-  '((missing-staged-closure
-     "print/main.rkt still requires unstaged print helpers such as custom-write, list, vector, hash, and graph")
-    (port-substrate-adapter
+  '((port-substrate-adapter
      "WebRacket needs an adapter for the staged print layer's core-output-port protocol")
     (custom-write-properties
      "prop:custom-write and prop:custom-print-quotable must line up with WebRacket structs")

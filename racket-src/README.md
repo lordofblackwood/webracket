@@ -45,12 +45,14 @@ for the first provider probe. Do not copy all of `../racket/racket/src/io/` at
 once; add files only when a focused probe or provider composition needs them.
 
 The print seed files are also the planned owner for high-level `write`,
-`display`, `print`, and newline variants. The first helper slice additionally
-stages `bytes.rkt`, `char.rkt`, `config.rkt`, `custom-write.rkt`,
-`more-pending.rkt`, `string.rkt`, `symbol.rkt`, and `write-with-max.rkt`.
-`print/main-web.rkt` is WebRacket-local adapter glue for cell-only provider
-tests, not upstream source. The current provider plan and blocker list live in
-`webify/IO-PRINT.md` and `webify/io-print-provider.rkt`.
+`display`, `print`, and newline variants. The helper slice additionally stages
+`bytes.rkt`, `char.rkt`, `config.rkt`, `custom-write.rkt`, `graph.rkt`,
+`hash.rkt`, `list.rkt`, `mlist.rkt`, `more-pending.rkt`, `named.rkt`,
+`recur-handler.rkt`, `string.rkt`, `symbol.rkt`, `vector.rkt`, and
+`write-with-max.rkt`. The minimal port seed stages `max-output-port.rkt` and
+`nowhere.rkt`. `print/main-web.rkt` is WebRacket-local adapter glue for
+cell-only provider tests, not upstream source. The current provider plan and
+blocker list live in `webify/IO-PRINT.md` and `webify/io-print-provider.rkt`.
 
 ### Whole `regexp/` Slice
 
