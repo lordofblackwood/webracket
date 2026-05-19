@@ -551,7 +551,16 @@
                 (define trimmed (string-trim part))
                 (and (not (string=? trimmed ""))
                      (string->symbol trimmed)))
-              (string-split text ",")))
+              (regexp-split #rx"[, \t\r\n]+" text)))
+
+;; parse-module-case-file : path-string? -> (listof symbol?)
+;;   Parse a module-case list file, ignoring blank lines and `;` comments.
+(define (parse-module-case-file path)
+  (parse-module-case-list
+   (string-join
+    (for/list ([line (in-list (file->lines path))])
+      (regexp-replace #rx";.*$" line ""))
+    "\n")))
 
 ;; validate-module-case-selectors! : -> void?
 ;;   Reject ambiguous or unknown module-case selectors before spawning workers.
@@ -969,7 +978,10 @@
  [("--module-case") name "run one source-module case from probe-installed-module-deps"
                     (set! selected-module-case (string->symbol name))]
  [("--module-cases") names "comma-separated source-module cases to run from the parent"
-                     (set! selected-module-cases (parse-module-case-list names))])
+                     (set! selected-module-cases (parse-module-case-list names))]
+ [("--module-cases-file") path "read source-module cases from a file"
+                          (set! selected-module-cases
+                                (parse-module-case-file path))])
 
 (validate-module-case-selectors!)
 
