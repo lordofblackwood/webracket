@@ -138,17 +138,43 @@
     '("--no-io-format-provider"))
    (goal1-dashboard-case
     'full-set
+    'language-staged-provider
+    '(webracket/set)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/full\n"
+         "(define s (set-add (set 1 2 2) 3))\n"
+         "(js-log (+ (set-count s) (if (set-member? s 2) 10 0)))\n")))
+    "main.rkt"
+    #rx"(?m:^13$)"
+    '("--no-io-format-provider" "--webracket-module-bridge"))
+   (goal1-dashboard-case
+    'full-promise
+    'language-staged-provider
+    '(webracket/promise)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/full\n"
+         "(define p (delay (+ 20 22)))\n"
+         "(define before (promise-forced? p))\n"
+         "(define v (force p))\n"
+         "(js-log (+ v (if before 100 0) (if (promise-forced? p) 1 0)))\n")))
+    "main.rkt"
+    #rx"(?m:^43$)"
+    '("--no-io-format-provider" "--webracket-module-bridge"))
+   (goal1-dashboard-case
+    'installed-racket-set-diagnostic
     'installed-provider-graph
     '(racket/set)
-    `(("main.rkt" . "#lang webracket/full\n(js-log (set-count (set 1 2 2)))\n"))
+    `(("main.rkt" . "#lang webracket/base\n(require racket/set)\n(js-log (set-count (set 1 2 2)))\n"))
     "main.rkt"
     #rx"(?m:^2$)"
     '("--no-io-format-provider" "--webracket-module-bridge"))
    (goal1-dashboard-case
-    'full-promise
+    'installed-racket-promise-diagnostic
     'installed-provider-graph
     '(racket/promise)
-    `(("main.rkt" . "#lang webracket/full\n(js-log (force (delay (+ 20 22))))\n"))
+    `(("main.rkt" . "#lang webracket/base\n(require racket/promise)\n(js-log (force (delay (+ 20 22))))\n"))
     "main.rkt"
     #rx"(?m:^42$)"
     '("--no-io-format-provider" "--webracket-module-bridge"))

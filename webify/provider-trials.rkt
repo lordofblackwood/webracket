@@ -199,6 +199,8 @@
   '(js/console
     js/math
     js/temp
+    webracket/promise
+    webracket/set
     webracket/unsafe/console
     webracket/unsafe/math
     webracket/unsafe/temp))

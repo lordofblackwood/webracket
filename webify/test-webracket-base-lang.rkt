@@ -378,6 +378,39 @@
         (with-handlers ([exn:fail:filesystem? void])
           (delete-directory/files dir))))))
 
+(test-case "#lang webracket/full uses staged set and promise providers"
+  (define source-dir (make-temporary-file "webracket-full-staged-set-promise-src-~a" 'directory))
+  (define dest-dir   (make-temporary-file "webracket-full-staged-set-promise-dest-~a" 'directory))
+  (define source-path (build-path source-dir "full-staged-set-promise.rkt"))
+  (dynamic-wind
+    void
+    (lambda ()
+      (call-with-output-file source-path
+        (lambda (out)
+          (display
+           (string-append
+            "#lang webracket/full\n"
+            "(define s (set-add (set 1 2 2) 3))\n"
+            "(define p (delay (+ (set-count s) 39)))\n"
+            "(define before (promise-forced? p))\n"
+            "(define value (force p))\n"
+            "(js-log (+ value (if before 100 0) (if (set-member? s 2) 1 0)))\n")
+           out))
+        #:exists 'truncate/replace)
+      (define-values (status output)
+        (run-webracket/base
+         (list "-r" "--no-stdlib" "--no-io-format-provider"
+               "--webracket-module-bridge"
+               "--dest" (path->string dest-dir)
+               (path->string source-path))
+         source-dir))
+      (check-equal? status 0 output)
+      (check-regexp-match #rx"(?m:^43$)" output))
+    (lambda ()
+      (for ([dir (in-list (list source-dir dest-dir))])
+        (with-handlers ([exn:fail:filesystem? void])
+          (delete-directory/files dir))))))
+
 (test-case "#lang webracket/base fails clearly without collection resolution"
   (define source-dir (make-temporary-file "webracket-base-no-collection-src-~a" 'directory))
   (define dest-dir   (make-temporary-file "webracket-base-no-collection-dest-~a" 'directory))
@@ -903,13 +936,16 @@
     (check-not-false (assoc name rows)
                      (symbol->string name)))
   (define vector-row (assoc 'racket/vector rows))
-  (define promise-row (assoc 'racket/promise rows))
+  (define promise-row (assoc 'webracket/promise rows))
+  (define set-row (assoc 'webracket/set rows))
   (check-equal? (length vector-row) 8)
   (check-equal? (list-ref vector-row 5) 'allowlisted)
   (check-equal? (list-ref vector-row 6) 'passes)
   (check-equal? (list-ref vector-row 7) 'module-composition-partial)
-  (check-equal? (list-ref promise-row 5) 'not-allowlisted)
-  (check-equal? (list-ref promise-row 7) 'module-composition-partial))
+  (check-equal? (list-ref promise-row 5) 'allowlisted)
+  (check-equal? (list-ref promise-row 6) 'passes)
+  (check-equal? (list-ref set-row 5) 'allowlisted)
+  (check-equal? (list-ref set-row 6) 'passes))
 
 (test-case "#lang webracket/base provider allowlist covers current Goal 1 trials"
   (for ([name (in-list '(racket/list
@@ -1734,12 +1770,14 @@
   (check-equal? webracket-full-foundation 'racket/base)
   (check-false (memq 'racket/base webracket-full-addon-libraries))
   (for ([name (in-list '(racket/list racket/string racket/vector racket/function
-                                     racket/bool racket/promise racket/sequence
-                                     racket/set racket/match racket/format))])
+                                     racket/bool racket/sequence webracket/promise
+                                     webracket/set racket/match racket/format))])
     (check-not-false (memq name webracket-full-addon-libraries)
                      (symbol->string name)))
   (check-not-false (assoc 'racket/format webracket-full-surface-statuses))
-  (check-not-false (assoc 'racket/list webracket-full-surface-statuses)))
+  (check-not-false (assoc 'racket/list webracket-full-surface-statuses))
+  (check-false (memq 'racket/promise webracket-full-addon-libraries))
+  (check-false (memq 'racket/set webracket-full-addon-libraries)))
 
 (test-case "webracket/full surface statuses cover every curated add-on"
   (define status-names (map car webracket-full-surface-statuses))

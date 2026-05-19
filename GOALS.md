@@ -375,12 +375,13 @@ Current installed-extraction runtime smokes cover:
 - `racket/string`: `string-join` and `string-prefix?`.
 - `racket/vector`: `vector-member`, plus a combined `racket/vector` and
   `racket/list` provider-graph smoke.
-- `racket/set`: require-only and operation cases remain in the dependency
-  matrix. The current representative `set-count` case extracts with no missing
-  primitive demands and passes the runtime probe under a 120s bound after the
-  `webracket/primitives` root was classified correctly. Treat set as a
-  size/performance frontier for shorter feedback loops, not a missing-primitive
-  frontier.
+- `webracket/set`: a small staged immutable-set provider is available for the
+  curated WebRacket language surface. It is backed by ordinary immutable hash
+  tables and covers the common `set`, `set-add`, `set-remove`, `set-count`,
+  `set-member?`, `set-union`, `set-subtract`, `set->list`, and related
+  predicates needed by early Goal 1 programs. Installed `racket/set` remains
+  in the dependency matrix as a diagnostic row because its transitive graph is
+  still too large for the short feedback lane.
 - `racket/stream`: `stream-first` and `stream-rest`.
 - `racket/hash`: an immutable hash constructor, functional `hash-set`,
   `hash-ref`, and immutable hash traversal through `hash-keys`, `hash-values`,
@@ -389,10 +390,11 @@ Current installed-extraction runtime smokes cover:
   behavior for non-symbol equal?/eqv?/eq? keys remains a separate semantic
   milestone.
 - `racket/pretty`: a require-only installed-provider smoke.
-- `racket/promise`: require-only, `promise?` on a plain value, `force` identity
-  on a non-promise, `force` of a simple `delay`, and the basic
-  `promise-forced?`/`promise-running?` state predicates. The representative
-  `promise-basic` module case now passes the runtime probe again.
+- `webracket/promise`: a small staged provider covers `delay`, `delay/strict`,
+  `force`, `promise?`, `promise-forced?`, and `promise-running?` for simple
+  single-value promises. Installed `racket/promise` stays as a diagnostic
+  provider-graph row, while `#lang webracket/full` uses the staged provider for
+  its fast Goal 1 promise surface.
 - `racket/sequence`: `sequence->list` over a plain list, `in-range`,
   `for/list`, `for/fold`, and `for/vector` coverage in the Goal 1 matrix.
 - `racket/base` `for` forms: `for/list`, `for/fold`, `for*/list`, and

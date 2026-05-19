@@ -11,6 +11,7 @@
      eq?))
   (check-not-false (memq 'local-module-graph categories))
   (check-not-false (memq 'installed-provider-graph categories))
+  (check-not-false (memq 'language-staged-provider categories))
   (check-not-false (memq 'ffi-module categories))
   (check-not-false (memq 'staged-provider-slice categories)))
 
@@ -27,6 +28,8 @@
                             racket/format
                             racket/promise
                             racket/vector
+                            webracket/set
+                            webracket/promise
                             js/math
                             js/console))])
     (check-not-false (memq library covered)

@@ -13,14 +13,14 @@
          racket/math
          racket/path
          racket/port
-         racket/promise
          racket/sequence
-         racket/set
          racket/shared
          racket/stream
          racket/string
          racket/vector
          "../js/main.rkt"
+         "../promise.rkt"
+         "../set.rkt"
          (for-syntax racket/base)
          (for-syntax racket/splicing)
          (for-syntax "../browser-options.rkt"))
@@ -40,14 +40,14 @@
          (all-from-out racket/math)
          (all-from-out racket/path)
          (all-from-out racket/port)
-         (all-from-out racket/promise)
          (all-from-out racket/sequence)
-         (all-from-out racket/set)
          (all-from-out racket/shared)
          (all-from-out racket/stream)
          (all-from-out racket/string)
          (all-from-out racket/vector)
          (all-from-out "../js/main.rkt")
+         (all-from-out "../promise.rkt")
+         (all-from-out "../set.rkt")
          (for-syntax (all-from-out racket/base))
          (for-syntax (all-from-out racket/splicing))
          (for-syntax (all-from-out "../browser-options.rkt")))

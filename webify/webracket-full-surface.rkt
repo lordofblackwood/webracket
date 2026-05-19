@@ -21,13 +21,13 @@
     racket/math
     racket/path
     racket/port
-    racket/promise
     racket/sequence
-    racket/set
     racket/shared
     racket/stream
     racket/string
-    racket/vector))
+    racket/vector
+    webracket/promise
+    webracket/set))
 
 (define webracket-full-deferred-libraries
   '(racket/class
@@ -58,10 +58,10 @@
     (racket/math     exported extracts partial partial)
     (racket/path     exported extracts partial partial)
     (racket/port     exported extracts partial partial)
-    (racket/promise  exported extracts partial runs)
     (racket/sequence exported extracts partial runs)
-    (racket/set      exported extracts partial runs)
     (racket/shared   exported expands  partial host-only)
     (racket/stream   exported extracts partial runs)
     (racket/string   exported extracts partial runs)
-    (racket/vector   exported extracts partial runs)))
+    (racket/vector   exported extracts partial runs)
+    (webracket/promise exported extracts staged runs)
+    (webracket/set     exported extracts staged runs)))

@@ -33,8 +33,10 @@ essentials such as `js-log`. This keeps the name aligned with Racket's
 `webracket/full` is the current curated add-on surface. It is tracked in
 `webify/webracket-full-surface.rkt` and includes the libraries that already
 have useful Goal 1 evidence, such as `racket/list`, `racket/string`,
-`racket/vector`, `racket/function`, `racket/promise`, `racket/sequence`,
-`racket/set`, `racket/stream`, staged `io/format`, and friends.
+`racket/vector`, `racket/function`, `racket/sequence`, `racket/stream`, staged
+`io/format`, and friends. For libraries whose installed provider graph is still
+too broad for the fast lane, `webracket/full` can use smaller WebRacket-owned
+staged providers such as `webracket/set` and `webracket/promise`.
 
 The bridge allowlist is intentionally narrower than "everything exported by the
 language." `webify/provider-trials.rkt` is the temporary manifest of installed
@@ -50,11 +52,12 @@ external-provider trial set alongside the earlier list/string/bool trials.
 The JavaScript FFI modules `js/math` and `js/console` also pass through the
 module bridge and infer their `.ffi` bundles from canonical
 `webracket/unsafe/*` providers.
-`racket/promise`, `racket/stream`, and `racket/set` are still useful Goal 1
-libraries, but they stay out of the temporary bridge allowlist until we have a
-smaller provider route for them. A direct `racket/set` trial currently expands
-into a much larger transitive graph through contracts, syntax support, and
-random support; the bridge now rejects unsupported transitive providers instead
+`webracket/set` and `webracket/promise` are now staged provider routes for the
+curated language surface. They are intentionally smaller than installed
+`racket/set` and `racket/promise`, which remain diagnostic provider-graph rows
+instead of fast-lane dependencies. A direct installed `racket/set` trial still
+expands into a much larger transitive graph through contracts, syntax support,
+and random support; the bridge rejects unsupported transitive providers instead
 of discovering that graph accidentally.
 
 ## Stdlib Replacement Direction
