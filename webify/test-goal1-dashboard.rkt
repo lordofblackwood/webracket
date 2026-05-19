@@ -29,6 +29,7 @@
                             racket/format
                             racket/promise
                             racket/vector
+                            webracket/contract
                             webracket/set
                             webracket/promise
                             webracket/stream

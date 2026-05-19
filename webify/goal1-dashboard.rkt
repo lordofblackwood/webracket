@@ -264,6 +264,20 @@
     #rx"(?m:^43$)"
     '("--no-io-format-provider"))
    (goal1-dashboard-case
+    'full-contract-erased
+    'language-staged-provider
+    '(webracket/contract)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/full\n"
+         "(provide (contract-out [value integer?]))\n"
+         "(define/contract value integer? \"web\")\n"
+         "(define boundary-value (contract integer? 39 'positive 'negative))\n"
+         "(js-log (+ (string-length value) boundary-value))\n")))
+    "main.rkt"
+    #rx"(?m:^42$)"
+    '("--no-io-format-provider"))
+   (goal1-dashboard-case
     'staged-stream
     'language-staged-provider
     '(webracket/stream)
