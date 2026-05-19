@@ -388,8 +388,9 @@ Current installed-extraction runtime smokes cover:
 - `racket/list`: `first`, `rest`, `add-between`, `range`, `reverse`, and a
   combined `take`/`map` use with `racket/string`.
 - `racket/string`: `string-join` and `string-prefix?`.
-- `racket/bytes`: a basic `bytes-append`/`bytes-length` installed-provider
-  smoke.
+- `racket/bytes`: installed-provider smokes cover basic length plus mutable
+  byte construction/update, copying, subbytes, byte/list conversion, append,
+  byte comparison, and UTF-8 byte-to-string conversion.
 - `racket/vector`: `vector-member`, plus a combined `racket/vector` and
   `racket/list` provider-graph smoke.
 - `webracket/set`: a small staged immutable-set provider is available for the

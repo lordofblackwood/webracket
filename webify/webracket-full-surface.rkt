@@ -48,7 +48,7 @@
 (define webracket-full-surface-statuses
   '((racket/base     exported extracts partial partial)
     (racket/bool     exported extracts partial runs)
-    (racket/bytes    exported extracts partial partial)
+    (racket/bytes    exported extracts partial runs)
     (racket/dict     exported extracts partial partial)
     (racket/format   exported extracts partial runs)
     (racket/function exported extracts composes runs)

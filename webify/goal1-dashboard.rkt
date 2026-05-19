@@ -135,6 +135,25 @@
     #rx"(?m:^3$)"
     '("--no-io-format-provider"))
    (goal1-dashboard-case
+    'full-bytes-more
+    'installed-provider-graph
+    '(racket/bytes)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/full\n"
+         "(define b (bytes 65 66))\n"
+         "(bytes-set! b 1 67)\n"
+         "(define c (bytes-copy b))\n"
+         "(define d (bytes-append c #\"D\"))\n"
+         "(define e (list->bytes (bytes->list (subbytes d 1 3))))\n"
+         "(js-log (+ (bytes-length d)\n"
+         "           (bytes-ref e 0)\n"
+         "           (if (bytes=? e #\"CD\") 10 0)\n"
+         "           (string-length (bytes->string/utf-8 #\"ok\"))))\n")))
+    "main.rkt"
+    #rx"(?m:^82$)"
+    '("--no-io-format-provider"))
+   (goal1-dashboard-case
     'full-list
     'installed-provider-graph
     '(racket/list)
