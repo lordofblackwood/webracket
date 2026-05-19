@@ -24,6 +24,7 @@
 (define preserve-dir #f)
 (define no-observe? #f)
 (define list-only? #f)
+(define dry-run? #f)
 (define worker? #f)
 (define batch-worker? #f)
 (define goal1-fast? #f)
@@ -632,6 +633,24 @@
                        "expected --goal1-range start:end, got: ~a"
                        text)]))
 
+;; print-module-case-plan : symbol? (listof symbol?) -> exact-integer?
+;;   Show the selected module cases and batching plan without running children.
+(define (print-module-case-plan tier names)
+  (define chunks (chunk-list names batch-size))
+  (printf "probe-plan-tier: ~a\n" tier)
+  (printf "probe-plan-case-count: ~a\n" (length names))
+  (printf "probe-plan-batch-size: ~a\n" batch-size)
+  (printf "probe-plan-batch-count: ~a\n" (length chunks))
+  (for ([name (in-list names)]
+        [index (in-naturals)])
+    (printf "probe-plan-case\t~a\t~a\n" index name))
+  (for ([chunk (in-list chunks)]
+        [index (in-naturals)])
+    (printf "probe-plan-batch\t~a\t~a\n"
+            index
+            (string-join (map symbol->string chunk) ",")))
+  0)
+
 ;; call-with-memory-limit : (or/c #f exact-positive-integer?) (-> any/c) -> any/c
 ;;   Optionally run thunk in a custodian-limited worker thread.
 (define (call-with-memory-limit limit-bytes thunk)
@@ -923,26 +942,32 @@
        (printf "case:~a\tmodule case: ~a\n" name name))
      0]
     [(pair? selected-module-cases)
-     (define chunks (chunk-list selected-module-cases batch-size))
-     (run-thunks
-      (for/list ([names (in-list chunks)])
-        (lambda ()
-          (run-module-case-chunk/bounded! names))))]
+     (if dry-run?
+         (print-module-case-plan 'module-cases selected-module-cases)
+         (let ([chunks (chunk-list selected-module-cases batch-size)])
+           (run-thunks
+            (for/list ([names (in-list chunks)])
+              (lambda ()
+                (run-module-case-chunk/bounded! names))))))]
     [goal1-fast?
      (define selected-cases (select-goal1-cases goal1-fast-module-cases))
-     (define chunks (chunk-list selected-cases batch-size))
-     (run-thunks
-      (for/list ([names (in-list chunks)])
-        (lambda ()
-          (run-module-case-chunk/bounded! names))))]
+     (if dry-run?
+         (print-module-case-plan 'goal1-fast selected-cases)
+         (let ([chunks (chunk-list selected-cases batch-size)])
+           (run-thunks
+            (for/list ([names (in-list chunks)])
+              (lambda ()
+                (run-module-case-chunk/bounded! names))))))]
     [goal1-slow?
      (set! runtime-timings? #t)
      (define selected-cases (select-goal1-cases goal1-slow-module-cases))
-     (define chunks (chunk-list selected-cases batch-size))
-     (run-thunks
-      (for/list ([names (in-list chunks)])
-        (lambda ()
-          (run-module-case-chunk/bounded! names))))]
+     (if dry-run?
+         (print-module-case-plan 'goal1-slow selected-cases)
+         (let ([chunks (chunk-list selected-cases batch-size)])
+           (run-thunks
+            (for/list ([names (in-list chunks)])
+              (lambda ()
+                (run-module-case-chunk/bounded! names))))))]
     [selected-module-case
      (run-child/bounded!
       (format "case:~a" selected-module-case)
@@ -966,6 +991,8 @@
  #:once-each
  [("--list") "list installed runtime smokes without running them"
              (set! list-only? #t)]
+ [("--dry-run") "show selected module-case chunks without running children"
+                (set! dry-run? #t)]
  [("--goal1-fast") "run a compact must-have Goal 1 runtime subset"
                    (set! goal1-fast? #t)]
  [("--goal1-slow") "run slow-but-passing Goal 1 runtime subset with timings"
