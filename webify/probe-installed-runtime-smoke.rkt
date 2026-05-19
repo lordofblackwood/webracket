@@ -30,6 +30,9 @@
 (define goal1-slow? #f)
 (define runtime-timings? #f)
 (define extra-webracket-args '())
+(define provider-cache-dir #f)
+(define clear-provider-cache? #f)
+(define force-provider-cache-refresh? #f)
 (define batch-size 1)
 (define jobs 1)
 (define goal1-limit #f)
@@ -60,6 +63,7 @@
 ;;   Extra driver flags needed by special provider-backed module cases.
 (define (module-cases-extra-webracket-args names)
   (append
+   (provider-cache-webracket-args)
    (if (ormap module-case-needs-expander-read-provider? names)
        '("--expander-read-provider")
        '())
@@ -67,6 +71,43 @@
        '("--timings")
        '())
    extra-webracket-args))
+
+;; provider-cache-webracket-args : -> (listof string?)
+;;   Driver cache flags for the WebRacket invocation inside a worker.
+(define (provider-cache-webracket-args)
+  (append
+   (if provider-cache-dir
+       (list "--provider-cache-dir" provider-cache-dir)
+       '())
+   (if clear-provider-cache?
+       '("--clear-provider-cache")
+       '())
+   (if force-provider-cache-refresh?
+       '("--force-provider-cache-refresh")
+       '())))
+
+;; provider-cache-child-args : -> (listof string?)
+;;   Smoke-runner cache flags safe to forward to child worker processes.
+(define (provider-cache-child-args)
+  (append
+   (if provider-cache-dir
+       (list "--provider-cache-dir" provider-cache-dir)
+       '())
+   ;; The parent owns cache clearing so parallel children do not race.
+   (if force-provider-cache-refresh?
+       '("--force-provider-cache-refresh")
+       '())))
+
+;; clear-provider-cache-for-parent! : -> void?
+;;   Clear a shared provider cache once before launching child workers.
+(define (clear-provider-cache-for-parent!)
+  (when clear-provider-cache?
+    (unless provider-cache-dir
+      (raise-user-error 'probe-installed-runtime-smoke
+                        "--clear-provider-cache requires --provider-cache-dir"))
+    (define cache-path (path->complete-path provider-cache-dir))
+    (when (directory-exists? cache-path)
+      (delete-directory/files cache-path))))
 
 ;; goal1-fast-module-cases : (listof symbol?)
 ;;   Small must-have runtime subset for quick Goal 1 smoke checks.
@@ -675,6 +716,7 @@
      (if runtime-timings?
          (list "--runtime-timings")
          '())
+     (provider-cache-child-args)
      (if memory-mb
          (list "--memory-mb" (number->string memory-mb))
          '())))
@@ -869,6 +911,12 @@
  [("--extra-webracket-arg") arg "pass one extra argument through to child WebRacket runs"
                             (set! extra-webracket-args
                                   (append extra-webracket-args (list arg)))]
+ [("--provider-cache-dir") dir "pass --provider-cache-dir through to child WebRacket runs"
+                           (set! provider-cache-dir dir)]
+ [("--clear-provider-cache") "clear --provider-cache-dir once before parent smoke runs"
+                             (set! clear-provider-cache? #t)]
+ [("--force-provider-cache-refresh") "pass --force-provider-cache-refresh through to child WebRacket runs"
+                                     (set! force-provider-cache-refresh? #t)]
  [("--worker") "internal mode: run the selected smoke in this process"
                (set! worker? #t)]
  [("--batch-worker") "internal mode: run selected module cases as one batch"
@@ -904,4 +952,6 @@
  (cond
    [batch-worker? (run-batch-worker!)]
    [worker?       (run-worker!)]
-   [else          (run-parent!)]))
+   [else
+    (clear-provider-cache-for-parent!)
+    (run-parent!)]))
