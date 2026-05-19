@@ -1050,7 +1050,7 @@
   (check-false (webify-provider-trial-module-allowed? 'racket/private/set))
   (check-false (webify-provider-trial-module-allowed? 'racket/math))
   (for ([name (in-list '(webracket/set webracket/promise webracket/stream
-                         js/console js/math))])
+                         js/console js/math js/performance))])
     (check-true (webify-provider-trial-default-bridge-module-allowed? name)
                 (symbol->string name)))
   (for ([row (in-list ffi-module-registry-rows)])
@@ -1675,6 +1675,7 @@
   (check-equal? (map unsafe-ffi-module-parity-row-module rows)
                 '(webracket/unsafe/console
                   webracket/unsafe/math
+                  webracket/unsafe/performance
                   webracket/unsafe/temp))
   (for ([row (in-list rows)])
     (check-true (unsafe-ffi-module-parity-row-ok? row)
@@ -1683,11 +1684,14 @@
                         (unsafe-ffi-module-parity-row-missing row)
                         (unsafe-ffi-module-parity-row-extra row)))))
 
-(test-case "js/math and js/temp have public wrappers"
+(test-case "js/math, js/performance, and js/temp have public wrappers"
   (define math-exports (module-runtime-export-symbols 'js/math))
+  (define performance-exports (module-runtime-export-symbols 'js/performance))
   (define temp-exports (module-runtime-export-symbols 'js/temp))
   (check-not-false (memq 'math-sqrt math-exports))
   (check-not-false (memq 'math-random math-exports))
+  (check-not-false (memq 'performance-now performance-exports))
+  (check-not-false (memq 'performance-time-origin performance-exports))
   (check-not-false (memq 'temp-x temp-exports))
   (check-not-false (memq 'temp-set-x! temp-exports)))
 
@@ -1695,14 +1699,18 @@
   (check-equal? (map ffi-module-registry-row-module ffi-module-registry-rows)
                 '(js/console
                   js/math
+                  js/performance
                   js/temp
                   webracket/unsafe/console
                   webracket/unsafe/math
+                  webracket/unsafe/performance
                   webracket/unsafe/temp))
   (for ([row (in-list '((js/console console.ffi)
                         (webracket/unsafe/console console.ffi)
                         (js/math math.ffi)
                         (webracket/unsafe/math math.ffi)
+                        (js/performance performance.ffi)
+                        (webracket/unsafe/performance performance.ffi)
                         (js/temp temp.ffi)
                         (webracket/unsafe/temp temp.ffi)))])
     (check-equal? (module-provider->ffi-filename (car row))

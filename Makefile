@@ -1,14 +1,16 @@
 SHELL := /bin/bash
 
+RACKET ?= ../racket/racket/bin/racket
 SMOKE_DIR := lib/web-easy/smoke
 SINGLE_COMPILE ?= run-browser-parity-profile-compile.sh
 SINGLE_PAGE ?= test-browser-parity-profile.html
 
-.PHONY: help smoke-ci smoke-headless-lite smoke-style smoke-theme smoke-theme-contracts smoke-theme-core smoke-theme-visual smoke-verify smoke-quick smoke-release smoke-one smoke-list smoke-commands smoke-compare-navbars smoke-compare-buttons smoke-compare-all smoke-solar-parity smoke-solar-sections smoke-solar-sections-gate dom-headless measure-letrec-test-basics
+.PHONY: help goal1-fast smoke-ci smoke-headless-lite smoke-style smoke-theme smoke-theme-contracts smoke-theme-core smoke-theme-visual smoke-verify smoke-quick smoke-release smoke-one smoke-list smoke-commands smoke-compare-navbars smoke-compare-buttons smoke-compare-all smoke-solar-parity smoke-solar-sections smoke-solar-sections-gate smoke-treelist-shape dom-headless measure-letrec-test-basics
 
 help:
 	@echo "Available targets:"
 	@echo "  help                  Show this help."
+	@echo "  goal1-fast            Run the compact Goal 1 fast checks."
 	@echo "  smoke-ci              Run local CI smoke entrypoint (preferred)."
 	@echo "  smoke-headless-lite   Run contract+smoke+parity+guard without compile (preferred)."
 	@echo "  smoke-style           Run style-hook contracts only (smoke+parity)."
@@ -28,6 +30,7 @@ help:
 	@echo "  smoke-solar-parity    Run full Solar2 parity sweep (accordion/navbar/forms/tables/list/progress)."
 	@echo "  smoke-solar-sections  Run per-section Solar2 parity report (with RMSE per section)."
 	@echo "  smoke-solar-sections-gate  Run quick per-section Solar2 RMSE threshold gate."
+	@echo "  smoke-treelist-shape  Run the compiler-private treelist shape validation smoke."
 	@echo "  dom-headless          Run the DOM browser wrapper suite."
 	@echo "  measure-letrec-test-basics  Run test-letrec first, then compare letrec strategies on test-basics."
 
@@ -103,7 +106,14 @@ smoke-list:
 	@echo "smoke-solar-parity"
 	@echo "smoke-solar-sections"
 	@echo "smoke-solar-sections-gate"
+	@echo "smoke-treelist-shape"
 	@echo "dom-headless"
+
+goal1-fast:
+	$(RACKET) webify/test-primitive-shapes.rkt
+	$(RACKET) webify/test-goal1-dashboard.rkt
+	$(RACKET) webify/test-stdlib-surface-report.rkt
+	$(RACKET) webify/test-webracket-base-fast.rkt
 
 smoke-commands:
 	cd $(SMOKE_DIR) && ./gen-commands.sh
@@ -127,6 +137,9 @@ smoke-solar-sections:
 
 smoke-solar-sections-gate:
 	cd $(SMOKE_DIR) && SOLAR_SECTIONS_GATE_ONLY=1 ./check-solar-section-parity.sh
+
+smoke-treelist-shape:
+	racket tools/check-treelist-shape-smoke.rkt
 
 dom-headless:
 	cd test && ./run-dom-headless.sh

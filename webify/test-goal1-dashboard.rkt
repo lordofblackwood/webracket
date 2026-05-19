@@ -2,7 +2,8 @@
 
 (require racket/list
          rackunit
-         "goal1-dashboard.rkt")
+         "goal1-dashboard.rkt"
+         "webracket-full-surface.rkt")
 
 (test-case "compact Goal 1 dashboard case set covers required categories"
   (define categories
@@ -41,6 +42,7 @@
     (goal1-dashboard-row 'sample
                          'local-module-graph
                          '(webracket/base)
+                         'required
                          'pass
                          'ok
                          ""
@@ -48,6 +50,7 @@
                          0
                          2))
   (check-equal? (goal1-dashboard-row-note row) "")
+  (check-equal? (goal1-dashboard-row-expectation row) 'required)
   (check-equal? (goal1-dashboard-row-cache-events row) 'miss)
   (check-equal? (goal1-dashboard-row-cache-files-before row) 0)
   (check-equal? (goal1-dashboard-row-cache-files-after row) 2))
@@ -69,6 +72,33 @@
                         (eq? (goal1-dashboard-case-category c) 'ffi-module))
                       by-category))
   (check-not-false (member 'ffi-js-math (map goal1-dashboard-case-name by-category))))
+
+(test-case "compact Goal 1 dashboard distinguishes diagnostic cases"
+  (define required (first goal1-dashboard-cases))
+  (define diagnostic
+    (for/first ([c (in-list goal1-dashboard-cases)]
+                #:when (eq? (goal1-dashboard-case-name c)
+                            'installed-racket-set-diagnostic))
+      c))
+  (check-equal? (goal1-dashboard-case-expectation required) 'required)
+  (check-equal? (goal1-dashboard-case-expectation diagnostic) 'diagnostic))
+
+(test-case "webracket/full runs statuses have compact dashboard coverage"
+  (define covered
+    (remove-duplicates
+     (append-map goal1-dashboard-case-libraries goal1-dashboard-cases)
+     eq?))
+  (define coverage-aliases
+    '((racket/stream . webracket/stream)))
+  (define (covered-name name)
+    (cond
+      [(assoc name coverage-aliases) => cdr]
+      [else name]))
+  (for ([row (in-list webracket-full-surface-statuses)]
+        #:when (eq? (list-ref row 4) 'runs))
+    (define name (covered-name (car row)))
+    (check-not-false (memq name covered)
+                     (format "~a lacks compact dashboard coverage" (car row)))))
 
 (module+ main
   (void))

@@ -200,12 +200,14 @@
 (define webify-provider-trial-support-modules
   '(js/console
     js/math
+    js/performance
     js/temp
     webracket/promise
     webracket/set
     webracket/stream
     webracket/unsafe/console
     webracket/unsafe/math
+    webracket/unsafe/performance
     webracket/unsafe/temp))
 
 ;; webify-provider-trial-default-bridge-modules : (listof symbol?)
@@ -213,12 +215,14 @@
 (define webify-provider-trial-default-bridge-modules
   '(js/console
     js/math
+    js/performance
     js/temp
     webracket/promise
     webracket/set
     webracket/stream
     webracket/unsafe/console
     webracket/unsafe/math
+    webracket/unsafe/performance
     webracket/unsafe/temp))
 
 ;; webify-provider-trial-module-allowlist : (listof symbol?)

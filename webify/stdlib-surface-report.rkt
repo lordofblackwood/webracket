@@ -26,6 +26,7 @@
          stdlib-symbol-ownership-rows
          stdlib-symbol-owner
          stdlib-symbol-replacement
+         stdlib-symbol-ownership-counts
          report-stdlib-surface)
 
 (require racket/list
@@ -228,6 +229,17 @@
 (define (stdlib-symbol-replacement name)
   (symbol-replacement name))
 
+;; stdlib-symbol-ownership-counts : -> (listof (cons/c symbol? exact-nonnegative-integer?))
+;;   Count remaining stdlib-adjacent names by current owner classification.
+(define (stdlib-symbol-ownership-counts)
+  (define counts (make-hasheq))
+  (for ([row (in-list stdlib-symbol-ownership-rows)])
+    (hash-update! counts
+                  (stdlib-symbol-ownership-row-owner row)
+                  add1
+                  0))
+  (sort (hash->list counts) symbol<? #:key car))
+
 ;; report-stdlib-surface : -> void?
 ;;   Print the current public ownership split for stdlib migration work.
 (define (report-stdlib-surface)
@@ -246,6 +258,7 @@
   (report-line "temporary stdlib-owned aliases" (sorted-symbols temporary-stdlib-owned))
   (report-line "transitional stdlib exports" (sorted-symbols stdlib-transitional-export-symbols))
   (report-line "temporary primitive-owned exports" (sorted-symbols stdlib-primitive-owned-export-symbols))
+  (printf "stdlib-symbol-owner-counts: ~s\n" (stdlib-symbol-ownership-counts))
   (for ([row (in-list stdlib-file-ownership-rows)])
     (printf "stdlib-file\t~a\towner\t~a\treplacement\t~a\tnote\t~a\n"
             (stdlib-file-ownership-row-file row)

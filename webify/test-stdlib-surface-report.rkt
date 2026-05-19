@@ -62,6 +62,15 @@
                   'racket-src/io/print
                   (symbol->string name))))
 
+(test-case "stdlib ownership report exposes summary counts"
+  (define counts (stdlib-symbol-ownership-counts))
+  (for ([owner (in-list '(replace-with-original-racket-provider
+                          runtime-writing-substrate
+                          temporary-stdlib-owned))])
+    (check-not-false (assoc owner counts)
+                     (symbol->string owner)))
+  (check-true (andmap exact-nonnegative-integer? (map cdr counts))))
+
 (test-case "webracket/base ownership report keeps racket/base as foundation"
   (check-not-false (memq webracket-base-foundation webracket-base-owned))
   (check-false (memq webracket-base-foundation webracket-base-addon-libraries))

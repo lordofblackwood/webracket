@@ -11,6 +11,7 @@
          goal1-dashboard-case-name
          goal1-dashboard-case-category
          goal1-dashboard-case-libraries
+         goal1-dashboard-case-expectation
          goal1-dashboard-default-timeout-seconds
          goal1-dashboard-default-memory-mb
          goal1-dashboard-cases
@@ -20,6 +21,7 @@
          goal1-dashboard-row-name
          goal1-dashboard-row-category
          goal1-dashboard-row-libraries
+         goal1-dashboard-row-expectation
          goal1-dashboard-row-status
          goal1-dashboard-row-detail
          goal1-dashboard-row-note
@@ -56,7 +58,7 @@
   #:transparent)
 
 (struct goal1-dashboard-row
-  (name category libraries status detail note cache-events cache-files-before cache-files-after)
+  (name category libraries expectation status detail note cache-events cache-files-before cache-files-after)
   #:transparent)
 
 ;; goal1-dashboard-default-timeout-seconds : exact-positive-integer?
@@ -66,6 +68,17 @@
 ;; goal1-dashboard-default-memory-mb : exact-positive-integer?
 ;;   Keep compact dashboard runs from exhausting the developer machine.
 (define goal1-dashboard-default-memory-mb 1024)
+
+(define goal1-dashboard-diagnostic-case-names
+  '(installed-racket-set-diagnostic
+    installed-racket-promise-diagnostic))
+
+;; goal1-dashboard-case-expectation : goal1-dashboard-case? -> symbol?
+;;   Classify whether a row is required to pass or is a diagnostic partial case.
+(define (goal1-dashboard-case-expectation c)
+  (if (memq (goal1-dashboard-case-name c) goal1-dashboard-diagnostic-case-names)
+      'diagnostic
+      'required))
 
 (define goal1-dashboard-cases
   (list
@@ -411,11 +424,16 @@
       (define after (cache-file-count cache-dir))
       (define detail
         (classify-detail status output (goal1-dashboard-case-expected c)))
+      (define expectation (goal1-dashboard-case-expectation c))
       (goal1-dashboard-row
        (goal1-dashboard-case-name c)
        (goal1-dashboard-case-category c)
        (goal1-dashboard-case-libraries c)
-       (if (eq? detail 'ok) 'pass 'fail)
+       expectation
+       (cond
+         [(eq? detail 'ok) 'pass]
+         [(eq? expectation 'diagnostic) 'expected-fail]
+         [else 'fail])
        detail
        (if (eq? detail 'ok) "" (output-note status output))
        (cache-events output before after)
@@ -439,6 +457,7 @@
   (hasheq 'name (symbol->string (goal1-dashboard-row-name row))
           'category (symbol->string (goal1-dashboard-row-category row))
           'libraries (map symbol->string (goal1-dashboard-row-libraries row))
+          'expectation (symbol->string (goal1-dashboard-row-expectation row))
           'status (symbol->string (goal1-dashboard-row-status row))
           'detail (symbol->string (goal1-dashboard-row-detail row))
           'note (goal1-dashboard-row-note row)
@@ -484,13 +503,14 @@
        [else
         (when tsv?
           (displayln
-           "name\tcategory\tlibraries\tstatus\tdetail\tnote\tcache-events\tcache-files-before\tcache-files-after"))
+           "name\tcategory\tlibraries\texpectation\tstatus\tdetail\tnote\tcache-events\tcache-files-before\tcache-files-after"))
         (for ([row (in-list rows)])
-          (printf "~a\t~a\t~a\t~a\t~a\t~a\t~a\t~a\t~a\n"
+          (printf "~a\t~a\t~a\t~a\t~a\t~a\t~a\t~a\t~a\t~a\n"
                   (goal1-dashboard-row-name row)
                   (goal1-dashboard-row-category row)
                   (string-join (map symbol->string (goal1-dashboard-row-libraries row))
                                ",")
+                  (goal1-dashboard-row-expectation row)
                   (goal1-dashboard-row-status row)
                   (goal1-dashboard-row-detail row)
                   (goal1-dashboard-row-note row)
