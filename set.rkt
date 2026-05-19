@@ -1,6 +1,34 @@
 #lang racket/base
 
 (provide generic-set?
+         for*/mutable-set
+         for*/mutable-setalw
+         for*/mutable-seteq
+         for*/mutable-seteqv
+         for*/set
+         for*/setalw
+         for*/seteq
+         for*/seteqv
+         for*/weak-set
+         for*/weak-setalw
+         for*/weak-seteq
+         for*/weak-seteqv
+         for/mutable-set
+         for/mutable-setalw
+         for/mutable-seteq
+         for/mutable-seteqv
+         for/set
+         for/setalw
+         for/seteq
+         for/seteqv
+         for/weak-set
+         for/weak-setalw
+         for/weak-seteq
+         for/weak-seteqv
+         in-immutable-set
+         in-mutable-set
+         in-set
+         in-weak-set
          list->mutable-set
          list->mutable-setalw
          list->mutable-seteq
@@ -62,7 +90,8 @@
          weak-seteq
          weak-seteqv)
 
-(require "stream.rkt")
+(require "stream.rkt"
+         (for-syntax racket/base))
 
 ;; A staged hash-set provider for Goal 1. It intentionally does not implement
 ;; Racket's set chaperone/impersonator, contract, or generic-extension surface.
@@ -357,6 +386,122 @@
 ;;   Produce a stream of st's elements.
 (define (set->stream st)
   (list->stream (set->list st)))
+
+;; in-set/proc : generic-set? -> sequence?
+;;   Produce a sequence over st's elements.
+(define (in-set/proc st)
+  (set->list st))
+
+;; in-typed-set/proc : symbol? (any/c -> boolean?) any/c -> sequence?
+;;   Produce a sequence after checking a specific staged set storage mode.
+(define (in-typed-set/proc who pred? st)
+  (cond
+    [(pred? st) (set->list st)]
+    [else (raise-argument-error who "matching hash-set kind" st)]))
+
+;; in-set : generic-set? -> sequence?
+;;   Sequence syntax for iterating over staged set elements.
+(define-syntax (in-set stx)
+  (syntax-case stx ()
+    [(_ st) #'(in-set/proc st)]
+    [_ #'in-set/proc]))
+
+;; in-immutable-set : set? -> sequence?
+;;   Sequence syntax for iterating over immutable staged set elements.
+(define-syntax (in-immutable-set stx)
+  (syntax-case stx ()
+    [(_ st) #'(in-typed-set/proc 'in-immutable-set set? st)]
+    [_ #'(lambda (st) (in-typed-set/proc 'in-immutable-set set? st))]))
+
+;; in-mutable-set : set-mutable? -> sequence?
+;;   Sequence syntax for iterating over mutable staged set elements.
+(define-syntax (in-mutable-set stx)
+  (syntax-case stx ()
+    [(_ st) #'(in-typed-set/proc 'in-mutable-set set-mutable? st)]
+    [_ #'(lambda (st) (in-typed-set/proc 'in-mutable-set set-mutable? st))]))
+
+;; in-weak-set : set-weak? -> sequence?
+;;   Sequence syntax for iterating over weak staged set elements.
+(define-syntax (in-weak-set stx)
+  (syntax-case stx ()
+    [(_ st) #'(in-typed-set/proc 'in-weak-set set-weak? st)]
+    [_ #'(lambda (st) (in-typed-set/proc 'in-weak-set set-weak? st))]))
+
+(begin-for-syntax
+  ;; make-for/set-transformer : syntax? syntax? -> (syntax? -> syntax?)
+  ;;   Build an immutable set comprehension transformer.
+  (define (make-for/set-transformer for-id constructor-id)
+    (lambda (stx)
+      (syntax-case stx ()
+        [(form clauses body ... expr)
+         (with-syntax ([for/fold* for-id]
+                       [constructor constructor-id])
+           #'(for/fold* ([acc (constructor)]) clauses
+               (set-add acc (let () body ... expr))))])))
+
+  ;; make-for/mutable-set-transformer : syntax? syntax? -> (syntax? -> syntax?)
+  ;;   Build a mutable or weak set comprehension transformer.
+  (define (make-for/mutable-set-transformer for-id constructor-id)
+    (lambda (stx)
+      (syntax-case stx ()
+        [(form clauses body ... expr)
+         (with-syntax ([for* for-id]
+                       [constructor constructor-id])
+           #'(let ([acc (constructor)])
+               (for* clauses
+                 (set-add! acc (let () body ... expr)))
+               acc))]))))
+
+(define-syntax for/set
+  (make-for/set-transformer #'for/fold #'set))
+(define-syntax for*/set
+  (make-for/set-transformer #'for*/fold #'set))
+(define-syntax for/seteq
+  (make-for/set-transformer #'for/fold #'seteq))
+(define-syntax for*/seteq
+  (make-for/set-transformer #'for*/fold #'seteq))
+(define-syntax for/seteqv
+  (make-for/set-transformer #'for/fold #'seteqv))
+(define-syntax for*/seteqv
+  (make-for/set-transformer #'for*/fold #'seteqv))
+(define-syntax for/setalw
+  (make-for/set-transformer #'for/fold #'setalw))
+(define-syntax for*/setalw
+  (make-for/set-transformer #'for*/fold #'setalw))
+
+(define-syntax for/mutable-set
+  (make-for/mutable-set-transformer #'for #'mutable-set))
+(define-syntax for*/mutable-set
+  (make-for/mutable-set-transformer #'for* #'mutable-set))
+(define-syntax for/mutable-seteq
+  (make-for/mutable-set-transformer #'for #'mutable-seteq))
+(define-syntax for*/mutable-seteq
+  (make-for/mutable-set-transformer #'for* #'mutable-seteq))
+(define-syntax for/mutable-seteqv
+  (make-for/mutable-set-transformer #'for #'mutable-seteqv))
+(define-syntax for*/mutable-seteqv
+  (make-for/mutable-set-transformer #'for* #'mutable-seteqv))
+(define-syntax for/mutable-setalw
+  (make-for/mutable-set-transformer #'for #'mutable-setalw))
+(define-syntax for*/mutable-setalw
+  (make-for/mutable-set-transformer #'for* #'mutable-setalw))
+
+(define-syntax for/weak-set
+  (make-for/mutable-set-transformer #'for #'weak-set))
+(define-syntax for*/weak-set
+  (make-for/mutable-set-transformer #'for* #'weak-set))
+(define-syntax for/weak-seteq
+  (make-for/mutable-set-transformer #'for #'weak-seteq))
+(define-syntax for*/weak-seteq
+  (make-for/mutable-set-transformer #'for* #'weak-seteq))
+(define-syntax for/weak-seteqv
+  (make-for/mutable-set-transformer #'for #'weak-seteqv))
+(define-syntax for*/weak-seteqv
+  (make-for/mutable-set-transformer #'for* #'weak-seteqv))
+(define-syntax for/weak-setalw
+  (make-for/mutable-set-transformer #'for #'weak-setalw))
+(define-syntax for*/weak-setalw
+  (make-for/mutable-set-transformer #'for* #'weak-setalw))
 
 ;; set-member? : generic-set? any/c -> boolean?
 ;;   Check whether v is in st.
