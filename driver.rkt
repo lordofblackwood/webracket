@@ -1669,6 +1669,12 @@
           reports
           #:extra-reports (list webify-module-protocol-report)
           #:fetch-provider (lambda (name)
+                             (unless (webify-provider-trial-module-allowed? name)
+                               (raise-arguments-error
+                                'webracket/base-reports->module-graph
+                                "#lang webracket/base transitive provider is not in the Goal 1 trial allowlist"
+                                "unsupported provider" name
+                                "allowed providers" webify-provider-trial-module-allowlist))
                              (webify-module-provider-cache-ref provider-cache name))
           #:skip-provider? webracket/base-language-provider-name?
           #:module-protocol-dependency webify-module-protocol-dependency

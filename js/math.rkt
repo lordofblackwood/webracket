@@ -1,6 +1,6 @@
 #lang racket/base
 
-(require "../unsafe/math.rkt")
+(require webracket/unsafe/math)
 
 (provide math-abs
          math-acos

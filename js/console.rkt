@@ -1,6 +1,6 @@
 #lang racket/base
 
-(require "../unsafe/console.rkt")
+(require webracket/unsafe/console)
 
 (provide console-log
          console-info
@@ -50,7 +50,11 @@
 ;; console-normalize-args : (listof any/c) -> (listof any/c)
 ;;   Normalize console arguments before packing them for the raw binding.
 (define (console-normalize-args args)
-  (map console-normalize-value args))
+  (let loop ([args args])
+    (cond
+      [(null? args) '()]
+      [else (cons (console-normalize-value (car args))
+                  (loop (cdr args)))])))
 
 ;; console-log : any/c ... -> void?
 ;;   Write a log message.

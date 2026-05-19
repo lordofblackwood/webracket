@@ -166,7 +166,8 @@ Current bridge readiness:
 - Default local-only path: `#lang webracket/base` and `#lang webracket/full`
   sources whose extracted reports demand no installed providers now use the
   module bridge by default. Provider-demanding programs still fall back to the
-  transitional path unless the explicit bridge flag is supplied.
+  transitional path unless the explicit bridge flag is supplied, because the
+  installed-provider graph is still a diagnostic/Goal 1 trial path.
 - Timing visibility: `--timings` now prints read-source detail rows for module
   read, bridge extraction, registration, and composition. For the tiny
   `#lang webracket/base` program `42`, those rows show the module bridge is not
@@ -181,12 +182,16 @@ Current bridge readiness:
   `racket/promise`, `racket/stream`, and `racket/set`, and a local module plus
   currently allowlisted installed-provider graph (`racket/vector` plus
   `racket/function`) composes against synthetic provider reports without
-  invoking the backend. `racket/promise`, `racket/stream`, and `racket/set`
+  invoking the backend. `js/math` and `js/console` now pass as module-bridge
+  FFI rows and infer their `.ffi` bundles from canonical unsafe providers.
+  `racket/promise`, `racket/stream`, and `racket/set`
   are classified but not yet allowlisted for bridge discovery, because their
   representative provider trials still expose unresolved reflected exports.
   `racket/format` remains on the staged `io/format` path for now; the
   installed `racket/format` module pulls a larger contract/location provider
-  cluster.
+  cluster. The bridge also rejects unsupported transitive providers during
+  discovery, so trial additions cannot silently expand into a much larger
+  provider graph.
 - Passing metadata discovery: local dependencies are recovered from the
   expanded/compiled import map instead of raw source require syntax. A
   `define-require-syntax` smoke confirms that a require transformer expanding

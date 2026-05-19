@@ -47,10 +47,15 @@ providers the bridge may discover. Adding a library there should mean:
 
 At the moment, `racket/vector` and `racket/function` have joined the passing
 external-provider trial set alongside the earlier list/string/bool trials.
+The JavaScript FFI modules `js/math` and `js/console` also pass through the
+module bridge and infer their `.ffi` bundles from canonical
+`webracket/unsafe/*` providers.
 `racket/promise`, `racket/stream`, and `racket/set` are still useful Goal 1
-libraries, but their direct provider trials currently expose unresolved
-reflected exports, so they stay out of the temporary bridge allowlist until that
-provider-resolution issue is fixed.
+libraries, but they stay out of the temporary bridge allowlist until we have a
+smaller provider route for them. A direct `racket/set` trial currently expands
+into a much larger transitive graph through contracts, syntax support, and
+random support; the bridge now rejects unsupported transitive providers instead
+of discovering that graph accidentally.
 
 ## Stdlib Replacement Direction
 

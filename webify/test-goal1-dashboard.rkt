@@ -11,6 +11,7 @@
      eq?))
   (check-not-false (memq 'local-module-graph categories))
   (check-not-false (memq 'installed-provider-graph categories))
+  (check-not-false (memq 'ffi-module categories))
   (check-not-false (memq 'staged-provider-slice categories)))
 
 (test-case "compact Goal 1 dashboard covers must-have full libraries"
@@ -25,7 +26,9 @@
                             racket/match
                             racket/format
                             racket/promise
-                            racket/vector))])
+                            racket/vector
+                            js/math
+                            js/console))])
     (check-not-false (memq library covered)
                      (symbol->string library))))
 

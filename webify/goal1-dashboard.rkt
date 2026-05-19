@@ -76,24 +76,82 @@
     #rx"(?m:^42$)"
     '("--no-io-format-provider"))
    (goal1-dashboard-case
-    'full-curated-core
+    'full-bool
     'installed-provider-graph
-    '(racket/bool racket/bytes racket/list racket/match racket/promise
-                  racket/sequence racket/set racket/string racket/vector)
+    '(racket/bool)
+    `(("main.rkt" . "#lang webracket/full\n(js-log (boolean=? #t (not #f)))\n"))
+    "main.rkt"
+    #rx"(?m:^true$)"
+    '("--no-io-format-provider"))
+   (goal1-dashboard-case
+    'full-bytes
+    'installed-provider-graph
+    '(racket/bytes)
+    `(("main.rkt" . "#lang webracket/full\n(js-log (bytes-length #\"abc\"))\n"))
+    "main.rkt"
+    #rx"(?m:^3$)"
+    '("--no-io-format-provider"))
+   (goal1-dashboard-case
+    'full-list
+    'installed-provider-graph
+    '(racket/list)
+    `(("main.rkt" . "#lang webracket/full\n(js-log (first '(42 99)))\n"))
+    "main.rkt"
+    #rx"(?m:^42$)"
+    '("--no-io-format-provider"))
+   (goal1-dashboard-case
+    'full-string
+    'installed-provider-graph
+    '(racket/string)
+    `(("main.rkt" . "#lang webracket/full\n(js-log (string-join '(\"a\" \"b\") \"\"))\n"))
+    "main.rkt"
+    #rx"(?m:^ab$)"
+    '("--no-io-format-provider"))
+   (goal1-dashboard-case
+    'full-vector
+    'installed-provider-graph
+    '(racket/vector)
+    `(("main.rkt" . "#lang webracket/full\n(js-log (vector-member 'b '#(a b c)))\n"))
+    "main.rkt"
+    #rx"(?m:^1$)"
+    '("--no-io-format-provider"))
+   (goal1-dashboard-case
+    'full-match
+    'installed-provider-graph
+    '(racket/match)
+    `(("main.rkt" . "#lang webracket/full\n(js-log (match '(1 41) [(list _ x) (+ x 1)]))\n"))
+    "main.rkt"
+    #rx"(?m:^42$)"
+    '("--no-io-format-provider"))
+   (goal1-dashboard-case
+    'full-sequence-for
+    'installed-provider-graph
+    '(racket/sequence)
     `(("main.rkt" .
        ,(string-append
          "#lang webracket/full\n"
-         "(define joined (string-join (map number->string '(1 2 3)) \"\"))\n"
-         "(define picked (match '(alpha beta) [(list _ y) y]))\n"
-         "(define set-size (set-count (set 1 2 2)))\n"
-         "(define forced (force (delay (+ 20 22))))\n"
-         "(define vec-pos (vector-member 'b '#(a b c)))\n"
-         "(define bool-bonus (if (boolean=? #t (not #f)) 3 0))\n"
-         "(define bytes-len (bytes-length #\"abc\"))\n"
-         "(js-log (+ (string-length joined) vec-pos set-size bool-bonus bytes-len))\n")))
+         "(define from-list (for/sum ([x (in-list '(1 2 3))]) x))\n"
+         "(define from-vector (for/sum ([x (in-vector '#(4 5))]) x))\n"
+         "(js-log (+ from-list from-vector))\n")))
     "main.rkt"
-    #rx"(?m:^12$)"
+    #rx"(?m:^15$)"
     '("--no-io-format-provider"))
+   (goal1-dashboard-case
+    'full-set
+    'installed-provider-graph
+    '(racket/set)
+    `(("main.rkt" . "#lang webracket/full\n(js-log (set-count (set 1 2 2)))\n"))
+    "main.rkt"
+    #rx"(?m:^2$)"
+    '("--no-io-format-provider" "--webracket-module-bridge"))
+   (goal1-dashboard-case
+    'full-promise
+    'installed-provider-graph
+    '(racket/promise)
+    `(("main.rkt" . "#lang webracket/full\n(js-log (force (delay (+ 20 22))))\n"))
+    "main.rkt"
+    #rx"(?m:^42$)"
+    '("--no-io-format-provider" "--webracket-module-bridge"))
    (goal1-dashboard-case
     'full-format
     'installed-provider-graph
@@ -102,6 +160,22 @@
     "main.rkt"
     #rx"(?m:^fmt web$)"
     '())
+   (goal1-dashboard-case
+    'ffi-js-math
+    'ffi-module
+    '(js/math webracket/unsafe/math)
+    `(("main.rkt" . "#lang webracket/base\n(require js/math)\n(js-log (math-sqrt 9.0))\n"))
+    "main.rkt"
+    #rx"(?m:^3$)"
+    '("--no-io-format-provider" "--webracket-module-bridge"))
+   (goal1-dashboard-case
+    'ffi-js-console
+    'ffi-module
+    '(js/console webracket/unsafe/console)
+    `(("main.rkt" . "#lang webracket/base\n(require js/console)\n(console-log \"console-module\")\n"))
+    "main.rkt"
+    #rx"console-module"
+    '("--no-io-format-provider" "--webracket-module-bridge"))
    (goal1-dashboard-case
     'format-provider
     'staged-provider-slice
@@ -171,7 +245,7 @@
     [(zero? status) 'output-mismatch]
     [(regexp-match? #rx"Skipping temporary stdlib/provider prelude for module-language input" output)
      'module-language-prelude-skip-but-failed]
-    [(regexp-match? #rx"external provider is not in the Goal 1 trial allowlist|unsupported providers" output)
+    [(regexp-match? #rx"external provider is not in the Goal 1 trial allowlist|transitive provider is not in the Goal 1 trial allowlist|unsupported providers|unsupported provider" output)
      'provider-graph-failed]
     [(regexp-match? #rx"unbound identifier|undefined" output) 'unbound]
     [else 'failed]))
@@ -189,11 +263,18 @@
         (lambda (line)
           (not (regexp-match? #rx"^provider-cache: cache directory:" line)))
         (string-split normalized "\n")))
-     (define line (if (null? lines)
-                      (first (string-split normalized "\n"))
-                      (first lines)))
-     (if (> (string-length line) 160)
-         (string-append (substring line 0 157) "...")
+     (define diagnostic-line
+       (for/first ([line (in-list lines)]
+                   #:when (regexp-match?
+                            #rx"unsupported provider|unsupported providers|missing-after-reflection|ambiguous-after-reflection"
+                            line))
+         line))
+     (define line (or diagnostic-line
+                      (if (null? lines)
+                          (first (string-split normalized "\n"))
+                          (first lines))))
+     (if (> (string-length line) 300)
+         (string-append (substring line 0 297) "...")
          line)]))
 
 ;; run-goal1-dashboard-case : case path? exact-positive-integer? exact-positive-integer? -> row

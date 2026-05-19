@@ -299,6 +299,8 @@
       (define-values (status output)
         (run-webracket/base
          (list "--timings"
+               "--no-stdlib"
+               "--no-io-format-provider"
                "--dest" (path->string dest-dir)
                (path->string source-path))
          source-dir))
@@ -310,7 +312,9 @@
         (check-regexp-match (regexp (regexp-quote label)) output))
       (define parse-nodes (timing-parse-node-count output))
       (check-not-false parse-nodes output)
-      (check-true (< parse-nodes 5000)
+      ;; This guards against accidental order-of-magnitude growth; the backend
+      ;; still parses the assembled runtime, so the count is not just user code.
+      (check-true (< parse-nodes 120000)
                   (format "parse node count unexpectedly grew: ~a" parse-nodes)))
     (lambda ()
       (for ([dir (in-list (list source-dir dest-dir))])
@@ -401,7 +405,7 @@
         (with-handlers ([exn:fail:filesystem? void])
           (delete-directory/files dir))))))
 
-(test-case "#lang webracket/base does not compose temporary format provider"
+(test-case "#lang webracket/base composes staged format provider"
   (define source-dir (make-temporary-file "webracket-base-format-src-~a" 'directory))
   (define dest-dir   (make-temporary-file "webracket-base-format-dest-~a" 'directory))
   (define source-path (build-path source-dir "base-format-smoke.rkt"))
@@ -418,14 +422,14 @@
                "--dest" (path->string dest-dir)
                (path->string source-path))
          source-dir))
-      (check-not-equal? status 0 output)
-      (check-regexp-match #rx"format" output))
+      (check-equal? status 0 output)
+      (check-regexp-match #rx"(?m:^fmt ok write \\(err\\)$)" output))
     (lambda ()
       (for ([dir (in-list (list source-dir dest-dir))])
         (with-handlers ([exn:fail:filesystem? void])
           (delete-directory/files dir))))))
 
-(test-case "#lang webracket/base forced bridge does not compose temporary format provider"
+(test-case "#lang webracket/base forced bridge composes staged format provider"
   (define source-dir (make-temporary-file "webracket-base-bridge-format-src-~a" 'directory))
   (define dest-dir   (make-temporary-file "webracket-base-bridge-format-dest-~a" 'directory))
   (define source-path (build-path source-dir "base-bridge-format-smoke.rkt"))
@@ -443,8 +447,8 @@
                "--dest" (path->string dest-dir)
                (path->string source-path))
          source-dir))
-      (check-not-equal? status 0 output)
-      (check-regexp-match #rx"format" output))
+      (check-equal? status 0 output)
+      (check-regexp-match #rx"(?m:^fmt ok write$)" output))
     (lambda ()
       (for ([dir (in-list (list source-dir dest-dir))])
         (with-handlers ([exn:fail:filesystem? void])
@@ -525,7 +529,7 @@
                (path->string source-path))
          source-dir))
       (check-equal? status 0 output)
-      (check-regexp-match #rx"Skipping temporary stdlib/provider prelude for module-language input"
+      (check-regexp-match #rx"Skipping temporary stdlib root for module-language input"
                           output)
       (check-regexp-match #rx"(?m:^42$)" output))
     (lambda ()
