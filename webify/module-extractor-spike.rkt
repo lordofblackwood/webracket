@@ -312,6 +312,114 @@
               #:when (equal? key (webify-module-bundle-entry-key entry)))
     entry))
 
+;; webify-module-syntax-literal-provider-name : symbol? -> symbol?
+;;   Derive the synthetic per-module syntax-literal provider name.
+(define (webify-module-syntax-literal-provider-name name)
+  (string->symbol (format "~a:syntax-literals" name)))
+
+;; local-source-module-name? : symbol? -> boolean?
+;;   Recognize source modules from probes, as opposed to installed providers.
+(define (local-source-module-name? name)
+  (not (string-contains? (symbol->string name) "/")))
+
+;; simple-syntax-literal-datum? : any/c -> boolean?
+;;   Keep generated syntax-literal providers within WebRacket's quotation
+;;   support; complex serialized structs stay unavailable for now.
+(define (simple-syntax-literal-datum? v)
+  (cond
+    [(or (null? v)
+         (boolean? v)
+         (number? v)
+         (symbol? v)
+         (keyword? v)
+         (char? v)
+         (string? v)
+         (bytes? v))
+     #t]
+    [(pair? v)
+     (and (simple-syntax-literal-datum? (car v))
+          (simple-syntax-literal-datum? (cdr v)))]
+    [(vector? v)
+     (for/and ([item (in-vector v)])
+       (simple-syntax-literal-datum? item))]
+    [else #f]))
+
+;; collect-simple-datum->syntax-literals : any/c -> (listof any/c)
+;;   Extract eager datum payloads from a stx-data linklet. This is a focused
+;;   bridge for source literals like #'(1 2 3); full lazy syntax-literal
+;;   instantiation still belongs to the real stx/stx-data linklet path.
+(define (collect-simple-datum->syntax-literals datum)
+  (define found '())
+  (define (walk v)
+    (cond
+      [(pair? v)
+       (when (eq? (car v) '#:datum->syntax)
+         (when (pair? (cdr v))
+           (set! found (cons (cadr v) found))))
+       (walk (car v))
+       (walk (cdr v))]
+      [(vector? v)
+       (for ([item (in-vector v)]
+             [i (in-naturals)])
+         (when (and (eq? item '#:datum->syntax)
+                    (< (add1 i) (vector-length v)))
+           (set! found (cons (vector-ref v (add1 i)) found)))
+         (walk item))]
+      [else (void)]))
+  (walk datum)
+  (reverse found))
+
+;; webify-module-syntax-literal-input : report -> (or/c webify-module-linklet-input? #f)
+;;   Generate a small provider for modules whose stx-data exposes simple
+;;   datum->syntax literals that the phase-0 linklet requests by index.
+(define (webify-module-syntax-literal-input report)
+  (define report-name (webify-module-extractor-spike-name report))
+  (define stx-data-entry (maybe-module-bundle-entry-ref report 'stx-data))
+  (define literals
+    (and (local-source-module-name? report-name)
+         stx-data-entry
+         (collect-simple-datum->syntax-literals
+          (webify-module-bundle-entry-datum stx-data-entry))))
+  (and literals
+       (pair? literals)
+       (let* ([name (webify-module-syntax-literal-provider-name
+                     report-name)]
+              [body
+               (for/foldr ([else-expr #f])
+                          ([literal (in-list literals)]
+                           [i (in-naturals)])
+                 (if (simple-syntax-literal-datum? literal)
+                     `(if (= pos ',i)
+                          (datum->syntax #f ',literal)
+                          ,else-expr)
+                     else-expr))])
+         (webify-module-linklet-input
+          name
+          `(linklet () (.get-syntax-literal!)
+             (define-values (.get-syntax-literal!)
+               (lambda (pos)
+                 ,body)))
+          '()))))
+
+;; route-syntax-literal-import : linklet-input report -> linklet-input
+;;   Point a module's .get-syntax-literal! import at its generated provider
+;;   when simple syntax literals were extracted from the same compiled bundle.
+(define (route-syntax-literal-import input report)
+  (define provider-name (webify-module-syntax-literal-provider-name
+                         (webify-module-extractor-spike-name report)))
+  (define has-provider?
+    (and (webify-module-syntax-literal-input report) #t))
+  (if (not has-provider?)
+      input
+      (webify-module-linklet-input
+       (webify-module-linklet-input-name input)
+       (webify-module-linklet-input-linklet input)
+       (for/list ([import (in-list (webify-module-linklet-input-imports input))])
+         (match import
+           [`(.get-syntax-literal! ,_provider .get-syntax-literal!)
+            `(.get-syntax-literal! ,provider-name .get-syntax-literal!)]
+           [_ import])))))
+
 ;; normalize-linklet-import-binding : symbol? any/c -> (list/c symbol? symbol?)
 ;;   Expand decompiled shorthand to the bridge's explicit local/external pair.
 (define (normalize-linklet-import-binding who binding)
@@ -2151,21 +2259,23 @@
   (define import-map (webify-module-extractor-spike-import-map report))
   (define raw-linklet (webify-module-extractor-spike-phase0-linklet-datum report))
   (define linklet (webify-normalize-linklet-imports raw-linklet))
-  (webify-module-linklet-input
-   (webify-module-extractor-spike-name report)
-   linklet
-   (resolve-extracted-linklet-imports
-    who
-    raw-linklet
-    dependency-exports
-    dependency-exports
-    dependencies
-    (webify-module-import-map-import-aliases import-map)
-    (webify-module-import-map-require-rename-aliases import-map)
-    (webify-module-import-map-required-module-candidates import-map)
-    module-protocol-dependency
-    reflection-hints
-    (webify-module-extractor-spike-name report))))
+  (route-syntax-literal-import
+   (webify-module-linklet-input
+    (webify-module-extractor-spike-name report)
+    linklet
+    (resolve-extracted-linklet-imports
+     who
+     raw-linklet
+     dependency-exports
+     dependency-exports
+     dependencies
+     (webify-module-import-map-import-aliases import-map)
+     (webify-module-import-map-require-rename-aliases import-map)
+     (webify-module-import-map-required-module-candidates import-map)
+     module-protocol-dependency
+     reflection-hints
+     (webify-module-extractor-spike-name report)))
+   report))
 
 ;; webify-module-extractor-spike->resolved-linklet-input/providers : report reports ... -> input
 ;;   Resolve an importer report using compiled export rows from provider reports.
@@ -2190,22 +2300,24 @@
     (webify-module-extractor-spikes-dependency-exports provider-reports))
   (define provider+self-dependency-exports
     (dependency-exports/include-self report provider-dependency-exports))
-  (webify-module-linklet-input
-   (webify-module-extractor-spike-name report)
-   (webify-normalize-linklet-imports raw-linklet)
-   (resolve-extracted-linklet-imports
-    who
-    raw-linklet
-    (or dependency-exports
-        provider+self-dependency-exports)
-    provider+self-dependency-exports
-    dependencies
-    (webify-module-import-map-import-aliases import-map)
-    (webify-module-import-map-require-rename-aliases import-map)
-    (webify-module-import-map-required-module-candidates import-map)
-    module-protocol-dependency
-    reflection-hints
-    (webify-module-extractor-spike-name report))))
+  (route-syntax-literal-import
+   (webify-module-linklet-input
+    (webify-module-extractor-spike-name report)
+    (webify-normalize-linklet-imports raw-linklet)
+    (resolve-extracted-linklet-imports
+     who
+     raw-linklet
+     (or dependency-exports
+         provider+self-dependency-exports)
+     provider+self-dependency-exports
+     dependencies
+     (webify-module-import-map-import-aliases import-map)
+     (webify-module-import-map-require-rename-aliases import-map)
+     (webify-module-import-map-required-module-candidates import-map)
+     module-protocol-dependency
+     reflection-hints
+     (webify-module-extractor-spike-name report)))
+   report))
 
 ;; webify-module-extractor-spikes->resolved-linklet-inputs : reports ... -> (listof input?)
 ;;   Resolve a supplied extracted module graph into registry-ready linklet inputs.
@@ -2216,18 +2328,24 @@
                                                                   #:module-protocol-dependency [module-protocol-dependency #f])
   (define who 'webify-module-extractor-spikes->resolved-linklet-inputs)
   (validate-extractor-reports! who reports)
-  (for/list ([report (in-list reports)])
-    (define provider-reports
-      (filter (lambda (provider-report)
-                (not (eq? provider-report report)))
-              reports))
-    (webify-module-extractor-spike->resolved-linklet-input/providers
-     report
-     provider-reports
-     #:dependency-exports dependency-exports
-     #:dependencies dependencies
-     #:reflection-hints reflection-hints
-     #:module-protocol-dependency module-protocol-dependency)))
+  (append*
+   (for/list ([report (in-list reports)])
+     (define provider-reports
+       (filter (lambda (provider-report)
+                 (not (eq? provider-report report)))
+               reports))
+     (define stx-input (webify-module-syntax-literal-input report))
+     (define main-input
+       (webify-module-extractor-spike->resolved-linklet-input/providers
+        report
+        provider-reports
+        #:dependency-exports dependency-exports
+        #:dependencies dependencies
+        #:reflection-hints reflection-hints
+        #:module-protocol-dependency module-protocol-dependency))
+     (if stx-input
+         (list stx-input main-input)
+         (list main-input)))))
 
 ;; webify-source-module->resolved-linklet-input : module-datum ... -> webify-module-linklet-input?
 ;;   Extract a source module and resolve classified imports into bridge triples.

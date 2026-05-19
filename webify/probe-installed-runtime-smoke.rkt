@@ -293,6 +293,7 @@
       sequence-inclusive-range
       sequence-in-producer
       sequence-make-do
+      sequence-in-syntax
       sequence-append-tail
       sequence-in-value
       sequence-ref-length
