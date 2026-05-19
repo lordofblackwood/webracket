@@ -651,6 +651,19 @@
             (string-join (map symbol->string chunk) ",")))
   0)
 
+;; run-module-case-plan! : symbol? (listof symbol?) -> exact-integer?
+;;   Print the selected module-case plan, then run it unless in dry-run mode.
+(define (run-module-case-plan! tier names)
+  (print-module-case-plan tier names)
+  (cond
+    [dry-run? 0]
+    [else
+     (define chunks (chunk-list names batch-size))
+     (run-thunks
+      (for/list ([names (in-list chunks)])
+        (lambda ()
+          (run-module-case-chunk/bounded! names))))]))
+
 ;; call-with-memory-limit : (or/c #f exact-positive-integer?) (-> any/c) -> any/c
 ;;   Optionally run thunk in a custodian-limited worker thread.
 (define (call-with-memory-limit limit-bytes thunk)
@@ -942,32 +955,14 @@
        (printf "case:~a\tmodule case: ~a\n" name name))
      0]
     [(pair? selected-module-cases)
-     (if dry-run?
-         (print-module-case-plan 'module-cases selected-module-cases)
-         (let ([chunks (chunk-list selected-module-cases batch-size)])
-           (run-thunks
-            (for/list ([names (in-list chunks)])
-              (lambda ()
-                (run-module-case-chunk/bounded! names))))))]
+     (run-module-case-plan! 'module-cases selected-module-cases)]
     [goal1-fast?
      (define selected-cases (select-goal1-cases goal1-fast-module-cases))
-     (if dry-run?
-         (print-module-case-plan 'goal1-fast selected-cases)
-         (let ([chunks (chunk-list selected-cases batch-size)])
-           (run-thunks
-            (for/list ([names (in-list chunks)])
-              (lambda ()
-                (run-module-case-chunk/bounded! names))))))]
+     (run-module-case-plan! 'goal1-fast selected-cases)]
     [goal1-slow?
      (set! runtime-timings? #t)
      (define selected-cases (select-goal1-cases goal1-slow-module-cases))
-     (if dry-run?
-         (print-module-case-plan 'goal1-slow selected-cases)
-         (let ([chunks (chunk-list selected-cases batch-size)])
-           (run-thunks
-            (for/list ([names (in-list chunks)])
-              (lambda ()
-                (run-module-case-chunk/bounded! names))))))]
+     (run-module-case-plan! 'goal1-slow selected-cases)]
     [selected-module-case
      (run-child/bounded!
       (format "case:~a" selected-module-case)
