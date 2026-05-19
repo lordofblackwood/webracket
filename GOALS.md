@@ -412,8 +412,9 @@ Current installed-extraction runtime smokes cover:
   `#lang webracket/full` surface. It preserves common source shapes such as
   `contract`, `define/contract`, `contract-out`, `provide/contract`, and basic
   combinators like `->`, `listof`, `or/c`, and `hash/c`, but it does not enforce
-  contracts or create chaperones/impersonators. Installed `racket/contract`
-  remains deferred.
+  contracts or create chaperones/impersonators. See `CONTRACTS.md` for the
+  current erased-contract surface and missing semantic pieces. Installed
+  `racket/contract` remains deferred.
 - `racket/hash`: an immutable hash constructor, functional `hash-set`,
   `hash-ref`, and immutable hash traversal through `hash-keys`, `hash-values`,
   `hash->list`, `hash-for-each`, `hash-map`, and `hash-clear`. The current

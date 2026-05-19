@@ -418,15 +418,58 @@
 (define-syntax-rule (parametric->/c vars contract-expr)
   (->))
 
+;; ->d : syntax -> syntax
+;;   Erase dependent function contracts without evaluating dependent clauses.
+(define-syntax-rule (->d clause ...)
+  (->))
+
+;; dynamic->* : syntax -> syntax
+;;   Keep dynamic function-contract pieces as inert descriptor parts.
+(define-syntax dynamic->*
+  (lambda (stx)
+    (syntax-case stx ()
+      [(_ mandatory optional result)
+       #'(make-erased-contract 'dynamic->* (list mandatory optional result))]
+      [(_ mandatory optional rest result)
+       #'(make-erased-contract 'dynamic->* (list mandatory optional rest result))])))
+
+;; cons/dc : syntax -> syntax
+;;   Erase dependent pair contracts; dependent field names are not runtime values.
+(define-syntax-rule (cons/dc field ...)
+  (cons/c any/c any/c))
+
+;; hash/dc : syntax -> syntax
+;;   Erase dependent hash contracts to a plain inert hash contract.
+(define-syntax-rule (hash/dc field ...)
+  (hash/c any/c any/c))
+
+;; struct/dc : syntax -> syntax
+;;   Erase dependent struct contracts to a plain inert struct contract.
+(define-syntax-rule (struct/dc struct-id field ...)
+  (struct/c struct-id))
+
+;; values/drop : syntax -> syntax
+;;   Preserve non-dependent contract subexpressions while erasing projection logic.
+(define-syntax-rule (values/drop contract-expr ...)
+  (and/c contract-expr ...))
+
+;; vector-immutable/c : syntax -> syntax
+;;   Preserve element contract subexpressions as an inert vector descriptor.
+(define-syntax-rule (vector-immutable/c contract-expr ...)
+  (vector/c contract-expr ...))
+
+;; with-contract-continuation-mark : syntax -> syntax
+;;   Preserve key/value side effects, then erase to the wrapped contract.
+(define-syntax-rule (with-contract-continuation-mark key-expr val-expr contract-expr)
+  (begin key-expr val-expr contract-expr))
+
 (define-erased-syntaxes
-  ->d
   any
   bad-number-of-results
   blame-add-context
   box-immutable/c
   channel/c
   char-in/c
-  cons/dc
   continuation-mark-key/c
   contract-exercise
   contract-in
@@ -438,12 +481,10 @@
   define/final-prop
   define/subexpression-pos-prop
   define/subexpression-pos-prop/name
-  dynamic->*
   first-or/c
   flat-contract-with-explanation
   flat-murec-contract
   flat-rec-contract
-  hash/dc
   invariant-assertion
   list*of
   mutable-treelist/c
@@ -458,14 +499,10 @@
   recontract-out
   string-len/c
   struct-guard/c
-  struct/dc
   syntax/c
   treelist/c
   unconstrained-domain->
-  values/drop
-  vector-immutable/c
-  vector-immutableof
-  with-contract-continuation-mark)
+  vector-immutableof)
 
 ;; struct/contract : syntax -> syntax
 ;;   Erase field contracts and define the struct.

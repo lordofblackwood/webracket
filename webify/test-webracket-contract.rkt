@@ -62,7 +62,7 @@
            #"PLTCOLLECTS"
            (string->bytes/utf-8 (collection-env-value)))
           (run-webracket
-           (list "-r" "--no-stdlib" "--no-io-format-provider"
+           (list "-r" "--no-stdlib" "--no-io-format-provider" "--webracket-module-bridge"
                  "--dest" (path->string dest-dir)
                  (path->string source-path))
            source-dir
@@ -156,12 +156,45 @@
        (point-y (make-point 1 21))
        (cell-value (make-cell 11)))))
 
+(module advanced-contract-struct-options-module racket/base
+  (require "../contract.rkt")
+  (provide total)
+  (struct/contract base ([x integer?]) #:transparent)
+  (struct/contract child base ([y integer?]) #:transparent #:mutable)
+  (define-struct/contract parent ([x integer?]) #:transparent)
+  (define-struct/contract (kid parent) ([y integer?]) #:transparent)
+  (define b (base 10))
+  (define c (child 20 1))
+  (set-child-y! c 11)
+  (define k (make-kid 5 16))
+  (define total
+    (+ (base-x b)
+       (base-x c)
+       (child-y c)
+       (parent-x k)
+       (kid-y k))))
+
+(module erased-semantics-module racket/base
+  (require "../contract.rkt")
+  (provide total)
+  (struct/contract checked-posn ([x integer?] [y integer?]))
+  (define bad-value (contract integer? "bad" 'positive 'negative))
+  (define/contract bad-defined integer? "also-bad")
+  (define bad-posn (checked-posn "x" "y"))
+  (define total
+    (+ (string-length bad-value)
+       (string-length bad-defined)
+       (string-length (checked-posn-x bad-posn))
+       (string-length (checked-posn-y bad-posn)))))
+
 (require (prefix-in contract-out: (submod "." contract-out-module))
          (prefix-in provide-contract: (submod "." provide-contract-module))
          (prefix-in define-contract: (submod "." define-contract-module))
          (prefix-in with-contract: (submod "." with-contract-module))
          (prefix-in advanced-expression: (submod "." advanced-contract-expression-module))
-         (prefix-in advanced-definition: (submod "." advanced-contract-definition-module)))
+         (prefix-in advanced-definition: (submod "." advanced-contract-definition-module))
+         (prefix-in advanced-struct-options: (submod "." advanced-contract-struct-options-module))
+         (prefix-in erased-semantics: (submod "." erased-semantics-module)))
 
 (test-case "contract-out erases annotations but preserves exports"
   (check-equal? contract-out:answer "not-an-integer")
@@ -221,6 +254,12 @@
 (test-case "advanced erased contract definition forms are usable"
   (check-equal? advanced-definition:total 42))
 
+(test-case "advanced erased struct contract forms preserve struct options"
+  (check-equal? advanced-struct-options:total 62))
+
+(test-case "erased contracts deliberately do not enforce values"
+  (check-equal? erased-semantics:total 13))
+
 (test-case "#lang webracket/base can require erased webracket/contract"
   (run-contract-smoke
    (string-append
@@ -231,7 +270,25 @@
     "(define boundary-value (contract (between/c 0 100) 37 'positive 'negative))\n"
     "(define dependent (->i ([x integer?]) [result integer?]))\n"
     "(define recursive (recursive-contract (listof integer?) #:flat))\n"
-    "(js-log (+ (string-length value) boundary-value (if (contract? dependent) 1 0) (if (contract? recursive) 1 0)))\n")
+    "(struct/contract posn ([x integer?] [y integer?]))\n"
+    "(define-struct/contract point ([x integer?] [y integer?]))\n"
+    "(define-contract-struct cell (value))\n"
+    "(define contract-values\n"
+    "  (list (->d ([x integer?]) () [result integer?])\n"
+    "        (dynamic->* '() '() any/c)\n"
+    "        (hash/dc [k symbol?] [v (k) integer?])\n"
+    "        (struct/dc posn ([x integer?] [y (x) integer?]))\n"
+    "        (values/drop integer? string?)\n"
+    "        (vector-immutable/c integer?)\n"
+    "        (with-contract-continuation-mark 'key 'value integer?)))\n"
+    "(js-log (+ (string-length value)\n"
+    "           boundary-value\n"
+    "           (if (contract? dependent) 1 0)\n"
+    "           (if (contract? recursive) 1 0)\n"
+    "           (length contract-values)\n"
+    "           (posn-x (posn -5 20))\n"
+    "           (point-y (make-point 1 -2))\n"
+    "           (cell-value (make-cell 0))))\n")
    #rx"(?m:^42$)"))
 
 (module+ main

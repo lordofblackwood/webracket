@@ -202,6 +202,9 @@
     js/math
     js/performance
     js/temp
+    racket/private/define-struct
+    racket/private/reqprov
+    racket/require-transform
     webracket/contract
     webracket/promise
     webracket/set
