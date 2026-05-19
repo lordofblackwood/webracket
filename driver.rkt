@@ -1606,6 +1606,7 @@
           webracket/core
           webracket/primitives
           racket/base
+          racket/private/base
           racket/private/pre-base
           racket/private/modbeg)))
 

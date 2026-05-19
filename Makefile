@@ -111,6 +111,7 @@ smoke-list:
 
 goal1-fast:
 	$(RACKET) webify/test-primitive-shapes.rkt
+	$(RACKET) webify/test-webracket-set.rkt
 	$(RACKET) webify/test-goal1-dashboard.rkt
 	$(RACKET) webify/test-stdlib-surface-report.rkt
 	$(RACKET) webify/test-webracket-base-fast.rkt

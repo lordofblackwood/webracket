@@ -210,6 +210,27 @@
     #rx"(?m:^5$)"
     '("--no-io-format-provider"))
    (goal1-dashboard-case
+    'full-set-variants
+    'language-staged-provider
+    '(webracket/set)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/full\n"
+         "(define immutable (seteq 'a 'b))\n"
+         "(define mutable (mutable-seteq 'b 'c))\n"
+         "(set-add! mutable 'd)\n"
+         "(define symmetric (set-symmetric-difference immutable mutable))\n"
+         "(define copied (set-copy immutable))\n"
+         "(set-add! copied 'z)\n"
+         "(define weak-ok (and (set-weak? (weak-seteq 'w))\n"
+         "                     (set-eq? (weak-seteq 'w))))\n"
+         "(js-log (+ (set-count symmetric)\n"
+         "           (set-count copied)\n"
+         "           (if weak-ok 10 0)))\n")))
+    "main.rkt"
+    #rx"(?m:^16$)"
+    '("--no-io-format-provider"))
+   (goal1-dashboard-case
     'full-promise
     'language-staged-provider
     '(webracket/promise)

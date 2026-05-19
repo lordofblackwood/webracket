@@ -398,7 +398,7 @@
             "                          (if (proper-subset? (set 2) s) 1 0)\n"
             "                          (if (set=? s (set 3 2 1)) 1 0)))\n"
             "(define filter-count (set-count (set-filter s odd?)))\n"
-            "(define map-count (set-count (set-map s add1)))\n"
+            "(define map-count (length (set-map s add1)))\n"
             "(define p (delay (+ (set-count s) 39)))\n"
             "(define before (promise-forced? p))\n"
             "(define value (force p))\n"
@@ -893,6 +893,42 @@
       (check-equal? (webracket/base-external-provider-names (reports list-path))
                     '(racket/list))
       (check-true (webracket/base-reports-demand-external-providers? (reports list-path))))
+    (lambda ()
+      (with-handlers ([exn:fail:filesystem? void])
+        (delete-directory/files source-dir)))))
+
+(test-case "#lang webracket/full treats racket/private/base as language-root metadata"
+  (define source-dir (make-temporary-file "webracket-full-private-base-src-~a" 'directory))
+  (define source-path (build-path source-dir "main.rkt"))
+  (dynamic-wind
+    void
+    (lambda ()
+      (call-with-output-file source-path
+        (lambda (out)
+          (display
+           (string-append
+            "#lang webracket/full\n"
+            "(define immutable (seteq 'a 'b))\n"
+            "(define mutable (mutable-seteq 'b 'c))\n"
+            "(set-add! mutable 'd)\n"
+            "(define symmetric (set-symmetric-difference immutable mutable))\n"
+            "(define copied (set-copy immutable))\n"
+            "(set-add! copied 'z)\n"
+            "(define weak-ok (and (set-weak? (weak-seteq 'w))\n"
+            "                     (set-eq? (weak-seteq 'w))))\n"
+            "(js-log (+ (set-count symmetric)\n"
+            "           (set-count copied)\n"
+            "           (if weak-ok 10 0)))\n")
+           out))
+        #:exists 'truncate/replace)
+      (define reports
+        (call-with-webracket-collection-path
+         (lambda ()
+           (define-values (_root reports)
+             (webracket/base-file->local-module-reports source-path))
+           reports)))
+      (check-false (memq 'racket/private/base
+                         (webracket/base-external-provider-names reports))))
     (lambda ()
       (with-handlers ([exn:fail:filesystem? void])
         (delete-directory/files source-dir)))))
