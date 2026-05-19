@@ -33,6 +33,7 @@
 (define batch-size 1)
 (define jobs 1)
 (define goal1-limit #f)
+(define goal1-skip 0)
 (define selected-module-cases '())
 
 (define expander-read-module-cases
@@ -520,6 +521,15 @@
          (split-at xs (min n (length xs))))
        (loop rest (cons front chunks))])))
 
+;; select-goal1-cases : (listof symbol?) -> (listof symbol?)
+;;   Apply Goal 1 skip/limit selectors to a tier without over-dropping.
+(define (select-goal1-cases cases)
+  (define skipped
+    (drop cases (min goal1-skip (length cases))))
+  (if goal1-limit
+      (take skipped (min goal1-limit (length skipped)))
+      skipped))
+
 ;; call-with-memory-limit : (or/c #f exact-positive-integer?) (-> any/c) -> any/c
 ;;   Optionally run thunk in a custodian-limited worker thread.
 (define (call-with-memory-limit limit-bytes thunk)
@@ -808,11 +818,7 @@
        (printf "case:~a\tmodule case: ~a\n" name name))
      0]
     [goal1-fast?
-     (define selected-cases
-       (if goal1-limit
-           (take goal1-fast-module-cases
-                 (min goal1-limit (length goal1-fast-module-cases)))
-           goal1-fast-module-cases))
+     (define selected-cases (select-goal1-cases goal1-fast-module-cases))
      (define chunks (chunk-list selected-cases batch-size))
      (run-thunks
       (for/list ([names (in-list chunks)])
@@ -820,11 +826,7 @@
           (run-module-case-chunk/bounded! names))))]
     [goal1-slow?
      (set! runtime-timings? #t)
-     (define selected-cases
-       (if goal1-limit
-           (take goal1-slow-module-cases
-                 (min goal1-limit (length goal1-slow-module-cases)))
-           goal1-slow-module-cases))
+     (define selected-cases (select-goal1-cases goal1-slow-module-cases))
      (define chunks (chunk-list selected-cases batch-size))
      (run-thunks
       (for/list ([names (in-list chunks)])
@@ -877,6 +879,8 @@
              (set! jobs (max 1 (string->number n)))]
  [("--goal1-limit") n "limit the selected Goal 1 tier to the first n cases"
                     (set! goal1-limit (string->number n))]
+ [("--goal1-skip") n "skip the first n cases in the selected Goal 1 tier"
+                   (set! goal1-skip (max 0 (string->number n)))]
  [("--preserve-dir") dir "copy generated runtime-smoke artifacts into dir"
                      (set! preserve-dir dir)]
  [("--no-observe") "for --module-case, instantiate without logging an export"
