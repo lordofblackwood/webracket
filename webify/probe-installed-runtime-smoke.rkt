@@ -159,6 +159,10 @@
     format-write
     format-align
     format-fprintf-port
+    read-list
+    read-vector
+    read-symbol-string
+    read-comment
     read-public-list
     read-current-readtable
     read-accept-reader-param
