@@ -73,7 +73,7 @@
      (list "-r" "--stdlib")))
   (check-equal? status 0 output)
   (check-regexp-match #rx"(?m:^io ok \\(1 2\\) ff 10 101 Z$)" output)
-  (check-true (string-contains? output "fmt ok vv (err)\nnext")
+  (check-true (string-contains? output "fmt ok \"vv\" (err)\nnext")
               output))
 
 (test-case "io/format provider exposes private cells and public aliases"

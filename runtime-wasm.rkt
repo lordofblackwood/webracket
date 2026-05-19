@@ -65885,10 +65885,10 @@
 
          ;; format : string? any/c ... -> string?
          ;;   Small runtime formatter for bootstrap/error paths. It supports
-         ;;   `~a`, `~s`, `~v`, and `~e` via WebRacket's existing display-mode
-         ;;   formatter, plus `~~`, `~n`, and `~%`. Full Racket `format`
-         ;;   semantics can be layered in later when the stdlib formatter is
-         ;;   available.
+         ;;   `~a` and `~e` via WebRacket's existing generic value renderer,
+         ;;   and `~s`/`~v` through a narrow write-like path that quotes
+         ;;   strings. Full Racket `format` semantics should come from the
+         ;;   staged io/format provider.
          (func $format (type $Prim>=1)
                (param $fmt-raw (ref eq)) ;; format string
                (param $args    (ref eq)) ;; rest values
@@ -65959,11 +65959,7 @@
                                  (br $loop)))
                             (if (i32.or
                                  (i32.eq (local.get $next) (i32.const 97))  ;; '~a'
-                                 (i32.or
-                                  (i32.eq (local.get $next) (i32.const 115)) ;; '~s'
-                                  (i32.or
-                                   (i32.eq (local.get $next) (i32.const 118)) ;; '~v'
-                                   (i32.eq (local.get $next) (i32.const 101))))) ;; '~e'
+                                 (i32.eq (local.get $next) (i32.const 101))) ;; '~e'
                                 (then
                                  (if (i32.eqz (ref.test (ref $Pair) (local.get $args*)))
                                      (then (call $raise-argument-error1
@@ -65975,6 +65971,29 @@
                                             (ref.cast (ref $Pair) (local.get $args*)))
                                  (local.set $part
                                             (call $format/display
+                                                  (struct.get $Pair $a
+                                                              (local.get $arg-pair))))
+                                 (call $i32growable-array-add-string!
+                                       (local.get $out)
+                                       (local.get $part))
+                                 (local.set $args*
+                                            (struct.get $Pair $d
+                                                        (local.get $arg-pair)))
+                                 (br $loop)))
+                            (if (i32.or
+                                 (i32.eq (local.get $next) (i32.const 115)) ;; '~s'
+                                 (i32.eq (local.get $next) (i32.const 118))) ;; '~v'
+                                (then
+                                 (if (i32.eqz (ref.test (ref $Pair) (local.get $args*)))
+                                     (then (call $raise-argument-error1
+                                                 (global.get $symbol:format)
+                                                 (global.get $string:list?)
+                                                 (local.get $args*))
+                                           (unreachable)))
+                                 (local.set $arg-pair
+                                            (ref.cast (ref $Pair) (local.get $args*)))
+                                 (local.set $part
+                                            (call $format/write
                                                   (struct.get $Pair $a
                                                               (local.get $arg-pair))))
                                  (call $i32growable-array-add-string!
@@ -66207,6 +66226,174 @@
                ;; --- Fallback ---
                (call $raise-format/display:unknown-datatype)
                (unreachable))
+
+         ;; format/write : any/c -> string?
+         ;;   Render a value using the subset of write/print-like conventions
+         ;;   needed by bootstrap `format` for `~s` and `~v`. Values without a
+         ;;   distinct write representation still fall back to WebRacket's
+         ;;   existing generic value renderer.
+         (func $format/write
+               (param $v (ref eq))
+               (result   (ref $String))
+
+               (if (ref.test (ref $String) (local.get $v))
+                   (then (return (call $format/write:string
+                                       (ref.cast (ref $String) (local.get $v))))))
+               (if (ref.test (ref $Pair) (local.get $v))
+                   (then (return (call $format/write:pair
+                                       (local.get $v)))))
+               (if (ref.test (ref $Vector) (local.get $v))
+                   (then (return (call $format/write:vector
+                                       (ref.cast (ref $Vector) (local.get $v))))))
+               (call $format/display (local.get $v)))
+
+         ;; format/write:string : string? -> string?
+         ;;   Quote strings for write/print mode, including common escapes.
+         (func $format/write:string
+               (param $str (ref $String))
+               (result     (ref $String))
+
+               (local $arr (ref $I32Array))
+               (local $out (ref $I32GrowableArray))
+               (local $len i32)
+               (local $i   i32)
+               (local $cp  i32)
+
+               (local.set $arr (struct.get $String $codepoints (local.get $str)))
+               (local.set $len (array.len (local.get $arr)))
+               (local.set $out (call $make-i32growable-array
+                                      (i32.add (i32.const 2)
+                                               (i32.mul (local.get $len) (i32.const 2)))))
+               (call $i32growable-array-add! (local.get $out) (i32.const 34)) ;; '"'
+               (local.set $i (i32.const 0))
+               (block $done
+                      (loop $loop
+                            (br_if $done (i32.ge_u (local.get $i) (local.get $len)))
+                            (local.set $cp
+                                       (array.get $I32Array
+                                                  (local.get $arr)
+                                                  (local.get $i)))
+                            (if (i32.eq (local.get $cp) (i32.const 34)) ;; '"'
+                                (then
+                                 (call $i32growable-array-add! (local.get $out) (i32.const 92))
+                                 (call $i32growable-array-add! (local.get $out) (i32.const 34))
+                                 (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                                 (br $loop)))
+                            (if (i32.eq (local.get $cp) (i32.const 92)) ;; '\'
+                                (then
+                                 (call $i32growable-array-add! (local.get $out) (i32.const 92))
+                                 (call $i32growable-array-add! (local.get $out) (i32.const 92))
+                                 (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                                 (br $loop)))
+                            (if (i32.eq (local.get $cp) (i32.const 10)) ;; newline
+                                (then
+                                 (call $i32growable-array-add! (local.get $out) (i32.const 92))
+                                 (call $i32growable-array-add! (local.get $out) (i32.const 110))
+                                 (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                                 (br $loop)))
+                            (if (i32.eq (local.get $cp) (i32.const 13)) ;; return
+                                (then
+                                 (call $i32growable-array-add! (local.get $out) (i32.const 92))
+                                 (call $i32growable-array-add! (local.get $out) (i32.const 114))
+                                 (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                                 (br $loop)))
+                            (if (i32.eq (local.get $cp) (i32.const 9)) ;; tab
+                                (then
+                                 (call $i32growable-array-add! (local.get $out) (i32.const 92))
+                                 (call $i32growable-array-add! (local.get $out) (i32.const 116))
+                                 (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                                 (br $loop)))
+                            (call $i32growable-array-add! (local.get $out) (local.get $cp))
+                            (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                            (br $loop)))
+               (call $i32growable-array-add! (local.get $out) (i32.const 34)) ;; '"'
+               (call $i32growable-array->immutable-string (local.get $out)))
+
+         ;; format/write:pair : pair? -> string?
+         ;;   Render pairs recursively using write/print conventions.
+         (func $format/write:pair (param $v (ref eq)) (result (ref $String))
+               (local $out   (ref $GrowableArray))
+               (local $stack (ref $GrowableArray))
+               (local $car   (ref eq))
+               (local $cdr   (ref $Pair))
+               (local $tail  (ref eq))
+               (local $str   (ref $String))
+
+               (local.set $out   (call $make-growable-array (i32.const 8)))
+               (local.set $stack (call $make-growable-array (i32.const 8)))
+               (call $growable-array-add! (local.get $out)
+                                        (ref.cast (ref $String)
+                                                 (global.get $string:open-paren)))
+               (call $growable-array-add! (local.get $stack) (local.get $v))
+               (block $done
+                      (loop $walk
+                            (br_if $done (i32.eqz (call $growable-array-count (local.get $stack))))
+                            (local.set $tail (call $growable-array-remove-last! (local.get $stack)))
+                            (if (ref.test (ref $Pair) (local.get $tail))
+                                (then
+                                 (local.set $cdr (ref.cast (ref $Pair) (local.get $tail)))
+                                 (local.set $car (struct.get $Pair $a (local.get $cdr)))
+                                 (local.set $tail (struct.get $Pair $d (local.get $cdr)))
+                                 (local.set $str (call $format/write (local.get $car)))
+                                 (call $growable-array-add! (local.get $out) (local.get $str))
+                                 (if (ref.test (ref $Pair) (local.get $tail))
+                                     (then
+                                      (call $growable-array-add! (local.get $out)
+                                                                 (ref.cast (ref $String)
+                                                                           (global.get $string:space)))
+                                      (call $growable-array-add! (local.get $stack) (local.get $tail)))
+                                     (else
+                                      (if (ref.eq (local.get $tail) (global.get $null))
+                                          (then)
+                                          (else
+                                           (call $growable-array-add! (local.get $out)
+                                                                      (ref.cast (ref $String)
+                                                                                (global.get $string:space-dot-space)))
+                                           (local.set $str (call $format/write (local.get $tail)))
+                                           (call $growable-array-add! (local.get $out) (local.get $str)))))))
+                                (else
+                                 (call $raise-format/display:pair:expected-pair)
+                                 (unreachable)))
+                            (br $walk)))
+               (call $growable-array-add! (local.get $out)
+                                        (ref.cast (ref $String)
+                                                 (global.get $string:close-paren)))
+               (call $growable-array-of-strings->string (local.get $out)))
+
+         ;; format/write:vector : vector? -> string?
+         ;;   Render vectors recursively using write/print conventions.
+         (func $format/write:vector (param $v (ref $Vector)) (result (ref $String))
+               (local $out   (ref $GrowableArray))
+               (local $arr   (ref $Array))
+               (local $len   i32)
+               (local $i     i32)
+               (local $elem  (ref eq))
+               (local $str   (ref $String))
+
+               (local.set $arr (struct.get $Vector $arr (local.get $v)))
+               (local.set $len (array.len (local.get $arr)))
+               (local.set $out (call $make-growable-array (i32.const 8)))
+               (call $growable-array-add! (local.get $out)
+                                        (ref.cast (ref $String)
+                                                 (global.get $string:vector-prefix)))
+               (local.set $i (i32.const 0))
+               (block $done
+                      (loop $loop
+                            (br_if $done (i32.ge_u (local.get $i) (local.get $len)))
+                            (local.set $elem (array.get $Array (local.get $arr) (local.get $i)))
+                            (local.set $str (call $format/write (local.get $elem)))
+                            (call $growable-array-add! (local.get $out) (local.get $str))
+                            (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                            (if (i32.lt_u (local.get $i) (local.get $len))
+                                (then
+                                 (call $growable-array-add! (local.get $out)
+                                                            (ref.cast (ref $String)
+                                                                      (global.get $string:space)))))
+                            (br $loop)))
+               (call $growable-array-add! (local.get $out)
+                                        (ref.cast (ref $String)
+                                                 (global.get $string:close-paren)))
+               (call $growable-array-of-strings->string (local.get $out)))
 
          (func $format/display:hash
                (param $ht (ref $Hash))
@@ -70285,23 +70472,24 @@
                      (unreachable))
 
                ;; default-port-write-handler : any/c output-port? -> void?
-               ;;   Minimal default write handler. WebRacket currently shares
-               ;;   the formatter used by display/write until the full printer
-               ;;   modes and per-port handlers are implemented.
+               ;;   Minimal default write handler. It uses WebRacket's narrow
+               ;;   write-mode formatter so strings are quoted for `~s` and
+               ;;   other write-through-handler paths.
                (func $default-port-write-handler (type $Prim2)
                      (param $v   (ref eq)) ;; any/c
                      (param $out (ref eq)) ;; output-port?
                      (result     (ref eq))
                      (drop (call $write-string
-                                 (call $format/display (local.get $v))
+                                 (call $format/write (local.get $v))
                                  (local.get $out)
                                  (global.get $missing)
                                  (global.get $missing)))
                      (global.get $void))
 
                ;; default-port-display-handler : any/c output-port? -> void?
-               ;;   Minimal default display handler; see
-               ;;   default-port-write-handler for the current limitation.
+               ;;   Minimal default display handler using WebRacket's existing
+               ;;   generic value renderer. Despite the helper name, that
+               ;;   renderer is not a complete implementation of Racket display.
                (func $default-port-display-handler (type $Prim2)
                      (param $v   (ref eq)) ;; any/c
                      (param $out (ref eq)) ;; output-port?
@@ -70315,15 +70503,15 @@
 
                ;; default-port-print-handler : any/c output-port? [0-or-1] -> void?
                ;;   Minimal default print handler. The optional quote-depth
-               ;;   argument is accepted for Racket's port-print-handler shape
-               ;;   but ignored by WebRacket's current formatter.
+               ;;   argument is accepted for Racket's port-print-handler shape.
+               ;;   The current formatter treats it like write mode.
                (func $default-port-print-handler (type $Prim23)
                      (param $v           (ref eq)) ;; any/c
                      (param $out         (ref eq)) ;; output-port?
                      (param $quote-depth (ref eq)) ;; optional (or/c 0 1), ignored
                      (result             (ref eq))
                      (drop (call $write-string
-                                 (call $format/display (local.get $v))
+                                 (call $format/write (local.get $v))
                                  (local.get $out)
                                  (global.get $missing)
                                  (global.get $missing)))

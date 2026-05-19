@@ -142,6 +142,8 @@
     format-basic
     format-number
     format-write
+    format-print
+    format-print-string
     format-align
     format-fprintf-port
     match-basic
@@ -416,6 +418,11 @@
          (require racket/format)
          (provide y)
          (define y (~v 'web))))]
+    [(format-print-string)
+     '((module use-format-print-string racket/base
+         (require racket/format)
+         (provide y)
+         (define y (~v "web"))))]
     [(format-align)
      '((module use-format-align racket/base
          (require racket/format)

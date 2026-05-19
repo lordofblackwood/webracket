@@ -166,6 +166,8 @@
     format-single
     format-number
     format-write
+    format-print
+    format-print-string
     format-align
     format-fprintf-port
     read-list
@@ -342,6 +344,7 @@
       format-number
       format-write
       format-print
+      format-print-string
       format-align
       format-fprintf-port
       read-list
@@ -462,6 +465,8 @@
             [(format-basic) #rx"(?m:^web-racket$)"]
             [(format-number) #rx"(?m:^42$)"]
             [(format-write) #rx"(?m:^web$)"]
+            [(format-print) #rx"(?m:^web$)"]
+            [(format-print-string) #rx"(?m:^\"web\"$)"]
             [(format-align) #rx"(?m:^  web$)"]
             [(format-fprintf-port) #rx"(?m:^ok$)"]
             [(read-list read-vector read-public-list) #rx"(?m:^3$)"]
