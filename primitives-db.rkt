@@ -999,6 +999,7 @@
 (define-primitive radians->degrees                          1                   (ordered))
 (define-primitive raise                                     [1 2]               (ordered))
 (define-primitive raise-argument-error                      at-least-3          (ordered))
+(define-primitive raise-argument-error*                     at-least-4          (ordered))
 (define-primitive raise-arguments-error                     at-least-2          (ordered))
 (define-primitive raise-binding-result-arity-error          2                   (ordered))
 (define-primitive raise-definition-result-arity-error       2                   (ordered))

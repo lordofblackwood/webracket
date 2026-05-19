@@ -1156,6 +1156,7 @@
  exn:srclocs-accessor
  raise
  raise-argument-error
+ raise-argument-error*
  raise-arguments-error
  raise-binding-result-arity-error
  raise-definition-result-arity-error

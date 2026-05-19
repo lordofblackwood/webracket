@@ -712,7 +712,7 @@
     
     (define (arity->shape a)
       (match a
-        [(arity-at-least n) (+ 6 (min n 3))]
+        [(arity-at-least n) (if (>= n 4) 30 (+ 6 n))]
         [(? number? n)      (if (= n 6) 26 (min n 5))]
         [(? (λ (a) (arity-range? a 0 1)))  16]
         [(? (λ (a) (arity-range? a 0 2)))  17]
@@ -754,23 +754,25 @@
         unsafe-chaperone-procedure
         unsafe-impersonate-procedure
         raise-argument-error
+        raise-argument-error*
         raise-arguments-error
         vector-immutable
         values
         void))
 
     (define primitive-shapes
-      '(0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29))
+      '(0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31))
 
     (define (primitive->shape pr [desc (primitive->description pr)])
       (and desc
            (let ([base (arity->shape (primitive-description-arity desc))])
              (and base
-                  (if (>= base 6)
-                      (if (memq pr primitive-variadic-args)
-                          (+ base 4)
-                          base)
-                      base)))))
+                  (cond
+                    [(= base 30)
+                     (if (memq pr primitive-variadic-args) 31 base)]
+                    [(>= base 6)
+                     (if (memq pr primitive-variadic-args) (+ base 4) base)]
+                    [else base])))))
 
     (define (shape->invoker shape)
       (match shape
@@ -804,6 +806,8 @@
         [27 'primitive-invoke:shape-27]
         [28 'primitive-invoke:shape-28]
         [29 'primitive-invoke:shape-29]
+        [30 'primitive-invoke:shape-30]
+        [31 'primitive-invoke:shape-31]
         [_  'primitive-invoke]))
 
     (define (primitive-invoker-tail shape)
@@ -1371,6 +1375,44 @@
                                                 (array.get $Args (local.get $args) (i32.const 5))
                                                 (ref.cast (ref $Prim6) (local.get $code))))
                          (else (return (call $raise-code-type-mismatch (local.get $pproc))))))
+               (else (return (call $primitive-invoke:raise-arity-error
+                                   (local.get $pproc) (local.get $argc)))))
+           (unreachable))]
+        [30 ; at least 4, rest arguments as list
+         `((if (i32.ge_u (local.get $argc) (i32.const 4))
+               (then
+                (if (ref.test (ref $Prim>=4) (local.get $code))
+                    (then (local.set $a3
+                                     (array.get $Args (local.get $args) (i32.const 3)))
+                          (local.set $rest
+                                     (call $rest-arguments->list
+                                           (local.get $args)
+                                           (i32.const 4)))
+                          (return_call_ref $Prim>=4
+                                           (local.get $a0)
+                                           (local.get $a1)
+                                           (local.get $a2)
+                                           (local.get $a3)
+                                           (local.get $rest)
+                                           (ref.cast (ref $Prim>=4) (local.get $code))))
+                    (else (return (call $raise-code-type-mismatch (local.get $pproc))))))
+               (else (return (call $primitive-invoke:raise-arity-error
+                                   (local.get $pproc) (local.get $argc)))))
+           (unreachable))]
+        [31 ; at least 4, rest arguments as $Args array
+         `((if (i32.ge_u (local.get $argc) (i32.const 4))
+               (then
+                (if (ref.test (ref $Prim>=4) (local.get $code))
+                    (then (return_call_ref $Prim>=4
+                                           (local.get $a0)
+                                           (local.get $a1)
+                                           (local.get $a2)
+                                           (array.get $Args (local.get $args) (i32.const 3))
+                                           (call $rest-arguments->args
+                                                 (local.get $args)
+                                                 (i32.const 4))
+                                           (ref.cast (ref $Prim>=4) (local.get $code))))
+                    (else (return (call $raise-code-type-mismatch (local.get $pproc))))))
                (else (return (call $primitive-invoke:raise-arity-error
                                    (local.get $pproc) (local.get $argc)))))
            (unreachable))]
@@ -26509,6 +26551,34 @@
                (local $got      (ref eq))
                (local $rest-args (ref $Args))
                (local.set $got (local.get $third))
+               (if (ref.test (ref $Args) (local.get $rest))
+                   (then
+                    (local.set $rest-args (ref.cast (ref $Args) (local.get $rest)))
+                    (if (i32.gt_u (array.len (local.get $rest-args)) (i32.const 0))
+                        (then (local.set $got
+                                         (array.get $Args
+                                                    (local.get $rest-args)
+                                                    (i32.const 0)))))))
+               (call $raise-argument-error1
+                     (local.get $who)
+                     (local.get $expected)
+                     (local.get $got))
+               (unreachable))
+
+         ;; raise-argument-error* : symbol? symbol? string? any/c any/c ... -> none
+         ;;   Realm-aware variant of raise-argument-error. WebRacket does not
+         ;;   yet adjust error messages by realm, so the realm argument is
+         ;;   validated by compiled code but ignored here.
+         (func $raise-argument-error* (type $Prim>=4)
+               (param $who      (ref eq)) ;; symbol?
+               (param $realm    (ref eq)) ;; symbol?, currently ignored
+               (param $expected (ref eq)) ;; string?
+               (param $fourth   (ref eq)) ;; bad value or bad argument index
+               (param $rest     (ref eq)) ;; rest arguments as $Args
+               (result          (ref eq)) ;; unreachable
+               (local $got       (ref eq))
+               (local $rest-args (ref $Args))
+               (local.set $got (local.get $fourth))
                (if (ref.test (ref $Args) (local.get $rest))
                    (then
                     (local.set $rest-args (ref.cast (ref $Args) (local.get $rest)))

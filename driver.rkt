@@ -835,7 +835,14 @@
     (for/hasheq ([export (in-list (stdlib-module-alias-symbols browser?))])
       (values export #t)))
   (define alias-bindings
-    (filter (λ (binding) (hash-ref alias-set (car binding) #f))
+    (filter (λ (binding)
+              (define public (car binding))
+              (and (hash-ref alias-set public #f)
+                   ;; Primitive-owned exports are already available at the
+                   ;; script top level. Re-aliasing them would recreate the
+                   ;; old textual-stdlib primitive collision under the module
+                   ;; stdlib bridge.
+                   (not (compiler-primitive? public))))
             bindings))
   (define private->binding
     (for/hasheq ([binding (in-list alias-bindings)])
