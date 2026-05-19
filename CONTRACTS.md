@@ -24,6 +24,10 @@ programs that only need erased annotations and lightweight contract metadata.
   `flat-contract-predicate` provide best-effort metadata for common erased
   descriptors. These checks are useful for library probes, but they do not turn
   contract boundaries into enforcing wrappers.
+- First-order checks cover common flat/container shapes including `false/c`,
+  `natural-number/c`, `char-in`, `char-in/c`, `string-len/c`,
+  `non-empty-listof`, `list*of`, `vector-immutableof`, `box-immutable/c`,
+  `parameter/c`, `promise/c`, and `procedure-arity-includes/c`.
 - Struct contract forms such as `struct/contract`, `define-struct/contract`,
   and `define-contract-struct` define ordinary structs while erasing field
   contracts. Options such as `#:transparent`, `#:mutable`, and parent-struct

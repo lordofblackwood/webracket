@@ -226,11 +226,23 @@
   (check-false ((erased:flat-contract-predicate (erased:flat-named-contract 'evenish even?)) 5))
   (check-true (erased:contract-first-order-passes? (erased:and/c integer? (erased:>=/c 0)) 3))
   (check-false (erased:contract-first-order-passes? (erased:and/c integer? (erased:>=/c 0)) -1))
+  (check-equal? (erased:contract-name erased:false/c) #f)
+  (check-true (erased:contract-first-order-passes? erased:false/c #f))
+  (check-false (erased:contract-first-order-passes? erased:false/c 'not-false))
+  (check-true (erased:natural-number/c 3))
+  (check-false (erased:natural-number/c -1))
+  (check-equal? (erased:contract-name erased:natural-number/c) 'natural-number/c)
   (check-true (erased:contract-first-order-passes? (erased:or/c symbol? string?) 'ok))
   (check-true (erased:contract-first-order-passes? (erased:or/c symbol? string?) "ok"))
   (check-false (erased:contract-first-order-passes? (erased:or/c symbol? string?) 42))
   (check-true (erased:contract-first-order-passes? (erased:hash/c symbol? integer?) (hash 'a 1 'b 2)))
   (check-false (erased:contract-first-order-passes? (erased:hash/c symbol? integer?) (hash 'a "bad")))
+  (check-true (erased:contract-first-order-passes? (erased:char-in #\a #\b) #\a))
+  (check-false (erased:contract-first-order-passes? (erased:char-in #\a #\b) #\z))
+  (check-true (erased:contract-first-order-passes? (erased:non-empty-listof integer?) '(1)))
+  (check-false (erased:contract-first-order-passes? (erased:non-empty-listof integer?) '()))
+  (check-true (erased:contract-first-order-passes? (erased:string-len/c 3) "abc"))
+  (check-false (erased:contract-first-order-passes? (erased:string-len/c 3) "abcd"))
   (for ([ctc (in-list (list (erased:list/c integer? string?)
                             (erased:vector/c integer? string?)
                             (erased:vector-immutable/c integer?)
@@ -316,14 +328,25 @@
   (run-contract-smoke
    (string-append
     "#lang webracket/base\n"
-    "(require racket/contract)\n"
+    "(require (only-in racket/contract\n"
+    "                  contract-out define/contract integer-in\n"
+    "                  contract-first-order-passes? natural-number/c\n"
+    "                  false/c string-len/c))\n"
     "(provide (contract-out [value integer?]))\n"
     "(define/contract value integer? \"web\")\n"
     "(define range-ok? (contract-first-order-passes? (integer-in 0 10) 7))\n"
     "(define range-bad? (contract-first-order-passes? (integer-in 0 10) 99))\n"
+    "(define natural-ok? (natural-number/c 5))\n"
+    "(define natural-bad? (natural-number/c -1))\n"
+    "(define false-ok? (contract-first-order-passes? false/c #f))\n"
+    "(define len-ok? (contract-first-order-passes? (string-len/c 3) \"web\"))\n"
     "(js-log (+ (string-length value)\n"
-    "           (if range-ok? 38 0)\n"
-    "           (if range-bad? 100 1)))\n")
+    "           (if range-ok? 27 0)\n"
+    "           (if range-bad? 100 1)\n"
+    "           (if natural-ok? 2 0)\n"
+    "           (if natural-bad? 100 3)\n"
+    "           (if false-ok? 4 0)\n"
+    "           (if len-ok? 2 0)))\n")
    #rx"(?m:^42$)"))
 
 (module+ main

@@ -148,6 +148,7 @@
      (cond
        [(eq? name 'flat-named-contract)
         (if (pair? parts) (car parts) name)]
+       [(eq? name 'false/c) #f]
        [(null? parts) name]
        [else (cons name (map-contract-names parts))])]
     [(procedure? contract)
@@ -183,6 +184,10 @@
      (define parts (erased-contract-parts contract))
      (cond
        [(eq? name 'none/c) (lambda (_v) #f)]
+       [(eq? name 'any/c) (lambda (_v) #t)]
+       [(eq? name 'false/c) not]
+       [(eq? name 'natural-number/c)
+        (lambda (v) (and (integer? v) (<= 0 v)))]
        [(eq? name 'flat-named-contract)
         (cond
           [(and (pair? (cdr parts)) (procedure? (cadr parts))) (cadr parts)]
@@ -230,7 +235,17 @@
         (lambda (v) (and (member v parts) #t))]
        [(eq? name 'symbols)
         (lambda (v) (and (memq v parts) #t))]
+       [(or (eq? name 'char-in) (eq? name 'char-in/c))
+        (lambda (v) (and (char? v) (memv v parts) #t))]
        [(eq? name 'listof)
+        (define predicate
+          (if (pair? parts) (predicate-of (car parts)) (lambda (_v) #t)))
+        (lambda (v) (and (list? v) (all-items-pass? predicate v)))]
+       [(eq? name 'non-empty-listof)
+        (define predicate
+          (if (pair? parts) (predicate-of (car parts)) (lambda (_v) #t)))
+        (lambda (v) (and (pair? v) (list? v) (all-items-pass? predicate v)))]
+       [(eq? name 'list*of)
         (define predicate
           (if (pair? parts) (predicate-of (car parts)) (lambda (_v) #t)))
         (lambda (v) (and (list? v) (all-items-pass? predicate v)))]
@@ -255,7 +270,16 @@
                  (or (= i (vector-length v))
                      (and (predicate (vector-ref v i))
                           (loop (+ i 1)))))))]
-       [(or (eq? name 'vector/c) (eq? name 'immutable-vector/c))
+       [(eq? name 'vector-immutableof)
+        (define predicate
+          (if (pair? parts) (predicate-of (car parts)) (lambda (_v) #t)))
+        (lambda (v)
+          (and (vector? v)
+               (let loop ([i 0])
+                 (or (= i (vector-length v))
+                     (and (predicate (vector-ref v i))
+                          (loop (+ i 1)))))))]
+       [(or (eq? name 'vector/c) (eq? name 'immutable-vector/c) (eq? name 'vector-immutable/c))
         (define predicates (map-contract-predicates parts))
         (lambda (v)
           (and (vector? v)
@@ -265,6 +289,10 @@
                      (and ((car predicates) (vector-ref v i))
                           (loop (+ i 1) (cdr predicates)))))))]
        [(eq? name 'box/c)
+        (define predicate
+          (if (pair? parts) (predicate-of (car parts)) (lambda (_v) #t)))
+        (lambda (v) (and (box? v) (predicate (unbox v))))]
+       [(eq? name 'box-immutable/c)
         (define predicate
           (if (pair? parts) (predicate-of (car parts)) (lambda (_v) #t)))
         (lambda (v) (and (box? v) (predicate (unbox v))))]
@@ -281,6 +309,15 @@
                        (and (key-predicate key)
                             (value-predicate (hash-ref v key))
                             (loop (cdr keys))))))))]
+       [(eq? name 'string-len/c)
+        (define len (and (pair? parts) (car parts)))
+        (lambda (v) (and (string? v) (integer? len) (= (string-length v) len)))]
+       [(eq? name 'parameter/c)
+        procedure?]
+       [(eq? name 'promise/c)
+        (lambda (_v) #t)]
+       [(eq? name 'procedure-arity-includes/c)
+        (lambda (v) (and (procedure? v) #t))]
        [(or (eq? name '->) (eq? name '->*) (eq? name 'case->))
         procedure?]
        [else (lambda (_v) #t)])]))
@@ -407,7 +444,6 @@
 (define-erased-contract-function complex/c)
 (define-erased-contract-function evt/c)
 (define-erased-contract-function failure-result/c)
-(define-erased-contract-function false/c)
 (define-erased-contract-function flat-contract)
 (define-erased-contract-function if/c)
 (define-erased-contract-function make-chaperone-contract)
@@ -415,10 +451,20 @@
 (define-erased-contract-function make-flat-contract)
 (define-erased-contract-function make-none/c)
 (define-erased-contract-function make-proj-contract)
-(define-erased-contract-function natural-number/c)
-(define-erased-contract-function printable/c)
 (define-erased-contract-function struct-type-property/c)
 (define-erased-contract-function suggest/c)
+
+(define false/c (make-erased-contract 'false/c '()))
+
+;; natural-number/c : any/c -> boolean?
+;;   Approximate Racket's natural-number flat contract predicate.
+(define (natural-number/c v)
+  (and (integer? v) (<= 0 v)))
+
+;; printable/c : any/c -> boolean?
+;;   Accept values as printable in the erased provider.
+(define (printable/c _v)
+  #t)
 
 ;; -> : contract? ... -> contract?
 ;;   Build an inert function-contract descriptor.
@@ -629,9 +675,7 @@
   any
   bad-number-of-results
   blame-add-context
-  box-immutable/c
   channel/c
-  char-in/c
   continuation-mark-key/c
   contract-exercise
   contract-in
@@ -648,23 +692,49 @@
   flat-murec-contract
   flat-rec-contract
   invariant-assertion
-  list*of
   mutable-treelist/c
   new-∀/c
   new-∃/c
-  non-empty-listof
   opt/c
   prompt-tag/c
   property/c
   raise-blame-error
   raise-not-cons-blame-error
   recontract-out
-  string-len/c
   struct-guard/c
   syntax/c
   treelist/c
-  unconstrained-domain->
-  vector-immutableof)
+  unconstrained-domain->)
+
+;; box-immutable/c : syntax -> syntax
+;;   Preserve the box element contract while ignoring mutability.
+(define-syntax-rule (box-immutable/c contract-expr ...)
+  (box/c contract-expr ...))
+
+;; char-in/c : syntax -> syntax
+;;   Preserve allowed characters for first-order checks.
+(define-syntax-rule (char-in/c ch ...)
+  (make-erased-contract 'char-in/c (list ch ...)))
+
+;; list*of : syntax -> syntax
+;;   Preserve the element contract as a list approximation.
+(define-syntax-rule (list*of contract-expr)
+  (make-erased-contract 'list*of (list contract-expr)))
+
+;; non-empty-listof : syntax -> syntax
+;;   Preserve the element contract and non-empty-list intent.
+(define-syntax-rule (non-empty-listof contract-expr)
+  (make-erased-contract 'non-empty-listof (list contract-expr)))
+
+;; string-len/c : syntax -> syntax
+;;   Preserve the required string length for first-order checks.
+(define-syntax-rule (string-len/c len-expr)
+  (make-erased-contract 'string-len/c (list len-expr)))
+
+;; vector-immutableof : syntax -> syntax
+;;   Preserve the element contract while ignoring mutability.
+(define-syntax-rule (vector-immutableof contract-expr)
+  (make-erased-contract 'vector-immutableof (list contract-expr)))
 
 ;; struct/contract : syntax -> syntax
 ;;   Erase field contracts and define the struct.
