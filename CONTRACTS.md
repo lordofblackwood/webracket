@@ -8,10 +8,11 @@ The provider intentionally exports the same phase-0 value and syntax names as
 on the rest of the module ecosystem. It does not enforce contracts, construct
 blame objects with real projections, or create chaperones/impersonators.
 
-When the Goal 1 module bridge sees `(require racket/contract)`, it currently
-substitutes this provider instead of compiling the full installed
-`racket/contract` graph. That makes `racket/contract` usable for module
-programs that only need erased annotations and lightweight contract metadata.
+When the Goal 1 module bridge sees `(require racket/contract)` or
+`(require racket/contract/base)`, it currently substitutes this provider instead
+of compiling the full installed contract graph. That makes the common contract
+entry points usable for module programs that only need erased annotations and
+lightweight contract metadata.
 
 ## What Works
 
@@ -62,6 +63,11 @@ system.
 - Contract-continuation marks beyond preserving simple expression side effects.
 - Full semantic compatibility for dependent contracts such as `->i`, `->d`,
   `hash/dc`, and `struct/dc`.
+- Some installed libraries that were already expanded with `provide/contract`
+  can still expose private `racket/contract` implementation dependencies. The
+  compact dashboard keeps diagnostic rows for real modules such as
+  `racket/hash`, `racket/format`, and `racket/logging` to keep those gaps
+  visible.
 - Integration with a future real `racket/contract` provider once the runtime has
   enough chaperone/impersonator support.
 
@@ -71,6 +77,18 @@ The current checks are:
 
 - `webify/test-webracket-contract.rkt` compares the exported API with
   `racket/contract`, tests host expansion behavior, and runs bounded WebRacket
-  smokes for both `webracket/contract` and substituted `racket/contract`.
+  smokes for `webracket/contract`, substituted `racket/contract`, and
+  substituted `racket/contract/base`.
 - `webify/goal1-dashboard.rkt --case full-contract-erased` checks the compact
   staged-provider row through the Goal 1 dashboard.
+- The dashboard also includes diagnostic real-module rows for installed
+  libraries that use `racket/contract/base`, so we can distinguish contract
+  substitution progress from unrelated provider-resolution gaps.
+- Provider extraction now uses a fresh namespace where `racket/contract` and
+  `racket/contract/base` are predeclared as erased `webracket/contract`
+  providers. That lets installed modules such as `data/queue` expand their
+  `provide/contract` forms through WebRacket's erased macros instead of
+  Racket's private contract implementation.
+- `racket/private/for` is routed to a small WebRacket-owned provider for the
+  generic `make-sequence`/`make-do-sequence` protocol and a few validation
+  helpers needed by installed provider probes.

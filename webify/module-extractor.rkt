@@ -37,6 +37,8 @@
    webify-module-reports->resolved-linklet-inputs]
   [webify-module-path->extractor-spike webify-module-path->report]
   [webify-compile-module-extractor-spike webify-compile-module-report])
+ make-webify-contract-erasing-namespace
+ make-webify-contract-erasing-module-name-resolver
  webify-module-reports->registry
  webify-module-export-demand
  webify-module-export-demand?

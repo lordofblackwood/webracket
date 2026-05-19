@@ -71,7 +71,10 @@
 
 (define goal1-dashboard-diagnostic-case-names
   '(installed-racket-set-diagnostic
-    installed-racket-promise-diagnostic))
+    installed-racket-promise-diagnostic
+    installed-racket-hash-contract-diagnostic
+    installed-racket-format-contract-diagnostic
+    installed-racket-logging-contract-diagnostic))
 
 ;; goal1-dashboard-case-expectation : goal1-dashboard-case? -> symbol?
 ;;   Classify whether a row is required to pass or is a diagnostic partial case.
@@ -297,6 +300,21 @@
     #rx"(?m:^42$)"
     '("--no-io-format-provider"))
    (goal1-dashboard-case
+    'base-make-do-sequence
+    'language-staged-provider
+    '(racket/private/for webracket/private/for)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/base\n"
+         "(define seq\n"
+         "  (make-do-sequence\n"
+         "   (lambda ()\n"
+         "     (values car cdr '(10 20 12) pair? #f #f))))\n"
+         "(js-log (for/sum ([x seq]) x))\n")))
+    "main.rkt"
+    #rx"(?m:^42$)"
+    '("--no-io-format-provider" "--webracket-module-bridge"))
+   (goal1-dashboard-case
     'staged-stream
     'language-staged-provider
     '(webracket/stream)
@@ -333,6 +351,59 @@
     "main.rkt"
     #rx"(?m:^fmt web$)"
     '())
+   (goal1-dashboard-case
+    'installed-racket-hash-contract-diagnostic
+    'installed-provider-graph
+    '(racket/hash racket/contract/base)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/base\n"
+         "(require racket/hash)\n"
+         "(define merged (hash-union (hash 'a 1) (hash 'b 2)))\n"
+         "(js-log (hash-count merged))\n")))
+    "main.rkt"
+    #rx"(?m:^2$)"
+    '("--no-io-format-provider" "--webracket-module-bridge"))
+   (goal1-dashboard-case
+    'installed-racket-format-contract-diagnostic
+    'installed-provider-graph
+    '(racket/format racket/contract/base)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/base\n"
+         "(require racket/format)\n"
+         "(js-log (~a 'web #:width 3))\n")))
+    "main.rkt"
+    #rx"(?m:^web$)"
+    '("--no-io-format-provider" "--webracket-module-bridge"))
+   (goal1-dashboard-case
+    'installed-data-queue-contract
+    'installed-provider-graph
+    '(data/queue racket/contract/base)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/base\n"
+         "(require data/queue)\n"
+         "(define q (make-queue))\n"
+         "(enqueue! q 40)\n"
+         "(enqueue! q 2)\n"
+         "(define before (queue->list q))\n"
+         "(js-log (+ (dequeue! q) (dequeue! q) (length before)))\n")))
+    "main.rkt"
+    #rx"(?m:^44$)"
+    '("--no-io-format-provider" "--webracket-module-bridge"))
+   (goal1-dashboard-case
+    'installed-racket-logging-contract-diagnostic
+    'installed-provider-graph
+    '(racket/logging racket/contract/base)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/base\n"
+         "(require racket/logging)\n"
+         "(js-log (if log-level/c 42 0))\n")))
+    "main.rkt"
+    #rx"(?m:^42$)"
+    '("--no-io-format-provider" "--webracket-module-bridge"))
    (goal1-dashboard-case
     'ffi-js-math
     'ffi-module
@@ -397,9 +468,7 @@
 ;;   Make child Racket processes resolve this checkout as collection `webracket`.
 (define (collection-env-value)
   (format "~a~a~a"
-          (string-join (list (path->string repo-parent)
-                             (path->string repo-root))
-                       path-list-separator)
+          (path->string repo-parent)
           path-list-separator
           (or (getenv "PLTCOLLECTS") "")))
 

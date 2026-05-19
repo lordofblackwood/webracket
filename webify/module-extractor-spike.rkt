@@ -78,6 +78,8 @@
          webify-module-provider-cache-miss-count
          webify-module-provider-cache-names
          webify-module-provider-cache-count
+         make-webify-contract-erasing-namespace
+         make-webify-contract-erasing-module-name-resolver
          webify-module-extractor-spike-dependency-exports
          webify-module-extractor-spikes-dependency-exports
          webify-module-path->extractor-spike
@@ -103,10 +105,50 @@
 (require racket/linklet
          racket/list
          racket/match
+         racket/runtime-path
          racket/string
          syntax/modcode
          "faslable-linklet.rkt"
          "module-input.rkt")
+
+(define-runtime-path webify-contract-path "../contract.rkt")
+(define-runtime-path webify-syntax-contract-path "../syntax/contract.rkt")
+
+;; contract-module-path? : any/c -> boolean?
+;;   Recognize module-path spellings for public contract providers.
+(define (contract-module-path? module-path)
+  (or (eq? module-path 'racket/contract)
+      (eq? module-path 'racket/contract/base)
+      (eq? module-path 'syntax/contract)
+      (equal? module-path '(lib "racket/contract.rkt"))
+      (equal? module-path '(lib "racket/contract/base.rkt"))
+      (equal? module-path '(lib "syntax/contract.rkt"))))
+
+;; contract-module-path->resolved : module-path? -> resolved-module-path?
+;;   Map public contract providers to symbolic erased declarations.
+(define (contract-module-path->resolved module-path)
+  (make-resolved-module-path
+   (cond
+     [(or (eq? module-path 'racket/contract/base)
+          (equal? module-path '(lib "racket/contract/base.rkt")))
+      'racket/contract/base]
+     [(or (eq? module-path 'syntax/contract)
+          (equal? module-path '(lib "syntax/contract.rkt")))
+      'syntax/contract]
+     [else 'racket/contract])))
+
+;; make-webify-contract-erasing-module-name-resolver : [procedure?] -> procedure?
+;;   Build a resolver that redirects public contract modules to erased ones.
+(define (make-webify-contract-erasing-module-name-resolver
+         [base-resolver (current-module-name-resolver)])
+  (case-lambda
+    [(module-path source syntax load?)
+     (cond
+       [(contract-module-path? module-path)
+        (contract-module-path->resolved module-path)]
+       [else (base-resolver module-path source syntax load?)])]
+    [(resolved namespace)
+     (base-resolver resolved namespace)]))
 
 (struct webify-module-extractor-spike
   (name
@@ -2103,13 +2145,16 @@
         "host Racket does not provide decompile-linklet"
         "use the newer ../racket checkout for the machine-independent decompile spike")])))
 
-;; webify-compile-module-extractor-spike : any/c -> webify-module-extractor-spike?
+;; webify-compile-module-extractor-spike : any/c [#:namespace namespace?] [#:module-name-resolver procedure?] -> webify-module-extractor-spike?
 ;;   Probe Racket's compiled-module linklet shape without claiming extraction support.
-(define (webify-compile-module-extractor-spike module-datum)
+(define (webify-compile-module-extractor-spike module-datum
+                                               #:namespace [namespace (make-base-namespace)]
+                                               #:module-name-resolver [module-name-resolver (current-module-name-resolver)])
   (define who 'webify-compile-module-extractor-spike)
   (define name (validate-source-module! who module-datum))
   (define compiled
-    (parameterize ([current-namespace (make-base-namespace)])
+    (parameterize ([current-namespace namespace]
+                   [current-module-name-resolver module-name-resolver])
       (parameterize ([current-compile-target-machine #f])
         (compile (datum->syntax #f module-datum)))))
   (compiled-module->extractor-spike who name compiled))
@@ -2130,24 +2175,52 @@
           (compile (datum->syntax #f module-datum))))
       (compiled-module->extractor-spike who name compiled))))
 
+;; make-webify-contract-erasing-namespace : -> namespace?
+;;   Create an extraction namespace where Racket contract providers are erased.
+(define (make-webify-contract-erasing-namespace)
+  (define namespace (make-base-namespace))
+  (define contract-file (path->string webify-contract-path))
+  (define syntax-contract-file (path->string webify-syntax-contract-path))
+  (define (declare-erased-contract-module! name)
+    (eval
+     `(module ,name racket/base
+        (require (file ,contract-file))
+        (provide (all-from-out (file ,contract-file))))))
+  (parameterize ([current-namespace namespace])
+    (namespace-call-with-registry-lock
+     namespace
+     (lambda ()
+       (declare-erased-contract-module! 'racket/contract/base)
+       (declare-erased-contract-module! 'racket/contract)
+       (eval
+        `(module syntax/contract racket/base
+           (require (file ,syntax-contract-file))
+           (provide (all-from-out (file ,syntax-contract-file)))))
+       (dynamic-require ''racket/contract/base #f)
+       (dynamic-require ''racket/contract #f)
+       (dynamic-require ''syntax/contract #f))))
+  namespace)
+
 ;; webify-module-path->extractor-spike : module-path? -> webify-module-extractor-spike?
 ;;   Compile an installed module path as machine-independent code and report its linklets.
-(define (webify-module-path->extractor-spike module-path)
+(define (webify-module-path->extractor-spike module-path
+                                             #:namespace [namespace (current-namespace)])
   (define who 'webify-module-path->extractor-spike)
   (define name (module-path->dependency-name module-path))
-  (define source-path
-    (resolved-module-path-name
-     (module-path-index-resolve
-      (module-path-index-join module-path #f)
-      #t)))
-  (define compiled
-    (get-module-code
-     source-path
-     #:choose (lambda (_src _zo _so) 'src)
-     #:compile (lambda (stx)
-                 (parameterize ([current-compile-target-machine #f])
-                   (compile stx)))))
-  (compiled-module->extractor-spike who name compiled))
+  (parameterize ([current-namespace namespace])
+    (define source-path
+      (resolved-module-path-name
+       (module-path-index-resolve
+        (module-path-index-join module-path #f)
+        #t)))
+    (define compiled
+      (get-module-code
+       source-path
+       #:choose (lambda (_src _zo _so) 'src)
+       #:compile (lambda (stx)
+                   (parameterize ([current-compile-target-machine #f])
+                     (compile stx)))))
+    (compiled-module->extractor-spike who name compiled)))
 
 ;; module-path-variable-export-metadata : module-path? -> list?
 ;;   Declare/load a module and read its variable exports with defined-name metadata.

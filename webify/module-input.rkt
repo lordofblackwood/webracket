@@ -381,9 +381,9 @@
                               "export" provider-export))
      (dependency-export-ref who dependency exports provider-export)]))
 
-;; resolve-import-source : symbol? dependency-exports hash? hash? hash? symbol? symbol? -> values
+;; resolve-import-source : symbol? dependency-exports hash? hash? hash? symbol? symbol? (or/c symbol? #f) -> values
 ;;   Resolve one import binding to its provider module and provider export symbol.
-(define (resolve-import-source who dependency-exports dependencies aliases hints local external)
+(define (resolve-import-source who dependency-exports dependencies aliases hints local external module-name)
   (define alias (hash-ref aliases local #f))
   (define explicit (hash-ref dependencies local #f))
   (define hint (hash-ref hints local #f))
@@ -428,6 +428,7 @@
        [(null? candidates)
        (raise-arguments-error who
                                "missing-after-reflection"
+                               "module" module-name
                                "import" local
                                "export" external)]
        [(null? (cdr ranked-candidates))
@@ -441,6 +442,7 @@
        [else
         (raise-arguments-error who
                                "ambiguous-after-reflection"
+                               "module" module-name
                                "import" local
                                "export" external
                                "candidates" ranked-candidates
@@ -520,7 +522,7 @@
                                                 dependency
                                                 provider-export)
                      'resolved-by-compiled-primitive-alias)])
-            (resolve-import-source who dependency-exports* dependency-map alias-map hint-map local external)))
+            (resolve-import-source who dependency-exports* dependency-map alias-map hint-map local external module-name)))
       (list (list local dependency provider-export)
             (webify-module-resolution-outcome local dependency provider-export status))))
   (values (map car resolved)

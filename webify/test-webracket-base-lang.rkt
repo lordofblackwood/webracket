@@ -55,9 +55,7 @@
 ;;   Make child Racket processes resolve this checkout as collection `webracket`.
 (define (webracket-collection-env)
   (list (format "PLTCOLLECTS=~a~a~a"
-                (string-join (list (path->string repo-parent)
-                                   (path->string repo-root))
-                             path-list-separator)
+                (path->string repo-parent)
                 path-list-separator
                 (or (getenv "PLTCOLLECTS") ""))))
 
@@ -105,7 +103,7 @@
 ;;   Make the checkout visible as collection `webracket` for #lang tests.
 (define (call-with-webracket-collection-path thunk)
   (parameterize ([current-library-collection-paths
-                  (append (list repo-parent repo-root)
+                  (cons repo-parent
                           (current-library-collection-paths))])
     (thunk)))
 

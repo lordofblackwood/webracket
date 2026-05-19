@@ -193,7 +193,35 @@
     '(module use-function racket/base
        (require (only-in racket/function identity negate const))
        (provide answer)
-       (define answer (list identity negate const))))))
+       (define answer (list identity negate const))))
+   (webify-provider-trial
+    'racket/hash
+    '(hash-union hash-intersect hash-filter)
+    '(module use-hash racket/base
+       (require (only-in racket/hash hash-union hash-intersect hash-filter))
+       (provide answer)
+       (define answer (list hash-union hash-intersect hash-filter))))
+   (webify-provider-trial
+    'racket/format
+    '(~a ~s ~v)
+    '(module use-format racket/base
+       (require (only-in racket/format ~a ~s ~v))
+       (provide answer)
+       (define answer (list ~a ~s ~v))))
+   (webify-provider-trial
+    'data/queue
+    '(make-queue enqueue! dequeue! queue-empty?)
+    '(module use-queue racket/base
+       (require (only-in data/queue make-queue enqueue! dequeue! queue-empty?))
+       (provide answer)
+       (define answer (list make-queue enqueue! dequeue! queue-empty?))))
+   (webify-provider-trial
+    'racket/logging
+    '(log-level/c)
+    '(module use-logging racket/base
+       (require (only-in racket/logging log-level/c))
+       (provide answer)
+       (define answer log-level/c)))))
 
 ;; webify-provider-trial-support-modules : (listof symbol?)
 ;;   Private transitive providers that curated public trials currently demand.
@@ -202,12 +230,20 @@
     js/math
     js/performance
     js/temp
+    data/queue
     racket/contract
+    racket/contract/base
+    racket/logging
     racket/private/define-struct
+    racket/private/for
     racket/private/reqprov
     racket/require-transform
+    syntax/contract
+    syntax/location
     webracket/contract
     webracket/promise
+    webracket/private/for
+    webracket/syntax/contract
     webracket/set
     webracket/stream
     webracket/unsafe/console
@@ -222,9 +258,19 @@
     js/math
     js/performance
     js/temp
+    data/queue
     racket/contract
+    racket/contract/base
+    racket/format
+    racket/hash
+    racket/logging
+    racket/private/for
+    syntax/contract
+    syntax/location
     webracket/contract
     webracket/promise
+    webracket/private/for
+    webracket/syntax/contract
     webracket/set
     webracket/stream
     webracket/unsafe/console

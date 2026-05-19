@@ -66,9 +66,9 @@
          value-contract values/drop vector-immutable/c vector-immutableof
          vector/c vectorof with-contract with-contract-continuation-mark ->i)
 
-(require racket/provide-syntax
-         (for-syntax racket/base
-                     racket/list))
+(require (for-syntax racket/base
+                     racket/list
+                     racket/provide-transform))
 
 ;; A deliberately erased contract provider for Goal 1. It preserves common
 ;; `racket/contract` source shapes, but it does not enforce contracts or create
@@ -791,60 +791,64 @@
 
 ;; contract-out : provide-transformer
 ;;   Erase contract annotations in simple contract-out specs.
-(define-provide-syntax (contract-out stx)
-  (syntax-case stx ()
-    [(_ spec ...)
-     (begin
-       (define (struct-id id-stx)
-         (syntax-case id-stx ()
-           [id
-            (identifier? #'id)
-            #'id]
-           [(id ignored-id)
-            (identifier? #'id)
-            #'id]
-           [_
-            (raise-syntax-error 'contract-out
-                                "unsupported erased contract-out struct id"
-                                id-stx)]))
-       (define (spec->provides spec)
-         (syntax-case spec ()
-           [(id contract-expr)
-            (identifier? #'id)
-            (list #'id)]
-           [(rename internal-id external-id contract-expr)
-            (and (identifier? #'internal-id)
-                 (identifier? #'external-id))
-            (list #'(rename-out [internal-id external-id]))]
-           [(struct id/ignored ([field-id field-contract] ...) option ...)
-            (list #`(struct-out #,(struct-id #'id/ignored)))]
-           [kw
-            (and (keyword? (syntax-e #'kw))
-                 (memq (syntax-e #'kw)
-                       '(#:exists #:∃ #:forall #:∀ #:unprotected-submodule)))
-            '()]
-           [id
-            (identifier? #'id)
-            (list #'id)]
-           [_
-            (raise-syntax-error 'contract-out
-                                "unsupported erased contract-out spec"
-                                spec)]))
-       (define (abstract-binder-keyword? spec)
-         (and (keyword? (syntax-e spec))
-              (memq (syntax-e spec)
-                    '(#:exists #:∃ #:forall #:∀ #:unprotected-submodule))))
-       (define (specs->provides specs)
-         (cond
-           [(null? specs) '()]
-           [(abstract-binder-keyword? (car specs))
-            (if (null? (cdr specs))
-                '()
-                (specs->provides (cddr specs)))]
-           [else
-            (append (spec->provides (car specs))
-                    (specs->provides (cdr specs)))]))
-       #`(combine-out #,@(specs->provides (syntax->list #'(spec ...)))))]))
+(define-syntax contract-out
+  (make-provide-transformer
+   (lambda (stx modes)
+     (syntax-case stx ()
+       [(_ spec ...)
+        (begin
+          (define (struct-id id-stx)
+            (syntax-case id-stx ()
+              [id
+               (identifier? #'id)
+               #'id]
+              [(id ignored-id)
+               (identifier? #'id)
+               #'id]
+              [_
+               (raise-syntax-error 'contract-out
+                                   "unsupported erased contract-out struct id"
+                                   id-stx)]))
+          (define (spec->provides spec)
+            (syntax-case spec ()
+              [(id contract-expr)
+               (identifier? #'id)
+               (list #'id)]
+              [(rename internal-id external-id contract-expr)
+               (and (identifier? #'internal-id)
+                    (identifier? #'external-id))
+               (list #'(rename-out [internal-id external-id]))]
+              [(struct id/ignored ([field-id field-contract] ...) option ...)
+               (list #`(struct-out #,(struct-id #'id/ignored)))]
+              [kw
+               (and (keyword? (syntax-e #'kw))
+                    (memq (syntax-e #'kw)
+                          '(#:exists #:∃ #:forall #:∀ #:unprotected-submodule)))
+               '()]
+              [id
+               (identifier? #'id)
+               (list #'id)]
+              [_
+               (raise-syntax-error 'contract-out
+                                   "unsupported erased contract-out spec"
+                                   spec)]))
+          (define (abstract-binder-keyword? spec)
+            (and (keyword? (syntax-e spec))
+                 (memq (syntax-e spec)
+                       '(#:exists #:∃ #:forall #:∀ #:unprotected-submodule))))
+          (define (specs->provides specs)
+            (cond
+              [(null? specs) '()]
+              [(abstract-binder-keyword? (car specs))
+               (if (null? (cdr specs))
+                   '()
+                   (specs->provides (cddr specs)))]
+              [else
+               (append (spec->provides (car specs))
+                       (specs->provides (cdr specs)))]))
+          (expand-export
+           #`(combine-out #,@(specs->provides (syntax->list #'(spec ...))))
+           modes))]))))
 
 ;; provide/contract : syntax -> syntax
 ;;   Legacy shorthand for a contract-out provide with erased annotations.

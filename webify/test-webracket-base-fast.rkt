@@ -21,9 +21,7 @@
 ;;   Make child Racket processes resolve this checkout as collection `webracket`.
 (define (collection-env-value)
   (format "~a~a~a"
-          (string-join (list (path->string repo-parent)
-                             (path->string repo-root))
-                       path-list-separator)
+          (path->string repo-parent)
           path-list-separator
           (or (getenv "PLTCOLLECTS") "")))
 

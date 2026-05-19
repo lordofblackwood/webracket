@@ -35,9 +35,7 @@
 ;;   Make child Racket processes resolve this checkout as collection `webracket`.
 (define (collection-env-value)
   (format "~a~a~a"
-          (string-join (list (path->string repo-parent)
-                             (path->string repo-root))
-                       path-list-separator)
+          (path->string repo-parent)
           path-list-separator
           (or (getenv "PLTCOLLECTS") "")))
 
@@ -347,6 +345,27 @@
     "           (if natural-bad? 100 3)\n"
     "           (if false-ok? 4 0)\n"
     "           (if len-ok? 2 0)))\n")
+   #rx"(?m:^42$)"))
+
+(test-case "#lang webracket/base substitutes racket/contract/base with erased provider"
+  (run-contract-smoke
+   (string-append
+    "#lang webracket/base\n"
+    "(require (only-in racket/contract/base\n"
+    "                  and/c contract-first-order-passes?\n"
+    "                  contract-name integer-in listof or/c))\n"
+    "(define range (integer-in 0 10))\n"
+    "(define either (or/c symbol? string?))\n"
+    "(define both (and/c integer? range))\n"
+    "(define list-pass? (contract-first-order-passes? (listof integer?) '(1 2 3)))\n"
+    "(define list-fail? (contract-first-order-passes? (listof integer?) '(1 no 3)))\n"
+    "(define either-pass? (contract-first-order-passes? either 'ok))\n"
+    "(define both-pass? (contract-first-order-passes? both 7))\n"
+    "(js-log (+ (if (equal? (contract-name range) '(integer-in 0 10)) 20 0)\n"
+    "           (if list-pass? 10 0)\n"
+    "           (if list-fail? 100 1)\n"
+    "           (if either-pass? 5 0)\n"
+    "           (if both-pass? 6 0)))\n")
    #rx"(?m:^42$)"))
 
 (module+ main

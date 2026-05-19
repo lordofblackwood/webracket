@@ -98,6 +98,8 @@
          (only-in "webify/module-input.rkt"
                   webify-module-linklet-inputs->registry)
          (only-in "webify/module-extractor.rkt"
+                  make-webify-contract-erasing-namespace
+                  make-webify-contract-erasing-module-name-resolver
                   make-webify-module-provider-cache
                   webify-compile-module-report
                   webify-module-import-map-required-module-candidates
@@ -1485,9 +1487,11 @@
 ;; substitute-require-module-path : any/c -> any/c
 ;;   Rewrite selected source-level require paths to WebRacket-owned providers.
 (define (substitute-require-module-path module-path)
-  (if (eq? module-path 'racket/contract)
-      'webracket/contract
-      module-path))
+  (case module-path
+    [(racket/contract racket/contract/base) 'webracket/contract]
+    [(syntax/contract) 'webracket/syntax/contract]
+    [(racket/private/for) 'webracket/private/for]
+    [else module-path]))
 
 ;; substitute-require-spec : any/c -> any/c
 ;;   Rewrite provider paths inside common require combinators.
@@ -1667,18 +1671,136 @@
 (struct webracket/base-local-module-graph (root reports registry)
   #:transparent)
 
-;; compile-webracket/base-module-file-report : path-string? -> webify-module-report?
+;; module-datum-direct-require-symbols : any/c -> (listof symbol?)
+;;   Find plain direct external require symbols in a source module datum.
+(define (module-datum-direct-require-symbols module-datum)
+  (define (spec->symbols spec)
+    (match spec
+      [(? symbol?) (list spec)]
+      [`(,(or 'only-in 'except-in 'rename-in 'prefix-in) ,inner . ,_rest)
+       (spec->symbols inner)]
+      [`(,(or 'combine-in) ,inner ...)
+       (append* (map spec->symbols inner))]
+      [`(,(or 'for-syntax 'for-template 'for-label 'for-meta 'only-meta-in
+              'for-space)
+         ,inner . ,_rest)
+       (spec->symbols inner)]
+      [_ '()]))
+  (define (form->symbols form)
+    (match form
+      [`(require ,specs ...)
+       (append* (map spec->symbols specs))]
+      [`(#%module-begin ,inner ...)
+       (append* (map form->symbols inner))]
+      [_ '()]))
+  (match module-datum
+    [`(module ,_name ,_language ,body ...)
+     (remove-duplicates (append* (map form->symbols body)) eq?)]
+    [_ '()]))
+
+;; declare-provider-compile-stub! : namespace? symbol? (listof symbol?) -> void?
+;;   Declare a compile-time-only provider stub for local module extraction.
+(define (declare-provider-compile-stub! namespace name exports)
+  (define unique-exports (remove-duplicates exports eq?))
+  (parameterize ([current-namespace namespace])
+    (namespace-call-with-registry-lock
+     namespace
+     (lambda ()
+       (eval
+        `(module ,name racket/base
+           ,@(for/list ([export (in-list unique-exports)])
+               `(define-values (,export) #f))
+           (provide ,@unique-exports)))))))
+
+;; lib-module-path->symbol : any/c -> (or/c symbol? #f)
+;;   Convert simple `(lib "x.rkt" "collection" ...)` paths to shorthand names.
+(define (lib-module-path->symbol module-path)
+  (define (join-path-parts parts)
+    (cond
+      [(null? parts) ""]
+      [(null? (cdr parts)) (car parts)]
+      [else (string-append (car parts) "/" (join-path-parts (cdr parts)))]))
+  (match module-path
+    [`(lib ,file ,collections ...)
+     (and (string? file)
+          (andmap string? collections)
+          (regexp-match? #rx"[.]rkt$" file)
+          (string->symbol
+           (join-path-parts
+            (append collections
+                    (list (regexp-replace #rx"[.]rkt$" file ""))))))]
+    [_ #f]))
+
+;; module-path-compile-stub-name : any/c -> (or/c symbol? #f)
+;;   Recognize module-path spellings that should resolve to a local stub.
+(define (module-path-compile-stub-name module-path)
+  (cond
+    [(symbol? module-path) module-path]
+    [else (lib-module-path->symbol module-path)]))
+
+;; webracket-owned-module-name? : symbol? -> boolean?
+;;   Recognize modules that should be compiled directly from this collection.
+(define (webracket-owned-module-name? name)
+  (regexp-match? #rx"^webracket/" (symbol->string name)))
+
+;; compile-webracket/base-module-file-report : path-string? [#:namespace namespace?] [#:module-name-resolver procedure?] -> webify-module-report?
 ;;   Compile one module file while resolving relative requires from its directory.
-(define (compile-webracket/base-module-file-report filename)
+(define (compile-webracket/base-module-file-report filename
+                                                  #:namespace [namespace (make-base-namespace)]
+                                                  #:module-name-resolver [module-name-resolver (current-module-name-resolver)])
   (define resolved (simplify-path (path->complete-path filename)))
   (parameterize ([current-directory (or (path-only resolved)
                                         (current-directory))])
+    (define module-datum (syntax->datum (read-webracket/base-module resolved)))
+    ;; Read with the normal resolver so #lang webracket/base itself is found,
+    ;; then compile with the erased-contract resolver for provider imports.
+    (provider-cache-log "#lang webracket/base local compile start: ~a" resolved)
     (webify-compile-module-report
-     (syntax->datum (read-webracket/base-module resolved)))))
+     module-datum
+     #:namespace namespace
+     #:module-name-resolver module-name-resolver)))
 
 ;; webracket/base-file->local-module-graph : path-string? -> webracket/base-local-module-graph?
 ;;   Extract local module reports for the module bridge path.
 (define (webracket/base-file->local-module-reports filename)
+  (define extraction-namespace (make-webify-contract-erasing-namespace))
+  (define contract-erasing-resolver
+    (make-webify-contract-erasing-module-name-resolver))
+  (define base-module-name-resolver (current-module-name-resolver))
+  (define compile-stub-names '())
+  (define (module-name-resolver module-path source syntax load?)
+    (define stub-name (module-path-compile-stub-name module-path))
+    (cond
+      [(and stub-name (memq stub-name compile-stub-names))
+       (make-resolved-module-path stub-name)]
+      [else
+       (base-module-name-resolver module-path source syntax load?)]))
+  (define module-name-resolver*
+    (case-lambda
+      [(module-path source syntax load?)
+       (module-name-resolver module-path source syntax load?)]
+      [(resolved namespace)
+       (base-module-name-resolver resolved namespace)]))
+  (define (install-compile-stubs! module-datum)
+    (for ([name (in-list (module-datum-direct-require-symbols module-datum))]
+          #:unless (webracket/base-language-provider-name? name)
+          #:unless (webracket-owned-module-name? name)
+          #:when (webify-provider-trial-module-allowed? name))
+      (define substitute-name (webracket/base-provider-substitute name))
+      (unless (memq name compile-stub-names)
+        (provider-cache-log "#lang webracket/base compile stub install: ~a via ~a"
+                            name
+                            substitute-name)
+        (define report
+          (parameterize ([current-namespace extraction-namespace]
+                         [current-module-name-resolver contract-erasing-resolver])
+            (webify-module-path->report substitute-name
+                                        #:namespace extraction-namespace)))
+        (declare-provider-compile-stub!
+         extraction-namespace
+         name
+         (webify-module-report-phase0-exports report))
+        (set! compile-stub-names (cons name compile-stub-names)))))
   (define visiting (make-hash))
   (define permanent (make-hash))
   (define reports '())
@@ -1695,8 +1817,13 @@
       [else
        (hash-set! visiting resolved #t)
        (define source-dir (or (path-only resolved) (current-directory)))
+       (define module-datum (syntax->datum (read-webracket/base-module resolved)))
+       (install-compile-stubs! module-datum)
        (define report
-         (compile-webracket/base-module-file-report resolved))
+         (compile-webracket/base-module-file-report
+          resolved
+          #:namespace extraction-namespace
+          #:module-name-resolver module-name-resolver*))
        (define module-name (webify-module-report-name report))
        (for ([dep-path (in-list (webracket/base-report-local-dependency-paths
                                  report
@@ -1747,7 +1874,9 @@
 ;;   Route selected installed providers to smaller WebRacket-owned Goal 1 shims.
 (define (webracket/base-provider-substitute name)
   (case name
-    [(racket/contract) 'webracket/contract]
+    [(racket/contract racket/contract/base) 'webracket/contract]
+    [(syntax/contract) 'webracket/syntax/contract]
+    [(racket/private/for) 'webracket/private/for]
     [else name]))
 
 ;; webify-module-report/rename : report symbol? -> report
@@ -1810,9 +1939,18 @@
     (cond
       [(webracket/base-reports-demand-external-providers? reports)
        (webracket/base-check-external-provider-allowlist! reports)
+       (define provider-namespace (make-webify-contract-erasing-namespace))
+       (define provider-module-name-resolver
+         (make-webify-contract-erasing-module-name-resolver))
+       (define (fetch-provider/erased-contracts name)
+         (parameterize ([current-namespace provider-namespace]
+                        [current-module-name-resolver provider-module-name-resolver])
+           (if (eq? fetch-provider webify-module-path->report)
+               (webify-module-path->report name #:namespace provider-namespace)
+               (fetch-provider name))))
        (define provider-cache
          (make-webify-module-provider-cache
-          (webracket/base-fetch-provider/timed fetch-provider)))
+          (webracket/base-fetch-provider/timed fetch-provider/erased-contracts)))
        (define registry
          (webify-module-reports->discovered-registry
           reports
