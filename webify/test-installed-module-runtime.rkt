@@ -712,7 +712,7 @@
     #f)
    (installed-runtime-smoke
     'racket/format
-    "installed racket/format reaches runtime but currently fails on binding result arity"
+    "installed racket/format graph reaches WebRacket runtime smoke"
     '((module use-format-basic racket/base
         (require racket/format)
         (provide y)
