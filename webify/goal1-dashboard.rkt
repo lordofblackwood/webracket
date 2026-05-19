@@ -154,6 +154,17 @@
     #rx"(?m:^1$)"
     '("--no-io-format-provider"))
    (goal1-dashboard-case
+    'full-function
+    'installed-provider-graph
+    '(racket/function)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/full\n"
+         "(js-log ((compose add1 add1) 40))\n")))
+    "main.rkt"
+    #rx"(?m:^42$)"
+    '("--no-io-format-provider"))
+   (goal1-dashboard-case
     'full-match
     'installed-provider-graph
     '(racket/match)
