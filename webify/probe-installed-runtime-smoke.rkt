@@ -37,6 +37,8 @@
 (define jobs 1)
 (define goal1-limit #f)
 (define goal1-skip 0)
+(define goal1-range-start #f)
+(define goal1-range-end #f)
 (define selected-module-cases '())
 
 (define expander-read-module-cases
@@ -579,6 +581,14 @@
                         "unknown module case: ~a"
                         name))))
 
+;; validate-goal1-selectors! : -> void?
+;;   Reject overlapping Goal 1 slice selectors before spawning workers.
+(define (validate-goal1-selectors!)
+  (when (and goal1-range-start
+             (or goal1-limit (positive? goal1-skip)))
+    (raise-user-error 'probe-installed-runtime-smoke
+                      "use either --goal1-range or --goal1-skip/--goal1-limit")))
+
 ;; chunk-list : (listof any/c) exact-positive-integer? -> (listof (listof any/c))
 ;;   Split xs into chunks of at most n items.
 (define (chunk-list xs n)
@@ -593,11 +603,34 @@
 ;; select-goal1-cases : (listof symbol?) -> (listof symbol?)
 ;;   Apply Goal 1 skip/limit selectors to a tier without over-dropping.
 (define (select-goal1-cases cases)
-  (define skipped
-    (drop cases (min goal1-skip (length cases))))
-  (if goal1-limit
-      (take skipped (min goal1-limit (length skipped)))
-      skipped))
+  (cond
+    [goal1-range-start
+     (define start (min goal1-range-start (length cases)))
+     (define end   (min goal1-range-end (length cases)))
+     (take (drop cases start) (max 0 (- end start)))]
+    [else
+     (define skipped
+       (drop cases (min goal1-skip (length cases))))
+     (if goal1-limit
+         (take skipped (min goal1-limit (length skipped)))
+         skipped)]))
+
+;; parse-goal1-range! : string? -> void?
+;;   Parse a half-open Goal 1 case range `start:end`.
+(define (parse-goal1-range! text)
+  (match (regexp-match #rx"^([0-9]+):([0-9]+)$" text)
+    [(list _ start-text end-text)
+     (define start (string->number start-text))
+     (define end   (string->number end-text))
+     (when (> start end)
+       (raise-user-error 'probe-installed-runtime-smoke
+                         "expected --goal1-range start:end with start <= end"))
+     (set! goal1-range-start start)
+     (set! goal1-range-end end)]
+    [_
+     (raise-user-error 'probe-installed-runtime-smoke
+                       "expected --goal1-range start:end, got: ~a"
+                       text)]))
 
 ;; call-with-memory-limit : (or/c #f exact-positive-integer?) (-> any/c) -> any/c
 ;;   Optionally run thunk in a custodian-limited worker thread.
@@ -965,6 +998,8 @@
                     (set! goal1-limit (string->number n))]
  [("--goal1-skip") n "skip the first n cases in the selected Goal 1 tier"
                    (set! goal1-skip (max 0 (string->number n)))]
+ [("--goal1-range") range "select a half-open Goal 1 tier range start:end"
+                    (parse-goal1-range! range)]
  [("--preserve-dir") dir "copy generated runtime-smoke artifacts into dir"
                      (set! preserve-dir dir)]
  [("--no-observe") "for --module-case, instantiate without logging an export"
@@ -984,6 +1019,7 @@
                                 (parse-module-case-file path))])
 
 (validate-module-case-selectors!)
+(validate-goal1-selectors!)
 
 (exit
  (cond
