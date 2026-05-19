@@ -148,8 +148,10 @@
     match-literal-default
     match-let-basic
     match-predicate
+    combined-list-string-set
     multi-module-list-string-set
     multi-module-reexport-installed
+    pretty-require
     custom-write-require
     keyword-optional-direct
     keyword-plain-direct
@@ -170,6 +172,7 @@
     regexp-literal
     regexp-capture
     regexp-replace
+    class-require
     class-basic))
 
 ;; goal1-slow-module-cases : (listof symbol?)
