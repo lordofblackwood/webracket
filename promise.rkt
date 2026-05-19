@@ -7,22 +7,31 @@
          promise-running?
          promise?)
 
-;; A compact promise provider for Goal 1. It implements ordinary single-value
-;; delayed evaluation; exception caching and multiple-value caching are still
-;; future work.
+;; A compact promise provider for Goal 1. It caches ordinary values and
+;; exceptions, but it does not yet implement the full family of lazy/name/sync
+;; promise variants.
 
-(struct webracket-promise (thunk value forced? running?) #:mutable)
+(struct webracket-promise (thunk result failed? forced? running?) #:mutable)
+
+;; promise-result->values : (listof any/c) -> any
+;;   Return cached promise results, preserving multiple values.
+(define (promise-result->values results)
+  (cond
+    [(null? (cdr results)) (car results)]
+    [else (apply values results)]))
 
 ;; delay : syntax -> promise?
 ;;   Delay body evaluation until the promise is forced.
 (define-syntax-rule (delay body ...)
-  (webracket-promise (lambda () (let () body ...)) #f #f #f))
+  (webracket-promise (lambda () (let () body ...)) '() #f #f #f))
 
 ;; delay/strict : syntax -> promise?
 ;;   Create an already-forced promise for body.
 (define-syntax-rule (delay/strict body ...)
-  (let ([v (let () body ...)])
-    (webracket-promise (lambda () v) v #t #f)))
+  (call-with-values
+   (lambda () (let () body ...))
+   (lambda results
+     (webracket-promise (lambda () (apply values results)) results #f #t #f))))
 
 ;; promise? : any/c -> boolean?
 ;;   Recognize staged WebRacket promises.
@@ -48,13 +57,30 @@
 (define (force p)
   (cond
     [(not (webracket-promise? p)) p]
-    [(webracket-promise-forced? p) (webracket-promise-value p)]
+    [(and (webracket-promise-forced? p) (webracket-promise-failed? p))
+     (raise (car (webracket-promise-result p)))]
+    [(webracket-promise-forced? p)
+     (promise-result->values (webracket-promise-result p))]
     [(webracket-promise-running? p)
      (error 'force "promise is already running")]
     [else
      (set-webracket-promise-running?! p #t)
-     (define v ((webracket-promise-thunk p)))
-     (set-webracket-promise-value! p v)
-     (set-webracket-promise-forced?! p #t)
-     (set-webracket-promise-running?! p #f)
-     v]))
+     (define resume
+       (call-with-escape-continuation
+        (lambda (escape)
+          (call-with-exception-handler
+           (lambda (e)
+             (set-webracket-promise-result! p (list e))
+             (set-webracket-promise-failed?! p #t)
+             (set-webracket-promise-forced?! p #t)
+             (set-webracket-promise-running?! p #f)
+             (escape (lambda () (raise e))))
+           (lambda ()
+             (call-with-values
+              (webracket-promise-thunk p)
+              (lambda results
+                (set-webracket-promise-result! p results)
+                (set-webracket-promise-forced?! p #t)
+                (set-webracket-promise-running?! p #f)
+                (lambda () (promise-result->values results)))))))))
+     (resume)]))

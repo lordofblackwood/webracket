@@ -52,13 +52,15 @@ external-provider trial set alongside the earlier list/string/bool trials.
 The JavaScript FFI modules `js/math` and `js/console` also pass through the
 module bridge and infer their `.ffi` bundles from canonical
 `webracket/unsafe/*` providers.
-`webracket/set` and `webracket/promise` are now staged provider routes for the
-curated language surface. They are intentionally smaller than installed
-`racket/set` and `racket/promise`, which remain diagnostic provider-graph rows
-instead of fast-lane dependencies. A direct installed `racket/set` trial still
-expands into a much larger transitive graph through contracts, syntax support,
-and random support; the bridge rejects unsupported transitive providers instead
-of discovering that graph accidentally.
+`webracket/set`, `webracket/promise`, and explicit `webracket/stream` are now
+staged provider routes. They are intentionally smaller than the installed
+providers, which remain diagnostic provider-graph rows instead of fast-lane
+dependencies. A direct installed `racket/set` trial still expands into a much
+larger transitive graph through contracts, syntax support, and random support;
+the bridge rejects unsupported transitive providers instead of discovering that
+graph accidentally. `webracket/stream` is explicit for now because
+`#lang webracket/full` still sees Racket's built-in stream syntax through the
+host language surface.
 
 ## Stdlib Replacement Direction
 

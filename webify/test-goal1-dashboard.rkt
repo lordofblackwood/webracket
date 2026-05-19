@@ -30,6 +30,7 @@
                             racket/vector
                             webracket/set
                             webracket/promise
+                            webracket/stream
                             js/math
                             js/console))])
     (check-not-false (memq library covered)

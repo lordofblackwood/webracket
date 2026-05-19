@@ -147,7 +147,7 @@
          "(js-log (+ (set-count s) (if (set-member? s 2) 10 0)))\n")))
     "main.rkt"
     #rx"(?m:^13$)"
-    '("--no-io-format-provider" "--webracket-module-bridge"))
+    '("--no-io-format-provider"))
    (goal1-dashboard-case
     'full-promise
     'language-staged-provider
@@ -161,7 +161,20 @@
          "(js-log (+ v (if before 100 0) (if (promise-forced? p) 1 0)))\n")))
     "main.rkt"
     #rx"(?m:^43$)"
-    '("--no-io-format-provider" "--webracket-module-bridge"))
+    '("--no-io-format-provider"))
+   (goal1-dashboard-case
+    'staged-stream
+    'language-staged-provider
+    '(webracket/stream)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/base\n"
+         "(require webracket/stream)\n"
+         "(define s (stream 10 20 12))\n"
+         "(js-log (+ (stream-first s) (stream-first (stream-rest s)) (stream-first (stream-rest (stream-rest s)))))\n")))
+    "main.rkt"
+    #rx"(?m:^42$)"
+    '("--no-io-format-provider"))
    (goal1-dashboard-case
     'installed-racket-set-diagnostic
     'installed-provider-graph

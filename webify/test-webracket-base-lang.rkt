@@ -8,6 +8,7 @@
          racket/string
          rackunit
          syntax/modread
+         (prefix-in staged-promise: "../promise.rkt")
          (only-in "../driver.rkt"
                   cached-installed-provider-report
                   current-provider-cache-dir
@@ -25,6 +26,7 @@
          (only-in "module-extractor.rkt"
                   webify-compile-module-report)
          (only-in "provider-trials.rkt"
+                  webify-provider-trial-default-bridge-module-allowed?
                   webify-provider-trial-module-allowlist
                   webify-provider-trial-module-allowed?)
          "ffi-module-registry.rkt"
@@ -391,25 +393,78 @@
            (string-append
             "#lang webracket/full\n"
             "(define s (set-add (set 1 2 2) 3))\n"
+            "(define intersect-count (set-count (set-intersect s (set 2 3 4))))\n"
+            "(define relation-bonus (+ (if (subset? (set 2 3) s) 1 0)\n"
+            "                          (if (proper-subset? (set 2) s) 1 0)\n"
+            "                          (if (set=? s (set 3 2 1)) 1 0)))\n"
+            "(define filter-count (set-count (set-filter s odd?)))\n"
+            "(define map-count (set-count (set-map s add1)))\n"
             "(define p (delay (+ (set-count s) 39)))\n"
             "(define before (promise-forced? p))\n"
             "(define value (force p))\n"
-            "(js-log (+ value (if before 100 0) (if (set-member? s 2) 1 0)))\n")
+            "(js-log (+ value intersect-count relation-bonus filter-count map-count\n"
+            "           (if before 100 0) (if (set-member? s 2) 1 0)))\n")
            out))
         #:exists 'truncate/replace)
       (define-values (status output)
         (run-webracket/base
          (list "-r" "--no-stdlib" "--no-io-format-provider"
-               "--webracket-module-bridge"
                "--dest" (path->string dest-dir)
                (path->string source-path))
          source-dir))
       (check-equal? status 0 output)
-      (check-regexp-match #rx"(?m:^43$)" output))
+      (check-regexp-match #rx"(?m:^53$)" output))
     (lambda ()
       (for ([dir (in-list (list source-dir dest-dir))])
         (with-handlers ([exn:fail:filesystem? void])
           (delete-directory/files dir))))))
+
+(test-case "#lang webracket/base can require staged stream provider by default"
+  (define source-dir (make-temporary-file "webracket-full-staged-stream-src-~a" 'directory))
+  (define dest-dir   (make-temporary-file "webracket-full-staged-stream-dest-~a" 'directory))
+  (define source-path (build-path source-dir "full-staged-stream.rkt"))
+  (dynamic-wind
+    void
+    (lambda ()
+      (call-with-output-file source-path
+        (lambda (out)
+          (display
+           (string-append
+            "#lang webracket/base\n"
+            "(require webracket/stream)\n"
+            "(define s (stream 10 20 12))\n"
+            "(define r (stream-rest s))\n"
+            "(js-log (+ (stream-first s) (stream-first r) (stream-first (stream-rest r))))\n")
+           out))
+        #:exists 'truncate/replace)
+      (define-values (status output)
+        (run-webracket/base
+         (list "-r" "--no-stdlib" "--no-io-format-provider"
+               "--dest" (path->string dest-dir)
+               (path->string source-path))
+         source-dir))
+      (check-equal? status 0 output)
+      (check-regexp-match #rx"(?m:^42$)" output))
+    (lambda ()
+      (for ([dir (in-list (list source-dir dest-dir))])
+        (with-handlers ([exn:fail:filesystem? void])
+          (delete-directory/files dir))))))
+
+(test-case "staged promise provider caches multiple values and exceptions"
+  (define multi (staged-promise:delay (values 20 22)))
+  (define multi-sum
+    (call-with-values (lambda () (staged-promise:force multi)) +))
+  (check-equal? multi-sum 42)
+  (check-true (staged-promise:promise-forced? multi))
+  (define attempts 0)
+  (define failing
+    (staged-promise:delay
+      (set! attempts (add1 attempts))
+      (error 'promise-smoke "boom")))
+  (for ([i (in-range 2)])
+    (check-exn #rx"boom" (lambda () (staged-promise:force failing))))
+  (check-equal? attempts 1)
+  (check-true (staged-promise:promise-forced? failing)))
 
 (test-case "#lang webracket/base fails clearly without collection resolution"
   (define source-dir (make-temporary-file "webracket-base-no-collection-src-~a" 'directory))
@@ -961,7 +1016,14 @@
   (check-false (webify-provider-trial-module-allowed? 'racket/private/promise))
   (check-false (webify-provider-trial-module-allowed? 'racket/private/for))
   (check-false (webify-provider-trial-module-allowed? 'racket/private/set))
-  (check-false (webify-provider-trial-module-allowed? 'racket/math)))
+  (check-false (webify-provider-trial-module-allowed? 'racket/math))
+  (for ([name (in-list '(webracket/set webracket/promise webracket/stream
+                         js/console js/math))])
+    (check-true (webify-provider-trial-default-bridge-module-allowed? name)
+                (symbol->string name)))
+  (for ([name (in-list '(racket/list racket/string racket/set racket/promise))])
+    (check-false (webify-provider-trial-default-bridge-module-allowed? name)
+                 (symbol->string name))))
 
 (test-case "#lang webracket/base runs an allowlisted provider without stdlib"
   (define source-dir (make-temporary-file "webracket-base-provider-only-src-~a" 'directory))
@@ -1771,7 +1833,8 @@
   (check-false (memq 'racket/base webracket-full-addon-libraries))
   (for ([name (in-list '(racket/list racket/string racket/vector racket/function
                                      racket/bool racket/sequence webracket/promise
-                                     webracket/set racket/match racket/format))])
+                                     webracket/set racket/stream racket/match
+                                     racket/format))])
     (check-not-false (memq name webracket-full-addon-libraries)
                      (symbol->string name)))
   (check-not-false (assoc 'racket/format webracket-full-surface-statuses))

@@ -11,7 +11,10 @@
          set-eq?
          set-equal?
          set-eqv?
+         set-filter
          set-first
+         set-intersect
+         set-map
          set-member?
          set-mutable?
          set-remove
@@ -19,6 +22,9 @@
          set-subtract
          set-union
          set-weak?
+         set=?
+         proper-subset?
+         subset?
          set->list)
 
 ;; A small immutable hash-set surface for Goal 1. This intentionally covers the
@@ -82,6 +88,15 @@
     [(webracket-set? v) v]
     [else (raise-argument-error who "set?" v)]))
 
+;; table-keys : hash? -> list?
+;;   Return table keys without relying on optional-arity `hash-keys`.
+(define (table-keys table)
+  (let loop ([pos (hash-iterate-first table)] [acc '()])
+    (cond
+      [(not pos) acc]
+      [else (loop (hash-iterate-next table pos)
+                  (cons (hash-iterate-key table pos) acc))])))
+
 ;; set-member? : set? any/c -> boolean?
 ;;   Check whether v is in st.
 (define (set-member? st v)
@@ -118,7 +133,7 @@
 ;; set->list : set? -> list?
 ;;   Return the elements of st in hash iteration order.
 (define (set->list st)
-  (hash-keys (webracket-set-table (check-set 'set->list st))))
+  (table-keys (webracket-set-table (check-set 'set->list st))))
 
 ;; set-first : set? -> any/c
 ;;   Return one element from non-empty st.
@@ -132,6 +147,23 @@
 ;;   Return st without one element.
 (define (set-rest st)
   (set-remove st (set-first st)))
+
+;; set-intersect : set? set? ... -> set?
+;;   Return a set containing elements that appear in all given sets.
+(define (set-intersect st . sets)
+  (define checked (check-set 'set-intersect st))
+  (define (member-of-all? v sets)
+    (cond
+      [(null? sets) #t]
+      [(set-member? (car sets) v) (member-of-all? v (cdr sets))]
+      [else #f]))
+  (define (add-matching keys acc)
+    (cond
+      [(null? keys) acc]
+      [(member-of-all? (car keys) sets)
+       (add-matching (cdr keys) (set-add acc (car keys)))]
+      [else (add-matching (cdr keys) acc)]))
+  (add-matching (table-keys (webracket-set-table checked)) (set)))
 
 ;; set-union : set? ... -> set?
 ;;   Return the union of the given sets.
@@ -156,3 +188,45 @@
     (cond
       [(null? sets) acc]
       [else (loop (cdr sets) (remove-list (set->list (car sets)) acc))])))
+
+;; subset? : set? set? -> boolean?
+;;   Check whether every element of st is in st2.
+(define (subset? st st2)
+  (define keys (set->list st))
+  (check-set 'subset? st2)
+  (let loop ([keys keys])
+    (cond
+      [(null? keys) #t]
+      [(set-member? st2 (car keys)) (loop (cdr keys))]
+      [else #f])))
+
+;; proper-subset? : set? set? -> boolean?
+;;   Check whether st is a strict subset of st2.
+(define (proper-subset? st st2)
+  (and (subset? st st2)
+       (< (set-count st) (set-count st2))))
+
+;; set=? : set? set? -> boolean?
+;;   Check whether two staged sets have the same elements.
+(define (set=? st st2)
+  (and (= (set-count st) (set-count st2))
+       (subset? st st2)))
+
+;; set-map : set? procedure? -> set?
+;;   Map proc over st and collect results in a staged set.
+(define (set-map st proc)
+  (define keys (set->list st))
+  (let loop ([keys keys] [acc (set)])
+    (cond
+      [(null? keys) acc]
+      [else (loop (cdr keys) (set-add acc (proc (car keys))))])))
+
+;; set-filter : set? procedure? -> set?
+;;   Keep the elements of st for which proc returns a true value.
+(define (set-filter st proc)
+  (define keys (set->list st))
+  (let loop ([keys keys] [acc (set)])
+    (cond
+      [(null? keys) acc]
+      [(proc (car keys)) (loop (cdr keys) (set-add acc (car keys)))]
+      [else (loop (cdr keys) acc)])))

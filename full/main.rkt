@@ -15,7 +15,6 @@
          racket/port
          racket/sequence
          racket/shared
-         racket/stream
          racket/string
          racket/vector
          "../js/main.rkt"
@@ -42,7 +41,6 @@
          (all-from-out racket/port)
          (all-from-out racket/sequence)
          (all-from-out racket/shared)
-         (all-from-out racket/stream)
          (all-from-out racket/string)
          (all-from-out racket/vector)
          (all-from-out "../js/main.rkt")

@@ -21,8 +21,10 @@
          webify-provider-trial-report-error-message
          webify-provider-trials
          webify-provider-trial-support-modules
+         webify-provider-trial-default-bridge-modules
          webify-provider-trial-module-allowlist
          webify-provider-trial-module-allowed?
+         webify-provider-trial-default-bridge-module-allowed?
          webify-provider-trial-ref
          webify-provider-trial-run
          webify-provider-trial-run-all
@@ -201,6 +203,20 @@
     js/temp
     webracket/promise
     webracket/set
+    webracket/stream
+    webracket/unsafe/console
+    webracket/unsafe/math
+    webracket/unsafe/temp))
+
+;; webify-provider-trial-default-bridge-modules : (listof symbol?)
+;;   External providers safe enough for the default module bridge path.
+(define webify-provider-trial-default-bridge-modules
+  '(js/console
+    js/math
+    js/temp
+    webracket/promise
+    webracket/set
+    webracket/stream
     webracket/unsafe/console
     webracket/unsafe/math
     webracket/unsafe/temp))
@@ -215,6 +231,11 @@
 ;;   Check whether an external provider is in the discovery trial manifest.
 (define (webify-provider-trial-module-allowed? module)
   (and (memq module webify-provider-trial-module-allowlist) #t))
+
+;; webify-provider-trial-default-bridge-module-allowed? : symbol? -> boolean?
+;;   Check whether module may use the module bridge without an explicit flag.
+(define (webify-provider-trial-default-bridge-module-allowed? module)
+  (and (memq module webify-provider-trial-default-bridge-modules) #t))
 
 ;; webify-provider-trial-ref : symbol? -> webify-provider-trial?
 ;;   Look up a provider trial by module name.

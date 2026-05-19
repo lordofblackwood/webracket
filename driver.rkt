@@ -124,6 +124,7 @@
                   webify-module-protocol-report
                   webify-module-protocol-dependency)
          (only-in "webify/provider-trials.rkt"
+                  webify-provider-trial-default-bridge-module-allowed?
                   webify-provider-trial-module-allowed?
                   webify-provider-trial-module-allowlist)
          (only-in "webify/ffi-module-registry.rkt"
@@ -1746,43 +1747,46 @@
    (webify-module-composition-with-tail composition '((void)))))
 
 ;; module-file->module-bridge-top-level/local-only : path-string? -> (or/c syntax? #f)
-;;   Use the module bridge by default only when no installed providers are needed.
+;;   Use the default bridge only for local or explicitly staged provider graphs.
 (define (module-file->module-bridge-top-level/local-only filename)
   (define-values (root reports)
     (with-driver-timing
      'module-bridge-extract
      (lambda ()
        (webracket/base-file->local-module-reports filename))))
-  (and (not (webracket/base-reports-demand-external-providers? reports))
-       (let ([graph
-              (with-driver-timing
-               'module-bridge-register
-               (lambda ()
-                 (webracket/base-reports->module-graph root reports)))])
-         (define composition
-           (with-driver-timing
-            'module-bridge-compose
-            (lambda ()
-              (webify-compose-module-registry/roots/composition
-               (webracket/base-local-module-graph-registry graph)
-               (list (webracket/base-local-module-graph-root graph))
-               #:define-export-aliases? #f
-               #:serializable?-box     #f
-               #:datum-intern?         #f
-               #:target                #f
-               #:allow-set!-undefined? #f
-               #:unsafe-mode?          #f
-               #:enforce-constant?     #t
-               #:allow-inline?         #t
-               #:no-prompt?            #f
-               #:prim-knowns           (hasheq)
-               #:primitives            (hasheq)
-               #:compiler-query        (lambda (v) #f)
-               #:get-import-knowns     (lambda (key) (values #f #f #f))
-               #:import-keys           #f))))
-         (datum->syntax
-          #f
-          (webify-module-composition-with-tail composition '((void)))))))
+  (define external-names (webracket/base-external-provider-names reports))
+  (and (andmap webify-provider-trial-default-bridge-module-allowed?
+               external-names)
+       (with-handlers ([exn:fail? (lambda (_exn) #f)])
+         (let ([graph
+                (with-driver-timing
+                 'module-bridge-register
+                 (lambda ()
+                   (webracket/base-reports->module-graph root reports)))])
+           (define composition
+             (with-driver-timing
+              'module-bridge-compose
+              (lambda ()
+                (webify-compose-module-registry/roots/composition
+                 (webracket/base-local-module-graph-registry graph)
+                 (list (webracket/base-local-module-graph-root graph))
+                 #:define-export-aliases? #f
+                 #:serializable?-box     #f
+                 #:datum-intern?         #f
+                 #:target                #f
+                 #:allow-set!-undefined? #f
+                 #:unsafe-mode?          #f
+                 #:enforce-constant?     #t
+                 #:allow-inline?         #t
+                 #:no-prompt?            #f
+                 #:prim-knowns           (hasheq)
+                 #:primitives            (hasheq)
+                 #:compiler-query        (lambda (v) #f)
+                 #:get-import-knowns     (lambda (key) (values #f #f #f))
+                 #:import-keys           #f))))
+           (datum->syntax
+            #f
+            (webify-module-composition-with-tail composition '((void))))))))
 
 ;; module-form->top-level : syntax? -> syntax?
 ;;   Transitional helper for tests that already have a module syntax object.
