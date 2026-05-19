@@ -101,7 +101,9 @@
     vector-member-basic
     function-compose
     function-identity
+    function-compose1
     function-negate
+    function-const
     sequence-list
     sequence-range
     sequence-in-bytes
@@ -284,7 +286,9 @@
       vector-member-basic
       function-compose
       function-identity
+      function-compose1
       function-negate
+      function-const
       sequence-list
       sequence-range
       sequence-in-bytes
@@ -391,7 +395,8 @@
             [(promise-require force-identity) #rx"(?m:^42$)"]
             [(promise-basic) #rx"(?m:^42$)"]
             [(promise-state) #rx"(?m:^true$)"]
-            [(vector-require function-compose function-identity) #rx"(?m:^42$)"]
+            [(vector-require function-compose function-identity function-compose1 function-const)
+             #rx"(?m:^42$)"]
             [(vector-member-basic) #rx"(?m:^1$)"]
             [(function-negate) #rx"(?m:^true$)"]
             [(sequence-list

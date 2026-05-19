@@ -66,7 +66,9 @@
     vector-member-basic
     function-compose
     function-identity
+    function-compose1
     function-negate
+    function-const
     sequence-list
     sequence-range
     sequence-in-bytes
@@ -213,7 +215,9 @@
     vector-member-basic
     function-compose
     function-identity
+    function-compose1
     function-negate
+    function-const
     set-member
     set-add
     set-remove
@@ -521,11 +525,21 @@
          (require racket/function)
          (provide y)
          (define y (identity 42))))]
+    [(function-compose1)
+     '((module use-function-compose1 racket/base
+         (require racket/function)
+         (provide y)
+         (define y ((compose1 add1 add1) 40))))]
     [(function-negate)
      '((module use-function-negate racket/base
          (require racket/function)
          (provide y)
          (define y ((negate symbol?) 42))))]
+    [(function-const)
+     '((module use-function-const racket/base
+         (require racket/function)
+         (provide y)
+         (define y ((const 42) 'ignored))))]
     [(sequence-list)
      '((module use-sequence-list racket/base
          (require racket/sequence)
