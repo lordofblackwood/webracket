@@ -5267,6 +5267,17 @@
                         (and (equal? (sort (hash-values h)    (λ (x y) (< x y))) expected)
                              (equal? (sort (hash-values h #t) (λ (x y) (< x y))) expected)))))
 
+              (list "hash-keys and hash-values first-class optional arity"
+                    (let ([h (make-hasheq)])
+                      (hash-set! h 'a 1)
+                      (hash-set! h 'b 2)
+                      (let ([ks hash-keys]
+                            [vs hash-values])
+                        (and (equal? (sort (ks h)    (λ (x y) (symbol<? x y))) '(a b))
+                             (equal? (sort (ks h #t) (λ (x y) (symbol<? x y))) '(a b))
+                             (equal? (sort (vs h)    (λ (x y) (< x y))) '(1 2))
+                             (equal? (sort (vs h #t) (λ (x y) (< x y))) '(1 2))))))
+
               (list "hash-iterate public mutable and immutable"
                     (let ([m (make-hasheq)]
                           [i (hash 'a 1 'b 2)])

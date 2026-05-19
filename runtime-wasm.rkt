@@ -46796,7 +46796,7 @@
                      [hasheqv-prim     '($hasheqv-keys    $hasheqv-values)]
                      [hashequal-prim   '($hashequal-keys  $hashequal-values)]
                      [hashalw-prim     '($hashalw-keys    $hashalw-values)])
-            `(func ,prim (type $Prim2)
+            `(func ,prim (type $Prim12)
                    (param $ht  (ref eq))   ;; hash table
                    (param $try (ref eq))   ;; optional try-order? (default #f)
                    (result     (ref eq))   ;; list of keys/values
