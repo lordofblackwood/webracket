@@ -810,10 +810,12 @@
   (cond
     [list-only?
      (show-smokes)
-     (for ([name (in-list goal1-fast-module-cases)])
-       (printf "goal1-fast-case:~a\tmodule case: ~a\n" name name))
-     (for ([name (in-list goal1-slow-module-cases)])
-       (printf "goal1-slow-case:~a\tmodule case: ~a\n" name name))
+     (for ([name (in-list goal1-fast-module-cases)]
+           [index (in-naturals)])
+       (printf "goal1-fast-case:~a\tindex: ~a\tmodule case: ~a\n" name index name))
+     (for ([name (in-list goal1-slow-module-cases)]
+           [index (in-naturals)])
+       (printf "goal1-slow-case:~a\tindex: ~a\tmodule case: ~a\n" name index name))
      (for ([name (in-list known-module-cases)])
        (printf "case:~a\tmodule case: ~a\n" name name))
      0]
