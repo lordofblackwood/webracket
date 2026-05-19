@@ -1,5 +1,5 @@
 #lang racket/base
 
-(require "js/main.rkt")
+(require (file "pkgs/webracket/js.rkt"))
 
-(provide (all-from-out "js/main.rkt"))
+(provide (all-from-out (file "pkgs/webracket/js.rkt")))

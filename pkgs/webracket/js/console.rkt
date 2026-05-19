@@ -1,6 +1,6 @@
 #lang racket/base
 
-(require webracket/unsafe/console)
+(require "../unsafe/console.rkt")
 
 (provide console-log
          console-info

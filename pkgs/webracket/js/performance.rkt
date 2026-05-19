@@ -1,6 +1,6 @@
 #lang racket/base
 
-(require webracket/unsafe/performance)
+(require "../unsafe/performance.rkt")
 
 (provide performance-clear-marks
          performance-clear-measures

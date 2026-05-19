@@ -19,8 +19,8 @@ accidentally becoming top-level Racket collections.
 
 ## Phase 2: Shallow Package Root
 
-Add wrapper modules under `pkgs/webracket/` for the collection paths that are
-used by the current module bridge and tests.
+Add modules under `pkgs/webracket/` for the collection paths that are used by
+the current module bridge and tests.
 
 This phase makes the checkout work with:
 
@@ -28,43 +28,35 @@ This phase makes the checkout work with:
 PLTCOLLECTS=/path/to/repo/pkgs:$PLTCOLLECTS
 ```
 
-while avoiding a large physical move in a dirty worktree. The wrapper modules
-delegate to the existing root files, so this is an intermediate compatibility
-step, not the final package layout.
+while avoiding a large physical move in a dirty worktree. The first slice used
+copied source for provider/language modules where wrapper re-exporting was not
+enough for Webify's export extraction.
 
-## Phase 3: Move Core Collection Files
+## Phase 3: Promote the Current Package Surface
 
-Move the actual `webracket` collection files into `pkgs/webracket/` and replace
-the wrappers from Phase 2.
+Make `pkgs/webracket/` the source of truth for the public collection surface
+that has already been copied:
 
-Likely first move set:
+- `webracket/base`
+- `webracket/full`
+- `webracket/main`
+- `webracket/contract`
+- `webracket/js`
+- `webracket/js/*`
+- `webracket/unsafe/*`
+- `webracket/private/for`
+- `webracket/syntax/contract`
+- `webracket/promise`
+- `webracket/set`
+- `webracket/stream`
 
-```text
-base.rkt
-base/
-bool.rkt
-compiler.rkt
-contract.rkt
-driver.rkt
-full.rkt
-full/
-info.rkt
-js.rkt
-js/
-lang/
-main.rkt
-parameters.rkt
-private/
-promise.rkt
-runtime-wasm.rkt
-syntax/
-unsafe/
-webify/
-webracket.rkt
-```
+The repository-root files for this surface are now compatibility shims that
+delegate to `pkgs/webracket/...`. Compiler/runtime internals such as
+`compiler.rkt`, `driver.rkt`, `runtime-wasm.rkt`, and the active `webify/`
+tooling stay at the repository root until the package layout is less turbulent.
 
 The CLI can keep a small repository-root wrapper if useful, but collection
-resolution should come from `pkgs/`.
+resolution for tests and package-style use should come from `pkgs/`.
 
 ## Phase 4: Separate Non-Package Content
 
@@ -78,6 +70,10 @@ web-site-new/
 html/
 assets/
 ```
+
+`webify/test-package-layout.rkt` guards this by checking that the active
+collection parent is `pkgs/` and that obvious development/generated directories
+have not leaked into `pkgs/webracket/`.
 
 Scribble documentation can later become either part of the core package or a
 separate `webracket-doc` package.
