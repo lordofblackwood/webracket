@@ -13,13 +13,6 @@
 (define-runtime-path repo-root* "..")
 (define repo-root (simplify-path repo-root*))
 
-(define repo-parent
-  (let-values ([(base _name _must-be-dir?) (split-path repo-root)])
-    base))
-
-(define path-list-separator
-  (if (eq? (system-type 'os) 'windows) ";" ":"))
-
 ;; phase-0-export-names : export-table export-table -> (listof symbol?)
 ;;   Collect value and syntax exports for API-surface comparisons.
 (define (phase-0-export-names value-exports syntax-exports)
@@ -30,14 +23,6 @@
                                    (names syntax-exports))
                            eq?)
         symbol<?))
-
-;; collection-env-value : -> string?
-;;   Make child Racket processes resolve this checkout as collection `webracket`.
-(define (collection-env-value)
-  (format "~a~a~a"
-          (path->string repo-parent)
-          path-list-separator
-          (or (getenv "PLTCOLLECTS") "")))
 
 ;; run-contract-smoke : string? regexp? -> void?
 ;;   Compile and run one tiny module-language contract smoke with bounded resources.
@@ -58,7 +43,7 @@
           (environment-variables-set!
            (current-environment-variables)
            #"PLTCOLLECTS"
-           (string->bytes/utf-8 (collection-env-value)))
+           (string->bytes/utf-8 (webracket-collection-env-value)))
           (run-webracket
            (list "-r" "--no-stdlib" "--no-io-format-provider" "--webracket-module-bridge"
                  "--dest" (path->string dest-dir)

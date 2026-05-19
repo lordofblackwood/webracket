@@ -39,13 +39,6 @@
 (define-runtime-path repo-root* "..")
 (define repo-root (simplify-path repo-root*))
 
-(define repo-parent
-  (let-values ([(base name must-be-dir?) (split-path repo-root)])
-    base))
-
-(define path-list-separator
-  (if (eq? (system-type 'os) 'windows) ";" ":"))
-
 ;; sorted-symbols : (listof symbol?) -> (listof symbol?)
 ;;   Compare provider-name sets without depending on discovery order.
 (define (sorted-symbols symbols)
@@ -54,10 +47,7 @@
 ;; webracket-collection-env : -> (listof string?)
 ;;   Make child Racket processes resolve this checkout as collection `webracket`.
 (define (webracket-collection-env)
-  (list (format "PLTCOLLECTS=~a~a~a"
-                (path->string repo-parent)
-                path-list-separator
-                (or (getenv "PLTCOLLECTS") ""))))
+  (list (format "PLTCOLLECTS=~a" (webracket-collection-env-value))))
 
 ;; run-webracket/base : args path? -> values
 ;;   Run webracket with an explicit collection path, mirroring user installation.
@@ -98,14 +88,6 @@
     (match (regexp-match #rx"^  parse[ ]+:.*[ ]([0-9]+)$" line)
       [(list _ count) (string->number count)]
       [_ #f])))
-
-;; call-with-webracket-collection-path : (-> any/c) -> any/c
-;;   Make the checkout visible as collection `webracket` for #lang tests.
-(define (call-with-webracket-collection-path thunk)
-  (parameterize ([current-library-collection-paths
-                  (cons repo-parent
-                          (current-library-collection-paths))])
-    (thunk)))
 
 ;; read-module-file : path-string? -> syntax?
 ;;   Read a #lang module through host Racket with the checkout on the collection path.
@@ -180,8 +162,6 @@
   (call-with-webracket-collection-path
    (lambda ()
      (parameterize ([current-namespace (make-base-namespace)])
-       (current-library-collection-paths
-        (cons repo-parent (current-library-collection-paths)))
        (namespace-require module-path)
        (define-values (value-exports _syntax-exports)
          (module->exports module-path))

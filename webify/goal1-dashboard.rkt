@@ -46,13 +46,6 @@
 (define repo-root
   (simplify-path repo-root*))
 
-(define repo-parent
-  (let-values ([(base _name _must-be-dir?) (split-path repo-root)])
-    base))
-
-(define path-list-separator
-  (if (eq? (system-type 'os) 'windows) ";" ":"))
-
 (struct goal1-dashboard-case
   (name category libraries files main expected args)
   #:transparent)
@@ -464,14 +457,6 @@
                                        #f))))
     c))
 
-;; collection-env-value : -> string?
-;;   Make child Racket processes resolve this checkout as collection `webracket`.
-(define (collection-env-value)
-  (format "~a~a~a"
-          (path->string repo-parent)
-          path-list-separator
-          (or (getenv "PLTCOLLECTS") "")))
-
 ;; cache-file-count : path? -> exact-nonnegative-integer?
 ;;   Count provider-cache files recursively.
 (define (cache-file-count cache-dir)
@@ -563,7 +548,7 @@
           (environment-variables-set!
            (current-environment-variables)
            #"PLTCOLLECTS"
-           (string->bytes/utf-8 (collection-env-value)))
+           (string->bytes/utf-8 (webracket-collection-env-value)))
           (run-webracket
            (append
             (list "-v" "-r" "--no-stdlib"

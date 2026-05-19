@@ -17,6 +17,10 @@
          begin-body
          normalize-symbols
          webracket-rkt
+         webracket-repo-root
+         webracket-collection-parent
+         webracket-collection-env-value
+         call-with-webracket-collection-path
          comp
          current-compiler-progress?
          current-closure-conversion-progress?
@@ -41,6 +45,7 @@
 (require racket/match
          racket/file
          racket/path
+         racket/port
          racket/runtime-path
          racket/system
          (only-in "../compiler.rkt"
@@ -66,6 +71,50 @@
          "module-registry.rkt")
 
 (define-runtime-path webracket-rkt "../webracket.rkt")
+(define-runtime-path webracket-repo-root* "..")
+
+(define webracket-repo-root
+  (simplify-path webracket-repo-root*))
+
+(define path-list-separator
+  (if (eq? (system-type 'os) 'windows) ";" ":"))
+
+;; parent-directory : path? -> path?
+;;   Return the directory that contains path.
+(define (parent-directory path)
+  (let-values ([(base _name _must-be-dir?) (split-path path)])
+    base))
+
+;; package-collection-root-ready? : path? -> boolean?
+;;   Detect when the phased package migration has moved collection files.
+(define (package-collection-root-ready? package-root)
+  (and (directory-exists? package-root)
+       (file-exists? (build-path package-root "base.rkt"))
+       (file-exists? (build-path package-root "info.rkt"))))
+
+;; webracket-collection-parent : -> path?
+;;   Return the collection parent to put on PLTCOLLECTS for this checkout.
+(define (webracket-collection-parent)
+  (define package-root (build-path webracket-repo-root "pkgs" "webracket"))
+  (if (package-collection-root-ready? package-root)
+      (build-path webracket-repo-root "pkgs")
+      (parent-directory webracket-repo-root)))
+
+;; webracket-collection-env-value : -> string?
+;;   Build a PLTCOLLECTS value that exposes collection `webracket`.
+(define (webracket-collection-env-value)
+  (format "~a~a~a"
+          (path->string (webracket-collection-parent))
+          path-list-separator
+          (or (getenv "PLTCOLLECTS") "")))
+
+;; call-with-webracket-collection-path : (-> any/c) -> any/c
+;;   Run thunk with collection `webracket` visible to host Racket.
+(define (call-with-webracket-collection-path thunk)
+  (parameterize ([current-library-collection-paths
+                  (cons (webracket-collection-parent)
+                        (current-library-collection-paths))])
+    (thunk)))
 
 ;; test-prim-knowns : hash?
 ;;   Minimal primitive facts for first-slice top-level adapter tests.
@@ -254,9 +303,83 @@
 (define (wat-string wat)
   (format "~s" wat))
 
-;; run-webracket : (listof string?) path? -> (values exact-integer? string?)
+;; current-racket-executable : -> path?
+;;   Resolve the Racket executable that is running this test process.
+(define (current-racket-executable)
+  (define exec-file (find-system-path 'exec-file))
+  (cond
+    [(and (path? exec-file)
+          (complete-path? exec-file))
+     exec-file]
+    [(and (path? exec-file)
+          (file-exists? exec-file))
+     (path->complete-path exec-file)]
+    [else
+     (or (find-executable-path (path->string exec-file))
+         (find-executable-path "racket"))]))
+
+;; run-webracket : (listof string?) path? [#:timeout-seconds ...] [#:memory-mb ...] -> values
 ;;   Run the local webracket command and capture combined output.
-(define (run-webracket args cwd)
+(define (run-webracket args cwd
+                       #:timeout-seconds [timeout-seconds #f]
+                       #:memory-mb [memory-mb #f])
+  (define racket-bin (current-racket-executable))
+  (unless racket-bin
+    (error 'run-webracket "could not find current racket executable"))
+	  (cond
+	    [(or timeout-seconds memory-mb)
+	     (define stdout-path (make-temporary-file "webracket-stdout-~a.txt"))
+	     (define stderr-path (make-temporary-file "webracket-stderr-~a.txt"))
+	     (define stdout (open-output-file stdout-path #:exists 'truncate))
+	     (define stderr (open-output-file stderr-path #:exists 'truncate))
+	     (define command-args
+       (if memory-mb
+	           (append
+	            (list "-c"
+	                  "ulimit -v \"$1\" 2>/dev/null || ulimit -m \"$1\" 2>/dev/null || true; shift; exec \"$@\""
+	                  "run-webracket-memory-limit"
+                  (number->string (* memory-mb 1024))
+                  (path->string racket-bin)
+                  (path->string webracket-rkt))
+            args)
+           (append (list (path->string webracket-rkt)) args)))
+     (define command
+       (if memory-mb
+           "/bin/sh"
+           (path->string racket-bin)))
+     (define-values (proc child-out child-in child-err)
+       (parameterize ([current-directory cwd])
+         (apply subprocess stdout #f stderr 'new command command-args)))
+     (when child-out (close-input-port child-out))
+     (when child-in  (close-output-port child-in))
+     (when child-err (close-input-port child-err))
+     (define completed
+       (if timeout-seconds
+           (sync/timeout timeout-seconds proc)
+           (begin (subprocess-wait proc) #t)))
+	     (unless completed
+	       (subprocess-kill proc #t))
+	     (subprocess-wait proc)
+	     (close-output-port stdout)
+	     (close-output-port stderr)
+	     (define status (subprocess-status proc))
+	     (define output
+	       (string-append (file->string stdout-path)
+	                      (file->string stderr-path)
+	                      (if completed
+	                          ""
+	                          (format "\nrun-webracket-timeout-seconds: ~a\n"
+	                                  timeout-seconds))))
+	     (with-handlers ([exn:fail? void])
+	       (delete-file stdout-path))
+	     (with-handlers ([exn:fail? void])
+	       (delete-file stderr-path))
+	     (values (cond
+               [(not completed) 124]
+               [(integer? status) status]
+               [else 1])
+             output)]
+    [else
   (define stdout (open-output-string))
   (define stderr (open-output-string))
   (define status
@@ -264,12 +387,12 @@
                    [current-error-port stderr]
                    [current-directory cwd])
       (apply system*/exit-code
-             (find-executable-path "racket")
+             racket-bin
              (path->string webracket-rkt)
              args)))
   (values status
           (string-append (get-output-string stdout)
-                         (get-output-string stderr))))
+                         (get-output-string stderr)))]))
 
 ;; write-datum-program! : path-string? any/c -> void?
 ;;   Write one generated top-level datum as a source file.
