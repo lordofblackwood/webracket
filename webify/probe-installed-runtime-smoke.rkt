@@ -192,6 +192,8 @@
 
 ;; goal1-slow-module-cases : (listof symbol?)
 ;;   Passing Goal 1 smokes that are too slow for the compact fast tier.
+;;   These cases are green, but they tend to spend around a minute or more in
+;;   compile/tree-shake work when run as isolated bounded smokes.
 (define goal1-slow-module-cases
   '(set-count
     format-basic))
