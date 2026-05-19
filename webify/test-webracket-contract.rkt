@@ -109,7 +109,26 @@
   (define boundary-value (erased:contract integer? "not-an-integer" 'positive 'negative))
   (check-equal? boundary-value "not-an-integer")
   (check-true (erased:contract? (erased:-> integer? integer?)))
-  (check-true (erased:contract-first-order-passes? (erased:listof integer?) "not-a-list")))
+  (check-true (erased:contract-first-order-passes? (erased:listof integer?) "not-a-list"))
+  (for ([ctc (in-list (list (erased:list/c integer? string?)
+                            (erased:vector/c integer? string?)
+                            (erased:immutable-vector/c integer?)
+                            (erased:between/c 0 10)
+                            (erased:integer-in #f 10)
+                            (erased:one-of/c 'a 'b)
+                            (erased:symbols 'a 'b)
+                            (erased:parameter/c string?)
+                            (erased:promise/c integer?)
+                            (erased:procedure-arity-includes/c 2)))])
+    (check-true (erased:contract? ctc))))
+
+(test-case "syntax-only contract helpers erase to inert contracts"
+  (define dependent (erased:->i ([x integer?]) [result integer?]))
+  (define recursive (erased:recursive-contract (erased:listof integer?) #:flat))
+  (define parametric (erased:parametric->/c [a] (erased:-> a a)))
+  (define struct-contract (erased:struct/c posn integer? integer?))
+  (for ([ctc (in-list (list dependent recursive parametric struct-contract))])
+    (check-true (erased:contract? ctc))))
 
 (test-case "#lang webracket/base can require erased webracket/contract"
   (run-contract-smoke
@@ -118,8 +137,10 @@
     "(require webracket/contract)\n"
     "(provide (contract-out [value integer?]))\n"
     "(define/contract value integer? \"web\")\n"
-    "(define boundary-value (contract integer? 39 'positive 'negative))\n"
-    "(js-log (+ (string-length value) boundary-value))\n")
+    "(define boundary-value (contract (between/c 0 100) 37 'positive 'negative))\n"
+    "(define dependent (->i ([x integer?]) [result integer?]))\n"
+    "(define recursive (recursive-contract (listof integer?) #:flat))\n"
+    "(js-log (+ (string-length value) boundary-value (if (contract? dependent) 1 0) (if (contract? recursive) 1 0)))\n")
    #rx"(?m:^42$)"))
 
 (module+ main
