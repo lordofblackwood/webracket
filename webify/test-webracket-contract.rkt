@@ -104,10 +104,64 @@
   (with-contract here ([value integer?]) ()
     (define value "not-an-integer")))
 
+(module advanced-contract-expression-module racket/base
+  (require "../contract.rkt")
+  (provide total)
+  (define contract-values
+    (list (*list/c integer? string?)
+          (->d ([x integer?]) () [result integer?])
+          any
+          (box-immutable/c integer?)
+          (channel/c integer?)
+          (char-in/c #\a #\z)
+          (cons/dc [hd integer?] [tl (hd) integer?])
+          (continuation-mark-key/c integer?)
+          (contract-exercise integer?)
+          (contract-pos/neg-doubling integer?)
+          (dynamic->* '() '() any/c)
+          (first-or/c integer? string?)
+          (flat-contract-with-explanation integer?)
+          (flat-murec-contract ([self integer?]) self)
+          (flat-rec-contract self integer?)
+          (hash/dc [k symbol?] [v (k) integer?])
+          (invariant-assertion integer?)
+          (list*of integer?)
+          (mutable-treelist/c integer?)
+          (new-∀/c 'opaque)
+          (new-∃/c 'opaque)
+          (non-empty-listof integer?)
+          (opt/c integer?)
+          (prompt-tag/c integer?)
+          (property/c length integer?)
+          (string-len/c 3)
+          (struct-guard/c integer? integer?)
+          (struct/dc posn ([x integer?] [y (x) integer?]))
+          (syntax/c identifier?)
+          (treelist/c integer?)
+          (unconstrained-domain-> integer?)
+          (values/drop integer? string?)
+          (vector-immutable/c integer?)
+          (vector-immutableof integer?)
+          (with-contract-continuation-mark 'key 'value integer?)))
+  (define total (length contract-values)))
+
+(module advanced-contract-definition-module racket/base
+  (require "../contract.rkt")
+  (provide total)
+  (struct/contract posn ([x integer?] [y integer?]))
+  (define-struct/contract point ([x integer?] [y integer?]))
+  (define-contract-struct cell (value))
+  (define total
+    (+ (posn-x (posn 10 20))
+       (point-y (make-point 1 21))
+       (cell-value (make-cell 11)))))
+
 (require (prefix-in contract-out: (submod "." contract-out-module))
          (prefix-in provide-contract: (submod "." provide-contract-module))
          (prefix-in define-contract: (submod "." define-contract-module))
-         (prefix-in with-contract: (submod "." with-contract-module)))
+         (prefix-in with-contract: (submod "." with-contract-module))
+         (prefix-in advanced-expression: (submod "." advanced-contract-expression-module))
+         (prefix-in advanced-definition: (submod "." advanced-contract-definition-module)))
 
 (test-case "contract-out erases annotations but preserves exports"
   (check-equal? contract-out:answer "not-an-integer")
@@ -160,6 +214,12 @@
   (define struct-contract (erased:struct/c posn integer? integer?))
   (for ([ctc (in-list (list dependent recursive parametric struct-contract))])
     (check-true (erased:contract? ctc))))
+
+(test-case "advanced erased contract expression forms are usable"
+  (check-equal? advanced-expression:total 35))
+
+(test-case "advanced erased contract definition forms are usable"
+  (check-equal? advanced-definition:total 42))
 
 (test-case "#lang webracket/base can require erased webracket/contract"
   (run-contract-smoke

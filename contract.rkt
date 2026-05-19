@@ -483,9 +483,9 @@
   (lambda (stx)
     (syntax-case stx ()
       [(_ id ([field contract-expr] ...) option ...)
-       #'(struct id (field ...) option ...)]
+       #'(define-struct id (field ...) option ...)]
       [(_ (id super-id) ([field contract-expr] ...) option ...)
-       #'(struct id super-id (field ...) option ...)])))
+       #'(define-struct (id super-id) (field ...) option ...)])))
 
 ;; define-contract-struct : syntax -> syntax
 ;;   Compatibility alias for erased struct contracts.
@@ -493,9 +493,9 @@
   (lambda (stx)
     (syntax-case stx ()
       [(_ id fields option ...)
-       #'(struct id fields option ...)]
+       #'(define-struct id fields option ...)]
       [(_ (id super-id) fields option ...)
-       #'(struct id super-id fields option ...)])))
+       #'(define-struct (id super-id) fields option ...)])))
 
 ;; define/contract : syntax -> syntax
 ;;   Erase contract metadata from common definition forms.
