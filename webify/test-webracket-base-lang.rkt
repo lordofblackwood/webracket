@@ -1088,7 +1088,8 @@
   (check-false (webify-provider-trial-module-allowed? 'racket/private/for))
   (check-false (webify-provider-trial-module-allowed? 'racket/private/set))
   (check-false (webify-provider-trial-module-allowed? 'racket/math))
-  (for ([name (in-list '(webracket/contract webracket/set webracket/promise webracket/stream
+  (check-true (webify-provider-trial-module-allowed? 'racket/contract))
+  (for ([name (in-list '(racket/contract webracket/contract webracket/set webracket/promise webracket/stream
                          js/console js/math js/performance))])
     (check-true (webify-provider-trial-default-bridge-module-allowed? name)
                 (symbol->string name)))

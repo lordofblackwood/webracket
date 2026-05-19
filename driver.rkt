@@ -1479,7 +1479,49 @@
 ;; read-webracket/base-module : path-string? -> syntax?
 ;;   Compatibility wrapper for WebRacket module readers.
 (define (read-webracket/base-module filename)
-  (read-webracket/module filename (webracket-module-source-language filename)))
+  (webracket/base-substitute-module-requires
+   (read-webracket/module filename (webracket-module-source-language filename))))
+
+;; substitute-require-module-path : any/c -> any/c
+;;   Rewrite selected source-level require paths to WebRacket-owned providers.
+(define (substitute-require-module-path module-path)
+  (if (eq? module-path 'racket/contract)
+      'webracket/contract
+      module-path))
+
+;; substitute-require-spec : any/c -> any/c
+;;   Rewrite provider paths inside common require combinators.
+(define (substitute-require-spec spec)
+  (match spec
+    [(? symbol?) (substitute-require-module-path spec)]
+    [`(,(and form
+             (or 'only-in 'except-in 'rename-in 'prefix-in
+                 'combine-in 'only-meta-in 'for-meta 'for-syntax
+                 'for-template 'for-label 'for-space))
+       ,body ...)
+     (cons form (map substitute-require-spec body))]
+    [_ spec]))
+
+;; substitute-require-form : any/c -> any/c
+;;   Rewrite module paths in one require form.
+(define (substitute-require-form form)
+  (match form
+    [`(require ,specs ...)
+     `(require ,@(map substitute-require-spec specs))]
+    [_ form]))
+
+;; webracket/base-substitute-module-requires : syntax? -> syntax?
+;;   Apply Goal 1 provider substitutions before module extraction/expansion.
+(define (webracket/base-substitute-module-requires stx)
+  (define datum (syntax->datum stx))
+  (define rewritten
+    (match datum
+      [`(module ,name ,language (#%module-begin ,forms ...))
+       `(module ,name ,language (#%module-begin ,@(map substitute-require-form forms)))]
+      [`(module ,name ,language ,forms ...)
+       `(module ,name ,language ,@(map substitute-require-form forms))]
+      [_ datum]))
+  (datum->syntax stx rewritten stx))
 
 ;; module-stx->name+body : syntax? -> values
 ;;   Extract the module name and body from a #lang webracket/base or full datum.
@@ -1701,14 +1743,45 @@
      name)
    eq?))
 
+;; webracket/base-provider-substitute : symbol? -> symbol?
+;;   Route selected installed providers to smaller WebRacket-owned Goal 1 shims.
+(define (webracket/base-provider-substitute name)
+  (case name
+    [(racket/contract) 'webracket/contract]
+    [else name]))
+
+;; webify-module-report/rename : report symbol? -> report
+;;   Register a substituted provider under the originally requested name.
+(define (webify-module-report/rename report name)
+  (if (eq? name (webify-module-report-name report))
+      report
+      (webify-module-report
+       name
+       (webify-module-report-directory-keys report)
+       (webify-module-report-bundle-keys report)
+       (webify-module-report-bundle-entries report)
+       (webify-module-report-phase0-imports report)
+       (webify-module-report-phase0-exports report)
+       (webify-module-report-phase0-linklet-datum report)
+       (webify-module-report-manifest-ready? report)
+       (cons (format "substituted provider registered as ~a" name)
+             (webify-module-report-notes report)))))
+
 ;; webracket/base-fetch-provider/timed : (symbol? -> webify-module-report?) -> symbol? -> webify-module-report?
 ;;   Wrap provider extraction with verbose timing diagnostics.
 (define ((webracket/base-fetch-provider/timed fetch-provider) name)
+  (define substitute-name (webracket/base-provider-substitute name))
   (define start-ms (now-ms))
-  (provider-cache-log "#lang webracket/base provider fetch start: ~a" name)
-  (define report (cached-installed-provider-report name fetch-provider))
-  (provider-cache-log "#lang webracket/base provider fetch done: ~a (~ams)"
+  (provider-cache-log "#lang webracket/base provider fetch start: ~a via ~a"
                       name
+                      substitute-name)
+  (define report
+    (webify-module-report/rename
+     (cached-installed-provider-report substitute-name fetch-provider)
+     name))
+  (provider-cache-log "#lang webracket/base provider fetch done: ~a via ~a (~ams)"
+                      name
+                      substitute-name
                       (- (now-ms) start-ms))
   report)
 

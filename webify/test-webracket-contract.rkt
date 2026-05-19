@@ -312,5 +312,19 @@
     "           (cell-value (make-cell 0))))\n")
    #rx"(?m:^42$)"))
 
+(test-case "#lang webracket/base substitutes racket/contract with erased provider"
+  (run-contract-smoke
+   (string-append
+    "#lang webracket/base\n"
+    "(require racket/contract)\n"
+    "(provide (contract-out [value integer?]))\n"
+    "(define/contract value integer? \"web\")\n"
+    "(define range-ok? (contract-first-order-passes? (integer-in 0 10) 7))\n"
+    "(define range-bad? (contract-first-order-passes? (integer-in 0 10) 99))\n"
+    "(js-log (+ (string-length value)\n"
+    "           (if range-ok? 38 0)\n"
+    "           (if range-bad? 100 1)))\n")
+   #rx"(?m:^42$)"))
+
 (module+ main
   (void))

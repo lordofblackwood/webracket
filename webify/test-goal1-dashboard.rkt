@@ -90,7 +90,8 @@
      (append-map goal1-dashboard-case-libraries goal1-dashboard-cases)
      eq?))
   (define coverage-aliases
-    '((racket/stream . webracket/stream)))
+    '((racket/contract . webracket/contract)
+      (racket/stream . webracket/stream)))
   (define (covered-name name)
     (cond
       [(assoc name coverage-aliases) => cdr]

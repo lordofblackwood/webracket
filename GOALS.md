@@ -413,8 +413,10 @@ Current installed-extraction runtime smokes cover:
   `contract`, `define/contract`, `contract-out`, `provide/contract`, and basic
   combinators like `->`, `listof`, `or/c`, and `hash/c`, but it does not enforce
   contracts or create chaperones/impersonators. See `CONTRACTS.md` for the
-  current erased-contract surface and missing semantic pieces. Installed
-  `racket/contract` remains deferred.
+  current erased-contract surface and missing semantic pieces. Goal 1 module
+  bridge programs that require `racket/contract` are now rewritten to this
+  provider, so installed `racket/contract` remains deferred while its common
+  source surface is available.
 - `racket/hash`: an immutable hash constructor, functional `hash-set`,
   `hash-ref`, and immutable hash traversal through `hash-keys`, `hash-values`,
   `hash->list`, `hash-for-each`, `hash-map`, and `hash-clear`. The current

@@ -8,6 +8,11 @@ The provider intentionally exports the same phase-0 value and syntax names as
 on the rest of the module ecosystem. It does not enforce contracts, construct
 blame objects with real projections, or create chaperones/impersonators.
 
+When the Goal 1 module bridge sees `(require racket/contract)`, it currently
+substitutes this provider instead of compiling the full installed
+`racket/contract` graph. That makes `racket/contract` usable for module
+programs that only need erased annotations and lightweight contract metadata.
+
 ## What Works
 
 - `contract`, `define/contract`, `contract-out`, `provide/contract`, and
@@ -61,7 +66,7 @@ system.
 The current checks are:
 
 - `webify/test-webracket-contract.rkt` compares the exported API with
-  `racket/contract`, tests host expansion behavior, and runs a bounded
-  WebRacket smoke for advanced erased source shapes.
+  `racket/contract`, tests host expansion behavior, and runs bounded WebRacket
+  smokes for both `webracket/contract` and substituted `racket/contract`.
 - `webify/goal1-dashboard.rkt --case full-contract-erased` checks the compact
   staged-provider row through the Goal 1 dashboard.
