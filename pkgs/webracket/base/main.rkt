@@ -4,7 +4,7 @@
          "../js/main.rkt"
          (for-syntax racket/base)
          (for-syntax racket/splicing)
-         (for-syntax "../browser-options.rkt"))
+         (for-syntax (file "../../webracket-lib/compiler/private/browser-options.rkt")))
 
 ;; `webracket/base` is the small foundation, mirroring Racket's distinction
 ;; between `racket/base` and the broader `racket` language.
@@ -12,4 +12,4 @@
          (all-from-out "../js/main.rkt")
          (for-syntax (all-from-out racket/base))
          (for-syntax (all-from-out racket/splicing))
-         (for-syntax (all-from-out "../browser-options.rkt")))
+         (for-syntax (all-from-out (file "../../webracket-lib/compiler/private/browser-options.rkt"))))

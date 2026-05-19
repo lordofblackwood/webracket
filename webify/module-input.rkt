@@ -28,7 +28,7 @@
 
 (require racket/list
          racket/match
-         "../primitives-db.rkt"
+         "../pkgs/webracket-lib/compiler/private/primitives-db.rkt"
          "primitive-modules.rkt"
          "module-registry.rkt")
 

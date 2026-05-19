@@ -17,8 +17,8 @@
 
 (require racket/match
          racket/string
-         "../define-foreign.rkt"
-         "../structs.rkt")
+         "../pkgs/webracket-lib/compiler/private/define-foreign.rkt"
+         "../pkgs/webracket-lib/compiler/private/structs.rkt")
 
 (define (load-ffi-doc-index ffi-path)
   (for/hash ([fd (in-list (ffi-file->foreign-docs ffi-path))])

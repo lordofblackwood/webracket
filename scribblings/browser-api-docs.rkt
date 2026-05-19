@@ -2,7 +2,7 @@
 
 (require (for-syntax racket/base
                      racket/string
-                     "../structs.rkt"
+                     "../pkgs/webracket-lib/compiler/private/structs.rkt"
                      "ffi-doc.rkt"))
 
 (provide render-ffi-docs)

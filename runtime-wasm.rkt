@@ -3,11 +3,11 @@
 
 (require "wasm-data.rkt"
          "wasm-utils.rkt"
-         "immediates.rkt"
-         "priminfo.rkt"
-         "parameters.rkt"
+         "pkgs/webracket-lib/compiler/private/immediates.rkt"
+         "pkgs/webracket-lib/compiler/private/priminfo.rkt"
+         "pkgs/webracket-lib/compiler/private/parameters.rkt"
          "timings.rkt"
-         "structs.rkt")
+         "pkgs/webracket-lib/compiler/private/structs.rkt")
 
 ; See the end of `generate-code` in `compiler.rkt` for an
 ; explanation of the arguments.

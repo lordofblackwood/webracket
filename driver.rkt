@@ -44,7 +44,7 @@
          (only-in racket/list       append* append-map remove-duplicates)
          (only-in racket/match      match)
          setup/dirs
-         (only-in "parameters.rkt"  current-ffi-foreigns
+         (only-in "pkgs/webracket-lib/compiler/private/parameters.rkt"  current-ffi-foreigns
                                     current-ffi-imports-wat
                                     current-ffi-funcs-wat
                                     current-browser?
@@ -58,7 +58,7 @@
          "wat-identifiers.rkt"
          racket/runtime-path
          racket/syntax
-         "browser-options.rkt"
+         "pkgs/webracket-lib/compiler/private/browser-options.rkt"
          (only-in "stdlib/module-exports.rkt"
                   stdlib-module-alias-symbols
                   stdlib-module-private-forms+bindings
@@ -132,7 +132,7 @@
          (only-in "webify/ffi-module-registry.rkt"
                   module-provider->ffi-filename)
          "compiler.rkt"
-         "define-foreign.rkt")
+         "pkgs/webracket-lib/compiler/private/define-foreign.rkt")
 
 (define-runtime-path webracket-root ".")
 

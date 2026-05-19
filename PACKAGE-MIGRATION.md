@@ -50,10 +50,39 @@ that has already been copied:
 - `webracket/set`
 - `webracket/stream`
 
-The repository-root files for this surface are now compatibility shims that
-delegate to `pkgs/webracket/...`. Compiler/runtime internals such as
-`compiler.rkt`, `driver.rkt`, `runtime-wasm.rkt`, and the active `webify/`
-tooling stay at the repository root until the package layout is less turbulent.
+The repository-root compatibility shims have been quarantined under
+`deleted/`. The live source of truth for public collection modules is now
+`pkgs/webracket/...`.
+
+The current public package surface is:
+
+```text
+pkgs/webracket/
+  base.rkt
+  bool.rkt
+  contract.rkt
+  core.rkt
+  full.rkt
+  fully.rkt
+  info.rkt
+  js.rkt
+  main.rkt
+  primitives.rkt
+  promise.rkt
+  set.rkt
+  stream.rkt
+  base/
+  full/
+  js/
+  lang/
+  private/
+  syntax/
+  unsafe/
+```
+
+Compiler/runtime internals such as `compiler.rkt`, `driver.rkt`,
+`runtime-wasm.rkt`, and the active `webify/` tooling stay at the repository
+root until the package layout is less turbulent.
 
 The CLI can keep a small repository-root wrapper if useful, but collection
 resolution for tests and package-style use should come from `pkgs/`.
@@ -80,13 +109,31 @@ separate `webracket-doc` package.
 
 ## Phase 5: Split Packages If Needed
 
-After the single package root works, split along package-server boundaries:
+The first package split is now being tried for compiler-private implementation
+helpers. Files that felt like compiler/runtime infrastructure, not public
+collection modules, live under:
 
 ```text
 pkgs/webracket-lib/
+  info.rkt
+  compiler/
+    private/
+      browser-options.rkt
+      define-foreign.rkt
+      immediates.rkt
+      parameters.rkt
+      priminfo.rkt
+      primitives-db.rkt
+      structs.rkt
+```
+
+The old root copies and the accidental `pkgs/webracket` copies are quarantined
+under `deleted/` for review before final deletion.
+
+Potential later splits:
+
+```text
 pkgs/webracket-doc/
 pkgs/webracket-test/
 pkgs/webracket-examples/
 ```
-
-Do this only after the simple `pkgs/webracket` layout is stable.

@@ -54,7 +54,7 @@
                   current-closure-conversion-progress?
                   current-closure-conversion-progress-interval
                   label-map-include-form?)
-         (only-in "../parameters.rkt"
+         (only-in "../pkgs/webracket-lib/compiler/private/parameters.rkt"
                   current-enable-cc-analysis?
                   current-enable-simplify?
                   current-letrec-strategy)

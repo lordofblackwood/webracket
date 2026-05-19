@@ -7,7 +7,8 @@
          rackunit)
 
 (define-runtime-path repo-root "..")
-(define primitives-db-path (build-path repo-root "primitives-db.rkt"))
+(define primitives-db-path
+  (build-path repo-root "pkgs" "webracket-lib" "compiler" "private" "primitives-db.rkt"))
 (define runtime-wasm-path  (build-path repo-root "runtime-wasm.rkt"))
 (define compiler-path      (build-path repo-root "compiler.rkt"))
 

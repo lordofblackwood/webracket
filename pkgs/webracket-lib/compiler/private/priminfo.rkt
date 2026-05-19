@@ -180,8 +180,8 @@
                          syms]))))
 
 
-(require (prefix-in primitives: "primitives.rkt")) ; avoid clashes, instantiates
-(define-runtime-path primitives.rkt "primitives.rkt")
+(require (prefix-in primitives: (file "../../../webracket/primitives.rkt"))) ; avoid clashes, instantiates
+(define-runtime-path primitives.rkt "../../../webracket/primitives.rkt")
 (define primitives-ns (module->namespace primitives.rkt))
 
 ;; Struct constructors are bound to syntax, so we need to get the

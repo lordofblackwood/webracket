@@ -15,7 +15,7 @@
                   label-map->sexp
                   label-map-form-labels
                   primitives)
-         (only-in "../parameters.rkt"
+         (only-in "../pkgs/webracket-lib/compiler/private/parameters.rkt"
                   current-console-bridge?
                   current-runtime-primitive-report-path)
          "../wat-identifiers.rkt"

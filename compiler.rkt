@@ -47,14 +47,14 @@
 
 (require "expander.rkt"       ; provides topexpand
          "assembler.rkt"
-         "priminfo.rkt"       ; information on Racket primitives
-         (only-in "primitives-db.rkt"
+         "pkgs/webracket-lib/compiler/private/priminfo.rkt" ; information on Racket primitives
+         (only-in "pkgs/webracket-lib/compiler/private/primitives-db.rkt"
                   primitive-db
                   primitive-info-name
                   primitive-info-properties)
          "runtime-wasm.rkt"   ;
-         "define-foreign.rkt"
-         "parameters.rkt"
+         "pkgs/webracket-lib/compiler/private/define-foreign.rkt"
+         "pkgs/webracket-lib/compiler/private/parameters.rkt"
          "timings.rkt"
          "wat-identifiers.rkt"
          ; "wasm-data.rkt"
@@ -335,7 +335,7 @@
 ;;; VARIABLES
 ;;;
 
-(require "structs.rkt")
+(require "pkgs/webracket-lib/compiler/private/structs.rkt")
 
 ; Representation of variables during compilation.
 ;     (struct variable (id) #:transparent)
@@ -841,7 +841,7 @@
 (define primitive-arity-cache (make-hasheq))
 (define primitive-info-cache #f)
 (define primitive-value-cache (make-hasheq))
-(define-runtime-path primitives-module-path "primitives.rkt")
+(define-runtime-path primitives-module-path "pkgs/webracket/primitives.rkt")
 
 (define (console-bridge-primitive-normalize sym)
   (case sym
@@ -17381,7 +17381,7 @@
 ;; [The missing immediates was introduced to avoid the null type in WebAssembly.]
 
 ; this information was also needed by "runtime-wasm.rkt" and "wasm-utils.rkt"
-(require "immediates.rkt") 
+(require "pkgs/webracket-lib/compiler/private/immediates.rkt")
 
 ;;;
 ;;; CODE GENERATOR

@@ -23,7 +23,7 @@
          "../set.rkt"
          (for-syntax racket/base)
          (for-syntax racket/splicing)
-         (for-syntax "../browser-options.rkt"))
+         (for-syntax (file "../../webracket-lib/compiler/private/browser-options.rkt")))
 
 ;; `webracket/full` is the deliberately broader, batteries-included Goal 1
 ;; surface. Keep `webracket/base` small so its name tracks Racket's convention.
@@ -50,4 +50,4 @@
          (all-from-out "../set.rkt")
          (for-syntax (all-from-out racket/base))
          (for-syntax (all-from-out racket/splicing))
-         (for-syntax (all-from-out "../browser-options.rkt")))
+         (for-syntax (all-from-out (file "../../webracket-lib/compiler/private/browser-options.rkt"))))

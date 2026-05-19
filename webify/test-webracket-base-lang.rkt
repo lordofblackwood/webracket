@@ -1681,7 +1681,7 @@
   (define generated
     (ffi-file->unsafe-module-source "ffi/math.ffi"
                                     'webracket/unsafe/math
-                                    "../primitives.rkt"))
+                                    "../pkgs/webracket/primitives.rkt"))
   (check-true (string-contains? generated "(provide\n js-math-abs"))
   (check-true (string-contains? generated "\n js-math-sqrt\n"))
   (check-true (string-contains? generated
@@ -1754,7 +1754,7 @@
                  (symbol->string module-name))))
 
 (test-case "package info declares a multi-collection install story"
-  (define info-path (build-path repo-root "info.rkt"))
+  (define info-path (build-path repo-root "pkgs" "webracket" "info.rkt"))
   (define source (file->string info-path))
   (check-true (string-contains? source "(define collection 'multi)")))
 

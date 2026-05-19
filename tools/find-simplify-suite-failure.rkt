@@ -1,7 +1,7 @@
 #lang racket/base
 
 (require (file "../compiler.rkt")
-         (file "../parameters.rkt")
+         (file "../pkgs/webracket-lib/compiler/private/parameters.rkt")
          racket/list
          racket/match
          racket/path

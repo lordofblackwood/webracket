@@ -6,7 +6,7 @@
          racket/string
          racket/system
          rackunit
-         "../priminfo.rkt")
+         "../pkgs/webracket-lib/compiler/private/priminfo.rkt")
 
 (define-runtime-path repo-root "..")
 (define-runtime-path webracket-rkt "../webracket.rkt")

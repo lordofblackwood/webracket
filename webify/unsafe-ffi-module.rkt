@@ -17,8 +17,8 @@
          unsafe-math-ffi-export-symbols
          unsafe-temp-ffi-export-symbols)
 
-(require (only-in "../define-foreign.rkt" ffi-file->foreigns)
-         (only-in "../structs.rkt"
+(require (only-in "../pkgs/webracket-lib/compiler/private/define-foreign.rkt" ffi-file->foreigns)
+         (only-in "../pkgs/webracket-lib/compiler/private/structs.rkt"
                   foreign-racket-name
                   foreign-argument-types
                   foreign-result-types)
