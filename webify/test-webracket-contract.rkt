@@ -65,9 +65,14 @@
 (module contract-out-module racket/base
   (require "../contract.rkt")
   (provide (contract-out [answer integer?]
-                         [add1-erased (-> integer? integer?)]))
+                         [add1-erased (-> integer? integer?)]
+                         [rename internal-renamed external-renamed integer?]
+                         [struct posn ([x integer?] [y integer?])]
+                         #:exists hidden/c))
   (define answer "not-an-integer")
-  (define (add1-erased x) (+ x 1)))
+  (define (add1-erased x) (+ x 1))
+  (define internal-renamed 38)
+  (struct posn (x y)))
 
 (module provide-contract-module racket/base
   (require "../contract.rkt")
@@ -93,7 +98,10 @@
 
 (test-case "contract-out erases annotations but preserves exports"
   (check-equal? contract-out:answer "not-an-integer")
-  (check-equal? (contract-out:add1-erased 41) 42))
+  (check-equal? (contract-out:add1-erased 41) 42)
+  (check-equal? contract-out:external-renamed 38)
+  (define p (contract-out:posn 20 22))
+  (check-equal? (+ (contract-out:posn-x p) (contract-out:posn-y p)) 42))
 
 (test-case "provide/contract erases annotations but preserves exports"
   (check-equal? provide-contract:answer "not-an-integer"))
