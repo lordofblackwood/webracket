@@ -188,6 +188,8 @@
     format-basic
     format-number
     format-write
+    format-print
+    format-print-string
     format-align
     format-fprintf-port
     keyword-optional-direct

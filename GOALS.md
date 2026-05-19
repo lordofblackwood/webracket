@@ -444,12 +444,13 @@ while the old textual stdlib formatter is being retired. The installed
 `format-basic` module case extracts with no missing primitive demands after the
 `webracket/primitives` root classification fix and passes the runtime probe
 under a 120s bound. For now, keep the frontier focused on `format`, `fprintf`,
-`printf`, `eprintf`, and common `~a`/`~s`/`~e` paths. The `~v` path now routes
-through `port-print-handler` and has runtime coverage for a custom print
-handler, but WebRacket still stores that handler process-wide instead of per
-port. A `#lang webracket/base` driver smoke now verifies provider-backed
-`format` with `~a`, `~s`, and `~e`, and the compact Goal 1 dashboard verifies
-`#lang webracket/full` can see provider-backed `format`.
+`printf`, `eprintf`, and common `~a`/`~s`/`~v`/`~e` paths. The `~v` path now
+routes through `port-print-handler` and has runtime coverage for a custom print
+handler plus quoted string output, but WebRacket still stores that handler
+process-wide instead of per port. A `#lang webracket/base` driver smoke now
+verifies provider-backed `format` with `~a`, `~s`, and `~e`, and the compact
+Goal 1 dashboard verifies `#lang webracket/full` can see provider-backed
+`format`.
 
 Current local-manifest runtime smokes cover hand-authored bridge shapes that do
 not depend on source extraction:
