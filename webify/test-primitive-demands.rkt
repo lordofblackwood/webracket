@@ -2,6 +2,7 @@
 
 (require racket/file
          racket/list
+         racket/match
          racket/runtime-path
          racket/string
          racket/system
@@ -13,6 +14,35 @@
 
 (define-runtime-path probe-installed-module-deps-path
   "probe-installed-module-deps.rkt")
+
+(define-runtime-path probe-installed-runtime-smoke-path
+  "probe-installed-runtime-smoke.rkt")
+
+;; source-defined-quoted-list : path-string? symbol? -> (listof symbol?)
+;;   Read a quoted list definition from a script without running that script.
+(define (source-defined-quoted-list path name)
+  (define forms
+    (call-with-input-file path
+      (lambda (in)
+        (read-line in) ; skip #lang line
+        (let loop ([forms '()])
+          (define form (read in))
+          (if (eof-object? form)
+              (reverse forms)
+              (loop (cons form forms)))))))
+  (define value
+    (for/first ([form (in-list forms)]
+                #:when (match form
+                         [`(define ,candidate ,_) (eq? candidate name)]
+                         [_ #f]))
+      (match form
+        [`(define ,_ ,value) value])))
+  (match value
+    [`(quote ,xs) xs]
+    [_ (raise-arguments-error 'source-defined-quoted-list
+                              "expected a quoted list definition"
+                              "path" path
+                              "name" name)]))
 
 (test-case "primitive demand audit collects resolved primitive imports"
   (define input
@@ -274,9 +304,24 @@
   (check-not-false (member 'sequence-for/list goal1-module-cases))
   (check-not-false (member 'match-basic goal1-module-cases))
   (check-not-false (member 'format-basic goal1-module-cases))
+  (check-not-false (member 'format-print goal1-module-cases))
+  (check-not-false (member 'format-print-string goal1-module-cases))
   (check-not-false (member 'class-basic goal1-module-cases))
   (for ([name (in-list goal1-module-cases)])
     (check-not-false (member name known-module-cases))))
+
+(test-case "Goal 1 dependency matrix is covered by runtime tiers"
+  (define runtime-goal1-cases
+    (append
+     (source-defined-quoted-list probe-installed-runtime-smoke-path
+                                 'goal1-fast-module-cases)
+     (source-defined-quoted-list probe-installed-runtime-smoke-path
+                                 'goal1-slow-module-cases)))
+  (for ([name (in-list goal1-module-cases)])
+    (check-not-false
+     (member name runtime-goal1-cases)
+     (format "~a is in goal1-module-cases but not in a runtime smoke tier"
+             name))))
 
 (test-case "new reader Goal 1 cases extract without missing primitive demands"
   (for ([name (in-list '(read-regexp-literal
