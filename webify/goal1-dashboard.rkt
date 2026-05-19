@@ -11,6 +11,8 @@
          goal1-dashboard-case-name
          goal1-dashboard-case-category
          goal1-dashboard-case-libraries
+         goal1-dashboard-default-timeout-seconds
+         goal1-dashboard-default-memory-mb
          goal1-dashboard-cases
          goal1-dashboard-row
          goal1-dashboard-row?
@@ -55,6 +57,14 @@
 (struct goal1-dashboard-row
   (name category libraries status detail note cache-events cache-files-before cache-files-after)
   #:transparent)
+
+;; goal1-dashboard-default-timeout-seconds : exact-positive-integer?
+;;   Keep compact dashboard runs bounded by default.
+(define goal1-dashboard-default-timeout-seconds 120)
+
+;; goal1-dashboard-default-memory-mb : exact-positive-integer?
+;;   Keep compact dashboard runs from exhausting the developer machine.
+(define goal1-dashboard-default-memory-mb 1024)
 
 (define goal1-dashboard-cases
   (list
@@ -147,6 +157,18 @@
          "(js-log (+ (set-count s) (if (set-member? s 2) 10 0)))\n")))
     "main.rkt"
     #rx"(?m:^13$)"
+    '("--no-io-format-provider"))
+   (goal1-dashboard-case
+    'full-set-list
+    'language-staged-provider
+    '(webracket/set)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/full\n"
+         "(define s (set 'a 'b 'c))\n"
+         "(js-log (+ (length (set->list s)) (set-count (set-rest s))))\n")))
+    "main.rkt"
+    #rx"(?m:^5$)"
     '("--no-io-format-provider"))
    (goal1-dashboard-case
     'full-promise
@@ -365,8 +387,8 @@
 ;; run-goal1-dashboard : keyword-args -> (listof goal1-dashboard-row?)
 ;;   Run the compact Goal 1 no-stdlib dashboard.
 (define (run-goal1-dashboard #:cache-dir [cache-dir (make-temporary-file "webracket-goal1-dashboard-cache-~a" 'directory)]
-                             #:timeout-seconds [timeout-seconds 120]
-                             #:memory-mb [memory-mb 1024]
+                             #:timeout-seconds [timeout-seconds goal1-dashboard-default-timeout-seconds]
+                             #:memory-mb [memory-mb goal1-dashboard-default-memory-mb]
                              #:cases [cases goal1-dashboard-cases])
   (for/list ([c (in-list cases)])
     (run-goal1-dashboard-case c cache-dir timeout-seconds memory-mb)))
@@ -388,8 +410,8 @@
                                #:json? [json? #f]
                                #:list? [list? #f]
                                #:cache-dir [cache-dir #f]
-                               #:timeout-seconds [timeout-seconds 120]
-                               #:memory-mb [memory-mb 1024])
+                               #:timeout-seconds [timeout-seconds goal1-dashboard-default-timeout-seconds]
+                               #:memory-mb [memory-mb goal1-dashboard-default-memory-mb])
   (cond
     [list?
      (for ([c (in-list goal1-dashboard-cases)])
@@ -432,8 +454,8 @@
   (define json? #f)
   (define list? #f)
   (define cache-dir #f)
-  (define timeout-seconds 120)
-  (define memory-mb 1024)
+  (define timeout-seconds goal1-dashboard-default-timeout-seconds)
+  (define memory-mb goal1-dashboard-default-memory-mb)
   (command-line
    #:once-each
    [("--tsv") "print TSV rows" (set! tsv? #t)]

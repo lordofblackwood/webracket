@@ -52,5 +52,9 @@
   (check-equal? (goal1-dashboard-row-cache-files-before row) 0)
   (check-equal? (goal1-dashboard-row-cache-files-after row) 2))
 
+(test-case "compact Goal 1 dashboard defaults are bounded"
+  (check-equal? goal1-dashboard-default-timeout-seconds 120)
+  (check-equal? goal1-dashboard-default-memory-mb 1024))
+
 (module+ main
   (void))

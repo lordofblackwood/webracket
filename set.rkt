@@ -89,7 +89,7 @@
     [else (raise-argument-error who "set?" v)]))
 
 ;; table-keys : hash? -> list?
-;;   Return table keys without relying on optional-arity `hash-keys`.
+;;   Return table keys by walking the hash iterator directly.
 (define (table-keys table)
   (let loop ([pos (hash-iterate-first table)] [acc '()])
     (cond

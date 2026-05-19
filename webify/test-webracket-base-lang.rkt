@@ -419,6 +419,38 @@
         (with-handlers ([exn:fail:filesystem? void])
           (delete-directory/files dir))))))
 
+(test-case "#lang webracket/full staged set exposes list conversion operations"
+  (define source-dir (make-temporary-file "webracket-full-staged-set-list-src-~a" 'directory))
+  (define dest-dir   (make-temporary-file "webracket-full-staged-set-list-dest-~a" 'directory))
+  (define source-path (build-path source-dir "full-staged-set-list.rkt"))
+  (dynamic-wind
+    void
+    (lambda ()
+      (call-with-output-file source-path
+        (lambda (out)
+          (display
+           (string-append
+            "#lang webracket/full\n"
+            "(define s (set 'a 'b 'c))\n"
+            "(define r (set-rest s))\n"
+            "(js-log (+ (length (set->list s))\n"
+            "           (set-count r)\n"
+            "           (if (set-member? s (set-first s)) 10 0)))\n")
+           out))
+        #:exists 'truncate/replace)
+      (define-values (status output)
+        (run-webracket/base
+         (list "-r" "--no-stdlib" "--no-io-format-provider"
+               "--dest" (path->string dest-dir)
+               (path->string source-path))
+         source-dir))
+      (check-equal? status 0 output)
+      (check-regexp-match #rx"(?m:^15$)" output))
+    (lambda ()
+      (for ([dir (in-list (list source-dir dest-dir))])
+        (with-handlers ([exn:fail:filesystem? void])
+          (delete-directory/files dir))))))
+
 (test-case "#lang webracket/base can require staged stream provider by default"
   (define source-dir (make-temporary-file "webracket-full-staged-stream-src-~a" 'directory))
   (define dest-dir   (make-temporary-file "webracket-full-staged-stream-dest-~a" 'directory))
@@ -1021,6 +1053,12 @@
                          js/console js/math))])
     (check-true (webify-provider-trial-default-bridge-module-allowed? name)
                 (symbol->string name)))
+  (for ([row (in-list ffi-module-registry-rows)])
+    (define module-name (ffi-module-registry-row-module row))
+    (check-true (webify-provider-trial-default-bridge-module-allowed? module-name)
+                (format "~a should be default-bridge allowlisted when backed by ~a"
+                        module-name
+                        (ffi-module-registry-row-ffi-filename row))))
   (for ([name (in-list '(racket/list racket/string racket/set racket/promise))])
     (check-false (webify-provider-trial-default-bridge-module-allowed? name)
                  (symbol->string name))))
