@@ -1,10 +1,12 @@
 #lang racket/base
 
 (require racket/file
+         racket/list
          racket/path
          racket/runtime-path
          racket/string
          rackunit
+         (prefix-in racket-contract: racket/contract)
          (prefix-in erased: "../contract.rkt")
          "test-module-support.rkt")
 
@@ -17,6 +19,17 @@
 
 (define path-list-separator
   (if (eq? (system-type 'os) 'windows) ";" ":"))
+
+;; phase-0-export-names : export-table export-table -> (listof symbol?)
+;;   Collect value and syntax exports for API-surface comparisons.
+(define (phase-0-export-names value-exports syntax-exports)
+  (define (names exports)
+    (define row (assoc 0 exports))
+    (if row (map car (cdr row)) '()))
+  (sort (remove-duplicates (append (names value-exports)
+                                   (names syntax-exports))
+                           eq?)
+        symbol<?))
 
 ;; collection-env-value : -> string?
 ;;   Make child Racket processes resolve this checkout as collection `webracket`.
@@ -120,7 +133,7 @@
   (check-true (erased:contract-first-order-passes? (erased:listof integer?) "not-a-list"))
   (for ([ctc (in-list (list (erased:list/c integer? string?)
                             (erased:vector/c integer? string?)
-                            (erased:immutable-vector/c integer?)
+                            (erased:vector-immutable/c integer?)
                             (erased:between/c 0 10)
                             (erased:integer-in #f 10)
                             (erased:one-of/c 'a 'b)
@@ -129,6 +142,16 @@
                             (erased:promise/c integer?)
                             (erased:procedure-arity-includes/c 2)))])
     (check-true (erased:contract? ctc))))
+
+(test-case "webracket/contract exports match racket/contract"
+  (define-values (racket-values racket-syntax)
+    (module->exports 'racket/contract))
+  (define-values (webracket-values webracket-syntax)
+    (module->exports
+     (make-resolved-module-path
+      (simplify-path (build-path repo-root "contract.rkt")))))
+  (check-equal? (phase-0-export-names webracket-values webracket-syntax)
+                (phase-0-export-names racket-values racket-syntax)))
 
 (test-case "syntax-only contract helpers erase to inert contracts"
   (define dependent (erased:->i ([x integer?]) [result integer?]))
