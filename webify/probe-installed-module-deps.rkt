@@ -84,6 +84,16 @@
     sequence-generate-star
     sequence-empty
     sequence-map-filter-count
+    sequence-andmap-ormap
+    sequence-for-each-fold
+    sequence-add-between
+    sequence-in-slice
+    sequence-in-values-star
+    sequence-predicate
+    sequence-inclusive-range
+    sequence-in-producer
+    sequence-make-do
+    sequence-in-syntax
     sequence-append-tail
     sequence-in-value
     sequence-ref-length
@@ -625,6 +635,77 @@
          (define y (+ (sequence-count even? '(1 2 3 4))
                       (length (sequence->list (sequence-filter odd? '(1 2 3 4))))
                       (sequence-ref (sequence-map add1 '(40)) 0)))))]
+    [(sequence-andmap-ormap)
+     '((module use-sequence-andmap-ormap racket/base
+         (require racket/sequence)
+         (provide y)
+         (define y
+           (+ (if (sequence-andmap number? '(1 2 3)) 10 0)
+              (if (sequence-ormap even? '(1 3 4)) 20 0)))))]
+    [(sequence-for-each-fold)
+     '((module use-sequence-for-each-fold racket/base
+         (require racket/sequence)
+         (provide y)
+         (define seen '())
+         (sequence-for-each (lambda (x) (set! seen (cons x seen))) '(1 2 3))
+         (define y (+ (length seen)
+                      (sequence-fold (lambda (acc x) (+ acc x)) 0 '(4 5 6))))))]
+    [(sequence-add-between)
+     '((module use-sequence-add-between racket/base
+         (require racket/sequence)
+         (provide y)
+         (define y (length (sequence->list (sequence-add-between '(a b c) 'sep))))))]
+    [(sequence-in-slice)
+     '((module use-sequence-in-slice racket/base
+         (require racket/sequence)
+         (provide y)
+         (define y (length (for/list ([xs (in-slice 3 (in-range 8))]) xs)))))]
+    [(sequence-in-values-star)
+     '((module use-sequence-in-values-star racket/base
+         (require racket/sequence)
+         (provide y)
+         (define y (+ (length (for/list ([xs (in-values*-sequence (in-hash (hash 'a 1 'b 2)))]) xs))
+                      (length (for/list ([xs (in-values*-sequence '(a b))]) xs))))))]
+    [(sequence-predicate)
+     '((module use-sequence-predicate racket/base
+         (require racket/sequence)
+         (provide y)
+         (define y (+ (if (sequence? 42) 10 0)
+                      (if (sequence? '(a b)) 20 0)
+                      (if (sequence? #\x) 100 0)))))]
+    [(sequence-inclusive-range)
+     '((module use-sequence-inclusive-range racket/base
+         (require racket/sequence)
+         (provide y)
+         (define y (for/fold ([sum 0]) ([x (in-inclusive-range 7 11 2)]) (+ sum x)))))]
+    [(sequence-in-producer)
+     '((module use-sequence-in-producer racket/base
+         (require racket/sequence)
+         (provide y)
+         (define n 0)
+         (define (next)
+           (set! n (+ n 1))
+           n)
+         (define y (for/fold ([sum 0]) ([x (in-producer next 4)]) (+ sum x)))))]
+    [(sequence-make-do)
+     '((module use-sequence-make-do racket/base
+         (require racket/sequence)
+         (provide y)
+         (define (in-alt-list xs)
+           (make-do-sequence
+            (lambda ()
+              (initiate-sequence
+               #:pos->element car
+               #:next-pos (lambda (xs) (cdr (cdr xs)))
+               #:init-pos xs
+               #:continue-with-pos? pair?
+               #:continue-after-pos+val? (lambda (xs _) (pair? (cdr xs)))))))
+         (define y (length (sequence->list (in-alt-list '(1 2 3 4 5 6 7)))))))]
+    [(sequence-in-syntax)
+     '((module use-sequence-in-syntax racket/base
+         (require racket/sequence)
+         (provide y)
+         (define y (length (for/list ([x (in-syntax #'(1 2 3))]) x)))))]
     [(sequence-append-tail)
      '((module use-sequence-append-tail racket/base
          (require racket/sequence)

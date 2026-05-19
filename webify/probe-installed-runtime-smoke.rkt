@@ -114,6 +114,15 @@
     sequence-generate-star
     sequence-empty
     sequence-map-filter-count
+    sequence-andmap-ormap
+    sequence-for-each-fold
+    sequence-add-between
+    sequence-in-slice
+    sequence-in-values-star
+    sequence-predicate
+    sequence-inclusive-range
+    sequence-in-producer
+    sequence-make-do
     sequence-append-tail
     sequence-in-value
     sequence-ref-length
@@ -275,6 +284,15 @@
       sequence-generate-star
       sequence-empty
       sequence-map-filter-count
+      sequence-andmap-ormap
+      sequence-for-each-fold
+      sequence-add-between
+      sequence-in-slice
+      sequence-in-values-star
+      sequence-predicate
+      sequence-inclusive-range
+      sequence-in-producer
+      sequence-make-do
       sequence-append-tail
       sequence-in-value
       sequence-ref-length
@@ -375,6 +393,16 @@
             [(sequence-generate-star) #rx"(?m:^30$)"]
             [(sequence-empty) #rx"(?m:^0$)"]
             [(sequence-map-filter-count) #rx"(?m:^45$)"]
+            [(sequence-andmap-ormap) #rx"(?m:^30$)"]
+            [(sequence-for-each-fold) #rx"(?m:^18$)"]
+            [(sequence-add-between) #rx"(?m:^5$)"]
+            [(sequence-in-slice) #rx"(?m:^3$)"]
+            [(sequence-in-values-star) #rx"(?m:^4$)"]
+            [(sequence-predicate) #rx"(?m:^30$)"]
+            [(sequence-inclusive-range) #rx"(?m:^27$)"]
+            [(sequence-in-producer) #rx"(?m:^6$)"]
+            [(sequence-make-do) #rx"(?m:^4$)"]
+            [(sequence-in-syntax) #rx"(?m:^3$)"]
             [(sequence-append-tail) #rx"(?m:^24$)"]
             [(sequence-in-value) #rx"(?m:^42$)"]
             [(sequence-ref-length) #rx"(?m:^23$)"]
