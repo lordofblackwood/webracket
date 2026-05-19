@@ -99,6 +99,12 @@
     function-negate
     sequence-list
     sequence-range
+    sequence-in-bytes
+    sequence-in-hash
+    sequence-in-hash-keys
+    sequence-in-indexed
+    sequence-in-value
+    sequence-ref-length
     sequence-for/list
     sequence-for/vector
     for/in-list
@@ -242,6 +248,12 @@
       function-negate
       sequence-list
       sequence-range
+      sequence-in-bytes
+      sequence-in-hash
+      sequence-in-hash-keys
+      sequence-in-indexed
+      sequence-in-value
+      sequence-ref-length
       sequence-for/list
       sequence-for/fold
       sequence-for/vector
@@ -318,11 +330,18 @@
             [(function-negate) #rx"(?m:^true$)"]
             [(sequence-list
               sequence-range
+              sequence-in-bytes
               sequence-for/list
               sequence-for/vector
               for/list-basic
               for/in-string)
              #rx"(?m:^3$)"]
+            [(sequence-in-hash
+              sequence-in-indexed)
+             #rx"(?m:^3$)"]
+            [(sequence-in-hash-keys) #rx"(?m:^2$)"]
+            [(sequence-in-value) #rx"(?m:^42$)"]
+            [(sequence-ref-length) #rx"(?m:^23$)"]
             [(sequence-for/fold for/fold-basic) #rx"(?m:^6$)"]
             [(for*/list-basic) #rx"(?m:^4$)"]
             [(for/in-list for/in-vector for/parallel-sequences)

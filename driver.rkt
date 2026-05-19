@@ -1585,6 +1585,22 @@
                  (lambda (pos) (< pos (string-length v)))
                  #f
                  #f)]
+        [(bytes? v)
+         (values (lambda (pos) (bytes-ref v pos))
+                 #f
+                 add1
+                 0
+                 (lambda (pos) (< pos (bytes-length v)))
+                 #f
+                 #f)]
+        [(hash? v)
+         (values (lambda (pos) (hash-iterate-key+value v pos #f))
+                 #f
+                 (lambda (pos) (hash-iterate-next v pos))
+                 (hash-iterate-first v)
+                 values
+                 #f
+                 #f)]
         [else
          (raise-argument-error 'for "sequence?" v)]))))
 

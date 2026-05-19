@@ -69,6 +69,12 @@
     function-negate
     sequence-list
     sequence-range
+    sequence-in-bytes
+    sequence-in-hash
+    sequence-in-hash-keys
+    sequence-in-indexed
+    sequence-in-value
+    sequence-ref-length
     sequence-for/list
     sequence-for/fold
     sequence-for/vector
@@ -508,6 +514,46 @@
          (require racket/sequence)
          (provide y)
          (define y (length (sequence->list (in-range 3))))))]
+    [(sequence-in-bytes)
+     '((module use-sequence-in-bytes racket/base
+         (require racket/sequence)
+         (provide y)
+         (define bstr #"abc")
+         (define y
+           (for/fold ([sum 0]) ([b (in-bytes bstr)])
+             (+ sum (if (integer? b) 1 0))))))]
+    [(sequence-in-hash)
+     '((module use-sequence-in-hash racket/base
+         (require racket/sequence)
+         (provide y)
+         (define ht (hash 'a 1 'b 2))
+         (define y
+           (for/fold ([sum 0]) ([(k v) (in-hash ht)])
+             (+ sum v)))))]
+    [(sequence-in-hash-keys)
+     '((module use-sequence-in-hash-keys racket/base
+         (require racket/sequence)
+         (provide y)
+         (define ht (hash 'a 10 'b 20))
+         (define y (length (for/list ([k (in-hash-keys ht)]) k)))))]
+    [(sequence-in-indexed)
+     '((module use-sequence-in-indexed racket/base
+         (require racket/sequence)
+         (provide y)
+         (define y
+           (for/fold ([sum 0]) ([(ch i) (in-indexed "abc")])
+             (+ sum i)))))]
+    [(sequence-in-value)
+     '((module use-sequence-in-value racket/base
+         (require racket/sequence)
+         (provide y)
+         (define y (for/first ([x (in-value 42)]) x))))]
+    [(sequence-ref-length)
+     '((module use-sequence-ref-length racket/base
+         (require racket/sequence)
+         (provide y)
+         (define y (+ (sequence-ref '(10 20 30) 1)
+                      (sequence-length "abc")))))]
     [(sequence-for/list)
      '((module use-sequence-for-list racket/base
          (require racket/sequence)

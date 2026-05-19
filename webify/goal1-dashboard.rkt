@@ -110,9 +110,13 @@
          "(define ys (for/list ([x (vector 4 5)]) x))\n"
          "(define zs (for/list ([ch \"ab\"]) ch))\n"
          "(define ns (for/list ([i 3]) i))\n"
-         "(js-log (+ (length xs) (length ys) (length zs) (length ns)))\n")))
+         "(define bstr #\"az\")\n"
+         "(define ht (hash 'a 7 'b 8))\n"
+         "(define bs (for/list ([b bstr]) b))\n"
+         "(define hs (for/list ([(k v) ht]) v))\n"
+         "(js-log (+ (length xs) (length ys) (length zs) (length ns) (length bs) (length hs)))\n")))
     "main.rkt"
-    #rx"(?m:^10$)"
+    #rx"(?m:^14$)"
     '("--no-io-format-provider"))
    (goal1-dashboard-case
     'full-bool
