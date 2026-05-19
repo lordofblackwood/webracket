@@ -48,6 +48,7 @@
     set-map
     stream-first
     stream-rest
+    bytes-append-basic
     hash-basic
     hash-kind-predicates
     hash-map-basic
@@ -209,6 +210,7 @@
     read-hash-literal
     read-port-location
     read-accept-dot-param
+    bytes-append-basic
     stream-first
     stream-rest
     promise-require
@@ -320,6 +322,11 @@
          (require racket/stream)
          (provide y)
          (define y (stream-first (stream-rest (stream 40 42))))))]
+    [(bytes-append-basic)
+     '((module use-bytes-append-basic racket/base
+         (require racket/bytes)
+         (provide y)
+         (define y (bytes-length (bytes-append #"web" #"-" #"racket")))))]
     [(hash-basic)
      '((module use-hash-basic racket/base
          (provide y)

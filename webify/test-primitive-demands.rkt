@@ -296,6 +296,7 @@
   (check-not-false (member 'read-hash-literal goal1-module-cases))
   (check-not-false (member 'read-port-location goal1-module-cases))
   (check-not-false (member 'read-accept-dot-param goal1-module-cases))
+  (check-not-false (member 'bytes-append-basic goal1-module-cases))
   (check-false (member 'read-language-no-lang goal1-module-cases))
   (check-not-false (member 'regexp-literal goal1-module-cases))
   (check-not-false (member 'regexp-capture goal1-module-cases))

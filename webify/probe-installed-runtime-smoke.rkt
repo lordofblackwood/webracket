@@ -137,6 +137,7 @@
     set-types-predicate
     stream-first
     stream-rest
+    bytes-append-basic
     promise-require
     promise-predicate-plain
     force-identity
@@ -420,6 +421,7 @@
       values-let-values
       contract-wrapper-basic
       hash-comparator-semantics
+      bytes-append-basic
       set-comparator-semantics)
      (installed-runtime-smoke
       name
@@ -439,6 +441,7 @@
             [(hash-map-basic) #rx"(?m:^3$)"]
             [(hash-clear-basic) #rx"(?m:^42$)"]
             [(hash-iterate) #rx"(?m:^9$)"]
+            [(bytes-append-basic) #rx"(?m:^10$)"]
             [(multi-module-list-string-set) #rx"(?m:^12$)"]
             [(multi-module-reexport-installed) #rx"(?m:^3$)"]
             [(pretty-require) #rx"(?m:^42$)"]
@@ -964,10 +967,7 @@
      (define selected-cases (select-goal1-cases goal1-slow-module-cases))
      (run-module-case-plan! 'goal1-slow selected-cases)]
     [selected-module-case
-     (run-child/bounded!
-      (format "case:~a" selected-module-case)
-      (module-case-smoke selected-module-case (not no-observe?))
-      (list "--module-case" (symbol->string selected-module-case)))]
+     (run-module-case-plan! 'module-case (list selected-module-case))]
     [else
      (define matches (selected-smokes))
      (when (null? matches)
