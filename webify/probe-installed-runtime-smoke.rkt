@@ -102,7 +102,19 @@
     sequence-in-bytes
     sequence-in-hash
     sequence-in-hash-keys
+    sequence-in-hash-values
+    sequence-in-hash-pairs
     sequence-in-indexed
+    sequence-stop-before-after
+    sequence-in-sequences
+    sequence-in-parallel
+    sequence-in-cycle
+    sequence-in-values-sequence
+    sequence-generate-basic
+    sequence-generate-star
+    sequence-empty
+    sequence-map-filter-count
+    sequence-append-tail
     sequence-in-value
     sequence-ref-length
     sequence-for/list
@@ -251,7 +263,19 @@
       sequence-in-bytes
       sequence-in-hash
       sequence-in-hash-keys
+      sequence-in-hash-values
+      sequence-in-hash-pairs
       sequence-in-indexed
+      sequence-stop-before-after
+      sequence-in-sequences
+      sequence-in-parallel
+      sequence-in-cycle
+      sequence-in-values-sequence
+      sequence-generate-basic
+      sequence-generate-star
+      sequence-empty
+      sequence-map-filter-count
+      sequence-append-tail
       sequence-in-value
       sequence-ref-length
       sequence-for/list
@@ -339,7 +363,19 @@
             [(sequence-in-hash
               sequence-in-indexed)
              #rx"(?m:^3$)"]
-            [(sequence-in-hash-keys) #rx"(?m:^2$)"]
+            [(sequence-in-hash-values) #rx"(?m:^30$)"]
+            [(sequence-in-hash-keys
+              sequence-in-hash-pairs) #rx"(?m:^2$)"]
+            [(sequence-stop-before-after) #rx"(?m:^5$)"]
+            [(sequence-in-sequences) #rx"(?m:^4$)"]
+            [(sequence-in-parallel) #rx"(?m:^66$)"]
+            [(sequence-in-cycle) #rx"(?m:^7$)"]
+            [(sequence-in-values-sequence) #rx"(?m:^2$)"]
+            [(sequence-generate-basic) #rx"(?m:^31$)"]
+            [(sequence-generate-star) #rx"(?m:^30$)"]
+            [(sequence-empty) #rx"(?m:^0$)"]
+            [(sequence-map-filter-count) #rx"(?m:^45$)"]
+            [(sequence-append-tail) #rx"(?m:^24$)"]
             [(sequence-in-value) #rx"(?m:^42$)"]
             [(sequence-ref-length) #rx"(?m:^23$)"]
             [(sequence-for/fold for/fold-basic) #rx"(?m:^6$)"]

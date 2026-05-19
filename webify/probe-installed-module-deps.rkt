@@ -72,7 +72,19 @@
     sequence-in-bytes
     sequence-in-hash
     sequence-in-hash-keys
+    sequence-in-hash-values
+    sequence-in-hash-pairs
     sequence-in-indexed
+    sequence-stop-before-after
+    sequence-in-sequences
+    sequence-in-parallel
+    sequence-in-cycle
+    sequence-in-values-sequence
+    sequence-generate-basic
+    sequence-generate-star
+    sequence-empty
+    sequence-map-filter-count
+    sequence-append-tail
     sequence-in-value
     sequence-ref-length
     sequence-for/list
@@ -536,6 +548,18 @@
          (provide y)
          (define ht (hash 'a 10 'b 20))
          (define y (length (for/list ([k (in-hash-keys ht)]) k)))))]
+    [(sequence-in-hash-values)
+     '((module use-sequence-in-hash-values racket/base
+         (require racket/sequence)
+         (provide y)
+         (define ht (hash 'a 10 'b 20))
+         (define y (for/fold ([sum 0]) ([v (in-hash-values ht)]) (+ sum v)))))]
+    [(sequence-in-hash-pairs)
+     '((module use-sequence-in-hash-pairs racket/base
+         (require racket/sequence)
+         (provide y)
+         (define ht (hash 'a 10 'b 20))
+         (define y (length (for/list ([p (in-hash-pairs ht)]) p)))))]
     [(sequence-in-indexed)
      '((module use-sequence-in-indexed racket/base
          (require racket/sequence)
@@ -543,6 +567,70 @@
          (define y
            (for/fold ([sum 0]) ([(ch i) (in-indexed "abc")])
              (+ sum i)))))]
+    [(sequence-stop-before-after)
+     '((module use-sequence-stop-before-after racket/base
+         (require racket/sequence)
+         (provide y)
+         (define before (for/list ([x (stop-before '(1 2 3 4) (lambda (x) (= x 3)))]) x))
+         (define after (for/list ([x (stop-after '(1 2 3 4) (lambda (x) (= x 3)))]) x))
+         (define y (+ (length before) (length after)))))]
+    [(sequence-in-sequences)
+     '((module use-sequence-in-sequences racket/base
+         (require racket/sequence)
+         (provide y)
+         (define y (length (for/list ([x (in-sequences '(a b) "cd")]) x)))))]
+    [(sequence-in-parallel)
+     '((module use-sequence-in-parallel racket/base
+         (require racket/sequence)
+         (provide y)
+         (define y
+           (for/fold ([sum 0]) ([(x y) (in-parallel '(1 2 3) '(10 20 30))])
+             (+ sum x y)))))]
+    [(sequence-in-cycle)
+     '((module use-sequence-in-cycle racket/base
+         (require racket/sequence)
+         (provide y)
+         (define y
+           (for/fold ([sum 0]) ([x (in-cycle '(1 2))]
+                                [i (in-range 5)])
+             (+ sum x)))))]
+    [(sequence-in-values-sequence)
+     '((module use-sequence-in-values-sequence racket/base
+         (require racket/sequence)
+         (provide y)
+         (define y (length (for/list ([xs (in-values-sequence (in-hash (hash 'a 1 'b 2)))]) xs)))))]
+    [(sequence-generate-basic)
+     '((module use-sequence-generate-basic racket/base
+         (require racket/sequence)
+         (provide y)
+         (define-values (more? get) (sequence-generate '(10 20 30)))
+         (define y (+ (if (more?) 1 0) (get) (get)))))]
+    [(sequence-generate-star)
+     '((module use-sequence-generate-star racket/base
+         (require racket/sequence)
+         (provide y)
+         (define-values (first next) (sequence-generate* '(10 20)))
+         (define-values (second done) (next))
+         (define-values (third _done-again) (done))
+         (define y (+ (car first) (car second) (if third 100 0)))))]
+    [(sequence-empty)
+     '((module use-sequence-empty racket/base
+         (require racket/sequence)
+         (provide y)
+         (define y (sequence-length empty-sequence))))]
+    [(sequence-map-filter-count)
+     '((module use-sequence-map-filter-count racket/base
+         (require racket/sequence)
+         (provide y)
+         (define y (+ (sequence-count even? '(1 2 3 4))
+                      (length (sequence->list (sequence-filter odd? '(1 2 3 4))))
+                      (sequence-ref (sequence-map add1 '(40)) 0)))))]
+    [(sequence-append-tail)
+     '((module use-sequence-append-tail racket/base
+         (require racket/sequence)
+         (provide y)
+         (define y (+ (length (sequence->list (sequence-append '(a b) '(c d))))
+                      (sequence-ref (sequence-tail '(10 20 30) 1) 0)))))]
     [(sequence-in-value)
      '((module use-sequence-in-value racket/base
          (require racket/sequence)

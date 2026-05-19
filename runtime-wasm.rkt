@@ -43921,7 +43921,7 @@
 
         ;; hash-iterate-next : hash? exact-nonnegative-integer? -> (or/c #f exact-nonnegative-integer?)
         ;;   Public hash iterator successor for mutable and immutable hashes.
-        (func $hash-iterate-next (type $Prim12)
+        (func $hash-iterate-next (type $Prim2)
               (param $ht  (ref eq)) ;; hash table
               (param $pos (ref eq)) ;; iteration position
               (result     (ref eq))
@@ -43936,7 +43936,7 @@
 
         ;; hash-iterate-key : hash? exact-nonnegative-integer? [any/c] -> any/c
         ;;   Public hash iterator key accessor. Optional bad-index value defaults to raising.
-        (func $hash-iterate-key (type $Prim13)
+        (func $hash-iterate-key (type $Prim23)
               (param $ht        (ref eq)) ;; hash table
               (param $pos       (ref eq)) ;; iteration position
               (param $bad-index (ref eq)) ;; optional bad-index value, default = raise
@@ -43954,7 +43954,7 @@
 
         ;; hash-iterate-value : hash? exact-nonnegative-integer? [any/c] -> any/c
         ;;   Public hash iterator value accessor. Optional bad-index value defaults to raising.
-        (func $hash-iterate-value (type $Prim13)
+        (func $hash-iterate-value (type $Prim23)
               (param $ht        (ref eq)) ;; hash table
               (param $pos       (ref eq)) ;; iteration position
               (param $bad-index (ref eq)) ;; optional bad-index value, default = raise
@@ -43972,7 +43972,7 @@
 
         ;; hash-iterate-pair : hash? exact-nonnegative-integer? [any/c] -> pair?
         ;;   Public hash iterator pair accessor. Optional bad-index value defaults to raising.
-        (func $hash-iterate-pair (type $Prim13)
+        (func $hash-iterate-pair (type $Prim23)
               (param $ht        (ref eq)) ;; hash table
               (param $pos       (ref eq)) ;; iteration position
               (param $bad-index (ref eq)) ;; optional bad-index value, default = raise
@@ -43990,7 +43990,7 @@
 
         ;; hash-iterate-key+value : hash? exact-nonnegative-integer? [any/c] -> values
         ;;   Public hash iterator key/value accessor. Optional bad-index value defaults to raising.
-        (func $hash-iterate-key+value (type $Prim13)
+        (func $hash-iterate-key+value (type $Prim23)
               (param $ht        (ref eq)) ;; hash table
               (param $pos       (ref eq)) ;; iteration position
               (param $bad-index (ref eq)) ;; optional bad-index value, default = raise
@@ -44102,7 +44102,7 @@
 
 
         ;; mutable-hash-iterate-next
-        (func $mutable-hash-iterate-next (type $Prim12)
+        (func $mutable-hash-iterate-next (type $Prim2)
               (param $ht  (ref eq))   ;; mutable hash table
               (param $pos (ref eq))   ;; current position
               (result     (ref eq))   ;; next position or #f
@@ -44152,7 +44152,7 @@
                                        $raise-argument-error:mutable-hash-expected
                                        $raise-argument-error:mutable-hashalw-expected)])
             `(func ,iter-next
-                   (type $Prim12)
+                   (type $Prim2)
                    (param $ht  (ref eq))   ;; mutable hash table
                    (param $pos (ref eq))   ;; current iteration position
                    (result     (ref eq))   ;; next iteration position or #f
@@ -44206,7 +44206,7 @@
 
 
         ;; mutable-hash-iterate-key
-        (func $mutable-hash-iterate-key (type $Prim13)
+        (func $mutable-hash-iterate-key (type $Prim23)
               (param $ht         (ref eq))  ;; mutable hash table
               (param $pos        (ref eq))  ;; iteration position
               (param $bad-index  (ref eq))  ;; optional bad-index value, default = raise
@@ -44251,7 +44251,7 @@
               (unreachable))
 
         ;; mutable-hash-iterate-value
-        (func $mutable-hash-iterate-value (type $Prim13)
+        (func $mutable-hash-iterate-value (type $Prim23)
               (param $ht         (ref eq))  ;; mutable hash table
               (param $pos        (ref eq))  ;; iteration position
               (param $bad-index  (ref eq))  ;; optional bad-index value, default = raise
@@ -44296,7 +44296,7 @@
               (unreachable))
 
         ;; mutable-hash-iterate-pair
-        (func $mutable-hash-iterate-pair (type $Prim13)
+        (func $mutable-hash-iterate-pair (type $Prim23)
               (param $ht         (ref eq))  ;; mutable hash table
               (param $pos        (ref eq))  ;; iteration position
               (param $bad-index  (ref eq))  ;; optional bad-index value, default = raise
@@ -44343,7 +44343,7 @@
               (unreachable))
 
         ;; mutable-hash-iterate-key+value
-        (func $mutable-hash-iterate-key+value (type $Prim13)
+        (func $mutable-hash-iterate-key+value (type $Prim23)
               (param $ht         (ref eq))  ;; mutable hash table
               (param $pos        (ref eq))  ;; iteration position
               (param $bad-index  (ref eq))  ;; optional bad-index value, default = raise
@@ -45512,7 +45512,7 @@
 
         ;; immutable-hash-iterate-next/public : hash? exact-nonnegative-integer? -> (or/c #f exact-nonnegative-integer?)
         ;;   Public immutable hash iterator successor index.
-        (func $immutable-hash-iterate-next/public (type $Prim12)
+        (func $immutable-hash-iterate-next/public (type $Prim2)
               (param $ht  (ref eq)) ;; immutable hash table
               (param $pos (ref eq)) ;; public fixnum iteration index
               (result     (ref eq))
@@ -45536,7 +45536,7 @@
 
         ;; immutable-hash-iterate-key/public : hash? exact-nonnegative-integer? [any/c] -> any/c
         ;;   Public immutable hash iterator key accessor.
-        (func $immutable-hash-iterate-key/public (type $Prim13)
+        (func $immutable-hash-iterate-key/public (type $Prim23)
               (param $ht        (ref eq)) ;; immutable hash table
               (param $pos       (ref eq)) ;; public fixnum iteration index
               (param $bad-index (ref eq)) ;; optional bad-index value, default = raise
@@ -45554,7 +45554,7 @@
 
         ;; immutable-hash-iterate-value/public : hash? exact-nonnegative-integer? [any/c] -> any/c
         ;;   Public immutable hash iterator value accessor.
-        (func $immutable-hash-iterate-value/public (type $Prim13)
+        (func $immutable-hash-iterate-value/public (type $Prim23)
               (param $ht        (ref eq)) ;; immutable hash table
               (param $pos       (ref eq)) ;; public fixnum iteration index
               (param $bad-index (ref eq)) ;; optional bad-index value, default = raise
@@ -45572,7 +45572,7 @@
 
         ;; immutable-hash-iterate-pair/public : hash? exact-nonnegative-integer? [any/c] -> pair?
         ;;   Public immutable hash iterator pair accessor.
-        (func $immutable-hash-iterate-pair/public (type $Prim13)
+        (func $immutable-hash-iterate-pair/public (type $Prim23)
               (param $ht        (ref eq)) ;; immutable hash table
               (param $pos       (ref eq)) ;; public fixnum iteration index
               (param $bad-index (ref eq)) ;; optional bad-index value, default = raise
@@ -45594,7 +45594,7 @@
 
         ;; immutable-hash-iterate-key+value/public : hash? exact-nonnegative-integer? [any/c] -> values
         ;;   Public immutable hash iterator key/value accessor.
-        (func $immutable-hash-iterate-key+value/public (type $Prim13)
+        (func $immutable-hash-iterate-key+value/public (type $Prim23)
               (param $ht        (ref eq)) ;; immutable hash table
               (param $pos       (ref eq)) ;; public fixnum iteration index
               (param $bad-index (ref eq)) ;; optional bad-index value, default = raise
@@ -45624,7 +45624,7 @@
               (return_call $immutable-hasheqv-iterate-first
                            (call $immutable-hash-as-hasheqv (local.get $ht))))
 
-        (func $unsafe-immutable-hash-iterate-next (type $Prim12)
+        (func $unsafe-immutable-hash-iterate-next (type $Prim2)
               (param $ht  (ref eq)) ;; immutable hash table
               (param $pos (ref eq)) ;; packed iteration position
               (result     (ref eq))
