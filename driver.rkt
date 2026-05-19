@@ -1848,6 +1848,18 @@
           webracket/js
           webracket/core
           webracket/primitives
+          ;; Shallow package-root wrappers can expose legacy relative module
+          ;; names until the real collection files move under pkgs/webracket.
+          base/main
+          base
+          full/main
+          full
+          js/main
+          js
+          core
+          primitives
+          fully
+          browser-options
           racket/base
           racket/private/base
           racket/private/pre-base
