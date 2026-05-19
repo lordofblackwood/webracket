@@ -217,7 +217,20 @@
   (define boundary-value (erased:contract integer? "not-an-integer" 'positive 'negative))
   (check-equal? boundary-value "not-an-integer")
   (check-true (erased:contract? (erased:-> integer? integer?)))
-  (check-true (erased:contract-first-order-passes? (erased:listof integer?) "not-a-list"))
+  (check-false (erased:contract-first-order-passes? (erased:listof integer?) "not-a-list"))
+  (check-true (erased:contract-first-order-passes? (erased:listof integer?) '(1 2 3)))
+  (check-false (erased:contract-first-order-passes? (erased:listof integer?) '(1 bad 3)))
+  (check-equal? (erased:contract-name (erased:listof integer?)) '(listof integer?))
+  (check-equal? (erased:contract-name (erased:flat-named-contract 'evenish even?)) 'evenish)
+  (check-true ((erased:flat-contract-predicate (erased:flat-named-contract 'evenish even?)) 4))
+  (check-false ((erased:flat-contract-predicate (erased:flat-named-contract 'evenish even?)) 5))
+  (check-true (erased:contract-first-order-passes? (erased:and/c integer? (erased:>=/c 0)) 3))
+  (check-false (erased:contract-first-order-passes? (erased:and/c integer? (erased:>=/c 0)) -1))
+  (check-true (erased:contract-first-order-passes? (erased:or/c symbol? string?) 'ok))
+  (check-true (erased:contract-first-order-passes? (erased:or/c symbol? string?) "ok"))
+  (check-false (erased:contract-first-order-passes? (erased:or/c symbol? string?) 42))
+  (check-true (erased:contract-first-order-passes? (erased:hash/c symbol? integer?) (hash 'a 1 'b 2)))
+  (check-false (erased:contract-first-order-passes? (erased:hash/c symbol? integer?) (hash 'a "bad")))
   (for ([ctc (in-list (list (erased:list/c integer? string?)
                             (erased:vector/c integer? string?)
                             (erased:vector-immutable/c integer?)
@@ -270,6 +283,10 @@
     "(define boundary-value (contract (between/c 0 100) 37 'positive 'negative))\n"
     "(define dependent (->i ([x integer?]) [result integer?]))\n"
     "(define recursive (recursive-contract (listof integer?) #:flat))\n"
+    "(define list-pass? (contract-first-order-passes? (listof integer?) '(1 2 3)))\n"
+    "(define list-fail? (contract-first-order-passes? (listof integer?) '(1 bad 3)))\n"
+    "(define vec-pass? (contract-first-order-passes? (vector/c integer? string?) #(1 \"x\")))\n"
+    "(define vec-fail? (contract-first-order-passes? (vector/c integer? string?) #(1 2)))\n"
     "(struct/contract posn ([x integer?] [y integer?]))\n"
     "(define-struct/contract point ([x integer?] [y integer?]))\n"
     "(define-contract-struct cell (value))\n"
@@ -285,9 +302,13 @@
     "           boundary-value\n"
     "           (if (contract? dependent) 1 0)\n"
     "           (if (contract? recursive) 1 0)\n"
+    "           (if list-pass? 1 0)\n"
+    "           (if list-fail? 100 0)\n"
+    "           (if vec-pass? 1 0)\n"
+    "           (if vec-fail? 100 0)\n"
     "           (length contract-values)\n"
     "           (posn-x (posn -5 20))\n"
-    "           (point-y (make-point 1 -2))\n"
+    "           (point-y (make-point 1 -4))\n"
     "           (cell-value (make-cell 0))))\n")
    #rx"(?m:^42$)"))
 

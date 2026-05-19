@@ -15,6 +15,10 @@ blame objects with real projections, or create chaperones/impersonators.
 - Common contract combinators such as `->`, `->*`, `case->`, `and/c`, `or/c`,
   `listof`, `vector/c`, `hash/c`, `parameter/c`, and range contracts produce
   inert contract descriptors.
+- `contract-name`, `contract-first-order`, `contract-first-order-passes?`, and
+  `flat-contract-predicate` provide best-effort metadata for common erased
+  descriptors. These checks are useful for library probes, but they do not turn
+  contract boundaries into enforcing wrappers.
 - Struct contract forms such as `struct/contract`, `define-struct/contract`,
   and `define-contract-struct` define ordinary structs while erasing field
   contracts. Options such as `#:transparent`, `#:mutable`, and parent-struct
@@ -43,7 +47,9 @@ system.
 
 - Real blame tracking and blame-object behavior.
 - Chaperone and impersonator wrappers.
-- Contract projections, late-negative projections, and first-order checks.
+- Contract projections and late-negative projections.
+- Complete first-order predicate coverage for every exported contract
+  constructor.
 - Contract-continuation marks beyond preserving simple expression side effects.
 - Full semantic compatibility for dependent contracts such as `->i`, `->d`,
   `hash/dc`, and `struct/dc`.

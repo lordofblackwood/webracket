@@ -122,6 +122,169 @@
 (define none/c (make-erased-contract 'none/c '()))
 (define predicate/c (make-erased-contract 'predicate/c '()))
 
+;; map-contract-names : (listof any/c) -> (listof any/c)
+;;   Map `contract-name` without pulling in higher-order list helpers.
+(define (map-contract-names contracts)
+  (if (null? contracts)
+      '()
+      (cons (contract-name (car contracts))
+            (map-contract-names (cdr contracts)))))
+
+;; map-contract-predicates : (listof contract?) -> (listof procedure?)
+;;   Map `contract-first-order` without expanding to internal map helpers.
+(define (map-contract-predicates contracts)
+  (if (null? contracts)
+      '()
+      (cons (contract-first-order (car contracts))
+            (map-contract-predicates (cdr contracts)))))
+
+;; contract-name : any/c -> any/c
+;;   Approximate Racket contract names for erased descriptors and predicates.
+(define (contract-name contract)
+  (cond
+    [(erased-contract? contract)
+     (define name  (erased-contract-name contract))
+     (define parts (erased-contract-parts contract))
+     (cond
+       [(eq? name 'flat-named-contract)
+        (if (pair? parts) (car parts) name)]
+       [(null? parts) name]
+       [else (cons name (map-contract-names parts))])]
+    [(procedure? contract)
+     (or (object-name contract) 'procedure)]
+    [else contract]))
+
+;; contract-first-order : contract? -> procedure?
+;;   Return a best-effort first-order predicate for erased descriptors.
+(define (contract-first-order contract)
+  (define (predicate-of c) (contract-first-order c))
+  (define (all-predicates-pass? predicates v)
+    (or (null? predicates)
+        (and ((car predicates) v)
+             (all-predicates-pass? (cdr predicates) v))))
+  (define (any-predicate-passes? predicates v)
+    (and (pair? predicates)
+         (or ((car predicates) v)
+             (any-predicate-passes? (cdr predicates) v))))
+  (define (all-items-pass? predicate items)
+    (or (null? items)
+        (and (predicate (car items))
+             (all-items-pass? predicate (cdr items)))))
+  (define (all-items-match-predicates? predicates items)
+    (or (null? predicates)
+        (and (pair? items)
+             ((car predicates) (car items))
+             (all-items-match-predicates? (cdr predicates) (cdr items)))))
+  (cond
+    [(procedure? contract) contract]
+    [(not (erased-contract? contract)) (lambda (_v) #t)]
+    [else
+     (define name  (erased-contract-name contract))
+     (define parts (erased-contract-parts contract))
+     (cond
+       [(eq? name 'none/c) (lambda (_v) #f)]
+       [(eq? name 'flat-named-contract)
+        (cond
+          [(and (pair? (cdr parts)) (procedure? (cadr parts))) (cadr parts)]
+          [else (lambda (_v) #t)])]
+       [(eq? name 'and/c)
+        (define predicates (map-contract-predicates parts))
+        (lambda (v) (all-predicates-pass? predicates v))]
+       [(eq? name 'or/c)
+        (define predicates (map-contract-predicates parts))
+        (lambda (v) (any-predicate-passes? predicates v))]
+       [(eq? name 'not/c)
+        (define predicate
+          (if (pair? parts) (predicate-of (car parts)) (lambda (_v) #f)))
+        (lambda (v) (not (predicate v)))]
+       [(eq? name '=/c)
+        (define expected (and (pair? parts) (car parts)))
+        (lambda (v) (equal? v expected))]
+       [(eq? name '</c)
+        (define bound (and (pair? parts) (car parts)))
+        (lambda (v) (and (real? v) (real? bound) (< v bound)))]
+       [(eq? name '>/c)
+        (define bound (and (pair? parts) (car parts)))
+        (lambda (v) (and (real? v) (real? bound) (> v bound)))]
+       [(eq? name '<=/c)
+        (define bound (and (pair? parts) (car parts)))
+        (lambda (v) (and (real? v) (real? bound) (<= v bound)))]
+       [(eq? name '>=/c)
+        (define bound (and (pair? parts) (car parts)))
+        (lambda (v) (and (real? v) (real? bound) (>= v bound)))]
+       [(or (eq? name 'between/c) (eq? name 'real-in))
+        (define lower (and (pair? parts) (car parts)))
+        (define upper (and (pair? (cdr parts)) (cadr parts)))
+        (lambda (v)
+          (and (real? v)
+               (or (not (real? lower)) (<= lower v))
+               (or (not (real? upper)) (<= v upper))))]
+       [(eq? name 'integer-in)
+        (define lower (and (pair? parts) (car parts)))
+        (define upper (and (pair? (cdr parts)) (cadr parts)))
+        (lambda (v)
+          (and (integer? v)
+               (or (not lower) (<= lower v))
+               (or (not upper) (<= v upper))))]
+       [(eq? name 'one-of/c)
+        (lambda (v) (and (member v parts) #t))]
+       [(eq? name 'symbols)
+        (lambda (v) (and (memq v parts) #t))]
+       [(eq? name 'listof)
+        (define predicate
+          (if (pair? parts) (predicate-of (car parts)) (lambda (_v) #t)))
+        (lambda (v) (and (list? v) (all-items-pass? predicate v)))]
+       [(eq? name 'list/c)
+        (define predicates (map-contract-predicates parts))
+        (lambda (v)
+          (and (list? v)
+               (= (length v) (length predicates))
+               (all-items-match-predicates? predicates v)))]
+       [(eq? name 'cons/c)
+        (define car-predicate
+          (if (pair? parts) (predicate-of (car parts)) (lambda (_v) #t)))
+        (define cdr-predicate
+          (if (pair? (cdr parts)) (predicate-of (cadr parts)) (lambda (_v) #t)))
+        (lambda (v) (and (pair? v) (car-predicate (car v)) (cdr-predicate (cdr v))))]
+       [(eq? name 'vectorof)
+        (define predicate
+          (if (pair? parts) (predicate-of (car parts)) (lambda (_v) #t)))
+        (lambda (v)
+          (and (vector? v)
+               (let loop ([i 0])
+                 (or (= i (vector-length v))
+                     (and (predicate (vector-ref v i))
+                          (loop (+ i 1)))))))]
+       [(or (eq? name 'vector/c) (eq? name 'immutable-vector/c))
+        (define predicates (map-contract-predicates parts))
+        (lambda (v)
+          (and (vector? v)
+               (= (vector-length v) (length predicates))
+               (let loop ([i 0] [predicates predicates])
+                 (or (null? predicates)
+                     (and ((car predicates) (vector-ref v i))
+                          (loop (+ i 1) (cdr predicates)))))))]
+       [(eq? name 'box/c)
+        (define predicate
+          (if (pair? parts) (predicate-of (car parts)) (lambda (_v) #t)))
+        (lambda (v) (and (box? v) (predicate (unbox v))))]
+       [(eq? name 'hash/c)
+        (define key-predicate
+          (if (pair? parts) (predicate-of (car parts)) (lambda (_v) #t)))
+        (define value-predicate
+          (if (pair? (cdr parts)) (predicate-of (cadr parts)) (lambda (_v) #t)))
+        (lambda (v)
+          (and (hash? v)
+               (let loop ([keys (hash-keys v)])
+                 (or (null? keys)
+                     (let ([key (car keys)])
+                       (and (key-predicate key)
+                            (value-predicate (hash-ref v key))
+                            (loop (cdr keys))))))))]
+       [(or (eq? name '->) (eq? name '->*) (eq? name 'case->))
+        procedure?]
+       [else (lambda (_v) #t)])]))
+
 ;; contract? : any/c -> boolean?
 ;;   Treat all values as contracts in this erased compatibility provider.
 (define (contract? _v) #t)
@@ -143,8 +306,9 @@
 (define (coerce-contract _who v) v)
 
 ;; contract-first-order-passes? : contract? any/c -> boolean?
-;;   Always report success because this provider erases enforcement.
-(define (contract-first-order-passes? _contract _v) #t)
+;;   Run the best-effort first-order predicate; boundaries still erase values.
+(define (contract-first-order-passes? contract v)
+  ((contract-first-order contract) v))
 
 ;; contract : contract? any/c any/c any/c any/c ... -> any/c
 ;;   Erase a contract boundary and return val unchanged.
@@ -208,8 +372,6 @@
 (define (blame-value _blame) #f)
 (define (build-compound-type-name name . parts) (cons name parts))
 (define (contract-custom-write-property-proc _contract) #f)
-(define (contract-first-order _contract) (lambda (_v) #t))
-(define (contract-name contract) contract)
 (define (contract-random-generate _contract . _args) #f)
 (define (contract-random-generate-fail) '(contract-random-generate-fail))
 (define (contract-random-generate-get-current-environment) #f)
@@ -220,7 +382,7 @@
 (define (contract-struct-late-neg-projection contract) contract)
 (define (eq-contract-val v) v)
 (define (equal-contract-val v) v)
-(define (flat-contract-predicate _contract) (lambda (_v) #t))
+(define (flat-contract-predicate contract) (contract-first-order contract))
 (define (keywords-match . _args) #t)
 (define (make-exn:fail:contract:blame message marks object)
   (exn:fail:contract:blame message marks object))
