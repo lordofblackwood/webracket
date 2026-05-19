@@ -553,6 +553,23 @@
                      (string->symbol trimmed)))
               (string-split text ",")))
 
+;; validate-module-case-selectors! : -> void?
+;;   Reject ambiguous or unknown module-case selectors before spawning workers.
+(define (validate-module-case-selectors!)
+  (when (and selected-module-case (pair? selected-module-cases))
+    (raise-user-error 'probe-installed-runtime-smoke
+                      "use either --module-case or --module-cases, not both"))
+  (define names
+    (append (if selected-module-case
+                (list selected-module-case)
+                '())
+            selected-module-cases))
+  (for ([name (in-list names)])
+    (unless (memq name known-module-cases)
+      (raise-user-error 'probe-installed-runtime-smoke
+                        "unknown module case: ~a"
+                        name))))
+
 ;; chunk-list : (listof any/c) exact-positive-integer? -> (listof (listof any/c))
 ;;   Split xs into chunks of at most n items.
 (define (chunk-list xs n)
@@ -863,6 +880,12 @@
      (for ([name (in-list known-module-cases)])
        (printf "case:~a\tmodule case: ~a\n" name name))
      0]
+    [(pair? selected-module-cases)
+     (define chunks (chunk-list selected-module-cases batch-size))
+     (run-thunks
+      (for/list ([names (in-list chunks)])
+        (lambda ()
+          (run-module-case-chunk/bounded! names))))]
     [goal1-fast?
      (define selected-cases (select-goal1-cases goal1-fast-module-cases))
      (define chunks (chunk-list selected-cases batch-size))
@@ -945,8 +968,10 @@
             (set! selected-name name)]
  [("--module-case") name "run one source-module case from probe-installed-module-deps"
                     (set! selected-module-case (string->symbol name))]
- [("--module-cases") names "comma-separated source-module cases for --batch-worker"
+ [("--module-cases") names "comma-separated source-module cases to run from the parent"
                      (set! selected-module-cases (parse-module-case-list names))])
+
+(validate-module-case-selectors!)
 
 (exit
  (cond
