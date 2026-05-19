@@ -202,6 +202,7 @@
     js/math
     js/performance
     js/temp
+    webracket/contract
     webracket/promise
     webracket/set
     webracket/stream
@@ -217,6 +218,7 @@
     js/math
     js/performance
     js/temp
+    webracket/contract
     webracket/promise
     webracket/set
     webracket/stream

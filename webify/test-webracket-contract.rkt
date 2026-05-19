@@ -1,0 +1,126 @@
+#lang racket/base
+
+(require racket/file
+         racket/path
+         racket/runtime-path
+         racket/string
+         rackunit
+         (prefix-in erased: "../contract.rkt")
+         "test-module-support.rkt")
+
+(define-runtime-path repo-root* "..")
+(define repo-root (simplify-path repo-root*))
+
+(define repo-parent
+  (let-values ([(base _name _must-be-dir?) (split-path repo-root)])
+    base))
+
+(define path-list-separator
+  (if (eq? (system-type 'os) 'windows) ";" ":"))
+
+;; collection-env-value : -> string?
+;;   Make child Racket processes resolve this checkout as collection `webracket`.
+(define (collection-env-value)
+  (format "~a~a~a"
+          (string-join (list (path->string repo-parent)
+                             (path->string repo-root))
+                       path-list-separator)
+          path-list-separator
+          (or (getenv "PLTCOLLECTS") "")))
+
+;; run-contract-smoke : string? regexp? -> void?
+;;   Compile and run one tiny module-language contract smoke with bounded resources.
+(define (run-contract-smoke source expected)
+  (define source-dir (make-temporary-file "webracket-contract-src-~a" 'directory))
+  (define dest-dir   (make-temporary-file "webracket-contract-dest-~a" 'directory))
+  (define source-path (build-path source-dir "main.rkt"))
+  (dynamic-wind
+    void
+    (lambda ()
+      (call-with-output-file source-path
+        (lambda (out) (display source out))
+        #:exists 'truncate/replace)
+      (define-values (status output)
+        (parameterize ([current-environment-variables
+                        (environment-variables-copy
+                         (current-environment-variables))])
+          (environment-variables-set!
+           (current-environment-variables)
+           #"PLTCOLLECTS"
+           (string->bytes/utf-8 (collection-env-value)))
+          (run-webracket
+           (list "-r" "--no-stdlib" "--no-io-format-provider"
+                 "--dest" (path->string dest-dir)
+                 (path->string source-path))
+           source-dir
+           #:timeout-seconds 120
+           #:memory-mb 1024)))
+      (check-equal? status 0 output)
+      (check-regexp-match expected output))
+    (lambda ()
+      (for ([dir (in-list (list source-dir dest-dir))])
+        (with-handlers ([exn:fail:filesystem? void])
+          (delete-directory/files dir))))))
+
+(module contract-out-module racket/base
+  (require "../contract.rkt")
+  (provide (contract-out [answer integer?]
+                         [add1-erased (-> integer? integer?)]))
+  (define answer "not-an-integer")
+  (define (add1-erased x) (+ x 1)))
+
+(module provide-contract-module racket/base
+  (require "../contract.rkt")
+  (provide/contract [answer integer?])
+  (define answer "not-an-integer"))
+
+(module define-contract-module racket/base
+  (require "../contract.rkt")
+  (provide value add1-erased)
+  (define/contract value integer? "not-an-integer")
+  (define/contract (add1-erased x) (-> integer? integer?) (+ x 1)))
+
+(module with-contract-module racket/base
+  (require "../contract.rkt")
+  (provide value)
+  (with-contract here ([value integer?]) ()
+    (define value "not-an-integer")))
+
+(require (prefix-in contract-out: (submod "." contract-out-module))
+         (prefix-in provide-contract: (submod "." provide-contract-module))
+         (prefix-in define-contract: (submod "." define-contract-module))
+         (prefix-in with-contract: (submod "." with-contract-module)))
+
+(test-case "contract-out erases annotations but preserves exports"
+  (check-equal? contract-out:answer "not-an-integer")
+  (check-equal? (contract-out:add1-erased 41) 42))
+
+(test-case "provide/contract erases annotations but preserves exports"
+  (check-equal? provide-contract:answer "not-an-integer"))
+
+(test-case "define/contract erases variable and function annotations"
+  (check-equal? define-contract:value "not-an-integer")
+  (check-equal? (define-contract:add1-erased 41) 42))
+
+(test-case "with-contract erases definition-context boundary"
+  (check-equal? with-contract:value "not-an-integer"))
+
+(test-case "runtime contract helpers erase boundaries"
+  (define boundary-value (erased:contract integer? "not-an-integer" 'positive 'negative))
+  (check-equal? boundary-value "not-an-integer")
+  (check-true (erased:contract? (erased:-> integer? integer?)))
+  (check-true (erased:contract-first-order-passes? (erased:listof integer?) "not-a-list")))
+
+(test-case "#lang webracket/base can require erased webracket/contract"
+  (run-contract-smoke
+   (string-append
+    "#lang webracket/base\n"
+    "(require webracket/contract)\n"
+    "(provide (contract-out [value integer?]))\n"
+    "(define/contract value integer? \"web\")\n"
+    "(define boundary-value (contract integer? 39 'positive 'negative))\n"
+    "(js-log (+ (string-length value) boundary-value))\n")
+   #rx"(?m:^42$)"))
+
+(module+ main
+  (void))

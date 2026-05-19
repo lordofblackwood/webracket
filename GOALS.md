@@ -406,6 +406,13 @@ Current installed-extraction runtime smokes cover:
   `stream->list`, and `in-stream`. `#lang webracket/full` still tracks
   installed `racket/stream` separately because the host language has built-in
   stream syntax that should be handled in a later language-shadowing milestone.
+- `webracket/contract`: a deliberately erased compatibility provider is
+  available for explicit `(require webracket/contract)` programs and the staged
+  `#lang webracket/full` surface. It preserves common source shapes such as
+  `contract`, `define/contract`, `contract-out`, `provide/contract`, and basic
+  combinators like `->`, `listof`, `or/c`, and `hash/c`, but it does not enforce
+  contracts or create chaperones/impersonators. Installed `racket/contract`
+  remains deferred.
 - `racket/hash`: an immutable hash constructor, functional `hash-set`,
   `hash-ref`, and immutable hash traversal through `hash-keys`, `hash-values`,
   `hash->list`, `hash-for-each`, `hash-map`, and `hash-clear`. The current

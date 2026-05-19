@@ -26,6 +26,7 @@
     racket/stream
     racket/string
     racket/vector
+    webracket/contract
     webracket/promise
     webracket/set))
 
@@ -63,5 +64,6 @@
     (racket/stream   exported extracts partial runs)
     (racket/string   exported extracts partial runs)
     (racket/vector   exported extracts partial runs)
+    (webracket/contract exported extracts staged runs)
     (webracket/promise exported extracts staged runs)
     (webracket/set     exported extracts staged runs)))
