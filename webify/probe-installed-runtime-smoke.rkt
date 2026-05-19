@@ -43,7 +43,12 @@
     read-public-list
     read-current-readtable
     read-accept-reader-param
-    read-string->number))
+    read-string->number
+    read-regexp-literal
+    read-pregexp-literal
+    read-hash-literal
+    read-port-location
+    read-accept-dot-param))
 
 ;; module-case-needs-expander-read-provider? : symbol? -> boolean?
 ;;   Select tracking probes that exercise public `read` via expander/read.
@@ -169,6 +174,11 @@
     read-current-readtable
     read-accept-reader-param
     read-string->number
+    read-regexp-literal
+    read-pregexp-literal
+    read-hash-literal
+    read-port-location
+    read-accept-dot-param
     regexp-literal
     regexp-capture
     regexp-replace
@@ -338,6 +348,11 @@
       read-current-readtable
       read-accept-reader-param
       read-string->number
+      read-regexp-literal
+      read-pregexp-literal
+      read-hash-literal
+      read-port-location
+      read-accept-dot-param
       regexp-literal
       regexp-capture
       regexp-replace
@@ -450,6 +465,10 @@
             [(read-current-readtable read-accept-reader-param)
              #rx"(?m:^true$)"]
             [(read-string->number) #rx"(?m:^42$)"]
+            [(read-regexp-literal read-pregexp-literal read-accept-dot-param)
+             #rx"(?m:^true$)"]
+            [(read-hash-literal) #rx"(?m:^41$)"]
+            [(read-port-location) #rx"(?m:^8$)"]
             [(regexp-literal) #rx"(?m:^true$)"]
             [(regexp-capture) #rx"(?m:^2$)"]
             [(regexp-replace) #rx"(?m:^bonono$)"]
