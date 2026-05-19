@@ -100,6 +100,21 @@
     #rx"(?m:^42$)"
     '("--no-io-format-provider"))
    (goal1-dashboard-case
+    'full-generic-sequence
+    'local-module-graph
+    '(webracket/full)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/full\n"
+         "(define xs (for/list ([x (list 1 2 3)]) (+ x 1)))\n"
+         "(define ys (for/list ([x (vector 4 5)]) x))\n"
+         "(define zs (for/list ([ch \"ab\"]) ch))\n"
+         "(define ns (for/list ([i 3]) i))\n"
+         "(js-log (+ (length xs) (length ys) (length zs) (length ns)))\n")))
+    "main.rkt"
+    #rx"(?m:^10$)"
+    '("--no-io-format-provider"))
+   (goal1-dashboard-case
     'full-bool
     'installed-provider-graph
     '(racket/bool)

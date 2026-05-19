@@ -1548,6 +1548,57 @@
     (webracket/base-module->top-level-forms filename))
   (datum->syntax #f `(begin ,@forms)))
 
+;; webracket-sequence-prelude-forms : -> datum
+;;   Provide the private generic sequence adapter used by expanded `for` forms.
+(define (webracket-sequence-prelude-forms)
+  '((define (make-sequence who v)
+      (cond
+        [(exact-nonnegative-integer? v)
+         (values (lambda (pos) pos)
+                 #f
+                 add1
+                 0
+                 (lambda (pos) (< pos v))
+                 #f
+                 #f)]
+        [(list? v)
+         (values car
+                 #f
+                 cdr
+                 v
+                 pair?
+                 #f
+                 #f)]
+        [(vector? v)
+         (values (lambda (pos) (vector-ref v pos))
+                 #f
+                 add1
+                 0
+                 (lambda (pos) (< pos (vector-length v)))
+                 #f
+                 #f)]
+        [(string? v)
+         (values (lambda (pos) (string-ref v pos))
+                 #f
+                 add1
+                 0
+                 (lambda (pos) (< pos (string-length v)))
+                 #f
+                 #f)]
+        [else
+         (raise-argument-error 'for "sequence?" v)]))))
+
+;; with-webracket-sequence-prelude : syntax? -> syntax?
+;;   Add generic sequence support without exposing it as a language export.
+(define (with-webracket-sequence-prelude stx)
+  (datum->syntax
+   stx
+   `(begin ,@(webracket-sequence-prelude-forms)
+           ,@(match (syntax->datum stx)
+               [`(begin ,forms ...) forms]
+               [datum (list datum)]))
+   stx))
+
 (struct webracket/base-local-module-graph (root reports registry)
   #:transparent)
 
@@ -1844,10 +1895,11 @@
             [starts-with-webracket/base-lang?
              (current-source-module-language
               (webracket-module-lang-line->language first-line))
-             (if webracket-module-bridge?
-                 (module-file->module-bridge-top-level filename)
-                 (or (module-file->module-bridge-top-level/local-only filename)
-                     (module-file->top-level filename)))]
+             (with-webracket-sequence-prelude
+              (if webracket-module-bridge?
+                  (module-file->module-bridge-top-level filename)
+                  (or (module-file->module-bridge-top-level/local-only filename)
+                      (module-file->top-level filename))))]
             [else
              (current-source-module-language #f)
              (define forms (read-forms port))
