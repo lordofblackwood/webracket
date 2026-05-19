@@ -40,7 +40,7 @@
 
 ;; This module is generated from `ffi/math.ffi` in the same raw/unsafe layer as
 ;; `webracket/unsafe/console`. Each binding aliases an active `.ffi` primitive;
-;; compile users with `--ffi math` to make the imports available.
+;; the driver infers `math.ffi` automatically from this module provider.
 
 (define js-math-abs    (unsafe-ffi-primitive 'js-math-abs))
 (define js-math-acos   (unsafe-ffi-primitive 'js-math-acos))

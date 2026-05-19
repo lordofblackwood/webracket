@@ -120,6 +120,21 @@ the WebRacket version of the larger `racket` language.
 the module-language foundation, then grows a deliberately tested library
 surface.
 
+Goal 1 should prefer original Racket implementations or staged provider slices
+over the old textual `stdlib/` whenever practical. The temporary stdlib remains
+useful for script compatibility and for pieces that have not yet moved, but it
+is not the long-term home for library functionality. In particular, `format`
+and `fprintf` are now treated as `io/format` provider-owned names, regular
+expressions should come from `racket-src/regexp/`, and reader functionality
+should come from `racket-src/expander/read/` instead of the abandoned stdlib
+experiments.
+
+Daily Goal 1 iteration should use the compact dashboard or the fast
+module-language smokes first. The larger historical module-language test file
+is still useful, but it is intentionally not the default quick feedback loop.
+Dashboard runs are bounded by default so one stuck provider cannot exhaust the
+developer machine.
+
 Good initial add-on candidates are the libraries already represented in Goal 1
 smokes or close to the current browser runtime:
 

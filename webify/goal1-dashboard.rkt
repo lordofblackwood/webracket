@@ -14,6 +14,7 @@
          goal1-dashboard-default-timeout-seconds
          goal1-dashboard-default-memory-mb
          goal1-dashboard-cases
+         goal1-dashboard-select-cases
          goal1-dashboard-row
          goal1-dashboard-row?
          goal1-dashboard-row-name
@@ -116,6 +117,20 @@
     `(("main.rkt" . "#lang webracket/full\n(js-log (string-join '(\"a\" \"b\") \"\"))\n"))
     "main.rkt"
     #rx"(?m:^ab$)"
+    '("--no-io-format-provider"))
+   (goal1-dashboard-case
+    'full-list-more
+    'installed-provider-graph
+    '(racket/list)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/full\n"
+         "(define xs '(1 2 3 4))\n"
+         "(define ys (filter-map (lambda (x) (and (even? x) (+ x 10))) xs))\n"
+         "(define zs (append-map (lambda (x) (list x x)) '(5 6)))\n"
+         "(js-log (+ (first ys) (length zs) (first (rest ys)) 12))\n")))
+    "main.rkt"
+    #rx"(?m:^42$)"
     '("--no-io-format-provider"))
    (goal1-dashboard-case
     'full-vector
@@ -253,6 +268,33 @@
     "main.rkt"
     #rx"(?m:^true$)"
     '("--no-io-format-provider"))))
+
+;; split-selectors : (or/c string? #f) -> (listof symbol?)
+;;   Parse a comma-separated command-line selector list.
+(define (split-selectors value)
+  (cond
+    [(not value) '()]
+    [else
+     (for/list ([part (in-list (string-split value ","))]
+                #:do [(define trimmed (string-trim part))]
+                #:unless (string=? trimmed ""))
+       (string->symbol trimmed))]))
+
+;; goal1-dashboard-select-cases : list [#:names list] [#:categories list] -> list
+;;   Select compact dashboard cases by name and/or category.
+(define (goal1-dashboard-select-cases cases
+                                      #:names [names '()]
+                                      #:categories [categories '()])
+  (define name-set (for/hasheq ([name (in-list names)]) (values name #t)))
+  (define category-set (for/hasheq ([category (in-list categories)]) (values category #t)))
+  (for/list ([c (in-list cases)]
+             #:when (and (or (null? names)
+                             (hash-ref name-set (goal1-dashboard-case-name c) #f))
+                         (or (null? categories)
+                             (hash-ref category-set
+                                       (goal1-dashboard-case-category c)
+                                       #f))))
+    c))
 
 ;; collection-env-value : -> string?
 ;;   Make child Racket processes resolve this checkout as collection `webracket`.
@@ -411,10 +453,16 @@
                                #:list? [list? #f]
                                #:cache-dir [cache-dir #f]
                                #:timeout-seconds [timeout-seconds goal1-dashboard-default-timeout-seconds]
-                               #:memory-mb [memory-mb goal1-dashboard-default-memory-mb])
+                               #:memory-mb [memory-mb goal1-dashboard-default-memory-mb]
+                               #:case-names [case-names '()]
+                               #:categories [categories '()])
+  (define selected-cases
+    (goal1-dashboard-select-cases goal1-dashboard-cases
+                                  #:names case-names
+                                  #:categories categories))
   (cond
     [list?
-     (for ([c (in-list goal1-dashboard-cases)])
+     (for ([c (in-list selected-cases)])
        (printf "~a\tcategory\t~a\tlibraries\t~a\n"
                (goal1-dashboard-case-name c)
                (goal1-dashboard-case-category c)
@@ -427,7 +475,8 @@
      (define rows
        (run-goal1-dashboard #:cache-dir actual-cache-dir
                             #:timeout-seconds timeout-seconds
-                            #:memory-mb memory-mb))
+                            #:memory-mb memory-mb
+                            #:cases selected-cases))
      (cond
        [json?
         (write-json (map row->jsexpr rows))
@@ -456,6 +505,8 @@
   (define cache-dir #f)
   (define timeout-seconds goal1-dashboard-default-timeout-seconds)
   (define memory-mb goal1-dashboard-default-memory-mb)
+  (define case-names '())
+  (define categories '())
   (command-line
    #:once-each
    [("--tsv") "print TSV rows" (set! tsv? #t)]
@@ -466,10 +517,16 @@
    [("--timeout") n "per-case timeout in seconds"
                   (set! timeout-seconds (string->number n))]
    [("--memory-mb") n "per-case memory limit in MiB"
-                    (set! memory-mb (string->number n))])
+                    (set! memory-mb (string->number n))]
+   [("--case") names "comma-separated case names to run/list"
+               (set! case-names (split-selectors names))]
+   [("--category") names "comma-separated categories to run/list"
+                   (set! categories (split-selectors names))])
   (print-goal1-dashboard #:tsv? tsv?
                          #:json? json?
                          #:list? list?
                          #:cache-dir cache-dir
                          #:timeout-seconds timeout-seconds
-                         #:memory-mb memory-mb))
+                         #:memory-mb memory-mb
+                         #:case-names case-names
+                         #:categories categories))

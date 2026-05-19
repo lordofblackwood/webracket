@@ -1711,6 +1711,22 @@
     (check-not-false (module-provider->ffi-path (car row))
                      (symbol->string (car row)))))
 
+(test-case "FFI module registry ignores declarations without migrated modules"
+  (for ([module-name (in-list '(js/canvas
+                                js/dom
+                                js/element
+                                js/jsxgraph
+                                js/standard
+                                webracket/unsafe/canvas
+                                webracket/unsafe/dom
+                                webracket/unsafe/element
+                                webracket/unsafe/jsxgraph
+                                webracket/unsafe/standard))])
+    (check-false (module-provider->ffi-filename module-name)
+                 (symbol->string module-name))
+    (check-false (webify-provider-trial-default-bridge-module-allowed? module-name)
+                 (symbol->string module-name))))
+
 (test-case "package info declares a multi-collection install story"
   (define info-path (build-path repo-root "info.rkt"))
   (define source (file->string info-path))

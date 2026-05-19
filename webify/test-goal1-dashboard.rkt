@@ -56,5 +56,19 @@
   (check-equal? goal1-dashboard-default-timeout-seconds 120)
   (check-equal? goal1-dashboard-default-memory-mb 1024))
 
+(test-case "compact Goal 1 dashboard selectors filter by name and category"
+  (define by-name
+    (goal1-dashboard-select-cases goal1-dashboard-cases
+                                  #:names '(full-list-more full-set-list)))
+  (check-equal? (map goal1-dashboard-case-name by-name)
+                '(full-list-more full-set-list))
+  (define by-category
+    (goal1-dashboard-select-cases goal1-dashboard-cases
+                                  #:categories '(ffi-module)))
+  (check-true (andmap (lambda (c)
+                        (eq? (goal1-dashboard-case-category c) 'ffi-module))
+                      by-category))
+  (check-not-false (member 'ffi-js-math (map goal1-dashboard-case-name by-category))))
+
 (module+ main
   (void))
