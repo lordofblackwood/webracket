@@ -50,6 +50,12 @@
 (check-true (string-contains? private-package-info-source "\"math-lib\""))
 (check-true (string-contains? private-package-info-source "\"nanopass\""))
 
+(parameterize ([current-library-collection-paths
+                (cons package-parent (current-library-collection-paths))])
+  (dynamic-require 'webracket/base #f)
+  (dynamic-require 'webracket-lib/compiler/compiler #f)
+  (dynamic-require 'webracket-lib/compiler/driver #f))
+
 (define non-package-dirs
   '("assets"
     "examples"
