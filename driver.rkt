@@ -1848,8 +1848,9 @@
           webracket/js
           webracket/core
           webracket/primitives
-          ;; Shallow package-root wrappers can expose legacy relative module
-          ;; names until the real collection files move under pkgs/webracket.
+          ;; Some host-expanded source can still report legacy relative names.
+          ;; Treat them as language-root providers while the bridge normalizes
+          ;; installed and package-local module paths.
           base/main
           base
           full/main

@@ -13,8 +13,9 @@ accidentally becoming top-level Racket collections.
 
 - Add `pkgs/webracket/` as the intended package root.
 - Centralize local collection-path setup in `webify/test-module-support.rkt`.
-- Keep the current root layout working while tests learn to prefer
-  `pkgs/webracket` once it contains the real collection files.
+- Keep the current root layout working only during the initial move. Once
+  `pkgs/webracket` contains real collection files, tests must use `pkgs/`
+  directly and fail instead of falling back to the repo parent.
 - Do not add the repository root itself to `PLTCOLLECTS`.
 
 ## Phase 2: Shallow Package Root
@@ -28,9 +29,9 @@ This phase makes the checkout work with:
 PLTCOLLECTS=/path/to/repo/pkgs:$PLTCOLLECTS
 ```
 
-while avoiding a large physical move in a dirty worktree. The first slice used
-copied source for provider/language modules where wrapper re-exporting was not
-enough for Webify's export extraction.
+while avoiding a large physical move in a dirty worktree. This was temporary:
+the root shims have since been quarantined under `deleted/`, and `pkgs/` is now
+the only collection parent used by the Webify tests.
 
 ## Phase 3: Promote the Current Package Surface
 
@@ -112,9 +113,9 @@ separate `webracket-doc` package.
 
 ## Phase 5: Split Packages If Needed
 
-The first package split is now being tried for compiler-private implementation
-helpers. Files that felt like compiler/runtime infrastructure, not public
-collection modules, live under:
+The first package split moved compiler-private implementation helpers out of the
+public collection. Files that feel like compiler/runtime infrastructure, not
+public collection modules, live under:
 
 ```text
 pkgs/webracket-lib/
