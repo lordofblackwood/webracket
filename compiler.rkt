@@ -55,9 +55,9 @@
          "runtime-wasm.rkt"   ;
          "pkgs/webracket-lib/compiler/private/define-foreign.rkt"
          "pkgs/webracket-lib/compiler/private/parameters.rkt"
-         "timings.rkt"
-         "wat-identifiers.rkt"
-         ; "wasm-data.rkt"
+         "pkgs/webracket-lib/compiler/private/timings.rkt"
+         "pkgs/webracket-lib/compiler/private/wat-identifiers.rkt"
+         ; "pkgs/webracket-lib/compiler/private/wasm-data.rkt"
          nanopass/base
          racket/match
          racket/file

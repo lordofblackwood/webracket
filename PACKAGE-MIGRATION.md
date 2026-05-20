@@ -123,15 +123,23 @@ pkgs/webracket-lib/
     private/
       browser-options.rkt
       define-foreign.rkt
+      fasl.rkt
+      get-env-path.rkt
       immediates.rkt
       parameters.rkt
       priminfo.rkt
       primitives-db.rkt
       structs.rkt
+      timings.rkt
+      wasm-data.rkt
+      wat-identifiers.rkt
 ```
 
 The old root copies and accidental `pkgs/webracket` private-helper copies were
-reviewed and removed after the package split landed.
+reviewed and removed after the package split landed. The larger compiler and
+runtime entrypoints still live at the repository root for now, but their small
+implementation helpers are private package modules instead of root-level
+collections.
 
 Potential later splits:
 

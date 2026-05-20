@@ -71,13 +71,20 @@
 (define private-helper-files
   '("browser-options.rkt"
     "define-foreign.rkt"
+    "fasl.rkt"
+    "get-env-path.rkt"
     "immediates.rkt"
     "parameters.rkt"
     "priminfo.rkt"
     "primitives-db.rkt"
-    "structs.rkt"))
+    "structs.rkt"
+    "timings.rkt"
+    "wasm-data.rkt"
+    "wat-identifiers.rkt"))
 
 (for ([file (in-list private-helper-files)])
+  (check-true (file-exists? (build-path private-package-root file))
+              (format "compiler-private helper should live in webracket-lib: ~a" file))
   (check-false (file-exists? (build-path webracket-repo-root file))
                (format "compiler-private helper should not live at repo root: ~a" file))
   (check-false (file-exists? (build-path package-root file))

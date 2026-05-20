@@ -54,8 +54,10 @@
                                     current-letrec-strategy
                                     current-tree-shake?
                                     current-runtime-primitive-report-path)
-         (only-in "timings.rkt"     now-ms format-timing-table)
-         "wat-identifiers.rkt"
+         (only-in "pkgs/webracket-lib/compiler/private/timings.rkt"
+                  now-ms
+                  format-timing-table)
+         "pkgs/webracket-lib/compiler/private/wat-identifiers.rkt"
          racket/runtime-path
          racket/syntax
          "pkgs/webracket-lib/compiler/private/browser-options.rkt"
