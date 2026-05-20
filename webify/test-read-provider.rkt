@@ -3,8 +3,8 @@
 (require racket/file
          racket/list
          rackunit
-         "module-adapter.rkt"
-         "read-provider.rkt")
+         "../pkgs/webracket-lib/compiler/webify/module-adapter.rkt"
+         "../pkgs/webracket-lib/compiler/webify/read-provider.rkt")
 
 (test-case "expander/read provider demodularizes and caches"
   (define cache-dir (make-temporary-file "webracket-read-provider-cache-~a" 'directory))

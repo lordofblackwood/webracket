@@ -3,9 +3,9 @@
 (require rackunit
          (only-in "../pkgs/webracket-lib/compiler/driver.rkt"
                   provider-owned-primitive-alias-symbols)
-         "io-format-bridge.rkt"
-         "read-provider.rkt"
-         "regexp-provider.rkt")
+         "../pkgs/webracket-lib/compiler/webify/io-format-bridge.rkt"
+         "../pkgs/webracket-lib/compiler/webify/read-provider.rkt"
+         "../pkgs/webracket-lib/compiler/webify/regexp-provider.rkt")
 
 (test-case "provider-owned aliases include regexp by default"
   (define aliases (provider-owned-primitive-alias-symbols))

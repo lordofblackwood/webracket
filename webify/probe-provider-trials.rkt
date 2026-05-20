@@ -8,8 +8,8 @@
          racket/list
          racket/path
          racket/string
-         "module-extractor.rkt"
-         "provider-trials.rkt")
+         "../pkgs/webracket-lib/compiler/webify/module-extractor.rkt"
+         "../pkgs/webracket-lib/compiler/webify/provider-trials.rkt")
 
 ;; join-symbols : (listof symbol?) -> string?
 ;;   Render symbols compactly for TSV cells.

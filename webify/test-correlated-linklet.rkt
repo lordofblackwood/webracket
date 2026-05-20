@@ -2,12 +2,12 @@
 
 (require rackunit
          racket/list
-         "correlated-linklet.rkt"
-         "correlated-runner.rkt"
-         "first-slice.rkt"
-         "known.rkt"
-         "module-variable.rkt"
-         "wrap.rkt")
+         "../pkgs/webracket-lib/compiler/webify/correlated-linklet.rkt"
+         "../pkgs/webracket-lib/compiler/webify/correlated-runner.rkt"
+         "../pkgs/webracket-lib/compiler/webify/first-slice.rkt"
+         "../pkgs/webracket-lib/compiler/webify/known.rkt"
+         "../pkgs/webracket-lib/compiler/webify/module-variable.rkt"
+         "../pkgs/webracket-lib/compiler/webify/wrap.rkt")
 
 ;; Synthetic same-named struct for adapter tests.
 (struct correlated-linklet (expr name compiled) #:transparent)

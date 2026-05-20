@@ -43,10 +43,10 @@
          racket/string
          racket/system
          rackunit
-         "module-diagnostics.rkt"
-         "module-composer.rkt"
-         "primitive-demands.rkt"
-         "read-provider.rkt"
+         "../pkgs/webracket-lib/compiler/webify/module-diagnostics.rkt"
+         "../pkgs/webracket-lib/compiler/webify/module-composer.rkt"
+         "../pkgs/webracket-lib/compiler/webify/primitive-demands.rkt"
+         "../pkgs/webracket-lib/compiler/webify/read-provider.rkt"
          "test-module-support.rkt")
 
 (define-runtime-path repo-root "..")
@@ -129,9 +129,9 @@
       (display "#lang racket/base\n" out)
       (write
        `(begin
-          (require (file ,(path->string (build-path repo-root "webify/module-extractor.rkt")))
-                   (file ,(path->string (build-path repo-root "webify/module-input.rkt")))
-                   (file ,(path->string (build-path repo-root "webify/module-protocol.rkt"))))
+          (require (file ,(path->string (build-path repo-root "pkgs/webracket-lib/compiler/webify/module-extractor.rkt")))
+                   (file ,(path->string (build-path repo-root "pkgs/webracket-lib/compiler/webify/module-input.rkt")))
+                   (file ,(path->string (build-path repo-root "pkgs/webracket-lib/compiler/webify/module-protocol.rkt"))))
           (define root-names ',root-names)
           (define inputs
             (webify-source-modules->discovered-resolved-linklet-inputs

@@ -18,9 +18,9 @@
 
 (define-runtime-path here ".")
 (define module-extractor-module
-  (build-path here "module-extractor-spike.rkt"))
+  (build-path here "../pkgs/webracket-lib/compiler/webify/module-extractor-spike.rkt"))
 (define module-input-module
-  (build-path here "module-input.rkt"))
+  (build-path here "../pkgs/webracket-lib/compiler/webify/module-input.rkt"))
 (define module-audit-module
   (build-path here "module-audit.rkt"))
 

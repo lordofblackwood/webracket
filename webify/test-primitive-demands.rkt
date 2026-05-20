@@ -7,10 +7,10 @@
          racket/string
          racket/system
          rackunit
-         "module-extractor.rkt"
-         "module-input.rkt"
+         "../pkgs/webracket-lib/compiler/webify/module-extractor.rkt"
+         "../pkgs/webracket-lib/compiler/webify/module-input.rkt"
          "probe-installed-module-deps.rkt"
-         "primitive-demands.rkt")
+         "../pkgs/webracket-lib/compiler/webify/primitive-demands.rkt")
 
 (define-runtime-path probe-installed-module-deps-path
   "probe-installed-module-deps.rkt")

@@ -40,7 +40,7 @@
          io-format-local-require-closure
          io-format-summaries)
 
-(define-runtime-path io-source-root "../racket-src/io")
+(define-runtime-path io-source-root "../../../../racket-src/io")
 (define-runtime-path upstream-io-source-root "../../racket/racket/src/io")
 
 (define (simplified-complete-path path)

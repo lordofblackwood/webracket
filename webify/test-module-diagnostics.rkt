@@ -1,7 +1,7 @@
 #lang racket/base
 
 (require rackunit
-         "module-diagnostics.rkt")
+         "../pkgs/webracket-lib/compiler/webify/module-diagnostics.rkt")
 
 (test-case "module diagnostics classify extraction and resolution exceptions"
   (define missing-decompile

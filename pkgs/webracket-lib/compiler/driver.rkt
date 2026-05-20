@@ -68,41 +68,41 @@
                   stdlib-module-alias-symbols
                   stdlib-module-private-forms+bindings
                   stdlib-definition-form-symbols)
-         (only-in "../../../webify/io-format-bridge.rkt"
+         (only-in "webify/io-format-bridge.rkt"
                   webify-io-format-root-name
                   webify-io-format-export-symbols
                   webify-io-format-registry
                   webify-io-format-private-alias-forms
                   webify-io-format-public-alias-forms)
-         (only-in "../../../webify/regexp-provider.rkt"
+         (only-in "webify/regexp-provider.rkt"
                   webify-regexp-default-cache-root
                   webify-regexp-export-symbols
                   webify-regexp-lowered-provider-cache-path
                   webify-regexp-linklet
                   webify-regexp-public-alias-forms
                   webify-regexp-source-fingerprint)
-         (only-in "../../../webify/read-provider.rkt"
+         (only-in "webify/read-provider.rkt"
                   webify-read-export-symbols
                   webify-read-linklet
                   webify-read-lowered-provider-cache-path
                   webify-read-public-alias-forms
                   webify-read-public-alias-symbols
                   webify-read-source-fingerprint)
-         (only-in "../../../webify/read-syntax-provider.rkt"
+         (only-in "webify/read-syntax-provider.rkt"
                   webify-read-syntax-alias-forms
                   webify-read-syntax-export-symbols
                   webify-read-syntax-linklet
                   webify-read-syntax-lowered-provider-cache-path
                   webify-read-syntax-source-fingerprint)
-         (only-in "../../../webify/module-adapter.rkt"
+         (only-in "webify/module-adapter.rkt"
                   first-slice-top-level-export-cell-ids
                   webify-linklet-first-slice-top-level)
-         (only-in "../../../webify/module-registry.rkt"
+         (only-in "webify/module-registry.rkt"
                   webify-compose-module-registry/roots/composition
                   webify-module-composition-with-tail)
-         (only-in "../../../webify/module-input.rkt"
+         (only-in "webify/module-input.rkt"
                   webify-module-linklet-inputs->registry)
-         (only-in "../../../webify/module-extractor.rkt"
+         (only-in "webify/module-extractor.rkt"
                   make-webify-contract-erasing-namespace
                   make-webify-contract-erasing-module-name-resolver
                   make-webify-module-provider-cache
@@ -126,20 +126,21 @@
                   webify-module-report-phase0-linklet-datum
                   webify-module-report-required-provider-names
                   webify-module-reports->resolved-linklet-inputs)
-         (only-in "../../../webify/module-protocol.rkt"
+         (only-in "webify/module-protocol.rkt"
                   webify-module-protocol-input
                   webify-module-protocol-report
                   webify-module-protocol-dependency)
-         (only-in "../../../webify/provider-trials.rkt"
+         (only-in "webify/provider-trials.rkt"
                   webify-provider-trial-default-bridge-module-allowed?
                   webify-provider-trial-module-allowed?
                   webify-provider-trial-module-allowlist)
-         (only-in "../../../webify/ffi-module-registry.rkt"
+         (only-in "webify/ffi-module-registry.rkt"
                   module-provider->ffi-filename)
          "compiler.rkt"
          "private/define-foreign.rkt")
 
 (define-runtime-path webracket-root "../../..")
+(define-runtime-path webify-root "webify")
 
 ;; webracket/module-reader-path : (or/c 'base 'full) -> (or/c path? #f)
 ;;   Resolve an installed WebRacket module reader through Racket's collection search.
@@ -538,7 +539,7 @@
   (path-fingerprint
    'io-format-provider-cache
    1
-   (cons (build-path webracket-root "webify/io-format-bridge.rkt")
+   (cons (build-path webify-root "io-format-bridge.rkt")
          (find-files file-exists? (build-path webracket-root "racket-src/io")))))
 
 ;; provider-slice-forms : symbol? #:public-aliases? boolean? -> (listof datum?)

@@ -18,8 +18,8 @@ holds compiler/runtime implementation support that should not be part of the
 public collection surface.
 
 The root `webracket.rkt` file is a CLI wrapper. The CLI implementation,
-compiler, driver, runtime generator, assembler, bundled `.ffi` declarations,
-legacy textual stdlib, and private helper modules live under
+compiler, driver, runtime generator, assembler, Webify lowering/module support,
+bundled `.ffi` declarations, legacy textual stdlib, and private helper modules live under
 `pkgs/webracket-lib/compiler/`.
 
 Tests use `webify/test-module-support.rkt` to put this directory, not the

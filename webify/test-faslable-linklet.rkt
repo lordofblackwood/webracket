@@ -1,7 +1,7 @@
 #lang racket/base
 
 (require rackunit
-         "faslable-linklet.rkt")
+         "../pkgs/webracket-lib/compiler/webify/faslable-linklet.rkt")
 
 (define make-faslable-correlated-linklet
   (dynamic-require 'compiler/faslable-correlated

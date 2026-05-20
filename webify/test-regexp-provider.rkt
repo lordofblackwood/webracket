@@ -9,8 +9,8 @@
          rackunit
          (only-in "../pkgs/webracket-lib/compiler/driver.rkt"
                   regexp-provider-forms)
-         "provider-slices.rkt"
-         "regexp-provider.rkt")
+         "../pkgs/webracket-lib/compiler/webify/provider-slices.rkt"
+         "../pkgs/webracket-lib/compiler/webify/regexp-provider.rkt")
 
 (define-runtime-path webracket-rkt "../webracket.rkt")
 

@@ -15,9 +15,9 @@
          racket/path
          racket/runtime-path)
 
-(define-runtime-path ffi-root "../pkgs/webracket-lib/compiler/ffi")
-(define-runtime-path js-root "../pkgs/webracket/js")
-(define-runtime-path unsafe-root "../pkgs/webracket/unsafe")
+(define-runtime-path ffi-root "../ffi")
+(define-runtime-path js-root "../../../webracket/js")
+(define-runtime-path unsafe-root "../../../webracket/unsafe")
 
 (struct ffi-module-registry-row (module ffi-filename ffi-path)
   #:transparent)

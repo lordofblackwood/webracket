@@ -18,7 +18,7 @@
          "module-input.rkt"
          "module-registry.rkt")
 
-(define-runtime-path webracket-root "..")
+(define-runtime-path webracket-root "../../../..")
 
 (define webify-io-print-root-name
   'racket-src/io/print/main-web.rkt)

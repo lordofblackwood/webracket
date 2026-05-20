@@ -2,7 +2,7 @@
 
 (require racket/cmdline
          racket/file
-         "read-syntax-provider.rkt")
+         "../pkgs/webracket-lib/compiler/webify/read-syntax-provider.rkt")
 
 (module+ main
   (define cache-root

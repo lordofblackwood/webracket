@@ -30,7 +30,7 @@
          racket/match
          racket/runtime-path
          racket/set
-         (only-in "../pkgs/webracket-lib/compiler/private/primitives-db.rkt"
+         (only-in "../private/primitives-db.rkt"
                   primitive-db
                   primitive-info-name)
          (only-in "read-provider.rkt"
@@ -47,7 +47,7 @@
          "primitive-modules.rkt"
          "module-input.rkt")
 
-(define-runtime-path primitives-path "../pkgs/webracket/primitives.rkt")
+(define-runtime-path primitives-path "../../../webracket/primitives.rkt")
 
 (struct webify-primitive-demand (module name sources) #:transparent)
 (struct webify-primitive-table-request (module sources) #:transparent)

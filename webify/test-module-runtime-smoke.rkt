@@ -1,10 +1,10 @@
 #lang racket/base
 
 (require rackunit
-         "module-input.rkt"
-         "module-registry.rkt"
+         "../pkgs/webracket-lib/compiler/webify/module-input.rkt"
+         "../pkgs/webracket-lib/compiler/webify/module-registry.rkt"
          "module-runtime-smoke.rkt"
-         "primitive-demands.rkt")
+         "../pkgs/webracket-lib/compiler/webify/primitive-demands.rkt")
 
 (define local-runtime-smokes
   (list

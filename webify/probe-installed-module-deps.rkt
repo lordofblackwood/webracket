@@ -19,10 +19,10 @@
          racket/path
          racket/runtime-path
          racket/string
-         "module-extractor.rkt"
-         "module-input.rkt"
-         "module-protocol.rkt"
-         "primitive-demands.rkt")
+         "../pkgs/webracket-lib/compiler/webify/module-extractor.rkt"
+         "../pkgs/webracket-lib/compiler/webify/module-input.rkt"
+         "../pkgs/webracket-lib/compiler/webify/module-protocol.rkt"
+         "../pkgs/webracket-lib/compiler/webify/primitive-demands.rkt")
 
 (define-runtime-path self-path "probe-installed-module-deps.rkt")
 

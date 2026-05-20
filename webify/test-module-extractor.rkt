@@ -2,7 +2,7 @@
 
 (require rackunit
          racket/string
-         "provider-trials.rkt"
+         "../pkgs/webracket-lib/compiler/webify/provider-trials.rkt"
          "test-module-support.rkt")
 
 ;; demand-member? : symbol? (listof symbol?) demands -> boolean?

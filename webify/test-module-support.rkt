@@ -30,17 +30,17 @@
          current-letrec-strategy
          label-map-include-form?
          webify-module-instances-export-cell-id
-         (all-from-out "known.rkt")
-         (all-from-out "module-adapter.rkt")
-         (all-from-out "module-composer.rkt")
-         (all-from-out "module-diagnostics.rkt")
-         (all-from-out "module-extractor.rkt")
-         (all-from-out "module-input.rkt")
-         (all-from-out "module-instance.rkt")
-         (all-from-out "module-loader.rkt")
-         (all-from-out "module-phase-policy.rkt")
-         (all-from-out "module-protocol.rkt")
-         (all-from-out "module-registry.rkt"))
+         (all-from-out "../pkgs/webracket-lib/compiler/webify/known.rkt")
+         (all-from-out "../pkgs/webracket-lib/compiler/webify/module-adapter.rkt")
+         (all-from-out "../pkgs/webracket-lib/compiler/webify/module-composer.rkt")
+         (all-from-out "../pkgs/webracket-lib/compiler/webify/module-diagnostics.rkt")
+         (all-from-out "../pkgs/webracket-lib/compiler/webify/module-extractor.rkt")
+         (all-from-out "../pkgs/webracket-lib/compiler/webify/module-input.rkt")
+         (all-from-out "../pkgs/webracket-lib/compiler/webify/module-instance.rkt")
+         (all-from-out "../pkgs/webracket-lib/compiler/webify/module-loader.rkt")
+         (all-from-out "../pkgs/webracket-lib/compiler/webify/module-phase-policy.rkt")
+         (all-from-out "../pkgs/webracket-lib/compiler/webify/module-protocol.rkt")
+         (all-from-out "../pkgs/webracket-lib/compiler/webify/module-registry.rkt"))
 
 (require racket/match
          racket/file
@@ -58,17 +58,17 @@
                   current-enable-cc-analysis?
                   current-enable-simplify?
                   current-letrec-strategy)
-         "known.rkt"
-         "module-adapter.rkt"
-         "module-composer.rkt"
-         "module-diagnostics.rkt"
-         "module-extractor.rkt"
-         "module-input.rkt"
-         "module-instance.rkt"
-         "module-loader.rkt"
-         "module-phase-policy.rkt"
-         "module-protocol.rkt"
-         "module-registry.rkt")
+         "../pkgs/webracket-lib/compiler/webify/known.rkt"
+         "../pkgs/webracket-lib/compiler/webify/module-adapter.rkt"
+         "../pkgs/webracket-lib/compiler/webify/module-composer.rkt"
+         "../pkgs/webracket-lib/compiler/webify/module-diagnostics.rkt"
+         "../pkgs/webracket-lib/compiler/webify/module-extractor.rkt"
+         "../pkgs/webracket-lib/compiler/webify/module-input.rkt"
+         "../pkgs/webracket-lib/compiler/webify/module-instance.rkt"
+         "../pkgs/webracket-lib/compiler/webify/module-loader.rkt"
+         "../pkgs/webracket-lib/compiler/webify/module-phase-policy.rkt"
+         "../pkgs/webracket-lib/compiler/webify/module-protocol.rkt"
+         "../pkgs/webracket-lib/compiler/webify/module-registry.rkt")
 
 (define-runtime-path webracket-rkt "../webracket.rkt")
 (define-runtime-path webracket-repo-root* "..")

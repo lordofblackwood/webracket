@@ -139,7 +139,7 @@
            #:define-export-aliases? define-export-aliases?)
           instance))
 
-;; first-slice->module-instance-datum/imports : symbol? any/c (listof (listof symbol?)) (listof hash?) (listof symbol?) [#:reserved (listof symbol?)] -> values
+;; first-slice->module-instance-datum/imports : symbol? any/c (listof (listof symbol?)) (listof hash?) (listof symbol?) [#:reserved (listof symbol?)] [#:instance instance?] -> values
 ;;   Adapt a lowered slice by resolving imports through module-instance cell environments.
 (define (first-slice->module-instance-datum/imports name
                                                     expr
@@ -147,9 +147,12 @@
                                                     import-cell-envs
                                                     exports
                                                     #:reserved [reserved '()]
+                                                    #:instance [instance #f]
                                                     #:define-export-aliases? [define-export-aliases? #t])
   (define import-args (first-slice-import-cell-args importss import-cell-envs))
-  (define instance (make-webify-module-instance name exports #:reserved reserved))
+  (define instance*
+    (or instance
+        (make-webify-module-instance name exports #:reserved reserved)))
   (values (first-slice->top-level-datum/imports
            expr
            import-args
@@ -157,4 +160,4 @@
            #:reserved reserved
            #:importss importss
            #:define-export-aliases? define-export-aliases?)
-          instance))
+          instance*))

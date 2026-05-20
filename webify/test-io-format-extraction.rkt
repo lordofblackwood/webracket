@@ -4,8 +4,8 @@
          racket/list
          racket/string
          rackunit
-         "io-format-bridge.rkt"
-         "io-format-provider.rkt"
+         "../pkgs/webracket-lib/compiler/webify/io-format-bridge.rkt"
+         "../pkgs/webracket-lib/compiler/webify/io-format-provider.rkt"
          "test-module-support.rkt")
 
 (define synthetic-provider-module

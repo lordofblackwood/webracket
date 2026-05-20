@@ -24,7 +24,7 @@
          racket/runtime-path
          racket/system)
 
-(define-runtime-path repo-root "..")
+(define-runtime-path repo-root "../../../..")
 (define simplified-repo-root (simplify-path repo-root))
 
 (define racket-root

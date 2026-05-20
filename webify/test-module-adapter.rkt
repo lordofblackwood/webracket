@@ -4,7 +4,7 @@
          racket/match
          racket/file
          rackunit
-         "first-slice.rkt"
+         "../pkgs/webracket-lib/compiler/webify/first-slice.rkt"
          "test-module-support.rkt")
 
 (test-case "first-slice adapter builds top-level syntax"

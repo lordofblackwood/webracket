@@ -2,11 +2,11 @@
 
 (require racket/runtime-path
          rackunit
-         "first-slice.rkt"
-         "known.rkt"
-         "wrap.rkt")
+         "../pkgs/webracket-lib/compiler/webify/first-slice.rkt"
+         "../pkgs/webracket-lib/compiler/webify/known.rkt"
+         "../pkgs/webracket-lib/compiler/webify/wrap.rkt")
 
-(define-runtime-path module-variable-path "module-variable.rkt")
+(define-runtime-path module-variable-path "../pkgs/webracket-lib/compiler/webify/module-variable.rkt")
 
 ;; test-prim-knowns : hash?
 ;;   Minimal primitive facts for first-slice execution tests.

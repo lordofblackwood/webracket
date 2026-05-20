@@ -5,8 +5,8 @@
          racket/list
          racket/match
          "module-audit.rkt"
-         "module-input.rkt"
-         "module-extractor-spike.rkt")
+         "../pkgs/webracket-lib/compiler/webify/module-input.rkt"
+         "../pkgs/webracket-lib/compiler/webify/module-extractor-spike.rkt")
 
 ;; normalized-linklet-imports : linklet-datum -> (listof any/c)
 ;;   Pull normalized import bindings out of a linklet datum for tests.

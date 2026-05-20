@@ -4,12 +4,12 @@
                   datum->correlated
                   correlated?
                   correlated-e)
-         "webify.rkt"
-         "known.rkt")
+         "../pkgs/webracket-lib/compiler/webify/webify.rkt"
+         "../pkgs/webracket-lib/compiler/webify/known.rkt")
 
 ; prim-knowns : hash-table[ symbol -> known-procedure ]
 ;   Hash table that maps from the name of a primitive
-;   to a description of it. See "known.rkt".
+;   to a description of it. See "../pkgs/webracket-lib/compiler/webify/known.rkt".
 
 ; primitives   : (listof (cons symbol procedure?)
 ;   Association list from name to procedure (as a Racket value)
@@ -140,7 +140,7 @@
                   #:enforce-constant?     #t          
                   #:allow-inline?         #t          
                   #:no-prompt?            #f          
-                  #:prim-knowns           prim-knowns ; hasheq : symbol -> known-procedure (see "known.rkt") 
+                  #:prim-knowns           prim-knowns ; hasheq : symbol -> known-procedure (see "../pkgs/webracket-lib/compiler/webify/known.rkt")
                   #:primitives            primitives  ; hasheq : symbol -> actual primitive
                   #:compiler-query        #f          
                   #:get-import-knowns     #f          
@@ -158,4 +158,3 @@
 ;;            (w     . #s(known-constant))
 ;;            (x     . #s(known-constant))
 ;;            (y     . #s(known-constant)))
-

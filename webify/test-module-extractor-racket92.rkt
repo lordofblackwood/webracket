@@ -3,10 +3,10 @@
 (require rackunit
          racket/list
          racket/match
-         "module-extractor.rkt"
-         "module-input.rkt"
-         "module-protocol.rkt"
-         "module-registry.rkt"
+         "../pkgs/webracket-lib/compiler/webify/module-extractor.rkt"
+         "../pkgs/webracket-lib/compiler/webify/module-input.rkt"
+         "../pkgs/webracket-lib/compiler/webify/module-protocol.rkt"
+         "../pkgs/webracket-lib/compiler/webify/module-registry.rkt"
          "probe-installed-module-deps.rkt")
 
 (define (export-name-member? name exports)

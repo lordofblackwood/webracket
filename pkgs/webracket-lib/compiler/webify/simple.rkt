@@ -170,6 +170,7 @@
                (let ([v (or (hash-ref-either knowns imports proc)
                             (hash-ref prim-knowns proc #f))])
                  (and (ok-to-call? proc v (length args))
+                      (known-procedure? v)
                       (bitwise-bit-set? (known-procedure-arity-mask v) (length args))))
                (simple-mutated-state? (hash-ref mutated proc #f))
                (for/and ([arg (in-list args)])

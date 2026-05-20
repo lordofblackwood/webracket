@@ -3,7 +3,7 @@
 (require rackunit
          "kernel-runtime-audit.rkt"
          "module-audit.rkt"
-         "module-input.rkt")
+         "../pkgs/webracket-lib/compiler/webify/module-input.rkt")
 
 (test-case "runtime primitive implementation check reads runtime-wasm definitions"
   (check-true (webify-runtime-primitive-implemented? 'exn:fail:syntax?))

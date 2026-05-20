@@ -1,9 +1,9 @@
 #lang racket/base
 
 (require rackunit
-         "known.rkt"
-         "wrap.rkt"
-         "webify.rkt")
+         "../pkgs/webracket-lib/compiler/webify/known.rkt"
+         "../pkgs/webracket-lib/compiler/webify/wrap.rkt"
+         "../pkgs/webracket-lib/compiler/webify/webify.rkt")
 
 ;; test-prim-knowns : hash?
 ;;   Minimal primitive facts for focused webify-linklet tests.

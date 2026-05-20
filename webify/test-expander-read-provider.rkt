@@ -3,7 +3,7 @@
 (require racket/file
          racket/string
          rackunit
-         "read-provider.rkt"
+         "../pkgs/webracket-lib/compiler/webify/read-provider.rkt"
          "test-module-support.rkt")
 
 (define shared-expander-read-cache-dir

@@ -1,7 +1,7 @@
 #lang racket/base
 
 (require rackunit
-         "module-variable.rkt")
+         "../pkgs/webracket-lib/compiler/webify/module-variable.rkt")
 
 (test-case "module variable starts uninitialized"
   (define cell (module-variable-make 'x))

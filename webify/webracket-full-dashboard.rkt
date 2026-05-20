@@ -6,8 +6,8 @@
 (require json
          racket/list
          racket/match
-         "provider-trials.rkt"
-         "webracket-full-surface.rkt")
+         "../pkgs/webracket-lib/compiler/webify/provider-trials.rkt"
+         "../pkgs/webracket-lib/compiler/webify/webracket-full-surface.rkt")
 
 ;; status-ref : symbol? symbol? -> symbol?
 ;;   Look up one status column for a full-surface library.

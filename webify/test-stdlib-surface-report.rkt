@@ -2,8 +2,8 @@
 
 (require rackunit
          "stdlib-surface-report.rkt"
-         "webracket-base-surface.rkt"
-         "webracket-full-surface.rkt")
+         "../pkgs/webracket-lib/compiler/webify/webracket-base-surface.rkt"
+         "../pkgs/webracket-lib/compiler/webify/webracket-full-surface.rkt")
 
 (test-case "staged io/format names are not temporary stdlib-owned aliases"
   (for ([name (in-list '(format fprintf printf eprintf))])

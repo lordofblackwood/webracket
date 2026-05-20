@@ -4,7 +4,7 @@
          racket/linklet
          racket/string
          rackunit
-         "read-syntax-provider.rkt")
+         "../pkgs/webracket-lib/compiler/webify/read-syntax-provider.rkt")
 
 (define shared-read-syntax-cache-dir
   (make-temporary-file "webracket-read-syntax-shared-cache-~a" 'directory))

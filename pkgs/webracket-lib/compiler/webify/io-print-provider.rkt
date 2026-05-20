@@ -63,7 +63,7 @@
     "port/nowhere.rkt"))
 
 (define-runtime-path io-print-provider-module
-  "../racket-src/io/print/main-web.rkt")
+  "../../../../racket-src/io/print/main-web.rkt")
 
 (define io-print-bootstrap-blockers
   '((port-substrate-adapter

@@ -2,8 +2,8 @@
 
 (require racket/file
          rackunit
-         "io-print-deps.rkt"
-         "io-print-provider.rkt")
+         "../pkgs/webracket-lib/compiler/webify/io-print-deps.rkt"
+         "../pkgs/webracket-lib/compiler/webify/io-print-provider.rkt")
 
 (test-case "io/print direct dependency map preserves the upstream main shape"
   (check-equal? (io-print-direct-require-specs "print/main.rkt")

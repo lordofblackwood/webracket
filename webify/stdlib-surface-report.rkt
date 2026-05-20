@@ -32,10 +32,10 @@
 (require racket/list
          "../pkgs/webracket-lib/compiler/driver.rkt"
          "../pkgs/webracket-lib/compiler/legacy-stdlib/module-exports.rkt"
-         "io-format-provider.rkt"
-         "io-print-provider.rkt"
-         "webracket-base-surface.rkt"
-         "webracket-full-surface.rkt")
+         "../pkgs/webracket-lib/compiler/webify/io-format-provider.rkt"
+         "../pkgs/webracket-lib/compiler/webify/io-print-provider.rkt"
+         "../pkgs/webracket-lib/compiler/webify/webracket-base-surface.rkt"
+         "../pkgs/webracket-lib/compiler/webify/webracket-full-surface.rkt")
 
 (define (sorted-symbols xs)
   (sort (remove-duplicates xs eq?) symbol<?))

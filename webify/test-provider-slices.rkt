@@ -3,7 +3,7 @@
 (require racket/file
          racket/string
          rackunit
-         "provider-slices.rkt"
+         "../pkgs/webracket-lib/compiler/webify/provider-slices.rkt"
          "test-module-support.rkt")
 
 ;; write-program! : path-string? string? -> void?

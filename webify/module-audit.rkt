@@ -49,9 +49,9 @@
 
 (require racket/list
          racket/match
-         "module-diagnostics.rkt"
-         "module-extractor-spike.rkt"
-         "module-input.rkt")
+         "../pkgs/webracket-lib/compiler/webify/module-diagnostics.rkt"
+         "../pkgs/webracket-lib/compiler/webify/module-extractor-spike.rkt"
+         "../pkgs/webracket-lib/compiler/webify/module-input.rkt")
 
 (struct webify-module-graph-audit
   (reports

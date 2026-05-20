@@ -3,7 +3,7 @@
 (require racket/list
          rackunit
          "goal1-dashboard.rkt"
-         "webracket-full-surface.rkt")
+         "../pkgs/webracket-lib/compiler/webify/webracket-full-surface.rkt")
 
 (test-case "compact Goal 1 dashboard case set covers required categories"
   (define categories

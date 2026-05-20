@@ -6,8 +6,8 @@
          racket/runtime-path
          racket/system
          rackunit
-         "lower.rkt"
-         "module-diagnostics.rkt"
+         "../pkgs/webracket-lib/compiler/webify/lower.rkt"
+         "../pkgs/webracket-lib/compiler/webify/module-diagnostics.rkt"
          "test-module-support.rkt")
 
 (define-runtime-path repo-root "..")

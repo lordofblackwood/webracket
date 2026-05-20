@@ -11,9 +11,9 @@
 ;; usage: racket webracket.rkt [ <option> ... ] [<files>] ...
 
 (require "driver.rkt"
-         (only-in "../../../webify/provider-slices.rkt"
+         (only-in "webify/provider-slices.rkt"
                   provider-slice-report-lines)
-         (only-in "../../../webify/regexp-provider.rkt"
+         (only-in "webify/regexp-provider.rkt"
                   webify-regexp-default-cache-root))
 
 

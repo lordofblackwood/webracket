@@ -30,7 +30,7 @@
          "module-input.rkt"
          "primitive-demands.rkt")
 
-(define-runtime-path repo-root "..")
+(define-runtime-path repo-root "../../../..")
 
 (define racket-root
   (simplify-path (build-path repo-root "../racket/racket")))

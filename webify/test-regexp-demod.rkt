@@ -3,7 +3,7 @@
 (require racket/file
          racket/list
          rackunit
-         "regexp-provider.rkt"
+         "../pkgs/webracket-lib/compiler/webify/regexp-provider.rkt"
          "test-module-support.rkt")
 
 ;; linklet-export-external-names : any/c -> (listof symbol?)

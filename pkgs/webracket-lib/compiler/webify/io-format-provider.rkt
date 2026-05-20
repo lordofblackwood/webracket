@@ -24,7 +24,7 @@
   '())
 
 (define-runtime-path io-format-provider-module
-  "../racket-src/io/format/main-web.rkt")
+  "../../../../racket-src/io/format/main-web.rkt")
 
 ;; io-format-provider-ready? : -> boolean?
 ;;   Check whether the staged provider can be loaded by the host-side adapter.

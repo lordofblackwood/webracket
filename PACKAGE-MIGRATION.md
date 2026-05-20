@@ -130,6 +130,7 @@ pkgs/webracket-lib/
     ffi/
       *.ffi
     legacy-stdlib/
+    webify/
     private/
       browser-options.rkt
       define-foreign.rkt

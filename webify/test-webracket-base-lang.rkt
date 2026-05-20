@@ -23,18 +23,18 @@
                   webracket/base-local-module-graph-registry
                   webracket/base-reports->module-graph
                   webracket/base-reports-demand-external-providers?)
-         (only-in "module-extractor.rkt"
+         (only-in "../pkgs/webracket-lib/compiler/webify/module-extractor.rkt"
                   webify-compile-module-report)
-         (only-in "provider-trials.rkt"
+         (only-in "../pkgs/webracket-lib/compiler/webify/provider-trials.rkt"
                   webify-provider-trial-default-bridge-module-allowed?
                   webify-provider-trial-module-allowlist
                   webify-provider-trial-module-allowed?)
-         "ffi-module-registry.rkt"
-         "unsafe-ffi-module.rkt"
+         "../pkgs/webracket-lib/compiler/webify/ffi-module-registry.rkt"
+         "../pkgs/webracket-lib/compiler/webify/unsafe-ffi-module.rkt"
          "test-module-support.rkt"
-         "webracket-base-surface.rkt"
+         "../pkgs/webracket-lib/compiler/webify/webracket-base-surface.rkt"
          "webracket-full-dashboard.rkt"
-         "webracket-full-surface.rkt")
+         "../pkgs/webracket-lib/compiler/webify/webracket-full-surface.rkt")
 
 (define-runtime-path repo-root* "..")
 (define repo-root (simplify-path repo-root*))

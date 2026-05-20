@@ -1,7 +1,7 @@
 #lang racket/base
 
 (require rackunit
-         "io-format-provider.rkt"
+         "../pkgs/webracket-lib/compiler/webify/io-format-provider.rkt"
          (prefix-in web: "../racket-src/io/format/main-web.rkt")
          "../pkgs/webracket-lib/compiler/legacy-stdlib/module-exports.rkt")
 

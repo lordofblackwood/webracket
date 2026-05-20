@@ -3,7 +3,7 @@
 (require racket/file
          racket/string
          rackunit
-         "io-format-provider.rkt"
+         "../pkgs/webracket-lib/compiler/webify/io-format-provider.rkt"
          "test-module-support.rkt")
 
 ;; make-io-format-fixture-registry : -> webify-module-registry?

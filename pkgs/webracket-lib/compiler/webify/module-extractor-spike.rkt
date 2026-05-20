@@ -111,8 +111,8 @@
          "faslable-linklet.rkt"
          "module-input.rkt")
 
-(define-runtime-path webify-contract-path "../pkgs/webracket/contract.rkt")
-(define-runtime-path webify-syntax-contract-path "../pkgs/webracket/syntax/contract.rkt")
+(define-runtime-path webify-contract-path "../../../webracket/contract.rkt")
+(define-runtime-path webify-syntax-contract-path "../../../webracket/syntax/contract.rkt")
 
 ;; contract-module-path? : any/c -> boolean?
 ;;   Recognize module-path spellings for public contract providers.

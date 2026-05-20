@@ -4,7 +4,7 @@
          racket/runtime-path
          racket/string
          rackunit
-         "io-print-provider.rkt")
+         "../pkgs/webracket-lib/compiler/webify/io-print-provider.rkt")
 
 (define-runtime-path staged-io-root "../racket-src/io")
 (define-runtime-path upstream-io-root "../../racket/racket/src/io")

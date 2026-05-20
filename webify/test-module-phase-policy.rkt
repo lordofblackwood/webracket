@@ -1,7 +1,7 @@
 #lang racket/base
 
 (require rackunit
-         "module-phase-policy.rkt")
+         "../pkgs/webracket-lib/compiler/webify/module-phase-policy.rkt")
 
 (test-case "default module phase policy documents current bridge boundary"
   (check-true (webify-module-phase-policy? webify-default-module-phase-policy))

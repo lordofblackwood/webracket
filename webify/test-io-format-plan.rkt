@@ -2,7 +2,7 @@
 
 (require racket/file
          rackunit
-         "io-format-deps.rkt")
+         "../pkgs/webracket-lib/compiler/webify/io-format-deps.rkt")
 
 (test-case "staged io/format files are copied from upstream"
   (for ([file (in-list io-format-staged-source-files)])

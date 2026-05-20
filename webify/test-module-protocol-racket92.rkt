@@ -1,9 +1,9 @@
 #lang racket/base
 
 (require rackunit
-         "module-extractor.rkt"
-         "module-input.rkt"
-         "module-protocol.rkt")
+         "../pkgs/webracket-lib/compiler/webify/module-extractor.rkt"
+         "../pkgs/webracket-lib/compiler/webify/module-input.rkt"
+         "../pkgs/webracket-lib/compiler/webify/module-protocol.rkt")
 
 (test-case "Racket 9.2 module protocol provider resolves source report imports"
   (define report

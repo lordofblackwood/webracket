@@ -11,7 +11,7 @@
          racket/runtime-path
          racket/string
          "module-audit.rkt"
-         "module-input.rkt")
+         "../pkgs/webracket-lib/compiler/webify/module-input.rkt")
 
 (define-runtime-path default-runtime-wasm "../pkgs/webracket-lib/compiler/runtime-wasm.rkt")
 

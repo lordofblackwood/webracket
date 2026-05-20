@@ -3,8 +3,8 @@
 (require racket/file
          racket/string
          rackunit
-         "expander-oracle.rkt"
-         "primitive-demands.rkt")
+         "../pkgs/webracket-lib/compiler/webify/expander-oracle.rkt"
+         "../pkgs/webracket-lib/compiler/webify/primitive-demands.rkt")
 
 (test-case "expander oracle extraction command targets a closed linklet"
   (define tmp-dir (make-temporary-file "webracket-expander-oracle-test-~a" 'directory))

@@ -1,6 +1,6 @@
 #lang racket/base
 
-(require "io-format-provider.rkt")
+(require "../pkgs/webracket-lib/compiler/webify/io-format-provider.rkt")
 
 (cond
   [(io-format-bootstrap-retirement-ready?)

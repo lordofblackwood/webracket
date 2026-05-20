@@ -24,7 +24,7 @@
          io-print-local-closure-report-external
          io-print-local-require-closure)
 
-(define-runtime-path io-print-source-root "../racket-src/io")
+(define-runtime-path io-print-source-root "../../../../racket-src/io")
 (define-runtime-path upstream-io-source-root "../../racket/racket/src/io")
 
 (define io-print-source-files

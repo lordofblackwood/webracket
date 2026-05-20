@@ -1,9 +1,9 @@
 #lang racket/base
 
 (require rackunit
-         "first-slice.rkt"
-         "known.rkt"
-         "wrap.rkt")
+         "../pkgs/webracket-lib/compiler/webify/first-slice.rkt"
+         "../pkgs/webracket-lib/compiler/webify/known.rkt"
+         "../pkgs/webracket-lib/compiler/webify/wrap.rkt")
 
 ;; test-prim-knowns : hash?
 ;;   Minimal primitive facts for first-slice integration tests.

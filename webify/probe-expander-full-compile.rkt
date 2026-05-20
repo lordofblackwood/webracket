@@ -19,7 +19,7 @@
                   current-console-bridge?
                   current-runtime-primitive-report-path)
          "../pkgs/webracket-lib/compiler/private/wat-identifiers.rkt"
-         "module-diagnostics.rkt"
+         "../pkgs/webracket-lib/compiler/webify/module-diagnostics.rkt"
          "test-module-support.rkt")
 
 (define-runtime-path repo-root "..")
@@ -2369,7 +2369,7 @@
       (fprintf out "(require (file ~s))\n\n"
                (path->string
                 (simplify-path
-                 (path->complete-path "webify/module-variable.rkt" repo-root))))
+                 (path->complete-path "pkgs/webracket-lib/compiler/webify/module-variable.rkt" repo-root))))
       (fprintf out "(define (webify-control-stub . _args) (void))\n")
       (for ([sym (in-list stubs)])
         (fprintf out "(define ~s webify-control-stub)\n" sym))
@@ -2402,7 +2402,7 @@
       (fprintf out "(define module-variable-path ~s)\n\n"
                (path->string
                 (simplify-path
-                 (path->complete-path "webify/module-variable.rkt" repo-root))))
+                 (path->complete-path "pkgs/webracket-lib/compiler/webify/module-variable.rkt" repo-root))))
       (fprintf out "(define stub-names '~s)\n\n" stubs)
       (fprintf out "(define (timed label thunk)\n")
       (fprintf out "  (define start (current-inexact-milliseconds))\n")

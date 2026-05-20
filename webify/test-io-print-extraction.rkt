@@ -3,7 +3,7 @@
 (require racket/file
          racket/string
          rackunit
-         "io-print-bridge.rkt"
+         "../pkgs/webracket-lib/compiler/webify/io-print-bridge.rkt"
          "test-module-support.rkt")
 
 ;; compose-inputs/no-aliases : (listof input?) symbol? -> composition?
