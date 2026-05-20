@@ -9,7 +9,7 @@
          rackunit
          syntax/modread
          (prefix-in staged-promise: "../pkgs/webracket/promise.rkt")
-         (only-in "../driver.rkt"
+         (only-in "../pkgs/webracket-lib/compiler/driver.rkt"
                   cached-installed-provider-report
                   current-provider-cache-dir
                   current-provider-cache-force?

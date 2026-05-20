@@ -6,7 +6,7 @@
 
 (require racket/list
          racket/set
-         "../driver.rkt"
+         "../pkgs/webracket-lib/compiler/driver.rkt"
          "../stdlib/module-exports.rkt"
          "stdlib-surface-report.rkt")
 

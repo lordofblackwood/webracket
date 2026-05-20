@@ -7,7 +7,7 @@
          racket/string
          racket/system
          rackunit
-         (only-in "../driver.rkt"
+         (only-in "../pkgs/webracket-lib/compiler/driver.rkt"
                   regexp-provider-forms)
          "provider-slices.rkt"
          "regexp-provider.rkt")

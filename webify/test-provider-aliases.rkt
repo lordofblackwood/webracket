@@ -1,7 +1,7 @@
 #lang racket/base
 
 (require rackunit
-         (only-in "../driver.rkt"
+         (only-in "../pkgs/webracket-lib/compiler/driver.rkt"
                   provider-owned-primitive-alias-symbols)
          "io-format-bridge.rkt"
          "read-provider.rkt"

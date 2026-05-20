@@ -30,7 +30,7 @@
          report-stdlib-surface)
 
 (require racket/list
-         "../driver.rkt"
+         "../pkgs/webracket-lib/compiler/driver.rkt"
          "../stdlib/module-exports.rkt"
          "io-format-provider.rkt"
          "io-print-provider.rkt"

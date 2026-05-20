@@ -40,14 +40,14 @@
          (only-in racket/format     ~a)
          (only-in racket/system     system*)
          #;(only-in "lang/reader.rkt" read-syntax)
-         (only-in "pkgs/webracket-lib/compiler/assembler.rkt"
+         (only-in "assembler.rkt"
                   run
                   wat->wasm
                   runtime)
          (only-in racket/list       append* append-map remove-duplicates)
          (only-in racket/match      match)
          setup/dirs
-         (only-in "pkgs/webracket-lib/compiler/private/parameters.rkt"  current-ffi-foreigns
+         (only-in "private/parameters.rkt"  current-ffi-foreigns
                                     current-ffi-imports-wat
                                     current-ffi-funcs-wat
                                     current-browser?
@@ -57,52 +57,52 @@
                                     current-letrec-strategy
                                     current-tree-shake?
                                     current-runtime-primitive-report-path)
-         (only-in "pkgs/webracket-lib/compiler/private/timings.rkt"
+         (only-in "private/timings.rkt"
                   now-ms
                   format-timing-table)
-         "pkgs/webracket-lib/compiler/private/wat-identifiers.rkt"
+         "private/wat-identifiers.rkt"
          racket/runtime-path
          racket/syntax
-         "pkgs/webracket-lib/compiler/private/browser-options.rkt"
-         (only-in "stdlib/module-exports.rkt"
+         "private/browser-options.rkt"
+         (only-in "../../../stdlib/module-exports.rkt"
                   stdlib-module-alias-symbols
                   stdlib-module-private-forms+bindings
                   stdlib-definition-form-symbols)
-         (only-in "webify/io-format-bridge.rkt"
+         (only-in "../../../webify/io-format-bridge.rkt"
                   webify-io-format-root-name
                   webify-io-format-export-symbols
                   webify-io-format-registry
                   webify-io-format-private-alias-forms
                   webify-io-format-public-alias-forms)
-         (only-in "webify/regexp-provider.rkt"
+         (only-in "../../../webify/regexp-provider.rkt"
                   webify-regexp-default-cache-root
                   webify-regexp-export-symbols
                   webify-regexp-lowered-provider-cache-path
                   webify-regexp-linklet
                   webify-regexp-public-alias-forms
                   webify-regexp-source-fingerprint)
-         (only-in "webify/read-provider.rkt"
+         (only-in "../../../webify/read-provider.rkt"
                   webify-read-export-symbols
                   webify-read-linklet
                   webify-read-lowered-provider-cache-path
                   webify-read-public-alias-forms
                   webify-read-public-alias-symbols
                   webify-read-source-fingerprint)
-         (only-in "webify/read-syntax-provider.rkt"
+         (only-in "../../../webify/read-syntax-provider.rkt"
                   webify-read-syntax-alias-forms
                   webify-read-syntax-export-symbols
                   webify-read-syntax-linklet
                   webify-read-syntax-lowered-provider-cache-path
                   webify-read-syntax-source-fingerprint)
-         (only-in "webify/module-adapter.rkt"
+         (only-in "../../../webify/module-adapter.rkt"
                   first-slice-top-level-export-cell-ids
                   webify-linklet-first-slice-top-level)
-         (only-in "webify/module-registry.rkt"
+         (only-in "../../../webify/module-registry.rkt"
                   webify-compose-module-registry/roots/composition
                   webify-module-composition-with-tail)
-         (only-in "webify/module-input.rkt"
+         (only-in "../../../webify/module-input.rkt"
                   webify-module-linklet-inputs->registry)
-         (only-in "webify/module-extractor.rkt"
+         (only-in "../../../webify/module-extractor.rkt"
                   make-webify-contract-erasing-namespace
                   make-webify-contract-erasing-module-name-resolver
                   make-webify-module-provider-cache
@@ -126,20 +126,20 @@
                   webify-module-report-phase0-linklet-datum
                   webify-module-report-required-provider-names
                   webify-module-reports->resolved-linklet-inputs)
-         (only-in "webify/module-protocol.rkt"
+         (only-in "../../../webify/module-protocol.rkt"
                   webify-module-protocol-input
                   webify-module-protocol-report
                   webify-module-protocol-dependency)
-         (only-in "webify/provider-trials.rkt"
+         (only-in "../../../webify/provider-trials.rkt"
                   webify-provider-trial-default-bridge-module-allowed?
                   webify-provider-trial-module-allowed?
                   webify-provider-trial-module-allowlist)
-         (only-in "webify/ffi-module-registry.rkt"
+         (only-in "../../../webify/ffi-module-registry.rkt"
                   module-provider->ffi-filename)
-         "pkgs/webracket-lib/compiler/compiler.rkt"
-         "pkgs/webracket-lib/compiler/private/define-foreign.rkt")
+         "compiler.rkt"
+         "private/define-foreign.rkt")
 
-(define-runtime-path webracket-root ".")
+(define-runtime-path webracket-root "../../..")
 
 ;; webracket/module-reader-path : (or/c 'base 'full) -> (or/c path? #f)
 ;;   Resolve an installed WebRacket module reader through Racket's collection search.
@@ -2294,7 +2294,7 @@
 ;;; EXPAND MODULE
 ;;;
 
-(require "pkgs/webracket-lib/compiler/expander.rkt") ; provides `topexpand`
+(require "expander.rkt") ; provides `topexpand`
 
 ;;;
 ;;; EXPAND FILE
@@ -2344,9 +2344,8 @@
 ;;;
 
 
-(define-runtime-path here ".")
 (define system-ffi-directory
-  (let ([candidate (build-path here "ffi")])
+  (let ([candidate (build-path webracket-root "ffi")])
     (and (directory-exists? candidate) candidate)))
 
 (define (resolve-ffi-filename ffi-filename)
