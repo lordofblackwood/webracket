@@ -1,38 +1,33 @@
-# WebRacket Package Root
+# WebRacket Public Collection
 
-This directory is the package-root migration target for the `webracket`
-collection.
+This directory is the public `webracket` collection package root.
 
-At the moment, many files here are shallow wrappers back to the legacy
-repository-root collection files. That lets local development use:
+Use `pkgs/`, not the repository root, as the collection parent during local
+development:
 
 ```sh
 PLTCOLLECTS=/path/to/repo/pkgs:$PLTCOLLECTS
 ```
 
-without putting the repository root itself on the collection path.
-
-The final intended layout is for this directory to contain the real
-`webracket` collection files currently at the repository root, including:
+The public collection contains language and library modules such as:
 
 ```text
-base.rkt
-base/
-contract.rkt
-driver.rkt
-compiler.rkt
-js/
-lang/
-private/
-syntax/
-unsafe/
-webify/
+webracket/base
+webracket/full
+webracket/js
+webracket/contract
+webracket/set
+webracket/stream
+webracket/unsafe/*
 ```
 
-Do not expose the repository root itself with:
+Compiler/runtime implementation modules are intentionally not part of this
+public collection. They live in the separate `webracket-lib` package under:
 
-```sh
-PLTCOLLECTS=/path/to/repo:$PLTCOLLECTS
+```text
+pkgs/webracket-lib/compiler/
 ```
 
-That makes repo-internal directories look like top-level Racket collections.
+The repository root should not be put on `PLTCOLLECTS`; doing so makes
+development-only directories look like top-level Racket collections and can
+shadow installed libraries.
