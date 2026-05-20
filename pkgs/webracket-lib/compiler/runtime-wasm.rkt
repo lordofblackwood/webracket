@@ -63555,7 +63555,7 @@
 	                             (else (local.get $fail))))))
 
 	         ;; Lowered module-variable cells. These are the Wasm counterpart
-	         ;; of `webify/module-variable.rkt`'s reference implementation.
+	         ;; of `webracket/private/module-variable.rkt`'s reference implementation.
 
 	         (func $raise-argument-error:module-variable-expected
 	               (param $who (ref eq))  ;; primitive name symbol
