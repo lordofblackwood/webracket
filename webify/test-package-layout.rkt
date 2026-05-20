@@ -46,6 +46,9 @@
 
 (check-true (string-contains? package-info-source "(define collection \"webracket\")"))
 (check-true (string-contains? private-package-info-source "(define collection \"webracket-lib\")"))
+(check-true (string-contains? package-info-source "\"math-lib\""))
+(check-true (string-contains? private-package-info-source "\"math-lib\""))
+(check-true (string-contains? private-package-info-source "\"nanopass\""))
 
 (define non-package-dirs
   '("assets"
