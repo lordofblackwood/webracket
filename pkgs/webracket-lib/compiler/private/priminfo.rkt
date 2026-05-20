@@ -20,7 +20,6 @@
 
 (define ns (make-base-namespace))
 (parameterize ((current-namespace ns))
-  (namespace-require 'racket)
   (namespace-require 'racket/unsafe/ops)
   (namespace-require 'racket/flonum)
   (namespace-require 'racket/fixnum)
@@ -31,8 +30,6 @@
   (namespace-require 'racket/bytes)
   (namespace-require 'racket/date)
   (namespace-require 'racket/keyword)            ; keyword->immutable-string
-  (namespace-require 'rnrs/arithmetic/fixnums-6) ; fxzero?
-  (namespace-require 'math/base)
   #;(namespace-require 'racket/kernel)
   #;(namespace-require 'racket/base)
   #;(namespace-require 'racket/fixnum)

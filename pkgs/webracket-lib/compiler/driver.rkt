@@ -1773,8 +1773,9 @@
 ;; webracket/base-file->local-module-graph : path-string? -> webracket/base-local-module-graph?
 ;;   Extract local module reports for the module bridge path.
 (define (webracket/base-file->local-module-reports filename)
-  (define extraction-namespace (make-webify-contract-erasing-namespace))
-  (define contract-erasing-resolver
+  (define extraction-namespace (make-base-namespace))
+  (define provider-namespace (make-webify-contract-erasing-namespace))
+  (define provider-module-name-resolver
     (make-webify-contract-erasing-module-name-resolver))
   (define base-module-name-resolver (current-module-name-resolver))
   (define compile-stub-names '())
@@ -1802,10 +1803,10 @@
                             name
                             substitute-name)
         (define report
-          (parameterize ([current-namespace extraction-namespace]
-                         [current-module-name-resolver contract-erasing-resolver])
+          (parameterize ([current-namespace provider-namespace]
+                         [current-module-name-resolver provider-module-name-resolver])
             (webify-module-path->report substitute-name
-                                        #:namespace extraction-namespace)))
+                                        #:namespace provider-namespace)))
         (declare-provider-compile-stub!
          extraction-namespace
          name
@@ -1967,11 +1968,14 @@
        (define provider-module-name-resolver
          (make-webify-contract-erasing-module-name-resolver))
        (define (fetch-provider/erased-contracts name)
+         (define substitute-name (webracket/base-provider-substitute name))
          (parameterize ([current-namespace provider-namespace]
                         [current-module-name-resolver provider-module-name-resolver])
-           (if (eq? fetch-provider webify-module-path->report)
-               (webify-module-path->report name #:namespace provider-namespace)
-               (fetch-provider name))))
+           (webify-module-report/rename
+            (if (eq? fetch-provider webify-module-path->report)
+                (webify-module-path->report substitute-name #:namespace provider-namespace)
+                (fetch-provider substitute-name))
+            name)))
        (define provider-cache
          (make-webify-module-provider-cache
           (webracket/base-fetch-provider/timed fetch-provider/erased-contracts)))
