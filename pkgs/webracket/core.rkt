@@ -33,7 +33,7 @@
                      racket/path
                      setup/dirs
                      syntax/location
-                     (file "../webracket-lib/compiler/private/browser-options.rkt")))
+                     webracket-lib/compiler/private/browser-options))
 
 (begin-for-syntax
   (define include-lib-seen (make-hash)))

@@ -5,9 +5,38 @@
          racket/list
          racket/path
          racket/port
+         racket/runtime-path
          racket/string
-         racket/system
-         "test-module-support.rkt")
+         racket/system)
+
+(define-runtime-path webracket-repo-root* "..")
+
+(define webracket-repo-root
+  (simplify-path webracket-repo-root*))
+
+(define path-list-separator
+  (if (eq? (system-type 'os) 'windows) ";" ":"))
+
+;; webracket-collection-parent : -> path?
+;;   Return the collection parent to put on PLTCOLLECTS for this checkout.
+(define (webracket-collection-parent)
+  (define package-root (build-path webracket-repo-root "pkgs" "webracket"))
+  (if (and (directory-exists? package-root)
+           (file-exists? (build-path package-root "base.rkt"))
+           (file-exists? (build-path package-root "info.rkt")))
+      (build-path webracket-repo-root "pkgs")
+      (raise-arguments-error
+       'webracket-collection-parent
+       "package collection root is not ready"
+       "expected" package-root)))
+
+;; webracket-collection-env-value : -> string?
+;;   Build a PLTCOLLECTS value that exposes the package collections.
+(define (webracket-collection-env-value)
+  (format "~a~a~a"
+          (path->string (webracket-collection-parent))
+          path-list-separator
+          (or (getenv "PLTCOLLECTS") "")))
 
 (define package-parent (build-path webracket-repo-root "pkgs"))
 (define package-root   (build-path package-parent "webracket"))
@@ -48,8 +77,19 @@
 (check-true (string-contains? package-info-source "(define collection \"webracket\")"))
 (check-true (string-contains? private-package-info-source "(define collection \"webracket-lib\")"))
 (check-true (string-contains? package-info-source "\"math-lib\""))
+(check-true (string-contains? package-info-source "\"webracket-lib\""))
 (check-true (string-contains? private-package-info-source "\"math-lib\""))
 (check-true (string-contains? private-package-info-source "\"nanopass\""))
+
+(for ([path (in-list '("core.rkt"
+                       "main.rkt"
+                       "base/main.rkt"
+                       "full/main.rkt"
+                       "primitives.rkt"))])
+  (define source
+    (file->string (apply build-path package-root (string-split path "/"))))
+  (check-false (regexp-match? #rx"\\(file +\"\\.\\./(\\.\\./)?webracket-lib/" source)
+               (format "public package should use collection requires for webracket-lib: ~a" path)))
 
 (parameterize ([current-library-collection-paths
                 (cons package-parent (current-library-collection-paths))])

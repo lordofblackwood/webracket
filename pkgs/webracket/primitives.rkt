@@ -45,7 +45,7 @@
                   float-complex?)
          
          
-         (prefix-in imm: (file "../webracket-lib/compiler/private/immediates.rkt"))
+         (prefix-in imm: webracket-lib/compiler/private/immediates)
 
          (only-in '#%kernel
                   prop:method-arity-error
