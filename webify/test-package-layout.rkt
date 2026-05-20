@@ -80,6 +80,7 @@
     "structs.rkt"
     "timings.rkt"
     "wasm-data.rkt"
+    "wasm-utils.rkt"
     "wat-identifiers.rkt"))
 
 (for ([file (in-list private-helper-files)])

@@ -2,7 +2,7 @@
 (provide generate-runtime)
 
 (require "pkgs/webracket-lib/compiler/private/wasm-data.rkt"
-         "wasm-utils.rkt"
+         "pkgs/webracket-lib/compiler/private/wasm-utils.rkt"
          "pkgs/webracket-lib/compiler/private/immediates.rkt"
          "pkgs/webracket-lib/compiler/private/priminfo.rkt"
          "pkgs/webracket-lib/compiler/private/parameters.rkt"

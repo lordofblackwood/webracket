@@ -11,8 +11,8 @@
 
 ;;; Imports
 (require racket/format
-         "pkgs/webracket-lib/compiler/private/immediates.rkt"
-         "pkgs/webracket-lib/compiler/private/structs.rkt")
+         "immediates.rkt"
+         "structs.rkt")
 
 
 ;;; Utilities

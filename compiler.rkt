@@ -17419,7 +17419,8 @@
 
 
 ;; A few helpers for generating WebAssembly is placed in:
-(require "wasm-utils.rkt")    ; helpers like $, $$, prim:, Imm, Var, etc.
+(require "pkgs/webracket-lib/compiler/private/wasm-utils.rkt")
+;; Helpers like $, $$, prim:, Imm, Var, etc.
 
 ; The helpers allow us to follow these conventions:
 

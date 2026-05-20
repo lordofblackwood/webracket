@@ -132,6 +132,7 @@ pkgs/webracket-lib/
       structs.rkt
       timings.rkt
       wasm-data.rkt
+      wasm-utils.rkt
       wat-identifiers.rkt
 ```
 
