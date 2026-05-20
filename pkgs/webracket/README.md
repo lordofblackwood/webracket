@@ -14,6 +14,7 @@ The public collection contains language and library modules such as:
 ```text
 webracket/base
 webracket/full
+webracket/lang/reader
 webracket/js
 webracket/contract
 webracket/set

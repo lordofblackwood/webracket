@@ -83,6 +83,7 @@
     "full/main.rkt"
     "full/lang/reader.rkt"
     "js/main.rkt"
+    "lang/README.md"
     "lang/reader.rkt"
     "private/for.rkt"
     "syntax/contract.rkt"
