@@ -279,7 +279,8 @@ The passes are as follows:
     (classify-variables)
     generate-code
 
-See the comments in "compiler.rkt" for an explanation of each pass.
+See the comments in `pkgs/webracket-lib/compiler/compiler.rkt` for an
+explanation of each pass.
 
 The code generator generates WebAssembly in the form of S-expressions
 in the "folded" format.
