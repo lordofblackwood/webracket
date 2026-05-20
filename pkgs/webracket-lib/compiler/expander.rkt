@@ -7,14 +7,14 @@
          racket/pretty
          racket/runtime-path)
 
-(define-runtime-path webracket-root ".")
+(define-runtime-path package-parent "../..")
 
 (define (make-webracket-namespace)
   (define ns (make-base-empty-namespace))
 
   (parameterize ([current-namespace ns]
                  [current-library-collection-paths
-                  (cons (simplify-path (build-path webracket-root 'up))
+                  (cons (simplify-path package-parent)
                         (current-library-collection-paths))])
     (namespace-require '(for-syntax racket/base))
     (namespace-require 'webracket))

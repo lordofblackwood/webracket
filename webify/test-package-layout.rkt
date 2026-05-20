@@ -27,6 +27,9 @@
 (check-true (file-exists? (build-path package-parent "webracket-lib" "compiler" "runtime-wasm.rkt")))
 (check-false (file-exists? (build-path webracket-repo-root "runtime-wasm.rkt"))
              "compiler implementation entrypoint should not live at repo root: runtime-wasm.rkt")
+(check-true (file-exists? (build-path package-parent "webracket-lib" "compiler" "expander.rkt")))
+(check-false (file-exists? (build-path webracket-repo-root "expander.rkt"))
+             "compiler implementation entrypoint should not live at repo root: expander.rkt")
 
 (define package-info-source
   (file->string (build-path package-root "info.rkt")))

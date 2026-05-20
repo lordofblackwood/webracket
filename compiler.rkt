@@ -45,7 +45,7 @@
 
 
 
-(require "expander.rkt"       ; provides topexpand
+(require "pkgs/webracket-lib/compiler/expander.rkt"       ; provides topexpand
          "pkgs/webracket-lib/compiler/assembler.rkt"
          "pkgs/webracket-lib/compiler/private/priminfo.rkt" ; information on Racket primitives
          (only-in "pkgs/webracket-lib/compiler/private/primitives-db.rkt"
@@ -14125,7 +14125,7 @@
 
 (module+ test
   (require rackunit
-           "expander.rkt")
+           "pkgs/webracket-lib/compiler/expander.rkt")
 
   ;; analyze-with-cc-summary : syntax? (LANF -> any/c) -> any/c
   ;;   Run the frontend pipeline up to LANF with cc-analysis enabled, then summarize.

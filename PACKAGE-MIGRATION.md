@@ -123,6 +123,7 @@ pkgs/webracket-lib/
   info.rkt
   compiler/
     assembler.rkt
+    expander.rkt
     runtime-wasm.rkt
     private/
       browser-options.rkt
@@ -143,7 +144,7 @@ pkgs/webracket-lib/
 The old root copies and accidental `pkgs/webracket` private-helper copies were
 reviewed and removed after the package split landed. The remaining root files
 are either CLI-facing (`webracket.rkt`, `driver.rkt`) or still tightly coupled
-to the host expansion/compiler path (`compiler.rkt`, `expander.rkt`).
+to the host compiler path (`compiler.rkt`).
 
 Potential later splits:
 

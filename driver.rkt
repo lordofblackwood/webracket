@@ -2294,7 +2294,7 @@
 ;;; EXPAND MODULE
 ;;;
 
-(require "expander.rkt") ; provides `topexpand`
+(require "pkgs/webracket-lib/compiler/expander.rkt") ; provides `topexpand`
 
 ;;;
 ;;; EXPAND FILE
