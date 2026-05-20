@@ -48,7 +48,7 @@
          racket/port
          racket/runtime-path
          racket/system
-         (only-in "../compiler.rkt"
+         (only-in "../pkgs/webracket-lib/compiler/compiler.rkt"
                   comp
                   current-compiler-progress?
                   current-closure-conversion-progress?

@@ -6,7 +6,7 @@
          racket/runtime-path)
 
 (define-runtime-path repo-root "..")
-(define-runtime-path compiler-path "../compiler.rkt")
+(define-runtime-path compiler-path "../pkgs/webracket-lib/compiler/compiler.rkt")
 
 (define default-targets
   (list (build-path repo-root "test" "test-letrec.rkt")

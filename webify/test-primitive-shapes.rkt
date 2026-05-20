@@ -10,7 +10,7 @@
 (define primitives-db-path
   (build-path repo-root "pkgs" "webracket-lib" "compiler" "private" "primitives-db.rkt"))
 (define runtime-wasm-path  (build-path repo-root "pkgs" "webracket-lib" "compiler" "runtime-wasm.rkt"))
-(define compiler-path      (build-path repo-root "compiler.rkt"))
+(define compiler-path      (build-path repo-root "pkgs" "webracket-lib" "compiler" "compiler.rkt"))
 
 (define primitives-db-source (file->string primitives-db-path))
 (define runtime-wasm-source  (file->string runtime-wasm-path))

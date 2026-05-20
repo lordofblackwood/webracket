@@ -1,6 +1,6 @@
 #lang racket/base
 
-(require (file "../compiler.rkt")
+(require (file "../pkgs/webracket-lib/compiler/compiler.rkt")
          (file "../pkgs/webracket-lib/compiler/private/parameters.rkt")
          racket/list
          racket/match

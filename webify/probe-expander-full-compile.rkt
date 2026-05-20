@@ -10,7 +10,7 @@
          racket/string
          racket/system
          racket/cmdline
-         (only-in "../compiler.rkt"
+         (only-in "../pkgs/webracket-lib/compiler/compiler.rkt"
                   current-console-bridge-top-binding-names
                   label-map->sexp
                   label-map-form-labels

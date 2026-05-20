@@ -45,19 +45,19 @@
 
 
 
-(require "pkgs/webracket-lib/compiler/expander.rkt"       ; provides topexpand
-         "pkgs/webracket-lib/compiler/assembler.rkt"
-         "pkgs/webracket-lib/compiler/private/priminfo.rkt" ; information on Racket primitives
-         (only-in "pkgs/webracket-lib/compiler/private/primitives-db.rkt"
+(require "expander.rkt"       ; provides topexpand
+         "assembler.rkt"
+         "private/priminfo.rkt" ; information on Racket primitives
+         (only-in "private/primitives-db.rkt"
                   primitive-db
                   primitive-info-name
                   primitive-info-properties)
-         "pkgs/webracket-lib/compiler/runtime-wasm.rkt"   ;
-         "pkgs/webracket-lib/compiler/private/define-foreign.rkt"
-         "pkgs/webracket-lib/compiler/private/parameters.rkt"
-         "pkgs/webracket-lib/compiler/private/timings.rkt"
-         "pkgs/webracket-lib/compiler/private/wat-identifiers.rkt"
-         ; "pkgs/webracket-lib/compiler/private/wasm-data.rkt"
+         "runtime-wasm.rkt"   ;
+         "private/define-foreign.rkt"
+         "private/parameters.rkt"
+         "private/timings.rkt"
+         "private/wat-identifiers.rkt"
+         ; "private/wasm-data.rkt"
          nanopass/base
          racket/match
          racket/file
@@ -335,7 +335,7 @@
 ;;; VARIABLES
 ;;;
 
-(require "pkgs/webracket-lib/compiler/private/structs.rkt")
+(require "private/structs.rkt")
 
 ; Representation of variables during compilation.
 ;     (struct variable (id) #:transparent)
@@ -841,7 +841,7 @@
 (define primitive-arity-cache (make-hasheq))
 (define primitive-info-cache #f)
 (define primitive-value-cache (make-hasheq))
-(define-runtime-path primitives-module-path "pkgs/webracket/primitives.rkt")
+(define-runtime-path primitives-module-path "../../webracket/primitives.rkt")
 
 (define (console-bridge-primitive-normalize sym)
   (case sym
@@ -14125,7 +14125,7 @@
 
 (module+ test
   (require rackunit
-           "pkgs/webracket-lib/compiler/expander.rkt")
+           "expander.rkt")
 
   ;; analyze-with-cc-summary : syntax? (LANF -> any/c) -> any/c
   ;;   Run the frontend pipeline up to LANF with cc-analysis enabled, then summarize.
@@ -17381,7 +17381,7 @@
 ;; [The missing immediates was introduced to avoid the null type in WebAssembly.]
 
 ; this information was also needed by "runtime-wasm.rkt" and "wasm-utils.rkt"
-(require "pkgs/webracket-lib/compiler/private/immediates.rkt")
+(require "private/immediates.rkt")
 
 ;;;
 ;;; CODE GENERATOR
@@ -17419,7 +17419,7 @@
 
 
 ;; A few helpers for generating WebAssembly is placed in:
-(require "pkgs/webracket-lib/compiler/private/wasm-utils.rkt")
+(require "private/wasm-utils.rkt")
 ;; Helpers like $, $$, prim:, Imm, Var, etc.
 
 ; The helpers allow us to follow these conventions:

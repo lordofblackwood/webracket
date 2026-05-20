@@ -136,7 +136,7 @@
                   webify-provider-trial-module-allowlist)
          (only-in "webify/ffi-module-registry.rkt"
                   module-provider->ffi-filename)
-         "compiler.rkt"
+         "pkgs/webracket-lib/compiler/compiler.rkt"
          "pkgs/webracket-lib/compiler/private/define-foreign.rkt")
 
 (define-runtime-path webracket-root ".")

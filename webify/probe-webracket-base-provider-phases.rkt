@@ -9,7 +9,7 @@
          racket/path
          racket/runtime-path
          racket/string
-         (only-in "../compiler.rkt" comp)
+         (only-in "../pkgs/webracket-lib/compiler/compiler.rkt" comp)
          (only-in "../driver.rkt"
                   webracket/base-external-provider-names
                   webracket/base-file->local-module-reports
