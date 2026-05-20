@@ -236,6 +236,7 @@
     racket/logging
     racket/private/define-struct
     racket/private/for
+    racket/private/kw
     racket/private/reqprov
     racket/require-transform
     syntax/contract
@@ -243,6 +244,7 @@
     webracket/contract
     webracket/promise
     webracket/private/for
+    webracket/private/kw
     webracket/syntax/contract
     webracket/set
     webracket/stream
@@ -265,11 +267,13 @@
     racket/hash
     racket/logging
     racket/private/for
+    racket/private/kw
     syntax/contract
     syntax/location
     webracket/contract
     webracket/promise
     webracket/private/for
+    webracket/private/kw
     webracket/syntax/contract
     webracket/set
     webracket/stream

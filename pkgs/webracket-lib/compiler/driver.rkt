@@ -1397,14 +1397,17 @@
 (define (simple-local-require-paths form)
   (match form
     [`(require ,specs ...)
-     (for/list ([spec (in-list specs)])
-       (unless (string? spec)
-         (raise-arguments-error
-          'read-top-level-from-file
-          "unsupported #lang webracket/base local require spec"
-          "spec" spec
-          "supported" "plain local string requires, such as (require \"lib.rkt\")"))
-       spec)]
+     (append*
+      (for/list ([spec (in-list specs)])
+        (cond
+          [(string? spec) (list spec)]
+          [(eq? spec 'webracket/private/kw) '()]
+          [else
+           (raise-arguments-error
+            'read-top-level-from-file
+            "unsupported #lang webracket/base local require spec"
+            "spec" spec
+            "supported" "plain local string requires, such as (require \"lib.rkt\")")])))]
     [_ '()]))
 
 (define (candidate-module-symbol->relative-rkt-path candidate)
@@ -1497,6 +1500,7 @@
     [(racket/contract racket/contract/base) 'webracket/contract]
     [(syntax/contract) 'webracket/syntax/contract]
     [(racket/private/for) 'webracket/private/for]
+    [(racket/private/kw) 'webracket/private/kw]
     [else module-path]))
 
 ;; substitute-require-spec : any/c -> any/c
@@ -1896,6 +1900,7 @@
     [(racket/contract racket/contract/base) 'webracket/contract]
     [(syntax/contract) 'webracket/syntax/contract]
     [(racket/private/for) 'webracket/private/for]
+    [(racket/private/kw) 'webracket/private/kw]
     [else name]))
 
 ;; webify-module-report/rename : report symbol? -> report
@@ -2060,38 +2065,44 @@
      (lambda ()
        (webracket/base-file->local-module-reports filename))))
   (define external-names (webracket/base-external-provider-names reports))
+  (define (compose)
+    (let ([graph
+           (with-driver-timing
+            'module-bridge-register
+            (lambda ()
+              (webracket/base-reports->module-graph root reports)))])
+      (define composition
+        (with-driver-timing
+         'module-bridge-compose
+         (lambda ()
+           (webify-compose-module-registry/roots/composition
+            (webracket/base-local-module-graph-registry graph)
+            (list (webracket/base-local-module-graph-root graph))
+            #:define-export-aliases? #f
+            #:serializable?-box     #f
+            #:datum-intern?         #f
+            #:target                #f
+            #:allow-set!-undefined? #f
+            #:unsafe-mode?          #f
+            #:enforce-constant?     #t
+            #:allow-inline?         #t
+            #:no-prompt?            #f
+            #:prim-knowns           (hasheq)
+            #:primitives            (hasheq)
+            #:compiler-query        (lambda (v) #f)
+            #:get-import-knowns     (lambda (key) (values #f #f #f))
+            #:import-keys           #f))))
+      (datum->syntax
+       #f
+       (webify-module-composition-with-tail composition '((void))))))
   (and (andmap webify-provider-trial-default-bridge-module-allowed?
                external-names)
-       (with-handlers ([exn:fail? (lambda (_exn) #f)])
-         (let ([graph
-                (with-driver-timing
-                 'module-bridge-register
-                 (lambda ()
-                   (webracket/base-reports->module-graph root reports)))])
-           (define composition
-             (with-driver-timing
-              'module-bridge-compose
-              (lambda ()
-                (webify-compose-module-registry/roots/composition
-                 (webracket/base-local-module-graph-registry graph)
-                 (list (webracket/base-local-module-graph-root graph))
-                 #:define-export-aliases? #f
-                 #:serializable?-box     #f
-                 #:datum-intern?         #f
-                 #:target                #f
-                 #:allow-set!-undefined? #f
-                 #:unsafe-mode?          #f
-                 #:enforce-constant?     #t
-                 #:allow-inline?         #t
-                 #:no-prompt?            #f
-                 #:prim-knowns           (hasheq)
-                 #:primitives            (hasheq)
-                 #:compiler-query        (lambda (v) #f)
-                 #:get-import-knowns     (lambda (key) (values #f #f #f))
-                 #:import-keys           #f))))
-           (datum->syntax
-            #f
-            (webify-module-composition-with-tail composition '((void))))))))
+       (cond
+         [(null? external-names)
+          (with-handlers ([exn:fail? (lambda (_exn) #f)])
+            (compose))]
+         [else
+          (compose)])))
 
 ;; module-form->top-level : syntax? -> syntax?
 ;;   Transitional helper for tests that already have a module syntax object.

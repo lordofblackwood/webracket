@@ -7,6 +7,9 @@
          rackunit
          "test-module-support.rkt")
 
+(define module-linklet-decompile-available?
+  (and (dynamic-require 'racket/linklet 'decompile-linklet (lambda () #f)) #t))
+
 ;; run-fast-module-smoke : string? regexp? -> void?
 ;;   Compile and run one tiny module-language smoke with bounded resources.
 (define (run-fast-module-smoke source expected)
@@ -45,6 +48,18 @@
   (run-fast-module-smoke
    "#lang webracket/base\n(js-log (+ 40 2))\n"
    #rx"(?m:^42$)"))
+
+(test-case "fast #lang webracket/base optional keyword smoke"
+  (cond
+    [module-linklet-decompile-available?
+     (run-fast-module-smoke
+      (string-append
+       "#lang webracket/base\n"
+       "(define (scale x #:by [by 1]) (* x by))\n"
+       "(js-log (scale 21 #:by 2))\n")
+      #rx"(?m:^42$)")]
+    [else
+     (check-true #t "keyword module smoke requires host linklet decompilation")]))
 
 (test-case "fast #lang webracket/full list-provider smoke"
   (run-fast-module-smoke
