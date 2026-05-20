@@ -4,7 +4,9 @@
          racket/file
          racket/list
          racket/path
+         racket/port
          racket/string
+         racket/system
          "test-module-support.rkt")
 
 (define package-parent (build-path webracket-repo-root "pkgs"))
@@ -82,6 +84,29 @@
 (for ([path (in-list removed-root-collection-files)])
   (check-false (file-exists? (apply build-path webracket-repo-root (string-split path "/")))
                (format "root collection shim should stay removed: ~a" path)))
+
+(define git-executable
+  (or (find-executable-path "git")
+      (let ([candidate "/usr/bin/git"])
+        (and (file-exists? candidate) candidate))))
+
+(when git-executable
+  (define tracked-root-rkt-files
+    (parameterize ([current-directory webracket-repo-root])
+      (filter (lambda (path)
+                (and (string-suffix? path ".rkt")
+                     (not (string-contains? path "/"))
+                     (file-exists? (build-path webracket-repo-root path))))
+              (string-split
+               (with-output-to-string
+                 (lambda ()
+                   (unless (system* git-executable "ls-files" "--" "*.rkt")
+                     (error 'test-package-layout "git ls-files failed"))))
+               "\n"))))
+
+  (check-equal? tracked-root-rkt-files
+                '("webracket.rkt")
+                "only the CLI wrapper should be a tracked root-level Racket file"))
 
 (define private-helper-files
   '("browser-options.rkt"
