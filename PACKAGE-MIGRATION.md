@@ -80,11 +80,10 @@ pkgs/webracket/
   unsafe/
 ```
 
-Compiler/runtime internals are being moved in small, tested slices. The
-repository root still contains the CLI-facing and most-coupled entrypoints
-(`webracket.rkt`, `driver.rkt`, `compiler.rkt`, and `expander.rkt`), while
-package-owned compiler implementation modules such as the assembler and runtime
-generator live under `pkgs/webracket-lib/compiler/`.
+Compiler/runtime internals have moved into `pkgs/webracket-lib/compiler/`.
+The repository root keeps `webracket.rkt` as a small CLI wrapper, while the
+driver, compiler, expander, assembler, runtime generator, and private helper
+modules are package-owned implementation modules.
 
 The CLI can keep a small repository-root wrapper if useful, but collection
 resolution for tests and package-style use should come from `pkgs/`.

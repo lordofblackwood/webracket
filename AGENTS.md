@@ -39,9 +39,9 @@ Racket primitives** faithfully.
 
 The following steps are needed to implement a WebRacket primitive.
 
-- Implement the primitive in `runtime-wasm.rkt`. 
-- Add it to the list of primitives in `compiler.rkt`.
-- If needed add a clause to the inlining in `compiler.rkt`
+- Implement the primitive in `pkgs/webracket-lib/compiler/runtime-wasm.rkt`. 
+- Add it to the list of primitives in `pkgs/webracket-lib/compiler/compiler.rkt`.
+- If needed add a clause to the inlining in `pkgs/webracket-lib/compiler/compiler.rkt`
   (needed when the function doesn't take a fixed number of arguments)
 - Export the primitive in `primitives.rkt`.
 - If the WebRacket primitive isn't a primitive in Racket,
@@ -55,7 +55,8 @@ The following steps are needed to implement a WebRacket primitive.
   in Racket, consult the documentation in `docs/` to get a 
   documentation for the function.
 - If the WebRacket function has restrictions or behaves differently
-  from the Racket one, make a comment about it in `runtime-wasm.rkt`
+  from the Racket one, make a comment about it in
+  `pkgs/webracket-lib/compiler/runtime-wasm.rkt`
 - If a parameter of a function is optional, mention it in an inline comment.
   Also, mention the default value.
 - Use inline comments for the type of each parameter.

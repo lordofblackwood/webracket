@@ -292,8 +292,9 @@ generate nested WebAssembly instructions.
 Finally, the external tool `wasm-tools parse` converts the S-expression
 representation into bytecode format.
 
-The main part of the compiler is in "compiler.rkt".
-The WebAssembly runtime is in "runtime-wasm.rkt".
+The main part of the compiler is in `pkgs/webracket-lib/compiler/compiler.rkt`.
+The WebAssembly runtime generator is in
+`pkgs/webracket-lib/compiler/runtime-wasm.rkt`.
 The standard library (implemented in WebRacket) is found in `stdlib/`.
 FFI bindings for popular libraries are in `ffi/`.
 
@@ -301,7 +302,7 @@ It has been a design goal to avoid relying on functionality provided
 by the WebAssembly host if possible. Who knows - maybe someone needs
 a non-JavaScript host at some point? For browser functionality there
 is no way around interfacing with the JavaScript host. The JavaScript
-part of the runtime support is in `assembler.rkt`. 
+part of the runtime support is in `pkgs/webracket-lib/compiler/assembler.rkt`. 
 
 
 # Examples
