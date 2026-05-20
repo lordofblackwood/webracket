@@ -296,7 +296,8 @@ representation into bytecode format.
 The main part of the compiler is in `pkgs/webracket-lib/compiler/compiler.rkt`.
 The WebAssembly runtime generator is in
 `pkgs/webracket-lib/compiler/runtime-wasm.rkt`.
-The standard library (implemented in WebRacket) is found in `stdlib/`.
+The legacy script-compatibility standard library is found in
+`pkgs/webracket-lib/compiler/legacy-stdlib/`.
 FFI bindings for popular libraries are in `ffi/`.
 
 It has been a design goal to avoid relying on functionality provided

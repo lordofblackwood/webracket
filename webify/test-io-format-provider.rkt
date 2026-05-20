@@ -3,7 +3,7 @@
 (require rackunit
          "io-format-provider.rkt"
          (prefix-in web: "../racket-src/io/format/main-web.rkt")
-         "../stdlib/module-exports.rkt")
+         "../pkgs/webracket-lib/compiler/legacy-stdlib/module-exports.rkt")
 
 (test-case "staged original io/format provider exports the format family"
   (check-true (io-format-provider-ready?))

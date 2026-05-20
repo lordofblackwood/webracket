@@ -6,7 +6,7 @@
          racket/string
          rackunit
          "test-module-support.rkt"
-         "../stdlib/module-exports.rkt")
+         "../pkgs/webracket-lib/compiler/legacy-stdlib/module-exports.rkt")
 
 ;; symbols-subset? : (listof symbol?) (listof symbol?) -> boolean?
 ;;   Check whether every symbol in xs appears in ys.
@@ -91,10 +91,10 @@
 (test-case "stdlib bridge aliases skip primitive-owned exports"
   (define aliases (stdlib-module-alias-symbols #f))
   (check-not-false (memq 'error aliases))
-  (check-not-false (memq 'raise-argument-error* aliases))
   (check-false (memq 'format aliases))
   (check-false (memq 'fprintf aliases))
   (check-false (memq 'raise-argument-error aliases))
+  (check-false (memq 'raise-argument-error* aliases))
   (check-false (memq 'read aliases)))
 
 (test-case "legacy intmap exports are classified as transitional"
@@ -139,6 +139,7 @@
   (check-false (memq 'fprintf stdlib-primitive-owned-export-symbols)
                "fprintf is provided by staged io/format, not the temporary stdlib")
   (for ([sym (in-list '(raise-argument-error
+                        raise-argument-error*
                         raise-arguments-error
                         read
                         read-syntax))])
@@ -148,7 +149,6 @@
                         primitive-realm
                         error-message->adjusted-string
                         error-value->string
-                        raise-argument-error*
                         raise-arguments-error*
                         raise-range-error
                         raise-range-error*

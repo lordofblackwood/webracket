@@ -31,7 +31,7 @@
 
 (require racket/list
          "../pkgs/webracket-lib/compiler/driver.rkt"
-         "../stdlib/module-exports.rkt"
+         "../pkgs/webracket-lib/compiler/legacy-stdlib/module-exports.rkt"
          "io-format-provider.rkt"
          "io-print-provider.rkt"
          "webracket-base-surface.rkt"

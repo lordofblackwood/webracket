@@ -56,6 +56,20 @@
 (check-true (file-exists? (build-path package-parent "webracket-lib" "compiler" "ffi" "dom.ffi")))
 (check-false (file-exists? (build-path webracket-repo-root "ffi" "standard.ffi"))
              "tracked FFI declarations should not live at repo root")
+(check-true (file-exists? (build-path package-parent
+                                      "webracket-lib"
+                                      "compiler"
+                                      "legacy-stdlib"
+                                      "stdlib.rkt")))
+(check-true (file-exists? (build-path package-parent
+                                      "webracket-lib"
+                                      "compiler"
+                                      "legacy-stdlib"
+                                      "module-exports.rkt")))
+(check-false (file-exists? (build-path webracket-repo-root "stdlib" "stdlib.rkt"))
+             "tracked legacy stdlib sources should not live at repo root")
+(check-false (file-exists? (build-path webracket-repo-root "stdlib" "module-exports.rkt"))
+             "tracked legacy stdlib support should not live at repo root")
 (check-true (file-exists? (build-path package-parent "webracket-lib" "compiler" "assembler.rkt")))
 (check-false (file-exists? (build-path webracket-repo-root "assembler.rkt"))
              "compiler implementation entrypoint should not live at repo root: assembler.rkt")

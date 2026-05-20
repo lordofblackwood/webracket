@@ -6,10 +6,11 @@ which names are expected to move to real Racket subsystem ports later.
 
 ## Current Stdlib Bridge
 
-`driver.rkt` no longer textually splices `stdlib/stdlib.rkt` or
-`stdlib/stdlib-for-browser.rkt` directly into the user top level. Instead, it
-uses `stdlib/module-exports.rkt` to rewrite stdlib definitions to private names
-and expose selected public names through `module-variable` cells.
+`driver.rkt` no longer textually splices `legacy-stdlib/stdlib.rkt` or
+`legacy-stdlib/stdlib-for-browser.rkt` directly into the user top level.
+Instead, it uses `legacy-stdlib/module-exports.rkt` to rewrite stdlib
+definitions to private names and expose selected public names through
+`module-variable` cells.
 
 This is an interim bridge, not full Racket module support. It preserves
 script-style `--stdlib` compatibility while avoiding top-level primitive
@@ -20,8 +21,8 @@ system.
 The browser stdlib root is separate:
 
 ```text
-stdlib/stdlib.rkt              ; Node/default stdlib root
-stdlib/stdlib-for-browser.rkt  ; default stdlib plus browser.rkt
+legacy-stdlib/stdlib.rkt              ; Node/default stdlib root
+legacy-stdlib/stdlib-for-browser.rkt  ; default stdlib plus browser.rkt
 ```
 
 ## Runtime Primitive Substrate
@@ -73,6 +74,7 @@ too early regresses runtime smokes.
 format
 fprintf
 raise-argument-error
+raise-argument-error*
 raise-arguments-error
 read
 read-syntax
@@ -97,7 +99,6 @@ primitive-realm
 error-message->adjusted-string
 error-value->string
 
-raise-argument-error*
 raise-arguments-error*
 raise-range-error
 raise-range-error*
@@ -179,12 +180,13 @@ hash-code-combine-unordered*
 ```
 
 The long-term immutable-hash implementation should use the runtime HAMT work,
-not the abandoned `stdlib/hash.rkt` or the `stdlib/intmap.rkt` Patricia-tree
-scaffolding.
+not the abandoned `legacy-stdlib/hash.rkt` or the `legacy-stdlib/intmap.rkt`
+Patricia-tree scaffolding.
 
 ## Browser Stdlib
 
-Browser-only helpers should remain owned by `stdlib/stdlib-for-browser.rkt`:
+Browser-only helpers should remain owned by
+`legacy-stdlib/stdlib-for-browser.rkt`:
 
 ```racket
 sxml->dom

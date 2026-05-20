@@ -7,7 +7,7 @@
 (require racket/list
          racket/set
          "../pkgs/webracket-lib/compiler/driver.rkt"
-         "../stdlib/module-exports.rkt"
+         "../pkgs/webracket-lib/compiler/legacy-stdlib/module-exports.rkt"
          "stdlib-surface-report.rkt")
 
 (define runtime-primitive-substrate
@@ -29,6 +29,7 @@
 
 (define temporary-primitive-owned-public-helpers
   '(raise-argument-error
+    raise-argument-error*
     raise-arguments-error
     read
     read-syntax))

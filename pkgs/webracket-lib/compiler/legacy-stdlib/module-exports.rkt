@@ -94,6 +94,7 @@
     print-value-columns
     print-vector-length
     raise-argument-error
+    raise-argument-error*
     raise-arguments-error
     read
     read-syntax))

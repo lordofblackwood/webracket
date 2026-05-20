@@ -1,6 +1,7 @@
 # WebRacket Stdlib Retirement Plan
 
-The old `stdlib/` directory is a legacy script-compatibility layer. It should
+The old textual stdlib, now in `pkgs/webracket-lib/compiler/legacy-stdlib/`,
+is a legacy script-compatibility layer. It should
 shrink over time; it should not become the module system for Goal 1 programs.
 
 Goal 1 module programs should get functionality from:

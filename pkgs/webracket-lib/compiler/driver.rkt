@@ -64,7 +64,7 @@
          racket/runtime-path
          racket/syntax
          "private/browser-options.rkt"
-         (only-in "../../../stdlib/module-exports.rkt"
+         (only-in "legacy-stdlib/module-exports.rkt"
                   stdlib-module-alias-symbols
                   stdlib-module-private-forms+bindings
                   stdlib-definition-form-symbols)
@@ -1073,7 +1073,7 @@
   (define t-ffi-setup-end (now-ms))
 
   ; 3. Prepend the standard library (if enabled)
-  ;     "stdlib-for-browser.rkt" includes "stdlib.rkt" and adds `sxml->dom`
+  ;     "legacy-stdlib/stdlib-for-browser.rkt" includes "stdlib.rkt" and adds `sxml->dom`
   (define t-add-stdlib-start (now-ms))
   (define stx-with-stdlib
     (cond
@@ -1110,7 +1110,7 @@
           (add-regexp-provider stx-for-compile)])]
       [(and stdlib? browser?)
        (when verbose?
-         (displayln "Composing module stdlib root `stdlib/stdlib-for-browser.rkt`"
+         (displayln "Composing module stdlib root `legacy-stdlib/stdlib-for-browser.rkt`"
                     (current-error-port)))
        (add-module-stdlib stx-for-compile
                            #t
@@ -1119,7 +1119,7 @@
                            #:expander-read-syntax-provider? expander-read-syntax-provider?)]
       [stdlib?
        (when verbose?
-         (displayln "Composing module stdlib root `stdlib/stdlib.rkt`"
+         (displayln "Composing module stdlib root `legacy-stdlib/stdlib.rkt`"
                     (current-error-port)))
        (add-module-stdlib stx-for-compile
                            #f

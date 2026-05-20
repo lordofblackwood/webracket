@@ -129,6 +129,7 @@ pkgs/webracket-lib/
     runtime-wasm.rkt
     ffi/
       *.ffi
+    legacy-stdlib/
     private/
       browser-options.rkt
       define-foreign.rkt
