@@ -49,6 +49,8 @@
 (check-true (file-exists? (build-path package-root "base.rkt")))
 (check-true (file-exists? (build-path package-root "main.rkt")))
 (check-true (file-exists? (build-path package-root "info.rkt")))
+(check-true (file-exists? (build-path package-root "define-key.rkt")))
+(check-true (file-exists? (build-path package-root "sxml.rkt")))
 
 (check-true (file-exists? (build-path private-package-root "immediates.rkt")))
 (check-true (file-exists? (build-path private-package-root "primitives-db.rkt")))
@@ -129,6 +131,8 @@
 (parameterize ([current-library-collection-paths
                 (cons package-parent (current-library-collection-paths))])
   (dynamic-require 'webracket/base #f)
+  (dynamic-require 'webracket/define-key #f)
+  (dynamic-require 'webracket/sxml #f)
   (dynamic-require 'webracket-lib/compiler/compiler #f)
   (dynamic-require 'webracket-lib/compiler/driver #f))
 
@@ -147,12 +151,14 @@
 (define removed-root-collection-files
   '("base.rkt"
     "contract.rkt"
+    "define-key.rkt"
     "full.rkt"
     "js.rkt"
     "main.rkt"
     "promise.rkt"
     "set.rkt"
     "stream.rkt"
+    "sxml.rkt"
     "base/main.rkt"
     "base/lang/reader.rkt"
     "full/main.rkt"

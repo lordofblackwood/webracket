@@ -17,10 +17,16 @@ webracket/full
 webracket/lang/reader
 webracket/js
 webracket/contract
+webracket/define-key
 webracket/set
 webracket/stream
+webracket/sxml
 webracket/unsafe/*
 ```
+
+`webracket/define-key` and `webracket/sxml` are initial module wrappers for
+legacy include-style libraries in `lib/libs/`. New code should prefer these
+module names over `(include-lib define)` and `(include-lib sxml)` when possible.
 
 Compiler/runtime implementation modules are intentionally not part of this
 public collection. They live in the separate `webracket-lib` package under:
