@@ -17,9 +17,9 @@ pkgs/webracket-lib/
 holds compiler/runtime implementation support that should not be part of the
 public collection surface.
 
-The root `webracket.rkt` file is a CLI wrapper. The compiler implementation,
-driver, runtime generator, assembler, and private helper modules live under
-`pkgs/webracket-lib/compiler/`.
+The root `webracket.rkt` file is a CLI wrapper. The CLI implementation,
+compiler, driver, runtime generator, assembler, and private helper modules live
+under `pkgs/webracket-lib/compiler/`.
 
 Tests use `webify/test-module-support.rkt` to put this directory, not the
 repository root, on the collection path. If `pkgs/webracket` is missing, the

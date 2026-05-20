@@ -82,8 +82,8 @@ pkgs/webracket/
 
 Compiler/runtime internals have moved into `pkgs/webracket-lib/compiler/`.
 The repository root keeps `webracket.rkt` as a small CLI wrapper, while the
-driver, compiler, expander, assembler, runtime generator, and private helper
-modules are package-owned implementation modules.
+CLI implementation, driver, compiler, expander, assembler, runtime generator,
+and private helper modules are package-owned implementation modules.
 
 The CLI can keep a small repository-root wrapper if useful, but collection
 resolution for tests and package-style use should come from `pkgs/`.
@@ -122,6 +122,7 @@ pkgs/webracket-lib/
   info.rkt
   compiler/
     assembler.rkt
+    cli.rkt
     compiler.rkt
     driver.rkt
     expander.rkt
