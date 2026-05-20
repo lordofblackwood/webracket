@@ -207,7 +207,7 @@
             ;; Each `id` in `ids` is now ready (but might also hold a delay):
             (for ([id (in-wrap-list ids)])
               (let ([u-id (unwrap id)])
-                (define state (hash-ref mutated u-id))
+                (define state (hash-ref mutated u-id #f))
                 (define (add-too-early-name!)
                   (cond
                     [(and (eq? 'too-early state)
@@ -255,7 +255,15 @@
            (old-state)))
        (find-mutated! rhs #f)]
       [`(#%variable-reference . ,_) (void)]
-      [`(values ,exp) (find-mutated! exp ids)]
+      [`(values ,exps ...)
+       (cond
+         [(and ids (= (length ids) (length exps)))
+          (for ([id (in-list ids)]
+                [exp (in-list exps)])
+            (find-mutated! exp (list id)))]
+         [else
+          (for ([exp (in-list exps)])
+            (find-mutated! exp #f))])]
       [`(,rator ,exps ...)
        (cond
          [(and ids
