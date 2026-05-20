@@ -7,7 +7,7 @@
          racket/string
          rackunit
          (prefix-in racket-contract: racket/contract)
-         (prefix-in erased: "../contract.rkt")
+         (prefix-in erased: "../pkgs/webracket/contract.rkt")
          "test-module-support.rkt")
 
 (define-runtime-path repo-root* "..")
@@ -59,7 +59,7 @@
           (delete-directory/files dir))))))
 
 (module contract-out-module racket/base
-  (require "../contract.rkt")
+  (require "../pkgs/webracket/contract.rkt")
   (provide (contract-out [answer integer?]
                          [add1-erased (-> integer? integer?)]
                          [rename internal-renamed external-renamed integer?]
@@ -71,24 +71,24 @@
   (struct posn (x y)))
 
 (module provide-contract-module racket/base
-  (require "../contract.rkt")
+  (require "../pkgs/webracket/contract.rkt")
   (provide/contract [answer integer?])
   (define answer "not-an-integer"))
 
 (module define-contract-module racket/base
-  (require "../contract.rkt")
+  (require "../pkgs/webracket/contract.rkt")
   (provide value add1-erased)
   (define/contract value integer? "not-an-integer")
   (define/contract (add1-erased x) (-> integer? integer?) (+ x 1)))
 
 (module with-contract-module racket/base
-  (require "../contract.rkt")
+  (require "../pkgs/webracket/contract.rkt")
   (provide value)
   (with-contract here ([value integer?]) ()
     (define value "not-an-integer")))
 
 (module advanced-contract-expression-module racket/base
-  (require "../contract.rkt")
+  (require "../pkgs/webracket/contract.rkt")
   (provide total)
   (define contract-values
     (list (*list/c integer? string?)
@@ -129,7 +129,7 @@
   (define total (length contract-values)))
 
 (module advanced-contract-definition-module racket/base
-  (require "../contract.rkt")
+  (require "../pkgs/webracket/contract.rkt")
   (provide total)
   (struct/contract posn ([x integer?] [y integer?]))
   (define-struct/contract point ([x integer?] [y integer?]))
@@ -140,7 +140,7 @@
        (cell-value (make-cell 11)))))
 
 (module advanced-contract-struct-options-module racket/base
-  (require "../contract.rkt")
+  (require "../pkgs/webracket/contract.rkt")
   (provide total)
   (struct/contract base ([x integer?]) #:transparent)
   (struct/contract child base ([y integer?]) #:transparent #:mutable)
@@ -158,7 +158,7 @@
        (kid-y k))))
 
 (module erased-semantics-module racket/base
-  (require "../contract.rkt")
+  (require "../pkgs/webracket/contract.rkt")
   (provide total)
   (struct/contract checked-posn ([x integer?] [y integer?]))
   (define bad-value (contract integer? "bad" 'positive 'negative))
@@ -244,7 +244,7 @@
   (define-values (webracket-values webracket-syntax)
     (module->exports
      (make-resolved-module-path
-      (simplify-path (build-path repo-root "contract.rkt")))))
+      (simplify-path (build-path repo-root "pkgs" "webracket" "contract.rkt")))))
   (check-equal? (phase-0-export-names webracket-values webracket-syntax)
                 (phase-0-export-names racket-values racket-syntax)))
 

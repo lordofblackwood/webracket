@@ -4,10 +4,10 @@
          racket/list
          racket/runtime-path
          (prefix-in r: racket/set)
-         (prefix-in wr: "../set.rkt")
-         (prefix-in wr-stream: "../stream.rkt"))
+         (prefix-in wr: "../pkgs/webracket/set.rkt")
+         (prefix-in wr-stream: "../pkgs/webracket/stream.rkt"))
 
-(define-runtime-path webracket-set-path "../set.rkt")
+(define-runtime-path webracket-set-path "../pkgs/webracket/set.rkt")
 
 (define deferred-racket/set-exports
   '(chaperone-hash-set

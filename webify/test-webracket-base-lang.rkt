@@ -8,7 +8,7 @@
          racket/string
          rackunit
          syntax/modread
-         (prefix-in staged-promise: "../promise.rkt")
+         (prefix-in staged-promise: "../pkgs/webracket/promise.rkt")
          (only-in "../driver.rkt"
                   cached-installed-provider-report
                   current-provider-cache-dir
@@ -1753,10 +1753,10 @@
     (check-false (webify-provider-trial-default-bridge-module-allowed? module-name)
                  (symbol->string module-name))))
 
-(test-case "package info declares a multi-collection install story"
+(test-case "package info declares the public collection"
   (define info-path (build-path repo-root "pkgs" "webracket" "info.rkt"))
   (define source (file->string info-path))
-  (check-true (string-contains? source "(define collection 'multi)")))
+  (check-true (string-contains? source "(define collection \"webracket\")")))
 
 (test-case "#lang webracket/base can require the explicit JS FFI provider"
   (define source-dir (make-temporary-file "webracket-js-provider-src-~a" 'directory))

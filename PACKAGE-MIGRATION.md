@@ -102,7 +102,10 @@ assets/
 
 `webify/test-package-layout.rkt` guards this by checking that the active
 collection parent is `pkgs/` and that obvious development/generated directories
-have not leaked into `pkgs/webracket/`.
+have not leaked into `pkgs/webracket/`. It also checks that quarantined root
+collection shims stay removed, that compiler-private helpers stay out of the
+public `webracket` package, and that the package `info.rkt` files declare the
+intended collections.
 
 Scribble documentation can later become either part of the core package or a
 separate `webracket-doc` package.

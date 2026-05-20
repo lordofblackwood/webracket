@@ -75,7 +75,7 @@
 
 (test-case "module-variable helpers are exported by #lang webracket"
   (for ([sym (in-list module-variable-primitives)])
-    (check-true (procedure? (dynamic-require (build-path repo-root "main.rkt") sym))
+    (check-true (procedure? (dynamic-require (build-path repo-root "pkgs" "webracket" "main.rkt") sym))
                 (format "~a should be a value export" sym))))
 
 (test-case "module-variable helpers have primitive metadata"

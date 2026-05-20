@@ -1,5 +1,5 @@
 #lang info
 
-(define collection 'multi)
+(define collection "webracket")
 (define deps '("base"))
-(define pkg-desc "WebRacket compiler, runtime, and module collections")
+(define pkg-desc "WebRacket public language and library collection")
