@@ -52,7 +52,7 @@
                   primitive-db
                   primitive-info-name
                   primitive-info-properties)
-         "runtime-wasm.rkt"   ;
+         "pkgs/webracket-lib/compiler/runtime-wasm.rkt"   ;
          "pkgs/webracket-lib/compiler/private/define-foreign.rkt"
          "pkgs/webracket-lib/compiler/private/parameters.rkt"
          "pkgs/webracket-lib/compiler/private/timings.rkt"

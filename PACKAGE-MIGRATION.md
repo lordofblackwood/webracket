@@ -121,6 +121,7 @@ pkgs/webracket-lib/
   info.rkt
   compiler/
     assembler.rkt
+    runtime-wasm.rkt
     private/
       browser-options.rkt
       define-foreign.rkt

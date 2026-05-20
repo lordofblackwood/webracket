@@ -13,7 +13,7 @@
          "module-audit.rkt"
          "module-input.rkt")
 
-(define-runtime-path default-runtime-wasm "../runtime-wasm.rkt")
+(define-runtime-path default-runtime-wasm "../pkgs/webracket-lib/compiler/runtime-wasm.rkt")
 
 ;; webify-runtime-primitive-implemented? : symbol? [path-string?] -> boolean?
 ;;   Check whether runtime-wasm.rkt defines a Wasm function for a primitive.

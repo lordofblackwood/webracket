@@ -1,13 +1,13 @@
 #lang racket
 (provide generate-runtime)
 
-(require "pkgs/webracket-lib/compiler/private/wasm-data.rkt"
-         "pkgs/webracket-lib/compiler/private/wasm-utils.rkt"
-         "pkgs/webracket-lib/compiler/private/immediates.rkt"
-         "pkgs/webracket-lib/compiler/private/priminfo.rkt"
-         "pkgs/webracket-lib/compiler/private/parameters.rkt"
-         "pkgs/webracket-lib/compiler/private/timings.rkt"
-         "pkgs/webracket-lib/compiler/private/structs.rkt")
+(require "private/wasm-data.rkt"
+         "private/wasm-utils.rkt"
+         "private/immediates.rkt"
+         "private/priminfo.rkt"
+         "private/parameters.rkt"
+         "private/timings.rkt"
+         "private/structs.rkt")
 
 ; See the end of `generate-code` in `compiler.rkt` for an
 ; explanation of the arguments.

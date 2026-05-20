@@ -9,7 +9,7 @@
 (define-runtime-path repo-root "..")
 (define primitives-db-path
   (build-path repo-root "pkgs" "webracket-lib" "compiler" "private" "primitives-db.rkt"))
-(define runtime-wasm-path  (build-path repo-root "runtime-wasm.rkt"))
+(define runtime-wasm-path  (build-path repo-root "pkgs" "webracket-lib" "compiler" "runtime-wasm.rkt"))
 (define compiler-path      (build-path repo-root "compiler.rkt"))
 
 (define primitives-db-source (file->string primitives-db-path))
@@ -32,14 +32,14 @@
     (vector->values       "1 2 3" "$Prim13")
     (string-utf-8-length  "1 2 3" "$Prim13")
     (range                "1 2 3" "$Prim13")
-    (hash-iterate-key     "2 3"   "$Prim13")
-    (hash-iterate-value   "2 3"   "$Prim13")
-    (hash-iterate-pair    "2 3"   "$Prim13")
-    (hash-iterate-key+value "2 3" "$Prim13")
-    (mutable-hash-iterate-key "2 3" "$Prim13")
-    (mutable-hash-iterate-value "2 3" "$Prim13")
-    (mutable-hash-iterate-pair "2 3" "$Prim13")
-    (mutable-hash-iterate-key+value "2 3" "$Prim13")))
+    (hash-iterate-key     "2 3"   "$Prim23")
+    (hash-iterate-value   "2 3"   "$Prim23")
+    (hash-iterate-pair    "2 3"   "$Prim23")
+    (hash-iterate-key+value "2 3" "$Prim23")
+    (mutable-hash-iterate-key "2 3" "$Prim23")
+    (mutable-hash-iterate-value "2 3" "$Prim23")
+    (mutable-hash-iterate-pair "2 3" "$Prim23")
+    (mutable-hash-iterate-key+value "2 3" "$Prim23")))
 
 ;; primitive-bracketed-arity : symbol? -> (or/c string? #f)
 ;;   Read one bracketed arity declaration from primitives-db.rkt.
