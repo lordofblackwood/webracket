@@ -3,13 +3,19 @@
          make-webracket-namespace)
 
 (require syntax/toplevel
-         racket/pretty)
+         racket/path
+         racket/pretty
+         racket/runtime-path)
 
+(define-runtime-path webracket-root ".")
 
 (define (make-webracket-namespace)
   (define ns (make-base-empty-namespace))
 
-  (parameterize ([current-namespace ns])
+  (parameterize ([current-namespace ns]
+                 [current-library-collection-paths
+                  (cons (simplify-path (build-path webracket-root 'up))
+                        (current-library-collection-paths))])
     (namespace-require '(for-syntax racket/base))
     (namespace-require 'webracket))
   ns)
