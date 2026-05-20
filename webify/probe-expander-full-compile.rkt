@@ -18,7 +18,7 @@
          (only-in "../pkgs/webracket-lib/compiler/private/parameters.rkt"
                   current-console-bridge?
                   current-runtime-primitive-report-path)
-         "../wat-identifiers.rkt"
+         "../pkgs/webracket-lib/compiler/private/wat-identifiers.rkt"
          "module-diagnostics.rkt"
          "test-module-support.rkt")
 
