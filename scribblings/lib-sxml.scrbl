@@ -8,7 +8,7 @@
 @title{Library: @racketid[sxml]}
 @declare-exporting[(lib "scribblings/lib-sxml-labels.rkt" "webracket")]
 
-@(how-to-require include-lib sxml (lib "libs/sxml.rkt"))
+@(how-to-require include-lib sxml (lib "lib/libs/sxml.rkt"))
 
 The @racket[sxml] library converts SXML trees into HTML strings.
 It is a small helper for programs that want to build HTML with

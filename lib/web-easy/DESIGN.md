@@ -293,7 +293,7 @@ Rationale:
 
 ## define/key Formal Grammar
 
-`libs/define.rkt` provides `define/key` and `call/key` for keyword-capable function definitions and calls.
+`lib/libs/define.rkt` provides `define/key` and `call/key` for keyword-capable function definitions and calls.
 
 Supported `define/key` header grammar:
 

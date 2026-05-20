@@ -7,7 +7,7 @@
 @title{Library: @racketid[define]}
 @declare-exporting[(lib "scribblings/define-labels.rkt" "webracket")]
 
-@(how-to-require require-lib define (lib "libs/define.rkt"))
+@(how-to-require require-lib define (lib "lib/libs/define.rkt"))
 
 Function definitions and function calls in Racket support keyword arguments.
 WebRacket cannot currently reuse the implementation.
