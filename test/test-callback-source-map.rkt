@@ -13,7 +13,7 @@
   (define repo-root
     (simplify-path (build-path (current-directory) "..")))
   (define webracket-rkt (build-path repo-root "webracket.rkt"))
-  (define standard-ffi "ffi/standard.ffi")
+  (define standard-ffi "standard.ffi")
 
   (define (run-command cwd . args)
     (define stdout (open-output-string))

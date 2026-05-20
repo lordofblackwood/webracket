@@ -127,6 +127,8 @@ pkgs/webracket-lib/
     driver.rkt
     expander.rkt
     runtime-wasm.rkt
+    ffi/
+      *.ffi
     private/
       browser-options.rkt
       define-foreign.rkt

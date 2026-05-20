@@ -2344,9 +2344,7 @@
 ;;;
 
 
-(define system-ffi-directory
-  (let ([candidate (build-path webracket-root "ffi")])
-    (and (directory-exists? candidate) candidate)))
+(define-runtime-path system-ffi-directory "ffi")
 
 (define (resolve-ffi-filename ffi-filename)
   (define filename

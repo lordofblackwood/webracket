@@ -92,6 +92,7 @@
 (require (for-syntax racket/base)
          (only-in racket/list last drop-right)
          (only-in racket/path path-only)
+         racket/runtime-path
          "structs.rkt")
 
 (module+ test
@@ -327,9 +328,12 @@
     f))
 
 (module+ test
+  (define-runtime-path standard-ffi "../ffi/standard.ffi")
+  (define-runtime-path array-ffi "../ffi/array.ffi")
+
   (define standard+array-foreigns
-    (append (ffi-file->foreigns "ffi/standard.ffi")
-            (ffi-file->foreigns "ffi/array.ffi")))
+    (append (ffi-file->foreigns standard-ffi)
+            (ffi-file->foreigns array-ffi)))
 
   (define deduped-standard+array
     (foreigns-deduplicate 'test standard+array-foreigns))

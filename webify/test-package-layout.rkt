@@ -52,6 +52,10 @@
 
 (check-true (file-exists? (build-path private-package-root "immediates.rkt")))
 (check-true (file-exists? (build-path private-package-root "primitives-db.rkt")))
+(check-true (file-exists? (build-path package-parent "webracket-lib" "compiler" "ffi" "standard.ffi")))
+(check-true (file-exists? (build-path package-parent "webracket-lib" "compiler" "ffi" "dom.ffi")))
+(check-false (file-exists? (build-path webracket-repo-root "ffi" "standard.ffi"))
+             "tracked FFI declarations should not live at repo root")
 (check-true (file-exists? (build-path package-parent "webracket-lib" "compiler" "assembler.rkt")))
 (check-false (file-exists? (build-path webracket-repo-root "assembler.rkt"))
              "compiler implementation entrypoint should not live at repo root: assembler.rkt")
