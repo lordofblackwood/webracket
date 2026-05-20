@@ -42,7 +42,7 @@
   (check-false (directory-exists? (build-path package-root dir))
                (format "non-package directory leaked into package root: ~a" dir)))
 
-(define quarantined-root-collection-files
+(define removed-root-collection-files
   '("base.rkt"
     "contract.rkt"
     "full.rkt"
@@ -64,9 +64,9 @@
     "unsafe/performance.rkt"
     "unsafe/temp.rkt"))
 
-(for ([path (in-list quarantined-root-collection-files)])
+(for ([path (in-list removed-root-collection-files)])
   (check-false (file-exists? (apply build-path webracket-repo-root (string-split path "/")))
-               (format "root collection shim should stay quarantined: ~a" path)))
+               (format "root collection shim should stay removed: ~a" path)))
 
 (define private-helper-files
   '("browser-options.rkt"

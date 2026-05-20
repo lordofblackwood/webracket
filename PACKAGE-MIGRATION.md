@@ -30,7 +30,7 @@ PLTCOLLECTS=/path/to/repo/pkgs:$PLTCOLLECTS
 ```
 
 while avoiding a large physical move in a dirty worktree. This was temporary:
-the root shims have since been quarantined under `deleted/`, and `pkgs/` is now
+the root shims have since been removed, and `pkgs/` is now
 the only collection parent used by the Webify tests.
 
 ## Phase 3: Promote the Current Package Surface
@@ -51,9 +51,8 @@ that has already been copied:
 - `webracket/set`
 - `webracket/stream`
 
-The repository-root compatibility shims have been quarantined under
-`deleted/`. The live source of truth for public collection modules is now
-`pkgs/webracket/...`.
+The repository-root compatibility shims have been removed. The live source of
+truth for public collection modules is now `pkgs/webracket/...`.
 
 The current public package surface is:
 
@@ -103,10 +102,10 @@ assets/
 
 `webify/test-package-layout.rkt` guards this by checking that the active
 collection parent is `pkgs/` and that obvious development/generated directories
-have not leaked into `pkgs/webracket/`. It also checks that quarantined root
-collection shims stay removed, that compiler-private helpers stay out of the
-public `webracket` package, and that the package `info.rkt` files declare the
-intended collections.
+have not leaked into `pkgs/webracket/`. It also checks that old root collection
+shims stay removed, that compiler-private helpers stay out of the public
+`webracket` package, and that the package `info.rkt` files declare the intended
+collections.
 
 Scribble documentation can later become either part of the core package or a
 separate `webracket-doc` package.
@@ -131,8 +130,8 @@ pkgs/webracket-lib/
       structs.rkt
 ```
 
-The old root copies and the accidental `pkgs/webracket` copies are quarantined
-under `deleted/` for review before final deletion.
+The old root copies and accidental `pkgs/webracket` private-helper copies were
+reviewed and removed after the package split landed.
 
 Potential later splits:
 
