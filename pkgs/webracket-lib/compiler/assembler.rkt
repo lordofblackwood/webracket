@@ -5,9 +5,9 @@
   (require rackunit))
 
 (require json
-         "pkgs/webracket-lib/compiler/private/fasl.rkt"
-         "pkgs/webracket-lib/compiler/private/get-env-path.rkt"
-         "pkgs/webracket-lib/compiler/private/wat-identifiers.rkt")
+         "private/fasl.rkt"
+         "private/get-env-path.rkt"
+         "private/wat-identifiers.rkt")
 
 ;;;
 ;;; ASSEMBLER

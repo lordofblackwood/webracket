@@ -46,7 +46,7 @@
 
 
 (require "expander.rkt"       ; provides topexpand
-         "assembler.rkt"
+         "pkgs/webracket-lib/compiler/assembler.rkt"
          "pkgs/webracket-lib/compiler/private/priminfo.rkt" ; information on Racket primitives
          (only-in "pkgs/webracket-lib/compiler/private/primitives-db.rkt"
                   primitive-db

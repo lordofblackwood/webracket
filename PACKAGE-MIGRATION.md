@@ -120,6 +120,7 @@ public collection modules, live under:
 pkgs/webracket-lib/
   info.rkt
   compiler/
+    assembler.rkt
     private/
       browser-options.rkt
       define-foreign.rkt

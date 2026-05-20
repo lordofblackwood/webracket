@@ -40,7 +40,10 @@
          (only-in racket/format     ~a)
          (only-in racket/system     system*)
          #;(only-in "lang/reader.rkt" read-syntax)
-         (only-in "assembler.rkt"   run wat->wasm runtime)
+         (only-in "pkgs/webracket-lib/compiler/assembler.rkt"
+                  run
+                  wat->wasm
+                  runtime)
          (only-in racket/list       append* append-map remove-duplicates)
          (only-in racket/match      match)
          setup/dirs

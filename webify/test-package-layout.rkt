@@ -21,6 +21,9 @@
 
 (check-true (file-exists? (build-path private-package-root "immediates.rkt")))
 (check-true (file-exists? (build-path private-package-root "primitives-db.rkt")))
+(check-true (file-exists? (build-path package-parent "webracket-lib" "compiler" "assembler.rkt")))
+(check-false (file-exists? (build-path webracket-repo-root "assembler.rkt"))
+             "compiler implementation entrypoint should not live at repo root: assembler.rkt")
 
 (define package-info-source
   (file->string (build-path package-root "info.rkt")))
