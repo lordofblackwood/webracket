@@ -18,16 +18,11 @@
          "module-input.rkt"
          "module-protocol.rkt"
          "module-registry.rkt"
+         "test-module-support.rkt"
          "provider-trials.rkt")
 
 (define-runtime-path repo-root* "..")
 (define repo-root (simplify-path repo-root*))
-
-;; repo-parent : path?
-;;   Parent collection path that exposes this checkout as collection `webracket`.
-(define repo-parent
-  (let-values ([(base _name _must-be-dir?) (split-path repo-root)])
-    base))
 
 ;; now-ms : -> real?
 ;;   Current wall-clock time in milliseconds.
@@ -234,7 +229,8 @@
     (lambda ()
       (write-trial-source! trial source-path)
       (parameterize ([current-library-collection-paths
-                      (cons repo-parent (current-library-collection-paths))]
+                      (cons (webracket-collection-parent)
+                            (current-library-collection-paths))]
                      [current-directory source-dir])
         (define-values (root reports)
           (run-stage! 'extract-local-reports

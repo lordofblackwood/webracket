@@ -79,12 +79,6 @@
 (define path-list-separator
   (if (eq? (system-type 'os) 'windows) ";" ":"))
 
-;; parent-directory : path? -> path?
-;;   Return the directory that contains path.
-(define (parent-directory path)
-  (let-values ([(base _name _must-be-dir?) (split-path path)])
-    base))
-
 ;; package-collection-root-ready? : path? -> boolean?
 ;;   Detect when the phased package migration has moved collection files.
 (define (package-collection-root-ready? package-root)
@@ -98,7 +92,10 @@
   (define package-root (build-path webracket-repo-root "pkgs" "webracket"))
   (if (package-collection-root-ready? package-root)
       (build-path webracket-repo-root "pkgs")
-      (parent-directory webracket-repo-root)))
+      (raise-arguments-error
+       'webracket-collection-parent
+       "package collection root is not ready"
+       "expected" package-root)))
 
 ;; webracket-collection-env-value : -> string?
 ;;   Build a PLTCOLLECTS value that exposes collection `webracket`.

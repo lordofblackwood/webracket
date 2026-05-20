@@ -216,7 +216,7 @@
                    [current-environment-variables
                     (environment-variables-copy (current-environment-variables))])
       (putenv "PLTCOMPILEDROOTS" (path->string compiled-root))
-      (putenv "PLTCOLLECTS" (format "~a:" (path->string (simplify-path (build-path repo-root "..")))))
+      (putenv "PLTCOLLECTS" (webracket-collection-env-value))
       (system*/exit-code (path->string racket-bin) (path->string script-path))))
   (values status
           (string-append (get-output-string stdout)
