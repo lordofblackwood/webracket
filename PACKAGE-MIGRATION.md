@@ -80,9 +80,11 @@ pkgs/webracket/
   unsafe/
 ```
 
-Compiler/runtime internals such as `compiler.rkt`, `driver.rkt`,
-`runtime-wasm.rkt`, and the active `webify/` tooling stay at the repository
-root until the package layout is less turbulent.
+Compiler/runtime internals are being moved in small, tested slices. The
+repository root still contains the CLI-facing and most-coupled entrypoints
+(`webracket.rkt`, `driver.rkt`, `compiler.rkt`, and `expander.rkt`), while
+package-owned compiler implementation modules such as the assembler and runtime
+generator live under `pkgs/webracket-lib/compiler/`.
 
 The CLI can keep a small repository-root wrapper if useful, but collection
 resolution for tests and package-style use should come from `pkgs/`.
@@ -139,10 +141,9 @@ pkgs/webracket-lib/
 ```
 
 The old root copies and accidental `pkgs/webracket` private-helper copies were
-reviewed and removed after the package split landed. The larger compiler and
-runtime entrypoints still live at the repository root for now, but their small
-implementation helpers are private package modules instead of root-level
-collections.
+reviewed and removed after the package split landed. The remaining root files
+are either CLI-facing (`webracket.rkt`, `driver.rkt`) or still tightly coupled
+to the host expansion/compiler path (`compiler.rkt`, `expander.rkt`).
 
 Potential later splits:
 
