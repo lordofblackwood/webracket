@@ -63,7 +63,7 @@
 (define goal1-dashboard-default-memory-mb 1024)
 
 (define goal1-dashboard-diagnostic-case-names
-  '(installed-racket-logging-contract-diagnostic))
+  '())
 
 ;; goal1-dashboard-case-expectation : goal1-dashboard-case? -> symbol?
 ;;   Classify whether a row is required to pass or is a diagnostic partial case.
@@ -382,7 +382,7 @@
     #rx"(?m:^44$)"
     '("--no-io-format-provider" "--webracket-module-bridge"))
    (goal1-dashboard-case
-    'installed-racket-logging-contract-diagnostic
+    'installed-racket-logging
     'installed-provider-graph
     '(racket/logging racket/contract/base)
     `(("main.rkt" .

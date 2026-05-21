@@ -464,6 +464,12 @@ small formatter for the Goal 1 module surface instead of extracting installed
 cluster. Full numeric `~r` and complete print-convention fidelity remain staged
 `io/format` follow-up work.
 
+`racket/logging` now has a required compact dashboard row for the current
+Goal 1 surface. The row verifies the installed provider graph can expose
+`log-level/c`, while WebRacket's runtime logger substrate remains intentionally
+inert: receivers/events can be layered on later if browser-visible logging
+becomes a goal.
+
 Current local-manifest runtime smokes cover hand-authored bridge shapes that do
 not depend on source extraction:
 
