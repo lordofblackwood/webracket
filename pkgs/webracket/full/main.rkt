@@ -23,6 +23,13 @@
                     [fprintf wr-fprintf]
                     [printf wr-printf]
                     [eprintf wr-eprintf])
+         (except-in "../file.rkt"
+                    call-with-input-file
+                    call-with-input-file*
+                    call-with-output-file
+                    call-with-output-file*
+                    with-input-from-file
+                    with-output-to-file)
          "../hash.rkt"
          "../js/main.rkt"
          "../pretty.rkt"
@@ -68,6 +75,7 @@
          ~.a
          ~.s
          ~.v
+         (all-from-out "../file.rkt")
          (all-from-out "../hash.rkt")
          (all-from-out "../js/main.rkt")
          (all-from-out "../pretty.rkt")

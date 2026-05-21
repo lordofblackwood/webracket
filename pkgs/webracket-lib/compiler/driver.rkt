@@ -1499,6 +1499,7 @@
   (case module-path
     [(racket/contract racket/contract/base) 'webracket/contract]
     [(racket/dict) 'webracket/dict]
+    [(racket/file) 'webracket/file]
     [(racket/format) 'webracket/format]
     [(racket/hash) 'webracket/hash]
     [(racket/port) 'webracket/port]
@@ -1908,6 +1909,7 @@
   (case name
     [(racket/contract racket/contract/base) 'webracket/contract]
     [(racket/dict) 'webracket/dict]
+    [(racket/file) 'webracket/file]
     [(racket/format) 'webracket/format]
     [(racket/hash) 'webracket/hash]
     [(racket/port) 'webracket/port]

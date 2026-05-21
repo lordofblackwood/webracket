@@ -244,6 +244,7 @@
     syntax/location
     webracket/contract
     webracket/dict
+    webracket/file
     webracket/format
     webracket/hash
     webracket/port
@@ -279,6 +280,7 @@
     syntax/location
     webracket/contract
     webracket/dict
+    webracket/file
     webracket/format
     webracket/hash
     webracket/port

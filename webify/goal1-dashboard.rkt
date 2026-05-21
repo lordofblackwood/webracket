@@ -280,6 +280,19 @@
     #rx"(?m:^\\(1 2 3\\)$)"
     '("--no-io-format-provider" "--webracket-module-bridge"))
    (goal1-dashboard-case
+    'installed-racket-file
+    'installed-provider-graph
+    '(racket/file)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/base\n"
+         "(require racket/file)\n"
+         "(display-to-file \"web\" \"/app/data/goal1-file.txt\" 'text 'replace)\n"
+         "(js-log (+ (string-length (file->string \"/app/data/goal1-file.txt\")) 39))\n")))
+    "main.rkt"
+    #rx"(?m:^42$)"
+    '("--no-io-format-provider" "--webracket-module-bridge"))
+   (goal1-dashboard-case
     'full-shared
     'installed-provider-graph
     '(racket/shared)
@@ -439,6 +452,18 @@
          "(js-log (+ (stream-first s)\n"
          "           (stream-first (stream-rest s))\n"
          "           (stream-first (stream-rest (stream-rest s)))))\n")))
+    "main.rkt"
+    #rx"(?m:^42$)"
+    '("--no-io-format-provider"))
+   (goal1-dashboard-case
+    'full-file
+    'language-staged-provider
+    '(webracket/file)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/full\n"
+         "(display-to-file \"web\" \"/app/data/goal1-full-file.txt\" 'text 'replace)\n"
+         "(js-log (+ (string-length (file->string \"/app/data/goal1-full-file.txt\")) 39))\n")))
     "main.rkt"
     #rx"(?m:^42$)"
     '("--no-io-format-provider"))

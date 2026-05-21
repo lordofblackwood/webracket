@@ -139,7 +139,7 @@ Good initial add-on candidates are the libraries already represented in Goal 1
 smokes or close to the current browser runtime:
 
 - `racket/bool`, `racket/bytes`, `racket/dict`, `racket/format`,
-  `racket/function`, `racket/include`, `racket/list`, `racket/local`,
+  `racket/file`, `racket/function`, `racket/include`, `racket/list`, `racket/local`,
   `racket/match`, `racket/math`, `racket/path`, `racket/port`,
   `racket/pretty`, `racket/promise`, `racket/sequence`, `racket/set`,
   `racket/shared`, `racket/stream`, `racket/string`, and `racket/vector`.
@@ -148,7 +148,7 @@ Libraries that should remain separate milestones for now are the ones that pull
 harder on contracts, OS services, networking, parallelism, or larger object
 systems:
 
-- `racket/class`, `racket/cmdline`, `racket/contract`, `racket/file`,
+- `racket/class`, `racket/cmdline`, `racket/contract`,
   `racket/future`, `racket/place`, `racket/system`, `racket/tcp`,
   `racket/udp`, and `racket/unit`.
 
@@ -433,6 +433,13 @@ Current installed-extraction runtime smokes cover:
   layout or pretty-printer hooks. Goal 1 module programs that require
   `racket/pretty` are rewritten to this provider, so the compact dependency
   matrix now treats `(require racket/pretty)` as a required row.
+- `webracket/file`: a small staged provider exposes the `racket/file` helpers
+  already backed by WebRacket's virtual filesystem primitives, including
+  `file->string`, `file->bytes`, `file->lines`, `display-to-file`,
+  `display-lines-to-file`, `copy-directory/files`, temporary-file helpers, and
+  `call-with-*-file` wrappers. Goal 1 module programs that require
+  `racket/file` are rewritten to this provider. OS-facing helpers such as file
+  locks and preferences remain separate milestones.
 - `webracket/promise`: a small staged provider covers `delay`, `delay/strict`,
   `force`, `promise?`, `promise-forced?`, and `promise-running?`, including
   cached exceptions and multiple-value results. Goal 1 module programs that
