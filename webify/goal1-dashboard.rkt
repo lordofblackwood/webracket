@@ -63,9 +63,7 @@
 (define goal1-dashboard-default-memory-mb 1024)
 
 (define goal1-dashboard-diagnostic-case-names
-  '(installed-racket-set-diagnostic
-    installed-racket-promise-diagnostic
-    installed-racket-hash-contract-diagnostic
+  '(installed-racket-hash-contract-diagnostic
     installed-racket-format-contract-diagnostic
     installed-racket-logging-contract-diagnostic))
 
@@ -321,7 +319,7 @@
     #rx"(?m:^42$)"
     '("--no-io-format-provider"))
    (goal1-dashboard-case
-    'installed-racket-set-diagnostic
+    'installed-racket-set
     'installed-provider-graph
     '(racket/set)
     `(("main.rkt" . "#lang webracket/base\n(require racket/set)\n(js-log (set-count (set 1 2 2)))\n"))
@@ -329,7 +327,7 @@
     #rx"(?m:^2$)"
     '("--no-io-format-provider" "--webracket-module-bridge"))
    (goal1-dashboard-case
-    'installed-racket-promise-diagnostic
+    'installed-racket-promise
     'installed-provider-graph
     '(racket/promise)
     `(("main.rkt" . "#lang webracket/base\n(require racket/promise)\n(js-log (force (delay (+ 20 22))))\n"))

@@ -1498,6 +1498,8 @@
 (define (substitute-require-module-path module-path)
   (case module-path
     [(racket/contract racket/contract/base) 'webracket/contract]
+    [(racket/promise) 'webracket/promise]
+    [(racket/set) 'webracket/set]
     [(syntax/contract) 'webracket/syntax/contract]
     [(racket/private/for) 'webracket/private/for]
     [(racket/private/kw) 'webracket/private/kw]
@@ -1899,6 +1901,8 @@
 (define (webracket/base-provider-substitute name)
   (case name
     [(racket/contract racket/contract/base) 'webracket/contract]
+    [(racket/promise) 'webracket/promise]
+    [(racket/set) 'webracket/set]
     [(syntax/contract) 'webracket/syntax/contract]
     [(racket/private/for) 'webracket/private/for]
     [(racket/private/kw) 'webracket/private/kw]

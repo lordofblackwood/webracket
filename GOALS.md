@@ -398,9 +398,9 @@ Current installed-extraction runtime smokes cover:
   tables and covers the common `set`, `set-add`, `set-remove`, `set-count`,
   `set-member?`, `set-union`, `set-intersect`, `set-subtract`, `set-map`,
   `set-filter`, `subset?`, `proper-subset?`, `set=?`, `set->list`, and related
-  predicates needed by early Goal 1 programs. Installed `racket/set` remains
-  in the dependency matrix as a diagnostic row because its transitive graph is
-  still too large for the short feedback lane.
+  predicates needed by early Goal 1 programs. Goal 1 module programs that
+  require `racket/set` are rewritten to this provider, so the compact
+  dependency matrix now treats `(require racket/set)` as a required row.
 - `webracket/stream`: a small finite-stream staged provider is available for
   explicit `(require webracket/stream)` programs. It covers `stream`,
   `stream-cons`, `stream-first`, `stream-rest`, `stream-empty?`,
@@ -426,9 +426,9 @@ Current installed-extraction runtime smokes cover:
 - `racket/pretty`: a require-only installed-provider smoke.
 - `webracket/promise`: a small staged provider covers `delay`, `delay/strict`,
   `force`, `promise?`, `promise-forced?`, and `promise-running?`, including
-  cached exceptions and multiple-value results. Installed `racket/promise`
-  stays as a diagnostic provider-graph row, while `#lang webracket/full` uses
-  the staged provider for its fast Goal 1 promise surface.
+  cached exceptions and multiple-value results. Goal 1 module programs that
+  require `racket/promise` are rewritten to this provider, so the compact
+  dependency matrix now treats `(require racket/promise)` as a required row.
 - `racket/sequence`: `sequence->list` over a plain list, `in-range`,
   `for/list`, `for/fold`, and `for/vector` coverage in the Goal 1 matrix.
 - `racket/base` `for` forms: `for/list`, `for/fold`, `for*/list`, and
