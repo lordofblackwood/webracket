@@ -141,16 +141,16 @@ smokes or close to the current browser runtime:
 - `racket/bool`, `racket/bytes`, `racket/dict`, `racket/format`,
   `racket/function`, `racket/include`, `racket/list`, `racket/local`,
   `racket/match`, `racket/math`, `racket/path`, `racket/port`,
-  `racket/promise`, `racket/sequence`, `racket/set`, `racket/shared`,
-  `racket/stream`, `racket/string`, and `racket/vector`.
+  `racket/pretty`, `racket/promise`, `racket/sequence`, `racket/set`,
+  `racket/shared`, `racket/stream`, `racket/string`, and `racket/vector`.
 
 Libraries that should remain separate milestones for now are the ones that pull
 harder on contracts, OS services, networking, parallelism, or larger object
 systems:
 
 - `racket/class`, `racket/cmdline`, `racket/contract`, `racket/file`,
-  `racket/future`, `racket/place`, `racket/pretty`, `racket/system`,
-  `racket/tcp`, `racket/udp`, and `racket/unit`.
+  `racket/future`, `racket/place`, `racket/system`, `racket/tcp`,
+  `racket/udp`, and `racket/unit`.
 
 The for-syntax surface should include the `racket/base` compile-time bindings,
 because ordinary module expansion expects them. Additional for-syntax exports
