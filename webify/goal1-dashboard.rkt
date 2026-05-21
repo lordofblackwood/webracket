@@ -244,6 +244,18 @@
     #rx"(?m:^42$)"
     '("--no-io-format-provider" "--webracket-module-bridge"))
    (goal1-dashboard-case
+    'full-shared
+    'installed-provider-graph
+    '(racket/shared)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/full\n"
+         "(define v (shared ([x (cons 40 2)]) x))\n"
+         "(js-log (+ (car v) (cdr v)))\n")))
+    "main.rkt"
+    #rx"(?m:^42$)"
+    '("--no-io-format-provider"))
+   (goal1-dashboard-case
     'full-match
     'installed-provider-graph
     '(racket/match)

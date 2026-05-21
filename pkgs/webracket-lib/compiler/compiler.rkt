@@ -2564,6 +2564,7 @@
   hasheq
   hasheqv
   hashalw
+  make-reader-graph
   placeholder?
   hash-placeholder?
   hash-weak?

@@ -2194,6 +2194,7 @@
     (add-runtime-symbol-constant 'will-try-execute)
     (add-runtime-symbol-constant 'hash-placeholder?)
     (add-runtime-symbol-constant 'hash-weak?)
+    (add-runtime-symbol-constant 'make-reader-graph)
     (add-runtime-symbol-constant 'make-placeholder)
     (add-runtime-symbol-constant 'placeholder-set!)
     (add-runtime-symbol-constant 'placeholder-get)
@@ -2455,6 +2456,8 @@
                                  "value vector with the same length as the cell vector")
     (add-runtime-string-constant 'module-prompts-unsupported    "module prompts are not supported by WebRacket yet")
     (add-runtime-string-constant 'reader-unsupported            "the Racket reader is not supported by WebRacket yet")
+    (add-runtime-string-constant 'reader-graph-unsupported
+                                 "cyclic reader graphs and hash placeholders are not supported by WebRacket yet")
     (add-runtime-string-constant 'metadata-only-compiled-linklet
                                  "metadata-only compiled linklet has no executable body")
     (add-runtime-symbol-constant 'constant)
@@ -38273,6 +38276,62 @@
                          (unreachable)))
                (struct.get $Placeholder $value
                            (ref.cast (ref $Placeholder) (local.get $ph-raw))))
+
+         ;; $reader-graph-resolve : any/c exact-nonnegative-integer? -> any/c
+         ;;   Resolve the acyclic placeholder/pair subset used by simple
+         ;;   `shared` expansions. Full reader graph support needs sharing
+         ;;   preservation plus hash-placeholder reconstruction.
+         (func $reader-graph-resolve
+               (param $v    (ref eq)) ;; graph fragment
+               (param $fuel i32)      ;; recursion budget
+               (result     (ref eq))
+
+               (local $ph   (ref $Placeholder))
+               (local $pair (ref $Pair))
+
+               (if (i32.le_s (local.get $fuel) (i32.const 0))
+                   (then
+                    (call $raise-arguments-error
+                          (global.get $symbol:make-reader-graph)
+                          (global.get $string:reader-graph-unsupported)
+                          (array.new_fixed $Args 0))
+                    (unreachable)))
+               (if (ref.test (ref $HashPlaceholder) (local.get $v))
+                   (then
+                    (call $raise-arguments-error
+                          (global.get $symbol:make-reader-graph)
+                          (global.get $string:reader-graph-unsupported)
+                          (array.new_fixed $Args 0))
+                    (unreachable)))
+               (if (ref.test (ref $Placeholder) (local.get $v))
+                   (then
+                    (local.set $ph (ref.cast (ref $Placeholder) (local.get $v)))
+                    (return
+                     (call $reader-graph-resolve
+                           (struct.get $Placeholder $value (local.get $ph))
+                           (i32.sub (local.get $fuel) (i32.const 1))))))
+               (if (ref.test (ref $Pair) (local.get $v))
+                   (then
+                    (local.set $pair (ref.cast (ref $Pair) (local.get $v)))
+                    (return
+                     (struct.new $Pair
+                                 (i32.const 0)
+                                 (call $reader-graph-resolve
+                                       (struct.get $Pair $a (local.get $pair))
+                                       (i32.sub (local.get $fuel) (i32.const 1)))
+                                 (call $reader-graph-resolve
+                                       (struct.get $Pair $d (local.get $pair))
+                                       (i32.sub (local.get $fuel) (i32.const 1)))))))
+               (local.get $v))
+
+         ;; make-reader-graph : any/c -> any/c
+         ;;   First slice for `racket/shared`: resolve acyclic placeholder/pair
+         ;;   graphs. Cyclic graphs, vectors, boxes, prefab structs, and hash
+         ;;   placeholders need the later sharing-preserving implementation.
+         (func $make-reader-graph (type $Prim1)
+               (param $v (ref eq)) ;; graph root
+               (result   (ref eq))
+               (call $reader-graph-resolve (local.get $v) (i32.const 100000)))
 
          ;; hash-weak? : hash? -> boolean?
          ;;   WebRacket weak-hash constructors are currently strong fallbacks,

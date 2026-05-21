@@ -279,6 +279,7 @@
          log-level?
          log-max-level
          log-message
+         make-reader-graph
          placeholder?
          make-placeholder
          placeholder-set!
@@ -1045,6 +1046,7 @@
  hashalw
  hasheq
  hasheqv
+ make-reader-graph
  placeholder?
  hash-placeholder?
  hash-weak?

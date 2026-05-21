@@ -472,9 +472,10 @@ becomes a goal.
 
 Additional compact coverage now includes required rows for `racket/math`,
 `racket/path`, and source/provider substitutions for `racket/dict` and
-`racket/port`. `racket/shared` is not promoted yet: even a small `shared` form
-expands to `make-reader-graph`, so that library needs a separate reader-graph
-runtime/module milestone.
+`racket/port`. `racket/shared` now has a required simple row backed by the first
+`make-reader-graph` slice: acyclic placeholder/pair graphs work, while cyclic
+graphs, vectors, boxes, prefab structs, and hash placeholders remain a later
+sharing-preserving reader-graph milestone.
 
 Current local-manifest runtime smokes cover hand-authored bridge shapes that do
 not depend on source extraction:

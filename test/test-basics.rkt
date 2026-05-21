@@ -4424,6 +4424,12 @@
                              (placeholder-set! 'not-a-placeholder 'x)
                              #f))))
 
+              (list "make-reader-graph acyclic placeholders"
+                    (let ([ph (make-placeholder #f)])
+                      (placeholder-set! ph (cons 40 2))
+                      (equal? (make-reader-graph (list ph))
+                              '((40 . 2)))))
+
               (list "hash-weak?/strong-fallbacks"
                     (and (equal? (hash-weak? (make-hash)) #f)
                          (equal? (hash-weak? (make-weak-hash)) #f)
