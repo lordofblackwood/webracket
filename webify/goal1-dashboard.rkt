@@ -63,8 +63,7 @@
 (define goal1-dashboard-default-memory-mb 1024)
 
 (define goal1-dashboard-diagnostic-case-names
-  '(installed-racket-hash-contract-diagnostic
-    installed-racket-format-contract-diagnostic
+  '(installed-racket-format-contract-diagnostic
     installed-racket-logging-contract-diagnostic))
 
 ;; goal1-dashboard-case-expectation : goal1-dashboard-case? -> symbol?
@@ -343,7 +342,7 @@
     #rx"(?m:^fmt web$)"
     '())
    (goal1-dashboard-case
-    'installed-racket-hash-contract-diagnostic
+    'installed-racket-hash
     'installed-provider-graph
     '(racket/hash racket/contract/base)
     `(("main.rkt" .

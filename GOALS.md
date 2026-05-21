@@ -417,6 +417,10 @@ Current installed-extraction runtime smokes cover:
   bridge programs that require `racket/contract` are now rewritten to this
   provider, so installed `racket/contract` remains deferred while its common
   source surface is available.
+- `webracket/hash`: a small contract-free provider is available for Goal 1
+  module programs that require `racket/hash`. It covers `hash-union`,
+  `hash-union!`, `hash-intersect`, `hash-filter`, `hash-filter-keys`, and
+  `hash-filter-values` without pulling in `racket/contract/base`.
 - `racket/hash`: an immutable hash constructor, functional `hash-set`,
   `hash-ref`, and immutable hash traversal through `hash-keys`, `hash-values`,
   `hash->list`, `hash-for-each`, `hash-map`, and `hash-clear`. The current

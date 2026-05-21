@@ -18,6 +18,7 @@
          racket/string
          racket/vector
          "../contract.rkt"
+         "../hash.rkt"
          "../js/main.rkt"
          "../promise.rkt"
          "../set.rkt"
@@ -45,6 +46,7 @@
          (all-from-out racket/string)
          (all-from-out racket/vector)
          (all-from-out "../contract.rkt")
+         (all-from-out "../hash.rkt")
          (all-from-out "../js/main.rkt")
          (all-from-out "../promise.rkt")
          (all-from-out "../set.rkt")
