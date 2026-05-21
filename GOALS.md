@@ -480,6 +480,9 @@ The source-level `shared` macro is currently proven only for the simple pair
 case; container-shaped `shared` expansions can introduce internal
 `undefined`/patching code that should be handled as a separate compiler/runtime
 follow-up.
+`racket/local` and `racket/include` have required host-expanded syntax rows in
+the compact dashboard; they should remain front-end/library coverage rather
+than new runtime primitives.
 
 Current local-manifest runtime smokes cover hand-authored bridge shapes that do
 not depend on source extraction:

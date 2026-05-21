@@ -176,6 +176,30 @@
     #rx"(?m:^42$)"
     '("--no-io-format-provider"))
    (goal1-dashboard-case
+    'full-local
+    'host-expanded-syntax
+    '(racket/local)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/full\n"
+         "(js-log (local [(define x 40)] (+ x 2)))\n")))
+    "main.rkt"
+    #rx"(?m:^42$)"
+    '("--no-io-format-provider"))
+   (goal1-dashboard-case
+    'full-include
+    'host-expanded-syntax
+    '(racket/include)
+    `(("defs.rkt" . "(define x 42)\n")
+      ("main.rkt" .
+       ,(string-append
+         "#lang webracket/full\n"
+         "(include \"defs.rkt\")\n"
+         "(js-log x)\n")))
+    "main.rkt"
+    #rx"(?m:^42$)"
+    '("--no-io-format-provider"))
+   (goal1-dashboard-case
     'full-vector
     'installed-provider-graph
     '(racket/vector)
