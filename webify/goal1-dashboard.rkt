@@ -221,6 +221,69 @@
     #rx"(?m:^42$)"
     '("--no-io-format-provider" "--webracket-module-bridge"))
    (goal1-dashboard-case
+    'installed-racket-bool
+    'installed-provider-graph
+    '(racket/bool)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/base\n"
+         "(require racket/bool)\n"
+         "(js-log (if (and (xor #t #f) (boolean=? #t #t)) 42 0))\n")))
+    "main.rkt"
+    #rx"(?m:^42$)"
+    '("--no-io-format-provider" "--webracket-module-bridge"))
+   (goal1-dashboard-case
+    'installed-racket-list
+    'installed-provider-graph
+    '(racket/list)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/base\n"
+         "(require racket/list)\n"
+         "(js-log (+ (first '(40 1)) (first (rest '(0 2)))))\n")))
+    "main.rkt"
+    #rx"(?m:^42$)"
+    '("--no-io-format-provider" "--webracket-module-bridge"))
+   (goal1-dashboard-case
+    'installed-racket-string
+    'installed-provider-graph
+    '(racket/string)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/base\n"
+         "(require racket/string)\n"
+         "(js-log (if (and (string-prefix? \"web\" \"we\")\n"
+         "                 (string-suffix? \"web\" \"eb\"))\n"
+         "            42\n"
+         "            0))\n")))
+    "main.rkt"
+    #rx"(?m:^42$)"
+    '("--no-io-format-provider" "--webracket-module-bridge"))
+   (goal1-dashboard-case
+    'installed-racket-vector
+    'installed-provider-graph
+    '(racket/vector)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/base\n"
+         "(require racket/vector)\n"
+         "(js-log (+ (vector-member 'b '#(a b c)) 41))\n")))
+    "main.rkt"
+    #rx"(?m:^42$)"
+    '("--no-io-format-provider" "--webracket-module-bridge"))
+   (goal1-dashboard-case
+    'installed-racket-function
+    'installed-provider-graph
+    '(racket/function)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/base\n"
+         "(require racket/function)\n"
+         "(js-log ((compose add1 add1) 40))\n")))
+    "main.rkt"
+    #rx"(?m:^42$)"
+    '("--no-io-format-provider" "--webracket-module-bridge"))
+   (goal1-dashboard-case
     'full-function
     'installed-provider-graph
     '(racket/function)

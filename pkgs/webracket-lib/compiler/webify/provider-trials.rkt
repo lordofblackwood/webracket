@@ -237,6 +237,7 @@
     racket/private/define-struct
     racket/private/for
     racket/private/kw
+    racket/private/list
     racket/private/map
     racket/private/reqprov
     racket/require-transform
@@ -246,6 +247,7 @@
     webracket/dict
     webracket/file
     webracket/format
+    webracket/function
     webracket/hash
     webracket/port
     webracket/pretty
@@ -275,6 +277,7 @@
     racket/logging
     racket/private/for
     racket/private/kw
+    racket/private/list
     racket/private/map
     syntax/contract
     syntax/location
@@ -282,6 +285,7 @@
     webracket/dict
     webracket/file
     webracket/format
+    webracket/function
     webracket/hash
     webracket/port
     webracket/pretty

@@ -440,6 +440,12 @@ Current installed-extraction runtime smokes cover:
   `call-with-*-file` wrappers. Goal 1 module programs that require
   `racket/file` are rewritten to this provider. OS-facing helpers such as file
   locks and preferences remain separate milestones.
+- `webracket/function`: a small staged provider covers pure `racket/function`
+  combinators such as `compose`, `compose1`, `identity`, `const`, `const*`,
+  `negate`, `conjoin`, `disjoin`, `curry`, `curryr`, `thunk`, and `thunk*`.
+  Goal 1 module programs that require `racket/function` are rewritten to this
+  provider while the installed module's private keyword-arity machinery remains
+  deferred.
 - `webracket/promise`: a small staged provider covers `delay`, `delay/strict`,
   `force`, `promise?`, `promise-forced?`, and `promise-running?`, including
   cached exceptions and multiple-value results. Goal 1 module programs that
