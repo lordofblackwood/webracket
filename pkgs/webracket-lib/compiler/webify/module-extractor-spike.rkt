@@ -1897,9 +1897,22 @@
                         candidates))
               (if (null? stream-cons-candidates) candidates stream-cons-candidates)]
              [else candidates]))
+         (define (webracket-module-name? name)
+           (and (symbol? name)
+                (regexp-match? #rx"^webracket/" (symbol->string name))))
+         (define (prefer-installed-provider-internals candidates)
+           (cond
+             [(webracket-module-name? module-name) candidates]
+             [else
+              (define installed-candidates
+                (filter (lambda (candidate)
+                          (not (webracket-module-name? (cadr candidate))))
+                        candidates))
+              (if (null? installed-candidates) candidates installed-candidates)]))
          (define ranked-candidates
-           (prefer-stream-cons
-            (if (null? preferred-candidates) candidates preferred-candidates)))
+           (prefer-installed-provider-internals
+            (prefer-stream-cons
+             (if (null? preferred-candidates) candidates preferred-candidates))))
          (define (candidate-reason candidate)
            (list local
                  (cadr candidate)

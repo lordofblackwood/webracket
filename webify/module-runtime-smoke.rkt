@@ -117,6 +117,13 @@
 ;; write-extractor-script! : path-string? path-string? any/c -> void?
 ;;   Write a Racket 9.2 script that extracts a tiny installed-provider graph.
 (define (write-extractor-script! script-path manifest-path module-data)
+  (define use-erased-contract-providers?
+    (let loop ([v module-data])
+      (cond
+        [(eq? v 'racket/class) #t]
+        [(pair? v) (or (loop (car v)) (loop (cdr v)))]
+        [(vector? v) (for/or ([elem (in-vector v)]) (loop elem))]
+        [else #f])))
   (define root-names
     (for/list ([datum (in-list module-data)])
       (match datum
@@ -133,10 +140,20 @@
                    (file ,(path->string (build-path repo-root "pkgs/webracket-lib/compiler/webify/module-input.rkt")))
                    (file ,(path->string (build-path repo-root "pkgs/webracket-lib/compiler/webify/module-protocol.rkt"))))
           (define root-names ',root-names)
+          (define provider-namespace (make-webify-contract-erasing-namespace))
+          (define provider-module-name-resolver
+            (make-webify-contract-erasing-module-name-resolver))
+          (define (fetch-provider name)
+            (parameterize ([current-namespace provider-namespace]
+                           [current-module-name-resolver provider-module-name-resolver])
+              (webify-module-path->report name #:namespace provider-namespace)))
           (define inputs
             (webify-source-modules->discovered-resolved-linklet-inputs
              ',module-data
              #:extra-reports (list webify-module-protocol-report)
+             #:fetch-provider ,(if use-erased-contract-providers?
+                                  'fetch-provider
+                                  'webify-module-path->report)
              #:module-protocol-dependency webify-module-protocol-dependency
              #:demand-slice? #t))
           (define manifest-root-names
