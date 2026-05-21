@@ -1,6 +1,6 @@
 #lang racket/base
 
-(require (only-in "../primitives.rkt" unsafe-ffi-primitive))
+(require (only-in "../private/ffi.rkt" unsafe-ffi-primitive))
 
 (provide js-performance-clear-marks
          js-performance-clear-measures

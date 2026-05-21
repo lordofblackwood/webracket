@@ -9,13 +9,16 @@ top-level Racket collections, which can shadow installed Racket collections.
 The current package roots are:
 
 ```text
+pkgs/js/
 pkgs/webracket/
 pkgs/webracket-lib/
 ```
 
-`pkgs/webracket` is the public language/library collection. `pkgs/webracket-lib`
-holds compiler/runtime implementation support that should not be part of the
-public collection surface.
+`pkgs/js` is the public JavaScript convenience collection, so programs can use
+forms like `(require js/console)` and `(require js/math)`. `pkgs/webracket` is
+the public language/library collection. `pkgs/webracket-lib` holds
+compiler/runtime implementation support that should not be part of the public
+collection surface.
 
 The root `webracket.rkt` file is a CLI wrapper. The CLI implementation,
 compiler, driver, runtime generator, assembler, Webify lowering/module support,

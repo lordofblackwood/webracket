@@ -3,7 +3,7 @@
 ;; Generated-style unsafe surface for `ffi/console.ffi`.
 ;; Raw exports resolve to active `.ffi` primitive closures at compile time.
 
-(require (only-in "../primitives.rkt" unsafe-ffi-primitive))
+(require (only-in "../private/ffi.rkt" unsafe-ffi-primitive))
 
 (provide js-console-log
          js-console-info

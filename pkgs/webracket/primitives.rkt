@@ -52,6 +52,7 @@
 
          (only-in racket/format ~r)
          (only-in racket/base format)
+         (only-in "private/ffi.rkt" unsafe-ffi-primitive)
          "private/module-variable.rkt"
          
          racket/match
@@ -1837,11 +1838,6 @@ current-parameterization    ; poor-man dynamic parameterization overlay
 
 (define (js-log x)
   (displayln x))
-
-(define (unsafe-ffi-primitive name)
-  (lambda args
-    (error name
-           "unsafe FFI primitive placeholder is only executable after WebRacket compilation")))
 
 (define webracket-debug-allocation-budget-value 0)
 
