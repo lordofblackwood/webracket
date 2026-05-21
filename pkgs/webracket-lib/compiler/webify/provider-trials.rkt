@@ -243,6 +243,7 @@
     syntax/contract
     syntax/location
     webracket/contract
+    webracket/format
     webracket/hash
     webracket/promise
     webracket/private/for
@@ -274,6 +275,7 @@
     syntax/contract
     syntax/location
     webracket/contract
+    webracket/format
     webracket/hash
     webracket/promise
     webracket/private/for

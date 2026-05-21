@@ -202,9 +202,9 @@ Current bridge readiness:
   `racket/promise`, `racket/stream`, and `racket/set`
   are classified but not yet allowlisted for bridge discovery, because their
   representative provider trials still expose unresolved reflected exports.
-  `racket/format` remains on the staged `io/format` path for now; the
-  installed `racket/format` module pulls a larger contract/location provider
-  cluster. The bridge also rejects unsupported transitive providers during
+  `racket/format` now routes to a small WebRacket-owned shim for the
+  abbreviated formatter surface, while staged `io/format` remains the path for
+  the fuller original-Racket implementation. The bridge also rejects unsupported transitive providers during
   discovery, so trial additions cannot silently expand into a much larger
   provider graph.
 - Passing metadata discovery: local dependencies are recovered from the
@@ -455,19 +455,14 @@ Current installed-extraction runtime smokes cover:
 - Dependency-first local source modules with quoted sibling requires, such as
   `(require 'base-values)`, through a shared-provider transitive smoke.
 
-`racket/format` is still an active next-library frontier. `webracket/base`
-exports the common format surface through the staged `io/format` provider path,
-while the old textual stdlib formatter is being retired. The installed
-`format-basic` module case extracts with no missing primitive demands after the
-`webracket/primitives` root classification fix and passes the runtime probe
-under a 120s bound. For now, keep the frontier focused on `format`, `fprintf`,
-`printf`, `eprintf`, and common `~a`/`~s`/`~v`/`~e` paths. The `~v` path now
-routes through `port-print-handler` and has runtime coverage for a custom print
-handler plus quoted string output, but WebRacket still stores that handler
-process-wide instead of per port. A `#lang webracket/base` driver smoke now
-verifies provider-backed `format` with `~a`, `~s`, and `~e`, and the compact
-Goal 1 dashboard verifies `#lang webracket/full` can see provider-backed
-`format`.
+`racket/format` now has a required compact dashboard row. Source and provider
+requires for `racket/format` are substituted to `webracket/format`, which
+provides contract-free `format`, `fprintf`, `printf`, `eprintf`, and common
+`~a`/`~s`/`~v`/`~e`/dotted formatter paths. The shim intentionally implements a
+small formatter for the Goal 1 module surface instead of extracting installed
+`racket/format`, whose expansion pulls a larger contract/location provider
+cluster. Full numeric `~r` and complete print-convention fidelity remain staged
+`io/format` follow-up work.
 
 Current local-manifest runtime smokes cover hand-authored bridge shapes that do
 not depend on source extraction:

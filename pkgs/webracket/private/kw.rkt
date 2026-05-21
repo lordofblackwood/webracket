@@ -4,6 +4,8 @@
          make-optional-keyword-procedure
          keyword-procedure-extract
          procedure-keywords
+         missing-kw
+         prop:named-keyword-procedure
          struct:keyword-procedure)
 
 ;; A small WebRacket-owned subset of `racket/private/kw`.
@@ -55,6 +57,11 @@
                     0
                     '(0)))
 
+(define-values (prop:named-keyword-procedure
+                named-keyword-procedure?
+                keyword-procedure-name+fail)
+  (make-struct-type-property 'named-keyword-procedure))
+
 ;; keyword-procedure-extract : any/c (listof keyword?) exact-nonnegative-integer? -> procedure?
 ;;   Extract the keyword dispatcher for an expanded keyword application.
 (define (keyword-procedure-extract proc kws argc)
@@ -85,6 +92,14 @@
 (define (make-plain-keyword-fallback proc)
   (lambda args
     (apply proc null null args)))
+
+;; missing-kw : procedure? any/c ... -> any
+;;   Failure entry point imported by Racket's keyword-lambda expansion.
+(define (missing-kw proc . args)
+  (raise-arguments-error 'missing-kw
+                         "procedure is missing a required keyword"
+                         "procedure" proc
+                         "arguments" args))
 
 ;; make-optional-keyword-procedure : procedure? [procedure?] -> procedure?
 ;; make-optional-keyword-procedure : procedure? procedure? list? (or/c list? #f) procedure? -> procedure?

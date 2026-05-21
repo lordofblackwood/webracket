@@ -1498,6 +1498,7 @@
 (define (substitute-require-module-path module-path)
   (case module-path
     [(racket/contract racket/contract/base) 'webracket/contract]
+    [(racket/format) 'webracket/format]
     [(racket/hash) 'webracket/hash]
     [(racket/promise) 'webracket/promise]
     [(racket/set) 'webracket/set]
@@ -1902,6 +1903,7 @@
 (define (webracket/base-provider-substitute name)
   (case name
     [(racket/contract racket/contract/base) 'webracket/contract]
+    [(racket/format) 'webracket/format]
     [(racket/hash) 'webracket/hash]
     [(racket/promise) 'webracket/promise]
     [(racket/set) 'webracket/set]
