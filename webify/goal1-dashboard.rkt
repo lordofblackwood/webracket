@@ -417,6 +417,21 @@
     #rx"(?m:^42$)"
     '("--no-io-format-provider"))
    (goal1-dashboard-case
+    'installed-racket-stream
+    'installed-provider-graph
+    '(racket/stream)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/base\n"
+         "(require racket/stream)\n"
+         "(define s (stream 10 20 12))\n"
+         "(js-log (+ (stream-first s)\n"
+         "           (stream-first (stream-rest s))\n"
+         "           (stream-first (stream-rest (stream-rest s)))))\n")))
+    "main.rkt"
+    #rx"(?m:^42$)"
+    '("--no-io-format-provider" "--webracket-module-bridge"))
+   (goal1-dashboard-case
     'installed-racket-set
     'installed-provider-graph
     '(racket/set)
