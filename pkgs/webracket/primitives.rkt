@@ -33,16 +33,6 @@
          ; racket/namespace
          (prefix-in readerr: syntax/readerr)
          
-         (rename-in math/flonum
-                    [flsinh math:flsinh]
-                    [flcosh math:flcosh]
-                    [fltanh math:fltanh]
-                    [flasinh math:flasinh]
-                    [flacosh math:flacosh]
-                    [flatanh math:flatanh])
-         (only-in math/base
-                  asinh acosh atanh
-                  float-complex?)
          
          
          (prefix-in imm: webracket-lib/compiler/private/immediates)
@@ -1729,36 +1719,53 @@ current-parameterization    ; poor-man dynamic parameterization overlay
        (hash-set! installed key table)])))
 
 ;; Bind hyperbolic flonum operations as plain procedures in this module.
-;; In host Racket these names can be syntax bindings, but WebRacket's
-;; primitive reflection expects variable bindings.
-(define (flsinh x)  (math:flsinh x))
-(define (flcosh x)  (math:flcosh x))
-(define (fltanh x)  (math:fltanh x))
-(define (flasinh x) (math:flasinh x))
-(define (flacosh x) (math:flacosh x))
-(define (flatanh x) (math:flatanh x))
+;; Avoid `math/flonum` here: on some newer host Racket checkouts it pulls
+;; Typed Racket while the compiler is creating an empty WebRacket namespace.
+(define (flsinh x)
+  (/ (- (exp x) (exp (- x))) 2.0))
+
+(define (flcosh x)
+  (/ (+ (exp x) (exp (- x))) 2.0))
+
+(define (fltanh x)
+  (/ (flsinh x) (flcosh x)))
+
+(define (flasinh x)
+  (log (+ x (sqrt (+ (* x x) 1.0)))))
+
+(define (flacosh x)
+  (log (+ x (* (sqrt (+ x 1.0)) (sqrt (- x 1.0))))))
+
+(define (flatanh x)
+  (* 0.5 (- (log (+ 1.0 x)) (log (- 1.0 x)))))
 
 ;; The inverse hyperbolic functions are from
 ;;   math/private/base/base-functions.rkt
 
+(define (float-complex? x)
+  (and (complex? x)
+       (not (real? x))
+       (flonum? (real-part x))
+       (flonum? (imag-part x))))
+
 (define (asinh x)
   (cond [(flonum? x)  (flasinh x)]
         [(eqv? x 0)  0]
-        [(real? x)  (flasinh (fl x))]
+        [(real? x)  (flasinh (real->double-flonum x))]
         [(float-complex? x)  (log (+ x (sqrt (+ (* x x) 1.0))))]
         [else  (log (+ x (sqrt (+ (* x x) 1))))]))
 
 (define (acosh x)
   (cond [(flonum? x)  (flacosh x)]
         [(eqv? x 1)  0]
-        [(and (real? x) (x . >= . 1))  (flacosh (fl x))]
+        [(and (real? x) (x . >= . 1))  (flacosh (real->double-flonum x))]
         [(float-complex? x)  (log (+ x (* (sqrt (+ x 1.0)) (sqrt (- x 1.0)))))]
         [else  (log (+ x (* (sqrt (+ x 1)) (sqrt (- x 1)))))]))
 
 (define (atanh x)
   (cond [(flonum? x)  (flatanh x)]
         [(eqv? x 0)  0]
-        [(real? x)  (flatanh (fl x))]
+        [(real? x)  (flatanh (real->double-flonum x))]
         [(float-complex? x)  (* 0.5 (- (log (+ 1.0 x)) (log (- 1.0 x))))]
         [else  (* 1/2 (- (log (+ 1 x)) (log (- 1 x))))]))
 
@@ -2621,14 +2628,13 @@ current-parameterization    ; poor-man dynamic parameterization overlay
   (racket:vector-sort vec less-than? start end))
 
 
-(require (prefix-in racket: math/flonum))
 ; This simplified version of flrandom ignores the random generator argument.
 (define flrandom
   ;; Mirrors the WebAssembly primitive's semantics by always using the
   ;; shared generator.
   (case-lambda
-    [()  (racket:flrandom)]
-    [(_) (racket:flrandom)]))
+    [()  (random)]
+    [(_) (random)]))
 
 (define unsafe-flrandom flrandom)
 
