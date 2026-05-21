@@ -28,8 +28,10 @@
     racket/vector
     racket/contract
     webracket/contract
+    webracket/pretty
     webracket/promise
-    webracket/set))
+    webracket/set
+    webracket/stream))
 
 (define webracket-full-deferred-libraries
   '(racket/class
@@ -37,7 +39,6 @@
     racket/file
     racket/future
     racket/place
-    racket/pretty
     racket/system
     racket/tcp
     racket/udp
@@ -61,10 +62,12 @@
     (racket/port     exported extracts partial partial)
     (racket/sequence exported extracts partial runs)
     (racket/shared   exported expands  partial host-only)
-    (racket/stream   exported extracts partial runs)
+    (racket/stream   substituted staged staged runs)
     (racket/string   exported extracts partial runs)
     (racket/vector   exported extracts partial runs)
     (racket/contract exported substituted staged runs)
     (webracket/contract exported extracts staged runs)
+    (webracket/pretty   exported extracts staged runs)
     (webracket/promise exported extracts staged runs)
-    (webracket/set     exported extracts staged runs)))
+    (webracket/set     exported extracts staged runs)
+    (webracket/stream  exported extracts staged runs)))

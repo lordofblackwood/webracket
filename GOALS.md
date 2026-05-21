@@ -406,7 +406,8 @@ Current installed-extraction runtime smokes cover:
   `stream-cons`, `stream-first`, `stream-rest`, `stream-empty?`,
   `stream->list`, and `in-stream`. Goal 1 module programs that require
   `racket/stream` are rewritten to this provider, so the compact dependency
-  matrix now treats `(require racket/stream)` as a required row.
+  matrix now treats `(require racket/stream)` as a required row. `#lang
+  webracket/full` also exports this staged stream surface directly.
 - `webracket/contract`: a deliberately erased compatibility provider is
   available for explicit `(require webracket/contract)` programs and the staged
   `#lang webracket/full` surface. It preserves common source shapes such as

@@ -28,6 +28,7 @@
          "../pretty.rkt"
          "../promise.rkt"
          "../set.rkt"
+         "../stream.rkt"
          (for-syntax racket/base)
          (for-syntax racket/splicing)
          (for-syntax webracket-lib/compiler/private/browser-options))
@@ -72,6 +73,7 @@
          (all-from-out "../pretty.rkt")
          (all-from-out "../promise.rkt")
          (all-from-out "../set.rkt")
+         (all-from-out "../stream.rkt")
          (for-syntax (all-from-out racket/base))
          (for-syntax (all-from-out racket/splicing))
          (for-syntax (all-from-out webracket-lib/compiler/private/browser-options)))
