@@ -256,6 +256,21 @@
     #rx"(?m:^42$)"
     '("--no-io-format-provider"))
    (goal1-dashboard-case
+    'full-reader-graph-containers
+    'installed-provider-graph
+    '(racket/shared)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/full\n"
+         "(define ph (make-placeholder #f))\n"
+         "(placeholder-set! ph (box (vector (cons 40 2))))\n"
+         "(define v (make-reader-graph ph))\n"
+         "(define inner (vector-ref (unbox v) 0))\n"
+         "(js-log (+ (car inner) (cdr inner)))\n")))
+    "main.rkt"
+    #rx"(?m:^42$)"
+    '("--no-io-format-provider"))
+   (goal1-dashboard-case
     'full-match
     'installed-provider-graph
     '(racket/match)

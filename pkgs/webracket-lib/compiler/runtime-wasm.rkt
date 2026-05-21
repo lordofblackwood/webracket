@@ -38286,8 +38286,15 @@
                (param $fuel i32)      ;; recursion budget
                (result     (ref eq))
 
-               (local $ph   (ref $Placeholder))
-               (local $pair (ref $Pair))
+               (local $ph     (ref $Placeholder))
+               (local $pair   (ref $Pair))
+               (local $vec    (ref $Vector))
+               (local $box    (ref $Box))
+               (local $arr    (ref $Array))
+               (local $out    (ref $Array))
+               (local $len    i32)
+               (local $i      i32)
+               (local $fuel-1 i32)
 
                (if (i32.le_s (local.get $fuel) (i32.const 0))
                    (then
@@ -38303,13 +38310,14 @@
                           (global.get $string:reader-graph-unsupported)
                           (array.new_fixed $Args 0))
                     (unreachable)))
+               (local.set $fuel-1 (i32.sub (local.get $fuel) (i32.const 1)))
                (if (ref.test (ref $Placeholder) (local.get $v))
                    (then
                     (local.set $ph (ref.cast (ref $Placeholder) (local.get $v)))
                     (return
                      (call $reader-graph-resolve
                            (struct.get $Placeholder $value (local.get $ph))
-                           (i32.sub (local.get $fuel) (i32.const 1))))))
+                           (local.get $fuel-1)))))
                (if (ref.test (ref $Pair) (local.get $v))
                    (then
                     (local.set $pair (ref.cast (ref $Pair) (local.get $v)))
@@ -38318,16 +38326,49 @@
                                  (i32.const 0)
                                  (call $reader-graph-resolve
                                        (struct.get $Pair $a (local.get $pair))
-                                       (i32.sub (local.get $fuel) (i32.const 1)))
+                                       (local.get $fuel-1))
                                  (call $reader-graph-resolve
                                        (struct.get $Pair $d (local.get $pair))
-                                       (i32.sub (local.get $fuel) (i32.const 1)))))))
+                                       (local.get $fuel-1))))))
+               (if (ref.test (ref $Vector) (local.get $v))
+                   (then
+                    (local.set $vec (ref.cast (ref $Vector) (local.get $v)))
+                    (local.set $arr (struct.get $Vector $arr (local.get $vec)))
+                    (local.set $len (array.len (local.get $arr)))
+                    (local.set $out (array.new $Array (global.get $void) (local.get $len)))
+                    (local.set $i (i32.const 0))
+                    (block $done
+                           (loop $loop
+                                 (br_if $done (i32.ge_u (local.get $i) (local.get $len)))
+                                 (array.set $Array
+                                            (local.get $out)
+                                            (local.get $i)
+                                            (call $reader-graph-resolve
+                                                  (array.get $Array (local.get $arr) (local.get $i))
+                                                  (local.get $fuel-1)))
+                                 (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                                 (br $loop)))
+                    (return
+                     (struct.new $Vector
+                                 (i32.const 0)
+                                 (i32.const 1)
+                                 (local.get $out)))))
+               (if (ref.test (ref $Box) (local.get $v))
+                   (then
+                    (local.set $box (ref.cast (ref $Box) (local.get $v)))
+                    (return
+                     (struct.new $Box
+                                 (i32.const 0)
+                                 (i32.const 1)
+                                 (call $reader-graph-resolve
+                                       (struct.get $Box $v (local.get $box))
+                                       (local.get $fuel-1))))))
                (local.get $v))
 
          ;; make-reader-graph : any/c -> any/c
          ;;   First slice for `racket/shared`: resolve acyclic placeholder/pair
-         ;;   graphs. Cyclic graphs, vectors, boxes, prefab structs, and hash
-         ;;   placeholders need the later sharing-preserving implementation.
+         ;;   graphs, vectors, and boxes. Cyclic graphs, prefab structs, and
+         ;;   hash placeholders need the later sharing-preserving implementation.
          (func $make-reader-graph (type $Prim1)
                (param $v (ref eq)) ;; graph root
                (result   (ref eq))

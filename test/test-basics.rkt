@@ -4425,10 +4425,18 @@
                              #f))))
 
               (list "make-reader-graph acyclic placeholders"
-                    (let ([ph (make-placeholder #f)])
+                    (let ([ph (make-placeholder #f)]
+                          [vph (make-placeholder #f)]
+                          [bph (make-placeholder #f)])
                       (placeholder-set! ph (cons 40 2))
-                      (equal? (make-reader-graph (list ph))
-                              '((40 . 2)))))
+                      (placeholder-set! vph (vector ph 1))
+                      (placeholder-set! bph (box vph))
+                      (let ([resolved (make-reader-graph (list ph vph bph))])
+                        (and (equal? (car resolved) '(40 . 2))
+                             (equal? (vector-ref (cadr resolved) 0) '(40 . 2))
+                             (equal? (vector-ref (cadr resolved) 1) 1)
+                             (equal? (vector-ref (unbox (caddr resolved)) 0)
+                                     '(40 . 2)))))))
 
               (list "hash-weak?/strong-fallbacks"
                     (and (equal? (hash-weak? (make-hash)) #f)

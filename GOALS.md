@@ -473,9 +473,13 @@ becomes a goal.
 Additional compact coverage now includes required rows for `racket/math`,
 `racket/path`, and source/provider substitutions for `racket/dict` and
 `racket/port`. `racket/shared` now has a required simple row backed by the first
-`make-reader-graph` slice: acyclic placeholder/pair graphs work, while cyclic
-graphs, vectors, boxes, prefab structs, and hash placeholders remain a later
-sharing-preserving reader-graph milestone.
+`make-reader-graph` slices: acyclic placeholder graphs through pairs, vectors,
+and boxes work, while cyclic graphs, prefab structs, and hash placeholders
+remain a later sharing-preserving reader-graph milestone.
+The source-level `shared` macro is currently proven only for the simple pair
+case; container-shaped `shared` expansions can introduce internal
+`undefined`/patching code that should be handled as a separate compiler/runtime
+follow-up.
 
 Current local-manifest runtime smokes cover hand-authored bridge shapes that do
 not depend on source extraction:
