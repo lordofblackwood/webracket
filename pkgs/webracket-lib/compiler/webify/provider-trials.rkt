@@ -247,6 +247,7 @@
     webracket/format
     webracket/hash
     webracket/port
+    webracket/pretty
     webracket/promise
     webracket/private/for
     webracket/private/kw
@@ -281,6 +282,7 @@
     webracket/format
     webracket/hash
     webracket/port
+    webracket/pretty
     webracket/promise
     webracket/private/for
     webracket/private/kw

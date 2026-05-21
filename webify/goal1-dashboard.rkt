@@ -268,6 +268,18 @@
     #rx"(?m:^42$)"
     '("--no-io-format-provider" "--webracket-module-bridge"))
    (goal1-dashboard-case
+    'installed-racket-pretty
+    'installed-provider-graph
+    '(racket/pretty)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/base\n"
+         "(require racket/pretty)\n"
+         "(js-log (pretty-format '(1 2 3) #:mode 'write))\n")))
+    "main.rkt"
+    #rx"(?m:^\\(1 2 3\\)$)"
+    '("--no-io-format-provider" "--webracket-module-bridge"))
+   (goal1-dashboard-case
     'full-shared
     'installed-provider-graph
     '(racket/shared)

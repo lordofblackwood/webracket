@@ -427,7 +427,11 @@ Current installed-extraction runtime smokes cover:
   comparator coverage checks the public hash-kind predicates; full duplicate
   behavior for non-symbol equal?/eqv?/eq? keys remains a separate semantic
   milestone.
-- `racket/pretty`: a require-only installed-provider smoke.
+- `webracket/pretty`: a small staged provider covers `pretty-format`,
+  `pretty-print`, `pretty-write`, and `pretty-display` without column-sensitive
+  layout or pretty-printer hooks. Goal 1 module programs that require
+  `racket/pretty` are rewritten to this provider, so the compact dependency
+  matrix now treats `(require racket/pretty)` as a required row.
 - `webracket/promise`: a small staged provider covers `delay`, `delay/strict`,
   `force`, `promise?`, `promise-forced?`, and `promise-running?`, including
   cached exceptions and multiple-value results. Goal 1 module programs that

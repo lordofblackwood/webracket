@@ -25,6 +25,7 @@
                     [eprintf wr-eprintf])
          "../hash.rkt"
          "../js/main.rkt"
+         "../pretty.rkt"
          "../promise.rkt"
          "../set.rkt"
          (for-syntax racket/base)
@@ -68,6 +69,7 @@
          ~.v
          (all-from-out "../hash.rkt")
          (all-from-out "../js/main.rkt")
+         (all-from-out "../pretty.rkt")
          (all-from-out "../promise.rkt")
          (all-from-out "../set.rkt")
          (for-syntax (all-from-out racket/base))
