@@ -470,6 +470,12 @@ Goal 1 surface. The row verifies the installed provider graph can expose
 inert: receivers/events can be layered on later if browser-visible logging
 becomes a goal.
 
+Additional compact coverage now includes required rows for `racket/math`,
+`racket/path`, and source/provider substitutions for `racket/dict` and
+`racket/port`. `racket/shared` is not promoted yet: even a small `shared` form
+expands to `make-reader-graph`, so that library needs a separate reader-graph
+runtime/module milestone.
+
 Current local-manifest runtime smokes cover hand-authored bridge shapes that do
 not depend on source extraction:
 

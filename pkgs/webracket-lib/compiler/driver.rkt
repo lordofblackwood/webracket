@@ -1498,8 +1498,10 @@
 (define (substitute-require-module-path module-path)
   (case module-path
     [(racket/contract racket/contract/base) 'webracket/contract]
+    [(racket/dict) 'webracket/dict]
     [(racket/format) 'webracket/format]
     [(racket/hash) 'webracket/hash]
+    [(racket/port) 'webracket/port]
     [(racket/promise) 'webracket/promise]
     [(racket/set) 'webracket/set]
     [(syntax/contract) 'webracket/syntax/contract]
@@ -1903,8 +1905,10 @@
 (define (webracket/base-provider-substitute name)
   (case name
     [(racket/contract racket/contract/base) 'webracket/contract]
+    [(racket/dict) 'webracket/dict]
     [(racket/format) 'webracket/format]
     [(racket/hash) 'webracket/hash]
+    [(racket/port) 'webracket/port]
     [(racket/promise) 'webracket/promise]
     [(racket/set) 'webracket/set]
     [(syntax/contract) 'webracket/syntax/contract]

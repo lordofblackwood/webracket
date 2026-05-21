@@ -184,6 +184,19 @@
     #rx"(?m:^1$)"
     '("--no-io-format-provider"))
    (goal1-dashboard-case
+    'installed-racket-dict
+    'installed-provider-graph
+    '(racket/dict)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/base\n"
+         "(require racket/dict)\n"
+         "(define d (hash 'a 40 'b 2))\n"
+         "(js-log (+ (dict-ref d 'a) (dict-ref d 'b)))\n")))
+    "main.rkt"
+    #rx"(?m:^42$)"
+    '("--no-io-format-provider" "--webracket-module-bridge"))
+   (goal1-dashboard-case
     'full-function
     'installed-provider-graph
     '(racket/function)
@@ -194,6 +207,42 @@
     "main.rkt"
     #rx"(?m:^42$)"
     '("--no-io-format-provider"))
+   (goal1-dashboard-case
+    'full-math
+    'installed-provider-graph
+    '(racket/math)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/full\n"
+         "(js-log (+ (sqr 5) (sgn -10) 18))\n")))
+    "main.rkt"
+    #rx"(?m:^42$)"
+    '("--no-io-format-provider"))
+   (goal1-dashboard-case
+    'full-path
+    'installed-provider-graph
+    '(racket/path)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/full\n"
+         "(define p (build-path \"alpha\" \"beta\"))\n"
+         "(js-log (if (relative-path? p) 42 0))\n")))
+    "main.rkt"
+    #rx"(?m:^42$)"
+    '("--no-io-format-provider"))
+   (goal1-dashboard-case
+    'installed-racket-port
+    'installed-provider-graph
+    '(racket/port)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/base\n"
+         "(require racket/port)\n"
+         "(define s (port->string (open-input-string \"web\")))\n"
+         "(js-log (+ (string-length s) 39))\n")))
+    "main.rkt"
+    #rx"(?m:^42$)"
+    '("--no-io-format-provider" "--webracket-module-bridge"))
    (goal1-dashboard-case
     'full-match
     'installed-provider-graph
