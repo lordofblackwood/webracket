@@ -132,6 +132,7 @@
     class-mixin-basic
     class-object-equality
     class-reflection-basic
+    class-relationships
     read-list
     read-vector
     read-symbol-string
@@ -218,6 +219,7 @@
     class-mixin-basic
     class-object-equality
     class-reflection-basic
+    class-relationships
     regexp-literal
     regexp-capture
     regexp-replace
@@ -1005,6 +1007,31 @@
                     (object-method-arity-includes? obj 'adjust 1)
                     (object-method-arity-includes? obj 'adjust 2)
                     (not (object-method-arity-includes? obj 'adjust 3)))
+               42
+               0))))]
+    [(class-relationships)
+     '((module use-class-relationships racket/base
+         (require racket/class)
+         (provide y)
+         (define a<%> (interface () a))
+         (define b<%> (interface (a<%>) b))
+         (define base%
+           (class* object% (a<%>)
+             (super-new)
+             (define/public (a) 40)))
+         (define child%
+           (class* base% (b<%>)
+             (super-new)
+             (define/public (b) 2)))
+         (define y
+           (if (and (subclass? child% base%)
+                    (subclass? base% object%)
+                    (not (subclass? base% child%))
+                    (implementation? child% a<%>)
+                    (implementation? child% b<%>)
+                    (not (implementation? object% a<%>))
+                    (interface-extension? b<%> a<%>)
+                    (not (interface-extension? a<%> b<%>)))
                42
                0))))]
     [(regexp-literal)
