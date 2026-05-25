@@ -24,14 +24,22 @@
      (format "~a:~a" (car count) (cdr count)))
    ","))
 
+;; cache-key-fragment : string? -> string?
+;;   Sanitize one cache-key component so export names cannot create path components.
+(define (cache-key-fragment str)
+  (regexp-replace* #rx"[^A-Za-z0-9._+-]" str "_"))
+
 ;; trial-cache-key : webify-provider-trial? -> string?
 ;;   Build a conservative cache key for a dashboard row.
 (define (trial-cache-key trial)
   (format "~a-~a-~a.rktd"
-          (regexp-replace* #rx"/" (symbol->string (webify-provider-trial-module trial)) "_")
-          (version)
-          (string-join (map symbol->string (webify-provider-trial-exports trial))
-                       "+")))
+          (cache-key-fragment (symbol->string (webify-provider-trial-module trial)))
+          (cache-key-fragment (version))
+          (string-join
+           (map (lambda (export)
+                  (cache-key-fragment (symbol->string export)))
+                (webify-provider-trial-exports trial))
+           "+")))
 
 ;; cache-read : path-string? webify-provider-trial? -> (or/c hash? #f)
 ;;   Read a cached dashboard summary if present.
