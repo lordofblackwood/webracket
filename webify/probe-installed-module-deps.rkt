@@ -134,6 +134,7 @@
     class-reflection-basic
     class-relationships
     class-info-basic
+    class-construction-basic
     read-list
     read-vector
     read-symbol-string
@@ -222,6 +223,7 @@
     class-reflection-basic
     class-relationships
     class-info-basic
+    class-construction-basic
     regexp-literal
     regexp-capture
     regexp-replace
@@ -1064,6 +1066,19 @@
                     skipped-super?)
                (- (+ (field-ref obj 0) (field-ref obj 1)) 1)
                0))))]
+    [(class-construction-basic)
+     '((module use-class-construction-basic racket/base
+         (require racket/class)
+         (provide y)
+         (define point%
+           (class object%
+             (super-new)
+             (init-field x y)
+             (define/public (sum) (+ x y))))
+         (define a (make-object point% 40 2))
+         (define b (instantiate point% (41) [y 1]))
+         (define c (dynamic-instantiate point% '(39) '([y . 3])))
+         (define y (+ (send a sum) (send b sum) (send c sum)))))]
     [(regexp-literal)
      '((module use-regexp-literal racket/base
          (provide y)
