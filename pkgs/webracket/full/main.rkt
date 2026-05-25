@@ -4,7 +4,6 @@
          racket/bool
          racket/bytes
          racket/dict
-         racket/function
          racket/include
          racket/list
          racket/local
@@ -36,6 +35,10 @@
          "../promise.rkt"
          "../set.rkt"
          "../stream.rkt"
+         (except-in "../function.rkt" compose compose1)
+         (rename-in "../function.rkt"
+                    [compose wr-compose]
+                    [compose1 wr-compose1])
          (for-syntax racket/base)
          (for-syntax racket/splicing)
          (for-syntax webracket-lib/compiler/private/browser-options))
@@ -46,15 +49,18 @@
                      format
                      fprintf
                      printf
-                     eprintf)
+                     eprintf
+                     compose
+                     compose1)
          (rename-out [wr-format format]
                      [wr-fprintf fprintf]
                      [wr-printf printf]
-                     [wr-eprintf eprintf])
+                     [wr-eprintf eprintf]
+                     [wr-compose compose]
+                     [wr-compose1 compose1])
          (all-from-out racket/bool)
          (all-from-out racket/bytes)
          (all-from-out racket/dict)
-         (all-from-out racket/function)
          (all-from-out racket/include)
          (all-from-out racket/list)
          (all-from-out racket/local)
@@ -76,6 +82,7 @@
          ~.s
          ~.v
          (all-from-out "../file.rkt")
+         (all-from-out "../function.rkt")
          (all-from-out "../hash.rkt")
          (all-from-out "../js/main.rkt")
          (all-from-out "../pretty.rkt")

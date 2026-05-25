@@ -241,7 +241,9 @@
 ;;   Compare generated linklet names by printed identity when eq? is too strict.
 (define (symbolic-name=? a b)
   (define (generated-base-name name)
-    (regexp-replace #rx"[0-9]*[.][0-9]+$" (symbol->string name) ""))
+    (define text (symbol->string name))
+    (define without-prefix (regexp-replace #rx"^new[:-]" text ""))
+    (regexp-replace #rx"[0-9]*[.][0-9]+$" without-prefix ""))
   (or (eq? a b)
       (string=? (symbol->string a) (symbol->string b))
       (string=? (generated-base-name a) (symbol->string b))

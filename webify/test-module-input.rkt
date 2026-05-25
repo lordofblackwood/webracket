@@ -236,6 +236,30 @@
     #:dependencies `((,importer-export racket/string)))
    `((,importer-export racket/string ,provider-export))))
 
+(test-case "dependency resolver normalizes generated new: aliases"
+  (define importer-linklet
+    '(linklet (((new:procedure-reduce-arity-mask new:procedure-reduce-arity-mask))) (y)
+       (define-values (y) new:procedure-reduce-arity-mask)))
+  (check-equal?
+   (webify-resolve-module-linklet-imports
+    importer-linklet
+    '((racket/private/list (procedure-reduce-arity-mask))))
+   '((new:procedure-reduce-arity-mask
+      racket/private/list
+      procedure-reduce-arity-mask))))
+
+(test-case "dependency resolver normalizes generated new- aliases"
+  (define importer-linklet
+    '(linklet (((new-keyword-apply new-keyword-apply))) (y)
+       (define-values (y) new-keyword-apply)))
+  (check-equal?
+   (webify-resolve-module-linklet-imports
+    importer-linklet
+    '((racket/private/list (keyword-apply))))
+   '((new-keyword-apply
+      racket/private/list
+      keyword-apply))))
+
 (test-case "dependency resolver honors explicit internal export aliases"
   (define importer-local 'string-join.1)
   (define importer-external 'string-join)
