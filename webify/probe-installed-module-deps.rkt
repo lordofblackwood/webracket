@@ -140,6 +140,7 @@
     class-with-method
     class-send-apply
     class-augment-inner
+    class-private-final
     read-list
     read-vector
     read-symbol-string
@@ -234,6 +235,7 @@
     class-with-method
     class-send-apply
     class-augment-inner
+    class-private-final
     regexp-literal
     regexp-capture
     regexp-replace
@@ -1180,6 +1182,20 @@
              (super-new)
              (define/augment (value n) 2)))
          (define y (send (new child%) value 40))))]
+    [(class-private-final)
+     '((module use-class-private-final racket/base
+         (require racket/class)
+         (provide y)
+         (define counter%
+           (class object%
+             (super-new)
+             (define n 40)
+             (define (inc!) (set! n (+ n 2)))
+             (private inc!)
+             (define/public-final (value)
+               (inc!)
+               n)))
+         (define y (send (new counter%) value))))]
     [(regexp-literal)
      '((module use-regexp-literal racket/base
          (provide y)

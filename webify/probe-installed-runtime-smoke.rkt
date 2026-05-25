@@ -251,7 +251,8 @@
     class-dynamic-field-send
     class-with-method
     class-send-apply
-    class-augment-inner))
+    class-augment-inner
+    class-private-final))
 
 ;; goal1-slow-module-cases : (listof symbol?)
 ;;   Passing Goal 1 smokes that are too slow for the compact fast tier.
@@ -422,6 +423,7 @@
       class-with-method
       class-send-apply
       class-augment-inner
+      class-private-final
       format-require
       format-single
       format-basic
@@ -579,7 +581,7 @@
               class-super-override class-interface-basic class-generic-basic
               class-mixin-basic class-object-equality class-reflection-basic
               class-relationships class-info-basic class-with-method
-              class-augment-inner)
+              class-augment-inner class-private-final)
              #rx"(?m:^42$)"]
             [(class-construction-basic) #rx"(?m:^126$)"]
             [(class-send-forms) #rx"(?m:^84$)"]
