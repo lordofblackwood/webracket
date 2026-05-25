@@ -127,6 +127,7 @@
     class-inheritance
     class-predicate
     class-super-override
+    class-interface-basic
     read-list
     read-vector
     read-symbol-string
@@ -208,6 +209,7 @@
     class-inheritance
     class-predicate
     class-super-override
+    class-interface-basic
     regexp-literal
     regexp-capture
     regexp-replace
@@ -912,6 +914,23 @@
              (super-new)
              (define/override (value) (+ (super value) 2))))
          (define y (send (new child%) value))))]
+    [(class-interface-basic)
+     '((module use-class-interface-basic racket/base
+         (require racket/class)
+         (provide y)
+         (define point<%> (interface () get-x get-y))
+         (define point%
+           (class* object% (point<%>)
+             (super-new)
+             (define/public (get-x) 40)
+             (define/public (get-y) 2)))
+         (define obj (new point%))
+         (define y
+           (if (and (interface? point<%>)
+                    (is-a? obj point<%>)
+                    (implementation? point% point<%>))
+               (+ (send obj get-x) (send obj get-y))
+               0))))]
     [(regexp-literal)
      '((module use-regexp-literal racket/base
          (provide y)
