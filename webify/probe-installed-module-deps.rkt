@@ -139,6 +139,7 @@
     class-dynamic-field-send
     class-with-method
     class-send-apply
+    class-augment-inner
     read-list
     read-vector
     read-symbol-string
@@ -232,6 +233,7 @@
     class-dynamic-field-send
     class-with-method
     class-send-apply
+    class-augment-inner
     regexp-literal
     regexp-capture
     regexp-replace
@@ -1164,6 +1166,20 @@
          (define a (send/apply obj sum 10 '(11 21)))
          (define b (send/keyword-apply obj kw '(#:x #:y) '(10 20) 12 null))
          (define y (+ a b))))]
+    [(class-augment-inner)
+     '((module use-class-augment-inner racket/base
+         (require racket/class)
+         (provide y)
+         (define base%
+           (class object%
+             (super-new)
+             (define/pubment (value n)
+               (+ n (inner 0 value n)))))
+         (define child%
+           (class base%
+             (super-new)
+             (define/augment (value n) 2)))
+         (define y (send (new child%) value 40))))]
     [(regexp-literal)
      '((module use-regexp-literal racket/base
          (provide y)
