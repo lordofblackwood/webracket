@@ -56,6 +56,15 @@
     (lambda (out) (write summary out))
     #:exists 'truncate/replace))
 
+;; parse-symbol-list : string? -> (listof symbol?)
+;;   Parse a comma-separated list of provider module names.
+(define (parse-symbol-list str)
+  (filter-map (lambda (part)
+                (define trimmed (string-trim part))
+                (and (not (string=? trimmed ""))
+                     (string->symbol trimmed)))
+              (string-split str ",")))
+
 ;; report-or-cache-summary : path-string? boolean? report -> hash?
 ;;   Return a cacheable summary, writing it when cache-dir is supplied.
 (define (report-or-cache-summary cache-dir force? report)
@@ -122,12 +131,19 @@
      (when (summary-ref summary 'error-message #f)
        (printf "  error: ~a\n" (summary-ref summary 'error-message)))]))
 
-;; print-provider-trial-dashboard : boolean? [path-string?] boolean? -> void?
+;; print-provider-trial-dashboard : boolean? [path-string?] boolean? (or/c #f (listof symbol?)) -> void?
 ;;   Print discovery-only provider trial status.
-(define (print-provider-trial-dashboard tsv? cache-dir force-cache?)
+(define (print-provider-trial-dashboard tsv? cache-dir force-cache? only-modules)
   (when tsv?
     (printf "module\texports\tstatus\telapsed-ms\tdemand-inputs\tfull-inputs\tinput-delta\tdemand-imports\tfull-imports\tdemand-exports\tfull-exports\tprimitive-demands\tmissing-primitives\townership\tcache-hits\tcache-misses\tlargest-inputs\n"))
-  (for ([trial (in-list webify-provider-trials)])
+  (define selected-trials
+    (cond
+      [(not only-modules) webify-provider-trials]
+      [else
+       (filter (lambda (trial)
+                 (memq (webify-provider-trial-module trial) only-modules))
+               webify-provider-trials)]))
+  (for ([trial (in-list selected-trials)])
     (print-provider-trial-row
      tsv?
      (trial-summary cache-dir force-cache? trial))))
@@ -136,6 +152,7 @@
   (define tsv? #f)
   (define cache-dir #f)
   (define force-cache? #f)
+  (define only-modules #f)
   (command-line
    #:program "probe-provider-trials"
    #:once-each
@@ -144,5 +161,7 @@
    [("--cache-dir") dir "cache dashboard summaries in dir"
                     (set! cache-dir (string->path dir))]
    [("--force-cache-refresh") "refresh provider-trial dashboard cache rows"
-                              (set! force-cache? #t)])
-  (print-provider-trial-dashboard tsv? cache-dir force-cache?))
+                              (set! force-cache? #t)]
+   [("--only") modules "comma-separated provider module names to run"
+               (set! only-modules (parse-symbol-list modules))])
+  (print-provider-trial-dashboard tsv? cache-dir force-cache? only-modules))
