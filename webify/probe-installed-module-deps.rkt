@@ -133,6 +133,7 @@
     class-object-equality
     class-reflection-basic
     class-relationships
+    class-info-basic
     read-list
     read-vector
     read-symbol-string
@@ -220,6 +221,7 @@
     class-object-equality
     class-reflection-basic
     class-relationships
+    class-info-basic
     regexp-literal
     regexp-capture
     regexp-replace
@@ -1033,6 +1035,34 @@
                     (interface-extension? b<%> a<%>)
                     (not (interface-extension? a<%> b<%>)))
                42
+               0))))]
+    [(class-info-basic)
+     '((module use-class-info-basic racket/base
+         (require racket/class)
+         (provide y)
+         (define point%
+           (class object%
+             (inspect #f)
+             (super-new)
+             (field [x 40] [y 2])))
+         (define obj (new point%))
+         (define-values (cls skipped?) (object-info obj))
+         (define-values (name field-cnt field-name-list field-ref field-set!
+                              super-class skipped-super?)
+           (class-info point%))
+         (field-set! obj 0 41)
+         (define y
+           (if (and (class? cls)
+                    (not skipped?)
+                    (eq? name 'point%)
+                    (= field-cnt 2)
+                    (memq 'x field-name-list)
+                    (memq 'y field-name-list)
+                    (= (field-ref obj 0) 41)
+                    (= (field-ref obj 1) 2)
+                    (not super-class)
+                    skipped-super?)
+               (- (+ (field-ref obj 0) (field-ref obj 1)) 1)
                0))))]
     [(regexp-literal)
      '((module use-regexp-literal racket/base
