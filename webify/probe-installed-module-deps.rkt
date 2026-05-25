@@ -138,6 +138,7 @@
     class-send-forms
     class-dynamic-field-send
     class-with-method
+    class-send-apply
     read-list
     read-vector
     read-symbol-string
@@ -230,6 +231,7 @@
     class-send-forms
     class-dynamic-field-send
     class-with-method
+    class-send-apply
     regexp-literal
     regexp-capture
     regexp-replace
@@ -1149,6 +1151,19 @@
              (push 40)
              (push 42)
              (pop)))))]
+    [(class-send-apply)
+     '((module use-class-send-apply racket/base
+         (require racket/class)
+         (provide y)
+         (define counter%
+           (class object%
+             (super-new)
+             (define/public (sum a b c) (+ a b c))
+             (define/public (kw #:x x #:y y z) (+ x y z))))
+         (define obj (new counter%))
+         (define a (send/apply obj sum 10 '(11 21)))
+         (define b (send/keyword-apply obj kw '(#:x #:y) '(10 20) 12 null))
+         (define y (+ a b))))]
     [(regexp-literal)
      '((module use-regexp-literal racket/base
          (provide y)
