@@ -136,6 +136,7 @@
     class-info-basic
     class-construction-basic
     class-send-forms
+    class-dynamic-field-send
     read-list
     read-vector
     read-symbol-string
@@ -226,6 +227,7 @@
     class-info-basic
     class-construction-basic
     class-send-forms
+    class-dynamic-field-send
     regexp-literal
     regexp-capture
     regexp-replace
@@ -1106,6 +1108,25 @@
                      (move-x 19)
                      (move-y 23)
                      (sum))))))]
+    [(class-dynamic-field-send)
+     '((module use-class-dynamic-field-send racket/base
+         (require racket/class)
+         (provide y)
+         (define counter%
+           (class object%
+             (super-new)
+             (field [n 10])
+             (define/public (add x) (+ n x))))
+         (define obj (new counter%))
+         (define get-n (class-field-accessor counter% n))
+         (define set-n! (class-field-mutator counter% n))
+         (dynamic-set-field! 'n obj 40)
+         (define a (dynamic-get-field 'n obj))
+         (set-n! obj 41)
+         (define b (get-n obj))
+         (define c (dynamic-send obj 'add 1))
+         (define d (if (field-bound? n obj) 0 1000))
+         (define y (+ a b c d))))]
     [(regexp-literal)
      '((module use-regexp-literal racket/base
          (provide y)

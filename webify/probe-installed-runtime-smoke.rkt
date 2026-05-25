@@ -247,7 +247,8 @@
     class-relationships
     class-info-basic
     class-construction-basic
-    class-send-forms))
+    class-send-forms
+    class-dynamic-field-send))
 
 ;; goal1-slow-module-cases : (listof symbol?)
 ;;   Passing Goal 1 smokes that are too slow for the compact fast tier.
@@ -414,6 +415,7 @@
       class-info-basic
       class-construction-basic
       class-send-forms
+      class-dynamic-field-send
       format-require
       format-single
       format-basic
@@ -574,6 +576,7 @@
              #rx"(?m:^42$)"]
             [(class-construction-basic) #rx"(?m:^126$)"]
             [(class-send-forms) #rx"(?m:^84$)"]
+            [(class-dynamic-field-send) #rx"(?m:^123$)"]
             [else #rx"(?m:^false$)"])
           #rx"")
       '()
