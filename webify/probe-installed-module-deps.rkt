@@ -130,6 +130,7 @@
     class-interface-basic
     class-generic-basic
     class-mixin-basic
+    class-object-equality
     read-list
     read-vector
     read-symbol-string
@@ -214,6 +215,7 @@
     class-interface-basic
     class-generic-basic
     class-mixin-basic
+    class-object-equality
     regexp-literal
     regexp-capture
     regexp-replace
@@ -961,6 +963,19 @@
              (define/override (value) (+ (super value) 2))))
          (define child% (add-two-mixin base%))
          (define y (send (new child%) value))))]
+    [(class-object-equality)
+     '((module use-class-object-equality racket/base
+         (require racket/class)
+         (provide y)
+         (define a (new object%))
+         (define b (new object%))
+         (define y
+           (if (and (object=? a a)
+                    (not (object=? a b))
+                    (object-or-false=? #f #f)
+                    (not (object-or-false=? a #f)))
+               42
+               0))))]
     [(regexp-literal)
      '((module use-regexp-literal racket/base
          (provide y)
