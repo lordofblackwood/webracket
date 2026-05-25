@@ -240,8 +240,12 @@
 ;; symbolic-name=? : symbol? symbol? -> boolean?
 ;;   Compare generated linklet names by printed identity when eq? is too strict.
 (define (symbolic-name=? a b)
+  (define (generated-base-name name)
+    (regexp-replace #rx"[0-9]*[.][0-9]+$" (symbol->string name) ""))
   (or (eq? a b)
-      (string=? (symbol->string a) (symbol->string b))))
+      (string=? (symbol->string a) (symbol->string b))
+      (string=? (generated-base-name a) (symbol->string b))
+      (string=? (symbol->string a) (generated-base-name b))))
 
 ;; webify-primitive-name? : symbol? -> boolean?
 ;;   Check whether a kernel-origin binding is already a known Webify primitive.

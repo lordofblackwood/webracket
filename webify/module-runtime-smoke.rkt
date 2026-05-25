@@ -29,6 +29,8 @@
          racket92-bin
          current-runtime-smoke-preserve-dir
          current-runtime-smoke-extra-webracket-args
+         current-runtime-smoke-webracket-timeout
+         current-runtime-smoke-stage-start-ms
          installed-runtime-inputs-missing-primitive-demands
          webify-module-linklet-manifest->runtime-smoke-graph-audit
          run-installed-runtime-smoke
@@ -53,6 +55,7 @@
 (define racket92-bin (build-path repo-root "../racket/racket/bin/racket"))
 (define current-runtime-smoke-preserve-dir (make-parameter #f))
 (define current-runtime-smoke-extra-webracket-args (make-parameter '()))
+(define current-runtime-smoke-webracket-timeout (make-parameter #f))
 
 ;; runtime-smoke-primitive-import-overrides : -> hasheq?
 ;;   Route primitive import cells to staged providers when their driver flag is active.
@@ -90,6 +93,33 @@
    primitive-demands
    missing-primitive-demands)
   #:transparent)
+
+;; current-runtime-smoke-stage-start-ms : parameter?
+;;   Start time for elapsed stage logging in bounded probes.
+(define current-runtime-smoke-stage-start-ms
+  (make-parameter (current-inexact-milliseconds)))
+
+;; runtime-smoke-stage : string? any/c ... -> void?
+;;   Print flushed progress markers so bounded probes report where they stalled.
+(define (runtime-smoke-stage fmt . args)
+  (define elapsed-ms
+    (inexact->exact
+     (round (- (current-inexact-milliseconds)
+               (current-runtime-smoke-stage-start-ms)))))
+  (printf "runtime-smoke-stage-ms: ~a\t" elapsed-ms)
+  (apply printf (string-append "runtime-smoke-stage: " fmt "\n") args)
+  (flush-output))
+
+;; runtime-smoke-remaining-timeout : -> (or/c exact-positive-integer? #f)
+;;   Compute a nested subprocess timeout that fires before the parent wrapper.
+(define (runtime-smoke-remaining-timeout)
+  (define budget-seconds (current-runtime-smoke-webracket-timeout))
+  (and budget-seconds
+       (let* ([elapsed-ms (- (current-inexact-milliseconds)
+                             (current-runtime-smoke-stage-start-ms))]
+              [elapsed-seconds (ceiling (/ elapsed-ms 1000.0))]
+              [remaining (- budget-seconds elapsed-seconds 20)])
+         (max 1 (inexact->exact remaining)))))
 
 ;; preserve-runtime-directory! : symbol? path-string? -> void?
 ;;   Copy a temporary runtime-smoke directory into the requested transcript area.
@@ -143,10 +173,189 @@
           (define provider-namespace (make-webify-contract-erasing-namespace))
           (define provider-module-name-resolver
             (make-webify-contract-erasing-module-name-resolver))
+          (define (source-substitute-module-path module-path)
+            (case module-path
+              [(racket/class) 'webracket/class]
+              [(racket/contract
+                racket/contract/base
+                racket/contract/combinator
+                racket/contract/region
+                racket/contract/private/base
+                racket/contract/private/blame
+                racket/contract/private/guts)
+               'webracket/contract]
+              [else module-path]))
+          (define source-module-name-resolver
+            (case-lambda
+              [(module-path source syntax load?)
+               (provider-module-name-resolver
+                (source-substitute-module-path module-path)
+                source
+                syntax
+                load?)]
+              [(resolved namespace)
+               (provider-module-name-resolver resolved namespace)]))
+          (define (provider-substitute name)
+            (case name
+              [(racket/class) 'webracket/class]
+              [(racket/contract
+                racket/contract/base
+                racket/contract/combinator
+                racket/contract/region
+                racket/contract/private/base
+                racket/contract/private/blame
+                racket/contract/private/guts)
+               'webracket/contract]
+              [else name]))
+          (define contract-coercion-exports
+            '(coerce-contract
+              coerce-contracts
+              coerce-contract/f
+              coerce-flat-contract
+              coerce-flat-contracts
+              coerce-chaperone-contract
+              coerce-chaperone-contracts))
+          (define contract-region-exports
+            '(define-struct/contract
+              struct/contract
+              define/contract
+              with-contract
+              current-contract-region
+              invariant-assertion))
+          (define contract-blame-exports
+            '(blame-add-car-context
+              blame-add-cdr-context
+              blame-add-context
+              blame-add-missing-party
+              blame-add-nth-arg-context
+              blame-add-range-context
+              blame-add-unknown-context
+              blame-context
+              blame-contract
+              blame-fmt->-string
+              blame-missing-party?
+              blame-negative
+              blame-original?
+              blame-positive
+              blame-replace-negative
+              blame-replaced-negative?
+              blame-source
+              blame-swap
+              blame-swapped?
+              blame-update
+              blame-value
+              blame?
+              current-blame-format
+              exn:fail:contract:blame
+              exn:fail:contract:blame-object
+              exn:fail:contract:blame?
+              make-exn:fail:contract:blame
+              raise-blame-error
+              raise-contract-error
+              raise-not-cons-blame-error))
+          (define contract-combinator-exports
+            '(prop:contract
+              contract-struct-late-neg-projection
+              contract-struct-generate
+              contract-struct-exercise
+              contract-struct-list-contract?
+              prop:flat-contract
+              prop:chaperone-contract
+              contract-property?
+              build-contract-property
+              chaperone-contract-property?
+              flat-contract-property?
+              make-contract
+              prop:orc-contract
+              prop:orc-contract?
+              prop:orc-contract-get-subcontracts
+              prop:recursive-contract
+              prop:recursive-contract?
+              prop:recursive-contract-unroll
+              prop:arrow-contract
+              prop:arrow-contract?
+              prop:arrow-contract-get-info
+              struct:arrow-contract-info
+              arrow-contract-info
+              arrow-contract-info?
+              arrow-contract-info-accepts-arglist
+              arrow-contract-info-chaperone-procedure
+              arrow-contract-info-check-first-order
+              build-compound-type-name
+              contract-stronger?
+              contract-equivalent?
+              list-contract?
+              contract-first-order
+              contract-first-order-passes?
+              prop:contracted
+              prop:blame
+              impersonator-prop:contracted
+              impersonator-prop:blame
+              has-blame?
+              value-blame
+              define/final-prop
+              define/subexpression-pos-prop
+              define/subexpression-pos-prop/name
+              eq-contract?
+              eq-contract-val
+              equal-contract?
+              equal-contract-val
+              contract-custom-write-property-proc
+              custom-write-property-proc
+              coerce-contract
+              coerce-contracts
+              coerce-contract/f
+              coerce-flat-contract
+              coerce-flat-contracts
+              coerce-chaperone-contract
+              coerce-chaperone-contracts))
+          (define (contract-provider-phase0-exports name exports)
+            (case name
+              [(racket/contract/base)
+               (filter (lambda (export)
+                         (not (memq export contract-coercion-exports)))
+                       exports)]
+              [(racket/contract/region)
+               (filter (lambda (export)
+                         (memq export contract-region-exports))
+                       exports)]
+              [(racket/contract/combinator)
+               (filter (lambda (export)
+                         (memq export contract-combinator-exports))
+                       exports)]
+              [(racket/contract/private/blame)
+               (filter (lambda (export)
+                         (memq export contract-blame-exports))
+                       exports)]
+              [(racket/contract/private/guts)
+               (filter (lambda (export)
+                         (not (memq export contract-blame-exports)))
+                       exports)]
+              [else exports]))
+          (define (rename-provider-report report name)
+            (if (eq? name (webify-module-report-name report))
+                report
+                (webify-module-report
+                 name
+                 (webify-module-report-directory-keys report)
+                 (webify-module-report-bundle-keys report)
+                 (webify-module-report-bundle-entries report)
+                 (webify-module-report-phase0-imports report)
+                 (contract-provider-phase0-exports
+                  name
+                  (webify-module-report-phase0-exports report))
+                 (webify-module-report-phase0-linklet-datum report)
+                 (webify-module-report-manifest-ready? report)
+                 (cons (format "substituted provider registered as ~a" name)
+                       (webify-module-report-notes report)))))
           (define (fetch-provider name)
-            (parameterize ([current-namespace provider-namespace]
-                           [current-module-name-resolver provider-module-name-resolver])
-              (webify-module-path->report name #:namespace provider-namespace)))
+            (define substitute-name (provider-substitute name))
+            (rename-provider-report
+             (parameterize ([current-namespace provider-namespace]
+                            [current-module-name-resolver provider-module-name-resolver])
+               (webify-module-path->report substitute-name
+                                           #:namespace provider-namespace))
+             name))
           (define inputs
             (webify-source-modules->discovered-resolved-linklet-inputs
              ',module-data
@@ -155,6 +364,10 @@
                                   'fetch-provider
                                   'webify-module-path->report)
              #:module-protocol-dependency webify-module-protocol-dependency
+             ,@(if use-erased-contract-providers?
+                   '(#:namespace provider-namespace
+                     #:module-name-resolver source-module-name-resolver)
+                   '())
              #:demand-slice? #t))
           (define manifest-root-names
             (map webify-module-linklet-input-name inputs))
@@ -399,12 +612,17 @@
     void
     (lambda ()
       (define inputs (webify-module-linklet-manifest-inputs manifest))
+      (runtime-smoke-stage "compose/check-primitive-demands")
       (check-primitive-demands! inputs)
+      (runtime-smoke-stage "compose/build-registry")
       (define registry (webify-module-linklet-manifest->registry manifest))
       (define loader (make-webify-module-loader registry))
+      (runtime-smoke-stage "compose/instantiate-loader roots=~s"
+                           (webify-module-linklet-manifest-roots manifest))
       (parameterize ([current-composer-primitive-import-cell-overrides
                       (runtime-smoke-primitive-import-overrides)])
         (instantiate-loader! loader (webify-module-linklet-manifest-roots manifest)))
+      (runtime-smoke-stage "compose/write-program")
       (write-datum-program!
        program-path
        (build-program loader))
@@ -414,8 +632,14 @@
                       "-r"
                       "--dest" (path->string dest-dir)
                       (path->string program-path))))
+      (define nested-timeout-seconds (runtime-smoke-remaining-timeout))
+      (runtime-smoke-stage "compose/run-webracket timeout=~s"
+                           nested-timeout-seconds)
       (define-values (status output)
-        (run-webracket webracket-args source-dir))
+        (run-webracket webracket-args
+                       source-dir
+                       #:timeout-seconds nested-timeout-seconds))
+      (runtime-smoke-stage "compose/run-webracket-done status=~a" status)
       (unless (zero? status)
         (error 'run-composed-runtime-smoke
                "WebRacket exited with status ~a\n~a"
@@ -477,24 +701,29 @@
   (dynamic-wind
     void
     (lambda ()
+      (runtime-smoke-stage "installed/write-extractor")
       (write-extractor-script!
        extractor-path
        manifest-path
        (installed-runtime-smoke-module-data smoke))
+      (runtime-smoke-stage "installed/run-extractor")
       (define-values (extract-status extract-output)
         (run-racket92/extract
          racket92-bin
          extractor-path
          (build-path source-dir "compiled")))
+      (runtime-smoke-stage "installed/extractor-done status=~a" extract-status)
       (cond
         [(zero? extract-status)
+         (runtime-smoke-stage "installed/read-manifest")
          (define manifest (read-webify-module-linklet-manifest manifest-path))
          (with-handlers ([exn:fail?
                           (lambda (exn)
                             (print-runtime-smoke-failure-summary manifest)
                             (check-installed-runtime-failure
                              smoke
-                             (webify-classify-module-exn 'runtime exn)))])
+                            (webify-classify-module-exn 'runtime exn)))])
+           (runtime-smoke-stage "installed/run-composed")
            (run-composed-runtime-smoke
             manifest
             (installed-runtime-smoke-observations smoke)

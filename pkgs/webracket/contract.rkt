@@ -1,6 +1,7 @@
 #lang racket/base
 
 (provide *list/c -> ->* ->d </c <=/c =/c >/c >=/c and/c any any/c
+         apply-contract
          arity-checking-wrapper arrow-contract-info
          arrow-contract-info-accepts-arglist
          arrow-contract-info-chaperone-procedure
@@ -112,6 +113,21 @@
 
 (define-syntax-rule (define-identity-wrapper id)
   (define (id v . _args) v))
+
+;; apply-contract : any/c any/c any/c ... -> any/c
+;;   Erase contract application by returning the protected value unchanged.
+(define (apply-contract _contract value . _args)
+  value)
+
+;; raise-blame-error : any/c any/c any/c ... -> none/c
+;;   Report an erased contract blame failure through ordinary `error`.
+(define (raise-blame-error _blame value message . _args)
+  (error 'raise-blame-error "~a: ~a" message value))
+
+;; raise-not-cons-blame-error : any/c any/c any/c ... -> none/c
+;;   Report an erased pair-contract blame failure through ordinary `error`.
+(define (raise-not-cons-blame-error _blame value . _args)
+  (error 'raise-not-cons-blame-error "expected pair value: ~a" value))
 
 ;; make-erased-contract : symbol? (listof any/c) -> contract?
 ;;   Build an inert contract descriptor for compatibility.
@@ -698,8 +714,6 @@
   opt/c
   prompt-tag/c
   property/c
-  raise-blame-error
-  raise-not-cons-blame-error
   recontract-out
   struct-guard/c
   syntax/c

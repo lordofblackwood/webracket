@@ -26,6 +26,7 @@
     racket/stream
     racket/string
     racket/vector
+    webracket/class
     racket/contract
     webracket/contract
     webracket/pretty
@@ -34,8 +35,7 @@
     webracket/stream))
 
 (define webracket-full-deferred-libraries
-  '(racket/class
-    racket/cmdline
+  '(racket/cmdline
     racket/file
     racket/future
     racket/place
@@ -65,6 +65,8 @@
     (racket/stream   substituted staged staged runs)
     (racket/string   exported extracts partial runs)
     (racket/vector   exported extracts partial runs)
+    (racket/class    exported substituted staged partial)
+    (webracket/class exported extracts staged partial)
     (racket/contract exported substituted staged runs)
     (webracket/contract exported extracts staged runs)
     (webracket/pretty   exported extracts staged runs)

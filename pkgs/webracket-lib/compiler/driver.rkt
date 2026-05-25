@@ -1497,7 +1497,12 @@
 ;;   Rewrite selected source-level require paths to WebRacket-owned providers.
 (define (substitute-require-module-path module-path)
   (case module-path
-    [(racket/contract racket/contract/base) 'webracket/contract]
+    [(racket/contract
+      racket/contract/base
+      racket/contract/combinator
+      racket/contract/region)
+     'webracket/contract]
+    [(racket/class) 'webracket/class]
     [(racket/dict) 'webracket/dict]
     [(racket/file) 'webracket/file]
     [(racket/format) 'webracket/format]
@@ -1908,7 +1913,12 @@
 ;;   Route selected installed providers to smaller WebRacket-owned Goal 1 shims.
 (define (webracket/base-provider-substitute name)
   (case name
-    [(racket/contract racket/contract/base) 'webracket/contract]
+    [(racket/contract
+      racket/contract/base
+      racket/contract/combinator
+      racket/contract/region)
+     'webracket/contract]
+    [(racket/class) 'webracket/class]
     [(racket/dict) 'webracket/dict]
     [(racket/file) 'webracket/file]
     [(racket/format) 'webracket/format]

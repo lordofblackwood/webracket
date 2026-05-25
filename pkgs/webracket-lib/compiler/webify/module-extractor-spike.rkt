@@ -119,9 +119,19 @@
 (define (contract-module-path? module-path)
   (or (eq? module-path 'racket/contract)
       (eq? module-path 'racket/contract/base)
+      (eq? module-path 'racket/contract/combinator)
+      (eq? module-path 'racket/contract/region)
+      (eq? module-path 'racket/contract/private/base)
+      (eq? module-path 'racket/contract/private/blame)
+      (eq? module-path 'racket/contract/private/guts)
       (eq? module-path 'syntax/contract)
       (equal? module-path '(lib "racket/contract.rkt"))
       (equal? module-path '(lib "racket/contract/base.rkt"))
+      (equal? module-path '(lib "racket/contract/combinator.rkt"))
+      (equal? module-path '(lib "racket/contract/region.rkt"))
+      (equal? module-path '(lib "racket/contract/private/base.rkt"))
+      (equal? module-path '(lib "racket/contract/private/blame.rkt"))
+      (equal? module-path '(lib "racket/contract/private/guts.rkt"))
       (equal? module-path '(lib "syntax/contract.rkt"))))
 
 ;; contract-module-path->resolved : module-path? -> resolved-module-path?
@@ -135,6 +145,21 @@
      [(or (eq? module-path 'syntax/contract)
           (equal? module-path '(lib "syntax/contract.rkt")))
       'syntax/contract]
+     [(or (eq? module-path 'racket/contract/combinator)
+          (equal? module-path '(lib "racket/contract/combinator.rkt")))
+      'racket/contract/combinator]
+     [(or (eq? module-path 'racket/contract/region)
+          (equal? module-path '(lib "racket/contract/region.rkt")))
+      'racket/contract/region]
+     [(or (eq? module-path 'racket/contract/private/base)
+          (equal? module-path '(lib "racket/contract/private/base.rkt")))
+      'racket/contract/private/base]
+     [(or (eq? module-path 'racket/contract/private/blame)
+          (equal? module-path '(lib "racket/contract/private/blame.rkt")))
+      'racket/contract/private/blame]
+     [(or (eq? module-path 'racket/contract/private/guts)
+          (equal? module-path '(lib "racket/contract/private/guts.rkt")))
+      'racket/contract/private/guts]
      [else 'racket/contract])))
 
 ;; make-webify-contract-erasing-module-name-resolver : [procedure?] -> procedure?
@@ -718,8 +743,12 @@
 ;; symbolic-name=? : symbol? symbol? -> boolean?
 ;;   Match generated symbols that print the same but are not necessarily eq?.
 (define (symbolic-name=? a b)
+  (define (generated-base-name name)
+    (regexp-replace #rx"[0-9]*[.][0-9]+$" (symbol->string name) ""))
   (or (eq? a b)
-      (string=? (symbol->string a) (symbol->string b))))
+      (string=? (symbol->string a) (symbol->string b))
+      (string=? (generated-base-name a) (symbol->string b))
+      (string=? (symbol->string a) (generated-base-name b))))
 
 ;; phase0-import-groups : webify-module-extractor-spike? -> import-groups
 ;;   Return normalized phase-0 import groups from metadata.
@@ -1897,6 +1926,21 @@
                         candidates))
               (if (null? stream-cons-candidates) candidates stream-cons-candidates)]
              [else candidates]))
+         (define public-contract-substitute-modules
+           '(racket/contract
+             racket/contract/base
+             racket/contract/combinator
+             racket/contract/region))
+         (define (prefer-public-contract-substitute candidates)
+           (define public-candidates
+             (filter (lambda (candidate)
+                       (memq (cadr candidate)
+                             public-contract-substitute-modules))
+                     candidates))
+           (match public-candidates
+             ['() candidates]
+             [(list _candidate) public-candidates]
+             [_ candidates]))
          (define (webracket-module-name? name)
            (and (symbol? name)
                 (regexp-match? #rx"^webracket/" (symbol->string name))))
@@ -1911,8 +1955,9 @@
               (if (null? installed-candidates) candidates installed-candidates)]))
          (define ranked-candidates
            (prefer-installed-provider-internals
-            (prefer-stream-cons
-             (if (null? preferred-candidates) candidates preferred-candidates))))
+            (prefer-public-contract-substitute
+             (prefer-stream-cons
+              (if (null? preferred-candidates) candidates preferred-candidates)))))
          (define (candidate-reason candidate)
            (list local
                  (cadr candidate)
@@ -2206,19 +2251,23 @@
         (compile (datum->syntax #f module-datum)))))
   (compiled-module->extractor-spike who name compiled))
 
-;; webify-compile-module-extractor-spikes/shared-namespace : (listof module-datum) -> reports
+;; webify-compile-module-extractor-spikes/shared-namespace : (listof module-datum) ... -> reports
 ;;   Compile source modules in order while installing earlier declarations for quoted requires.
-(define (webify-compile-module-extractor-spikes/shared-namespace module-data)
+(define (webify-compile-module-extractor-spikes/shared-namespace
+         module-data
+         #:namespace [namespace (make-base-namespace)]
+         #:module-name-resolver [module-name-resolver (current-module-name-resolver)])
   (define who 'webify-compile-module-extractor-spikes/shared-namespace)
   (unless (list? module-data)
     (raise-argument-error who "(listof source-module-datum?)" module-data))
-  (define namespace (make-base-namespace))
   (parameterize ([current-namespace namespace])
     (for/list ([module-datum (in-list module-data)])
       (define name (validate-source-module! who module-datum))
-      (eval module-datum)
+      (parameterize ([current-module-name-resolver module-name-resolver])
+        (eval module-datum))
       (define compiled
-        (parameterize ([current-compile-target-machine #f])
+        (parameterize ([current-module-name-resolver module-name-resolver]
+                       [current-compile-target-machine #f])
           (compile (datum->syntax #f module-datum))))
       (compiled-module->extractor-spike who name compiled))))
 
@@ -2228,22 +2277,110 @@
   (define namespace (make-base-namespace))
   (define contract-file (path->string webify-contract-path))
   (define syntax-contract-file (path->string webify-syntax-contract-path))
-  (define (declare-erased-contract-module! name)
+  (define erased-contract-coercion-exports
+    '(coerce-contract
+      coerce-contracts
+      coerce-contract/f
+      coerce-flat-contract
+      coerce-flat-contracts
+      coerce-chaperone-contract
+      coerce-chaperone-contracts))
+  (define erased-contract-region-exports
+    '(define-struct/contract
+      struct/contract
+      define/contract
+      with-contract
+      current-contract-region
+      invariant-assertion))
+  (define (declare-erased-contract-module! name provide-specs)
     (eval
      `(module ,name racket/base
         (require (file ,contract-file))
-        (provide (all-from-out (file ,contract-file))))))
+        (provide ,@provide-specs))))
   (parameterize ([current-namespace namespace])
     (namespace-call-with-registry-lock
      namespace
      (lambda ()
-       (declare-erased-contract-module! 'racket/contract/base)
-       (declare-erased-contract-module! 'racket/contract)
+       (declare-erased-contract-module!
+        'racket/contract/base
+        `((except-out (all-from-out (file ,contract-file))
+                      ,@erased-contract-coercion-exports)))
+       (declare-erased-contract-module!
+        'racket/contract/combinator
+        `(prop:contract
+          contract-struct-late-neg-projection
+          contract-struct-generate
+          contract-struct-exercise
+          contract-struct-list-contract?
+          prop:flat-contract
+          prop:chaperone-contract
+          contract-property?
+          build-contract-property
+          chaperone-contract-property?
+          flat-contract-property?
+          make-contract
+          prop:orc-contract
+          prop:orc-contract?
+          prop:orc-contract-get-subcontracts
+          prop:recursive-contract
+          prop:recursive-contract?
+          prop:recursive-contract-unroll
+          prop:arrow-contract
+          prop:arrow-contract?
+          prop:arrow-contract-get-info
+          struct:arrow-contract-info
+          arrow-contract-info
+          arrow-contract-info?
+          arrow-contract-info-accepts-arglist
+          arrow-contract-info-chaperone-procedure
+          arrow-contract-info-check-first-order
+          ,@erased-contract-coercion-exports
+          build-compound-type-name
+          contract-stronger?
+          contract-equivalent?
+          list-contract?
+          contract-first-order
+          contract-first-order-passes?
+          prop:contracted
+          prop:blame
+          impersonator-prop:contracted
+          impersonator-prop:blame
+          has-blame?
+          value-blame
+          define/final-prop
+          define/subexpression-pos-prop
+          define/subexpression-pos-prop/name
+          eq-contract?
+          eq-contract-val
+          equal-contract?
+          equal-contract-val
+          contract-custom-write-property-proc
+          custom-write-property-proc))
+       (declare-erased-contract-module!
+        'racket/contract/region
+        erased-contract-region-exports)
+       (declare-erased-contract-module!
+        'racket/contract/private/base
+        `((all-from-out (file ,contract-file))))
+       (declare-erased-contract-module!
+        'racket/contract/private/blame
+        `((all-from-out (file ,contract-file))))
+       (declare-erased-contract-module!
+        'racket/contract/private/guts
+        `((all-from-out (file ,contract-file))))
+       (declare-erased-contract-module!
+        'racket/contract
+        `((all-from-out (file ,contract-file))))
        (eval
         `(module syntax/contract racket/base
            (require (file ,syntax-contract-file))
            (provide (all-from-out (file ,syntax-contract-file)))))
        (dynamic-require ''racket/contract/base #f)
+       (dynamic-require ''racket/contract/combinator #f)
+       (dynamic-require ''racket/contract/region #f)
+       (dynamic-require ''racket/contract/private/base #f)
+       (dynamic-require ''racket/contract/private/blame #f)
+       (dynamic-require ''racket/contract/private/guts #f)
        (dynamic-require ''racket/contract #f)
        (dynamic-require ''syntax/contract #f))))
   namespace)
@@ -2523,12 +2660,17 @@
          #:skip-provider? [skip-provider? (lambda (name) #f)]
          #:dependencies [dependencies '()]
          #:module-protocol-dependency [module-protocol-dependency #f]
+         #:namespace [namespace (make-base-namespace)]
+         #:module-name-resolver [module-name-resolver (current-module-name-resolver)]
          #:demand-slice? [demand-slice? #f])
   (define who 'webify-source-modules->discovered-resolved-linklet-inputs)
   (unless (list? module-data)
     (raise-argument-error who "(listof source-module-datum?)" module-data))
   (webify-module-extractor-spikes->discovered-resolved-linklet-inputs
-   (webify-compile-module-extractor-spikes/shared-namespace module-data)
+   (webify-compile-module-extractor-spikes/shared-namespace
+    module-data
+    #:namespace namespace
+    #:module-name-resolver module-name-resolver)
    #:extra-reports extra-reports
    #:fetch-provider fetch-provider
    #:skip-provider? skip-provider?

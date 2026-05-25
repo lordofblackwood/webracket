@@ -231,8 +231,11 @@
     js/performance
     js/temp
     data/queue
+    racket/class
     racket/contract
     racket/contract/base
+    racket/contract/combinator
+    racket/contract/region
     racket/logging
     racket/private/define-struct
     racket/private/for
@@ -244,6 +247,7 @@
     syntax/contract
     syntax/location
     webracket/contract
+    webracket/class
     webracket/dict
     webracket/file
     webracket/format
@@ -270,8 +274,11 @@
     js/performance
     js/temp
     data/queue
+    racket/class
     racket/contract
     racket/contract/base
+    racket/contract/combinator
+    racket/contract/region
     racket/format
     racket/hash
     racket/logging
@@ -282,6 +289,7 @@
     syntax/contract
     syntax/location
     webracket/contract
+    webracket/class
     webracket/dict
     webracket/file
     webracket/format

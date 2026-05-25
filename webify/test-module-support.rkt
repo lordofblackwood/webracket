@@ -340,23 +340,47 @@
                   (path->string webracket-rkt))
             args)
            (append (list (path->string webracket-rkt)) args)))
-     (define command
+	     (define command
        (if memory-mb
            "/bin/sh"
            (path->string racket-bin)))
+     (when timeout-seconds
+       (printf "run-webracket-stage: spawn timeout=~a\n" timeout-seconds)
+       (flush-output))
      (define-values (proc child-out child-in child-err)
        (parameterize ([current-directory cwd])
          (apply subprocess stdout #f stderr 'new command command-args)))
+     (when timeout-seconds
+       (printf "run-webracket-stage: spawned\n")
+       (flush-output))
      (when child-out (close-input-port child-out))
      (when child-in  (close-output-port child-in))
      (when child-err (close-input-port child-err))
+     (when timeout-seconds
+       (printf "run-webracket-stage: wait\n")
+       (flush-output))
      (define completed
        (if timeout-seconds
            (sync/timeout timeout-seconds proc)
            (begin (subprocess-wait proc) #t)))
-	     (unless completed
-	       (subprocess-kill proc #t))
-	     (subprocess-wait proc)
+     (when timeout-seconds
+       (printf "run-webracket-stage: wait-done completed=~a\n" (and completed #t))
+       (flush-output))
+     (define killed-and-waited?
+       (cond
+         [completed
+          (subprocess-wait proc)
+          #t]
+         [else
+          (when timeout-seconds
+            (printf "run-webracket-stage: kill\n")
+            (flush-output))
+          (subprocess-kill proc #t)
+          (define waited? (and (sync/timeout 2 proc) #t))
+          (when timeout-seconds
+            (printf "run-webracket-stage: kill-wait-done waited=~a\n" waited?)
+            (flush-output))
+          waited?]))
 	     (close-output-port stdout)
 	     (close-output-port stderr)
 	     (define status (subprocess-status proc))
@@ -373,6 +397,7 @@
 	       (delete-file stderr-path))
 	     (values (cond
                [(not completed) 124]
+               [(not killed-and-waited?) 124]
                [(integer? status) status]
                [else 1])
              output)]

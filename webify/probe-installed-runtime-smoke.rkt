@@ -716,7 +716,11 @@
                      (if selected-module-case
                          (module-cases-extra-webracket-args
                           (list selected-module-case))
-                         '())])
+                         '())]
+                    [current-runtime-smoke-webracket-timeout
+                     timeout-seconds]
+                    [current-runtime-smoke-stage-start-ms
+                     (current-inexact-milliseconds)])
        (run-installed-runtime-smoke smoke))))
   0)
 
@@ -739,7 +743,11 @@
    (lambda ()
      (parameterize ([current-runtime-smoke-preserve-dir preserve-dir]
                     [current-runtime-smoke-extra-webracket-args
-                     (module-cases-extra-webracket-args selected-module-cases)])
+                     (module-cases-extra-webracket-args selected-module-cases)]
+                    [current-runtime-smoke-webracket-timeout
+                     timeout-seconds]
+                    [current-runtime-smoke-stage-start-ms
+                     (current-inexact-milliseconds)])
        (run-installed-runtime-smokes smokes))))
   0)
 
@@ -801,6 +809,7 @@
            (path->string self-path)
            "--worker")
      selector-args
+     (list "--timeout" (number->string timeout-seconds))
      (if preserve-dir
          (list "--preserve-dir" preserve-dir)
          '())
