@@ -328,6 +328,7 @@
   (check-not-false (member 'class-augment-inner goal1-module-cases))
   (check-not-false (member 'class-private-final goal1-module-cases))
   (check-not-false (member 'class-abstract-basic goal1-module-cases))
+  (check-not-false (member 'class-init-rest-basic goal1-module-cases))
   (for ([name (in-list goal1-module-cases)])
     (check-not-false (member name known-module-cases))))
 

@@ -142,6 +142,7 @@
     class-augment-inner
     class-private-final
     class-abstract-basic
+    class-init-rest-basic
     read-list
     read-vector
     read-symbol-string
@@ -238,6 +239,7 @@
     class-augment-inner
     class-private-final
     class-abstract-basic
+    class-init-rest-basic
     regexp-literal
     regexp-capture
     regexp-replace
@@ -1212,6 +1214,17 @@
              (super-new)
              (define/override (amount) 40)))
          (define y (send (new child%) value))))]
+    [(class-init-rest-basic)
+     '((module use-class-init-rest-basic racket/base
+         (require racket/class)
+         (provide y)
+         (define basket%
+           (class object%
+             (super-new)
+             (init-rest fruits)
+             (define saved fruits)
+             (define/public (count) (length saved))))
+         (define y (send (make-object basket% 'kiwi 'lychee 'melon) count))))]
     [(regexp-literal)
      '((module use-regexp-literal racket/base
          (provide y)
