@@ -65,6 +65,7 @@
     promise-state
     vector-require
     vector-member-basic
+    vector-provider-basic
     function-compose
     function-identity
     function-compose1
@@ -267,6 +268,7 @@
     promise-basic
     vector-require
     vector-member-basic
+    vector-provider-basic
     function-compose
     function-identity
     function-compose1
@@ -611,6 +613,18 @@
          (require racket/vector)
          (provide y)
          (define y (vector-member 2 (vector 1 2 3)))))]
+    [(vector-provider-basic)
+     '((module use-vector-provider-basic racket/base
+         (require racket/vector)
+         (provide y)
+         (define v (vector-map add1 '#(10 20 30)))
+         (define kept (vector-filter odd? v))
+         (define y
+           (+ (vector-ref v 0)
+              (vector-count odd? v)
+              (vector-member 21 v)
+              (vector-length kept)
+              24))))]
     [(function-compose)
      '((module use-function-compose racket/base
          (require racket/function)

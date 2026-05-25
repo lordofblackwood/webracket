@@ -145,6 +145,7 @@
     promise-state
     vector-require
     vector-member-basic
+    vector-provider-basic
     function-compose
     function-identity
     function-compose1
@@ -585,6 +586,7 @@
             [(keyword-plain-direct) #rx"(?m:^42$)"]
             [(values-call-with-values values-let-values contract-wrapper-basic
               list-provider-basic string-provider-basic bool-provider-basic
+              vector-provider-basic
               class-basic class-init-field class-field-access class-inheritance
               class-super-override class-interface-basic class-generic-basic
               class-mixin-basic class-object-equality class-reflection-basic
