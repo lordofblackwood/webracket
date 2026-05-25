@@ -233,7 +233,9 @@
     regexp-capture
     regexp-replace
     class-require
-    class-basic))
+    class-basic
+    class-inheritance
+    class-predicate))
 
 ;; goal1-slow-module-cases : (listof symbol?)
 ;;   Passing Goal 1 smokes that are too slow for the compact fast tier.
@@ -386,6 +388,10 @@
       for/first-basic
       class-require
       class-basic
+      class-init-field
+      class-field-access
+      class-inheritance
+      class-predicate
       format-require
       format-single
       format-basic
@@ -505,6 +511,10 @@
               custom-write-require
               class-require
               class-basic
+              class-init-field
+              class-field-access
+              class-inheritance
+              class-predicate
               match-basic
               match-literal-default
               match-let-basic

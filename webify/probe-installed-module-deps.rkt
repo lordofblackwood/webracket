@@ -122,6 +122,10 @@
     contract-wrapper-basic
     class-require
     class-basic
+    class-init-field
+    class-field-access
+    class-inheritance
+    class-predicate
     read-list
     read-vector
     read-symbol-string
@@ -198,6 +202,8 @@
     values-call-with-values
     values-let-values
     class-basic
+    class-inheritance
+    class-predicate
     regexp-literal
     regexp-capture
     regexp-replace
@@ -845,6 +851,50 @@
              (super-new)
              (define/public (value) 42)))
          (define y (send (new counter%) value))))]
+    [(class-init-field)
+     '((module use-class-init-field racket/base
+         (require racket/class)
+         (provide y)
+         (define counter%
+           (class object%
+             (init-field n)
+             (super-new)
+             (define/public (value) n)))
+         (define y (send (new counter% [n 42]) value))))]
+    [(class-field-access)
+     '((module use-class-field-access racket/base
+         (require racket/class)
+         (provide y)
+         (define counter%
+           (class object%
+             (field [n 40])
+             (super-new)))
+         (define obj (new counter%))
+         (set-field! n obj 42)
+         (define y (get-field n obj))))]
+    [(class-inheritance)
+     '((module use-class-inheritance racket/base
+         (require racket/class)
+         (provide y)
+         (define base%
+           (class object%
+             (super-new)
+             (define/public (value) 40)))
+         (define child%
+           (class base%
+             (super-new)
+             (inherit value)
+             (define/public (next) (+ (value) 2))))
+         (define y (send (new child%) next))))]
+    [(class-predicate)
+     '((module use-class-predicate racket/base
+         (require racket/class)
+         (provide y)
+         (define counter%
+           (class object%
+             (super-new)))
+         (define obj (new counter%))
+         (define y (if (and (object? obj) (is-a? obj counter%)) 42 0))))]
     [(regexp-literal)
      '((module use-regexp-literal racket/base
          (provide y)
