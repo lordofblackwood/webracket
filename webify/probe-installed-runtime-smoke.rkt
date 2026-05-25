@@ -151,6 +151,7 @@
     function-compose1
     function-negate
     function-const
+    function-provider-basic
     sequence-list
     sequence-range
     sequence-in-bytes
@@ -586,7 +587,7 @@
             [(keyword-plain-direct) #rx"(?m:^42$)"]
             [(values-call-with-values values-let-values contract-wrapper-basic
               list-provider-basic string-provider-basic bool-provider-basic
-              vector-provider-basic
+              vector-provider-basic function-provider-basic
               class-basic class-init-field class-field-access class-inheritance
               class-super-override class-interface-basic class-generic-basic
               class-mixin-basic class-object-equality class-reflection-basic

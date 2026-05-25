@@ -71,6 +71,7 @@
     function-compose1
     function-negate
     function-const
+    function-provider-basic
     sequence-list
     sequence-range
     sequence-in-bytes
@@ -274,6 +275,7 @@
     function-compose1
     function-negate
     function-const
+    function-provider-basic
     set-member
     set-add
     set-remove
@@ -650,6 +652,21 @@
          (require racket/function)
          (provide y)
          (define y ((const 42) 'ignored))))]
+    [(function-provider-basic)
+     '((module use-function-provider-basic racket/base
+         (require racket/function)
+         (provide y)
+         (define add10 (curry + 10))
+         (define minus8 (curryr - 8))
+         (define good? (conjoin number? positive?))
+         (define ok? (disjoin symbol? string?))
+         (define y
+           (if (and (= (add10 20) 30)
+                    (= (minus8 20) 12)
+                    (good? 1)
+                    (ok? "x"))
+               42
+               0))))]
     [(sequence-list)
      '((module use-sequence-list racket/base
          (require racket/sequence)

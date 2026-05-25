@@ -1972,11 +1972,18 @@
                           (not (webracket-module-name? (cadr candidate))))
                         candidates))
               (if (null? installed-candidates) candidates installed-candidates)]))
+         (define (prefer-non-self-provider candidates)
+           (define non-self-candidates
+             (filter (lambda (candidate)
+                       (not (eq? (cadr candidate) module-name)))
+                     candidates))
+           (if (null? non-self-candidates) candidates non-self-candidates))
          (define ranked-candidates
-           (prefer-installed-provider-internals
-            (prefer-public-contract-substitute
-             (prefer-stream-cons
-              (if (null? preferred-candidates) candidates preferred-candidates)))))
+           (prefer-non-self-provider
+            (prefer-installed-provider-internals
+             (prefer-public-contract-substitute
+              (prefer-stream-cons
+               (if (null? preferred-candidates) candidates preferred-candidates))))))
          (define (candidate-reason candidate)
            (list local
                  (cadr candidate)
