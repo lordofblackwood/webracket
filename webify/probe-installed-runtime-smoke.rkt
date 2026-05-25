@@ -234,6 +234,8 @@
     regexp-replace
     class-require
     class-basic
+    class-init-field
+    class-field-access
     class-inheritance
     class-predicate))
 

@@ -176,13 +176,16 @@
           (define (source-substitute-module-path module-path)
             (case module-path
               [(racket/class) 'webracket/class]
+              [(racket/unsafe/undefined) 'webracket/unsafe/undefined]
               [(racket/contract
                 racket/contract/base
                 racket/contract/combinator
                 racket/contract/region
                 racket/contract/private/base
                 racket/contract/private/blame
-                racket/contract/private/guts)
+                racket/contract/private/guts
+                racket/contract/private/list
+                racket/contract/private/misc)
                'webracket/contract]
               [else module-path]))
           (define source-module-name-resolver
@@ -198,13 +201,16 @@
           (define (provider-substitute name)
             (case name
               [(racket/class) 'webracket/class]
+              [(racket/unsafe/undefined) 'webracket/unsafe/undefined]
               [(racket/contract
                 racket/contract/base
                 racket/contract/combinator
                 racket/contract/region
                 racket/contract/private/base
                 racket/contract/private/blame
-                racket/contract/private/guts)
+                racket/contract/private/guts
+                racket/contract/private/list
+                racket/contract/private/misc)
                'webracket/contract]
               [else name]))
           (define contract-coercion-exports
@@ -331,6 +337,19 @@
                (filter (lambda (export)
                          (not (memq export contract-blame-exports)))
                        exports)]
+              [(racket/contract/private/list)
+               '(*list/c
+                 blame-add-car-context
+                 blame-add-cdr-context
+                 cons/c
+                 cons/dc
+                 list*of
+                 list/c
+                 listof
+                 non-empty-listof
+                 raise-not-cons-blame-error)]
+              [(racket/contract/private/misc)
+               '(set-some-basic-misc-contracts!)]
               [else exports]))
           (define (rename-provider-report report name)
             (if (eq? name (webify-module-report-name report))

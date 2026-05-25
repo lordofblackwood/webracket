@@ -236,6 +236,8 @@
     racket/contract/base
     racket/contract/combinator
     racket/contract/region
+    racket/contract/private/list
+    racket/contract/private/misc
     racket/logging
     racket/private/define-struct
     racket/private/for
@@ -243,6 +245,7 @@
     racket/private/list
     racket/private/map
     racket/private/reqprov
+    racket/unsafe/undefined
     racket/require-transform
     syntax/contract
     syntax/location
@@ -264,6 +267,7 @@
     webracket/unsafe/console
     webracket/unsafe/math
     webracket/unsafe/performance
+    webracket/unsafe/undefined
     webracket/unsafe/temp))
 
 ;; webify-provider-trial-default-bridge-modules : (listof symbol?)
@@ -282,10 +286,13 @@
     racket/format
     racket/hash
     racket/logging
+    racket/contract/private/list
+    racket/contract/private/misc
     racket/private/for
     racket/private/kw
     racket/private/list
     racket/private/map
+    racket/unsafe/undefined
     syntax/contract
     syntax/location
     webracket/contract
@@ -306,6 +313,7 @@
     webracket/unsafe/console
     webracket/unsafe/math
     webracket/unsafe/performance
+    webracket/unsafe/undefined
     webracket/unsafe/temp))
 
 ;; webify-provider-trial-module-allowlist : (listof symbol?)

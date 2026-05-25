@@ -202,6 +202,8 @@
     values-call-with-values
     values-let-values
     class-basic
+    class-init-field
+    class-field-access
     class-inheritance
     class-predicate
     regexp-literal

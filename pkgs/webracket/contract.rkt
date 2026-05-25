@@ -60,6 +60,7 @@
          provide/contract raise-blame-error raise-contract-error
          raise-not-cons-blame-error real-in recontract-out recursive-contract
          rename-contract skip-projection-wrapper? string-len/c struct-guard/c
+         set-some-basic-misc-contracts!
          struct-type-property/c struct/c struct/contract struct/dc
          struct:arrow-contract-info struct:exn:fail:contract:blame suggest/c
          symbols syntax/c tail-marks-match? the-unsupplied-arg treelist/c
@@ -113,6 +114,11 @@
 
 (define-syntax-rule (define-identity-wrapper id)
   (define (id v . _args) v))
+
+;; set-some-basic-misc-contracts! : any/c ... -> void?
+;;   Accept contract-internal initialization in the erased provider.
+(define (set-some-basic-misc-contracts! . _args)
+  (void))
 
 ;; apply-contract : any/c any/c any/c ... -> any/c
 ;;   Erase contract application by returning the protected value unchanged.

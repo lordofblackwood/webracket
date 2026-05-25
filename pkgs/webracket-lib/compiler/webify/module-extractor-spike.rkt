@@ -113,6 +113,7 @@
 
 (define-runtime-path webify-contract-path "../../../webracket/contract.rkt")
 (define-runtime-path webify-syntax-contract-path "../../../webracket/syntax/contract.rkt")
+(define-runtime-path webify-unsafe-undefined-path "../../../webracket/unsafe/undefined.rkt")
 
 ;; contract-module-path? : any/c -> boolean?
 ;;   Recognize module-path spellings for public contract providers.
@@ -124,6 +125,8 @@
       (eq? module-path 'racket/contract/private/base)
       (eq? module-path 'racket/contract/private/blame)
       (eq? module-path 'racket/contract/private/guts)
+      (eq? module-path 'racket/contract/private/list)
+      (eq? module-path 'racket/contract/private/misc)
       (eq? module-path 'syntax/contract)
       (equal? module-path '(lib "racket/contract.rkt"))
       (equal? module-path '(lib "racket/contract/base.rkt"))
@@ -132,7 +135,15 @@
       (equal? module-path '(lib "racket/contract/private/base.rkt"))
       (equal? module-path '(lib "racket/contract/private/blame.rkt"))
       (equal? module-path '(lib "racket/contract/private/guts.rkt"))
+      (equal? module-path '(lib "racket/contract/private/list.rkt"))
+      (equal? module-path '(lib "racket/contract/private/misc.rkt"))
       (equal? module-path '(lib "syntax/contract.rkt"))))
+
+;; unsafe-undefined-module-path? : any/c -> boolean?
+;;   Recognize module-path spellings for Racket's unsafe undefined provider.
+(define (unsafe-undefined-module-path? module-path)
+  (or (eq? module-path 'racket/unsafe/undefined)
+      (equal? module-path '(lib "racket/unsafe/undefined.rkt"))))
 
 ;; contract-module-path->resolved : module-path? -> resolved-module-path?
 ;;   Map public contract providers to symbolic erased declarations.
@@ -160,6 +171,12 @@
      [(or (eq? module-path 'racket/contract/private/guts)
           (equal? module-path '(lib "racket/contract/private/guts.rkt")))
       'racket/contract/private/guts]
+     [(or (eq? module-path 'racket/contract/private/list)
+          (equal? module-path '(lib "racket/contract/private/list.rkt")))
+      'racket/contract/private/list]
+     [(or (eq? module-path 'racket/contract/private/misc)
+          (equal? module-path '(lib "racket/contract/private/misc.rkt")))
+      'racket/contract/private/misc]
      [else 'racket/contract])))
 
 ;; make-webify-contract-erasing-module-name-resolver : [procedure?] -> procedure?
@@ -171,6 +188,8 @@
      (cond
        [(contract-module-path? module-path)
         (contract-module-path->resolved module-path)]
+       [(unsafe-undefined-module-path? module-path)
+        (make-resolved-module-path 'racket/unsafe/undefined)]
        [else (base-resolver module-path source syntax load?)])]
     [(resolved namespace)
      (base-resolver resolved namespace)]))
@@ -2277,6 +2296,7 @@
   (define namespace (make-base-namespace))
   (define contract-file (path->string webify-contract-path))
   (define syntax-contract-file (path->string webify-syntax-contract-path))
+  (define unsafe-undefined-file (path->string webify-unsafe-undefined-path))
   (define erased-contract-coercion-exports
     '(coerce-contract
       coerce-contracts
@@ -2369,20 +2389,42 @@
         'racket/contract/private/guts
         `((all-from-out (file ,contract-file))))
        (declare-erased-contract-module!
+        'racket/contract/private/list
+        `(*list/c
+          blame-add-car-context
+          blame-add-cdr-context
+          cons/c
+          cons/dc
+          list*of
+          list/c
+          listof
+          non-empty-listof
+          raise-not-cons-blame-error))
+       (declare-erased-contract-module!
+        'racket/contract/private/misc
+        `(set-some-basic-misc-contracts!))
+       (declare-erased-contract-module!
         'racket/contract
         `((all-from-out (file ,contract-file))))
        (eval
         `(module syntax/contract racket/base
            (require (file ,syntax-contract-file))
            (provide (all-from-out (file ,syntax-contract-file)))))
+       (eval
+        `(module racket/unsafe/undefined racket/base
+           (require (file ,unsafe-undefined-file))
+           (provide (all-from-out (file ,unsafe-undefined-file)))))
        (dynamic-require ''racket/contract/base #f)
        (dynamic-require ''racket/contract/combinator #f)
        (dynamic-require ''racket/contract/region #f)
        (dynamic-require ''racket/contract/private/base #f)
        (dynamic-require ''racket/contract/private/blame #f)
        (dynamic-require ''racket/contract/private/guts #f)
+       (dynamic-require ''racket/contract/private/list #f)
+       (dynamic-require ''racket/contract/private/misc #f)
        (dynamic-require ''racket/contract #f)
-       (dynamic-require ''syntax/contract #f))))
+       (dynamic-require ''syntax/contract #f)
+       (dynamic-require ''racket/unsafe/undefined #f))))
   namespace)
 
 ;; webify-module-path->extractor-spike : module-path? -> webify-module-extractor-spike?

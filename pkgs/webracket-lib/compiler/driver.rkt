@@ -1500,7 +1500,9 @@
     [(racket/contract
       racket/contract/base
       racket/contract/combinator
-      racket/contract/region)
+      racket/contract/region
+      racket/contract/private/list
+      racket/contract/private/misc)
      'webracket/contract]
     [(racket/class) 'webracket/class]
     [(racket/dict) 'webracket/dict]
@@ -1513,6 +1515,7 @@
     [(racket/promise) 'webracket/promise]
     [(racket/set) 'webracket/set]
     [(racket/stream) 'webracket/stream]
+    [(racket/unsafe/undefined) 'webracket/unsafe/undefined]
     [(syntax/contract) 'webracket/syntax/contract]
     [(racket/private/for) 'webracket/private/for]
     [(racket/private/kw) 'webracket/private/kw]
@@ -1916,7 +1919,9 @@
     [(racket/contract
       racket/contract/base
       racket/contract/combinator
-      racket/contract/region)
+      racket/contract/region
+      racket/contract/private/list
+      racket/contract/private/misc)
      'webracket/contract]
     [(racket/class) 'webracket/class]
     [(racket/dict) 'webracket/dict]
@@ -1929,6 +1934,7 @@
     [(racket/promise) 'webracket/promise]
     [(racket/set) 'webracket/set]
     [(racket/stream) 'webracket/stream]
+    [(racket/unsafe/undefined) 'webracket/unsafe/undefined]
     [(syntax/contract) 'webracket/syntax/contract]
     [(racket/private/for) 'webracket/private/for]
     [(racket/private/kw) 'webracket/private/kw]

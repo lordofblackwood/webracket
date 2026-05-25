@@ -308,6 +308,8 @@
   (check-not-false (member 'format-print goal1-module-cases))
   (check-not-false (member 'format-print-string goal1-module-cases))
   (check-not-false (member 'class-basic goal1-module-cases))
+  (check-not-false (member 'class-init-field goal1-module-cases))
+  (check-not-false (member 'class-field-access goal1-module-cases))
   (check-not-false (member 'class-inheritance goal1-module-cases))
   (check-not-false (member 'class-predicate goal1-module-cases))
   (for ([name (in-list goal1-module-cases)])
