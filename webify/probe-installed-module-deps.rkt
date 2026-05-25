@@ -174,6 +174,7 @@
     match-predicate
     hash-comparator-semantics
     list-provider-basic
+    string-provider-basic
     set-comparator-semantics
     custom-write-require
     set-types-require
@@ -207,6 +208,7 @@
     match-let-basic
     match-predicate
     list-provider-basic
+    string-provider-basic
     format-require
     format-single
     format-basic
@@ -426,6 +428,16 @@
               (length (filter-map (lambda (x) (and (odd? x) x)) xs))
               (length (append-map (lambda (x) (list x)) '(a b)))
               -41))))]
+    [(string-provider-basic)
+     '((module use-string-provider-basic racket/base
+         (require racket/string)
+         (provide y)
+         (define parts (string-split "web racket"))
+         (define y
+           (if (and (string-prefix? "webracket" "web")
+                    (string-suffix? "webracket" "racket"))
+               (+ (string-length (string-join parts "-")) 32)
+               0))))]
     [(multi-module-list-string-set)
      '((module set-provider racket/base
          (require racket/set)
