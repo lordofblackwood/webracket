@@ -173,6 +173,7 @@
     match-let-basic
     match-predicate
     hash-comparator-semantics
+    list-provider-basic
     set-comparator-semantics
     custom-write-require
     set-types-require
@@ -205,6 +206,7 @@
     match-literal-default
     match-let-basic
     match-predicate
+    list-provider-basic
     format-require
     format-single
     format-basic
@@ -413,6 +415,17 @@
            (+ (first '(37 38))
               (string-length (string-join '("ab" "c") ""))
               (set-count (set 'x 'y 'y))))))]
+    [(list-provider-basic)
+     '((module use-list-provider-basic racket/base
+         (require racket/list)
+         (provide y)
+         (define xs '(39 40 41))
+         (define y
+           (+ (first xs)
+              (first (rest xs))
+              (length (filter-map (lambda (x) (and (odd? x) x)) xs))
+              (length (append-map (lambda (x) (list x)) '(a b)))
+              -41))))]
     [(multi-module-list-string-set)
      '((module set-provider racket/base
          (require racket/set)

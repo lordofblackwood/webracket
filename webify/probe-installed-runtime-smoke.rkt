@@ -201,6 +201,7 @@
     match-literal-default
     match-let-basic
     match-predicate
+    list-provider-basic
     combined-list-string-set
     multi-module-list-string-set
     multi-module-reexport-installed
@@ -581,6 +582,7 @@
             [(keyword-optional-direct) #rx"(?m:^4$)"]
             [(keyword-plain-direct) #rx"(?m:^42$)"]
             [(values-call-with-values values-let-values contract-wrapper-basic
+              list-provider-basic
               class-basic class-init-field class-field-access class-inheritance
               class-super-override class-interface-basic class-generic-basic
               class-mixin-basic class-object-equality class-reflection-basic

@@ -307,6 +307,7 @@
   (check-not-false (member 'format-basic goal1-module-cases))
   (check-not-false (member 'format-print goal1-module-cases))
   (check-not-false (member 'format-print-string goal1-module-cases))
+  (check-not-false (member 'list-provider-basic goal1-module-cases))
   (check-not-false (member 'class-basic goal1-module-cases))
   (check-not-false (member 'class-init-field goal1-module-cases))
   (check-not-false (member 'class-field-access goal1-module-cases))
