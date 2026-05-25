@@ -242,7 +242,8 @@
     class-interface-basic
     class-generic-basic
     class-mixin-basic
-    class-object-equality))
+    class-object-equality
+    class-reflection-basic))
 
 ;; goal1-slow-module-cases : (listof symbol?)
 ;;   Passing Goal 1 smokes that are too slow for the compact fast tier.
@@ -404,6 +405,7 @@
       class-generic-basic
       class-mixin-basic
       class-object-equality
+      class-reflection-basic
       format-require
       format-single
       format-basic
@@ -559,7 +561,7 @@
             [(values-call-with-values values-let-values contract-wrapper-basic
               class-basic class-init-field class-field-access class-inheritance
               class-super-override class-interface-basic class-generic-basic
-              class-mixin-basic class-object-equality)
+              class-mixin-basic class-object-equality class-reflection-basic)
              #rx"(?m:^42$)"]
             [else #rx"(?m:^false$)"])
           #rx"")

@@ -131,6 +131,7 @@
     class-generic-basic
     class-mixin-basic
     class-object-equality
+    class-reflection-basic
     read-list
     read-vector
     read-symbol-string
@@ -216,6 +217,7 @@
     class-generic-basic
     class-mixin-basic
     class-object-equality
+    class-reflection-basic
     regexp-literal
     regexp-capture
     regexp-replace
@@ -974,6 +976,35 @@
                     (not (object=? a b))
                     (object-or-false=? #f #f)
                     (not (object-or-false=? a #f)))
+               42
+               0))))]
+    [(class-reflection-basic)
+     '((module use-class-reflection-basic racket/base
+         (require racket/class)
+         (provide y)
+         (define value<%> (interface () value adjust))
+         (define value%
+           (class* object% (value<%>)
+             (super-new)
+             (field [x 40] [y 2])
+             (define/public (value) (+ x y))
+             (define/public (adjust n [delta 0]) (+ n delta))))
+         (define obj (new value%))
+         (define methods (interface->method-names value<%>))
+         (define fields (field-names obj))
+         (define y
+           (if (and (interface? (class->interface value%))
+                    (interface? (object-interface obj))
+                    (method-in-interface? 'value value<%>)
+                    (method-in-interface? 'adjust value<%>)
+                    (memq 'value methods)
+                    (memq 'adjust methods)
+                    (memq 'x fields)
+                    (memq 'y fields)
+                    (vector? (object->vector obj))
+                    (object-method-arity-includes? obj 'adjust 1)
+                    (object-method-arity-includes? obj 'adjust 2)
+                    (not (object-method-arity-includes? obj 'adjust 3)))
                42
                0))))]
     [(regexp-literal)
