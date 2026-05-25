@@ -323,6 +323,7 @@
   (check-not-false (member 'class-construction-basic goal1-module-cases))
   (check-not-false (member 'class-send-forms goal1-module-cases))
   (check-not-false (member 'class-dynamic-field-send goal1-module-cases))
+  (check-not-false (member 'class-with-method goal1-module-cases))
   (for ([name (in-list goal1-module-cases)])
     (check-not-false (member name known-module-cases))))
 
