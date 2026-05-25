@@ -135,6 +135,7 @@
     class-relationships
     class-info-basic
     class-construction-basic
+    class-send-forms
     read-list
     read-vector
     read-symbol-string
@@ -224,6 +225,7 @@
     class-relationships
     class-info-basic
     class-construction-basic
+    class-send-forms
     regexp-literal
     regexp-capture
     regexp-replace
@@ -1079,6 +1081,31 @@
          (define b (instantiate point% (41) [y 1]))
          (define c (dynamic-instantiate point% '(39) '([y . 3])))
          (define y (+ (send a sum) (send b sum) (send c sum)))))]
+    [(class-send-forms)
+     '((module use-class-send-forms racket/base
+         (require racket/class)
+         (provide y)
+         (define box%
+           (class object%
+             (super-new)
+             (field [n 0])
+             (define/public (add! x) (set! n (+ n x)))
+             (define/public (value) n)))
+         (define b (new box%))
+         (send* b (add! 20) (add! 22))
+         (define point%
+           (class object%
+             (super-new)
+             (init-field [x 0] [y 0])
+             (define/public (move-x dx) (new point% [x (+ x dx)] [y y]))
+             (define/public (move-y dy) (new point% [x x] [y (+ y dy)]))
+             (define/public (sum) (+ x y))))
+         (define y
+           (+ (send b value)
+              (send+ (new point%)
+                     (move-x 19)
+                     (move-y 23)
+                     (sum))))))]
     [(regexp-literal)
      '((module use-regexp-literal racket/base
          (provide y)
