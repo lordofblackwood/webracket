@@ -399,13 +399,10 @@
        (lambda (name)
          (webify-module-provider-cache-ref provider-cache name))
        #:skip-unfetchable? #t))
-    (define provider-report
-      (webify-module-provider-cache-ref provider-cache
-                                        (webify-provider-trial-module trial)))
     (define export-demands
       (webify-module-report-import-export-demands
        importer-report
-       (list provider-report)
+       full-reports
        #:module-protocol-dependency webify-module-protocol-dependency))
     (define primitive-report
       (webify-module-reports->primitive-demands '() #:inputs inputs))

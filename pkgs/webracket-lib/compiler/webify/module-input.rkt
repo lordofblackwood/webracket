@@ -270,11 +270,15 @@
 ;; dependency-export-ref : symbol? dependency-name (listof symbol?) symbol? -> symbol?
 ;;   Find the provider export symbol that corresponds to an import's external name.
 (define (dependency-export-ref who dependency exports external)
+  (define exact-matches
+    (for/list ([export (in-list exports)]
+               #:when (eq? export external))
+      export))
   (define matches
     (for/list ([export (in-list exports)]
                #:when (symbolic-name=? export external))
       export))
-  (match matches
+  (match (if (null? exact-matches) matches exact-matches)
     [(list export) export]
     ['()
      (raise-arguments-error who
