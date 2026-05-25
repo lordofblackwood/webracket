@@ -239,7 +239,8 @@
     class-inheritance
     class-predicate
     class-super-override
-    class-interface-basic))
+    class-interface-basic
+    class-generic-basic))
 
 ;; goal1-slow-module-cases : (listof symbol?)
 ;;   Passing Goal 1 smokes that are too slow for the compact fast tier.
@@ -398,6 +399,7 @@
       class-predicate
       class-super-override
       class-interface-basic
+      class-generic-basic
       format-require
       format-single
       format-basic
@@ -552,7 +554,7 @@
             [(keyword-plain-direct) #rx"(?m:^42$)"]
             [(values-call-with-values values-let-values contract-wrapper-basic
               class-basic class-init-field class-field-access class-inheritance
-              class-super-override class-interface-basic)
+              class-super-override class-interface-basic class-generic-basic)
              #rx"(?m:^42$)"]
             [else #rx"(?m:^false$)"])
           #rx"")

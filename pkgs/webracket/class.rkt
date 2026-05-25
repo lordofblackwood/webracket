@@ -32,7 +32,4 @@
 (define (dynamic-object/c . args)
   (make-erased-class-contract 'dynamic-object/c args))
 
-(define (generic? v)
-  #f)
-
 (provide-public-names)

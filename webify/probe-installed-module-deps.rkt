@@ -128,6 +128,7 @@
     class-predicate
     class-super-override
     class-interface-basic
+    class-generic-basic
     read-list
     read-vector
     read-symbol-string
@@ -210,6 +211,7 @@
     class-predicate
     class-super-override
     class-interface-basic
+    class-generic-basic
     regexp-literal
     regexp-capture
     regexp-replace
@@ -931,6 +933,17 @@
                     (implementation? point% point<%>))
                (+ (send obj get-x) (send obj get-y))
                0))))]
+    [(class-generic-basic)
+     '((module use-class-generic-basic racket/base
+         (require racket/class)
+         (provide y)
+         (define counter%
+           (class object%
+             (super-new)
+             (define/public (value x) (+ x 2))))
+         (define value-g (generic counter% value))
+         (define obj (new counter%))
+         (define y (send-generic obj value-g 40))))]
     [(regexp-literal)
      '((module use-regexp-literal racket/base
          (provide y)
