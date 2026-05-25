@@ -182,18 +182,29 @@
        (define answer (list xor boolean=?))))
    (webify-provider-trial
     'racket/vector
-    '(vector-member)
+    '(vector-map vector-filter vector-count vector-member)
     '(module use-vector racket/base
-       (require (only-in racket/vector vector-member))
+       (require (only-in racket/vector
+                         vector-map
+                         vector-filter
+                         vector-count
+                         vector-member))
        (provide answer)
-       (define answer vector-member)))
+       (define answer (list vector-map vector-filter vector-count vector-member))))
    (webify-provider-trial
     'racket/function
-    '(identity negate const)
+    '(identity negate const curry curryr conjoin disjoin)
     '(module use-function racket/base
-       (require (only-in racket/function identity negate const))
+       (require (only-in racket/function
+                         identity
+                         negate
+                         const
+                         curry
+                         curryr
+                         conjoin
+                         disjoin))
        (provide answer)
-       (define answer (list identity negate const))))
+       (define answer (list identity negate const curry curryr conjoin disjoin))))
    (webify-provider-trial
     'racket/hash
     '(hash-union hash-intersect hash-filter)
