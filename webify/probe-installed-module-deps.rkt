@@ -175,6 +175,7 @@
     hash-comparator-semantics
     list-provider-basic
     string-provider-basic
+    bool-provider-basic
     set-comparator-semantics
     custom-write-require
     set-types-require
@@ -209,6 +210,7 @@
     match-predicate
     list-provider-basic
     string-provider-basic
+    bool-provider-basic
     format-require
     format-single
     format-basic
@@ -437,6 +439,17 @@
            (if (and (string-prefix? "webracket" "web")
                     (string-suffix? "webracket" "racket"))
                (+ (string-length (string-join parts "-")) 32)
+               0))))]
+    [(bool-provider-basic)
+     '((module use-bool-provider-basic racket/base
+         (require racket/bool)
+         (provide y)
+         (define y
+           (if (and (xor #t #f)
+                    (not (xor #t #t))
+                    (boolean=? #t #t)
+                    (not (boolean=? #t #f)))
+               42
                0))))]
     [(multi-module-list-string-set)
      '((module set-provider racket/base
