@@ -129,6 +129,7 @@
     class-super-override
     class-interface-basic
     class-generic-basic
+    class-mixin-basic
     read-list
     read-vector
     read-symbol-string
@@ -212,6 +213,7 @@
     class-super-override
     class-interface-basic
     class-generic-basic
+    class-mixin-basic
     regexp-literal
     regexp-capture
     regexp-replace
@@ -944,6 +946,21 @@
          (define value-g (generic counter% value))
          (define obj (new counter%))
          (define y (send-generic obj value-g 40))))]
+    [(class-mixin-basic)
+     '((module use-class-mixin-basic racket/base
+         (require racket/class)
+         (provide y)
+         (define value<%> (interface () value))
+         (define base%
+           (class* object% (value<%>)
+             (super-new)
+             (define/public (value) 40)))
+         (define add-two-mixin
+           (mixin (value<%>) ()
+             (super-new)
+             (define/override (value) (+ (super value) 2))))
+         (define child% (add-two-mixin base%))
+         (define y (send (new child%) value))))]
     [(regexp-literal)
      '((module use-regexp-literal racket/base
          (provide y)
