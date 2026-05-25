@@ -1,9 +1,30 @@
 #lang racket/base
 
-(require racket/list
+(require racket/file
+         racket/list
+         racket/runtime-path
+         racket/string
          rackunit
          "goal1-dashboard.rkt"
+         "test-module-support.rkt"
          "../pkgs/webracket-lib/compiler/webify/webracket-full-surface.rkt")
+
+(define-runtime-path webracket-full-main "../pkgs/webracket/full/main.rkt")
+(define-runtime-path goal1-providers-doc "GOAL1-PROVIDERS.md")
+
+;; module-runtime-export-symbols : symbol? -> (listof symbol?)
+;;   List phase-0 value exports for an already-loadable module path.
+(define (module-runtime-export-symbols module-path)
+  (call-with-webracket-collection-path
+   (lambda ()
+     (parameterize ([current-namespace (make-base-namespace)])
+       (namespace-require module-path)
+       (define-values (value-exports _syntax-exports)
+         (module->exports module-path))
+       (define phase-0 (assoc 0 value-exports))
+       (if phase-0
+           (map car (cdr phase-0))
+           '())))))
 
 (test-case "compact Goal 1 dashboard case set covers required categories"
   (define categories
@@ -12,6 +33,7 @@
      eq?))
   (check-not-false (memq 'local-module-graph categories))
   (check-not-false (memq 'installed-provider-graph categories))
+  (check-not-false (memq 'installed-provider-coverage categories))
   (check-not-false (memq 'language-staged-provider categories))
   (check-not-false (memq 'ffi-module categories))
   (check-not-false (memq 'staged-provider-slice categories)))
@@ -29,6 +51,7 @@
                             racket/format
                             racket/promise
                             racket/vector
+                            racket/port
                             webracket/contract
                             webracket/set
                             webracket/promise
@@ -74,15 +97,10 @@
                       by-category))
   (check-not-false (member 'ffi-js-math (map goal1-dashboard-case-name by-category))))
 
-(test-case "compact Goal 1 dashboard distinguishes diagnostic cases"
-  (define required (first goal1-dashboard-cases))
-  (define diagnostic
-    (for/first ([c (in-list goal1-dashboard-cases)]
-                #:when (eq? (goal1-dashboard-case-name c)
-                            'installed-racket-set-diagnostic))
-      c))
-  (check-equal? (goal1-dashboard-case-expectation required) 'required)
-  (check-equal? (goal1-dashboard-case-expectation diagnostic) 'diagnostic))
+(test-case "compact Goal 1 dashboard currently has only required cases"
+  (for ([c (in-list goal1-dashboard-cases)])
+    (check-equal? (goal1-dashboard-case-expectation c) 'required
+                  (symbol->string (goal1-dashboard-case-name c)))))
 
 (test-case "webracket/full runs statuses have compact dashboard coverage"
   (define covered
@@ -91,6 +109,7 @@
      eq?))
   (define coverage-aliases
     '((racket/contract . webracket/contract)
+      (webracket/pretty . racket/pretty)
       (racket/stream . webracket/stream)))
   (define (covered-name name)
     (cond
@@ -101,6 +120,57 @@
     (define name (covered-name (car row)))
     (check-not-false (memq name covered)
                      (format "~a lacks compact dashboard coverage" (car row)))))
+
+(test-case "webracket/full export manifest includes intended add-on names"
+  (define full-exports (module-runtime-export-symbols 'webracket/full))
+  (for ([name (in-list '(boolean=?
+                         bytes-append
+                         format
+                         compose
+                         conjoin
+                         first
+                         sqr
+                         build-path
+                         with-output-to-string
+                         sequence->list
+                         stream-first
+                         string-contains?
+                         vector-member
+                         contract
+                         promise?
+                         set-count))])
+    (check-not-false (memq name full-exports)
+                     (symbol->string name))))
+
+(test-case "webracket/full stays curated instead of requiring racket/function directly"
+  (define source (file->string webracket-full-main))
+  (check-false (regexp-match? #rx"^[ \t]*racket/function\\b" source)
+               "webracket/full should route racket/function names through webracket/function")
+  (check-true (string-contains? source "../function.rkt")))
+
+(test-case "coverage dashboard rows are separate from basic provider rows"
+  (define coverage-names
+    (for/list ([c (in-list goal1-dashboard-cases)]
+               #:when (eq? (goal1-dashboard-case-category c)
+                           'installed-provider-coverage))
+      (goal1-dashboard-case-name c)))
+  (for ([name (in-list '(installed-racket-list-coverage
+                         installed-racket-string-coverage
+                         installed-racket-vector-coverage
+                         installed-racket-function-coverage
+                         installed-racket-port-coverage))])
+    (check-not-false (memq name coverage-names)
+                     (symbol->string name))))
+
+(test-case "Goal 1 provider plan documents staged-provider compatibility policy"
+  (define doc (file->string goal1-providers-doc))
+  (for ([needle (in-list '("webracket/function"
+                           "webracket/set"
+                           "webracket/contract"
+                           "installed-provider-coverage"
+                           "Routing Rule"
+                           "claim of full"))])
+    (check-not-false (regexp-match? (regexp (regexp-quote needle)) doc) needle)))
 
 (module+ main
   (void))

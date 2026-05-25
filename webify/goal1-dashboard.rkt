@@ -245,6 +245,21 @@
     #rx"(?m:^42$)"
     '("--no-io-format-provider" "--webracket-module-bridge"))
    (goal1-dashboard-case
+    'installed-racket-list-coverage
+    'installed-provider-coverage
+    '(racket/list)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/base\n"
+         "(require racket/list)\n"
+         "(define xs '(1 2 3 4))\n"
+         "(define ys (filter-map (lambda (x) (and (even? x) (+ x 10))) xs))\n"
+         "(define zs (append-map (lambda (x) (list x x)) '(5 6)))\n"
+         "(js-log (+ (first ys) (length zs) (first (rest ys)) 12))\n")))
+    "main.rkt"
+    #rx"(?m:^42$)"
+    '("--no-io-format-provider" "--webracket-module-bridge"))
+   (goal1-dashboard-case
     'installed-racket-string
     'installed-provider-graph
     '(racket/string)
@@ -256,6 +271,22 @@
          "                 (string-suffix? \"web\" \"eb\"))\n"
          "            42\n"
          "            0))\n")))
+    "main.rkt"
+    #rx"(?m:^42$)"
+    '("--no-io-format-provider" "--webracket-module-bridge"))
+   (goal1-dashboard-case
+    'installed-racket-string-coverage
+    'installed-provider-coverage
+    '(racket/string)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/base\n"
+         "(require racket/string)\n"
+         "(define joined (string-append \"web\" \"racket\"))\n"
+         "(js-log (+ (string-length joined)\n"
+         "           (if (string-prefix? joined \"web\") 10 0)\n"
+         "           (if (string-suffix? joined \"et\") 20 0)\n"
+         "           (if (string=? (substring joined 3 6) \"rac\") 3 0)))\n")))
     "main.rkt"
     #rx"(?m:^42$)"
     '("--no-io-format-provider" "--webracket-module-bridge"))
@@ -272,6 +303,22 @@
     #rx"(?m:^42$)"
     '("--no-io-format-provider" "--webracket-module-bridge"))
    (goal1-dashboard-case
+    'installed-racket-vector-coverage
+    'installed-provider-coverage
+    '(racket/vector)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/base\n"
+         "(require racket/vector)\n"
+         "(define v '#(10 20 12))\n"
+         "(js-log (+ (vector-ref v 0)\n"
+         "           (vector-ref v 1)\n"
+         "           (vector-ref v 2)\n"
+         "           (if (equal? (vector-member 20 v) 1) 0 100)))\n")))
+    "main.rkt"
+    #rx"(?m:^42$)"
+    '("--no-io-format-provider" "--webracket-module-bridge"))
+   (goal1-dashboard-case
     'installed-racket-function
     'installed-provider-graph
     '(racket/function)
@@ -280,6 +327,21 @@
          "#lang webracket/base\n"
          "(require racket/function)\n"
          "(js-log ((compose add1 add1) 40))\n")))
+    "main.rkt"
+    #rx"(?m:^42$)"
+    '("--no-io-format-provider" "--webracket-module-bridge"))
+   (goal1-dashboard-case
+    'installed-racket-function-coverage
+    'installed-provider-coverage
+    '(racket/function)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/base\n"
+         "(require racket/function)\n"
+         "(define p (conjoin exact-integer? (negate zero?)))\n"
+         "(define k (const 40))\n"
+         "(js-log (+ (k 'ignored)\n"
+         "           (if (p 2) 2 0)))\n")))
     "main.rkt"
     #rx"(?m:^42$)"
     '("--no-io-format-provider" "--webracket-module-bridge"))
@@ -326,6 +388,21 @@
          "#lang webracket/base\n"
          "(require racket/port)\n"
          "(define s (port->string (open-input-string \"web\")))\n"
+         "(js-log (+ (string-length s) 39))\n")))
+    "main.rkt"
+    #rx"(?m:^42$)"
+    '("--no-io-format-provider" "--webracket-module-bridge"))
+   (goal1-dashboard-case
+    'installed-racket-port-coverage
+    'installed-provider-coverage
+    '(racket/port)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/base\n"
+         "(require racket/port)\n"
+         "(define out (open-output-string))\n"
+         "(write-string \"web\" out)\n"
+         "(define s (get-output-string out))\n"
          "(js-log (+ (string-length s) 39))\n")))
     "main.rkt"
     #rx"(?m:^42$)"
