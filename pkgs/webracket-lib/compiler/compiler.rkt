@@ -2630,6 +2630,7 @@
   compose
   compose1
   checked-procedure-check-and-extract
+  procedure->method
   procedure-rename
   procedure-realm
   procedure?

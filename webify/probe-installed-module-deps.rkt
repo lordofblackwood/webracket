@@ -126,6 +126,7 @@
     class-field-access
     class-inheritance
     class-predicate
+    class-super-override
     read-list
     read-vector
     read-symbol-string
@@ -206,6 +207,7 @@
     class-field-access
     class-inheritance
     class-predicate
+    class-super-override
     regexp-literal
     regexp-capture
     regexp-replace
@@ -897,6 +899,19 @@
              (super-new)))
          (define obj (new counter%))
          (define y (if (and (object? obj) (is-a? obj counter%)) 42 0))))]
+    [(class-super-override)
+     '((module use-class-super-override racket/base
+         (require racket/class)
+         (provide y)
+         (define base%
+           (class object%
+             (super-new)
+             (define/public (value) 40)))
+         (define child%
+           (class base%
+             (super-new)
+             (define/override (value) (+ (super value) 2))))
+         (define y (send (new child%) value))))]
     [(regexp-literal)
      '((module use-regexp-literal racket/base
          (provide y)

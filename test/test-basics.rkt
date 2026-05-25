@@ -5802,7 +5802,14 @@
                            (equal? (car arity) 1)
                            (let ([arity2 (cadr arity)])
                              (and (arity-at-least? arity2)
-                                  (equal? (arity-at-least-value arity2) 2))))))))
+                                  (equal? (arity-at-least-value arity2) 2))))))
+
+              (list "procedure->method identity semantics"
+                    (let* ([proc   (lambda (self x) (+ x 1))]
+                           [method (procedure->method proc)])
+                      (and (procedure? method)
+                           (eq? method proc)
+                           (equal? (method 'self 41) 42))))))
        
        ) ; ends "4. Datatypes"
 

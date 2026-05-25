@@ -979,6 +979,7 @@
 (define-primitive primitive-result-arity                    1                   (pure))
 (define-primitive primitive?                                1                   (pure))
 (define-primitive print-syntax-width                        [0 1]               (ordered))
+(define-primitive procedure->method                         1                   (ordered))
 (define-primitive procedure->external                       1                   (ordered))
 (define-primitive procedure-arity                           1                   (pure))
 (define-primitive procedure-arity?                          1                   (pure))

@@ -237,7 +237,8 @@
     class-init-field
     class-field-access
     class-inheritance
-    class-predicate))
+    class-predicate
+    class-super-override))
 
 ;; goal1-slow-module-cases : (listof symbol?)
 ;;   Passing Goal 1 smokes that are too slow for the compact fast tier.
@@ -394,6 +395,7 @@
       class-field-access
       class-inheritance
       class-predicate
+      class-super-override
       format-require
       format-single
       format-basic
@@ -546,7 +548,9 @@
             [(regexp-replace) #rx"(?m:^bonono$)"]
             [(keyword-optional-direct) #rx"(?m:^4$)"]
             [(keyword-plain-direct) #rx"(?m:^42$)"]
-            [(values-call-with-values values-let-values contract-wrapper-basic)
+            [(values-call-with-values values-let-values contract-wrapper-basic
+              class-basic class-init-field class-field-access class-inheritance
+              class-super-override)
              #rx"(?m:^42$)"]
             [else #rx"(?m:^false$)"])
           #rx"")

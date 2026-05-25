@@ -58950,6 +58950,23 @@
                                 (local.get $result-array)
                                 (struct.get $Procedure $invoke (local.get $p))))
 
+         ;; procedure->method : procedure? -> procedure?
+         ;;   Racket uses method procedures to adjust arity errors by hiding
+         ;;   the implicit receiver argument. WebRacket does not model that
+         ;;   method-wrapper distinction yet, so preserve the callable while
+         ;;   still enforcing the documented procedure? contract.
+         (func $procedure->method (type $Prim1)
+               (param $proc (ref eq)) ; procedure?
+               (result      (ref eq))
+
+               (if (ref.eq (call $procedure? (local.get $proc)) (global.get $false))
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:procedure->method)
+                               (global.get $string:procedure?)
+                               (local.get $proc))
+                         (unreachable)))
+               (local.get $proc))
+
          (func $procedure-rename
                (param $proc  (ref eq))   ;; any procedure
                (param $name  (ref eq))   ;; symbol

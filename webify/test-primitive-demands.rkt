@@ -312,6 +312,7 @@
   (check-not-false (member 'class-field-access goal1-module-cases))
   (check-not-false (member 'class-inheritance goal1-module-cases))
   (check-not-false (member 'class-predicate goal1-module-cases))
+  (check-not-false (member 'class-super-override goal1-module-cases))
   (for ([name (in-list goal1-module-cases)])
     (check-not-false (member name known-module-cases))))
 
