@@ -54,6 +54,7 @@
     hash-map-basic
     hash-clear-basic
     hash-iterate
+    hash-provider-basic
     combined-list-string-set
     multi-module-list-string-set
     multi-module-reexport-installed
@@ -72,6 +73,7 @@
     function-negate
     function-const
     function-provider-basic
+    keyword-procedure-predicate
     sequence-list
     sequence-range
     sequence-in-bytes
@@ -224,6 +226,7 @@
     format-fprintf-port
     keyword-optional-direct
     keyword-plain-direct
+    keyword-procedure-predicate
     values-call-with-values
     values-let-values
     class-basic
@@ -289,6 +292,7 @@
     hash-map-basic
     hash-clear-basic
     hash-comparator-semantics
+    hash-provider-basic
     multi-module-list-string-set
     multi-module-reexport-installed
     custom-write-require
@@ -415,6 +419,20 @@
                 (let ([sum 0])
                   (hash-for-each h (lambda (k v) (set! sum (+ sum v))))
                   sum))))))]
+    [(hash-provider-basic)
+     '((module use-hash-provider-basic racket/base
+         (require racket/hash)
+         (provide y)
+         (define h1 (hash 'a 1 'b 2))
+         (define h2 (hash 'b 20 'c 3))
+         (define u (hash-union h1 h2 #:combine +))
+         (define i (hash-intersect h1 h2 #:combine +))
+         (define f (hash-filter u (lambda (k v) (positive? v))))
+         (define y
+           (+ (hash-ref u 'b)
+              (hash-ref i 'b)
+              (hash-count f)
+              -5))))]
     [(combined-list-string-set)
      '((module use-combined-list-string-set racket/base
          (require racket/list racket/string racket/set)
@@ -547,6 +565,15 @@
             (lambda (kws kw-args . args) 0)
             (lambda args (+ 40 (length args)))))
          (define y (f 'a 'b))))]
+    [(keyword-procedure-predicate)
+     '((module use-keyword-procedure-predicate racket/base
+         (require racket/private/kw)
+         (provide y)
+         (define f
+           (make-keyword-procedure
+            (lambda (kws kw-args . args) 0)
+            (lambda args 42)))
+         (define y (and (procedure? f) (f)))))]
     [(values-call-with-values)
      '((module use-values-call-with-values racket/base
          (provide y)

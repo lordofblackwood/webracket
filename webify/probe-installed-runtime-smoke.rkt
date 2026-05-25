@@ -121,6 +121,7 @@
     hash-map-basic
     hash-clear-basic
     hash-comparator-semantics
+    hash-provider-basic
     set-require
     set-predicate
     set-union
@@ -152,6 +153,7 @@
     function-negate
     function-const
     function-provider-basic
+    keyword-procedure-predicate
     sequence-list
     sequence-range
     sequence-in-bytes
@@ -546,6 +548,7 @@
             [(for/control-clauses) #rx"(?m:^3$)"]
             [(hash-comparator-semantics set-comparator-semantics) #rx"(?m:^21$)"]
             [(hash-basic) #rx"(?m:^41$)"]
+            [(hash-provider-basic) #rx"(?m:^42$)"]
             [(stream-first
               stream-rest
               combined-list-string-set
@@ -585,6 +588,7 @@
             [(regexp-replace) #rx"(?m:^bonono$)"]
             [(keyword-optional-direct) #rx"(?m:^4$)"]
             [(keyword-plain-direct) #rx"(?m:^42$)"]
+            [(keyword-procedure-predicate) #rx"(?m:^42$)"]
             [(values-call-with-values values-let-values contract-wrapper-basic
               list-provider-basic string-provider-basic bool-provider-basic
               vector-provider-basic function-provider-basic

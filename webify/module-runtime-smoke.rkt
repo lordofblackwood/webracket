@@ -150,7 +150,31 @@
   (define use-erased-contract-providers?
     (let loop ([v module-data])
       (cond
-        [(eq? v 'racket/class) #t]
+        [(memq v '(racket/class
+                   racket/dict
+                   racket/file
+                   racket/format
+                   racket/function
+                   racket/hash
+                   racket/port
+                   racket/pretty
+                   racket/promise
+                   racket/set
+                   racket/stream
+                   racket/unsafe/undefined
+                   syntax/contract
+                   racket/private/for
+                   racket/private/kw
+                   racket/contract
+                   racket/contract/base
+                   racket/contract/combinator
+                   racket/contract/region
+                   racket/contract/private/base
+                   racket/contract/private/blame
+                   racket/contract/private/guts
+                   racket/contract/private/list
+                   racket/contract/private/misc))
+         #t]
         [(pair? v) (or (loop (car v)) (loop (cdr v)))]
         [(vector? v) (for/or ([elem (in-vector v)]) (loop elem))]
         [else #f])))
@@ -176,7 +200,20 @@
           (define (source-substitute-module-path module-path)
             (case module-path
               [(racket/class) 'webracket/class]
+              [(racket/dict) 'webracket/dict]
+              [(racket/file) 'webracket/file]
+              [(racket/format) 'webracket/format]
+              [(racket/function) 'webracket/function]
+              [(racket/hash) 'webracket/hash]
+              [(racket/port) 'webracket/port]
+              [(racket/pretty) 'webracket/pretty]
+              [(racket/promise) 'webracket/promise]
+              [(racket/set) 'webracket/set]
+              [(racket/stream) 'webracket/stream]
               [(racket/unsafe/undefined) 'webracket/unsafe/undefined]
+              [(syntax/contract) 'webracket/syntax/contract]
+              [(racket/private/for) 'webracket/private/for]
+              [(racket/private/kw) 'webracket/private/kw]
               [(racket/contract
                 racket/contract/base
                 racket/contract/combinator
@@ -201,7 +238,20 @@
           (define (provider-substitute name)
             (case name
               [(racket/class) 'webracket/class]
+              [(racket/dict) 'webracket/dict]
+              [(racket/file) 'webracket/file]
+              [(racket/format) 'webracket/format]
+              [(racket/function) 'webracket/function]
+              [(racket/hash) 'webracket/hash]
+              [(racket/port) 'webracket/port]
+              [(racket/pretty) 'webracket/pretty]
+              [(racket/promise) 'webracket/promise]
+              [(racket/set) 'webracket/set]
+              [(racket/stream) 'webracket/stream]
               [(racket/unsafe/undefined) 'webracket/unsafe/undefined]
+              [(syntax/contract) 'webracket/syntax/contract]
+              [(racket/private/for) 'webracket/private/for]
+              [(racket/private/kw) 'webracket/private/kw]
               [(racket/contract
                 racket/contract/base
                 racket/contract/combinator

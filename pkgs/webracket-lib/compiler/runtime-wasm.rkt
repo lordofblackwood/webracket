@@ -58619,6 +58619,31 @@
                                 (local.get $sentinel)))
                (i32.eqz (ref.eq (local.get $prop-val) (local.get $sentinel))))
 
+         ;; checked-procedure-struct?/i32 : any/c -> i32
+         ;;   Check whether a struct instance has prop:checked-procedure. Racket
+         ;;   CS uses this property for keyword-procedure records, which are
+         ;;   procedures even though they do not carry an ordinary prop:procedure
+         ;;   association.
+         (func $checked-procedure-struct?/i32
+               (param $v (ref eq)) ;; candidate value
+               (result   i32)
+               (local $type     (ref $StructType))
+               (local $sentinel (ref eq))
+               (local $prop-val (ref eq))
+               (if (i32.eqz (ref.test (ref $Struct) (local.get $v)))
+                   (then (return (i32.const 0))))
+               (local.set $type
+                          (struct.get $Struct $type
+                                      (ref.cast (ref $Struct) (local.get $v))))
+               (local.set $sentinel (call $cons (global.get $false) (global.get $false)))
+               (local.set $prop-val
+                          (call $struct-type-property-lookup
+                                (local.get $type)
+                                (ref.cast (ref $StructTypeProperty)
+                                          (global.get $prop:checked-procedure))
+                                (local.get $sentinel)))
+               (i32.eqz (ref.eq (local.get $prop-val) (local.get $sentinel))))
+
          ;; struct-procedure-delegate : any/c -> (or/c procedure? #f)
          ;;   Resolve a field-based prop:procedure struct to its delegate
          ;;   procedure. This mirrors invoke-struct's field-index case so
@@ -58827,14 +58852,17 @@
          (func $procedure? (type $Prim1)
                (param $v (ref eq)) ;; candidate value
                (result   (ref eq))
-               (if (i32.eqz (ref.test (ref $Procedure) (local.get $v)))
-                   (then (return (global.get $false))))
                (if (ref.test (ref $Struct) (local.get $v))
                    (then (return (if (result (ref eq))
-                                     (call $applicable-struct?/i32 (local.get $v))
+                                     (i32.or
+                                      (call $applicable-struct?/i32 (local.get $v))
+                                      (call $checked-procedure-struct?/i32 (local.get $v)))
                                      (then (global.get $true))
                                      (else (global.get $false))))))
-               (global.get $true))
+               (if (result (ref eq))
+                   (ref.test (ref $Procedure) (local.get $v))
+                   (then (global.get $true))
+                   (else (global.get $false))))
 
          ;; procedure-specialize : procedure? -> procedure?
          ;;   Validate and return the procedure. Racket uses this as an
