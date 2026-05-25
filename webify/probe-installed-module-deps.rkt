@@ -141,6 +141,7 @@
     class-send-apply
     class-augment-inner
     class-private-final
+    class-abstract-basic
     read-list
     read-vector
     read-symbol-string
@@ -236,6 +237,7 @@
     class-send-apply
     class-augment-inner
     class-private-final
+    class-abstract-basic
     regexp-literal
     regexp-capture
     regexp-replace
@@ -1196,6 +1198,20 @@
                (inc!)
                n)))
          (define y (send (new counter%) value))))]
+    [(class-abstract-basic)
+     '((module use-class-abstract-basic racket/base
+         (require racket/class)
+         (provide y)
+         (define base%
+           (class object%
+             (super-new)
+             (abstract amount)
+             (define/public (value) (+ 2 (amount)))))
+         (define child%
+           (class base%
+             (super-new)
+             (define/override (amount) 40)))
+         (define y (send (new child%) value))))]
     [(regexp-literal)
      '((module use-regexp-literal racket/base
          (provide y)
