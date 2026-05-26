@@ -155,6 +155,23 @@
     #rx"(?m:^82$)"
     '("--no-io-format-provider"))
    (dashboard-case
+    'full-bytes-coverage
+    'installed-provider-coverage
+    '(racket/bytes)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/full\n"
+         "(define b (bytes 65 66 67 68))\n"
+         "(bytes-set! b 1 90)\n"
+         "(define c (subbytes b 1 4))\n"
+         "(define d (bytes-append #\"A\" c))\n"
+         "(js-log (+ (bytes-length d)\n"
+         "           (bytes-ref d 1)\n"
+         "           (if (bytes=? d #\"AZCD\") -52 100)))\n")))
+    "main.rkt"
+    #rx"(?m:^42$)"
+    '("--no-io-format-provider"))
+   (dashboard-case
     'full-list
     'installed-provider-graph
     '(racket/list)
@@ -226,6 +243,23 @@
          "(require racket/dict)\n"
          "(define d (hash 'a 40 'b 2))\n"
          "(js-log (+ (dict-ref d 'a) (dict-ref d 'b)))\n")))
+    "main.rkt"
+    #rx"(?m:^42$)"
+    '("--no-io-format-provider" "--webracket-module-bridge"))
+   (dashboard-case
+    'installed-racket-bool-coverage
+    'installed-provider-coverage
+    '(racket/bool)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/base\n"
+         "(require racket/bool)\n"
+         "(define ok?\n"
+         "  (and (xor #t #f)\n"
+         "       (boolean=? #t (not #f))\n"
+         "       (symbol=? 'web 'web)\n"
+         "       (false? #f)))\n"
+         "(js-log (if ok? 42 0))\n")))
     "main.rkt"
     #rx"(?m:^42$)"
     '("--no-io-format-provider" "--webracket-module-bridge"))
@@ -389,6 +423,22 @@
        ,(string-append
          "#lang webracket/full\n"
          "(js-log ((compose add1 add1) 40))\n")))
+    "main.rkt"
+    #rx"(?m:^42$)"
+    '("--no-io-format-provider"))
+   (dashboard-case
+    'full-shared-coverage
+    'installed-provider-coverage
+    '(racket/shared)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/full\n"
+         "(define ph (make-placeholder #f))\n"
+         "(placeholder-set! ph (vector (cons 10 32)))\n"
+         "(define v (make-reader-graph ph))\n"
+         "(define p (vector-ref v 0))\n"
+         "(define s (shared ([x (cons 20 22)]) x))\n"
+         "(js-log (+ (car p) (cdr p) (car s) (cdr s) -42))\n")))
     "main.rkt"
     #rx"(?m:^42$)"
     '("--no-io-format-provider"))
@@ -938,12 +988,39 @@
     #rx"(?m:^3$)"
     '("--no-io-format-provider" "--webracket-module-bridge"))
    (dashboard-case
+    'ffi-js-math-coverage
+    'installed-provider-coverage
+    '(js/math webracket/unsafe/math)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/base\n"
+         "(require js/math)\n"
+         "(js-log (+ (math-floor 20.9)\n"
+         "           (math-ceil 20.1)\n"
+         "           (math-round 1.4)))\n")))
+    "main.rkt"
+    #rx"(?m:^42$)"
+    '("--no-io-format-provider" "--webracket-module-bridge"))
+   (dashboard-case
     'ffi-js-console
     'ffi-module
     '(js/console webracket/unsafe/console)
     `(("main.rkt" . "#lang webracket/base\n(require js/console)\n(console-log \"console-module\")\n"))
     "main.rkt"
     #rx"console-module"
+    '("--no-io-format-provider" "--webracket-module-bridge"))
+   (dashboard-case
+    'ffi-js-console-coverage
+    'installed-provider-coverage
+    '(js/console webracket/unsafe/console)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/base\n"
+         "(require js/console)\n"
+         "(console-log \"console-module-a\")\n"
+         "(console-warn \"console-module-b\")\n")))
+    "main.rkt"
+    #rx"console-module-a"
     '("--no-io-format-provider" "--webracket-module-bridge"))
    (dashboard-case
     'format-provider
@@ -960,6 +1037,18 @@
     `(("main.rkt" . "(js-log (regexp-match? #rx\"a+\" \"cat\"))\n"))
     "main.rkt"
     #rx"(?m:^true$)"
+    '("--no-io-format-provider"))
+   (dashboard-case
+    'regexp-provider-coverage
+    'installed-provider-coverage
+    '(regexp)
+    `(("main.rkt" .
+       ,(string-append
+         "(define m (regexp-match #rx\"w(.+)t\" \"webracket\"))\n"
+         "(define r (regexp-replace #rx\"web\" \"webracket\" \"r\"))\n"
+         "(js-log (string-append (car m) \"|\" r))\n")))
+    "main.rkt"
+    #rx"(?m:^webracket\\|rracket$)"
     '("--no-io-format-provider"))))
 
 ;; split-selectors : (or/c string? #f) -> (listof symbol?)

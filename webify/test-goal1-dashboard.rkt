@@ -187,11 +187,14 @@
   (for ([name (in-list '(installed-racket-list-coverage
                          installed-racket-string-coverage
                          installed-racket-string-join
+                         full-bytes-coverage
+                         installed-racket-bool-coverage
                          installed-racket-vector-append
                          installed-racket-vector-coverage
                          installed-racket-function-coverage
                          installed-racket-port-coverage
                          installed-racket-port-display
+                         full-shared-coverage
                          full-math-coverage
                          full-path-coverage
                          full-match-coverage
@@ -202,7 +205,10 @@
                          full-promise-coverage
                          full-stream-coverage
                          installed-racket-hash-coverage
-                         installed-racket-format-coverage))])
+                         installed-racket-format-coverage
+                         ffi-js-math-coverage
+                         ffi-js-console-coverage
+                         regexp-provider-coverage))])
     (check-not-false (memq name coverage-names)
                      (symbol->string name))))
 

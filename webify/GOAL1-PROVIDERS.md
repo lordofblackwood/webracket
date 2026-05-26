@@ -77,6 +77,9 @@ positional module programs. `webracket/full` therefore exports the staged
   `webracket/file` VFS surface, not just single-function smoke tests.
 - Additional coverage rows exercise staged `webracket/set`, `webracket/promise`,
   `webracket/stream`, `racket/pretty`, `racket/hash`, and `racket/format`.
+- Coverage rows also exercise `racket/bool`, `racket/bytes`, `racket/shared`,
+  inferred `js/math` and `js/console` FFI bundles, and the staged regexp
+  provider.
 - `racket/dict` is still only a smoke row. In this checkout the module exports
   extension bindings such as `in-dict-pairs`, but the current bridge does not
   expose them reliably through the `#lang webracket/base` provider route.
