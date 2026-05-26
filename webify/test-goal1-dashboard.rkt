@@ -52,6 +52,9 @@
                             racket/promise
                             racket/vector
                             racket/port
+                            racket/math
+                            racket/path
+                            webracket/file
                             webracket/contract
                             webracket/set
                             webracket/promise
@@ -188,7 +191,12 @@
                          installed-racket-vector-coverage
                          installed-racket-function-coverage
                          installed-racket-port-coverage
-                         installed-racket-port-display))])
+                         installed-racket-port-display
+                         full-math-coverage
+                         full-path-coverage
+                         full-match-coverage
+                         full-sequence-coverage
+                         full-file-coverage))])
     (check-not-false (memq name coverage-names)
                      (symbol->string name))))
 

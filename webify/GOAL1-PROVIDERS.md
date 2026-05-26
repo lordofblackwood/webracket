@@ -41,7 +41,8 @@ runtime services.
 - `webracket/contract`: erased contracts. It preserves provider shape and common
   forms, but it does not enforce contracts.
 - `webracket/file`: a small VFS-oriented file provider. This is useful for
-  browser tests and examples, but it is not a complete host filesystem story.
+  browser tests and examples, including `file-exists?`, `display-to-file`, and
+  `file->string`, but it is not a complete host filesystem story.
 - `webracket/format`: compact formatting surface while the staged `io/format`
   provider continues to grow.
 
@@ -69,6 +70,9 @@ positional module programs. `webracket/full` therefore exports the staged
   bridge for common operations such as `string-join`. The installed provider
   still exposes a deeper transitive `racket/list`/quasiquote edge that is better
   handled as a later provider-graph improvement.
+- Coverage rows now exercise representative clusters for `racket/math`,
+  `racket/path`, `racket/match`, `racket/sequence`, and the staged
+  `webracket/file` VFS surface, not just single-function smoke tests.
 
 ## Compatibility Policy
 

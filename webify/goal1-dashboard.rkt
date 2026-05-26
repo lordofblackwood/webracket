@@ -404,6 +404,20 @@
     #rx"(?m:^42$)"
     '("--no-io-format-provider"))
    (dashboard-case
+    'full-math-coverage
+    'installed-provider-coverage
+    '(racket/math)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/full\n"
+         "(define x (sqr 5))\n"
+         "(define y (sgn -10))\n"
+         "(define z (gcd 18 24))\n"
+         "(js-log (+ x y z 12))\n")))
+    "main.rkt"
+    #rx"(?m:^42$)"
+    '("--no-io-format-provider"))
+   (dashboard-case
     'full-path
     'installed-provider-graph
     '(racket/path)
@@ -412,6 +426,21 @@
          "#lang webracket/full\n"
          "(define p (build-path \"alpha\" \"beta\"))\n"
          "(js-log (if (relative-path? p) 42 0))\n")))
+    "main.rkt"
+    #rx"(?m:^42$)"
+    '("--no-io-format-provider"))
+   (dashboard-case
+    'full-path-coverage
+    'installed-provider-coverage
+    '(racket/path)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/full\n"
+         "(define p (build-path \"alpha\" \"beta\" \"gamma.rkt\"))\n"
+         "(define name (path->string (file-name-from-path p)))\n"
+         "(js-log (+ (string-length name)\n"
+         "           (if (relative-path? p) 20 0)\n"
+         "           (if (path-has-extension? p #\".rkt\") 13 0)))\n")))
     "main.rkt"
     #rx"(?m:^42$)"
     '("--no-io-format-provider"))
@@ -518,6 +547,22 @@
     #rx"(?m:^42$)"
     '("--no-io-format-provider"))
    (dashboard-case
+    'full-match-coverage
+    'installed-provider-coverage
+    '(racket/match)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/full\n"
+         "(define v (vector 'tag 40 2))\n"
+         "(define ht (hash 'a 10 'b 32))\n"
+         "(js-log\n"
+         " (match (list v ht)\n"
+         "   [(list (vector 'tag x y) h)\n"
+         "    (+ x y (hash-ref h 'missing 0))]))\n")))
+    "main.rkt"
+    #rx"(?m:^42$)"
+    '("--no-io-format-provider"))
+   (dashboard-case
     'full-sequence-for
     'installed-provider-graph
     '(racket/sequence)
@@ -529,6 +574,23 @@
          "(js-log (+ from-list from-vector))\n")))
     "main.rkt"
     #rx"(?m:^15$)"
+    '("--no-io-format-provider"))
+   (dashboard-case
+    'full-sequence-coverage
+    'installed-provider-coverage
+    '(racket/sequence)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/full\n"
+         "(define a (for/list ([x (in-range 3)]) x))\n"
+         "(define b (for/list ([x (in-string \"ab\")]) x))\n"
+         "(define c (for/list ([x (in-vector '#(10 20 12))]) x))\n"
+         "(js-log (+ (length a)\n"
+         "           (length b)\n"
+         "           (apply + c)\n"
+         "           -5))\n")))
+    "main.rkt"
+    #rx"(?m:^42$)"
     '("--no-io-format-provider"))
    (dashboard-case
     'full-set
@@ -654,6 +716,21 @@
          "#lang webracket/full\n"
          "(display-to-file \"web\" \"/app/data/goal1-full-file.txt\" 'text 'replace)\n"
          "(js-log (+ (string-length (file->string \"/app/data/goal1-full-file.txt\")) 39))\n")))
+    "main.rkt"
+    #rx"(?m:^42$)"
+    '("--no-io-format-provider"))
+   (dashboard-case
+    'full-file-coverage
+    'installed-provider-coverage
+    '(webracket/file racket/path)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/full\n"
+         "(define p \"/app/data/goal1-full-file-coverage.txt\")\n"
+         "(display-to-file \"webracket\" p 'text 'replace)\n"
+         "(define s (file->string p))\n"
+         "(js-log (+ (string-length s)\n"
+         "           (if (file-exists? p) 33 100)))\n")))
     "main.rkt"
     #rx"(?m:^42$)"
     '("--no-io-format-provider"))

@@ -12,6 +12,7 @@
                   file->bytes-lines
                   file->lines
                   file->string
+                  file-exists?
                   make-directory*
                   make-parent-directory*
                   make-temporary-directory
@@ -32,6 +33,7 @@
          file->bytes-lines
          file->lines
          file->string
+         file-exists?
          make-directory*
          make-parent-directory*
          make-temporary-directory
