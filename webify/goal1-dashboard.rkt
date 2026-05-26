@@ -109,6 +109,12 @@
     full-math-coverage
     full-path-coverage
     full-match-coverage
+    base-sequence-core
+    base-sequence-hash-generate
+    base-sequence-mpair
+    base-sequence-ports
+    base-sequence-prop-generator
+    base-sequence-derived
     base-sequence-coverage
     full-sequence-coverage
     full-set-coverage
@@ -728,6 +734,108 @@
     #rx"(?m:^15$)"
     '("--no-io-format-provider"))
    (dashboard-case
+    'base-sequence-core
+    'installed-provider-coverage
+    '(racket/private/for webracket/private/for)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/base\n"
+         "(define bsum (for/sum ([b (in-bytes #\"abc\")]) b))\n"
+         "(define indexed (for/sum ([(ch i) (in-indexed \"abc\")]) i))\n"
+         "(define-values (more? get) (sequence-generate (list 10 20 1)))\n"
+         "(define gen-sum (+ (if (more?) (get) 0)\n"
+         "                   (if (more?) (get) 0)\n"
+         "                   (if (more?) (get) 0)))\n"
+         "(define one (for/first ([x (in-value 42)]) x))\n"
+         "(js-log (+ bsum indexed gen-sum one -328))\n")))
+    "main.rkt"
+    #rx"(?m:^42$)"
+    '("--no-io-format-provider" "--webracket-module-bridge"))
+   (dashboard-case
+    'base-sequence-hash-generate
+    'installed-provider-coverage
+    '(racket/private/for webracket/private/for)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/base\n"
+         "(define h (hash 'a 10 'b 20 'c 12))\n"
+         "(define hsum (for/sum ([(k v) (in-hash h)]) v))\n"
+         "(define kcount (length (for/list ([k (in-hash-keys h)]) k)))\n"
+         "(define pcount (length (for/list ([p (in-hash-pairs h)]) p)))\n"
+         "(define-values (more? get) (sequence-generate h))\n"
+         "(define gcount (let loop ([n 0]) (if (more?) (begin (get) (loop (+ n 1))) n)))\n"
+         "(js-log (+ hsum kcount pcount gcount -9))\n")))
+    "main.rkt"
+    #rx"(?m:^42$)"
+    '("--no-io-format-provider" "--webracket-module-bridge"))
+   (dashboard-case
+    'base-sequence-mpair
+    'installed-provider-coverage
+    '(racket/private/for racket/mpair webracket/private/for webracket/mpair)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/base\n"
+         "(define xs (mcons 10 (mcons 20 (mcons 12 null))))\n"
+         "(js-log (for/sum ([x (in-mlist xs)]) x))\n")))
+    "main.rkt"
+    #rx"(?m:^42$)"
+    '("--no-io-format-provider" "--webracket-module-bridge"))
+   (dashboard-case
+    'base-sequence-ports
+    'installed-provider-coverage
+    '(racket/private/for webracket/private/for)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/base\n"
+         "(define port-byte-sum (for/sum ([b (in-input-port-bytes (open-input-string \"AZ\"))]) b))\n"
+         "(define port-char-count (length (for/list ([ch (in-input-port-chars (open-input-string \"xy\"))]) ch)))\n"
+         "(define line-count (length (for/list ([line (in-lines (open-input-string \"a\\nb\"))]) line)))\n"
+         "(define bytes-line-count (length (for/list ([line (in-bytes-lines (open-input-string \"a\\nb\"))]) line)))\n"
+         "(js-log (+ port-byte-sum port-char-count line-count bytes-line-count -119))\n")))
+    "main.rkt"
+    #rx"(?m:^42$)"
+    '("--no-io-format-provider" "--webracket-module-bridge"))
+   (dashboard-case
+    'base-sequence-prop-generator
+    'installed-provider-coverage
+    '(racket/private/for racket/generator webracket/private/for webracket/generator)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/base\n"
+         "(require racket/generator)\n"
+         "(struct seqbox (xs) #:property prop:sequence (lambda (self) (seqbox-xs self)))\n"
+         "(define prop-sum (for/sum ([x (seqbox (list 10 20 12))]) x))\n"
+         "(define generator-count (length (for/list ([x (in-generator (yield 1))]) x)))\n"
+         "(js-log (+ prop-sum generator-count))\n")))
+    "main.rkt"
+    #rx"(?m:^42$)"
+    '("--no-io-format-provider" "--webracket-module-bridge"))
+   (dashboard-case
+    'base-sequence-derived
+    'installed-provider-coverage
+    '(racket/private/for webracket/private/for)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/base\n"
+         "(define prod (let ([n 0]) (lambda () (set! n (+ n 1)) n)))\n"
+         "(define psum (for/sum ([x (in-producer prod 4)]) x))\n"
+         "(define chained (for/sum ([x (in-sequences (list 10 20) (list 12))]) x))\n"
+         "(define cyclic (for/sum ([x (in-cycle (list 10 20 12))] [i (in-range 3)]) x))\n"
+         "(define parallel (for/sum ([(x y) (in-parallel (list 10 20) (list 1 11))]) (+ x y)))\n"
+         "(define parallel-values (for/sum ([(x y z) (in-parallel-values 2 (in-parallel (list 1 2) (list 10 20)) 1 (list 100 200))]) (+ x y z)))\n"
+         "(define value-lists (for/list ([xs (in-values-sequence (in-parallel (list 'a 'b) (list 1 2)))]) xs))\n"
+         "(define values-star-a (for/list ([xs (in-values*-sequence (in-parallel (list 'a 'b) (list 1 2)))]) xs))\n"
+         "(define values-star-b (for/list ([xs (in-values*-sequence (list 'x 'y))]) xs))\n"
+         "(define before (for/list ([x (stop-before (list 1 2 3 4) (lambda (x) (= x 3)))]) x))\n"
+         "(define after (for/list ([x (stop-after (list 1 2 3 4) (lambda (x) (= x 3)))]) x))\n"
+         "(js-log (+ psum chained cyclic parallel parallel-values\n"
+         "           (length value-lists) (length values-star-a) (length values-star-b)\n"
+         "           (length before) (length after)\n"
+         "           -434))\n")))
+    "main.rkt"
+    #rx"(?m:^42$)"
+    '("--no-io-format-provider" "--webracket-module-bridge"))
+   (dashboard-case
     'base-sequence-coverage
     'installed-provider-coverage
     '(racket/private/for racket/generator racket/mpair
@@ -965,9 +1073,11 @@
          "#lang webracket/full\n"
          "(define s (stream 10 20 12))\n"
          "(define xs (stream->list s))\n"
+         "(define direct-len (length (for/list ([x s]) x)))\n"
          "(js-log (+ (apply + xs)\n"
          "           (length xs)\n"
-         "           (if (stream-empty? empty-stream) -3 100)))\n")))
+         "           direct-len\n"
+         "           (if (stream-empty? empty-stream) -6 100)))\n")))
     "main.rkt"
     #rx"(?m:^42$)"
     '("--no-io-format-provider"))

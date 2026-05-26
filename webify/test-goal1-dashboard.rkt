@@ -148,7 +148,9 @@
   (check-not-false
    (member 'full-stream-lazy goal1-dashboard-coverage-core-case-names))
   (check-not-false
-   (member 'base-sequence-coverage goal1-dashboard-coverage-core-case-names))
+   (member 'base-sequence-core goal1-dashboard-coverage-core-case-names))
+  (check-not-false
+   (member 'base-sequence-hash-generate goal1-dashboard-coverage-core-case-names))
   (check-not-false
    (member 'ffi-js-console-coverage goal1-dashboard-coverage-extended-case-names))
   (check-not-false

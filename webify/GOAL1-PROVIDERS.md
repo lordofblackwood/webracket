@@ -38,7 +38,9 @@ runtime services.
   synchronization-oriented promise variants are postponed.
 - `webracket/stream`: finite stream constructors and selectors for common
   module programs. It avoids importing the full `racket/stream` implementation;
-  `stream` and `stream-cons` preserve the lazy syntax shape for staged streams.
+  `stream` and `stream-cons` preserve the lazy syntax shape for staged streams,
+  and staged streams expose `prop:sequence` so ordinary `for` clauses can
+  iterate over them.
 - `webracket/contract`: erased contracts. It preserves provider shape and common
   forms, but it does not enforce contracts.
 - `webracket/file`: a small VFS-oriented file provider. This is useful for
@@ -88,15 +90,15 @@ positional module programs. `webracket/full` therefore exports the staged
   intentionally narrow today: `racket/file` through the VFS substitute,
   `data/queue` through its contract-erased queue operations, and
   `racket/logging` through its currently exported contract surface.
-- Sequence coverage now exercises a broader `racket/private/for` staged
-  surface: `in-bytes`, `in-hash`, `in-hash-keys`, `in-hash-pairs`,
-  `in-indexed`, `in-sequences`, `in-cycle`, `in-parallel`,
-  `in-parallel-values`, `in-values-sequence`, `in-values*-sequence`,
-  `stop-before`, `stop-after`, `in-mlist`, input-port byte/char/line
-  sequences, `prop:sequence`, `in-producer`, `in-value`, and
-  `sequence-generate`. This is still not full `racket/private/for`;
-  directories, original stream internals, custom sequence syntax, and some
-  advanced sequence combinators remain later work.
+- Sequence coverage is split into smaller dashboard rows so failures identify
+  the prerequisite cluster: core list/vector/string/bytes/indexed generation,
+  hash iteration plus `sequence-generate`, mutable lists, input-port byte/char
+  and line sequences, `prop:sequence` plus the generator shim, and derived
+  combinators such as `in-sequences`, `in-cycle`, `in-parallel`,
+  `in-values-sequence`, `stop-before`, and `stop-after`. This is still not full
+  `racket/private/for`; directory/path sequences, original stream internals,
+  custom sequence syntax, and some advanced sequence combinators remain later
+  work.
 - `racket/generator` routes to `webracket/generator`, a no-op shim. The
   original provider depends on continuation prompts and composable
   continuations, which are intentionally postponed for Goal 1.

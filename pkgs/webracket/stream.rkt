@@ -10,13 +10,16 @@
          stream-rest
          stream?)
 
-(require "promise.rkt")
+(require "promise.rkt"
+         (only-in racket/private/for prop:sequence))
 
 ;; A small finite-stream provider for Goal 1. It covers the common constructor
 ;; and selector surface without importing the full `racket/stream` library.
 
-(struct webracket-empty-stream ())
-(struct webracket-stream (first rest-promise))
+(struct webracket-empty-stream ()
+  #:property prop:sequence (lambda (_self) null))
+(struct webracket-stream (first-promise rest-promise)
+  #:property prop:sequence (lambda (self) (in-stream self)))
 
 (define empty-stream (webracket-empty-stream))
 
@@ -37,7 +40,7 @@
 ;; stream-cons : syntax -> stream?
 ;;   Lazily construct a stream pair.
 (define-syntax-rule (stream-cons first rest)
-  (webracket-stream first (delay rest)))
+  (webracket-stream (delay first) (delay rest)))
 
 ;; stream : syntax -> stream?
 ;;   Build a finite stream lazily, like racket/stream.
@@ -50,7 +53,7 @@
 ;;   Return the first element of a non-empty stream.
 (define (stream-first st)
   (cond
-    [(webracket-stream? st) (webracket-stream-first st)]
+    [(webracket-stream? st) (force (webracket-stream-first-promise st))]
     [(webracket-empty-stream? st) (error 'stream-first "expected a non-empty stream")]
     [else (raise-argument-error 'stream-first "stream?" st)]))
 
