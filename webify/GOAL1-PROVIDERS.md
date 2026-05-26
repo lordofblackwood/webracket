@@ -38,8 +38,7 @@ runtime services.
   synchronization-oriented promise variants are postponed.
 - `webracket/stream`: finite stream constructors and selectors for common
   module programs. It avoids importing the full `racket/stream` implementation;
-  its `stream` constructor is currently a value-level finite constructor, while
-  `stream-cons` keeps the lazy syntax shape.
+  `stream` and `stream-cons` preserve the lazy syntax shape for staged streams.
 - `webracket/contract`: erased contracts. It preserves provider shape and common
   forms, but it does not enforce contracts.
 - `webracket/file`: a small VFS-oriented file provider. This is useful for

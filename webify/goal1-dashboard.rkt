@@ -812,6 +812,18 @@
     #rx"(?m:^42$)"
     '("--no-io-format-provider"))
    (dashboard-case
+    'full-stream-lazy
+    'installed-provider-coverage
+    '(webracket/stream)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/full\n"
+         "(define s (stream 42 (error 'stream \"forced too early\")))\n"
+         "(js-log (stream-first s))\n")))
+    "main.rkt"
+    #rx"(?m:^42$)"
+    '("--no-io-format-provider"))
+   (dashboard-case
     'full-stream-coverage
     'installed-provider-coverage
     '(webracket/stream)

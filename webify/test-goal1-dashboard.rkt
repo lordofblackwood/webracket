@@ -203,6 +203,7 @@
                          installed-racket-pretty-coverage
                          full-set-coverage
                          full-promise-coverage
+                         full-stream-lazy
                          full-stream-coverage
                          installed-racket-hash-coverage
                          installed-racket-format-coverage
