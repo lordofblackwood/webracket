@@ -37,7 +37,9 @@ runtime services.
 - `webracket/promise`: ordinary promise caching for browser programs. Advanced
   synchronization-oriented promise variants are postponed.
 - `webracket/stream`: finite stream constructors and selectors for common
-  module programs. It avoids importing the full `racket/stream` implementation.
+  module programs. It avoids importing the full `racket/stream` implementation;
+  its `stream` constructor is currently a value-level finite constructor, while
+  `stream-cons` keeps the lazy syntax shape.
 - `webracket/contract`: erased contracts. It preserves provider shape and common
   forms, but it does not enforce contracts.
 - `webracket/file`: a small VFS-oriented file provider. This is useful for
@@ -73,6 +75,11 @@ positional module programs. `webracket/full` therefore exports the staged
 - Coverage rows now exercise representative clusters for `racket/math`,
   `racket/path`, `racket/match`, `racket/sequence`, and the staged
   `webracket/file` VFS surface, not just single-function smoke tests.
+- Additional coverage rows exercise staged `webracket/set`, `webracket/promise`,
+  `webracket/stream`, `racket/pretty`, `racket/hash`, and `racket/format`.
+- `racket/dict` is still only a smoke row. In this checkout the module exports
+  extension bindings such as `in-dict-pairs`, but the current bridge does not
+  expose them reliably through the `#lang webracket/base` provider route.
 
 ## Compatibility Policy
 

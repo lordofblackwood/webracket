@@ -196,7 +196,13 @@
                          full-path-coverage
                          full-match-coverage
                          full-sequence-coverage
-                         full-file-coverage))])
+                         full-file-coverage
+                         installed-racket-pretty-coverage
+                         full-set-coverage
+                         full-promise-coverage
+                         full-stream-coverage
+                         installed-racket-hash-coverage
+                         installed-racket-format-coverage))])
     (check-not-false (memq name coverage-names)
                      (symbol->string name))))
 

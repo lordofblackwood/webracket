@@ -39,12 +39,17 @@
 (define-syntax-rule (stream-cons first rest)
   (webracket-stream first (delay rest)))
 
-;; stream : syntax -> stream?
+;; list->stream : list? -> stream?
+;;   Build a finite stream from lst.
+(define (list->stream lst)
+  (cond
+    [(null? lst) empty-stream]
+    [else (webracket-stream (car lst) (delay (list->stream (cdr lst))))]))
+
+;; stream : any/c ... -> stream?
 ;;   Build a finite stream from the given values.
-(define-syntax stream
-  (syntax-rules ()
-    [(_) empty-stream]
-    [(_ first rest ...) (stream-cons first (stream rest ...))]))
+(define (stream . values)
+  (list->stream values))
 
 ;; stream-first : stream? -> any/c
 ;;   Return the first element of a non-empty stream.

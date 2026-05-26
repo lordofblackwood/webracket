@@ -499,6 +499,22 @@
     #rx"(?m:^\\(1 2 3\\)$)"
     '("--no-io-format-provider" "--webracket-module-bridge"))
    (dashboard-case
+    'installed-racket-pretty-coverage
+    'installed-provider-coverage
+    '(racket/pretty)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/base\n"
+         "(require racket/pretty)\n"
+         "(define out (open-output-string))\n"
+         "(pretty-write '(\"web\" racket) out #:newline? #f)\n"
+         "(js-log (string-append (pretty-format '(1 2) #:mode 'write)\n"
+         "                       \"|\"\n"
+         "                       (get-output-string out)))\n")))
+    "main.rkt"
+    #rx"(?m:^\\(1 2\\)\\|\\(\"web\" racket\\)$)"
+    '("--no-io-format-provider" "--webracket-module-bridge"))
+   (dashboard-case
     'installed-racket-file
     'installed-provider-graph
     '(racket/file)
@@ -638,6 +654,25 @@
     #rx"(?m:^16$)"
     '("--no-io-format-provider"))
    (dashboard-case
+    'full-set-coverage
+    'installed-provider-coverage
+    '(webracket/set)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/full\n"
+         "(define a (set 1 2 3))\n"
+         "(define b (set 3 4 5))\n"
+         "(define u (set-union a b))\n"
+         "(define i (set-intersect a b))\n"
+         "(define s (set-subtract u i))\n"
+         "(js-log (+ (set-count u)\n"
+         "           (set-count i)\n"
+         "           (set-count s)\n"
+         "           (if (subset? i u) 32 100)))\n")))
+    "main.rkt"
+    #rx"(?m:^42$)"
+    '("--no-io-format-provider"))
+   (dashboard-case
     'full-promise
     'language-staged-provider
     '(webracket/promise)
@@ -650,6 +685,25 @@
          "(js-log (+ v (if before 100 0) (if (promise-forced? p) 1 0)))\n")))
     "main.rkt"
     #rx"(?m:^43$)"
+    '("--no-io-format-provider"))
+   (dashboard-case
+    'full-promise-coverage
+    'installed-provider-coverage
+    '(webracket/promise)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/full\n"
+         "(define count 0)\n"
+         "(define p (delay (set! count (+ count 1)) 41))\n"
+         "(define a (force p))\n"
+         "(define b (force p))\n"
+         "(define strict (delay/strict (+ a 1)))\n"
+         "(js-log (+ count\n"
+         "           (if (promise-forced? p) 0 100)\n"
+         "           (if (promise-running? p) 100 0)\n"
+         "           (- (force strict) b)))\n")))
+    "main.rkt"
+    #rx"(?m:^2$)"
     '("--no-io-format-provider"))
    (dashboard-case
     'full-contract-erased
@@ -704,6 +758,21 @@
          "(js-log (+ (stream-first s)\n"
          "           (stream-first (stream-rest s))\n"
          "           (stream-first (stream-rest (stream-rest s)))))\n")))
+    "main.rkt"
+    #rx"(?m:^42$)"
+    '("--no-io-format-provider"))
+   (dashboard-case
+    'full-stream-coverage
+    'installed-provider-coverage
+    '(webracket/stream)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/full\n"
+         "(define s (stream 10 20 12))\n"
+         "(define xs (stream->list s))\n"
+         "(js-log (+ (apply + xs)\n"
+         "           (length xs)\n"
+         "           (if (stream-empty? empty-stream) -3 100)))\n")))
     "main.rkt"
     #rx"(?m:^42$)"
     '("--no-io-format-provider"))
@@ -787,6 +856,24 @@
     #rx"(?m:^2$)"
     '("--no-io-format-provider" "--webracket-module-bridge"))
    (dashboard-case
+    'installed-racket-hash-coverage
+    'installed-provider-coverage
+    '(racket/hash racket/contract/base)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/base\n"
+         "(require racket/hash)\n"
+         "(define h (hash-union (hash 'a 10 'b 20)\n"
+         "                      (hash 'c 12)))\n"
+         "(define keys (hash-keys-subset? (hash 'a 0) h))\n"
+         "(js-log (+ (hash-ref h 'a)\n"
+         "           (hash-ref h 'b)\n"
+         "           (hash-ref h 'c)\n"
+         "           (if keys 0 100)))\n")))
+    "main.rkt"
+    #rx"(?m:^42$)"
+    '("--no-io-format-provider" "--webracket-module-bridge"))
+   (dashboard-case
     'installed-racket-format
     'installed-provider-graph
     '(racket/format racket/contract/base)
@@ -797,6 +884,22 @@
          "(js-log (~a 'web #:width 3))\n")))
     "main.rkt"
     #rx"(?m:^web$)"
+    '("--no-io-format-provider" "--webracket-module-bridge"))
+   (dashboard-case
+    'installed-racket-format-coverage
+    'installed-provider-coverage
+    '(racket/format racket/contract/base)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/base\n"
+         "(require racket/format)\n"
+         "(js-log (string-append (~a 'web #:width 3)\n"
+         "                       \"|\"\n"
+         "                       (~s \"racket\")\n"
+         "                       \"|\"\n"
+         "                       (~v '(1 2))))\n")))
+    "main.rkt"
+    #rx"(?m:^web\\|\"racket\"\\|\\(1 2\\)$)"
     '("--no-io-format-provider" "--webracket-module-bridge"))
    (dashboard-case
     'installed-data-queue-contract
