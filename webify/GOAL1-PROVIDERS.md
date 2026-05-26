@@ -100,8 +100,10 @@ positional module programs. `webracket/full` therefore exports the staged
   `in-values-sequence`, `stop-before`, and `stop-after`. This is still not full
   `racket/private/for`, but explicit public helpers for `in-list`, `in-vector`,
   `in-string`, `in-range`, `in-inclusive-range`, and `in-naturals` are now
-  covered. Directory/path sequences, original stream internals, custom sequence
-  syntax, and some advanced sequence combinators remain later work.
+  covered. Optimized hash helper defaults and checker variants for ordinary,
+  immutable, and mutable hashes are covered too. Directory/path sequences,
+  weak/ephemeron hash sequence variants, original stream internals, custom
+  sequence syntax, and some advanced sequence combinators remain later work.
 - `racket/generator` routes to `webracket/generator`, a no-op shim. The
   original provider depends on continuation prompts and composable
   continuations, which are intentionally postponed for Goal 1. The dashboard has

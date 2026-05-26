@@ -14,6 +14,36 @@
 (define-runtime-path goal1-providers-doc "GOAL1-PROVIDERS.md")
 (define-runtime-path goal1-status-doc "GOAL1-STATUS.md")
 
+;; datum-contains-symbol? : any/c symbol? -> boolean?
+;;   Check whether an expanded datum contains sym anywhere.
+(define (datum-contains-symbol? datum sym)
+  (cond
+    [(symbol? datum) (eq? datum sym)]
+    [(pair? datum)
+     (or (datum-contains-symbol? (car datum) sym)
+         (datum-contains-symbol? (cdr datum) sym))]
+    [(vector? datum)
+     (for/or ([elem (in-vector datum)])
+       (datum-contains-symbol? elem sym))]
+    [else #f]))
+
+;; expanded-for-helper-datum : -> any/c
+;;   Expand representative for forms so we can track imported helper demands.
+(define (expanded-for-helper-datum)
+  (syntax->datum
+   (expand
+    #'(module m webracket/base
+        (define xs '(1 2 3))
+        (define vec '#(1 2 3))
+        (define ht (hash 'a 1 'b 2))
+        (define in (open-input-string "a\nb"))
+        (for/list ([x (in-list xs)]) x)
+        (for/list ([x (in-vector vec)]) x)
+        (for/list ([x (in-range 3)]) x)
+        (for/list ([(k v) (in-hash ht)]) v)
+        (for/list ([line (in-lines in)]) line)
+        (for/list ([(x y) (in-parallel (list 1) (list 2))]) (+ x y))))))
+
 ;; module-runtime-export-symbols : symbol? -> (listof symbol?)
 ;;   List phase-0 value exports for an already-loadable module path.
 (define (module-runtime-export-symbols module-path)
@@ -181,8 +211,23 @@
   (check-equal? (status-ref 'in-range) 'supported)
   (check-equal? (status-ref 'in-list) 'supported)
   (check-equal? (status-ref 'in-vector) 'supported)
+  (check-equal? (status-ref 'default-in-hash-keys) 'supported)
+  (check-equal? (status-ref 'check-in-mutable-hash-values) 'supported)
   (check-equal? (status-ref 'sequence-generate) 'supported)
-  (check-equal? (status-ref 'in-directory) 'postponed))
+  (check-equal? (status-ref 'in-directory) 'postponed)
+  (check-equal? (status-ref 'check-in-weak-hash) 'postponed)
+  (check-equal? (status-ref 'stream-first) 'postponed))
+
+(test-case "expanded for forms expose helper imports we must support"
+  (define expanded (expanded-for-helper-datum))
+  (for ([helper (in-list '(check-list
+                           check-vector
+                           check-range
+                           check-in-hash
+                           check-in-lines
+                           make-sequence))])
+    (check-true (datum-contains-symbol? expanded helper)
+                (format "expanded for code should mention ~a" helper))))
 
 (test-case "webracket/full runs statuses have compact dashboard coverage"
   (define covered

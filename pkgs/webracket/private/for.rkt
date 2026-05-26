@@ -25,14 +25,25 @@
          (rename-out [read-bytes-line/staged read-bytes-line])
          in-hash
          default-in-hash
+         default-in-hash-keys
+         default-in-hash-values
+         default-in-hash-pairs
          in-hash-keys
          in-hash-values
          in-hash-pairs
          in-immutable-hash
+         default-in-immutable-hash
+         default-in-immutable-hash-keys
+         default-in-immutable-hash-values
+         default-in-immutable-hash-pairs
          in-immutable-hash-keys
          in-immutable-hash-values
          in-immutable-hash-pairs
          in-mutable-hash
+         default-in-mutable-hash
+         default-in-mutable-hash-keys
+         default-in-mutable-hash-values
+         default-in-mutable-hash-pairs
          in-mutable-hash-keys
          in-mutable-hash-values
          in-mutable-hash-pairs
@@ -52,6 +63,13 @@
          check-in-hash-values
          check-in-hash-pairs
          check-in-immutable-hash
+         check-in-immutable-hash-keys
+         check-in-immutable-hash-values
+         check-in-immutable-hash-pairs
+         check-in-mutable-hash
+         check-in-mutable-hash-keys
+         check-in-mutable-hash-values
+         check-in-mutable-hash-pairs
          check-bytes
          check-in-input-port-bytes
          check-in-input-port-chars
@@ -246,6 +264,24 @@
 (define (check-in-immutable-hash v)
   (unless (and (hash? v) (immutable? v))
     (raise-argument-error 'in-immutable-hash "(and/c hash? immutable?)" v)))
+
+;; check-in-immutable-hash-keys : any/c -> void?
+;;   Validate immutable hash-key sequences imported by installed providers.
+(define (check-in-immutable-hash-keys v)
+  (unless (and (hash? v) (immutable? v))
+    (raise-argument-error 'in-immutable-hash-keys "(and/c hash? immutable?)" v)))
+
+;; check-in-immutable-hash-values : any/c -> void?
+;;   Validate immutable hash-value sequences imported by installed providers.
+(define (check-in-immutable-hash-values v)
+  (unless (and (hash? v) (immutable? v))
+    (raise-argument-error 'in-immutable-hash-values "(and/c hash? immutable?)" v)))
+
+;; check-in-immutable-hash-pairs : any/c -> void?
+;;   Validate immutable hash-pair sequences imported by installed providers.
+(define (check-in-immutable-hash-pairs v)
+  (unless (and (hash? v) (immutable? v))
+    (raise-argument-error 'in-immutable-hash-pairs "(and/c hash? immutable?)" v)))
 
 ;; check-bytes : any/c -> void?
 ;;   Validate byte-string sequences imported by expanded code.
@@ -457,6 +493,18 @@
 ;;   Default bad-index placeholder used by expanded in-hash code.
 (define default-in-hash (maybe-bad-index #f))
 
+;; default-in-hash-keys : any/c
+;;   Default bad-index placeholder used by expanded in-hash-keys code.
+(define default-in-hash-keys (maybe-bad-index #f))
+
+;; default-in-hash-values : any/c
+;;   Default bad-index placeholder used by expanded in-hash-values code.
+(define default-in-hash-values (maybe-bad-index #f))
+
+;; default-in-hash-pairs : any/c
+;;   Default bad-index placeholder used by expanded in-hash-pairs code.
+(define default-in-hash-pairs (maybe-bad-index #f))
+
 ;; in-hash : hash? [any/c] -> sequence?
 ;;   Return a two-value hash sequence. The optional bad-index value is accepted but ignored.
 (define (in-hash ht [bad-index-v default-in-hash])
@@ -465,20 +513,20 @@
 
 ;; in-hash-keys : hash? [any/c] -> sequence?
 ;;   Return a sequence of hash keys. The optional bad-index value is accepted but ignored.
-(define (in-hash-keys ht [bad-index-v (maybe-bad-index #f)])
+(define (in-hash-keys ht [bad-index-v default-in-hash-keys])
   (check-in-hash-keys ht)
   (hash-keys ht))
 
 ;; in-hash-values : hash? [any/c] -> sequence?
 ;;   Return a sequence of hash values. The optional bad-index value is accepted but ignored.
-(define (in-hash-values ht [bad-index-v (maybe-bad-index #f)])
-  (check-in-hash ht)
+(define (in-hash-values ht [bad-index-v default-in-hash-values])
+  (check-in-hash-values ht)
   (hash-values ht))
 
 ;; in-hash-pairs : hash? [any/c] -> sequence?
 ;;   Return a sequence of key-value pairs. The optional bad-index value is accepted but ignored.
-(define (in-hash-pairs ht [bad-index-v (maybe-bad-index #f)])
-  (check-in-hash ht)
+(define (in-hash-pairs ht [bad-index-v default-in-hash-pairs])
+  (check-in-hash-pairs ht)
   (map (lambda (key) (cons key (hash-ref ht key))) (hash-keys ht)))
 
 ;; check-mutable-hash : symbol? any/c -> void?
@@ -487,52 +535,104 @@
   (unless (and (hash? ht) (not (immutable? ht)))
     (raise-argument-error who "(and/c hash? (not/c immutable?))" ht)))
 
+;; check-in-mutable-hash : any/c -> void?
+;;   Validate mutable hash sequences imported by installed providers.
+(define (check-in-mutable-hash ht)
+  (check-mutable-hash 'in-mutable-hash ht))
+
+;; check-in-mutable-hash-keys : any/c -> void?
+;;   Validate mutable hash-key sequences imported by installed providers.
+(define (check-in-mutable-hash-keys ht)
+  (check-mutable-hash 'in-mutable-hash-keys ht))
+
+;; check-in-mutable-hash-values : any/c -> void?
+;;   Validate mutable hash-value sequences imported by installed providers.
+(define (check-in-mutable-hash-values ht)
+  (check-mutable-hash 'in-mutable-hash-values ht))
+
+;; check-in-mutable-hash-pairs : any/c -> void?
+;;   Validate mutable hash-pair sequences imported by installed providers.
+(define (check-in-mutable-hash-pairs ht)
+  (check-mutable-hash 'in-mutable-hash-pairs ht))
+
+;; default-in-immutable-hash : any/c
+;;   Default bad-index placeholder used by expanded in-immutable-hash code.
+(define default-in-immutable-hash (maybe-bad-index #f))
+
+;; default-in-immutable-hash-keys : any/c
+;;   Default bad-index placeholder used by expanded in-immutable-hash-keys code.
+(define default-in-immutable-hash-keys (maybe-bad-index #f))
+
+;; default-in-immutable-hash-values : any/c
+;;   Default bad-index placeholder used by expanded in-immutable-hash-values code.
+(define default-in-immutable-hash-values (maybe-bad-index #f))
+
+;; default-in-immutable-hash-pairs : any/c
+;;   Default bad-index placeholder used by expanded in-immutable-hash-pairs code.
+(define default-in-immutable-hash-pairs (maybe-bad-index #f))
+
+;; default-in-mutable-hash : any/c
+;;   Default bad-index placeholder used by expanded in-mutable-hash code.
+(define default-in-mutable-hash (maybe-bad-index #f))
+
+;; default-in-mutable-hash-keys : any/c
+;;   Default bad-index placeholder used by expanded in-mutable-hash-keys code.
+(define default-in-mutable-hash-keys (maybe-bad-index #f))
+
+;; default-in-mutable-hash-values : any/c
+;;   Default bad-index placeholder used by expanded in-mutable-hash-values code.
+(define default-in-mutable-hash-values (maybe-bad-index #f))
+
+;; default-in-mutable-hash-pairs : any/c
+;;   Default bad-index placeholder used by expanded in-mutable-hash-pairs code.
+(define default-in-mutable-hash-pairs (maybe-bad-index #f))
+
 ;; in-immutable-hash : immutable-hash? [any/c] -> sequence?
 ;;   Return a two-value immutable-hash sequence.
-(define (in-immutable-hash ht [bad-index-v (maybe-bad-index #f)])
+(define (in-immutable-hash ht [bad-index-v default-in-immutable-hash])
   (check-in-immutable-hash ht)
   (in-hash ht bad-index-v))
 
 ;; in-immutable-hash-keys : immutable-hash? [any/c] -> sequence?
 ;;   Return immutable-hash keys.
-(define (in-immutable-hash-keys ht [bad-index-v (maybe-bad-index #f)])
-  (check-in-immutable-hash ht)
+(define (in-immutable-hash-keys ht [bad-index-v default-in-immutable-hash-keys])
+  (check-in-immutable-hash-keys ht)
   (in-hash-keys ht bad-index-v))
 
 ;; in-immutable-hash-values : immutable-hash? [any/c] -> sequence?
 ;;   Return immutable-hash values.
-(define (in-immutable-hash-values ht [bad-index-v (maybe-bad-index #f)])
-  (check-in-immutable-hash ht)
+(define (in-immutable-hash-values ht [bad-index-v default-in-immutable-hash-values])
+  (check-in-immutable-hash-values ht)
   (in-hash-values ht bad-index-v))
 
 ;; in-immutable-hash-pairs : immutable-hash? [any/c] -> sequence?
 ;;   Return immutable-hash key-value pairs.
-(define (in-immutable-hash-pairs ht [bad-index-v (maybe-bad-index #f)])
-  (check-in-immutable-hash ht)
+(define (in-immutable-hash-pairs ht [bad-index-v default-in-immutable-hash-pairs])
+  (check-in-immutable-hash-pairs ht)
   (in-hash-pairs ht bad-index-v))
 
 ;; in-mutable-hash : mutable-hash? [any/c] -> sequence?
 ;;   Return a two-value mutable-hash sequence.
-(define (in-mutable-hash ht [bad-index-v (maybe-bad-index #f)])
-  (check-mutable-hash 'in-mutable-hash ht)
+(define (in-mutable-hash ht [bad-index-v default-in-mutable-hash])
+  (check-in-mutable-hash ht)
   (in-hash ht bad-index-v))
 
 ;; in-mutable-hash-keys : mutable-hash? [any/c] -> sequence?
 ;;   Return mutable-hash keys.
-(define (in-mutable-hash-keys ht [bad-index-v (maybe-bad-index #f)])
-  (check-mutable-hash 'in-mutable-hash-keys ht)
+(define (in-mutable-hash-keys ht [bad-index-v default-in-mutable-hash-keys])
+  (check-in-mutable-hash-keys ht)
   (in-hash-keys ht bad-index-v))
 
 ;; in-mutable-hash-values : mutable-hash? [any/c] -> sequence?
 ;;   Return mutable-hash values.
-(define (in-mutable-hash-values ht [bad-index-v (maybe-bad-index #f)])
-  (check-mutable-hash 'in-mutable-hash-values ht)
+(define (in-mutable-hash-values ht [bad-index-v default-in-mutable-hash-values])
+  (check-in-mutable-hash-values ht)
   (in-hash-values ht bad-index-v))
 
 ;; in-mutable-hash-pairs : mutable-hash? [any/c] -> sequence?
 ;;   Return mutable-hash key-value pairs.
-(define (in-mutable-hash-pairs ht [bad-index-v (maybe-bad-index #f)])
-  (check-mutable-hash 'in-mutable-hash-pairs ht)
+(define (in-mutable-hash-pairs ht [bad-index-v default-in-mutable-hash-pairs])
+  (check-in-mutable-hash-pairs ht)
   (in-hash-pairs ht bad-index-v))
 
 ;; thunk->make-sequence-values : symbol? (-> values) -> values

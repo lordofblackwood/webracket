@@ -19,8 +19,37 @@
   '(in-directory
     in-files
     in-glob
+    check-in-ephemeron-hash
+    check-in-ephemeron-hash-keys
+    check-in-ephemeron-hash-values
+    check-in-ephemeron-hash-pairs
+    check-in-weak-hash
+    check-in-weak-hash-keys
+    check-in-weak-hash-values
+    check-in-weak-hash-pairs
+    default-in-ephemeron-hash
+    default-in-ephemeron-hash-keys
+    default-in-ephemeron-hash-values
+    default-in-ephemeron-hash-pairs
+    default-in-weak-hash
+    default-in-weak-hash-keys
+    default-in-weak-hash-values
+    default-in-weak-hash-pairs
+    empty-stream
     in-stream
-    stream-ref))
+    make-do-stream
+    make-list-stream
+    prop:stream
+    sequence->stream
+    stream-empty?
+    stream-first
+    stream-ref
+    stream-rest
+    stream-via-prop?
+    stream?
+    unsafe-stream-first
+    unsafe-stream-not-empty?
+    unsafe-stream-rest))
 
 ;; phase0-value-export-names : (listof any/c) -> (listof symbol?)
 ;;   Extract phase-0 value export names from `module->exports` data.
