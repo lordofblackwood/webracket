@@ -10,6 +10,7 @@
          goal1-dashboard-case?
          goal1-dashboard-case-name
          goal1-dashboard-case-category
+         goal1-dashboard-case-tier
          goal1-dashboard-case-libraries
          goal1-dashboard-case-expectation
          goal1-dashboard-default-timeout-seconds
@@ -20,6 +21,7 @@
          goal1-dashboard-row?
          goal1-dashboard-row-name
          goal1-dashboard-row-category
+         goal1-dashboard-row-tier
          goal1-dashboard-row-libraries
          goal1-dashboard-row-expectation
          goal1-dashboard-row-status
@@ -47,12 +49,29 @@
   (simplify-path repo-root*))
 
 (struct goal1-dashboard-case
-  (name category libraries files main expected args)
+  (name category tier libraries files main expected args expectation)
   #:transparent)
 
 (struct goal1-dashboard-row
-  (name category libraries expectation status detail note cache-events cache-files-before cache-files-after)
+  (name category tier libraries expectation status detail note cache-events cache-files-before cache-files-after)
   #:transparent)
+
+;; dashboard-case : symbol? symbol? list? list? path-string? regexp? list? keyword-args -> goal1-dashboard-case?
+;;   Construct a dashboard case with explicit tier and expectation metadata.
+(define (dashboard-case name category libraries files main expected args
+                              #:tier [tier (case category
+                                             [(installed-provider-coverage) 'coverage]
+                                             [else 'basic])]
+                              #:expectation [expectation 'required])
+  (goal1-dashboard-case name category tier libraries files main expected args expectation))
+
+;; dashboard-row : symbol? symbol? list? symbol? symbol? symbol? string? symbol? exact? exact? keyword-args -> goal1-dashboard-row?
+;;   Construct a dashboard row with explicit tier metadata.
+(define (dashboard-row name category libraries expectation status detail note
+                             cache-events cache-files-before cache-files-after
+                             #:tier [tier 'basic])
+  (goal1-dashboard-row name category tier libraries expectation status detail note
+                       cache-events cache-files-before cache-files-after))
 
 ;; goal1-dashboard-default-timeout-seconds : exact-positive-integer?
 ;;   Keep compact dashboard runs bounded by default.
@@ -62,19 +81,9 @@
 ;;   Keep compact dashboard runs from exhausting the developer machine.
 (define goal1-dashboard-default-memory-mb 1024)
 
-(define goal1-dashboard-diagnostic-case-names
-  '())
-
-;; goal1-dashboard-case-expectation : goal1-dashboard-case? -> symbol?
-;;   Classify whether a row is required to pass or is a diagnostic partial case.
-(define (goal1-dashboard-case-expectation c)
-  (if (memq (goal1-dashboard-case-name c) goal1-dashboard-diagnostic-case-names)
-      'diagnostic
-      'required))
-
 (define goal1-dashboard-cases
   (list
-   (goal1-dashboard-case
+   (dashboard-case
     'base-local-expression
     'local-module-graph
     '(webracket/base)
@@ -82,7 +91,7 @@
     "main.rkt"
     #rx"(?m:^42$)"
     '("--no-io-format-provider"))
-   (goal1-dashboard-case
+   (dashboard-case
     'base-local-require
     'local-module-graph
     '(webracket/base)
@@ -91,7 +100,7 @@
     "main.rkt"
     #rx"(?m:^42$)"
     '("--no-io-format-provider"))
-   (goal1-dashboard-case
+   (dashboard-case
     'full-generic-sequence
     'local-module-graph
     '(webracket/full)
@@ -110,7 +119,7 @@
     "main.rkt"
     #rx"(?m:^14$)"
     '("--no-io-format-provider"))
-   (goal1-dashboard-case
+   (dashboard-case
     'full-bool
     'installed-provider-graph
     '(racket/bool)
@@ -118,7 +127,7 @@
     "main.rkt"
     #rx"(?m:^true$)"
     '("--no-io-format-provider"))
-   (goal1-dashboard-case
+   (dashboard-case
     'full-bytes
     'installed-provider-graph
     '(racket/bytes)
@@ -126,7 +135,7 @@
     "main.rkt"
     #rx"(?m:^3$)"
     '("--no-io-format-provider"))
-   (goal1-dashboard-case
+   (dashboard-case
     'full-bytes-more
     'installed-provider-graph
     '(racket/bytes)
@@ -145,7 +154,7 @@
     "main.rkt"
     #rx"(?m:^82$)"
     '("--no-io-format-provider"))
-   (goal1-dashboard-case
+   (dashboard-case
     'full-list
     'installed-provider-graph
     '(racket/list)
@@ -153,7 +162,7 @@
     "main.rkt"
     #rx"(?m:^42$)"
     '("--no-io-format-provider"))
-   (goal1-dashboard-case
+   (dashboard-case
     'full-string
     'installed-provider-graph
     '(racket/string)
@@ -161,7 +170,7 @@
     "main.rkt"
     #rx"(?m:^ab$)"
     '("--no-io-format-provider"))
-   (goal1-dashboard-case
+   (dashboard-case
     'full-list-more
     'installed-provider-graph
     '(racket/list)
@@ -175,7 +184,7 @@
     "main.rkt"
     #rx"(?m:^42$)"
     '("--no-io-format-provider"))
-   (goal1-dashboard-case
+   (dashboard-case
     'full-local
     'host-expanded-syntax
     '(racket/local)
@@ -186,7 +195,7 @@
     "main.rkt"
     #rx"(?m:^42$)"
     '("--no-io-format-provider"))
-   (goal1-dashboard-case
+   (dashboard-case
     'full-include
     'host-expanded-syntax
     '(racket/include)
@@ -199,7 +208,7 @@
     "main.rkt"
     #rx"(?m:^42$)"
     '("--no-io-format-provider"))
-   (goal1-dashboard-case
+   (dashboard-case
     'full-vector
     'installed-provider-graph
     '(racket/vector)
@@ -207,7 +216,7 @@
     "main.rkt"
     #rx"(?m:^1$)"
     '("--no-io-format-provider"))
-   (goal1-dashboard-case
+   (dashboard-case
     'installed-racket-dict
     'installed-provider-graph
     '(racket/dict)
@@ -220,7 +229,7 @@
     "main.rkt"
     #rx"(?m:^42$)"
     '("--no-io-format-provider" "--webracket-module-bridge"))
-   (goal1-dashboard-case
+   (dashboard-case
     'installed-racket-bool
     'installed-provider-graph
     '(racket/bool)
@@ -232,7 +241,7 @@
     "main.rkt"
     #rx"(?m:^42$)"
     '("--no-io-format-provider" "--webracket-module-bridge"))
-   (goal1-dashboard-case
+   (dashboard-case
     'installed-racket-list
     'installed-provider-graph
     '(racket/list)
@@ -244,7 +253,7 @@
     "main.rkt"
     #rx"(?m:^42$)"
     '("--no-io-format-provider" "--webracket-module-bridge"))
-   (goal1-dashboard-case
+   (dashboard-case
     'installed-racket-list-coverage
     'installed-provider-coverage
     '(racket/list)
@@ -259,7 +268,7 @@
     "main.rkt"
     #rx"(?m:^42$)"
     '("--no-io-format-provider" "--webracket-module-bridge"))
-   (goal1-dashboard-case
+   (dashboard-case
     'installed-racket-string
     'installed-provider-graph
     '(racket/string)
@@ -274,7 +283,7 @@
     "main.rkt"
     #rx"(?m:^42$)"
     '("--no-io-format-provider" "--webracket-module-bridge"))
-   (goal1-dashboard-case
+   (dashboard-case
     'installed-racket-string-coverage
     'installed-provider-coverage
     '(racket/string)
@@ -290,7 +299,21 @@
     "main.rkt"
     #rx"(?m:^42$)"
     '("--no-io-format-provider" "--webracket-module-bridge"))
-   (goal1-dashboard-case
+   (dashboard-case
+    'diagnostic-racket-string-join
+    'installed-provider-diagnostic
+    '(racket/string)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/base\n"
+         "(require racket/string)\n"
+         "(js-log (string-join '(\"web\" \"racket\") \"\"))\n")))
+    "main.rkt"
+    #rx"(?m:^webracket$)"
+    '("--no-io-format-provider" "--webracket-module-bridge")
+    #:tier 'diagnostic
+    #:expectation 'diagnostic)
+   (dashboard-case
     'installed-racket-vector
     'installed-provider-graph
     '(racket/vector)
@@ -302,7 +325,24 @@
     "main.rkt"
     #rx"(?m:^42$)"
     '("--no-io-format-provider" "--webracket-module-bridge"))
-   (goal1-dashboard-case
+   (dashboard-case
+    'diagnostic-racket-vector-append
+    'installed-provider-diagnostic
+    '(racket/vector)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/base\n"
+         "(require racket/vector)\n"
+         "(define v (vector-append '#(10 20) '#(12)))\n"
+         "(js-log (+ (vector-ref v 0)\n"
+         "           (vector-ref v 1)\n"
+         "           (vector-ref v 2)))\n")))
+    "main.rkt"
+    #rx"(?m:^42$)"
+    '("--no-io-format-provider" "--webracket-module-bridge")
+    #:tier 'diagnostic
+    #:expectation 'diagnostic)
+   (dashboard-case
     'installed-racket-vector-coverage
     'installed-provider-coverage
     '(racket/vector)
@@ -318,7 +358,7 @@
     "main.rkt"
     #rx"(?m:^42$)"
     '("--no-io-format-provider" "--webracket-module-bridge"))
-   (goal1-dashboard-case
+   (dashboard-case
     'installed-racket-function
     'installed-provider-graph
     '(racket/function)
@@ -330,7 +370,7 @@
     "main.rkt"
     #rx"(?m:^42$)"
     '("--no-io-format-provider" "--webracket-module-bridge"))
-   (goal1-dashboard-case
+   (dashboard-case
     'installed-racket-function-coverage
     'installed-provider-coverage
     '(racket/function)
@@ -345,7 +385,7 @@
     "main.rkt"
     #rx"(?m:^42$)"
     '("--no-io-format-provider" "--webracket-module-bridge"))
-   (goal1-dashboard-case
+   (dashboard-case
     'full-function
     'installed-provider-graph
     '(racket/function)
@@ -356,7 +396,7 @@
     "main.rkt"
     #rx"(?m:^42$)"
     '("--no-io-format-provider"))
-   (goal1-dashboard-case
+   (dashboard-case
     'full-math
     'installed-provider-graph
     '(racket/math)
@@ -367,7 +407,7 @@
     "main.rkt"
     #rx"(?m:^42$)"
     '("--no-io-format-provider"))
-   (goal1-dashboard-case
+   (dashboard-case
     'full-path
     'installed-provider-graph
     '(racket/path)
@@ -379,7 +419,7 @@
     "main.rkt"
     #rx"(?m:^42$)"
     '("--no-io-format-provider"))
-   (goal1-dashboard-case
+   (dashboard-case
     'installed-racket-port
     'installed-provider-graph
     '(racket/port)
@@ -392,7 +432,7 @@
     "main.rkt"
     #rx"(?m:^42$)"
     '("--no-io-format-provider" "--webracket-module-bridge"))
-   (goal1-dashboard-case
+   (dashboard-case
     'installed-racket-port-coverage
     'installed-provider-coverage
     '(racket/port)
@@ -407,7 +447,23 @@
     "main.rkt"
     #rx"(?m:^42$)"
     '("--no-io-format-provider" "--webracket-module-bridge"))
-   (goal1-dashboard-case
+   (dashboard-case
+    'diagnostic-racket-port-display
+    'installed-provider-diagnostic
+    '(racket/port)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/base\n"
+         "(require racket/port)\n"
+         "(define out (open-output-string))\n"
+         "(display \"web\" out)\n"
+         "(js-log (+ (string-length (get-output-string out)) 39))\n")))
+    "main.rkt"
+    #rx"(?m:^42$)"
+    '("--no-io-format-provider" "--webracket-module-bridge")
+    #:tier 'diagnostic
+    #:expectation 'diagnostic)
+   (dashboard-case
     'installed-racket-pretty
     'installed-provider-graph
     '(racket/pretty)
@@ -419,7 +475,7 @@
     "main.rkt"
     #rx"(?m:^\\(1 2 3\\)$)"
     '("--no-io-format-provider" "--webracket-module-bridge"))
-   (goal1-dashboard-case
+   (dashboard-case
     'installed-racket-file
     'installed-provider-graph
     '(racket/file)
@@ -432,7 +488,7 @@
     "main.rkt"
     #rx"(?m:^42$)"
     '("--no-io-format-provider" "--webracket-module-bridge"))
-   (goal1-dashboard-case
+   (dashboard-case
     'full-shared
     'installed-provider-graph
     '(racket/shared)
@@ -444,7 +500,7 @@
     "main.rkt"
     #rx"(?m:^42$)"
     '("--no-io-format-provider"))
-   (goal1-dashboard-case
+   (dashboard-case
     'full-reader-graph-containers
     'installed-provider-graph
     '(racket/shared)
@@ -459,7 +515,7 @@
     "main.rkt"
     #rx"(?m:^42$)"
     '("--no-io-format-provider"))
-   (goal1-dashboard-case
+   (dashboard-case
     'full-match
     'installed-provider-graph
     '(racket/match)
@@ -467,7 +523,7 @@
     "main.rkt"
     #rx"(?m:^42$)"
     '("--no-io-format-provider"))
-   (goal1-dashboard-case
+   (dashboard-case
     'full-sequence-for
     'installed-provider-graph
     '(racket/sequence)
@@ -480,7 +536,7 @@
     "main.rkt"
     #rx"(?m:^15$)"
     '("--no-io-format-provider"))
-   (goal1-dashboard-case
+   (dashboard-case
     'full-set
     'language-staged-provider
     '(webracket/set)
@@ -492,7 +548,7 @@
     "main.rkt"
     #rx"(?m:^13$)"
     '("--no-io-format-provider"))
-   (goal1-dashboard-case
+   (dashboard-case
     'full-set-list
     'language-staged-provider
     '(webracket/set)
@@ -504,7 +560,7 @@
     "main.rkt"
     #rx"(?m:^5$)"
     '("--no-io-format-provider"))
-   (goal1-dashboard-case
+   (dashboard-case
     'full-set-variants
     'language-staged-provider
     '(webracket/set)
@@ -525,7 +581,7 @@
     "main.rkt"
     #rx"(?m:^16$)"
     '("--no-io-format-provider"))
-   (goal1-dashboard-case
+   (dashboard-case
     'full-promise
     'language-staged-provider
     '(webracket/promise)
@@ -539,7 +595,7 @@
     "main.rkt"
     #rx"(?m:^43$)"
     '("--no-io-format-provider"))
-   (goal1-dashboard-case
+   (dashboard-case
     'full-contract-erased
     'language-staged-provider
     '(webracket/contract)
@@ -553,7 +609,7 @@
     "main.rkt"
     #rx"(?m:^42$)"
     '("--no-io-format-provider"))
-   (goal1-dashboard-case
+   (dashboard-case
     'base-make-do-sequence
     'language-staged-provider
     '(racket/private/for webracket/private/for)
@@ -568,7 +624,7 @@
     "main.rkt"
     #rx"(?m:^42$)"
     '("--no-io-format-provider" "--webracket-module-bridge"))
-   (goal1-dashboard-case
+   (dashboard-case
     'staged-stream
     'language-staged-provider
     '(webracket/stream)
@@ -581,7 +637,7 @@
     "main.rkt"
     #rx"(?m:^42$)"
     '("--no-io-format-provider"))
-   (goal1-dashboard-case
+   (dashboard-case
     'full-stream
     'language-staged-provider
     '(webracket/stream)
@@ -595,7 +651,7 @@
     "main.rkt"
     #rx"(?m:^42$)"
     '("--no-io-format-provider"))
-   (goal1-dashboard-case
+   (dashboard-case
     'full-file
     'language-staged-provider
     '(webracket/file)
@@ -607,7 +663,7 @@
     "main.rkt"
     #rx"(?m:^42$)"
     '("--no-io-format-provider"))
-   (goal1-dashboard-case
+   (dashboard-case
     'installed-racket-stream
     'installed-provider-graph
     '(racket/stream)
@@ -622,7 +678,7 @@
     "main.rkt"
     #rx"(?m:^42$)"
     '("--no-io-format-provider" "--webracket-module-bridge"))
-   (goal1-dashboard-case
+   (dashboard-case
     'installed-racket-set
     'installed-provider-graph
     '(racket/set)
@@ -630,7 +686,7 @@
     "main.rkt"
     #rx"(?m:^2$)"
     '("--no-io-format-provider" "--webracket-module-bridge"))
-   (goal1-dashboard-case
+   (dashboard-case
     'installed-racket-promise
     'installed-provider-graph
     '(racket/promise)
@@ -638,7 +694,7 @@
     "main.rkt"
     #rx"(?m:^42$)"
     '("--no-io-format-provider" "--webracket-module-bridge"))
-   (goal1-dashboard-case
+   (dashboard-case
     'full-format
     'installed-provider-graph
     '(racket/format)
@@ -646,7 +702,7 @@
     "main.rkt"
     #rx"(?m:^fmt web$)"
     '())
-   (goal1-dashboard-case
+   (dashboard-case
     'installed-racket-hash
     'installed-provider-graph
     '(racket/hash racket/contract/base)
@@ -659,7 +715,7 @@
     "main.rkt"
     #rx"(?m:^2$)"
     '("--no-io-format-provider" "--webracket-module-bridge"))
-   (goal1-dashboard-case
+   (dashboard-case
     'installed-racket-format
     'installed-provider-graph
     '(racket/format racket/contract/base)
@@ -671,7 +727,7 @@
     "main.rkt"
     #rx"(?m:^web$)"
     '("--no-io-format-provider" "--webracket-module-bridge"))
-   (goal1-dashboard-case
+   (dashboard-case
     'installed-data-queue-contract
     'installed-provider-graph
     '(data/queue racket/contract/base)
@@ -687,7 +743,7 @@
     "main.rkt"
     #rx"(?m:^44$)"
     '("--no-io-format-provider" "--webracket-module-bridge"))
-   (goal1-dashboard-case
+   (dashboard-case
     'installed-racket-logging
     'installed-provider-graph
     '(racket/logging racket/contract/base)
@@ -699,7 +755,7 @@
     "main.rkt"
     #rx"(?m:^42$)"
     '("--no-io-format-provider" "--webracket-module-bridge"))
-   (goal1-dashboard-case
+   (dashboard-case
     'ffi-js-math
     'ffi-module
     '(js/math webracket/unsafe/math)
@@ -707,7 +763,7 @@
     "main.rkt"
     #rx"(?m:^3$)"
     '("--no-io-format-provider" "--webracket-module-bridge"))
-   (goal1-dashboard-case
+   (dashboard-case
     'ffi-js-console
     'ffi-module
     '(js/console webracket/unsafe/console)
@@ -715,7 +771,7 @@
     "main.rkt"
     #rx"console-module"
     '("--no-io-format-provider" "--webracket-module-bridge"))
-   (goal1-dashboard-case
+   (dashboard-case
     'format-provider
     'staged-provider-slice
     '(io/format)
@@ -723,7 +779,7 @@
     "main.rkt"
     #rx"(?m:^fmt web$)"
     '())
-   (goal1-dashboard-case
+   (dashboard-case
     'regexp-provider-literal
     'staged-provider-slice
     '(regexp)
@@ -743,19 +799,25 @@
                 #:unless (string=? trimmed ""))
        (string->symbol trimmed))]))
 
-;; goal1-dashboard-select-cases : list [#:names list] [#:categories list] -> list
-;;   Select compact dashboard cases by name and/or category.
+;; goal1-dashboard-select-cases : list [#:names list] [#:categories list] [#:tiers list] -> list
+;;   Select compact dashboard cases by name, category, and/or tier.
 (define (goal1-dashboard-select-cases cases
                                       #:names [names '()]
-                                      #:categories [categories '()])
+                                      #:categories [categories '()]
+                                      #:tiers [tiers '()])
   (define name-set (for/hasheq ([name (in-list names)]) (values name #t)))
   (define category-set (for/hasheq ([category (in-list categories)]) (values category #t)))
+  (define tier-set (for/hasheq ([tier (in-list tiers)]) (values tier #t)))
   (for/list ([c (in-list cases)]
              #:when (and (or (null? names)
                              (hash-ref name-set (goal1-dashboard-case-name c) #f))
                          (or (null? categories)
                              (hash-ref category-set
                                        (goal1-dashboard-case-category c)
+                                       #f))
+                         (or (null? tiers)
+                             (hash-ref tier-set
+                                       (goal1-dashboard-case-tier c)
                                        #f))))
     c))
 
@@ -865,7 +927,7 @@
       (define detail
         (classify-detail status output (goal1-dashboard-case-expected c)))
       (define expectation (goal1-dashboard-case-expectation c))
-      (goal1-dashboard-row
+      (dashboard-row
        (goal1-dashboard-case-name c)
        (goal1-dashboard-case-category c)
        (goal1-dashboard-case-libraries c)
@@ -878,7 +940,8 @@
        (if (eq? detail 'ok) "" (output-note status output))
        (cache-events output before after)
        before
-       after))
+       after
+       #:tier (goal1-dashboard-case-tier c)))
     (lambda ()
       (for ([dir (in-list (list source-dir dest-dir))])
         (with-handlers ([exn:fail:filesystem? void])
@@ -896,6 +959,7 @@
 (define (row->jsexpr row)
   (hasheq 'name (symbol->string (goal1-dashboard-row-name row))
           'category (symbol->string (goal1-dashboard-row-category row))
+          'tier (symbol->string (goal1-dashboard-row-tier row))
           'libraries (map symbol->string (goal1-dashboard-row-libraries row))
           'expectation (symbol->string (goal1-dashboard-row-expectation row))
           'status (symbol->string (goal1-dashboard-row-status row))
@@ -914,17 +978,21 @@
                                #:timeout-seconds [timeout-seconds goal1-dashboard-default-timeout-seconds]
                                #:memory-mb [memory-mb goal1-dashboard-default-memory-mb]
                                #:case-names [case-names '()]
-                               #:categories [categories '()])
+                               #:categories [categories '()]
+                               #:tiers [tiers '()])
   (define selected-cases
     (goal1-dashboard-select-cases goal1-dashboard-cases
                                   #:names case-names
-                                  #:categories categories))
+                                  #:categories categories
+                                  #:tiers tiers))
   (cond
     [list?
      (for ([c (in-list selected-cases)])
-       (printf "~a\tcategory\t~a\tlibraries\t~a\n"
+       (printf "~a\tcategory\t~a\ttier\t~a\texpectation\t~a\tlibraries\t~a\n"
                (goal1-dashboard-case-name c)
                (goal1-dashboard-case-category c)
+               (goal1-dashboard-case-tier c)
+               (goal1-dashboard-case-expectation c)
                (string-join (map symbol->string (goal1-dashboard-case-libraries c))
                             ",")))]
     [else
@@ -943,11 +1011,12 @@
        [else
         (when tsv?
           (displayln
-           "name\tcategory\tlibraries\texpectation\tstatus\tdetail\tnote\tcache-events\tcache-files-before\tcache-files-after"))
+           "name\tcategory\ttier\tlibraries\texpectation\tstatus\tdetail\tnote\tcache-events\tcache-files-before\tcache-files-after"))
         (for ([row (in-list rows)])
-          (printf "~a\t~a\t~a\t~a\t~a\t~a\t~a\t~a\t~a\t~a\n"
+          (printf "~a\t~a\t~a\t~a\t~a\t~a\t~a\t~a\t~a\t~a\t~a\n"
                   (goal1-dashboard-row-name row)
                   (goal1-dashboard-row-category row)
+                  (goal1-dashboard-row-tier row)
                   (string-join (map symbol->string (goal1-dashboard-row-libraries row))
                                ",")
                   (goal1-dashboard-row-expectation row)
@@ -967,6 +1036,7 @@
   (define memory-mb goal1-dashboard-default-memory-mb)
   (define case-names '())
   (define categories '())
+  (define tiers '())
   (command-line
    #:once-each
    [("--tsv") "print TSV rows" (set! tsv? #t)]
@@ -981,7 +1051,9 @@
    [("--case") names "comma-separated case names to run/list"
                (set! case-names (split-selectors names))]
    [("--category") names "comma-separated categories to run/list"
-                   (set! categories (split-selectors names))])
+                   (set! categories (split-selectors names))]
+   [("--tier") names "comma-separated tiers to run/list"
+               (set! tiers (split-selectors names))])
   (print-goal1-dashboard #:tsv? tsv?
                          #:json? json?
                          #:list? list?
@@ -989,4 +1061,5 @@
                          #:timeout-seconds timeout-seconds
                          #:memory-mb memory-mb
                          #:case-names case-names
-                         #:categories categories))
+                         #:categories categories
+                         #:tiers tiers))

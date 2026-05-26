@@ -27,7 +27,9 @@
 
 ;; run-goal1-program : (listof (cons/c path-string? string?)) path-string? regexp? -> void?
 ;;   Compile and run one module-language program with bounded resources.
-(define (run-goal1-program files main-file expected #:bridge? [bridge? #f])
+(define (run-goal1-program files main-file expected
+                           #:bridge? [bridge? #f]
+                           #:io-format? [io-format? #f])
   (call-with-goal1-program
    files
    main-file
@@ -42,7 +44,8 @@
        (define-values (status output)
          (run-webracket
           (append
-           (list "-r" "--no-stdlib" "--no-io-format-provider")
+           (list "-r" "--no-stdlib")
+           (if io-format? '() '("--no-io-format-provider"))
            (if bridge? '("--webracket-module-bridge") '())
            (list "--dest" (path->string dest-dir)
                  (path->string main-path)))
@@ -106,6 +109,15 @@
    "main.rkt"
    #rx"(?m:^3$)"
    #:bridge? #t))
+
+(test-case "Goal 1 full program uses format when io-format provider is enabled"
+  (run-goal1-program
+   `(("main.rkt" . ,(string-append
+                     "#lang webracket/full\n"
+                     "(js-log (format \"fmt ~a\" 'web))\n")))
+   "main.rkt"
+   #rx"(?m:^fmt web$)"
+   #:io-format? #t))
 
 (test-case "Goal 1 full program routes compose through staged function provider"
   (run-goal1-program

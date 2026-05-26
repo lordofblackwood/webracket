@@ -16,6 +16,8 @@ runtime services.
   provider that exercises several common APIs. These rows are intentionally
   separate from the basic smoke rows so failures can be classified without
   hiding the small signal.
+- `installed-provider-diagnostic`: an expected-fail row for an API edge we want
+  to keep visible without making the required dashboard red.
 - `language-staged-provider`: a WebRacket-owned provider substitutes for a
   Racket library or a library-like surface. These providers are browser-first
   and deliberately avoid postponed features such as contracts, generic
@@ -55,11 +57,22 @@ in keyword-preserving wrappers that WebRacket does not need for ordinary
 positional module programs. `webracket/full` therefore exports the staged
 `webracket/function` versions for those names.
 
+## Current Full-Language Notes
+
+- `webracket/full` exports the staged set surface, but set behavior is tracked
+  through dedicated `webracket/set` dashboard rows. External explicit requires
+  still need the module bridge path.
+- `format` is available in `webracket/full` when the staged `io/format` provider
+  is enabled. Tests that pass `--no-io-format-provider` should not use `format`;
+  those tests are checking the smaller no-IO-provider path.
+
 ## Compatibility Policy
 
 - Passing a basic dashboard row means the provider composes and one common use
   works.
 - Passing a coverage row means a small representative API cluster works.
 - Neither is a claim of full Racket compatibility.
+- Passing or failing a diagnostic row does not affect required Goal 1 status; it
+  records a known unsupported or fragile edge for later work.
 - When a coverage row fails, decide whether to improve WebRacket primitives,
   improve a staged provider, or explicitly postpone that part of the API.

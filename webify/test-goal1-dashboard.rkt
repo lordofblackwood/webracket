@@ -34,6 +34,7 @@
   (check-not-false (memq 'local-module-graph categories))
   (check-not-false (memq 'installed-provider-graph categories))
   (check-not-false (memq 'installed-provider-coverage categories))
+  (check-not-false (memq 'installed-provider-diagnostic categories))
   (check-not-false (memq 'language-staged-provider categories))
   (check-not-false (memq 'ffi-module categories))
   (check-not-false (memq 'staged-provider-slice categories)))
@@ -65,6 +66,7 @@
   (define row
     (goal1-dashboard-row 'sample
                          'local-module-graph
+                         'basic
                          '(webracket/base)
                          'required
                          'pass
@@ -73,6 +75,7 @@
                          'miss
                          0
                          2))
+  (check-equal? (goal1-dashboard-row-tier row) 'basic)
   (check-equal? (goal1-dashboard-row-note row) "")
   (check-equal? (goal1-dashboard-row-expectation row) 'required)
   (check-equal? (goal1-dashboard-row-cache-events row) 'miss)
@@ -97,10 +100,23 @@
                       by-category))
   (check-not-false (member 'ffi-js-math (map goal1-dashboard-case-name by-category))))
 
-(test-case "compact Goal 1 dashboard currently has only required cases"
-  (for ([c (in-list goal1-dashboard-cases)])
-    (check-equal? (goal1-dashboard-case-expectation c) 'required
-                  (symbol->string (goal1-dashboard-case-name c)))))
+(test-case "compact Goal 1 dashboard selectors filter by tier"
+  (define coverage
+    (goal1-dashboard-select-cases goal1-dashboard-cases
+                                  #:tiers '(coverage)))
+  (check-true (andmap (lambda (c)
+                        (eq? (goal1-dashboard-case-tier c) 'coverage))
+                      coverage))
+  (check-not-false (member 'installed-racket-list-coverage
+                           (map goal1-dashboard-case-name coverage)))
+  (define diagnostic
+    (goal1-dashboard-select-cases goal1-dashboard-cases
+                                  #:tiers '(diagnostic)))
+  (check-true (andmap (lambda (c)
+                        (eq? (goal1-dashboard-case-expectation c) 'diagnostic))
+                      diagnostic))
+  (check-not-false (member 'diagnostic-racket-string-join
+                           (map goal1-dashboard-case-name diagnostic))))
 
 (test-case "webracket/full runs statuses have compact dashboard coverage"
   (define covered
@@ -168,7 +184,10 @@
                            "webracket/set"
                            "webracket/contract"
                            "installed-provider-coverage"
+                           "installed-provider-diagnostic"
                            "Routing Rule"
+                           "io/format"
+                           "External explicit requires"
                            "claim of full"))])
     (check-not-false (regexp-match? (regexp (regexp-quote needle)) doc) needle)))
 
