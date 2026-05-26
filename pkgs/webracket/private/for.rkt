@@ -24,6 +24,7 @@
          in-sequences
          in-cycle
          in-parallel
+         in-parallel-values
          in-values-sequence
          in-values*-sequence
          stop-before
@@ -498,6 +499,65 @@
                   (apply values
                          (map (lambda (generator) ((cdr generator)))
                               generators)))
+                (lambda (pos) pos)
+                #t
+                (lambda (_pos)
+                  (andmap (lambda (generator) ((car generator)))
+                          generators))
+                (lambda vals #t)
+                (lambda (pos . vals) #t))))]))
+
+;; check-parallel-values-arguments : (listof any/c) -> (values list? list?)
+;;   Split in-parallel-values arguments into sequences and value counts.
+(define (check-parallel-values-arguments args)
+  (let loop ([rest args] [seqs null] [counts null])
+    (cond
+      [(null? rest) (values (reverse seqs) (reverse counts))]
+      [(not (exact-nonnegative-integer? (car rest)))
+       (raise-argument-error 'in-parallel-values "exact-nonnegative-integer?" (car rest))]
+      [(null? (cdr rest))
+       (raise-arguments-error 'in-parallel-values "missing a sequence after its result count"
+                              "result count" (car rest))]
+      [(not (sequence? (cadr rest)))
+       (raise-argument-error 'in-parallel-values "sequence?" (cadr rest))]
+      [else (loop (cddr rest)
+                  (cons (cadr rest) seqs)
+                  (cons (car rest) counts))])))
+
+;; take-values : symbol? exact-nonnegative-integer? list? -> list?
+;;   Validate and return the values promised by an in-parallel-values count.
+(define (take-values who count vals)
+  (unless (= count (length vals))
+    (raise-arguments-error who
+                           "sequence produced the wrong number of values"
+                           "expected" count
+                           "received" (length vals)))
+  vals)
+
+;; in-parallel-values : exact-nonnegative-integer? sequence? ... -> sequence?
+;;   Combine sequences in parallel while preserving each sequence's value count.
+(define (in-parallel-values . args)
+  (define-values (seqs counts) (check-parallel-values-arguments args))
+  (cond
+    [(null? seqs) null]
+    [(null? (cdr seqs)) (car seqs)]
+    [else
+     (make-do-sequence
+      (lambda ()
+        (define generators
+          (map (lambda (seq count)
+                 (define-values (more? next) (sequence-generate seq))
+                 (list more? next count))
+               seqs
+               counts))
+        (values (lambda (_pos)
+                  (apply values
+                         (apply append
+                                (map (lambda (generator)
+                                       (take-values 'in-parallel-values
+                                                    (caddr generator)
+                                                    (call-with-values (cadr generator) list)))
+                                     generators))))
                 (lambda (pos) pos)
                 #t
                 (lambda (_pos)

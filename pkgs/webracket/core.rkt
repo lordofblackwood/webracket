@@ -319,6 +319,7 @@
                   in-list in-vector in-range in-naturals in-string
                   in-bytes in-hash in-hash-keys in-hash-values in-hash-pairs
                   in-indexed in-sequences in-cycle in-parallel
+                  in-parallel-values
                   in-values-sequence in-values*-sequence stop-before stop-after
                   in-producer in-value sequence-generate sequence-generate*
                   ))
@@ -329,6 +330,7 @@
                   in-list in-vector in-range in-naturals in-string
                   in-bytes in-hash in-hash-keys in-hash-values in-hash-pairs
                   in-indexed in-sequences in-cycle in-parallel
+                  in-parallel-values
                   in-values-sequence in-values*-sequence stop-before stop-after
                   in-producer in-value sequence-generate sequence-generate*
                   )

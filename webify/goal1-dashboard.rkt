@@ -750,14 +750,15 @@
          "(define chained (for/sum ([x (in-sequences (list 10 20) (list 12))]) x))\n"
          "(define cyclic (for/sum ([x (in-cycle (list 10 20 12))] [i (in-range 3)]) x))\n"
          "(define parallel (for/sum ([(x y) (in-parallel (list 10 20) (list 1 11))]) (+ x y)))\n"
+         "(define parallel-values (for/sum ([(x y z) (in-parallel-values 2 (in-parallel (list 1 2) (list 10 20)) 1 (list 100 200))]) (+ x y z)))\n"
          "(define value-lists (for/list ([xs (in-values-sequence (in-parallel (list 'a 'b) (list 1 2)))]) xs))\n"
          "(define values-star-a (for/list ([xs (in-values*-sequence (in-parallel (list 'a 'b) (list 1 2)))]) xs))\n"
          "(define values-star-b (for/list ([xs (in-values*-sequence (list 'x 'y))]) xs))\n"
          "(define before (for/list ([x (stop-before (list 1 2 3 4) (lambda (x) (= x 3)))]) x))\n"
          "(define after (for/list ([x (stop-after (list 1 2 3 4) (lambda (x) (= x 3)))]) x))\n"
-         "(js-log (+ bsum hsum kcount pcount indexed gen-sum psum one chained cyclic parallel\n"
+         "(js-log (+ bsum hsum kcount pcount indexed gen-sum psum one chained cyclic parallel parallel-values\n"
          "           (length value-lists) (length values-star-a) (length values-star-b)\n"
-         "           (length before) (length after) -408))\n")))
+         "           (length before) (length after) -741))\n")))
     "main.rkt"
     #rx"(?m:^153$)"
     '("--no-io-format-provider" "--webracket-module-bridge"))
