@@ -8,6 +8,7 @@
          sequence-generate*
          in-bytes
          in-hash
+         default-in-hash
          in-hash-keys
          in-hash-values
          in-hash-pairs
@@ -23,6 +24,10 @@
          in-sequences
          in-cycle
          in-parallel
+         in-values-sequence
+         in-values*-sequence
+         stop-before
+         stop-after
          in-producer
          in-value
          check-in-hash
@@ -139,9 +144,13 @@
 (define (maybe-bad-index v)
   v)
 
+;; default-in-hash : any/c
+;;   Default bad-index placeholder used by expanded in-hash code.
+(define default-in-hash (maybe-bad-index #f))
+
 ;; in-hash : hash? [any/c] -> sequence?
 ;;   Return a two-value hash sequence. The optional bad-index value is accepted but ignored.
-(define (in-hash ht [bad-index-v (maybe-bad-index #f)])
+(define (in-hash ht [bad-index-v default-in-hash])
   (check-in-hash ht)
   ht)
 
@@ -283,7 +292,7 @@
              #f
              #f)]
     [(hash? v)
-     (values (lambda (pos) (hash-iterate-key+value v pos #f))
+     (values (lambda (pos) (hash-iterate-key+value v pos))
              #f
              (lambda (pos) (hash-iterate-next v pos))
              (hash-iterate-first v)
@@ -496,3 +505,86 @@
                           generators))
                 (lambda vals #t)
                 (lambda (pos . vals) #t))))]))
+
+;; next-values : (-> boolean?) (-> values) -> (or/c list? #f)
+;;   Pull the next sequence element as a list of values.
+(define (next-values more? next)
+  (and (more?) (call-with-values next list)))
+
+;; generated-value-list-sequence : sequence? (list? -> list?) -> sequence?
+;;   Build a sequence by transforming each generated element's value list.
+(define (generated-value-list-sequence seq transform)
+  (define-values (more? next) (sequence-generate seq))
+  (define (advance)
+    (define vals (next-values more? next))
+    (and vals (cons #t (transform vals))))
+  (define (continue-values? . _vals) #t)
+  (define (continue-position+values? _pos . _vals) #t)
+  (make-do-sequence
+   (lambda ()
+     (values (lambda (state) (apply values (cdr state)))
+             (lambda (_state) (advance))
+             (advance)
+             pair?
+             continue-values?
+             continue-position+values?))))
+
+;; in-values-sequence : sequence? -> sequence?
+;;   Convert each element's values into one list value.
+(define (in-values-sequence seq)
+  (unless (sequence? seq)
+    (raise-argument-error 'in-values-sequence "sequence?" seq))
+  (generated-value-list-sequence seq list))
+
+;; in-values*-sequence : sequence? -> sequence?
+;;   Like in-values-sequence, but leave a single non-list value unwrapped.
+(define (in-values*-sequence seq)
+  (unless (sequence? seq)
+    (raise-argument-error 'in-values*-sequence "sequence?" seq))
+  (generated-value-list-sequence
+   seq
+   (lambda (vals)
+     (cond
+       [(and (null? (cdr vals)) (not (list? (car vals)))) vals]
+       [else (list vals)]))))
+
+;; check-stop-sequence : symbol? any/c any/c -> void?
+;;   Validate common stop-before/stop-after arguments.
+(define (check-stop-sequence who seq pred)
+  (unless (sequence? seq)
+    (raise-argument-error who "sequence?" seq))
+  (unless (procedure? pred)
+    (raise-argument-error who "procedure?" pred)))
+
+;; stopped-sequence : symbol? sequence? procedure? boolean? -> sequence?
+;;   Build a sequence that stops before or after the matching element.
+(define (stopped-sequence who seq pred include-matching?)
+  (check-stop-sequence who seq pred)
+  (define-values (more? next) (sequence-generate seq))
+  (define (advance)
+    (define vals (next-values more? next))
+    (cond
+      [(not vals) #f]
+      [(apply pred vals) (and include-matching? (cons #t vals))]
+      [else (cons #f vals)]))
+  (define (continue-values? . _vals) #t)
+  (define (continue-position+values? _pos . _vals) #t)
+  (make-do-sequence
+   (lambda ()
+     (values (lambda (state) (apply values (cdr state)))
+             (lambda (state)
+               (and (not (car state)) (advance)))
+             (advance)
+             pair?
+             continue-values?
+             continue-position+values?))))
+
+;; stop-before : sequence? procedure? -> sequence?
+;;   Stop before the first element whose values satisfy pred.
+(define (stop-before seq pred)
+  (stopped-sequence 'stop-before seq pred #f))
+
+;; stop-after : sequence? procedure? -> sequence?
+;;   Include the first element whose values satisfy pred, then stop.
+(define (stop-after seq pred)
+  (stopped-sequence 'stop-after seq pred #t))
