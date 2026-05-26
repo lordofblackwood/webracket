@@ -5,6 +5,7 @@
          racket/runtime-path
          racket/string
          rackunit
+         "for-provider-surface.rkt"
          "goal1-dashboard.rkt"
          "test-module-support.rkt"
          "../pkgs/webracket-lib/compiler/webify/webracket-full-surface.rkt")
@@ -35,6 +36,7 @@
   (check-not-false (memq 'local-module-graph categories))
   (check-not-false (memq 'installed-provider-graph categories))
   (check-not-false (memq 'installed-provider-coverage categories))
+  (check-not-false (memq 'installed-provider-diagnostic categories))
   (check-not-false (memq 'language-staged-provider categories))
   (check-not-false (memq 'ffi-module categories))
   (check-not-false (memq 'staged-provider-slice categories)))
@@ -151,6 +153,8 @@
    (member 'base-sequence-core goal1-dashboard-coverage-core-case-names))
   (check-not-false
    (member 'base-sequence-hash-generate goal1-dashboard-coverage-core-case-names))
+  (check-false
+   (member 'generator-real-diagnostic goal1-dashboard-coverage-core-case-names))
   (check-not-false
    (member 'ffi-js-console-coverage goal1-dashboard-coverage-extended-case-names))
   (check-not-false
@@ -166,6 +170,16 @@
                                             #:tiers '(coverage)
                                             #:expectations '(required)))
          symbol<?)))
+
+(test-case "for provider surface report classifies staged support"
+  (define rows (compare-for-provider-surface))
+  (define (status-ref name)
+    (for/first ([row (in-list rows)]
+                #:when (eq? name (for-provider-surface-row-name row)))
+      (for-provider-surface-row-status row)))
+  (check-equal? (status-ref 'in-bytes) 'supported)
+  (check-equal? (status-ref 'sequence-generate) 'supported)
+  (check-equal? (status-ref 'in-directory) 'postponed))
 
 (test-case "webracket/full runs statuses have compact dashboard coverage"
   (define covered

@@ -40,7 +40,9 @@ runtime services.
   module programs. It avoids importing the full `racket/stream` implementation;
   `stream` and `stream-cons` preserve the lazy syntax shape for staged streams,
   and staged streams expose `prop:sequence` so ordinary `for` clauses can
-  iterate over them.
+  iterate over them. The staged surface now includes finite helpers such as
+  `stream-length`, `stream-ref`, `stream-tail`, `stream-take`, `stream-append`,
+  `stream-map`, and `stream-filter`.
 - `webracket/contract`: erased contracts. It preserves provider shape and common
   forms, but it does not enforce contracts.
 - `webracket/file`: a small VFS-oriented file provider. This is useful for
@@ -101,7 +103,13 @@ positional module programs. `webracket/full` therefore exports the staged
   work.
 - `racket/generator` routes to `webracket/generator`, a no-op shim. The
   original provider depends on continuation prompts and composable
-  continuations, which are intentionally postponed for Goal 1.
+  continuations, which are intentionally postponed for Goal 1. The dashboard has
+  a diagnostic row that demonstrates real yielded generator values are not
+  supported by this shim.
+- `webify/for-provider-surface.rkt` compares original `racket/private/for`
+  exports with the staged provider and classifies them as supported, postponed,
+  or missing. Use it when deciding whether the next sequence feature belongs in
+  the staged provider or should remain documented as postponed.
 - `racket/dict` routes to staged `webracket/dict`. The coverage row now checks
   both ordinary functions (`dict-map`, `dict-count`) and sequence exports such
   as `in-dict-pairs`.

@@ -892,13 +892,53 @@
          "(define a (for/list ([x (in-range 3)]) x))\n"
          "(define b (for/list ([x (in-string \"ab\")]) x))\n"
          "(define c (for/list ([x (in-vector '#(10 20 12))]) x))\n"
+         "(define h (hash 'a 10 'b 20 'c 12))\n"
+         "(define hsum (for/sum ([(k v) (in-hash h)]) v))\n"
+         "(define indexed (for/sum ([(ch i) (in-indexed \"abc\")]) i))\n"
+         "(define chained (for/sum ([x (in-sequences (list 10 20) (list 12))]) x))\n"
+         "(define before (for/list ([x (stop-before (list 1 2 3 4) (lambda (x) (= x 3)))]) x))\n"
+         "(define after (for/list ([x (stop-after (list 1 2 3 4) (lambda (x) (= x 3)))]) x))\n"
          "(js-log (+ (length a)\n"
          "           (length b)\n"
          "           (apply + c)\n"
-         "           -5))\n")))
+         "           hsum\n"
+         "           indexed\n"
+         "           chained\n"
+         "           (length before)\n"
+         "           (length after)\n"
+         "           -97))\n")))
     "main.rkt"
     #rx"(?m:^42$)"
     '("--no-io-format-provider"))
+   (dashboard-case
+    'sequence-directory-diagnostic
+    'installed-provider-diagnostic
+    '(racket/sequence webracket/file racket/path)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/full\n"
+         "(define paths (for/list ([p (in-directory \".\")]) p))\n"
+         "(js-log (length paths))\n")))
+    "main.rkt"
+    #rx"(?m:^42$)"
+    '("--no-io-format-provider")
+    #:tier 'coverage
+    #:expectation 'diagnostic)
+   (dashboard-case
+    'generator-real-diagnostic
+    'installed-provider-diagnostic
+    '(racket/generator webracket/generator)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/base\n"
+         "(require racket/generator)\n"
+         "(define g (generator () (yield 20) (yield 22)))\n"
+         "(js-log (+ (g) (g)))\n")))
+    "main.rkt"
+    #rx"(?m:^42$)"
+    '("--no-io-format-provider" "--webracket-module-bridge")
+    #:tier 'coverage
+    #:expectation 'diagnostic)
    (dashboard-case
     'full-set
     'language-staged-provider
@@ -1074,10 +1114,18 @@
          "(define s (stream 10 20 12))\n"
          "(define xs (stream->list s))\n"
          "(define direct-len (length (for/list ([x s]) x)))\n"
+         "(define mapped (stream-map add1 s))\n"
+         "(define filtered (stream-filter even? mapped))\n"
+         "(define appended (stream-append (stream-take s 2) (stream 10)))\n"
          "(js-log (+ (apply + xs)\n"
          "           (length xs)\n"
          "           direct-len\n"
-         "           (if (stream-empty? empty-stream) -6 100)))\n")))
+         "           (stream-length s)\n"
+         "           (stream-ref s 1)\n"
+         "           (stream-first (stream-tail s 2))\n"
+         "           (apply + (stream->list filtered))\n"
+         "           (apply + (stream->list appended))\n"
+         "           (if (stream-empty? empty-stream) -81 100)))\n")))
     "main.rkt"
     #rx"(?m:^42$)"
     '("--no-io-format-provider"))

@@ -17,9 +17,7 @@
 ;; continuations. WebRacket does not support those yet, so this module keeps
 ;; provider graphs moving without pretending that generator semantics work.
 
-(struct webracket-generator (state)
-  #:property prop:procedure
-  (lambda (_self . _args) (void)))
+(struct webracket-generator (state))
 
 ;; generator? : any/c -> boolean?
 ;;   Recognize WebRacket's no-op generator shim values.
