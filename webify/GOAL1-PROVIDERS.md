@@ -46,6 +46,11 @@ runtime services.
   `file->string`, but it is not a complete host filesystem story.
 - `webracket/format`: compact formatting surface while the staged `io/format`
   provider continues to grow.
+- `webracket/dict`: contract-free dictionary operations for hashes, vectors,
+  and association lists. It includes the iteration protocol and `in-dict-*`
+  single-value sequences needed by current `racket/dict` Goal 1 programs, but
+  generic `prop:dict`, contracted dictionaries, chaperone/impersonator behavior,
+  and Racket's full two-value `in-dict` sequence are postponed.
 
 ## Routing Rule
 
@@ -79,9 +84,13 @@ positional module programs. `webracket/full` therefore exports the staged
 - Coverage rows also exercise `racket/bool`, `racket/bytes`, `racket/shared`,
   inferred `js/math` and `js/console` FFI bundles, and the staged regexp
   provider.
-- `racket/dict` is still only a smoke row. In this checkout the module exports
-  extension bindings such as `in-dict-pairs`, but the current bridge does not
-  expose them reliably through the `#lang webracket/base` provider route.
+- Extended coverage rows exercise the runtime-adjacent providers that are
+  intentionally narrow today: `racket/file` through the VFS substitute,
+  `data/queue` through its contract-erased queue operations, and
+  `racket/logging` through its currently exported contract surface.
+- `racket/dict` routes to staged `webracket/dict`. The coverage row now checks
+  both ordinary functions (`dict-map`, `dict-count`) and sequence exports such
+  as `in-dict-pairs`.
 
 ## Compatibility Policy
 
@@ -93,3 +102,14 @@ positional module programs. `webracket/full` therefore exports the staged
   records a known unsupported or fragile edge for later work.
 - When a coverage row fails, decide whether to improve WebRacket primitives,
   improve a staged provider, or explicitly postpone that part of the API.
+
+## Dashboard Presets
+
+- `--fast-required` is the tiny inner-loop preset. Use it before and after
+  focused edits.
+- `--coverage-core` is the everyday commit-time coverage preset for the curated
+  Goal 1 surface.
+- `--coverage-extended` is the broader provider/FFI confidence preset. Use it
+  before larger Goal 1 checkpoints.
+- `--tier coverage` still runs every coverage row, including both core and
+  extended rows.

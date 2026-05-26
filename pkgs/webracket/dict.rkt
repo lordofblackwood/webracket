@@ -6,9 +6,19 @@
          dict-set
          dict-has-key?
          dict-count
+         dict-iterate-first
+         dict-iterate-next
+         dict-iterate-key
+         dict-iterate-value
+         dict-map
+         dict-for-each
          dict-keys
          dict-values
-         dict->list)
+         dict->list
+         in-dict
+         in-dict-keys
+         in-dict-values
+         in-dict-pairs)
 
 ;; A small contract-free `racket/dict` substitute for Goal 1 module programs.
 ;; It covers hash tables, vectors, and association lists, which are the common
@@ -126,6 +136,72 @@
     [(list? dict) (length dict)]
     [else (raise-argument-error 'dict-count "dict?" dict)]))
 
+;; dict-iterate-first : dict? -> any/c
+;;   Produce the first supported dictionary iteration position, or #f.
+(define (dict-iterate-first dict)
+  (cond
+    [(hash? dict) (hash-iterate-first dict)]
+    [(vector? dict) (and (positive? (vector-length dict)) 0)]
+    [(list? dict) (and (pair? dict) dict)]
+    [else (raise-argument-error 'dict-iterate-first "dict?" dict)]))
+
+;; dict-iterate-next : dict? any/c -> any/c
+;;   Advance a supported dictionary iteration position, or return #f.
+(define (dict-iterate-next dict pos)
+  (cond
+    [(hash? dict) (hash-iterate-next dict pos)]
+    [(vector? dict)
+     (define next (+ pos 1))
+     (and (< next (vector-length dict)) next)]
+    [(list? dict)
+     (define next (cdr pos))
+     (and (pair? next) next)]
+    [else (raise-argument-error 'dict-iterate-next "dict?" dict)]))
+
+;; dict-iterate-key : dict? any/c -> any/c
+;;   Return the key at a supported dictionary iteration position.
+(define (dict-iterate-key dict pos)
+  (cond
+    [(hash? dict) (hash-iterate-key dict pos)]
+    [(vector? dict) pos]
+    [(list? dict) (caar pos)]
+    [else (raise-argument-error 'dict-iterate-key "dict?" dict)]))
+
+;; dict-iterate-value : dict? any/c -> any/c
+;;   Return the value at a supported dictionary iteration position.
+(define (dict-iterate-value dict pos)
+  (cond
+    [(hash? dict) (hash-iterate-value dict pos)]
+    [(vector? dict) (vector-ref dict pos)]
+    [(list? dict) (cdar pos)]
+    [else (raise-argument-error 'dict-iterate-value "dict?" dict)]))
+
+;; dict-map : dict? (any/c any/c -> any/c) -> list?
+;;   Map a procedure over supported dictionary entries in iteration order.
+(define (dict-map dict proc)
+  (unless (procedure? proc)
+    (raise-argument-error 'dict-map "procedure?" proc))
+  (let loop ([pos (dict-iterate-first dict)])
+    (cond
+      [(not pos) null]
+      [else
+       (cons (proc (dict-iterate-key dict pos)
+                   (dict-iterate-value dict pos))
+             (loop (dict-iterate-next dict pos)))])))
+
+;; dict-for-each : dict? (any/c any/c -> any/c) -> void?
+;;   Apply a procedure to supported dictionary entries for effects.
+(define (dict-for-each dict proc)
+  (unless (procedure? proc)
+    (raise-argument-error 'dict-for-each "procedure?" proc))
+  (let loop ([pos (dict-iterate-first dict)])
+    (cond
+      [(not pos) (void)]
+      [else
+       (proc (dict-iterate-key dict pos)
+             (dict-iterate-value dict pos))
+       (loop (dict-iterate-next dict pos))])))
+
 ;; dict-keys : dict? -> list?
 ;;   Return dictionary keys in unspecified order.
 (define (dict-keys dict)
@@ -162,3 +238,23 @@
                  (loop (+ i 1)))))]
     [(list? dict) dict]
     [else (raise-argument-error 'dict->list "dict?" dict)]))
+
+;; in-dict : dict? -> sequence?
+;;   Return a pair sequence; full two-value sequence support is postponed.
+(define (in-dict dict)
+  (dict->list dict))
+
+;; in-dict-keys : dict? -> sequence?
+;;   Return a list sequence of dictionary keys.
+(define (in-dict-keys dict)
+  (dict-keys dict))
+
+;; in-dict-values : dict? -> sequence?
+;;   Return a list sequence of dictionary values.
+(define (in-dict-values dict)
+  (dict-values dict))
+
+;; in-dict-pairs : dict? -> sequence?
+;;   Return a list sequence of key-value pairs.
+(define (in-dict-pairs dict)
+  (dict->list dict))

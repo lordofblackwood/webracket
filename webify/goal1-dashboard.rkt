@@ -15,6 +15,9 @@
          goal1-dashboard-case-expectation
          goal1-dashboard-default-timeout-seconds
          goal1-dashboard-default-memory-mb
+         goal1-dashboard-fast-required-case-names
+         goal1-dashboard-coverage-core-case-names
+         goal1-dashboard-coverage-extended-case-names
          goal1-dashboard-cases
          goal1-dashboard-select-cases
          goal1-dashboard-row
@@ -80,6 +83,54 @@
 ;; goal1-dashboard-default-memory-mb : exact-positive-integer?
 ;;   Keep compact dashboard runs from exhausting the developer machine.
 (define goal1-dashboard-default-memory-mb 1024)
+
+;; goal1-dashboard-fast-required-case-names : (listof symbol?)
+;;   Tiny inner-loop preset for checking the main routes quickly.
+(define goal1-dashboard-fast-required-case-names
+  '(base-local-expression
+    full-generic-sequence
+    installed-racket-list
+    full-set
+    ffi-js-math
+    regexp-provider-literal))
+
+;; goal1-dashboard-coverage-core-case-names : (listof symbol?)
+;;   Everyday coverage preset for the highest-value curated surface.
+(define goal1-dashboard-coverage-core-case-names
+  '(installed-racket-list-coverage
+    installed-racket-string-coverage
+    installed-racket-string-join
+    full-bytes-coverage
+    installed-racket-bool-coverage
+    installed-racket-vector-coverage
+    installed-racket-function-coverage
+    installed-racket-port-coverage
+    installed-racket-port-display
+    full-math-coverage
+    full-path-coverage
+    full-match-coverage
+    full-sequence-coverage
+    full-set-coverage
+    full-promise-coverage
+    full-stream-lazy
+    full-stream-coverage
+    full-file-coverage
+    installed-racket-format-coverage
+    regexp-provider-coverage))
+
+;; goal1-dashboard-coverage-extended-case-names : (listof symbol?)
+;;   Broader coverage preset for slower provider/FFI confidence checks.
+(define goal1-dashboard-coverage-extended-case-names
+  '(installed-racket-vector-append
+    full-shared-coverage
+    installed-racket-pretty-coverage
+    installed-racket-hash-coverage
+    installed-racket-dict-coverage
+    installed-racket-file-coverage
+    installed-data-queue-coverage
+    installed-racket-logging-coverage
+    ffi-js-math-coverage
+    ffi-js-console-coverage))
 
 (define goal1-dashboard-cases
   (list
@@ -243,6 +294,22 @@
          "(require racket/dict)\n"
          "(define d (hash 'a 40 'b 2))\n"
          "(js-log (+ (dict-ref d 'a) (dict-ref d 'b)))\n")))
+    "main.rkt"
+    #rx"(?m:^42$)"
+    '("--no-io-format-provider" "--webracket-module-bridge"))
+   (dashboard-case
+    'installed-racket-dict-coverage
+    'installed-provider-coverage
+    '(racket/dict)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/base\n"
+         "(require racket/dict)\n"
+         "(define d (hash 'a 10 'b 20 'c 12))\n"
+         "(define total 0)\n"
+         "(for ([p (in-dict-pairs d)]) (set! total (+ total (cdr p))))\n"
+         "(define mapped-values (dict-map d (lambda (k v) v)))\n"
+         "(js-log (if (pair? mapped-values) total 0))\n")))
     "main.rkt"
     #rx"(?m:^42$)"
     '("--no-io-format-provider" "--webracket-module-bridge"))
@@ -574,6 +641,24 @@
          "(require racket/file)\n"
          "(display-to-file \"web\" \"/app/data/goal1-file.txt\" 'text 'replace)\n"
          "(js-log (+ (string-length (file->string \"/app/data/goal1-file.txt\")) 39))\n")))
+    "main.rkt"
+    #rx"(?m:^42$)"
+    '("--no-io-format-provider" "--webracket-module-bridge"))
+   (dashboard-case
+    'installed-racket-file-coverage
+    'installed-provider-coverage
+    '(racket/file)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/base\n"
+         "(require racket/file)\n"
+         "(define p \"/app/data/goal1-installed-file-coverage.txt\")\n"
+         "(display-to-file \"webracket\" p 'text 'replace)\n"
+         "(define text (file->string p))\n"
+         "(define bytes (file->bytes p))\n"
+         "(js-log (+ (string-length text)\n"
+         "           (bytes-length bytes)\n"
+         "           (if (file-exists? p) 24 100)))\n")))
     "main.rkt"
     #rx"(?m:^42$)"
     '("--no-io-format-provider" "--webracket-module-bridge"))
@@ -980,6 +1065,21 @@
     #rx"(?m:^44$)"
     '("--no-io-format-provider" "--webracket-module-bridge"))
    (dashboard-case
+    'installed-data-queue-coverage
+    'installed-provider-coverage
+    '(data/queue racket/contract/base)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/base\n"
+         "(require data/queue)\n"
+         "(define q (make-queue))\n"
+         "(enqueue! q 40)\n"
+         "(enqueue-front! q 2)\n"
+         "(js-log (+ (dequeue! q) (dequeue! q)))\n")))
+    "main.rkt"
+    #rx"(?m:^42$)"
+    '("--no-io-format-provider" "--webracket-module-bridge"))
+   (dashboard-case
     'installed-racket-logging
     'installed-provider-graph
     '(racket/logging racket/contract/base)
@@ -988,6 +1088,18 @@
          "#lang webracket/base\n"
          "(require racket/logging)\n"
          "(js-log (if log-level/c 42 0))\n")))
+    "main.rkt"
+    #rx"(?m:^42$)"
+    '("--no-io-format-provider" "--webracket-module-bridge"))
+   (dashboard-case
+    'installed-racket-logging-coverage
+    'installed-provider-coverage
+    '(racket/logging racket/contract/base)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/base\n"
+         "(require racket/logging)\n"
+         "(js-log (if (and log-level/c (not (log-level? (current-logger) 'info))) 42 0))\n")))
     "main.rkt"
     #rx"(?m:^42$)"
     '("--no-io-format-provider" "--webracket-module-bridge"))
@@ -1343,9 +1455,15 @@
                       (set! expectations (split-selectors names))]
    [("--required") "run/list only required rows"
                    (set! expectations '(required))]
-   [("--fast-required") "run/list the basic required inner-loop rows"
-                        (set! tiers '(basic))
-                        (set! expectations '(required))])
+   [("--fast-required") "run/list the tiny required inner-loop preset"
+                        (set! case-names goal1-dashboard-fast-required-case-names)
+                        (set! expectations '(required))]
+   [("--coverage-core") "run/list the everyday Goal 1 coverage preset"
+                        (set! case-names goal1-dashboard-coverage-core-case-names)
+                        (set! expectations '(required))]
+   [("--coverage-extended") "run/list the broader Goal 1 coverage preset"
+                            (set! case-names goal1-dashboard-coverage-extended-case-names)
+                            (set! expectations '(required))])
   (print-goal1-dashboard #:tsv? tsv?
                          #:json? json?
                          #:list? list?

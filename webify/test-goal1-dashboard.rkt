@@ -11,6 +11,7 @@
 
 (define-runtime-path webracket-full-main "../pkgs/webracket/full/main.rkt")
 (define-runtime-path goal1-providers-doc "GOAL1-PROVIDERS.md")
+(define-runtime-path goal1-status-doc "GOAL1-STATUS.md")
 
 ;; module-runtime-export-symbols : symbol? -> (listof symbol?)
 ;;   List phase-0 value exports for an already-loadable module path.
@@ -132,6 +133,36 @@
   (check-false (member 'installed-racket-string-join
                        (map goal1-dashboard-case-name fast-required))))
 
+(test-case "compact Goal 1 dashboard exposes named presets"
+  (define (names->cases names)
+    (goal1-dashboard-select-cases goal1-dashboard-cases #:names names))
+  (check-equal?
+   (map goal1-dashboard-case-name
+        (names->cases goal1-dashboard-fast-required-case-names))
+   goal1-dashboard-fast-required-case-names)
+  (check-true
+   (< (length goal1-dashboard-fast-required-case-names)
+      (length (goal1-dashboard-select-cases goal1-dashboard-cases
+                                            #:tiers '(basic)
+                                            #:expectations '(required)))))
+  (check-not-false
+   (member 'full-stream-lazy goal1-dashboard-coverage-core-case-names))
+  (check-not-false
+   (member 'ffi-js-console-coverage goal1-dashboard-coverage-extended-case-names))
+  (check-not-false
+   (member 'installed-racket-dict-coverage goal1-dashboard-coverage-extended-case-names))
+  (check-not-false
+   (member 'installed-data-queue-coverage goal1-dashboard-coverage-extended-case-names))
+  (check-equal?
+   (sort (append goal1-dashboard-coverage-core-case-names
+                 goal1-dashboard-coverage-extended-case-names)
+         symbol<?)
+   (sort (map goal1-dashboard-case-name
+              (goal1-dashboard-select-cases goal1-dashboard-cases
+                                            #:tiers '(coverage)
+                                            #:expectations '(required)))
+         symbol<?)))
+
 (test-case "webracket/full runs statuses have compact dashboard coverage"
   (define covered
     (remove-duplicates
@@ -206,6 +237,10 @@
                          full-stream-lazy
                          full-stream-coverage
                          installed-racket-hash-coverage
+                         installed-racket-dict-coverage
+                         installed-racket-file-coverage
+                         installed-data-queue-coverage
+                         installed-racket-logging-coverage
                          installed-racket-format-coverage
                          ffi-js-math-coverage
                          ffi-js-console-coverage
@@ -217,6 +252,7 @@
   (define doc (file->string goal1-providers-doc))
   (for ([needle (in-list '("webracket/function"
                            "webracket/set"
+                           "webracket/dict"
                            "webracket/contract"
                            "installed-provider-coverage"
                            "Routing Rule"
@@ -224,6 +260,16 @@
                            "webracket/string"
                            "External explicit requires"
                            "claim of full"))])
+    (check-not-false (regexp-match? (regexp (regexp-quote needle)) doc) needle)))
+
+(test-case "Goal 1 status report documents dashboard workflow and boundaries"
+  (define doc (file->string goal1-status-doc))
+  (for ([needle (in-list '("Goal 1 is module-based WebRacket programs"
+                           "--fast-required"
+                           "--coverage-core"
+                           "--coverage-extended"
+                           "not a full compatibility claim"
+                           "webracket/base should remain small"))])
     (check-not-false (regexp-match? (regexp (regexp-quote needle)) doc) needle)))
 
 (module+ main
