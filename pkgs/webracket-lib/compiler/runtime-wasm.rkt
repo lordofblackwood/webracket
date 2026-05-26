@@ -51732,6 +51732,39 @@
                ;; Delegate to write-char with the newline character.
                (call $write-char ,(Imm #\newline) (local.get $out)))
 
+         ;; display : any/c [output-port?] -> void?
+         ;;   Display a value using WebRacket's current display formatter.
+         ;;   Optional output port defaults to (current-output-port).
+         (func $display (type $Prim12)
+               (param $v   (ref eq)) ;; any/c
+               (param $out (ref eq)) ;; output-port? (optional, default = (current-output-port))
+               (result     (ref eq))
+
+               (if (ref.eq (local.get $out) (global.get $missing))
+                   (then (local.set $out (call $current-output-port
+                                               (global.get $missing)))))
+               (drop (call $write-string
+                           (call $format/display (local.get $v))
+                           (local.get $out)
+                           (global.get $missing)
+                           (global.get $missing)))
+               (global.get $void))
+
+         ;; displayln : any/c [output-port?] -> void?
+         ;;   Display a value followed by a newline.
+         ;;   Optional output port defaults to (current-output-port).
+         (func $displayln (type $Prim12)
+               (param $v   (ref eq)) ;; any/c
+               (param $out (ref eq)) ;; output-port? (optional, default = (current-output-port))
+               (result     (ref eq))
+
+               (if (ref.eq (local.get $out) (global.get $missing))
+                   (then (local.set $out (call $current-output-port
+                                               (global.get $missing)))))
+               (drop (call $display (local.get $v) (local.get $out)))
+               (drop (call $newline (local.get $out)))
+               (global.get $void))
+
          ;; write-bytes/custom : custom-output-port? bytes? i32 i32 -> exact-nonnegative-integer? or #f
          ;;   Dispatch a byte slice to a custom output port's delegate.
          (func $write-bytes/custom

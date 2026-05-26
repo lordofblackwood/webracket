@@ -280,7 +280,19 @@
     (for/list ([export (in-list exports)]
                #:when (symbolic-name=? export external))
       export))
-  (match (if (null? exact-matches) matches exact-matches)
+  (define generated-primary
+    (string->symbol (format "~a.1" external)))
+  (define generated-primary-matches
+    (for/list ([export (in-list matches)]
+               #:when (equal? (symbol->string export)
+                              (symbol->string generated-primary)))
+      export))
+  (define selected-matches
+    (cond
+      [(pair? exact-matches) exact-matches]
+      [(pair? generated-primary-matches) generated-primary-matches]
+      [else matches]))
+  (match selected-matches
     [(list export) export]
     ['()
      (raise-arguments-error who

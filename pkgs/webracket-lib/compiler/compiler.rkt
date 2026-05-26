@@ -1575,6 +1575,10 @@
        current-load-relative-directory)
      'optional 0 1)
     (make-inline-specs
+     '(display
+       displayln)
+     'optional 1 2)
+    (make-inline-specs
      '(raise-read-error
        raise-read-eof-error)
      'optional 6 7)
@@ -2535,6 +2539,8 @@
   write-byte
   write-char
   newline
+  display
+  displayln
   write-bytes
   write-string
 

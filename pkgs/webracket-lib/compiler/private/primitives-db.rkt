@@ -406,6 +406,8 @@
 (define-primitive delete-file                               1                   (ordered))
 (define-primitive directory-exists?                         1                   (pure))
 (define-primitive directory-list                            [0 1 2]             (ordered))
+(define-primitive display                                   [1 2]               (ordered))
+(define-primitive displayln                                 [1 2]               (ordered))
 (define-primitive display-lines-to-file                     [2 3 4 5]           (ordered))
 (define-primitive display-to-file                           [2 3 4]             (ordered))
 (define-primitive do-raise-syntax-error                     8                   (ordered))

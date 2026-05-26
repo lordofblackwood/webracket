@@ -274,6 +274,7 @@
     webracket/private/kw
     webracket/syntax/contract
     webracket/set
+    webracket/string
     webracket/stream
     webracket/unsafe/console
     webracket/unsafe/math
@@ -320,6 +321,7 @@
     webracket/private/kw
     webracket/syntax/contract
     webracket/set
+    webracket/string
     webracket/stream
     webracket/unsafe/console
     webracket/unsafe/math

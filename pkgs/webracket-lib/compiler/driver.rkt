@@ -1514,6 +1514,7 @@
     [(racket/pretty) 'webracket/pretty]
     [(racket/promise) 'webracket/promise]
     [(racket/set) 'webracket/set]
+    [(racket/string) 'webracket/string]
     [(racket/stream) 'webracket/stream]
     [(racket/unsafe/undefined) 'webracket/unsafe/undefined]
     [(syntax/contract) 'webracket/syntax/contract]
@@ -1740,6 +1741,19 @@
                `(define-values (,export) #f))
            (provide ,@unique-exports)))))))
 
+;; provider-public-export-symbols : symbol? namespace? procedure? -> (listof symbol?)
+;;   Approximate source-level value exports added by requiring a provider.
+(define (provider-public-export-symbols name namespace module-name-resolver)
+  (define before (namespace-mapped-symbols namespace))
+  (with-handlers ([exn:fail? (lambda (_exn) '())])
+    (parameterize ([current-namespace namespace]
+                   [current-module-name-resolver module-name-resolver])
+      (namespace-require name)
+      (define after (namespace-mapped-symbols namespace))
+      (for/list ([sym (in-list after)]
+                 #:unless (memq sym before))
+        sym))))
+
 ;; lib-module-path->symbol : any/c -> (or/c symbol? #f)
 ;;   Convert simple `(lib "x.rkt" "collection" ...)` paths to shorthand names.
 (define (lib-module-path->symbol module-path)
@@ -1825,10 +1839,16 @@
                          [current-module-name-resolver provider-module-name-resolver])
             (webify-module-path->report substitute-name
                                         #:namespace provider-namespace)))
+        (define public-exports
+          (provider-public-export-symbols
+           name
+           (make-webify-contract-erasing-namespace)
+           provider-module-name-resolver))
         (declare-provider-compile-stub!
          extraction-namespace
          name
-         (webify-module-report-phase0-exports report))
+         (append public-exports
+                 (webify-module-report-phase0-exports report)))
         (set! compile-stub-names (cons name compile-stub-names)))))
   (define visiting (make-hash))
   (define permanent (make-hash))

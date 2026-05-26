@@ -65,6 +65,10 @@ positional module programs. `webracket/full` therefore exports the staged
 - `format` is available in `webracket/full` when the staged `io/format` provider
   is enabled. Tests that pass `--no-io-format-provider` should not use `format`;
   those tests are checking the smaller no-IO-provider path.
+- `racket/string` currently routes through `webracket/string` in the module
+  bridge for common operations such as `string-join`. The installed provider
+  still exposes a deeper transitive `racket/list`/quasiquote edge that is better
+  handled as a later provider-graph improvement.
 
 ## Compatibility Policy
 

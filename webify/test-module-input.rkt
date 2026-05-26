@@ -236,6 +236,14 @@
     #:dependencies `((,importer-export racket/string)))
    `((,importer-export racket/string ,provider-export))))
 
+(test-case "dependency resolver prefers generated primary export for public imports"
+  (check-equal?
+   (webify-resolve-module-linklet-imports
+    '(linklet (((string-join string-join))) (y)
+       (define-values (y) string-join))
+    '((racket/string (string-join9.1 string-join.2 string-join.1))))
+   '((string-join racket/string string-join.1))))
+
 (test-case "dependency resolver normalizes generated new: aliases"
   (define importer-linklet
     '(linklet (((new:procedure-reduce-arity-mask new:procedure-reduce-arity-mask))) (y)

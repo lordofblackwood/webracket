@@ -300,8 +300,8 @@
     #rx"(?m:^42$)"
     '("--no-io-format-provider" "--webracket-module-bridge"))
    (dashboard-case
-    'diagnostic-racket-string-join
-    'installed-provider-diagnostic
+    'installed-racket-string-join
+    'installed-provider-coverage
     '(racket/string)
     `(("main.rkt" .
        ,(string-append
@@ -310,9 +310,7 @@
          "(js-log (string-join '(\"web\" \"racket\") \"\"))\n")))
     "main.rkt"
     #rx"(?m:^webracket$)"
-    '("--no-io-format-provider" "--webracket-module-bridge")
-    #:tier 'diagnostic
-    #:expectation 'diagnostic)
+    '("--no-io-format-provider" "--webracket-module-bridge"))
    (dashboard-case
     'installed-racket-vector
     'installed-provider-graph
@@ -326,8 +324,8 @@
     #rx"(?m:^42$)"
     '("--no-io-format-provider" "--webracket-module-bridge"))
    (dashboard-case
-    'diagnostic-racket-vector-append
-    'installed-provider-diagnostic
+    'installed-racket-vector-append
+    'installed-provider-coverage
     '(racket/vector)
     `(("main.rkt" .
        ,(string-append
@@ -339,9 +337,7 @@
          "           (vector-ref v 2)))\n")))
     "main.rkt"
     #rx"(?m:^42$)"
-    '("--no-io-format-provider" "--webracket-module-bridge")
-    #:tier 'diagnostic
-    #:expectation 'diagnostic)
+    '("--no-io-format-provider" "--webracket-module-bridge"))
    (dashboard-case
     'installed-racket-vector-coverage
     'installed-provider-coverage
@@ -448,8 +444,8 @@
     #rx"(?m:^42$)"
     '("--no-io-format-provider" "--webracket-module-bridge"))
    (dashboard-case
-    'diagnostic-racket-port-display
-    'installed-provider-diagnostic
+    'installed-racket-port-display
+    'installed-provider-coverage
     '(racket/port)
     `(("main.rkt" .
        ,(string-append
@@ -460,9 +456,7 @@
          "(js-log (+ (string-length (get-output-string out)) 39))\n")))
     "main.rkt"
     #rx"(?m:^42$)"
-    '("--no-io-format-provider" "--webracket-module-bridge")
-    #:tier 'diagnostic
-    #:expectation 'diagnostic)
+    '("--no-io-format-provider" "--webracket-module-bridge"))
    (dashboard-case
     'installed-racket-pretty
     'installed-provider-graph
@@ -799,15 +793,18 @@
                 #:unless (string=? trimmed ""))
        (string->symbol trimmed))]))
 
-;; goal1-dashboard-select-cases : list [#:names list] [#:categories list] [#:tiers list] -> list
-;;   Select compact dashboard cases by name, category, and/or tier.
+;; goal1-dashboard-select-cases : list [#:names list] [#:categories list] [#:tiers list] [#:expectations list] -> list
+;;   Select compact dashboard cases by name, category, tier, and/or expectation.
 (define (goal1-dashboard-select-cases cases
                                       #:names [names '()]
                                       #:categories [categories '()]
-                                      #:tiers [tiers '()])
+                                      #:tiers [tiers '()]
+                                      #:expectations [expectations '()])
   (define name-set (for/hasheq ([name (in-list names)]) (values name #t)))
   (define category-set (for/hasheq ([category (in-list categories)]) (values category #t)))
   (define tier-set (for/hasheq ([tier (in-list tiers)]) (values tier #t)))
+  (define expectation-set (for/hasheq ([expectation (in-list expectations)])
+                            (values expectation #t)))
   (for/list ([c (in-list cases)]
              #:when (and (or (null? names)
                              (hash-ref name-set (goal1-dashboard-case-name c) #f))
@@ -818,6 +815,10 @@
                          (or (null? tiers)
                              (hash-ref tier-set
                                        (goal1-dashboard-case-tier c)
+                                       #f))
+                         (or (null? expectations)
+                             (hash-ref expectation-set
+                                       (goal1-dashboard-case-expectation c)
                                        #f))))
     c))
 
@@ -979,12 +980,14 @@
                                #:memory-mb [memory-mb goal1-dashboard-default-memory-mb]
                                #:case-names [case-names '()]
                                #:categories [categories '()]
-                               #:tiers [tiers '()])
+                               #:tiers [tiers '()]
+                               #:expectations [expectations '()])
   (define selected-cases
     (goal1-dashboard-select-cases goal1-dashboard-cases
                                   #:names case-names
                                   #:categories categories
-                                  #:tiers tiers))
+                                  #:tiers tiers
+                                  #:expectations expectations))
   (cond
     [list?
      (for ([c (in-list selected-cases)])
@@ -1037,6 +1040,7 @@
   (define case-names '())
   (define categories '())
   (define tiers '())
+  (define expectations '())
   (command-line
    #:once-each
    [("--tsv") "print TSV rows" (set! tsv? #t)]
@@ -1053,7 +1057,14 @@
    [("--category") names "comma-separated categories to run/list"
                    (set! categories (split-selectors names))]
    [("--tier") names "comma-separated tiers to run/list"
-               (set! tiers (split-selectors names))])
+               (set! tiers (split-selectors names))]
+   [("--expectation") names "comma-separated expectations to run/list"
+                      (set! expectations (split-selectors names))]
+   [("--required") "run/list only required rows"
+                   (set! expectations '(required))]
+   [("--fast-required") "run/list the basic required inner-loop rows"
+                        (set! tiers '(basic))
+                        (set! expectations '(required))])
   (print-goal1-dashboard #:tsv? tsv?
                          #:json? json?
                          #:list? list?
@@ -1062,4 +1073,5 @@
                          #:memory-mb memory-mb
                          #:case-names case-names
                          #:categories categories
-                         #:tiers tiers))
+                         #:tiers tiers
+                         #:expectations expectations))
