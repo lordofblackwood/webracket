@@ -31,6 +31,7 @@
     webracket/contract
     webracket/pretty
     webracket/promise
+    webracket/sequence
     webracket/set
     webracket/stream))
 
@@ -60,7 +61,7 @@
     (racket/math     exported extracts partial partial)
     (racket/path     exported extracts partial partial)
     (racket/port     exported extracts partial partial)
-    (racket/sequence exported extracts partial runs)
+    (racket/sequence exported substituted staged runs)
     (racket/shared   exported expands  partial host-only)
     (racket/stream   substituted staged staged runs)
     (racket/string   exported extracts partial runs)
@@ -71,5 +72,6 @@
     (webracket/contract exported extracts staged runs)
     (webracket/pretty   exported extracts staged runs)
     (webracket/promise exported extracts staged runs)
+    (webracket/sequence exported extracts staged runs)
     (webracket/set     exported extracts staged runs)
     (webracket/stream  exported extracts staged runs)))

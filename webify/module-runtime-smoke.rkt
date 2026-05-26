@@ -190,7 +190,8 @@
       (display "#lang racket/base\n" out)
       (write
        `(begin
-          (require (file ,(path->string (build-path repo-root "pkgs/webracket-lib/compiler/webify/module-extractor.rkt")))
+          (require racket/match
+                   (file ,(path->string (build-path repo-root "pkgs/webracket-lib/compiler/webify/module-extractor.rkt")))
                    (file ,(path->string (build-path repo-root "pkgs/webracket-lib/compiler/webify/module-input.rkt")))
                    (file ,(path->string (build-path repo-root "pkgs/webracket-lib/compiler/webify/module-protocol.rkt"))))
           (define root-names ',root-names)
@@ -208,6 +209,7 @@
               [(racket/port) 'webracket/port]
               [(racket/pretty) 'webracket/pretty]
               [(racket/promise) 'webracket/promise]
+              [(racket/sequence) 'webracket/sequence]
               [(racket/set) 'webracket/set]
               [(racket/stream) 'webracket/stream]
               [(racket/unsafe/undefined) 'webracket/unsafe/undefined]
@@ -235,6 +237,29 @@
                 load?)]
               [(resolved namespace)
                (provider-module-name-resolver resolved namespace)]))
+          (define (source-substitute-require-spec spec)
+            (match spec
+              [(? symbol?) (source-substitute-module-path spec)]
+              [`(,(and form
+                       (or 'only-in 'except-in 'rename-in 'prefix-in
+                           'combine-in 'only-meta-in 'for-meta 'for-syntax
+                           'for-template 'for-label 'for-space))
+                 ,body ...)
+               (cons form (map source-substitute-require-spec body))]
+              [_ spec]))
+          (define (source-substitute-require-form form)
+            (match form
+              [`(require ,specs ...)
+               `(require ,@(map source-substitute-require-spec specs))]
+              [_ form]))
+          (define (source-substitute-module-datum datum)
+            (match datum
+              [`(module ,name ,language (#%module-begin ,forms ...))
+               `(module ,name ,language
+                  (#%module-begin ,@(map source-substitute-require-form forms)))]
+              [`(module ,name ,language ,forms ...)
+               `(module ,name ,language ,@(map source-substitute-require-form forms))]
+              [_ datum]))
           (define (provider-substitute name)
             (case name
               [(racket/class) 'webracket/class]
@@ -246,6 +271,7 @@
               [(racket/port) 'webracket/port]
               [(racket/pretty) 'webracket/pretty]
               [(racket/promise) 'webracket/promise]
+              [(racket/sequence) 'webracket/sequence]
               [(racket/set) 'webracket/set]
               [(racket/stream) 'webracket/stream]
               [(racket/unsafe/undefined) 'webracket/unsafe/undefined]
@@ -427,7 +453,7 @@
              name))
           (define inputs
             (webify-source-modules->discovered-resolved-linklet-inputs
-             ',module-data
+             (map source-substitute-module-datum ',module-data)
              #:extra-reports (list webify-module-protocol-report)
              #:fetch-provider ,(if use-erased-contract-providers?
                                   'fetch-provider

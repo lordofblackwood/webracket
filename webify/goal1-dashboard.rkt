@@ -933,6 +933,7 @@
          "(display-to-file \"root\" \"/app/seq-dir/root.txt\" 'text 'replace)\n"
          "(display-to-file \"leaf\" \"/app/seq-dir/a/leaf.txt\" 'text 'replace)\n"
          "(define paths (for/list ([p (in-directory \"/app/seq-dir\")]) p))\n"
+         "(js-log paths)\n"
          "(js-log (+ (length paths) 39))\n")))
     "main.rkt"
     #rx"(?m:^42$)"

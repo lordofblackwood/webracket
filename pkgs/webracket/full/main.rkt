@@ -11,7 +11,6 @@
          racket/math
          racket/path
          racket/port
-         racket/sequence
          racket/shared
          racket/string
          racket/vector
@@ -33,6 +32,21 @@
          "../js/main.rkt"
          "../pretty.rkt"
          "../promise.rkt"
+         (only-in "../sequence.rkt"
+                  empty-sequence
+                  sequence->list
+                  sequence-length
+                  sequence-ref
+                  sequence-tail
+                  sequence-append
+                  sequence-map
+                  sequence-andmap
+                  sequence-ormap
+                  sequence-for-each
+                  sequence-fold
+                  sequence-count
+                  sequence-filter
+                  sequence-add-between)
          "../set.rkt"
          "../stream.rkt"
          (except-in "../function.rkt" compose compose1)
@@ -69,7 +83,6 @@
          (all-from-out racket/math)
          (all-from-out racket/path)
          (all-from-out racket/port)
-         (all-from-out racket/sequence)
          (all-from-out racket/shared)
          (all-from-out racket/string)
          (all-from-out racket/vector)
@@ -88,6 +101,20 @@
          (all-from-out "../js/main.rkt")
          (all-from-out "../pretty.rkt")
          (all-from-out "../promise.rkt")
+         empty-sequence
+         sequence->list
+         sequence-length
+         sequence-ref
+         sequence-tail
+         sequence-append
+         sequence-map
+         sequence-andmap
+         sequence-ormap
+         sequence-for-each
+         sequence-fold
+         sequence-count
+         sequence-filter
+         sequence-add-between
          (all-from-out "../set.rkt")
          (all-from-out "../stream.rkt")
          (for-syntax (all-from-out racket/base))

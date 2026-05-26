@@ -61303,12 +61303,23 @@
                          (drop (call $write-byte (global.get $fasl-string) (local.get $out)))
                          (call $fasl:write-string (ref.cast (ref $String) (local.get $v)) (local.get $out)))
 
-                        (else (if (ref.test (ref $Bytes) (local.get $v))
+                        (else (if (ref.test (ref $Path) (local.get $v))
                                   (then
-                                   (drop (call $write-byte (global.get $fasl-bytes) (local.get $out)))
-                                   (call $fasl:write-bytes (ref.cast (ref $Bytes) (local.get $v)) (local.get $out)))
+                                   ;; JS console logging uses FASL as a transport format.
+                                   ;; Paths are not a real FASL datum here, so send their
+                                   ;; existing display rendering as a string.
+                                   (drop (call $write-byte (global.get $fasl-string) (local.get $out)))
+                                   (call $fasl:write-string
+                                         (call $format/display:path
+                                               (ref.cast (ref $Path) (local.get $v)))
+                                         (local.get $out)))
 
-                                  (else (if (ref.test (ref $Symbol) (local.get $v))
+                                  (else (if (ref.test (ref $Bytes) (local.get $v))
+                                            (then
+                                             (drop (call $write-byte (global.get $fasl-bytes) (local.get $out)))
+                                             (call $fasl:write-bytes (ref.cast (ref $Bytes) (local.get $v)) (local.get $out)))
+
+                                            (else (if (ref.test (ref $Symbol) (local.get $v))
                                             (then
                                              (drop (call $write-byte (global.get $fasl-symbol) (local.get $out)))
                                              (call $fasl:write-symbol (ref.cast (ref $Symbol) (local.get $v)) (local.get $out)))
@@ -61357,7 +61368,7 @@
                                                                                 (local.get $out)))
                                                                           (else (call $raise-s-exp->fasl:unsupported-value
                                                                                       (local.get $v))
-                                                                                (unreachable)))))))))))))))))) ;; unsupported type
+                                                                                (unreachable)))))))))))))))))))) ;; unsupported type
          
          (func $s-exp->fasl/immediate
                (param $i   i32)

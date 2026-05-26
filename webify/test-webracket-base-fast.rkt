@@ -94,5 +94,27 @@
     "(js-log (+ (length xs) (length ys) (length zs) (length ns) (length bs) (length hs)))\n")
    #rx"(?m:^14$)"))
 
+(test-case "fast #lang webracket/full js-log path smoke"
+  (run-fast-module-smoke
+   (string-append
+    "#lang webracket/full\n"
+    "(define p (build-path \"/app\" \"seq-path\"))\n"
+    "(js-log p)\n"
+    "(js-log (list p))\n"
+    "(js-log 42)\n")
+   #rx"(?m:^42$)"))
+
+(test-case "fast #lang webracket/full in-directory path smoke"
+  (run-fast-module-smoke
+   (string-append
+    "#lang webracket/full\n"
+    "(make-directory* \"/app/seq-dir/a\")\n"
+    "(display-to-file \"root\" \"/app/seq-dir/root.txt\" 'text 'replace)\n"
+    "(display-to-file \"leaf\" \"/app/seq-dir/a/leaf.txt\" 'text 'replace)\n"
+    "(define paths (for/list ([p (in-directory \"/app/seq-dir\")]) p))\n"
+    "(js-log paths)\n"
+    "(js-log (+ (length paths) 39))\n")
+   #rx"(?m:^42$)"))
+
 (module+ main
   (void))
