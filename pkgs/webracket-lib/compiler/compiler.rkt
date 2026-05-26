@@ -2900,6 +2900,7 @@
   link-exists?
   file-or-directory-type
   directory-list
+  webracket-directory-list-build-first
   filesystem-root-list
   find-system-path
   current-drive

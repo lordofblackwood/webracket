@@ -248,6 +248,7 @@
     [(eq? sym-or-primitive 'module-variable-reference-variable)     (webracket-primitive-description sym-or-primitive 1)]
     [(eq? sym-or-primitive 'module-variable-reference)              (webracket-primitive-description sym-or-primitive 2)]
     [(eq? sym-or-primitive 'module-call-with-prompt)                (webracket-primitive-description sym-or-primitive (arity-at-least 1))]
+    [(eq? sym-or-primitive 'webracket-directory-list-build-first)   (webracket-primitive-description sym-or-primitive 2)]
     [(exception-constructor? sym-or-primitive)
      (define pr (exception-constructor->primitive sym-or-primitive))
      (define x pr)

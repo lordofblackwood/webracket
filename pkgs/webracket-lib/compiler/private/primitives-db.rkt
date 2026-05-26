@@ -406,6 +406,7 @@
 (define-primitive delete-file                               1                   (ordered))
 (define-primitive directory-exists?                         1                   (pure))
 (define-primitive directory-list                            [0 1 2]             (ordered))
+(define-primitive webracket-directory-list-build-first       2                   (ordered))
 (define-primitive display                                   [1 2]               (ordered))
 (define-primitive displayln                                 [1 2]               (ordered))
 (define-primitive display-lines-to-file                     [2 3 4 5]           (ordered))

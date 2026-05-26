@@ -439,6 +439,24 @@
                 '((1/syntax-source webracket/primitives syntax-source)))
   (check-equal? (map webify-module-resolution-outcome-status syntax-source-outcomes)
                 '(resolved-by-compiled-primitive-alias))
+  (define-values (directory-list-imports directory-list-outcomes)
+    (webify-resolve-module-linklet-imports/outcomes
+     '(linklet (([directory-list.1 directory-list78.1])) (y)
+        (define-values (y) directory-list.1))
+     '()
+     #:module-name 'webracket/private/for))
+  (check-equal? directory-list-imports
+                '((directory-list.1 #%kernel webracket-directory-list-build-first)))
+  (check-equal? (map webify-module-resolution-outcome-status directory-list-outcomes)
+                '(resolved-by-compiled-primitive-alias))
+  (define-values (racket-for-directory-list-imports _racket-for-directory-list-outcomes)
+    (webify-resolve-module-linklet-imports/outcomes
+     '(linklet (([directory-list.1 directory-list78.1])) (y)
+        (define-values (y) directory-list.1))
+     '()
+     #:module-name 'racket/private/for))
+  (check-equal? racket-for-directory-list-imports
+                '((directory-list.1 #%kernel webracket-directory-list-build-first)))
   (check-exn
    #rx"dependency does not export required name"
    (lambda ()

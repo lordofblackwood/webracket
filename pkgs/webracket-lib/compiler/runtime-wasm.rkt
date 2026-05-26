@@ -73188,6 +73188,17 @@
                                   (br $build)))
                      (local.get $xs))
 
+               ;; webracket-directory-list-build-first : any/c path-string? -> (listof path?)
+               ;;   Adapter for compiled Racket CS internal `directory-list.1`
+               ;;   imports, which pass the #:build? value before the path.
+               (func $webracket-directory-list-build-first (type $Prim2)
+                     (param $build-raw (ref eq)) ;; #:build? value
+                     (param $path-raw  (ref eq)) ;; path-string?
+                     (result           (ref eq))
+                     (return (call $directory-list
+                                   (local.get $path-raw)
+                                   (local.get $build-raw))))
+
                ;; filesystem-root-list : -> (listof path?)
                ;;   Return the mounted VFS roots as directory paths.
                (func $filesystem-root-list (type $Prim0)

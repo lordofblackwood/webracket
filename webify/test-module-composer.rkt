@@ -152,6 +152,39 @@
     [other
      (fail-check (format "unexpected primitive-import composition shape: ~s" other))]))
 
+(test-case "linklet composer adapts compiled directory-list.N primitive imports"
+  (for* ([import-name (in-list '(directory-list.1 directory-list.12))]
+         [export-name (in-list '(directory-list directory-list.1))])
+    (define-values (combined _fragments _instances _exports-infos)
+      (compose-linklet-first-slices
+       (list
+        (webify-linklet-slice-spec
+         'uses-directory-list
+         `(linklet (((,import-name directory-list))) (x)
+            (define-values (x) ,import-name))
+         `(((,import-name #%kernel ,export-name)))))
+       #:tail '((void))))
+    (match (normalize-symbols combined)
+      [`("begin"
+         ("define" "webify-linklet-proc$0" ,_)
+         ("define" "webify-export-cell0$0" ,_)
+         ("webify-linklet-proc$0"
+          ("#%variable-reference")
+          ("let" (("cell" ("module-variable-make"
+                           ("quote" "webracket-directory-list-build-first"))))
+            ("module-variable-define!"
+             "cell"
+             "webracket-directory-list-build-first"
+             ("quote" "constant"))
+            "cell")
+          "webify-export-cell0$0")
+         ("define" "x" ("module-variable-ref" "webify-export-cell0$0"))
+         ("void")
+         ("void"))
+       (void)]
+      [other
+       (fail-check (format "unexpected directory-list.1 primitive-import shape: ~s" other))])))
+
 (test-case "linklet composer can override primitive import cells"
   (define-values (combined _fragments _instances _exports-infos)
     (parameterize ([current-composer-primitive-import-cell-overrides

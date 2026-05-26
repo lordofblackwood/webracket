@@ -486,6 +486,9 @@
     [(and (eq? local '1/syntax-source)
           (eq? external 'syntax-source))
      '(webracket/primitives syntax-source)]
+    [(and (memq module-name '(racket/private/for webracket/private/for))
+          (eq? local 'directory-list.1))
+     '(#%kernel webracket-directory-list-build-first)]
     [else #f]))
 
 ;; webify-resolve-module-linklet-imports/outcomes : linklet dependency-exports keyword-args ... -> values

@@ -1132,20 +1132,21 @@
                (sorted-paths (directory-list full-d)))
           acc))
 
-;; next-body : list? path-string? procedure? -> list?
+;; next-body : list? path-string? path-string? procedure? -> list?
 ;;   Advance an in-directory traversal, descending when use-dir? permits it.
-(define (next-body state d use-dir?)
-  (if (and (directory-exists? d)
-           (use-dir? d))
-      (dir-list d d (cdr state))
+(define (next-body state d init-dir use-dir?)
+  (define full-d (path->complete-path d init-dir))
+  (if (and (directory-exists? full-d)
+           (use-dir? full-d))
+      (dir-list full-d d (cdr state))
       (cdr state)))
 
-;; initial-state : (or/c #f path-string?) -> list?
+;; initial-state : (or/c #f path-string?) path-string? -> list?
 ;;   Build the initial in-directory traversal state.
-(define (initial-state orig-dir)
+(define (initial-state orig-dir init-dir)
   (if orig-dir
-      (dir-list orig-dir orig-dir null)
-      (sorted-paths (directory-list))))
+      (dir-list (path->complete-path orig-dir init-dir) orig-dir null)
+      (sorted-paths (directory-list init-dir))))
 
 ;; in-directory : [(or/c #f path-string?)] [(complete-path? -> any/c)] -> sequence?
 ;;   Recursively traverse a directory. Optional dir defaults to #f and use-dir? defaults to always true.
@@ -1160,9 +1161,10 @@
        (raise-argument-error 'in-directory "procedure?" use-dir?))
      (make-do-sequence
       (lambda ()
+        (define init-dir (current-directory))
         (values car
-                (lambda (state) (next-body state (car state) use-dir?))
-                (initial-state orig-dir)
+                (lambda (state) (next-body state (car state) init-dir use-dir?))
+                (initial-state orig-dir init-dir)
                 pair?
                 #f
                 #f)))]))

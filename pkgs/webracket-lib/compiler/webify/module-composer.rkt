@@ -35,6 +35,23 @@
 (define current-composer-primitive-import-cell-overrides
   (make-parameter (hasheq)))
 
+;; compiled-directory-list-build-first-import? : symbol? -> boolean?
+;;   Recognize Racket CS's internal directory-list variant after Webify's
+;;   alpha-renaming. Names like `directory-list.1` pass #:build? first, while
+;;   names like `directory-list78.1` keep the public argument order.
+(define (compiled-directory-list-build-first-import? name)
+  (and (symbol? name)
+       (regexp-match? #rx"^directory-list\\.[0-9]+$" (symbol->string name))))
+
+;; compiled-primitive-import-cell-export : symbol? symbol? -> symbol?
+;;   Adapt compiled internal primitive imports whose local calling convention
+;;   differs from the public WebRacket primitive.
+(define (compiled-primitive-import-cell-export import-name export-name)
+  (cond
+    [(compiled-directory-list-build-first-import? import-name)
+     'webracket-directory-list-build-first]
+    [else export-name]))
+
 ;; validate-begin-datum! : symbol? any/c -> void?
 ;;   Reject generated fragments that cannot be spliced into top-level code.
 (define (validate-begin-datum! who datum)
@@ -222,12 +239,14 @@
   (cons import-name
         (cond
           [(primitive-module-name? instance-name)
+           (define cell-export-name
+             (compiled-primitive-import-cell-export import-name export-name))
            (hash-ref
             (current-composer-primitive-import-cell-overrides)
-            export-name
+            cell-export-name
             (lambda ()
-              `(let ([cell (module-variable-make ',export-name)])
-                 (module-variable-define! cell ,export-name 'constant)
+              `(let ([cell (module-variable-make ',cell-export-name)])
+                 (module-variable-define! cell ,cell-export-name 'constant)
                  cell)))]
           [else
            (define instance
