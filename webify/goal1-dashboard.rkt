@@ -747,9 +747,12 @@
          "(define prod (let ([n 0]) (lambda () (set! n (+ n 1)) n)))\n"
          "(define psum (for/sum ([x (in-producer prod 4)]) x))\n"
          "(define one (for/first ([x (in-value 42)]) x))\n"
-         "(js-log (+ bsum hsum kcount pcount indexed gen-sum psum one -333))\n")))
+         "(define chained (for/sum ([x (in-sequences (list 10 20) (list 12))]) x))\n"
+         "(define cyclic (for/sum ([x (in-cycle (list 10 20 12))] [i (in-range 3)]) x))\n"
+         "(define parallel (for/sum ([(x y) (in-parallel (list 10 20) (list 1 11))]) (+ x y)))\n"
+         "(js-log (+ bsum hsum kcount pcount indexed gen-sum psum one chained cyclic parallel -408))\n")))
     "main.rkt"
-    #rx"(?m:^91$)"
+    #rx"(?m:^142$)"
     '("--no-io-format-provider" "--webracket-module-bridge"))
    (dashboard-case
     'full-sequence-coverage

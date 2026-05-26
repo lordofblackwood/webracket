@@ -20,6 +20,9 @@
          in-mutable-hash-values
          in-mutable-hash-pairs
          in-indexed
+         in-sequences
+         in-cycle
+         in-parallel
          in-producer
          in-value
          check-in-hash
@@ -420,3 +423,76 @@
 ;;   Return a one-element sequence.
 (define (in-value v)
   (list v))
+
+;; check-sequences : symbol? (listof any/c) -> void?
+;;   Validate sequence arguments.
+(define (check-sequences who seqs)
+  (for-each (lambda (seq)
+              (unless (sequence? seq)
+                (raise-argument-error who "sequence?" seq)))
+            seqs))
+
+;; append-sequences : (listof sequence?) boolean? -> sequence?
+;;   Append sequences, cycling back to the start when cyclic? is true.
+(define (append-sequences seqs cyclic?)
+  (define (seqs->state rest)
+    (cond
+      [(pair? rest)
+       (define-values (more? next) (sequence-generate (car rest)))
+       (if (more?)
+           (list* more? next (cdr rest))
+           (seqs->state (cdr rest)))]
+      [cyclic? (seqs->state seqs)]
+      [else #f]))
+  (make-do-sequence
+   (lambda ()
+     (values (lambda (state) ((cadr state)))
+             (lambda (state)
+               (if (and (pair? state) (not ((car state))))
+                   (seqs->state (cddr state))
+                   state))
+             (seqs->state seqs)
+             values
+             #f
+             #f))))
+
+;; in-sequences : sequence? ... -> sequence?
+;;   Return a sequence that appends the input sequences.
+(define (in-sequences . seqs)
+  (check-sequences 'in-sequences seqs)
+  (if (and (pair? seqs) (null? (cdr seqs)))
+      (car seqs)
+      (append-sequences seqs #f)))
+
+;; in-cycle : sequence? ... -> sequence?
+;;   Return a cycling sequence over the input sequences.
+(define (in-cycle . seqs)
+  (check-sequences 'in-cycle seqs)
+  (append-sequences seqs #t))
+
+;; in-parallel : sequence? ... -> sequence?
+;;   Return a sequence that produces one value from each input sequence.
+(define (in-parallel . seqs)
+  (check-sequences 'in-parallel seqs)
+  (cond
+    [(null? seqs) null]
+    [(null? (cdr seqs)) (car seqs)]
+    [else
+     (make-do-sequence
+      (lambda ()
+        (define generators
+          (map (lambda (seq)
+                 (define-values (more? next) (sequence-generate seq))
+                 (cons more? next))
+               seqs))
+        (values (lambda (_pos)
+                  (apply values
+                         (map (lambda (generator) ((cdr generator)))
+                              generators)))
+                (lambda (pos) pos)
+                #t
+                (lambda (_pos)
+                  (andmap (lambda (generator) ((car generator)))
+                          generators))
+                (lambda vals #t)
+                (lambda (pos . vals) #t))))]))

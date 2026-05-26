@@ -318,7 +318,8 @@
                   for*/hash for*/hasheq for*/hasheqv for*/hashalw for*/product for*/last for*/foldr for*/lists
                   in-list in-vector in-range in-naturals in-string
                   in-bytes in-hash in-hash-keys in-hash-values in-hash-pairs
-                  in-indexed in-producer in-value sequence-generate sequence-generate*
+                  in-indexed in-sequences in-cycle in-parallel
+                  in-producer in-value sequence-generate sequence-generate*
                   ))
 (provide          for  for/list  for/vector  for/sum  for/fold  for/or  for/and  for/first
                   for* for*/list for*/vector for*/sum for*/fold for*/or for*/and for*/first
@@ -326,7 +327,8 @@
                   for*/hash for*/hasheq for*/hasheqv for*/hashalw for*/product for*/last for*/foldr for*/lists
                   in-list in-vector in-range in-naturals in-string
                   in-bytes in-hash in-hash-keys in-hash-values in-hash-pairs
-                  in-indexed in-producer in-value sequence-generate sequence-generate*
+                  in-indexed in-sequences in-cycle in-parallel
+                  in-producer in-value sequence-generate sequence-generate*
                   )
 
 ;; 3.19 Continuations marks
