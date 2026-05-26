@@ -98,9 +98,10 @@ positional module programs. `webracket/full` therefore exports the staged
   and line sequences, `prop:sequence` plus the generator shim, and derived
   combinators such as `in-sequences`, `in-cycle`, `in-parallel`,
   `in-values-sequence`, `stop-before`, and `stop-after`. This is still not full
-  `racket/private/for`; directory/path sequences, original stream internals,
-  custom sequence syntax, and some advanced sequence combinators remain later
-  work.
+  `racket/private/for`, but explicit public helpers for `in-list`, `in-vector`,
+  `in-string`, `in-range`, `in-inclusive-range`, and `in-naturals` are now
+  covered. Directory/path sequences, original stream internals, custom sequence
+  syntax, and some advanced sequence combinators remain later work.
 - `racket/generator` routes to `webracket/generator`, a no-op shim. The
   original provider depends on continuation prompts and composable
   continuations, which are intentionally postponed for Goal 1. The dashboard has

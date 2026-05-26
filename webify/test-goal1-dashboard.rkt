@@ -178,6 +178,9 @@
                 #:when (eq? name (for-provider-surface-row-name row)))
       (for-provider-surface-row-status row)))
   (check-equal? (status-ref 'in-bytes) 'supported)
+  (check-equal? (status-ref 'in-range) 'supported)
+  (check-equal? (status-ref 'in-list) 'supported)
+  (check-equal? (status-ref 'in-vector) 'supported)
   (check-equal? (status-ref 'sequence-generate) 'supported)
   (check-equal? (status-ref 'in-directory) 'postponed))
 

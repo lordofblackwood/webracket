@@ -8,6 +8,12 @@
          sequence?
          sequence-generate
          sequence-generate*
+         in-range
+         in-inclusive-range
+         in-naturals
+         in-list
+         in-vector
+         in-string
          in-bytes
          in-mlist
          check-mlist
@@ -52,6 +58,14 @@
          check-in-port
          check-in-lines
          check-in-bytes-lines
+         check-naturals
+         check-range
+         check-range-generic
+         check-ranges
+         normalise-inputs
+         unsafe-normalise-inputs
+         check-string
+         check-vector
          check-list)
 
 ;; A small WebRacket-owned subset of `racket/private/for`.
@@ -92,6 +106,110 @@
 (define (check-list v)
   (unless (list? v)
     (raise-argument-error 'in-list "list?" v)))
+
+;; in-list : list? -> sequence?
+;;   Return a list sequence.
+(define (in-list lst)
+  (check-list lst)
+  lst)
+
+;; check-naturals : any/c -> void?
+;;   Validate in-naturals start values.
+(define (check-naturals start)
+  (unless (exact-nonnegative-integer? start)
+    (raise-argument-error 'in-naturals "exact-nonnegative-integer?" start)))
+
+;; in-naturals : [exact-nonnegative-integer?] -> sequence?
+;;   Return an infinite sequence of exact integers. Optional start defaults to 0.
+(define (in-naturals [start 0])
+  (check-naturals start)
+  (make-do-sequence
+   (lambda ()
+     (values (lambda (pos) pos)
+             add1
+             start
+             (lambda (_pos) #t)
+             #f
+             #f))))
+
+;; check-range-generic : symbol? real? real? real? -> void?
+;;   Validate generic range arguments.
+(define (check-range-generic who start end step)
+  (unless (real? start)
+    (raise-argument-error who "real?" start))
+  (unless (real? end)
+    (raise-argument-error who "real?" end))
+  (unless (real? step)
+    (raise-argument-error who "real?" step)))
+
+;; check-range : real? real? real? -> void?
+;;   Validate in-range arguments.
+(define (check-range start end step)
+  (check-range-generic 'in-range start end step))
+
+;; check-ranges : symbol? string? any/c exact-nonnegative-integer? exact-integer? exact-integer? exact-nonnegative-integer? -> void?
+;;   Validate indexed vector/string/bytes sequence bounds.
+(define (check-ranges who type-name vec start stop step len)
+  (unless (exact-nonnegative-integer? start)
+    (raise-argument-error who "exact-nonnegative-integer?" start))
+  (unless (or (< start len) (= len start stop))
+    (raise-argument-error who "valid start index" start))
+  (unless (exact-integer? stop)
+    (raise-argument-error who "exact-integer?" stop))
+  (unless (and (<= -1 stop) (<= stop len))
+    (raise-argument-error who "valid stop index" stop))
+  (unless (and (exact-integer? step) (not (zero? step)))
+    (raise-argument-error who "(and/c exact-integer? (not/c zero?))" step))
+  (when (and (< start stop) (< step 0))
+    (raise-arguments-error who
+                           "starting index less than stopping index, but given a negative step"
+                           "starting index" start
+                           "stopping index" stop
+                           "step" step))
+  (when (and (< stop start) (> step 0))
+    (raise-arguments-error who
+                           "starting index more than stopping index, but given a positive step"
+                           "starting index" start
+                           "stopping index" stop
+                           "step" step)))
+
+;; range-position-active? : real? real? real? boolean? -> boolean?
+;;   Check whether a generated numeric range position is active.
+(define (range-position-active? pos end step inclusive?)
+  (cond
+    [(zero? step) #t]
+    [(positive? step) (if inclusive? (<= pos end) (< pos end))]
+    [else (if inclusive? (>= pos end) (> pos end))]))
+
+;; numeric-range-sequence : symbol? real? real? real? boolean? -> sequence?
+;;   Build a numeric range sequence.
+(define (numeric-range-sequence who start end step inclusive?)
+  (if inclusive?
+      (check-range-generic who start end step)
+      (check-range start end step))
+  (make-do-sequence
+   (lambda ()
+     (values (lambda (pos) pos)
+             (lambda (pos) (+ pos step))
+             start
+             (lambda (pos) (range-position-active? pos end step inclusive?))
+             #f
+             #f))))
+
+;; in-range : real? [real?] [real?] -> sequence?
+;;   Return a numeric range. Optional one-arg form means start=0; step defaults to 1.
+(define in-range
+  (case-lambda
+    [(end) (numeric-range-sequence 'in-range 0 end 1 #f)]
+    [(start end) (numeric-range-sequence 'in-range start end 1 #f)]
+    [(start end step) (numeric-range-sequence 'in-range start end step #f)]))
+
+;; in-inclusive-range : real? real? [real?] -> sequence?
+;;   Return a numeric range that includes end when exactly reached. Optional step defaults to 1.
+(define in-inclusive-range
+  (case-lambda
+    [(start end) (numeric-range-sequence 'in-inclusive-range start end 1 #t)]
+    [(start end step) (numeric-range-sequence 'in-inclusive-range start end step #t)]))
 
 ;; check-mlist : any/c -> void?
 ;;   Validate mutable-list sequences imported by expanded installed providers.
@@ -135,6 +253,50 @@
   (unless (bytes? v)
     (raise-argument-error 'in-bytes "bytes?" v)))
 
+;; check-vector : any/c -> void?
+;;   Validate vector sequences imported by expanded code.
+(define (check-vector v)
+  (unless (vector? v)
+    (raise-argument-error 'in-vector "vector?" v)))
+
+;; check-string : any/c -> void?
+;;   Validate string sequences imported by expanded code.
+(define (check-string v)
+  (unless (string? v)
+    (raise-argument-error 'in-string "string?" v)))
+
+;; normalise-inputs : symbol? string? predicate? procedure? any/c exact-nonnegative-integer? (or/c exact-integer? #f) exact-integer? -> values
+;;   Validate indexed sequence inputs and return vec, start, resolved stop, and step.
+(define (normalise-inputs who type-name vector? unsafe-vector-length vec start stop step)
+  (unless (vector? vec)
+    (raise-argument-error who (string-append type-name "?") vec))
+  (define len (unsafe-vector-length vec))
+  (define stop* (if stop stop len))
+  (check-ranges who type-name vec start stop* step len)
+  (values vec start stop* step))
+
+;; unsafe-normalise-inputs : procedure? any/c exact-nonnegative-integer? (or/c exact-integer? #f) exact-integer? -> values
+;;   Resolve indexed sequence defaults without validation.
+(define (unsafe-normalise-inputs unsafe-vector-length vec start stop step)
+  (values vec start (or stop (unsafe-vector-length vec)) step))
+
+;; indexed-position-active? : exact-integer? exact-integer? exact-integer? -> boolean?
+;;   Check whether an indexed sequence position is active.
+(define (indexed-position-active? pos end step)
+  (if (positive? step) (< pos end) (> pos end)))
+
+;; indexed-sequence : procedure? exact-nonnegative-integer? exact-integer? exact-integer? -> sequence?
+;;   Build a sequence over indexed data.
+(define (indexed-sequence ref start end step)
+  (make-do-sequence
+   (lambda ()
+     (values ref
+             (lambda (pos) (+ pos step))
+             start
+             (lambda (pos) (indexed-position-active? pos end step))
+             #f
+             #f))))
+
 ;; byte-stop : bytes? (or/c exact-integer? #f) -> exact-integer?
 ;;   Resolve #f stop to the byte string length.
 (define (byte-stop bstr stop)
@@ -162,6 +324,22 @@
       [(if (positive? step) (< i end) (> i end))
        (cons (bytes-ref bstr i) (loop (+ i step)))]
       [else null])))
+
+;; in-vector : vector? [exact-nonnegative-integer?] [(or/c exact-integer? #f)] [nonzero-exact-integer?] -> sequence?
+;;   Return a vector sequence. Optional start defaults to 0, stop to length, step to 1.
+(define (in-vector vec [start 0] [stop #f] [step 1])
+  (check-vector vec)
+  (define-values (_vec _start end _step)
+    (normalise-inputs 'in-vector "vector" vector? vector-length vec start stop step))
+  (indexed-sequence (lambda (pos) (vector-ref vec pos)) start end step))
+
+;; in-string : string? [exact-nonnegative-integer?] [(or/c exact-integer? #f)] [nonzero-exact-integer?] -> sequence?
+;;   Return a string sequence. Optional start defaults to 0, stop to length, step to 1.
+(define (in-string str [start 0] [stop #f] [step 1])
+  (check-string str)
+  (define-values (_str _start end _step)
+    (normalise-inputs 'in-string "string" string? string-length str start stop step))
+  (indexed-sequence (lambda (pos) (string-ref str pos)) start end step))
 
 ;; in-mlist : (or/c mpair? null?) -> sequence?
 ;;   Return a mutable-list sequence.

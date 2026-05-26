@@ -740,6 +740,12 @@
     `(("main.rkt" .
        ,(string-append
          "#lang webracket/base\n"
+         "(define list-sum (for/sum ([x (in-list '(10 20 12))]) x))\n"
+         "(define vector-sum (for/sum ([x (in-vector '#(9 8 7 6) 1 4 2)]) x))\n"
+         "(define string-count (length (for/list ([ch (in-string \"abcd\" 1 4 2)]) ch)))\n"
+         "(define range-sum (for/sum ([x (in-range 1 5)]) x))\n"
+         "(define inclusive-sum (for/sum ([x (in-inclusive-range 1 5 2)]) x))\n"
+         "(define natural-sum (for/sum ([x (in-naturals 10)] [i (in-range 3)]) x))\n"
          "(define bsum (for/sum ([b (in-bytes #\"abc\")]) b))\n"
          "(define indexed (for/sum ([(ch i) (in-indexed \"abc\")]) i))\n"
          "(define-values (more? get) (sequence-generate (list 10 20 1)))\n"
@@ -747,7 +753,8 @@
          "                   (if (more?) (get) 0)\n"
          "                   (if (more?) (get) 0)))\n"
          "(define one (for/first ([x (in-value 42)]) x))\n"
-         "(js-log (+ bsum indexed gen-sum one -328))\n")))
+         "(js-log (+ list-sum vector-sum string-count range-sum inclusive-sum natural-sum\n"
+         "           bsum indexed gen-sum one -438))\n")))
     "main.rkt"
     #rx"(?m:^42$)"
     '("--no-io-format-provider" "--webracket-module-bridge"))
@@ -892,6 +899,8 @@
          "(define a (for/list ([x (in-range 3)]) x))\n"
          "(define b (for/list ([x (in-string \"ab\")]) x))\n"
          "(define c (for/list ([x (in-vector '#(10 20 12))]) x))\n"
+         "(define d (for/sum ([x (in-inclusive-range 1 5 2)]) x))\n"
+         "(define e (for/sum ([x (in-naturals 10)] [i (in-range 3)]) x))\n"
          "(define h (hash 'a 10 'b 20 'c 12))\n"
          "(define hsum (for/sum ([(k v) (in-hash h)]) v))\n"
          "(define indexed (for/sum ([(ch i) (in-indexed \"abc\")]) i))\n"
@@ -901,12 +910,14 @@
          "(js-log (+ (length a)\n"
          "           (length b)\n"
          "           (apply + c)\n"
+         "           d\n"
+         "           e\n"
          "           hsum\n"
          "           indexed\n"
          "           chained\n"
          "           (length before)\n"
          "           (length after)\n"
-         "           -97))\n")))
+         "           -139))\n")))
     "main.rkt"
     #rx"(?m:^42$)"
     '("--no-io-format-provider"))
