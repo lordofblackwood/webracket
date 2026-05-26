@@ -19,12 +19,8 @@
   '(:flvector-gen
     :fxvector-gen
     :stream-gen
-    in-directory
     in-files
     in-glob
-    dir-list
-    initial-state
-    next-body
     check-in-ephemeron-hash
     check-in-ephemeron-hash-keys
     check-in-ephemeron-hash-values

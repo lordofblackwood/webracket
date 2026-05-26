@@ -117,6 +117,7 @@
     base-sequence-derived
     base-sequence-coverage
     full-sequence-coverage
+    sequence-directory-coverage
     full-set-coverage
     full-promise-coverage
     full-stream-lazy
@@ -922,19 +923,22 @@
     #rx"(?m:^42$)"
     '("--no-io-format-provider"))
    (dashboard-case
-    'sequence-directory-diagnostic
-    'installed-provider-diagnostic
+    'sequence-directory-coverage
+    'installed-provider-coverage
     '(racket/sequence webracket/file racket/path)
     `(("main.rkt" .
        ,(string-append
          "#lang webracket/full\n"
-         "(define paths (for/list ([p (in-directory \".\")]) p))\n"
-         "(js-log (length paths))\n")))
+         "(make-directory* \"/app/seq-dir/a\")\n"
+         "(display-to-file \"root\" \"/app/seq-dir/root.txt\" 'text 'replace)\n"
+         "(display-to-file \"leaf\" \"/app/seq-dir/a/leaf.txt\" 'text 'replace)\n"
+         "(define paths (for/list ([p (in-directory \"/app/seq-dir\")]) p))\n"
+         "(js-log (+ (length paths) 39))\n")))
     "main.rkt"
     #rx"(?m:^42$)"
     '("--no-io-format-provider")
     #:tier 'coverage
-    #:expectation 'diagnostic)
+    #:expectation 'required)
    (dashboard-case
     'generator-real-diagnostic
     'installed-provider-diagnostic

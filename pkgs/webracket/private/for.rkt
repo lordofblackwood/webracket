@@ -61,6 +61,7 @@
          in-cycle
          in-parallel
          in-parallel-values
+         in-directory
          in-values-sequence
          in-values*-sequence
          stop-before
@@ -78,6 +79,9 @@
          :input-port-gen
          :hash-gen
          mutable?
+         dir-list
+         initial-state
+         next-body
          grow-vector
          shrink-vector
          no-more
@@ -1107,6 +1111,61 @@
                           generators))
                 (lambda vals #t)
                 (lambda (pos . vals) #t))))]))
+
+;; sorted-paths : (listof path?) -> (listof path?)
+;;   Sort paths without importing racket/list's `sort`, which lowers as sort.1.
+(define (sorted-paths paths)
+  (define (insert path sorted)
+    (cond
+      [(null? sorted) (list path)]
+      [(path<? path (car sorted)) (cons path sorted)]
+      [else (cons (car sorted) (insert path (cdr sorted)))]))
+  (let loop ([rest paths] [sorted null])
+    (cond
+      [(null? rest) sorted]
+      [else (loop (cdr rest) (insert (car rest) sorted))])))
+
+;; dir-list : path-string? path-string? list? -> list?
+;;   Return d's immediate children, sorted and prefixed for in-directory state.
+(define (dir-list full-d d acc)
+  (append (map (lambda (f) (build-path d f))
+               (sorted-paths (directory-list full-d)))
+          acc))
+
+;; next-body : list? path-string? procedure? -> list?
+;;   Advance an in-directory traversal, descending when use-dir? permits it.
+(define (next-body state d use-dir?)
+  (if (and (directory-exists? d)
+           (use-dir? d))
+      (dir-list d d (cdr state))
+      (cdr state)))
+
+;; initial-state : (or/c #f path-string?) -> list?
+;;   Build the initial in-directory traversal state.
+(define (initial-state orig-dir)
+  (if orig-dir
+      (dir-list orig-dir orig-dir null)
+      (sorted-paths (directory-list))))
+
+;; in-directory : [(or/c #f path-string?)] [(complete-path? -> any/c)] -> sequence?
+;;   Recursively traverse a directory. Optional dir defaults to #f and use-dir? defaults to always true.
+(define in-directory
+  (case-lambda
+    [() (in-directory #f (lambda (_dir) #t))]
+    [(orig-dir) (in-directory orig-dir (lambda (_dir) #t))]
+    [(orig-dir use-dir?)
+     (unless (or (not orig-dir) (path-string? orig-dir))
+       (raise-argument-error 'in-directory "(or/c #f path-string?)" orig-dir))
+     (unless (procedure? use-dir?)
+       (raise-argument-error 'in-directory "procedure?" use-dir?))
+     (make-do-sequence
+      (lambda ()
+        (values car
+                (lambda (state) (next-body state (car state) use-dir?))
+                (initial-state orig-dir)
+                pair?
+                #f
+                #f)))]))
 
 ;; next-values : (-> boolean?) (-> values) -> (or/c list? #f)
 ;;   Pull the next sequence element as a list of values.

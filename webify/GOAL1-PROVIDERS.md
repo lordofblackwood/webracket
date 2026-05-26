@@ -105,9 +105,11 @@ positional module programs. `webracket/full` therefore exports the staged
   exports the upstream-style generator entry points for integer, list,
   mutable-list, vector, string, bytes, input-port, and hash sequences, plus the
   internal `prop:gen-sequence`/`do-sequence` surface needed by installed
-  provider code. Directory/path sequences, flvector/fxvector sequences,
-  weak/ephemeron hash sequence variants, original stream internals, custom
-  sequence syntax, and some advanced sequence combinators remain later work.
+  provider code. `in-directory` is implemented through WebRacket's virtual
+  filesystem-backed `directory-list`, `directory-exists?`, and path primitives.
+  `in-files`/`in-glob`, flvector/fxvector sequences, weak/ephemeron hash
+  sequence variants, original stream internals, custom sequence syntax, and
+  some advanced sequence combinators remain later work.
 - `racket/generator` routes to `webracket/generator`, a no-op shim. The
   original provider depends on continuation prompts and composable
   continuations, which are intentionally postponed for Goal 1. The dashboard has

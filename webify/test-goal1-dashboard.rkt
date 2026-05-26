@@ -219,7 +219,7 @@
   (check-equal? (status-ref 'prop:gen-sequence) 'supported)
   (check-equal? (status-ref 'struct:do-sequence) 'supported)
   (check-equal? (status-ref 'sequence-generate) 'supported)
-  (check-equal? (status-ref 'in-directory) 'postponed)
+  (check-equal? (status-ref 'in-directory) 'supported)
   (check-equal? (status-ref 'check-in-weak-hash) 'postponed)
   (check-equal? (status-ref 'stream-first) 'postponed))
 
