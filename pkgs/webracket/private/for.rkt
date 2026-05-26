@@ -4,10 +4,19 @@
 
 (provide make-do-sequence
          make-sequence
+         prop:gen-sequence
          prop:sequence
+         sequence-via-prop?
+         sequence-ref
+         :sequence?
+         :sequence-ref
          sequence?
          sequence-generate
          sequence-generate*
+         struct:do-sequence
+         do-sequence?
+         do-sequence-ref
+         do-sequence-set!
          in-range
          in-inclusive-range
          in-naturals
@@ -58,6 +67,23 @@
          stop-after
          in-producer
          in-value
+         check-sequences
+         append-sequences
+         :integer-gen
+         :list-gen
+         :mlist-gen
+         :vector-gen
+         :string-gen
+         :bytes-gen
+         :input-port-gen
+         :hash-gen
+         mutable?
+         grow-vector
+         shrink-vector
+         no-more
+         raise-argument-error
+         raise-arguments-error
+         raise-range-error
          check-in-hash
          check-in-hash-keys
          check-in-hash-values
@@ -93,10 +119,33 @@
 ;; import and the six-value `make-do-sequence` shape used by modules such as
 ;; `data/queue`.
 
-(define-values (prop:sequence sequence-via-prop? sequence-ref)
+(define-values (prop:gen-sequence sequence-via-prop? sequence-ref)
+  (make-struct-type-property 'sequence))
+
+;; prop:sequence : struct-type-property?
+;;   Public sequence property whose value maps a struct instance to a sequence.
+(define-values (prop:sequence :sequence? :sequence-ref)
   (make-struct-type-property 'sequence))
 
 (struct do-sequence (thunk))
+
+;; do-sequence-ref : do-sequence? exact-nonnegative-integer? -> any/c
+;;   Compatibility accessor for code that imports upstream struct accessors.
+(define (do-sequence-ref seq index)
+  (unless (do-sequence? seq)
+    (raise-argument-error 'do-sequence-ref "do-sequence?" seq))
+  (unless (equal? index 0)
+    (raise-range-error 'do-sequence-ref "do-sequence" "" index seq 0 1))
+  (do-sequence-thunk seq))
+
+;; do-sequence-set! : do-sequence? exact-nonnegative-integer? any/c -> void?
+;;   Reject mutation of staged do-sequence values.
+(define (do-sequence-set! seq index value)
+  (unless (do-sequence? seq)
+    (raise-argument-error 'do-sequence-set! "do-sequence?" seq))
+  (unless (equal? index 0)
+    (raise-range-error 'do-sequence-set! "do-sequence" "" index seq 0 1))
+  (raise-arguments-error 'do-sequence-set! "staged do-sequence values are immutable"))
 
 ;; make-do-sequence : (-> values) -> sequence?
 ;;   Wrap a sequence initiation thunk.
@@ -117,7 +166,8 @@
       (input-port? v)
       (hash? v)
       (do-sequence? v)
-      (and (sequence-via-prop? v) #t)))
+      (and (sequence-via-prop? v) #t)
+      (and (:sequence? v) #t)))
 
 ;; check-list : any/c -> void?
 ;;   Validate list sequences imported by expanded installed providers.
@@ -721,9 +771,83 @@
     [(do-sequence? v)
      (thunk->make-sequence-values who (do-sequence-thunk v))]
     [(sequence-via-prop? v)
-     (make-sequence who ((sequence-ref v) v))]
+     (thunk->make-sequence-values who (lambda () ((sequence-ref v) v)))]
+    [(:sequence? v)
+     (make-sequence who ((:sequence-ref v) v))]
     [else
      (raise-argument-error who "sequence?" v)]))
+
+;; :integer-gen : exact-nonnegative-integer? -> values
+;;   Upstream-compatible generator entry for natural-number sequences.
+(define (:integer-gen n)
+  (make-sequence ':integer-gen n))
+
+;; :list-gen : list? -> values
+;;   Upstream-compatible generator entry for list sequences.
+(define (:list-gen lst)
+  (make-sequence ':list-gen lst))
+
+;; :mlist-gen : (or/c mpair? null?) -> values
+;;   Upstream-compatible generator entry for mutable-list sequences.
+(define (:mlist-gen lst)
+  (make-sequence ':mlist-gen (in-mlist lst)))
+
+;; :vector-gen : vector? exact-nonnegative-integer? exact-integer? exact-integer? -> values
+;;   Upstream-compatible generator entry for vector subsequences.
+(define (:vector-gen vec start stop step)
+  (make-sequence ':vector-gen (in-vector vec start stop step)))
+
+;; :string-gen : string? exact-nonnegative-integer? exact-integer? exact-integer? -> values
+;;   Upstream-compatible generator entry for string subsequences.
+(define (:string-gen str start stop step)
+  (make-sequence ':string-gen (in-string str start stop step)))
+
+;; :bytes-gen : bytes? exact-nonnegative-integer? exact-integer? exact-integer? -> values
+;;   Upstream-compatible generator entry for byte-string subsequences.
+(define (:bytes-gen bstr start stop step)
+  (make-sequence ':bytes-gen (in-bytes bstr start stop step)))
+
+;; :input-port-gen : input-port? -> values
+;;   Upstream-compatible generator entry for input-port byte sequences.
+(define (:input-port-gen in)
+  (make-sequence ':input-port-gen (in-input-port-bytes in)))
+
+;; :hash-gen : hash? procedure? procedure? procedure? [any/c] -> values
+;;   Upstream-compatible generator entry for hash iterator sequences.
+(define (:hash-gen ht pos->vals first-pos next-pos [bad-index-v #f])
+  (check-in-hash ht)
+  (values (lambda (pos) (pos->vals ht pos))
+          #f
+          (lambda (pos) (next-pos ht pos))
+          (first-pos ht)
+          values
+          #f
+          #f))
+
+;; mutable? : any/c -> boolean?
+;;   Internal helper used by upstream hash sequence predicates.
+(define (mutable? v)
+  (not (immutable? v)))
+
+;; grow-vector : vector? -> vector?
+;;   Double a vector, preserving existing elements for for/vector builders.
+(define (grow-vector vec)
+  (define n (vector-length vec))
+  (define new-vec (make-vector (* 2 n)))
+  (vector-copy! new-vec 0 vec 0 n)
+  new-vec)
+
+;; shrink-vector : vector? exact-nonnegative-integer? -> vector?
+;;   Copy the first i elements into a right-sized vector.
+(define (shrink-vector vec i)
+  (define new-vec (make-vector i))
+  (vector-copy! new-vec 0 vec 0 i)
+  new-vec)
+
+;; no-more : -> none/c
+;;   Raise the error used by exhausted generated sequences.
+(define (no-more)
+  (raise-arguments-error 'sequence-generate "sequence has no more values"))
 
 ;; sequence-position-active? : any/c (any/c -> any/c) (or/c #f procedure?) -> boolean?
 ;;   Check whether a sequence position should produce another element.

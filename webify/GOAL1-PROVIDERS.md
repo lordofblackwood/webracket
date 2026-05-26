@@ -101,7 +101,11 @@ positional module programs. `webracket/full` therefore exports the staged
   `racket/private/for`, but explicit public helpers for `in-list`, `in-vector`,
   `in-string`, `in-range`, `in-inclusive-range`, and `in-naturals` are now
   covered. Optimized hash helper defaults and checker variants for ordinary,
-  immutable, and mutable hashes are covered too. Directory/path sequences,
+  immutable, and mutable hashes are covered too. The staged provider also
+  exports the upstream-style generator entry points for integer, list,
+  mutable-list, vector, string, bytes, input-port, and hash sequences, plus the
+  internal `prop:gen-sequence`/`do-sequence` surface needed by installed
+  provider code. Directory/path sequences, flvector/fxvector sequences,
   weak/ephemeron hash sequence variants, original stream internals, custom
   sequence syntax, and some advanced sequence combinators remain later work.
 - `racket/generator` routes to `webracket/generator`, a no-op shim. The

@@ -16,9 +16,15 @@
 (struct for-provider-surface-row (name status provider) #:transparent)
 
 (define intentionally-postponed-for-exports
-  '(in-directory
+  '(:flvector-gen
+    :fxvector-gen
+    :stream-gen
+    in-directory
     in-files
     in-glob
+    dir-list
+    initial-state
+    next-body
     check-in-ephemeron-hash
     check-in-ephemeron-hash-keys
     check-in-ephemeron-hash-values
@@ -35,11 +41,22 @@
     default-in-weak-hash-keys
     default-in-weak-hash-values
     default-in-weak-hash-pairs
+    check-stream
+    do-stream-ref
+    do-stream-set!
+    do-stream?
     empty-stream
     in-stream
+    list-stream-ref
+    list-stream-set!
+    list-stream?
     make-do-stream
     make-list-stream
+    make-range
     prop:stream
+    range-ref
+    range-set!
+    range?
     sequence->stream
     stream-empty?
     stream-first
@@ -47,6 +64,9 @@
     stream-rest
     stream-via-prop?
     stream?
+    struct:do-stream
+    struct:list-stream
+    struct:range
     unsafe-stream-first
     unsafe-stream-not-empty?
     unsafe-stream-rest))
