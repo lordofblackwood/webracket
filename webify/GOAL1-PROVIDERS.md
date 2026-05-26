@@ -88,6 +88,11 @@ positional module programs. `webracket/full` therefore exports the staged
   intentionally narrow today: `racket/file` through the VFS substitute,
   `data/queue` through its contract-erased queue operations, and
   `racket/logging` through its currently exported contract surface.
+- Sequence coverage now exercises a broader `racket/private/for` staged
+  surface: `in-bytes`, `in-hash`, `in-hash-keys`, `in-hash-pairs`,
+  `in-indexed`, `in-producer`, `in-value`, and `sequence-generate`. This is
+  still not full `racket/private/for`; ports, directories, custom sequence
+  syntax, and advanced sequence combinators remain later work.
 - `racket/dict` routes to staged `webracket/dict`. The coverage row now checks
   both ordinary functions (`dict-map`, `dict-count`) and sequence exports such
   as `in-dict-pairs`.

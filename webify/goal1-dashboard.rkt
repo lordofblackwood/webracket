@@ -109,6 +109,7 @@
     full-math-coverage
     full-path-coverage
     full-match-coverage
+    base-sequence-coverage
     full-sequence-coverage
     full-set-coverage
     full-promise-coverage
@@ -726,6 +727,30 @@
     "main.rkt"
     #rx"(?m:^15$)"
     '("--no-io-format-provider"))
+   (dashboard-case
+    'base-sequence-coverage
+    'installed-provider-coverage
+    '(racket/private/for webracket/private/for)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/base\n"
+         "(define bsum (for/sum ([b (in-bytes #\"abc\")]) b))\n"
+         "(define h (hash 'a 10 'b 20 'c 12))\n"
+         "(define hsum (for/sum ([(k v) (in-hash h)]) v))\n"
+         "(define kcount (length (for/list ([k (in-hash-keys h)]) k)))\n"
+         "(define pcount (length (for/list ([p (in-hash-pairs h)]) p)))\n"
+         "(define indexed (for/sum ([(ch i) (in-indexed \"abc\")]) i))\n"
+         "(define-values (more? get) (sequence-generate (list 10 20 1)))\n"
+         "(define gen-sum (+ (if (more?) (get) 0)\n"
+         "                   (if (more?) (get) 0)\n"
+         "                   (if (more?) (get) 0)))\n"
+         "(define prod (let ([n 0]) (lambda () (set! n (+ n 1)) n)))\n"
+         "(define psum (for/sum ([x (in-producer prod 4)]) x))\n"
+         "(define one (for/first ([x (in-value 42)]) x))\n"
+         "(js-log (+ bsum hsum kcount pcount indexed gen-sum psum one -333))\n")))
+    "main.rkt"
+    #rx"(?m:^91$)"
+    '("--no-io-format-provider" "--webracket-module-bridge"))
    (dashboard-case
     'full-sequence-coverage
     'installed-provider-coverage

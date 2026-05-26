@@ -148,6 +148,8 @@
   (check-not-false
    (member 'full-stream-lazy goal1-dashboard-coverage-core-case-names))
   (check-not-false
+   (member 'base-sequence-coverage goal1-dashboard-coverage-core-case-names))
+  (check-not-false
    (member 'ffi-js-console-coverage goal1-dashboard-coverage-extended-case-names))
   (check-not-false
    (member 'installed-racket-dict-coverage goal1-dashboard-coverage-extended-case-names))
@@ -229,6 +231,7 @@
                          full-math-coverage
                          full-path-coverage
                          full-match-coverage
+                         base-sequence-coverage
                          full-sequence-coverage
                          full-file-coverage
                          installed-racket-pretty-coverage
