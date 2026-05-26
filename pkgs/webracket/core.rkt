@@ -317,6 +317,8 @@
                   for/hash for/hasheq for/hasheqv for/hashalw for/product for/last for/foldr for/lists
                   for*/hash for*/hasheq for*/hasheqv for*/hashalw for*/product for*/last for*/foldr for*/lists
                   in-list in-vector in-range in-naturals in-string
+                  in-mlist in-input-port-bytes in-input-port-chars
+                  in-port in-lines in-bytes-lines
                   in-bytes in-hash in-hash-keys in-hash-values in-hash-pairs
                   in-indexed in-sequences in-cycle in-parallel
                   in-parallel-values
@@ -328,6 +330,8 @@
                   for/hash for/hasheq for/hasheqv for/hashalw for/product for/last for/foldr for/lists
                   for*/hash for*/hasheq for*/hasheqv for*/hashalw for*/product for*/last for*/foldr for*/lists
                   in-list in-vector in-range in-naturals in-string
+                  in-mlist in-input-port-bytes in-input-port-chars
+                  in-port in-lines in-bytes-lines
                   in-bytes in-hash in-hash-keys in-hash-values in-hash-pairs
                   in-indexed in-sequences in-cycle in-parallel
                   in-parallel-values

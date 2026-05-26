@@ -2,7 +2,8 @@
 
 (require (except-in racket/base
                     make-keyword-procedure
-                    procedure-keywords)
+                    procedure-keywords
+                    read-bytes-line)
          "../js/main.rkt"
          "../private/kw.rkt"
          (for-syntax racket/base)
@@ -12,8 +13,21 @@
 ;; `webracket/base` is the small foundation, mirroring Racket's distinction
 ;; between `racket/base` and the broader `racket` language.
 (provide (all-from-out racket/base)
+         read-bytes-line
          (all-from-out "../js/main.rkt")
          (all-from-out "../private/kw.rkt")
          (for-syntax (all-from-out racket/base))
          (for-syntax (all-from-out racket/splicing))
          (for-syntax (all-from-out webracket-lib/compiler/private/browser-options)))
+
+;; read-bytes-line : [input-port?] [symbol?] -> (or/c bytes? eof-object?)
+;;   Small WebRacket-compatible implementation. Optional mode defaults to 'linefeed.
+(define read-bytes-line
+  (case-lambda
+    [() (read-bytes-line (current-input-port) 'linefeed)]
+    [(in) (read-bytes-line in 'linefeed)]
+    [(in mode)
+     (define line (read-line in mode))
+     (if (eof-object? line)
+         eof
+         (string->bytes/utf-8 line))]))

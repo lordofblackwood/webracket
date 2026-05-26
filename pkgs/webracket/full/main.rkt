@@ -1,6 +1,6 @@
 #lang racket/base
 
-(require racket/base
+(require (except-in racket/base read-bytes-line)
          racket/bool
          racket/bytes
          racket/dict
@@ -52,6 +52,7 @@
                      eprintf
                      compose
                      compose1)
+         read-bytes-line
          (rename-out [wr-format format]
                      [wr-fprintf fprintf]
                      [wr-printf printf]
@@ -92,3 +93,15 @@
          (for-syntax (all-from-out racket/base))
          (for-syntax (all-from-out racket/splicing))
          (for-syntax (all-from-out webracket-lib/compiler/private/browser-options)))
+
+;; read-bytes-line : [input-port?] [symbol?] -> (or/c bytes? eof-object?)
+;;   Small WebRacket-compatible implementation. Optional mode defaults to 'linefeed.
+(define read-bytes-line
+  (case-lambda
+    [() (read-bytes-line (current-input-port) 'linefeed)]
+    [(in) (read-bytes-line in 'linefeed)]
+    [(in mode)
+     (define line (read-line in mode))
+     (if (eof-object? line)
+         eof
+         (string->bytes/utf-8 line))]))

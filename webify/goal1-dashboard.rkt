@@ -730,10 +730,12 @@
    (dashboard-case
     'base-sequence-coverage
     'installed-provider-coverage
-    '(racket/private/for webracket/private/for)
+    '(racket/private/for racket/generator racket/mpair
+      webracket/private/for webracket/generator webracket/mpair)
     `(("main.rkt" .
        ,(string-append
          "#lang webracket/base\n"
+         "(require racket/generator)\n"
          "(define bsum (for/sum ([b (in-bytes #\"abc\")]) b))\n"
          "(define h (hash 'a 10 'b 20 'c 12))\n"
          "(define hsum (for/sum ([(k v) (in-hash h)]) v))\n"
@@ -756,9 +758,19 @@
          "(define values-star-b (for/list ([xs (in-values*-sequence (list 'x 'y))]) xs))\n"
          "(define before (for/list ([x (stop-before (list 1 2 3 4) (lambda (x) (= x 3)))]) x))\n"
          "(define after (for/list ([x (stop-after (list 1 2 3 4) (lambda (x) (= x 3)))]) x))\n"
+         "(define mlist-sum (for/sum ([x (in-mlist (mcons 1 (mcons 2 (mcons 3 null))))]) x))\n"
+         "(define port-byte-sum (for/sum ([b (in-input-port-bytes (open-input-string \"AZ\"))]) b))\n"
+         "(define port-char-count (length (for/list ([ch (in-input-port-chars (open-input-string \"xy\"))]) ch)))\n"
+         "(define line-count (length (for/list ([line (in-lines (open-input-string \"a\\nb\"))]) line)))\n"
+         "(define bytes-line-count (length (for/list ([line (in-bytes-lines (open-input-string \"a\\nb\"))]) line)))\n"
+         "(struct seqbox (xs) #:property prop:sequence (lambda (self) (seqbox-xs self)))\n"
+         "(define prop-sum (for/sum ([x (seqbox (list 1 2 3))]) x))\n"
+         "(define generator-count (length (for/list ([x (in-generator (yield 1))]) x)))\n"
          "(js-log (+ bsum hsum kcount pcount indexed gen-sum psum one chained cyclic parallel parallel-values\n"
          "           (length value-lists) (length values-star-a) (length values-star-b)\n"
-         "           (length before) (length after) -741))\n")))
+         "           (length before) (length after)\n"
+         "           mlist-sum port-byte-sum port-char-count line-count bytes-line-count prop-sum generator-count\n"
+         "           -914))\n")))
     "main.rkt"
     #rx"(?m:^153$)"
     '("--no-io-format-provider" "--webracket-module-bridge"))

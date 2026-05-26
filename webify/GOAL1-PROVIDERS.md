@@ -92,10 +92,14 @@ positional module programs. `webracket/full` therefore exports the staged
   surface: `in-bytes`, `in-hash`, `in-hash-keys`, `in-hash-pairs`,
   `in-indexed`, `in-sequences`, `in-cycle`, `in-parallel`,
   `in-parallel-values`, `in-values-sequence`, `in-values*-sequence`,
-  `stop-before`, `stop-after`, `in-producer`, `in-value`, and
-  `sequence-generate`. This is still not full
-  `racket/private/for`; ports, directories, custom sequence syntax, and some
+  `stop-before`, `stop-after`, `in-mlist`, input-port byte/char/line
+  sequences, `prop:sequence`, `in-producer`, `in-value`, and
+  `sequence-generate`. This is still not full `racket/private/for`;
+  directories, original stream internals, custom sequence syntax, and some
   advanced sequence combinators remain later work.
+- `racket/generator` routes to `webracket/generator`, a no-op shim. The
+  original provider depends on continuation prompts and composable
+  continuations, which are intentionally postponed for Goal 1.
 - `racket/dict` routes to staged `webracket/dict`. The coverage row now checks
   both ordinary functions (`dict-map`, `dict-count`) and sequence exports such
   as `in-dict-pairs`.

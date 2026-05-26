@@ -50578,6 +50578,25 @@
                (local.set $res (call $i32growable-array->immutable-string (local.get $buf)))
                (local.get $res))
 
+         ;; read-bytes-line : [input-port?] [read-line-mode?] -> (or/c bytes? eof-object?)
+         ;;   Read a line as a string, then encode it as UTF-8 bytes.
+         ;;   Optional in defaults to current-input-port; mode defaults to 'linefeed.
+         (func $read-bytes-line (type $Prim02)
+               (param $in   (ref eq)) ;; optional input-port?, default = (current-input-port)
+               (param $mode (ref eq)) ;; optional read-line-mode?, default = 'linefeed
+               (result      (ref eq))
+
+               (local $line (ref eq))
+
+               (local.set $line (call $read-line (local.get $in) (local.get $mode)))
+               (if (ref.eq (local.get $line) (global.get $eof))
+                   (then (return (global.get $eof))))
+               (call $string->bytes/utf-8
+                     (local.get $line)
+                     (global.get $false)
+                     (global.get $false)
+                     (global.get $false)))
+
          (func $peek-bytes! (type $Prim25)
                (param $bstr  (ref eq)) ;; bytes?
                (param $skip  (ref eq)) ;; exact-nonnegative-integer?

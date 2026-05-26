@@ -1583,7 +1583,7 @@
        raise-read-eof-error)
      'optional 6 7)
     (make-inline-specs
-     '(read-line peek-byte peek-char)
+     '(read-line read-bytes-line peek-byte peek-char)
      'optional 0 2)
     (make-inline-specs
      '(peek-char-or-special)
@@ -2527,6 +2527,7 @@
   byte-ready?
   char-ready?
   read-line
+  read-bytes-line
   peek-bytes!
   peek-string!
   peek-bytes

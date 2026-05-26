@@ -249,7 +249,9 @@
     racket/contract/region
     racket/contract/private/list
     racket/contract/private/misc
+    racket/generator
     racket/logging
+    racket/mpair
     racket/private/define-struct
     racket/private/for
     racket/private/kw
@@ -267,7 +269,9 @@
     webracket/file
     webracket/format
     webracket/function
+    webracket/generator
     webracket/hash
+    webracket/mpair
     webracket/port
     webracket/pretty
     webracket/promise
@@ -297,7 +301,9 @@
     racket/contract/combinator
     racket/contract/region
     racket/format
+    racket/generator
     racket/hash
+    racket/mpair
     racket/logging
     racket/contract/private/list
     racket/contract/private/misc
@@ -315,7 +321,9 @@
     webracket/file
     webracket/format
     webracket/function
+    webracket/generator
     webracket/hash
+    webracket/mpair
     webracket/port
     webracket/pretty
     webracket/promise

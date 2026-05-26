@@ -1,5 +1,7 @@
 #lang racket/base
 
+(require racket/mpair)
+
 (provide make-do-sequence
          make-sequence
          prop:sequence
@@ -7,6 +9,14 @@
          sequence-generate
          sequence-generate*
          in-bytes
+         in-mlist
+         check-mlist
+         in-input-port-bytes
+         in-input-port-chars
+         in-port
+         in-lines
+         in-bytes-lines
+         (rename-out [read-bytes-line/staged read-bytes-line])
          in-hash
          default-in-hash
          in-hash-keys
@@ -37,6 +47,11 @@
          check-in-hash-pairs
          check-in-immutable-hash
          check-bytes
+         check-in-input-port-bytes
+         check-in-input-port-chars
+         check-in-port
+         check-in-lines
+         check-in-bytes-lines
          check-list)
 
 ;; A small WebRacket-owned subset of `racket/private/for`.
@@ -66,6 +81,8 @@
       (vector? v)
       (string? v)
       (bytes? v)
+      (or (mpair? v) (null? v))
+      (input-port? v)
       (hash? v)
       (do-sequence? v)
       (and (sequence-via-prop? v) #t)))
@@ -75,6 +92,12 @@
 (define (check-list v)
   (unless (list? v)
     (raise-argument-error 'in-list "list?" v)))
+
+;; check-mlist : any/c -> void?
+;;   Validate mutable-list sequences imported by expanded installed providers.
+(define (check-mlist v)
+  (unless (or (mpair? v) (null? v))
+    (raise-argument-error 'in-mlist "(or/c mpair? null?)" v)))
 
 ;; check-in-hash : any/c -> void?
 ;;   Validate generic hash sequences imported by installed providers.
@@ -139,6 +162,113 @@
       [(if (positive? step) (< i end) (> i end))
        (cons (bytes-ref bstr i) (loop (+ i step)))]
       [else null])))
+
+;; in-mlist : (or/c mpair? null?) -> sequence?
+;;   Return a mutable-list sequence.
+(define (in-mlist lst)
+  (check-mlist lst)
+  (make-do-sequence
+   (lambda ()
+     (values mcar
+             #f
+             mcdr
+             lst
+             mpair?
+             #f
+             #f))))
+
+;; check-input-port : symbol? any/c -> void?
+;;   Validate input-port sequence arguments.
+(define (check-input-port who in)
+  (unless (input-port? in)
+    (raise-argument-error who "input-port?" in)))
+
+;; check-in-input-port-bytes : any/c -> void?
+;;   Validate byte-port sequence arguments.
+(define (check-in-input-port-bytes in)
+  (check-input-port 'in-input-port-bytes in))
+
+;; in-input-port-bytes : input-port? -> sequence?
+;;   Return a byte-reading sequence.
+(define (in-input-port-bytes in)
+  (check-in-input-port-bytes in)
+  (in-producer (lambda () (read-byte in)) eof))
+
+;; check-in-input-port-chars : any/c -> void?
+;;   Validate char-port sequence arguments.
+(define (check-in-input-port-chars in)
+  (check-input-port 'in-input-port-chars in))
+
+;; in-input-port-chars : input-port? -> sequence?
+;;   Return a character-reading sequence.
+(define (in-input-port-chars in)
+  (check-in-input-port-chars in)
+  (in-producer (lambda () (read-char in)) eof))
+
+;; check-in-port : procedure? input-port? -> void?
+;;   Validate in-port arguments.
+(define (check-in-port reader in)
+  (unless (and (procedure? reader) (procedure-arity-includes? reader 1))
+    (raise-argument-error 'in-port "(procedure-arity-includes/c 1)" reader))
+  (check-input-port 'in-port in))
+
+;; in-port : [procedure?] [input-port?] -> sequence?
+;;   Return a sequence by reading from in until eof. Reader defaults to read.
+(define in-port
+  (case-lambda
+    [() (in-port read (current-input-port))]
+    [(reader) (in-port reader (current-input-port))]
+    [(reader in)
+     (check-in-port reader in)
+     (in-producer (lambda () (reader in)) eof)]))
+
+;; check-read-line-mode : symbol? any/c -> void?
+;;   Validate read-line modes used by port sequences.
+(define (check-read-line-mode who mode)
+  (unless (memq mode '(linefeed return return-linefeed any any-one))
+    (raise-argument-error who
+                          "(or/c 'linefeed 'return 'return-linefeed 'any 'any-one)"
+                          mode)))
+
+;; check-in-lines : any/c any/c -> void?
+;;   Validate in-lines arguments.
+(define (check-in-lines in mode)
+  (check-input-port 'in-lines in)
+  (check-read-line-mode 'in-lines mode))
+
+;; in-lines : [input-port?] [symbol?] -> sequence?
+;;   Return a line-reading sequence. Optional mode defaults to 'any.
+(define in-lines
+  (case-lambda
+    [() (in-lines (current-input-port) 'any)]
+    [(in) (in-lines in 'any)]
+    [(in mode)
+     (check-in-lines in mode)
+     (in-producer (lambda () (read-line in mode)) eof)]))
+
+;; read-bytes-line/staged : input-port? symbol? -> (or/c bytes? eof-object?)
+;;   Read one line as bytes using the available string-port reader.
+(define (read-bytes-line/staged in mode)
+  (define line (read-line in mode))
+  (if (eof-object? line)
+      eof
+      (string->bytes/utf-8 line)))
+
+;; check-in-bytes-lines : any/c any/c -> void?
+;;   Validate in-bytes-lines arguments.
+(define (check-in-bytes-lines in mode)
+  (check-input-port 'in-bytes-lines in)
+  (check-read-line-mode 'in-bytes-lines mode))
+
+;; in-bytes-lines : [input-port?] [symbol?] -> sequence?
+;;   Return a bytes-line sequence. Optional mode defaults to 'any.
+(define in-bytes-lines
+  (case-lambda
+    [() (in-bytes-lines (current-input-port) 'any)]
+    [(in) (in-bytes-lines in 'any)]
+    [(in mode)
+     (check-in-bytes-lines in mode)
+     (in-producer (lambda () (read-bytes-line/staged in mode)) eof)]))
 
 ;; maybe-bad-index : any/c -> any/c
 ;;   Placeholder for Racket's weak/concurrent hash bad-index value.
@@ -268,6 +398,14 @@
              pair?
              #f
              #f)]
+    [(or (mpair? v) (null? v))
+     (values mcar
+             #f
+             mcdr
+             v
+             mpair?
+             #f
+             #f)]
     [(vector? v)
      (values (lambda (pos) (vector-ref v pos))
              #f
@@ -292,6 +430,8 @@
              (lambda (pos) (< pos (bytes-length v)))
              #f
              #f)]
+    [(input-port? v)
+     (make-sequence who (in-input-port-bytes v))]
     [(hash? v)
      (values (lambda (pos) (hash-iterate-key+value v pos))
              #f

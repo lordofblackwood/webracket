@@ -1288,6 +1288,7 @@ current-parameterization    ; poor-man dynamic parameterization overlay
  byte-ready?
  char-ready?
  read-line
+ read-bytes-line
  peek-bytes!
  peek-string!
  peek-bytes
@@ -2854,6 +2855,18 @@ current-parameterization    ; poor-man dynamic parameterization overlay
 
 (define (reset-current-error-port!)
   (current-error-port (open-output-string)))
+
+;; read-bytes-line : [input-port?] [symbol?] -> (or/c bytes? eof-object?)
+;;   Read one line and encode it as UTF-8 bytes. Optional mode defaults to 'linefeed.
+(define read-bytes-line
+  (case-lambda
+    [() (read-bytes-line (current-input-port) 'linefeed)]
+    [(in) (read-bytes-line in 'linefeed)]
+    [(in mode)
+     (define line (read-line in mode))
+     (if (eof-object? line)
+         eof
+         (string->bytes/utf-8 line))]))
 
 
 
