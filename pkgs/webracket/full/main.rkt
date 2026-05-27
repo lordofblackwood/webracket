@@ -46,7 +46,8 @@
                   sequence-fold
                   sequence-count
                   sequence-filter
-                  sequence-add-between)
+                  sequence-add-between
+                  in-slice)
          "../set.rkt"
          "../stream.rkt"
          (except-in "../function.rkt" compose compose1)
@@ -115,6 +116,7 @@
          sequence-count
          sequence-filter
          sequence-add-between
+         in-slice
          (all-from-out "../set.rkt")
          (all-from-out "../stream.rkt")
          (for-syntax (all-from-out racket/base))

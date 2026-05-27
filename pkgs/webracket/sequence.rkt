@@ -1,6 +1,6 @@
 #lang racket/base
 
-(require (except-in "private/for.rkt" sequence-ref))
+(require racket/private/for)
 
 (provide empty-sequence
          sequence->list
@@ -16,7 +16,8 @@
          sequence-count
          sequence-filter
          sequence-add-between
-         (all-from-out "private/for.rkt"))
+         in-slice
+         (all-from-out racket/private/for))
 
 ;; A small public `racket/sequence` replacement for Goal 1. The private `for`
 ;; provider owns the sequence protocol; this module owns the public helpers that
@@ -29,6 +30,13 @@
 (define (check-sequence-helper who seq)
   (unless (sequence? seq)
     (raise-argument-error who "sequence?" seq)))
+
+;; check-sequences : symbol? (listof any/c) -> void?
+;;   Validate public sequence-helper rest arguments.
+(define (check-sequences who seqs)
+  (for-each (lambda (seq)
+              (check-sequence-helper who seq))
+            seqs))
 
 ;; check-sequence-index : symbol? any/c -> void?
 ;;   Validate public sequence indices.
@@ -243,3 +251,39 @@
       [(null? xs) null]
       [(null? (cdr xs)) xs]
       [else (cons (car xs) (cons e (loop (cdr xs))))])))
+
+;; in-slice : exact-positive-integer? sequence? -> sequence?
+;;   Group seq into lists of length n; the final group may be shorter.
+(define (in-slice n seq)
+  (unless (exact-positive-integer? n)
+    (raise-argument-error 'in-slice "exact-positive-integer?" n))
+  (check-sequence-helper 'in-slice seq)
+  (make-do-sequence
+   (lambda ()
+     (define-values (more? next) (sequence-generate seq))
+     (define cached? #f)
+     (define exhausted? #f)
+     (define cached-slice #f)
+     (define (read-slice!)
+       (let loop ([i 0] [acc null])
+         (cond
+           [(or (= i n) (not (more?))) (reverse acc)]
+           [else
+            (loop (add1 i)
+                  (cons (next-single-value 'in-slice next) acc))])))
+     (define (fill-cache!)
+       (unless cached?
+         (define slice (read-slice!))
+         (set! cached-slice slice)
+         (set! exhausted? (null? slice))
+         (set! cached? #t)))
+     (values (lambda (_pos) cached-slice)
+             (lambda (pos)
+               (set! cached? #f)
+               pos)
+             #t
+             (lambda (_pos)
+               (fill-cache!)
+               (not exhausted?))
+             #f
+             #f))))
