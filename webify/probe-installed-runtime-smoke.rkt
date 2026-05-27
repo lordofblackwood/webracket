@@ -169,6 +169,7 @@
     sequence-in-values-sequence
     sequence-generate-basic
     sequence-generate-star
+    sequence-generate-exhausted
     sequence-empty
     sequence-map-filter-count
     sequence-andmap-ormap
@@ -186,6 +187,8 @@
     sequence-ref-length
     sequence-prop-sequence
     sequence-prop-gen-sequence
+    sequence-in-parallel-values
+    sequence-generate-exhausted
     sequence-for/list
     sequence-for/vector
     for/in-list
@@ -199,6 +202,10 @@
     for/and-or
     for/sum-product
     for/hash-basic
+    for/lists-basic
+    for*/vector-basic
+    for/hash-kinds
+    for/final-clause
     for/list-basic
     for/fold-basic
     for*/list-basic
@@ -387,6 +394,7 @@
       sequence-in-values-sequence
       sequence-generate-basic
       sequence-generate-star
+      sequence-generate-exhausted
       sequence-empty
       sequence-map-filter-count
       sequence-andmap-ormap
@@ -404,6 +412,7 @@
       sequence-ref-length
       sequence-prop-sequence
       sequence-prop-gen-sequence
+      sequence-in-parallel-values
       sequence-for/list
       sequence-for/fold
       sequence-for/vector
@@ -418,6 +427,10 @@
       for/and-or
       for/sum-product
       for/hash-basic
+      for/lists-basic
+      for*/vector-basic
+      for/hash-kinds
+      for/final-clause
       for/list-basic
       for/fold-basic
       for*/list-basic
@@ -532,6 +545,7 @@
             [(sequence-in-values-sequence) #rx"(?m:^2$)"]
             [(sequence-generate-basic) #rx"(?m:^31$)"]
             [(sequence-generate-star) #rx"(?m:^30$)"]
+            [(sequence-generate-exhausted) #rx"(?m:^42$)"]
             [(sequence-empty) #rx"(?m:^0$)"]
             [(sequence-map-filter-count) #rx"(?m:^45$)"]
             [(sequence-andmap-ormap) #rx"(?m:^30$)"]
@@ -548,8 +562,10 @@
             [(sequence-in-value) #rx"(?m:^42$)"]
             [(sequence-ref-length) #rx"(?m:^23$)"]
             [(sequence-prop-sequence sequence-prop-gen-sequence) #rx"(?m:^42$)"]
+            [(sequence-in-parallel-values) #rx"(?m:^333$)"]
             [(sequence-for/fold for/fold-basic) #rx"(?m:^6$)"]
             [(for*/list-basic) #rx"(?m:^4$)"]
+            [(for*/vector-basic) #rx"(?m:^4$)"]
             [(for/in-list for/in-vector for/parallel-sequences)
              #rx"(?m:^42$)"]
             [(for*/nested-sequences) #rx"(?m:^44$)"]
@@ -560,6 +576,9 @@
             [(for/and-or) #rx"(?m:^30$)"]
             [(for/sum-product) #rx"(?m:^30$)"]
             [(for/hash-basic) #rx"(?m:^23$)"]
+            [(for/lists-basic) #rx"(?m:^17$)"]
+            [(for/hash-kinds) #rx"(?m:^33$)"]
+            [(for/final-clause) #rx"(?m:^4$)"]
             [(hash-comparator-semantics set-comparator-semantics) #rx"(?m:^21$)"]
             [(hash-basic) #rx"(?m:^41$)"]
             [(hash-provider-basic) #rx"(?m:^42$)"]

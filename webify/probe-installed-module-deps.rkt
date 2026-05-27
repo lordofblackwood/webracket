@@ -89,6 +89,7 @@
     sequence-in-values-sequence
     sequence-generate-basic
     sequence-generate-star
+    sequence-generate-exhausted
     sequence-empty
     sequence-map-filter-count
     sequence-andmap-ormap
@@ -106,6 +107,7 @@
     sequence-ref-length
     sequence-prop-sequence
     sequence-prop-gen-sequence
+    sequence-in-parallel-values
     sequence-for/list
     sequence-for/fold
     sequence-for/vector
@@ -120,6 +122,10 @@
     for/and-or
     for/sum-product
     for/hash-basic
+    for/lists-basic
+    for*/vector-basic
+    for/hash-kinds
+    for/final-clause
     for/list-basic
     for/fold-basic
     for*/list-basic
@@ -203,6 +209,8 @@
     sequence-for/vector
     sequence-prop-sequence
     sequence-prop-gen-sequence
+    sequence-in-parallel-values
+    sequence-generate-exhausted
     for/in-list
     for/in-vector
     for/in-string
@@ -214,6 +222,10 @@
     for/and-or
     for/sum-product
     for/hash-basic
+    for/lists-basic
+    for*/vector-basic
+    for/hash-kinds
+    for/final-clause
     for/list-basic
     for/fold-basic
     for*/list-basic
@@ -801,6 +813,13 @@
          (define-values (second done) (next))
          (define-values (third _done-again) (done))
          (define y (+ (car first) (car second) (if third 100 0)))))]
+    [(sequence-generate-exhausted)
+     '((module use-sequence-generate-exhausted racket/base
+         (require racket/sequence)
+         (provide y)
+         (define-values (more? get) (sequence-generate '(1)))
+         (get)
+         (define y (if (more?) 0 42))))]
     [(sequence-empty)
      '((module use-sequence-empty racket/base
          (require racket/sequence)
@@ -919,6 +938,17 @@
              (define xs (seqbox-xs self))
              (values car #f cdr xs pair? #f #f)))
          (define y (for/fold ([sum 0]) ([x (seqbox '(10 20 12))]) (+ sum x)))))]
+    [(sequence-in-parallel-values)
+     '((module use-sequence-in-parallel-values racket/base
+         (require racket/sequence)
+         (provide y)
+         (define y
+           (for/sum ([(x y z) (in-parallel-values
+                               2
+                               (in-parallel (list 1 2) (list 10 20))
+                               1
+                               (list 100 200))])
+             (+ x y z)))))]
     [(sequence-for/list)
      '((module use-sequence-for-list racket/base
          (require racket/sequence)
@@ -1000,6 +1030,44 @@
            (for/hash ([x (in-list '(1 2 3))])
              (values x (* x 10))))
          (define y (+ (hash-count ht) (hash-ref ht 2)))))]
+    [(for/lists-basic)
+     '((module use-for-lists-basic racket/base
+         (provide y)
+         (define-values (xs ys)
+           (for/lists (xs ys) ([x (in-list '(1 2 3))])
+             (values x (* x 10))))
+         (define y (+ (length xs) (length ys) (car xs) (car ys)))))]
+    [(for*/vector-basic)
+     '((module use-for-star-vector-basic racket/base
+         (provide y)
+         (define y
+           (vector-length
+            (for*/vector ([x (in-list '(a b))]
+                          [y (in-list '(1 2))])
+              (list x y))))))]
+    [(for/hash-kinds)
+     '((module use-for-hash-kinds racket/base
+         (provide y)
+         (define ht-eq
+           (for/hasheq ([x (in-list '(a b))])
+             (values x 10)))
+         (define ht-eqv
+           (for/hasheqv ([x (in-list '(1 2))])
+             (values x (* x 10))))
+         (define ht-alw
+           (for/hashalw ([x (in-list '(a b))])
+             (values (string->symbol (symbol->string x)) 3)))
+         (define y (+ (hash-ref ht-eq 'a)
+                      (hash-ref ht-eqv 2)
+                      (hash-ref ht-alw 'a)))))]
+    [(for/final-clause)
+     '((module use-for-final-clause racket/base
+         (provide y)
+         (define y
+           (for/sum ([x (in-list '(1 2 3 4 5))]
+                     #:when (odd? x)
+                     #:final (= x 3))
+             x))))]
     [(for/list-basic)
      '((module use-for-list-basic racket/base
          (provide y)
