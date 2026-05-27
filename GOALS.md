@@ -451,13 +451,27 @@ Current installed-extraction runtime smokes cover:
   cached exceptions and multiple-value results. Goal 1 module programs that
   require `racket/promise` are rewritten to this provider, so the compact
   dependency matrix now treats `(require racket/promise)` as a required row.
-- `racket/sequence`: `sequence->list` over a plain list, `in-range`,
-  `for/list`, `for/fold`, and `for/vector` coverage in the Goal 1 matrix.
+- `racket/sequence`: the Goal 1 matrix now separates core sequence producers
+  from custom sequence protocol coverage. Core coverage includes lists,
+  vectors, strings, byte strings, hashes, sets, streams, ranges, inclusive
+  ranges, naturals, indexed sequences, values sequences, and bounded
+  generators. Custom coverage includes `prop:sequence`, `prop:gen-sequence`,
+  `sequence-generate`, `sequence-generate*`, and `make-do-sequence` with both
+  multi-value elements and early stop predicates.
 - `racket/base` `for` forms: `for/list`, `for/fold`, `for*/list`, and
   `for/first` source-module cases are tracked as must-have iteration coverage.
   The explicit producer matrix includes `in-list`, `in-vector`, `in-string`,
   `in-range`, bounded `in-naturals`, parallel sequence clauses, nested
-  `for*/list` clauses, and `#:when`/`#:unless`/`#:break` control clauses.
+  `for*/list` clauses, `#:when`/`#:unless`/`#:break`/`#:final` control clauses,
+  and result builders such as `for/lists`, `for/vector`, `for/hasheq`,
+  `for/hasheqv`, `for/hashalw`, `for/and`, `for/or`, `for/first`, and
+  `for/last`.
+- Original `racket/private/for` is still not the default runtime artifact. The
+  staged provider is deliberate while we close the remaining semantic gaps:
+  complete generator behavior, richer mutable-list interactions, all port and
+  directory producer corner cases, full custom sequence-property parity, and
+  hash/set variants including concurrent-modification behavior. The compact
+  dashboard keeps these as separate rows so we can see which gap moves.
 - `racket/match`: a basic list pattern, a default branch, `match-let`, and a
   predicate pattern are tracked in the Goal 1 matrix.
 - `racket/class`: a basic object with a public method.

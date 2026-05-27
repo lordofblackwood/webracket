@@ -81,6 +81,7 @@
     sequence-in-hash-keys
     sequence-in-hash-values
     sequence-in-hash-pairs
+    sequence-common-producers
     sequence-in-indexed
     sequence-stop-before-after
     sequence-in-sequences
@@ -102,6 +103,8 @@
     sequence-inclusive-range
     sequence-in-producer
     sequence-make-do
+    sequence-make-do-values
+    sequence-make-do-stop
     sequence-in-syntax
     sequence-append-tail
     sequence-in-value
@@ -131,6 +134,7 @@
     for/control-parallel
     for*/control-nested
     for/vector-length-fill
+    for/result-builders-rich
     for/list-basic
     for/fold-basic
     for*/list-basic
@@ -217,6 +221,9 @@
     sequence-in-parallel-values
     sequence-generate-exhausted
     sequence-boundary-safe
+    sequence-common-producers
+    sequence-make-do-values
+    sequence-make-do-stop
     for/in-list
     for/in-vector
     for/in-string
@@ -235,6 +242,7 @@
     for/control-parallel
     for*/control-nested
     for/vector-length-fill
+    for/result-builders-rich
     for/list-basic
     for/fold-basic
     for*/list-basic
@@ -769,6 +777,15 @@
          (provide y)
          (define ht (hash 'a 10 'b 20))
          (define y (length (for/list ([p (in-hash-pairs ht)]) p)))))]
+    [(sequence-common-producers)
+     '((module use-sequence-common-producers racket/base
+         (require racket/sequence racket/set racket/stream)
+         (provide y)
+         (define bsum (for/sum ([b (in-bytes #"abc")]) b))
+         (define hsum (for/sum ([(k v) (in-hash (hash 'a 10 'b 20 'c 12))]) v))
+         (define set-sum (for/sum ([x (in-set (set 10 20 12))]) x))
+         (define stream-sum (for/sum ([x (in-stream (stream 1 2 3))]) x))
+         (define y (+ bsum hsum set-sum stream-sum))))]
     [(sequence-in-indexed)
      '((module use-sequence-in-indexed racket/base
          (require racket/sequence)
@@ -913,6 +930,34 @@
                #:continue-with-pos? pair?
                #:continue-after-pos+val? (lambda (xs _) (pair? (cdr xs)))))))
          (define y (length (sequence->list (in-alt-list '(1 2 3 4 5 6 7)))))))]
+    [(sequence-make-do-values)
+     '((module use-sequence-make-do-values racket/base
+         (require racket/sequence)
+         (provide y)
+         (define seq
+           (make-do-sequence
+            (lambda ()
+              (values (lambda (xs) (values (car xs) (* 10 (car xs))))
+                      cdr
+                      '(1 2 3)
+                      pair?
+                      #f
+                      #f))))
+         (define y (for/sum ([(x y) seq]) (+ x y)))))]
+    [(sequence-make-do-stop)
+     '((module use-sequence-make-do-stop racket/base
+         (require racket/sequence)
+         (provide y)
+         (define seq
+           (make-do-sequence
+            (lambda ()
+              (values car
+                      cdr
+                      '(1 2 3 4)
+                      pair?
+                      #f
+                      (lambda (xs v) (< v 3))))))
+         (define y (length (sequence->list seq)))))]
     [(sequence-in-syntax)
      '((module use-sequence-in-syntax racket/base
          (require racket/sequence)
@@ -1112,6 +1157,34 @@
          (define y (+ (vector-length v-short)
                       (vector-ref v-short 1)
                       (vector-ref v-fill 3)))))]
+    [(for/result-builders-rich)
+     '((module use-for-result-builders-rich racket/base
+         (provide y)
+         (define h1
+           (for/hasheq ([x (in-list '(a b))])
+             (values x 1)))
+         (define h2
+           (for/hasheqv ([x (in-list '(1 2))])
+             (values x (* x 10))))
+         (define h3
+           (for/hashalw ([x (in-list '(a b))])
+             (values (string->symbol (symbol->string x)) 4)))
+         (define first-v
+           (for/first ([x (in-list '(#f 41 42))]
+                       #:when x)
+             x))
+         (define last-v
+           (for/last ([x (in-list '(10 20 12))])
+             x))
+         (define y
+           (+ (hash-count h1)
+              (hash-ref h1 'a)
+              (hash-ref h2 2)
+              (hash-ref h3 'a)
+              first-v
+              last-v
+              (if (for/and ([x (in-list '(2 4 6))]) (even? x)) 10 0)
+              (if (for/or ([x (in-list '(1 3 4))]) (even? x)) 20 0)))))]
     [(for/list-basic)
      '((module use-for-list-basic racket/base
          (provide y)

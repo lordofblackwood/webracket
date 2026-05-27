@@ -161,6 +161,7 @@
     sequence-in-hash-keys
     sequence-in-hash-values
     sequence-in-hash-pairs
+    sequence-common-producers
     sequence-in-indexed
     sequence-stop-before-after
     sequence-in-sequences
@@ -182,6 +183,8 @@
     sequence-inclusive-range
     sequence-in-producer
     sequence-make-do
+    sequence-make-do-values
+    sequence-make-do-stop
     sequence-in-syntax
     sequence-append-tail
     sequence-in-value
@@ -211,6 +214,7 @@
     for/control-parallel
     for*/control-nested
     for/vector-length-fill
+    for/result-builders-rich
     for/list-basic
     for/fold-basic
     for*/list-basic
@@ -391,6 +395,7 @@
       sequence-in-hash-keys
       sequence-in-hash-values
       sequence-in-hash-pairs
+      sequence-common-producers
       sequence-in-indexed
       sequence-stop-before-after
       sequence-in-sequences
@@ -412,6 +417,8 @@
       sequence-inclusive-range
       sequence-in-producer
       sequence-make-do
+      sequence-make-do-values
+      sequence-make-do-stop
       sequence-in-syntax
       sequence-append-tail
       sequence-in-value
@@ -441,6 +448,7 @@
       for/control-parallel
       for*/control-nested
       for/vector-length-fill
+      for/result-builders-rich
       for/list-basic
       for/fold-basic
       for*/list-basic
@@ -548,6 +556,7 @@
             [(sequence-in-hash-values) #rx"(?m:^30$)"]
             [(sequence-in-hash-keys
               sequence-in-hash-pairs) #rx"(?m:^2$)"]
+            [(sequence-common-producers) #rx"(?m:^384$)"]
             [(sequence-stop-before-after) #rx"(?m:^5$)"]
             [(sequence-in-sequences) #rx"(?m:^4$)"]
             [(sequence-in-parallel) #rx"(?m:^66$)"]
@@ -568,6 +577,8 @@
             [(sequence-inclusive-range) #rx"(?m:^27$)"]
             [(sequence-in-producer) #rx"(?m:^6$)"]
             [(sequence-make-do) #rx"(?m:^4$)"]
+            [(sequence-make-do-values) #rx"(?m:^66$)"]
+            [(sequence-make-do-stop) #rx"(?m:^3$)"]
             [(sequence-in-syntax) #rx"(?m:^3$)"]
             [(sequence-append-tail) #rx"(?m:^24$)"]
             [(sequence-in-value) #rx"(?m:^42$)"]
@@ -593,6 +604,7 @@
             [(for/control-parallel) #rx"(?m:^0$)"]
             [(for*/control-nested) #rx"(?m:^32$)"]
             [(for/vector-length-fill) #rx"(?m:^31$)"]
+            [(for/result-builders-rich) #rx"(?m:^110$)"]
             [(hash-comparator-semantics set-comparator-semantics) #rx"(?m:^21$)"]
             [(hash-basic) #rx"(?m:^41$)"]
             [(hash-provider-basic) #rx"(?m:^42$)"]

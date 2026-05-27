@@ -91,6 +91,7 @@
                             webracket/contract
                             webracket/set
                             webracket/promise
+                            webracket/sequence
                             webracket/stream
                             js/math
                             js/console))])

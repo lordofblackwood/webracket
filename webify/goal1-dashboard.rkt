@@ -110,7 +110,10 @@
     full-path-coverage
     full-match-coverage
     base-sequence-core
+    base-sequence-producers
     base-sequence-hash-generate
+    base-sequence-custom
+    base-for-result-builders
     base-sequence-mpair
     base-sequence-ports
     base-sequence-prop-generator
@@ -760,6 +763,23 @@
     #rx"(?m:^42$)"
     '("--no-io-format-provider" "--webracket-module-bridge"))
    (dashboard-case
+    'base-sequence-producers
+    'installed-provider-coverage
+    '(racket/private/for racket/set racket/stream
+      webracket/private/for webracket/set webracket/stream)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/base\n"
+         "(require racket/set racket/stream)\n"
+         "(define bsum (for/sum ([b (in-bytes #\"abc\")]) b))\n"
+         "(define hsum (for/sum ([(k v) (in-hash (hash 'a 10 'b 20 'c 12))]) v))\n"
+         "(define set-sum (for/sum ([x (in-set (set 10 20 12))]) x))\n"
+         "(define stream-sum (for/sum ([x (in-stream (stream 1 2 3))]) x))\n"
+         "(js-log (+ bsum hsum set-sum stream-sum -342))\n")))
+    "main.rkt"
+    #rx"(?m:^42$)"
+    '("--no-io-format-provider" "--webracket-module-bridge"))
+   (dashboard-case
     'base-sequence-hash-generate
     'installed-provider-coverage
     '(racket/private/for webracket/private/for)
@@ -773,6 +793,57 @@
          "(define-values (more? get) (sequence-generate h))\n"
          "(define gcount (let loop ([n 0]) (if (more?) (begin (get) (loop (+ n 1))) n)))\n"
          "(js-log (+ hsum kcount pcount gcount -9))\n")))
+    "main.rkt"
+    #rx"(?m:^42$)"
+    '("--no-io-format-provider" "--webracket-module-bridge"))
+   (dashboard-case
+    'base-sequence-custom
+    'installed-provider-coverage
+    '(racket/sequence racket/private/for webracket/sequence webracket/private/for)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/base\n"
+         "(require racket/sequence)\n"
+         "(define values-seq\n"
+         "  (make-do-sequence\n"
+         "   (lambda ()\n"
+         "     (values (lambda (xs) (values (car xs) (* 10 (car xs))))\n"
+         "             cdr\n"
+         "             '(1 2 3)\n"
+         "             pair?\n"
+         "             #f\n"
+         "             #f))))\n"
+         "(define stopped-seq\n"
+         "  (make-do-sequence\n"
+         "   (lambda ()\n"
+         "     (values car cdr '(1 2 3 4) pair? #f (lambda (xs v) (< v 3))))))\n"
+         "(define values-sum (for/sum ([(x y) values-seq]) (+ x y)))\n"
+         "(define stopped-count (length (sequence->list stopped-seq)))\n"
+         "(js-log (+ values-sum stopped-count -27))\n")))
+    "main.rkt"
+    #rx"(?m:^42$)"
+    '("--no-io-format-provider" "--webracket-module-bridge"))
+   (dashboard-case
+    'base-for-result-builders
+    'installed-provider-coverage
+    '(racket/private/for webracket/private/for)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/base\n"
+         "(define h1 (for/hasheq ([x (in-list '(a b))]) (values x 1)))\n"
+         "(define h2 (for/hasheqv ([x (in-list '(1 2))]) (values x (* x 10))))\n"
+         "(define h3 (for/hashalw ([x (in-list '(a b))]) (values (string->symbol (symbol->string x)) 4)))\n"
+         "(define first-v (for/first ([x (in-list '(#f 41 42))] #:when x) x))\n"
+         "(define last-v (for/last ([x (in-list '(10 20 12))]) x))\n"
+         "(js-log (+ (hash-count h1)\n"
+         "           (hash-ref h1 'a)\n"
+         "           (hash-ref h2 2)\n"
+         "           (hash-ref h3 'a)\n"
+         "           first-v\n"
+         "           last-v\n"
+         "           (if (for/and ([x (in-list '(2 4 6))]) (even? x)) 10 0)\n"
+         "           (if (for/or ([x (in-list '(1 3 4))]) (even? x)) 20 0)\n"
+         "           -68))\n")))
     "main.rkt"
     #rx"(?m:^42$)"
     '("--no-io-format-provider" "--webracket-module-bridge"))

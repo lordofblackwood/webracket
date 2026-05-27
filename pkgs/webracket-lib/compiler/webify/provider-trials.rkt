@@ -277,6 +277,7 @@
     webracket/promise
     webracket/private/for
     webracket/private/kw
+    webracket/sequence
     webracket/syntax/contract
     webracket/set
     webracket/string
@@ -329,6 +330,7 @@
     webracket/promise
     webracket/private/for
     webracket/private/kw
+    webracket/sequence
     webracket/syntax/contract
     webracket/set
     webracket/string
