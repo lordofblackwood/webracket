@@ -1498,35 +1498,80 @@
   (webracket/base-substitute-module-requires
    (read-webracket/module filename (webracket-module-source-language filename))))
 
+;; webracket/base-provider-substitution : struct
+;;   Describe one provider substitution so temporary shims stay visible.
+(struct webracket/base-provider-substitution
+  (requested routed classification pressure reason)
+  #:transparent)
+
+;; substitution : symbol? symbol? symbol? symbol? string? -> webracket/base-provider-substitution?
+;;   Keep the substitution table compact while retaining ownership metadata.
+(define (substitution requested routed classification pressure reason)
+  (webracket/base-provider-substitution requested routed classification pressure reason))
+
+;; webracket/base-provider-substitution-records : (listof webracket/base-provider-substitution?)
+;;   Single Goal 1 substitution registry for source-level requires and provider-graph fetching.
+(define webracket/base-provider-substitution-records
+  (list
+   (substitution 'racket/contract 'webracket/contract 'temporary-shim 'high
+                 "erased contracts unblock provider composition until contract enforcement is available")
+   (substitution 'racket/contract/base 'webracket/contract 'temporary-shim 'high
+                 "same erased-contract adapter as racket/contract")
+   (substitution 'racket/contract/combinator 'webracket/contract 'temporary-shim 'high
+                 "same erased-contract adapter as racket/contract")
+   (substitution 'racket/contract/region 'webracket/contract 'temporary-shim 'high
+                 "same erased-contract adapter as racket/contract")
+   (substitution 'racket/contract/private/list 'webracket/contract 'temporary-shim 'high
+                 "same erased-contract adapter as racket/contract")
+   (substitution 'racket/contract/private/misc 'webracket/contract 'temporary-shim 'high
+                 "same erased-contract adapter as racket/contract")
+   (substitution 'racket/class 'webracket/class 'temporary-shim 'high
+                 "real provider currently pulls larger contract/private edges")
+   (substitution 'racket/dict 'webracket/dict 'temporary-shim 'high
+                 "real provider diagnostic still fails during reflected export resolution")
+   (substitution 'racket/file 'webracket/file 'runtime-owned 'low
+                 "browser and VFS file behavior differs from host filesystem behavior")
+   (substitution 'racket/format 'webracket/format 'temporary-shim 'medium
+                 "formatting is split between staged io/format and compact runtime support")
+   (substitution 'racket/function 'webracket/function 'temporary-shim 'medium
+                 "avoid keyword-preserving wrappers until keyword metadata support is broader")
+   (substitution 'racket/generator 'webracket/generator 'diagnostic-shim 'low
+                 "generators depend on continuation prompts, which are outside Goal 1")
+   (substitution 'racket/hash 'webracket/hash 'temporary-shim 'medium
+                 "hash helpers should track WebRacket HAMT/runtime hash behavior")
+   (substitution 'racket/list 'webracket/list 'temporary-shim 'high
+                 "real provider still brings heavier provider graph and alias shapes")
+   (substitution 'racket/mpair 'webracket/mpair 'runtime-owned 'low
+                 "mutable-pair representation is WebRacket runtime work")
+   (substitution 'racket/port 'webracket/port 'runtime-owned 'low
+                 "ports are tied to WebRacket string ports, VFS, and browser IO")
+   (substitution 'racket/pretty 'webracket/pretty 'temporary-shim 'high
+                 "real provider diagnostic currently reaches pretty-port internals")
+   (substitution 'racket/promise 'webracket/promise 'runtime-owned 'low
+                 "ordinary promises are small browser-local runtime behavior")
+   (substitution 'racket/sequence 'webracket/sequence 'temporary-shim 'high
+                 "broad for support is useful while generator/prompt edges are postponed")
+   (substitution 'racket/set 'webracket/set 'temporary-shim 'medium
+                 "set support follows WebRacket hash/HAMT behavior while contracts/generics are postponed")
+   (substitution 'racket/string 'webracket/string 'temporary-shim 'high
+                 "common string operations work while transitive provider edges mature")
+   (substitution 'racket/stream 'webracket/stream 'temporary-shim 'medium
+                 "staged streams preserve lazy syntax without importing full stream internals")
+   (substitution 'racket/unsafe/undefined 'webracket/unsafe/undefined 'runtime-owned 'low
+                 "undefined values need WebRacket representation support")
+   (substitution 'syntax/contract 'webracket/syntax/contract 'temporary-shim 'high
+                 "supports contract erasure at expansion and provider time")
+   (substitution 'racket/private/for 'webracket/private/for 'temporary-shim 'high
+                 "expanded for forms need staged sequence protocol support")
+   (substitution 'racket/private/kw 'webracket/private/kw 'temporary-shim 'high
+                 "keyword procedure support is WebRacket-runtime-specific today")))
+
 ;; webracket/base-provider-substitution-pairs : (listof (cons/c symbol? symbol?))
-;;   Single Goal 1 map for source-level requires and provider-graph fetching.
+;;   Pair view of the structured substitution registry.
 (define webracket/base-provider-substitution-pairs
-  '((racket/contract . webracket/contract)
-    (racket/contract/base . webracket/contract)
-    (racket/contract/combinator . webracket/contract)
-    (racket/contract/region . webracket/contract)
-    (racket/contract/private/list . webracket/contract)
-    (racket/contract/private/misc . webracket/contract)
-    (racket/class . webracket/class)
-    (racket/dict . webracket/dict)
-    (racket/file . webracket/file)
-    (racket/format . webracket/format)
-    (racket/function . webracket/function)
-    (racket/generator . webracket/generator)
-    (racket/hash . webracket/hash)
-    (racket/list . webracket/list)
-    (racket/mpair . webracket/mpair)
-    (racket/port . webracket/port)
-    (racket/pretty . webracket/pretty)
-    (racket/promise . webracket/promise)
-    (racket/sequence . webracket/sequence)
-    (racket/set . webracket/set)
-    (racket/string . webracket/string)
-    (racket/stream . webracket/stream)
-    (racket/unsafe/undefined . webracket/unsafe/undefined)
-    (syntax/contract . webracket/syntax/contract)
-    (racket/private/for . webracket/private/for)
-    (racket/private/kw . webracket/private/kw)))
+  (for/list ([record (in-list webracket/base-provider-substitution-records)])
+    (cons (webracket/base-provider-substitution-requested record)
+          (webracket/base-provider-substitution-routed record))))
 
 ;; webracket/base-provider-substitute : symbol? -> symbol?
 ;;   Route selected installed providers to smaller WebRacket-owned Goal 1 shims.

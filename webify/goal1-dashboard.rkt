@@ -19,6 +19,7 @@
          goal1-dashboard-fast-required-case-names
          goal1-dashboard-coverage-core-case-names
          goal1-dashboard-coverage-extended-case-names
+         goal1-dashboard-real-provider-readiness-case-names
          goal1-dashboard-cases
          goal1-dashboard-select-cases
          goal1-dashboard-row
@@ -166,6 +167,12 @@
     installed-racket-logging-coverage
     ffi-js-math-coverage
     ffi-js-console-coverage))
+
+;; goal1-dashboard-real-provider-readiness-case-names : (listof symbol?)
+;;   Expected-fail rows that show which staged substitutions are replacement candidates.
+(define goal1-dashboard-real-provider-readiness-case-names
+  '(real-racket-dict-diagnostic
+    real-racket-pretty-diagnostic))
 
 (define goal1-dashboard-cases
   (list
@@ -2308,7 +2315,13 @@
                         (set! expectations '(required))]
    [("--coverage-extended") "run/list the broader Goal 1 coverage preset"
                             (set! case-names goal1-dashboard-coverage-extended-case-names)
-                            (set! expectations '(required))])
+                            (set! expectations '(required))]
+   [("--real-provider-readiness") "run/list diagnostic rows for replacing staged providers with real Racket providers"
+                                  (set! case-names goal1-dashboard-real-provider-readiness-case-names)
+                                  (set! expectations '(diagnostic))]
+   [("--provider-readiness") "alias for --real-provider-readiness"
+                             (set! case-names goal1-dashboard-real-provider-readiness-case-names)
+                             (set! expectations '(diagnostic))])
   (print-goal1-dashboard #:tsv? tsv?
                          #:json? json?
                          #:list? list?

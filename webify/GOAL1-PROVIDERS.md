@@ -83,6 +83,22 @@ and provider-graph fetching. Diagnostics can disable the table with
 `--no-provider-substitutions`; required Goal 1 rows should normally leave it
 enabled.
 
+The table is represented in `driver.rkt` as structured records, not just pairs.
+Each substitution has a classification and replacement pressure:
+
+- `temporary-shim`: useful for Goal 1 progress, but the long-term direction is
+  to replace it with original Racket code or a much thinner adapter.
+- `runtime-owned`: WebRacket should probably keep owning it because browser,
+  VFS, FFI, port, representation, or runtime behavior genuinely differs.
+- `diagnostic-shim`: intentionally non-complete and present only so unrelated
+  module graphs can keep moving while the real feature is postponed.
+- `high` pressure means we should prefer bridge/runtime fixes over adding more
+  staged API surface.
+- `medium` pressure means the shim is acceptable temporarily, but new functions
+  should still require a concrete reason.
+- `low` pressure means the substitute is probably WebRacket-specific enough
+  that replacing it with installed Racket code is not the main goal.
+
 The concrete regression to guard is `compose` and `compose1`: `racket/base`
 exports them, and installed `racket/function` / `racket/private/list` can pull
 in keyword-preserving wrappers that WebRacket does not need for ordinary
@@ -248,6 +264,10 @@ remaining compatibility notes are:
   records a known unsupported or fragile edge for later work.
 - When a coverage row fails, decide whether to improve WebRacket primitives,
   improve a staged provider, or explicitly postpone that part of the API.
+- For `high` pressure temporary shims, do not add new staged exports until
+  checking whether a bridge/runtime fix would let the original provider compose.
+  If a staged export is still added, document the reason and add a diagnostic
+  or readiness row that keeps the replacement path visible.
 
 ## Dashboard Presets
 
@@ -259,3 +279,6 @@ remaining compatibility notes are:
   before larger Goal 1 checkpoints.
 - `--tier coverage` still runs every coverage row, including both core and
   extended rows.
+- `--real-provider-readiness` runs diagnostic rows with provider substitutions
+  disabled. These rows are expected to fail today; their job is to show what is
+  blocking replacement of staged providers with original Racket providers.

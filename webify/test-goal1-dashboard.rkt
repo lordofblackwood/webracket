@@ -10,8 +10,13 @@
          "test-module-support.rkt"
          (only-in "../pkgs/webracket-lib/compiler/driver.rkt"
                   current-webracket/base-provider-substitutions?
+                  webracket/base-provider-substitution-classification
+                  webracket/base-provider-substitution-pressure
                   webracket/base-provider-substitute
-                  webracket/base-provider-substitution-pairs)
+                  webracket/base-provider-substitution-pairs
+                  webracket/base-provider-substitution-records
+                  webracket/base-provider-substitution-requested
+                  webracket/base-provider-substitution-routed)
          "../pkgs/webracket-lib/compiler/webify/webracket-full-surface.rkt")
 
 (define-runtime-path webracket-full-main "../pkgs/webracket/full/main.rkt")
@@ -206,6 +211,8 @@
    (member 'goal1-vector-sort-keywords goal1-dashboard-coverage-core-case-names))
   (check-false
    (member 'generator-real-diagnostic goal1-dashboard-coverage-core-case-names))
+  (check-equal? goal1-dashboard-real-provider-readiness-case-names
+                '(real-racket-dict-diagnostic real-racket-pretty-diagnostic))
   (check-not-false
    (member 'ffi-js-console-coverage goal1-dashboard-coverage-extended-case-names))
   (check-not-false
@@ -362,6 +369,18 @@
                          (racket/file . webracket/file)))])
     (check-equal? (assoc (car pair) webracket/base-provider-substitution-pairs)
                   pair))
+  (check-equal?
+   webracket/base-provider-substitution-pairs
+   (for/list ([record (in-list webracket/base-provider-substitution-records)])
+     (cons (webracket/base-provider-substitution-requested record)
+           (webracket/base-provider-substitution-routed record))))
+  (for ([record (in-list webracket/base-provider-substitution-records)])
+    (check-not-false
+     (memq (webracket/base-provider-substitution-classification record)
+           '(temporary-shim runtime-owned diagnostic-shim)))
+    (check-not-false
+     (memq (webracket/base-provider-substitution-pressure record)
+           '(high medium low))))
   (check-equal? (webracket/base-provider-substitute 'racket/dict)
                 'webracket/dict)
   (parameterize ([current-webracket/base-provider-substitutions? #f])
@@ -402,6 +421,9 @@
                            "Routing Rule"
                            "Provider Substitution Audit"
                            "--no-provider-substitutions"
+                           "--real-provider-readiness"
+                           "temporary-shim"
+                           "runtime-owned"
                            "real-racket-dict-diagnostic"
                            "real-racket-pretty-diagnostic"
                            "io/format"
