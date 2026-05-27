@@ -1788,6 +1788,11 @@
 (define (webracket-owned-module-name? name)
   (regexp-match? #rx"^webracket/" (symbol->string name)))
 
+;; provider-compile-stub-safe? : symbol? -> boolean?
+;;   Value-only compile stubs are unsafe for macro providers such as racket/match.
+(define (provider-compile-stub-safe? name)
+  (not (memq name '(racket/match racket/match/runtime racket/match/gen-match))))
+
 ;; compile-webracket/base-module-file-report : path-string? [#:namespace namespace?] [#:module-name-resolver procedure?] -> webify-module-report?
 ;;   Compile one module file while resolving relative requires from its directory.
 (define (compile-webracket/base-module-file-report filename
@@ -1831,6 +1836,7 @@
     (for ([name (in-list (module-datum-direct-require-symbols module-datum))]
           #:unless (webracket/base-language-provider-name? name)
           #:unless (webracket-owned-module-name? name)
+          #:when (provider-compile-stub-safe? name)
           #:when (webify-provider-trial-module-allowed? name))
       (define substitute-name (webracket/base-provider-substitute name))
       (unless (memq name compile-stub-names)

@@ -13,7 +13,7 @@
          racket/port
          racket/shared
          racket/string
-         racket/vector
+         (except-in racket/vector vector-member)
          "../contract.rkt"
          (except-in "../format.rkt" format fprintf printf eprintf)
          (rename-in "../format.rkt"
@@ -62,6 +62,15 @@
 
 ;; `webracket/full` is the deliberately broader, batteries-included Goal 1
 ;; surface. Keep `webracket/base` small so its name tracks Racket's convention.
+;; Use a source-level wrapper for `vector-member` so the module bridge exports
+;; a callable value instead of an installed-provider alias cell in #lang full.
+(define (vector-member v vec [same? equal?])
+  (let loop ([i 0])
+    (cond
+      [(= i (vector-length vec)) #f]
+      [(same? v (vector-ref vec i)) i]
+      [else (loop (add1 i))])))
+
 (provide (except-out (all-from-out racket/base)
                      format
                      fprintf
@@ -89,6 +98,7 @@
          (all-from-out racket/shared)
          (all-from-out racket/string)
          (all-from-out racket/vector)
+         vector-member
          (all-from-out "../contract.rkt")
          ~a
          ~s

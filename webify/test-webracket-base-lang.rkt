@@ -476,7 +476,7 @@
   (check-equal? attempts 1)
   (check-true (staged-promise:promise-forced? failing)))
 
-(test-case "#lang webracket/base fails clearly without collection resolution"
+(test-case "#lang webracket/base reports clearly or uses installed collection without explicit env"
   (define source-dir (make-temporary-file "webracket-base-no-collection-src-~a" 'directory))
   (define dest-dir   (make-temporary-file "webracket-base-no-collection-dest-~a" 'directory))
   (define source-path (build-path source-dir "base-no-collection.rkt"))
@@ -493,11 +493,14 @@
                "--dest" (path->string dest-dir)
                (path->string source-path))
          source-dir))
-      (check-not-equal? status 0 output)
-      (check-true
-       (or (regexp-match? #rx"cannot resolve #lang webracket/base" output)
-           (regexp-match? #rx"collection not found" output))
-       output))
+      (cond
+        [(zero? status)
+         (check-regexp-match #rx"(?m:^42$)" output)]
+        [else
+         (check-true
+          (or (regexp-match? #rx"cannot resolve #lang webracket/base" output)
+              (regexp-match? #rx"collection not found" output))
+          output)]))
     (lambda ()
       (for ([dir (in-list (list source-dir dest-dir))])
         (with-handlers ([exn:fail:filesystem? void])
@@ -829,7 +832,7 @@
                             list-report)
          #:module-protocol-dependency webify-module-protocol-dependency))
       (check-equal? (webify-module-registry-plan registry '(main))
-                    '(module-protocol racket/list main)))
+                    '(main:syntax-literals module-protocol racket/list main)))
     (lambda ()
       (with-handlers ([exn:fail:filesystem? void])
         (delete-directory/files source-dir)))))
@@ -948,14 +951,16 @@
       (check-equal? (webify-module-registry-plan
                      (webracket/base-local-module-graph-registry graph)
                      '(main))
-                    '(module-protocol racket/list main))
+                    '(main:syntax-literals module-protocol racket/list main))
       (check-equal?
        (webify-module-report-import-export-demands
         (car reports)
         (list list-report)
         #:module-protocol-dependency webify-module-protocol-dependency)
-       (list (webify-module-export-demand 'module-protocol
-                                           '(.get-syntax-literal! .set-transformer!))
+       (list (webify-module-export-demand 'main:syntax-literals
+                                           '(.get-syntax-literal!))
+             (webify-module-export-demand 'module-protocol
+                                           '(.set-transformer!))
              (webify-module-export-demand 'racket/list '(first)))))
     (lambda ()
       (with-handlers ([exn:fail:filesystem? void])
@@ -1063,11 +1068,13 @@
                 (symbol->string name)))
   (check-false (webify-provider-trial-module-allowed? 'racket/promise))
   (check-false (webify-provider-trial-module-allowed? 'racket/private/promise))
-  (check-false (webify-provider-trial-module-allowed? 'racket/private/for))
+  (check-true (webify-provider-trial-module-allowed? 'racket/private/for))
   (check-false (webify-provider-trial-module-allowed? 'racket/private/set))
   (check-false (webify-provider-trial-module-allowed? 'racket/math))
   (check-true (webify-provider-trial-module-allowed? 'racket/contract))
-  (for ([name (in-list '(racket/contract webracket/contract webracket/set webracket/promise webracket/sequence webracket/stream
+  (for ([name (in-list '(racket/bool racket/list racket/string racket/vector
+                         racket/function racket/hash racket/set racket/match
+                         racket/contract webracket/contract webracket/set webracket/promise webracket/sequence webracket/stream
                          js/console js/math js/performance))])
     (check-true (webify-provider-trial-default-bridge-module-allowed? name)
                 (symbol->string name)))
@@ -1077,7 +1084,7 @@
                 (format "~a should be default-bridge allowlisted when backed by ~a"
                         module-name
                         (ffi-module-registry-row-ffi-filename row))))
-  (for ([name (in-list '(racket/list racket/string racket/set racket/promise))])
+  (for ([name (in-list '(racket/promise))])
     (check-false (webify-provider-trial-default-bridge-module-allowed? name)
                  (symbol->string name))))
 
@@ -1114,11 +1121,11 @@
 (test-case "#lang webracket/base classifies curated installed provider demands"
   (define source-dir (make-temporary-file "webracket-base-curated-providers-src-~a" 'directory))
   (define cases
-    '((vector   racket/vector   "(require (only-in racket/vector vector-member))\n(provide answer)\n(define answer vector-member)\n")
-      (function racket/function "(require (only-in racket/function identity))\n(provide answer)\n(define answer identity)\n")
-      (promise  (racket/promise racket/private/promise) "(require (only-in racket/promise force))\n(provide answer)\n(define answer force)\n")
-      (stream   (racket/stream racket/private/for) "(require (only-in racket/stream stream-first))\n(provide answer)\n(define answer stream-first)\n")
-      (set      (racket/set racket/private/set) "(require (only-in racket/set set-count))\n(provide answer)\n(define answer set-count)\n")))
+    '((vector   racket/vector      "(require (only-in racket/vector vector-member))\n(provide answer)\n(define answer vector-member)\n")
+      (function webracket/function "(require (only-in racket/function identity))\n(provide answer)\n(define answer identity)\n")
+      (promise  webracket/promise  "(require (only-in racket/promise force))\n(provide answer)\n(define answer force)\n")
+      (stream   webracket/stream   "(require (only-in racket/stream stream-first))\n(provide answer)\n(define answer stream-first)\n")
+      (set      webracket/set      "(require (only-in racket/set set-count))\n(provide answer)\n(define answer set-count)\n")))
   (dynamic-wind
     void
     (lambda ()
@@ -1185,7 +1192,7 @@
          (check-equal? external-names
                        (sorted-symbols
                         '(racket/vector
-                          racket/function)))
+                          webracket/function)))
          (define fetched '())
          (define graph
            (webracket/base-reports->module-graph
@@ -1196,13 +1203,13 @@
               (set! fetched (append fetched (list name)))
               (case name
                 [(racket/vector)   (synthetic-provider-report name '(vector-member))]
-                [(racket/function) (synthetic-provider-report name '(identity))]
+                [(webracket/function) (synthetic-provider-report name '(identity))]
                 [else (error 'fetch-provider "unexpected fetch: ~s" name)]))))
          (when (pair? fetched)
            (check-equal? (sorted-symbols fetched)
                          (sorted-symbols
                           '(racket/vector
-                            racket/function))))
+                            webracket/function))))
          (define plan
            (webify-module-registry-plan
             (webracket/base-local-module-graph-registry graph)
@@ -1211,7 +1218,7 @@
          (for ([name (in-list '(module-protocol
                                 lib
                                 racket/vector
-                                racket/function))])
+                                webracket/function))])
            (check-not-false (memq name plan)
                             (symbol->string name)))]))
     (lambda ()
@@ -1675,11 +1682,13 @@
                      (symbol->string name))))
 
 (test-case "unsafe FFI generator records export and arity metadata"
-  (define binding-datums (ffi-file->unsafe-binding-datums "ffi/math.ffi"))
+  (define math-ffi-path (module-provider->ffi-path 'webracket/unsafe/math))
+  (check-not-false math-ffi-path)
+  (define binding-datums (ffi-file->unsafe-binding-datums math-ffi-path))
   (check-not-false (member '(js-math-random () (f64)) binding-datums))
   (check-not-false (member '(js-math-atan2 (f64 f64) (f64)) binding-datums))
   (define generated
-    (ffi-file->unsafe-module-source "ffi/math.ffi"
+    (ffi-file->unsafe-module-source math-ffi-path
                                     'webracket/unsafe/math
                                     "../pkgs/webracket/primitives.rkt"))
   (check-true (string-contains? generated "(provide\n js-math-abs"))

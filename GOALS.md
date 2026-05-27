@@ -485,10 +485,9 @@ Current installed-extraction runtime smokes cover:
 - `racket/match`: a basic list pattern, a default branch, `match-let`, and a
   predicate pattern are tracked in the Goal 1 matrix. Match syntax is covered
   through `webracket/full`, and explicit `(require racket/match)` has a focused
-  diagnostic provider-bridge row. The row confirms that `racket/match`,
-  `racket/match/runtime`, and `racket/match/gen-match` are admitted by the
-  provider graph, but it still exposes a syntax/import binding hole as an
-  `unbound` failure.
+  required provider-bridge row. Macro providers such as `racket/match` are not
+  value-stubbed during bridge extraction, so host expansion can still expand the
+  syntax while the runtime provider graph remains visible.
 - `racket/class`: a basic object with a public method.
 - `racket/function`: `compose`, `identity`, `compose1`, `negate`, and `const`.
   The representative `function-compose` module case passes the runtime probe.
@@ -499,11 +498,12 @@ Current installed-extraction runtime smokes cover:
   `racket/list` + `racket/string` + `racket/set`, and for multi-library
   pressure rows that mix `racket/string`, `racket/hash`, `racket/set`,
   `racket/function`, `racket/sequence`, `racket/match`, and `racket/format` in
-  small realistic programs. Some of these are diagnostic rows while the
-  temporary module bridge still rejects substituted local provider requires such
-  as `webracket/string` in `#lang webracket/full` input. A multi-module local
-  source graph whose providers require installed libraries separately,
-  including a provider re-export graph, is also tracked.
+  small realistic programs. The default module bridge now admits the curated
+  Goal 1 provider set instead of falling back to the old top-level path when
+  source-level requires are substituted to WebRacket-owned providers such as
+  `webracket/string`. A multi-module local source graph whose providers require
+  installed libraries separately, including a provider re-export graph, is also
+  tracked.
 - Dependency-first local source modules with quoted sibling requires, such as
   `(require 'base-values)`, through a shared-provider transitive smoke.
 

@@ -747,8 +747,7 @@
          "          [_ 0]))\n")))
     "main.rkt"
     #rx"(?m:^42$)"
-    '("--no-io-format-provider" "--webracket-module-bridge")
-    #:expectation 'diagnostic)
+    '("--no-io-format-provider" "--webracket-module-bridge"))
    (dashboard-case
     'goal1-real-library-composition
     'installed-provider-coverage
@@ -795,8 +794,7 @@
          "           20))\n")))
     "main.rkt"
     #rx"(?m:^42$)"
-    '("--no-io-format-provider")
-    #:expectation 'diagnostic)
+    '("--no-io-format-provider"))
    (dashboard-case
     'goal1-match-set-hash-composition
     'installed-provider-coverage
@@ -815,8 +813,7 @@
          "(js-log (~a score))\n")))
     "main.rkt"
     #rx"(?m:^42$)"
-    '("--no-io-format-provider")
-    #:expectation 'diagnostic)
+    '("--no-io-format-provider"))
    (dashboard-case
     'full-sequence-for
     'installed-provider-graph

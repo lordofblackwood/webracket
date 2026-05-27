@@ -242,6 +242,7 @@
     js/performance
     js/temp
     data/queue
+    racket/bool
     racket/class
     racket/contract
     racket/contract/base
@@ -257,6 +258,7 @@
     racket/mpair
     racket/private/define-struct
     racket/private/for
+    racket/private/hash
     racket/private/kw
     racket/private/list
     racket/private/map
@@ -294,11 +296,12 @@
 ;; webify-provider-trial-default-bridge-modules : (listof symbol?)
 ;;   External providers safe enough for the default module bridge path.
 (define webify-provider-trial-default-bridge-modules
-  '(js/console
+ '(js/console
     js/math
     js/performance
     js/temp
     data/queue
+    racket/bool
     racket/class
     racket/contract
     racket/contract/base
@@ -307,14 +310,20 @@
     racket/format
     racket/generator
     racket/hash
+    racket/list
     racket/mpair
     racket/logging
     racket/match
     racket/match/gen-match
     racket/match/runtime
+    racket/set
+    racket/string
+    racket/vector
+    racket/function
     racket/contract/private/list
     racket/contract/private/misc
     racket/private/for
+    racket/private/hash
     racket/private/kw
     racket/private/list
     racket/private/map
