@@ -82,6 +82,7 @@
     sequence-in-hash-values
     sequence-in-hash-pairs
     sequence-common-producers
+    sequence-real-library-pressure
     sequence-in-indexed
     sequence-stop-before-after
     sequence-in-sequences
@@ -105,7 +106,10 @@
     sequence-make-do
     sequence-make-do-values
     sequence-make-do-stop
+    sequence-make-do-guards
+    sequence-make-do-empty
     sequence-in-syntax
+    sequence-port-edges
     sequence-append-tail
     sequence-in-value
     sequence-ref-length
@@ -222,8 +226,12 @@
     sequence-generate-exhausted
     sequence-boundary-safe
     sequence-common-producers
+    sequence-real-library-pressure
     sequence-make-do-values
     sequence-make-do-stop
+    sequence-make-do-guards
+    sequence-make-do-empty
+    sequence-port-edges
     for/in-list
     for/in-vector
     for/in-string
@@ -786,6 +794,25 @@
          (define set-sum (for/sum ([x (in-set (set 10 20 12))]) x))
          (define stream-sum (for/sum ([x (in-stream (stream 1 2 3))]) x))
          (define y (+ bsum hsum set-sum stream-sum))))]
+    [(sequence-real-library-pressure)
+     '((module use-sequence-real-library-pressure racket/base
+         (require racket/sequence racket/list racket/string racket/hash racket/set)
+         (provide y)
+         (define evens
+           (for/list ([x (filter even? (range 1 8))]) x))
+         (define joined
+           (string-join (for/list ([s (string-split "a bb c")]) s) ""))
+         (define merged
+           (hash-union (hash 'a 1) (hash 'b 2)))
+         (define odds
+           (for/set ([x (in-set (set 1 2 3))]
+                     #:when (odd? x))
+             x))
+         (define y (+ (length evens)
+                      (string-length joined)
+                      (hash-count merged)
+                      (set-count odds)
+                      31))))]
     [(sequence-in-indexed)
      '((module use-sequence-in-indexed racket/base
          (require racket/sequence)
@@ -958,11 +985,55 @@
                       #f
                       (lambda (xs v) (< v 3))))))
          (define y (length (sequence->list seq)))))]
+    [(sequence-make-do-guards)
+     '((module use-sequence-make-do-guards racket/base
+         (require racket/sequence)
+         (provide y)
+         (define guarded
+           (make-do-sequence
+            (lambda ()
+              (values car cdr '(1 2 3 4 5) pair? (lambda (v) (< v 4)) #f))))
+         (define multi-init
+           (make-do-sequence
+            (lambda ()
+              (values (lambda (p) (+ (car p) (cdr p)))
+                      (lambda (p) (cons (+ (car p) 1) (cdr p)))
+                      (cons 0 10)
+                      (lambda (p) (< (car p) 3))
+                      #f
+                      #f))))
+         (define y (+ (length (for/list ([x guarded]) x))
+                      (for/fold ([sum 0]) ([x multi-init]) (+ sum x))
+                      6))))]
+    [(sequence-make-do-empty)
+     '((module use-sequence-make-do-empty racket/base
+         (require racket/sequence)
+         (provide y)
+         (define empty-seq
+           (make-do-sequence
+            (lambda ()
+              (values car cdr null pair? #f #f))))
+         (define y (length (sequence->list empty-seq)))))]
     [(sequence-in-syntax)
      '((module use-sequence-in-syntax racket/base
          (require racket/sequence)
          (provide y)
          (define y (length (for/list ([x (in-syntax #'(1 2 3))]) x)))))]
+    [(sequence-port-edges)
+     '((module use-sequence-port-edges racket/base
+         (require racket/sequence)
+         (provide y)
+         (define empty-lines
+           (length (for/list ([line (in-lines (open-input-string ""))]) line)))
+         (define trailing-lines
+           (length (for/list ([line (in-lines (open-input-string "a\n"))]) line)))
+         (define two-lines
+           (length (for/list ([line (in-lines (open-input-string "a\nb"))]) line)))
+         (define bytes-lines
+           (length (for/list ([bs (in-bytes-lines (open-input-string "a\n"))]) bs)))
+         (define byte-sum
+           (for/sum ([b (in-input-port-bytes (open-input-bytes #"AZ"))]) b))
+         (define y (+ empty-lines trailing-lines two-lines bytes-lines byte-sum -117))))]
     [(sequence-append-tail)
      '((module use-sequence-append-tail racket/base
          (require racket/sequence)

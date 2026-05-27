@@ -111,12 +111,14 @@
     full-match-coverage
     base-sequence-core
     base-sequence-producers
+    base-sequence-real-libraries
     base-sequence-hash-generate
     base-sequence-custom
+    base-sequence-port-edges
     base-for-result-builders
     base-sequence-mpair
     base-sequence-ports
-    base-sequence-prop-generator
+    base-sequence-prop
     base-sequence-derived
     base-sequence-coverage
     full-sequence-coverage
@@ -780,6 +782,23 @@
     #rx"(?m:^42$)"
     '("--no-io-format-provider" "--webracket-module-bridge"))
    (dashboard-case
+    'base-sequence-real-libraries
+    'installed-provider-coverage
+    '(racket/sequence racket/list racket/string racket/hash racket/set
+      webracket/sequence webracket/string webracket/hash webracket/set)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/base\n"
+         "(require racket/sequence racket/list racket/string racket/hash racket/set)\n"
+         "(define evens (for/list ([x (filter even? (range 1 8))]) x))\n"
+         "(define joined (string-join (for/list ([s (string-split \"a bb c\")]) s) \"\"))\n"
+         "(define merged (hash-union (hash 'a 1) (hash 'b 2)))\n"
+         "(define odds (for/set ([x (in-set (set 1 2 3))] #:when (odd? x)) x))\n"
+         "(js-log (+ (length evens) (string-length joined) (hash-count merged) (set-count odds) 31))\n")))
+    "main.rkt"
+    #rx"(?m:^42$)"
+    '("--no-io-format-provider" "--webracket-module-bridge"))
+   (dashboard-case
     'base-sequence-hash-generate
     'installed-provider-coverage
     '(racket/private/for webracket/private/for)
@@ -817,9 +836,19 @@
          "  (make-do-sequence\n"
          "   (lambda ()\n"
          "     (values car cdr '(1 2 3 4) pair? #f (lambda (xs v) (< v 3))))))\n"
+         "(define guarded-seq\n"
+         "  (make-do-sequence\n"
+         "   (lambda ()\n"
+         "     (values car cdr '(1 2 3 4 5) pair? (lambda (v) (< v 4)) #f))))\n"
+         "(define empty-seq\n"
+         "  (make-do-sequence\n"
+         "   (lambda ()\n"
+         "     (values car cdr null pair? #f #f))))\n"
          "(define values-sum (for/sum ([(x y) values-seq]) (+ x y)))\n"
          "(define stopped-count (length (sequence->list stopped-seq)))\n"
-         "(js-log (+ values-sum stopped-count -27))\n")))
+         "(define guarded-count (length (sequence->list guarded-seq)))\n"
+         "(define empty-count (length (sequence->list empty-seq)))\n"
+         "(js-log (+ values-sum stopped-count guarded-count empty-count -30))\n")))
     "main.rkt"
     #rx"(?m:^42$)"
     '("--no-io-format-provider" "--webracket-module-bridge"))
@@ -875,17 +904,31 @@
     #rx"(?m:^42$)"
     '("--no-io-format-provider" "--webracket-module-bridge"))
    (dashboard-case
-    'base-sequence-prop-generator
+    'base-sequence-port-edges
     'installed-provider-coverage
-    '(racket/private/for racket/generator webracket/private/for webracket/generator)
+    '(racket/private/for webracket/private/for)
     `(("main.rkt" .
        ,(string-append
          "#lang webracket/base\n"
-         "(require racket/generator)\n"
+         "(define empty-lines (length (for/list ([line (in-lines (open-input-string \"\"))]) line)))\n"
+         "(define trailing-lines (length (for/list ([line (in-lines (open-input-string \"a\\n\"))]) line)))\n"
+         "(define two-lines (length (for/list ([line (in-lines (open-input-string \"a\\nb\"))]) line)))\n"
+         "(define bytes-lines (length (for/list ([bs (in-bytes-lines (open-input-string \"a\\n\"))]) bs)))\n"
+         "(define byte-sum (for/sum ([b (in-input-port-bytes (open-input-bytes #\"AZ\"))]) b))\n"
+         "(js-log (+ empty-lines trailing-lines two-lines bytes-lines byte-sum -117))\n")))
+    "main.rkt"
+    #rx"(?m:^42$)"
+    '("--no-io-format-provider" "--webracket-module-bridge"))
+   (dashboard-case
+    'base-sequence-prop
+    'installed-provider-coverage
+    '(racket/private/for webracket/private/for)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/base\n"
          "(struct seqbox (xs) #:property prop:sequence (lambda (self) (seqbox-xs self)))\n"
          "(define prop-sum (for/sum ([x (seqbox (list 10 20 12))]) x))\n"
-         "(define generator-count (length (for/list ([x (in-generator (yield 1))]) x)))\n"
-         "(js-log (+ prop-sum generator-count))\n")))
+         "(js-log prop-sum)\n")))
     "main.rkt"
     #rx"(?m:^42$)"
     '("--no-io-format-provider" "--webracket-module-bridge"))
@@ -917,12 +960,10 @@
    (dashboard-case
     'base-sequence-coverage
     'installed-provider-coverage
-    '(racket/private/for racket/generator racket/mpair
-      webracket/private/for webracket/generator webracket/mpair)
+    '(racket/private/for racket/mpair webracket/private/for webracket/mpair)
     `(("main.rkt" .
        ,(string-append
          "#lang webracket/base\n"
-         "(require racket/generator)\n"
          "(define bsum (for/sum ([b (in-bytes #\"abc\")]) b))\n"
          "(define h (hash 'a 10 'b 20 'c 12))\n"
          "(define hsum (for/sum ([(k v) (in-hash h)]) v))\n"
@@ -952,14 +993,13 @@
          "(define bytes-line-count (length (for/list ([line (in-bytes-lines (open-input-string \"a\\nb\"))]) line)))\n"
          "(struct seqbox (xs) #:property prop:sequence (lambda (self) (seqbox-xs self)))\n"
          "(define prop-sum (for/sum ([x (seqbox (list 1 2 3))]) x))\n"
-         "(define generator-count (length (for/list ([x (in-generator (yield 1))]) x)))\n"
          "(js-log (+ bsum hsum kcount pcount indexed gen-sum psum one chained cyclic parallel parallel-values\n"
          "           (length value-lists) (length values-star-a) (length values-star-b)\n"
          "           (length before) (length after)\n"
-         "           mlist-sum port-byte-sum port-char-count line-count bytes-line-count prop-sum generator-count\n"
-         "           -914))\n")))
+         "           mlist-sum port-byte-sum port-char-count line-count bytes-line-count prop-sum\n"
+         "           -913))\n")))
     "main.rkt"
-    #rx"(?m:^153$)"
+    #rx"(?m:^154$)"
     '("--no-io-format-provider" "--webracket-module-bridge"))
    (dashboard-case
     'full-sequence-coverage

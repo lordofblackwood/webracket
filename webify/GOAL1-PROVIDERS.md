@@ -95,14 +95,14 @@ positional module programs. `webracket/full` therefore exports the staged
 - Sequence coverage is split into smaller dashboard rows so failures identify
   the prerequisite cluster: core list/vector/string/bytes/indexed generation,
   hash iteration plus `sequence-generate`, mutable lists, input-port byte/char
-  and line sequences, `prop:sequence` plus the generator shim, and derived
+  and line sequences, `prop:sequence`, real-library pressure rows, and derived
   combinators such as `in-sequences`, `in-cycle`, `in-parallel`,
   `in-values-sequence`, `stop-before`, and `stop-after`. This is still not full
   `racket/private/for`, but explicit public helpers for `in-list`, `in-vector`,
   `in-string`, `in-range`, `in-inclusive-range`, and `in-naturals` are now
   covered. Optimized hash helper defaults and checker variants for ordinary,
   immutable, and mutable hashes are covered too. The staged provider also
-  exports the upstream-style generator entry points for integer, list,
+  exports the upstream-style sequence entry points for integer, list,
   mutable-list, vector, string, bytes, input-port, and hash sequences, plus the
   internal `prop:gen-sequence`/`do-sequence` surface needed by installed
   provider code. `in-directory` is implemented through WebRacket's virtual
@@ -110,11 +110,12 @@ positional module programs. `webracket/full` therefore exports the staged
   `in-files`/`in-glob`, flvector/fxvector sequences, weak/ephemeron hash
   sequence variants, original stream internals, custom sequence syntax, and
   some advanced sequence combinators remain later work.
-- `racket/generator` routes to `webracket/generator`, a no-op shim. The
-  original provider depends on continuation prompts and composable
-  continuations, which are intentionally postponed for Goal 1. The dashboard has
-  a diagnostic row that demonstrates real yielded generator values are not
-  supported by this shim.
+- `racket/generator` is not part of Goal 1. It still routes to
+  `webracket/generator`, a no-op shim, when encountered, because the original
+  provider depends on continuation prompts and composable continuations. The
+  dashboard keeps a diagnostic row for the eventual continuation/prompt
+  milestone, but required Goal 1 sequence rows avoid generator-dependent
+  behavior.
 - `webify/for-provider-surface.rkt` compares original `racket/private/for`
   exports with the staged provider and classifies them as supported, postponed,
   or missing. Use it when deciding whether the next sequence feature belongs in

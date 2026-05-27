@@ -162,6 +162,7 @@
     sequence-in-hash-values
     sequence-in-hash-pairs
     sequence-common-producers
+    sequence-real-library-pressure
     sequence-in-indexed
     sequence-stop-before-after
     sequence-in-sequences
@@ -185,7 +186,10 @@
     sequence-make-do
     sequence-make-do-values
     sequence-make-do-stop
+    sequence-make-do-guards
+    sequence-make-do-empty
     sequence-in-syntax
+    sequence-port-edges
     sequence-append-tail
     sequence-in-value
     sequence-ref-length
@@ -396,6 +400,7 @@
       sequence-in-hash-values
       sequence-in-hash-pairs
       sequence-common-producers
+      sequence-real-library-pressure
       sequence-in-indexed
       sequence-stop-before-after
       sequence-in-sequences
@@ -419,7 +424,10 @@
       sequence-make-do
       sequence-make-do-values
       sequence-make-do-stop
+      sequence-make-do-guards
+      sequence-make-do-empty
       sequence-in-syntax
+      sequence-port-edges
       sequence-append-tail
       sequence-in-value
       sequence-ref-length
@@ -557,6 +565,7 @@
             [(sequence-in-hash-keys
               sequence-in-hash-pairs) #rx"(?m:^2$)"]
             [(sequence-common-producers) #rx"(?m:^384$)"]
+            [(sequence-real-library-pressure) #rx"(?m:^42$)"]
             [(sequence-stop-before-after) #rx"(?m:^5$)"]
             [(sequence-in-sequences) #rx"(?m:^4$)"]
             [(sequence-in-parallel) #rx"(?m:^66$)"]
@@ -579,7 +588,10 @@
             [(sequence-make-do) #rx"(?m:^4$)"]
             [(sequence-make-do-values) #rx"(?m:^66$)"]
             [(sequence-make-do-stop) #rx"(?m:^3$)"]
+            [(sequence-make-do-guards) #rx"(?m:^42$)"]
+            [(sequence-make-do-empty) #rx"(?m:^0$)"]
             [(sequence-in-syntax) #rx"(?m:^3$)"]
+            [(sequence-port-edges) #rx"(?m:^42$)"]
             [(sequence-append-tail) #rx"(?m:^24$)"]
             [(sequence-in-value) #rx"(?m:^42$)"]
             [(sequence-ref-length) #rx"(?m:^23$)"]
