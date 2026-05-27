@@ -339,7 +339,15 @@
          "(define total 0)\n"
          "(for ([p (in-dict-pairs d)]) (set! total (+ total (cdr p))))\n"
          "(define mapped-values (dict-map d (lambda (k v) v)))\n"
-         "(js-log (if (pair? mapped-values) total 0))\n")))
+         "(define updated (dict-update d 'a add1))\n"
+         "(define rem (dict-remove updated 'b))\n"
+         "(define copied (dict-map/copy rem (lambda (k v) (values k v))))\n"
+         "(js-log (if (and (pair? mapped-values)\n"
+         "                 (dict-can-functional-set? d)\n"
+         "                 (dict-can-remove-keys? d)\n"
+         "                 (= (dict-ref copied 'a) 11))\n"
+         "            total\n"
+         "            0))\n")))
     "main.rkt"
     #rx"(?m:^42$)"
     '("--no-io-format-provider" "--webracket-module-bridge"))
@@ -790,6 +798,7 @@
          "#lang webracket/base\n"
          "(require racket/pretty)\n"
          "(define out (open-output-string))\n"
+         "(pretty-print-columns 'infinity)\n"
          "(pretty-write '(\"web\" racket) out #:newline? #f)\n"
          "(js-log (string-append (pretty-format '(1 2) #:mode 'write)\n"
          "                       \"|\"\n"
@@ -819,12 +828,12 @@
          "#lang webracket/base\n"
          "(require racket/file)\n"
          "(define p \"/app/data/goal1-installed-file-coverage.txt\")\n"
-         "(display-to-file \"webracket\" p 'text 'replace)\n"
-         "(define text (file->string p))\n"
+         "(write-to-file \"webracket\" p 'text 'replace)\n"
+         "(define text (file->string p 'text))\n"
          "(define bytes (file->bytes p))\n"
          "(js-log (+ (string-length text)\n"
          "           (bytes-length bytes)\n"
-         "           (if (file-exists? p) 24 100)))\n")))
+         "           (if (file-exists? p) 20 100)))\n")))
     "main.rkt"
     #rx"(?m:^42$)"
     '("--no-io-format-provider" "--webracket-module-bridge"))

@@ -168,20 +168,32 @@ remaining compatibility notes are:
 - `racket/dict` routes to staged `webracket/dict`. The coverage row now checks
   both ordinary functions (`dict-map`, `dict-count`) and sequence exports such
   as `in-dict-pairs`. Keep it staged for now: the useful Goal 1 path is hashes,
-  vectors, association lists, and iteration, while generic `prop:dict`,
-  contracted dictionaries, removal/update mutators, and chaperone-sensitive
-  behavior remain explicitly outside the current target.
+  vectors, association lists, and iteration. The staged provider now includes
+  the common derived operations from the Reference: capability predicates,
+  `dict-ref!`, `dict-set*!`, `dict-set*`, `dict-remove!`, `dict-remove`,
+  `dict-update!`, `dict-update`, `dict-copy`, `dict-clear`, `dict-clear!`,
+  `dict-empty?`, and `dict-map/copy`. Generic `prop:dict`,
+  `define-custom-hash-types`, contracted dictionaries, custom hash constructors,
+  and chaperone-sensitive behavior remain explicitly outside the current target.
 - `racket/pretty` routes to staged `webracket/pretty`. The supported surface is
-  intentionally shallow: `pretty-format`, `pretty-print`, `pretty-write`, and
-  `pretty-display` compose with current printing support, but pretty-printing
-  parameters, graph-sensitive layout, and the full pretty writer remain later
-  IO/printing work.
+  still intentionally shallow, but no longer just four procedures:
+  `pretty-format`, `pretty-print`, `pretty-write`, `pretty-display`,
+  `pretty-print-handler`, `pretty-print-newline`, and the basic pretty-printing
+  parameters are available. The parameters are accepted for provider
+  compatibility; graph-sensitive layout, hooks with real pretty-port
+  integration, tentative pretty-print ports, and the full pretty writer remain
+  later IO/printing work.
 - `racket/file` routes to staged `webracket/file`. Treat it as a virtual
   filesystem provider, not a host filesystem provider. The current focus is
   portable functions such as `file-exists?`, `directory-list`,
-  `display-to-file`, and `file->string`; permissions, links, timestamps,
-  path normalization quirks, and host-specific filesystem effects are not Goal
-  1 requirements.
+  `display-to-file`, `file->string`, `file->value`, `file->list`,
+  `write-to-file`, and `call-with-atomic-output-file`. Permission and file-type
+  bit constants are exported for compatibility. `file->value` and `file->list`
+  are reader-backed convenience wrappers; they are part of the staged API, but
+  required Goal 1 runtime rows avoid depending on the incomplete reader runtime.
+  Locks, preferences,
+  path-closure discovery, links, timestamps, path normalization quirks, and
+  host-specific filesystem effects are not Goal 1 requirements.
 
 ## Compatibility Policy
 

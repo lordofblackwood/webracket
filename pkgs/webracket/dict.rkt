@@ -1,11 +1,27 @@
 #lang racket/base
 
 (provide dict?
+         dict-implements?
+         dict-mutable?
+         dict-can-remove-keys?
+         dict-can-functional-set?
          dict-ref
+         dict-ref!
          dict-set!
          dict-set
+         dict-set*!
+         dict-set*
+         dict-remove!
+         dict-remove
+         dict-update!
+         dict-update
+         dict-map/copy
          dict-has-key?
+         dict-empty?
          dict-count
+         dict-copy
+         dict-clear
+         dict-clear!
          dict-iterate-first
          dict-iterate-next
          dict-iterate-key
@@ -46,10 +62,55 @@
                [(pair? (car entries)) (loop (cdr entries))]
                [else #f])))))
 
+;; mutable-hash? : any/c -> boolean?
+;;   Check for mutable hashes without depending on hash-specific predicates.
+(define (mutable-hash? v)
+  (and (hash? v) (not (immutable? v))))
+
+;; mutable-vector? : any/c -> boolean?
+;;   Check for mutable vectors without depending on vector-specific predicates.
+(define (mutable-vector? v)
+  (and (vector? v) (not (immutable? v))))
+
 ;; missing-key : symbol? any/c -> any
 ;;   Raise a compact missing-key error.
 (define (missing-key who key)
   (error who "no value found for key: ~e" key))
+
+;; dict-implements? : dict? symbol? ... -> boolean?
+;;   Report support for the staged dictionary operations.
+(define (dict-implements? dict . methods)
+  (unless (dict? dict)
+    (raise-argument-error 'dict-implements? "dict?" dict))
+  (define (supported? method)
+    (case method
+      [(dict-ref dict-count dict-iterate-first dict-iterate-next
+        dict-iterate-key dict-iterate-value)
+       #t]
+      [(dict-set!) (or (mutable-hash? dict) (mutable-vector? dict))]
+      [(dict-set) (or (and (hash? dict) (immutable? dict)) (list? dict))]
+      [(dict-remove!) (mutable-hash? dict)]
+      [(dict-remove) (or (and (hash? dict) (immutable? dict)) (list? dict))]
+      [(dict-clear!) (mutable-hash? dict)]
+      [(dict-clear) (or (hash? dict) (list? dict))]
+      [else #f]))
+  (andmap supported? methods))
+
+;; dict-mutable? : dict? -> boolean?
+;;   Check whether the dictionary supports dict-set!.
+(define (dict-mutable? dict)
+  (dict-implements? dict 'dict-set!))
+
+;; dict-can-remove-keys? : dict? -> boolean?
+;;   Check whether the dictionary supports removing keys.
+(define (dict-can-remove-keys? dict)
+  (or (dict-implements? dict 'dict-remove!)
+      (dict-implements? dict 'dict-remove)))
+
+;; dict-can-functional-set? : dict? -> boolean?
+;;   Check whether the dictionary supports functional updates.
+(define (dict-can-functional-set? dict)
+  (dict-implements? dict 'dict-set))
 
 ;; dict-ref : dict? any/c [any/c] -> any/c
 ;;   Look up key, using a value or thunk fallback when supplied.
@@ -80,8 +141,8 @@
 ;;   Mutably set a hash-table or vector entry.
 (define (dict-set! dict key value)
   (cond
-    [(hash? dict) (hash-set! dict key value)]
-    [(vector? dict) (vector-set! dict key value)]
+    [(mutable-hash? dict) (hash-set! dict key value)]
+    [(mutable-vector? dict) (vector-set! dict key value)]
     [else (raise-argument-error 'dict-set! "(and/c dict? (not/c immutable?))" dict)]))
 
 ;; vector-copy* : vector? -> vector?
@@ -99,11 +160,7 @@
 ;;   Functionally set a hash-table, vector, or association-list entry.
 (define (dict-set dict key value)
   (cond
-    [(hash? dict) (hash-set dict key value)]
-    [(vector? dict)
-     (define copy (vector-copy* dict))
-     (vector-set! copy key value)
-     copy]
+    [(and (hash? dict) (immutable? dict)) (hash-set dict key value)]
     [(list? dict)
      (let loop ([entries dict] [changed? #f])
        (cond
@@ -116,6 +173,82 @@
           (cons (car entries)
                 (loop (cdr entries) changed?))]))]
     [else (raise-argument-error 'dict-set "dict?" dict)]))
+
+;; dict-set*! : mutable-dict? any/c any/c ... -> void?
+;;   Mutably set key/value pairs from left to right.
+(define (dict-set*! dict . kvs)
+  (let loop ([kvs kvs])
+    (cond
+      [(null? kvs) (void)]
+      [(null? (cdr kvs))
+       (raise-argument-error 'dict-set*! "even number of key/value arguments" kvs)]
+      [else
+       (dict-set! dict (car kvs) (cadr kvs))
+       (loop (cddr kvs))])))
+
+;; dict-set* : immutable-dict? any/c any/c ... -> dict?
+;;   Functionally set key/value pairs from left to right.
+(define (dict-set* dict . kvs)
+  (let loop ([dict dict] [kvs kvs])
+    (cond
+      [(null? kvs) dict]
+      [(null? (cdr kvs))
+       (raise-argument-error 'dict-set* "even number of key/value arguments" kvs)]
+      [else (loop (dict-set dict (car kvs) (cadr kvs)) (cddr kvs))])))
+
+;; dict-remove! : mutable-dict? any/c -> void?
+;;   Mutably remove a key when the supported dictionary shape allows it.
+(define (dict-remove! dict key)
+  (cond
+    [(mutable-hash? dict) (hash-remove! dict key)]
+    [else (raise-argument-error 'dict-remove! "(and/c dict? (not/c immutable?))" dict)]))
+
+;; dict-remove : immutable-dict? any/c -> dict?
+;;   Functionally remove a key when the supported dictionary shape allows it.
+(define (dict-remove dict key)
+  (cond
+    [(and (hash? dict) (immutable? dict)) (hash-remove dict key)]
+    [(list? dict)
+     (let loop ([entries dict])
+       (cond
+         [(null? entries) null]
+         [(and (pair? (car entries))
+               (equal? key (caar entries)))
+          (cdr entries)]
+         [else (cons (car entries) (loop (cdr entries)))]))]
+    [else (raise-argument-error 'dict-remove "dict?" dict)]))
+
+;; dict-ref! : mutable-dict? any/c any/c -> any/c
+;;   Return an existing value or insert a fallback value/thunk result.
+(define (dict-ref! dict key to-set)
+  (cond
+    [(dict-has-key? dict key) (dict-ref dict key)]
+    [else
+     (define value (if (procedure? to-set) (to-set) to-set))
+     (dict-set! dict key value)
+     value]))
+
+;; dict-update! : mutable-dict? any/c procedure? [any/c] -> void?
+;;   Mutably update a value using the optional dict-ref fallback.
+(define dict-update!
+  (case-lambda
+    [(dict key updater)
+     (dict-update! dict key updater (lambda () (missing-key 'dict-update! key)))]
+    [(dict key updater failure-result)
+     (unless (procedure? updater)
+       (raise-argument-error 'dict-update! "procedure?" updater))
+     (dict-set! dict key (updater (dict-ref dict key failure-result)))]))
+
+;; dict-update : dict? any/c procedure? [any/c] -> dict?
+;;   Functionally update a value using the optional dict-ref fallback.
+(define dict-update
+  (case-lambda
+    [(dict key updater)
+     (dict-update dict key updater (lambda () (missing-key 'dict-update key)))]
+    [(dict key updater failure-result)
+     (unless (procedure? updater)
+       (raise-argument-error 'dict-update "procedure?" updater))
+     (dict-set dict key (updater (dict-ref dict key failure-result)))]))
 
 ;; dict-has-key? : dict? any/c -> boolean?
 ;;   Check whether key is present.
@@ -135,6 +268,34 @@
     [(vector? dict) (vector-length dict)]
     [(list? dict) (length dict)]
     [else (raise-argument-error 'dict-count "dict?" dict)]))
+
+;; dict-empty? : dict? -> boolean?
+;;   Report whether the dictionary has no mappings.
+(define (dict-empty? dict)
+  (not (dict-iterate-first dict)))
+
+;; dict-copy : dict? -> dict?
+;;   Copy supported mutable shapes; lists intentionally match racket/dict's gap.
+(define (dict-copy dict)
+  (cond
+    [(hash? dict) (hash-copy dict)]
+    [(vector? dict) (vector-copy* dict)]
+    [else (raise-argument-error 'dict-copy "(or/c hash? vector?)" dict)]))
+
+;; dict-clear : dict? -> dict?
+;;   Functionally clear supported dictionary shapes.
+(define (dict-clear dict)
+  (cond
+    [(hash? dict) (hash-clear dict)]
+    [(list? dict) null]
+    [else (raise-argument-error 'dict-clear "(or/c hash? list?)" dict)]))
+
+;; dict-clear! : mutable-dict? -> void?
+;;   Mutably clear supported dictionary shapes.
+(define (dict-clear! dict)
+  (cond
+    [(mutable-hash? dict) (hash-clear! dict)]
+    [else (raise-argument-error 'dict-clear! "(and/c dict? (not/c immutable?))" dict)]))
 
 ;; dict-iterate-first : dict? -> any/c
 ;;   Produce the first supported dictionary iteration position, or #f.
@@ -201,6 +362,32 @@
        (proc (dict-iterate-key dict pos)
              (dict-iterate-value dict pos))
        (loop (dict-iterate-next dict pos))])))
+
+;; dict-map/copy : dict? (any/c any/c -> values any/c any/c) -> dict?
+;;   Map entries into a cleared dictionary of the same supported kind.
+(define (dict-map/copy dict proc)
+  (unless (procedure? proc)
+    (raise-argument-error 'dict-map/copy "procedure?" proc))
+  (cond
+    [(dict-can-functional-set? dict)
+     (let loop ([out (dict-clear dict)] [pos (dict-iterate-first dict)])
+       (cond
+         [(not pos) out]
+         [else
+          (define-values (key value)
+            (proc (dict-iterate-key dict pos)
+                  (dict-iterate-value dict pos)))
+          (loop (dict-set out key value)
+                (dict-iterate-next dict pos))]))]
+    [(dict-mutable? dict)
+     (define out (dict-copy dict))
+     (dict-clear! out)
+     (dict-for-each dict
+                    (lambda (key value)
+                      (define-values (new-key new-value) (proc key value))
+                      (dict-set! out new-key new-value)))
+     out]
+    [else (raise-argument-error 'dict-map/copy "dict with copyable update support" dict)]))
 
 ;; dict-keys : dict? -> list?
 ;;   Return dictionary keys in unspecified order.
