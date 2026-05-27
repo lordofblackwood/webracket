@@ -11,8 +11,14 @@
          eighth
          ninth
          tenth
+         eleventh
+         twelfth
+         thirteenth
+         fourteenth
+         fifteenth
          last
          last-pair
+         cons?
          list-ref
          list-tail
          length
@@ -61,13 +67,27 @@
          assv
          make-list
          build-list
+         list-set
+         list-update
          empty
          empty?
          flatten
+         list-prefix?
+         split-common-prefix
+         take-common-prefix
+         drop-common-prefix
          index-of
          index-where
          indexes-of
          indexes-where
+         argmin
+         argmax
+         group-by
+         cartesian-product
+         combinations
+         in-combinations
+         permutations
+         in-permutations
          range
          inclusive-range)
 
@@ -91,6 +111,16 @@
 (define (eighth xs) (list-ref xs 7))
 (define (ninth xs) (list-ref xs 8))
 (define (tenth xs) (list-ref xs 9))
+(define (eleventh xs) (list-ref xs 10))
+(define (twelfth xs) (list-ref xs 11))
+(define (thirteenth xs) (list-ref xs 12))
+(define (fourteenth xs) (list-ref xs 13))
+(define (fifteenth xs) (list-ref xs 14))
+
+;; cons? : any/c -> boolean?
+;;   Check for non-empty lists.
+(define (cons? v)
+  (and (pair? v) (list? v)))
 
 ;; last-pair : pair? -> pair?
 ;;   Return the final pair in a non-empty proper or improper list.
@@ -388,6 +418,18 @@
       [(= i n) (reverse acc)]
       [else (loop (add1 i) (cons (f i) acc))])))
 
+;; list-update : list? exact-nonnegative-integer? procedure? -> list?
+;;   Return xs with element n replaced by applying f.
+(define (list-update xs n f)
+  (cond
+    [(zero? n) (cons (f (car xs)) (cdr xs))]
+    [else (cons (car xs) (list-update (cdr xs) (sub1 n) f))]))
+
+;; list-set : list? exact-nonnegative-integer? any/c -> list?
+;;   Return xs with element n replaced by v.
+(define (list-set xs n v)
+  (list-update xs n (lambda (_) v)))
+
 ;; flatten : any/c -> list?
 ;;   Flatten pair trees, omitting null leaves.
 (define (flatten v)
@@ -396,6 +438,153 @@
       [(null? v) acc]
       [(pair? v) (loop (car v) (loop (cdr v) acc))]
       [else (cons v acc)])))
+
+;; list-prefix? : list? list? [procedure?] -> boolean?
+;;   Check whether xs is a prefix of ys under same?.
+(define (list-prefix? xs ys [same? equal?])
+  (let loop ([xs xs] [ys ys])
+    (or (null? xs)
+        (and (pair? ys)
+             (same? (car xs) (car ys))
+             (loop (cdr xs) (cdr ys))))))
+
+;; split-common-prefix/internal : list? list? procedure? boolean? -> values
+;;   Shared implementation for common-prefix helpers.
+(define (split-common-prefix/internal xs ys same? keep-prefix?)
+  (let loop ([xs xs] [ys ys])
+    (cond
+      [(and (pair? xs) (pair? ys) (same? (car xs) (car ys)))
+       (define-values (prefix xs-tail ys-tail)
+         (loop (cdr xs) (cdr ys)))
+       (values (and keep-prefix? (cons (car xs) prefix))
+               xs-tail
+               ys-tail)]
+      [else (values null xs ys)])))
+
+;; split-common-prefix : list? list? [procedure?] -> values
+;;   Return the common prefix and both remaining tails.
+(define (split-common-prefix xs ys [same? equal?])
+  (split-common-prefix/internal xs ys same? #t))
+
+;; take-common-prefix : list? list? [procedure?] -> list?
+;;   Return the common prefix of xs and ys.
+(define (take-common-prefix xs ys [same? equal?])
+  (define-values (prefix xs-tail ys-tail)
+    (split-common-prefix/internal xs ys same? #t))
+  prefix)
+
+;; drop-common-prefix : list? list? [procedure?] -> values
+;;   Return both tails after dropping the common prefix.
+(define (drop-common-prefix xs ys [same? equal?])
+  (define-values (prefix xs-tail ys-tail)
+    (split-common-prefix/internal xs ys same? #f))
+  (values xs-tail ys-tail))
+
+;; better-by : procedure? procedure? list? -> any/c
+;;   Shared implementation for argmin and argmax.
+(define (better-by better? f xs)
+  (let loop ([best (car xs)] [best-key (f (car xs))] [xs (cdr xs)])
+    (cond
+      [(null? xs) best]
+      [else
+       (define x (car xs))
+       (define k (f x))
+       (if (better? k best-key)
+           (loop x k (cdr xs))
+           (loop best best-key (cdr xs)))])))
+
+;; argmin : procedure? non-empty-list? -> any/c
+;;   Return the first element with the smallest key.
+(define (argmin f xs)
+  (better-by < f xs))
+
+;; argmax : procedure? non-empty-list? -> any/c
+;;   Return the first element with the largest key.
+(define (argmax f xs)
+  (better-by > f xs))
+
+;; group-by : procedure? list? [procedure?] -> (listof list?)
+;;   Group elements by key, preserving first-key and per-group order.
+(define (group-by key xs [same? equal?])
+  (define (add groups x)
+    (define k (key x))
+    (let loop ([groups groups])
+      (cond
+        [(null? groups) (list (cons k (list x)))]
+        [(same? k (caar groups))
+         (cons (cons (caar groups) (cons x (cdar groups)))
+               (cdr groups))]
+        [else (cons (car groups) (loop (cdr groups)))])))
+  (let loop ([xs xs] [groups null])
+    (cond
+      [(null? xs) (map reverse (map cdr groups))]
+      [else (loop (cdr xs) (add groups (car xs)))])))
+
+;; cartesian-product : list? ... -> (listof list?)
+;;   Return the cartesian product in left-to-right order.
+(define (cartesian-product . xss)
+  (define (prepend-all xs acc)
+    (apply append
+           (map (lambda (x)
+                  (map (lambda (ys) (cons x ys)) acc))
+                xs)))
+  (foldr prepend-all (list null) xss))
+
+;; combinations/k : list? exact-nonnegative-integer? -> (listof list?)
+;;   Return combinations with exactly k elements.
+(define (combinations/k xs k)
+  (cond
+    [(zero? k) (list null)]
+    [(null? xs) null]
+    [else
+     (append (map (lambda (ys) (cons (car xs) ys))
+                  (combinations/k (cdr xs) (sub1 k)))
+             (combinations/k (cdr xs) k))]))
+
+;; combinations/all : list? -> (listof list?)
+;;   Return combinations of every size.
+(define (combinations/all xs)
+  (cond
+    [(null? xs) (list null)]
+    [else
+     (define rest (combinations/all (cdr xs)))
+     (append (map (lambda (ys) (cons (car xs) ys)) rest)
+             rest)]))
+
+;; combinations : list? [exact-nonnegative-integer?] -> (listof list?)
+;;   Return combinations of xs, optionally restricted to size k.
+(define combinations
+  (case-lambda
+    [(xs) (combinations/all xs)]
+    [(xs k) (combinations/k xs k)]))
+
+;; in-combinations : list? [exact-nonnegative-integer?] -> sequence?
+;;   A list is a sequence in WebRacket's staged `for` support.
+(define in-combinations combinations)
+
+;; remove-one : any/c list? -> list?
+;;   Remove the first equal? occurrence of x from xs.
+(define (remove-one x xs)
+  (cond
+    [(null? xs) null]
+    [(equal? x (car xs)) (cdr xs)]
+    [else (cons (car xs) (remove-one x (cdr xs)))]))
+
+;; permutations : list? -> (listof list?)
+;;   Return permutations in Racket's tested order for small Goal 1 programs.
+(define (permutations xs)
+  (cond
+    [(null? xs) (list null)]
+    [else
+     (apply append
+            (map (lambda (x)
+                   (map (lambda (ys) (cons x ys))
+                        (permutations (remove-one x xs))))
+                 xs))]))
+
+;; in-permutations : list? -> sequence?
+;;   A list is a sequence in WebRacket's staged `for` support.
+(define in-permutations permutations)
 
 ;; range : real? [real?] [real?] -> list?
 ;;   Build a list like `in-range`; step defaults to 1 and start defaults to 0.

@@ -26,7 +26,7 @@ provider exports into top-level aliases.
 
 | Module | Current status | First blocker |
 | --- | --- | --- |
-| `racket/list` | Goal 1 module programs route explicit `racket/list` requires to staged `webracket/list`; selectors, common folds/maps, `filter-map`, `append-map`, `append*`, `count`, `filter-not`, `partition`, take/drop/split variants, index helpers, removers, `flatten`, `assoc`, and `range`/`inclusive-range` smokes pass | Remaining installed exports are tracked in `GOAL1-PROVIDERS.md` |
+| `racket/list` | Goal 1 module programs route explicit `racket/list` requires to staged `webracket/list`; selectors, common folds/maps, `filter-map`, `append-map`, `append*`, `count`, `filter-not`, `partition`, take/drop/split variants, index helpers, removers, `flatten`, `assoc`, list update/prefix helpers, `argmin`/`argmax`, `group-by`, `cartesian-product`, combinations/permutations, and `range`/`inclusive-range` smokes pass | Remaining installed exports are tracked in `GOAL1-PROVIDERS.md` |
 
 The old `racket/list` blockers are no longer first failures:
 

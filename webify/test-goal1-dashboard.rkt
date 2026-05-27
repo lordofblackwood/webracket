@@ -195,6 +195,8 @@
   (check-not-false
    (member 'installed-racket-list-easy-coverage goal1-dashboard-coverage-core-case-names))
   (check-not-false
+   (member 'installed-racket-list-expanded-coverage goal1-dashboard-coverage-core-case-names))
+  (check-not-false
    (member 'goal1-base-sort-keywords goal1-dashboard-coverage-core-case-names))
   (check-not-false
    (member 'goal1-vector-sort-keywords goal1-dashboard-coverage-core-case-names))
@@ -305,6 +307,7 @@
                          installed-racket-list-shim-coverage
                          installed-racket-list-edge-coverage
                          installed-racket-list-easy-coverage
+                         installed-racket-list-expanded-coverage
                          installed-racket-string-coverage
                          installed-racket-string-join
                          full-bytes-coverage

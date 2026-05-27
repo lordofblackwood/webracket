@@ -102,6 +102,7 @@
     installed-racket-list-shim-coverage
     installed-racket-list-edge-coverage
     installed-racket-list-easy-coverage
+    installed-racket-list-expanded-coverage
     installed-racket-string-coverage
     installed-racket-string-join
     full-bytes-coverage
@@ -486,6 +487,41 @@
          "           (length (append* '((1) (2 3))))\n"
          "           (if (empty? empty) 1 0)\n"
          "           -35))\n")))
+    "main.rkt"
+    #rx"(?m:^42$)"
+    '("--no-io-format-provider" "--webracket-module-bridge"))
+   (dashboard-case
+    'installed-racket-list-expanded-coverage
+    'installed-provider-coverage
+    '(racket/list webracket/list)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/base\n"
+         "(require racket/list)\n"
+         "(define cp (cartesian-product '(1 2) '(10 20)))\n"
+         "(define combos (combinations '(a b c) 2))\n"
+         "(define perms (permutations '(x x)))\n"
+         "(define-values (prefix left right) (split-common-prefix '(a b c) '(a b d e)))\n"
+         "(define-values (drop-left drop-right*) (drop-common-prefix '(a b c) '(a b d e)))\n"
+         "(define updated (list-update '(1 2 3) 2 (lambda (x) (+ x 2))))\n"
+         "(define grouped (group-by (lambda (x) (modulo x 3)) '(1 2 54 5 0)))\n"
+         "(js-log (+ (length cp)\n"
+         "           (length combos)\n"
+         "           (length perms)\n"
+         "           (length prefix)\n"
+         "           (length drop-left)\n"
+         "           (length drop-right*)\n"
+         "           (second (list-set '(1 2 3) 1 9))\n"
+         "           (third updated)\n"
+         "           (car (argmax car '((3 pears) (1 banana) (2 apples))))\n"
+         "           (car (argmin car '((3 pears) (1 banana) (2 apples))))\n"
+         "           (length grouped)\n"
+         "           (if (list-prefix? '(a b) '(a b c)) 1 0)\n"
+         "           (if (cons? '(ok)) 1 0)\n"
+         "           (eleventh '(1 2 3 4 5 6 7 8 9 10 11))\n"
+         "           (length (for/list ([x (in-combinations '(a b c) 2)]) x))\n"
+         "           (length (for/list ([x (in-permutations '(x x))]) x))\n"
+         "           -11))\n")))
     "main.rkt"
     #rx"(?m:^42$)"
     '("--no-io-format-provider" "--webracket-module-bridge"))

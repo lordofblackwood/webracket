@@ -38,7 +38,9 @@ runtime services.
   needs. Covered exports include selectors, folds/maps, `filter-map`,
   `append-map`, `append*`, `count`, `filter-not`, `partition`,
   `take`/`drop`/`split-at`, `takef`/`dropf`/`splitf-at`, membership/indexing
-  helpers, `remove`/`remove*`/`remf`/`remf*`, `flatten`, and
+  helpers, `remove`/`remove*`/`remf`/`remf*`, `flatten`, list update/prefix
+  helpers, `argmin`/`argmax`, `group-by`, `cartesian-product`,
+  `combinations`, `in-combinations`, `permutations`, `in-permutations`, and
   `range`/`inclusive-range`. Missing installed exports are classified below;
   the current `range` implementation rejects a zero step instead of attempting
   to construct Racket's non-terminating list.
@@ -84,17 +86,20 @@ staged list surface instead of the installed provider.
 
 ## `racket/list` Export Audit
 
-The current installed-vs-staged audit shows 62 installed phase-0 exports and 70
-staged exports. Missing installed exports are grouped as follows:
+The current installed-vs-staged audit shows 62 installed phase-0 exports and the
+staged provider now covers the high-value pure-list subset. Remaining gaps are
+grouped as follows:
 
-- Larger pure-list shims: `argmax`, `argmin`, `cartesian-product`,
-  `combinations`, `permutations`, `in-combinations`, `in-permutations`,
-  `group-by`, `list-prefix?`, `take-common-prefix`, `drop-common-prefix`,
-  `split-common-prefix`, `list-set`, and `list-update`.
-- Low-priority selector aliases: `eleventh`, `twelfth`, `thirteenth`,
-  `fourteenth`, and `fifteenth`.
 - Postponed/randomness-sensitive: `shuffle`.
-- Predicate gap to check against Racket's exact behavior: `cons?`.
+- Keyword-sensitive/postponed: `add-between`, `remove-duplicates`, and
+  `check-duplicates`. These should stay source-defined when added, because the
+  primitive forms do not generally preserve Racket's keyword surface.
+- Exact sequence fidelity: `in-combinations` and `in-permutations` currently
+  return list-valued sequences, which is enough for ordinary `for` use but not
+  the same generator-backed object shape as installed `racket/list`.
+- Provider-ownership note: do not re-export equivalent primitives directly from
+  `webracket/list` yet. Primitive aliases create extra reflection candidates
+  such as both `webracket/list` and `racket/list` owning `append-map`.
 
 ## Current Full-Language Notes
 
