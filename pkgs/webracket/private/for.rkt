@@ -853,11 +853,10 @@
 (define (no-more)
   (raise-arguments-error 'sequence-generate "sequence has no more values"))
 
-;; sequence-position-active? : any/c (any/c -> any/c) (or/c #f procedure?) -> boolean?
+;; sequence-position-active? : any/c (any/c -> any/c) -> boolean?
 ;;   Check whether a sequence position should produce another element.
-(define (sequence-position-active? pos pos-cont? all-cont?)
-  (and (pos-cont? pos)
-       (if all-cont? (all-cont? pos) #t)))
+(define (sequence-position-active? pos pos-cont?)
+  (pos-cont? pos))
 
 ;; sequence-position-values : procedure? any/c (or/c #f procedure?) -> list?
 ;;   Extract one element's values as a list, respecting val-cont? when supplied.
@@ -884,23 +883,32 @@
   (define cached? #f)
   (define cached-values #f)
   (define exhausted? #f)
+  (define stop-after-cached? #f)
   (define (fill-cache!)
     (unless cached?
       (let loop ()
         (cond
-          [(not (sequence-position-active? pos pos-cont? all-cont?))
+          [exhausted?
+           (set! cached-values #f)
+           (set! cached? #t)]
+          [(not (sequence-position-active? pos pos-cont?))
            (set! exhausted? #t)
            (set! cached-values #f)
            (set! cached? #t)]
           [else
            (define vals (sequence-position-values pos->vals pos val-cont?))
-           (define next-pos (sequence-next-position pos pre-pos-next pos-next))
-           (set! pos next-pos)
            (cond
              [vals
+              (define continue-after?
+                (if all-cont? (apply all-cont? pos vals) #t))
+              (when continue-after?
+                (set! pos (sequence-next-position pos pre-pos-next pos-next)))
               (set! cached-values vals)
+              (set! stop-after-cached? (not continue-after?))
               (set! cached? #t)]
-             [else (loop)])]))))
+             [else
+              (set! pos (sequence-next-position pos pre-pos-next pos-next))
+              (loop)])]))))
   (define (more?)
     (fill-cache!)
     (not exhausted?))
@@ -912,6 +920,9 @@
       [else
        (define vals cached-values)
        (set! cached? #f)
+       (when stop-after-cached?
+         (set! exhausted? #t)
+         (set! stop-after-cached? #f))
        (apply values vals)]))
   (values more? next))
 

@@ -1,6 +1,7 @@
 #lang racket/base
 
 (require racket/private/for)
+(require (for-syntax racket/base))
 
 (provide empty-sequence
          sequence->list
@@ -17,6 +18,8 @@
          sequence-filter
          sequence-add-between
          in-slice
+         in-syntax
+         initiate-sequence
          (all-from-out racket/private/for))
 
 ;; A small public `racket/sequence` replacement for Goal 1. The private `for`
@@ -287,3 +290,70 @@
                (not exhausted?))
              #f
              #f))))
+
+;; in-syntax : syntax? -> sequence?
+;;   Sequence over the immediate subparts of a syntax list.
+(define (in-syntax stx)
+  (unless (syntax? stx)
+    (raise-argument-error 'in-syntax "syntax?" stx))
+  (define xs (syntax->list stx))
+  (unless xs
+    (raise-argument-error 'in-syntax "syntax list?" stx))
+  (in-list xs))
+
+;; initiate-sequence : keyword protocol -> values
+;;   Expand the public sequence protocol wrapper without runtime keyword dispatch.
+(define-syntax (initiate-sequence stx)
+  (define args (syntax->list stx))
+  (unless args
+    (raise-syntax-error 'initiate-sequence "expected keyword arguments" stx))
+  (define seen null)
+  (define parsed (make-hasheq))
+  (define (record! kw expr kw-stx)
+    (when (memq kw seen)
+      (raise-syntax-error 'initiate-sequence "duplicate keyword" stx kw-stx))
+    (unless (memq kw '(#:pos->element
+                       #:early-next-pos
+                       #:next-pos
+                       #:init-pos
+                       #:continue-with-pos?
+                       #:continue-with-val?
+                       #:continue-after-pos+val?))
+      (raise-syntax-error 'initiate-sequence "unknown keyword" stx kw-stx))
+    (set! seen (cons kw seen))
+    (hash-set! parsed kw expr))
+  (let loop ([args (cdr args)])
+    (cond
+      [(null? args) (void)]
+      [(null? (cdr args))
+       (raise-syntax-error 'initiate-sequence "keyword missing an expression" stx (car args))]
+      [else
+       (define kw-stx (car args))
+       (define kw (syntax-e kw-stx))
+       (unless (keyword? kw)
+         (raise-syntax-error 'initiate-sequence "expected keyword" stx kw-stx))
+       (record! kw (cadr args) kw-stx)
+       (loop (cddr args))]))
+  (define (required kw)
+    (hash-ref parsed
+              kw
+              (lambda ()
+                (raise-syntax-error 'initiate-sequence
+                                    (format "missing required keyword ~a" kw)
+                                    stx))))
+  (define (optional kw)
+    (hash-ref parsed kw (lambda () #'#f)))
+  (with-syntax ([pos->element              (required '#:pos->element)]
+                [early-next-pos            (optional '#:early-next-pos)]
+                [next-pos                  (required '#:next-pos)]
+                [init-pos                  (required '#:init-pos)]
+                [continue-with-pos?        (optional '#:continue-with-pos?)]
+                [continue-with-val?        (optional '#:continue-with-val?)]
+                [continue-after-pos+val?   (optional '#:continue-after-pos+val?)])
+    #'(values pos->element
+              early-next-pos
+              next-pos
+              init-pos
+              continue-with-pos?
+              continue-with-val?
+              continue-after-pos+val?)))

@@ -47,7 +47,9 @@
                   sequence-count
                   sequence-filter
                   sequence-add-between
-                  in-slice)
+                  in-slice
+                  in-syntax
+                  initiate-sequence)
          "../set.rkt"
          "../stream.rkt"
          (except-in "../function.rkt" compose compose1)
@@ -117,6 +119,8 @@
          sequence-filter
          sequence-add-between
          in-slice
+         in-syntax
+         initiate-sequence
          (all-from-out "../set.rkt")
          (all-from-out "../stream.rkt")
          (for-syntax (all-from-out racket/base))
