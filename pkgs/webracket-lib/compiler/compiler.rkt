@@ -18589,6 +18589,21 @@
           `(call $treelist ,(build-rest-args (AExpr* ae1)))]
          [(eq? sym 'treelist-append)
           `(call $treelist-append ,(build-rest-args (AExpr* ae1)))]
+         [(eq? sym 'sort)
+          (define aes (AExpr* ae1))
+          (case (length aes)
+            [(2) `(call $sort ,@aes)]
+            [(4) `(call $sort/expanded-keywords
+                        ,(third aes)
+                        ,(fourth aes)
+                        (global.get $missing)
+                        ,(second aes)
+                        (global.get $missing)
+                        ,(first aes))]
+            [(6) `(call $sort/expanded-keywords ,@aes)]
+            [else (raise-syntax-error 'primapp
+                                      (primapp-arity-msg "wrong number of arguments: sort" s)
+                                      s)])]
          [(eq? sym 'values)
           (define n   (length ae1))
           (define aes (AExpr* ae1))

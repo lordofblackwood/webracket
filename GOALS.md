@@ -394,6 +394,8 @@ Current installed-extraction runtime smokes cover:
 - `racket/fixnum`: `fx+`.
 - `racket/list`: `first`, `rest`, `add-between`, `range`, `reverse`, and a
   combined `take`/`map` use with `racket/string`.
+- `racket/base` / `webracket/full`: keyword-expanded `sort`, including
+  `#:key` and accepting `#:cache-keys?`, through the WebRacket primitive path.
 - `racket/string`: `string-join` and `string-prefix?`.
 - `racket/bytes`: installed-provider smokes cover basic length plus mutable
   byte construction/update, copying, subbytes, byte/list conversion, append,
@@ -513,8 +515,9 @@ Current installed-extraction runtime smokes cover:
   a first-class function value. The compact dashboard classifies this failure
   shape as `provider-alias-not-callable`, and a separate list-surface row keeps
   pressure on callable `racket/list` exports such as `filter-map`, `append-map`,
-  `member`, `remove`, and `reverse`. `sort` still exposes a separate internal
-  name collision (`sort.1`) and should get its own focused follow-up.
+  `member`, `remove`, and `reverse`. A dedicated `goal1-base-sort-keywords` row
+  covers the primitive `sort` keyword-expanded path, including `#:key` and
+  `#:cache-keys?`.
 - Dependency-first local source modules with quoted sibling requires, such as
   `(require 'base-values)`, through a shared-provider transitive smoke.
 

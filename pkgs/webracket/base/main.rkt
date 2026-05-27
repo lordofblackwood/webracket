@@ -3,9 +3,11 @@
 (require (except-in racket/base
                     make-keyword-procedure
                     procedure-keywords
-                    read-bytes-line)
+                    read-bytes-line
+                    sort)
          "../js/main.rkt"
          "../private/kw.rkt"
+         (only-in "../primitives.rkt" sort)
          (for-syntax racket/base)
          (for-syntax racket/splicing)
          (for-syntax webracket-lib/compiler/private/browser-options))
@@ -14,6 +16,7 @@
 ;; between `racket/base` and the broader `racket` language.
 (provide (all-from-out racket/base)
          read-bytes-line
+         sort
          (all-from-out "../js/main.rkt")
          (all-from-out "../private/kw.rkt")
          (for-syntax (all-from-out racket/base))

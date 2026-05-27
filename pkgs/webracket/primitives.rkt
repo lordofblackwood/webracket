@@ -2146,9 +2146,26 @@ current-parameterization    ; poor-man dynamic parameterization overlay
 (define (string-replace str from to [all? #t])
   (racket:string-replace str from to all?))
 
-; A simplified no-keywords version 
-(define (sort xs less-than?)
-  (racket:sort xs less-than?))
+; Host-side mirror for WebRacket's primitive sort. The compiler/runtime
+; supports the keyword-expanded shapes used by module-language programs.
+(define sort
+  (make-keyword-procedure
+   (lambda (kws kw-args xs less-than?)
+     (define key
+       (let loop ([kws kws] [kw-args kw-args])
+         (cond
+           [(null? kws) #f]
+           [(eq? (car kws) '#:key) (car kw-args)]
+           [else (loop (cdr kws) (cdr kw-args))])))
+     (define cache-keys?
+       (let loop ([kws kws] [kw-args kw-args])
+         (cond
+           [(null? kws) #f]
+           [(eq? (car kws) '#:cache-keys?) (car kw-args)]
+           [else (loop (cdr kws) (cdr kw-args))])))
+     (racket:sort xs less-than? #:key key #:cache-keys? cache-keys?))
+   (lambda (xs less-than?)
+     (racket:sort xs less-than?))))
 
 
 ; Added in version Racket 8.12.

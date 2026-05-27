@@ -29390,8 +29390,10 @@
 
               (call $reverse (local.get $acc)))
 
-        ; Note: Simplified version of sort with two arguments only.
-        ;       Internally it uses a merge sort.
+        ; Note: Simplified version of sort. Internally it uses a merge sort.
+        ;       The keyword-expanded path supports #:key for module-language
+        ;       programs; #:cache-keys? is accepted but currently not used to
+        ;       change key-evaluation caching behavior.
         (func $sort (type $Prim2)
               (param $xs   (ref eq))
               (param $proc (ref eq))
@@ -29414,6 +29416,83 @@
                            (local.get $f)
                            (local.get $finv)
                            (local.get $call)))
+
+        (func $sort/expanded-keywords (type $Prim6)
+              (param $xs          (ref eq)) ; list to sort
+              (param $proc        (ref eq)) ; less-than? procedure
+              (param $kw-key      (ref eq)) ; expanded #:key marker
+              (param $key-proc    (ref eq)) ; key procedure or #f
+              (param $kw-cache    (ref eq)) ; expanded #:cache-keys? marker
+              (param $cache-keys? (ref eq)) ; accepted for compatibility
+              (result             (ref eq))
+
+              (local $f          (ref $Procedure))
+              (local $finv       (ref $ProcedureInvoker))
+              (local $key-f      (ref $Procedure))
+              (local $key-finv   (ref $ProcedureInvoker))
+              (local $less-call  (ref $Args))
+              (local $key-call   (ref $Args))
+
+              (if (ref.eq (local.get $key-proc) (global.get $false))
+                  (then (return_call $sort (local.get $xs) (local.get $proc))))
+              (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
+                  (then (call $raise-argument-error:procedure-expected (local.get $proc))
+                        (unreachable)))
+              (if (i32.eqz (ref.test (ref $Procedure) (local.get $key-proc)))
+                  (then (call $raise-argument-error:procedure-expected (local.get $key-proc))
+                        (unreachable)))
+              (local.set $f        (ref.cast (ref $Procedure) (local.get $proc)))
+              (local.set $finv     (struct.get $Procedure $invoke (local.get $f)))
+              (local.set $key-f    (ref.cast (ref $Procedure) (local.get $key-proc)))
+              (local.set $key-finv (struct.get $Procedure $invoke (local.get $key-f)))
+              (local.set $less-call (array.new $Args (global.get $null) (i32.const 2)))
+              (local.set $key-call  (array.new $Args (global.get $null) (i32.const 1)))
+
+              (return_call $sort:merge-sort/key
+                           (local.get $xs)
+                           (local.get $f)
+                           (local.get $finv)
+                           (local.get $key-f)
+                           (local.get $key-finv)
+                           (local.get $less-call)
+                           (local.get $key-call)))
+
+        (func $sort/keyword-apply (type $Prim4)
+              (param $kws      (ref eq)) ; sorted keyword list from keyword-procedure-extract
+              (param $kw-args  (ref eq)) ; parallel keyword value list
+              (param $xs       (ref eq)) ; list to sort
+              (param $proc     (ref eq)) ; less-than? procedure
+              (result          (ref eq))
+
+              (local $kw-cell      (ref $Pair))
+              (local $kw-rest      (ref eq))
+              (local $arg-cell     (ref $Pair))
+              (local $arg-rest     (ref eq))
+              (local $second-cell  (ref $Pair))
+              (local $key-proc     (ref eq))
+              (local $cache-keys?  (ref eq))
+
+              ;; Racket's keyword-procedure extraction passes sorted keywords.
+              ;; For sort's supported surface, that means #:cache-keys? before
+              ;; #:key. This bridge is intentionally narrow for Goal 1.
+              (local.set $key-proc    (global.get $false))
+              (local.set $cache-keys? (global.get $false))
+              (if (ref.test (ref $Pair) (local.get $kw-args))
+                  (then
+                   (local.set $arg-cell (ref.cast (ref $Pair) (local.get $kw-args)))
+                   (local.set $cache-keys? (struct.get $Pair $a (local.get $arg-cell)))
+                   (local.set $arg-rest (struct.get $Pair $d (local.get $arg-cell)))
+                   (if (ref.test (ref $Pair) (local.get $arg-rest))
+                       (then
+                        (local.set $second-cell (ref.cast (ref $Pair) (local.get $arg-rest)))
+                        (local.set $key-proc (struct.get $Pair $a (local.get $second-cell)))))))
+              (return_call $sort/expanded-keywords
+                           (local.get $xs)
+                           (local.get $proc)
+                           (global.get $missing)
+                           (local.get $key-proc)
+                           (global.get $missing)
+                           (local.get $cache-keys?)))
 
         (func $sort:merge
               (param $a    (ref eq))
@@ -29468,6 +29547,81 @@
                                     (local.get $f)
                                     (local.get $finv)
                                     (local.get $call))))))
+
+        (func $sort:merge/key
+              (param $a         (ref eq))
+              (param $b         (ref eq))
+              (param $f         (ref $Procedure))
+              (param $finv      (ref $ProcedureInvoker))
+              (param $key-f     (ref $Procedure))
+              (param $key-finv  (ref $ProcedureInvoker))
+              (param $less-call (ref $Args))
+              (param $key-call  (ref $Args))
+              (result           (ref eq))
+
+              (local $apair (ref $Pair))
+              (local $bpair (ref $Pair))
+              (local $x     (ref eq))
+              (local $y     (ref eq))
+              (local $kx    (ref eq))
+              (local $ky    (ref eq))
+              (local $r     (ref eq))
+
+              (if (ref.eq (local.get $a) (global.get $null))
+                  (then (return (local.get $b))))
+              (if (ref.eq (local.get $b) (global.get $null))
+                  (then (return (local.get $a))))
+
+              (if (i32.eqz (ref.test (ref $Pair) (local.get $a)))
+                  (then (call $raise-pair-expected (local.get $a))
+                        (unreachable)))
+              (if (i32.eqz (ref.test (ref $Pair) (local.get $b)))
+                  (then (call $raise-pair-expected (local.get $b))
+                        (unreachable)))
+
+              (local.set $apair (ref.cast (ref $Pair) (local.get $a)))
+              (local.set $bpair (ref.cast (ref $Pair) (local.get $b)))
+              (local.set $x     (struct.get $Pair $a (local.get $apair)))
+              (local.set $y     (struct.get $Pair $a (local.get $bpair)))
+
+              (array.set $Args (local.get $key-call) (i32.const 0) (local.get $y))
+              (local.set $ky (call_ref $ProcedureInvoker
+                                        (local.get $key-f)
+                                        (local.get $key-call)
+                                        (local.get $key-finv)))
+              (array.set $Args (local.get $key-call) (i32.const 0) (local.get $x))
+              (local.set $kx (call_ref $ProcedureInvoker
+                                        (local.get $key-f)
+                                        (local.get $key-call)
+                                        (local.get $key-finv)))
+              (array.set $Args (local.get $less-call) (i32.const 0) (local.get $ky))
+              (array.set $Args (local.get $less-call) (i32.const 1) (local.get $kx))
+              (local.set $r (call_ref $ProcedureInvoker
+                                      (local.get $f)
+                                      (local.get $less-call)
+                                      (local.get $finv)))
+              (if (result (ref eq))
+                  (ref.eq (local.get $r) (global.get $false))
+                  (then (call $cons (local.get $x)
+                              (call $sort:merge/key
+                                    (struct.get $Pair $d (local.get $apair))
+                                    (local.get $b)
+                                    (local.get $f)
+                                    (local.get $finv)
+                                    (local.get $key-f)
+                                    (local.get $key-finv)
+                                    (local.get $less-call)
+                                    (local.get $key-call))))
+                  (else (call $cons (local.get $y)
+                              (call $sort:merge/key
+                                    (local.get $a)
+                                    (struct.get $Pair $d (local.get $bpair))
+                                    (local.get $f)
+                                    (local.get $finv)
+                                    (local.get $key-f)
+                                    (local.get $key-finv)
+                                    (local.get $less-call)
+                                    (local.get $key-call))))))
 
         (func $sort:split (param $lst (ref eq))
               (result (ref $Values))
@@ -29541,6 +29695,63 @@
               (local.set $sb    (call $sort:merge-sort (local.get $b) (local.get $f) (local.get $finv) (local.get $call)))
               (return_call $sort:merge
                            (local.get $sa) (local.get $sb) (local.get $f) (local.get $finv) (local.get $call)))
+
+        (func $sort:merge-sort/key
+              (param $lst       (ref eq))
+              (param $f         (ref $Procedure))
+              (param $finv      (ref $ProcedureInvoker))
+              (param $key-f     (ref $Procedure))
+              (param $key-finv  (ref $ProcedureInvoker))
+              (param $less-call (ref $Args))
+              (param $key-call  (ref $Args))
+              (result           (ref eq))
+
+              (local $pair (ref $Pair))
+              (local $rest (ref eq))
+              (local $vals (ref $Values))
+              (local $a    (ref eq))
+              (local $b    (ref eq))
+              (local $sa   (ref eq))
+              (local $sb   (ref eq))
+
+              (if (ref.eq (local.get $lst) (global.get $null))
+                  (then (return (local.get $lst))))
+              (if (i32.eqz (ref.test (ref $Pair) (local.get $lst)))
+                  (then (call $raise-pair-expected (local.get $lst))
+                        (unreachable)))
+              (local.set $pair (ref.cast (ref $Pair) (local.get $lst)))
+              (local.set $rest (struct.get $Pair $d (local.get $pair)))
+              (if (ref.eq (local.get $rest) (global.get $null))
+                  (then (return (local.get $lst))))
+
+              (local.set $vals (call $sort:split (local.get $lst)))
+              (local.set $a    (array.get $Values (local.get $vals) (i32.const 0)))
+              (local.set $b    (array.get $Values (local.get $vals) (i32.const 1)))
+              (local.set $sa   (call $sort:merge-sort/key
+                                     (local.get $a)
+                                     (local.get $f)
+                                     (local.get $finv)
+                                     (local.get $key-f)
+                                     (local.get $key-finv)
+                                     (local.get $less-call)
+                                     (local.get $key-call)))
+              (local.set $sb   (call $sort:merge-sort/key
+                                     (local.get $b)
+                                     (local.get $f)
+                                     (local.get $finv)
+                                     (local.get $key-f)
+                                     (local.get $key-finv)
+                                     (local.get $less-call)
+                                     (local.get $key-call)))
+              (return_call $sort:merge/key
+                           (local.get $sa)
+                           (local.get $sb)
+                           (local.get $f)
+                           (local.get $finv)
+                           (local.get $key-f)
+                           (local.get $key-finv)
+                           (local.get $less-call)
+                           (local.get $key-call)))
         
 
          ;;;
@@ -56765,6 +56976,7 @@
               (ref.func $primitive-invoke)
               (ref.func $invoke-reduced-procedure)
               (ref.func $invoke-composed-procedure)
+              (ref.func $sort/keyword-apply)
               (ref.func $code:case-lambda-dispatch)
               (ref.func $invoke-case-closure)
               (ref.func $default-error-syntax->name-handler)
@@ -58817,6 +59029,7 @@
                (local $args2       (ref $Args))
                (local $args3       (ref $Args))
                (local $accepted    (ref eq))
+               (local $primitive   (ref $PrimitiveProcedure))
 
                (if (i32.eqz (ref.test (ref $StructType) (local.get $type-raw)))
                    (then (call $raise-argument-error1
@@ -58833,6 +59046,26 @@
                                (local.get $fallback-raw))
                          (unreachable)))
                (local.set $fallback (ref.cast (ref $Procedure) (local.get $fallback-raw)))
+
+               ;; Racket expands keyword calls to primitive sort through
+               ;; checked-procedure-check-and-extract when the primitive is
+               ;; imported as a module variable. Return a small keyword-apply
+               ;; primitive instead of delegating to keyword-procedure-extract.
+               (if (ref.test (ref $PrimitiveProcedure) (local.get $v))
+                   (then
+                    (local.set $primitive (ref.cast (ref $PrimitiveProcedure) (local.get $v)))
+                    (if (ref.eq (struct.get $PrimitiveProcedure $name (local.get $primitive))
+                                (global.get $symbol:sort))
+                        (then
+                         (return
+                          (struct.new $PrimitiveProcedure
+                                      (i32.const 0)
+                                      (global.get $symbol:sort)
+                                      (ref.i31 (i32.const 8))
+                                      (global.get $the-racket/primitive-realm)
+                                      (ref.func $primitive-invoke:shape-4)
+                                      (ref.func $sort/keyword-apply)
+                                      (global.get $false)))))))
 
                (if (i32.eqz (ref.test (ref $Struct) (local.get $v)))
                    (then

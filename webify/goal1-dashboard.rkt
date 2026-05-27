@@ -116,6 +116,7 @@
     goal1-match-set-hash-composition
     goal1-full-callable-exports
     goal1-full-list-surface
+    goal1-base-sort-keywords
     base-sequence-core
     base-sequence-producers
     base-sequence-real-libraries
@@ -850,6 +851,24 @@
          "           (length tail)\n"
          "           member-bonus\n"
          "           31))\n")))
+    "main.rkt"
+    #rx"(?m:^42$)"
+    '("--no-io-format-provider"))
+   (dashboard-case
+    'goal1-base-sort-keywords
+    'installed-provider-coverage
+    '(webracket/base webracket/full)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/full\n"
+         "(define sorted (sort '(3 1 2) <))\n"
+         "(define by-len (sort '(\"aaa\" \"b\" \"cc\") < #:key string-length #:cache-keys? #t))\n"
+         "(js-log (+ (car sorted)\n"
+         "           (cadr sorted)\n"
+         "           (caddr sorted)\n"
+         "           (string-length (car by-len))\n"
+         "           (string-length (caddr by-len))\n"
+         "           32))\n")))
     "main.rkt"
     #rx"(?m:^42$)"
     '("--no-io-format-provider"))

@@ -188,6 +188,8 @@
    (member 'goal1-full-callable-exports goal1-dashboard-coverage-core-case-names))
   (check-not-false
    (member 'goal1-full-list-surface goal1-dashboard-coverage-core-case-names))
+  (check-not-false
+   (member 'goal1-base-sort-keywords goal1-dashboard-coverage-core-case-names))
   (check-false
    (member 'generator-real-diagnostic goal1-dashboard-coverage-core-case-names))
   (check-not-false
@@ -321,6 +323,7 @@
                          installed-racket-format-coverage
                          goal1-full-callable-exports
                          goal1-full-list-surface
+                         goal1-base-sort-keywords
                          ffi-js-math-coverage
                          ffi-js-console-coverage
                          regexp-provider-coverage))])

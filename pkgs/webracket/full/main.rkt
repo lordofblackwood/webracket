@@ -1,6 +1,6 @@
 #lang racket/base
 
-(require (except-in racket/base read-bytes-line)
+(require (except-in racket/base read-bytes-line sort)
          racket/bool
          racket/bytes
          racket/dict
@@ -15,7 +15,7 @@
          (except-in racket/string string-append* string-join)
          (only-in "../string.rkt" string-append* string-join)
          (except-in racket/vector vector-member)
-         (only-in "../primitives.rkt" identity)
+         (only-in "../primitives.rkt" identity sort)
          "../contract.rkt"
          (except-in "../format.rkt" format fprintf printf eprintf)
          (rename-in "../format.rkt"
@@ -87,6 +87,7 @@
                      [wr-eprintf eprintf]
                      [wr-compose compose]
                      [wr-compose1 compose1])
+         sort
          (all-from-out racket/bool)
          (all-from-out racket/bytes)
          (all-from-out racket/dict)
