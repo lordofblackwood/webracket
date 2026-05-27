@@ -170,6 +170,7 @@
     sequence-generate-basic
     sequence-generate-star
     sequence-generate-exhausted
+    sequence-boundary-safe
     sequence-empty
     sequence-map-filter-count
     sequence-andmap-ormap
@@ -189,6 +190,7 @@
     sequence-prop-gen-sequence
     sequence-in-parallel-values
     sequence-generate-exhausted
+    sequence-boundary-safe
     sequence-for/list
     sequence-for/vector
     for/in-list
@@ -206,6 +208,9 @@
     for*/vector-basic
     for/hash-kinds
     for/final-clause
+    for/control-parallel
+    for*/control-nested
+    for/vector-length-fill
     for/list-basic
     for/fold-basic
     for*/list-basic
@@ -395,6 +400,7 @@
       sequence-generate-basic
       sequence-generate-star
       sequence-generate-exhausted
+      sequence-boundary-safe
       sequence-empty
       sequence-map-filter-count
       sequence-andmap-ormap
@@ -413,6 +419,7 @@
       sequence-prop-sequence
       sequence-prop-gen-sequence
       sequence-in-parallel-values
+      sequence-boundary-safe
       sequence-for/list
       sequence-for/fold
       sequence-for/vector
@@ -431,6 +438,9 @@
       for*/vector-basic
       for/hash-kinds
       for/final-clause
+      for/control-parallel
+      for*/control-nested
+      for/vector-length-fill
       for/list-basic
       for/fold-basic
       for*/list-basic
@@ -546,6 +556,7 @@
             [(sequence-generate-basic) #rx"(?m:^31$)"]
             [(sequence-generate-star) #rx"(?m:^30$)"]
             [(sequence-generate-exhausted) #rx"(?m:^42$)"]
+            [(sequence-boundary-safe) #rx"(?m:^0$)"]
             [(sequence-empty) #rx"(?m:^0$)"]
             [(sequence-map-filter-count) #rx"(?m:^45$)"]
             [(sequence-andmap-ormap) #rx"(?m:^30$)"]
@@ -579,6 +590,9 @@
             [(for/lists-basic) #rx"(?m:^17$)"]
             [(for/hash-kinds) #rx"(?m:^33$)"]
             [(for/final-clause) #rx"(?m:^4$)"]
+            [(for/control-parallel) #rx"(?m:^0$)"]
+            [(for*/control-nested) #rx"(?m:^32$)"]
+            [(for/vector-length-fill) #rx"(?m:^31$)"]
             [(hash-comparator-semantics set-comparator-semantics) #rx"(?m:^21$)"]
             [(hash-basic) #rx"(?m:^41$)"]
             [(hash-provider-basic) #rx"(?m:^42$)"]

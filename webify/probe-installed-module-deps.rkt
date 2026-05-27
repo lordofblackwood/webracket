@@ -90,6 +90,7 @@
     sequence-generate-basic
     sequence-generate-star
     sequence-generate-exhausted
+    sequence-boundary-safe
     sequence-empty
     sequence-map-filter-count
     sequence-andmap-ormap
@@ -108,6 +109,7 @@
     sequence-prop-sequence
     sequence-prop-gen-sequence
     sequence-in-parallel-values
+    sequence-boundary-safe
     sequence-for/list
     sequence-for/fold
     sequence-for/vector
@@ -126,6 +128,9 @@
     for*/vector-basic
     for/hash-kinds
     for/final-clause
+    for/control-parallel
+    for*/control-nested
+    for/vector-length-fill
     for/list-basic
     for/fold-basic
     for*/list-basic
@@ -211,6 +216,7 @@
     sequence-prop-gen-sequence
     sequence-in-parallel-values
     sequence-generate-exhausted
+    sequence-boundary-safe
     for/in-list
     for/in-vector
     for/in-string
@@ -226,6 +232,9 @@
     for*/vector-basic
     for/hash-kinds
     for/final-clause
+    for/control-parallel
+    for*/control-nested
+    for/vector-length-fill
     for/list-basic
     for/fold-basic
     for*/list-basic
@@ -820,6 +829,12 @@
          (define-values (more? get) (sequence-generate '(1)))
          (get)
          (define y (if (more?) 0 42))))]
+    [(sequence-boundary-safe)
+     '((module use-sequence-boundary-safe racket/base
+         (provide y)
+         (define y
+           (+ (length (for/list ([x (in-vector (vector) 0 0)]) x))
+              (vector-ref (for/vector #:length 3 ([x (in-range 0 10 0)]) x) 2)))))]
     [(sequence-empty)
      '((module use-sequence-empty racket/base
          (require racket/sequence)
@@ -1068,6 +1083,35 @@
                      #:when (odd? x)
                      #:final (= x 3))
              x))))]
+    [(for/control-parallel)
+     '((module use-for-control-parallel racket/base
+         (provide y)
+         (define y
+           (for/sum ([x (in-list '(1 2 3))]
+                     [y (in-list '(10 20 30))]
+                     #:when (odd? x)
+                     #:unless (= y 10)
+                     #:break (> y 20))
+             (+ x y)))))]
+    [(for*/control-nested)
+     '((module use-for-star-control-nested racket/base
+         (provide y)
+         (define y
+           (for/sum ([x (in-list '(1 2))]
+                     #:when #t
+                     [y (in-list '(10 20 30))]
+                     #:final (= y 20))
+             (+ x y)))))]
+    [(for/vector-length-fill)
+     '((module use-for-vector-length-fill racket/base
+         (provide y)
+         (define v-short
+           (for/vector #:length 2 ([x (in-list '(10 20 30))]) x))
+         (define v-fill
+           (for/vector #:length 4 #:fill 9 ([x (in-list '(1 2))]) x))
+         (define y (+ (vector-length v-short)
+                      (vector-ref v-short 1)
+                      (vector-ref v-fill 3)))))]
     [(for/list-basic)
      '((module use-for-list-basic racket/base
          (provide y)
