@@ -159,12 +159,14 @@
                    racket/port
                    racket/pretty
                    racket/promise
+                   racket/sequence
                    racket/set
                    racket/stream
                    racket/unsafe/undefined
                    syntax/contract
                    racket/private/for
                    racket/private/kw
+                   webracket/sequence
                    racket/contract
                    racket/contract/base
                    racket/contract/combinator
