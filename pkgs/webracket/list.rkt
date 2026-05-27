@@ -101,6 +101,24 @@
 ;; Prefer source definitions here instead of re-exporting WebRacket primitives:
 ;; primitive aliases introduce extra provider candidates during reflection.
 
+;; check-list : symbol? any/c -> void?
+;;   Raise a Racket-style argument error when v is not a proper list.
+(define (check-list who v)
+  (unless (list? v)
+    (raise-argument-error who "list?" v)))
+
+;; check-procedure : symbol? any/c -> void?
+;;   Raise a Racket-style argument error when v is not callable.
+(define (check-procedure who v)
+  (unless (procedure? v)
+    (raise-argument-error who "procedure?" v)))
+
+;; check-index : symbol? any/c -> void?
+;;   Raise a Racket-style argument error when v is not a nonnegative index.
+(define (check-index who v)
+  (unless (exact-nonnegative-integer? v)
+    (raise-argument-error who "exact-nonnegative-integer?" v)))
+
 (define first car)
 (define rest cdr)
 (define empty null)
@@ -408,6 +426,7 @@
 ;; make-list : exact-nonnegative-integer? any/c -> list?
 ;;   Construct a list of n copies of v.
 (define (make-list n v)
+  (check-index 'make-list n)
   (let loop ([n n] [acc null])
     (cond
       [(zero? n) acc]
@@ -416,6 +435,8 @@
 ;; build-list : exact-nonnegative-integer? procedure? -> list?
 ;;   Construct a list by applying f to indices from 0 to n-1.
 (define (build-list n f)
+  (check-index 'build-list n)
+  (check-procedure 'build-list f)
   (let loop ([i 0] [acc null])
     (cond
       [(= i n) (reverse acc)]
@@ -424,13 +445,22 @@
 ;; list-update : list? exact-nonnegative-integer? procedure? -> list?
 ;;   Return xs with element n replaced by applying f.
 (define (list-update xs n f)
+  (check-list 'list-update xs)
+  (check-index 'list-update n)
+  (check-procedure 'list-update f)
   (cond
     [(zero? n) (cons (f (car xs)) (cdr xs))]
-    [else (cons (car xs) (list-update (cdr xs) (sub1 n) f))]))
+    [else
+     (let loop ([xs xs] [n n])
+       (cond
+         [(zero? n) (cons (f (car xs)) (cdr xs))]
+         [else (cons (car xs) (loop (cdr xs) (sub1 n)))]))]))
 
 ;; list-set : list? exact-nonnegative-integer? any/c -> list?
 ;;   Return xs with element n replaced by v.
 (define (list-set xs n v)
+  (check-list 'list-set xs)
+  (check-index 'list-set n)
   (list-update xs n (lambda (_) v)))
 
 ;; flatten : any/c -> list?
@@ -445,6 +475,9 @@
 ;; list-prefix? : list? list? [procedure?] -> boolean?
 ;;   Check whether xs is a prefix of ys under same?.
 (define (list-prefix? xs ys [same? equal?])
+  (check-list 'list-prefix? xs)
+  (check-list 'list-prefix? ys)
+  (check-procedure 'list-prefix? same?)
   (let loop ([xs xs] [ys ys])
     (or (null? xs)
         (and (pair? ys)
@@ -454,6 +487,9 @@
 ;; split-common-prefix/internal : list? list? procedure? boolean? -> values
 ;;   Shared implementation for common-prefix helpers.
 (define (split-common-prefix/internal xs ys same? keep-prefix?)
+  (check-list 'split-common-prefix xs)
+  (check-list 'split-common-prefix ys)
+  (check-procedure 'split-common-prefix same?)
   (let loop ([xs xs] [ys ys])
     (cond
       [(and (pair? xs) (pair? ys) (same? (car xs) (car ys)))
@@ -490,6 +526,22 @@
                      #:before-first [before-first null]
                      #:before-last [before-last sep]
                      #:after-last [after-last null])
+  (check-list 'add-between xs)
+  (cond
+    [splice?
+     (unless (list? sep)
+       (raise-argument-error 'add-between "list? in splicing mode" sep))
+     (unless (list? before-first)
+       (raise-argument-error 'add-between "list? in splicing mode for #:before-first" before-first))
+     (unless (list? before-last)
+       (raise-argument-error 'add-between "list? in splicing mode for #:before-last" before-last))
+     (unless (list? after-last)
+       (raise-argument-error 'add-between "list? in splicing mode for #:after-last" after-last))]
+    [else
+     (unless (null? before-first)
+       (raise-argument-error 'add-between "#:before-first only in splicing mode" before-first))
+     (unless (null? after-last)
+       (raise-argument-error 'add-between "#:after-last only in splicing mode" after-last))])
   (cond
     [(or (null? xs) (null? (cdr xs)))
      (if splice?
@@ -512,6 +564,9 @@
 ;; remove-duplicates : list? [procedure?] [#:key procedure?] -> list?
 ;;   Remove later duplicates, preserving the first occurrence.
 (define (remove-duplicates xs [same? equal?] #:key [key (lambda (x) x)])
+  (check-list 'remove-duplicates xs)
+  (check-procedure 'remove-duplicates same?)
+  (check-procedure 'remove-duplicates key)
   (let loop ([xs xs] [seen null])
     (cond
       [(null? xs) null]
@@ -528,6 +583,9 @@
                           [same? equal?]
                           #:key [key (lambda (x) x)]
                           #:default [failure-result (lambda () #f)])
+  (check-list 'check-duplicates xs)
+  (check-procedure 'check-duplicates same?)
+  (check-procedure 'check-duplicates key)
   (let loop ([xs xs] [seen null])
     (cond
       [(null? xs)
@@ -557,11 +615,19 @@
 ;; argmin : procedure? non-empty-list? -> any/c
 ;;   Return the first element with the smallest key.
 (define (argmin f xs)
+  (check-procedure 'argmin f)
+  (check-list 'argmin xs)
+  (when (null? xs)
+    (raise-argument-error 'argmin "(and/c list? (not/c empty?))" xs))
   (better-by < f xs))
 
 ;; argmax : procedure? non-empty-list? -> any/c
 ;;   Return the first element with the largest key.
 (define (argmax f xs)
+  (check-procedure 'argmax f)
+  (check-list 'argmax xs)
+  (when (null? xs)
+    (raise-argument-error 'argmax "(and/c list? (not/c empty?))" xs))
   (better-by > f xs))
 
 ;; group-by : procedure? list? [procedure?] -> (listof list?)

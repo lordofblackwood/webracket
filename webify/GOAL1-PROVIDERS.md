@@ -88,14 +88,23 @@ staged list surface instead of the installed provider.
 ## `racket/list` Export Audit
 
 The current installed-vs-staged audit shows 62 installed phase-0 exports and the
-staged provider now covers the high-value pure-list subset. Remaining gaps are
-grouped as follows:
+staged provider now covers all of those exports except `shuffle`. The
+host-side audit in `webify/test-webracket-list.rkt` pins that boundary so new
+installed exports or accidental staged-provider regressions are visible. The
+remaining compatibility notes are:
 
-- Postponed/randomness-sensitive: `shuffle`.
+- Postponed/randomness-sensitive: `shuffle`. It should wait for an explicit
+  WebRacket randomness story instead of quietly choosing host-specific or
+  deterministic behavior.
 - Keyword-sensitive coverage: `add-between`, `remove-duplicates`, and
   `check-duplicates` are source-defined in `webracket/list`; keep them that way,
   because equivalent primitive forms do not generally preserve Racket's keyword
   surface.
+- Error-shape coverage: the staged provider now rejects common bad shapes for
+  prefix helpers, list update helpers, `argmin`/`argmax`, and splicing
+  `add-between` cases instead of silently accepting them. The messages are not
+  byte-for-byte contract messages, but the observable failure boundary is much
+  closer to `racket/list`.
 - Exact sequence fidelity: `in-combinations` and `in-permutations` currently
   return list-valued sequences. This is sufficient for Goal 1 module programs
   that use them in ordinary `for` clauses, but it is not the same
@@ -158,7 +167,21 @@ grouped as follows:
   the staged provider or should remain documented as postponed.
 - `racket/dict` routes to staged `webracket/dict`. The coverage row now checks
   both ordinary functions (`dict-map`, `dict-count`) and sequence exports such
-  as `in-dict-pairs`.
+  as `in-dict-pairs`. Keep it staged for now: the useful Goal 1 path is hashes,
+  vectors, association lists, and iteration, while generic `prop:dict`,
+  contracted dictionaries, removal/update mutators, and chaperone-sensitive
+  behavior remain explicitly outside the current target.
+- `racket/pretty` routes to staged `webracket/pretty`. The supported surface is
+  intentionally shallow: `pretty-format`, `pretty-print`, `pretty-write`, and
+  `pretty-display` compose with current printing support, but pretty-printing
+  parameters, graph-sensitive layout, and the full pretty writer remain later
+  IO/printing work.
+- `racket/file` routes to staged `webracket/file`. Treat it as a virtual
+  filesystem provider, not a host filesystem provider. The current focus is
+  portable functions such as `file-exists?`, `directory-list`,
+  `display-to-file`, and `file->string`; permissions, links, timestamps,
+  path normalization quirks, and host-specific filesystem effects are not Goal
+  1 requirements.
 
 ## Compatibility Policy
 

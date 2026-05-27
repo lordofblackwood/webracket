@@ -3,7 +3,28 @@
 (require rackunit
          webracket/list)
 
+(define (phase-0-export-names mod)
+  (dynamic-require mod #f)
+  (define-values (value-exports syntax-exports)
+    (module->exports mod))
+  (define (phase-names exports)
+    (apply append
+           (for/list ([phase exports]
+                      #:when (and (pair? phase) (equal? (car phase) 0)))
+             (map car (cdr phase)))))
+  (sort (append (phase-names value-exports)
+                (phase-names syntax-exports))
+        symbol<?))
+
 (module+ test
+  (test-case "staged racket/list export audit"
+    (define installed-exports (phase-0-export-names 'racket/list))
+    (define staged-exports (phase-0-export-names 'webracket/list))
+    (define missing
+      (filter (lambda (name) (not (memq name staged-exports)))
+              installed-exports))
+    (check-equal? missing '(shuffle)))
+
   (test-case "append* follows racket/list arity and behavior"
     (check-exn exn:fail? (lambda () (append*)))
     (check-equal? (append* '()) '())
@@ -71,4 +92,18 @@
                   "a")
     (check-equal? (check-duplicates '(1 2 3)
                                     #:default 'none)
-                  'none)))
+                  'none))
+
+  (test-case "list utilities reject unsupported shapes early"
+    (check-exn exn:fail? (lambda () (make-list -1 'x)))
+    (check-exn exn:fail? (lambda () (build-list 2 'not-a-procedure)))
+    (check-exn exn:fail? (lambda () (list-prefix? #t '(1))))
+    (check-exn exn:fail? (lambda () (list-prefix? '(1) #t)))
+    (check-exn exn:fail? (lambda () (list-prefix? '(1) '(1) 'not-a-procedure)))
+    (check-exn exn:fail? (lambda () (argmin values '())))
+    (check-exn exn:fail? (lambda () (argmax 'not-a-procedure '(1))))
+    (check-exn exn:fail? (lambda () (add-between '(1 2) 0 #:before-first '(a))))
+    (check-exn exn:fail? (lambda () (add-between '(1 2) 0 #:after-last '(z))))
+    (check-exn exn:fail? (lambda () (add-between '(1 2) 0 #:splice? #t)))
+    (check-exn exn:fail? (lambda () (remove-duplicates #t)))
+    (check-exn exn:fail? (lambda () (check-duplicates '(1 2) 'not-a-procedure)))))
