@@ -59,6 +59,8 @@
   (make-parameter #f)) ; private staged original-Racket read-syntax provider
 (define webracket-module-bridge?
   (make-parameter #f)) ; force #lang webracket/base/full module bridge
+(define provider-substitutions?
+  (make-parameter #t)) ; route selected racket/* providers to WebRacket shims
 (define provider-cache-dir (make-parameter #f))
 (define clear-provider-cache? (make-parameter #f))
 (define force-provider-cache-refresh? (make-parameter #f))
@@ -244,6 +246,12 @@
    [("--webracket-module-bridge")
     "Force #lang webracket/base or full through the module bridge"
     (webracket-module-bridge? #t)]
+   [("--no-provider-substitutions")
+    "Disable Goal 1 racket/* -> webracket/* provider substitutions for diagnostics"
+    (provider-substitutions? #f)]
+   [("--provider-substitutions")
+    "Enable Goal 1 provider substitutions (default)"
+    (provider-substitutions? #t)]
    [("--provider-cache-dir") dirname
                              "Use <dirname> for provider-slice caches"
                              (provider-cache-dir dirname)]
@@ -367,6 +375,8 @@
                      (expander-read-syntax-provider?)
                      #:webracket-module-bridge?
                      (webracket-module-bridge?)
+                     #:provider-substitutions?
+                     (provider-substitutions?)
                      #:provider-cache-dir
                      (or (provider-cache-dir) webify-regexp-default-cache-root)
                      #:clear-provider-cache? (clear-provider-cache?)

@@ -373,6 +373,9 @@
 (define current-provider-cache-verbose?
   (make-parameter #f))
 
+(define current-webracket/base-provider-substitutions?
+  (make-parameter #t))
+
 (define current-read-source-timing-rows
   (make-parameter '()))
 
@@ -994,6 +997,7 @@
          #:expander-read-provider? [expander-read-provider? #f]
          #:expander-read-syntax-provider? [expander-read-syntax-provider? #f]
          #:webracket-module-bridge? [webracket-module-bridge? #f]
+         #:provider-substitutions? [provider-substitutions? #t]
          ;; Provider Cache
          #:provider-cache-dir [provider-cache-dir webify-regexp-default-cache-root]
          #:clear-provider-cache? [clear-provider-cache? #f]
@@ -1018,6 +1022,7 @@
   (current-provider-cache-dir provider-cache-path)
   (current-provider-cache-force? force-provider-cache-refresh?)
   (current-provider-cache-verbose? verbose?)
+  (current-webracket/base-provider-substitutions? provider-substitutions?)
   (when clear-provider-cache?
     (provider-cache-log "clearing cache directory: ~a" provider-cache-path)
     (with-handlers ([exn:fail:filesystem? void])
@@ -1526,9 +1531,11 @@
 ;; webracket/base-provider-substitute : symbol? -> symbol?
 ;;   Route selected installed providers to smaller WebRacket-owned Goal 1 shims.
 (define (webracket/base-provider-substitute name)
-  (define maybe (assq name webracket/base-provider-substitution-pairs))
-  (if maybe
-      (cdr maybe)
+  (if (current-webracket/base-provider-substitutions?)
+      (let ([maybe (assq name webracket/base-provider-substitution-pairs)])
+        (if maybe
+            (cdr maybe)
+            name))
       name))
 
 ;; substitute-require-module-path : any/c -> any/c

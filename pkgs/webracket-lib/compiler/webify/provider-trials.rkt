@@ -213,12 +213,30 @@
        (provide answer)
        (define answer (list hash-union hash-intersect hash-filter))))
    (webify-provider-trial
+    'racket/dict
+    '(dict-ref dict-count dict-map)
+    '(module use-dict racket/base
+       (require (only-in racket/dict dict-ref dict-count dict-map))
+       (provide answer)
+       (define answer (list dict-ref dict-count dict-map))))
+   (webify-provider-trial
     'racket/format
     '(~a ~s ~v)
     '(module use-format racket/base
        (require (only-in racket/format ~a ~s ~v))
        (provide answer)
        (define answer (list ~a ~s ~v))))
+   (webify-provider-trial
+    'racket/pretty
+    '(pretty-format pretty-print pretty-write pretty-display)
+    '(module use-pretty racket/base
+       (require (only-in racket/pretty
+                         pretty-format
+                         pretty-print
+                         pretty-write
+                         pretty-display))
+       (provide answer)
+       (define answer (list pretty-format pretty-print pretty-write pretty-display))))
    (webify-provider-trial
     'data/queue
     '(make-queue enqueue! dequeue! queue-empty?)

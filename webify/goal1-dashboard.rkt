@@ -13,6 +13,7 @@
          goal1-dashboard-case-tier
          goal1-dashboard-case-libraries
          goal1-dashboard-case-expectation
+         goal1-dashboard-case-args
          goal1-dashboard-default-timeout-seconds
          goal1-dashboard-default-memory-mb
          goal1-dashboard-fast-required-case-names
@@ -351,6 +352,20 @@
     "main.rkt"
     #rx"(?m:^42$)"
     '("--no-io-format-provider" "--webracket-module-bridge"))
+   (dashboard-case
+    'real-racket-dict-diagnostic
+    'installed-provider-diagnostic
+    '(racket/dict)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/base\n"
+         "(require racket/dict)\n"
+         "(js-log (dict-count (hash 'a 1)))\n")))
+    "main.rkt"
+    #rx"(?m:^1$)"
+    '("--no-io-format-provider" "--webracket-module-bridge" "--no-provider-substitutions")
+    #:tier 'coverage
+    #:expectation 'diagnostic)
    (dashboard-case
     'installed-racket-bool-coverage
     'installed-provider-coverage
@@ -806,6 +821,20 @@
     "main.rkt"
     #rx"(?m:^\\(1 2\\)\\|\\(\"web\" racket\\)$)"
     '("--no-io-format-provider" "--webracket-module-bridge"))
+   (dashboard-case
+    'real-racket-pretty-diagnostic
+    'installed-provider-diagnostic
+    '(racket/pretty)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/base\n"
+         "(require racket/pretty)\n"
+         "(js-log (pretty-format '(1 2) #:mode 'write))\n")))
+    "main.rkt"
+    #rx"(?m:^\\(1 2\\)$)"
+    '("--no-io-format-provider" "--webracket-module-bridge" "--no-provider-substitutions")
+    #:tier 'coverage
+    #:expectation 'diagnostic)
    (dashboard-case
     'installed-racket-file
     'installed-provider-graph

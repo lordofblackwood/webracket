@@ -75,6 +75,11 @@ If `webracket/full` exposes a name that has a staged WebRacket provider, prefer
 the staged provider over the installed provider. This keeps `webracket/full`
 from accidentally becoming a tunnel into arbitrary installed Racket internals.
 
+The driver uses one substitution table for both source-level `require` forms
+and provider-graph fetching. Diagnostics can disable the table with
+`--no-provider-substitutions`; required Goal 1 rows should normally leave it
+enabled.
+
 The concrete regression to guard is `compose` and `compose1`: `racket/base`
 exports them, and installed `racket/function` / `racket/private/list` can pull
 in keyword-preserving wrappers that WebRacket does not need for ordinary
@@ -84,6 +89,33 @@ positional module programs. `webracket/full` therefore exports the staged
 The same rule now applies to `racket/list`: the module bridge routes external
 `racket/list` requires to `webracket/list`, and `webracket/full` exports the
 staged list surface instead of the installed provider.
+
+## Provider Substitution Audit
+
+The current `racket/*` -> `webracket/*` substitutions are:
+
+| Requested provider | Routed provider | Classification | Reason |
+| --- | --- | --- | --- |
+| `racket/contract`, `racket/contract/base`, `racket/contract/combinator`, `racket/contract/region`, selected `racket/contract/private/*` | `webracket/contract` | temporary shim | Erased contracts let module programs run before chaperones, impersonators, blame, and full contract enforcement are ready. |
+| `racket/class` | `webracket/class` | temporary shim | Real `racket/class` currently pulls contract/private edges that are larger than the Goal 1 runtime target. |
+| `racket/dict` | `webracket/dict` | temporary shim | Real `racket/dict` diagnostic currently fails with `dict-count` missing after reflection; staged dict covers hashes, vectors, alists, and common derived operations. |
+| `racket/file` | `webracket/file` | likely WebRacket-owned implementation | Browser/VFS file behavior is not host filesystem behavior; use a WebRacket provider around the VFS. |
+| `racket/format` | `webracket/format` | temporary shim | Formatting is still split between staged `io/format` and compact WebRacket formatting support. |
+| `racket/function` | `webracket/function` | temporary shim | Avoids installed keyword-preserving wrappers where ordinary positional combinators are enough today. |
+| `racket/generator` | `webracket/generator` | diagnostic no-op shim | Generators depend on continuation prompts/composable continuations, which are not Goal 1. |
+| `racket/hash` | `webracket/hash` | temporary shim | Keeps hash helpers aligned with WebRacket's HAMT/runtime hash implementation. |
+| `racket/list` | `webracket/list` | temporary shim | Export-complete except `shuffle`; keeps keyword-sensitive list utilities source-defined and avoids provider-alias ambiguity. |
+| `racket/mpair` | `webracket/mpair` | likely WebRacket-owned implementation | Mutable pairs are runtime representation work, not a good installed-provider dependency. |
+| `racket/port` | `webracket/port` | likely WebRacket-owned implementation | Port behavior is tied to WebRacket string ports/VFS/browser IO. |
+| `racket/pretty` | `webracket/pretty` | temporary shim | Real `racket/pretty` diagnostic currently fails on `transplant-output-port.1`; staged pretty covers common output functions and parameters. |
+| `racket/promise` | `webracket/promise` | likely WebRacket-owned implementation | Ordinary promise semantics are small and browser-local; synchronization-oriented variants remain later work. |
+| `racket/sequence`, `racket/private/for` | `webracket/sequence`, `webracket/private/for` | temporary shim | We want broad public `for` support while avoiding generator/prompt-heavy edges. |
+| `racket/set` | `webracket/set` | temporary shim | Set support follows WebRacket hash/HAMT behavior and postpones contracts/generics/chaperones. |
+| `racket/string` | `webracket/string` | temporary shim | Provides common string operations while regexp/read/provider edges continue to mature. |
+| `racket/stream` | `webracket/stream` | temporary shim | Staged streams preserve lazy syntax for common cases without importing full stream internals. |
+| `racket/unsafe/undefined` | `webracket/unsafe/undefined` | likely WebRacket-owned implementation | Runtime undefined values need WebRacket representation support. |
+| `syntax/contract` | `webracket/syntax/contract` | temporary shim | Supports contract erasure at expansion/provider time. |
+| `racket/private/kw` | `webracket/private/kw` | temporary shim | Keyword procedure support is WebRacket-runtime-specific today. |
 
 ## `racket/list` Export Audit
 
@@ -175,6 +207,9 @@ remaining compatibility notes are:
   `dict-empty?`, and `dict-map/copy`. Generic `prop:dict`,
   `define-custom-hash-types`, contracted dictionaries, custom hash constructors,
   and chaperone-sensitive behavior remain explicitly outside the current target.
+  The `real-racket-dict-diagnostic` row disables substitutions and currently
+  fails with `dict-count` missing after reflection, which keeps the real-provider
+  replacement question visible.
 - `racket/pretty` routes to staged `webracket/pretty`. The supported surface is
   still intentionally shallow, but no longer just four procedures:
   `pretty-format`, `pretty-print`, `pretty-write`, `pretty-display`,
@@ -182,7 +217,9 @@ remaining compatibility notes are:
   parameters are available. The parameters are accepted for provider
   compatibility; graph-sensitive layout, hooks with real pretty-port
   integration, tentative pretty-print ports, and the full pretty writer remain
-  later IO/printing work.
+  later IO/printing work. The `real-racket-pretty-diagnostic` row disables
+  substitutions and currently fails on `transplant-output-port.1`, which points
+  at the real pretty-port subsystem rather than the small public pretty API.
 - `racket/file` routes to staged `webracket/file`. Treat it as a virtual
   filesystem provider, not a host filesystem provider. The current focus is
   portable functions such as `file-exists?`, `directory-list`,

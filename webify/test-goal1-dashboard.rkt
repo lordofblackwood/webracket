@@ -8,6 +8,10 @@
          "for-provider-surface.rkt"
          "goal1-dashboard.rkt"
          "test-module-support.rkt"
+         (only-in "../pkgs/webracket-lib/compiler/driver.rkt"
+                  current-webracket/base-provider-substitutions?
+                  webracket/base-provider-substitute
+                  webracket/base-provider-substitution-pairs)
          "../pkgs/webracket-lib/compiler/webify/webracket-full-surface.rkt")
 
 (define-runtime-path webracket-full-main "../pkgs/webracket/full/main.rkt")
@@ -346,6 +350,34 @@
     (check-not-false (memq name coverage-names)
                      (symbol->string name))))
 
+(test-case "provider substitution table includes audited staged routes"
+  (for ([pair (in-list '((racket/dict . webracket/dict)
+                         (racket/pretty . webracket/pretty)
+                         (racket/list . webracket/list)
+                         (racket/sequence . webracket/sequence)
+                         (racket/file . webracket/file)))])
+    (check-equal? (assoc (car pair) webracket/base-provider-substitution-pairs)
+                  pair))
+  (check-equal? (webracket/base-provider-substitute 'racket/dict)
+                'webracket/dict)
+  (parameterize ([current-webracket/base-provider-substitutions? #f])
+    (check-equal? (webracket/base-provider-substitute 'racket/dict)
+                  'racket/dict)))
+
+(test-case "real provider diagnostics are recorded without becoming required"
+  (define by-name
+    (for/hasheq ([c (in-list goal1-dashboard-cases)])
+      (values (goal1-dashboard-case-name c) c)))
+  (for ([name (in-list '(real-racket-dict-diagnostic
+                         real-racket-pretty-diagnostic))])
+    (define c (hash-ref by-name name))
+    (check-equal? (goal1-dashboard-case-category c)
+                  'installed-provider-diagnostic)
+    (check-equal? (goal1-dashboard-case-expectation c)
+                  'diagnostic)
+    (check-not-false (member "--no-provider-substitutions"
+                             (goal1-dashboard-case-args c)))))
+
 (test-case "compact Goal 1 dashboard classifies provider aliases that are not callable"
   (check-equal?
    (classify-detail 1
@@ -364,6 +396,10 @@
                            "webracket/contract"
                            "installed-provider-coverage"
                            "Routing Rule"
+                           "Provider Substitution Audit"
+                           "--no-provider-substitutions"
+                           "real-racket-dict-diagnostic"
+                           "real-racket-pretty-diagnostic"
                            "io/format"
                            "webracket/string"
                            "External explicit requires"
