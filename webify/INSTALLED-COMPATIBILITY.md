@@ -26,7 +26,7 @@ provider exports into top-level aliases.
 
 | Module | Current status | First blocker |
 | --- | --- | --- |
-| `racket/list` | Provider graph follows demand-driven re-export metadata and demand-slices unused `racket/private/for` exports; `first`, `rest`, `add-between`, and `range`/`reverse` smokes pass | Broader list exports still need coverage |
+| `racket/list` | Goal 1 module programs route explicit `racket/list` requires to staged `webracket/list`; selectors, common folds/maps, `filter-map`, `append-map`, `partition`, `take`/`drop`/`split-at`, `remove*`, `assoc`, and `range`/`inclusive-range` smokes pass | Remaining installed exports are tracked in `GOAL1-PROVIDERS.md` |
 
 The old `racket/list` blockers are no longer first failures:
 

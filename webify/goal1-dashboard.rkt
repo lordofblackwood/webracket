@@ -100,6 +100,7 @@
 (define goal1-dashboard-coverage-core-case-names
   '(installed-racket-list-coverage
     installed-racket-list-shim-coverage
+    installed-racket-list-edge-coverage
     installed-racket-string-coverage
     installed-racket-string-join
     full-bytes-coverage
@@ -125,6 +126,7 @@
     base-sequence-custom
     base-sequence-port-edges
     base-for-result-builders
+    base-for-nested-control-coverage
     base-sequence-mpair
     base-sequence-ports
     base-sequence-prop
@@ -419,6 +421,35 @@
          "           (length cleaned)\n"
          "           (cdr pair)\n"
          "           -5))\n")))
+    "main.rkt"
+    #rx"(?m:^42$)"
+    '("--no-io-format-provider" "--webracket-module-bridge"))
+   (dashboard-case
+    'installed-racket-list-edge-coverage
+    'installed-provider-coverage
+    '(racket/list webracket/list)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/base\n"
+         "(require racket/list)\n"
+         "(define down (range 5 0 -2))\n"
+         "(define inclusive-down (inclusive-range 5 1 -2))\n"
+         "(define fm (filter-map (lambda (x y) (and (odd? x) (+ x y))) '(1 2 3) '(10 20 30)))\n"
+         "(define am (append-map (lambda (x y) (list x y)) '(1 2) '(3 4)))\n"
+         "(define member-score (length (member \"B\" '(\"a\" \"b\" \"c\") string-ci=?)))\n"
+         "(define assoc-score (cdr (assoc \"B\" '((\"a\" . 1) (\"b\" . 7)) string-ci=?)))\n"
+         "(define removed (remove \"B\" '(\"a\" \"b\" \"B\") string-ci=?))\n"
+         "(define remove-score (if (string=? (second removed) \"B\") 5 0))\n"
+         "(define last-score (cdr (last-pair '(1 2 . 3))))\n"
+         "(js-log (+ (apply + down)\n"
+         "           (apply + inclusive-down)\n"
+         "           (apply + fm)\n"
+         "           (apply + am)\n"
+         "           member-score\n"
+         "           assoc-score\n"
+         "           remove-score\n"
+         "           last-score\n"
+         "           -47))\n")))
     "main.rkt"
     #rx"(?m:^42$)"
     '("--no-io-format-provider" "--webracket-module-bridge"))
@@ -1057,6 +1088,40 @@
     #rx"(?m:^42$)"
     '("--no-io-format-provider" "--webracket-module-bridge"))
    (dashboard-case
+    'base-for-nested-control-coverage
+    'installed-provider-coverage
+    '(racket/private/for webracket/private/for)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/base\n"
+         "(define nested (for*/list ([x (in-list '(1 2))]\n"
+         "                           [y (in-list '(10 20))]\n"
+         "                           #:when (< (+ x y) 22))\n"
+         "                 (+ x y)))\n"
+         "(define vec (for*/vector ([x (in-list '(1 2))]\n"
+         "                          [y (in-list '(3 4))])\n"
+         "              (* x y)))\n"
+         "(define-values (sum product)\n"
+         "  (for/fold ([sum 0] [product 1]) ([x (in-list '(2 3 4))])\n"
+         "    (values (+ sum x) (* product x))))\n"
+         "(define h (for*/hash ([x (in-list '(1 2))]\n"
+         "                       [y (in-list '(3 4))])\n"
+         "            (values (+ (* 10 x) y) (* x y))))\n"
+         "(define break-sum (apply + (for/list ([x (in-list '(1 2 3 4))] #:break (= x 3)) x)))\n"
+         "(define final-sum (apply + (for/list ([x (in-list '(1 2 3 4))] #:final (= x 3)) x)))\n"
+         "(js-log (+ (apply + nested)\n"
+         "           (for/sum ([i (in-range (vector-length vec))]) (vector-ref vec i))\n"
+         "           sum\n"
+         "           product\n"
+         "           (hash-count h)\n"
+         "           (hash-ref h 14)\n"
+         "           break-sum\n"
+         "           final-sum\n"
+         "           -73))\n")))
+    "main.rkt"
+    #rx"(?m:^42$)"
+    '("--no-io-format-provider" "--webracket-module-bridge"))
+   (dashboard-case
     'base-sequence-mpair
     'installed-provider-coverage
     '(racket/private/for racket/mpair webracket/private/for webracket/mpair)
@@ -1244,6 +1309,21 @@
     "main.rkt"
     #rx"(?m:^42$)"
     '("--no-io-format-provider" "--webracket-module-bridge")
+    #:tier 'coverage
+    #:expectation 'diagnostic)
+   (dashboard-case
+    'vector-sort-keyword-diagnostic
+    'installed-provider-diagnostic
+    '(racket/vector)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/full\n"
+         "(define v (vector '(3) '(1) '(2)))\n"
+         "(define sorted (vector-sort v < #:key car))\n"
+         "(js-log (+ (car (vector-ref sorted 0)) 41))\n")))
+    "main.rkt"
+    #rx"(?m:^42$)"
+    '("--no-io-format-provider")
     #:tier 'coverage
     #:expectation 'diagnostic)
    (dashboard-case

@@ -185,13 +185,19 @@
   (check-not-false
    (member 'base-sequence-hash-generate goal1-dashboard-coverage-core-case-names))
   (check-not-false
+   (member 'base-for-nested-control-coverage goal1-dashboard-coverage-core-case-names))
+  (check-not-false
    (member 'goal1-full-callable-exports goal1-dashboard-coverage-core-case-names))
   (check-not-false
    (member 'goal1-full-list-surface goal1-dashboard-coverage-core-case-names))
   (check-not-false
+   (member 'installed-racket-list-edge-coverage goal1-dashboard-coverage-core-case-names))
+  (check-not-false
    (member 'goal1-base-sort-keywords goal1-dashboard-coverage-core-case-names))
   (check-false
    (member 'generator-real-diagnostic goal1-dashboard-coverage-core-case-names))
+  (check-false
+   (member 'vector-sort-keyword-diagnostic goal1-dashboard-coverage-core-case-names))
   (check-not-false
    (member 'ffi-js-console-coverage goal1-dashboard-coverage-extended-case-names))
   (check-not-false
@@ -295,6 +301,7 @@
       (goal1-dashboard-case-name c)))
   (for ([name (in-list '(installed-racket-list-coverage
                          installed-racket-list-shim-coverage
+                         installed-racket-list-edge-coverage
                          installed-racket-string-coverage
                          installed-racket-string-join
                          full-bytes-coverage
@@ -308,6 +315,7 @@
                          full-math-coverage
                          full-path-coverage
                          full-match-coverage
+                         base-for-nested-control-coverage
                          base-sequence-coverage
                          full-sequence-coverage
                          full-file-coverage

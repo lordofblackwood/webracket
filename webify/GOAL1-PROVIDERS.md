@@ -32,6 +32,14 @@ runtime services.
 - `webracket/function`: contract-free positional combinators. It intentionally
   does not yet preserve the full keyword arity metadata of installed
   `racket/function`.
+- `webracket/list`: common callable `racket/list` surface for module programs.
+  It is deliberately a staged provider now because installed `racket/list`
+  still brings provider-graph and alias shapes that are heavier than Goal 1
+  needs. Covered exports include selectors, folds/maps, `filter-map`,
+  `append-map`, `partition`, `take`/`drop`/`split-at`, membership/association
+  helpers, `remove`/`remove*`, and `range`/`inclusive-range`. Missing installed
+  exports are classified below; the current `range` implementation rejects a
+  zero step instead of attempting to construct Racket's non-terminating list.
 - `webracket/set`: hash-backed set operations. Contracts, generics,
   chaperones, and impersonators are postponed.
 - `webracket/promise`: ordinary promise caching for browser programs. Advanced
@@ -67,6 +75,28 @@ exports them, and installed `racket/function` / `racket/private/list` can pull
 in keyword-preserving wrappers that WebRacket does not need for ordinary
 positional module programs. `webracket/full` therefore exports the staged
 `webracket/function` versions for those names.
+
+The same rule now applies to `racket/list`: the module bridge routes external
+`racket/list` requires to `webracket/list`, and `webracket/full` exports the
+staged list surface instead of the installed provider.
+
+## `racket/list` Export Audit
+
+The current installed-vs-staged audit shows 62 installed phase-0 exports and 52
+staged exports. Missing installed exports are grouped as follows:
+
+- Needed soon and easy shims: `append*`, `count`, `empty`, `empty?`,
+  `filter-not`, `flatten`, `index-of`, `index-where`, `indexes-of`,
+  `indexes-where`, `remf`, `remf*`, `splitf-at`, `splitf-at-right`, `takef`,
+  `takef-right`, `dropf`, and `dropf-right`.
+- Larger pure-list shims: `argmax`, `argmin`, `cartesian-product`,
+  `combinations`, `permutations`, `in-combinations`, `in-permutations`,
+  `group-by`, `list-prefix?`, `take-common-prefix`, `drop-common-prefix`,
+  `split-common-prefix`, `list-set`, and `list-update`.
+- Low-priority selector aliases: `eleventh`, `twelfth`, `thirteenth`,
+  `fourteenth`, and `fifteenth`.
+- Postponed/randomness-sensitive: `shuffle`.
+- Predicate gap to check against Racket's exact behavior: `cons?`.
 
 ## Current Full-Language Notes
 

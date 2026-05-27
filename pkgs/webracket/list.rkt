@@ -154,18 +154,24 @@
 ;; remove : any/c list? [procedure?] -> list?
 ;;   Remove the first element matching v. The comparator defaults to equal?.
 (define (remove v xs [same? equal?])
-  (let loop ([xs xs])
+  (define original xs)
+  (let loop ([xs xs] [acc null])
     (cond
-      [(null? xs) null]
-      [(same? v (car xs)) (cdr xs)]
-      [else (cons (car xs) (loop (cdr xs)))])))
+      [(null? xs) original]
+      [(same? v (car xs)) (append (reverse acc) (cdr xs))]
+      [else (loop (cdr xs) (cons (car xs) acc))])))
 
 ;; remove* : list? list? [procedure?] -> list?
 ;;   Remove elements matching any value in vs. The comparator defaults to equal?.
 (define (remove* vs xs [same? equal?])
-  (filter (lambda (x)
-            (not (ormap (lambda (v) (same? v x)) vs)))
-          xs))
+  (define original xs)
+  (let loop ([xs xs] [acc null] [removed? #f])
+    (cond
+      [(null? xs) (if removed? (reverse acc) original)]
+      [(ormap (lambda (v) (same? v (car xs))) vs)
+       (loop (cdr xs) acc #t)]
+      [else
+       (loop (cdr xs) (cons (car xs) acc) removed?)])))
 
 (define (remq v xs) (remove v xs eq?))
 (define (remv v xs) (remove v xs eqv?))
