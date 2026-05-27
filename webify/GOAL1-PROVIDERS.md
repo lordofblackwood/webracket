@@ -136,6 +136,24 @@ The current `racket/*` -> `webracket/*` substitutions are:
 | `syntax/contract` | `webracket/syntax/contract` | temporary shim | Supports contract erasure at expansion/provider time. |
 | `racket/private/kw` | `webracket/private/kw` | temporary shim | Keyword procedure support is WebRacket-runtime-specific today. |
 
+## Real Provider Readiness
+
+Use `webify/goal1-dashboard.rkt --real-provider-readiness --timeout 120
+--memory-mb 1024` to run the expected-fail rows that keep replacement pressure
+visible. These rows intentionally disable provider substitutions.
+
+| Staged provider | Readiness row | Current blocker/action |
+| --- | --- | --- |
+| `webracket/contract` | `real-racket-contract-diagnostic` | Find whether erased contracts can be replaced by expansion-time module redirection plus a smaller set of runtime primitives. |
+| `webracket/class` | `real-racket-class-diagnostic` | Check whether real `racket/class` is blocked by contract-private edges, keyword machinery, or class-runtime primitives. |
+| `webracket/dict` | `real-racket-dict-diagnostic` | Current failure is `missing-after-reflection` for `dict-count` in `main`; host `module->exports` for `racket/dict` does not list `dict-count`, so this looks like a bridge/name-resolution issue around re-exported base bindings, not a reason to copy more dictionary code. |
+| `webracket/list` | `real-racket-list-diagnostic` | Current direct repro fails during module-bridge graph extraction with a phase-1 namespace mismatch for installed `racket/list`; this points at extraction namespace setup, not a reason to copy more list functions. |
+| `webracket/string` | `real-racket-string-diagnostic` | Current direct repro fails during module-bridge graph extraction with a phase-1 namespace mismatch for installed `racket/string`; fix namespace/extraction setup before expanding staged string. |
+| `webracket/sequence` | `real-racket-sequence-diagnostic` | Capture whether real `racket/sequence` is blocked mainly by contracts, streams, or generator/prompt-related imports. |
+| `webracket/private/for` | `real-racket-private-for-diagnostic` | The tiny direct helper case currently passes without substitution; the next step is trying broader original `racket/private/for` helper clusters before adding staged sequence protocol surface. |
+| `webracket/private/kw` | `real-racket-private-kw-diagnostic` | Track the keyword-procedure runtime gap before adding more keyword-related staged APIs. |
+| `webracket/pretty` | `real-racket-pretty-diagnostic` | Current failure is `transplant-output-port.1`, pointing at pretty-port/IO integration rather than the small public pretty API. |
+
 ## `racket/list` Export Audit
 
 The current installed-vs-staged audit shows 62 installed phase-0 exports and the

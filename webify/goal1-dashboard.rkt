@@ -172,6 +172,13 @@
 ;;   Expected-fail rows that show which staged substitutions are replacement candidates.
 (define goal1-dashboard-real-provider-readiness-case-names
   '(real-racket-dict-diagnostic
+    real-racket-list-diagnostic
+    real-racket-string-diagnostic
+    real-racket-sequence-diagnostic
+    real-racket-private-for-diagnostic
+    real-racket-private-kw-diagnostic
+    real-racket-class-diagnostic
+    real-racket-contract-diagnostic
     real-racket-pretty-diagnostic))
 
 (define goal1-dashboard-cases
@@ -392,6 +399,20 @@
          "(js-log (dict-count (hash 'a 1)))\n")))
     "main.rkt"
     #rx"(?m:^1$)"
+   '("--no-io-format-provider" "--webracket-module-bridge" "--no-provider-substitutions")
+   #:tier 'coverage
+   #:expectation 'diagnostic)
+   (dashboard-case
+    'real-racket-list-diagnostic
+    'installed-provider-diagnostic
+    '(racket/list)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/base\n"
+         "(require racket/list)\n"
+         "(js-log (apply + (append-map (lambda (x) (list x x)) '(10 11))))\n")))
+    "main.rkt"
+    #rx"(?m:^42$)"
     '("--no-io-format-provider" "--webracket-module-bridge" "--no-provider-substitutions")
     #:tier 'coverage
     #:expectation 'diagnostic)
@@ -627,9 +648,23 @@
          "#lang webracket/base\n"
          "(require racket/string)\n"
          "(js-log (string-join '(\"web\" \"racket\") \"\"))\n")))
+   "main.rkt"
+   #rx"(?m:^webracket$)"
+   '("--no-io-format-provider" "--webracket-module-bridge"))
+   (dashboard-case
+    'real-racket-string-diagnostic
+    'installed-provider-diagnostic
+    '(racket/string)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/base\n"
+         "(require racket/string)\n"
+         "(js-log (string-join '(\"web\" \"racket\") \"\"))\n")))
     "main.rkt"
     #rx"(?m:^webracket$)"
-    '("--no-io-format-provider" "--webracket-module-bridge"))
+    '("--no-io-format-provider" "--webracket-module-bridge" "--no-provider-substitutions")
+    #:tier 'coverage
+    #:expectation 'diagnostic)
    (dashboard-case
     'installed-racket-vector
     'installed-provider-graph
@@ -1155,9 +1190,23 @@
          "(define one (for/first ([x (in-value 42)]) x))\n"
          "(js-log (+ list-sum vector-sum string-count range-sum inclusive-sum natural-sum\n"
          "           bsum indexed gen-sum one -438))\n")))
+   "main.rkt"
+   #rx"(?m:^42$)"
+   '("--no-io-format-provider" "--webracket-module-bridge"))
+   (dashboard-case
+    'real-racket-sequence-diagnostic
+    'installed-provider-diagnostic
+    '(racket/sequence)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/base\n"
+         "(require racket/sequence)\n"
+         "(js-log (length (sequence->list '(10 20 12))))\n")))
     "main.rkt"
-    #rx"(?m:^42$)"
-    '("--no-io-format-provider" "--webracket-module-bridge"))
+    #rx"(?m:^3$)"
+    '("--no-io-format-provider" "--webracket-module-bridge" "--no-provider-substitutions")
+    #:tier 'coverage
+    #:expectation 'diagnostic)
    (dashboard-case
     'base-sequence-producers
     'installed-provider-coverage
@@ -1301,9 +1350,38 @@
          "           break-sum\n"
          "           final-sum\n"
          "           -73))\n")))
+   "main.rkt"
+   #rx"(?m:^42$)"
+   '("--no-io-format-provider" "--webracket-module-bridge"))
+   (dashboard-case
+    'real-racket-private-for-diagnostic
+    'installed-provider-diagnostic
+    '(racket/private/for)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/base\n"
+         "(require racket/private/for)\n"
+         "(js-log (for/sum ([x (in-list '(10 20 12))]) x))\n")))
     "main.rkt"
     #rx"(?m:^42$)"
-    '("--no-io-format-provider" "--webracket-module-bridge"))
+   '("--no-io-format-provider" "--webracket-module-bridge" "--no-provider-substitutions")
+   #:tier 'coverage
+   #:expectation 'diagnostic)
+   (dashboard-case
+    'real-racket-private-kw-diagnostic
+    'installed-provider-diagnostic
+    '(racket/private/kw)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/base\n"
+         "(require racket/private/kw)\n"
+         "(define-values (required allowed) (procedure-keywords +))\n"
+         "(js-log (if (and (null? required) (not allowed)) 42 0))\n")))
+    "main.rkt"
+    #rx"(?m:^42$)"
+    '("--no-io-format-provider" "--webracket-module-bridge" "--no-provider-substitutions")
+    #:tier 'coverage
+    #:expectation 'diagnostic)
    (dashboard-case
     'base-sequence-mpair
     'installed-provider-coverage
@@ -1634,9 +1712,42 @@
          "(define/contract value integer? \"web\")\n"
          "(define boundary-value (contract integer? 39 'positive 'negative))\n"
          "(js-log (+ (string-length value) boundary-value))\n")))
+   "main.rkt"
+   #rx"(?m:^42$)"
+   '("--no-io-format-provider"))
+   (dashboard-case
+    'real-racket-contract-diagnostic
+    'installed-provider-diagnostic
+    '(racket/contract)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/base\n"
+         "(require racket/contract)\n"
+         "(define/contract value integer? 42)\n"
+         "(js-log value)\n")))
     "main.rkt"
     #rx"(?m:^42$)"
-    '("--no-io-format-provider"))
+    '("--no-io-format-provider" "--webracket-module-bridge" "--no-provider-substitutions")
+    #:tier 'coverage
+    #:expectation 'diagnostic)
+   (dashboard-case
+    'real-racket-class-diagnostic
+    'installed-provider-diagnostic
+    '(racket/class)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/base\n"
+         "(require racket/class)\n"
+         "(define point%\n"
+         "  (class object%\n"
+         "    (super-new)\n"
+         "    (define/public (value) 42)))\n"
+         "(js-log (send (new point%) value))\n")))
+    "main.rkt"
+    #rx"(?m:^42$)"
+    '("--no-io-format-provider" "--webracket-module-bridge" "--no-provider-substitutions")
+    #:tier 'coverage
+    #:expectation 'diagnostic)
    (dashboard-case
     'base-make-do-sequence
     'language-staged-provider
@@ -2125,12 +2236,12 @@
      (define lines
        (filter
         (lambda (line)
-          (not (regexp-match? #rx"^provider-cache: cache directory:" line)))
+          (not (regexp-match? #rx"^provider-cache:" line)))
         (string-split normalized "\n")))
      (define diagnostic-line
        (for/first ([line (in-list lines)]
                    #:when (regexp-match?
-                            #rx"unsupported provider|unsupported providers|missing-after-reflection|ambiguous-after-reflection|unbound identifier|undefined"
+                            #rx"unsupported provider|unsupported providers|missing-after-reflection|ambiguous-after-reflection|namespace mismatch|module bridge graph extraction failed|unbound identifier|undefined"
                             line))
          line))
      (define line (or diagnostic-line

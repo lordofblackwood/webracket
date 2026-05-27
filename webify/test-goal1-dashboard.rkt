@@ -212,7 +212,15 @@
   (check-false
    (member 'generator-real-diagnostic goal1-dashboard-coverage-core-case-names))
   (check-equal? goal1-dashboard-real-provider-readiness-case-names
-                '(real-racket-dict-diagnostic real-racket-pretty-diagnostic))
+                '(real-racket-dict-diagnostic
+                  real-racket-list-diagnostic
+                  real-racket-string-diagnostic
+                  real-racket-sequence-diagnostic
+                  real-racket-private-for-diagnostic
+                  real-racket-private-kw-diagnostic
+                  real-racket-class-diagnostic
+                  real-racket-contract-diagnostic
+                  real-racket-pretty-diagnostic))
   (check-not-false
    (member 'ffi-js-console-coverage goal1-dashboard-coverage-extended-case-names))
   (check-not-false
@@ -391,8 +399,7 @@
   (define by-name
     (for/hasheq ([c (in-list goal1-dashboard-cases)])
       (values (goal1-dashboard-case-name c) c)))
-  (for ([name (in-list '(real-racket-dict-diagnostic
-                         real-racket-pretty-diagnostic))])
+  (for ([name (in-list goal1-dashboard-real-provider-readiness-case-names)])
     (define c (hash-ref by-name name))
     (check-equal? (goal1-dashboard-case-category c)
                   'installed-provider-diagnostic)
@@ -400,6 +407,33 @@
                   'diagnostic)
     (check-not-false (member "--no-provider-substitutions"
                              (goal1-dashboard-case-args c)))))
+
+(test-case "high-pressure temporary shims have real-provider readiness rows"
+  (define (row-name requested)
+    (case requested
+      [(racket/contract racket/contract/base racket/contract/combinator
+        racket/contract/region racket/contract/private/list
+        racket/contract/private/misc)
+       'real-racket-contract-diagnostic]
+      [(racket/class) 'real-racket-class-diagnostic]
+      [(racket/dict) 'real-racket-dict-diagnostic]
+      [(racket/list) 'real-racket-list-diagnostic]
+      [(racket/pretty) 'real-racket-pretty-diagnostic]
+      [(racket/sequence) 'real-racket-sequence-diagnostic]
+      [(racket/string) 'real-racket-string-diagnostic]
+      [(syntax/contract) 'real-racket-contract-diagnostic]
+      [(racket/private/for) 'real-racket-private-for-diagnostic]
+      [(racket/private/kw) 'real-racket-private-kw-diagnostic]
+      [else #f]))
+  (for ([record (in-list webracket/base-provider-substitution-records)]
+        #:when (and (eq? (webracket/base-provider-substitution-classification record)
+                         'temporary-shim)
+                    (eq? (webracket/base-provider-substitution-pressure record)
+                         'high)))
+    (define name (row-name (webracket/base-provider-substitution-requested record)))
+    (check-not-false name)
+    (check-not-false (memq name goal1-dashboard-real-provider-readiness-case-names)
+                     (symbol->string (webracket/base-provider-substitution-requested record)))))
 
 (test-case "compact Goal 1 dashboard classifies provider aliases that are not callable"
   (check-equal?
@@ -424,7 +458,15 @@
                            "--real-provider-readiness"
                            "temporary-shim"
                            "runtime-owned"
+                           "Real Provider Readiness"
                            "real-racket-dict-diagnostic"
+                           "real-racket-list-diagnostic"
+                           "real-racket-string-diagnostic"
+                           "real-racket-sequence-diagnostic"
+                           "real-racket-private-for-diagnostic"
+                           "real-racket-private-kw-diagnostic"
+                           "real-racket-contract-diagnostic"
+                           "real-racket-class-diagnostic"
                            "real-racket-pretty-diagnostic"
                            "io/format"
                            "webracket/string"
