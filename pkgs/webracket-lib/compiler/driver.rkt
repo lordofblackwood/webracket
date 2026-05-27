@@ -1493,37 +1493,49 @@
   (webracket/base-substitute-module-requires
    (read-webracket/module filename (webracket-module-source-language filename))))
 
+;; webracket/base-provider-substitution-pairs : (listof (cons/c symbol? symbol?))
+;;   Single Goal 1 map for source-level requires and provider-graph fetching.
+(define webracket/base-provider-substitution-pairs
+  '((racket/contract . webracket/contract)
+    (racket/contract/base . webracket/contract)
+    (racket/contract/combinator . webracket/contract)
+    (racket/contract/region . webracket/contract)
+    (racket/contract/private/list . webracket/contract)
+    (racket/contract/private/misc . webracket/contract)
+    (racket/class . webracket/class)
+    (racket/dict . webracket/dict)
+    (racket/file . webracket/file)
+    (racket/format . webracket/format)
+    (racket/function . webracket/function)
+    (racket/generator . webracket/generator)
+    (racket/hash . webracket/hash)
+    (racket/mpair . webracket/mpair)
+    (racket/port . webracket/port)
+    (racket/pretty . webracket/pretty)
+    (racket/promise . webracket/promise)
+    (racket/sequence . webracket/sequence)
+    (racket/set . webracket/set)
+    (racket/string . webracket/string)
+    (racket/stream . webracket/stream)
+    (racket/unsafe/undefined . webracket/unsafe/undefined)
+    (syntax/contract . webracket/syntax/contract)
+    (racket/private/for . webracket/private/for)
+    (racket/private/kw . webracket/private/kw)))
+
+;; webracket/base-provider-substitute : symbol? -> symbol?
+;;   Route selected installed providers to smaller WebRacket-owned Goal 1 shims.
+(define (webracket/base-provider-substitute name)
+  (define maybe (assq name webracket/base-provider-substitution-pairs))
+  (if maybe
+      (cdr maybe)
+      name))
+
 ;; substitute-require-module-path : any/c -> any/c
 ;;   Rewrite selected source-level require paths to WebRacket-owned providers.
 (define (substitute-require-module-path module-path)
-  (case module-path
-    [(racket/contract
-      racket/contract/base
-      racket/contract/combinator
-      racket/contract/region
-      racket/contract/private/list
-      racket/contract/private/misc)
-     'webracket/contract]
-    [(racket/class) 'webracket/class]
-    [(racket/dict) 'webracket/dict]
-    [(racket/file) 'webracket/file]
-    [(racket/format) 'webracket/format]
-    [(racket/function) 'webracket/function]
-    [(racket/generator) 'webracket/generator]
-    [(racket/hash) 'webracket/hash]
-    [(racket/mpair) 'webracket/mpair]
-    [(racket/port) 'webracket/port]
-    [(racket/pretty) 'webracket/pretty]
-    [(racket/promise) 'webracket/promise]
-    [(racket/sequence) 'webracket/sequence]
-    [(racket/set) 'webracket/set]
-    [(racket/string) 'webracket/string]
-    [(racket/stream) 'webracket/stream]
-    [(racket/unsafe/undefined) 'webracket/unsafe/undefined]
-    [(syntax/contract) 'webracket/syntax/contract]
-    [(racket/private/for) 'webracket/private/for]
-    [(racket/private/kw) 'webracket/private/kw]
-    [else module-path]))
+  (if (symbol? module-path)
+      (webracket/base-provider-substitute module-path)
+      module-path))
 
 ;; substitute-require-spec : any/c -> any/c
 ;;   Rewrite provider paths inside common require combinators.
@@ -1940,37 +1952,6 @@
                             (webracket/base-language-provider-name? name)))
      name)
    eq?))
-
-;; webracket/base-provider-substitute : symbol? -> symbol?
-;;   Route selected installed providers to smaller WebRacket-owned Goal 1 shims.
-(define (webracket/base-provider-substitute name)
-  (case name
-    [(racket/contract
-      racket/contract/base
-      racket/contract/combinator
-      racket/contract/region
-      racket/contract/private/list
-      racket/contract/private/misc)
-     'webracket/contract]
-    [(racket/class) 'webracket/class]
-    [(racket/dict) 'webracket/dict]
-    [(racket/file) 'webracket/file]
-    [(racket/format) 'webracket/format]
-    [(racket/function) 'webracket/function]
-    [(racket/generator) 'webracket/generator]
-    [(racket/hash) 'webracket/hash]
-    [(racket/mpair) 'webracket/mpair]
-    [(racket/port) 'webracket/port]
-    [(racket/pretty) 'webracket/pretty]
-    [(racket/promise) 'webracket/promise]
-    [(racket/sequence) 'webracket/sequence]
-    [(racket/set) 'webracket/set]
-    [(racket/stream) 'webracket/stream]
-    [(racket/unsafe/undefined) 'webracket/unsafe/undefined]
-    [(syntax/contract) 'webracket/syntax/contract]
-    [(racket/private/for) 'webracket/private/for]
-    [(racket/private/kw) 'webracket/private/kw]
-    [else name]))
 
 ;; webify-module-report/rename : report symbol? -> report
 ;;   Register a substituted provider under the originally requested name.

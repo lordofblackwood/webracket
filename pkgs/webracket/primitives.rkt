@@ -1093,7 +1093,7 @@
 
  
  ;; 4.20 Procedures
- procedure? apply compose compose1 checked-procedure-check-and-extract procedure->method procedure-rename procedure-realm procedure->external
+ procedure? apply compose compose1 identity checked-procedure-check-and-extract procedure->method procedure-rename procedure-realm procedure->external
  procedure-arity procedure-arity-mask procedure-arity-includes?
  procedure-result-arity
  procedure-specialize
@@ -3659,6 +3659,9 @@ current-parameterization    ; poor-man dynamic parameterization overlay
 
 (define (impersonator-val v)
   (error 'impersonator-val "impersonators are not supported by WebRacket"))
+
+(define (identity v)
+  v)
 
 (define (webracket-impersonator-property-predicate v)
   #f)

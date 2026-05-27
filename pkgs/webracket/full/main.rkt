@@ -12,8 +12,10 @@
          racket/path
          racket/port
          racket/shared
-         racket/string
+         (except-in racket/string string-append* string-join)
+         (only-in "../string.rkt" string-append* string-join)
          (except-in racket/vector vector-member)
+         (only-in "../primitives.rkt" identity)
          "../contract.rkt"
          (except-in "../format.rkt" format fprintf printf eprintf)
          (rename-in "../format.rkt"
@@ -52,10 +54,10 @@
                   initiate-sequence)
          "../set.rkt"
          "../stream.rkt"
-         (except-in "../function.rkt" compose compose1)
-         (rename-in "../function.rkt"
-                    [compose wr-compose]
-                    [compose1 wr-compose1])
+         (except-in "../function.rkt" compose compose1 identity)
+         (only-in "../function.rkt"
+                  [compose wr-compose]
+                  [compose1 wr-compose1])
          (for-syntax racket/base)
          (for-syntax racket/splicing)
          (for-syntax webracket-lib/compiler/private/browser-options))
@@ -97,7 +99,10 @@
          (all-from-out racket/port)
          (all-from-out racket/shared)
          (all-from-out racket/string)
+         string-append*
+         string-join
          (all-from-out racket/vector)
+         identity
          vector-member
          (all-from-out "../contract.rkt")
          ~a

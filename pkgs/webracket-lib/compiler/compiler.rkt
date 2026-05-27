@@ -2636,6 +2636,7 @@
   apply
   compose
   compose1
+  identity
   checked-procedure-check-and-extract
   procedure->method
   procedure-rename

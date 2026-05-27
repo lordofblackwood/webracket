@@ -815,6 +815,22 @@
     #rx"(?m:^42$)"
     '("--no-io-format-provider"))
    (dashboard-case
+    'goal1-full-callable-exports
+    'installed-provider-coverage
+    '(webracket/full racket/vector racket/function racket/set racket/hash
+      webracket/function webracket/set webracket/hash)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/full\n"
+         "(define pos (vector-member 'b '#(a b c)))\n"
+         "(define f identity)\n"
+         "(define s (set-add (set 'a) 'b))\n"
+         "(define h (hash 'x 37))\n"
+         "(js-log (+ pos (f 2) (set-count s) (hash-ref h 'x)))\n")))
+    "main.rkt"
+    #rx"(?m:^42$)"
+    '("--no-io-format-provider"))
+   (dashboard-case
     'full-sequence-for
     'installed-provider-graph
     '(racket/sequence)

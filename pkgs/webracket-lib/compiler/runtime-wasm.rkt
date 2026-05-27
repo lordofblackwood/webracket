@@ -4100,6 +4100,13 @@
                      (global.get $true))
                (unreachable))
 
+         ;; `identity` is useful as a first-class function in module-language
+         ;; programs, so it needs a runtime procedure in addition to inlining.
+         (func $identity (type $Prim1)
+               (param $v (ref eq))
+               (result   (ref eq))
+               (local.get $v))
+
          ;; Unquoted printing strings wrap a string but should display without
          ;; additional quoting, matching the behavior of the underlying string.
          (func $unquoted-printing-string? (type $Prim1)

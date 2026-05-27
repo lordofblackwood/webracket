@@ -21,6 +21,8 @@
                   webracket/base-local-module-graph-root
                   webracket/base-local-module-graph-reports
                   webracket/base-local-module-graph-registry
+                  webracket/base-provider-substitute
+                  webracket/base-provider-substitution-pairs
                   webracket/base-reports->module-graph
                   webracket/base-reports-demand-external-providers?)
          (only-in "../pkgs/webracket-lib/compiler/webify/module-extractor.rkt"
@@ -353,6 +355,38 @@
          source-dir))
       (check-equal? status 0 output)
       (check-regexp-match #rx"(?m:^10$)" output))
+    (lambda ()
+      (for ([dir (in-list (list source-dir dest-dir))])
+        (with-handlers ([exn:fail:filesystem? void])
+          (delete-directory/files dir))))))
+
+(test-case "#lang webracket/full callable exports stay usable through the bridge"
+  (define source-dir (make-temporary-file "webracket-full-callable-exports-src-~a" 'directory))
+  (define dest-dir   (make-temporary-file "webracket-full-callable-exports-dest-~a" 'directory))
+  (define source-path (build-path source-dir "full-callable-exports.rkt"))
+  (dynamic-wind
+    void
+    (lambda ()
+      (call-with-output-file source-path
+        (lambda (out)
+          (display
+           (string-append
+            "#lang webracket/full\n"
+            "(define pos (vector-member 'b '#(a b c)))\n"
+            "(define f identity)\n"
+            "(define s (set-add (set 'a) 'b))\n"
+            "(define h (hash 'x 37))\n"
+            "(js-log (+ pos (f 2) (set-count s) (hash-ref h 'x)))\n")
+           out))
+        #:exists 'truncate/replace)
+      (define-values (status output)
+        (run-webracket/base
+         (list "-r" "--no-stdlib" "--no-io-format-provider"
+               "--dest" (path->string dest-dir)
+               (path->string source-path))
+         source-dir))
+      (check-equal? status 0 output)
+      (check-regexp-match #rx"(?m:^42$)" output))
     (lambda ()
       (for ([dir (in-list (list source-dir dest-dir))])
         (with-handlers ([exn:fail:filesystem? void])
@@ -1087,6 +1121,40 @@
   (for ([name (in-list '(racket/promise))])
     (check-false (webify-provider-trial-default-bridge-module-allowed? name)
                  (symbol->string name))))
+
+(test-case "#lang webracket/base provider substitutions are deliberate"
+  (define expected
+    '((racket/contract . webracket/contract)
+      (racket/contract/base . webracket/contract)
+      (racket/contract/combinator . webracket/contract)
+      (racket/contract/region . webracket/contract)
+      (racket/contract/private/list . webracket/contract)
+      (racket/contract/private/misc . webracket/contract)
+      (racket/class . webracket/class)
+      (racket/dict . webracket/dict)
+      (racket/file . webracket/file)
+      (racket/format . webracket/format)
+      (racket/function . webracket/function)
+      (racket/generator . webracket/generator)
+      (racket/hash . webracket/hash)
+      (racket/mpair . webracket/mpair)
+      (racket/port . webracket/port)
+      (racket/pretty . webracket/pretty)
+      (racket/promise . webracket/promise)
+      (racket/sequence . webracket/sequence)
+      (racket/set . webracket/set)
+      (racket/string . webracket/string)
+      (racket/stream . webracket/stream)
+      (racket/unsafe/undefined . webracket/unsafe/undefined)
+      (syntax/contract . webracket/syntax/contract)
+      (racket/private/for . webracket/private/for)
+      (racket/private/kw . webracket/private/kw)))
+  (check-equal? webracket/base-provider-substitution-pairs expected)
+  (for ([entry (in-list expected)])
+    (check-equal? (webracket/base-provider-substitute (car entry))
+                  (cdr entry)))
+  (for ([name (in-list '(racket/list racket/vector racket/match racket/math))])
+    (check-equal? (webracket/base-provider-substitute name) name)))
 
 (test-case "#lang webracket/base runs an allowlisted provider without stdlib"
   (define source-dir (make-temporary-file "webracket-base-provider-only-src-~a" 'directory))

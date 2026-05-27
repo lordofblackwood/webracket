@@ -178,11 +178,10 @@ Current bridge readiness:
 - Passing: simple local require, flattening-vs-bridge parity for the simple
   local require case, `only-in`, `rename-in`, `prefix-in`, shared local
   dependencies, one local re-export hop, and a staged `format` provider smoke.
-- Default local-only path: `#lang webracket/base` and `#lang webracket/full`
-  sources whose extracted reports demand no installed providers now use the
-  module bridge by default. Provider-demanding programs still fall back to the
-  transitional path unless the explicit bridge flag is supplied, because the
-  installed-provider graph is still a diagnostic/Goal 1 trial path.
+- Default bridge path: `#lang webracket/base` and `#lang webracket/full`
+  sources use the module bridge for local graphs and for the curated Goal 1
+  provider set. Unsupported provider demands should fail as provider-graph
+  problems instead of silently falling back to the old top-level path.
 - Timing visibility: `--timings` now prints read-source detail rows for module
   read, bridge extraction, registration, and composition. For the tiny
   `#lang webracket/base` program `42`, those rows show the module bridge is not
@@ -199,9 +198,9 @@ Current bridge readiness:
   `racket/function`) composes against synthetic provider reports without
   invoking the backend. `js/math` and `js/console` now pass as module-bridge
   FFI rows and infer their `.ffi` bundles from canonical unsafe providers.
-  `racket/promise`, `racket/stream`, and `racket/set`
-  are classified but not yet allowlisted for bridge discovery, because their
-  representative provider trials still expose unresolved reflected exports.
+  `racket/promise`, `racket/stream`, and `racket/set` are routed through
+  WebRacket-owned providers for the bridge surface, while explicit installed
+  provider rows remain in the dashboard where useful.
   `racket/format` now routes to a small WebRacket-owned shim for the
   abbreviated formatter surface, while staged `io/format` remains the path for
   the fuller original-Racket implementation. The bridge also rejects unsupported transitive providers during
@@ -504,8 +503,30 @@ Current installed-extraction runtime smokes cover:
   `webracket/string`. A multi-module local source graph whose providers require
   installed libraries separately, including a provider re-export graph, is also
   tracked.
+- `webracket/full` callable-export pressure is tracked separately. Some exports
+  are available because the full language stages or wraps them, not because the
+  installed provider alias is directly callable through the bridge. `vector-member`
+  `string-join`, and `identity` are current concrete examples: installed
+  provider smokes pass, and `webracket/full` provides callable WebRacket-owned
+  bindings so full-language programs do not receive non-procedure provider
+  cells. `identity` is now also a tiny primitive because it is commonly used as
+  a first-class function value.
 - Dependency-first local source modules with quoted sibling requires, such as
   `(require 'base-values)`, through a shared-provider transitive smoke.
+
+The current source/provider substitution map is intentionally small and tested.
+It routes contract, class, dict, file, format, function, generator, hash, mpair,
+port, pretty, promise, sequence, set, string, stream, unsafe-undefined,
+syntax/contract, `racket/private/for`, and `racket/private/kw` providers to
+WebRacket-owned modules. Libraries not on that map, such as `racket/list`,
+`racket/vector`, `racket/match`, and `racket/math`, should either work as
+installed providers or get an explicit new substitution decision.
+
+Legacy `include-lib` is not a replacement for module-based libraries. During the
+migration, only concrete legacy needs should get collection-local include files
+under `pkgs/webracket/lib/libs/`. `console` is currently preserved this way so
+old script-style programs keep running while module programs use `js/console` or
+`webracket/unsafe/console`.
 
 `racket/format` now has a required compact dashboard row. Source and provider
 requires for `racket/format` are substituted to `webracket/format`, which

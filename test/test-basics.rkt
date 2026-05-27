@@ -78,6 +78,10 @@
                      (equal? (procedure? call-with-escape-continuation) #t)
                      (equal? (procedure? (case-lambda ((x) x) ((x y) (+ x y)))) #t)                  
                      (equal? (procedure-arity procedure?) 1)))
+              (list "identity"
+                    (and (equal? (identity 'ok) 'ok)
+                         (equal? (procedure? identity) #t)
+                         (equal? (procedure-arity identity) 1)))
               (list "procedure-specialize"
                     (let ([proc (lambda (x) x)])
                       (and

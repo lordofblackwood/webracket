@@ -683,6 +683,7 @@
 (define-primitive hash?                                     1                   (pure))
 (define-primitive hasheqv                                   at-least-0          (allocates))
 (define-primitive identifier?                               1                   (pure))
+(define-primitive identity                                  1                   (pure foldable))
 (define-primitive immutable-box?                            1                   (pure partial-foldable))
 (define-primitive immutable-bytes?                          1                   (pure partial-foldable))
 (define-primitive immutable-hash?                           1                   (pure))
