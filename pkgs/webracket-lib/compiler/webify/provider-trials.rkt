@@ -276,6 +276,7 @@
     webracket/function
     webracket/generator
     webracket/hash
+    webracket/list
     webracket/mpair
     webracket/port
     webracket/pretty
@@ -339,6 +340,7 @@
     webracket/function
     webracket/generator
     webracket/hash
+    webracket/list
     webracket/mpair
     webracket/port
     webracket/pretty

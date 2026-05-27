@@ -294,6 +294,7 @@
                            'installed-provider-coverage))
       (goal1-dashboard-case-name c)))
   (for ([name (in-list '(installed-racket-list-coverage
+                         installed-racket-list-shim-coverage
                          installed-racket-string-coverage
                          installed-racket-string-join
                          full-bytes-coverage

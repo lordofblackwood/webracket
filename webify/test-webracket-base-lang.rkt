@@ -826,7 +826,7 @@
       (with-handlers ([exn:fail:filesystem? void])
         (delete-directory/files source-dir)))))
 
-(test-case "#lang webracket/base bridge leaves collection requires for provider discovery"
+(test-case "#lang webracket/base bridge routes collection requires for provider discovery"
   (define source-dir (make-temporary-file "webracket-base-provider-route-src-~a" 'directory))
   (define main-path  (build-path source-dir "main.rkt"))
   (dynamic-wind
@@ -843,11 +843,11 @@
       (check-equal? root 'main)
       (check-equal? (map webify-module-report-name reports) '(main))
       (check-not-false
-       (member 'racket/list
+       (member 'webracket/list
                (webify-module-report-required-provider-names (car reports))))
       (define list-report
         (webify-module-report
-         'racket/list
+         'webracket/list
          '(#f)
          '(0)
          '()
@@ -862,11 +862,11 @@
          reports
          #:extra-reports (list webify-module-protocol-report)
          #:fetch-provider (lambda (name)
-                            (check-equal? name 'racket/list)
+                            (check-equal? name 'webracket/list)
                             list-report)
          #:module-protocol-dependency webify-module-protocol-dependency))
       (check-equal? (webify-module-registry-plan registry '(main))
-                    '(main:syntax-literals module-protocol racket/list main)))
+                    '(main:syntax-literals module-protocol webracket/list main)))
     (lambda ()
       (with-handlers ([exn:fail:filesystem? void])
         (delete-directory/files source-dir)))))
@@ -906,7 +906,7 @@
       (check-equal? (webracket/base-external-provider-names (reports local-path)) '())
       (check-false (webracket/base-reports-demand-external-providers? (reports local-path)))
       (check-equal? (webracket/base-external-provider-names (reports list-path))
-                    '(racket/list))
+                    '(webracket/list))
       (check-true (webracket/base-reports-demand-external-providers? (reports list-path))))
     (lambda ()
       (with-handlers ([exn:fail:filesystem? void])
@@ -964,7 +964,7 @@
            (webracket/base-file->local-module-reports main-path))))
       (define list-report
         (webify-module-report
-         'racket/list
+         'webracket/list
          '(#f)
          '(0)
          '()
@@ -980,12 +980,12 @@
          reports
          #:fetch-provider
          (lambda (name)
-           (check-equal? name 'racket/list)
+           (check-equal? name 'webracket/list)
            list-report)))
       (check-equal? (webify-module-registry-plan
                      (webracket/base-local-module-graph-registry graph)
                      '(main))
-                    '(main:syntax-literals module-protocol racket/list main))
+                    '(main:syntax-literals module-protocol webracket/list main))
       (check-equal?
        (webify-module-report-import-export-demands
         (car reports)
@@ -995,7 +995,7 @@
                                            '(.get-syntax-literal!))
              (webify-module-export-demand 'module-protocol
                                            '(.set-transformer!))
-             (webify-module-export-demand 'racket/list '(first)))))
+             (webify-module-export-demand 'webracket/list '(first)))))
     (lambda ()
       (with-handlers ([exn:fail:filesystem? void])
         (delete-directory/files source-dir)))))
@@ -1137,6 +1137,7 @@
       (racket/function . webracket/function)
       (racket/generator . webracket/generator)
       (racket/hash . webracket/hash)
+      (racket/list . webracket/list)
       (racket/mpair . webracket/mpair)
       (racket/port . webracket/port)
       (racket/pretty . webracket/pretty)
@@ -1153,7 +1154,7 @@
   (for ([entry (in-list expected)])
     (check-equal? (webracket/base-provider-substitute (car entry))
                   (cdr entry)))
-  (for ([name (in-list '(racket/list racket/vector racket/match racket/math))])
+  (for ([name (in-list '(racket/vector racket/match racket/math))])
     (check-equal? (webracket/base-provider-substitute name) name)))
 
 (test-case "#lang webracket/base runs an allowlisted provider without stdlib"

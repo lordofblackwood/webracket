@@ -1509,6 +1509,7 @@
     (racket/function . webracket/function)
     (racket/generator . webracket/generator)
     (racket/hash . webracket/hash)
+    (racket/list . webracket/list)
     (racket/mpair . webracket/mpair)
     (racket/port . webracket/port)
     (racket/pretty . webracket/pretty)

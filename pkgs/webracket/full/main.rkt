@@ -1,11 +1,40 @@
 #lang racket/base
 
-(require (except-in racket/base read-bytes-line sort)
+(require (except-in racket/base
+                    read-bytes-line
+                    sort
+                    andmap
+                    append
+                    assf
+                    assoc
+                    assq
+                    assv
+                    build-list
+                    filter
+                    findf
+                    foldl
+                    foldr
+                    for-each
+                    length
+                    list-ref
+                    list-tail
+                    map
+                    member
+                    memf
+                    memq
+                    memv
+                    ormap
+                    remove
+                    remove*
+                    remq
+                    remv
+                    remw
+                    reverse)
          racket/bool
          racket/bytes
          racket/dict
          racket/include
-         racket/list
+         "../list.rkt"
          racket/local
          racket/match
          racket/math
@@ -92,7 +121,7 @@
          (all-from-out racket/bytes)
          (all-from-out racket/dict)
          (all-from-out racket/include)
-         (all-from-out racket/list)
+         (all-from-out "../list.rkt")
          (all-from-out racket/local)
          (all-from-out racket/match)
          (all-from-out racket/math)

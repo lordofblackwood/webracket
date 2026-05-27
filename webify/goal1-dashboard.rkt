@@ -99,6 +99,7 @@
 ;;   Everyday coverage preset for the highest-value curated surface.
 (define goal1-dashboard-coverage-core-case-names
   '(installed-racket-list-coverage
+    installed-racket-list-shim-coverage
     installed-racket-string-coverage
     installed-racket-string-join
     full-bytes-coverage
@@ -390,6 +391,34 @@
          "(define ys (filter-map (lambda (x) (and (even? x) (+ x 10))) xs))\n"
          "(define zs (append-map (lambda (x) (list x x)) '(5 6)))\n"
          "(js-log (+ (first ys) (length zs) (first (rest ys)) 12))\n")))
+    "main.rkt"
+    #rx"(?m:^42$)"
+    '("--no-io-format-provider" "--webracket-module-bridge"))
+   (dashboard-case
+    'installed-racket-list-shim-coverage
+    'installed-provider-coverage
+    '(racket/list webracket/list)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/base\n"
+         "(require racket/list)\n"
+         "(define xs '(1 2 3 4 5))\n"
+         "(define-values (small large) (partition (lambda (x) (< x 4)) xs))\n"
+         "(define-values (front back) (split-at xs 2))\n"
+         "(define r (range 2 7 2))\n"
+         "(define ir (inclusive-range 1 5 2))\n"
+         "(define cleaned (remove* '(2 4) xs))\n"
+         "(define pair (assoc 'b '((a . 10) (b . 20))))\n"
+         "(js-log (+ (length small)\n"
+         "           (length large)\n"
+         "           (first back)\n"
+         "           (first (drop xs 4))\n"
+         "           (first r)\n"
+         "           (second r)\n"
+         "           (last ir)\n"
+         "           (length cleaned)\n"
+         "           (cdr pair)\n"
+         "           -5))\n")))
     "main.rkt"
     #rx"(?m:^42$)"
     '("--no-io-format-provider" "--webracket-module-bridge"))
