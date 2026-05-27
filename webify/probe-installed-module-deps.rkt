@@ -104,6 +104,8 @@
     sequence-append-tail
     sequence-in-value
     sequence-ref-length
+    sequence-prop-sequence
+    sequence-prop-gen-sequence
     sequence-for/list
     sequence-for/fold
     sequence-for/vector
@@ -115,6 +117,9 @@
     for/parallel-sequences
     for*/nested-sequences
     for/control-clauses
+    for/and-or
+    for/sum-product
+    for/hash-basic
     for/list-basic
     for/fold-basic
     for*/list-basic
@@ -196,6 +201,8 @@
     sequence-for/list
     sequence-for/fold
     sequence-for/vector
+    sequence-prop-sequence
+    sequence-prop-gen-sequence
     for/in-list
     for/in-vector
     for/in-string
@@ -204,6 +211,9 @@
     for/parallel-sequences
     for*/nested-sequences
     for/control-clauses
+    for/and-or
+    for/sum-product
+    for/hash-basic
     for/list-basic
     for/fold-basic
     for*/list-basic
@@ -891,6 +901,24 @@
          (provide y)
          (define y (+ (sequence-ref '(10 20 30) 1)
                       (sequence-length "abc")))))]
+    [(sequence-prop-sequence)
+     '((module use-sequence-prop-sequence racket/base
+         (require racket/sequence)
+         (provide y)
+         (struct seqbox (xs)
+           #:property prop:sequence
+           (lambda (self) (seqbox-xs self)))
+         (define y (for/fold ([sum 0]) ([x (seqbox '(10 20 12))]) (+ sum x)))))]
+    [(sequence-prop-gen-sequence)
+     '((module use-sequence-prop-gen-sequence racket/base
+         (require racket/sequence)
+         (provide y)
+         (struct seqbox (xs)
+           #:property prop:gen-sequence
+           (lambda (self)
+             (define xs (seqbox-xs self))
+             (values car #f cdr xs pair? #f #f)))
+         (define y (for/fold ([sum 0]) ([x (seqbox '(10 20 12))]) (+ sum x)))))]
     [(sequence-for/list)
      '((module use-sequence-for-list racket/base
          (require racket/sequence)
@@ -953,6 +981,25 @@
                                 #:unless (= x 1)
                                 #:break (> x 4))
              (+ sum x)))))]
+    [(for/and-or)
+     '((module use-for-and-or racket/base
+         (provide y)
+         (define y
+           (+ (if (for/and ([x (in-list '(2 4 6))]) (even? x)) 10 0)
+              (if (for/or ([x (in-list '(1 3 4))]) (even? x)) 20 0)))))]
+    [(for/sum-product)
+     '((module use-for-sum-product racket/base
+         (provide y)
+         (define y
+           (+ (for/sum ([x (in-list '(1 2 3))]) x)
+              (for/product ([x (in-list '(2 3 4))]) x)))))]
+    [(for/hash-basic)
+     '((module use-for-hash-basic racket/base
+         (provide y)
+         (define ht
+           (for/hash ([x (in-list '(1 2 3))])
+             (values x (* x 10))))
+         (define y (+ (hash-count ht) (hash-ref ht 2)))))]
     [(for/list-basic)
      '((module use-for-list-basic racket/base
          (provide y)

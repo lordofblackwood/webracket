@@ -184,6 +184,8 @@
     sequence-append-tail
     sequence-in-value
     sequence-ref-length
+    sequence-prop-sequence
+    sequence-prop-gen-sequence
     sequence-for/list
     sequence-for/vector
     for/in-list
@@ -194,6 +196,9 @@
     for/parallel-sequences
     for*/nested-sequences
     for/control-clauses
+    for/and-or
+    for/sum-product
+    for/hash-basic
     for/list-basic
     for/fold-basic
     for*/list-basic
@@ -397,6 +402,8 @@
       sequence-append-tail
       sequence-in-value
       sequence-ref-length
+      sequence-prop-sequence
+      sequence-prop-gen-sequence
       sequence-for/list
       sequence-for/fold
       sequence-for/vector
@@ -408,6 +415,9 @@
       for/parallel-sequences
       for*/nested-sequences
       for/control-clauses
+      for/and-or
+      for/sum-product
+      for/hash-basic
       for/list-basic
       for/fold-basic
       for*/list-basic
@@ -537,6 +547,7 @@
             [(sequence-append-tail) #rx"(?m:^24$)"]
             [(sequence-in-value) #rx"(?m:^42$)"]
             [(sequence-ref-length) #rx"(?m:^23$)"]
+            [(sequence-prop-sequence sequence-prop-gen-sequence) #rx"(?m:^42$)"]
             [(sequence-for/fold for/fold-basic) #rx"(?m:^6$)"]
             [(for*/list-basic) #rx"(?m:^4$)"]
             [(for/in-list for/in-vector for/parallel-sequences)
@@ -546,6 +557,9 @@
             [(for/in-naturals) #rx"(?m:^45$)"]
             [(for/first-basic) #rx"(?m:^41$)"]
             [(for/control-clauses) #rx"(?m:^3$)"]
+            [(for/and-or) #rx"(?m:^30$)"]
+            [(for/sum-product) #rx"(?m:^30$)"]
+            [(for/hash-basic) #rx"(?m:^23$)"]
             [(hash-comparator-semantics set-comparator-semantics) #rx"(?m:^21$)"]
             [(hash-basic) #rx"(?m:^41$)"]
             [(hash-provider-basic) #rx"(?m:^42$)"]
