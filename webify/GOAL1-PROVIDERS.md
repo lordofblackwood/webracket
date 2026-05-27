@@ -144,11 +144,11 @@ visible. These rows intentionally disable provider substitutions.
 
 | Staged provider | Readiness row | Current blocker/action |
 | --- | --- | --- |
-| `webracket/contract` | `real-racket-contract-diagnostic` | Find whether erased contracts can be replaced by expansion-time module redirection plus a smaller set of runtime primitives. |
-| `webracket/class` | `real-racket-class-diagnostic` | Check whether real `racket/class` is blocked by contract-private edges, keyword machinery, or class-runtime primitives. |
-| `webracket/dict` | `real-racket-dict-diagnostic` | Current failure is `missing-after-reflection` for `dict-count` in `main`; host `module->exports` for `racket/dict` does not list `dict-count`, so this looks like a bridge/name-resolution issue around re-exported base bindings, not a reason to copy more dictionary code. |
-| `webracket/list` | `real-racket-list-diagnostic` | Current direct repro fails during module-bridge graph extraction with a phase-1 namespace mismatch for installed `racket/list`; this points at extraction namespace setup, not a reason to copy more list functions. |
-| `webracket/string` | `real-racket-string-diagnostic` | Current direct repro fails during module-bridge graph extraction with a phase-1 namespace mismatch for installed `racket/string`; fix namespace/extraction setup before expanding staged string. |
+| `webracket/contract` | `real-racket-contract-diagnostic` | Current failure is provider-graph extraction for real `racket/contract`; keep using erased-contract shims while narrowing the transitive provider graph and runtime primitive demand. |
+| `webracket/class` | `real-racket-class-diagnostic` | Current failure is provider-graph extraction for real `racket/class`; likely blockers are contract-private edges, keyword machinery, and class-runtime primitives. |
+| `webracket/dict` | `real-racket-dict-diagnostic` | Current failure is provider-graph extraction for real `racket/dict`; earlier `dict-count` metadata symptoms point at bridge/name-resolution around re-exported base bindings, not a reason to copy more dictionary code. |
+| `webracket/list` | `real-racket-list-diagnostic` | The tiny real `racket/list` readiness row now passes without provider substitution. Next step is broadening the real-provider case beyond `append-map` before expanding the staged list shim. |
+| `webracket/string` | `real-racket-string-diagnostic` | Local extraction now gets past the old phase-1 namespace mismatch. The current dashboard row reaches runtime output but still classifies an `undefined` frontier, so the next step is separating real `string-join` success from bridge-tail/runtime noise. |
 | `webracket/sequence` | `real-racket-sequence-diagnostic` | Capture whether real `racket/sequence` is blocked mainly by contracts, streams, or generator/prompt-related imports. |
 | `webracket/private/for` | `real-racket-private-for-diagnostic` | The tiny direct helper case currently passes without substitution; the next step is trying broader original `racket/private/for` helper clusters before adding staged sequence protocol surface. |
 | `webracket/private/kw` | `real-racket-private-kw-diagnostic` | Track the keyword-procedure runtime gap before adding more keyword-related staged APIs. |

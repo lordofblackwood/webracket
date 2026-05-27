@@ -1853,10 +1853,25 @@
 (define (webracket-owned-module-name? name)
   (regexp-match? #rx"^webracket/" (symbol->string name)))
 
+(define provider-phase0-syntax-export-cache (make-hasheq))
+
+;; provider-has-phase0-syntax-exports? : symbol? -> boolean?
+;;   Check whether a provider exports phase-0 syntax that value stubs cannot fake.
+(define (provider-has-phase0-syntax-exports? name)
+  (hash-ref!
+   provider-phase0-syntax-export-cache
+   name
+   (lambda ()
+     (with-handlers ([exn:fail? (lambda (_exn) #t)])
+       (define-values (_values syntaxes) (module->exports name))
+       (define phase0 (assoc 0 syntaxes))
+       (and phase0 (pair? (cdr phase0)))))))
+
 ;; provider-compile-stub-safe? : symbol? -> boolean?
-;;   Value-only compile stubs are unsafe for macro providers such as racket/match.
+;;   Value-only compile stubs are unsafe for providers with macro exports.
 (define (provider-compile-stub-safe? name)
-  (not (memq name '(racket/match racket/match/runtime racket/match/gen-match))))
+  (and (not (memq name '(racket/match racket/match/runtime racket/match/gen-match)))
+       (not (provider-has-phase0-syntax-exports? name))))
 
 ;; compile-webracket/base-module-file-report : path-string? [#:namespace namespace?] [#:module-name-resolver procedure?] -> webify-module-report?
 ;;   Compile one module file while resolving relative requires from its directory.

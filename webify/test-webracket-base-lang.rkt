@@ -14,6 +14,7 @@
                   current-provider-cache-dir
                   current-provider-cache-force?
                   provider-report-cache-entries
+                  provider-compile-stub-safe?
                   read-top-level-from-file
                   webracket/base-external-provider-names
                   webracket/base-file->local-module-graph
@@ -911,6 +912,17 @@
     (lambda ()
       (with-handlers ([exn:fail:filesystem? void])
         (delete-directory/files source-dir)))))
+
+(test-case "#lang webracket/base compile stubs reject syntax-exporting providers"
+  (for ([name (in-list '(racket/list
+                         racket/string
+                         racket/dict
+                         racket/sequence
+                         racket/private/for
+                         racket/private/kw))])
+    (check-false (provider-compile-stub-safe? name)
+                 (symbol->string name)))
+  (check-true (provider-compile-stub-safe? 'racket/unsafe/undefined)))
 
 (test-case "#lang webracket/full treats racket/private/base as language-root metadata"
   (define source-dir (make-temporary-file "webracket-full-private-base-src-~a" 'directory))
