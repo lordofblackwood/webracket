@@ -510,7 +510,11 @@ Current installed-extraction runtime smokes cover:
   provider smokes pass, and `webracket/full` provides callable WebRacket-owned
   bindings so full-language programs do not receive non-procedure provider
   cells. `identity` is now also a tiny primitive because it is commonly used as
-  a first-class function value.
+  a first-class function value. The compact dashboard classifies this failure
+  shape as `provider-alias-not-callable`, and a separate list-surface row keeps
+  pressure on callable `racket/list` exports such as `filter-map`, `append-map`,
+  `member`, `remove`, and `reverse`. `sort` still exposes a separate internal
+  name collision (`sort.1`) and should get its own focused follow-up.
 - Dependency-first local source modules with quoted sibling requires, such as
   `(require 'base-values)`, through a shared-provider transitive smoke.
 

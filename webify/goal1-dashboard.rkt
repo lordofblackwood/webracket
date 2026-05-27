@@ -33,6 +33,7 @@
          goal1-dashboard-row-cache-events
          goal1-dashboard-row-cache-files-before
          goal1-dashboard-row-cache-files-after
+         classify-detail
          run-goal1-dashboard
          print-goal1-dashboard)
 
@@ -113,6 +114,8 @@
     goal1-real-library-composition
     goal1-sequence-format-composition
     goal1-match-set-hash-composition
+    goal1-full-callable-exports
+    goal1-full-list-surface
     base-sequence-core
     base-sequence-producers
     base-sequence-real-libraries
@@ -827,6 +830,26 @@
          "(define s (set-add (set 'a) 'b))\n"
          "(define h (hash 'x 37))\n"
          "(js-log (+ pos (f 2) (set-count s) (hash-ref h 'x)))\n")))
+    "main.rkt"
+    #rx"(?m:^42$)"
+    '("--no-io-format-provider"))
+   (dashboard-case
+    'goal1-full-list-surface
+    'installed-provider-coverage
+    '(webracket/full racket/list)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/full\n"
+         "(define xs '(1 2 3 4))\n"
+         "(define kept (filter-map (lambda (x) (and (even? x) x)) xs))\n"
+         "(define spread (append-map (lambda (x) (list x x)) kept))\n"
+         "(define member-bonus (if (member 3 (remove 2 xs)) 5 0))\n"
+         "(define tail (rest (reverse '(1 2 3))))\n"
+         "(js-log (+ (first spread)\n"
+         "           (second spread)\n"
+         "           (length tail)\n"
+         "           member-bonus\n"
+         "           31))\n")))
     "main.rkt"
     #rx"(?m:^42$)"
     '("--no-io-format-provider"))
@@ -1753,6 +1776,8 @@
      'module-language-prelude-skip-but-failed]
     [(regexp-match? #rx"external provider is not in the Goal 1 trial allowlist|transitive provider is not in the Goal 1 trial allowlist|unsupported providers|unsupported provider" output)
      'provider-graph-failed]
+    [(regexp-match? #px"application: not a procedure;(.|\n)*given:" output)
+     'provider-alias-not-callable]
     [(regexp-match? #rx"unbound identifier|undefined" output) 'unbound]
     [else 'failed]))
 

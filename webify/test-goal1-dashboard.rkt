@@ -184,6 +184,10 @@
    (member 'base-sequence-core goal1-dashboard-coverage-core-case-names))
   (check-not-false
    (member 'base-sequence-hash-generate goal1-dashboard-coverage-core-case-names))
+  (check-not-false
+   (member 'goal1-full-callable-exports goal1-dashboard-coverage-core-case-names))
+  (check-not-false
+   (member 'goal1-full-list-surface goal1-dashboard-coverage-core-case-names))
   (check-false
    (member 'generator-real-diagnostic goal1-dashboard-coverage-core-case-names))
   (check-not-false
@@ -315,11 +319,23 @@
                          installed-data-queue-coverage
                          installed-racket-logging-coverage
                          installed-racket-format-coverage
+                         goal1-full-callable-exports
+                         goal1-full-list-surface
                          ffi-js-math-coverage
                          ffi-js-console-coverage
                          regexp-provider-coverage))])
     (check-not-false (memq name coverage-names)
                      (symbol->string name))))
+
+(test-case "compact Goal 1 dashboard classifies provider aliases that are not callable"
+  (check-equal?
+   (classify-detail 1
+                    (string-append
+                     "application: not a procedure;\n"
+                     " expected a procedure that can be applied to arguments\n"
+                     "  given: identity\n")
+                    #rx"(?m:^42$)")
+   'provider-alias-not-callable))
 
 (test-case "Goal 1 provider plan documents staged-provider compatibility policy"
   (define doc (file->string goal1-providers-doc))
