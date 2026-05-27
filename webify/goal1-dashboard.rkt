@@ -862,13 +862,18 @@
        ,(string-append
          "#lang webracket/full\n"
          "(define sorted (sort '(3 1 2) <))\n"
-         "(define by-len (sort '(\"aaa\" \"b\" \"cc\") < #:key string-length #:cache-keys? #t))\n"
+         "(define key-count 0)\n"
+         "(define (counted-length s)\n"
+         "  (set! key-count (add1 key-count))\n"
+         "  (string-length s))\n"
+         "(define by-len (sort '(\"aaa\" \"b\" \"cc\") < #:key counted-length #:cache-keys? #t))\n"
          "(js-log (+ (car sorted)\n"
          "           (cadr sorted)\n"
          "           (caddr sorted)\n"
          "           (string-length (car by-len))\n"
          "           (string-length (caddr by-len))\n"
-         "           32))\n")))
+         "           key-count\n"
+         "           29))\n")))
     "main.rkt"
     #rx"(?m:^42$)"
     '("--no-io-format-provider"))
