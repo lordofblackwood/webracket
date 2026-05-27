@@ -73,7 +73,10 @@
 
 ;; A Goal 1 `racket/list` replacement. Most callable list utilities already
 ;; live in `racket/base`; this module makes them available through the external
-;; provider graph and fills the common `range`/`inclusive-range` gap.
+;; provider graph and fills common `racket/list` gaps.
+;;
+;; Prefer source definitions here instead of re-exporting WebRacket primitives:
+;; primitive aliases introduce extra provider candidates during reflection.
 
 (define first car)
 (define rest cdr)
@@ -125,17 +128,21 @@
 
 ;; append-map : procedure? list? ... -> list?
 ;;   Map f and append the resulting lists.
-(define (append-map f . xss)
-  (apply append (apply map f xss)))
+(define append-map
+  (case-lambda
+    [(f xs) (apply append (map f xs))]
+    [(f xs ys) (apply append (map f xs ys))]
+    [(f xs . xss) (apply append (apply map f xs xss))]))
 
 ;; append* : list? ... list? -> list?
 ;;   Append a list of lists, optionally preceded by lists.
-(define (append* . xss)
-  (cond
-    [(null? xss) null]
-    [(null? (cdr xss)) (apply append (car xss))]
-    [else (apply append (append (take xss (sub1 (length xss)))
-                                (last xss)))]))
+(define append*
+  (case-lambda
+    [(xs) (apply append xs)]
+    [(xs ys) (apply append xs ys)]
+    [(xs ys zs) (apply append xs ys zs)]
+    [(xs ys zs ws) (apply append xs ys zs ws)]
+    [(xs . xss) (apply apply append xs xss)]))
 
 ;; count : procedure? list? ... -> exact-nonnegative-integer?
 ;;   Count tuples for which f returns a true value.
@@ -149,7 +156,11 @@
 ;; filter-not : (any/c -> any/c) list? -> list?
 ;;   Keep elements for which pred returns #f.
 (define (filter-not pred xs)
-  (filter (lambda (x) (not (pred x))) xs))
+  (let loop ([xs xs] [acc null])
+    (cond
+      [(null? xs) (reverse acc)]
+      [(pred (car xs)) (loop (cdr xs) acc)]
+      [else (loop (cdr xs) (cons (car xs) acc))])))
 
 ;; partition : (any/c -> any/c) list? -> (values list? list?)
 ;;   Split xs according to pred, applying pred once per element.
@@ -202,34 +213,55 @@
   (values (takef xs pred) (dropf xs pred)))
 
 ;; take-right : list? exact-nonnegative-integer? -> list?
-;;   Return the final n elements of xs.
+;;   Return the final n elements of xs using the lead-pointer strategy.
 (define (take-right xs n)
-  (drop xs (- (length xs) n)))
+  (let loop ([xs xs] [lead (drop xs n)])
+    (cond
+      [(pair? lead) (loop (cdr xs) (cdr lead))]
+      [else xs])))
 
 ;; drop-right : list? exact-nonnegative-integer? -> list?
-;;   Drop the final n elements of xs.
+;;   Drop the final n elements of xs using the lead-pointer strategy.
 (define (drop-right xs n)
-  (take xs (- (length xs) n)))
+  (let loop ([xs xs] [lead (drop xs n)])
+    (cond
+      [(pair? lead) (cons (car xs) (loop (cdr xs) (cdr lead)))]
+      [else null])))
 
 ;; split-at-right : list? exact-nonnegative-integer? -> (values list? list?)
 ;;   Split xs before the final n elements.
 (define (split-at-right xs n)
-  (values (drop-right xs n) (take-right xs n)))
+  (let loop ([xs xs] [lead (drop xs n)] [acc null])
+    (cond
+      [(pair? lead) (loop (cdr xs) (cdr lead) (cons (car xs) acc))]
+      [else (values (reverse acc) xs)])))
+
+;; count-from-right : symbol? list? procedure? -> exact-nonnegative-integer?
+;;   Count the split point before the longest suffix satisfying pred.
+(define (count-from-right who xs pred)
+  (let loop ([xs xs] [rev null] [n 0])
+    (cond
+      [(pair? xs) (loop (cdr xs) (cons (car xs) rev) (add1 n))]
+      [else
+       (let scan ([n n] [xs rev])
+         (cond
+           [(and (pair? xs) (pred (car xs))) (scan (sub1 n) (cdr xs))]
+           [else n]))])))
 
 ;; takef-right : list? procedure? -> list?
 ;;   Keep the longest suffix whose elements satisfy pred.
 (define (takef-right xs pred)
-  (reverse (takef (reverse xs) pred)))
+  (drop xs (count-from-right 'takef-right xs pred)))
 
 ;; dropf-right : list? procedure? -> list?
 ;;   Drop the longest suffix whose elements satisfy pred.
 (define (dropf-right xs pred)
-  (reverse (dropf (reverse xs) pred)))
+  (take xs (count-from-right 'dropf-right xs pred)))
 
 ;; splitf-at-right : list? procedure? -> (values list? list?)
 ;;   Split xs before the longest suffix whose elements satisfy pred.
 (define (splitf-at-right xs pred)
-  (values (dropf-right xs pred) (takef-right xs pred)))
+  (split-at xs (count-from-right 'splitf-at-right xs pred)))
 
 ;; remove : any/c list? [procedure?] -> list?
 ;;   Remove the first element matching v. The comparator defaults to equal?.
@@ -359,10 +391,11 @@
 ;; flatten : any/c -> list?
 ;;   Flatten pair trees, omitting null leaves.
 (define (flatten v)
-  (cond
-    [(null? v) null]
-    [(pair? v) (append (flatten (car v)) (flatten (cdr v)))]
-    [else (list v)]))
+  (let loop ([v v] [acc null])
+    (cond
+      [(null? v) acc]
+      [(pair? v) (loop (car v) (loop (cdr v) acc))]
+      [else (cons v acc)])))
 
 ;; range : real? [real?] [real?] -> list?
 ;;   Build a list like `in-range`; step defaults to 1 and start defaults to 0.
