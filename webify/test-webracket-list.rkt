@@ -45,4 +45,30 @@
     (check-equal? (combinations '(a b c) 2)
                   '((a b) (a c) (b c)))
     (check-equal? (permutations '(x x))
-                  '((x x) (x x)))))
+                  '((x x) (x x))))
+
+  (test-case "keyword-sensitive list utilities stay source-defined"
+    (check-equal? (add-between '(1 2 3) 0)
+                  '(1 0 2 0 3))
+    (check-equal? (add-between '(1 2 3)
+                               '(x)
+                               #:splice? #t
+                               #:before-first '(a)
+                               #:before-last '(b)
+                               #:after-last '(c))
+                  '(a 1 x 2 b 3 c))
+    (check-equal? (remove-duplicates '("A" "a" "B")
+                                     string-ci=?
+                                     #:key values)
+                  '("A" "B"))
+    (check-equal? (remove-duplicates '((1 a) (1 b) (2 c))
+                                     =
+                                     #:key car)
+                  '((1 a) (2 c)))
+    (check-equal? (check-duplicates '("A" "a" "B")
+                                    string-ci=?
+                                    #:key values)
+                  "a")
+    (check-equal? (check-duplicates '(1 2 3)
+                                    #:default 'none)
+                  'none)))

@@ -40,8 +40,9 @@ runtime services.
   `take`/`drop`/`split-at`, `takef`/`dropf`/`splitf-at`, membership/indexing
   helpers, `remove`/`remove*`/`remf`/`remf*`, `flatten`, list update/prefix
   helpers, `argmin`/`argmax`, `group-by`, `cartesian-product`,
-  `combinations`, `in-combinations`, `permutations`, `in-permutations`, and
-  `range`/`inclusive-range`. Missing installed exports are classified below;
+  `combinations`, `in-combinations`, `permutations`, `in-permutations`,
+  `add-between`, `remove-duplicates`, `check-duplicates`, and
+  `range`/`inclusive-range`. Remaining differences are classified below;
   the current `range` implementation rejects a zero step instead of attempting
   to construct Racket's non-terminating list.
 - `webracket/set`: hash-backed set operations. Contracts, generics,
@@ -91,12 +92,14 @@ staged provider now covers the high-value pure-list subset. Remaining gaps are
 grouped as follows:
 
 - Postponed/randomness-sensitive: `shuffle`.
-- Keyword-sensitive/postponed: `add-between`, `remove-duplicates`, and
-  `check-duplicates`. These should stay source-defined when added, because the
-  primitive forms do not generally preserve Racket's keyword surface.
+- Keyword-sensitive coverage: `add-between`, `remove-duplicates`, and
+  `check-duplicates` are source-defined in `webracket/list`; keep them that way,
+  because equivalent primitive forms do not generally preserve Racket's keyword
+  surface.
 - Exact sequence fidelity: `in-combinations` and `in-permutations` currently
-  return list-valued sequences, which is enough for ordinary `for` use but not
-  the same generator-backed object shape as installed `racket/list`.
+  return list-valued sequences. This is sufficient for Goal 1 module programs
+  that use them in ordinary `for` clauses, but it is not the same
+  generator-backed object shape as installed `racket/list`.
 - Provider-ownership note: do not re-export equivalent primitives directly from
   `webracket/list` yet. Primitive aliases create extra reflection candidates
   such as both `webracket/list` and `racket/list` owning `append-map`.

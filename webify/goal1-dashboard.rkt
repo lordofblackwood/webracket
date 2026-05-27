@@ -505,6 +505,11 @@
          "(define-values (drop-left drop-right*) (drop-common-prefix '(a b c) '(a b d e)))\n"
          "(define updated (list-update '(1 2 3) 2 (lambda (x) (+ x 2))))\n"
          "(define grouped (group-by (lambda (x) (modulo x 3)) '(1 2 54 5 0)))\n"
+         "(define between (add-between '(1 2 3) 10))\n"
+         "(define spliced (add-between '(1 2 3) '(4) #:splice? #t #:before-first '(5) #:before-last '(6) #:after-last '(7)))\n"
+         "(define unique (remove-duplicates '((1 a) (1 b) (2 c)) = #:key car))\n"
+         "(define dup (check-duplicates '(\"A\" \"a\" \"B\") string-ci=? #:key values))\n"
+         "(define none (check-duplicates '(1 2 3) #:default 'none))\n"
          "(js-log (+ (length cp)\n"
          "           (length combos)\n"
          "           (length perms)\n"
@@ -521,7 +526,12 @@
          "           (eleventh '(1 2 3 4 5 6 7 8 9 10 11))\n"
          "           (length (for/list ([x (in-combinations '(a b c) 2)]) x))\n"
          "           (length (for/list ([x (in-permutations '(x x))]) x))\n"
-         "           -11))\n")))
+         "           (apply + between)\n"
+         "           (apply + spliced)\n"
+         "           (length unique)\n"
+         "           (string-length dup)\n"
+         "           (if (eq? none 'none) 3 0)\n"
+         "           -71))\n")))
     "main.rkt"
     #rx"(?m:^42$)"
     '("--no-io-format-provider" "--webracket-module-bridge"))

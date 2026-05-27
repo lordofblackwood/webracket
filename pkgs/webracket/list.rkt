@@ -76,6 +76,9 @@
          split-common-prefix
          take-common-prefix
          drop-common-prefix
+         add-between
+         remove-duplicates
+         check-duplicates
          index-of
          index-where
          indexes-of
@@ -479,6 +482,64 @@
   (define-values (prefix xs-tail ys-tail)
     (split-common-prefix/internal xs ys same? #f))
   (values xs-tail ys-tail))
+
+;; add-between : list? any/c [#:splice? any/c] ... -> list?
+;;   Add separators between elements, including Racket's keyword variants.
+(define (add-between xs sep
+                     #:splice? [splice? #f]
+                     #:before-first [before-first null]
+                     #:before-last [before-last sep]
+                     #:after-last [after-last null])
+  (cond
+    [(or (null? xs) (null? (cdr xs)))
+     (if splice?
+         (append before-first xs after-last)
+         xs)]
+    [splice?
+     (append before-first
+             (let loop ([xs xs])
+               (cond
+                 [(null? (cdr xs)) (append before-last (list (car xs)) after-last)]
+                 [(null? (cddr xs)) (append (list (car xs)) before-last (list (cadr xs)) after-last)]
+                 [else (append (list (car xs)) sep (loop (cdr xs)))])))]
+    [else
+     (let loop ([xs xs])
+       (cond
+         [(null? (cdr xs)) (list (car xs))]
+         [(null? (cddr xs)) (cons (car xs) (cons before-last (loop (cdr xs))))]
+         [else (cons (car xs) (cons sep (loop (cdr xs))))]))]))
+
+;; remove-duplicates : list? [procedure?] [#:key procedure?] -> list?
+;;   Remove later duplicates, preserving the first occurrence.
+(define (remove-duplicates xs [same? equal?] #:key [key (lambda (x) x)])
+  (let loop ([xs xs] [seen null])
+    (cond
+      [(null? xs) null]
+      [else
+       (define x (car xs))
+       (define k (key x))
+       (if (ormap (lambda (old) (same? k old)) seen)
+           (loop (cdr xs) seen)
+           (cons x (loop (cdr xs) (cons k seen))))])))
+
+;; check-duplicates : list? [procedure?] [#:key procedure?] [#:default any/c] -> any/c
+;;   Return the first duplicate item, or the default result.
+(define (check-duplicates xs
+                          [same? equal?]
+                          #:key [key (lambda (x) x)]
+                          #:default [failure-result (lambda () #f)])
+  (let loop ([xs xs] [seen null])
+    (cond
+      [(null? xs)
+       (if (procedure? failure-result)
+           (failure-result)
+           failure-result)]
+      [else
+       (define x (car xs))
+       (define k (key x))
+       (if (ormap (lambda (old) (same? k old)) seen)
+           x
+           (loop (cdr xs) (cons k seen)))])))
 
 ;; better-by : procedure? procedure? list? -> any/c
 ;;   Shared implementation for argmin and argmax.
