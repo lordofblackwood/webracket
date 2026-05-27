@@ -251,6 +251,9 @@
     racket/contract/private/misc
     racket/generator
     racket/logging
+    racket/match
+    racket/match/gen-match
+    racket/match/runtime
     racket/mpair
     racket/private/define-struct
     racket/private/for
@@ -306,6 +309,9 @@
     racket/hash
     racket/mpair
     racket/logging
+    racket/match
+    racket/match/gen-match
+    racket/match/runtime
     racket/contract/private/list
     racket/contract/private/misc
     racket/private/for

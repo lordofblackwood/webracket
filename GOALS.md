@@ -484,10 +484,11 @@ Current installed-extraction runtime smokes cover:
   later continuation/prompt milestone, not a Goal 1 requirement.
 - `racket/match`: a basic list pattern, a default branch, `match-let`, and a
   predicate pattern are tracked in the Goal 1 matrix. Match syntax is covered
-  through `webracket/full`; explicit `(require racket/match)` under the
-  temporary `#lang webracket/base` provider bridge still needs a separate
-  allowlist/provider-graph milestone for `racket/match/runtime` and
-  `racket/match/gen-match`.
+  through `webracket/full`, and explicit `(require racket/match)` has a focused
+  diagnostic provider-bridge row. The row confirms that `racket/match`,
+  `racket/match/runtime`, and `racket/match/gen-match` are admitted by the
+  provider graph, but it still exposes a syntax/import binding hole as an
+  `unbound` failure.
 - `racket/class`: a basic object with a public method.
 - `racket/function`: `compose`, `identity`, `compose1`, `negate`, and `const`.
   The representative `function-compose` module case passes the runtime probe.
@@ -495,9 +496,14 @@ Current installed-extraction runtime smokes cover:
   smokes and the Goal 1 module-case matrix; the `vector-member-basic` module
   case passes the runtime probe.
 - Combined installed-library programs for `racket/list` + `racket/string`, for
-  `racket/list` + `racket/string` + `racket/set`, and for a multi-module local
-  source graph whose providers require those installed libraries separately,
-  including a provider re-export graph.
+  `racket/list` + `racket/string` + `racket/set`, and for multi-library
+  pressure rows that mix `racket/string`, `racket/hash`, `racket/set`,
+  `racket/function`, `racket/sequence`, `racket/match`, and `racket/format` in
+  small realistic programs. Some of these are diagnostic rows while the
+  temporary module bridge still rejects substituted local provider requires such
+  as `webracket/string` in `#lang webracket/full` input. A multi-module local
+  source graph whose providers require installed libraries separately,
+  including a provider re-export graph, is also tracked.
 - Dependency-first local source modules with quoted sibling requires, such as
   `(require 'base-values)`, through a shared-provider transitive smoke.
 
@@ -507,9 +513,16 @@ provides contract-free `format`, `fprintf`, `printf`, `eprintf`, and common
 `~a`/`~s`/`~v`/`~e`/dotted formatter paths. The shim intentionally implements a
 small formatter for the Goal 1 module surface instead of extracting installed
 `racket/format`, whose expansion pulls a larger contract/location provider
-cluster. Full numeric `~r`, complete print-convention fidelity, and the exact
-Racket `~v` quoting convention for compound data remain staged `io/format`
-follow-up work.
+cluster. `~s` and `~v` are now separated in the staged shim: write-mode keeps
+plain datum output, while print-mode quotes symbols and compound literal data
+such as lists, vectors, hashes, and `()`. Full numeric `~r` and complete
+print-convention fidelity remain staged `io/format` follow-up work.
+
+The remaining `webracket/full` versus explicit-require audit should focus on
+rows where a library works because `webracket/full` stages/re-exports it, but a
+direct `(require racket/...)` still needs provider-graph or substitution help.
+Those gaps should get explicit dashboard rows instead of being inferred from the
+full language surface.
 
 After the current sequence/format/stream pressure rows, the next must-have
 library to complete should be `racket/format`/printing rather than

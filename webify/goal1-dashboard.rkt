@@ -109,7 +109,10 @@
     full-math-coverage
     full-path-coverage
     full-match-coverage
+    installed-racket-match-explicit
     goal1-real-library-composition
+    goal1-sequence-format-composition
+    goal1-match-set-hash-composition
     base-sequence-core
     base-sequence-producers
     base-sequence-real-libraries
@@ -132,6 +135,7 @@
     full-file-coverage
     installed-racket-format-coverage
     installed-racket-format-printing
+    installed-racket-format-printing-values
     regexp-provider-coverage))
 
 ;; goal1-dashboard-coverage-extended-case-names : (listof symbol?)
@@ -730,6 +734,22 @@
     #rx"(?m:^42$)"
     '("--no-io-format-provider"))
    (dashboard-case
+    'installed-racket-match-explicit
+    'installed-provider-coverage
+    '(racket/match racket/match/runtime racket/match/gen-match)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/base\n"
+         "(require racket/match)\n"
+         "(define v '(tag 20 22))\n"
+         "(js-log (match v\n"
+         "          [(list 'tag x y) (+ x y)]\n"
+         "          [_ 0]))\n")))
+    "main.rkt"
+    #rx"(?m:^42$)"
+    '("--no-io-format-provider" "--webracket-module-bridge")
+    #:expectation 'diagnostic)
+   (dashboard-case
     'goal1-real-library-composition
     'installed-provider-coverage
     '(webracket/full racket/string racket/hash racket/set racket/function racket/format
@@ -754,6 +774,49 @@
     "main.rkt"
     #rx"(?m:^42$)"
     '("--no-io-format-provider"))
+   (dashboard-case
+    'goal1-sequence-format-composition
+    'installed-provider-coverage
+    '(webracket/full racket/string racket/format webracket/sequence webracket/format)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/full\n"
+         "(require racket/string racket/format)\n"
+         "(define words '(\"web\" \"racket\" \"goal\"))\n"
+         "(define labels\n"
+         "  (for/list ([word (in-list words)]\n"
+         "             [n (in-naturals 1)])\n"
+         "    (~a word \":\" n)))\n"
+         "(define joined (string-join labels \",\"))\n"
+         "(js-log (+ (string-length joined)\n"
+         "           (length (filter-map (lambda (s)\n"
+         "                                (and (string-prefix? s \"r\") s))\n"
+         "                              words))\n"
+         "           20))\n")))
+    "main.rkt"
+    #rx"(?m:^42$)"
+    '("--no-io-format-provider")
+    #:expectation 'diagnostic)
+   (dashboard-case
+    'goal1-match-set-hash-composition
+    'installed-provider-coverage
+    '(webracket/full racket/set racket/hash racket/format
+      webracket/set webracket/hash webracket/format)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/full\n"
+         "(require racket/set racket/hash racket/format)\n"
+         "(define h (hash 'kind 'point 'x 20 'y 22))\n"
+         "(define keys (for/set ([k (in-list (hash-keys h))]) k))\n"
+         "(define score\n"
+         "  (match (list (hash-ref h 'kind) (set-member? keys 'x) (set-member? keys 'y))\n"
+         "    [(list 'point #t #t) (+ (hash-ref h 'x) (hash-ref h 'y))]\n"
+         "    [_ 0]))\n"
+         "(js-log (~a score))\n")))
+    "main.rkt"
+    #rx"(?m:^42$)"
+    '("--no-io-format-provider")
+    #:expectation 'diagnostic)
    (dashboard-case
     'full-sequence-for
     'installed-provider-graph
@@ -1430,7 +1493,7 @@
          "                       \"|\"\n"
          "                       (~v '(1 2))))\n")))
     "main.rkt"
-    #rx"(?m:^web\\|\"racket\"\\|\\(1 2\\)$)"
+    #rx"(?m:^web\\|\"racket\"\\|'\\(1 2\\)$)"
     '("--no-io-format-provider" "--webracket-module-bridge"))
    (dashboard-case
     'installed-racket-format-printing
@@ -1442,9 +1505,29 @@
          "(require racket/format)\n"
          "(define text\n"
          "  (format \"~a|~s|~v\" \"a b\" \"a b\" '(\"a b\" 2)))\n"
-         "(js-log (+ (string-length text) 22))\n")))
+         "(js-log text)\n")))
     "main.rkt"
-    #rx"(?m:^41$)"
+    #rx"(?m:^a b\\|\"a b\"\\|'\\(\"a b\" 2\\)$)"
+    '("--no-io-format-provider" "--webracket-module-bridge"))
+   (dashboard-case
+    'installed-racket-format-printing-values
+    'installed-provider-coverage
+    '(racket/format racket/contract/base)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/base\n"
+         "(require racket/format)\n"
+         "(define text\n"
+         "  (string-append\n"
+         "   (~a #t) \"|\"\n"
+         "   (~s \"a\\\"b\") \"|\"\n"
+         "   (~s #\\space) \"|\"\n"
+         "   (~v 'sym) \"|\"\n"
+         "   (~v #(1 \"x\")) \"|\"\n"
+         "   (~v (hash 'a 1))))\n"
+         "(js-log text)\n")))
+    "main.rkt"
+    #rx"(?m:^#t\\|\"a\\\\\"b\"\\|#\\\\space\\|'sym\\|'#\\(1 \"x\"\\)\\|'#hash\\(\\(a \\. 1\\)\\)$)"
     '("--no-io-format-provider" "--webracket-module-bridge"))
    (dashboard-case
     'installed-data-queue-contract
@@ -1676,7 +1759,7 @@
      (define diagnostic-line
        (for/first ([line (in-list lines)]
                    #:when (regexp-match?
-                            #rx"unsupported provider|unsupported providers|missing-after-reflection|ambiguous-after-reflection"
+                            #rx"unsupported provider|unsupported providers|missing-after-reflection|ambiguous-after-reflection|unbound identifier|undefined"
                             line))
          line))
      (define line (or diagnostic-line

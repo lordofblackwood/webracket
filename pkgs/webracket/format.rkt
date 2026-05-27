@@ -26,10 +26,11 @@
 (define (value->string directive value)
   (cond
     [(or (string=? directive "~s")
-         (string=? directive "~v")
-         (string=? directive "~.s")
-         (string=? directive "~.v"))
+         (string=? directive "~.s"))
      (write-value->string value)]
+    [(or (string=? directive "~v")
+         (string=? directive "~.v"))
+     (print-value->string value)]
     [else (display-value->string value)]))
 
 ;; wr-format : string? any/c ... -> string?
@@ -65,22 +66,61 @@
     [(symbol? value) (symbol->string value)]
     [(keyword? value) (string-append "#:" (keyword->string value))]
     [(number? value) (number->string value)]
-    [(boolean? value) (if value "true" "false")]
+    [(boolean? value) (if value "#t" "#f")]
     [(char? value) (one-character-string value)]
     [(null? value) "()"]
     [(pair? value) (string-append "(" (display-list->string value) ")")]
     [(vector? value) (string-append "#(" (display-vector->string value) ")")]
+    [(hash? value) (hash->string* value display-value->string)]
     [else "#<value>"]))
 
 ;; write-value->string : any/c -> string?
 ;;   Small write/print-mode value renderer for the format shim.
 (define (write-value->string value)
   (cond
-    [(string? value) (string-append "\"" value "\"")]
-    [(char? value) (string-append "#\\" (one-character-string value))]
+    [(string? value) (write-string-literal value)]
+    [(char? value) (write-char-literal value)]
     [(pair? value) (string-append "(" (write-list->string value) ")")]
     [(vector? value) (string-append "#(" (write-vector->string value) ")")]
+    [(hash? value) (hash->string* value write-value->string)]
     [else (display-value->string value)]))
+
+;; print-value->string : any/c -> string?
+;;   Small print-mode renderer for the format shim.
+(define (print-value->string value)
+  (cond
+    [(or (symbol? value) (null? value) (pair? value) (vector? value) (hash? value))
+     (string-append "'" (write-value->string value))]
+    [else (write-value->string value)]))
+
+;; write-string-literal : string? -> string?
+;;   Render a string literal with basic Racket write escapes.
+(define (write-string-literal value)
+  (define len (string-length value))
+  (let loop ([i 0] [acc "\""])
+    (cond
+      [(= i len) (string-append acc "\"")]
+      [else
+       (define ch (string-ref value i))
+       (define escaped
+         (cond
+           [(char=? ch #\\) "\\\\"]
+           [(char=? ch #\") "\\\""]
+           [(char=? ch #\newline) "\\n"]
+           [(char=? ch #\return) "\\r"]
+           [(char=? ch #\tab) "\\t"]
+           [else (one-character-string ch)]))
+       (loop (+ i 1) (string-append acc escaped))])))
+
+;; write-char-literal : char? -> string?
+;;   Render the common named character literals used by write.
+(define (write-char-literal value)
+  (cond
+    [(char=? value #\space) "#\\space"]
+    [(char=? value #\newline) "#\\newline"]
+    [(char=? value #\tab) "#\\tab"]
+    [(char=? value #\return) "#\\return"]
+    [else (string-append "#\\" (one-character-string value))]))
 
 ;; display-list->string : list? -> string?
 ;;   Render a proper or dotted list in display mode.
@@ -116,6 +156,21 @@
 ;;   Render a vector in write mode.
 (define (write-vector->string value)
   (vector->string* value write-value->string))
+
+;; hash->string* : hash? procedure? -> string?
+;;   Render a hash table as a write-style association list.
+(define (hash->string* value elem->string)
+  (let loop ([pos (hash-iterate-first value)] [first? #t] [acc ""])
+    (cond
+      [(not pos) (string-append "#hash(" acc ")")]
+      [else
+       (define key (hash-iterate-key value pos #f))
+       (define entry (cons key (hash-ref value key)))
+       (loop (hash-iterate-next value pos)
+             #f
+             (string-append acc
+                            (if first? "" " ")
+                            (elem->string entry)))])))
 
 ;; vector->string* : vector? procedure? -> string?
 ;;   Shared vector renderer.
@@ -158,9 +213,12 @@
             [(or (char=? next #\a) (char=? next #\e))
              (define-values (arg rest) (consume-format-arg 'format args))
              (loop (+ i 2) rest (string-append acc (display-value->string arg)))]
-            [(or (char=? next #\s) (char=? next #\v))
+            [(char=? next #\s)
              (define-values (arg rest) (consume-format-arg 'format args))
              (loop (+ i 2) rest (string-append acc (write-value->string arg)))]
+            [(char=? next #\v)
+             (define-values (arg rest) (consume-format-arg 'format args))
+             (loop (+ i 2) rest (string-append acc (print-value->string arg)))]
             [else
              (loop (+ i 2)
                    args
