@@ -2,6 +2,9 @@
 
 (provide dict?
          dict-implements?
+         dict-key-contract
+         dict-value-contract
+         dict-iter-contract
          dict-mutable?
          dict-can-remove-keys?
          dict-can-functional-set?
@@ -34,7 +37,9 @@
          in-dict
          in-dict-keys
          in-dict-values
-         in-dict-pairs)
+         in-dict-pairs
+         keyword-apply/dict
+         prop:dict)
 
 ;; A small contract-free `racket/dict` substitute for Goal 1 module programs.
 ;; It covers hash tables, vectors, and association lists, which are the common
@@ -61,6 +66,32 @@
                [(null? entries) #t]
                [(pair? (car entries)) (loop (cdr entries))]
                [else #f])))))
+
+(define-values (prop:dict dict-via-prop? prop:dict-ref)
+  (make-struct-type-property 'dict))
+
+;; dict-key-contract : dict? -> procedure?
+;;   Return the staged first-order key predicate; contracts are erased.
+(define (dict-key-contract dict)
+  (unless (dict? dict)
+    (raise-argument-error 'dict-key-contract "dict?" dict))
+  (if (vector? dict)
+      exact-nonnegative-integer?
+      (lambda (_v) #t)))
+
+;; dict-value-contract : dict? -> procedure?
+;;   Return the staged first-order value predicate; contracts are erased.
+(define (dict-value-contract dict)
+  (unless (dict? dict)
+    (raise-argument-error 'dict-value-contract "dict?" dict))
+  (lambda (_v) #t))
+
+;; dict-iter-contract : dict? -> procedure?
+;;   Return the staged first-order iterator predicate; contracts are erased.
+(define (dict-iter-contract dict)
+  (unless (dict? dict)
+    (raise-argument-error 'dict-iter-contract "dict?" dict))
+  (lambda (_v) #t))
 
 ;; mutable-hash? : any/c -> boolean?
 ;;   Check for mutable hashes without depending on hash-specific predicates.
@@ -445,3 +476,25 @@
 ;;   Return a list sequence of key-value pairs.
 (define (in-dict-pairs dict)
   (dict->list dict))
+
+;; final-positional-args : list? -> list?
+;;   Interpret keyword-apply/dict's final positional argument as a rest list.
+(define (final-positional-args positional)
+  (cond
+    [(null? positional) null]
+    [else (apply list* positional)]))
+
+;; keyword-apply/dict : procedure? dict? any/c ... list? -> any
+;;   Apply proc with an empty keyword dictionary; non-empty keyword dictionaries are postponed.
+(define keyword-apply/dict
+  (case-lambda
+    [(proc dict positional)
+     (unless (dict-empty? dict)
+       (raise-arguments-error 'keyword-apply/dict
+                              "non-empty keyword dictionaries need keyword-apply runtime support"))
+     (apply proc positional)]
+    [(proc dict arg . rest)
+     (unless (dict-empty? dict)
+       (raise-arguments-error 'keyword-apply/dict
+                              "non-empty keyword dictionaries need keyword-apply runtime support"))
+     (apply proc (final-positional-args (cons arg rest)))]))

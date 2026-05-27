@@ -41,9 +41,7 @@
 (define pretty-print-print-hook
   (make-parameter
    (lambda (v display? out)
-     (if display?
-         (display v out)
-         (write v out)))))
+     (display (pretty-value->string v (if display? 'display 'write)) out))))
 (define pretty-print-pre-print-hook (make-parameter (lambda (v out) (void))))
 (define pretty-print-post-print-hook (make-parameter (lambda (v out) (void))))
 (define pretty-printing (make-parameter #f))
@@ -88,6 +86,18 @@
   (when newline?
     (newline out)))
 
+;; write-pretty-value : any/c output-port? symbol? -> void?
+;;   Write v through the basic pretty hooks while layout remains compact.
+(define (write-pretty-value v out mode)
+  ((pretty-print-pre-print-hook) v out)
+  (parameterize ([pretty-printing #t])
+    (case mode
+      [(display) (display (pretty-value->string v 'display) out)]
+      [(write) (display (pretty-value->string v 'write) out)]
+      [(print) ((pretty-print-print-hook) v #f out)]
+      [else (raise-argument-error 'pretty-output "(or/c 'print 'write 'display)" mode)]))
+  ((pretty-print-post-print-hook) v out))
+
 ;; pretty-format : any/c [exact-nonnegative-integer?] #:mode symbol? -> string?
 ;;   Return a pretty-printed string. The columns argument is accepted for
 ;;   compatibility and currently ignored; default: (pretty-print-columns).
@@ -118,17 +128,17 @@
                       #:newline? [newline? #t])
   (unless (or (equal? quote-depth 0) (equal? quote-depth 1))
     (raise-argument-error 'pretty-print "(or/c 0 1)" quote-depth))
-  (display (pretty-value->string v 'print) out)
+  (write-pretty-value v out 'print)
   (maybe-newline out newline?))
 
 ;; pretty-write : any/c [output-port?] #:newline? boolean? -> void?
 ;;   Print v in write mode.
 (define (pretty-write v [out (current-output-port)] #:newline? [newline? #t])
-  (display (pretty-value->string v 'write) out)
+  (write-pretty-value v out 'write)
   (maybe-newline out newline?))
 
 ;; pretty-display : any/c [output-port?] #:newline? boolean? -> void?
 ;;   Print v in display mode.
 (define (pretty-display v [out (current-output-port)] #:newline? [newline? #t])
-  (display (pretty-value->string v 'display) out)
+  (write-pretty-value v out 'display)
   (maybe-newline out newline?))

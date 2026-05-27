@@ -119,6 +119,7 @@
     goal1-real-library-composition
     goal1-sequence-format-composition
     goal1-match-set-hash-composition
+    goal1-dict-pretty-sequence-composition
     goal1-full-callable-exports
     goal1-full-list-surface
     goal1-base-sort-keywords
@@ -135,6 +136,7 @@
     base-sequence-ports
     base-sequence-prop
     base-sequence-derived
+    base-sequence-add-between-lazy
     base-sequence-coverage
     full-sequence-coverage
     sequence-directory-coverage
@@ -155,8 +157,10 @@
   '(installed-racket-vector-append
     full-shared-coverage
     installed-racket-pretty-coverage
+    installed-racket-pretty-style-coverage
     installed-racket-hash-coverage
     installed-racket-dict-coverage
+    installed-racket-dict-extra-coverage
     installed-racket-file-coverage
     installed-data-queue-coverage
     installed-racket-logging-coverage
@@ -349,6 +353,24 @@
          "                 (= (dict-ref copied 'a) 11))\n"
          "            total\n"
          "            0))\n")))
+   "main.rkt"
+   #rx"(?m:^42$)"
+   '("--no-io-format-provider" "--webracket-module-bridge"))
+   (dashboard-case
+    'installed-racket-dict-extra-coverage
+    'installed-provider-coverage
+    '(racket/dict)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/base\n"
+         "(require racket/dict)\n"
+         "(define (sum x y) (+ x y))\n"
+         "(define kw-total\n"
+         "  (keyword-apply/dict sum (hash) 20 '(22)))\n"
+         "(define vector-key-ok ((dict-key-contract '#(a b)) 1))\n"
+         "(define value-ok ((dict-value-contract (hash 'a 1)) 'anything))\n"
+         "(define iter-ok ((dict-iter-contract '((a . 1))) (dict-iterate-first '((a . 1)))))\n"
+         "(js-log (if (and vector-key-ok value-ok iter-ok) kw-total 0))\n")))
     "main.rkt"
     #rx"(?m:^42$)"
     '("--no-io-format-provider" "--webracket-module-bridge"))
@@ -818,8 +840,25 @@
          "(js-log (string-append (pretty-format '(1 2) #:mode 'write)\n"
          "                       \"|\"\n"
          "                       (get-output-string out)))\n")))
+   "main.rkt"
+   #rx"(?m:^\\(1 2\\)\\|\\(\"web\" racket\\)$)"
+   '("--no-io-format-provider" "--webracket-module-bridge"))
+   (dashboard-case
+    'installed-racket-pretty-style-coverage
+    'installed-provider-coverage
+    '(racket/pretty)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/base\n"
+         "(require racket/pretty)\n"
+         "(define table (pretty-print-extend-style-table #f '(lambda) '(lambda)))\n"
+         "(define out (open-output-string))\n"
+         "(pretty-print-newline out 0)\n"
+         "(js-log (+ (if (pretty-print-style-table? table) 20 0)\n"
+         "           (string-length (get-output-string out))\n"
+         "           (if (procedure? (pretty-print-remap-stylable)) 21 0)))\n")))
     "main.rkt"
-    #rx"(?m:^\\(1 2\\)\\|\\(\"web\" racket\\)$)"
+    #rx"(?m:^42$)"
     '("--no-io-format-provider" "--webracket-module-bridge"))
    (dashboard-case
     'real-racket-pretty-diagnostic
@@ -995,6 +1034,23 @@
          "    [(list 'point #t #t) (+ (hash-ref h 'x) (hash-ref h 'y))]\n"
          "    [_ 0]))\n"
          "(js-log (~a score))\n")))
+   "main.rkt"
+   #rx"(?m:^42$)"
+   '("--no-io-format-provider"))
+   (dashboard-case
+    'goal1-dict-pretty-sequence-composition
+    'installed-provider-coverage
+    '(webracket/full racket/list racket/dict racket/pretty racket/sequence racket/format
+      webracket/list webracket/dict webracket/pretty webracket/sequence webracket/format)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/full\n"
+         "(require racket/list racket/dict racket/pretty racket/sequence racket/format)\n"
+         "(define d (for/hash ([x (in-list (range 1 4))]) (values x (* x 10))))\n"
+         "(define mapped (dict-map d (lambda (k v) v)))\n"
+         "(define odd-count (sequence-count odd? '(1 2 3 4)))\n"
+         "(define rendered (pretty-format mapped #:mode 'write))\n"
+         "(js-log (+ 27 (length mapped) odd-count (string-length (~a rendered))))\n")))
     "main.rkt"
     #rx"(?m:^42$)"
     '("--no-io-format-provider"))
@@ -1319,6 +1375,22 @@
          "           (length value-lists) (length values-star-a) (length values-star-b)\n"
          "           (length before) (length after)\n"
          "           -434))\n")))
+   "main.rkt"
+   #rx"(?m:^42$)"
+   '("--no-io-format-provider" "--webracket-module-bridge"))
+   (dashboard-case
+    'base-sequence-add-between-lazy
+    'installed-provider-coverage
+    '(racket/sequence webracket/sequence)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/base\n"
+         "(require racket/sequence)\n"
+         "(define xs\n"
+         "  (for/list ([x (sequence-add-between (in-cycle '(10)) 1)]\n"
+         "             [i (in-range 5)])\n"
+         "    x))\n"
+         "(js-log (+ (apply + xs) 10))\n")))
     "main.rkt"
     #rx"(?m:^42$)"
     '("--no-io-format-provider" "--webracket-module-bridge"))

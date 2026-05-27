@@ -245,15 +245,29 @@
              #f))))
 
 ;; sequence-add-between : sequence? any/c -> sequence?
-;;   Return a finite sequence with e inserted between seq's elements.
+;;   Lazily return seq's elements with e inserted between each pair.
 (define (sequence-add-between seq e)
   (check-sequence-helper 'sequence-add-between seq)
-  (define xs (sequence->list seq))
-  (let loop ([xs xs])
-    (cond
-      [(null? xs) null]
-      [(null? (cdr xs)) xs]
-      [else (cons (car xs) (cons e (loop (cdr xs))))])))
+  (make-do-sequence
+   (lambda ()
+     (define-values (more? next) (sequence-generate seq))
+     (define (read-next)
+       (and (more?) (cons 'value (call-with-values next list))))
+     (define first (read-next))
+     (values (lambda (state)
+               (if (eq? (car state) 'between)
+                   e
+                   (apply values (cdr state))))
+             (lambda (state)
+               (cond
+                 [(eq? (car state) 'between) (cdr state)]
+                 [else
+                  (define next-state (read-next))
+                  (and next-state (cons 'between next-state))]))
+             first
+             values
+             #f
+             #f))))
 
 ;; in-slice : exact-positive-integer? sequence? -> sequence?
 ;;   Group seq into lists of length n; the final group may be shorter.

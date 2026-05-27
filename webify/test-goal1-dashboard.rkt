@@ -326,16 +326,20 @@
                          full-path-coverage
                          full-match-coverage
                          base-for-nested-control-coverage
+                         goal1-dict-pretty-sequence-composition
                          base-sequence-coverage
+                         base-sequence-add-between-lazy
                          full-sequence-coverage
                          full-file-coverage
                          installed-racket-pretty-coverage
+                         installed-racket-pretty-style-coverage
                          full-set-coverage
                          full-promise-coverage
                          full-stream-lazy
                          full-stream-coverage
                          installed-racket-hash-coverage
                          installed-racket-dict-coverage
+                         installed-racket-dict-extra-coverage
                          installed-racket-file-coverage
                          installed-data-queue-coverage
                          installed-racket-logging-coverage

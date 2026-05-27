@@ -68,6 +68,9 @@ runtime services.
   single-value sequences needed by current `racket/dict` Goal 1 programs, but
   generic `prop:dict`, contracted dictionaries, chaperone/impersonator behavior,
   and Racket's full two-value `in-dict` sequence are postponed.
+  `keyword-apply/dict` is exported for provider compatibility, but only the
+  empty-keyword-dictionary path is implemented until WebRacket has
+  `keyword-apply` runtime support.
 
 ## Routing Rule
 
@@ -184,6 +187,8 @@ remaining compatibility notes are:
   internal `prop:gen-sequence`/`do-sequence` surface needed by installed
   provider code. `in-directory` is implemented through WebRacket's virtual
   filesystem-backed `directory-list`, `directory-exists?`, and path primitives.
+  `sequence-add-between` is lazy, so it works with infinite producers such as
+  `in-cycle` when a surrounding `for` clause bounds consumption.
   `in-files`/`in-glob`, flvector/fxvector sequences, weak/ephemeron hash
   sequence variants, original stream internals, custom sequence syntax, and
   some advanced sequence combinators remain later work.
@@ -215,9 +220,10 @@ remaining compatibility notes are:
   `pretty-format`, `pretty-print`, `pretty-write`, `pretty-display`,
   `pretty-print-handler`, `pretty-print-newline`, and the basic pretty-printing
   parameters are available. The parameters are accepted for provider
-  compatibility; graph-sensitive layout, hooks with real pretty-port
-  integration, tentative pretty-print ports, and the full pretty writer remain
-  later IO/printing work. The `real-racket-pretty-diagnostic` row disables
+  compatibility; style-table extension and the basic newline helper are covered,
+  but graph-sensitive layout, hooks with real pretty-port integration,
+  tentative pretty-print ports, and the full pretty writer remain later
+  IO/printing work. The `real-racket-pretty-diagnostic` row disables
   substitutions and currently fails on `transplant-output-port.1`, which points
   at the real pretty-port subsystem rather than the small public pretty API.
 - `racket/file` routes to staged `webracket/file`. Treat it as a virtual
