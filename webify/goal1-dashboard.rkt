@@ -109,6 +109,7 @@
     full-math-coverage
     full-path-coverage
     full-match-coverage
+    goal1-real-library-composition
     base-sequence-core
     base-sequence-producers
     base-sequence-real-libraries
@@ -126,9 +127,11 @@
     full-set-coverage
     full-promise-coverage
     full-stream-lazy
+    full-stream-lazy-map
     full-stream-coverage
     full-file-coverage
     installed-racket-format-coverage
+    installed-racket-format-printing
     regexp-provider-coverage))
 
 ;; goal1-dashboard-coverage-extended-case-names : (listof symbol?)
@@ -727,6 +730,31 @@
     #rx"(?m:^42$)"
     '("--no-io-format-provider"))
    (dashboard-case
+    'goal1-real-library-composition
+    'installed-provider-coverage
+    '(webracket/full racket/string racket/hash racket/set racket/function racket/format
+      webracket/string webracket/hash webracket/set webracket/function webracket/format)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/full\n"
+         "(require racket/string racket/hash racket/set racket/function racket/format)\n"
+         "(define xs '(2 4 6))\n"
+         "(define labels (map ~a xs))\n"
+         "(define joined (string-join labels \":\"))\n"
+         "(define ht (hash-union (hash 'count (length xs))\n"
+         "                       (hash 'len (string-length joined))))\n"
+         "(define s (for/set ([x (in-list xs)]\n"
+         "                   #:when ((conjoin even? positive?) x))\n"
+         "            x))\n"
+         "(define score\n"
+         "  (+ (hash-ref ht 'count)\n"
+         "     (hash-ref ht 'len)\n"
+         "     (set-count s)))\n"
+         "(js-log (+ score 31))\n")))
+    "main.rkt"
+    #rx"(?m:^42$)"
+    '("--no-io-format-provider"))
+   (dashboard-case
     'full-sequence-for
     'installed-provider-graph
     '(racket/sequence)
@@ -1232,6 +1260,29 @@
     #rx"(?m:^42$)"
     '("--no-io-format-provider"))
    (dashboard-case
+    'full-stream-lazy-map
+    'installed-provider-coverage
+    '(webracket/stream)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/full\n"
+         "(define count 0)\n"
+         "(define s\n"
+         "  (stream-map (lambda (x)\n"
+         "                (set! count (+ count 1))\n"
+         "                (+ x 1))\n"
+         "              (stream 10 20 (error 'stream \"forced too early\"))))\n"
+         "(define first-before count)\n"
+         "(define first-value (stream-first s))\n"
+         "(define first-after count)\n"
+         "(define filtered\n"
+         "  (stream-filter even? (stream-map add1 (stream 1 2 3 4))))\n"
+         "(define filtered-sum (for/sum ([x (in-stream filtered)]) x))\n"
+         "(js-log (+ first-before first-value first-after filtered-sum 24))\n")))
+    "main.rkt"
+    #rx"(?m:^42$)"
+    '("--no-io-format-provider"))
+   (dashboard-case
     'full-stream-coverage
     'installed-provider-coverage
     '(webracket/stream)
@@ -1380,6 +1431,20 @@
          "                       (~v '(1 2))))\n")))
     "main.rkt"
     #rx"(?m:^web\\|\"racket\"\\|\\(1 2\\)$)"
+    '("--no-io-format-provider" "--webracket-module-bridge"))
+   (dashboard-case
+    'installed-racket-format-printing
+    'installed-provider-coverage
+    '(racket/format racket/contract/base)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/base\n"
+         "(require racket/format)\n"
+         "(define text\n"
+         "  (format \"~a|~s|~v\" \"a b\" \"a b\" '(\"a b\" 2)))\n"
+         "(js-log (+ (string-length text) 22))\n")))
+    "main.rkt"
+    #rx"(?m:^41$)"
     '("--no-io-format-provider" "--webracket-module-bridge"))
    (dashboard-case
     'installed-data-queue-contract

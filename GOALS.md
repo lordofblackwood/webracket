@@ -379,6 +379,14 @@ Current installed-extraction runtime smokes cover:
   `--timings` through to WebRacket children and prints `probe-elapsed-ms`, so
   we can distinguish extraction/composition/compile/assembly/runtime cost from
   a real semantic failure.
+- The compact dashboard's fast required preset currently passes under bounded
+  runs. Remaining Goal 1 work should therefore be driven by coverage rows, not
+  by the basic module route. The useful failure taxonomy is:
+  `provider-graph-failed` for allowlist/provider substitutions, `primitive-gap`
+  for missing runtime/compiler primitives, `unbound` for module-surface holes,
+  `output-mismatch` for semantic drift, and `timeout`/memory pressure for
+  compile-time scale problems. When a coverage row fails, add a smaller focused
+  probe before changing staged providers.
 - Primitive/predefined module roots such as `#%kernel`, `#%runtime`, and
   `webracket/primitives` are centralized in `webify/primitive-modules.rkt`.
   The composer, registry, module input validator, and primitive-demand scanner
@@ -475,7 +483,11 @@ Current installed-extraction runtime smokes cover:
   separate rows so we can see which gap moves. Generator support remains a
   later continuation/prompt milestone, not a Goal 1 requirement.
 - `racket/match`: a basic list pattern, a default branch, `match-let`, and a
-  predicate pattern are tracked in the Goal 1 matrix.
+  predicate pattern are tracked in the Goal 1 matrix. Match syntax is covered
+  through `webracket/full`; explicit `(require racket/match)` under the
+  temporary `#lang webracket/base` provider bridge still needs a separate
+  allowlist/provider-graph milestone for `racket/match/runtime` and
+  `racket/match/gen-match`.
 - `racket/class`: a basic object with a public method.
 - `racket/function`: `compose`, `identity`, `compose1`, `negate`, and `const`.
   The representative `function-compose` module case passes the runtime probe.
@@ -495,8 +507,16 @@ provides contract-free `format`, `fprintf`, `printf`, `eprintf`, and common
 `~a`/`~s`/`~v`/`~e`/dotted formatter paths. The shim intentionally implements a
 small formatter for the Goal 1 module surface instead of extracting installed
 `racket/format`, whose expansion pulls a larger contract/location provider
-cluster. Full numeric `~r` and complete print-convention fidelity remain staged
-`io/format` follow-up work.
+cluster. Full numeric `~r`, complete print-convention fidelity, and the exact
+Racket `~v` quoting convention for compound data remain staged `io/format`
+follow-up work.
+
+After the current sequence/format/stream pressure rows, the next must-have
+library to complete should be `racket/format`/printing rather than
+`racket/stream`. Stream support is now adequate for finite Goal 1 programs and
+has laziness pressure rows; formatting affects examples, diagnostics, exception
+messages, and most user-visible output, so semantic mismatches there are more
+expensive.
 
 `racket/logging` now has a required compact dashboard row for the current
 Goal 1 surface. The row verifies the installed provider graph can expose
