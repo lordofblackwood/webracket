@@ -193,11 +193,13 @@
   (check-not-false
    (member 'installed-racket-list-edge-coverage goal1-dashboard-coverage-core-case-names))
   (check-not-false
+   (member 'installed-racket-list-easy-coverage goal1-dashboard-coverage-core-case-names))
+  (check-not-false
    (member 'goal1-base-sort-keywords goal1-dashboard-coverage-core-case-names))
+  (check-not-false
+   (member 'goal1-vector-sort-keywords goal1-dashboard-coverage-core-case-names))
   (check-false
    (member 'generator-real-diagnostic goal1-dashboard-coverage-core-case-names))
-  (check-false
-   (member 'vector-sort-keyword-diagnostic goal1-dashboard-coverage-core-case-names))
   (check-not-false
    (member 'ffi-js-console-coverage goal1-dashboard-coverage-extended-case-names))
   (check-not-false
@@ -302,6 +304,7 @@
   (for ([name (in-list '(installed-racket-list-coverage
                          installed-racket-list-shim-coverage
                          installed-racket-list-edge-coverage
+                         installed-racket-list-easy-coverage
                          installed-racket-string-coverage
                          installed-racket-string-join
                          full-bytes-coverage
@@ -333,6 +336,7 @@
                          goal1-full-callable-exports
                          goal1-full-list-surface
                          goal1-base-sort-keywords
+                         goal1-vector-sort-keywords
                          ffi-js-math-coverage
                          ffi-js-console-coverage
                          regexp-provider-coverage))])

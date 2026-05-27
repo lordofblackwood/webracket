@@ -43,8 +43,8 @@
          racket/shared
          (except-in racket/string string-append* string-join)
          (only-in "../string.rkt" string-append* string-join)
-         (except-in racket/vector vector-member)
-         (only-in "../primitives.rkt" identity sort)
+         (except-in racket/vector vector-member vector-sort vector-sort!)
+         (only-in "../primitives.rkt" identity sort vector-sort vector-sort!)
          "../contract.rkt"
          (except-in "../format.rkt" format fprintf printf eprintf)
          (rename-in "../format.rkt"
@@ -134,6 +134,8 @@
          (all-from-out racket/vector)
          identity
          vector-member
+         vector-sort
+         vector-sort!
          (all-from-out "../contract.rkt")
          ~a
          ~s

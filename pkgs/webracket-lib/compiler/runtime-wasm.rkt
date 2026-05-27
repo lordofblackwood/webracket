@@ -37252,6 +37252,145 @@
               ;; Sort the copy and return it
               (call $vector-sort!
                     (local.get $copy) (local.get $proc) (global.get $missing) (global.get $missing)))
+
+        (func $vector-sort/expanded-keywords (type $Prim6)
+              (param $v           (ref eq)) ; vector to sort
+              (param $proc        (ref eq)) ; less-than? procedure
+              (param $kw-key      (ref eq)) ; expanded #:key marker
+              (param $key-proc    (ref eq)) ; key procedure or #f
+              (param $kw-cache    (ref eq)) ; expanded #:cache-keys? marker
+              (param $cache-keys? (ref eq)) ; accepted for compatibility
+              (result             (ref eq))
+
+              (local $xs        (ref eq))
+              (local $sorted-xs (ref eq))
+
+              ;; Support the common keyword path by sorting a vector slice as a
+              ;; list with the existing `sort` keyword implementation.
+              (if (ref.eq (local.get $key-proc) (global.get $false))
+                  (then
+                   (return_call $vector-sort
+                                (local.get $v)
+                                (local.get $proc)
+                                (global.get $missing)
+                                (global.get $missing))))
+              (local.set $xs
+                         (call $vector->list
+                               (call $vector-copy
+                                     (local.get $v)
+                                     (global.get $missing)
+                                     (global.get $missing))))
+              (local.set $sorted-xs
+                         (call $sort/expanded-keywords
+                               (local.get $xs)
+                               (local.get $proc)
+                               (local.get $kw-key)
+                               (local.get $key-proc)
+                               (local.get $kw-cache)
+                               (local.get $cache-keys?)))
+              (call $list->vector (local.get $sorted-xs)))
+
+        (func $vector-sort!/expanded-keywords (type $Prim6)
+              (param $v           (ref eq)) ; vector to sort in place
+              (param $proc        (ref eq)) ; less-than? procedure
+              (param $kw-key      (ref eq)) ; expanded #:key marker
+              (param $key-proc    (ref eq)) ; key procedure or #f
+              (param $kw-cache    (ref eq)) ; expanded #:cache-keys? marker
+              (param $cache-keys? (ref eq)) ; accepted for compatibility
+              (result             (ref eq))
+
+              (local $sorted (ref eq))
+
+              ;; The keyword bridge covers the whole-vector case. Optional
+              ;; start/end plus keywords can be added with a wider invoker when
+              ;; Goal 1 needs that surface.
+              (if (ref.eq (local.get $key-proc) (global.get $false))
+                  (then
+                   (return_call $vector-sort!
+                                (local.get $v)
+                                (local.get $proc)
+                                (global.get $missing)
+                                (global.get $missing))))
+              (local.set $sorted
+                         (call $vector-sort/expanded-keywords
+                               (local.get $v)
+                               (local.get $proc)
+                               (local.get $kw-key)
+                               (local.get $key-proc)
+                               (local.get $kw-cache)
+                               (local.get $cache-keys?)))
+              (return_call $vector-copy!
+                           (local.get $v)
+                           (ref.i31 (i32.const 0))
+                           (local.get $sorted)
+                           (global.get $missing)
+                           (global.get $missing)))
+
+        (func $vector-sort/keyword-apply (type $Prim4)
+              (param $kws      (ref eq)) ; sorted keyword list from keyword-procedure-extract
+              (param $kw-args  (ref eq)) ; parallel keyword value list
+              (param $v        (ref eq)) ; vector to sort
+              (param $proc     (ref eq)) ; less-than? procedure
+              (result          (ref eq))
+
+              (local $arg-cell     (ref $Pair))
+              (local $arg-rest     (ref eq))
+              (local $second-cell  (ref $Pair))
+              (local $key-proc     (ref eq))
+              (local $cache-keys?  (ref eq))
+
+              ;; Like the `sort` bridge, this accepts the sorted
+              ;; #:cache-keys?/#:key shape produced by keyword extraction.
+              (local.set $key-proc    (global.get $false))
+              (local.set $cache-keys? (global.get $false))
+              (if (ref.test (ref $Pair) (local.get $kw-args))
+                  (then
+                   (local.set $arg-cell (ref.cast (ref $Pair) (local.get $kw-args)))
+                   (local.set $cache-keys? (struct.get $Pair $a (local.get $arg-cell)))
+                   (local.set $arg-rest (struct.get $Pair $d (local.get $arg-cell)))
+                   (if (ref.test (ref $Pair) (local.get $arg-rest))
+                       (then
+                        (local.set $second-cell (ref.cast (ref $Pair) (local.get $arg-rest)))
+                        (local.set $key-proc (struct.get $Pair $a (local.get $second-cell)))))))
+              (return_call $vector-sort/expanded-keywords
+                           (local.get $v)
+                           (local.get $proc)
+                           (global.get $missing)
+                           (local.get $key-proc)
+                           (global.get $missing)
+                           (local.get $cache-keys?)))
+
+        (func $vector-sort!/keyword-apply (type $Prim4)
+              (param $kws      (ref eq)) ; sorted keyword list from keyword-procedure-extract
+              (param $kw-args  (ref eq)) ; parallel keyword value list
+              (param $v        (ref eq)) ; vector to sort in place
+              (param $proc     (ref eq)) ; less-than? procedure
+              (result          (ref eq))
+
+              (local $arg-cell     (ref $Pair))
+              (local $arg-rest     (ref eq))
+              (local $second-cell  (ref $Pair))
+              (local $key-proc     (ref eq))
+              (local $cache-keys?  (ref eq))
+
+              (local.set $key-proc    (global.get $false))
+              (local.set $cache-keys? (global.get $false))
+              (if (ref.test (ref $Pair) (local.get $kw-args))
+                  (then
+                   (local.set $arg-cell (ref.cast (ref $Pair) (local.get $kw-args)))
+                   (local.set $cache-keys? (struct.get $Pair $a (local.get $arg-cell)))
+                   (local.set $arg-rest (struct.get $Pair $d (local.get $arg-cell)))
+                   (if (ref.test (ref $Pair) (local.get $arg-rest))
+                       (then
+                        (local.set $second-cell (ref.cast (ref $Pair) (local.get $arg-rest)))
+                        (local.set $key-proc (struct.get $Pair $a (local.get $second-cell)))))))
+              (return_call $vector-sort!/expanded-keywords
+                           (local.get $v)
+                           (local.get $proc)
+                           (global.get $missing)
+                           (local.get $key-proc)
+                           (global.get $missing)
+                           (local.get $cache-keys?)))
             
             
         ;;;
@@ -57172,6 +57311,8 @@
               (ref.func $invoke-reduced-procedure)
               (ref.func $invoke-composed-procedure)
               (ref.func $sort/keyword-apply)
+              (ref.func $vector-sort/keyword-apply)
+              (ref.func $vector-sort!/keyword-apply)
               (ref.func $code:case-lambda-dispatch)
               (ref.func $invoke-case-closure)
               (ref.func $default-error-syntax->name-handler)
@@ -59260,6 +59401,30 @@
                                       (global.get $the-racket/primitive-realm)
                                       (ref.func $primitive-invoke:shape-4)
                                       (ref.func $sort/keyword-apply)
+                                      (global.get $false)))))
+                    (if (ref.eq (struct.get $PrimitiveProcedure $name (local.get $primitive))
+                                (global.get $symbol:vector-sort))
+                        (then
+                         (return
+                          (struct.new $PrimitiveProcedure
+                                      (i32.const 0)
+                                      (global.get $symbol:vector-sort)
+                                      (ref.i31 (i32.const 8))
+                                      (global.get $the-racket/primitive-realm)
+                                      (ref.func $primitive-invoke:shape-4)
+                                      (ref.func $vector-sort/keyword-apply)
+                                      (global.get $false)))))
+                    (if (ref.eq (struct.get $PrimitiveProcedure $name (local.get $primitive))
+                                (global.get $symbol:vector-sort!))
+                        (then
+                         (return
+                          (struct.new $PrimitiveProcedure
+                                      (i32.const 0)
+                                      (global.get $symbol:vector-sort!)
+                                      (ref.i31 (i32.const 8))
+                                      (global.get $the-racket/primitive-realm)
+                                      (ref.func $primitive-invoke:shape-4)
+                                      (ref.func $vector-sort!/keyword-apply)
                                       (global.get $false)))))))
 
                (if (i32.eqz (ref.test (ref $Struct) (local.get $v)))

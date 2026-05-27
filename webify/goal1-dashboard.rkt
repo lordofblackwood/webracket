@@ -101,6 +101,7 @@
   '(installed-racket-list-coverage
     installed-racket-list-shim-coverage
     installed-racket-list-edge-coverage
+    installed-racket-list-easy-coverage
     installed-racket-string-coverage
     installed-racket-string-join
     full-bytes-coverage
@@ -119,6 +120,7 @@
     goal1-full-callable-exports
     goal1-full-list-surface
     goal1-base-sort-keywords
+    goal1-vector-sort-keywords
     base-sequence-core
     base-sequence-producers
     base-sequence-real-libraries
@@ -450,6 +452,40 @@
          "           remove-score\n"
          "           last-score\n"
          "           -47))\n")))
+    "main.rkt"
+    #rx"(?m:^42$)"
+    '("--no-io-format-provider" "--webracket-module-bridge"))
+   (dashboard-case
+    'installed-racket-list-easy-coverage
+    'installed-provider-coverage
+    '(racket/list webracket/list)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/base\n"
+         "(require racket/list)\n"
+         "(define xs '(1 2 3 4 5))\n"
+         "(define odds (filter-not even? xs))\n"
+         "(define flattened (flatten '((1) (2 . 3) () 4)))\n"
+         "(define-values (taken dropped) (splitf-at xs (lambda (x) (< x 4))))\n"
+         "(define-values (kept-right tail-right) (splitf-at-right xs (lambda (x) (> x 3))))\n"
+         "(define idxs (indexes-where xs odd?))\n"
+         "(define rem1 (remf even? xs))\n"
+         "(define rem2 (remf* odd? xs))\n"
+         "(js-log (+ (count odd? xs)\n"
+         "           (apply + odds)\n"
+         "           (apply + flattened)\n"
+         "           (length taken)\n"
+         "           (first dropped)\n"
+         "           (length kept-right)\n"
+         "           (apply + tail-right)\n"
+         "           (index-of xs 4)\n"
+         "           (index-where xs (lambda (x) (= x 5)))\n"
+         "           (apply + idxs)\n"
+         "           (apply + rem1)\n"
+         "           (apply + rem2)\n"
+         "           (length (append* '((1) (2 3))))\n"
+         "           (if (empty? empty) 1 0)\n"
+         "           -35))\n")))
     "main.rkt"
     #rx"(?m:^42$)"
     '("--no-io-format-provider" "--webracket-module-bridge"))
@@ -1312,20 +1348,21 @@
     #:tier 'coverage
     #:expectation 'diagnostic)
    (dashboard-case
-    'vector-sort-keyword-diagnostic
-    'installed-provider-diagnostic
+    'goal1-vector-sort-keywords
+    'installed-provider-coverage
     '(racket/vector)
     `(("main.rkt" .
        ,(string-append
          "#lang webracket/full\n"
          "(define v (vector '(3) '(1) '(2)))\n"
-         "(define sorted (vector-sort v < #:key car))\n"
-         "(js-log (+ (car (vector-ref sorted 0)) 41))\n")))
+         "(define sorted (vector-sort v < #:key car #:cache-keys? #t))\n"
+         "(vector-sort! v < #:key car #:cache-keys? #t)\n"
+         "(js-log (+ (car (vector-ref sorted 0))\n"
+         "           (car (vector-ref v 0))\n"
+         "           40))\n")))
     "main.rkt"
     #rx"(?m:^42$)"
-    '("--no-io-format-provider")
-    #:tier 'coverage
-    #:expectation 'diagnostic)
+    '("--no-io-format-provider"))
    (dashboard-case
     'full-set
     'language-staged-provider

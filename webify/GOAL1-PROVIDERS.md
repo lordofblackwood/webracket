@@ -36,10 +36,12 @@ runtime services.
   It is deliberately a staged provider now because installed `racket/list`
   still brings provider-graph and alias shapes that are heavier than Goal 1
   needs. Covered exports include selectors, folds/maps, `filter-map`,
-  `append-map`, `partition`, `take`/`drop`/`split-at`, membership/association
-  helpers, `remove`/`remove*`, and `range`/`inclusive-range`. Missing installed
-  exports are classified below; the current `range` implementation rejects a
-  zero step instead of attempting to construct Racket's non-terminating list.
+  `append-map`, `append*`, `count`, `filter-not`, `partition`,
+  `take`/`drop`/`split-at`, `takef`/`dropf`/`splitf-at`, membership/indexing
+  helpers, `remove`/`remove*`/`remf`/`remf*`, `flatten`, and
+  `range`/`inclusive-range`. Missing installed exports are classified below;
+  the current `range` implementation rejects a zero step instead of attempting
+  to construct Racket's non-terminating list.
 - `webracket/set`: hash-backed set operations. Contracts, generics,
   chaperones, and impersonators are postponed.
 - `webracket/promise`: ordinary promise caching for browser programs. Advanced
@@ -82,13 +84,9 @@ staged list surface instead of the installed provider.
 
 ## `racket/list` Export Audit
 
-The current installed-vs-staged audit shows 62 installed phase-0 exports and 52
+The current installed-vs-staged audit shows 62 installed phase-0 exports and 70
 staged exports. Missing installed exports are grouped as follows:
 
-- Needed soon and easy shims: `append*`, `count`, `empty`, `empty?`,
-  `filter-not`, `flatten`, `index-of`, `index-where`, `indexes-of`,
-  `indexes-where`, `remf`, `remf*`, `splitf-at`, `splitf-at-right`, `takef`,
-  `takef-right`, `dropf`, and `dropf-right`.
 - Larger pure-list shims: `argmax`, `argmin`, `cartesian-product`,
   `combinations`, `permutations`, `in-combinations`, `in-permutations`,
   `group-by`, `list-prefix?`, `take-common-prefix`, `drop-common-prefix`,

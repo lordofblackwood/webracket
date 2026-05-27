@@ -18,6 +18,7 @@
          length
          reverse
          append
+         append*
          map
          andmap
          ormap
@@ -25,17 +26,27 @@
          foldl
          foldr
          filter
+         filter-not
          filter-map
          append-map
+         count
          partition
          take
          drop
          split-at
+         takef
+         dropf
+         splitf-at
          take-right
          drop-right
          split-at-right
+         takef-right
+         dropf-right
+         splitf-at-right
          remove
          remove*
+         remf
+         remf*
          remq
          remv
          remw
@@ -50,6 +61,13 @@
          assv
          make-list
          build-list
+         empty
+         empty?
+         flatten
+         index-of
+         index-where
+         indexes-of
+         indexes-where
          range
          inclusive-range)
 
@@ -59,6 +77,8 @@
 
 (define first car)
 (define rest cdr)
+(define empty null)
+(define empty? null?)
 (define (second xs) (list-ref xs 1))
 (define (third xs) (list-ref xs 2))
 (define (fourth xs) (list-ref xs 3))
@@ -108,6 +128,29 @@
 (define (append-map f . xss)
   (apply append (apply map f xss)))
 
+;; append* : list? ... list? -> list?
+;;   Append a list of lists, optionally preceded by lists.
+(define (append* . xss)
+  (cond
+    [(null? xss) null]
+    [(null? (cdr xss)) (apply append (car xss))]
+    [else (apply append (append (take xss (sub1 (length xss)))
+                                (last xss)))]))
+
+;; count : procedure? list? ... -> exact-nonnegative-integer?
+;;   Count tuples for which f returns a true value.
+(define (count f . xss)
+  (let loop ([xss xss] [n 0])
+    (cond
+      [(ormap null? xss) n]
+      [(apply f (map car xss)) (loop (map cdr xss) (add1 n))]
+      [else (loop (map cdr xss) n)])))
+
+;; filter-not : (any/c -> any/c) list? -> list?
+;;   Keep elements for which pred returns #f.
+(define (filter-not pred xs)
+  (filter (lambda (x) (not (pred x))) xs))
+
 ;; partition : (any/c -> any/c) list? -> (values list? list?)
 ;;   Split xs according to pred, applying pred once per element.
 (define (partition pred xs)
@@ -136,6 +179,28 @@
 (define (split-at xs n)
   (values (take xs n) (drop xs n)))
 
+;; takef : any/c procedure? -> list?
+;;   Take leading pair-chain elements while pred returns true.
+(define (takef xs pred)
+  (let loop ([xs xs] [acc null])
+    (cond
+      [(not (pair? xs)) (reverse acc)]
+      [(pred (car xs)) (loop (cdr xs) (cons (car xs) acc))]
+      [else (reverse acc)])))
+
+;; dropf : any/c procedure? -> any/c
+;;   Drop leading pair-chain elements while pred returns true.
+(define (dropf xs pred)
+  (cond
+    [(not (pair? xs)) xs]
+    [(pred (car xs)) (dropf (cdr xs) pred)]
+    [else xs]))
+
+;; splitf-at : any/c procedure? -> (values list? any/c)
+;;   Split xs at the first element for which pred returns #f.
+(define (splitf-at xs pred)
+  (values (takef xs pred) (dropf xs pred)))
+
 ;; take-right : list? exact-nonnegative-integer? -> list?
 ;;   Return the final n elements of xs.
 (define (take-right xs n)
@@ -150,6 +215,21 @@
 ;;   Split xs before the final n elements.
 (define (split-at-right xs n)
   (values (drop-right xs n) (take-right xs n)))
+
+;; takef-right : list? procedure? -> list?
+;;   Keep the longest suffix whose elements satisfy pred.
+(define (takef-right xs pred)
+  (reverse (takef (reverse xs) pred)))
+
+;; dropf-right : list? procedure? -> list?
+;;   Drop the longest suffix whose elements satisfy pred.
+(define (dropf-right xs pred)
+  (reverse (dropf (reverse xs) pred)))
+
+;; splitf-at-right : list? procedure? -> (values list? list?)
+;;   Split xs before the longest suffix whose elements satisfy pred.
+(define (splitf-at-right xs pred)
+  (values (dropf-right xs pred) (takef-right xs pred)))
 
 ;; remove : any/c list? [procedure?] -> list?
 ;;   Remove the first element matching v. The comparator defaults to equal?.
@@ -172,6 +252,26 @@
        (loop (cdr xs) acc #t)]
       [else
        (loop (cdr xs) (cons (car xs) acc) removed?)])))
+
+;; remf : procedure? list? -> list?
+;;   Remove the first element for which pred returns true.
+(define (remf pred xs)
+  (define original xs)
+  (let loop ([xs xs] [acc null])
+    (cond
+      [(null? xs) original]
+      [(pred (car xs)) (append (reverse acc) (cdr xs))]
+      [else (loop (cdr xs) (cons (car xs) acc))])))
+
+;; remf* : procedure? list? -> list?
+;;   Remove every element for which pred returns true.
+(define (remf* pred xs)
+  (define original xs)
+  (let loop ([xs xs] [acc null] [removed? #f])
+    (cond
+      [(null? xs) (if removed? (reverse acc) original)]
+      [(pred (car xs)) (loop (cdr xs) acc #t)]
+      [else (loop (cdr xs) (cons (car xs) acc) removed?)])))
 
 (define (remq v xs) (remove v xs eq?))
 (define (remv v xs) (remove v xs eqv?))
@@ -212,6 +312,34 @@
 (define (assq v xs) (assoc v xs eq?))
 (define (assv v xs) (assoc v xs eqv?))
 
+;; index-where : list? procedure? -> (or/c exact-nonnegative-integer? #f)
+;;   Return the first index whose element satisfies pred.
+(define (index-where xs pred)
+  (let loop ([xs xs] [i 0])
+    (cond
+      [(null? xs) #f]
+      [(pred (car xs)) i]
+      [else (loop (cdr xs) (add1 i))])))
+
+;; index-of : list? any/c [procedure?] -> (or/c exact-nonnegative-integer? #f)
+;;   Return the first index whose element matches v.
+(define (index-of xs v [same? equal?])
+  (index-where xs (lambda (x) (same? v x))))
+
+;; indexes-where : list? procedure? -> (listof exact-nonnegative-integer?)
+;;   Return every index whose element satisfies pred.
+(define (indexes-where xs pred)
+  (let loop ([xs xs] [i 0] [acc null])
+    (cond
+      [(null? xs) (reverse acc)]
+      [(pred (car xs)) (loop (cdr xs) (add1 i) (cons i acc))]
+      [else (loop (cdr xs) (add1 i) acc)])))
+
+;; indexes-of : list? any/c [procedure?] -> (listof exact-nonnegative-integer?)
+;;   Return every index whose element matches v.
+(define (indexes-of xs v [same? equal?])
+  (indexes-where xs (lambda (x) (same? v x))))
+
 ;; make-list : exact-nonnegative-integer? any/c -> list?
 ;;   Construct a list of n copies of v.
 (define (make-list n v)
@@ -227,6 +355,14 @@
     (cond
       [(= i n) (reverse acc)]
       [else (loop (add1 i) (cons (f i) acc))])))
+
+;; flatten : any/c -> list?
+;;   Flatten pair trees, omitting null leaves.
+(define (flatten v)
+  (cond
+    [(null? v) null]
+    [(pair? v) (append (flatten (car v)) (flatten (cdr v)))]
+    [else (list v)]))
 
 ;; range : real? [real?] [real?] -> list?
 ;;   Build a list like `in-range`; step defaults to 1 and start defaults to 0.
