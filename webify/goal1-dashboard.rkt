@@ -2215,11 +2215,29 @@
         1)
       0))
 
+;; max-dashboard-output-scan-chars : exact-positive-integer?
+;;   Bound post-run regex work so huge failure output cannot hang the dashboard.
+(define max-dashboard-output-scan-chars 200000)
+
+;; dashboard-output-scan-sample : string? -> string?
+;;   Keep the beginning and end of a diagnostic stream for bounded scanning.
+(define (dashboard-output-scan-sample output)
+  (define len (string-length output))
+  (cond
+    [(<= len max-dashboard-output-scan-chars) output]
+    [else
+     (define half (quotient max-dashboard-output-scan-chars 2))
+     (string-append
+      (substring output 0 half)
+      "\n... dashboard output omitted ...\n"
+      (substring output (- len half) len))]))
+
 ;; cache-events : string? exact-nonnegative-integer? exact-nonnegative-integer? -> symbol?
 ;;   Summarize provider-cache diagnostics from a dashboard run.
 (define (cache-events output before after)
-  (define hit? (regexp-match? #rx"provider-cache: .* hit" output))
-  (define miss? (regexp-match? #rx"provider-cache: .* miss" output))
+  (define sample (dashboard-output-scan-sample output))
+  (define hit? (regexp-match? #rx"provider-cache: .* hit" sample))
+  (define miss? (regexp-match? #rx"provider-cache: .* miss" sample))
   (cond
     [(and hit? miss?) 'mixed]
     [hit? 'hit]
@@ -2242,24 +2260,26 @@
 ;; classify-detail : exact-integer? string? regexp? -> symbol?
 ;;   Classify a compact dashboard result.
 (define (classify-detail status output expected)
+  (define sample (dashboard-output-scan-sample output))
   (cond
     [(= status 124) 'timeout]
-    [(and (zero? status) (regexp-match? expected output)) 'ok]
+    [(and (zero? status) (regexp-match? expected sample)) 'ok]
     [(zero? status) 'output-mismatch]
-    [(regexp-match? #rx"Skipping temporary stdlib/provider prelude for module-language input" output)
+    [(regexp-match? #rx"Skipping temporary stdlib/provider prelude for module-language input" sample)
      'module-language-prelude-skip-but-failed]
-    [(regexp-match? #rx"external provider is not in the Goal 1 trial allowlist|transitive provider is not in the Goal 1 trial allowlist|unsupported providers|unsupported provider" output)
+    [(regexp-match? #rx"external provider is not in the Goal 1 trial allowlist|transitive provider is not in the Goal 1 trial allowlist|unsupported providers|unsupported provider" sample)
      'provider-graph-failed]
-    [(regexp-match? #px"application: not a procedure;(.|\n)*given:" output)
+    [(and (regexp-match? #rx"application: not a procedure;" sample)
+          (regexp-match? #rx"given:" sample))
      'provider-alias-not-callable]
-    [(regexp-match? #rx"unbound identifier|undefined" output) 'unbound]
+    [(regexp-match? #rx"unbound identifier|undefined" sample) 'unbound]
     [else 'failed]))
 
 ;; output-note : exact-integer? string? -> string?
 ;;   Keep one compact diagnostic line for failed dashboard rows.
 (define (output-note status output)
   (define normalized
-    (string-replace (string-trim output) "\t" " "))
+    (string-replace (string-trim (dashboard-output-scan-sample output)) "\t" " "))
   (cond
     [(string=? normalized "") (format "exit ~a with no output" status)]
     [else
@@ -2315,6 +2335,15 @@
        "provider-cache: cache directory: /tmp/cache\n"
        "foo.rkt:1:0: unbound identifier\n"))
      "foo.rkt:1:0: unbound identifier"))
+
+  (test-case "classify-detail avoids multiline alias backtracking"
+    (define large-output
+      (string-append
+       "application: not a procedure;\n"
+       (make-string (+ max-dashboard-output-scan-chars 1000) #\x)
+       "\ngiven: #f\n"))
+    (check-equal? (classify-detail 1 large-output #rx"42")
+                  'provider-alias-not-callable))
 
   (test-case "real-provider diagnostics are scheduled exclusively"
     (check-true

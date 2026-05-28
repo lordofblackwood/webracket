@@ -1593,6 +1593,27 @@
    (substitution 'racket/private/kw 'webracket/private/kw 'temporary-shim 'high
                  "keyword procedure support is WebRacket-runtime-specific today")))
 
+;; webracket/base-erased-contract-provider-name? : symbol? -> boolean?
+;;   Recognize contract implementation providers that real-provider diagnostics
+;;   should satisfy with WebRacket's erased contract module during extraction.
+(define (webracket/base-erased-contract-provider-name? name)
+  (memq name
+        '(racket/contract
+          racket/contract/base
+          racket/contract/combinator
+          racket/contract/region
+          racket/contract/private/arrow-collapsible
+          racket/contract/private/arrow-common
+          racket/contract/private/arrow-higher-order
+          racket/contract/private/arrow-val-first
+          racket/contract/private/base
+          racket/contract/private/blame
+          racket/contract/private/case-arrow
+          racket/contract/private/guts
+          racket/contract/private/list
+          racket/contract/private/misc
+          racket/contract/private/object-c-wrapper)))
+
 ;; webracket/base-provider-substitution-pairs : (listof (cons/c symbol? symbol?))
 ;;   Pair view of the structured substitution registry.
 (define webracket/base-provider-substitution-pairs
@@ -2113,12 +2134,16 @@
          (make-webify-contract-erasing-module-name-resolver))
        (define (fetch-provider/erased-contracts name)
          (define substitute-name (webracket/base-provider-substitute name))
+         (define extraction-name
+           (if (webracket/base-erased-contract-provider-name? name)
+               'webracket/contract
+               substitute-name))
          (parameterize ([current-namespace provider-namespace]
                         [current-module-name-resolver provider-module-name-resolver])
            (webify-module-report/rename
             (if (eq? fetch-provider webify-module-path->report)
-                (webify-module-path->report substitute-name #:namespace provider-namespace)
-                (fetch-provider substitute-name))
+                (webify-module-path->report extraction-name #:namespace provider-namespace)
+                (fetch-provider extraction-name))
             name)))
        (define provider-cache
          (make-webify-module-provider-cache

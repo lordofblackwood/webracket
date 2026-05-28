@@ -44,6 +44,7 @@
          flat-contract-with-explanation flat-murec-contract flat-named-contract
          flat-rec-contract get/build-late-neg-projection
          get/build-val-first-projection has-blame? has-contract? hash/c hash/dc
+         id-blame id-partially-applied
          if/c impersonator-contract? impersonator-prop:blame
          impersonator-prop:contracted integer-in invariant-assertion keywords-match
          list*of list-contract? list/c listof make-chaperone-contract make-contract
@@ -83,6 +84,10 @@
 (define the-unsupplied-arg '(unsupplied-arg))
 (define unspecified-dom '(unspecified-dom))
 (define contract-continuation-mark-key '(contract-continuation-mark-key))
+(define id-blame '(erased-contract-blame))
+(define (id-partially-applied . _args)
+  (lambda args
+    (if (pair? args) (car args) (void))))
 (define impersonator-prop:blame '(impersonator-prop:blame))
 (define impersonator-prop:contracted '(impersonator-prop:contracted))
 (define prop:arrow-contract '(prop:arrow-contract))

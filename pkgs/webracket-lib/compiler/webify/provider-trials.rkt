@@ -266,8 +266,15 @@
     racket/contract/base
     racket/contract/combinator
     racket/contract/region
+    racket/contract/private/arrow-collapsible
+    racket/contract/private/arrow-common
+    racket/contract/private/arrow-higher-order
+    racket/contract/private/arrow-val-first
+    racket/contract/private/case-arrow
+    racket/contract/private/guts
     racket/contract/private/list
     racket/contract/private/misc
+    racket/contract/private/object-c-wrapper
     racket/fixnum
     racket/flonum
     racket/generator
@@ -280,8 +287,10 @@
     racket/mutable-treelist
     racket/sequence
     racket/private/define-struct
+    racket/private/dict
     racket/private/for
     racket/private/hash
+    racket/private/keyword-apply-dict
     racket/private/kw
     racket/private/list
     racket/private/map
@@ -292,6 +301,7 @@
     racket/private/sequence
     racket/private/serialize-structs
     racket/private/string
+    racket/private/custom-hash
     racket/stream
     racket/treelist
     racket/unsafe/undefined
@@ -355,12 +365,21 @@
     racket/treelist
     racket/vector
     racket/function
+    racket/contract/private/arrow-collapsible
+    racket/contract/private/arrow-common
+    racket/contract/private/arrow-higher-order
+    racket/contract/private/arrow-val-first
+    racket/contract/private/case-arrow
+    racket/contract/private/guts
     racket/contract/private/list
     racket/contract/private/misc
+    racket/contract/private/object-c-wrapper
     racket/fixnum
     racket/flonum
+    racket/private/dict
     racket/private/for
     racket/private/hash
+    racket/private/keyword-apply-dict
     racket/private/kw
     racket/private/list
     racket/private/map
@@ -370,6 +389,7 @@
     racket/private/sequence
     racket/private/serialize-structs
     racket/private/string
+    racket/private/custom-hash
     racket/stream
     racket/unsafe/undefined
     syntax/contract
