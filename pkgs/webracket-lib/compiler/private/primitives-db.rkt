@@ -88,6 +88,7 @@
 (define-primitive add1                                      1                   (pure))
 (define-primitive andmap                                    at-least-2          (ordered partial-foldable))
 (define-primitive append                                    at-least-0          (ordered partial-foldable))
+(define-primitive qq-append                                 2                   (ordered))
 (define-primitive append*                                   at-least-1          (ordered))
 (define-primitive append-map                                at-least-2          (ordered))
 (define-primitive apply                                     at-least-1          (ordered))
