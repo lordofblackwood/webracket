@@ -2314,7 +2314,29 @@
       (string-append
        "provider-cache: cache directory: /tmp/cache\n"
        "foo.rkt:1:0: unbound identifier\n"))
-     "foo.rkt:1:0: unbound identifier")))
+     "foo.rkt:1:0: unbound identifier"))
+
+  (test-case "real-provider diagnostics are scheduled exclusively"
+    (check-true
+     (goal1-dashboard-case-exclusive?
+      (dashboard-case
+       'real
+       'installed-provider-diagnostic
+       '(racket/list)
+       '(("main.rkt" . "#lang webracket/base\n42\n"))
+       "main.rkt"
+       #rx"42"
+       '())))
+    (check-false
+     (goal1-dashboard-case-exclusive?
+      (dashboard-case
+       'local
+       'local-module-graph
+       '(webracket/base)
+       '(("main.rkt" . "#lang webracket/base\n42\n"))
+       "main.rkt"
+       #rx"42"
+       '())))))
 
 ;; run-goal1-dashboard-case : case path? exact-positive-integer? exact-positive-integer? -> row
 ;;   Run one compact Goal 1 case through `webracket.rkt -r --no-stdlib`.
@@ -2381,16 +2403,19 @@
     [(and (exact-integer? jobs) (positive? jobs)) jobs]
     [else (raise-argument-error 'run-goal1-dashboard "exact-positive-integer?" jobs)]))
 
+;; goal1-dashboard-case-exclusive? : goal1-dashboard-case? -> boolean?
+;;   Avoid running heavyweight real-provider diagnostics against each other.
+(define (goal1-dashboard-case-exclusive? c)
+  (eq? (goal1-dashboard-case-category c) 'installed-provider-diagnostic))
+
 ;; run-goal1-dashboard-cases/parallel : list? path? exact-positive-integer? exact-positive-integer? exact-positive-integer? -> list?
 ;;   Run cases with stable result order while allowing independent child processes.
 (define (run-goal1-dashboard-cases/parallel cases cache-dir timeout-seconds memory-mb jobs)
-  (define indexed-cases
-    (for/list ([c (in-list cases)]
-               [idx (in-naturals)])
-      (cons idx c)))
+  (define indexed-cases cases)
   (define next-box (box indexed-cases))
-  (define results  (make-vector (length cases) #f))
+  (define results  (make-hasheq))
   (define lock     (make-semaphore 1))
+  (define results-lock (make-semaphore 1))
   (define (take-next!)
     (call-with-semaphore
      lock
@@ -2409,11 +2434,37 @@
            (match (take-next!)
              [#f (void)]
              [(cons idx c)
-              (vector-set! results idx
-                           (run-goal1-dashboard-case c cache-dir timeout-seconds memory-mb))
+              (define row
+                (run-goal1-dashboard-case c cache-dir timeout-seconds memory-mb))
+              (call-with-semaphore
+               results-lock
+               (lambda ()
+                 (hash-set! results idx row)))
               (loop)]))))))
   (for ([worker (in-list workers)])
     (thread-wait worker))
+  results)
+
+;; run-goal1-dashboard-cases/scheduled : list? path? exact-positive-integer? exact-positive-integer? exact-positive-integer? -> list?
+;;   Run heavyweight diagnostics serially while preserving parallelism elsewhere.
+(define (run-goal1-dashboard-cases/scheduled cases cache-dir timeout-seconds memory-mb jobs)
+  (define indexed-cases
+    (for/list ([c (in-list cases)]
+               [idx (in-naturals)])
+      (cons idx c)))
+  (define-values (exclusive regular)
+    (partition (lambda (item)
+                 (goal1-dashboard-case-exclusive? (cdr item)))
+               indexed-cases))
+  (define results (make-vector (length indexed-cases) #f))
+  (for ([item (in-list exclusive)])
+    (match-define (cons idx c) item)
+    (vector-set! results idx
+                 (run-goal1-dashboard-case c cache-dir timeout-seconds memory-mb)))
+  (define parallel-results
+    (run-goal1-dashboard-cases/parallel regular cache-dir timeout-seconds memory-mb jobs))
+  (for ([(idx row) (in-hash parallel-results)])
+    (vector-set! results idx row))
   (vector->list results))
 
 ;; run-goal1-dashboard : keyword-args -> (listof goal1-dashboard-row?)
@@ -2429,7 +2480,7 @@
      (for/list ([c (in-list cases)])
        (run-goal1-dashboard-case c cache-dir timeout-seconds memory-mb))]
     [else
-     (run-goal1-dashboard-cases/parallel
+     (run-goal1-dashboard-cases/scheduled
       cases cache-dir timeout-seconds memory-mb normalized-jobs)]))
 
 (define (row->jsexpr row)
