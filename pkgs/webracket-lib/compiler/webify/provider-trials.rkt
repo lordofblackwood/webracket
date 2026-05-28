@@ -268,12 +268,16 @@
     racket/contract/region
     racket/contract/private/list
     racket/contract/private/misc
+    racket/fixnum
+    racket/flonum
     racket/generator
+    racket/hash-code
     racket/logging
     racket/match
     racket/match/gen-match
     racket/match/runtime
     racket/mpair
+    racket/mutable-treelist
     racket/private/define-struct
     racket/private/for
     racket/private/hash
@@ -281,9 +285,12 @@
     racket/private/list
     racket/private/map
     racket/private/pico
+    racket/private/port
     racket/private/sort
     racket/private/reqprov
+    racket/private/serialize-structs
     racket/private/string
+    racket/treelist
     racket/unsafe/undefined
     racket/require-transform
     syntax/contract
@@ -331,6 +338,7 @@
     racket/format
     racket/generator
     racket/hash
+    racket/hash-code
     racket/list
     racket/mpair
     racket/logging
@@ -339,17 +347,23 @@
     racket/match/runtime
     racket/set
     racket/string
+    racket/mutable-treelist
+    racket/treelist
     racket/vector
     racket/function
     racket/contract/private/list
     racket/contract/private/misc
+    racket/fixnum
+    racket/flonum
     racket/private/for
     racket/private/hash
     racket/private/kw
     racket/private/list
     racket/private/map
     racket/private/pico
+    racket/private/port
     racket/private/sort
+    racket/private/serialize-structs
     racket/private/string
     racket/unsafe/undefined
     syntax/contract
