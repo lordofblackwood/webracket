@@ -1919,8 +1919,43 @@
          (and candidate-exports
               (for/or ([export (in-list (cadr candidate-exports))])
                 (symbolic-name=? export external))))
+       (define (compiled-provider-hint local external)
+         (cond
+           [(and (eq? module-name 'racket/private/class-internal)
+                 (symbolic-name=? external 'coerce-contract))
+            (list local 'racket/contract/combinator)]
+           [(and (eq? module-name 'racket/private/class-internal)
+                 (symbolic-name=? external 'apply-contract))
+            (list local 'racket/contract/base)]
+           [(and (eq? module-name 'racket/private/class-internal)
+                 (symbolic-name=? external 'blame-swap))
+            (list local 'racket/contract/combinator)]
+           [(and (eq? module-name 'racket/private/class-internal)
+                 (symbolic-name=? external 'raise-blame-error))
+            (list local 'racket/contract/combinator)]
+           [(and (eq? module-name 'racket/private/class-internal)
+                 (symbolic-name=? external 'contract?))
+            (list local 'racket/contract/combinator)]
+           [(and (eq? module-name 'racket/private/class-internal)
+                 (symbolic-name=? external 'current-contract-region))
+            (list local 'racket/contract/region)]
+           [(and (eq? module-name 'racket/private/class-internal)
+                 (symbolic-name=? external 'contract))
+            (list local 'racket/contract/base)]
+           [(and (eq? module-name 'racket/private/class-internal)
+                 (or (symbolic-name=? external 'unsafe-undefined)
+                     (symbolic-name=? external 'check-not-unsafe-undefined)
+                     (symbolic-name=? external 'check-not-unsafe-undefined/assign)
+                     (symbolic-name=? external 'prop:chaperone-unsafe-undefined)
+                     (symbolic-name=? external 'chaperone-struct-unsafe-undefined)))
+            (list local 'webracket/unsafe/undefined)]
+           [else #f]))
        (define (candidate->inferred-dependency binding)
          (match-define (list local external) binding)
+         (define hinted-dependency (compiled-provider-hint local external))
+         (cond
+           [hinted-dependency hinted-dependency]
+           [else
          (define candidates
            (for/list ([candidate (in-list required-module-candidates)]
                       #:when (and (= 0 (car candidate))
@@ -2006,7 +2041,7 @@
                                    (for/list ([candidate (in-list ranked-candidates)])
                                      (list local (cadr candidate)))
                                    "candidate reasons"
-                                   (map candidate-reason candidates))]))
+                                   (map candidate-reason candidates))])]))
        (define inferred-dependencies
          (filter
           values

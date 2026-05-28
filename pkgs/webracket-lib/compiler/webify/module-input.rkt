@@ -489,6 +489,42 @@
     [(and (memq module-name '(racket/private/for webracket/private/for))
           (eq? local 'directory-list.1))
      '(#%kernel webracket-directory-list-build-first)]
+    [(and (eq? module-name 'racket/private/class-internal)
+          (symbolic-name=? external 'coerce-contract))
+     '(racket/contract/combinator coerce-contract)]
+    [(and (eq? module-name 'racket/private/class-internal)
+          (symbolic-name=? external 'apply-contract))
+     '(racket/contract/base apply-contract)]
+    [(and (eq? module-name 'racket/private/class-internal)
+          (symbolic-name=? external 'blame-swap))
+     '(racket/contract/combinator blame-swap)]
+    [(and (eq? module-name 'racket/private/class-internal)
+          (symbolic-name=? external 'raise-blame-error))
+     '(racket/contract/combinator raise-blame-error)]
+    [(and (eq? module-name 'racket/private/class-internal)
+          (symbolic-name=? external 'contract?))
+     '(racket/contract/combinator contract?)]
+    [(and (eq? module-name 'racket/private/class-internal)
+          (symbolic-name=? external 'current-contract-region))
+     '(racket/contract/region current-contract-region)]
+    [(and (eq? module-name 'racket/private/class-internal)
+          (symbolic-name=? external 'contract))
+     '(racket/contract/base contract)]
+    [(and (eq? module-name 'racket/private/class-internal)
+          (symbolic-name=? external 'unsafe-undefined))
+     '(webracket/unsafe/undefined unsafe-undefined)]
+    [(and (eq? module-name 'racket/private/class-internal)
+          (symbolic-name=? external 'check-not-unsafe-undefined))
+     '(webracket/unsafe/undefined check-not-unsafe-undefined)]
+    [(and (eq? module-name 'racket/private/class-internal)
+          (symbolic-name=? external 'check-not-unsafe-undefined/assign))
+     '(webracket/unsafe/undefined check-not-unsafe-undefined/assign)]
+    [(and (eq? module-name 'racket/private/class-internal)
+          (symbolic-name=? external 'prop:chaperone-unsafe-undefined))
+     '(webracket/unsafe/undefined prop:chaperone-unsafe-undefined)]
+    [(and (eq? module-name 'racket/private/class-internal)
+          (symbolic-name=? external 'chaperone-struct-unsafe-undefined))
+     '(webracket/unsafe/undefined chaperone-struct-unsafe-undefined)]
     [else #f]))
 
 ;; webify-resolve-module-linklet-imports/outcomes : linklet dependency-exports keyword-args ... -> values

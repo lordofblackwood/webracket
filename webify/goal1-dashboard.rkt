@@ -1775,7 +1775,7 @@
          "(js-log (send (new point%) value))\n")))
     "main.rkt"
     #rx"(?m:^42$)"
-    '("--no-io-format-provider" "--webracket-module-bridge" "--no-provider-substitutions")
+    '("--webracket-module-bridge" "--no-provider-substitutions")
     #:tier 'coverage
     #:expectation 'diagnostic)
    (dashboard-case

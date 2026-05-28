@@ -1612,6 +1612,7 @@
           racket/contract/private/guts
           racket/contract/private/list
           racket/contract/private/misc
+          racket/contract/private/object
           racket/contract/private/object-c-wrapper)))
 
 ;; webracket/base-provider-substitution-pairs : (listof (cons/c symbol? symbol?))
@@ -2148,10 +2149,17 @@
        (define provider-cache
          (make-webify-module-provider-cache
           (webracket/base-fetch-provider/timed fetch-provider/erased-contracts)))
+       ;; Some resolver hints target WebRacket-owned support modules directly;
+       ;; include those reports even when the installed provider graph only
+       ;; names the original Racket module.
+       (define support-reports
+         (list webify-module-protocol-report
+               (webify-module-provider-cache-ref provider-cache
+                                                 'webracket/unsafe/undefined)))
        (define registry
          (webify-module-reports->discovered-registry
           reports
-          #:extra-reports (list webify-module-protocol-report)
+          #:extra-reports support-reports
           #:fetch-provider (lambda (name)
                              (unless (webify-provider-trial-module-allowed? name)
                                (raise-arguments-error

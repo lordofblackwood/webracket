@@ -457,6 +457,73 @@
      #:module-name 'racket/private/for))
   (check-equal? racket-for-directory-list-imports
                 '((directory-list.1 #%kernel webracket-directory-list-build-first)))
+  (define-values (class-coerce-imports class-coerce-outcomes)
+    (webify-resolve-module-linklet-imports/outcomes
+     '(linklet (([coerce-contract.1 coerce-contract])) (y)
+        (define-values (y) coerce-contract.1))
+     '((racket/contract/combinator (coerce-contract))
+       (racket/contract/private/guts (coerce-contract))
+       (racket/contract/private/misc (coerce-contract)))
+     #:module-name 'racket/private/class-internal))
+  (check-equal? class-coerce-imports
+                '((coerce-contract.1 racket/contract/combinator coerce-contract)))
+  (check-equal? (map webify-module-resolution-outcome-status class-coerce-outcomes)
+                '(resolved-by-compiled-primitive-alias))
+  (define-values (class-apply-imports class-apply-outcomes)
+    (webify-resolve-module-linklet-imports/outcomes
+     '(linklet (([apply-contract.1 apply-contract])) (y)
+        (define-values (y) apply-contract.1))
+     '((racket/contract/base (apply-contract))
+       (racket/contract/private/guts (apply-contract))
+       (racket/contract/private/misc (apply-contract)))
+     #:module-name 'racket/private/class-internal))
+  (check-equal? class-apply-imports
+                '((apply-contract.1 racket/contract/base apply-contract)))
+  (check-equal? (map webify-module-resolution-outcome-status class-apply-outcomes)
+                '(resolved-by-compiled-primitive-alias))
+  (define-values (class-blame-imports class-blame-outcomes)
+    (webify-resolve-module-linklet-imports/outcomes
+     '(linklet (([blame-swap.1 blame-swap])) (y)
+        (define-values (y) blame-swap.1))
+     '((racket/contract/combinator (blame-swap))
+       (racket/contract/private/guts (blame-swap))
+       (racket/contract/private/misc (blame-swap)))
+     #:module-name 'racket/private/class-internal))
+  (check-equal? class-blame-imports
+                '((blame-swap.1 racket/contract/combinator blame-swap)))
+  (check-equal? (map webify-module-resolution-outcome-status class-blame-outcomes)
+                '(resolved-by-compiled-primitive-alias))
+  (define-values (class-raise-blame-imports _class-raise-blame-outcomes)
+    (webify-resolve-module-linklet-imports/outcomes
+     '(linklet (([raise-blame-error.1 raise-blame-error.1])) (y)
+        (define-values (y) raise-blame-error.1))
+     '((racket/contract/combinator (raise-blame-error))
+       (racket/contract/private/guts (raise-blame-error)))
+     #:module-name 'racket/private/class-internal))
+  (check-equal? class-raise-blame-imports
+                '((raise-blame-error.1 racket/contract/combinator raise-blame-error)))
+  (define-values (class-region-imports _class-region-outcomes)
+    (webify-resolve-module-linklet-imports/outcomes
+     '(linklet (([current-contract-region.1 current-contract-region.1])) (y)
+        (define-values (y) current-contract-region.1))
+     '((racket/contract/region (current-contract-region))
+       (racket/contract/base (current-contract-region)))
+     #:module-name 'racket/private/class-internal))
+  (check-equal? class-region-imports
+                '((current-contract-region.1
+                   racket/contract/region
+                   current-contract-region)))
+  (define-values (class-unsafe-undefined-imports _class-unsafe-undefined-outcomes)
+    (webify-resolve-module-linklet-imports/outcomes
+     '(linklet (([1/prop:chaperone-unsafe-undefined prop:chaperone-unsafe-undefined]))
+        (y)
+        (define-values (y) 1/prop:chaperone-unsafe-undefined))
+     '((webracket/unsafe/undefined (prop:chaperone-unsafe-undefined)))
+     #:module-name 'racket/private/class-internal))
+  (check-equal? class-unsafe-undefined-imports
+                '((1/prop:chaperone-unsafe-undefined
+                   webracket/unsafe/undefined
+                   prop:chaperone-unsafe-undefined)))
   (check-exn
    #rx"dependency does not export required name"
    (lambda ()

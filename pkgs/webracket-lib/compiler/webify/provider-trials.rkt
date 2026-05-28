@@ -274,6 +274,7 @@
     racket/contract/private/guts
     racket/contract/private/list
     racket/contract/private/misc
+    racket/contract/private/object
     racket/contract/private/object-c-wrapper
     racket/fixnum
     racket/flonum
@@ -302,6 +303,10 @@
     racket/private/serialize-structs
     racket/private/string
     racket/private/custom-hash
+    racket/private/class-c
+    racket/private/class-internal
+    racket/private/class-struct
+    racket/private/object-c
     racket/stream
     racket/treelist
     racket/unsafe/undefined
@@ -373,6 +378,7 @@
     racket/contract/private/guts
     racket/contract/private/list
     racket/contract/private/misc
+    racket/contract/private/object
     racket/contract/private/object-c-wrapper
     racket/fixnum
     racket/flonum
@@ -390,6 +396,10 @@
     racket/private/serialize-structs
     racket/private/string
     racket/private/custom-hash
+    racket/private/class-c
+    racket/private/class-internal
+    racket/private/class-struct
+    racket/private/object-c
     racket/stream
     racket/unsafe/undefined
     syntax/contract
