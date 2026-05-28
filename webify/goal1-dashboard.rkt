@@ -1406,7 +1406,7 @@
          "#lang webracket/base\n"
          "(require racket/private/kw)\n"
          "(define-values (required allowed) (procedure-keywords +))\n"
-         "(js-log (if (and (null? required) (not allowed)) 42 0))\n")))
+         "(js-log (if (and (null? required) (null? allowed)) 42 0))\n")))
     "main.rkt"
     #rx"(?m:^42$)"
     '("--no-io-format-provider" "--webracket-module-bridge" "--no-provider-substitutions")
