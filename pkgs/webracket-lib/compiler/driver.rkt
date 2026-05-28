@@ -33,7 +33,9 @@
                                     path-get-extension)
          (only-in racket/file       delete-directory/files
                                     find-files
+                                    call-with-file-lock/timeout
                                     make-directory*
+                                    make-lock-file-name
                                     make-temporary-file)
          (only-in racket/port       open-output-nowhere with-output-to-string)
          (only-in racket/pretty     pretty-write)
@@ -455,6 +457,22 @@
       (newline out))
     #:exists 'truncate/replace))
 
+;; call-with-provider-cache-lock : path? (-> any/c) -> any/c
+;;   Serialize expensive provider cache materialization across dashboard workers.
+(define (call-with-provider-cache-lock cache-path thunk)
+  (make-directory* (path-only cache-path))
+  (define lock-path (make-lock-file-name cache-path))
+  (call-with-file-lock/timeout
+   cache-path
+   'exclusive
+   thunk
+   (lambda ()
+     (error 'provider-cache
+            "timed out waiting for provider cache lock: ~a"
+            lock-path))
+   #:lock-file lock-path
+   #:max-delay 300))
+
 ;; provider-cache-log : string? any/c ... -> void?
 ;;   Print provider cache diagnostics in verbose mode.
 (define (provider-cache-log fmt . args)
@@ -739,43 +757,52 @@
      (provider-cache-log "regexp lowered forms hit: ~a" cache-path)
      cached]
     [else
-     (provider-cache-log "regexp lowered forms miss; rebuilding: ~a" cache-path)
-     (define lk
-       (webify-regexp-linklet #:cache-root (current-provider-cache-dir)
-                              #:force? (current-provider-cache-force?)
-                              #:verbose? (current-provider-cache-verbose?)))
-     (define-values (provider-stx exports _exports-info)
-       (webify-linklet-first-slice-top-level
-        lk
-        #:define-export-aliases? #f
-        #:serializable?-box     #f
-        #:datum-intern?         #f
-        #:target                #f
-        #:allow-set!-undefined? #f
-        #:unsafe-mode?          #f
-        #:enforce-constant?     #t
-        #:allow-inline?         #t
-        #:no-prompt?            #f
-        #:prim-knowns           (hasheq)
-        #:primitives            (hasheq)
-        #:compiler-query        (lambda (v) #f)
-        #:get-import-knowns     (lambda (key) (values #f #f #f))
-        #:import-keys           #f))
-     (unless (equal? (sort exports symbol<?)
-                     (sort webify-regexp-export-symbols symbol<?))
-       (error 'regexp-provider-forms
-              "unexpected regexp exports: ~s"
-              exports))
-     (define export-cells
-       (first-slice-top-level-export-cell-ids exports))
-     (define forms
-       (append
-        (cdr (syntax->datum provider-stx))
-        (if public-aliases?
-            (webify-regexp-public-alias-forms export-cells)
-            '())))
-     (write-provider-cache! cache-path fingerprint forms)
-     forms]))
+     (call-with-provider-cache-lock
+      cache-path
+      (lambda ()
+        (define cached* (read-provider-cache cache-path fingerprint))
+        (cond
+          [cached*
+           (provider-cache-log "regexp lowered forms hit: ~a" cache-path)
+           cached*]
+          [else
+           (provider-cache-log "regexp lowered forms miss; rebuilding: ~a" cache-path)
+           (define lk
+             (webify-regexp-linklet #:cache-root (current-provider-cache-dir)
+                                    #:force? (current-provider-cache-force?)
+                                    #:verbose? (current-provider-cache-verbose?)))
+           (define-values (provider-stx exports _exports-info)
+             (webify-linklet-first-slice-top-level
+              lk
+              #:define-export-aliases? #f
+              #:serializable?-box     #f
+              #:datum-intern?         #f
+              #:target                #f
+              #:allow-set!-undefined? #f
+              #:unsafe-mode?          #f
+              #:enforce-constant?     #t
+              #:allow-inline?         #t
+              #:no-prompt?            #f
+              #:prim-knowns           (hasheq)
+              #:primitives            (hasheq)
+              #:compiler-query        (lambda (v) #f)
+              #:get-import-knowns     (lambda (key) (values #f #f #f))
+              #:import-keys           #f))
+           (unless (equal? (sort exports symbol<?)
+                           (sort webify-regexp-export-symbols symbol<?))
+             (error 'regexp-provider-forms
+                    "unexpected regexp exports: ~s"
+                    exports))
+           (define export-cells
+             (first-slice-top-level-export-cell-ids exports))
+           (define forms
+             (append
+              (cdr (syntax->datum provider-stx))
+              (if public-aliases?
+                  (webify-regexp-public-alias-forms export-cells)
+                  '())))
+           (write-provider-cache! cache-path fingerprint forms)
+           forms])))]))
 
 ;; add-io-format-provider : syntax? #:expander-read-provider? boolean? #:expander-read-syntax-provider? boolean? -> syntax?
 ;;   Prepend only the staged io/format provider, without the old stdlib root.
