@@ -1136,13 +1136,14 @@
   (check-false (webify-provider-trial-module-allowed? 'racket/promise))
   (check-false (webify-provider-trial-module-allowed? 'racket/private/promise))
   (check-true (webify-provider-trial-module-allowed? 'racket/private/for))
+  (check-true (webify-provider-trial-module-allowed? 'racket/private/sort))
   (check-false (webify-provider-trial-module-allowed? 'racket/private/set))
   (check-false (webify-provider-trial-module-allowed? 'racket/math))
   (check-true (webify-provider-trial-module-allowed? 'racket/contract))
   (for ([name (in-list '(racket/bool racket/list racket/string racket/vector
                          racket/function racket/hash racket/set racket/match
                          racket/contract webracket/contract webracket/set webracket/promise webracket/sequence webracket/stream
-                         js/console js/math js/performance))])
+                         racket/private/sort js/console js/math js/performance))])
     (check-true (webify-provider-trial-default-bridge-module-allowed? name)
                 (symbol->string name)))
   (for ([row (in-list ffi-module-registry-rows)])

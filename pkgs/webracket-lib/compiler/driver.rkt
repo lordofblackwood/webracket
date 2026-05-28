@@ -517,7 +517,7 @@
      "installed-provider-reports"
      (string-append (provider-cache-symbol-segment name) ".rktd")))
   (define fingerprint
-    `(installed-provider-report-cache 1 ,name ,(version)))
+    `(installed-provider-report-cache 2 ,name ,(version)))
   (define cached (read-provider-cache cache-path fingerprint))
   (cond
     [cached
