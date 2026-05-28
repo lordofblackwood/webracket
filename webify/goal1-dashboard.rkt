@@ -2263,11 +2263,16 @@
   (cond
     [(string=? normalized "") (format "exit ~a with no output" status)]
     [else
+     (define raw-lines (string-split normalized "\n"))
+     (define last-provider-cache-line
+       (for/last ([line (in-list raw-lines)]
+                  #:when (regexp-match? #rx"^provider-cache:" line))
+         line))
      (define lines
        (filter
         (lambda (line)
           (not (regexp-match? #rx"^provider-cache:" line)))
-        (string-split normalized "\n")))
+        raw-lines))
      (define message-line
        (for/first ([line (in-list lines)]
                    #:when (regexp-match? #rx"^  message: " line))
@@ -2280,12 +2285,36 @@
          line))
      (define line (or message-line
                       diagnostic-line
+                      (and (= status 124)
+                           last-provider-cache-line
+                           (format "timeout after ~a" last-provider-cache-line))
                       (if (null? lines)
-                          (first (string-split normalized "\n"))
+                          (first raw-lines)
                           (first lines))))
      (if (> (string-length line) 300)
          (string-append (substring line 0 297) "...")
          line)]))
+
+(module+ test
+  (require rackunit)
+
+  (test-case "output-note keeps last provider-cache line for timeouts"
+    (check-equal?
+     (output-note
+      124
+      (string-append
+       "provider-cache: cache directory: /tmp/cache\n"
+       "provider-cache: regexp demod miss; regenerating: /tmp/cache/regexp.rktl\n"))
+     "timeout after provider-cache: regexp demod miss; regenerating: /tmp/cache/regexp.rktl"))
+
+  (test-case "output-note still prefers semantic diagnostics"
+    (check-equal?
+     (output-note
+      1
+      (string-append
+       "provider-cache: cache directory: /tmp/cache\n"
+       "foo.rkt:1:0: unbound identifier\n"))
+     "foo.rkt:1:0: unbound identifier")))
 
 ;; run-goal1-dashboard-case : case path? exact-positive-integer? exact-positive-integer? -> row
 ;;   Run one compact Goal 1 case through `webracket.rkt -r --no-stdlib`.
