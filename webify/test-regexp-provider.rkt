@@ -12,7 +12,30 @@
          "../pkgs/webracket-lib/compiler/webify/provider-slices.rkt"
          "../pkgs/webracket-lib/compiler/webify/regexp-provider.rkt")
 
+(define-runtime-path repo-root "..")
 (define-runtime-path webracket-rkt "../webracket.rkt")
+
+;; test-racket-executable : -> path?
+;;   Resolve the Racket executable even when raco test changes directories.
+(define (test-racket-executable)
+  (define exec-file (find-system-path 'exec-file))
+  (cond
+    [(and (path? exec-file)
+          (complete-path? exec-file))
+     exec-file]
+    [(and (path? exec-file)
+          (file-exists? exec-file))
+     (path->complete-path exec-file)]
+    [else
+     (define sibling-racket
+       (build-path repo-root "../racket/racket/bin/racket"))
+     (cond
+       [(file-exists? sibling-racket) sibling-racket]
+       [else
+        (or (find-executable-path (path->string exec-file))
+            (find-executable-path "racket")
+            (error 'test-racket-executable
+                   "could not find current racket executable"))])]))
 
 (test-case "regexp provider slice is staged and enabled by default"
   (define slice (provider-slice-by-name 'regexp))
@@ -110,7 +133,7 @@
         #:exists 'truncate)
       (define status
         (system*/exit-code
-         (find-system-path 'exec-file)
+         (test-racket-executable)
          "-y"
          (path->string webracket-rkt)
          "--no-stdlib"

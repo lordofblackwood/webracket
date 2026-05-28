@@ -134,6 +134,21 @@
     (lambda (out) (write fingerprint out) (newline out))
     #:exists 'truncate/replace))
 
+;; call-with-regexp-demod-lock : path? (-> any/c) -> any/c
+;;   Serialize regexp demod cache regeneration across dashboard worker processes.
+(define (call-with-regexp-demod-lock out-rktl thunk)
+  (define lock-path (make-lock-file-name out-rktl))
+  (call-with-file-lock/timeout
+   out-rktl
+   'exclusive
+   thunk
+   (lambda ()
+     (error 'webify-regexp-demod!
+            "timed out waiting for regexp demod cache lock: ~a"
+            lock-path))
+   #:lock-file lock-path
+   #:max-delay 300))
+
 ;; webify-regexp-demod-command : [path-string?] -> (listof string?)
 ;;   Build the Racket CS demodularizer command for the staged regexp source.
 (define (webify-regexp-demod-command [cache-root webify-regexp-default-cache-root])
@@ -171,23 +186,36 @@
                 out-rktl))
      (values 0 "using cached regexp demod linklet\n" out-rktl)]
     [else
-     (when verbose?
-       (fprintf (current-error-port)
-                "provider-cache: regexp demod miss; regenerating: ~a\n"
-                out-rktl))
-     (define stdout (open-output-string))
-     (define stderr (open-output-string))
-     (define command (webify-regexp-demod-command cache-root))
-     (define status
-       (parameterize ([current-output-port stdout]
-                      [current-error-port stderr])
-         (apply system*/exit-code command)))
-     (when (zero? status)
-       (write-cache-fingerprint! fingerprint-path fingerprint))
-     (values status
-             (string-append (get-output-string stdout)
-                            (get-output-string stderr))
-             out-rktl)]))
+     (call-with-regexp-demod-lock
+      out-rktl
+      (lambda ()
+        (cond
+          [(and (not force?)
+                (file-exists? out-rktl)
+                (cached-fingerprint-valid? fingerprint-path fingerprint))
+           (when verbose?
+             (fprintf (current-error-port)
+                      "provider-cache: regexp demod hit: ~a\n"
+                      out-rktl))
+           (values 0 "using cached regexp demod linklet\n" out-rktl)]
+          [else
+           (when verbose?
+             (fprintf (current-error-port)
+                      "provider-cache: regexp demod miss; regenerating: ~a\n"
+                      out-rktl))
+           (define stdout (open-output-string))
+           (define stderr (open-output-string))
+           (define command (webify-regexp-demod-command cache-root))
+           (define status
+             (parameterize ([current-output-port stdout]
+                            [current-error-port stderr])
+               (apply system*/exit-code command)))
+           (when (zero? status)
+             (write-cache-fingerprint! fingerprint-path fingerprint))
+           (values status
+                   (string-append (get-output-string stdout)
+                                  (get-output-string stderr))
+                   out-rktl)])))]))
 
 ;; webify-regexp-linklet : [#:cache-root path-string?] [#:force? boolean?] -> any/c
 ;;   Return the cached flattened regexp linklet, generating it when needed.
