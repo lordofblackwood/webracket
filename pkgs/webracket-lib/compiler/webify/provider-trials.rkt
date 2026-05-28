@@ -278,6 +278,7 @@
     racket/match/runtime
     racket/mpair
     racket/mutable-treelist
+    racket/sequence
     racket/private/define-struct
     racket/private/for
     racket/private/hash
@@ -288,8 +289,10 @@
     racket/private/port
     racket/private/sort
     racket/private/reqprov
+    racket/private/sequence
     racket/private/serialize-structs
     racket/private/string
+    racket/stream
     racket/treelist
     racket/unsafe/undefined
     racket/require-transform
@@ -346,6 +349,7 @@
     racket/match/gen-match
     racket/match/runtime
     racket/set
+    racket/sequence
     racket/string
     racket/mutable-treelist
     racket/treelist
@@ -363,8 +367,10 @@
     racket/private/pico
     racket/private/port
     racket/private/sort
+    racket/private/sequence
     racket/private/serialize-structs
     racket/private/string
+    racket/stream
     racket/unsafe/undefined
     syntax/contract
     syntax/location

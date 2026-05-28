@@ -689,9 +689,11 @@
   (vector/c contract-expr ...))
 
 ;; with-contract-continuation-mark : syntax -> syntax
-;;   Preserve key/value side effects, then erase to the wrapped contract.
-(define-syntax-rule (with-contract-continuation-mark key-expr val-expr contract-expr)
-  (begin key-expr val-expr contract-expr))
+;;   Preserve mark-expression side effects, then erase to the wrapped body.
+(define-syntax (with-contract-continuation-mark stx)
+  (syntax-case stx ()
+    [(_ key-expr body-expr ...)
+     #'(begin key-expr body-expr ...)]))
 
 (define-erased-syntaxes
   any
