@@ -138,17 +138,18 @@ The current `racket/*` -> `webracket/*` substitutions are:
 
 ## Real Provider Readiness
 
-Use `webify/goal1-dashboard.rkt --real-provider-readiness --timeout 120
---memory-mb 1024` to run the expected-fail rows that keep replacement pressure
-visible. These rows intentionally disable provider substitutions.
+Use `webify/goal1-dashboard.rkt --real-provider-readiness --jobs 4
+--timeout 120 --memory-mb 1024` to run the expected-fail rows that keep
+replacement pressure visible. These rows intentionally disable provider
+substitutions.
 
 | Staged provider | Readiness row | Current blocker/action |
 | --- | --- | --- |
 | `webracket/contract` | `real-racket-contract-diagnostic` | Current failure is provider-graph extraction for real `racket/contract`; keep using erased-contract shims while narrowing the transitive provider graph and runtime primitive demand. |
 | `webracket/class` | `real-racket-class-diagnostic` | Current failure is provider-graph extraction for real `racket/class`; likely blockers are contract-private edges, keyword machinery, and class-runtime primitives. |
 | `webracket/dict` | `real-racket-dict-diagnostic` | Current failure is provider-graph extraction for real `racket/dict`; earlier `dict-count` metadata symptoms point at bridge/name-resolution around re-exported base bindings, not a reason to copy more dictionary code. |
-| `webracket/list` | `real-racket-list-diagnostic` | The tiny real `racket/list` readiness row now passes without provider substitution. Next step is broadening the real-provider case beyond `append-map` before expanding the staged list shim. |
-| `webracket/string` | `real-racket-string-diagnostic` | The tiny real `racket/string` readiness row now passes without provider substitution after adding the generated quasiquote helper `qq-append`. Next step is broadening the real-provider case beyond `string-join` before expanding the staged string shim. |
+| `webracket/list` | `real-racket-list-diagnostic` | The broadened real `racket/list` readiness row now covers `append-map`, `filter-map`, `take`, `drop`, `split-at`, `group-by`, and `remove-duplicates`; it currently fails during module bridge graph extraction, so staged `webracket/list` remains the Goal 1 route. |
+| `webracket/string` | `real-racket-string-diagnostic` | The broadened real `racket/string` readiness row now covers `string-join`, `string-split`, `string-trim`, `string-replace`, `string-prefix?`, and `string-suffix?`; it currently reaches graph extraction but reports an unbound-provider style failure, so staged `webracket/string` remains the Goal 1 route. |
 | `webracket/sequence` | `real-racket-sequence-diagnostic` | Capture whether real `racket/sequence` is blocked mainly by contracts, streams, or generator/prompt-related imports. |
 | `webracket/private/for` | `real-racket-private-for-diagnostic` | The tiny direct helper case currently passes without substitution; the next step is trying broader original `racket/private/for` helper clusters before adding staged sequence protocol surface. |
 | `webracket/private/kw` | `real-racket-private-kw-diagnostic` | Track the keyword-procedure runtime gap before adding more keyword-related staged APIs. |

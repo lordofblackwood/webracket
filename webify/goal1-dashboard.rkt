@@ -16,6 +16,7 @@
          goal1-dashboard-case-args
          goal1-dashboard-default-timeout-seconds
          goal1-dashboard-default-memory-mb
+         goal1-dashboard-default-jobs
          goal1-dashboard-fast-required-case-names
          goal1-dashboard-coverage-core-case-names
          goal1-dashboard-coverage-extended-case-names
@@ -86,6 +87,10 @@
 ;; goal1-dashboard-default-memory-mb : exact-positive-integer?
 ;;   Keep compact dashboard runs from exhausting the developer machine.
 (define goal1-dashboard-default-memory-mb 1024)
+
+;; goal1-dashboard-default-jobs : exact-positive-integer?
+;;   Keep command-line behavior serial unless parallelism is requested.
+(define goal1-dashboard-default-jobs 1)
 
 ;; goal1-dashboard-fast-required-case-names : (listof symbol?)
 ;;   Tiny inner-loop preset for checking the main routes quickly.
@@ -410,7 +415,22 @@
        ,(string-append
          "#lang webracket/base\n"
          "(require racket/list)\n"
-         "(js-log (apply + (append-map (lambda (x) (list x x)) '(10 11))))\n")))
+         "(define xs '(1 2 3 4 5))\n"
+         "(define mapped (filter-map (lambda (x) (and (odd? x) x)) xs))\n"
+         "(define prefix (take xs 2))\n"
+         "(define suffix (drop xs 3))\n"
+         "(define-values (left right) (split-at xs 3))\n"
+         "(define groups (group-by odd? xs))\n"
+         "(define unique (remove-duplicates '(1 2 1 3 2)))\n"
+         "(js-log (+ (apply + (append-map (lambda (x) (list x x)) '(10 11)))\n"
+         "           (length mapped)\n"
+         "           (apply + prefix)\n"
+         "           (apply + suffix)\n"
+         "           (length left)\n"
+         "           (length right)\n"
+         "           (length groups)\n"
+         "           (length unique)\n"
+         "           -25))\n")))
     "main.rkt"
     #rx"(?m:^42$)"
     '("--no-io-format-provider" "--webracket-module-bridge" "--no-provider-substitutions")
@@ -659,9 +679,19 @@
        ,(string-append
          "#lang webracket/base\n"
          "(require racket/string)\n"
-         "(js-log (string-join '(\"web\" \"racket\") \"\"))\n")))
+         "(define joined (string-join '(\"web\" \"racket\") \"\"))\n"
+         "(define split (string-split \"a,b,c\" \",\"))\n"
+         "(define trimmed (string-trim \"  web  \"))\n"
+         "(define replaced (string-replace \"web-racket\" \"-\" \"\"))\n"
+         "(define ok?\n"
+         "  (and (string-prefix? \"webracket\" \"web\")\n"
+         "       (string-suffix? \"webracket\" \"ket\")\n"
+         "       (equal? joined \"webracket\")\n"
+         "       (equal? trimmed \"web\")\n"
+         "       (equal? replaced \"webracket\")))\n"
+         "(js-log (if ok? (+ (length split) 39) 0))\n")))
     "main.rkt"
-    #rx"(?m:^webracket$)"
+    #rx"(?m:^42$)"
     '("--no-io-format-provider" "--webracket-module-bridge" "--no-provider-substitutions")
     #:tier 'coverage
     #:expectation 'diagnostic)
@@ -2257,6 +2287,8 @@
 (define (run-goal1-dashboard-case c cache-dir timeout-seconds memory-mb)
   (define source-dir (make-temporary-file "webracket-goal1-dashboard-src-~a" 'directory))
   (define dest-dir   (make-temporary-file "webracket-goal1-dashboard-dest-~a" 'directory))
+  (define compiled-root-dir
+    (make-temporary-file "webracket-goal1-dashboard-compiled-~a" 'directory))
   (dynamic-wind
     void
     (lambda ()
@@ -2270,6 +2302,10 @@
            (current-environment-variables)
            #"PLTCOLLECTS"
            (string->bytes/utf-8 (webracket-collection-env-value)))
+          (environment-variables-set!
+           (current-environment-variables)
+           #"PLTCOMPILEDROOTS"
+           (string->bytes/utf-8 (path->string compiled-root-dir)))
           (run-webracket
            (append
             (list "-v" "-r" "--no-stdlib"
@@ -2300,18 +2336,67 @@
        after
        #:tier (goal1-dashboard-case-tier c)))
     (lambda ()
-      (for ([dir (in-list (list source-dir dest-dir))])
+      (for ([dir (in-list (list source-dir dest-dir compiled-root-dir))])
         (with-handlers ([exn:fail:filesystem? void])
           (delete-directory/files dir))))))
+
+;; normalize-dashboard-jobs : any/c -> exact-positive-integer?
+;;   Validate a requested dashboard worker count.
+(define (normalize-dashboard-jobs jobs)
+  (cond
+    [(and (exact-integer? jobs) (positive? jobs)) jobs]
+    [else (raise-argument-error 'run-goal1-dashboard "exact-positive-integer?" jobs)]))
+
+;; run-goal1-dashboard-cases/parallel : list? path? exact-positive-integer? exact-positive-integer? exact-positive-integer? -> list?
+;;   Run cases with stable result order while allowing independent child processes.
+(define (run-goal1-dashboard-cases/parallel cases cache-dir timeout-seconds memory-mb jobs)
+  (define indexed-cases
+    (for/list ([c (in-list cases)]
+               [idx (in-naturals)])
+      (cons idx c)))
+  (define next-box (box indexed-cases))
+  (define results  (make-vector (length cases) #f))
+  (define lock     (make-semaphore 1))
+  (define (take-next!)
+    (call-with-semaphore
+     lock
+     (lambda ()
+       (match (unbox next-box)
+         ['() #f]
+         [(cons item rest)
+          (set-box! next-box rest)
+          item]))))
+  (define worker-count (min jobs (length cases)))
+  (define workers
+    (for/list ([_ (in-range worker-count)])
+      (thread
+       (lambda ()
+         (let loop ()
+           (match (take-next!)
+             [#f (void)]
+             [(cons idx c)
+              (vector-set! results idx
+                           (run-goal1-dashboard-case c cache-dir timeout-seconds memory-mb))
+              (loop)]))))))
+  (for ([worker (in-list workers)])
+    (thread-wait worker))
+  (vector->list results))
 
 ;; run-goal1-dashboard : keyword-args -> (listof goal1-dashboard-row?)
 ;;   Run the compact Goal 1 no-stdlib dashboard.
 (define (run-goal1-dashboard #:cache-dir [cache-dir (make-temporary-file "webracket-goal1-dashboard-cache-~a" 'directory)]
                              #:timeout-seconds [timeout-seconds goal1-dashboard-default-timeout-seconds]
                              #:memory-mb [memory-mb goal1-dashboard-default-memory-mb]
-                             #:cases [cases goal1-dashboard-cases])
-  (for/list ([c (in-list cases)])
-    (run-goal1-dashboard-case c cache-dir timeout-seconds memory-mb)))
+                             #:cases [cases goal1-dashboard-cases]
+                             #:jobs [jobs goal1-dashboard-default-jobs])
+  (define normalized-jobs (normalize-dashboard-jobs jobs))
+  (cond
+    [(or (null? cases) (= normalized-jobs 1))
+     (for/list ([c (in-list cases)])
+       (run-goal1-dashboard-case c cache-dir timeout-seconds memory-mb))]
+    [else
+     (run-goal1-dashboard-cases/parallel
+      cases cache-dir timeout-seconds memory-mb normalized-jobs)]))
 
 (define (row->jsexpr row)
   (hasheq 'name (symbol->string (goal1-dashboard-row-name row))
@@ -2334,6 +2419,7 @@
                                #:cache-dir [cache-dir #f]
                                #:timeout-seconds [timeout-seconds goal1-dashboard-default-timeout-seconds]
                                #:memory-mb [memory-mb goal1-dashboard-default-memory-mb]
+                               #:jobs [jobs goal1-dashboard-default-jobs]
                                #:case-names [case-names '()]
                                #:categories [categories '()]
                                #:tiers [tiers '()]
@@ -2362,6 +2448,7 @@
        (run-goal1-dashboard #:cache-dir actual-cache-dir
                             #:timeout-seconds timeout-seconds
                             #:memory-mb memory-mb
+                            #:jobs jobs
                             #:cases selected-cases))
      (cond
        [json?
@@ -2393,6 +2480,7 @@
   (define cache-dir #f)
   (define timeout-seconds goal1-dashboard-default-timeout-seconds)
   (define memory-mb goal1-dashboard-default-memory-mb)
+  (define jobs goal1-dashboard-default-jobs)
   (define case-names '())
   (define categories '())
   (define tiers '())
@@ -2408,6 +2496,8 @@
                   (set! timeout-seconds (string->number n))]
    [("--memory-mb") n "per-case memory limit in MiB"
                     (set! memory-mb (string->number n))]
+   [("--jobs") n "number of dashboard cases to run in parallel"
+                (set! jobs (string->number n))]
    [("--case") names "comma-separated case names to run/list"
                (set! case-names (split-selectors names))]
    [("--category") names "comma-separated categories to run/list"
@@ -2439,6 +2529,7 @@
                          #:cache-dir cache-dir
                          #:timeout-seconds timeout-seconds
                          #:memory-mb memory-mb
+                         #:jobs jobs
                          #:case-names case-names
                          #:categories categories
                          #:tiers tiers

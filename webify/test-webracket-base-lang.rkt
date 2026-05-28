@@ -6,7 +6,8 @@
          racket/path
          racket/runtime-path
          racket/string
-         rackunit
+         (except-in rackunit test-case)
+         (only-in rackunit [test-case wr-rackunit-test-case])
          syntax/modread
          (prefix-in staged-promise: "../pkgs/webracket/promise.rkt")
          (only-in "../pkgs/webracket-lib/compiler/driver.rkt"
@@ -41,6 +42,26 @@
 
 (define-runtime-path repo-root* "..")
 (define repo-root (simplify-path repo-root*))
+
+;; selected-test-substrings : (listof string?)
+;;   Optional comma-separated filter for quick local runs of this large suite.
+(define selected-test-substrings
+  (let ([raw (getenv "WEBRACKET_BASE_LANG_TEST_FILTER")])
+    (if (and raw (not (string=? raw "")))
+        (filter non-empty-string? (string-split raw ","))
+        '())))
+
+;; selected-test? : string? -> boolean?
+;;   Keep tests enabled by default, or run cases whose names contain a filter.
+(define (selected-test? name)
+  (or (null? selected-test-substrings)
+      (for/or ([needle (in-list selected-test-substrings)])
+        (regexp-match? (regexp-quote needle) name))))
+
+(define-syntax-rule (test-case name body ...)
+  (wr-rackunit-test-case name
+    (when (selected-test? name)
+      body ...)))
 
 ;; sorted-symbols : (listof symbol?) -> (listof symbol?)
 ;;   Compare provider-name sets without depending on discovery order.
