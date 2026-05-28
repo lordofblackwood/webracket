@@ -11,6 +11,7 @@
          racket/string
          (only-in "../pkgs/webracket-lib/compiler/compiler.rkt" comp)
          (only-in "../pkgs/webracket-lib/compiler/driver.rkt"
+                  current-webracket/base-provider-substitutions?
                   webracket/base-external-provider-names
                   webracket/base-file->local-module-reports
                   webracket/base-language-provider-name?)
@@ -202,15 +203,19 @@
 
 (module+ main
   (define trial-name 'racket/bool)
+  (define source-override #f)
   (define timeout-seconds 120)
   (define frontier-limit #f)
   (define trace-limit 40)
   (define cut-language-root? #t)
+  (define provider-substitutions? #t)
   (command-line
    #:program "probe-webracket-base-provider-phases"
    #:once-each
    [("--trial") name "provider trial module name"
                 (set! trial-name (string->symbol name))]
+   [("--source") path "use an existing #lang webracket/base source file"
+                (set! source-override (string->path path))]
    [("--timeout") seconds "seconds per phase before stopping"
                 (set! timeout-seconds (string->number seconds))]
    [("--frontier-limit") n "stop provider discovery after N providers"
@@ -220,42 +225,58 @@
    [("--cut-language-root") "cut webracket/base language providers from external discovery (default)"
                             (set! cut-language-root? #t)]
    [("--include-language-root") "experiment: include webracket/base language providers in external discovery"
-                                (set! cut-language-root? #f)])
-  (define trial (webify-provider-trial-ref trial-name))
-  (define source-dir (make-temporary-file "webracket-base-provider-phase-src-~a" 'directory))
-  (define source-path (build-path source-dir "main.rkt"))
+                                (set! cut-language-root? #f)]
+   [("--no-provider-substitutions") "do not route racket/* providers to webracket/* shims"
+                                   (set! provider-substitutions? #f)])
+  (define trial (and (not source-override)
+                     (webify-provider-trial-ref trial-name)))
+  (define source-dir
+    (if source-override
+        #f
+        (make-temporary-file "webracket-base-provider-phase-src-~a" 'directory)))
+  (define source-path
+    (if source-override
+        (simplify-path (path->complete-path source-override))
+        (build-path source-dir "main.rkt")))
   (dynamic-wind
     void
     (lambda ()
-      (write-trial-source! trial source-path)
+      (when trial
+        (write-trial-source! trial source-path))
       (parameterize ([current-library-collection-paths
                       (cons (webracket-collection-parent)
                             (current-library-collection-paths))]
-                     [current-directory source-dir])
+                     [current-directory (or (and source-override
+                                                 (path-only source-path))
+                                            source-dir)])
         (define-values (root reports)
-          (run-stage! 'extract-local-reports
-                      timeout-seconds
-                      (lambda ()
-                        (webracket/base-file->local-module-reports source-path))))
+          (parameterize ([current-webracket/base-provider-substitutions?
+                          provider-substitutions?])
+            (run-stage! 'extract-local-reports
+                        timeout-seconds
+                        (lambda ()
+                          (webracket/base-file->local-module-reports source-path)))))
         (print-provider-demand-summary! reports)
         (define trace-box (box '()))
         (define stages
-          (run-provider-discovery-stage!
-           timeout-seconds
-           trace-box
-           trace-limit
-           (lambda ()
-             (webify-module-provider-discovery-run-stages
-              reports
-              #:extra-reports (list webify-module-protocol-report)
-              #:module-protocol-dependency webify-module-protocol-dependency
-              #:demand-slice? #t
-              #:trace-box trace-box
-              #:frontier-limit frontier-limit
-              #:skip-provider?
-              (lambda (name)
-                (and cut-language-root?
-                     (webracket/base-language-provider-name? name)))))))
+          (parameterize ([current-webracket/base-provider-substitutions?
+                          provider-substitutions?])
+            (run-provider-discovery-stage!
+             timeout-seconds
+             trace-box
+             trace-limit
+             (lambda ()
+               (webify-module-provider-discovery-run-stages
+                reports
+                #:extra-reports (list webify-module-protocol-report)
+                #:module-protocol-dependency webify-module-protocol-dependency
+                #:demand-slice? #t
+                #:trace-box trace-box
+                #:frontier-limit frontier-limit
+                #:skip-provider?
+                (lambda (name)
+                  (and cut-language-root?
+                       (webracket/base-language-provider-name? name))))))))
         (print-stage-timings!
          (webify-module-provider-discovery-stages-timings stages))
         (define registry
@@ -275,5 +296,6 @@
                      (lambda ()
                        (comp stx))))))
     (lambda ()
-      (with-handlers ([exn:fail:filesystem? void])
-        (delete-directory/files source-dir)))))
+      (when source-dir
+        (with-handlers ([exn:fail:filesystem? void])
+          (delete-directory/files source-dir))))))
