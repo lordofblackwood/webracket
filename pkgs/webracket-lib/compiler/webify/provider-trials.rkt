@@ -283,6 +283,7 @@
     racket/private/pico
     racket/private/sort
     racket/private/reqprov
+    racket/private/string
     racket/unsafe/undefined
     racket/require-transform
     syntax/contract
@@ -349,6 +350,7 @@
     racket/private/map
     racket/private/pico
     racket/private/sort
+    racket/private/string
     racket/unsafe/undefined
     syntax/contract
     syntax/location
