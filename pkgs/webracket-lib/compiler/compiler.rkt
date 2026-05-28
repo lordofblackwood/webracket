@@ -1299,6 +1299,7 @@
        split-common-prefix
        hash-ref
        hash-ref-key
+       hash-update
        hash-update!
        random
        flrandom
@@ -1374,7 +1375,7 @@
                  list-prefix? take-common-prefix drop-common-prefix split-common-prefix
                  hash-ref hash-ref-key real->floating-point-bytes vector-sort! vector-sort
                  ) 2]
-         [(hash-update!) 3]
+         [(hash-update hash-update!) 3]
         [(random flrandom unsafe-flrandom make-semaphore current-pseudo-random-generator
                  get-installation-name current-logger current-thread-group make-thread-group
                  current-security-guard
@@ -1424,7 +1425,7 @@
          [(flrandom unsafe-flrandom) 1]
          [(vector-sort! vector-sort) 4]
          [(real->floating-point-bytes) 5]
-         [(hash-update!) 4]
+         [(hash-update hash-update!) 4]
          [(string-trim) 5]
          [(string-split) 4]
          [(compile-linklet recompile-linklet) 5]
@@ -2603,6 +2604,7 @@
   hash-remove
   hash-ref!
   hash-set!
+  hash-update
   hash-update!
   hash-remove!
   hash-clear

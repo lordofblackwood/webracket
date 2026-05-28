@@ -2268,13 +2268,18 @@
         (lambda (line)
           (not (regexp-match? #rx"^provider-cache:" line)))
         (string-split normalized "\n")))
+     (define message-line
+       (for/first ([line (in-list lines)]
+                   #:when (regexp-match? #rx"^  message: " line))
+         line))
      (define diagnostic-line
        (for/first ([line (in-list lines)]
                    #:when (regexp-match?
                             #rx"unsupported provider|unsupported providers|missing-after-reflection|ambiguous-after-reflection|namespace mismatch|module bridge graph extraction failed|unbound identifier|undefined"
                             line))
          line))
-     (define line (or diagnostic-line
+     (define line (or message-line
+                      diagnostic-line
                       (if (null? lines)
                           (first (string-split normalized "\n"))
                           (first lines))))

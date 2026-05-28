@@ -182,6 +182,18 @@
        (exercise (hash) (lambda (i) (list i)) equal?)
        (exercise (hashalw) (lambda (i) (list i)) equal?)))
 
+(define (hash-update-functional-basics)
+  (define h0 (hash 'a 1))
+  (define h1 (hash-update h0 'a add1))
+  (define h2 (hash-update h1 'b add1 10))
+  (define h3 (hash-update h2 'c add1 (lambda () 20)))
+  (and (equal? (hash-ref h0 'a) 1)
+       (equal? (hash-ref h1 'a) 2)
+       (equal? (hash-ref h2 'b) 11)
+       (equal? (hash-ref h3 'c) 21)
+       (not (hash-has-key? h0 'b))
+       (not (hash-has-key? h2 'c))))
+
 (define (stencil-vector-update-basics)
   (define sv (stencil-vector #b101 'a 'b))
   (define added (stencil-vector-update sv #b0 #b10 'x))
@@ -222,5 +234,7 @@
               (immutable-hash-constructor-kinds))
         (list "cross-kind persistent update/remove"
               (cross-kind-persistent-update/remove))
+        (list "hash-update functional basics"
+              (hash-update-functional-basics))
         (list "stencil-vector update basics"
               (stencil-vector-update-basics)))))

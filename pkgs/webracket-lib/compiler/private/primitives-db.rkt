@@ -678,6 +678,7 @@
 (define-primitive hash-remove!                              2                   (ordered))
 (define-primitive hash-set                                  3                   (allocates))
 (define-primitive hash-set!                                 3                   (ordered))
+(define-primitive hash-update                               [3 4]               (allocates ordered))
 (define-primitive hash-update!                              [3 4]               (ordered))
 (define-primitive hash-values                               [1 2]               (ordered multi))
 (define-primitive hash-weak?                                1                   (pure))

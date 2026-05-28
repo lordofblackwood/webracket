@@ -1017,7 +1017,7 @@
 
  hash-ref hash-ref-key hash-ref! hash-set hash-set! hash-remove hash-remove! hash-clear hash-clear!
  hash-copy
- hash-update!
+ hash-update hash-update!
  hash-has-key?
  hash-empty?
  hash-count
