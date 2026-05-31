@@ -142,16 +142,24 @@
 ;; synthetic-provider-report : symbol? (listof symbol?) -> webify-module-report?
 ;;   Build a tiny provider report for bridge graph-composition tests.
 (define (synthetic-provider-report name exports)
+  (define linklet-datum
+    `(linklet () ,exports
+       ,@(for/list ([export (in-list exports)])
+           `(define-values (,export) ',export))))
   (webify-module-report
    name
    '(#f)
    '(0)
-   '()
+   (list (webify-module-bundle-entry
+          0
+          'linklet
+          '()
+          exports
+          linklet-datum
+          #f))
    '()
    exports
-   `(linklet () ,exports
-      ,@(for/list ([export (in-list exports)])
-          `(define-values (,export) ',export)))
+   linklet-datum
    #t
    '()))
 
@@ -1095,6 +1103,9 @@
         (check-equal? fetch-count 1)
         (check-equal? (webify-module-report-name report-1) 'racket/list)
         (check-equal? (webify-module-report-name report-2) 'racket/list)
+        (check-true
+         (andmap webify-module-bundle-entry?
+                 (webify-module-report-bundle-entries report-2)))
         (define entries (provider-report-cache-entries))
         (check-equal? (length entries) 1)
         (check-regexp-match #rx"racket_list[.]rktd$"
@@ -1127,8 +1138,11 @@
   (for ([name (in-list '(racket/list
                          racket/string
                          racket/bool
+                         racket/bytes
                          racket/vector
-                         racket/function))])
+                         racket/function
+                         racket/math
+                         racket/path))])
     (check-not-false (memq name webify-provider-trial-module-allowlist)
                      (symbol->string name))
     (check-true (webify-provider-trial-module-allowed? name)
@@ -1138,11 +1152,11 @@
   (check-true (webify-provider-trial-module-allowed? 'racket/private/for))
   (check-true (webify-provider-trial-module-allowed? 'racket/private/sort))
   (check-false (webify-provider-trial-module-allowed? 'racket/private/set))
-  (check-false (webify-provider-trial-module-allowed? 'racket/math))
   (check-true (webify-provider-trial-module-allowed? 'racket/contract))
   (for ([name (in-list '(racket/bool racket/list racket/string racket/vector
-                         racket/function racket/hash racket/set racket/match
-                         racket/contract webracket/contract webracket/set webracket/promise webracket/sequence webracket/stream
+                         racket/function racket/bytes racket/hash racket/set racket/match
+                         racket/contract racket/math racket/path
+                         webracket/contract webracket/set webracket/promise webracket/sequence webracket/stream
                          racket/private/sort js/console js/math js/performance))])
     (check-true (webify-provider-trial-default-bridge-module-allowed? name)
                 (symbol->string name)))
@@ -1190,6 +1204,22 @@
                   (cdr entry)))
   (for ([name (in-list '(racket/vector racket/match racket/math))])
     (check-equal? (webracket/base-provider-substitute name) name)))
+
+(test-case "webracket/full dashboard counts substituted providers as allowlisted"
+  (define rows (webracket-full-dashboard-rows))
+  (define (row-ref name)
+    (or (assoc name rows)
+        (error 'row-ref "missing full-dashboard row: ~a" name)))
+  (check-equal? (list-ref (row-ref 'racket/port) 5)
+                'allowlisted-via-substitution)
+  (check-equal? (list-ref (row-ref 'racket/dict) 5)
+                'allowlisted)
+  (check-equal? (list-ref (row-ref 'racket/math) 5)
+                'allowlisted)
+  (check-equal? (list-ref (row-ref 'racket/path) 5)
+                'allowlisted)
+  (check-equal? (list-ref (row-ref 'racket/bytes) 5)
+                'allowlisted))
 
 (test-case "#lang webracket/base runs an allowlisted provider without stdlib"
   (define source-dir (make-temporary-file "webracket-base-provider-only-src-~a" 'directory))

@@ -115,6 +115,14 @@
                   webify-module-provider-cache-miss-count
                   webify-module-provider-cache-ref
                   webify-module-reports->discovered-registry
+                  webify-module-bundle-entry
+                  webify-module-bundle-entry?
+                  webify-module-bundle-entry-datum
+                  webify-module-bundle-entry-exports
+                  webify-module-bundle-entry-imports
+                  webify-module-bundle-entry-key
+                  webify-module-bundle-entry-kind
+                  webify-module-bundle-entry-value
                   webify-module-report
                   webify-module-report-bundle-entries
                   webify-module-report-bundle-keys
@@ -490,13 +498,29 @@
 
 ;; provider-report->cache-datum : webify-module-report? -> datum?
 ;;   Serialize provider reports without relying on reader-visible struct types.
+(define (provider-bundle-entry->cache-datum entry)
+  `(bundle-entry
+    ,(webify-module-bundle-entry-key entry)
+    ,(webify-module-bundle-entry-kind entry)
+    ,(webify-module-bundle-entry-imports entry)
+    ,(webify-module-bundle-entry-exports entry)
+    ,(webify-module-bundle-entry-datum entry)
+    ,(webify-module-bundle-entry-value entry)))
+
+(define (cache-datum->provider-bundle-entry datum)
+  (match datum
+    [`(bundle-entry ,key ,kind ,imports ,exports ,entry-datum ,value)
+     (webify-module-bundle-entry key kind imports exports entry-datum value)]
+    [_ #f]))
+
 (define (provider-report->cache-datum report)
   `(provider-report
     ,(webify-module-report-name report)
     ,(webify-module-report-directory-keys report)
     ,(webify-module-report-bundle-keys report)
+    ,(map provider-bundle-entry->cache-datum
+          (webify-module-report-bundle-entries report))
     ,(webify-module-report-phase0-imports report)
-    ,(webify-module-report-bundle-entries report)
     ,(webify-module-report-phase0-exports report)
     ,(webify-module-report-phase0-linklet-datum report)
     ,(webify-module-report-manifest-ready? report)
@@ -510,21 +534,27 @@
        ,name
        ,directory-keys
        ,bundle-keys
-       ,phase0-imports
        ,bundle-entries
+       ,phase0-imports
        ,phase0-exports
        ,phase0-linklet-datum
        ,manifest-ready?
        ,notes)
+     (define parsed-bundle-entries
+       (and (list? bundle-entries)
+            (for/list ([entry (in-list bundle-entries)])
+              (cache-datum->provider-bundle-entry entry))))
+     (and parsed-bundle-entries
+          (andmap webify-module-bundle-entry? parsed-bundle-entries)
      (webify-module-report name
                            directory-keys
                            bundle-keys
+                           parsed-bundle-entries
                            phase0-imports
-                           bundle-entries
                            phase0-exports
                            phase0-linklet-datum
                            manifest-ready?
-                           notes)]
+                           notes))]
     [else #f]))
 
 ;; cached-installed-provider-report : symbol? (symbol? -> report?) -> report?
@@ -535,7 +565,7 @@
      "installed-provider-reports"
      (string-append (provider-cache-symbol-segment name) ".rktd")))
   (define fingerprint
-    `(installed-provider-report-cache 2 ,name ,(version)))
+    `(installed-provider-report-cache 4 ,name ,(version)))
   (define cached (read-provider-cache cache-path fingerprint))
   (cond
     [cached
@@ -1555,7 +1585,7 @@
    (substitution 'racket/class 'webracket/class 'temporary-shim 'high
                  "real provider currently pulls larger contract/private edges")
    (substitution 'racket/dict 'webracket/dict 'temporary-shim 'high
-                 "real provider diagnostic still fails during reflected export resolution")
+                 "broader real provider rows still need keyword-apply support")
    (substitution 'racket/file 'webracket/file 'runtime-owned 'low
                  "browser and VFS file behavior differs from host filesystem behavior")
    (substitution 'racket/format 'webracket/format 'temporary-shim 'medium
@@ -1573,7 +1603,7 @@
    (substitution 'racket/port 'webracket/port 'runtime-owned 'low
                  "ports are tied to WebRacket string ports, VFS, and browser IO")
    (substitution 'racket/pretty 'webracket/pretty 'temporary-shim 'high
-                 "real provider diagnostic currently reaches pretty-port internals")
+                 "broader real provider rows still need keyword-procedure arity-error support")
    (substitution 'racket/promise 'webracket/promise 'runtime-owned 'low
                  "ordinary promises are small browser-local runtime behavior")
    (substitution 'racket/sequence 'webracket/sequence 'temporary-shim 'high
@@ -1600,6 +1630,7 @@
   (memq name
         '(racket/contract
           racket/contract/base
+          racket/contract/private/arr-i
           racket/contract/combinator
           racket/contract/region
           racket/contract/private/arrow-collapsible
@@ -1611,9 +1642,21 @@
           racket/contract/private/case-arrow
           racket/contract/private/guts
           racket/contract/private/list
+          racket/contract/private/module-boundary-ctc
           racket/contract/private/misc
           racket/contract/private/object
-          racket/contract/private/object-c-wrapper)))
+          racket/contract/private/object-c-wrapper
+          racket/contract/private/opt
+          racket/contract/private/orc
+          ;; Racket/contract's compiled metadata can expose relative contract
+          ;; implementation paths. They are still contract-owned and should use
+          ;; the erased WebRacket contract provider during Goal 1 diagnostics.
+          private/arrow-common
+          private/arrow-val-first
+          private/base
+          private/guts
+          private/helpers
+          private/misc)))
 
 ;; webracket/base-provider-substitution-pairs : (listof (cons/c symbol? symbol?))
 ;;   Pair view of the structured substitution registry.
@@ -2139,13 +2182,25 @@
            (if (webracket/base-erased-contract-provider-name? name)
                'webracket/contract
                substitute-name))
-         (parameterize ([current-namespace provider-namespace]
-                        [current-module-name-resolver provider-module-name-resolver])
+         (define normal-export-shape?
+           ;; The root module is expanded by normal Racket, so contracted
+           ;; public providers must keep their generated provide/contract
+           ;; export names while their contract implementation dependencies
+           ;; remain eligible for erased-provider routing.
+           (memq name '(racket/dict)))
+         (define (extract)
            (webify-module-report/rename
             (if (eq? fetch-provider webify-module-path->report)
-                (webify-module-path->report extraction-name #:namespace provider-namespace)
+                (if normal-export-shape?
+                    (webify-module-path->report extraction-name)
+                    (webify-module-path->report extraction-name #:namespace provider-namespace))
                 (fetch-provider extraction-name))
-            name)))
+            name))
+         (if normal-export-shape?
+             (extract)
+             (parameterize ([current-namespace provider-namespace]
+                            [current-module-name-resolver provider-module-name-resolver])
+               (extract))))
        (define provider-cache
          (make-webify-module-provider-cache
           (webracket/base-fetch-provider/timed fetch-provider/erased-contracts)))
@@ -2154,6 +2209,10 @@
        ;; names the original Racket module.
        (define support-reports
          (list webify-module-protocol-report
+               (webify-module-provider-cache-ref provider-cache
+                                                 'webracket/format)
+               (webify-module-provider-cache-ref provider-cache
+                                                 'webracket/private/kw)
                (webify-module-provider-cache-ref provider-cache
                                                  'webracket/unsafe/undefined)))
        (define registry

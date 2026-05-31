@@ -206,6 +206,18 @@
        (provide answer)
        (define answer (list identity negate const curry curryr conjoin disjoin))))
    (webify-provider-trial
+    'racket/bytes
+    '(bytes-length bytes-append subbytes bytes->list list->bytes)
+    '(module use-bytes racket/base
+       (require (only-in racket/bytes
+                         bytes-length
+                         bytes-append
+                         subbytes
+                         bytes->list
+                         list->bytes))
+       (provide answer)
+       (define answer (list bytes-length bytes-append subbytes bytes->list list->bytes))))
+   (webify-provider-trial
     'racket/hash
     '(hash-union hash-intersect hash-filter)
     '(module use-hash racket/base
@@ -264,32 +276,43 @@
     racket/class
     racket/contract
     racket/contract/base
+    racket/contract/private/arr-i
     racket/contract/combinator
     racket/contract/region
     racket/contract/private/arrow-collapsible
     racket/contract/private/arrow-common
     racket/contract/private/arrow-higher-order
     racket/contract/private/arrow-val-first
+    racket/contract/private/base
     racket/contract/private/case-arrow
     racket/contract/private/guts
     racket/contract/private/list
+    racket/contract/private/module-boundary-ctc
     racket/contract/private/misc
     racket/contract/private/object
     racket/contract/private/object-c-wrapper
+    racket/contract/private/opt
+    racket/contract/private/orc
     racket/fixnum
     racket/flonum
+    racket/bytes
     racket/generator
     racket/hash-code
     racket/logging
+    racket/math
     racket/match
     racket/match/gen-match
     racket/match/runtime
     racket/mpair
     racket/mutable-treelist
+    racket/path
     racket/sequence
+    racket/private/arity
     racket/private/define-struct
     racket/private/dict
     racket/private/for
+    racket/private/generic
+    racket/private/generic-methods
     racket/private/hash
     racket/private/keyword-apply-dict
     racket/private/kw
@@ -311,8 +334,24 @@
     racket/treelist
     racket/unsafe/undefined
     racket/require-transform
+    racket/splicing
+    racket/struct-info
+    racket/stxparam
+    racket/private/stxparam
+    racket/private/stxparamkey
+    racket/syntax
     syntax/contract
+    syntax/define
+    syntax/kerncase
     syntax/location
+    syntax/parse/pre
+    syntax/srcloc
+    private/arrow-common
+    private/arrow-val-first
+    private/base
+    private/guts
+    private/helpers
+    private/misc
     webracket/contract
     webracket/class
     webracket/dict
@@ -348,6 +387,7 @@
     js/temp
     data/queue
     racket/bool
+    racket/bytes
     racket/class
     racket/contract
     racket/contract/base
@@ -360,9 +400,11 @@
     racket/list
     racket/mpair
     racket/logging
+    racket/math
     racket/match
     racket/match/gen-match
     racket/match/runtime
+    racket/path
     racket/set
     racket/sequence
     racket/string
@@ -370,20 +412,28 @@
     racket/treelist
     racket/vector
     racket/function
+    racket/contract/private/arr-i
     racket/contract/private/arrow-collapsible
     racket/contract/private/arrow-common
     racket/contract/private/arrow-higher-order
     racket/contract/private/arrow-val-first
+    racket/contract/private/base
     racket/contract/private/case-arrow
     racket/contract/private/guts
     racket/contract/private/list
+    racket/contract/private/module-boundary-ctc
     racket/contract/private/misc
     racket/contract/private/object
     racket/contract/private/object-c-wrapper
+    racket/contract/private/opt
+    racket/contract/private/orc
     racket/fixnum
     racket/flonum
+    racket/private/arity
     racket/private/dict
     racket/private/for
+    racket/private/generic
+    racket/private/generic-methods
     racket/private/hash
     racket/private/keyword-apply-dict
     racket/private/kw
@@ -402,8 +452,25 @@
     racket/private/object-c
     racket/stream
     racket/unsafe/undefined
+    racket/require-transform
+    racket/splicing
+    racket/struct-info
+    racket/stxparam
+    racket/private/stxparam
+    racket/private/stxparamkey
+    racket/syntax
     syntax/contract
+    syntax/define
+    syntax/kerncase
     syntax/location
+    syntax/parse/pre
+    syntax/srcloc
+    private/arrow-common
+    private/arrow-val-first
+    private/base
+    private/guts
+    private/helpers
+    private/misc
     webracket/contract
     webracket/class
     webracket/dict

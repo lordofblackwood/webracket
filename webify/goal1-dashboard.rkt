@@ -800,9 +800,21 @@
        ,(string-append
          "#lang webracket/full\n"
          "(js-log (+ (sqr 5) (sgn -10) 18))\n")))
+   "main.rkt"
+   #rx"(?m:^42$)"
+   '("--no-io-format-provider"))
+   (dashboard-case
+    'installed-racket-math
+    'installed-provider-graph
+    '(racket/math)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/base\n"
+         "(require racket/math)\n"
+         "(js-log (+ (sqr 5) (sgn -10) 18))\n")))
     "main.rkt"
     #rx"(?m:^42$)"
-    '("--no-io-format-provider"))
+    '("--no-io-format-provider" "--webracket-module-bridge"))
    (dashboard-case
     'full-math-coverage
     'installed-provider-coverage
@@ -826,9 +838,22 @@
          "#lang webracket/full\n"
          "(define p (build-path \"alpha\" \"beta\"))\n"
          "(js-log (if (relative-path? p) 42 0))\n")))
+   "main.rkt"
+   #rx"(?m:^42$)"
+   '("--no-io-format-provider"))
+   (dashboard-case
+    'installed-racket-path
+    'installed-provider-graph
+    '(racket/path)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/base\n"
+         "(require racket/path)\n"
+         "(define p (build-path \"alpha\" \"beta\"))\n"
+         "(js-log (if (relative-path? p) 42 0))\n")))
     "main.rkt"
     #rx"(?m:^42$)"
-    '("--no-io-format-provider"))
+    '("--no-io-format-provider" "--webracket-module-bridge"))
    (dashboard-case
     'full-path-coverage
     'installed-provider-coverage
@@ -1929,6 +1954,20 @@
     `(("main.rkt" . "#lang webracket/base\n(require racket/set)\n(js-log (set-count (set 1 2 2)))\n"))
     "main.rkt"
     #rx"(?m:^2$)"
+    '("--no-io-format-provider" "--webracket-module-bridge"))
+   (dashboard-case
+    'installed-racket-bytes
+    'installed-provider-graph
+    '(racket/bytes)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/base\n"
+         "(require racket/bytes)\n"
+         "(define b (bytes-append #\"A\" #\"BC\"))\n"
+         "(js-log (+ (bytes-length b)\n"
+         "           (if (equal? (bytes->list (subbytes b 1 3)) '(66 67)) 39 0)))\n")))
+    "main.rkt"
+    #rx"(?m:^42$)"
     '("--no-io-format-provider" "--webracket-module-bridge"))
    (dashboard-case
     'installed-racket-promise

@@ -15,7 +15,7 @@ through the temporary provider bridge allowlist.
   format, and dict coverage rows.
 - WebRacket-owned staged providers cover the currently preferred surfaces for
   contracts, class support, dicts, files, formatting, functions, hashes, ports,
-  promises, sets, strings, streams, regexp, and JS FFI modules.
+  promises, pretty printing, sets, strings, streams, regexp, and JS FFI modules.
 - Runtime-adjacent coverage now includes VFS file helpers, contract-erased
   queues, and the narrow logging export surface.
 

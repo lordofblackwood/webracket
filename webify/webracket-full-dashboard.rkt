@@ -6,6 +6,8 @@
 (require json
          racket/list
          racket/match
+         (only-in "../pkgs/webracket-lib/compiler/driver.rkt"
+                  webracket/base-provider-substitute)
          "../pkgs/webracket-lib/compiler/webify/provider-trials.rkt"
          "../pkgs/webracket-lib/compiler/webify/webracket-full-surface.rkt")
 
@@ -22,8 +24,12 @@
 ;; provider-trial-status : symbol? -> symbol?
 ;;   Report whether the temporary external-provider bridge allowlist covers a library.
 (define (provider-trial-status library)
+  (define routed-library (webracket/base-provider-substitute library))
   (cond
     [(webify-provider-trial-module-allowed? library) 'allowlisted]
+    [(and (not (eq? routed-library library))
+          (webify-provider-trial-module-allowed? routed-library))
+     'allowlisted-via-substitution]
     [(memq library webracket-full-addon-libraries) 'not-allowlisted]
     [else 'not-full-addon]))
 
@@ -45,7 +51,9 @@
     [(eq? (status-ref library 'extracts) 'unknown) 'not-extracted]
     [(eq? (status-ref library 'runs) 'host-only) 'host-expander-only]
     [(not (eq? (status-ref library 'composes) 'composes)) 'module-composition-partial]
-    [(not (eq? (provider-trial-status library) 'allowlisted)) 'provider-not-allowlisted]
+    [(not (memq (provider-trial-status library)
+                '(allowlisted allowlisted-via-substitution)))
+     'provider-not-allowlisted]
     [(not (eq? (status-ref library 'runs) 'runs)) 'runtime-partial]
     [else 'none]))
 
