@@ -18,9 +18,10 @@
          blame-original? blame-positive blame-replace-negative
          blame-replaced-negative? blame-source blame-swap blame-swapped?
          blame-update blame-value blame? box-immutable/c box/c
-         build-chaperone-contract-property build-compound-type-name
+         build-chaperone-contract-property build-compound-type-name build-context
          build-contract-property build-flat-contract-property case->
-         channel/c chaperone-contract-property? chaperone-contract? char-in
+         channel/c chaperone-contract-property? chaperone-contract? check-procedure
+         check-procedure/more char-in
          char-in/c coerce-chaperone-contract coerce-chaperone-contracts
          coerce-contract coerce-contract/f coerce-contracts coerce-flat-contract
          coerce-flat-contracts complex/c cons/c cons/dc continuation-mark-key/c
@@ -78,6 +79,7 @@
          struct-type-property/c struct/c struct/contract struct/dc
          struct:arrow-contract-info struct:exn:fail:contract:blame suggest/c
          symbols syntax/c tail-contract-key tail-marks-match? the-unsupplied-arg treelist/c
+         trust-me
          un-dep un-dep/chaperone unconstrained-domain->
          unspecified-dom unsupplied-arg? value-blame
          value-contract values/drop vector-immutable/c vector-immutableof
@@ -100,6 +102,7 @@
 (define the-unsupplied-arg '(unsupplied-arg))
 (define unspecified-dom '(unspecified-dom))
 (define tail-contract-key (gensym 'tail-contract-key))
+(define trust-me (gensym 'trust-me))
 (define contract-continuation-mark-key '(contract-continuation-mark-key))
 (define id-blame '(erased-contract-blame))
 (define invariant-assertion-party '(invariant-assertion-party))
@@ -488,6 +491,7 @@
 
 (define-identity-wrapper arity-checking-wrapper)
 (define-identity-wrapper blame-add-car-context)
+(define-identity-wrapper blame-add-context)
 (define-identity-wrapper blame-add-cdr-context)
 (define-identity-wrapper blame-add-extra-field)
 (define-identity-wrapper blame-add-missing-party)
@@ -565,6 +569,10 @@
 (define (make-exn:fail:contract:blame message marks object)
   (exn:fail:contract:blame message marks object))
 (define (n->th n) (format "~ath" n))
+
+;; build-context : -> string?
+;;   Return an inert context string for erased contract construction.
+(define (build-context) "")
 (define (prop:arrow-contract-get-info _v) #f)
 (define (prop:orc-contract-get-subcontracts _v) '())
 (define (prop:recursive-contract-unroll contract) contract)
@@ -581,6 +589,14 @@
 (define (bad-number-of-results . _args)
   (raise-arguments-error 'bad-number-of-results
                          "erased contracts do not check result arity"))
+
+;; check-procedure : any/c ... -> boolean?
+;;   Erase arrow-contract procedure shape checks.
+(define (check-procedure . _args) #t)
+
+;; check-procedure/more : any/c ... -> boolean?
+;;   Erase arrow-contract procedure shape checks for rest/keyword cases.
+(define (check-procedure/more . _args) #t)
 
 ;; wrong-number-of-results-blame : any/c ... -> any/c
 ;;   Erased object-contract result checker; kept as a value export for provider code.
@@ -843,7 +859,6 @@
 
 (define-erased-syntaxes
   any
-  blame-add-context
   channel/c
   continuation-mark-key/c
   contract-exercise

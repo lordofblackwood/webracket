@@ -2010,7 +2010,7 @@
                                 blame-add-extra-field
                                 blame-fmt->-string
                                 invariant-assertion-party))
-            (list local 'racket/contract/private/blame)]
+            (list local 'webracket/contract)]
            [(symbolic-name=? external 'current-contract-region)
             (list local 'racket/contract/region)]
            [(symbolic-name=? external 'real-and/c-name)
@@ -2050,6 +2050,8 @@
                                 build-contract-property
                                 build-chaperone-contract-property
                                 build-flat-contract-property
+                                trust-me
+                                build-context
                                 contract-struct-late-neg-projection
                                 contract-struct-generate
                                 contract-struct-exercise
@@ -2061,7 +2063,9 @@
                                 bad-number-of-results
                                 the-unsupplied-arg
                                 unsupplied-arg?
-                                unspecified-dom))
+                                unspecified-dom
+                                check-procedure
+                                check-procedure/more))
             (list local 'racket/contract/private/arrow-common)]
            [(symbolic-name=? external 'build->*-plus-one-acceptor)
             (list local 'racket/contract/private/arrow-val-first)]

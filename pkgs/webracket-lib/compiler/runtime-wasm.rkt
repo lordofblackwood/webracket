@@ -60312,6 +60312,18 @@
                (result      (ref eq))
                (call $make-composed-procedure (local.get $args) (global.get $true)))
 
+         (func $procedure-extract-target (type $Prim1)
+               (param $proc (ref eq)) ; procedure?
+               (result      (ref eq))
+               ;; Racket extracts a target procedure from a struct procedure
+               ;; whose prop:procedure value names a field. WebRacket does
+               ;; not yet expose that internal target, so ordinary procedures
+               ;; conservatively return #f for now.
+               (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
+                   (then (call $raise-argument-error:procedure-expected (local.get $proc))
+                         (unreachable)))
+               (global.get $false))
+
          (func $procedure-reduce-arity
                (param $proc  (ref eq)) ; procedure?
                (param $arity (ref eq)) ; procedure-arity?

@@ -2650,6 +2650,7 @@
   procedure-arity?
   procedure-arity-mask
   procedure-arity-includes?
+  procedure-extract-target
   procedure-result-arity
   procedure-specialize
   procedure-struct-type?

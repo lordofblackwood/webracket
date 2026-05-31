@@ -991,6 +991,7 @@
 (define-primitive procedure-arity?                          1                   (pure))
 (define-primitive procedure-arity-includes?                 [2 3]               (pure))
 (define-primitive procedure-arity-mask                      1                   (ordered))
+(define-primitive procedure-extract-target                  1                   (pure))
 (define-primitive procedure-result-arity                    1                   (pure))
 (define-primitive procedure-specialize                      1                   (pure))
 (define-primitive procedure-struct-type?                    1                   (pure))

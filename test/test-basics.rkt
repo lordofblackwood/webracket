@@ -89,6 +89,11 @@
                        (eq? (procedure-specialize proc) proc)
                        (equal? ((procedure-specialize proc) 'ok) 'ok)
                        (equal? (procedure-arity procedure-specialize) 1))))
+              (list "procedure-extract-target"
+                    (and
+                     (equal? (procedure-extract-target (lambda (x) x)) #f)
+                     (with-handlers ([exn? (lambda (ex) #t)])
+                       (procedure-extract-target 'not-a-procedure))))
               (list "call-with-escape-continuation/bootstrap"
                     (and
                      (equal? (call-with-escape-continuation
