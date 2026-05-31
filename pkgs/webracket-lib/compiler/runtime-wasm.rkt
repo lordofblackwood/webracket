@@ -42765,7 +42765,7 @@
 
          (func $raise-hash-ref-key-not-found (param $key (ref eq)) (unreachable))
 
-         (func $hash-ref
+         (func $hash-ref (type $Prim23)
                (param $ht      (ref eq))   ;; must be a mutable hasheq
                (param $key     (ref eq))
                (param $failure (ref eq))   ;; failure result

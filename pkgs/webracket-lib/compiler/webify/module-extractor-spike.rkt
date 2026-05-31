@@ -113,6 +113,7 @@
 
 (define-runtime-path webify-contract-path "../../../webracket/contract.rkt")
 (define-runtime-path webify-syntax-contract-path "../../../webracket/syntax/contract.rkt")
+(define-runtime-path webify-syntax-srcloc-path "../../../webracket/syntax/srcloc.rkt")
 (define-runtime-path webify-unsafe-undefined-path "../../../webracket/unsafe/undefined.rkt")
 
 ;; contract-module-path? : any/c -> boolean?
@@ -123,22 +124,40 @@
       (eq? module-path 'racket/contract/combinator)
       (eq? module-path 'racket/contract/region)
       (eq? module-path 'racket/contract/private/base)
+      (eq? module-path 'racket/contract/private/arr-i)
+      (eq? module-path 'racket/contract/private/arrow-collapsible)
       (eq? module-path 'racket/contract/private/arrow-common)
+      (eq? module-path 'racket/contract/private/arrow-higher-order)
+      (eq? module-path 'racket/contract/private/arrow-val-first)
       (eq? module-path 'racket/contract/private/blame)
+      (eq? module-path 'racket/contract/private/case-arrow)
       (eq? module-path 'racket/contract/private/guts)
       (eq? module-path 'racket/contract/private/list)
       (eq? module-path 'racket/contract/private/misc)
+      (eq? module-path 'racket/contract/private/module-boundary-ctc)
+      (eq? module-path 'racket/contract/private/object-c-wrapper)
+      (eq? module-path 'racket/contract/private/opt)
+      (eq? module-path 'racket/contract/private/orc)
       (eq? module-path 'syntax/contract)
       (equal? module-path '(lib "racket/contract.rkt"))
       (equal? module-path '(lib "racket/contract/base.rkt"))
       (equal? module-path '(lib "racket/contract/combinator.rkt"))
       (equal? module-path '(lib "racket/contract/region.rkt"))
       (equal? module-path '(lib "racket/contract/private/base.rkt"))
+      (equal? module-path '(lib "racket/contract/private/arr-i.rkt"))
+      (equal? module-path '(lib "racket/contract/private/arrow-collapsible.rkt"))
       (equal? module-path '(lib "racket/contract/private/arrow-common.rkt"))
+      (equal? module-path '(lib "racket/contract/private/arrow-higher-order.rkt"))
+      (equal? module-path '(lib "racket/contract/private/arrow-val-first.rkt"))
       (equal? module-path '(lib "racket/contract/private/blame.rkt"))
+      (equal? module-path '(lib "racket/contract/private/case-arrow.rkt"))
       (equal? module-path '(lib "racket/contract/private/guts.rkt"))
       (equal? module-path '(lib "racket/contract/private/list.rkt"))
       (equal? module-path '(lib "racket/contract/private/misc.rkt"))
+      (equal? module-path '(lib "racket/contract/private/module-boundary-ctc.rkt"))
+      (equal? module-path '(lib "racket/contract/private/object-c-wrapper.rkt"))
+      (equal? module-path '(lib "racket/contract/private/opt.rkt"))
+      (equal? module-path '(lib "racket/contract/private/orc.rkt"))
       (equal? module-path '(lib "syntax/contract.rkt"))))
 
 ;; unsafe-undefined-module-path? : any/c -> boolean?
@@ -146,6 +165,12 @@
 (define (unsafe-undefined-module-path? module-path)
   (or (eq? module-path 'racket/unsafe/undefined)
       (equal? module-path '(lib "racket/unsafe/undefined.rkt"))))
+
+;; syntax-srcloc-module-path? : any/c -> boolean?
+;;   Recognize source-location providers that need format-free extraction.
+(define (syntax-srcloc-module-path? module-path)
+  (or (eq? module-path 'syntax/srcloc)
+      (equal? module-path '(lib "syntax/srcloc.rkt"))))
 
 ;; contract-module-path->resolved : module-path? -> resolved-module-path?
 ;;   Map public contract providers to symbolic erased declarations.
@@ -167,12 +192,27 @@
      [(or (eq? module-path 'racket/contract/private/base)
           (equal? module-path '(lib "racket/contract/private/base.rkt")))
       'racket/contract/private/base]
+     [(or (eq? module-path 'racket/contract/private/arr-i)
+          (equal? module-path '(lib "racket/contract/private/arr-i.rkt")))
+      'racket/contract/private/arr-i]
+     [(or (eq? module-path 'racket/contract/private/arrow-collapsible)
+          (equal? module-path '(lib "racket/contract/private/arrow-collapsible.rkt")))
+      'racket/contract/private/arrow-collapsible]
      [(or (eq? module-path 'racket/contract/private/arrow-common)
           (equal? module-path '(lib "racket/contract/private/arrow-common.rkt")))
       'racket/contract/private/arrow-common]
+     [(or (eq? module-path 'racket/contract/private/arrow-higher-order)
+          (equal? module-path '(lib "racket/contract/private/arrow-higher-order.rkt")))
+      'racket/contract/private/arrow-higher-order]
+     [(or (eq? module-path 'racket/contract/private/arrow-val-first)
+          (equal? module-path '(lib "racket/contract/private/arrow-val-first.rkt")))
+      'racket/contract/private/arrow-val-first]
      [(or (eq? module-path 'racket/contract/private/blame)
           (equal? module-path '(lib "racket/contract/private/blame.rkt")))
       'racket/contract/private/blame]
+     [(or (eq? module-path 'racket/contract/private/case-arrow)
+          (equal? module-path '(lib "racket/contract/private/case-arrow.rkt")))
+      'racket/contract/private/case-arrow]
      [(or (eq? module-path 'racket/contract/private/guts)
           (equal? module-path '(lib "racket/contract/private/guts.rkt")))
       'racket/contract/private/guts]
@@ -182,6 +222,18 @@
      [(or (eq? module-path 'racket/contract/private/misc)
           (equal? module-path '(lib "racket/contract/private/misc.rkt")))
       'racket/contract/private/misc]
+     [(or (eq? module-path 'racket/contract/private/module-boundary-ctc)
+          (equal? module-path '(lib "racket/contract/private/module-boundary-ctc.rkt")))
+      'racket/contract/private/module-boundary-ctc]
+     [(or (eq? module-path 'racket/contract/private/object-c-wrapper)
+          (equal? module-path '(lib "racket/contract/private/object-c-wrapper.rkt")))
+      'racket/contract/private/object-c-wrapper]
+     [(or (eq? module-path 'racket/contract/private/opt)
+          (equal? module-path '(lib "racket/contract/private/opt.rkt")))
+      'racket/contract/private/opt]
+     [(or (eq? module-path 'racket/contract/private/orc)
+          (equal? module-path '(lib "racket/contract/private/orc.rkt")))
+      'racket/contract/private/orc]
      [else 'racket/contract])))
 
 ;; make-webify-contract-erasing-module-name-resolver : [procedure?] -> procedure?
@@ -193,6 +245,8 @@
      (cond
        [(contract-module-path? module-path)
         (contract-module-path->resolved module-path)]
+       [(syntax-srcloc-module-path? module-path)
+        (make-resolved-module-path 'syntax/srcloc)]
        [(unsafe-undefined-module-path? module-path)
         (make-resolved-module-path 'racket/unsafe/undefined)]
        [else (base-resolver module-path source syntax load?)])]
@@ -774,6 +828,7 @@
 (define (symbolic-name=? a b)
   (or (eq? a b)
       (string=? (symbol->string a) (symbol->string b))
+      (string=? (generated-base-name a) (generated-base-name b))
       (string=? (generated-base-name a) (symbol->string b))
       (string=? (symbol->string a) (generated-base-name b))))
 
@@ -1955,39 +2010,39 @@
          (cond
            [(and (eq? module-name 'racket/private/class-internal)
                  (symbolic-name=? external 'coerce-contract))
-            (list local 'racket/contract/combinator)]
+            (list local 'webracket/contract)]
            [(and (eq? module-name 'racket/private/class-internal)
                  (symbolic-name=? external 'apply-contract))
-            (list local 'racket/contract/base)]
+            (list local 'webracket/contract)]
            [(and (eq? module-name 'racket/private/class-internal)
                  (symbolic-name=? external 'blame-swap))
-            (list local 'racket/contract/combinator)]
+            (list local 'webracket/contract)]
            [(and (eq? module-name 'racket/private/class-internal)
                  (symbolic-name=? external 'raise-blame-error))
-            (list local 'racket/contract/combinator)]
+            (list local 'webracket/contract)]
            [(and (eq? module-name 'racket/private/class-internal)
                  (symbolic-name=? external 'contract?))
-            (list local 'racket/contract/combinator)]
+            (list local 'webracket/contract)]
            [(and (eq? module-name 'racket/private/class-internal)
                  (symbolic-name=? external 'current-contract-region))
-            (list local 'racket/contract/region)]
+            (list local 'webracket/contract)]
            [(and (eq? module-name 'racket/private/class-internal)
                  (symbolic-name=? external 'contract))
-            (list local 'racket/contract/base)]
+            (list local 'webracket/contract)]
            [(symbolic-member? external
                               '(apply-contract
                                 contract
                                 contract?
                                 coerce-contract
                                 raise-blame-error))
-            (list local 'racket/contract/base)]
+            (list local 'webracket/contract)]
            [(symbolic-member? external
                               '(coerce-contracts
                                 coerce-flat-contract
                                 coerce-flat-contracts
                                 coerce-chaperone-contract
                                 coerce-chaperone-contracts))
-            (list local 'racket/contract/private/guts)]
+            (list local 'webracket/contract)]
            [(symbolic-member? external
                               '(blame?
                                 make-blame
@@ -2012,11 +2067,11 @@
                                 invariant-assertion-party))
             (list local 'webracket/contract)]
            [(symbolic-name=? external 'current-contract-region)
-            (list local 'racket/contract/region)]
+            (list local 'webracket/contract)]
            [(symbolic-name=? external 'real-and/c-name)
-            (list local 'racket/contract/private/misc)]
+            (list local 'webracket/contract)]
            [(symbolic-name=? external 'or/c-name)
-            (list local 'racket/contract/private/orc)]
+            (list local 'webracket/contract)]
            [(symbolic-member? external
                               '(add-method-suffix
                                 contract-random-generate
@@ -2066,9 +2121,9 @@
                                 unspecified-dom
                                 check-procedure
                                 check-procedure/more))
-            (list local 'racket/contract/private/arrow-common)]
+            (list local 'webracket/contract)]
            [(symbolic-name=? external 'build->*-plus-one-acceptor)
-            (list local 'racket/contract/private/arrow-val-first)]
+            (list local 'webracket/contract)]
            [(symbolic-name=? external 'prop:stream)
             (list local 'racket/private/for)]
            [(symbolic-member? external
@@ -2105,7 +2160,7 @@
                                 ->i-arg-kwd
                                 ->i-arg-optional?
                                 ->i-arg-contract))
-            (list local 'racket/contract/private/arr-i)]
+            (list local 'webracket/contract)]
            [(and (eq? module-name 'racket/private/class-internal)
                  (or (symbolic-name=? external 'unsafe-undefined)
                      (symbolic-name=? external 'check-not-unsafe-undefined)
@@ -2514,6 +2569,7 @@
   (define namespace (make-base-namespace))
   (define contract-file (path->string webify-contract-path))
   (define syntax-contract-file (path->string webify-syntax-contract-path))
+  (define syntax-srcloc-file (path->string webify-syntax-srcloc-path))
   (define unsafe-undefined-file (path->string webify-unsafe-undefined-path))
   (define erased-contract-coercion-exports
     '(coerce-contract
@@ -2601,10 +2657,25 @@
         'racket/contract/private/base
         `((all-from-out (file ,contract-file))))
        (declare-erased-contract-module!
+        'racket/contract/private/arr-i
+        `((all-from-out (file ,contract-file))))
+       (declare-erased-contract-module!
+        'racket/contract/private/arrow-collapsible
+        `((all-from-out (file ,contract-file))))
+       (declare-erased-contract-module!
         'racket/contract/private/arrow-common
         `((all-from-out (file ,contract-file))))
        (declare-erased-contract-module!
+        'racket/contract/private/arrow-higher-order
+        `((all-from-out (file ,contract-file))))
+       (declare-erased-contract-module!
+        'racket/contract/private/arrow-val-first
+        `((all-from-out (file ,contract-file))))
+       (declare-erased-contract-module!
         'racket/contract/private/blame
+        `((all-from-out (file ,contract-file))))
+       (declare-erased-contract-module!
+        'racket/contract/private/case-arrow
         `((all-from-out (file ,contract-file))))
        (declare-erased-contract-module!
         'racket/contract/private/guts
@@ -2625,12 +2696,28 @@
         'racket/contract/private/misc
         `(set-some-basic-misc-contracts!))
        (declare-erased-contract-module!
+        'racket/contract/private/module-boundary-ctc
+        `((all-from-out (file ,contract-file))))
+       (declare-erased-contract-module!
+        'racket/contract/private/object-c-wrapper
+        `((all-from-out (file ,contract-file))))
+       (declare-erased-contract-module!
+        'racket/contract/private/opt
+        `((all-from-out (file ,contract-file))))
+       (declare-erased-contract-module!
+        'racket/contract/private/orc
+        `((all-from-out (file ,contract-file))))
+       (declare-erased-contract-module!
         'racket/contract
         `((all-from-out (file ,contract-file))))
        (eval
         `(module syntax/contract racket/base
            (require (file ,syntax-contract-file))
            (provide (all-from-out (file ,syntax-contract-file)))))
+       (eval
+        `(module syntax/srcloc racket/base
+           (require (file ,syntax-srcloc-file))
+           (provide (all-from-out (file ,syntax-srcloc-file)))))
        (eval
         `(module racket/unsafe/undefined racket/base
            (require (file ,unsafe-undefined-file))
@@ -2639,13 +2726,23 @@
        (dynamic-require ''racket/contract/combinator #f)
        (dynamic-require ''racket/contract/region #f)
        (dynamic-require ''racket/contract/private/base #f)
+       (dynamic-require ''racket/contract/private/arr-i #f)
+       (dynamic-require ''racket/contract/private/arrow-collapsible #f)
        (dynamic-require ''racket/contract/private/arrow-common #f)
+       (dynamic-require ''racket/contract/private/arrow-higher-order #f)
+       (dynamic-require ''racket/contract/private/arrow-val-first #f)
        (dynamic-require ''racket/contract/private/blame #f)
+       (dynamic-require ''racket/contract/private/case-arrow #f)
        (dynamic-require ''racket/contract/private/guts #f)
        (dynamic-require ''racket/contract/private/list #f)
        (dynamic-require ''racket/contract/private/misc #f)
+       (dynamic-require ''racket/contract/private/module-boundary-ctc #f)
+       (dynamic-require ''racket/contract/private/object-c-wrapper #f)
+       (dynamic-require ''racket/contract/private/opt #f)
+       (dynamic-require ''racket/contract/private/orc #f)
        (dynamic-require ''racket/contract #f)
        (dynamic-require ''syntax/contract #f)
+       (dynamic-require ''syntax/srcloc #f)
        (dynamic-require ''racket/unsafe/undefined #f))))
   namespace)
 

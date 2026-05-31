@@ -246,6 +246,7 @@
     (regexp-replace #rx"[0-9]*[.][0-9]+$" without-prefix ""))
   (or (eq? a b)
       (string=? (symbol->string a) (symbol->string b))
+      (string=? (generated-base-name a) (generated-base-name b))
       (string=? (generated-base-name a) (symbol->string b))
       (string=? (symbol->string a) (generated-base-name b))))
 

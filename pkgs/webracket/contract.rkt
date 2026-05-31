@@ -58,7 +58,7 @@
          invariant-assertion-party keywords-match
          list*of list-contract? list/c listof make-blame make-chaperone-contract make-contract
          make-exn:fail:contract:blame make-flat-contract make-none/c
-         make-proj-contract matches-arity-exactly? mutable-treelist/c n->th
+         make-->i make-proj-contract matches-arity-exactly? mutable-treelist/c n->th
          natural-number/c new-∀/c new-∃/c non-empty-listof none/c not/c
          one-of/c opt/c or/c parameter/c parametric->/c predicate/c
          printable/c procedure-arity-includes/c promise/c prompt-tag/c
@@ -75,7 +75,7 @@
          raise-blame-error raise-contract-error
          raise-not-cons-blame-error real-in recontract-out recursive-contract
          rename-contract skip-projection-wrapper? string-len/c struct-guard/c
-         set-some-basic-misc-contracts!
+         set-some-basic-misc-contracts! signal-pre/post
          struct-type-property/c struct/c struct/contract struct/dc
          struct:arrow-contract-info struct:exn:fail:contract:blame suggest/c
          symbols syntax/c tail-contract-key tail-marks-match? the-unsupplied-arg treelist/c
@@ -123,8 +123,10 @@
 
 ;; build->*-plus-one-acceptor : procedure? any/c any/c -> procedure?
 ;;   Erase value-first arrow-contract acceptor construction.
-(define (build->*-plus-one-acceptor plus-one-arity-wrapper-maker _blame _arrow-contract)
-  plus-one-arity-wrapper-maker)
+(define (build->*-plus-one-acceptor plus-one-arity-wrapper-maker blame _arrow-contract)
+  (if (procedure? plus-one-arity-wrapper-maker)
+      (plus-one-arity-wrapper-maker blame)
+      (lambda args (if (pair? args) (car args) (void)))))
 
 ;; build-very-simple--> : any/c ... -> contract?
 ;;   Erase generated simple arrow-contract helper construction.
@@ -147,8 +149,23 @@
   (lambda args
     (if (pair? args) (car args) (void))))
 
-(define popular-chaperone-key-id '(popular-chaperone-key-id))
-(define popular-plus-one-key-id '(popular-plus-one-key-id))
+;; make-plus-one-wrapper-maker : procedure? -> procedure?
+;;   Build an erased wrapper maker that drops the extra negative-party argument.
+(define (make-plus-one-wrapper-maker proc)
+  (lambda _builder-args
+    (lambda args
+      (define original-args (if (pair? args) (cdr args) args))
+      (apply proc original-args))))
+
+;; popular-chaperone-key-id : procedure? -> procedure?
+;;   Erase generated chaperone wrapper factories.
+(define (popular-chaperone-key-id proc)
+  (make-plus-one-wrapper-maker proc))
+
+;; popular-plus-one-key-id : procedure? -> procedure?
+;;   Erase generated plus-one wrapper factories.
+(define (popular-plus-one-key-id proc)
+  (make-plus-one-wrapper-maker proc))
 
 ;; object/c-wrapper-info-val : any/c -> any/c
 ;;   Return an erased wrapper payload unchanged.
@@ -547,7 +564,10 @@
 
 (define (blame-context _blame) '())
 (define (blame-contract _blame) any/c)
-(define (blame-fmt->-string _blame fmt . args) (apply format fmt args))
+;; blame-fmt->-string : any/c any/c any/c ... -> string?
+;;   Avoid depending on full formatting in erased contract support.
+(define (blame-fmt->-string _blame fmt . _args)
+  (if (string? fmt) fmt "erased contract blame"))
 (define (blame-negative _blame) #f)
 (define (blame-positive _blame) #f)
 (define (blame-source _blame) #f)
@@ -568,7 +588,7 @@
 (define (keywords-match . _args) #t)
 (define (make-exn:fail:contract:blame message marks object)
   (exn:fail:contract:blame message marks object))
-(define (n->th n) (format "~ath" n))
+(define (n->th n) (string-append (number->string n) "th"))
 
 ;; build-context : -> string?
 ;;   Return an inert context string for erased contract construction.
@@ -589,6 +609,16 @@
 (define (bad-number-of-results . _args)
   (raise-arguments-error 'bad-number-of-results
                          "erased contracts do not check result arity"))
+
+;; make-->i : any/c ... -> contract?
+;;   Erase dependent arrow-contract construction.
+(define (make-->i . args)
+  (make-erased-contract '->i args))
+
+;; signal-pre/post : any/c ... -> void?
+;;   Erase dependent contract pre/post condition reporting.
+(define (signal-pre/post . _args)
+  (void))
 
 ;; check-procedure : any/c ... -> boolean?
 ;;   Erase arrow-contract procedure shape checks.
