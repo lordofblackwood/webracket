@@ -1982,6 +1982,13 @@
                                 raise-blame-error))
             (list local 'racket/contract/base)]
            [(symbolic-member? external
+                              '(coerce-contracts
+                                coerce-flat-contract
+                                coerce-flat-contracts
+                                coerce-chaperone-contract
+                                coerce-chaperone-contracts))
+            (list local 'racket/contract/private/guts)]
+           [(symbolic-member? external
                               '(blame?
                                 make-blame
                                 blame-source
@@ -2024,14 +2031,32 @@
                                 prop:flat-contract
                                 prop:contracted
                                 impersonator-prop:contracted
+                                contract?
+                                flat-contract?
+                                chaperone-contract?
+                                impersonator-contract?
+                                contract-name
+                                contract-first-order
+                                contract-first-order-passes?
+                                contract-proc
+                                contract-projection
+                                contract-val-first-projection
+                                contract-late-neg-projection
                                 build-contract-property
                                 build-chaperone-contract-property
                                 build-flat-contract-property
+                                contract-struct-late-neg-projection
+                                contract-struct-generate
+                                contract-struct-exercise
+                                contract-struct-list-contract?
                                 wrong-number-of-results-blame))
             (list local 'webracket/contract)]
            [(symbolic-member? external
                               '(tail-contract-key
-                                bad-number-of-results))
+                                bad-number-of-results
+                                the-unsupplied-arg
+                                unsupplied-arg?
+                                unspecified-dom))
             (list local 'racket/contract/private/arrow-common)]
            [(symbolic-name=? external 'build->*-plus-one-acceptor)
             (list local 'racket/contract/private/arrow-val-first)]
