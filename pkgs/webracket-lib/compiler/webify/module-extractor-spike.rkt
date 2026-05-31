@@ -2042,6 +2042,11 @@
                                 contract-projection
                                 contract-val-first-projection
                                 contract-late-neg-projection
+                                get/build-val-first-projection
+                                get/build-late-neg-projection
+                                contract-custom-write-property-proc
+                                custom-write-property-proc
+                                n->th
                                 build-contract-property
                                 build-chaperone-contract-property
                                 build-flat-contract-property
