@@ -329,6 +329,20 @@
             candidates))
   (if (null? concrete-candidates) candidates concrete-candidates))
 
+;; prefer-exact-export-candidates : dependency-exports symbol? (listof symbol?) -> (listof symbol?)
+;;   Prefer providers that export the exact generated import name over providers
+;;   that only match after generated-suffix normalization.
+(define (prefer-exact-export-candidates dependency-exports external candidates)
+  (define exact-candidates
+    (filter
+     (lambda (dependency)
+       (define exports (dependency-exports-ref 'prefer-exact-export-candidates
+                                               dependency-exports
+                                               dependency))
+       (memq external exports))
+     candidates))
+  (if (null? exact-candidates) candidates exact-candidates))
+
 ;; provider-candidate-reasons : (listof symbol?) -> (listof list?)
 ;;   Explain why export-scan candidates survived far enough to be ambiguous.
 (define (provider-candidate-reasons candidates)
@@ -445,7 +459,11 @@
                   #:when (for/or ([export (in-list exports)])
                            (symbolic-name=? export external)))
          dependency))
-     (define ranked-candidates (prefer-provider-candidates candidates))
+     (define ranked-candidates
+       (prefer-exact-export-candidates
+        dependency-exports
+        external
+        (prefer-provider-candidates candidates)))
      (cond
        [(null? candidates)
        (raise-arguments-error who

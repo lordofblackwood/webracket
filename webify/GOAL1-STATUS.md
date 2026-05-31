@@ -17,8 +17,9 @@ through the temporary provider bridge allowlist.
   contracts, class support, dicts, files, formatting, functions, hashes, ports,
   promises, pretty printing, sets, strings, streams, regexp, and JS FFI modules.
   Direct installed `racket/pretty` diagnostics now pass for representative
-  pretty-print rows, but required rows still use staged `webracket/pretty`
-  until the transitive `racket/treelist`/`prop:stream` gap is closed.
+  pretty-print rows, including the former `racket/treelist`/`prop:stream`
+  edge; required rows still use staged `webracket/pretty` until we
+  deliberately choose full installed-provider pretty parity.
 - Runtime-adjacent coverage now includes VFS file helpers, contract-erased
   queues, and the narrow logging export surface.
 

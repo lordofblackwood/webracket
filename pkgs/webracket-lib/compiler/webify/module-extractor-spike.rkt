@@ -123,6 +123,7 @@
       (eq? module-path 'racket/contract/combinator)
       (eq? module-path 'racket/contract/region)
       (eq? module-path 'racket/contract/private/base)
+      (eq? module-path 'racket/contract/private/arrow-common)
       (eq? module-path 'racket/contract/private/blame)
       (eq? module-path 'racket/contract/private/guts)
       (eq? module-path 'racket/contract/private/list)
@@ -133,6 +134,7 @@
       (equal? module-path '(lib "racket/contract/combinator.rkt"))
       (equal? module-path '(lib "racket/contract/region.rkt"))
       (equal? module-path '(lib "racket/contract/private/base.rkt"))
+      (equal? module-path '(lib "racket/contract/private/arrow-common.rkt"))
       (equal? module-path '(lib "racket/contract/private/blame.rkt"))
       (equal? module-path '(lib "racket/contract/private/guts.rkt"))
       (equal? module-path '(lib "racket/contract/private/list.rkt"))
@@ -165,6 +167,9 @@
      [(or (eq? module-path 'racket/contract/private/base)
           (equal? module-path '(lib "racket/contract/private/base.rkt")))
       'racket/contract/private/base]
+     [(or (eq? module-path 'racket/contract/private/arrow-common)
+          (equal? module-path '(lib "racket/contract/private/arrow-common.rkt")))
+      'racket/contract/private/arrow-common]
      [(or (eq? module-path 'racket/contract/private/blame)
           (equal? module-path '(lib "racket/contract/private/blame.rkt")))
       'racket/contract/private/blame]
@@ -1976,12 +1981,62 @@
                                 coerce-contract
                                 raise-blame-error))
             (list local 'racket/contract/base)]
+           [(symbolic-member? external
+                              '(blame?
+                                make-blame
+                                blame-source
+                                blame-positive
+                                blame-negative
+                                blame-contract
+                                blame-value
+                                blame-original?
+                                blame-swapped?
+                                blame-swap
+                                blame-replace-negative
+                                blame-replaced-negative?
+                                blame-update
+                                blame-add-context
+                                blame-add-unknown-context
+                                blame-context
+                                blame-add-missing-party
+                                blame-missing-party?
+                                blame-add-extra-field
+                                blame-fmt->-string
+                                invariant-assertion-party))
+            (list local 'racket/contract/private/blame)]
            [(symbolic-name=? external 'current-contract-region)
             (list local 'racket/contract/region)]
            [(symbolic-name=? external 'real-and/c-name)
             (list local 'racket/contract/private/misc)]
            [(symbolic-name=? external 'or/c-name)
             (list local 'racket/contract/private/orc)]
+           [(symbolic-member? external
+                              '(add-method-suffix
+                                contract-random-generate
+                                contract-random-generate-stash
+                                contract-random-generate-get-current-environment
+                                contract-random-generate/choose
+                                contract-random-generate-fail
+                                contract-random-generate-fail?
+                                contract-random-generate-env?
+                                prop:contract
+                                prop:chaperone-contract
+                                prop:flat-contract
+                                prop:contracted
+                                impersonator-prop:contracted
+                                build-contract-property
+                                build-chaperone-contract-property
+                                build-flat-contract-property
+                                wrong-number-of-results-blame))
+            (list local 'webracket/contract)]
+           [(symbolic-member? external
+                              '(tail-contract-key
+                                bad-number-of-results))
+            (list local 'racket/contract/private/arrow-common)]
+           [(symbolic-name=? external 'build->*-plus-one-acceptor)
+            (list local 'racket/contract/private/arrow-val-first)]
+           [(symbolic-name=? external 'prop:stream)
+            (list local 'racket/private/for)]
            [(symbolic-member? external
                               '(pos->ord
                                 default-arg
@@ -2512,6 +2567,9 @@
         'racket/contract/private/base
         `((all-from-out (file ,contract-file))))
        (declare-erased-contract-module!
+        'racket/contract/private/arrow-common
+        `((all-from-out (file ,contract-file))))
+       (declare-erased-contract-module!
         'racket/contract/private/blame
         `((all-from-out (file ,contract-file))))
        (declare-erased-contract-module!
@@ -2547,6 +2605,7 @@
        (dynamic-require ''racket/contract/combinator #f)
        (dynamic-require ''racket/contract/region #f)
        (dynamic-require ''racket/contract/private/base #f)
+       (dynamic-require ''racket/contract/private/arrow-common #f)
        (dynamic-require ''racket/contract/private/blame #f)
        (dynamic-require ''racket/contract/private/guts #f)
        (dynamic-require ''racket/contract/private/list #f)

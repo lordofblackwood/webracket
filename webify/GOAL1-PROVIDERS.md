@@ -113,7 +113,7 @@ The current `racket/*` -> `webracket/*` substitutions are:
 | --- | --- | --- | --- |
 | `racket/contract`, `racket/contract/base`, `racket/contract/combinator`, `racket/contract/region`, selected `racket/contract/private/*` | `webracket/contract` | temporary shim | Erased contracts let module programs run before chaperones, impersonators, blame, and full contract enforcement are ready. |
 | `racket/class` | `webracket/class` | temporary shim | Real `racket/class` currently pulls contract/private edges that are larger than the Goal 1 runtime target. |
-| `racket/dict` | `webracket/dict` | temporary shim | Tiny real-provider diagnostic passes, and keyword support moved broader rows past `new-keyword-apply`; staged dict remains because the broader direct row now exposes `tail-contract-key`. |
+| `racket/dict` | `webracket/dict` | temporary shim | Tiny real-provider diagnostic passes, and keyword/contract-erasure ownership work moved broader rows past `new-keyword-apply`, `tail-contract-key`, `arr-i` generated constructor names, private blame helpers, random-generation helpers, and contract-property helpers. The staged provider remains because the broader direct row is still in contract-private provider resolution. |
 | `racket/file` | `webracket/file` | likely WebRacket-owned implementation | Browser/VFS file behavior is not host filesystem behavior; use a WebRacket provider around the VFS. |
 | `racket/format` | `webracket/format` | temporary shim | Formatting is still split between staged `io/format` and compact WebRacket formatting support. |
 | `racket/function` | `webracket/function` | temporary shim | Avoids installed keyword-preserving wrappers where ordinary positional combinators are enough today. |
@@ -122,7 +122,7 @@ The current `racket/*` -> `webracket/*` substitutions are:
 | `racket/list` | `webracket/list` | temporary shim | Export-complete except `shuffle`; keeps keyword-sensitive list utilities source-defined and avoids provider-alias ambiguity. |
 | `racket/mpair` | `webracket/mpair` | likely WebRacket-owned implementation | Mutable pairs are runtime representation work, not a good installed-provider dependency. |
 | `racket/port` | `webracket/port` | likely WebRacket-owned implementation | Port behavior is tied to WebRacket string ports/VFS/browser IO. |
-| `racket/pretty` | `webracket/pretty` | temporary shim | Keyword support moved direct diagnostics past `struct:keyword-procedure/arity-error`, but required installed rows still reach `racket/treelist`'s `prop:stream`; staged pretty remains the default Goal 1 route. |
+| `racket/pretty` | `webracket/pretty` | temporary shim | Keyword support plus the `prop:stream` provider hint moved direct diagnostics past `struct:keyword-procedure/arity-error` and `racket/treelist`; staged pretty remains the default Goal 1 route while full pretty-printing parity stays a separate IO/formatting task. |
 | `racket/promise` | `webracket/promise` | likely WebRacket-owned implementation | Ordinary promise semantics are small and browser-local; synchronization-oriented variants remain later work. |
 | `racket/sequence`, `racket/private/for` | `webracket/sequence`, `webracket/private/for` | temporary shim | We want broad public `for` support while avoiding generator/prompt-heavy edges. |
 | `racket/set` | `webracket/set` | temporary shim | Set support follows WebRacket hash/HAMT behavior and postpones contracts/generics/chaperones. |
@@ -143,13 +143,13 @@ substitutions.
 | --- | --- | --- |
 | `webracket/contract` | `real-racket-contract-diagnostic` | Current failure is provider-graph extraction for real `racket/contract`; keep using erased-contract shims while narrowing the transitive provider graph and runtime primitive demand. |
 | `webracket/class` | `real-racket-class-diagnostic` | Current failure is provider-graph extraction for real `racket/class`; likely blockers are contract-private edges, keyword machinery, and class-runtime primitives. |
-| `webracket/dict` | `real-racket-dict-diagnostic`, `real-racket-dict-coverage-diagnostic` | Tiny `dict-count` diagnostic now passes without substitution. The broader row moved past `new-keyword-apply` and now fails on `tail-contract-key`, so staged `webracket/dict` remains the Goal 1 route. |
+| `webracket/dict` | `real-racket-dict-diagnostic`, `real-racket-dict-coverage-diagnostic` | Tiny `dict-count` diagnostic now passes without substitution. The broader row moved past `new-keyword-apply`, `tail-contract-key`, and several private contract ownership edges; staged `webracket/dict` remains the Goal 1 route while the remaining direct row stays inside contract-private provider resolution. |
 | `webracket/list` | `real-racket-list-diagnostic` | The broadened real `racket/list` readiness row now covers `append-map`, `filter-map`, `take`, `drop`, `split-at`, `group-by`, and `remove-duplicates`; adding `hash-update` moved it past the immediate missing-provider edge, but the full row currently times out under the 120s readiness bound, so staged `webracket/list` remains the Goal 1 route. |
 | `webracket/string` | `real-racket-string-diagnostic` | The broadened real `racket/string` readiness row now covers `string-join`, `string-split`, `string-trim`, `string-replace`, `string-prefix?`, and `string-suffix?`; it currently reaches graph extraction but reports an unbound-provider style failure, so staged `webracket/string` remains the Goal 1 route. |
 | `webracket/sequence` | `real-racket-sequence-diagnostic` | Capture whether real `racket/sequence` is blocked mainly by contracts, streams, or generator/prompt-related imports. |
 | `webracket/private/for` | `real-racket-private-for-diagnostic` | The tiny direct helper case currently passes without substitution; the next step is trying broader original `racket/private/for` helper clusters before adding staged sequence protocol surface. |
 | `webracket/private/kw` | `real-racket-private-kw-diagnostic` | Track the keyword-procedure runtime gap before adding more keyword-related staged APIs. |
-| `webracket/pretty` | `real-racket-pretty-diagnostic`, `real-racket-pretty-coverage-diagnostic` | Direct installed `racket/pretty` now passes the tiny and broader diagnostics without substitution, which proves the keyword arity-error blocker is gone. Required installed rows still reach `racket/treelist`'s `prop:stream`, so staged `webracket/pretty` remains the default Goal 1 route. |
+| `webracket/pretty` | `real-racket-pretty-diagnostic`, `real-racket-pretty-coverage-diagnostic` | Direct installed `racket/pretty` now passes the tiny and broader diagnostics without substitution, which proves the keyword arity-error and `racket/treelist`/`prop:stream` blockers are gone. Staged `webracket/pretty` remains the default Goal 1 route until we deliberately choose full installed-provider pretty parity. |
 
 ## `racket/list` Export Audit
 
@@ -239,13 +239,15 @@ remaining compatibility notes are:
   `in-dict-pairs`, capability predicates, mutation/update helpers, removal,
   clear/copy, `dict-map/copy`, and `keyword-apply/dict`. The tiny real-provider
   diagnostic passes. Broader direct installed-provider rows moved past
-  `new-keyword-apply` and now expose `tail-contract-key`.
+  `new-keyword-apply`, `tail-contract-key`, and several private contract
+  ownership edges; the remaining direct blocker is still contract-private
+  provider resolution.
 - `racket/pretty` still routes to staged `webracket/pretty` by default.
   Coverage is formatting-oriented: `pretty-format`, `pretty-print`,
   `pretty-write`, `pretty-display`, basic style-table helpers, and common
   pretty-print parameters. Direct no-substitution diagnostics now pass for the
-  same representative cluster, but required installed-provider rows still
-  expose the next transitive runtime gap: `racket/treelist`'s `prop:stream`.
+  same representative cluster, including the former `racket/treelist`
+  `prop:stream` edge.
 - `racket/file` routes to staged `webracket/file`. Treat it as a virtual
   filesystem provider, not a host filesystem provider. The current focus is
   portable functions such as `file-exists?`, `directory-list`,

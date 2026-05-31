@@ -1,13 +1,17 @@
 #lang racket/base
 
 (provide *list/c -> ->* ->d </c <=/c =/c >/c >=/c and/c any any/c
+         any/c/proc
+         ->i-arg ->i-arg? ->i-arg-name ->i-arg-kwd
+         ->i-arg-optional? ->i-arg-contract
+         add-method-suffix
          apply-contract
          arity-checking-wrapper arrow-contract-info
          arrow-contract-info-accepts-arglist
          arrow-contract-info-chaperone-procedure
          arrow-contract-info-check-first-order arrow-contract-info?
          bad-number-of-results base->-doms/c base->-rngs/c base->?
-         between/c blame-add-car-context blame-add-cdr-context
+         between/c blame-add-car-context blame-add-cdr-context blame-add-extra-field
          blame-add-context blame-add-missing-party blame-add-nth-arg-context
          blame-add-range-context blame-add-unknown-context blame-context
          blame-contract blame-fmt->-string blame-missing-party? blame-negative
@@ -36,6 +40,7 @@
          define-contract-struct define-module-boundary-contract define-opt/c
          define-struct/contract define/contract define/final-prop
          define/subexpression-pos-prop define/subexpression-pos-prop/name
+         do-partial-app real-and/c-name or/c-name
          dynamic->* eq-contract-val eq-contract? equal-contract-val
          equal-contract? evt/c exn:fail:contract:blame
          exn:fail:contract:blame-object exn:fail:contract:blame?
@@ -44,10 +49,13 @@
          flat-contract-with-explanation flat-murec-contract flat-named-contract
          flat-rec-contract get/build-late-neg-projection
          get/build-val-first-projection has-blame? has-contract? hash/c hash/dc
-         id-blame id-partially-applied
+         build->*-plus-one-acceptor
+         build--> build-nullary-very-simple--> build-unary-very-simple-->
+         build-very-simple--> find-method/who id-blame id-partially-applied
          if/c impersonator-contract? impersonator-prop:blame
-         impersonator-prop:contracted integer-in invariant-assertion keywords-match
-         list*of list-contract? list/c listof make-chaperone-contract make-contract
+         impersonator-prop:contracted integer-in invariant-assertion
+         invariant-assertion-party keywords-match
+         list*of list-contract? list/c listof make-blame make-chaperone-contract make-contract
          make-exn:fail:contract:blame make-flat-contract make-none/c
          make-proj-contract matches-arity-exactly? mutable-treelist/c n->th
          natural-number/c new-∀/c new-∃/c non-empty-listof none/c not/c
@@ -57,17 +65,24 @@
          prop:blame prop:chaperone-contract prop:contract prop:contracted
          prop:flat-contract prop:orc-contract prop:orc-contract-get-subcontracts
          prop:orc-contract? prop:recursive-contract
-         prop:recursive-contract-unroll prop:recursive-contract? property/c
-         provide/contract raise-blame-error raise-contract-error
+         object/c-wrapper-info-blame+neg-party object/c-wrapper-info-val
+         object-ref popular-chaperone-key-id popular-object/c-wrapper
+         popular-plus-one-key-id prop:recursive-contract-unroll
+         prop:recursive-contract? property/c
+         provide/contract return/no-unsupplied return/no-unsupplied/param-mark
+         keyword-return/no-unsupplied keyword-return/no-unsupplied/param-mark
+         raise-blame-error raise-contract-error
          raise-not-cons-blame-error real-in recontract-out recursive-contract
          rename-contract skip-projection-wrapper? string-len/c struct-guard/c
          set-some-basic-misc-contracts!
          struct-type-property/c struct/c struct/contract struct/dc
          struct:arrow-contract-info struct:exn:fail:contract:blame suggest/c
-         symbols syntax/c tail-marks-match? the-unsupplied-arg treelist/c
-         unconstrained-domain-> unspecified-dom unsupplied-arg? value-blame
+         symbols syntax/c tail-contract-key tail-marks-match? the-unsupplied-arg treelist/c
+         un-dep un-dep/chaperone unconstrained-domain->
+         unspecified-dom unsupplied-arg? value-blame
          value-contract values/drop vector-immutable/c vector-immutableof
-         vector/c vectorof with-contract with-contract-continuation-mark ->i)
+         vector/c vectorof with-contract with-contract-continuation-mark
+         wrong-number-of-results-blame ->i)
 
 (require (for-syntax racket/base
                      racket/list
@@ -80,14 +95,106 @@
 (struct erased-contract (name parts) #:transparent)
 (struct arrow-contract-info (accepts-arglist chaperone-procedure check-first-order) #:transparent)
 (struct exn:fail:contract:blame exn:fail:contract (object) #:transparent)
+(struct ->i-arg (name kwd optional? contract) #:transparent)
 
 (define the-unsupplied-arg '(unsupplied-arg))
 (define unspecified-dom '(unspecified-dom))
+(define tail-contract-key (gensym 'tail-contract-key))
 (define contract-continuation-mark-key '(contract-continuation-mark-key))
 (define id-blame '(erased-contract-blame))
+(define invariant-assertion-party '(invariant-assertion-party))
 (define (id-partially-applied . _args)
   (lambda args
     (if (pair? args) (car args) (void))))
+
+;; do-partial-app : any/c any/c any/c any/c any/c any/c any/c -> values
+;;   Erase a provide/contract boundary while preserving its delayed export shape.
+(define (do-partial-app _ctc val name _pos-module-source _source _context-limit _start-swapped?)
+  (values (lambda _ignored-source-args val)
+          (list 'erased-contract-blame name)))
+
+;; build--> : any/c ... -> contract?
+;;   Erase generated arrow-contract helper construction.
+(define (build--> . args)
+  (make-erased-contract 'build--> args))
+
+;; build->*-plus-one-acceptor : procedure? any/c any/c -> procedure?
+;;   Erase value-first arrow-contract acceptor construction.
+(define (build->*-plus-one-acceptor plus-one-arity-wrapper-maker _blame _arrow-contract)
+  plus-one-arity-wrapper-maker)
+
+;; build-very-simple--> : any/c ... -> contract?
+;;   Erase generated simple arrow-contract helper construction.
+(define (build-very-simple--> . args)
+  (make-erased-contract 'build-very-simple--> args))
+
+;; build-unary-very-simple--> : any/c ... -> contract?
+;;   Erase generated unary arrow-contract helper construction.
+(define (build-unary-very-simple--> . args)
+  (make-erased-contract 'build-unary-very-simple--> args))
+
+;; build-nullary-very-simple--> : any/c ... -> contract?
+;;   Erase generated nullary arrow-contract helper construction.
+(define (build-nullary-very-simple--> . args)
+  (make-erased-contract 'build-nullary-very-simple--> args))
+
+;; popular-object/c-wrapper : any/c ... -> procedure?
+;;   Erase generated object/c wrapper helpers used by contracted providers.
+(define (popular-object/c-wrapper . _args)
+  (lambda args
+    (if (pair? args) (car args) (void))))
+
+(define popular-chaperone-key-id '(popular-chaperone-key-id))
+(define popular-plus-one-key-id '(popular-plus-one-key-id))
+
+;; object/c-wrapper-info-val : any/c -> any/c
+;;   Return an erased wrapper payload unchanged.
+(define (object/c-wrapper-info-val v) v)
+
+;; object/c-wrapper-info-blame+neg-party : any/c -> any/c
+;;   Return inert blame data for erased object/c wrappers.
+(define (object/c-wrapper-info-blame+neg-party _v) id-blame)
+
+;; object-ref : any/c [any/c] -> any/c
+;;   Erased object/c wrapper lookup.
+(define (object-ref v [default #f]) (or v default))
+
+;; find-method/who : any/c any/c any/c -> procedure?
+;;   Erased object/c method lookup.
+(define (find-method/who _who object _method-name)
+  (if (procedure? object)
+      object
+      (lambda args
+        (if (pair? args) (car args) (void)))))
+
+;; return/no-unsupplied : procedure? any/c any/c ... -> any/c
+;;   Erase dependent-contract result checking.
+(define (return/no-unsupplied _res-checker _rest-args . args)
+  (apply values args))
+
+;; return/no-unsupplied/param-mark : procedure? any/c any/c any/c ... -> any/c
+;;   Erase dependent-contract result checking with parameter marks.
+(define (return/no-unsupplied/param-mark _res-checker _param-mark _rest-args . args)
+  (apply values args))
+
+;; keyword-return/no-unsupplied : procedure? any/c any/c any/c any/c ... -> any/c
+;;   Erase keyword dependent-contract result checking.
+(define (keyword-return/no-unsupplied _res-checker _kwds _kwd-args _rest-args . args)
+  (apply values args))
+
+;; keyword-return/no-unsupplied/param-mark : procedure? any/c any/c any/c any/c any/c ... -> any/c
+;;   Erase keyword dependent-contract result checking with parameter marks.
+(define (keyword-return/no-unsupplied/param-mark _res-checker _param-mark _kwds _kwd-args _rest-args . args)
+  (apply values args))
+
+;; un-dep : any/c any/c any/c any/c any/c -> any/c
+;;   Erase dependent-domain contract projection.
+(define (un-dep _orig-ctc obj _blame _neg-party _indy-blame?) obj)
+
+;; un-dep/chaperone : any/c any/c any/c any/c any/c -> any/c
+;;   Erase dependent-domain chaperone projection.
+(define (un-dep/chaperone _orig-ctc obj _blame _neg-party _indy-blame?) obj)
+
 (define impersonator-prop:blame '(impersonator-prop:blame))
 (define impersonator-prop:contracted '(impersonator-prop:contracted))
 (define prop:arrow-contract '(prop:arrow-contract))
@@ -146,6 +253,7 @@
   (erased-contract name parts))
 
 (define any/c  (make-erased-contract 'any/c '()))
+(define any/c/proc any/c)
 (define none/c (make-erased-contract 'none/c '()))
 (define predicate/c (make-erased-contract 'predicate/c '()))
 
@@ -381,6 +489,7 @@
 (define-identity-wrapper arity-checking-wrapper)
 (define-identity-wrapper blame-add-car-context)
 (define-identity-wrapper blame-add-cdr-context)
+(define-identity-wrapper blame-add-extra-field)
 (define-identity-wrapper blame-add-missing-party)
 (define-identity-wrapper blame-add-nth-arg-context)
 (define-identity-wrapper blame-add-range-context)
@@ -392,6 +501,11 @@
 (define-identity-wrapper coerce-contract/f)
 (define-identity-wrapper coerce-flat-contract)
 (define-identity-wrapper contract-late-neg-projection)
+
+;; make-blame : any/c ... -> any/c
+;;   Build inert blame data for erased contract providers.
+(define (make-blame . args)
+  (if (pair? args) (car args) id-blame))
 (define-identity-wrapper contract-proc)
 (define-identity-wrapper contract-projection)
 (define-identity-wrapper contract-val-first-projection)
@@ -457,6 +571,23 @@
 (define (raise-contract-error . _args) (error 'contract "erased contract error"))
 (define (value-contract v) any/c)
 
+;; add-method-suffix : symbol? -> symbol?
+;;   Match the private contract object-wrapper helper used by expanded method contracts.
+(define (add-method-suffix method-name)
+  (string->symbol (string-append (symbol->string method-name) " method")))
+
+;; bad-number-of-results : any/c ... -> any/c
+;;   Erased arrow-contract result checker; kept as a value export for provider code.
+(define (bad-number-of-results . _args)
+  (raise-arguments-error 'bad-number-of-results
+                         "erased contracts do not check result arity"))
+
+;; wrong-number-of-results-blame : any/c ... -> any/c
+;;   Erased object-contract result checker; kept as a value export for provider code.
+(define (wrong-number-of-results-blame . _args)
+  (raise-arguments-error 'wrong-number-of-results-blame
+                         "erased contracts do not check result arity"))
+
 (define-erased-contract-function *list/c)
 (define-erased-contract-function base->-doms/c)
 (define-erased-contract-function base->-rngs/c)
@@ -513,10 +644,20 @@
 (define (or/c . contracts)
   (make-erased-contract 'or/c contracts))
 
+;; or/c-name : contract? ... -> contract?
+;;   Erase Racket's generated or/c contract-name helper.
+(define (or/c-name . contracts)
+  (apply or/c contracts))
+
 ;; and/c : contract? ... -> contract?
 ;;   Build an inert conjunction contract descriptor.
 (define (and/c . contracts)
   (make-erased-contract 'and/c contracts))
+
+;; real-and/c-name : contract? ... -> contract?
+;;   Erase Racket's generated and/c contract-name helper.
+(define (real-and/c-name . contracts)
+  (apply and/c contracts))
 
 ;; not/c : contract? -> contract?
 ;;   Build an inert negated contract descriptor.
@@ -702,7 +843,6 @@
 
 (define-erased-syntaxes
   any
-  bad-number-of-results
   blame-add-context
   channel/c
   continuation-mark-key/c

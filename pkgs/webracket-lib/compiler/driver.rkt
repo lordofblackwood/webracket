@@ -1630,7 +1630,6 @@
   (memq name
         '(racket/contract
           racket/contract/base
-          racket/contract/private/arr-i
           racket/contract/combinator
           racket/contract/region
           racket/contract/private/arrow-collapsible
@@ -2209,6 +2208,8 @@
        ;; names the original Racket module.
        (define support-reports
          (list webify-module-protocol-report
+               (webify-module-provider-cache-ref provider-cache
+                                                 'webracket/contract)
                (webify-module-provider-cache-ref provider-cache
                                                  'webracket/format)
                (webify-module-provider-cache-ref provider-cache
