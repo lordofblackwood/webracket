@@ -1021,12 +1021,22 @@
          reports
          #:fetch-provider
          (lambda (name)
-           (check-equal? name 'webracket/list)
-           list-report)))
-      (check-equal? (webify-module-registry-plan
-                     (webracket/base-local-module-graph-registry graph)
-                     '(main))
-                    '(main:syntax-literals module-protocol webracket/list main))
+           (case name
+             [(webracket/list) list-report]
+             [(webracket/format) (synthetic-provider-report name '(format))]
+             [(webracket/private/kw) (synthetic-provider-report name '(keyword-apply))]
+             [(webracket/unsafe/undefined) (synthetic-provider-report name '(unsafe-undefined))]
+             [else (error 'fetch-provider "unexpected fetch: ~s" name)]))))
+      (define plan
+        (webify-module-registry-plan
+         (webracket/base-local-module-graph-registry graph)
+         '(main)))
+      (check-equal? (last plan) 'main)
+      (for ([name (in-list '(main:syntax-literals
+                             module-protocol
+                             webracket/list))])
+        (check-not-false (memq name plan)
+                         (symbol->string name)))
       (check-equal?
        (webify-module-report-import-export-demands
         (car reports)
@@ -1073,7 +1083,7 @@
     (lambda ()
       (call-with-output-file main-path
         (lambda (out)
-          (display "#lang webracket/base\n(require (only-in racket/math sqr))\n(provide answer)\n(define answer sqr)\n" out))
+          (display "#lang webracket/base\n(require (only-in racket/tcp tcp-listen))\n(provide answer)\n(define answer tcp-listen)\n" out))
         #:exists 'truncate/replace)
       (define-values (root reports)
         (call-with-webracket-collection-path

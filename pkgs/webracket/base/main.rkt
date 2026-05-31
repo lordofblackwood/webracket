@@ -2,7 +2,10 @@
 
 (require (except-in racket/base
                     make-keyword-procedure
+                    keyword-apply
                     procedure-keywords
+                    procedure-reduce-keyword-arity
+                    procedure-reduce-keyword-arity-mask
                     read-bytes-line
                     sort)
          "../js/main.rkt"

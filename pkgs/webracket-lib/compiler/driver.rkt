@@ -565,7 +565,7 @@
      "installed-provider-reports"
      (string-append (provider-cache-symbol-segment name) ".rktd")))
   (define fingerprint
-    `(installed-provider-report-cache 4 ,name ,(version)))
+    `(installed-provider-report-cache 5 ,name ,(version)))
   (define cached (read-provider-cache cache-path fingerprint))
   (cond
     [cached
@@ -1603,7 +1603,7 @@
    (substitution 'racket/port 'webracket/port 'runtime-owned 'low
                  "ports are tied to WebRacket string ports, VFS, and browser IO")
    (substitution 'racket/pretty 'webracket/pretty 'temporary-shim 'high
-                 "broader real provider rows still need keyword-procedure arity-error support")
+                 "required installed rows still reach racket/treelist prop:stream")
    (substitution 'racket/promise 'webracket/promise 'runtime-owned 'low
                  "ordinary promises are small browser-local runtime behavior")
    (substitution 'racket/sequence 'webracket/sequence 'temporary-shim 'high

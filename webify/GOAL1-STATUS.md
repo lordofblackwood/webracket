@@ -16,6 +16,9 @@ through the temporary provider bridge allowlist.
 - WebRacket-owned staged providers cover the currently preferred surfaces for
   contracts, class support, dicts, files, formatting, functions, hashes, ports,
   promises, pretty printing, sets, strings, streams, regexp, and JS FFI modules.
+  Direct installed `racket/pretty` diagnostics now pass for representative
+  pretty-print rows, but required rows still use staged `webracket/pretty`
+  until the transitive `racket/treelist`/`prop:stream` gap is closed.
 - Runtime-adjacent coverage now includes VFS file helpers, contract-erased
   queues, and the narrow logging export surface.
 

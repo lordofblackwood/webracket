@@ -74,5 +74,36 @@
     "(js-log (kp? okp))\n")
    #rx"(?m:^true\n42\ntrue\ntrue\n#<void>$)"))
 
+(test-case "webracket/private/kw supports make-keyword-procedure and keyword-apply"
+  (check-webracket-output
+   (string-append
+    "#lang webracket/base\n"
+    "(require webracket/private/kw)\n"
+    "(define show\n"
+    "  (make-keyword-procedure\n"
+    "   (lambda (kws kw-args . rest)\n"
+    "     (+ (length kws) (car kw-args) (car rest)))\n"
+    "   (lambda args (apply + args))))\n"
+    "(js-log (show 10 20 12))\n"
+    "(js-log (keyword-apply show '(#:y) '(20) '(21)))\n")
+   #rx"(?m:^42\nundefined\n42\nundefined\n#<void>$)"))
+
+(test-case "webracket/private/kw reports and reduces keyword arity"
+  (check-webracket-output
+   (string-append
+    "#lang webracket/base\n"
+    "(require webracket/private/kw)\n"
+    "(define show\n"
+    "  (make-keyword-procedure\n"
+    "   (lambda (kws kw-args . rest)\n"
+    "     (+ (length kws) (car kw-args) (car rest)))\n"
+    "   (lambda args (apply + args))))\n"
+    "(define reduced\n"
+    "  (procedure-reduce-keyword-arity show 1 '(#:y) '(#:y)))\n"
+    "(define-values (required allowed) (procedure-keywords reduced))\n"
+    "(js-log (and (equal? required '(#:y)) (equal? allowed '(#:y))))\n"
+    "(js-log (keyword-apply reduced '(#:y) '(20) '(21)))\n")
+   #rx"(?m:^true\nundefined\n42\nundefined\n#<void>$)"))
+
 (module+ main
   (void))

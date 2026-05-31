@@ -177,6 +177,7 @@
 ;;   Expected-fail rows that show which staged substitutions are replacement candidates.
 (define goal1-dashboard-real-provider-readiness-case-names
   '(real-racket-dict-diagnostic
+    real-racket-dict-coverage-diagnostic
     real-racket-list-diagnostic
     real-racket-string-diagnostic
     real-racket-sequence-diagnostic
@@ -184,7 +185,8 @@
     real-racket-private-kw-diagnostic
     real-racket-class-diagnostic
     real-racket-contract-diagnostic
-    real-racket-pretty-diagnostic))
+    real-racket-pretty-diagnostic
+    real-racket-pretty-coverage-diagnostic))
 
 (define goal1-dashboard-cases
   (list
@@ -407,6 +409,32 @@
    '("--no-io-format-provider" "--webracket-module-bridge" "--no-provider-substitutions")
    #:tier 'coverage
    #:expectation 'diagnostic)
+   (dashboard-case
+    'real-racket-dict-coverage-diagnostic
+    'installed-provider-diagnostic
+    '(racket/dict)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/base\n"
+         "(require racket/dict)\n"
+         "(define d (hash 'a 10 'b 20 'c 12))\n"
+         "(define total 0)\n"
+         "(for ([p (in-dict-pairs d)]) (set! total (+ total (cdr p))))\n"
+         "(define mapped-values (dict-map d (lambda (k v) v)))\n"
+         "(define updated (dict-update d 'a add1))\n"
+         "(define rem (dict-remove updated 'b))\n"
+         "(define copied (dict-map/copy rem (lambda (k v) (values k v))))\n"
+         "(js-log (if (and (pair? mapped-values)\n"
+         "                 (dict-can-functional-set? d)\n"
+         "                 (dict-can-remove-keys? d)\n"
+         "                 (= (dict-ref copied 'a) 11))\n"
+         "            total\n"
+         "            0))\n")))
+    "main.rkt"
+    #rx"(?m:^42$)"
+    '("--no-io-format-provider" "--webracket-module-bridge" "--no-provider-substitutions")
+    #:tier 'coverage
+    #:expectation 'diagnostic)
    (dashboard-case
     'real-racket-list-diagnostic
     'installed-provider-diagnostic
@@ -968,6 +996,25 @@
          "(js-log (pretty-format '(1 2) #:mode 'write))\n")))
     "main.rkt"
     #rx"(?m:^\\(1 2\\)$)"
+   '("--no-io-format-provider" "--webracket-module-bridge" "--no-provider-substitutions")
+   #:tier 'coverage
+   #:expectation 'diagnostic)
+   (dashboard-case
+    'real-racket-pretty-coverage-diagnostic
+    'installed-provider-diagnostic
+    '(racket/pretty)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/base\n"
+         "(require racket/pretty)\n"
+         "(define out (open-output-string))\n"
+         "(pretty-print-columns 'infinity)\n"
+         "(pretty-write '(\"web\" racket) out #:newline? #f)\n"
+         "(js-log (string-append (pretty-format '(1 2) #:mode 'write)\n"
+         "                       \"|\"\n"
+         "                       (get-output-string out)))\n")))
+    "main.rkt"
+    #rx"(?m:^\\(1 2\\)\\|\\(\"web\" racket\\)$)"
     '("--no-io-format-provider" "--webracket-module-bridge" "--no-provider-substitutions")
     #:tier 'coverage
     #:expectation 'diagnostic)

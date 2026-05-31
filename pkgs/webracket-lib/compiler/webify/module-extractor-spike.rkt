@@ -759,11 +759,14 @@
 (define (generated-import-name? name)
   (regexp-match? #rx"[.][0-9]+$" (symbol->string name)))
 
+;; generated-base-name : symbol? -> string?
+;;   Strip Racket's generated numeric suffix from a decompiled linklet name.
+(define (generated-base-name name)
+  (regexp-replace #rx"[0-9]*[.][0-9]+$" (symbol->string name) ""))
+
 ;; symbolic-name=? : symbol? symbol? -> boolean?
 ;;   Match generated symbols that print the same but are not necessarily eq?.
 (define (symbolic-name=? a b)
-  (define (generated-base-name name)
-    (regexp-replace #rx"[0-9]*[.][0-9]+$" (symbol->string name) ""))
   (or (eq? a b)
       (string=? (symbol->string a) (symbol->string b))
       (string=? (generated-base-name a) (symbol->string b))
@@ -799,6 +802,9 @@
 (define keyword-runtime-import-names
   '(keyword-procedure-extract
     struct:keyword-procedure
+    struct:keyword-procedure/arity-error
+    new-keyword-apply
+    procedure-keywords
     make-optional-keyword-procedure))
 
 ;; keyword-runtime-import-group? : import-group -> boolean?
@@ -1369,18 +1375,32 @@
   (match-define `(linklet ,importss ,_exports . ,body) linklet)
   (define export-descriptors (linklet-export-descriptors who raw-exports))
   (define (demanded-export-descriptor demanded-export)
-    (for/first ([descriptor (in-list export-descriptors)]
-                #:when (symbolic-name=? (cadr descriptor) demanded-export))
-      descriptor))
+    (or
+     (for/first ([descriptor (in-list export-descriptors)]
+                 #:when (eq? (cadr descriptor) demanded-export))
+       descriptor)
+     (for/first ([descriptor (in-list export-descriptors)]
+                 #:when (symbolic-name=? (cadr descriptor) demanded-export))
+       descriptor)))
   (define demanded-export-descriptors
-    (for/list ([export (in-list demanded-exports)])
-      (define descriptor (demanded-export-descriptor export))
-      (unless descriptor
-        (raise-arguments-error who
-                               "demanded export is not provided by report"
-                               "module" (webify-module-extractor-spike-name report)
-                               "export" export))
-      descriptor))
+    (remove-duplicates
+     (append*
+      (for/list ([export (in-list demanded-exports)])
+        (define descriptor (demanded-export-descriptor export))
+        (unless descriptor
+          (raise-arguments-error who
+                                 "demanded export is not provided by report"
+                                 "module" (webify-module-extractor-spike-name report)
+                                 "export" export))
+        (define public-base-descriptors
+          (cond
+            [(generated-import-name? export)
+             (for/list ([candidate (in-list export-descriptors)]
+                        #:when (string=? (symbol->string (cadr candidate))
+                                          (generated-base-name export)))
+               candidate)]
+            [else '()]))
+        (cons descriptor public-base-descriptors)))))
   (define initializer-forms
     (filter (lambda (form)
               (define-values (ids _rhs) (linklet-definition form))
@@ -1460,7 +1480,7 @@
    (webify-module-extractor-spike-bundle-keys report)
    sliced-bundle-entries
    sliced-importss
-   demanded-exports
+   sliced-external-exports
    sliced-linklet
    #t
    (cons "report was sliced to demanded phase-0 exports"
@@ -1919,6 +1939,13 @@
          (and candidate-exports
               (for/or ([export (in-list (cadr candidate-exports))])
                 (symbolic-name=? export external))))
+       (define (dependency-exports-exact-external? dependency external)
+         (define candidate-exports (assoc dependency dependency-exports))
+         (and candidate-exports
+              (memq external (cadr candidate-exports))))
+       (define (symbolic-member? external names)
+         (for/or ([name (in-list names)])
+           (symbolic-name=? external name)))
        (define (compiled-provider-hint local external)
          (cond
            [(and (eq? module-name 'racket/private/class-internal)
@@ -1942,6 +1969,54 @@
            [(and (eq? module-name 'racket/private/class-internal)
                  (symbolic-name=? external 'contract))
             (list local 'racket/contract/base)]
+           [(symbolic-member? external
+                              '(apply-contract
+                                contract
+                                contract?
+                                coerce-contract
+                                raise-blame-error))
+            (list local 'racket/contract/base)]
+           [(symbolic-name=? external 'current-contract-region)
+            (list local 'racket/contract/region)]
+           [(symbolic-name=? external 'real-and/c-name)
+            (list local 'racket/contract/private/misc)]
+           [(symbolic-name=? external 'or/c-name)
+            (list local 'racket/contract/private/orc)]
+           [(symbolic-member? external
+                              '(pos->ord
+                                default-arg
+                                check-method
+                                1/check-method
+                                raise-support-error))
+            (list local 'racket/private/generic)]
+           [(symbolic-name=? external 'arity-includes?)
+            (list local 'racket/private/arity)]
+           [(symbolic-name=? external 'format)
+            (list local 'webracket/format)]
+           [(symbolic-name=? external 'find-method/who)
+            (list local 'racket/private/class-struct)]
+           [(symbolic-member? external
+                              '(make-keyword-procedure
+                                new-keyword-apply
+                                make-optional-keyword-procedure
+                                keyword-procedure-extract
+                                procedure-keywords
+                                struct:keyword-procedure/arity-error))
+            (list local 'webracket/private/kw)]
+           [(symbolic-member? external
+                              '(return/no-unsupplied
+                                return/no-unsupplied/param-mark
+                                keyword-return/no-unsupplied
+                                keyword-return/no-unsupplied/param-mark
+                                un-dep
+                                un-dep/chaperone
+                                ->i-arg
+                                ->i-arg?
+                                ->i-arg-name
+                                ->i-arg-kwd
+                                ->i-arg-optional?
+                                ->i-arg-contract))
+            (list local 'racket/contract/private/arr-i)]
            [(and (eq? module-name 'racket/private/class-internal)
                  (or (symbolic-name=? external 'unsafe-undefined)
                      (symbolic-name=? external 'check-not-unsafe-undefined)
@@ -1995,6 +2070,17 @@
              ['() candidates]
              [(list _candidate) public-candidates]
              [_ candidates]))
+         (define (prefer-exact-provider-export candidates)
+           ;; Generated provide/contract exports can look like contract helper
+           ;; names after suffix normalization. Keep an exact provider export,
+           ;; such as racket/dict's id-partially-applied42.1, ahead of the
+           ;; unsuffixed racket/contract/base helper.
+           (define exact-candidates
+             (filter (lambda (candidate)
+                       (dependency-exports-exact-external? (cadr candidate)
+                                                           external))
+                     candidates))
+           (if (null? exact-candidates) candidates exact-candidates))
          (define (webracket-module-name? name)
            (and (symbol? name)
                 (regexp-match? #rx"^webracket/" (symbol->string name))))
@@ -2017,8 +2103,9 @@
            (prefer-non-self-provider
             (prefer-installed-provider-internals
              (prefer-public-contract-substitute
-              (prefer-stream-cons
-               (if (null? preferred-candidates) candidates preferred-candidates))))))
+              (prefer-exact-provider-export
+               (prefer-stream-cons
+                (if (null? preferred-candidates) candidates preferred-candidates)))))))
          (define (candidate-reason candidate)
            (list local
                  (cadr candidate)

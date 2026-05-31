@@ -1,12 +1,17 @@
 #lang racket/base
 
 (provide make-keyword-procedure
+         keyword-apply
+         new-keyword-apply
          make-optional-keyword-procedure
          keyword-procedure-extract
          procedure-keywords
+         procedure-reduce-keyword-arity
+         procedure-reduce-keyword-arity-mask
          missing-kw
          prop:named-keyword-procedure
-         struct:keyword-procedure)
+         struct:keyword-procedure
+         struct:keyword-procedure/arity-error)
 
 ;; A small WebRacket-owned subset of `racket/private/kw`.
 ;;
@@ -62,9 +67,83 @@
                 keyword-procedure-name+fail)
   (make-struct-type-property 'named-keyword-procedure))
 
+(define-values (struct:keyword-procedure/arity-error
+                make-keyword-procedure/arity-error
+                keyword-procedure/arity-error?
+                keyword-procedure/arity-error-ref
+                keyword-procedure/arity-error-set!)
+  (make-struct-type 'procedure
+                    struct:keyword-procedure
+                    0
+                    0
+                    #f
+                    null
+                    (current-inspector)
+                    #f
+                    null))
+
+;; sorted-keywords? : any/c -> boolean?
+;;   Check for a sorted, duplicate-free keyword list.
+(define (sorted-keywords? kws)
+  (let loop ([kws kws])
+    (cond
+      [(null? kws) #t]
+      [(not (pair? kws)) #f]
+      [(not (keyword? (car kws))) #f]
+      [(null? (cdr kws)) #t]
+      [(not (and (pair? (cdr kws))
+                 (keyword? (cadr kws))
+                 (keyword<? (car kws) (cadr kws))))
+       #f]
+      [else (loop (cdr kws))])))
+
+;; sorted-keyword-subset? : (listof keyword?) (listof keyword?) -> boolean?
+;;   Check whether required sorted keywords are included in supplied sorted keywords.
+(define (sorted-keyword-subset? required supplied)
+  (cond
+    [(null? required) #t]
+    [(null? supplied) #f]
+    [(eq? (car required) (car supplied))
+     (sorted-keyword-subset? (cdr required) (cdr supplied))]
+    [else (sorted-keyword-subset? required (cdr supplied))]))
+
+;; keyword-list-valid? : (listof keyword?) (or/c (listof keyword?) #f) -> boolean?
+;;   Check the required/allowed keyword invariant from the Reference.
+(define (keyword-list-valid? required allowed)
+  (and (sorted-keywords? required)
+       (or (not allowed)
+           (and (sorted-keywords? allowed)
+                (sorted-keyword-subset? required allowed)))))
+
+;; keyword-args-accepted? : (listof keyword?) (listof keyword?) (or/c (listof keyword?) #f) -> boolean?
+;;   Check supplied keywords against required and allowed keyword sets.
+(define (keyword-args-accepted? kws required allowed)
+  (and (sorted-keyword-subset? required kws)
+       (or (not allowed)
+           (sorted-keyword-subset? kws allowed))))
+
+;; make-keyword-checker : (listof keyword?) (or/c (listof keyword?) #f) exact-integer? -> procedure?
+;;   Build a checker for reduced keyword procedure metadata.
+(define (make-keyword-checker required allowed arity-mask)
+  (lambda (kws argc)
+    (and (keyword-args-accepted? kws required allowed)
+         (let ([normal-argc (- argc 2)])
+           (and (not (negative? normal-argc))
+                (bitwise-bit-set? arity-mask normal-argc))))))
+
+;; check-keyword-list : symbol? any/c exact-nonnegative-integer? -> void?
+;;   Validate a sorted keyword list argument.
+(define (check-keyword-list who kws pos)
+  (unless (sorted-keywords? kws)
+    (raise-argument-error who
+                          "(and/c (listof keyword?) sorted? distinct?)"
+                          pos
+                          kws)))
+
 ;; keyword-procedure-extract : any/c (listof keyword?) exact-nonnegative-integer? -> procedure?
 ;;   Extract the keyword dispatcher for an expanded keyword application.
 (define (keyword-procedure-extract proc kws argc)
+  (check-keyword-list 'keyword-procedure-extract kws 1)
   (cond
     [(and (keyword-procedure? proc)
           ((keyword-procedure-checker proc) kws argc))
@@ -140,3 +219,201 @@
      (make-optional-keyword-procedure kw-proc)]
     [(kw-proc plain-proc)
      (make-optional-keyword-procedure kw-proc plain-proc)]))
+
+;; collect-normal-args : symbol? list? -> list?
+;;   Merge keyword-apply's positional arguments with the final rest list.
+(define (collect-normal-args who normal-argss)
+  (let loop ([normal-argss normal-argss] [pos 3])
+    (cond
+      [(null? normal-argss)
+       (raise-arguments-error who
+                              "expected at least one final positional list")]
+      [(null? (cdr normal-argss))
+       (define tail (car normal-argss))
+       (unless (list? tail)
+         (raise-argument-error who "list?" pos tail))
+       tail]
+      [else
+       (cons (car normal-argss)
+             (loop (cdr normal-argss) (add1 pos)))])))
+
+;; merge-keyword-arguments : symbol? list? list? list? list? -> (values list? list?)
+;;   Merge sorted keyword/value lists, rejecting duplicates.
+(define (merge-keyword-arguments who kws kw-args orig-kws orig-kw-args)
+  (let loop ([kws kws]
+             [kw-args kw-args]
+             [orig-kws orig-kws]
+             [orig-kw-args orig-kw-args])
+    (cond
+      [(null? kws) (values orig-kws orig-kw-args)]
+      [(null? orig-kws) (values kws kw-args)]
+      [(eq? (car kws) (car orig-kws))
+       (raise-mismatch-error who
+                             "keyword duplicated in list and direct keyword arguments: "
+                             (car kws))]
+      [(keyword<? (car kws) (car orig-kws))
+       (define-values (rest-kws rest-args)
+         (loop (cdr kws) (cdr kw-args) orig-kws orig-kw-args))
+       (values (cons (car kws) rest-kws)
+               (cons (car kw-args) rest-args))]
+      [else
+       (define-values (rest-kws rest-args)
+         (loop kws kw-args (cdr orig-kws) (cdr orig-kw-args)))
+       (values (cons (car orig-kws) rest-kws)
+               (cons (car orig-kw-args) rest-args))])))
+
+;; do-keyword-apply : symbol? procedure? list? list? list? -> any/c
+;;   Apply proc with already-validated keyword and positional arguments.
+(define (do-keyword-apply who proc kws kw-args normal-args)
+  (cond
+    [(null? kws) (apply proc normal-args)]
+    [else
+     (apply (keyword-procedure-extract proc kws (+ 2 (length normal-args)))
+            kws
+            kw-args
+            normal-args)]))
+
+;; arity->mask : any/c -> exact-integer?
+;;   Convert a procedure arity value to a procedure-arity-mask-style integer.
+(define (arity->mask arity)
+  (cond
+    [(and (exact-integer? arity) (not (negative? arity)))
+     (arithmetic-shift 1 arity)]
+    [(arity-at-least? arity)
+     (arithmetic-shift -1 (arity-at-least-value arity))]
+    [(list? arity)
+     (let loop ([arities arity] [mask 0])
+       (cond
+         [(null? arities) mask]
+         [else (loop (cdr arities)
+                     (bitwise-ior mask (arity->mask (car arities))))]))]
+    [else
+     (raise-argument-error 'procedure-reduce-keyword-arity
+                           "procedure-arity?"
+                           arity)]))
+
+;; keyword-apply : procedure? list? list? any/c ... list? #:kw any/c ... -> any/c
+;;   Apply a procedure with dynamic keyword arguments.
+(define keyword-apply
+  (make-keyword-procedure
+   (lambda (direct-kws direct-kw-args proc kws kw-args . normal-argss)
+     (unless (procedure? proc)
+       (raise-argument-error 'keyword-apply "procedure?" 0 proc))
+     (check-keyword-list 'keyword-apply kws 1)
+     (unless (list? kw-args)
+       (raise-argument-error 'keyword-apply "list?" 2 kw-args))
+     (unless (= (length kws) (length kw-args))
+       (raise-arguments-error 'keyword-apply
+                              "keyword list length does not match value list length"
+                              "keyword list length" (length kws)
+                              "value list length" (length kw-args)
+                              "keyword list" kws
+                              "value list" kw-args))
+     (define normal-args (collect-normal-args 'keyword-apply normal-argss))
+     (define-values (merged-kws merged-kw-args)
+       (merge-keyword-arguments 'keyword-apply
+                                direct-kws
+                                direct-kw-args
+                                kws
+                                kw-args))
+     (do-keyword-apply 'keyword-apply proc merged-kws merged-kw-args normal-args))
+   (lambda (proc kws kw-args . normal-argss)
+     (unless (procedure? proc)
+       (raise-argument-error 'keyword-apply "procedure?" 0 proc))
+     (check-keyword-list 'keyword-apply kws 1)
+     (unless (list? kw-args)
+       (raise-argument-error 'keyword-apply "list?" 2 kw-args))
+     (unless (= (length kws) (length kw-args))
+       (raise-arguments-error 'keyword-apply
+                              "keyword list length does not match value list length"
+                              "keyword list length" (length kws)
+                              "value list length" (length kw-args)
+                              "keyword list" kws
+                              "value list" kw-args))
+     (do-keyword-apply 'keyword-apply
+                       proc
+                       kws
+                       kw-args
+                       (collect-normal-args 'keyword-apply normal-argss)))))
+
+;; new-keyword-apply : procedure? list? list? list? any/c ... -> any/c
+;;   WebRacket version of racket/private/pre-base's keyword-apply wrapper.
+(define new-keyword-apply
+  (make-keyword-procedure
+   (lambda (direct-kws direct-kw-args proc orig-kws orig-kw-args args . rest)
+     (define-values (merged-kws merged-kw-args)
+       (merge-keyword-arguments 'keyword-apply
+                                direct-kws
+                                direct-kw-args
+                                orig-kws
+                                orig-kw-args))
+     (do-keyword-apply 'keyword-apply
+                       proc
+                       merged-kws
+                       merged-kw-args
+                       (apply list* args rest)))
+   (lambda (proc orig-kws orig-kw-args args . rest)
+     (do-keyword-apply 'keyword-apply
+                       proc
+                       orig-kws
+                       orig-kw-args
+                       (apply list* args rest)))))
+
+;; procedure-reduce-keyword-arity : procedure? arity? list? (or/c list? #f) [symbol? #f] [symbol?] -> procedure?
+;;   Reduce positional and keyword arity for a keyword-capable procedure.
+(define procedure-reduce-keyword-arity
+  (case-lambda
+    [(proc arity required allowed)
+     (procedure-reduce-keyword-arity proc arity required allowed #f 'racket)]
+    [(proc arity required allowed name)
+     (procedure-reduce-keyword-arity proc arity required allowed name 'racket)]
+    [(proc arity required allowed name realm)
+     (unless (procedure? proc)
+       (raise-argument-error 'procedure-reduce-keyword-arity "procedure?" proc))
+     (unless (keyword-list-valid? required allowed)
+       (raise-arguments-error 'procedure-reduce-keyword-arity
+                              "expected sorted distinct required keywords and compatible allowed keywords"
+                              "required keywords" required
+                              "allowed keywords" allowed))
+     (procedure-reduce-keyword-arity-mask proc
+                                          (arity->mask arity)
+                                          required
+                                          allowed
+                                          name
+                                          realm)]))
+
+;; procedure-reduce-keyword-arity-mask : procedure? exact-integer? list? (or/c list? #f) [symbol? #f] [symbol?] -> procedure?
+;;   Reduce keyword arity using an arity mask.
+(define procedure-reduce-keyword-arity-mask
+  (case-lambda
+    [(proc mask required allowed)
+     (procedure-reduce-keyword-arity-mask proc mask required allowed #f 'racket)]
+    [(proc mask required allowed name)
+     (procedure-reduce-keyword-arity-mask proc mask required allowed name 'racket)]
+    [(proc mask required allowed name realm)
+     (unless (procedure? proc)
+       (raise-argument-error 'procedure-reduce-keyword-arity-mask "procedure?" proc))
+     (unless (exact-integer? mask)
+       (raise-argument-error 'procedure-reduce-keyword-arity-mask "exact-integer?" mask))
+     (unless (keyword-list-valid? required allowed)
+       (raise-arguments-error 'procedure-reduce-keyword-arity-mask
+                              "expected sorted distinct required keywords and compatible allowed keywords"
+                              "required keywords" required
+                              "allowed keywords" allowed))
+     (define plain-proc
+       (and (null? required) proc))
+     (define kw-proc
+       (lambda (kws kw-args . normal-args)
+         (do-keyword-apply 'procedure-reduce-keyword-arity-mask
+                           proc
+                           kws
+                           kw-args
+                           normal-args)))
+     (make-optional-keyword-procedure
+      (make-keyword-checker required allowed mask)
+      kw-proc
+      required
+      allowed
+      (or plain-proc
+          (lambda args
+            (missing-kw proc args))))]))

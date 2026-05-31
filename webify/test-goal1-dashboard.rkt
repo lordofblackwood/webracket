@@ -214,6 +214,7 @@
    (member 'generator-real-diagnostic goal1-dashboard-coverage-core-case-names))
   (check-equal? goal1-dashboard-real-provider-readiness-case-names
                 '(real-racket-dict-diagnostic
+                  real-racket-dict-coverage-diagnostic
                   real-racket-list-diagnostic
                   real-racket-string-diagnostic
                   real-racket-sequence-diagnostic
@@ -221,7 +222,8 @@
                   real-racket-private-kw-diagnostic
                   real-racket-class-diagnostic
                   real-racket-contract-diagnostic
-                  real-racket-pretty-diagnostic))
+                  real-racket-pretty-diagnostic
+                  real-racket-pretty-coverage-diagnostic))
   (check-not-false
    (member 'ffi-js-console-coverage goal1-dashboard-coverage-extended-case-names))
   (check-not-false
