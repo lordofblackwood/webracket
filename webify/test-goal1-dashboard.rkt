@@ -240,6 +240,8 @@
   (check-equal? goal1-dashboard-real-provider-readiness-case-names
                 '(real-racket-dict-diagnostic
                   real-racket-dict-coverage-diagnostic
+                  real-racket-function-diagnostic
+                  real-racket-function-coverage-diagnostic
                   real-racket-list-diagnostic
                   real-racket-string-diagnostic
                   real-racket-sequence-diagnostic
@@ -362,8 +364,7 @@
     (when (eq? owner 'webracket-owned)
       (check-true (or (regexp-match? #rx"^webracket/"
                                      (symbol->string implementation-provider))
-                      (eq? implementation-provider 'webracket/format)
-                      (eq? implementation-provider 'webracket/function))
+                      (eq? implementation-provider 'webracket/format))
                   (format "~a should route to an explicit WebRacket provider"
                           public-provider)))))
 
@@ -388,11 +389,11 @@
     (check-not-false (memq name full-exports)
                      (symbol->string name))))
 
-(test-case "webracket/full stays curated instead of requiring racket/function directly"
+(test-case "webracket/full uses real racket/function directly"
   (define source (file->string webracket-full-main))
-  (check-false (regexp-match? #rx"^[ \t]*racket/function\\b" source)
-               "webracket/full should route racket/function names through webracket/function")
-  (check-true (string-contains? source "../function.rkt")))
+  (check-true (string-contains? source "racket/function")
+              "webracket/full should use the installed racket/function provider")
+  (check-false (string-contains? source "../function.rkt")))
 
 (test-case "coverage dashboard rows are separate from basic provider rows"
   (define coverage-names
@@ -480,8 +481,7 @@
       (values (webracket/base-provider-substitution-requested record)
               (list (webracket/base-provider-substitution-routed record)
                     (webracket/base-provider-substitution-disposition record)))))
-  (for ([entry (in-list '((racket/function . (webracket/function retire-soon))
-                          (racket/format . (webracket/format retire-soon))
+  (for ([entry (in-list '((racket/format . (webracket/format retire-soon))
                           (racket/hash . (webracket/hash keep-webracket-owned))
                           (racket/set . (webracket/set keep-webracket-owned))
                           (racket/stream . (webracket/stream postpone))
@@ -532,8 +532,7 @@
 
 (test-case "Goal 1 provider plan documents staged-provider compatibility policy"
   (define doc (file->string goal1-providers-doc))
-  (for ([needle (in-list '("webracket/function"
-                           "webracket/set"
+  (for ([needle (in-list '("webracket/set"
                            "webracket/dict"
                            "webracket/contract"
                            "installed-provider-coverage"
@@ -548,6 +547,7 @@
                            "postpone"
                            "Real Provider Readiness"
                            "real-racket-dict-diagnostic"
+                           "real-racket-function-diagnostic"
                            "real-racket-list-diagnostic"
                            "real-racket-string-diagnostic"
                            "real-racket-sequence-diagnostic"

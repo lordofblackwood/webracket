@@ -1600,8 +1600,6 @@
                  "browser and VFS file behavior differs from host filesystem behavior")
    (substitution 'racket/format 'webracket/format 'temporary-shim 'medium 'retire-soon
                  "formatting is split between staged io/format and compact runtime support")
-   (substitution 'racket/function 'webracket/function 'temporary-shim 'medium 'retire-soon
-                 "avoid keyword-preserving wrappers until keyword metadata support is broader")
    (substitution 'racket/generator 'webracket/generator 'diagnostic-shim 'low 'postpone
                  "generators depend on continuation prompts, which are outside Goal 1")
    (substitution 'racket/hash 'webracket/hash 'temporary-shim 'medium 'keep-webracket-owned

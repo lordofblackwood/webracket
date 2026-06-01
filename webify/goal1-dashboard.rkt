@@ -241,6 +241,8 @@
 (define goal1-dashboard-real-provider-readiness-case-names
   '(real-racket-dict-diagnostic
     real-racket-dict-coverage-diagnostic
+    real-racket-function-diagnostic
+    real-racket-function-coverage-diagnostic
     real-racket-list-diagnostic
     real-racket-string-diagnostic
     real-racket-sequence-diagnostic
@@ -857,6 +859,37 @@
     #rx"(?m:^42$)"
     '("--no-io-format-provider" "--webracket-module-bridge"))
    (dashboard-case
+    'real-racket-function-diagnostic
+    'installed-provider-diagnostic
+    '(racket/function)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/base\n"
+         "(require racket/function)\n"
+         "(js-log ((compose add1 add1) 40))\n")))
+    "main.rkt"
+    #rx"(?m:^42$)"
+    '("--no-io-format-provider" "--webracket-module-bridge" "--no-provider-substitutions")
+    #:tier 'coverage
+    #:expectation 'diagnostic)
+   (dashboard-case
+    'real-racket-function-coverage-diagnostic
+    'installed-provider-diagnostic
+    '(racket/function)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/base\n"
+         "(require racket/function)\n"
+         "(define p (conjoin exact-integer? (negate zero?)))\n"
+         "(define k (const 40))\n"
+         "(js-log (+ (k 'ignored)\n"
+         "           (if (p 2) 2 0)))\n")))
+    "main.rkt"
+    #rx"(?m:^42$)"
+    '("--no-io-format-provider" "--webracket-module-bridge" "--no-provider-substitutions")
+    #:tier 'coverage
+    #:expectation 'diagnostic)
+   (dashboard-case
     'full-function
     'installed-provider-graph
     '(racket/function)
@@ -1182,7 +1215,7 @@
     'goal1-real-library-composition
     'installed-provider-coverage
     '(webracket/full racket/string racket/hash racket/set racket/function racket/format
-      webracket/hash webracket/set webracket/function webracket/format)
+      webracket/hash webracket/set webracket/format)
     `(("main.rkt" .
        ,(string-append
          "#lang webracket/full\n"
@@ -1269,7 +1302,7 @@
     'goal1-full-callable-exports
     'installed-provider-coverage
     '(webracket/full racket/vector racket/function racket/set racket/hash
-      webracket/function webracket/set webracket/hash)
+      webracket/set webracket/hash)
     `(("main.rkt" .
        ,(string-append
          "#lang webracket/full\n"

@@ -29,9 +29,6 @@ runtime services.
 
 ## Current Staged Providers
 
-- `webracket/function`: contract-free positional combinators. It intentionally
-  does not yet preserve the full keyword arity metadata of installed
-  `racket/function`.
 - `webracket/set`: hash-backed set operations. Contracts, generics,
   chaperones, and impersonators are postponed.
 - `webracket/promise`: ordinary promise caching for browser programs. Advanced
@@ -93,16 +90,16 @@ Each substitution also has an audit disposition:
   replacing it yet because the missing feature is outside the current browser
   module-program target.
 
-The concrete regression to guard is `compose` and `compose1`: `racket/base`
-exports them, and installed `racket/function` / `racket/private/list` can pull
-in keyword-preserving wrappers that WebRacket does not need for ordinary
-positional module programs. `webracket/full` therefore exports the staged
-`webracket/function` versions for those names.
+The former concrete regression to guard was `compose` and `compose1`, where
+installed `racket/function` could pull in keyword-preserving wrappers. That
+path now passes real-provider diagnostics with substitutions disabled, so
+`webracket/full` imports `racket/function` directly.
 
 This rule should stay narrow. Earlier Goal 1 work routed several installed
 providers through staged `webracket/*` modules; the default bridge now uses the
-real installed providers for `racket/class`, `racket/dict`, `racket/list`,
-`racket/pretty`, `racket/sequence`, `racket/string`, `racket/private/for`, and
+real installed providers for `racket/class`, `racket/dict`, `racket/function`,
+`racket/list`, `racket/pretty`, `racket/sequence`, `racket/string`,
+`racket/private/for`, and
 `racket/private/kw` after their representative diagnostics reached runtime.
 
 ## Provider Substitution Audit
@@ -114,7 +111,6 @@ The current `racket/*` -> `webracket/*` substitutions are:
 | `racket/contract`, `racket/contract/base`, `racket/contract/combinator`, `racket/contract/region`, selected `racket/contract/private/*` | `webracket/contract` | temporary shim | postpone | Erased contracts let module programs run before chaperones, impersonators, blame, and full contract enforcement are ready. |
 | `racket/file` | `webracket/file` | runtime-owned | keep WebRacket-owned | Browser/VFS file behavior is not host filesystem behavior; use a WebRacket provider around the VFS. |
 | `racket/format` | `webracket/format` | temporary shim | retire soon | Formatting should move toward staged original `io/format` plus thin adapters; the compact shim should shrink as `~a`, `~s`, and `~v` coverage matures. |
-| `racket/function` | `webracket/function` | temporary shim | retire soon | Real `racket/function` is close; retire the shim after keyword metadata and keyword-preserving procedure wrappers stop causing bridge/runtime surprises. |
 | `racket/generator` | `webracket/generator` | diagnostic shim | postpone | Generators depend on continuation prompts/composable continuations, which are not Goal 1. |
 | `racket/hash` | `webracket/hash` | temporary shim | keep WebRacket-owned | Hash helpers should stay aligned with WebRacket's HAMT/runtime hash implementation and equality/hash-table representation. |
 | `racket/mpair` | `webracket/mpair` | runtime-owned | keep WebRacket-owned | Mutable pairs are runtime representation work, not a good installed-provider dependency. |
@@ -127,9 +123,13 @@ The current `racket/*` -> `webracket/*` substitutions are:
 
 The immediate staged-provider audit result for the requested providers is:
 
-- Retire soon: `racket/function`, `racket/format`.
+- Retire soon: `racket/format`.
 - Keep WebRacket-owned: `racket/hash`, `racket/set`, `racket/promise`.
 - Postpone: `racket/stream`.
+
+`racket/function` has been retired from this table: the real provider now
+passes the module-bridge diagnostic and coverage rows with provider
+substitutions disabled, so `webracket/full` imports it directly.
 
 ## Real Provider Readiness
 
@@ -141,7 +141,7 @@ substitutions.
 | Provider/frontier | Readiness row | Current blocker/action |
 | --- | --- | --- |
 | `webracket/contract` | `real-racket-contract-diagnostic` | Current failure is provider-graph extraction for real `racket/contract`; keep using erased-contract shims while narrowing the transitive provider graph and runtime primitive demand. |
-| real installed providers | `real-racket-class-diagnostic`, `real-racket-dict-diagnostic`, `real-racket-dict-coverage-diagnostic`, `real-racket-list-diagnostic`, `real-racket-string-diagnostic`, `real-racket-pretty-diagnostic`, `real-racket-pretty-coverage-diagnostic`, `real-racket-sequence-diagnostic`, `real-racket-private-for-diagnostic`, `real-racket-private-kw-diagnostic` | These rows now pass representative diagnostics without provider substitution. They remain on the dashboard as regression guards for the real-provider path. |
+| real installed providers | `real-racket-class-diagnostic`, `real-racket-dict-diagnostic`, `real-racket-dict-coverage-diagnostic`, `real-racket-function-diagnostic`, `real-racket-function-coverage-diagnostic`, `real-racket-list-diagnostic`, `real-racket-string-diagnostic`, `real-racket-pretty-diagnostic`, `real-racket-pretty-coverage-diagnostic`, `real-racket-sequence-diagnostic`, `real-racket-private-for-diagnostic`, `real-racket-private-kw-diagnostic` | These rows now pass representative diagnostics without provider substitution. They remain on the dashboard as regression guards for the real-provider path. |
 
 ## `racket/list` Export Audit
 

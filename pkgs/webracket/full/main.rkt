@@ -33,6 +33,7 @@
          racket/bool
          racket/bytes
          racket/dict
+         racket/function
          racket/include
          "../list.rkt"
          racket/local
@@ -44,7 +45,7 @@
          (except-in racket/string string-append* string-join)
          (only-in "../string.rkt" string-append* string-join)
          (except-in racket/vector vector-member vector-sort vector-sort!)
-         (only-in "../primitives.rkt" identity sort vector-sort vector-sort!)
+         (only-in "../primitives.rkt" sort vector-sort vector-sort!)
          "../contract.rkt"
          (except-in "../format.rkt" format fprintf printf eprintf)
          (rename-in "../format.rkt"
@@ -83,10 +84,6 @@
                   initiate-sequence)
          "../set.rkt"
          "../stream.rkt"
-         (except-in "../function.rkt" compose compose1 identity)
-         (only-in "../function.rkt"
-                  [compose wr-compose]
-                  [compose1 wr-compose1])
          (for-syntax racket/base)
          (for-syntax racket/splicing)
          (for-syntax webracket-lib/compiler/private/browser-options))
@@ -106,20 +103,17 @@
                      format
                      fprintf
                      printf
-                     eprintf
-                     compose
-                     compose1)
+                     eprintf)
          read-bytes-line
          (rename-out [wr-format format]
                      [wr-fprintf fprintf]
                      [wr-printf printf]
-                     [wr-eprintf eprintf]
-                     [wr-compose compose]
-                     [wr-compose1 compose1])
+                     [wr-eprintf eprintf])
          sort
          (all-from-out racket/bool)
          (all-from-out racket/bytes)
          (all-from-out racket/dict)
+         (all-from-out racket/function)
          (all-from-out racket/include)
          (all-from-out "../list.rkt")
          (all-from-out racket/local)
@@ -132,7 +126,6 @@
          string-append*
          string-join
          (all-from-out racket/vector)
-         identity
          vector-member
          vector-sort
          vector-sort!
@@ -146,7 +139,6 @@
          ~.s
          ~.v
          (all-from-out "../file.rkt")
-         (all-from-out "../function.rkt")
          (all-from-out "../hash.rkt")
          (all-from-out "../js/main.rkt")
          (all-from-out "../pretty.rkt")

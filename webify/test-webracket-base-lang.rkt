@@ -1209,7 +1209,6 @@
       (racket/contract/private/misc . webracket/contract)
       (racket/file . webracket/file)
       (racket/format . webracket/format)
-      (racket/function . webracket/function)
       (racket/generator . webracket/generator)
       (racket/hash . webracket/hash)
       (racket/mpair . webracket/mpair)
@@ -1223,7 +1222,7 @@
   (for ([entry (in-list expected)])
     (check-equal? (webracket/base-provider-substitute (car entry))
                   (cdr entry)))
-  (for ([name (in-list '(racket/vector racket/match racket/math
+  (for ([name (in-list '(racket/vector racket/match racket/math racket/function
                          racket/class racket/dict racket/list racket/pretty
                          racket/sequence racket/string
                          racket/private/for racket/private/kw))])
@@ -1279,7 +1278,7 @@
   (define source-dir (make-temporary-file "webracket-base-curated-providers-src-~a" 'directory))
   (define cases
     '((vector   racket/vector      "(require (only-in racket/vector vector-member))\n(provide answer)\n(define answer vector-member)\n")
-      (function webracket/function "(require (only-in racket/function identity))\n(provide answer)\n(define answer identity)\n")
+      (function racket/function    "(require (only-in racket/function identity))\n(provide answer)\n(define answer identity)\n")
       (promise  webracket/promise  "(require (only-in racket/promise force))\n(provide answer)\n(define answer force)\n")
       (stream   webracket/stream   "(require (only-in racket/stream stream-first))\n(provide answer)\n(define answer stream-first)\n")
       (set      webracket/set      "(require (only-in racket/set set-count))\n(provide answer)\n(define answer set-count)\n")))
@@ -1349,7 +1348,7 @@
          (check-equal? external-names
                        (sorted-symbols
                         '(racket/vector
-                          webracket/function)))
+                          racket/function)))
          (define fetched '())
          (define graph
            (webracket/base-reports->module-graph
@@ -1360,7 +1359,7 @@
               (set! fetched (append fetched (list name)))
               (case name
                 [(racket/vector)   (synthetic-provider-report name '(vector-member))]
-                [(webracket/function) (synthetic-provider-report name '(identity))]
+                [(racket/function) (synthetic-provider-report name '(identity))]
                 [(webracket/contract) (synthetic-provider-report name '(contract))]
                 [(webracket/format) (synthetic-provider-report name '(format))]
                 [(webracket/private/kw) (synthetic-provider-report name '(keyword-apply))]
@@ -1372,7 +1371,7 @@
                           '(racket/vector
                             webracket/contract
                             webracket/format
-                            webracket/function
+                            racket/function
                             webracket/private/kw
                             webracket/unsafe/undefined))))
          (define plan
@@ -1383,7 +1382,7 @@
          (for ([name (in-list '(module-protocol
                                 lib
                                 racket/vector
-                                webracket/function))])
+                                racket/function))])
            (check-not-false (memq name plan)
                             (symbol->string name)))]))
     (lambda ()
