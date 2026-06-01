@@ -726,11 +726,17 @@
 
 (define datum:undefined        the-undefined-value) 
 (define datum:unsafe-undefined the-unsafe-undefined-value)
+(define unsafe-undefined-literal-marker 'webracket-internal-unsafe-undefined-literal)
 
 ;; host-unsafe-undefined? : any/c -> boolean?
 ;;   Recognize Racket's own unsafe-undefined literal during host expansion.
 (define (host-unsafe-undefined? v)
   (eq? v host-unsafe-undefined))
+
+;; unsafe-undefined-literal-marker? : any/c -> boolean?
+;;   Recognize the readable marker used in extracted linklet manifests.
+(define (unsafe-undefined-literal-marker? v)
+  (eq? v unsafe-undefined-literal-marker))
 
 ;;;
 ;;; CONSTANTS
@@ -7374,6 +7380,8 @@
           [(? byte-regexp?  rx) `(app ,h ,(variable #'byte-regexp)  ,(loop (object-name rx)))]
           [(? pregexp?      rx) `(app ,h ,(variable #'pregexp)      ,(loop (object-name rx)))]
           [(? regexp?       rx) `(app ,h ,(variable #'regexp)       ,(loop (object-name rx)))]
+          [(? unsafe-undefined-literal-marker?)
+           `(quote ,s ,(datum s datum:unsafe-undefined))]
           [(? symbol? sym) `(quote ,s ,(datum s v))]
           [(? pair? p)     `(app ,h ,(var:cons) ,(loop (car p)) ,(loop (cdr p)))]
           [(? vector? v)   (let ([vs (map loop (vector->list v))])

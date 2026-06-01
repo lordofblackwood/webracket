@@ -18,6 +18,7 @@
          pretty-print-post-print-hook
          pretty-print-pre-print-hook
          pretty-print-print-hook
+         pretty-print-print-line
          pretty-print-remap-stylable
          pretty-print-show-inexactness
          pretty-print-size-hook
@@ -42,6 +43,15 @@
   (make-parameter
    (lambda (v display? out)
      (display (pretty-value->string v (if display? 'display 'write)) out))))
+(define pretty-print-print-line
+  (make-parameter
+   (lambda (line out offset width)
+     ;; The full pretty printer uses this callback while breaking output into
+     ;; columns. This compact provider accepts the hook but does not compute
+     ;; indentation, so it reports that no extra characters were printed.
+     (when (and line (positive? line))
+       (newline out))
+     0)))
 (define pretty-print-pre-print-hook (make-parameter (lambda (v out) (void))))
 (define pretty-print-post-print-hook (make-parameter (lambda (v out) (void))))
 (define pretty-printing (make-parameter #f))

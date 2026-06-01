@@ -118,6 +118,21 @@
 (define-runtime-path webify-syntax-srcloc-path "../../../webracket/syntax/srcloc.rkt")
 (define-runtime-path webify-unsafe-undefined-path "../../../webracket/unsafe/undefined.rkt")
 
+(define unsafe-undefined-literal-marker 'webracket-internal-unsafe-undefined-literal)
+
+;; readable-linklet-datum : any/c -> any/c
+;;   Replace host-only literals with readable markers for manifest output.
+(define (readable-linklet-datum v)
+  (cond
+    [(eq? v host-unsafe-undefined) unsafe-undefined-literal-marker]
+    [(pair? v) (cons (readable-linklet-datum (car v))
+                     (readable-linklet-datum (cdr v)))]
+    [(vector? v)
+     (list->vector
+      (for/list ([elem (in-vector v)])
+        (readable-linklet-datum elem)))]
+    [else v]))
+
 ;; contract-module-path? : any/c -> boolean?
 ;;   Recognize module-path spellings for public contract providers.
 (define (contract-module-path? module-path)
@@ -1460,6 +1475,34 @@
                    (memq external demanded-imports)))
              group))))
 
+(define unsafe-undefined-import-names
+  '(unsafe-undefined
+    check-not-unsafe-undefined
+    check-not-unsafe-undefined/assign
+    prop:chaperone-unsafe-undefined
+    chaperone-struct-unsafe-undefined))
+
+;; add-missing-unsafe-undefined-imports : importss (listof symbol?) -> importss
+;;   Repair machine-independent decompile gaps for unsafe-undefined imports.
+(define (add-missing-unsafe-undefined-imports importss needed)
+  (define present
+    (for*/list ([group   (in-list importss)]
+                [binding (in-list group)])
+      (car (normalize-linklet-import-binding 'add-missing-unsafe-undefined-imports
+                                             binding))))
+  (define missing
+    (filter (lambda (name)
+              (and (memq name needed)
+                   (not (memq name present))))
+            unsafe-undefined-import-names))
+  (cond
+    [(null? missing) importss]
+    [else
+     (append importss
+             (list
+              (for/list ([name (in-list missing)])
+                (list name name))))]))
+
 ;; webify-module-extractor-spike/slice-exports : report (listof symbol?) -> report
 ;;   Produce a demand-sliced report containing only needed exports/imports/definitions.
 (define (webify-module-extractor-spike/slice-exports report demanded-exports)
@@ -1547,17 +1590,6 @@
                           (for/or ([id (in-list ids)])
                             (memq id needed))))
       form))
-  (define class-internal-unsafe-repair-forms
-    (if (eq? (webify-module-extractor-spike-name report)
-             'racket/private/class-internal)
-        `((define-values (unsafe-undefined) ',host-unsafe-undefined)
-          (define-values (prop:chaperone-unsafe-undefined
-                          prop:chaperone-unsafe-undefined?
-                          prop:chaperone-unsafe-undefined-ref)
-            (make-struct-type-property 'chaperone-unsafe-undefined)))
-        '()))
-  (define kept-body/repaired
-    (append class-internal-unsafe-repair-forms kept-body))
   (define local-definitions
     (filter (lambda (id) (hash-has-key? definition-table id)) needed))
   (define demanded-imports/raw
@@ -1576,7 +1608,10 @@
                    prop:chaperone-unsafe-undefined
                    chaperone-struct-unsafe-undefined)
                  '()))))
-  (define sliced-importss (filter-importss raw-importss demanded-imports))
+  (define sliced-importss
+    (add-missing-unsafe-undefined-imports
+     (filter-importss raw-importss demanded-imports)
+     demanded-imports))
   (define sliced-exports
     (remove-duplicates
      (for/list ([descriptor (in-list demanded-export-descriptors)])
@@ -1584,7 +1619,7 @@
   (define sliced-external-exports
     (webify-normalize-linklet-exports sliced-exports))
   (define sliced-linklet
-    `(linklet ,sliced-importss ,sliced-exports . ,kept-body/repaired))
+    `(linklet ,sliced-importss ,sliced-exports . ,kept-body))
   (define phase0-entry
     (webify-module-bundle-entry
      0
@@ -1613,7 +1648,8 @@
 ;; repair-class-internal-linklet : symbol? linklet-datum? -> linklet-datum?
 ;;   Repair a machine-independent decompile gap for unsafe-undefined imports.
 (define (repair-class-internal-linklet name linklet)
-  (match linklet
+  (define linklet/readable (readable-linklet-datum linklet))
+  (match linklet/readable
     [`(linklet ,importss ,exports . ,body)
      (define defined
        (append*
@@ -1630,20 +1666,13 @@
        (or (memq 'unsafe-undefined free)
            (memq 'prop:chaperone-unsafe-undefined free)))
      (cond
-       [(not needs-repair?) linklet]
+       [(not needs-repair?) linklet/readable]
        [else
+        (define repaired-importss
+          (add-missing-unsafe-undefined-imports importss free))
         `(linklet
-          ,importss
+          ,repaired-importss
           ,exports
-          ,@(if (memq 'unsafe-undefined defined)
-                '()
-                `((define-values (unsafe-undefined) ',host-unsafe-undefined)))
-          ,@(if (memq 'prop:chaperone-unsafe-undefined defined)
-                '()
-                `((define-values (prop:chaperone-unsafe-undefined
-                                  prop:chaperone-unsafe-undefined?
-                                  prop:chaperone-unsafe-undefined-ref)
-                    (make-struct-type-property 'chaperone-unsafe-undefined))))
           ,@body)])]
     [_ linklet]))
 
@@ -2143,39 +2172,40 @@
          (cond
            [(and (eq? module-name 'racket/private/class-internal)
                  (symbolic-name=? external 'coerce-contract))
-            (list local 'webracket/contract)]
+            (list local 'racket/contract/private/guts)]
            [(and (eq? module-name 'racket/private/class-internal)
                  (symbolic-name=? external 'apply-contract))
-            (list local 'webracket/contract)]
+            (list local 'racket/contract/private/guts)]
            [(and (eq? module-name 'racket/private/class-internal)
                  (symbolic-name=? external 'blame-swap))
-            (list local 'webracket/contract)]
+            (list local 'racket/contract/private/blame)]
            [(and (eq? module-name 'racket/private/class-internal)
                  (symbolic-name=? external 'raise-blame-error))
-            (list local 'webracket/contract)]
+            (list local 'racket/contract/private/blame)]
            [(and (eq? module-name 'racket/private/class-internal)
                  (symbolic-name=? external 'contract?))
-            (list local 'webracket/contract)]
+            (list local 'racket/contract/private/guts)]
            [(and (eq? module-name 'racket/private/class-internal)
                  (symbolic-name=? external 'current-contract-region))
-            (list local 'webracket/contract)]
+            (list local 'racket/contract/region)]
            [(and (eq? module-name 'racket/private/class-internal)
                  (symbolic-name=? external 'contract))
-            (list local 'webracket/contract)]
+            (list local 'racket/contract/private/guts)]
            [(symbolic-member? external
                               '(apply-contract
                                 contract
                                 contract?
-                                coerce-contract
-                                raise-blame-error))
-            (list local 'webracket/contract)]
+                                coerce-contract))
+            (list local 'racket/contract/private/guts)]
+           [(symbolic-name=? external 'raise-blame-error)
+            (list local 'racket/contract/private/blame)]
            [(symbolic-member? external
                               '(coerce-contracts
                                 coerce-flat-contract
                                 coerce-flat-contracts
                                 coerce-chaperone-contract
                                 coerce-chaperone-contracts))
-            (list local 'webracket/contract)]
+            (list local 'racket/contract/private/guts)]
            [(symbolic-member? external
                               '(blame?
                                 make-blame
@@ -2198,13 +2228,13 @@
                                 blame-add-extra-field
                                 blame-fmt->-string
                                 invariant-assertion-party))
-            (list local 'webracket/contract)]
+            (list local 'racket/contract/private/blame)]
            [(symbolic-name=? external 'current-contract-region)
-            (list local 'webracket/contract)]
+            (list local 'racket/contract/region)]
            [(symbolic-name=? external 'real-and/c-name)
-            (list local 'webracket/contract)]
+            (list local 'racket/contract/private/guts)]
            [(symbolic-name=? external 'or/c-name)
-            (list local 'webracket/contract)]
+            (list local 'racket/contract/private/guts)]
            [(symbolic-member? external
                               '(add-method-suffix
                                 contract-random-generate
@@ -2245,7 +2275,7 @@
                                 contract-struct-exercise
                                 contract-struct-list-contract?
                                 wrong-number-of-results-blame))
-            (list local 'webracket/contract)]
+            (list local 'racket/contract/private/guts)]
            [(symbolic-member? external
                               '(tail-contract-key
                                 bad-number-of-results
@@ -2254,9 +2284,9 @@
                                 unspecified-dom
                                 check-procedure
                                 check-procedure/more))
-            (list local 'webracket/contract)]
+            (list local 'racket/contract/private/guts)]
            [(symbolic-name=? external 'build->*-plus-one-acceptor)
-            (list local 'webracket/contract)]
+            (list local 'racket/contract/private/guts)]
            [(symbolic-name=? external 'prop:stream)
             (list local 'racket/private/for)]
            [(and (eq? module-name 'racket/sequence)
@@ -2274,7 +2304,7 @@
            [(symbolic-name=? external 'format)
             (list local 'racket-src/io/format/main-web)]
            [(syntax-srcloc-export-name? external)
-            (list local 'webracket/contract)]
+            (list local 'racket/contract/private/guts)]
            [(symbolic-name=? external 'find-method/who)
             (list local 'racket/private/class-struct)]
            [(symbolic-member? external
@@ -2323,14 +2353,14 @@
                                 ->i-arg-kwd
                                 ->i-arg-optional?
                                 ->i-arg-contract))
-            (list local 'webracket/contract)]
+            (list local 'racket/contract/private/guts)]
            [(and (eq? module-name 'racket/private/class-internal)
                  (or (symbolic-name=? external 'unsafe-undefined)
                      (symbolic-name=? external 'check-not-unsafe-undefined)
                      (symbolic-name=? external 'check-not-unsafe-undefined/assign)
                      (symbolic-name=? external 'prop:chaperone-unsafe-undefined)
                      (symbolic-name=? external 'chaperone-struct-unsafe-undefined)))
-            (list local 'webracket/unsafe/undefined)]
+            (list local 'racket/unsafe/undefined)]
            [else #f]))
        (define (candidate->inferred-dependency binding)
          (match-define (list local external) binding)

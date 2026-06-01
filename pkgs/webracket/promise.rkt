@@ -2,6 +2,7 @@
 
 (provide delay
          delay/strict
+         delay/sync
          force
          promise-forced?
          promise-running?
@@ -32,6 +33,13 @@
    (lambda () (let () body ...))
    (lambda results
      (webracket-promise (lambda () (apply values results)) results #f #t #f))))
+
+;; delay/sync : syntax -> promise?
+;;   Create a promise with ordinary single-threaded delay behavior.
+(define-syntax-rule (delay/sync body ...)
+  ;; Racket's `delay/sync` is also a synchronizable event. WebRacket does not
+  ;; expose threads/events yet, so Goal 1 uses the ordinary cached semantics.
+  (delay body ...))
 
 ;; promise? : any/c -> boolean?
 ;;   Recognize staged WebRacket promises.

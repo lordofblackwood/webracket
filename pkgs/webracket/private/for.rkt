@@ -1,6 +1,7 @@
 #lang racket/base
 
-(require racket/mpair)
+(require racket/mpair
+         (for-syntax racket/base))
 
 (provide make-do-sequence
          make-sequence
@@ -114,7 +115,8 @@
          unsafe-normalise-inputs
          check-string
          check-vector
-         check-list)
+         check-list
+         (for-syntax split-for-body))
 
 ;; A small WebRacket-owned subset of `racket/private/for`.
 ;;
@@ -122,6 +124,19 @@
 ;; Goal 1 currently needs the generic protocol pieces that expanded `for` forms
 ;; import and the six-value `make-do-sequence` shape used by modules such as
 ;; `data/queue`.
+
+;; split-for-body : syntax? syntax? -> syntax?
+;;   Split a for-like body into pre-body forms and the final expression group.
+(define-for-syntax (split-for-body stx body-stx)
+  (define forms (syntax->list body-stx))
+  (unless (and forms (pair? forms))
+    (raise-syntax-error #f "expected at least one body expression" stx body-stx))
+  (let loop ([prefix '()] [rest forms])
+    (cond
+      [(null? (cdr rest))
+       #`((#,@(reverse prefix)) (#,(car rest)))]
+      [else
+       (loop (cons (car rest) prefix) (cdr rest))])))
 
 (define-values (prop:gen-sequence sequence-via-prop? sequence-ref)
   (make-struct-type-property

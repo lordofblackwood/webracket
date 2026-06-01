@@ -59706,7 +59706,7 @@
                          (unreachable)))
                (local.get $proc))
 
-         (func $procedure-rename
+         (func $procedure-rename (type $Prim23)
                (param $proc  (ref eq))   ;; any procedure
                (param $name  (ref eq))   ;; symbol
                (param $realm (ref eq))   ;; symbol or $missing
