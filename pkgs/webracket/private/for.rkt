@@ -124,7 +124,15 @@
 ;; `data/queue`.
 
 (define-values (prop:gen-sequence sequence-via-prop? sequence-ref)
-  (make-struct-type-property 'sequence))
+  (make-struct-type-property
+   'sequence
+   (lambda (v _struct-info)
+     (unless (and (procedure? v)
+                  (procedure-arity-includes? v 1))
+       (raise-argument-error 'guard-for-prop:sequence
+                             "(procedure-arity-includes/c 1)"
+                             v))
+     v)))
 
 ;; prop:sequence : struct-type-property?
 ;;   Public sequence property whose value maps a struct instance to a sequence.

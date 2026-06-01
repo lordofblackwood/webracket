@@ -1087,8 +1087,14 @@
            #:property prop:gen-sequence
            (lambda (self)
              (define xs (seqbox-xs self))
-             (values car #f cdr xs pair? #f #f)))
-         (define y (for/fold ([sum 0]) ([x (seqbox '(10 20 12))]) (+ sum x)))))]
+             (values (lambda (pos) (values (car pos) (* 10 (car pos))))
+                     #f
+                     cdr
+                     xs
+                     pair?
+                     #f
+                     #f)))
+         (define y (for/sum ([(x y) (seqbox '(1 2 3))]) (+ x y)))))]
     [(sequence-in-parallel-values)
      '((module use-sequence-in-parallel-values racket/base
          (require racket/sequence)

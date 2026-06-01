@@ -11,6 +11,8 @@
                     sort)
          "../js/main.rkt"
          "../private/kw.rkt"
+         (only-in "../private/for.rkt"
+                  prop:gen-sequence)
          (only-in "../primitives.rkt"
                   print-as-expression
                   sort)
@@ -23,6 +25,7 @@
 (provide (all-from-out racket/base)
          read-bytes-line
          sort
+         prop:gen-sequence
          (all-from-out "../js/main.rkt")
          (all-from-out "../private/kw.rkt")
          (for-syntax (all-from-out racket/base))

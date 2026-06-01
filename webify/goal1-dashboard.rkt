@@ -189,6 +189,7 @@
     base-sequence-mpair
     base-sequence-ports
     base-sequence-prop
+    base-sequence-prop-gen
     base-sequence-derived
     base-sequence-early-next
     base-sequence-add-between-lazy
@@ -1661,6 +1662,29 @@
          "(js-log prop-sum)\n")))
     "main.rkt"
     #rx"(?m:^42$)"
+    '("--no-io-format-provider" "--webracket-module-bridge"))
+   (dashboard-case
+    'base-sequence-prop-gen
+    'installed-provider-coverage
+    '(racket/private/for webracket/private/for)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/base\n"
+         "(struct seqbox (xs)\n"
+         "  #:property prop:gen-sequence\n"
+         "  (lambda (self)\n"
+         "    (define xs (seqbox-xs self))\n"
+         "    (values (lambda (pos) (values (car pos) (* 10 (car pos))))\n"
+         "            #f\n"
+         "            cdr\n"
+         "            xs\n"
+         "            pair?\n"
+         "            #f\n"
+         "            #f)))\n"
+         "(define prop-sum (for/sum ([(x y) (seqbox (list 1 2 3))]) (+ x y)))\n"
+         "(js-log prop-sum)\n")))
+    "main.rkt"
+    #rx"(?m:^66$)"
     '("--no-io-format-provider" "--webracket-module-bridge"))
    (dashboard-case
     'base-sequence-derived
