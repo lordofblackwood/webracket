@@ -21,6 +21,7 @@
          goal1-dashboard-fast-required-case-names
          goal1-dashboard-coverage-core-case-names
          goal1-dashboard-coverage-extended-case-names
+         goal1-dashboard-composition-case-names
          goal1-dashboard-real-provider-readiness-case-names
          goal1-dashboard-cases
          goal1-dashboard-select-cases
@@ -128,10 +129,6 @@
     full-path-coverage
     full-match-coverage
     installed-racket-match-explicit
-    goal1-real-library-composition
-    goal1-sequence-format-composition
-    goal1-match-set-hash-composition
-    goal1-dict-pretty-sequence-composition
     goal1-full-callable-exports
     goal1-full-list-surface
     goal1-base-sort-keywords
@@ -178,6 +175,14 @@
     installed-racket-logging-coverage
     ffi-js-math-coverage
     ffi-js-console-coverage))
+
+;; goal1-dashboard-composition-case-names : (listof symbol?)
+;;   Heavy cross-provider rows for checkpoint confidence, not the everyday loop.
+(define goal1-dashboard-composition-case-names
+  '(goal1-real-library-composition
+    goal1-sequence-format-composition
+    goal1-match-set-hash-composition
+    goal1-dict-pretty-sequence-composition))
 
 ;; goal1-dashboard-real-provider-readiness-case-names : (listof symbol?)
 ;;   Expected-fail rows that show which staged substitutions are replacement candidates.
@@ -1145,7 +1150,8 @@
          "(js-log (+ score 31))\n")))
     "main.rkt"
     #rx"(?m:^42$)"
-    '("--no-io-format-provider" "--webracket-module-bridge"))
+    '("--no-io-format-provider" "--webracket-module-bridge")
+    #:tier 'composition)
    (dashboard-case
     'goal1-sequence-format-composition
     'installed-provider-coverage
@@ -1167,7 +1173,8 @@
          "           20))\n")))
     "main.rkt"
     #rx"(?m:^42$)"
-    '("--no-io-format-provider" "--webracket-module-bridge"))
+    '("--no-io-format-provider" "--webracket-module-bridge")
+    #:tier 'composition)
    (dashboard-case
     'goal1-match-set-hash-composition
     'installed-provider-coverage
@@ -1186,7 +1193,8 @@
          "(js-log (~a score))\n")))
     "main.rkt"
     #rx"(?m:^42$)"
-    '("--no-io-format-provider" "--webracket-module-bridge"))
+    '("--no-io-format-provider" "--webracket-module-bridge")
+    #:tier 'composition)
    (dashboard-case
     'goal1-dict-pretty-sequence-composition
     'installed-provider-coverage
@@ -1203,7 +1211,8 @@
          "(js-log (+ 27 (length mapped) odd-count (string-length (~a rendered))))\n")))
     "main.rkt"
     #rx"(?m:^42$)"
-    '("--no-io-format-provider" "--webracket-module-bridge"))
+    '("--no-io-format-provider" "--webracket-module-bridge")
+    #:tier 'composition)
    (dashboard-case
     'goal1-full-callable-exports
     'installed-provider-coverage
@@ -2827,6 +2836,9 @@
    [("--coverage-extended") "run/list the broader Goal 1 coverage preset"
                             (set! case-names goal1-dashboard-coverage-extended-case-names)
                             (set! expectations '(required))]
+   [("--composition") "run/list heavyweight Goal 1 cross-provider composition rows"
+                      (set! case-names goal1-dashboard-composition-case-names)
+                      (set! expectations '(required))]
    [("--real-provider-readiness") "run/list diagnostic rows for replacing staged providers with real Racket providers"
                                   (set! case-names goal1-dashboard-real-provider-readiness-case-names)
                                   (set! expectations '(diagnostic))]

@@ -213,6 +213,14 @@
    (member 'goal1-vector-sort-keywords goal1-dashboard-coverage-core-case-names))
   (check-false
    (member 'generator-real-diagnostic goal1-dashboard-coverage-core-case-names))
+  (for ([name (in-list goal1-dashboard-composition-case-names)])
+    (check-false (member name goal1-dashboard-coverage-core-case-names)
+                 (symbol->string name)))
+  (check-equal? goal1-dashboard-composition-case-names
+                '(goal1-real-library-composition
+                  goal1-sequence-format-composition
+                  goal1-match-set-hash-composition
+                  goal1-dict-pretty-sequence-composition))
   (check-equal? goal1-dashboard-real-provider-readiness-case-names
                 '(real-racket-dict-diagnostic
                   real-racket-dict-coverage-diagnostic
@@ -240,6 +248,24 @@
                                             #:tiers '(coverage)
                                             #:expectations '(required)))
          symbol<?)))
+
+(test-case "composition dashboard rows are required but not everyday coverage"
+  (define composition-cases
+    (goal1-dashboard-select-cases goal1-dashboard-cases
+                                  #:names goal1-dashboard-composition-case-names))
+  (check-equal? (map goal1-dashboard-case-name composition-cases)
+                goal1-dashboard-composition-case-names)
+  (for ([c (in-list composition-cases)])
+    (check-equal? (goal1-dashboard-case-tier c) 'composition)
+    (check-equal? (goal1-dashboard-case-expectation c) 'required)
+    (check-equal? (goal1-dashboard-case-category c)
+                  'installed-provider-coverage))
+  (check-equal?
+   (map goal1-dashboard-case-name
+        (goal1-dashboard-select-cases goal1-dashboard-cases
+                                      #:tiers '(composition)
+                                      #:expectations '(required)))
+   goal1-dashboard-composition-case-names))
 
 (test-case "for provider surface report classifies staged support"
   (define rows (compare-for-provider-surface))
@@ -474,6 +500,7 @@
                            "--fast-required"
                            "--coverage-core"
                            "--coverage-extended"
+                           "--composition"
                            "not a full compatibility claim"
                            "webracket/base should remain small"))])
     (check-not-false (regexp-match? (regexp (regexp-quote needle)) doc) needle)))

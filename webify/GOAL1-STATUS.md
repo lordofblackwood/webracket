@@ -40,5 +40,8 @@ through the temporary provider bridge allowlist.
 - Use `--coverage-core` for everyday Goal 1 provider coverage.
 - Use `--coverage-extended` before larger checkpoints or provider-surface
   changes.
-- Use `--tier coverage` when you want every coverage row, including both core
-  and extended presets.
+- Use `--composition` for heavyweight cross-provider composition rows. These
+  rows are required checkpoints, but they are intentionally outside the
+  everyday coverage presets.
+- Use `--tier coverage` when you want every ordinary coverage row, including
+  both core and extended presets.
