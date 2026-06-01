@@ -2,6 +2,7 @@
 
 (require racket/file
          racket/list
+         racket/match
          racket/runtime-path
          racket/string
          rackunit
@@ -331,6 +332,31 @@
     (define name (covered-name (car row)))
     (check-not-false (memq name covered)
                      (format "~a lacks compact dashboard coverage" (car row)))))
+
+(test-case "webracket/full surface audit keeps the language curated"
+  (define status-names (map car webracket-full-surface-statuses))
+  (define audit-public-names (map car webracket-full-surface-audit))
+  (define dashboard-case-names (map goal1-dashboard-case-name goal1-dashboard-cases))
+  (check-equal? (sort audit-public-names symbol<?)
+                (sort webracket-full-addon-libraries symbol<?))
+  (check-false (memq 'racket/class webracket-full-addon-libraries))
+  (check-false (memq 'racket/class status-names))
+  (check-not-false (memq 'racket/class webracket-full-deferred-libraries))
+  (for ([row (in-list webracket-full-surface-audit)])
+    (match-define (list public-provider implementation-provider owner coverage-case) row)
+    (check-not-false (memq owner '(real-provider-proven webracket-owned))
+                     (symbol->string public-provider))
+    (check-not-false (memq coverage-case dashboard-case-names)
+                     (format "~a lacks dashboard row ~a"
+                             public-provider
+                             coverage-case))
+    (when (eq? owner 'webracket-owned)
+      (check-true (or (regexp-match? #rx"^webracket/"
+                                     (symbol->string implementation-provider))
+                      (eq? implementation-provider 'webracket/format)
+                      (eq? implementation-provider 'webracket/function))
+                  (format "~a should route to an explicit WebRacket provider"
+                          public-provider)))))
 
 (test-case "webracket/full export manifest includes intended add-on names"
   (define full-exports (module-runtime-export-symbols 'webracket/full))

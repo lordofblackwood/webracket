@@ -173,6 +173,15 @@ remaining compatibility notes are:
 
 ## Current Full-Language Notes
 
+- `webracket/full` is intentionally curated. Its surface manifest has an audit
+  row for every add-on library, and each row must be either
+  `real-provider-proven` or `webracket-owned` with a dashboard case. This keeps
+  the full language from quietly growing into an unreviewed re-export of
+  installed Racket.
+- `racket/class` is deferred from `webracket/full` for now. The module bridge
+  has diagnostics for explicit `racket/class` requires, but `webracket/full`
+  should not advertise class exports until we add them deliberately with
+  required dashboard coverage.
 - `webracket/full` exports the staged set surface, but set behavior is tracked
   through dedicated `webracket/set` dashboard rows. External explicit requires
   still need the module bridge path.

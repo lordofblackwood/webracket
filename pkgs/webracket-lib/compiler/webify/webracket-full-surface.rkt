@@ -3,7 +3,8 @@
 (provide webracket-full-foundation
          webracket-full-addon-libraries
          webracket-full-deferred-libraries
-         webracket-full-surface-statuses)
+         webracket-full-surface-statuses
+         webracket-full-surface-audit)
 
 (define webracket-full-foundation
   'racket/base)
@@ -11,7 +12,6 @@
 (define webracket-full-addon-libraries
   '(racket/bool
     racket/bytes
-    racket/class
     racket/dict
     racket/format
     racket/function
@@ -36,6 +36,7 @@
 
 (define webracket-full-deferred-libraries
   '(racket/cmdline
+    racket/class
     racket/file
     racket/future
     racket/place
@@ -66,9 +67,35 @@
     (racket/stream   substituted staged staged runs)
     (racket/string   exported extracts partial runs)
     (racket/vector   exported extracts partial runs)
-    (racket/class    exported extracts partial runs)
     (racket/contract exported substituted staged runs)
     (webracket/contract exported extracts staged runs)
     (webracket/promise exported extracts staged runs)
     (webracket/set     exported extracts staged runs)
     (webracket/stream  exported extracts staged runs)))
+
+;; webracket-full-surface-audit : (listof (list/c symbol? symbol? symbol? symbol?))
+;;   Pin the curated full surface to an implementation owner and dashboard row.
+(define webracket-full-surface-audit
+  '((racket/bool     racket/bool        real-provider-proven installed-racket-bool-coverage)
+    (racket/bytes    racket/bytes       real-provider-proven full-bytes-coverage)
+    (racket/dict     racket/dict        real-provider-proven installed-racket-dict-coverage)
+    (racket/format   webracket/format   webracket-owned      installed-racket-format-coverage)
+    (racket/function webracket/function webracket-owned      installed-racket-function-coverage)
+    (racket/include  racket/include     real-provider-proven full-include)
+    (racket/list     racket/list        real-provider-proven installed-racket-list-coverage)
+    (racket/local    racket/local       real-provider-proven full-local)
+    (racket/match    racket/match       real-provider-proven full-match-coverage)
+    (racket/math     racket/math        real-provider-proven full-math-coverage)
+    (racket/path     racket/path        real-provider-proven full-path-coverage)
+    (racket/port     racket/port        real-provider-proven installed-racket-port-coverage)
+    (racket/pretty   racket/pretty      real-provider-proven installed-racket-pretty-coverage)
+    (racket/sequence racket/sequence    real-provider-proven full-sequence-coverage)
+    (racket/shared   racket/shared      real-provider-proven full-shared-coverage)
+    (racket/stream   webracket/stream   webracket-owned      full-stream-coverage)
+    (racket/string   racket/string      real-provider-proven installed-racket-string-coverage)
+    (racket/vector   racket/vector      real-provider-proven installed-racket-vector-coverage)
+    (racket/contract webracket/contract webracket-owned      full-contract-erased)
+    (webracket/contract webracket/contract webracket-owned   full-contract-erased)
+    (webracket/promise  webracket/promise  webracket-owned   full-promise-coverage)
+    (webracket/set      webracket/set      webracket-owned   full-set-coverage)
+    (webracket/stream   webracket/stream   webracket-owned   full-stream-coverage)))
