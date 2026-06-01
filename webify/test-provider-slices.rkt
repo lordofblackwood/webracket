@@ -36,6 +36,27 @@
         (with-handlers ([exn:fail:filesystem? void])
           (delete-directory/files dir))))))
 
+;; run-temp-webracket/datum : any/c (listof string?) -> (values exact-integer? string?)
+;;   Run a generated top-level datum through WebRacket.
+(define (run-temp-webracket/datum source args)
+  (define source-dir (make-temporary-file "webracket-provider-slice-src-~a" 'directory))
+  (define dest-dir   (make-temporary-file "webracket-provider-slice-dest-~a" 'directory))
+  (define source-path (build-path source-dir "provider-slice.rkt"))
+  (dynamic-wind
+    void
+    (lambda ()
+      (write-datum-program! source-path source)
+      (run-webracket (append args
+                             (list "--dest" (path->string dest-dir)
+                                   (path->string source-path)))
+                     source-dir
+                     #:timeout-seconds 120
+                     #:memory-mb 1024))
+    (lambda ()
+      (for ([dir (in-list (list source-dir dest-dir))])
+        (with-handlers ([exn:fail:filesystem? void])
+          (delete-directory/files dir))))))
+
 (test-case "provider-slice report lists active and staged provider slices"
   (define report (string-join (provider-slice-report-lines) "\n"))
   (check-true (string-contains? report "io/format\tdefault: enabled") report)
@@ -56,6 +77,34 @@
    #rx"io/print public aliases are not ready"
    (lambda ()
      (provider-slice-forms 'io/print #:public-aliases? #t))))
+
+(test-case "io/print provider slice private cells run through driver forms"
+  (define provider-forms (provider-slice-forms 'io/print))
+  (define-values (status output)
+    (run-temp-webracket/datum
+     `(begin
+        ,@provider-forms
+        (define provided-display
+          (module-variable-ref webify-io-print-export-cell$display))
+        (define provided-write
+          (module-variable-ref webify-io-print-export-cell$write))
+        (define provided-print
+          (module-variable-ref webify-io-print-export-cell$print))
+        (define provided-newline
+          (module-variable-ref webify-io-print-export-cell$newline))
+        (define out (open-output-string))
+        (provided-display "hello" out)
+        (provided-newline out)
+        (provided-write '(1 2) out)
+        (provided-newline out)
+        (provided-print 'quoted out)
+        (provided-newline out)
+        (js-log (get-output-string out)))
+     (list "-r" "--no-stdlib" "--no-io-format-provider")))
+  (check-equal? status 0 output)
+  ;; The staged seed reaches the print handler path, but full print quoting
+  ;; conventions remain part of the later io/print ownership flip.
+  (check-true (string-contains? output "hello\n(1 2)\nquoted\n") output))
 
 (test-case "provider cache flags expose verbose cache decisions"
   (define cache-dir (make-temporary-file "webracket-provider-cache-flag-~a" 'directory))
