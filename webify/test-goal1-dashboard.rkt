@@ -11,6 +11,7 @@
          (only-in "../pkgs/webracket-lib/compiler/driver.rkt"
                   current-webracket/base-provider-substitutions?
                   webracket/base-provider-substitution-classification
+                  webracket/base-provider-substitution-disposition
                   webracket/base-provider-substitution-pressure
                   webracket/base-provider-substitute
                   webracket/base-provider-substitution-pairs
@@ -426,7 +427,10 @@
            '(temporary-shim runtime-owned diagnostic-shim)))
     (check-not-false
      (memq (webracket/base-provider-substitution-pressure record)
-           '(high medium low))))
+           '(high medium low)))
+    (check-not-false
+     (memq (webracket/base-provider-substitution-disposition record)
+           '(keep-webracket-owned retire-soon postpone))))
   (check-equal? (webracket/base-provider-substitute 'racket/file)
                 'webracket/file)
   (check-equal? (webracket/base-provider-substitute 'racket/dict)
@@ -434,6 +438,20 @@
   (parameterize ([current-webracket/base-provider-substitutions? #f])
     (check-equal? (webracket/base-provider-substitute 'racket/dict)
                   'racket/dict)))
+
+(test-case "staged provider audit classifies remaining Goal 1 substitutions"
+  (define audit
+    (for/hasheq ([record (in-list webracket/base-provider-substitution-records)])
+      (values (webracket/base-provider-substitution-requested record)
+              (list (webracket/base-provider-substitution-routed record)
+                    (webracket/base-provider-substitution-disposition record)))))
+  (for ([entry (in-list '((racket/function . (webracket/function retire-soon))
+                          (racket/format . (webracket/format retire-soon))
+                          (racket/hash . (webracket/hash keep-webracket-owned))
+                          (racket/set . (webracket/set keep-webracket-owned))
+                          (racket/stream . (webracket/stream postpone))
+                          (racket/promise . (webracket/promise keep-webracket-owned))))])
+    (check-equal? (hash-ref audit (car entry)) (cdr entry))))
 
 (test-case "real provider diagnostics are recorded without becoming required"
   (define by-name
@@ -490,6 +508,9 @@
                            "--real-provider-readiness"
                            "temporary-shim"
                            "runtime-owned"
+                           "keep WebRacket-owned"
+                           "retire soon"
+                           "postpone"
                            "Real Provider Readiness"
                            "real-racket-dict-diagnostic"
                            "real-racket-list-diagnostic"

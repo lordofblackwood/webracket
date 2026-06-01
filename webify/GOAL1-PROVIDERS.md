@@ -82,6 +82,17 @@ Each substitution has a classification and replacement pressure:
 - `low` pressure means the substitute is probably WebRacket-specific enough
   that replacing it with installed Racket code is not the main goal.
 
+Each substitution also has an audit disposition:
+
+- `keep-webracket-owned`: keep the WebRacket provider as the intended Goal 1
+  route because runtime representation, browser/VFS behavior, or host boundary
+  semantics differ from full Racket.
+- `retire-soon`: actively look for a path back to original Racket code or a
+  staged original provider once the named blocker is removed.
+- `postpone`: keep the substitute visible, but do not spend Goal 1 effort on
+  replacing it yet because the missing feature is outside the current browser
+  module-program target.
+
 The concrete regression to guard is `compose` and `compose1`: `racket/base`
 exports them, and installed `racket/function` / `racket/private/list` can pull
 in keyword-preserving wrappers that WebRacket does not need for ordinary
@@ -98,21 +109,27 @@ real installed providers for `racket/class`, `racket/dict`, `racket/list`,
 
 The current `racket/*` -> `webracket/*` substitutions are:
 
-| Requested provider | Routed provider | Classification | Reason |
-| --- | --- | --- | --- |
-| `racket/contract`, `racket/contract/base`, `racket/contract/combinator`, `racket/contract/region`, selected `racket/contract/private/*` | `webracket/contract` | temporary shim | Erased contracts let module programs run before chaperones, impersonators, blame, and full contract enforcement are ready. |
-| `racket/file` | `webracket/file` | likely WebRacket-owned implementation | Browser/VFS file behavior is not host filesystem behavior; use a WebRacket provider around the VFS. |
-| `racket/format` | `webracket/format` | temporary shim | Formatting is still split between staged `io/format` and compact WebRacket formatting support. |
-| `racket/function` | `webracket/function` | temporary shim | Avoids installed keyword-preserving wrappers where ordinary positional combinators are enough today. |
-| `racket/generator` | `webracket/generator` | diagnostic no-op shim | Generators depend on continuation prompts/composable continuations, which are not Goal 1. |
-| `racket/hash` | `webracket/hash` | temporary shim | Keeps hash helpers aligned with WebRacket's HAMT/runtime hash implementation. |
-| `racket/mpair` | `webracket/mpair` | likely WebRacket-owned implementation | Mutable pairs are runtime representation work, not a good installed-provider dependency. |
-| `racket/port` | `webracket/port` | likely WebRacket-owned implementation | Port behavior is tied to WebRacket string ports/VFS/browser IO. |
-| `racket/promise` | `webracket/promise` | likely WebRacket-owned implementation | Ordinary promise semantics are small and browser-local; synchronization-oriented variants remain later work. |
-| `racket/set` | `webracket/set` | temporary shim | Set support follows WebRacket hash/HAMT behavior and postpones contracts/generics/chaperones. |
-| `racket/stream` | `webracket/stream` | temporary shim | Staged streams preserve lazy syntax for common cases without importing full stream internals. |
-| `racket/unsafe/undefined` | `webracket/unsafe/undefined` | likely WebRacket-owned implementation | Runtime undefined values need WebRacket representation support. |
-| `syntax/contract` | `webracket/syntax/contract` | temporary shim | Supports contract erasure at expansion/provider time. |
+| Requested provider | Routed provider | Classification | Disposition | Reason |
+| --- | --- | --- | --- | --- |
+| `racket/contract`, `racket/contract/base`, `racket/contract/combinator`, `racket/contract/region`, selected `racket/contract/private/*` | `webracket/contract` | temporary shim | postpone | Erased contracts let module programs run before chaperones, impersonators, blame, and full contract enforcement are ready. |
+| `racket/file` | `webracket/file` | runtime-owned | keep WebRacket-owned | Browser/VFS file behavior is not host filesystem behavior; use a WebRacket provider around the VFS. |
+| `racket/format` | `webracket/format` | temporary shim | retire soon | Formatting should move toward staged original `io/format` plus thin adapters; the compact shim should shrink as `~a`, `~s`, and `~v` coverage matures. |
+| `racket/function` | `webracket/function` | temporary shim | retire soon | Real `racket/function` is close; retire the shim after keyword metadata and keyword-preserving procedure wrappers stop causing bridge/runtime surprises. |
+| `racket/generator` | `webracket/generator` | diagnostic shim | postpone | Generators depend on continuation prompts/composable continuations, which are not Goal 1. |
+| `racket/hash` | `webracket/hash` | temporary shim | keep WebRacket-owned | Hash helpers should stay aligned with WebRacket's HAMT/runtime hash implementation and equality/hash-table representation. |
+| `racket/mpair` | `webracket/mpair` | runtime-owned | keep WebRacket-owned | Mutable pairs are runtime representation work, not a good installed-provider dependency. |
+| `racket/port` | `webracket/port` | runtime-owned | keep WebRacket-owned | Port behavior is tied to WebRacket string ports, VFS, and browser IO. |
+| `racket/promise` | `webracket/promise` | runtime-owned | keep WebRacket-owned | Ordinary promise semantics are small and browser-local; synchronization-oriented variants remain later work. |
+| `racket/set` | `webracket/set` | temporary shim | keep WebRacket-owned | Set support follows WebRacket hash/HAMT behavior and postpones contracts/generics/chaperones. |
+| `racket/stream` | `webracket/stream` | temporary shim | postpone | Staged streams preserve lazy syntax for common cases; importing full stream internals is not the next Goal 1 lever. |
+| `racket/unsafe/undefined` | `webracket/unsafe/undefined` | runtime-owned | keep WebRacket-owned | Runtime undefined values need WebRacket representation support. |
+| `syntax/contract` | `webracket/syntax/contract` | temporary shim | postpone | Supports contract erasure at expansion/provider time. |
+
+The immediate staged-provider audit result for the requested providers is:
+
+- Retire soon: `racket/function`, `racket/format`.
+- Keep WebRacket-owned: `racket/hash`, `racket/set`, `racket/promise`.
+- Postpone: `racket/stream`.
 
 ## Real Provider Readiness
 
