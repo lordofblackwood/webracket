@@ -1,6 +1,6 @@
 #lang racket/base
 
-(require (only-in "format.rkt"
+(require (only-in "private/format.rkt"
                   [format wr-format]))
 
 (provide pretty-display

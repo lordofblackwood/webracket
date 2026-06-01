@@ -23,7 +23,7 @@
                   read
                   with-input-from-file
                   with-output-to-file)
-         (only-in "format.rkt"
+         (only-in "private/format.rkt"
                   [format wr-format]))
 
 (provide block-device-type-bits

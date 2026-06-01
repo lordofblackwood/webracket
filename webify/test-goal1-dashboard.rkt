@@ -19,6 +19,9 @@
                   webracket/base-provider-substitution-records
                   webracket/base-provider-substitution-requested
                   webracket/base-provider-substitution-routed)
+         (only-in "../pkgs/webracket-lib/compiler/webify/provider-trials.rkt"
+                  webify-provider-trial-default-bridge-modules
+                  webify-provider-trial-module-allowlist)
          "../pkgs/webracket-lib/compiler/webify/webracket-full-surface.rkt")
 
 (define-runtime-path webracket-full-main "../pkgs/webracket/full/main.rkt")
@@ -108,6 +111,13 @@
                             js/console))])
     (check-not-false (memq library covered)
                      (symbol->string library))))
+
+(test-case "Goal 1 routing does not revive legacy webracket/format"
+  (for ([c (in-list goal1-dashboard-cases)])
+    (check-false (memq 'webracket/format (goal1-dashboard-case-libraries c))
+                 (symbol->string (goal1-dashboard-case-name c))))
+  (check-false (memq 'webracket/format webify-provider-trial-module-allowlist))
+  (check-false (memq 'webracket/format webify-provider-trial-default-bridge-modules)))
 
 (test-case "compact Goal 1 dashboard row accessors expose cache status"
   (define row

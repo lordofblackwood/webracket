@@ -1,12 +1,18 @@
+;; Retired legacy public `webracket/format` shim.
+;;
+;; Goal 1 now routes `racket/format` through the staged `io/format` adapter and
+;; internal WebRacket modules that need formatting import `webracket/private/format`.
+;; Keep this file outside the collection temporarily as a reference while we
+;; finish removing old stdlib-era shims.
 #lang racket/base
 
 (require (only-in racket/private/kw
                   [make-keyword-procedure wr-make-keyword-procedure]))
 
-(provide (rename-out [wr-format format]
-                     [wr-fprintf fprintf]
-                     [wr-printf printf]
-                     [wr-eprintf eprintf])
+(provide format
+         fprintf
+         printf
+         eprintf
          ~a
          ~s
          ~v
@@ -38,20 +44,36 @@
 (define (wr-format fmt . args)
   (format-string fmt args))
 
+;; format : string? any/c ... -> string?
+;;   Public binding used by module-provider composition.
+(define format wr-format)
+
 ;; wr-fprintf : output-port? string? any/c ... -> void?
 ;;   Local export-cell wrapper for formatted output.
 (define (wr-fprintf out fmt . args)
   (display (format-string fmt args) out))
+
+;; fprintf : output-port? string? any/c ... -> void?
+;;   Public binding used by module-provider composition.
+(define fprintf wr-fprintf)
 
 ;; wr-printf : string? any/c ... -> void?
 ;;   Local export-cell wrapper for current-output-port formatted output.
 (define (wr-printf fmt . args)
   (display (format-string fmt args)))
 
+;; printf : string? any/c ... -> void?
+;;   Public binding used by module-provider composition.
+(define printf wr-printf)
+
 ;; wr-eprintf : string? any/c ... -> void?
 ;;   Local export-cell wrapper for current-error-port formatted output.
 (define (wr-eprintf fmt . args)
   (display (format-string fmt args) (current-error-port)))
+
+;; eprintf : string? any/c ... -> void?
+;;   Public binding used by module-provider composition.
+(define eprintf wr-eprintf)
 
 ;; one-character-string : char? -> string?
 ;;   Build a one-character string.

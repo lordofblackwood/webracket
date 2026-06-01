@@ -47,12 +47,16 @@
          (except-in racket/vector vector-member vector-sort vector-sort!)
          (only-in "../primitives.rkt" sort vector-sort vector-sort!)
          "../contract.rkt"
-         (except-in "../format.rkt" format fprintf printf eprintf)
-         (rename-in "../format.rkt"
-                    [format wr-format]
-                    [fprintf wr-fprintf]
-                    [printf wr-printf]
-                    [eprintf wr-eprintf])
+         (only-in "../private/format.rkt"
+                  [format wr-format]
+                  ~a
+                  ~s
+                  ~v
+                  ~e
+                  ~r
+                  ~.a
+                  ~.s
+                  ~.v)
          (except-in "../file.rkt"
                     call-with-input-file
                     call-with-input-file*
@@ -100,15 +104,9 @@
       [else (loop (add1 i))])))
 
 (provide (except-out (all-from-out racket/base)
-                     format
-                     fprintf
-                     printf
-                     eprintf)
+                     format)
          read-bytes-line
-         (rename-out [wr-format format]
-                     [wr-fprintf fprintf]
-                     [wr-printf printf]
-                     [wr-eprintf eprintf])
+         (rename-out [wr-format format])
          sort
          (all-from-out racket/bool)
          (all-from-out racket/bytes)
