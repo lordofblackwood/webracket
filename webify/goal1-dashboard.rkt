@@ -1215,7 +1215,7 @@
     'goal1-real-library-composition
     'installed-provider-coverage
     '(webracket/full racket/string racket/hash racket/set racket/function racket/format
-      webracket/hash webracket/set webracket/format)
+      webracket/hash webracket/set)
     `(("main.rkt" .
        ,(string-append
          "#lang webracket/full\n"
@@ -1264,7 +1264,7 @@
     'goal1-match-set-hash-composition
     'installed-provider-coverage
     '(webracket/full racket/set racket/hash racket/format
-      webracket/set webracket/hash webracket/format)
+      webracket/set webracket/hash)
     `(("main.rkt" .
        ,(string-append
          "#lang webracket/full\n"
@@ -1283,8 +1283,7 @@
    (dashboard-case
     'goal1-dict-pretty-sequence-composition
     'installed-provider-coverage
-    '(webracket/full racket/list racket/dict racket/pretty racket/sequence racket/format
-      webracket/format)
+    '(webracket/full racket/list racket/dict racket/pretty racket/sequence racket/format)
     `(("main.rkt" .
        ,(string-append
          "#lang webracket/full\n"

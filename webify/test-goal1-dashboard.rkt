@@ -362,9 +362,8 @@
                              public-provider
                              coverage-case))
     (when (eq? owner 'webracket-owned)
-      (check-true (or (regexp-match? #rx"^webracket/"
-                                     (symbol->string implementation-provider))
-                      (eq? implementation-provider 'webracket/format))
+      (check-true (regexp-match? #rx"^webracket/"
+                                 (symbol->string implementation-provider))
                   (format "~a should route to an explicit WebRacket provider"
                           public-provider)))))
 

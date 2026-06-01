@@ -1042,7 +1042,7 @@
            (case name
              [(racket/list) list-report]
              [(webracket/contract) (synthetic-provider-report name '(contract))]
-             [(webracket/format) (synthetic-provider-report name '(format))]
+             [(webracket/private/format) (synthetic-provider-report name '(format))]
              [(webracket/private/kw) (synthetic-provider-report name '(keyword-apply))]
              [(webracket/unsafe/undefined) (synthetic-provider-report name '(unsafe-undefined))]
              [else (error 'fetch-provider "unexpected fetch: ~s" name)]))))
@@ -1361,7 +1361,7 @@
                 [(racket/vector)   (synthetic-provider-report name '(vector-member))]
                 [(racket/function) (synthetic-provider-report name '(identity))]
                 [(webracket/contract) (synthetic-provider-report name '(contract))]
-                [(webracket/format) (synthetic-provider-report name '(format))]
+                [(webracket/private/format) (synthetic-provider-report name '(format))]
                 [(webracket/private/kw) (synthetic-provider-report name '(keyword-apply))]
                 [(webracket/unsafe/undefined) (synthetic-provider-report name '(unsafe-undefined))]
                 [else (error 'fetch-provider "unexpected fetch: ~s" name)]))))
@@ -1370,7 +1370,7 @@
                          (sorted-symbols
                           '(racket/vector
                             webracket/contract
-                            webracket/format
+                            webracket/private/format
                             racket/function
                             webracket/private/kw
                             webracket/unsafe/undefined))))

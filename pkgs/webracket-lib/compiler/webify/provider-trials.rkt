@@ -358,7 +358,6 @@
     webracket/class
     webracket/dict
     webracket/file
-    webracket/format
     webracket/function
     webracket/generator
     webracket/hash
@@ -480,7 +479,6 @@
     webracket/class
     webracket/dict
     webracket/file
-    webracket/format
     webracket/function
     webracket/generator
     webracket/hash
