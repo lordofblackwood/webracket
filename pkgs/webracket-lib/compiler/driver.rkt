@@ -565,7 +565,7 @@
      "installed-provider-reports"
      (string-append (provider-cache-symbol-segment name) ".rktd")))
   (define fingerprint
-    `(installed-provider-report-cache 5 ,name ,(version)))
+    `(installed-provider-report-cache 6 ,name ,(version)))
   (define cached (read-provider-cache cache-path fingerprint))
   (cond
     [cached
@@ -1582,10 +1582,6 @@
                  "same erased-contract adapter as racket/contract")
    (substitution 'racket/contract/private/misc 'webracket/contract 'temporary-shim 'high
                  "same erased-contract adapter as racket/contract")
-   (substitution 'racket/class 'webracket/class 'temporary-shim 'high
-                 "real provider currently pulls larger contract/private edges")
-   (substitution 'racket/dict 'webracket/dict 'temporary-shim 'high
-                 "broader real provider rows still need keyword-apply support")
    (substitution 'racket/file 'webracket/file 'runtime-owned 'low
                  "browser and VFS file behavior differs from host filesystem behavior")
    (substitution 'racket/format 'webracket/format 'temporary-shim 'medium
@@ -1596,32 +1592,20 @@
                  "generators depend on continuation prompts, which are outside Goal 1")
    (substitution 'racket/hash 'webracket/hash 'temporary-shim 'medium
                  "hash helpers should track WebRacket HAMT/runtime hash behavior")
-   (substitution 'racket/list 'webracket/list 'temporary-shim 'high
-                 "real provider still brings heavier provider graph and alias shapes")
    (substitution 'racket/mpair 'webracket/mpair 'runtime-owned 'low
                  "mutable-pair representation is WebRacket runtime work")
    (substitution 'racket/port 'webracket/port 'runtime-owned 'low
                  "ports are tied to WebRacket string ports, VFS, and browser IO")
-   (substitution 'racket/pretty 'webracket/pretty 'temporary-shim 'high
-                 "required installed rows still reach racket/treelist prop:stream")
    (substitution 'racket/promise 'webracket/promise 'runtime-owned 'low
                  "ordinary promises are small browser-local runtime behavior")
-   (substitution 'racket/sequence 'webracket/sequence 'temporary-shim 'high
-                 "broad for support is useful while generator/prompt edges are postponed")
    (substitution 'racket/set 'webracket/set 'temporary-shim 'medium
                  "set support follows WebRacket hash/HAMT behavior while contracts/generics are postponed")
-   (substitution 'racket/string 'webracket/string 'temporary-shim 'high
-                 "common string operations work while transitive provider edges mature")
    (substitution 'racket/stream 'webracket/stream 'temporary-shim 'medium
                  "staged streams preserve lazy syntax without importing full stream internals")
    (substitution 'racket/unsafe/undefined 'webracket/unsafe/undefined 'runtime-owned 'low
                  "undefined values need WebRacket representation support")
    (substitution 'syntax/contract 'webracket/syntax/contract 'temporary-shim 'high
-                 "supports contract erasure at expansion and provider time")
-   (substitution 'racket/private/for 'webracket/private/for 'temporary-shim 'high
-                 "expanded for forms need staged sequence protocol support")
-   (substitution 'racket/private/kw 'webracket/private/kw 'temporary-shim 'high
-                 "keyword procedure support is WebRacket-runtime-specific today")))
+                 "supports contract erasure at expansion and provider time")))
 
 ;; webracket/base-erased-contract-provider-name? : symbol? -> boolean?
 ;;   Recognize contract implementation providers that real-provider diagnostics

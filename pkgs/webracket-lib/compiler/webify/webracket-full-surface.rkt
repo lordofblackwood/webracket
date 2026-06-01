@@ -11,6 +11,7 @@
 (define webracket-full-addon-libraries
   '(racket/bool
     racket/bytes
+    racket/class
     racket/dict
     racket/format
     racket/function
@@ -21,17 +22,15 @@
     racket/math
     racket/path
     racket/port
+    racket/pretty
     racket/sequence
     racket/shared
     racket/stream
     racket/string
     racket/vector
-    webracket/class
     racket/contract
     webracket/contract
-    webracket/pretty
     webracket/promise
-    webracket/sequence
     webracket/set
     webracket/stream))
 
@@ -61,17 +60,15 @@
     (racket/math     exported extracts partial runs)
     (racket/path     exported extracts partial runs)
     (racket/port     exported extracts partial runs)
-    (racket/sequence exported substituted staged runs)
+    (racket/pretty   exported extracts partial runs)
+    (racket/sequence exported extracts partial runs)
     (racket/shared   exported expands  partial host-only)
     (racket/stream   substituted staged staged runs)
     (racket/string   exported extracts partial runs)
     (racket/vector   exported extracts partial runs)
-    (racket/class    exported substituted staged partial)
-    (webracket/class exported extracts staged partial)
+    (racket/class    exported extracts partial runs)
     (racket/contract exported substituted staged runs)
     (webracket/contract exported extracts staged runs)
-    (webracket/pretty   exported extracts staged runs)
     (webracket/promise exported extracts staged runs)
-    (webracket/sequence exported extracts staged runs)
     (webracket/set     exported extracts staged runs)
     (webracket/stream  exported extracts staged runs)))

@@ -856,7 +856,7 @@
       (with-handlers ([exn:fail:filesystem? void])
         (delete-directory/files source-dir)))))
 
-(test-case "#lang webracket/base bridge routes collection requires for provider discovery"
+(test-case "#lang webracket/base bridge preserves real collection requires for provider discovery"
   (define source-dir (make-temporary-file "webracket-base-provider-route-src-~a" 'directory))
   (define main-path  (build-path source-dir "main.rkt"))
   (dynamic-wind
@@ -873,11 +873,11 @@
       (check-equal? root 'main)
       (check-equal? (map webify-module-report-name reports) '(main))
       (check-not-false
-       (member 'webracket/list
+       (member 'racket/list
                (webify-module-report-required-provider-names (car reports))))
       (define list-report
         (webify-module-report
-         'webracket/list
+         'racket/list
          '(#f)
          '(0)
          '()
@@ -892,11 +892,11 @@
          reports
          #:extra-reports (list webify-module-protocol-report)
          #:fetch-provider (lambda (name)
-                            (check-equal? name 'webracket/list)
+                            (check-equal? name 'racket/list)
                             list-report)
          #:module-protocol-dependency webify-module-protocol-dependency))
       (check-equal? (webify-module-registry-plan registry '(main))
-                    '(main:syntax-literals module-protocol webracket/list main)))
+                    '(main:syntax-literals module-protocol racket/list main)))
     (lambda ()
       (with-handlers ([exn:fail:filesystem? void])
         (delete-directory/files source-dir)))))
@@ -936,7 +936,7 @@
       (check-equal? (webracket/base-external-provider-names (reports local-path)) '())
       (check-false (webracket/base-reports-demand-external-providers? (reports local-path)))
       (check-equal? (webracket/base-external-provider-names (reports list-path))
-                    '(webracket/list))
+                    '(racket/list))
       (check-true (webracket/base-reports-demand-external-providers? (reports list-path))))
     (lambda ()
       (with-handlers ([exn:fail:filesystem? void])
@@ -1005,7 +1005,7 @@
            (webracket/base-file->local-module-reports main-path))))
       (define list-report
         (webify-module-report
-         'webracket/list
+         'racket/list
          '(#f)
          '(0)
          '()
@@ -1022,7 +1022,8 @@
          #:fetch-provider
          (lambda (name)
            (case name
-             [(webracket/list) list-report]
+             [(racket/list) list-report]
+             [(webracket/contract) (synthetic-provider-report name '(contract))]
              [(webracket/format) (synthetic-provider-report name '(format))]
              [(webracket/private/kw) (synthetic-provider-report name '(keyword-apply))]
              [(webracket/unsafe/undefined) (synthetic-provider-report name '(unsafe-undefined))]
@@ -1034,7 +1035,7 @@
       (check-equal? (last plan) 'main)
       (for ([name (in-list '(main:syntax-literals
                              module-protocol
-                             webracket/list))])
+                             racket/list))])
         (check-not-false (memq name plan)
                          (symbol->string name)))
       (check-equal?
@@ -1046,7 +1047,7 @@
                                            '(.get-syntax-literal!))
              (webify-module-export-demand 'module-protocol
                                            '(.set-transformer!))
-             (webify-module-export-demand 'webracket/list '(first)))))
+             (webify-module-export-demand 'racket/list '(first)))))
     (lambda ()
       (with-handlers ([exn:fail:filesystem? void])
         (delete-directory/files source-dir)))))
@@ -1188,31 +1189,26 @@
       (racket/contract/region . webracket/contract)
       (racket/contract/private/list . webracket/contract)
       (racket/contract/private/misc . webracket/contract)
-      (racket/class . webracket/class)
-      (racket/dict . webracket/dict)
       (racket/file . webracket/file)
       (racket/format . webracket/format)
       (racket/function . webracket/function)
       (racket/generator . webracket/generator)
       (racket/hash . webracket/hash)
-      (racket/list . webracket/list)
       (racket/mpair . webracket/mpair)
       (racket/port . webracket/port)
-      (racket/pretty . webracket/pretty)
       (racket/promise . webracket/promise)
-      (racket/sequence . webracket/sequence)
       (racket/set . webracket/set)
-      (racket/string . webracket/string)
       (racket/stream . webracket/stream)
       (racket/unsafe/undefined . webracket/unsafe/undefined)
-      (syntax/contract . webracket/syntax/contract)
-      (racket/private/for . webracket/private/for)
-      (racket/private/kw . webracket/private/kw)))
+      (syntax/contract . webracket/syntax/contract)))
   (check-equal? webracket/base-provider-substitution-pairs expected)
   (for ([entry (in-list expected)])
     (check-equal? (webracket/base-provider-substitute (car entry))
                   (cdr entry)))
-  (for ([name (in-list '(racket/vector racket/match racket/math))])
+  (for ([name (in-list '(racket/vector racket/match racket/math
+                         racket/class racket/dict racket/list racket/pretty
+                         racket/sequence racket/string
+                         racket/private/for racket/private/kw))])
     (check-equal? (webracket/base-provider-substitute name) name)))
 
 (test-case "webracket/full dashboard counts substituted providers as allowlisted"
@@ -1347,12 +1343,20 @@
               (case name
                 [(racket/vector)   (synthetic-provider-report name '(vector-member))]
                 [(webracket/function) (synthetic-provider-report name '(identity))]
+                [(webracket/contract) (synthetic-provider-report name '(contract))]
+                [(webracket/format) (synthetic-provider-report name '(format))]
+                [(webracket/private/kw) (synthetic-provider-report name '(keyword-apply))]
+                [(webracket/unsafe/undefined) (synthetic-provider-report name '(unsafe-undefined))]
                 [else (error 'fetch-provider "unexpected fetch: ~s" name)]))))
          (when (pair? fetched)
            (check-equal? (sorted-symbols fetched)
                          (sorted-symbols
                           '(racket/vector
-                            webracket/function))))
+                            webracket/contract
+                            webracket/format
+                            webracket/function
+                            webracket/private/kw
+                            webracket/unsafe/undefined))))
          (define plan
            (webify-module-registry-plan
             (webracket/base-local-module-graph-registry graph)

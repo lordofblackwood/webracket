@@ -373,11 +373,7 @@
                      (symbol->string name))))
 
 (test-case "provider substitution table includes audited staged routes"
-  (for ([pair (in-list '((racket/dict . webracket/dict)
-                         (racket/pretty . webracket/pretty)
-                         (racket/list . webracket/list)
-                         (racket/sequence . webracket/sequence)
-                         (racket/file . webracket/file)))])
+  (for ([pair (in-list '((racket/file . webracket/file)))])
     (check-equal? (assoc (car pair) webracket/base-provider-substitution-pairs)
                   pair))
   (check-equal?
@@ -392,8 +388,10 @@
     (check-not-false
      (memq (webracket/base-provider-substitution-pressure record)
            '(high medium low))))
+  (check-equal? (webracket/base-provider-substitute 'racket/file)
+                'webracket/file)
   (check-equal? (webracket/base-provider-substitute 'racket/dict)
-                'webracket/dict)
+                'racket/dict)
   (parameterize ([current-webracket/base-provider-substitutions? #f])
     (check-equal? (webracket/base-provider-substitute 'racket/dict)
                   'racket/dict)))
@@ -418,15 +416,7 @@
         racket/contract/region racket/contract/private/list
         racket/contract/private/misc)
        'real-racket-contract-diagnostic]
-      [(racket/class) 'real-racket-class-diagnostic]
-      [(racket/dict) 'real-racket-dict-diagnostic]
-      [(racket/list) 'real-racket-list-diagnostic]
-      [(racket/pretty) 'real-racket-pretty-diagnostic]
-      [(racket/sequence) 'real-racket-sequence-diagnostic]
-      [(racket/string) 'real-racket-string-diagnostic]
       [(syntax/contract) 'real-racket-contract-diagnostic]
-      [(racket/private/for) 'real-racket-private-for-diagnostic]
-      [(racket/private/kw) 'real-racket-private-kw-diagnostic]
       [else #f]))
   (for ([record (in-list webracket/base-provider-substitution-records)]
         #:when (and (eq? (webracket/base-provider-substitution-classification record)
@@ -472,7 +462,7 @@
                            "real-racket-class-diagnostic"
                            "real-racket-pretty-diagnostic"
                            "io/format"
-                           "webracket/string"
+                           "real installed providers"
                            "External explicit requires"
                            "claim of full"))])
     (check-not-false (regexp-match? (regexp (regexp-quote needle)) doc) needle)))
