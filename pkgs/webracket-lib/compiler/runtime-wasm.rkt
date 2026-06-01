@@ -1988,6 +1988,7 @@
     (add-runtime-string-constant 'backslash                  "\\")
     (add-runtime-string-constant 'backslash-x                "\\x")
     (add-runtime-string-constant 'double-quote               "\"")
+    (add-runtime-string-constant 'single-quote               "'")
     (add-runtime-string-constant 'hash-t                     "#t")
     (add-runtime-string-constant 'hash-f                     "#f")
     (add-runtime-string-constant 'hash-hash                  "#hash")
@@ -67125,6 +67126,53 @@
                                        (ref.cast (ref $Vector) (local.get $v))))))
                (call $format/display (local.get $v)))
 
+         ;; format/print : any/c [0-or-1] -> string?
+         ;;   Render the subset of print mode controlled by print-as-expression.
+         ;;   When print-as-expression is true and quote depth is 0, quotable
+         ;;   values receive a leading quote; otherwise print falls back to
+         ;;   write-like rendering.
+         (func $format/print
+               (param $v           (ref eq))
+               (param $quote-depth (ref eq))
+               (result             (ref $String))
+
+               (local $quote? i32)
+               (local $text   (ref $String))
+
+               (local.set $quote? (i32.const 0))
+               (if (ref.eq (call $parameter-value-or-global
+                                  (global.get $prim:print-as-expression)
+                                  (global.get $print-as-expression-value))
+                            (global.get $true))
+                   (then
+                    (if (ref.eq (local.get $quote-depth) (global.get $missing))
+                        (then (local.set $quote? (i32.const 1)))
+                        (else
+                         (if (ref.test (ref i31) (local.get $quote-depth))
+                             (then
+                              (if (i32.eqz (call $fixnum->i32 (local.get $quote-depth)))
+                                  (then (local.set $quote? (i32.const 1))))))))))
+               (local.set $text (call $format/write (local.get $v)))
+               (if (i32.and
+                    (local.get $quote?)
+                    (i32.or
+                     (ref.eq (local.get $v) (global.get $null))
+                     (i32.or
+                      (ref.test (ref $Symbol) (local.get $v))
+                      (i32.or
+                       (ref.test (ref $Pair) (local.get $v))
+                       (i32.or
+                        (ref.test (ref $Vector) (local.get $v))
+                        (i32.or
+                         (ref.test (ref $Hash) (local.get $v))
+                         (ref.test (ref $Box) (local.get $v))))))))
+                   (then
+                    (return
+                     (call $string-append/2
+                           (global.get $string:single-quote)
+                           (local.get $text)))))
+               (local.get $text))
+
          ;; format/write:string : string? -> string?
          ;;   Quote strings for write/print mode, including common escapes.
          (func $format/write:string
@@ -71382,14 +71430,17 @@
                ;; default-port-print-handler : any/c output-port? [0-or-1] -> void?
                ;;   Minimal default print handler. The optional quote-depth
                ;;   argument is accepted for Racket's port-print-handler shape.
-               ;;   The current formatter treats it like write mode.
+               ;;   The current formatter handles the first print-as-expression
+               ;;   quoting step and otherwise falls back to write mode.
                (func $default-port-print-handler (type $Prim23)
                      (param $v           (ref eq)) ;; any/c
                      (param $out         (ref eq)) ;; output-port?
                      (param $quote-depth (ref eq)) ;; optional (or/c 0 1), ignored
                      (result             (ref eq))
                      (drop (call $write-string
-                                 (call $format/write (local.get $v))
+                                 (call $format/print
+                                       (local.get $v)
+                                       (local.get $quote-depth))
                                  (local.get $out)
                                  (global.get $missing)
                                  (global.get $missing)))

@@ -99,12 +99,14 @@
         (provided-newline out)
         (provided-print 'quoted out)
         (provided-newline out)
+        (print-as-expression #f)
+        (provided-print 'plain out)
+        (print-as-expression #t)
+        (provided-newline out)
         (js-log (get-output-string out)))
      (list "-r" "--no-stdlib" "--no-io-format-provider")))
   (check-equal? status 0 output)
-  ;; The staged seed reaches the print handler path, but full print quoting
-  ;; conventions remain part of the later io/print ownership flip.
-  (check-true (string-contains? output "hello\n(1 2)\nquoted\n") output))
+  (check-true (string-contains? output "hello\n(1 2)\n'quoted\nplain\n") output))
 
 (test-case "provider cache flags expose verbose cache decisions"
   (define cache-dir (make-temporary-file "webracket-provider-cache-flag-~a" 'directory))
