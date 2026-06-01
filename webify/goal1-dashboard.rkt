@@ -1687,6 +1687,21 @@
     #rx"(?m:^66$)"
     '("--no-io-format-provider" "--webracket-module-bridge"))
    (dashboard-case
+    'base-sequence-prop-gen-guard
+    'diagnostic
+    '(racket/private/for webracket/private/for)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/base\n"
+         "(struct bad-seq (xs)\n"
+         "  #:property prop:gen-sequence\n"
+         "  42)\n"
+         "(js-log 0)\n")))
+    "main.rkt"
+    #rx"guard-for-prop:sequence"
+    '("--no-io-format-provider" "--webracket-module-bridge")
+    #:expectation 'diagnostic)
+   (dashboard-case
     'base-sequence-derived
     'installed-provider-coverage
     '(racket/private/for webracket/private/for)
@@ -1763,11 +1778,31 @@
          "(define bytes-line-count (length (for/list ([line (in-bytes-lines (open-input-string \"a\\nb\"))]) line)))\n"
          "(struct seqbox (xs) #:property prop:sequence (lambda (self) (seqbox-xs self)))\n"
          "(define prop-sum (for/sum ([x (seqbox (list 1 2 3))]) x))\n"
+         "(struct genbox (xs)\n"
+         "  #:property prop:gen-sequence\n"
+         "  (lambda (self)\n"
+         "    (define xs (genbox-xs self))\n"
+         "    (values (lambda (pos) (values (car pos) (* 10 (car pos))))\n"
+         "            #f\n"
+         "            cdr\n"
+         "            xs\n"
+         "            pair?\n"
+         "            #f\n"
+         "            #f)))\n"
+         "(define prop-gen-sum (for/sum ([(x y) (genbox (list 1 2 3))]) (+ x y)))\n"
+         "(define pair-seq (genbox (list 1 2)))\n"
+         "(define-values (first-pair next-pair) (sequence-generate* pair-seq))\n"
+         "(define-values (second-pair done-pairs) (next-pair))\n"
+         "(define-values (third-pair _done-pairs-again) (done-pairs))\n"
+         "(define star-sum (+ (car first-pair) (cadr first-pair)\n"
+         "                    (car second-pair) (cadr second-pair)\n"
+         "                    (if third-pair 100 0)))\n"
          "(js-log (+ bsum hsum kcount pcount indexed gen-sum psum one chained cyclic parallel parallel-values\n"
          "           (length value-lists) (length values-star-a) (length values-star-b)\n"
          "           (length before) (length after)\n"
          "           mlist-sum port-byte-sum port-char-count line-count bytes-line-count prop-sum\n"
-         "           -913))\n")))
+         "           prop-gen-sum star-sum\n"
+         "           -1012))\n")))
     "main.rkt"
     #rx"(?m:^154$)"
     '("--no-io-format-provider" "--webracket-module-bridge"))

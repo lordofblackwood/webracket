@@ -116,6 +116,7 @@
     sequence-ref-length
     sequence-prop-sequence
     sequence-prop-gen-sequence
+    sequence-prop-gen-sequence-guard
     sequence-in-parallel-values
     sequence-boundary-safe
     sequence-for/list
@@ -864,10 +865,24 @@
      '((module use-sequence-generate-star racket/base
          (require racket/sequence)
          (provide y)
-         (define-values (first next) (sequence-generate* '(10 20)))
+         (define pair-seq
+           (make-do-sequence
+            (lambda ()
+              (values (lambda (xs) (values (car xs) (* 10 (car xs))))
+                      #f
+                      cdr
+                      '(1 2)
+                      pair?
+                      #f
+                      #f))))
+         (define-values (first next) (sequence-generate* pair-seq))
          (define-values (second done) (next))
          (define-values (third _done-again) (done))
-         (define y (+ (car first) (car second) (if third 100 0)))))]
+         (define y (+ (car first)
+                      (cadr first)
+                      (car second)
+                      (cadr second)
+                      (if third 100 0)))))]
     [(sequence-generate-exhausted)
      '((module use-sequence-generate-exhausted racket/base
          (require racket/sequence)
@@ -1095,6 +1110,14 @@
                      #f
                      #f)))
          (define y (for/sum ([(x y) (seqbox '(1 2 3))]) (+ x y)))))]
+    [(sequence-prop-gen-sequence-guard)
+     '((module use-sequence-prop-gen-sequence-guard racket/base
+         (require racket/sequence)
+         (provide y)
+         (struct bad-seq (xs)
+           #:property prop:gen-sequence
+           42)
+         (define y 0)))]
     [(sequence-in-parallel-values)
      '((module use-sequence-in-parallel-values racket/base
          (require racket/sequence)

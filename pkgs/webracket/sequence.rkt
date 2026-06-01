@@ -17,6 +17,7 @@
          sequence-count
          sequence-filter
          sequence-add-between
+         sequence/c
          in-slice
          in-syntax
          initiate-sequence
@@ -27,6 +28,13 @@
 ;; otherwise pull in real contract machinery from installed Racket.
 
 (define empty-sequence null)
+
+;; sequence/c : [#:min-count (or/c #f exact-nonnegative-integer?)] any/c ... -> any/c
+;;   Build an erased sequence contract descriptor for WebRacket's contract-erasure path.
+(define (sequence/c #:min-count [min-count #f] . elem/cs)
+  (unless (or (not min-count) (exact-nonnegative-integer? min-count))
+    (raise-argument-error 'sequence/c "(or/c #f exact-nonnegative-integer?)" min-count))
+  (list* 'sequence/c min-count elem/cs))
 
 ;; check-sequence-helper : symbol? any/c -> void?
 ;;   Validate public sequence-helper arguments.

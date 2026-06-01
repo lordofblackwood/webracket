@@ -574,7 +574,7 @@
             [(sequence-in-cycle) #rx"(?m:^7$)"]
             [(sequence-in-values-sequence) #rx"(?m:^2$)"]
             [(sequence-generate-basic) #rx"(?m:^31$)"]
-            [(sequence-generate-star) #rx"(?m:^30$)"]
+            [(sequence-generate-star) #rx"(?m:^33$)"]
             [(sequence-generate-exhausted) #rx"(?m:^42$)"]
             [(sequence-boundary-safe) #rx"(?m:^0$)"]
             [(sequence-empty) #rx"(?m:^0$)"]
