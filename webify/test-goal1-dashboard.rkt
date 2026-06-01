@@ -447,6 +447,7 @@
                          installed-data-queue-coverage
                          installed-racket-logging-coverage
                          installed-racket-format-coverage
+                         installed-racket-format-print-parameter
                          goal1-full-callable-exports
                          goal1-full-list-surface
                          goal1-base-sort-keywords

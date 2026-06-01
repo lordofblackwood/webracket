@@ -6,11 +6,14 @@
                     procedure-keywords
                     procedure-reduce-keyword-arity
                     procedure-reduce-keyword-arity-mask
+                    print-as-expression
                     read-bytes-line
                     sort)
          "../js/main.rkt"
          "../private/kw.rkt"
-         (only-in "../primitives.rkt" sort)
+         (only-in "../primitives.rkt"
+                  print-as-expression
+                  sort)
          (for-syntax racket/base)
          (for-syntax racket/splicing)
          (for-syntax webracket-lib/compiler/private/browser-options))

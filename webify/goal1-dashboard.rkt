@@ -203,6 +203,7 @@
     installed-racket-format-coverage
     installed-racket-format-printing
     installed-racket-format-printing-values
+    installed-racket-format-print-parameter
     regexp-provider-coverage))
 
 ;; goal1-dashboard-coverage-extended-case-names : (listof symbol?)
@@ -2223,6 +2224,22 @@
          "(js-log text)\n")))
     "main.rkt"
     #rx"(?m:^#t\\|\"a\\\\\"b\"\\|#\\\\space\\|'sym\\|'#\\(1 \"x\"\\)\\|'#hash\\(\\(a \\. 1\\)\\)$)"
+    '("--no-io-format-provider" "--webracket-module-bridge"))
+   (dashboard-case
+    'installed-racket-format-print-parameter
+    'installed-provider-coverage
+    '(racket/format racket/contract/base)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/base\n"
+         "(require racket/format)\n"
+         "(define quoted (~v '(a b)))\n"
+         "(print-as-expression #f)\n"
+         "(define plain (~v '(a b)))\n"
+         "(print-as-expression #t)\n"
+         "(js-log (string-append quoted \"|\" plain))\n")))
+    "main.rkt"
+    #rx"(?m:^'\\(a b\\)\\|\\(a b\\)$)"
     '("--no-io-format-provider" "--webracket-module-bridge"))
    (dashboard-case
     'installed-data-queue-contract

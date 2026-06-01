@@ -39,6 +39,7 @@
                 pair?
                 positive?
                 print
+                print-as-expression
                 quotient/remainder
                 raise-argument-error
                 rational?
@@ -261,10 +262,12 @@
 ;; value->print-string : any/c -> string?
 ;;   Render v with print mode.
 (define (value->print-string v)
+  (define text (value->write-string v))
   (cond
-    [(or (symbol? v) (null? v) (pair? v) (vector? v) (hash? v))
-     (string-append "'" (value->write-string v))]
-    [else (value->write-string v)]))
+    [(and (print-as-expression)
+          (or (symbol? v) (null? v) (pair? v) (vector? v) (hash? v)))
+     (string-append "'" text)]
+    [else text]))
 
 ;; write-string-literal : string? -> string?
 ;;   Render a string with basic write escapes.
