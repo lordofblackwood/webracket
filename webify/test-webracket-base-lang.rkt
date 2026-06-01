@@ -763,6 +763,24 @@
         (with-handlers ([exn:fail:filesystem? void])
           (delete-directory/files dir))))))
 
+(test-case "#lang webracket/base transitional reader ignores external provider requires"
+  (define source-dir (make-temporary-file "webracket-base-external-require-src-~a" 'directory))
+  (define main-path  (build-path source-dir "main.rkt"))
+  (dynamic-wind
+    void
+    (lambda ()
+      (call-with-output-file main-path
+        (lambda (out)
+          (display "#lang webracket/full\n(require racket/list racket/dict racket/pretty racket/sequence racket/format)\n(js-log 42)\n" out))
+        #:exists 'truncate/replace)
+      (check-not-exn
+       (lambda ()
+         (read-top-level-from-file main-path
+                                   #:webracket-module-bridge? #f))))
+    (lambda ()
+      (with-handlers ([exn:fail:filesystem? void])
+        (delete-directory/files source-dir)))))
+
 (test-case "#lang webracket/base local require hides unprovided private bindings"
   (define source-dir (make-temporary-file "webracket-base-private-require-src-~a" 'directory))
   (define dest-dir   (make-temporary-file "webracket-base-private-require-dest-~a" 'directory))

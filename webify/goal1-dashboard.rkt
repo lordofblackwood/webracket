@@ -1119,7 +1119,7 @@
     'goal1-real-library-composition
     'installed-provider-coverage
     '(webracket/full racket/string racket/hash racket/set racket/function racket/format
-      webracket/string webracket/hash webracket/set webracket/function webracket/format)
+      webracket/hash webracket/set webracket/function webracket/format)
     `(("main.rkt" .
        ,(string-append
          "#lang webracket/full\n"
@@ -1139,11 +1139,11 @@
          "(js-log (+ score 31))\n")))
     "main.rkt"
     #rx"(?m:^42$)"
-    '("--no-io-format-provider"))
+    '("--no-io-format-provider" "--webracket-module-bridge"))
    (dashboard-case
     'goal1-sequence-format-composition
     'installed-provider-coverage
-    '(webracket/full racket/string racket/format webracket/sequence webracket/format)
+    '(webracket/full racket/string racket/format webracket/format)
     `(("main.rkt" .
        ,(string-append
          "#lang webracket/full\n"
@@ -1161,7 +1161,7 @@
          "           20))\n")))
     "main.rkt"
     #rx"(?m:^42$)"
-    '("--no-io-format-provider"))
+    '("--no-io-format-provider" "--webracket-module-bridge"))
    (dashboard-case
     'goal1-match-set-hash-composition
     'installed-provider-coverage
@@ -1178,14 +1178,14 @@
          "    [(list 'point #t #t) (+ (hash-ref h 'x) (hash-ref h 'y))]\n"
          "    [_ 0]))\n"
          "(js-log (~a score))\n")))
-   "main.rkt"
-   #rx"(?m:^42$)"
-   '("--no-io-format-provider"))
+    "main.rkt"
+    #rx"(?m:^42$)"
+    '("--no-io-format-provider" "--webracket-module-bridge"))
    (dashboard-case
     'goal1-dict-pretty-sequence-composition
     'installed-provider-coverage
     '(webracket/full racket/list racket/dict racket/pretty racket/sequence racket/format
-      webracket/list webracket/dict webracket/pretty webracket/sequence webracket/format)
+      webracket/format)
     `(("main.rkt" .
        ,(string-append
          "#lang webracket/full\n"
@@ -1197,7 +1197,7 @@
          "(js-log (+ 27 (length mapped) odd-count (string-length (~a rendered))))\n")))
     "main.rkt"
     #rx"(?m:^42$)"
-    '("--no-io-format-provider"))
+    '("--no-io-format-provider" "--webracket-module-bridge"))
    (dashboard-case
     'goal1-full-callable-exports
     'installed-provider-coverage

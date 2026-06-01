@@ -1457,19 +1457,28 @@
     [_ '()]))
 
 (define (simple-local-require-paths form)
+  (define (spec->paths spec)
+    (match spec
+      [(? string?) (list spec)]
+      [(? symbol?) '()]
+      [`(combine-in ,inner ...)
+       (append* (map spec->paths inner))]
+      [`(,(or 'only-in 'except-in 'rename-in 'prefix-in
+              'only-meta-in 'for-meta 'for-syntax 'for-template
+              'for-label 'for-space)
+         ,inner . ,_rest)
+       (cond
+         [(string? inner)
+          (raise-arguments-error
+           'read-top-level-from-file
+           "unsupported #lang webracket/base local require spec"
+           "spec" spec
+           "supported" "plain local string requires, such as (require \"lib.rkt\")")]
+         [else '()])]
+      [_ '()]))
   (match form
     [`(require ,specs ...)
-     (append*
-      (for/list ([spec (in-list specs)])
-        (cond
-          [(string? spec) (list spec)]
-          [(eq? spec 'webracket/private/kw) '()]
-          [else
-           (raise-arguments-error
-            'read-top-level-from-file
-            "unsupported #lang webracket/base local require spec"
-            "spec" spec
-            "supported" "plain local string requires, such as (require \"lib.rkt\")")])))]
+     (append* (map spec->paths specs))]
     [_ '()]))
 
 (define (candidate-module-symbol->relative-rkt-path candidate)

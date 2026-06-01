@@ -14,12 +14,11 @@ through the temporary provider bridge allowlist.
   vector, function, port, math, path, match, sequence, shared, pretty, hash,
   format, and dict coverage rows.
 - WebRacket-owned staged providers cover the currently preferred surfaces for
-  contracts, class support, dicts, files, formatting, functions, hashes, ports,
-  promises, pretty printing, sets, strings, streams, regexp, and JS FFI modules.
-  Direct installed `racket/pretty` diagnostics now pass for representative
-  pretty-print rows, including the former `racket/treelist`/`prop:stream`
-  edge; required rows still use staged `webracket/pretty` until we
-  deliberately choose full installed-provider pretty parity.
+  contracts, files, formatting, functions, hashes, ports, promises, sets,
+  streams, regexp, and JS FFI modules. The default bridge now uses real
+  installed providers for class, dict, list, pretty, sequence, string,
+  `racket/private/for`, and `racket/private/kw` after their representative
+  diagnostics reached runtime.
 - Runtime-adjacent coverage now includes VFS file helpers, contract-erased
   queues, and the narrow logging export surface.
 
