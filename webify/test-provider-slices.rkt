@@ -99,6 +99,12 @@
         (provided-newline out)
         (provided-print 'quoted out)
         (provided-newline out)
+        (provided-print 'depth-one out 1)
+        (provided-newline out)
+        (provided-print '(a b) out)
+        (provided-newline out)
+        (provided-print '(a b) out 1)
+        (provided-newline out)
         (print-as-expression #f)
         (provided-print 'plain out)
         (print-as-expression #t)
@@ -106,7 +112,9 @@
         (js-log (get-output-string out)))
      (list "-r" "--no-stdlib" "--no-io-format-provider")))
   (check-equal? status 0 output)
-  (check-true (string-contains? output "hello\n(1 2)\n'quoted\nplain\n") output))
+  (check-true
+   (string-contains? output "hello\n(1 2)\n'quoted\ndepth-one\n'(a b)\n(a b)\nplain\n")
+   output))
 
 (test-case "provider cache flags expose verbose cache decisions"
   (define cache-dir (make-temporary-file "webracket-provider-cache-flag-~a" 'directory))
