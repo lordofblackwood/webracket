@@ -82,7 +82,7 @@
     "(define show\n"
     "  (make-keyword-procedure\n"
     "   (lambda (kws kw-args . rest)\n"
-    "     (+ (length kws) (car kw-args) (car rest)))\n"
+    "     (apply + (length kws) (append kw-args rest)))\n"
     "   (lambda args (apply + args))))\n"
     "(js-log (show 10 20 12))\n"
     "(js-log (keyword-apply show '(#:y) '(20) '(21)))\n")
@@ -96,14 +96,15 @@
     "(define show\n"
     "  (make-keyword-procedure\n"
     "   (lambda (kws kw-args . rest)\n"
-    "     (+ (length kws) (car kw-args) (car rest)))\n"
+    "     (apply + (length kws) (append kw-args rest)))\n"
     "   (lambda args (apply + args))))\n"
+    "(js-log (keyword-apply show '(#:x #:y) '(10 11) '(20)))\n"
     "(define reduced\n"
     "  (procedure-reduce-keyword-arity show 1 '(#:y) '(#:y)))\n"
     "(define-values (required allowed) (procedure-keywords reduced))\n"
     "(js-log (and (equal? required '(#:y)) (equal? allowed '(#:y))))\n"
     "(js-log (keyword-apply reduced '(#:y) '(20) '(21)))\n")
-   #rx"(?m:^true\nundefined\n42\nundefined\n#<void>$)"))
+   #rx"(?m:^43\nundefined\ntrue\nundefined\n42\nundefined\n#<void>$)"))
 
 (module+ main
   (void))

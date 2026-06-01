@@ -163,7 +163,8 @@
 (define rational-option-keywords
   '(#:min-width
     #:pad-string
-    #:precision))
+    #:precision
+    #:decimal-sep))
 
 ;; collect-options : symbol? (listof keyword?) (listof keyword?) (listof any/c) -> (listof (cons/c keyword? any/c))
 ;;   Convert keyword/value lists to local option pairs.
@@ -438,8 +439,14 @@
     (precision->digits precision))
   (define min-width (option-ref options '#:min-width 0))
   (define pad (option-ref options '#:pad-string " "))
+  (define decimal-sep (option-ref options '#:decimal-sep "."))
+  (unless (string? decimal-sep)
+    (raise-argument-error '~r "string?" decimal-sep))
   (pad-signed-decimal min-width pad
-                      (rational->decimal-string v digits exact-digits?)))
+                      (rational->decimal-string v
+                                                digits
+                                                exact-digits?
+                                                decimal-sep)))
 
 ;; pad-signed-decimal : exact-nonnegative-integer? string? string? -> string?
 ;;   Pad decimal digits without counting a leading sign, as `~r` specifies.
@@ -493,9 +500,9 @@
      (string-append (make-string (- width (string-length s)) #\0) s)]
     [else s]))
 
-;; rational->decimal-string : rational? exact-nonnegative-integer? boolean? -> string?
+;; rational->decimal-string : rational? exact-nonnegative-integer? boolean? string? -> string?
 ;;   Format positional decimal output for the common `~r` precision path.
-(define (rational->decimal-string v digits exact-digits?)
+(define (rational->decimal-string v digits exact-digits? decimal-sep)
   (define scale (expt 10 digits))
   (define scaled (inexact->exact (round (* v scale))))
   (define negative? (< scaled 0))
@@ -511,12 +518,12 @@
   (define unsigned
     (cond
       [(zero? digits) (if exact-digits?
-                          (string-append integer-text ".")
+                          (string-append integer-text decimal-sep)
                           integer-text)]
       [(string=? trimmed-fractional-text "")
        integer-text]
       [else
-       (string-append integer-text "." trimmed-fractional-text)]))
+       (string-append integer-text decimal-sep trimmed-fractional-text)]))
   (if negative?
       (string-append "-" unsigned)
       unsigned))

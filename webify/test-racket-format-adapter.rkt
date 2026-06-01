@@ -25,6 +25,21 @@
   (check-equal? (call/keywords web:~r '(#:min-width #:pad-string) '(4 "0") '(17)) "0017")
   (check-equal? (call/keywords web:~r '(#:min-width #:pad-string) '(4 "0") '(-42)) "-0042"))
 
+(test-case "racket/format adapter supports decimal separators for ~r"
+  (check-equal? (call/keywords web:~r '(#:decimal-sep) '(",") '(123.456)) "123,456")
+  (check-equal? (call/keywords web:~r
+                                '(#:decimal-sep #:precision)
+                                '("," (= 0))
+                                '(50))
+                "50,")
+  (check-equal? (call/keywords web:~r
+                                '(#:decimal-sep #:min-width #:pad-string #:precision)
+                                '("::" 8 "0" (= 2))
+                                '(-42))
+                "-0042::00")
+  (check-exn #rx"string\\?"
+             (lambda () (call/keywords web:~r '(#:decimal-sep) '(#\.) '(1.5)))))
+
 (test-case "racket/format adapter keeps precision scoped to ~r"
   (check-exn #rx"supported racket/format keyword"
              (lambda () (call/keywords web:~a '(#:precision) '(2) '(1))))
@@ -32,6 +47,16 @@
              (lambda () (call/keywords web:~s '(#:precision) '(2) '(1))))
   (check-exn #rx"supported racket/format keyword"
              (lambda () (call/keywords web:~v '(#:precision) '(2) '(1)))))
+
+(test-case "racket/format adapter rejects unimplemented ~r keyword surface"
+  (for ([kw '(#:sign
+              #:base
+              #:notation
+              #:format-exponent
+              #:groups
+              #:group-sep)])
+    (check-exn #rx"supported racket/format keyword"
+               (lambda () (call/keywords web:~r (list kw) '(x) '(1))))))
 
 (module+ main
   (void))

@@ -269,9 +269,7 @@
     [(null? kws) (apply proc normal-args)]
     [else
      (apply (keyword-procedure-extract proc kws (+ 2 (length normal-args)))
-            kws
-            kw-args
-            normal-args)]))
+            (cons kws (cons kw-args normal-args)))]))
 
 ;; arity->mask : any/c -> exact-integer?
 ;;   Convert a procedure arity value to a procedure-arity-mask-style integer.

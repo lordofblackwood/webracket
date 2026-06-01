@@ -2256,10 +2256,11 @@
          "   (~r 1.5 #:precision 4) \"|\"\n"
          "   (~r 50 #:precision '(= 2)) \"|\"\n"
          "   (~r 1.5 #:precision '(= 4)) \"|\"\n"
+         "   (~r 123.456 #:decimal-sep \",\") \"|\"\n"
          "   (~r -42 #:min-width 4 #:pad-string \"0\")))\n"
          "(js-log text)\n")))
     "main.rkt"
-    #rx"(?m:^3\\.14\\|1\\.5\\|50\\.00\\|1\\.5000\\|-0042$)"
+    #rx"(?m:^3\\.14\\|1\\.5\\|50\\.00\\|1\\.5000\\|123,456\\|-0042$)"
     '("--no-io-format-provider" "--webracket-module-bridge"))
    (dashboard-case
     'installed-data-queue-contract
