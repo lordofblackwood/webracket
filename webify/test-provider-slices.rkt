@@ -144,12 +144,18 @@
       "(define out (open-output-string))\n"
       "(fprintf out \"io ~a ~s ~x ~o ~b ~c\" \"ok\" '(1 2) 255 8 5 #\\Z)\n"
       "(js-log (get-output-string out))\n"
-      "(js-log (format \"fmt ~a ~v ~e~nnext\" 'ok \"vv\" '(err)))\n")
+      "(js-log (format \"fmt ~a ~v ~e~nnext\" 'ok \"vv\" '(err)))\n"
+      "(js-log (format \"print ~v ~v\" 'quoted '(a b)))\n"
+      "(print-as-expression #f)\n"
+      "(js-log (format \"plain ~v ~v\" 'quoted '(a b)))\n"
+      "(print-as-expression #t)\n")
      (list "-r" "--stdlib")))
   (check-equal? status 0 output)
   (check-regexp-match #rx"(?m:^io ok \\(1 2\\) ff 10 101 Z$)" output)
   (check-true (string-contains? output "fmt ok \"vv\" (err)\nnext")
-              output))
+              output)
+  (check-regexp-match #rx"(?m:^print 'quoted '\\(a b\\)$)" output)
+  (check-regexp-match #rx"(?m:^plain quoted \\(a b\\)$)" output))
 
 (test-case "io/format provider exposes private cells and public aliases"
   (define-values (status output)
