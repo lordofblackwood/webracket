@@ -174,6 +174,9 @@
     class-rename-super
     class-inherit-super
     class-optional-init
+    class-overment-inner
+    class-augride-basic
+    class-inherit-inner
     class-augment-inner
     class-private-final
     class-abstract-basic
@@ -307,6 +310,9 @@
     class-rename-super
     class-inherit-super
     class-optional-init
+    class-overment-inner
+    class-augride-basic
+    class-inherit-inner
     class-augment-inner
     class-private-final
     class-abstract-basic
@@ -1695,6 +1701,54 @@
              (define/public (value) saved)))
          (define y (+ (send (new counter%) value)
                       (send (new counter% [n 2]) value)))))]
+    [(class-overment-inner)
+     '((module use-class-overment-inner racket/base
+         (require racket/class)
+         (provide y)
+         (define base%
+           (class object%
+             (super-new)
+             (define/public (value n) n)))
+         (define child%
+           (class base%
+             (super-new)
+             (define/overment (value n) (+ 1 n (inner 0 value n)))))
+         (define grand%
+           (class child%
+             (super-new)
+             (define/augment (value n) 1)))
+         (define y (send (new grand%) value 40))))]
+    [(class-augride-basic)
+     '((module use-class-augride-basic racket/base
+         (require racket/class)
+         (provide y)
+         (define base%
+           (class object%
+             (super-new)
+             (define/pubment (value n) (+ n (inner 0 value n)))))
+         (define child%
+           (class base%
+             (super-new)
+             (define/augride (value n) 2)))
+         (define y (send (new child%) value 40))))]
+    [(class-inherit-inner)
+     '((module use-class-inherit-inner racket/base
+         (require racket/class)
+         (provide y)
+         (define base%
+           (class object%
+             (super-new)
+             (define/pubment (value n) (+ n (inner 0 value n)))))
+         (define child%
+           (class base%
+             (super-new)
+             (inherit/inner value)
+             (define/public (next) (+ (value 38) (inner 0 value 0)))))
+         (define grand%
+           (class child%
+             (super-new)
+             (define/augment (value n) 2)))
+         (define y (send (new grand%) next))))]
     [(class-augment-inner)
      '((module use-class-augment-inner racket/base
          (require racket/class)

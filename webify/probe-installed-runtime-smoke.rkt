@@ -289,6 +289,9 @@
     class-rename-super
     class-inherit-super
     class-optional-init
+    class-overment-inner
+    class-augride-basic
+    class-inherit-inner
     class-augment-inner
     class-private-final
     class-abstract-basic
@@ -492,6 +495,9 @@
       class-rename-super
       class-inherit-super
       class-optional-init
+      class-overment-inner
+      class-augride-basic
+      class-inherit-inner
       class-augment-inner
       class-private-final
       class-abstract-basic
@@ -683,6 +689,7 @@
               class-relationships class-info-basic class-with-method
               class-inherit-field class-rename-public class-rename-super
               class-inherit-super class-optional-init
+              class-overment-inner class-augride-basic class-inherit-inner
               class-augment-inner class-private-final class-abstract-basic)
              #rx"(?m:^42$)"]
             [(class-construction-basic) #rx"(?m:^126$)"]
