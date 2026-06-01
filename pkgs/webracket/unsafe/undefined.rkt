@@ -1,6 +1,7 @@
 #lang racket/base
 
-(require (only-in webracket/core unsafe-undefined))
+(require (for-syntax racket/base
+                     racket/unsafe/undefined))
 
 (provide check-not-unsafe-undefined
          check-not-unsafe-undefined/assign
@@ -12,6 +13,11 @@
                 prop:chaperone-unsafe-undefined?
                 prop:chaperone-unsafe-undefined-ref)
   (make-struct-type-property 'chaperone-unsafe-undefined))
+
+(define-syntax (unsafe-undefined-literal stx)
+  #`(quote #,(datum->syntax stx unsafe-undefined)))
+
+(define unsafe-undefined (unsafe-undefined-literal))
 
 ;; raise-unsafe-undefined : symbol? symbol? string? -> any/c
 ;;   Report a use of Racket's internal unsafe-undefined placeholder.

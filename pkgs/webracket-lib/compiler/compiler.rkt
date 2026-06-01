@@ -63,6 +63,8 @@
          racket/file
          racket/port
          racket/pretty
+         (rename-in racket/unsafe/undefined
+                    [unsafe-undefined host-unsafe-undefined])
          (only-in racket/string string-prefix? string-replace)
          (only-in racket/format ~a)
          (only-in racket/list partition append* first second third last
@@ -724,6 +726,11 @@
 
 (define datum:undefined        the-undefined-value) 
 (define datum:unsafe-undefined the-unsafe-undefined-value)
+
+;; host-unsafe-undefined? : any/c -> boolean?
+;;   Recognize Racket's own unsafe-undefined literal during host expansion.
+(define (host-unsafe-undefined? v)
+  (eq? v host-unsafe-undefined))
 
 ;;;
 ;;; CONSTANTS
@@ -7346,7 +7353,9 @@
                     (? boolean?)
                     (? char?)
                     (? null?)
-                    (? void?)                    
+                    (? void?)
+                    (? unsafe-undefined?)
+                    (? host-unsafe-undefined?)
                     (? number?))) ; a bignum or rational number
            (if (number? v)
                (cond
@@ -7356,7 +7365,9 @@
                   `(quote ,s ,(datum s (* 1.0 v)))] ; convert to a flonum
                  [else
                   `(quote ,s ,(datum s v))])        ; fixnum or flonum
-               `(quote ,s ,(datum s v)))]          ; other literals
+               `(quote ,s ,(datum s (if (host-unsafe-undefined? v)
+                                         datum:unsafe-undefined
+                                         v))))]     ; other literals
           [(? string? cs)  `(quote ,s ,(datum s v))]
           [(? bytes?  bs)  `(quote ,s ,(datum s v))]
           [(? byte-pregexp? rx) `(app ,h ,(variable #'byte-pregexp) ,(loop (object-name rx)))]

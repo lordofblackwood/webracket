@@ -2244,8 +2244,9 @@
                                              [fetch-provider webify-module-path->report])
   (define registry
     (cond
-      [(webracket/base-reports-demand-external-providers? reports)
+     [(webracket/base-reports-demand-external-providers? reports)
        (webracket/base-check-external-provider-allowlist! reports)
+       (define external-names (webracket/base-external-provider-names reports))
        (define provider-namespace (make-webify-contract-erasing-namespace))
        (define provider-module-name-resolver
          (make-webify-contract-erasing-module-name-resolver))
@@ -2260,7 +2261,13 @@
            ;; public providers must keep their generated provide/contract
            ;; export names while their contract implementation dependencies
            ;; remain eligible for erased-provider routing.
-           (memq name '(racket/dict)))
+           (memq name '(racket/dict
+                        racket/private/for
+                        racket/private/map
+                        racket/private/define-struct
+                        racket/private/class-internal
+                        racket/private/class-struct
+                        racket/private/serialize-structs)))
          (define (extract)
            (webify-module-report/rename
             (if (eq? fetch-provider webify-module-path->report)
@@ -2289,6 +2296,22 @@
                                                   'webracket/private/kw)
                 (webify-module-provider-cache-ref provider-cache
                                                   'webracket/unsafe/undefined))
+          (if (memq 'racket/class external-names)
+              (list (webify-module-provider-cache-ref provider-cache
+                                                      'racket/private/for)
+                    (webify-module-provider-cache-ref provider-cache
+                                                      'racket/private/map)
+                    (webify-module-provider-cache-ref provider-cache
+                                                      'webracket/list)
+                    (webify-module-provider-cache-ref provider-cache
+                                                      'racket/private/define-struct)
+                    (webify-module-provider-cache-ref provider-cache
+                                                      'racket/private/serialize-structs)
+                    (webify-module-provider-cache-ref provider-cache
+                                                      'racket/private/class-internal)
+                    (webify-module-provider-cache-ref provider-cache
+                                                      'racket/private/class-struct))
+              '())
           (io-format-provider-reports)))
        (define registry
          (webify-module-reports->discovered-registry

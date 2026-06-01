@@ -21,6 +21,9 @@ through the temporary provider bridge allowlist.
   diagnostics reached runtime.
 - Runtime-adjacent coverage now includes VFS file helpers, contract-erased
   queues, and the narrow logging export surface.
+- Explicit `racket/class` requires now include required extended runtime
+  coverage for ordinary class creation, `init-field`, inheritance, `new`,
+  `send`, `object?`, and `is-a?` through the module bridge.
 
 ## Current Boundaries
 
@@ -37,7 +40,12 @@ through the temporary provider bridge allowlist.
 ## Dashboard Workflow
 
 - Use `webify/goal1-dashboard.rkt --fast-required` for the quick inner loop.
-- Use `--coverage-core` for everyday Goal 1 provider coverage.
+- Use warmed-cache runs as the meaningful timing baseline. Cold
+  `--no-cache-warmup` runs are useful for cache diagnostics, but they can spend
+  the whole row budget in provider extraction before useful row output appears.
+- Use `--coverage-core --warm-cache` for everyday Goal 1 provider coverage.
+  Prefer `--jobs 2` for the currently verified developer loop; use `--jobs 4`
+  selectively while measuring row-level performance.
 - Use `--coverage-extended` before larger checkpoints or provider-surface
   changes.
 - Module-language dashboard rows are routed through `--webracket-module-bridge`
@@ -61,3 +69,10 @@ Current verified smoke:
 ```
 
 That smoke currently passes all six fast-required rows.
+
+Recent probes confirmed that warm-cache timings are the ones to optimize:
+`--fast-required --jobs 2 --warm-cache --timeout 240` passes all six rows,
+while `--jobs 4` can still over-contend and time out rows even after warmup.
+Treat cold-cache runs, and over-contended parallel runs, as
+provider-cache/performance diagnostics rather than evidence that a specific
+provider regressed.

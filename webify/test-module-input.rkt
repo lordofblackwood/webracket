@@ -286,7 +286,7 @@
    (lambda ()
      (webify-resolve-module-linklet-imports
       importer-linklet
-      '((racket/string (string-join.8)))
+      '((racket/string (string-append.8)))
       #:import-aliases `((,importer-local racket/string ,provider-export))))))
 
 (test-case "dependency export tables derive from provider inputs"
@@ -439,6 +439,19 @@
                 '((1/syntax-source webracket/primitives syntax-source)))
   (check-equal? (map webify-module-resolution-outcome-status syntax-source-outcomes)
                 '(resolved-by-compiled-primitive-alias))
+  (define-values (exact-contract-export-imports exact-contract-export-outcomes)
+    (webify-resolve-module-linklet-imports/outcomes
+     '(linklet (([id-partially-applied42.1 id-partially-applied42.1])) (y)
+        (define-values (y) id-partially-applied42.1))
+     '((racket/dict (id-partially-applied42.1))
+       (racket/contract/base (id-partially-applied)))))
+  (check-equal? exact-contract-export-imports
+                '((id-partially-applied42.1
+                   racket/dict
+                   id-partially-applied42.1)))
+  (check-equal? (map webify-module-resolution-outcome-status
+                     exact-contract-export-outcomes)
+                '(resolved-by-export-scan/provider-precedence))
   (define-values (directory-list-imports directory-list-outcomes)
     (webify-resolve-module-linklet-imports/outcomes
      '(linklet (([directory-list.1 directory-list78.1])) (y)
@@ -461,58 +474,73 @@
     (webify-resolve-module-linklet-imports/outcomes
      '(linklet (([coerce-contract.1 coerce-contract])) (y)
         (define-values (y) coerce-contract.1))
-     '((racket/contract/combinator (coerce-contract))
+     '((webracket/contract (coerce-contract))
+       (racket/contract/combinator (coerce-contract))
        (racket/contract/private/guts (coerce-contract))
        (racket/contract/private/misc (coerce-contract)))
      #:module-name 'racket/private/class-internal))
   (check-equal? class-coerce-imports
-                '((coerce-contract.1 racket/contract/combinator coerce-contract)))
+                '((coerce-contract.1 webracket/contract coerce-contract)))
   (check-equal? (map webify-module-resolution-outcome-status class-coerce-outcomes)
                 '(resolved-by-compiled-primitive-alias))
   (define-values (class-apply-imports class-apply-outcomes)
     (webify-resolve-module-linklet-imports/outcomes
      '(linklet (([apply-contract.1 apply-contract])) (y)
         (define-values (y) apply-contract.1))
-     '((racket/contract/base (apply-contract))
+     '((webracket/contract (apply-contract))
+       (racket/contract/base (apply-contract))
        (racket/contract/private/guts (apply-contract))
        (racket/contract/private/misc (apply-contract)))
      #:module-name 'racket/private/class-internal))
   (check-equal? class-apply-imports
-                '((apply-contract.1 racket/contract/base apply-contract)))
+                '((apply-contract.1 webracket/contract apply-contract)))
   (check-equal? (map webify-module-resolution-outcome-status class-apply-outcomes)
                 '(resolved-by-compiled-primitive-alias))
   (define-values (class-blame-imports class-blame-outcomes)
     (webify-resolve-module-linklet-imports/outcomes
      '(linklet (([blame-swap.1 blame-swap])) (y)
         (define-values (y) blame-swap.1))
-     '((racket/contract/combinator (blame-swap))
+     '((webracket/contract (blame-swap))
+       (racket/contract/combinator (blame-swap))
        (racket/contract/private/guts (blame-swap))
        (racket/contract/private/misc (blame-swap)))
      #:module-name 'racket/private/class-internal))
   (check-equal? class-blame-imports
-                '((blame-swap.1 racket/contract/combinator blame-swap)))
+                '((blame-swap.1 webracket/contract blame-swap)))
   (check-equal? (map webify-module-resolution-outcome-status class-blame-outcomes)
                 '(resolved-by-compiled-primitive-alias))
   (define-values (class-raise-blame-imports _class-raise-blame-outcomes)
     (webify-resolve-module-linklet-imports/outcomes
      '(linklet (([raise-blame-error.1 raise-blame-error.1])) (y)
         (define-values (y) raise-blame-error.1))
-     '((racket/contract/combinator (raise-blame-error))
+     '((webracket/contract (raise-blame-error))
+       (racket/contract/combinator (raise-blame-error))
        (racket/contract/private/guts (raise-blame-error)))
      #:module-name 'racket/private/class-internal))
   (check-equal? class-raise-blame-imports
-                '((raise-blame-error.1 racket/contract/combinator raise-blame-error)))
+                '((raise-blame-error.1 webracket/contract raise-blame-error)))
   (define-values (class-region-imports _class-region-outcomes)
     (webify-resolve-module-linklet-imports/outcomes
      '(linklet (([current-contract-region.1 current-contract-region.1])) (y)
         (define-values (y) current-contract-region.1))
-     '((racket/contract/region (current-contract-region))
+     '((webracket/contract (current-contract-region))
+       (racket/contract/region (current-contract-region))
        (racket/contract/base (current-contract-region)))
      #:module-name 'racket/private/class-internal))
   (check-equal? class-region-imports
                 '((current-contract-region.1
-                   racket/contract/region
+                   webracket/contract
                    current-contract-region)))
+  (define-values (class-runtime-imports _class-runtime-outcomes)
+    (webify-resolve-module-linklet-imports/outcomes
+     '(linklet (([do-make-object do-make-object])) (y)
+        (define-values (y) do-make-object))
+     '((racket/private/class-internal (do-make-object)))
+     #:module-name 'main))
+  (check-equal? class-runtime-imports
+                '((do-make-object
+                   racket/private/class-internal
+                   do-make-object)))
   (define-values (class-unsafe-undefined-imports _class-unsafe-undefined-outcomes)
     (webify-resolve-module-linklet-imports/outcomes
      '(linklet (([1/prop:chaperone-unsafe-undefined prop:chaperone-unsafe-undefined]))
@@ -524,6 +552,16 @@
                 '((1/prop:chaperone-unsafe-undefined
                    webracket/unsafe/undefined
                    prop:chaperone-unsafe-undefined)))
+  (define-values (generic-unsafe-undefined-imports _generic-unsafe-undefined-outcomes)
+    (webify-resolve-module-linklet-imports/outcomes
+     '(linklet (([1/unsafe-undefined unsafe-undefined])) (y)
+        (define-values (y) 1/unsafe-undefined))
+     '((webracket/unsafe/undefined (unsafe-undefined)))
+     #:module-name 'main))
+  (check-equal? generic-unsafe-undefined-imports
+                '((1/unsafe-undefined
+                   webracket/unsafe/undefined
+                   unsafe-undefined)))
   (check-exn
    #rx"dependency does not export required name"
    (lambda ()

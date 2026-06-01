@@ -64520,9 +64520,11 @@
 	                                (global.get $symbol:module-variable-ref)
 	                                (local.get $cell)))
 	               (local.set $val (struct.get $ModuleVariable $value (local.get $mv)))
-	               (if (i32.or
-	                    (ref.eq (local.get $val) (global.get $undefined))
-	                    (ref.eq (local.get $val) (global.get $unsafe-undefined)))
+	               ;; Module-variable cells use `$undefined` as the runtime
+	               ;; uninitialized sentinel. `$unsafe-undefined` is a real
+	               ;; Racket value that modules such as `racket/unsafe/undefined`
+	               ;; can export and clients must be able to read.
+	               (if (ref.eq (local.get $val) (global.get $undefined))
 	                   (then (drop (call $raise-unbound-variable-reference
 	                                     (struct.get $ModuleVariable $name (local.get $mv))))
 	                         (unreachable)))

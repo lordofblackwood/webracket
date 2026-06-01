@@ -561,18 +561,19 @@
          [(null? (cddr xs)) (cons (car xs) (cons before-last (loop (cdr xs))))]
          [else (cons (car xs) (cons sep (loop (cdr xs))))]))]))
 
-;; remove-duplicates : list? [procedure?] [#:key procedure?] -> list?
+;; remove-duplicates : list? [procedure?] [#:key (or/c procedure? #f)] -> list?
 ;;   Remove later duplicates, preserving the first occurrence.
-(define (remove-duplicates xs [same? equal?] #:key [key (lambda (x) x)])
+(define (remove-duplicates xs [same? equal?] #:key [key #f])
   (check-list 'remove-duplicates xs)
   (check-procedure 'remove-duplicates same?)
-  (check-procedure 'remove-duplicates key)
+  (when key
+    (check-procedure 'remove-duplicates key))
   (let loop ([xs xs] [seen null])
     (cond
       [(null? xs) null]
       [else
        (define x (car xs))
-       (define k (key x))
+       (define k (if key (key x) x))
        (if (ormap (lambda (old) (same? k old)) seen)
            (loop (cdr xs) seen)
            (cons x (loop (cdr xs) (cons k seen))))])))

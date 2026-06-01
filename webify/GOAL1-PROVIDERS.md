@@ -147,14 +147,15 @@ ephemeron-hash exports are explicitly postponed.
 ## Real Provider Readiness
 
 Use `webify/goal1-dashboard.rkt --real-provider-readiness --jobs 4
---timeout 120 --memory-mb 1024` to run the expected-fail rows that keep
+--timeout 120 --memory-mb 1024` to run the slow no-substitution rows that keep
 replacement pressure visible. These rows intentionally disable provider
-substitutions.
+substitutions and are not part of required coverage until they are fast and
+stable enough under the bounded dashboard.
 
 | Provider/frontier | Readiness row | Current blocker/action |
 | --- | --- | --- |
 | `webracket/contract` | `real-racket-contract-diagnostic` | Current failure is provider-graph extraction for real `racket/contract`; keep using erased-contract shims while narrowing the transitive provider graph and runtime primitive demand. |
-| real installed providers | `real-racket-class-diagnostic`, `real-racket-dict-diagnostic`, `real-racket-dict-coverage-diagnostic`, `real-racket-function-diagnostic`, `real-racket-function-coverage-diagnostic`, `real-racket-list-diagnostic`, `real-racket-string-diagnostic`, `real-racket-pretty-diagnostic`, `real-racket-pretty-coverage-diagnostic`, `real-racket-private-for-diagnostic`, `real-racket-private-kw-diagnostic` | These rows now pass representative diagnostics without provider substitution. They remain on the dashboard as regression guards for the real-provider path. |
+| real installed providers | `real-racket-class-diagnostic`, `real-racket-dict-diagnostic`, `real-racket-dict-coverage-diagnostic`, `real-racket-function-diagnostic`, `real-racket-function-coverage-diagnostic`, `real-racket-list-diagnostic`, `real-racket-string-diagnostic`, `real-racket-pretty-diagnostic`, `real-racket-pretty-coverage-diagnostic`, `real-racket-private-for-diagnostic`, `real-racket-private-kw-diagnostic` | These rows keep no-substitution real-provider pressure visible, but a 4-lane bounded run can still time out before row output. Promote one only after it passes the 120-second bounded dashboard reliably. |
 | `racket/sequence` | `real-racket-sequence-coverage` | Promoted from readiness to required coverage for representative `sequence->list` use through the real installed provider. |
 
 ## `racket/list` Export Audit
@@ -192,10 +193,14 @@ remaining compatibility notes are:
   `real-provider-proven` or `webracket-owned` with a dashboard case. This keeps
   the full language from quietly growing into an unreviewed re-export of
   installed Racket.
-- `racket/class` is deferred from `webracket/full` for now. The module bridge
-  has diagnostics for explicit `racket/class` requires, but `webracket/full`
-  should not advertise class exports until we add them deliberately with
-  required dashboard coverage.
+- `racket/class` is deferred from `webracket/full` for now, but explicit
+  `racket/class` requires have real-provider coverage. The extended dashboard
+  row `installed-racket-class-basic-coverage` exercises ordinary class
+  creation, `init-field`, inheritance, `new`, `send`, `object?`, and `is-a?`
+  through the module bridge with provider substitutions disabled. The bridge
+  still treats class support as a deliberately seeded provider slice, so
+  `webracket/full` should not advertise class exports until the exported
+  language surface is chosen deliberately.
 - `webracket/full` exports the staged set surface, but set behavior is tracked
   through dedicated `webracket/set` dashboard rows. External explicit requires
   still need the module bridge path.
@@ -288,8 +293,12 @@ remaining compatibility notes are:
 
 - `--fast-required` is the tiny inner-loop preset. Use it before and after
   focused edits.
-- `--coverage-core` is the everyday commit-time coverage preset for the curated
-  Goal 1 surface.
+- `--coverage-core --warm-cache` is the everyday commit-time coverage preset
+  for the curated Goal 1 surface. Use warmed-cache timings as the meaningful
+  baseline. Prefer `--jobs 2` for the currently verified developer loop; use
+  `--jobs 4` selectively while measuring row-level performance. Avoid judging
+  cold `--no-cache-warmup` runs as semantic failures, since provider extraction
+  can consume the whole row budget before row output.
 - `--coverage-extended` is the broader provider/FFI confidence preset. Use it
   before larger Goal 1 checkpoints.
 - `--tier coverage` still runs every coverage row, including both core and
@@ -297,4 +306,5 @@ remaining compatibility notes are:
 - `--real-provider-readiness` runs diagnostic rows with provider substitutions
   disabled. These rows may pass as staged providers are retired; their job is to
   show what is blocking or guarding replacement of staged providers with
-  original Racket providers.
+  original Racket providers. Promote a row to required coverage only after it
+  passes the bounded dashboard reliably with the shared provider cache warmed.

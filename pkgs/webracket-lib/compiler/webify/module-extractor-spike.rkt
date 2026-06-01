@@ -107,6 +107,8 @@
          racket/match
          racket/runtime-path
          racket/string
+         (rename-in racket/unsafe/undefined
+                    [unsafe-undefined host-unsafe-undefined])
          syntax/modcode
          "faslable-linklet.rkt"
          "module-input.rkt")
@@ -200,6 +202,12 @@
 ;;   Recognize source-location helper imports, including generated suffixes.
 (define (syntax-srcloc-export-name? external)
   (for/or ([name (in-list syntax-srcloc-export-names)])
+    (symbolic-name=? external name)))
+
+;; symbolic-member? : symbol? (listof symbol?) -> boolean?
+;;   Match generated/internalized names against public provider names.
+(define (symbolic-member? external names)
+  (for/or ([name (in-list names)])
     (symbolic-name=? external name)))
 
 ;; contract-module-path->resolved : module-path? -> resolved-module-path?
@@ -1446,9 +1454,10 @@
    pair?
    (for/list ([group (in-list importss)])
      (filter (lambda (binding)
-               (match-define (list local _external)
+               (match-define (list local external)
                  (normalize-linklet-import-binding 'filter-importss binding))
-               (memq local demanded-imports))
+               (or (memq local demanded-imports)
+                   (memq external demanded-imports)))
              group))))
 
 ;; webify-module-extractor-spike/slice-exports : report (listof symbol?) -> report
@@ -1538,10 +1547,35 @@
                           (for/or ([id (in-list ids)])
                             (memq id needed))))
       form))
+  (define class-internal-unsafe-repair-forms
+    (if (eq? (webify-module-extractor-spike-name report)
+             'racket/private/class-internal)
+        `((define-values (unsafe-undefined) ',host-unsafe-undefined)
+          (define-values (prop:chaperone-unsafe-undefined
+                          prop:chaperone-unsafe-undefined?
+                          prop:chaperone-unsafe-undefined-ref)
+            (make-struct-type-property 'chaperone-unsafe-undefined)))
+        '()))
+  (define kept-body/repaired
+    (append class-internal-unsafe-repair-forms kept-body))
   (define local-definitions
     (filter (lambda (id) (hash-has-key? definition-table id)) needed))
-  (define demanded-imports
+  (define demanded-imports/raw
     (filter (lambda (id) (not (memq id local-definitions))) needed))
+  (define demanded-imports
+    (remove-duplicates
+     (append demanded-imports/raw
+             (if (eq? (webify-module-extractor-spike-name report)
+                      'racket/private/class-internal)
+                 ;; `class-internal` builds object struct properties in code
+                 ;; that survives slicing, but the approximate free-variable
+                 ;; walk can miss these generated unsafe-undefined references.
+                 '(unsafe-undefined
+                   check-not-unsafe-undefined
+                   check-not-unsafe-undefined/assign
+                   prop:chaperone-unsafe-undefined
+                   chaperone-struct-unsafe-undefined)
+                 '()))))
   (define sliced-importss (filter-importss raw-importss demanded-imports))
   (define sliced-exports
     (remove-duplicates
@@ -1550,7 +1584,7 @@
   (define sliced-external-exports
     (webify-normalize-linklet-exports sliced-exports))
   (define sliced-linklet
-    `(linklet ,sliced-importss ,sliced-exports . ,kept-body))
+    `(linklet ,sliced-importss ,sliced-exports . ,kept-body/repaired))
   (define phase0-entry
     (webify-module-bundle-entry
      0
@@ -1575,6 +1609,43 @@
    #t
    (cons "report was sliced to demanded phase-0 exports"
          (webify-module-extractor-spike-notes report))))
+
+;; repair-class-internal-linklet : symbol? linklet-datum? -> linklet-datum?
+;;   Repair a machine-independent decompile gap for unsafe-undefined imports.
+(define (repair-class-internal-linklet name linklet)
+  (match linklet
+    [`(linklet ,importss ,exports . ,body)
+     (define defined
+       (append*
+        (for/list ([form (in-list body)])
+          (define-values (ids _rhs) (linklet-definition form))
+          (or ids '()))))
+     (define free
+       (remove-bound
+        (remove-duplicates
+         (append* (for/list ([form (in-list body)])
+                    (linklet-expr-free-vars form))))
+        defined))
+     (define needs-repair?
+       (or (memq 'unsafe-undefined free)
+           (memq 'prop:chaperone-unsafe-undefined free)))
+     (cond
+       [(not needs-repair?) linklet]
+       [else
+        `(linklet
+          ,importss
+          ,exports
+          ,@(if (memq 'unsafe-undefined defined)
+                '()
+                `((define-values (unsafe-undefined) ',host-unsafe-undefined)))
+          ,@(if (memq 'prop:chaperone-unsafe-undefined defined)
+                '()
+                `((define-values (prop:chaperone-unsafe-undefined
+                                  prop:chaperone-unsafe-undefined?
+                                  prop:chaperone-unsafe-undefined-ref)
+                    (make-struct-type-property 'chaperone-unsafe-undefined))))
+          ,@body)])]
+    [_ linklet]))
 
 ;; webify-module-extractor-spikes->required-provider-closure : reports ... -> (listof report)
 ;;   Discover transitive provider reports starting from root reports.
@@ -1706,6 +1777,36 @@
            (hash-set! unresolved-candidate-cache key #t)
            (when (syntax-srcloc-export-name? external)
              (fetch-report 'syntax/srcloc 'compiled-source-location-helper))
+           (when (symbolic-member? external
+                                   '(do-make-object
+                                     extract-arg
+                                     compose-class
+                                     is-a?
+                                     object?
+                                     object%))
+             (fetch-report 'racket/private/class-internal
+                           'compiled-class-runtime-helper))
+           (when (symbolic-name=? external 'find-method/who)
+             (fetch-report 'racket/private/class-struct
+                           'compiled-class-struct-helper))
+           (when (symbolic-member? external
+                                   '(check-inspector
+                                     check-struct-type))
+             (fetch-report 'racket/private/define-struct
+                           'compiled-define-struct-helper))
+           (when (symbolic-member? external
+                                   '(make-serialize-info
+                                     make-deserialize-info))
+             (fetch-report 'racket/private/serialize-structs
+                           'compiled-serialize-structs-helper))
+           (when (symbolic-name=? external 'remove-duplicates)
+             (fetch-report 'webracket/list 'compiled-list-helper))
+           (when (symbolic-member? external
+                                   '(andmap2
+                                     ormap2))
+             (fetch-report 'racket/private/map 'compiled-map-helper))
+           (when (symbolic-name=? external 'normalise-inputs)
+             (fetch-report 'racket/private/for 'compiled-for-helper))
            (define candidate-reports (unresolved-candidate-reports))
            (define directly-exported?
              (for/or ([candidate-report (in-list candidate-reports)])
@@ -2176,6 +2277,30 @@
             (list local 'webracket/contract)]
            [(symbolic-name=? external 'find-method/who)
             (list local 'racket/private/class-struct)]
+           [(symbolic-member? external
+                              '(check-inspector
+                                check-struct-type))
+            (list local 'racket/private/define-struct)]
+           [(symbolic-member? external
+                              '(make-serialize-info
+                                make-deserialize-info))
+            (list local 'racket/private/serialize-structs)]
+           [(symbolic-name=? external 'remove-duplicates)
+            (list local 'webracket/list)]
+           [(symbolic-member? external
+                              '(andmap2
+                                ormap2))
+            (list local 'racket/private/map)]
+           [(symbolic-name=? external 'normalise-inputs)
+            (list local 'racket/private/for)]
+           [(symbolic-member? external
+                              '(do-make-object
+                                extract-arg
+                                compose-class
+                                is-a?
+                                object?
+                                object%))
+            (list local 'racket/private/class-internal)]
            [(symbolic-member? external
                               '(make-keyword-procedure
                                 new-keyword-apply
@@ -2794,20 +2919,33 @@
                                              #:namespace [namespace (current-namespace)])
   (define who 'webify-module-path->extractor-spike)
   (define name (module-path->dependency-name module-path))
-  (parameterize ([current-namespace namespace])
-    (define source-path
-      (resolved-module-path-name
-       (module-path-index-resolve
-        (module-path-index-join module-path #f)
-        #t)))
-    (define compiled
-      (get-module-code
-       source-path
-       #:choose (lambda (_src _zo _so) 'src)
-       #:compile (lambda (stx)
-                   (parameterize ([current-compile-target-machine #f])
-                     (compile stx)))))
-    (compiled-module->extractor-spike who name compiled)))
+  (cond
+    [(unsafe-undefined-module-path? module-path)
+     (define unsafe-undefined-file (path->string webify-unsafe-undefined-path))
+     (define module-datum
+       `(module racket/unsafe/undefined racket/base
+          (require (file ,unsafe-undefined-file))
+          (provide (all-from-out (file ,unsafe-undefined-file)))))
+     (define compiled
+       (parameterize ([current-namespace namespace]
+                      [current-compile-target-machine #f])
+         (compile (datum->syntax #f module-datum))))
+     (compiled-module->extractor-spike who name compiled)]
+    [else
+     (parameterize ([current-namespace namespace])
+       (define source-path
+         (resolved-module-path-name
+          (module-path-index-resolve
+           (module-path-index-join module-path #f)
+           #t)))
+       (define compiled
+         (get-module-code
+          source-path
+          #:choose (lambda (_src _zo _so) 'src)
+          #:compile (lambda (stx)
+                      (parameterize ([current-compile-target-machine #f])
+                        (compile stx)))))
+       (compiled-module->extractor-spike who name compiled))]))
 
 ;; module-path-variable-export-metadata : module-path? -> list?
 ;;   Declare/load a module and read its variable exports with defined-name metadata.
@@ -2918,7 +3056,10 @@
                            "notes" (webify-module-extractor-spike-notes report)))
   (define import-map (webify-module-extractor-spike-import-map report))
   (define raw-linklet (webify-module-extractor-spike-phase0-linklet-datum report))
-  (define linklet (webify-normalize-linklet-imports raw-linklet))
+  (define linklet
+    (repair-class-internal-linklet
+     (webify-module-extractor-spike-name report)
+     (webify-normalize-linklet-imports raw-linklet)))
   (route-syntax-literal-import
    (webify-module-linklet-input
     (webify-module-extractor-spike-name report)
@@ -2956,6 +3097,10 @@
                            "notes" (webify-module-extractor-spike-notes report)))
   (define import-map (webify-module-extractor-spike-import-map report))
   (define raw-linklet (webify-module-extractor-spike-phase0-linklet-datum report))
+  (define linklet
+    (repair-class-internal-linklet
+     (webify-module-extractor-spike-name report)
+     (webify-normalize-linklet-imports raw-linklet)))
   (define provider-dependency-exports
     (webify-module-extractor-spikes-dependency-exports provider-reports))
   (define provider+self-dependency-exports
@@ -2963,7 +3108,7 @@
   (route-syntax-literal-import
    (webify-module-linklet-input
     (webify-module-extractor-spike-name report)
-    (webify-normalize-linklet-imports raw-linklet)
+    linklet
     (resolve-extracted-linklet-imports
      who
      raw-linklet

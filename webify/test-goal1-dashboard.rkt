@@ -266,6 +266,9 @@
    (member 'installed-racket-dict-coverage goal1-dashboard-coverage-extended-case-names))
   (check-not-false
    (member 'installed-data-queue-coverage goal1-dashboard-coverage-extended-case-names))
+  (check-not-false
+   (member 'installed-racket-class-basic-coverage
+           goal1-dashboard-coverage-extended-case-names))
   (check-equal?
    (sort (append goal1-dashboard-coverage-core-case-names
                  goal1-dashboard-coverage-extended-case-names)
@@ -566,6 +569,9 @@
                            "Retire soon: none"
                            "postpone"
                            "Real Provider Readiness"
+                           "warmed-cache timings"
+                           "verified developer loop"
+                           "installed-racket-class-basic-coverage"
                            "real-racket-dict-diagnostic"
                            "real-racket-function-diagnostic"
                            "real-racket-list-diagnostic"
@@ -577,7 +583,7 @@
                            "real-racket-class-diagnostic"
                            "real-racket-pretty-diagnostic"
                            "io/format"
-                           "real installed providers"
+                           "slow no-substitution"
                            "External explicit requires"
                            "claim of full"))])
     (check-not-false (regexp-match? (regexp (regexp-quote needle)) doc) needle)))

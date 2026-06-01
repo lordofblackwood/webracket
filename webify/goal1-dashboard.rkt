@@ -223,6 +223,7 @@
     installed-racket-file-coverage
     installed-data-queue-coverage
     installed-racket-logging-coverage
+    installed-racket-class-basic-coverage
     ffi-js-math-coverage
     ffi-js-console-coverage))
 
@@ -2030,6 +2031,32 @@
     '("--webracket-module-bridge" "--no-provider-substitutions")
     #:tier 'coverage
     #:expectation 'diagnostic)
+   (dashboard-case
+    'installed-racket-class-basic-coverage
+    'installed-provider-coverage
+    '(racket/class)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/base\n"
+         "(require racket/class)\n"
+         "(define base%\n"
+         "  (class object%\n"
+         "    (super-new)\n"
+         "    (init-field [n 40])\n"
+         "    (define/public (value) n)))\n"
+         "(define child%\n"
+         "  (class base%\n"
+         "    (super-new)\n"
+         "    (inherit value)\n"
+         "    (define/public (next) (+ (value) 2))))\n"
+         "(define obj (new child%))\n"
+         "(js-log (if (and (object? obj) (is-a? obj child%) (is-a? obj base%))\n"
+         "            (send obj next)\n"
+         "            0))\n")))
+    "main.rkt"
+    #rx"(?m:^42$)"
+    '("--webracket-module-bridge" "--no-provider-substitutions")
+    #:tier 'coverage)
    (dashboard-case
     'base-make-do-sequence
     'language-staged-provider

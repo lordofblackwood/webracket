@@ -510,39 +510,64 @@
      '(#%kernel webracket-directory-list-build-first)]
     [(and (eq? module-name 'racket/private/class-internal)
           (symbolic-name=? external 'coerce-contract))
-     '(racket/contract/combinator coerce-contract)]
+     '(webracket/contract coerce-contract)]
     [(and (eq? module-name 'racket/private/class-internal)
           (symbolic-name=? external 'apply-contract))
-     '(racket/contract/base apply-contract)]
+     '(webracket/contract apply-contract)]
     [(and (eq? module-name 'racket/private/class-internal)
           (symbolic-name=? external 'blame-swap))
-     '(racket/contract/combinator blame-swap)]
+     '(webracket/contract blame-swap)]
     [(and (eq? module-name 'racket/private/class-internal)
           (symbolic-name=? external 'raise-blame-error))
-     '(racket/contract/combinator raise-blame-error)]
+     '(webracket/contract raise-blame-error)]
     [(and (eq? module-name 'racket/private/class-internal)
           (symbolic-name=? external 'contract?))
-     '(racket/contract/combinator contract?)]
+     '(webracket/contract contract?)]
     [(and (eq? module-name 'racket/private/class-internal)
           (symbolic-name=? external 'current-contract-region))
-     '(racket/contract/region current-contract-region)]
+     '(webracket/contract current-contract-region)]
     [(and (eq? module-name 'racket/private/class-internal)
           (symbolic-name=? external 'contract))
-     '(racket/contract/base contract)]
-    [(and (eq? module-name 'racket/private/class-internal)
-          (symbolic-name=? external 'unsafe-undefined))
+     '(webracket/contract contract)]
+    [(symbolic-name=? external 'find-method/who)
+     '(racket/private/class-struct find-method/who)]
+    [(symbolic-name=? external 'do-make-object)
+     '(racket/private/class-internal do-make-object)]
+    [(symbolic-name=? external 'extract-arg)
+     '(racket/private/class-internal extract-arg)]
+    [(symbolic-name=? external 'compose-class)
+     '(racket/private/class-internal compose-class)]
+    [(symbolic-name=? external 'is-a?)
+     '(racket/private/class-internal is-a?)]
+    [(symbolic-name=? external 'object?)
+     '(racket/private/class-internal object?)]
+    [(symbolic-name=? external 'object%)
+     '(racket/private/class-internal object%)]
+    [(symbolic-name=? external 'check-inspector)
+     '(racket/private/define-struct check-inspector)]
+    [(symbolic-name=? external 'check-struct-type)
+     '(racket/private/define-struct check-struct-type)]
+    [(symbolic-name=? external 'make-serialize-info)
+     '(racket/private/serialize-structs make-serialize-info)]
+    [(symbolic-name=? external 'make-deserialize-info)
+     '(racket/private/serialize-structs make-deserialize-info)]
+    [(symbolic-name=? external 'remove-duplicates)
+     '(webracket/list remove-duplicates)]
+    [(symbolic-name=? external 'andmap2)
+     '(racket/private/map andmap2)]
+    [(symbolic-name=? external 'ormap2)
+     '(racket/private/map ormap2)]
+    [(symbolic-name=? external 'normalise-inputs)
+     '(racket/private/for normalise-inputs)]
+    [(symbolic-name=? external 'unsafe-undefined)
      '(webracket/unsafe/undefined unsafe-undefined)]
-    [(and (eq? module-name 'racket/private/class-internal)
-          (symbolic-name=? external 'check-not-unsafe-undefined))
+    [(symbolic-name=? external 'check-not-unsafe-undefined)
      '(webracket/unsafe/undefined check-not-unsafe-undefined)]
-    [(and (eq? module-name 'racket/private/class-internal)
-          (symbolic-name=? external 'check-not-unsafe-undefined/assign))
+    [(symbolic-name=? external 'check-not-unsafe-undefined/assign)
      '(webracket/unsafe/undefined check-not-unsafe-undefined/assign)]
-    [(and (eq? module-name 'racket/private/class-internal)
-          (symbolic-name=? external 'prop:chaperone-unsafe-undefined))
+    [(symbolic-name=? external 'prop:chaperone-unsafe-undefined)
      '(webracket/unsafe/undefined prop:chaperone-unsafe-undefined)]
-    [(and (eq? module-name 'racket/private/class-internal)
-          (symbolic-name=? external 'chaperone-struct-unsafe-undefined))
+    [(symbolic-name=? external 'chaperone-struct-unsafe-undefined)
      '(webracket/unsafe/undefined chaperone-struct-unsafe-undefined)]
     [else #f]))
 
