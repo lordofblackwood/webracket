@@ -19,6 +19,12 @@
   (check-equal? (call/keywords web:~r '(#:precision) '(0) '(1.5)) "2")
   (check-equal? (call/keywords web:~r '(#:precision) '((= 0)) '(1.5)) "2."))
 
+(test-case "racket/format adapter pads ~r without counting the sign"
+  (check-equal? (call/keywords web:~r '(#:min-width) '(4) '(17)) "  17")
+  (check-equal? (call/keywords web:~r '(#:min-width) '(4) '(-42)) "-  42")
+  (check-equal? (call/keywords web:~r '(#:min-width #:pad-string) '(4 "0") '(17)) "0017")
+  (check-equal? (call/keywords web:~r '(#:min-width #:pad-string) '(4 "0") '(-42)) "-0042"))
+
 (test-case "racket/format adapter keeps precision scoped to ~r"
   (check-exn #rx"supported racket/format keyword"
              (lambda () (call/keywords web:~a '(#:precision) '(2) '(1))))

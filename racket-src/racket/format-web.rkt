@@ -438,8 +438,23 @@
     (precision->digits precision))
   (define min-width (option-ref options '#:min-width 0))
   (define pad (option-ref options '#:pad-string " "))
-  (pad-string min-width 'right pad pad
-              (rational->decimal-string v digits exact-digits?)))
+  (pad-signed-decimal min-width pad
+                      (rational->decimal-string v digits exact-digits?)))
+
+;; pad-signed-decimal : exact-nonnegative-integer? string? string? -> string?
+;;   Pad decimal digits without counting a leading sign, as `~r` specifies.
+(define (pad-signed-decimal min-width pad text)
+  (cond
+    [(and (< 0 (string-length text))
+          (char=? (string-ref text 0) #\-))
+     (string-append "-"
+                    (pad-string min-width
+                                'right
+                                pad
+                                pad
+                                (substring text 1 (string-length text))))]
+    [else
+     (pad-string min-width 'right pad pad text)]))
 
 ;; precision->digits : any/c -> values exact-nonnegative-integer? boolean?
 ;;   Decode `~r`'s #:precision option. A natural number trims trailing zeroes;
