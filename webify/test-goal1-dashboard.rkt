@@ -254,7 +254,6 @@
                   real-racket-function-coverage-diagnostic
                   real-racket-list-diagnostic
                   real-racket-string-diagnostic
-                  real-racket-sequence-diagnostic
                   real-racket-private-for-diagnostic
                   real-racket-private-kw-diagnostic
                   real-racket-class-diagnostic
@@ -322,7 +321,15 @@
   (check-equal? (status-ref 'sequence-generate) 'supported)
   (check-equal? (status-ref 'in-directory) 'supported)
   (check-equal? (status-ref 'check-in-weak-hash) 'postponed)
-  (check-equal? (status-ref 'stream-first) 'postponed))
+  (check-equal? (status-ref 'stream-first) 'postponed)
+  (check-equal? (status-ref ':flvector-gen) 'postponed)
+  (check-equal? (status-ref ':fxvector-gen) 'postponed)
+  (check-equal? (status-ref 'check-in-ephemeron-hash) 'postponed)
+  (check-equal? (for/list ([row (in-list rows)]
+                           #:when (eq? (for-provider-surface-row-status row)
+                                       'missing))
+                  (for-provider-surface-row-name row))
+                '()))
 
 (test-case "expanded for forms expose helper imports we must support"
   (define expanded (expanded-for-helper-datum))
@@ -428,6 +435,7 @@
                          full-math-coverage
                          full-path-coverage
                          full-match-coverage
+                         real-racket-sequence-coverage
                          base-for-nested-control-coverage
                          goal1-dict-pretty-sequence-composition
                          base-sequence-coverage
@@ -562,7 +570,7 @@
                            "real-racket-function-diagnostic"
                            "real-racket-list-diagnostic"
                            "real-racket-string-diagnostic"
-                           "real-racket-sequence-diagnostic"
+                           "real-racket-sequence-coverage"
                            "real-racket-private-for-diagnostic"
                            "real-racket-private-kw-diagnostic"
                            "real-racket-contract-diagnostic"

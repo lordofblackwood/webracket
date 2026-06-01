@@ -137,6 +137,13 @@ transitive installed-provider imports.
 passes the module-bridge diagnostic and coverage rows with provider
 substitutions disabled, so `webracket/full` imports it directly.
 
+`racket/sequence` has also moved out of readiness-diagnostic territory for the
+small public helper surface. The dashboard row `real-racket-sequence-coverage`
+uses the real installed provider with provider substitutions disabled; the
+remaining sequence compatibility work is concentrated in
+`webracket/private/for`, where stream, flvector/fxvector, weak-hash, and
+ephemeron-hash exports are explicitly postponed.
+
 ## Real Provider Readiness
 
 Use `webify/goal1-dashboard.rkt --real-provider-readiness --jobs 4
@@ -147,7 +154,8 @@ substitutions.
 | Provider/frontier | Readiness row | Current blocker/action |
 | --- | --- | --- |
 | `webracket/contract` | `real-racket-contract-diagnostic` | Current failure is provider-graph extraction for real `racket/contract`; keep using erased-contract shims while narrowing the transitive provider graph and runtime primitive demand. |
-| real installed providers | `real-racket-class-diagnostic`, `real-racket-dict-diagnostic`, `real-racket-dict-coverage-diagnostic`, `real-racket-function-diagnostic`, `real-racket-function-coverage-diagnostic`, `real-racket-list-diagnostic`, `real-racket-string-diagnostic`, `real-racket-pretty-diagnostic`, `real-racket-pretty-coverage-diagnostic`, `real-racket-sequence-diagnostic`, `real-racket-private-for-diagnostic`, `real-racket-private-kw-diagnostic` | These rows now pass representative diagnostics without provider substitution. They remain on the dashboard as regression guards for the real-provider path. |
+| real installed providers | `real-racket-class-diagnostic`, `real-racket-dict-diagnostic`, `real-racket-dict-coverage-diagnostic`, `real-racket-function-diagnostic`, `real-racket-function-coverage-diagnostic`, `real-racket-list-diagnostic`, `real-racket-string-diagnostic`, `real-racket-pretty-diagnostic`, `real-racket-pretty-coverage-diagnostic`, `real-racket-private-for-diagnostic`, `real-racket-private-kw-diagnostic` | These rows now pass representative diagnostics without provider substitution. They remain on the dashboard as regression guards for the real-provider path. |
+| `racket/sequence` | `real-racket-sequence-coverage` | Promoted from readiness to required coverage for representative `sequence->list` use through the real installed provider. |
 
 ## `racket/list` Export Audit
 

@@ -179,6 +179,7 @@
     goal1-base-sort-keywords
     goal1-vector-sort-keywords
     base-sequence-core
+    real-racket-sequence-coverage
     base-sequence-producers
     base-sequence-real-libraries
     base-sequence-hash-generate
@@ -249,7 +250,6 @@
     real-racket-function-coverage-diagnostic
     real-racket-list-diagnostic
     real-racket-string-diagnostic
-    real-racket-sequence-diagnostic
     real-racket-private-for-diagnostic
     real-racket-private-kw-diagnostic
     real-racket-class-diagnostic
@@ -1399,8 +1399,8 @@
    #rx"(?m:^42$)"
    '("--no-io-format-provider" "--webracket-module-bridge"))
    (dashboard-case
-    'real-racket-sequence-diagnostic
-    'installed-provider-diagnostic
+    'real-racket-sequence-coverage
+    'installed-provider-coverage
     '(racket/sequence)
     `(("main.rkt" .
        ,(string-append
@@ -1410,8 +1410,7 @@
     "main.rkt"
     #rx"(?m:^3$)"
     '("--no-io-format-provider" "--webracket-module-bridge" "--no-provider-substitutions")
-    #:tier 'coverage
-    #:expectation 'diagnostic)
+    #:tier 'coverage)
    (dashboard-case
     'base-sequence-producers
     'installed-provider-coverage

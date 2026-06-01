@@ -2158,6 +2158,9 @@
             (list local 'webracket/contract)]
            [(symbolic-name=? external 'prop:stream)
             (list local 'racket/private/for)]
+           [(and (eq? module-name 'racket/sequence)
+                 (symbolic-name=? external 'stream?))
+            (list local 'racket/private/for)]
            [(symbolic-member? external
                               '(pos->ord
                                 default-arg

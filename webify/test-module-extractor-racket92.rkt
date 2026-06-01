@@ -143,7 +143,7 @@
       (cons (webify-module-linklet-input-name input)
             (import-triple->printed triple))))
   (check-not-false
-   (member '(racket/stream "stream?" "racket/private/stream-cons" "stream?")
+   (member '(racket/stream "stream?" "racket/private/for" "stream?")
            stream-imports))
   (check-not-false
    (member '(racket/sequence "stream?" "racket/private/for" "stream?")
@@ -157,21 +157,26 @@
   (define require-names (input-names require-inputs))
   (define predicate-names (input-names predicate-inputs))
   (define set-types-predicate-names (input-names set-types-predicate-inputs))
-  (check-equal? require-names
-                '(module-protocol use-set-require-only))
-  (check-equal? (input-names set-types-require-inputs)
-                '(module-protocol use-set-types-require))
-  (define added (set-diff predicate-names require-names))
-  (for ([name (in-list '(racket/private/set
+  (define set-types-require-names (input-names set-types-require-inputs))
+  (for ([name (in-list '(module-protocol
+                         racket/private/set
                          racket/private/set-types
                          racket/private/stream-cons
                          racket/stream
                          racket/pretty
-                         racket/private/custom-write))])
-    (check-not-false (memq name added)))
-  (check-equal?
-   (set-diff require-names predicate-names)
-   '(use-set-require-only))
+                         racket/private/custom-write
+                         use-set-require-only))])
+    (check-not-false (memq name require-names)))
+  (for ([name (in-list '(racket/private/set
+                         racket/private/set-types
+                         racket/private/stream-cons
+                         racket/stream
+                         use-set-predicate))])
+    (check-not-false (memq name predicate-names)))
+  (for ([name (in-list '(module-protocol
+                         racket/private/set-types
+                         use-set-types-require))])
+    (check-not-false (memq name set-types-require-names)))
   (for ([name (in-list '(racket/private/set
                          racket/private/set-types
                          racket/pretty

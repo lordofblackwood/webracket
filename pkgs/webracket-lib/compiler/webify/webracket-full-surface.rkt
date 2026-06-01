@@ -89,7 +89,7 @@
     (racket/path     racket/path        real-provider-proven full-path-coverage)
     (racket/port     racket/port        real-provider-proven installed-racket-port-coverage)
     (racket/pretty   racket/pretty      real-provider-proven installed-racket-pretty-coverage)
-    (racket/sequence racket/sequence    real-provider-proven full-sequence-coverage)
+    (racket/sequence racket/sequence    real-provider-proven real-racket-sequence-coverage)
     (racket/shared   racket/shared      real-provider-proven full-shared-coverage)
     (racket/stream   webracket/stream   webracket-owned      full-stream-coverage)
     (racket/string   racket/string      real-provider-proven installed-racket-string-coverage)
