@@ -4,6 +4,8 @@
          keyword-apply
          new-keyword-apply
          make-optional-keyword-procedure
+         make-optional-keyword-method
+         make-required-keyword-method/arity-error
          keyword-procedure-extract
          procedure-keywords
          procedure-reduce-keyword-arity
@@ -11,7 +13,9 @@
          missing-kw
          prop:named-keyword-procedure
          struct:keyword-procedure
-         struct:keyword-procedure/arity-error)
+         struct:keyword-procedure/arity-error
+         struct:keyword-method
+         struct:keyword-method/arity-error)
 
 ;; A small WebRacket-owned subset of `racket/private/kw`.
 ;;
@@ -62,6 +66,36 @@
                     0
                     '(0)))
 
+(define-values (struct:keyword-method
+                make-raw-keyword-method
+                keyword-method?
+                keyword-method-ref
+                keyword-method-set!)
+  (make-struct-type 'procedure
+                    struct:keyword-procedure
+                    0
+                    0
+                    #f
+                    null
+                    (current-inspector)
+                    #f
+                    null))
+
+(define-values (struct:optional-keyword-method
+                make-raw-optional-keyword-method
+                optional-keyword-method?
+                optional-keyword-method-ref
+                optional-keyword-method-set!)
+  (make-struct-type 'procedure
+                    struct:optional-keyword-procedure
+                    0
+                    0
+                    #f
+                    null
+                    (current-inspector)
+                    #f
+                    null))
+
 (define-values (prop:named-keyword-procedure
                 named-keyword-procedure?
                 keyword-procedure-name+fail)
@@ -81,6 +115,43 @@
                     (current-inspector)
                     #f
                     null))
+
+(define-values (struct:keyword-method/arity-error
+                make-keyword-method/arity-error
+                keyword-method/arity-error?
+                keyword-method/arity-error-ref
+                keyword-method/arity-error-set!)
+  (make-struct-type 'procedure
+                    struct:keyword-method
+                    0
+                    0
+                    #f
+                    null
+                    (current-inspector)
+                    #f
+                    null))
+
+(define-values (struct:required-keyword-method/arity-error
+                make-required-keyword-method/arity-error
+                required-keyword-method/arity-error?
+                required-keyword-method/arity-error-ref
+                required-keyword-method/arity-error-set!)
+  (make-struct-type 'procedure
+                    struct:keyword-method/arity-error
+                    3
+                    0
+                    #f
+                    (list (cons prop:procedure 0)
+                          (cons prop:object-name 1)
+                          (cons prop:named-keyword-procedure
+                                (lambda (r)
+                                  (vector
+                                   (required-keyword-method/arity-error-ref r 1)
+                                   (required-keyword-method/arity-error-ref r 2)
+                                   (required-keyword-method/arity-error-ref r 0)))))
+                    (current-inspector)
+                    #f
+                    '(0 1 2)))
 
 ;; sorted-keywords? : any/c -> boolean?
 ;;   Check for a sorted, duplicate-free keyword list.
@@ -148,6 +219,11 @@
     [(and (keyword-procedure? proc)
           ((keyword-procedure-checker proc) kws argc))
      (keyword-procedure-proc proc)]
+    [(and (or (keyword-method? proc)
+              (optional-keyword-method? proc))
+          ((keyword-procedure-checker proc) kws (add1 argc)))
+     ;; Keyword methods account for the implicit receiver in their arity mask.
+     (keyword-procedure-proc proc)]
     [else
      (raise-arguments-error 'keyword-procedure-extract
                             "procedure does not accept the supplied keywords"
@@ -210,6 +286,25 @@
                                           required
                                           allowed
                                           plain-proc)]))
+
+;; make-optional-keyword-method : procedure? procedure? list? (or/c list? #f) procedure? -> procedure?
+;;   Construct the method variant of an optional keyword procedure.
+(define (make-optional-keyword-method checker kw-proc required allowed plain-proc)
+  (unless (procedure? checker)
+    (raise-argument-error 'make-optional-keyword-method "procedure?" checker))
+  (unless (procedure? kw-proc)
+    (raise-argument-error 'make-optional-keyword-method "procedure?" kw-proc))
+  (unless (list? required)
+    (raise-argument-error 'make-optional-keyword-method "list?" required))
+  (unless (or (list? allowed) (not allowed))
+    (raise-argument-error 'make-optional-keyword-method "(or/c list? #f)" allowed))
+  (unless (procedure? plain-proc)
+    (raise-argument-error 'make-optional-keyword-method "procedure?" plain-proc))
+  (make-raw-optional-keyword-method checker
+                                    kw-proc
+                                    required
+                                    allowed
+                                    plain-proc))
 
 ;; make-keyword-procedure : procedure? [procedure?] -> procedure?
 ;;   Public constructor for procedures that accept arbitrary keywords.

@@ -215,7 +215,6 @@
               [(racket/unsafe/undefined) 'webracket/unsafe/undefined]
               [(syntax/contract) 'webracket/syntax/contract]
               [(racket/private/for) 'webracket/private/for]
-              [(racket/private/kw) 'webracket/private/kw]
               [(racket/contract
                 racket/contract/base
                 racket/contract/combinator

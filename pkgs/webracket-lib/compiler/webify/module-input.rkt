@@ -529,6 +529,8 @@
     [(and (eq? module-name 'racket/private/class-internal)
           (symbolic-name=? external 'contract))
      '(racket/contract/private/guts contract)]
+    [(symbolic-name=? external 'struct:keyword-method/arity-error)
+     '(racket/private/kw struct:keyword-method/arity-error)]
     [(symbolic-name=? external 'find-method/who)
      '(racket/private/class-struct find-method/who)]
     [(symbolic-name=? external 'do-make-object)

@@ -531,6 +531,18 @@
                 '((current-contract-region.1
                    racket/contract/region
                    current-contract-region)))
+  (define-values (class-keyword-method-imports _class-keyword-method-outcomes)
+    (webify-resolve-module-linklet-imports/outcomes
+     '(linklet (([struct:keyword-method/arity-error
+                  struct:keyword-method/arity-error]))
+        (y)
+        (define-values (y) struct:keyword-method/arity-error))
+     '((racket/private/kw (struct:keyword-method/arity-error)))
+     #:module-name 'main))
+  (check-equal? class-keyword-method-imports
+                '((struct:keyword-method/arity-error
+                   racket/private/kw
+                   struct:keyword-method/arity-error)))
   (define-values (class-runtime-imports _class-runtime-outcomes)
     (webify-resolve-module-linklet-imports/outcomes
      '(linklet (([do-make-object do-make-object])) (y)
