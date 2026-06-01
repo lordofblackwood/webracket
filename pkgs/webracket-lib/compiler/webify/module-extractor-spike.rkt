@@ -138,6 +138,7 @@
       (eq? module-path 'racket/contract/private/object-c-wrapper)
       (eq? module-path 'racket/contract/private/opt)
       (eq? module-path 'racket/contract/private/orc)
+      (eq? module-path 'racket/contract/private/prop)
       (eq? module-path 'syntax/contract)
       (equal? module-path '(lib "racket/contract.rkt"))
       (equal? module-path '(lib "racket/contract/base.rkt"))
@@ -158,6 +159,7 @@
       (equal? module-path '(lib "racket/contract/private/object-c-wrapper.rkt"))
       (equal? module-path '(lib "racket/contract/private/opt.rkt"))
       (equal? module-path '(lib "racket/contract/private/orc.rkt"))
+      (equal? module-path '(lib "racket/contract/private/prop.rkt"))
       (equal? module-path '(lib "syntax/contract.rkt"))))
 
 ;; unsafe-undefined-module-path? : any/c -> boolean?
@@ -171,6 +173,34 @@
 (define (syntax-srcloc-module-path? module-path)
   (or (eq? module-path 'syntax/srcloc)
       (equal? module-path '(lib "syntax/srcloc.rkt"))))
+
+;; syntax-srcloc-export-names : (listof symbol?)
+;;   Public source-location helpers used by contract internals.
+(define syntax-srcloc-export-names
+  '(source-location?
+    source-location-list?
+    source-location-vector?
+    check-source-location!
+    build-source-location
+    build-source-location-list
+    build-source-location-vector
+    build-source-location-syntax
+    source-location-known?
+    source-location-source
+    source-location-line
+    source-location-column
+    source-location-position
+    source-location-span
+    source-location-end
+    update-source-location
+    source-location->string
+    source-location->prefix))
+
+;; syntax-srcloc-export-name? : symbol? -> boolean?
+;;   Recognize source-location helper imports, including generated suffixes.
+(define (syntax-srcloc-export-name? external)
+  (for/or ([name (in-list syntax-srcloc-export-names)])
+    (symbolic-name=? external name)))
 
 ;; contract-module-path->resolved : module-path? -> resolved-module-path?
 ;;   Map public contract providers to symbolic erased declarations.
@@ -234,6 +264,9 @@
      [(or (eq? module-path 'racket/contract/private/orc)
           (equal? module-path '(lib "racket/contract/private/orc.rkt")))
       'racket/contract/private/orc]
+     [(or (eq? module-path 'racket/contract/private/prop)
+          (equal? module-path '(lib "racket/contract/private/prop.rkt")))
+      'racket/contract/private/prop]
      [else 'racket/contract])))
 
 ;; make-webify-contract-erasing-module-name-resolver : [procedure?] -> procedure?
@@ -1674,6 +1707,8 @@
          (define key (list demander external))
          (unless (hash-ref unresolved-candidate-cache key #f)
            (hash-set! unresolved-candidate-cache key #t)
+           (when (syntax-srcloc-export-name? external)
+             (fetch-report 'syntax/srcloc 'compiled-source-location-helper))
            (define candidate-reports (unresolved-candidate-reports))
            (define directly-exported?
              (for/or ([candidate-report (in-list candidate-reports)])
@@ -2137,6 +2172,8 @@
             (list local 'racket/private/arity)]
            [(symbolic-name=? external 'format)
             (list local 'webracket/format)]
+           [(syntax-srcloc-export-name? external)
+            (list local 'webracket/contract)]
            [(symbolic-name=? external 'find-method/who)
             (list local 'racket/private/class-struct)]
            [(symbolic-member? external
@@ -2708,6 +2745,9 @@
         'racket/contract/private/orc
         `((all-from-out (file ,contract-file))))
        (declare-erased-contract-module!
+        'racket/contract/private/prop
+        `((all-from-out (file ,contract-file))))
+       (declare-erased-contract-module!
         'racket/contract
         `((all-from-out (file ,contract-file))))
        (eval
@@ -2740,6 +2780,7 @@
        (dynamic-require ''racket/contract/private/object-c-wrapper #f)
        (dynamic-require ''racket/contract/private/opt #f)
        (dynamic-require ''racket/contract/private/orc #f)
+       (dynamic-require ''racket/contract/private/prop #f)
        (dynamic-require ''racket/contract #f)
        (dynamic-require ''syntax/contract #f)
        (dynamic-require ''syntax/srcloc #f)

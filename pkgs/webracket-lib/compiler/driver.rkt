@@ -1647,6 +1647,7 @@
           racket/contract/private/object-c-wrapper
           racket/contract/private/opt
           racket/contract/private/orc
+          racket/contract/private/prop
           ;; Racket/contract's compiled metadata can expose relative contract
           ;; implementation paths. They are still contract-owned and should use
           ;; the erased WebRacket contract provider during Goal 1 diagnostics.

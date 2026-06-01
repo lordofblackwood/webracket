@@ -36,7 +36,8 @@
          contract-random-generate-stash contract-random-generate/choose
          contract-stronger? contract-struct contract-struct-exercise
          contract-struct-generate contract-struct-late-neg-projection
-         contract-struct-list-contract? contract-val-first-projection contract?
+         contract-struct-list-contract? contract-struct-stronger?
+         contract-struct-equivalent? contract-val-first-projection contract?
          current-blame-format current-contract-region custom-write-property-proc
          define-contract-struct define-module-boundary-contract define-opt/c
          define-struct/contract define/contract define/final-prop
@@ -62,7 +63,7 @@
          natural-number/c new-∀/c new-∃/c non-empty-listof none/c not/c
          one-of/c opt/c or/c parameter/c parametric->/c predicate/c
          printable/c procedure-arity-includes/c promise/c prompt-tag/c
-         prop:arrow-contract prop:arrow-contract-get-info prop:arrow-contract?
+         prop:any/c? prop:arrow-contract prop:arrow-contract-get-info prop:arrow-contract?
          prop:blame prop:chaperone-contract prop:contract prop:contracted
          prop:flat-contract prop:orc-contract prop:orc-contract-get-subcontracts
          prop:orc-contract? prop:recursive-contract
@@ -84,7 +85,25 @@
          unspecified-dom unsupplied-arg? value-blame
          value-contract values/drop vector-immutable/c vector-immutableof
          vector/c vectorof with-contract with-contract-continuation-mark
-         wrong-number-of-results-blame ->i)
+         wrong-number-of-results-blame ->i
+         source-location?
+         source-location-list?
+         source-location-vector?
+         check-source-location!
+         build-source-location
+         build-source-location-list
+         build-source-location-vector
+         build-source-location-syntax
+         source-location-known?
+         source-location-source
+         source-location-line
+         source-location-column
+         source-location-position
+         source-location-span
+         source-location-end
+         update-source-location
+         source-location->string
+         source-location->prefix)
 
 (require (for-syntax racket/base
                      racket/list
@@ -93,6 +112,99 @@
 ;; A deliberately erased contract provider for Goal 1. It preserves common
 ;; `racket/contract` source shapes, but it does not enforce contracts or create
 ;; chaperones/impersonators.
+;; The small `syntax/srcloc` surface is implemented directly because compiled
+;; contract internals use it for error-location strings, and importing a
+;; separate provider would make the erased adapter depend on another linklet.
+
+;; source-location-list? : any/c -> boolean?
+;;   Recognize list source locations.
+(define (source-location-list? v)
+  (and (list? v) (= (length v) 5)))
+
+;; source-location-vector? : any/c -> boolean?
+;;   Recognize vector source locations.
+(define (source-location-vector? v)
+  (and (vector? v) (= (vector-length v) 5)))
+
+;; source-location? : any/c -> boolean?
+;;   Recognize common source-location representations.
+(define (source-location? v)
+  (or (not v) (srcloc? v) (syntax? v)
+      (source-location-list? v)
+      (source-location-vector? v)))
+
+;; check-source-location! : symbol? any/c -> void?
+;;   Validate a source location for erased contract helper use.
+(define (check-source-location! who v)
+  (unless (source-location? v)
+    (raise-argument-error who "source-location?" v)))
+
+;; source-location-field : symbol? any/c exact-nonnegative-integer? procedure? -> any/c
+;;   Extract one source-location field.
+(define (source-location-field who v index srcloc-accessor syntax-accessor)
+  (check-source-location! who v)
+  (cond
+    [(not v) #f]
+    [(srcloc? v) (srcloc-accessor v)]
+    [(syntax? v) (syntax-accessor v)]
+    [(list? v) (list-ref v index)]
+    [(vector? v) (vector-ref v index)]
+    [else #f]))
+
+(define (source-location-source v)
+  (source-location-field 'source-location-source v 0 srcloc-source syntax-source))
+(define (source-location-line v)
+  (source-location-field 'source-location-line v 1 srcloc-line syntax-line))
+(define (source-location-column v)
+  (source-location-field 'source-location-column v 2 srcloc-column syntax-column))
+(define (source-location-position v)
+  (source-location-field 'source-location-position v 3 srcloc-position syntax-position))
+(define (source-location-span v)
+  (source-location-field 'source-location-span v 4 srcloc-span syntax-span))
+(define (source-location-known? v)
+  (and (or (source-location-source v)
+           (source-location-line v)
+           (source-location-column v)
+           (source-location-position v))
+       #t))
+(define (source-location-end v)
+  (define pos (source-location-position v))
+  (define span (source-location-span v))
+  (and pos span (+ pos span)))
+
+(define (build-source-location . locs)
+  (if (pair? locs) (car locs) (make-srcloc #f #f #f #f #f)))
+(define (build-source-location-list . locs)
+  (define loc (if (pair? locs) (car locs) #f))
+  (list (source-location-source loc)
+        (source-location-line loc)
+        (source-location-column loc)
+        (source-location-position loc)
+        (source-location-span loc)))
+(define (build-source-location-vector . locs)
+  (list->vector (apply build-source-location-list locs)))
+(define (build-source-location-syntax . locs)
+  (datum->syntax #f null (apply build-source-location-list locs)))
+(define (update-source-location v
+                                #:source [src (source-location-source v)]
+                                #:line [line (source-location-line v)]
+                                #:column [col (source-location-column v)]
+                                #:position [pos (source-location-position v)]
+                                #:span [span (source-location-span v)])
+  (cond
+    [(vector? v) (vector src line col pos span)]
+    [(list? v) (list src line col pos span)]
+    [else (make-srcloc src line col pos span)]))
+(define (source-location->string v [default ""])
+  (define src (source-location-source v))
+  (cond
+    [(path? src) (path->string src)]
+    [(string? src) src]
+    [(symbol? src) (symbol->string src)]
+    [else default]))
+(define (source-location->prefix v [default ""])
+  (define str (source-location->string v default))
+  (if (string=? str "") "" (string-append str ": ")))
 
 (struct erased-contract (name parts) #:transparent)
 (struct arrow-contract-info (accepts-arglist chaperone-procedure check-first-order) #:transparent)
@@ -103,6 +215,7 @@
 (define unspecified-dom '(unspecified-dom))
 (define tail-contract-key (gensym 'tail-contract-key))
 (define trust-me (gensym 'trust-me))
+(define prop:any/c? (gensym 'prop:any/c?))
 (define contract-continuation-mark-key '(contract-continuation-mark-key))
 (define id-blame '(erased-contract-blame))
 (define invariant-assertion-party '(invariant-assertion-party))
@@ -548,6 +661,8 @@
 (define-erased-predicate contract-random-generate-fail?)
 (define-erased-predicate contract-stronger?)
 (define-erased-predicate contract-struct-list-contract?)
+(define-erased-predicate contract-struct-stronger?)
+(define-erased-predicate contract-struct-equivalent?)
 (define-erased-predicate eq-contract?)
 (define-erased-predicate equal-contract?)
 (define-erased-predicate flat-contract-property?)

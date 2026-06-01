@@ -293,6 +293,7 @@
     racket/contract/private/object-c-wrapper
     racket/contract/private/opt
     racket/contract/private/orc
+    racket/contract/private/prop
     racket/fixnum
     racket/flonum
     racket/bytes
@@ -427,6 +428,7 @@
     racket/contract/private/object-c-wrapper
     racket/contract/private/opt
     racket/contract/private/orc
+    racket/contract/private/prop
     racket/fixnum
     racket/flonum
     racket/private/arity
