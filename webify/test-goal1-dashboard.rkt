@@ -355,7 +355,7 @@
   (check-not-false (memq 'racket/class webracket-full-deferred-libraries))
   (for ([row (in-list webracket-full-surface-audit)])
     (match-define (list public-provider implementation-provider owner coverage-case) row)
-    (check-not-false (memq owner '(real-provider-proven webracket-owned))
+    (check-not-false (memq owner '(real-provider-proven staged-original webracket-owned))
                      (symbol->string public-provider))
     (check-not-false (memq coverage-case dashboard-case-names)
                      (format "~a lacks dashboard row ~a"
@@ -460,7 +460,7 @@
   (for ([record (in-list webracket/base-provider-substitution-records)])
     (check-not-false
      (memq (webracket/base-provider-substitution-classification record)
-           '(temporary-shim runtime-owned diagnostic-shim)))
+           '(temporary-shim runtime-owned diagnostic-shim staged-original)))
     (check-not-false
      (memq (webracket/base-provider-substitution-pressure record)
            '(high medium low)))
@@ -481,8 +481,7 @@
       (values (webracket/base-provider-substitution-requested record)
               (list (webracket/base-provider-substitution-routed record)
                     (webracket/base-provider-substitution-disposition record)))))
-  (for ([entry (in-list '((racket/format . (webracket/format retire-soon))
-                          (racket/hash . (webracket/hash keep-webracket-owned))
+  (for ([entry (in-list '((racket/hash . (webracket/hash keep-webracket-owned))
                           (racket/set . (webracket/set keep-webracket-owned))
                           (racket/stream . (webracket/stream postpone))
                           (racket/promise . (webracket/promise keep-webracket-owned))))])
@@ -543,7 +542,7 @@
                            "temporary-shim"
                            "runtime-owned"
                            "keep WebRacket-owned"
-                           "retire soon"
+                           "Retire soon: none"
                            "postpone"
                            "Real Provider Readiness"
                            "real-racket-dict-diagnostic"

@@ -45,8 +45,9 @@ runtime services.
 - `webracket/file`: a small VFS-oriented file provider. This is useful for
   browser tests and examples, including `file-exists?`, `display-to-file`, and
   `file->string`, but it is not a complete host filesystem story.
-- `webracket/format`: compact formatting surface while the staged `io/format`
-  provider continues to grow.
+- `webracket/private/format`: expansion-time route for `racket/format` that
+  exposes the staged adapter while avoiding host expansion against the full
+  contract-heavy installed provider.
 - Retired staged compatibility shims include `webracket/list` and
   `webracket/dict`. They remain useful for focused regression tests, but
   explicit Goal 1 module requires now use the installed `racket/list` and
@@ -110,7 +111,7 @@ The current `racket/*` -> `webracket/*` substitutions are:
 | --- | --- | --- | --- | --- |
 | `racket/contract`, `racket/contract/base`, `racket/contract/combinator`, `racket/contract/region`, selected `racket/contract/private/*` | `webracket/contract` | temporary shim | postpone | Erased contracts let module programs run before chaperones, impersonators, blame, and full contract enforcement are ready. |
 | `racket/file` | `webracket/file` | runtime-owned | keep WebRacket-owned | Browser/VFS file behavior is not host filesystem behavior; use a WebRacket provider around the VFS. |
-| `racket/format` | `webracket/format` | temporary shim | retire soon | Formatting should move toward staged original `io/format` plus thin adapters; the compact shim should shrink as `~a`, `~s`, and `~v` coverage matures. |
+| `racket/format` | `webracket/private/format` | staged-original | keep WebRacket-owned | Source expansion must avoid the installed contract-heavy provider while the runtime uses the staged `racket-src/racket/format-web` and `io/format` slices. |
 | `racket/generator` | `webracket/generator` | diagnostic shim | postpone | Generators depend on continuation prompts/composable continuations, which are not Goal 1. |
 | `racket/hash` | `webracket/hash` | temporary shim | keep WebRacket-owned | Hash helpers should stay aligned with WebRacket's HAMT/runtime hash implementation and equality/hash-table representation. |
 | `racket/mpair` | `webracket/mpair` | runtime-owned | keep WebRacket-owned | Mutable pairs are runtime representation work, not a good installed-provider dependency. |
@@ -123,9 +124,14 @@ The current `racket/*` -> `webracket/*` substitutions are:
 
 The immediate staged-provider audit result for the requested providers is:
 
-- Retire soon: `racket/format`.
+- Retire soon: none.
 - Keep WebRacket-owned: `racket/hash`, `racket/set`, `racket/promise`.
 - Postpone: `racket/stream`.
+
+`racket/format` now routes through `webracket/private/format` during source
+expansion. Provider discovery also registers the staged
+`racket-src/racket/format-web` report under the public `racket/format` name for
+transitive installed-provider imports.
 
 `racket/function` has been retired from this table: the real provider now
 passes the module-bridge diagnostic and coverage rows with provider

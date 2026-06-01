@@ -336,6 +336,7 @@
     racket/unsafe/undefined
     racket/require-transform
     racket/splicing
+    racket-src/racket/format-web
     racket/struct-info
     racket/stxparam
     racket/private/stxparam
@@ -367,6 +368,7 @@
     webracket/pretty
     webracket/promise
     webracket/private/for
+    webracket/private/format
     webracket/private/kw
     webracket/sequence
     webracket/syntax/contract
@@ -456,6 +458,7 @@
     racket/unsafe/undefined
     racket/require-transform
     racket/splicing
+    racket-src/racket/format-web
     racket/struct-info
     racket/stxparam
     racket/private/stxparam
@@ -487,6 +490,7 @@
     webracket/pretty
     webracket/promise
     webracket/private/for
+    webracket/private/format
     webracket/private/kw
     webracket/sequence
     webracket/syntax/contract

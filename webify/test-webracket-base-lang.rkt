@@ -1208,7 +1208,7 @@
       (racket/contract/private/list . webracket/contract)
       (racket/contract/private/misc . webracket/contract)
       (racket/file . webracket/file)
-      (racket/format . webracket/format)
+      (racket/format . webracket/private/format)
       (racket/generator . webracket/generator)
       (racket/hash . webracket/hash)
       (racket/mpair . webracket/mpair)

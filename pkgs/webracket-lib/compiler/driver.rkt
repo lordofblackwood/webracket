@@ -73,6 +73,7 @@
          (only-in "webify/io-format-bridge.rkt"
                   webify-io-format-root-name
                   webify-io-format-export-symbols
+                  webify-io-format-reports
                   webify-io-format-registry
                   webify-io-format-private-alias-forms
                   webify-io-format-public-alias-forms)
@@ -654,6 +655,22 @@
               composition))))
      (write-provider-cache! cache-path fingerprint forms)
      forms]))
+
+;; io-format-provider-reports : -> (listof webify-module-report?)
+;;   Expose staged io/format as the implementation report for `racket/format`.
+(define (io-format-provider-reports)
+  (define-values (adapter-report printf-report main-report map-report)
+    (webify-io-format-reports))
+  (define format-report
+    (parameterize ([current-directory webracket-root])
+      (webify-module-path->report (string->path "racket-src/racket/format-web.rkt"))))
+  (list adapter-report
+        printf-report
+        main-report
+        (webify-module-report/rename main-report 'racket-src/io/format/main-web)
+        map-report
+        (webify-module-report/rename format-report 'racket-src/racket/format-web)
+        (webify-module-report/rename format-report 'racket/format)))
 
 ;; read-syntax-provider-forms : -> (listof datum?)
 ;;   Compose the private staged original-Racket read-syntax provider and publish
@@ -1598,8 +1615,8 @@
                  "same erased-contract adapter as racket/contract")
    (substitution 'racket/file 'webracket/file 'runtime-owned 'low 'keep-webracket-owned
                  "browser and VFS file behavior differs from host filesystem behavior")
-   (substitution 'racket/format 'webracket/format 'temporary-shim 'medium 'retire-soon
-                 "formatting is split between staged io/format and compact runtime support")
+   (substitution 'racket/format 'webracket/private/format 'staged-original 'medium 'keep-webracket-owned
+                 "route source expansion to the staged io/format-backed adapter")
    (substitution 'racket/generator 'webracket/generator 'diagnostic-shim 'low 'postpone
                  "generators depend on continuation prompts, which are outside Goal 1")
    (substitution 'racket/hash 'webracket/hash 'temporary-shim 'medium 'keep-webracket-owned
@@ -2204,15 +2221,15 @@
        ;; include those reports even when the installed provider graph only
        ;; names the original Racket module.
        (define support-reports
-         (list webify-module-protocol-report
-               (webify-module-provider-cache-ref provider-cache
-                                                 'webracket/contract)
-               (webify-module-provider-cache-ref provider-cache
-                                                 'webracket/format)
-               (webify-module-provider-cache-ref provider-cache
-                                                 'webracket/private/kw)
-               (webify-module-provider-cache-ref provider-cache
-                                                 'webracket/unsafe/undefined)))
+         (append
+          (list webify-module-protocol-report
+                (webify-module-provider-cache-ref provider-cache
+                                                  'webracket/contract)
+                (webify-module-provider-cache-ref provider-cache
+                                                  'webracket/private/kw)
+                (webify-module-provider-cache-ref provider-cache
+                                                  'webracket/unsafe/undefined))
+          (io-format-provider-reports)))
        (define registry
          (webify-module-reports->discovered-registry
           reports

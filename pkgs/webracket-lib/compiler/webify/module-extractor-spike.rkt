@@ -906,10 +906,7 @@
   (and (pair? group)
        (for/and ([binding (in-list group)])
          (match-define (list _local external) binding)
-         (memq external keyword-runtime-import-names))
-       (for/or ([binding (in-list group)])
-         (match-define (list _local external) binding)
-         (eq? external 'make-optional-keyword-procedure))))
+         (memq external keyword-runtime-import-names))))
 
 ;; import-group->keyword-runtime-aliases : import-group -> (or/c aliases #f)
 ;;   Map expander-generated keyword helper imports to WebRacket's staged provider.
@@ -2171,7 +2168,7 @@
            [(symbolic-name=? external 'arity-includes?)
             (list local 'racket/private/arity)]
            [(symbolic-name=? external 'format)
-            (list local 'webracket/format)]
+            (list local 'racket-src/io/format/main-web)]
            [(syntax-srcloc-export-name? external)
             (list local 'webracket/contract)]
            [(symbolic-name=? external 'find-method/who)
@@ -2182,6 +2179,7 @@
                                 make-optional-keyword-procedure
                                 keyword-procedure-extract
                                 procedure-keywords
+                                struct:keyword-procedure
                                 struct:keyword-procedure/arity-error))
             (list local 'webracket/private/kw)]
            [(symbolic-member? external

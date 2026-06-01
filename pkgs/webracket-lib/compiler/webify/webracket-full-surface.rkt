@@ -79,7 +79,7 @@
   '((racket/bool     racket/bool        real-provider-proven installed-racket-bool-coverage)
     (racket/bytes    racket/bytes       real-provider-proven full-bytes-coverage)
     (racket/dict     racket/dict        real-provider-proven installed-racket-dict-coverage)
-    (racket/format   webracket/format   webracket-owned      installed-racket-format-coverage)
+    (racket/format   io/format          staged-original      installed-racket-format-coverage)
     (racket/function racket/function   real-provider-proven installed-racket-function-coverage)
     (racket/include  racket/include     real-provider-proven full-include)
     (racket/list     racket/list        real-provider-proven installed-racket-list-coverage)

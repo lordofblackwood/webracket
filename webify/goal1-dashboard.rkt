@@ -1240,7 +1240,7 @@
    (dashboard-case
     'goal1-sequence-format-composition
     'installed-provider-coverage
-    '(webracket/full racket/string racket/format webracket/format)
+    '(webracket/full racket/string racket/format)
     `(("main.rkt" .
        ,(string-append
          "#lang webracket/full\n"
