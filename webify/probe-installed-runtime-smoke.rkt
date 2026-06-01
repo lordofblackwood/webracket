@@ -185,6 +185,7 @@
     sequence-in-producer
     sequence-make-do
     sequence-make-do-values
+    sequence-make-do-early-next
     sequence-make-do-stop
     sequence-make-do-guards
     sequence-make-do-empty
@@ -423,6 +424,7 @@
       sequence-in-producer
       sequence-make-do
       sequence-make-do-values
+      sequence-make-do-early-next
       sequence-make-do-stop
       sequence-make-do-guards
       sequence-make-do-empty
@@ -587,6 +589,7 @@
             [(sequence-in-producer) #rx"(?m:^6$)"]
             [(sequence-make-do) #rx"(?m:^4$)"]
             [(sequence-make-do-values) #rx"(?m:^66$)"]
+            [(sequence-make-do-early-next) #rx"(?m:^42$)"]
             [(sequence-make-do-stop) #rx"(?m:^3$)"]
             [(sequence-make-do-guards) #rx"(?m:^42$)"]
             [(sequence-make-do-empty) #rx"(?m:^0$)"]

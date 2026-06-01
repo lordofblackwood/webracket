@@ -190,6 +190,7 @@
     base-sequence-ports
     base-sequence-prop
     base-sequence-derived
+    base-sequence-early-next
     base-sequence-add-between-lazy
     base-sequence-coverage
     full-sequence-coverage
@@ -1495,6 +1496,26 @@
          "(define guarded-count (length (sequence->list guarded-seq)))\n"
          "(define empty-count (length (sequence->list empty-seq)))\n"
          "(js-log (+ values-sum stopped-count guarded-count empty-count -30))\n")))
+    "main.rkt"
+    #rx"(?m:^42$)"
+    '("--no-io-format-provider" "--webracket-module-bridge"))
+   (dashboard-case
+    'base-sequence-early-next
+    'installed-provider-coverage
+    '(racket/sequence racket/private/for webracket/sequence webracket/private/for)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/base\n"
+         "(require racket/sequence)\n"
+         "(define seq\n"
+         "  (make-do-sequence\n"
+         "   (lambda ()\n"
+         "     (values car cdr values '(10 20 12) pair? #f #f))))\n"
+         "(define-values (more? next) (sequence-generate seq))\n"
+         "(define total (+ (if (more?) (next) 0)\n"
+         "                 (if (more?) (next) 0)\n"
+         "                 (if (more?) (next) 0)))\n"
+         "(js-log total)\n")))
     "main.rkt"
     #rx"(?m:^42$)"
     '("--no-io-format-provider" "--webracket-module-bridge"))

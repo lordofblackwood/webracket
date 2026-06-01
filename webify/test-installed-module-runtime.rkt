@@ -577,6 +577,24 @@
     '()
     #f)
    (installed-runtime-smoke
+    'racket/sequence
+    "installed racket/sequence make-do-sequence early-next reaches WebRacket runtime smoke"
+    '((module use-sequence-make-do-early-next racket/base
+        (require racket/sequence)
+        (provide y)
+        (define seq
+          (make-do-sequence
+           (lambda ()
+             (values car cdr values '(10 20 12) pair? #f #f))))
+        (define-values (more? next) (sequence-generate seq))
+        (define y (+ (if (more?) (next) 0)
+                     (if (more?) (next) 0)
+                     (if (more?) (next) 0)))))
+    '((use-sequence-make-do-early-next y))
+    #rx"(?m:^42$)"
+    '()
+    #f)
+   (installed-runtime-smoke
     'racket/for
     "racket/base for/list reaches WebRacket runtime smoke"
     '((module use-for-list-basic racket/base

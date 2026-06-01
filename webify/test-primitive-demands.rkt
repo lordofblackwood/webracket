@@ -286,6 +286,7 @@
   (check-not-false (member 'sequence-common-producers goal1-module-cases))
   (check-not-false (member 'sequence-real-library-pressure goal1-module-cases))
   (check-not-false (member 'sequence-make-do-values goal1-module-cases))
+  (check-not-false (member 'sequence-make-do-early-next goal1-module-cases))
   (check-not-false (member 'sequence-make-do-stop goal1-module-cases))
   (check-not-false (member 'sequence-make-do-guards goal1-module-cases))
   (check-not-false (member 'sequence-make-do-empty goal1-module-cases))

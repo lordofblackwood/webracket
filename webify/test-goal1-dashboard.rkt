@@ -431,6 +431,7 @@
                          base-for-nested-control-coverage
                          goal1-dict-pretty-sequence-composition
                          base-sequence-coverage
+                         base-sequence-early-next
                          base-sequence-add-between-lazy
                          full-sequence-coverage
                          full-file-coverage

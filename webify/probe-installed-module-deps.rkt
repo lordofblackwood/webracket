@@ -105,6 +105,7 @@
     sequence-in-producer
     sequence-make-do
     sequence-make-do-values
+    sequence-make-do-early-next
     sequence-make-do-stop
     sequence-make-do-guards
     sequence-make-do-empty
@@ -228,6 +229,7 @@
     sequence-common-producers
     sequence-real-library-pressure
     sequence-make-do-values
+    sequence-make-do-early-next
     sequence-make-do-stop
     sequence-make-do-guards
     sequence-make-do-empty
@@ -971,6 +973,24 @@
                       #f
                       #f))))
          (define y (for/sum ([(x y) seq]) (+ x y)))))]
+    [(sequence-make-do-early-next)
+     '((module use-sequence-make-do-early-next racket/base
+         (require racket/sequence)
+         (provide y)
+         (define seq
+           (make-do-sequence
+            (lambda ()
+              (values car
+                      cdr
+                      values
+                      '(10 20 12)
+                      pair?
+                      #f
+                      #f))))
+         (define-values (more? next) (sequence-generate seq))
+         (define y (+ (if (more?) (next) 0)
+                      (if (more?) (next) 0)
+                      (if (more?) (next) 0)))))]
     [(sequence-make-do-stop)
      '((module use-sequence-make-do-stop racket/base
          (require racket/sequence)

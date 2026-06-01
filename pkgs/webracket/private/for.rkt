@@ -866,11 +866,10 @@
     [(and val-cont? (not (apply val-cont? vals))) #f]
     [else vals]))
 
-;; sequence-next-position : any/c (or/c #f procedure?) procedure? -> any/c
-;;   Advance a sequence position.
-(define (sequence-next-position pos pre-pos-next pos-next)
-  (when pre-pos-next (pre-pos-next pos))
-  (pos-next pos))
+;; sequence-early-position : any/c (or/c #f procedure?) -> any/c
+;;   Apply make-do-sequence's early-next-pos hook, or keep the position.
+(define (sequence-early-position pos pre-pos-next)
+  (if pre-pos-next (pre-pos-next pos) pos))
 
 ;; sequence-generate : sequence? -> (values (-> boolean?) (-> any))
 ;;   Return stateful thunks that test for and produce the next sequence element.
@@ -896,18 +895,21 @@
            (set! cached-values #f)
            (set! cached? #t)]
           [else
-           (define vals (sequence-position-values pos->vals pos val-cont?))
+           (define current-pos pos)
+           (define vals (sequence-position-values pos->vals current-pos val-cont?))
            (cond
              [vals
+              (define early-pos (sequence-early-position current-pos pre-pos-next))
               (define continue-after?
-                (if all-cont? (apply all-cont? pos vals) #t))
+                (if all-cont? (apply all-cont? early-pos vals) #t))
               (when continue-after?
-                (set! pos (sequence-next-position pos pre-pos-next pos-next)))
+                (set! pos (pos-next early-pos)))
               (set! cached-values vals)
               (set! stop-after-cached? (not continue-after?))
               (set! cached? #t)]
              [else
-              (set! pos (sequence-next-position pos pre-pos-next pos-next))
+              (define early-pos (sequence-early-position current-pos pre-pos-next))
+              (set! pos (pos-next early-pos))
               (loop)])]))))
   (define (more?)
     (fill-cache!)
