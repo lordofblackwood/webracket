@@ -233,11 +233,11 @@
        (define answer (list dict-ref dict-count dict-map))))
    (webify-provider-trial
     'racket/format
-    '(~a ~s ~v)
+    '(~a ~s ~v ~e ~r)
     '(module use-format racket/base
-       (require (only-in racket/format ~a ~s ~v))
+       (require (only-in racket/format ~a ~s ~v ~e ~r))
        (provide answer)
-       (define answer (list ~a ~s ~v))))
+       (define answer (list ~a ~s ~v ~e ~r))))
    (webify-provider-trial
     'racket/pretty
     '(pretty-format pretty-print pretty-write pretty-display)

@@ -144,9 +144,30 @@
     [(eqv? (car (car options)) key) (cdr (car options))]
     [else (option-ref (cdr options) key default)]))
 
-;; collect-options : symbol? (listof keyword?) (listof any/c) -> (listof (cons/c keyword? any/c))
+;; format-option-keywords : (listof keyword?)
+;;   Keyword options shared by ~a, ~s, ~v, and ~e.
+(define format-option-keywords
+  '(#:separator
+    #:width
+    #:max-width
+    #:min-width
+    #:limit-marker
+    #:limit-prefix?
+    #:align
+    #:pad-string
+    #:left-pad-string
+    #:right-pad-string))
+
+;; rational-option-keywords : (listof keyword?)
+;;   Currently supported ~r keyword options.
+(define rational-option-keywords
+  '(#:min-width
+    #:pad-string
+    #:precision))
+
+;; collect-options : symbol? (listof keyword?) (listof keyword?) (listof any/c) -> (listof (cons/c keyword? any/c))
 ;;   Convert keyword/value lists to local option pairs.
-(define (collect-options who kws vals)
+(define (collect-options who allowed-kws kws vals)
   (cond
     [(null? kws)
      (unless (null? vals)
@@ -154,20 +175,9 @@
      null]
     [(null? vals)
      (raise-argument-error who "keyword/value lists of matching length" kws)]
-    [(memq (car kws)
-           '(#:separator
-             #:width
-             #:max-width
-             #:min-width
-             #:limit-marker
-             #:limit-prefix?
-             #:align
-             #:pad-string
-             #:left-pad-string
-             #:right-pad-string
-             #:precision))
+    [(memq (car kws) allowed-kws)
      (cons (cons (car kws) (car vals))
-           (collect-options who (cdr kws) (cdr vals)))]
+           (collect-options who allowed-kws (cdr kws) (cdr vals)))]
     [else
      (raise-argument-error who "supported racket/format keyword" (car kws))]))
 
@@ -228,7 +238,7 @@
                     value->string
                     default-separator
                     default-limit-marker
-                    (collect-options who kws vals)
+                    (collect-options who format-option-keywords kws vals)
                     args))
    (lambda args
      (format-values who
@@ -501,6 +511,6 @@
 (define ~r
   (make-keyword-procedure
    (lambda (kws vals v)
-     (~r/plain v (collect-options '~r kws vals)))
+     (~r/plain v (collect-options '~r rational-option-keywords kws vals)))
    (lambda (v)
      (~r/plain v null))))
