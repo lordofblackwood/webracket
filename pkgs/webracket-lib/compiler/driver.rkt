@@ -77,6 +77,10 @@
                   webify-io-format-registry
                   webify-io-format-private-alias-forms
                   webify-io-format-public-alias-forms)
+         (only-in "webify/io-print-bridge.rkt"
+                  webify-io-print-root-name
+                  webify-io-print-registry
+                  webify-io-print-private-alias-forms)
          (only-in "webify/regexp-provider.rkt"
                   webify-regexp-default-cache-root
                   webify-regexp-export-symbols
@@ -585,14 +589,25 @@
      (write-provider-cache! cache-path fingerprint (provider-report->cache-datum report))
      report]))
 
+;; staged-io-source-fingerprint : symbol? -> any/c
+;;   Fingerprint staged io provider inputs.
+(define (staged-io-source-fingerprint cache-tag)
+  (path-fingerprint
+   cache-tag
+   1
+   (cons (build-path webify-root "io-format-bridge.rkt")
+         (cons (build-path webify-root "io-print-bridge.rkt")
+               (find-files file-exists? (build-path webracket-root "racket-src/io"))))))
+
 ;; io-format-source-fingerprint : -> any/c
 ;;   Fingerprint the staged io/format provider inputs.
 (define (io-format-source-fingerprint)
-  (path-fingerprint
-   'io-format-provider-cache
-   1
-   (cons (build-path webify-root "io-format-bridge.rkt")
-         (find-files file-exists? (build-path webracket-root "racket-src/io")))))
+  (staged-io-source-fingerprint 'io-format-provider-cache))
+
+;; io-print-source-fingerprint : -> any/c
+;;   Fingerprint the staged io/print provider inputs.
+(define (io-print-source-fingerprint)
+  (staged-io-source-fingerprint 'io-print-provider-cache))
 
 ;; provider-slice-forms : symbol? #:public-aliases? boolean? -> (listof datum?)
 ;;   Compose a provider slice and expose export cells, optionally publishing
@@ -601,6 +616,8 @@
   (case name
     [(io/format)
      (io-format-provider-forms #:public-aliases? public-aliases?)]
+    [(io/print)
+     (io-print-provider-forms #:public-aliases? public-aliases?)]
     [(regexp)
      (regexp-provider-forms #:public-aliases? public-aliases?)]
     [(expander/read)
@@ -653,6 +670,49 @@
                   webify-io-format-public-alias-forms
                   webify-io-format-private-alias-forms)
               composition))))
+     (write-provider-cache! cache-path fingerprint forms)
+     forms]))
+
+;; io-print-provider-forms : #:public-aliases? boolean? -> (listof datum?)
+;;   Compose the staged original-Racket io/print provider seed and expose
+;;   private export cells. Public aliases stay disabled until ownership flips.
+(define (io-print-provider-forms #:public-aliases? [public-aliases? #f])
+  (when public-aliases?
+    (error 'io-print-provider-forms
+           "io/print public aliases are not ready; use private export cells"))
+  (define cache-path
+    (provider-cache-path "io-print-provider-private.rktd"))
+  (define fingerprint
+    `(io-print-lowered-provider-cache 1 ,(io-print-source-fingerprint)))
+  (define cached (read-provider-cache cache-path fingerprint))
+  (cond
+    [cached
+     (provider-cache-log "io/print lowered forms hit: ~a" cache-path)
+     cached]
+    [else
+     (provider-cache-log "io/print lowered forms miss; rebuilding: ~a" cache-path)
+     (define composition
+       (webify-compose-module-registry/roots/composition
+        (webify-io-print-registry)
+        (list webify-io-print-root-name)
+        #:define-export-aliases? #f
+        #:serializable?-box     #f
+        #:datum-intern?         #f
+        #:target                #f
+        #:allow-set!-undefined? #f
+        #:unsafe-mode?          #f
+        #:enforce-constant?     #t
+        #:allow-inline?         #t
+        #:no-prompt?            #f
+        #:prim-knowns           (hasheq)
+        #:primitives            (hasheq)
+        #:compiler-query        (lambda (v) #f)
+        #:get-import-knowns     (lambda (key) (values #f #f #f))
+        #:import-keys           #f))
+     (define forms
+       (cdr (webify-module-composition-with-tail
+             composition
+             (webify-io-print-private-alias-forms composition))))
      (write-provider-cache! cache-path fingerprint forms)
      forms]))
 

@@ -3,6 +3,8 @@
 (require racket/file
          racket/string
          rackunit
+         (only-in "../pkgs/webracket-lib/compiler/driver.rkt"
+                  provider-slice-forms)
          "../pkgs/webracket-lib/compiler/webify/provider-slices.rkt"
          "test-module-support.rkt")
 
@@ -42,6 +44,18 @@
   (check-true (string-contains? report "expander/read\tdefault: disabled\tstatus: staged") report)
   (check-true (string-contains? report "io/print\tdefault: disabled\tstatus: staged") report)
   (check-true (string-contains? report "cell-only smokes pass") report))
+
+(test-case "io/print provider slice composes private cells only"
+  (define forms (provider-slice-forms 'io/print))
+  (check-not-false
+   (for/or ([form (in-list forms)])
+     (and (pair? form)
+          (eq? (car form) 'define)
+          (eq? (cadr form) 'webify-io-print-export-cell$display))))
+  (check-exn
+   #rx"io/print public aliases are not ready"
+   (lambda ()
+     (provider-slice-forms 'io/print #:public-aliases? #t))))
 
 (test-case "provider cache flags expose verbose cache decisions"
   (define cache-dir (make-temporary-file "webracket-provider-cache-flag-~a" 'directory))
