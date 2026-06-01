@@ -17,6 +17,7 @@
          goal1-dashboard-default-timeout-seconds
          goal1-dashboard-default-memory-mb
          goal1-dashboard-default-jobs
+         goal1-dashboard-default-cache-warmup-timeout-seconds
          goal1-dashboard-fast-required-case-names
          goal1-dashboard-coverage-core-case-names
          goal1-dashboard-coverage-extended-case-names
@@ -37,6 +38,7 @@
          goal1-dashboard-row-cache-files-before
          goal1-dashboard-row-cache-files-after
          classify-detail
+         warm-goal1-dashboard-provider-cache!
          run-goal1-dashboard
          print-goal1-dashboard)
 
@@ -91,6 +93,10 @@
 ;; goal1-dashboard-default-jobs : exact-positive-integer?
 ;;   Keep command-line behavior serial unless parallelism is requested.
 (define goal1-dashboard-default-jobs 1)
+
+;; goal1-dashboard-default-cache-warmup-timeout-seconds : exact-positive-integer?
+;;   Give cold provider-cache construction more room than an individual row.
+(define goal1-dashboard-default-cache-warmup-timeout-seconds 480)
 
 ;; goal1-dashboard-fast-required-case-names : (listof symbol?)
 ;;   Tiny inner-loop preset for checking the main routes quickly.
@@ -2453,13 +2459,19 @@
        #rx"42"
        '())))))
 
-;; run-goal1-dashboard-case : case path? exact-positive-integer? exact-positive-integer? -> row
+;; run-goal1-dashboard-case : case path? exact-positive-integer? exact-positive-integer? [path?] -> row
 ;;   Run one compact Goal 1 case through `webracket.rkt -r --no-stdlib`.
-(define (run-goal1-dashboard-case c cache-dir timeout-seconds memory-mb)
+(define (run-goal1-dashboard-case c
+                                  cache-dir
+                                  timeout-seconds
+                                  memory-mb
+                                  [shared-compiled-root-dir #f])
   (define source-dir (make-temporary-file "webracket-goal1-dashboard-src-~a" 'directory))
   (define dest-dir   (make-temporary-file "webracket-goal1-dashboard-dest-~a" 'directory))
+  (define own-compiled-root? (not shared-compiled-root-dir))
   (define compiled-root-dir
-    (make-temporary-file "webracket-goal1-dashboard-compiled-~a" 'directory))
+    (or shared-compiled-root-dir
+        (make-temporary-file "webracket-goal1-dashboard-compiled-~a" 'directory)))
   (dynamic-wind
     void
     (lambda ()
@@ -2507,9 +2519,37 @@
        after
        #:tier (goal1-dashboard-case-tier c)))
     (lambda ()
-      (for ([dir (in-list (list source-dir dest-dir compiled-root-dir))])
+      (for ([dir (in-list (if own-compiled-root?
+                              (list source-dir dest-dir compiled-root-dir)
+                              (list source-dir dest-dir)))])
         (with-handlers ([exn:fail:filesystem? void])
           (delete-directory/files dir))))))
+
+;; goal1-dashboard-cache-warmup-case : goal1-dashboard-case?
+;;   Tiny module used to build shared provider artifacts before measured rows.
+(define goal1-dashboard-cache-warmup-case
+  (dashboard-case
+   'provider-cache-warmup
+   'dashboard-infrastructure
+   '(regexp-provider)
+   `(("main.rkt" . "#lang webracket/base\n(js-log 0)\n"))
+   "main.rkt"
+   #rx"(?m:^0$)"
+   '("--no-io-format-provider")))
+
+;; warm-goal1-dashboard-provider-cache! : path? exact-positive-integer? exact-positive-integer? -> goal1-dashboard-row?
+;;   Prime shared provider-cache artifacts outside individual dashboard rows.
+(define (warm-goal1-dashboard-provider-cache!
+         cache-dir
+         [timeout-seconds goal1-dashboard-default-cache-warmup-timeout-seconds]
+         [memory-mb goal1-dashboard-default-memory-mb]
+         [shared-compiled-root-dir #f])
+  (run-goal1-dashboard-case
+   goal1-dashboard-cache-warmup-case
+   cache-dir
+   timeout-seconds
+   memory-mb
+   shared-compiled-root-dir))
 
 ;; normalize-dashboard-jobs : any/c -> exact-positive-integer?
 ;;   Validate a requested dashboard worker count.
@@ -2523,9 +2563,14 @@
 (define (goal1-dashboard-case-exclusive? c)
   (eq? (goal1-dashboard-case-category c) 'installed-provider-diagnostic))
 
-;; run-goal1-dashboard-cases/parallel : list? path? exact-positive-integer? exact-positive-integer? exact-positive-integer? -> list?
+;; run-goal1-dashboard-cases/parallel : list? path? exact-positive-integer? exact-positive-integer? exact-positive-integer? path? -> list?
 ;;   Run cases with stable result order while allowing independent child processes.
-(define (run-goal1-dashboard-cases/parallel cases cache-dir timeout-seconds memory-mb jobs)
+(define (run-goal1-dashboard-cases/parallel cases
+                                           cache-dir
+                                           timeout-seconds
+                                           memory-mb
+                                           jobs
+                                           compiled-root-dir)
   (define indexed-cases cases)
   (define next-box (box indexed-cases))
   (define results  (make-hasheq))
@@ -2550,7 +2595,11 @@
              [#f (void)]
              [(cons idx c)
               (define row
-                (run-goal1-dashboard-case c cache-dir timeout-seconds memory-mb))
+                (run-goal1-dashboard-case c
+                                          cache-dir
+                                          timeout-seconds
+                                          memory-mb
+                                          compiled-root-dir))
               (call-with-semaphore
                results-lock
                (lambda ()
@@ -2560,9 +2609,14 @@
     (thread-wait worker))
   results)
 
-;; run-goal1-dashboard-cases/scheduled : list? path? exact-positive-integer? exact-positive-integer? exact-positive-integer? -> list?
+;; run-goal1-dashboard-cases/scheduled : list? path? exact-positive-integer? exact-positive-integer? exact-positive-integer? path? -> list?
 ;;   Run heavyweight diagnostics serially while preserving parallelism elsewhere.
-(define (run-goal1-dashboard-cases/scheduled cases cache-dir timeout-seconds memory-mb jobs)
+(define (run-goal1-dashboard-cases/scheduled cases
+                                             cache-dir
+                                             timeout-seconds
+                                             memory-mb
+                                             jobs
+                                             compiled-root-dir)
   (define indexed-cases
     (for/list ([c (in-list cases)]
                [idx (in-naturals)])
@@ -2575,9 +2629,18 @@
   (for ([item (in-list exclusive)])
     (match-define (cons idx c) item)
     (vector-set! results idx
-                 (run-goal1-dashboard-case c cache-dir timeout-seconds memory-mb)))
+                 (run-goal1-dashboard-case c
+                                           cache-dir
+                                           timeout-seconds
+                                           memory-mb
+                                           compiled-root-dir)))
   (define parallel-results
-    (run-goal1-dashboard-cases/parallel regular cache-dir timeout-seconds memory-mb jobs))
+    (run-goal1-dashboard-cases/parallel regular
+                                       cache-dir
+                                       timeout-seconds
+                                       memory-mb
+                                       jobs
+                                       compiled-root-dir))
   (for ([(idx row) (in-hash parallel-results)])
     (vector-set! results idx row))
   (vector->list results))
@@ -2586,17 +2649,52 @@
 ;;   Run the compact Goal 1 no-stdlib dashboard.
 (define (run-goal1-dashboard #:cache-dir [cache-dir (make-temporary-file "webracket-goal1-dashboard-cache-~a" 'directory)]
                              #:timeout-seconds [timeout-seconds goal1-dashboard-default-timeout-seconds]
+                             #:cache-warmup-timeout-seconds [cache-warmup-timeout-seconds goal1-dashboard-default-cache-warmup-timeout-seconds]
                              #:memory-mb [memory-mb goal1-dashboard-default-memory-mb]
                              #:cases [cases goal1-dashboard-cases]
-                             #:jobs [jobs goal1-dashboard-default-jobs])
+                             #:jobs [jobs goal1-dashboard-default-jobs]
+                             #:warm-cache? [warm-cache? 'auto])
   (define normalized-jobs (normalize-dashboard-jobs jobs))
-  (cond
-    [(or (null? cases) (= normalized-jobs 1))
-     (for/list ([c (in-list cases)])
-       (run-goal1-dashboard-case c cache-dir timeout-seconds memory-mb))]
-    [else
-     (run-goal1-dashboard-cases/scheduled
-      cases cache-dir timeout-seconds memory-mb normalized-jobs)]))
+  (define should-warm-cache?
+    (if (eq? warm-cache? 'auto)
+        (> normalized-jobs 1)
+        warm-cache?))
+  (define compiled-root-dir
+    (make-temporary-file "webracket-goal1-dashboard-compiled-~a" 'directory))
+  (dynamic-wind
+    void
+    (lambda ()
+      (when (and should-warm-cache? (pair? cases))
+        (define warmup-row
+          (warm-goal1-dashboard-provider-cache!
+           cache-dir
+           cache-warmup-timeout-seconds
+           memory-mb
+           compiled-root-dir))
+        (unless (eq? (goal1-dashboard-row-status warmup-row) 'pass)
+          (error 'run-goal1-dashboard
+                 "provider cache warmup failed: ~a: ~a"
+                 (goal1-dashboard-row-detail warmup-row)
+                 (goal1-dashboard-row-note warmup-row))))
+      (cond
+        [(or (null? cases) (= normalized-jobs 1))
+         (for/list ([c (in-list cases)])
+           (run-goal1-dashboard-case c
+                                     cache-dir
+                                     timeout-seconds
+                                     memory-mb
+                                     compiled-root-dir))]
+        [else
+         (run-goal1-dashboard-cases/scheduled
+          cases
+          cache-dir
+          timeout-seconds
+          memory-mb
+          normalized-jobs
+          compiled-root-dir)]))
+    (lambda ()
+      (with-handlers ([exn:fail:filesystem? void])
+        (delete-directory/files compiled-root-dir)))))
 
 (define (row->jsexpr row)
   (hasheq 'name (symbol->string (goal1-dashboard-row-name row))
@@ -2618,8 +2716,10 @@
                                #:list? [list? #f]
                                #:cache-dir [cache-dir #f]
                                #:timeout-seconds [timeout-seconds goal1-dashboard-default-timeout-seconds]
+                               #:cache-warmup-timeout-seconds [cache-warmup-timeout-seconds goal1-dashboard-default-cache-warmup-timeout-seconds]
                                #:memory-mb [memory-mb goal1-dashboard-default-memory-mb]
                                #:jobs [jobs goal1-dashboard-default-jobs]
+                               #:warm-cache? [warm-cache? 'auto]
                                #:case-names [case-names '()]
                                #:categories [categories '()]
                                #:tiers [tiers '()]
@@ -2647,8 +2747,10 @@
      (define rows
        (run-goal1-dashboard #:cache-dir actual-cache-dir
                             #:timeout-seconds timeout-seconds
+                            #:cache-warmup-timeout-seconds cache-warmup-timeout-seconds
                             #:memory-mb memory-mb
                             #:jobs jobs
+                            #:warm-cache? warm-cache?
                             #:cases selected-cases))
      (cond
        [json?
@@ -2679,8 +2781,10 @@
   (define list? #f)
   (define cache-dir #f)
   (define timeout-seconds goal1-dashboard-default-timeout-seconds)
+  (define cache-warmup-timeout-seconds goal1-dashboard-default-cache-warmup-timeout-seconds)
   (define memory-mb goal1-dashboard-default-memory-mb)
   (define jobs goal1-dashboard-default-jobs)
+  (define warm-cache? 'auto)
   (define case-names '())
   (define categories '())
   (define tiers '())
@@ -2694,10 +2798,16 @@
                              (set! cache-dir (string->path dir))]
    [("--timeout") n "per-case timeout in seconds"
                   (set! timeout-seconds (string->number n))]
+   [("--cache-warmup-timeout") n "provider cache warmup timeout in seconds"
+                               (set! cache-warmup-timeout-seconds (string->number n))]
    [("--memory-mb") n "per-case memory limit in MiB"
                     (set! memory-mb (string->number n))]
    [("--jobs") n "number of dashboard cases to run in parallel"
                 (set! jobs (string->number n))]
+   [("--warm-cache") "run a shared provider-cache warmup before selected cases"
+                     (set! warm-cache? #t)]
+   [("--no-cache-warmup") "skip the shared provider-cache warmup run"
+                          (set! warm-cache? #f)]
    [("--case") names "comma-separated case names to run/list"
                (set! case-names (split-selectors names))]
    [("--category") names "comma-separated categories to run/list"
@@ -2728,8 +2838,10 @@
                          #:list? list?
                          #:cache-dir cache-dir
                          #:timeout-seconds timeout-seconds
+                         #:cache-warmup-timeout-seconds cache-warmup-timeout-seconds
                          #:memory-mb memory-mb
                          #:jobs jobs
+                         #:warm-cache? warm-cache?
                          #:case-names case-names
                          #:categories categories
                          #:tiers tiers

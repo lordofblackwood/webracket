@@ -130,7 +130,8 @@
 (test-case "compact Goal 1 dashboard defaults are bounded"
   (check-equal? goal1-dashboard-default-timeout-seconds 120)
   (check-equal? goal1-dashboard-default-memory-mb 1024)
-  (check-equal? goal1-dashboard-default-jobs 1))
+  (check-equal? goal1-dashboard-default-jobs 1)
+  (check-equal? goal1-dashboard-default-cache-warmup-timeout-seconds 480))
 
 (test-case "compact Goal 1 dashboard selectors filter by name and category"
   (define by-name
