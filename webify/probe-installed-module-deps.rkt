@@ -169,6 +169,11 @@
     class-dynamic-field-send
     class-with-method
     class-send-apply
+    class-inherit-field
+    class-rename-public
+    class-rename-super
+    class-inherit-super
+    class-optional-init
     class-augment-inner
     class-private-final
     class-abstract-basic
@@ -297,6 +302,11 @@
     class-dynamic-field-send
     class-with-method
     class-send-apply
+    class-inherit-field
+    class-rename-public
+    class-rename-super
+    class-inherit-super
+    class-optional-init
     class-augment-inner
     class-private-final
     class-abstract-basic
@@ -1620,6 +1630,71 @@
          (define a (send/apply obj sum 10 '(11 21)))
          (define b (send/keyword-apply obj kw '(#:x #:y) '(10 20) 12 null))
          (define y (+ a b))))]
+    [(class-inherit-field)
+     '((module use-class-inherit-field racket/base
+         (require racket/class)
+         (provide y)
+         (define base%
+           (class object%
+             (super-new)
+             (field [n 40])
+             (define/public (value) n)))
+         (define child%
+           (class base%
+             (super-new)
+             (inherit-field n)
+             (set! n (+ n 2))))
+         (define y (send (new child%) value))))]
+    [(class-rename-public)
+     '((module use-class-rename-public racket/base
+         (require racket/class)
+         (provide y)
+         (define counter%
+           (class object%
+             (super-new)
+             (define (raw-value) 42)
+             (public [raw-value value])))
+         (define y (send (new counter%) value))))]
+    [(class-rename-super)
+     '((module use-class-rename-super racket/base
+         (require racket/class)
+         (provide y)
+         (define base%
+           (class object%
+             (super-new)
+             (define/public (value) 40)))
+         (define child%
+           (class base%
+             (super-new)
+             (rename-super [base-value value])
+             (define/override (value) (+ (base-value) 2))))
+         (define y (send (new child%) value))))]
+    [(class-inherit-super)
+     '((module use-class-inherit-super racket/base
+         (require racket/class)
+         (provide y)
+         (define base%
+           (class object%
+             (super-new)
+             (define/public (value) 40)))
+         (define child%
+           (class base%
+             (super-new)
+             (inherit/super value)
+             (define/public (next) (+ (super value) 2))))
+         (define y (send (new child%) next))))]
+    [(class-optional-init)
+     '((module use-class-optional-init racket/base
+         (require racket/class)
+         (provide y)
+         (define counter%
+           (class object%
+             (init [n 40])
+             (super-new)
+             (define saved n)
+             (define/public (value) saved)))
+         (define y (+ (send (new counter%) value)
+                      (send (new counter% [n 2]) value)))))]
     [(class-augment-inner)
      '((module use-class-augment-inner racket/base
          (require racket/class)

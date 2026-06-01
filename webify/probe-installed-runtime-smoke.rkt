@@ -284,6 +284,11 @@
     class-dynamic-field-send
     class-with-method
     class-send-apply
+    class-inherit-field
+    class-rename-public
+    class-rename-super
+    class-inherit-super
+    class-optional-init
     class-augment-inner
     class-private-final
     class-abstract-basic
@@ -482,6 +487,11 @@
       class-dynamic-field-send
       class-with-method
       class-send-apply
+      class-inherit-field
+      class-rename-public
+      class-rename-super
+      class-inherit-super
+      class-optional-init
       class-augment-inner
       class-private-final
       class-abstract-basic
@@ -671,6 +681,8 @@
               class-super-override class-interface-basic class-generic-basic
               class-mixin-basic class-object-equality class-reflection-basic
               class-relationships class-info-basic class-with-method
+              class-inherit-field class-rename-public class-rename-super
+              class-inherit-super class-optional-init
               class-augment-inner class-private-final class-abstract-basic)
              #rx"(?m:^42$)"]
             [(class-construction-basic) #rx"(?m:^126$)"]
