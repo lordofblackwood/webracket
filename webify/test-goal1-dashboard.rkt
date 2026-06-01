@@ -448,6 +448,7 @@
                          installed-racket-logging-coverage
                          installed-racket-format-coverage
                          installed-racket-format-print-parameter
+                         installed-racket-format-rational-precision
                          goal1-full-callable-exports
                          goal1-full-list-surface
                          goal1-base-sort-keywords

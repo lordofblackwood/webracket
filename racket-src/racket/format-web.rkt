@@ -7,6 +7,7 @@
 ;;; `format`, `fprintf`, `printf`, and `eprintf`.
 
 (#%require (only racket/base
+                abs
                 apply
                 append
                 and
@@ -20,6 +21,7 @@
                 else
                 eqv?
                 exact-nonnegative-integer?
+                expt
                 floor
                 get-output-string
                 hash-iterate-first
@@ -27,6 +29,7 @@
                 hash-iterate-next
                 hash-ref
                 hash?
+                inexact->exact
                 lambda
                 let
                 list
@@ -44,6 +47,7 @@
                 raise-argument-error
                 rational?
                 reverse
+                round
                 symbol->string
                 symbol?
                 string-append
@@ -160,7 +164,8 @@
              #:align
              #:pad-string
              #:left-pad-string
-             #:right-pad-string))
+             #:right-pad-string
+             #:precision))
      (cons (cons (car kws) (car vals))
            (collect-options who (cdr kws) (cdr vals)))]
     [else
@@ -414,13 +419,82 @@
 (define ~.v ~v)
 
 ;; ~r/plain : rational? options? -> string?
-;;   Minimal real-number formatter; full `racket/format` keyword support is later.
+;;   Minimal positional real-number formatter; full `racket/format` keyword support is later.
 (define (~r/plain v options)
   (unless (rational? v)
     (raise-argument-error '~r "rational?" v))
+  (define precision (option-ref options '#:precision 6))
+  (define-values (digits exact-digits?)
+    (precision->digits precision))
   (define min-width (option-ref options '#:min-width 0))
   (define pad (option-ref options '#:pad-string " "))
-  (pad-string min-width 'right pad pad (number->string v)))
+  (pad-string min-width 'right pad pad
+              (rational->decimal-string v digits exact-digits?)))
+
+;; precision->digits : any/c -> values exact-nonnegative-integer? boolean?
+;;   Decode `~r`'s #:precision option. A natural number trims trailing zeroes;
+;;   '(= n) keeps exactly n fractional digits and retains the decimal point.
+(define (precision->digits precision)
+  (cond
+    [(exact-nonnegative-integer? precision)
+     (values precision #f)]
+    [(and (pair? precision)
+          (eqv? (car precision) '=)
+          (pair? (cdr precision))
+          (exact-nonnegative-integer? (cadr precision))
+          (null? (cddr precision)))
+     (values (cadr precision) #t)]
+    [else
+     (raise-argument-error
+      '~r
+      "(or/c exact-nonnegative-integer? (list/c '= exact-nonnegative-integer?))"
+      precision)]))
+
+;; trim-trailing-zeroes : string? -> string?
+;;   Drop trailing zeroes from a decimal fractional string.
+(define (trim-trailing-zeroes s)
+  (let loop ([i (string-length s)])
+    (cond
+      [(zero? i) ""]
+      [(char=? (string-ref s (- i 1)) #\0)
+       (loop (- i 1))]
+      [else (substring s 0 i)])))
+
+;; pad-left-zeroes : exact-nonnegative-integer? string? -> string?
+;;   Left-pad a fractional component to the requested width.
+(define (pad-left-zeroes width s)
+  (cond
+    [(< (string-length s) width)
+     (string-append (make-string (- width (string-length s)) #\0) s)]
+    [else s]))
+
+;; rational->decimal-string : rational? exact-nonnegative-integer? boolean? -> string?
+;;   Format positional decimal output for the common `~r` precision path.
+(define (rational->decimal-string v digits exact-digits?)
+  (define scale (expt 10 digits))
+  (define scaled (inexact->exact (round (* v scale))))
+  (define negative? (< scaled 0))
+  (define-values (integer-part fractional-part)
+    (quotient/remainder (abs scaled) scale))
+  (define integer-text (number->string integer-part))
+  (define fractional-text
+    (pad-left-zeroes digits (number->string fractional-part)))
+  (define trimmed-fractional-text
+    (if exact-digits?
+        fractional-text
+        (trim-trailing-zeroes fractional-text)))
+  (define unsigned
+    (cond
+      [(zero? digits) (if exact-digits?
+                          (string-append integer-text ".")
+                          integer-text)]
+      [(string=? trimmed-fractional-text "")
+       integer-text]
+      [else
+       (string-append integer-text "." trimmed-fractional-text)]))
+  (if negative?
+      (string-append "-" unsigned)
+      unsigned))
 
 ;; ~r : rational? -> string?
 ;;   Format a rational number with the currently supported keyword subset.
