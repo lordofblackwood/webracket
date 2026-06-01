@@ -40,6 +40,9 @@ through the temporary provider bridge allowlist.
 - Use `--coverage-core` for everyday Goal 1 provider coverage.
 - Use `--coverage-extended` before larger checkpoints or provider-surface
   changes.
+- Module-language dashboard rows are routed through `--webracket-module-bridge`
+  by default. The transitional top-level fallback should not be used for Goal 1
+  dashboard coverage.
 - Use `--composition` for heavyweight cross-provider composition rows. These
   rows are required checkpoints, but they are intentionally outside the
   everyday coverage presets. Prefer `--timeout 240` or higher for this preset.

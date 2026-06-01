@@ -136,6 +136,15 @@
   (check-equal? goal1-dashboard-default-cache-warmup-timeout-seconds 480)
   (check-equal? goal1-dashboard-composition-timeout-seconds 240))
 
+(test-case "module-language dashboard rows use the module bridge"
+  (define module-language-cases
+    (filter goal1-dashboard-case-module-language? goal1-dashboard-cases))
+  (check-true (positive? (length module-language-cases)))
+  (for ([c (in-list module-language-cases)])
+    (check-not-false (member goal1-dashboard-module-bridge-arg
+                             (goal1-dashboard-case-args c))
+                     (symbol->string (goal1-dashboard-case-name c)))))
+
 (test-case "compact Goal 1 dashboard selectors filter by name and category"
   (define by-name
     (goal1-dashboard-select-cases goal1-dashboard-cases

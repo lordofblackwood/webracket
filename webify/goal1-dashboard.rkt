@@ -14,6 +14,8 @@
          goal1-dashboard-case-libraries
          goal1-dashboard-case-expectation
          goal1-dashboard-case-args
+         goal1-dashboard-case-module-language?
+         goal1-dashboard-module-bridge-arg
          goal1-dashboard-default-timeout-seconds
          goal1-dashboard-default-memory-mb
          goal1-dashboard-default-jobs
@@ -69,6 +71,31 @@
   (name category tier libraries expectation status detail note cache-events cache-files-before cache-files-after)
   #:transparent)
 
+;; goal1-dashboard-module-bridge-arg : string?
+;;   Driver flag that keeps module-language dashboard rows on the module bridge.
+(define goal1-dashboard-module-bridge-arg "--webracket-module-bridge")
+
+;; webracket-module-language-source? : string? -> boolean?
+;;   Check whether source text starts with a WebRacket module language.
+(define (webracket-module-language-source? source)
+  (regexp-match? #px"(?m:^#lang\\s+webracket/(base|full)(\\s|$))" source))
+
+;; goal1-dashboard-case-module-language? : goal1-dashboard-case? -> boolean?
+;;   Check whether a dashboard case contains WebRacket module-language source.
+(define (goal1-dashboard-case-module-language? c)
+  (for/or ([entry (in-list (goal1-dashboard-case-files c))])
+    (webracket-module-language-source? (cdr entry))))
+
+;; ensure-module-bridge-arg : (listof string?) boolean? -> (listof string?)
+;;   Route module-language rows through the module bridge by default.
+(define (ensure-module-bridge-arg args module-language?)
+  (cond
+    [(or (not module-language?)
+         (member goal1-dashboard-module-bridge-arg args))
+     args]
+    [else
+     (append args (list goal1-dashboard-module-bridge-arg))]))
+
 ;; dashboard-case : symbol? symbol? list? list? path-string? regexp? list? keyword-args -> goal1-dashboard-case?
 ;;   Construct a dashboard case with explicit tier and expectation metadata.
 (define (dashboard-case name category libraries files main expected args
@@ -76,7 +103,18 @@
                                              [(installed-provider-coverage) 'coverage]
                                              [else 'basic])]
                               #:expectation [expectation 'required])
-  (goal1-dashboard-case name category tier libraries files main expected args expectation))
+  (define module-language?
+    (for/or ([entry (in-list files)])
+      (webracket-module-language-source? (cdr entry))))
+  (goal1-dashboard-case name
+                        category
+                        tier
+                        libraries
+                        files
+                        main
+                        expected
+                        (ensure-module-bridge-arg args module-language?)
+                        expectation))
 
 ;; dashboard-row : symbol? symbol? list? symbol? symbol? symbol? string? symbol? exact? exact? keyword-args -> goal1-dashboard-row?
 ;;   Construct a dashboard row with explicit tier metadata.
