@@ -42,6 +42,19 @@ through the temporary provider bridge allowlist.
   changes.
 - Use `--composition` for heavyweight cross-provider composition rows. These
   rows are required checkpoints, but they are intentionally outside the
-  everyday coverage presets.
+  everyday coverage presets. Prefer `--timeout 240` or higher for this preset.
+- Use `--checkpoint` for the full required checkpoint set: core coverage,
+  extended coverage, and composition rows. Prefer `--timeout 240` or higher
+  for this preset.
 - Use `--tier coverage` when you want every ordinary coverage row, including
   both core and extended presets.
+
+Current verified smoke:
+
+```sh
+../racket/racket/bin/racket webify/goal1-dashboard.rkt \
+  --tsv --fast-required --timeout 240 --memory-mb 1024 \
+  --jobs 2 --warm-cache
+```
+
+That smoke currently passes all six fast-required rows.

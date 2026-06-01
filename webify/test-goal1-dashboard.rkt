@@ -131,7 +131,8 @@
   (check-equal? goal1-dashboard-default-timeout-seconds 120)
   (check-equal? goal1-dashboard-default-memory-mb 1024)
   (check-equal? goal1-dashboard-default-jobs 1)
-  (check-equal? goal1-dashboard-default-cache-warmup-timeout-seconds 480))
+  (check-equal? goal1-dashboard-default-cache-warmup-timeout-seconds 480)
+  (check-equal? goal1-dashboard-composition-timeout-seconds 240))
 
 (test-case "compact Goal 1 dashboard selectors filter by name and category"
   (define by-name
@@ -221,6 +222,10 @@
                   goal1-sequence-format-composition
                   goal1-match-set-hash-composition
                   goal1-dict-pretty-sequence-composition))
+  (check-equal? goal1-dashboard-checkpoint-case-names
+                (append goal1-dashboard-coverage-core-case-names
+                        goal1-dashboard-coverage-extended-case-names
+                        goal1-dashboard-composition-case-names))
   (check-equal? goal1-dashboard-real-provider-readiness-case-names
                 '(real-racket-dict-diagnostic
                   real-racket-dict-coverage-diagnostic
@@ -265,7 +270,14 @@
         (goal1-dashboard-select-cases goal1-dashboard-cases
                                       #:tiers '(composition)
                                       #:expectations '(required)))
-   goal1-dashboard-composition-case-names))
+   goal1-dashboard-composition-case-names)
+  (check-equal? (goal1-dashboard-recommended-timeout-seconds composition-cases)
+                goal1-dashboard-composition-timeout-seconds)
+  (check-equal?
+   (goal1-dashboard-recommended-timeout-seconds
+    (goal1-dashboard-select-cases goal1-dashboard-cases
+                                  #:names goal1-dashboard-coverage-core-case-names))
+   goal1-dashboard-default-timeout-seconds))
 
 (test-case "for provider surface report classifies staged support"
   (define rows (compare-for-provider-surface))
@@ -501,6 +513,8 @@
                            "--coverage-core"
                            "--coverage-extended"
                            "--composition"
+                           "--checkpoint"
+                           "--timeout 240"
                            "not a full compatibility claim"
                            "webracket/base should remain small"))])
     (check-not-false (regexp-match? (regexp (regexp-quote needle)) doc) needle)))

@@ -22,7 +22,10 @@
          goal1-dashboard-coverage-core-case-names
          goal1-dashboard-coverage-extended-case-names
          goal1-dashboard-composition-case-names
+         goal1-dashboard-checkpoint-case-names
          goal1-dashboard-real-provider-readiness-case-names
+         goal1-dashboard-composition-timeout-seconds
+         goal1-dashboard-recommended-timeout-seconds
          goal1-dashboard-cases
          goal1-dashboard-select-cases
          goal1-dashboard-row
@@ -98,6 +101,10 @@
 ;; goal1-dashboard-default-cache-warmup-timeout-seconds : exact-positive-integer?
 ;;   Give cold provider-cache construction more room than an individual row.
 (define goal1-dashboard-default-cache-warmup-timeout-seconds 480)
+
+;; goal1-dashboard-composition-timeout-seconds : exact-positive-integer?
+;;   Suggested per-row timeout for heavyweight cross-provider composition rows.
+(define goal1-dashboard-composition-timeout-seconds 240)
 
 ;; goal1-dashboard-fast-required-case-names : (listof symbol?)
 ;;   Tiny inner-loop preset for checking the main routes quickly.
@@ -183,6 +190,13 @@
     goal1-sequence-format-composition
     goal1-match-set-hash-composition
     goal1-dict-pretty-sequence-composition))
+
+;; goal1-dashboard-checkpoint-case-names : (listof symbol?)
+;;   Larger required checkpoint preset: ordinary coverage plus composition.
+(define goal1-dashboard-checkpoint-case-names
+  (append goal1-dashboard-coverage-core-case-names
+          goal1-dashboard-coverage-extended-case-names
+          goal1-dashboard-composition-case-names))
 
 ;; goal1-dashboard-real-provider-readiness-case-names : (listof symbol?)
 ;;   Expected-fail rows that show which staged substitutions are replacement candidates.
@@ -2307,6 +2321,25 @@
                                        #f))))
     c))
 
+;; goal1-dashboard-recommended-timeout-seconds : (listof goal1-dashboard-case?) -> exact-positive-integer?
+;;   Recommend a per-row timeout for the selected cases.
+(define (goal1-dashboard-recommended-timeout-seconds cases)
+  (if (for/or ([c (in-list cases)])
+        (eq? (goal1-dashboard-case-tier c) 'composition))
+      goal1-dashboard-composition-timeout-seconds
+      goal1-dashboard-default-timeout-seconds))
+
+;; warn-if-dashboard-timeout-too-low! : (listof goal1-dashboard-case?) exact-positive-integer? -> void?
+;;   Tell the user when a selected preset is likely too heavyweight for the bound.
+(define (warn-if-dashboard-timeout-too-low! selected-cases timeout-seconds)
+  (define recommended-timeout
+    (goal1-dashboard-recommended-timeout-seconds selected-cases))
+  (when (< timeout-seconds recommended-timeout)
+    (fprintf (current-error-port)
+             "dashboard: selected rows include tier(s) that usually need --timeout ~a; current --timeout is ~a\n"
+             recommended-timeout
+             timeout-seconds)))
+
 ;; cache-file-count : path? -> exact-nonnegative-integer?
 ;;   Count provider-cache files recursively.
 (define (cache-file-count cache-dir)
@@ -2753,6 +2786,7 @@
      (define actual-cache-dir
        (or cache-dir
            (make-temporary-file "webracket-goal1-dashboard-cache-~a" 'directory)))
+     (warn-if-dashboard-timeout-too-low! selected-cases timeout-seconds)
      (define rows
        (run-goal1-dashboard #:cache-dir actual-cache-dir
                             #:timeout-seconds timeout-seconds
@@ -2839,6 +2873,9 @@
    [("--composition") "run/list heavyweight Goal 1 cross-provider composition rows"
                       (set! case-names goal1-dashboard-composition-case-names)
                       (set! expectations '(required))]
+   [("--checkpoint") "run/list all required Goal 1 checkpoint rows"
+                     (set! case-names goal1-dashboard-checkpoint-case-names)
+                     (set! expectations '(required))]
    [("--real-provider-readiness") "run/list diagnostic rows for replacing staged providers with real Racket providers"
                                   (set! case-names goal1-dashboard-real-provider-readiness-case-names)
                                   (set! expectations '(diagnostic))]
