@@ -10,6 +10,7 @@
 (require racket/format
          racket/string
          "io-format-bridge.rkt"
+         "io-print-bridge.rkt"
          "read-provider.rkt"
          "regexp-provider.rkt")
 
@@ -36,7 +37,13 @@
     #f
     'staged
     webify-read-export-symbols
-    "staged original-Racket expander/read provider; enable with --expander-read-provider for Webify-owned public aliases")))
+    "staged original-Racket expander/read provider; enable with --expander-read-provider for Webify-owned public aliases")
+   (provider-slice
+    'io/print
+    #f
+    'staged
+    webify-io-print-export-symbols
+    "staged original-Racket print provider seed; cell-only smokes pass, public aliases remain disabled")))
 
 ;; provider-slice-by-name : symbol? -> (or/c provider-slice? #f)
 ;;   Look up a known provider slice.

@@ -5,6 +5,7 @@
          browser-only
          staged-original-racket-owned
          provider-owned-public-symbols
+         planned-provider-owned-public-symbols
          runtime-writing-substrate-symbols
          high-level-printing-provider-symbols
          legacy-printing-script-symbols
@@ -85,6 +86,9 @@
 
 (define high-level-printing-provider-symbols
   io-print-provider-symbols)
+
+(define planned-provider-owned-public-symbols
+  high-level-printing-provider-symbols)
 
 (define legacy-printing-script-symbols
   '(fprintf
@@ -251,6 +255,7 @@
   (report-line "browser stdlib aliases" (sorted-symbols (stdlib-module-alias-symbols #t)))
   (report-line "staged original Racket providers" (sorted-symbols staged-original-racket-owned))
   (report-line "provider-owned public symbols" (sorted-symbols provider-owned-public-symbols))
+  (report-line "planned provider-owned public symbols" (sorted-symbols planned-provider-owned-public-symbols))
   (report-line "runtime writing substrate" (sorted-symbols runtime-writing-substrate-symbols))
   (report-line "staged io/print high-level provider" (sorted-symbols high-level-printing-provider-symbols))
   (report-line "webracket/base foundation" (sorted-symbols webracket-base-owned))

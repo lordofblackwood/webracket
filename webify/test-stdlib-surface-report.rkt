@@ -20,6 +20,13 @@
   (check-equal? (sort provider-owned-public-symbols symbol<?)
                 '(eprintf format fprintf printf read read-syntax)))
 
+(test-case "planned provider-owned public names are explicit"
+  (check-equal? (sort planned-provider-owned-public-symbols symbol<?)
+                '(display displayln newline print println write writeln))
+  (for ([name (in-list planned-provider-owned-public-symbols)])
+    (check-false (memq name provider-owned-public-symbols)
+                 (symbol->string name))))
+
 (test-case "stdlib file ownership records obsolete and mixed areas"
   (define by-file
     (for/hasheq ([row (in-list stdlib-file-ownership-rows)])
