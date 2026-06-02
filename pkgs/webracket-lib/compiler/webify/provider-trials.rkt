@@ -269,6 +269,7 @@
 (define webify-provider-trial-support-modules
   '(js/console
     js/array
+    js/iterator
     js/math
     js/performance
     js/standard
@@ -417,6 +418,7 @@
 (define webify-provider-trial-default-bridge-modules
  '(js/console
     js/array
+    js/iterator
     js/math
     js/performance
     js/standard

@@ -24,7 +24,7 @@ and keep `include-lib` only as a compatibility path while old examples migrate.
 | `fetch.rkt` | safe wrapper | `browser/fetch` | Fetch/Headers/Request/Response wrappers; no public module yet. |
 | `image.rkt` | safe wrapper | `browser/image` | HTML image wrapper. |
 | `indexed-db.rkt` | safe wrapper | `browser/indexed-db` | IndexedDB wrapper; no public module yet. |
-| `iterator.rkt` | safe wrapper | `js/iterator` | JavaScript iterator-helper wrapper used by performance. |
+| `iterator.rkt` | safe wrapper | `js/iterator` | Migrated; module keeps the legacy helper surface and is backed by `array.ffi`. |
 | `jsx-graph.rkt` | safe wrapper | `jsxgraph` | High-level JSXGraph wrapper; current module facade should absorb this API. |
 | `media.rkt` | safe wrapper | `browser/media` | HTML media element wrapper and conversion helpers. |
 | `performance.rkt` | safe wrapper | `js/performance` | Performance API wrapper; depends on iterator helpers. |

@@ -99,14 +99,25 @@
                                       ffi-path))
        '())))
 
+;; ffi-public-alias-rows : (listof ffi-module-registry-row?)
+;;   Extra public modules backed by an existing aggregate `.ffi` declaration.
+(define ffi-public-alias-rows
+  (let ([array-ffi-path (build-path ffi-root "array.ffi")])
+    (if (file-exists? array-ffi-path)
+        (list (ffi-module-registry-row 'js/iterator
+                                       "array.ffi"
+                                       array-ffi-path))
+        '())))
+
 ;; ffi-module-registry-rows : (listof ffi-module-registry-row?)
 ;;   Discover migrated module providers from `ffi/*.ffi` and existing modules.
 (define ffi-module-registry-rows
   (sort
-   (append-map ffi-path->module-registry-rows
-               (find-files (lambda (path)
-                             (equal? (path-get-extension path) #".ffi"))
-                           ffi-root))
+   (append ffi-public-alias-rows
+           (append-map ffi-path->module-registry-rows
+                       (find-files (lambda (path)
+                                     (equal? (path-get-extension path) #".ffi"))
+                                   ffi-root)))
    symbol<?
    #:key ffi-module-registry-row-module))
 
