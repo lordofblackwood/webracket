@@ -15,6 +15,7 @@ Migration status:
 
 - `array.rkt`: migrated to `js/array`; kept here for compatibility.
 - `console.rkt`: migrated to `js/console`; kept here for compatibility.
+- `domrect.rkt`: migrated to `browser/domrect`; kept here for compatibility.
 - `math`: no legacy include file existed; `js/math` starts directly as a module.
 - Other files: still legacy include-lib wrappers.
 

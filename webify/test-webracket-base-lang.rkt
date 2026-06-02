@@ -1881,6 +1881,7 @@
 
 (test-case "js/array, js/math, js/performance, js/standard, and js/temp have public wrappers"
   (define array-exports (module-runtime-export-symbols 'js/array))
+  (define domrect-exports (module-runtime-export-symbols 'browser/domrect))
   (define math-exports (module-runtime-export-symbols 'js/math))
   (define performance-exports (module-runtime-export-symbols 'js/performance))
   (define standard-exports (module-runtime-export-symbols 'js/standard))
@@ -1898,6 +1899,15 @@
                          array-set-length!
                          array-to-spliced))])
     (check-not-false (memq name array-exports)
+                     (symbol->string name)))
+  (for ([name (in-list '(dom-rect?
+                         dom-rect-wrap
+                         dom-rect-unwrap
+                         dom-rect-left
+                         dom-rect-top
+                         dom-rect-width
+                         dom-rect-height))])
+    (check-not-false (memq name domrect-exports)
                      (symbol->string name)))
   (check-not-false (memq 'math-sqrt math-exports))
   (check-not-false (memq 'math-random math-exports))

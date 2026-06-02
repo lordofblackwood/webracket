@@ -18,7 +18,7 @@ and keep `include-lib` only as a compatibility path while old examples migrate.
 | `define.rkt` | syntax/helper | `webracket/define-key` | Keyword-definition helper macros; not a JS/browser API. |
 | `document.rkt` | safe wrapper | `browser/document` | DOM Document wrapper and constructors. |
 | `dom.rkt` | aggregate | `browser/dom` | Reexports window/document/domrect/element/image/event family. |
-| `domrect.rkt` | safe wrapper | `browser/domrect` | Small DOMRect accessor wrapper. |
+| `domrect.rkt` | safe wrapper | `browser/domrect` | Migrated; module now owns DOMRect wrap/unwrap plus accessors. |
 | `element.rkt` | safe wrapper | `browser/element` | Large DOM Element wrapper with event-listener caching. |
 | `event.rkt` | legacy include adapter | `browser/event` | Includes `lib/web-easy/event-browser.rkt`; should become a real module source or wrapper. |
 | `fetch.rkt` | safe wrapper | `browser/fetch` | Fetch/Headers/Request/Response wrappers; no public module yet. |
