@@ -271,6 +271,9 @@
   (check-not-false
    (member 'installed-racket-class-basic-coverage
            goal1-dashboard-coverage-extended-case-names))
+  (check-not-false
+   (member 'installed-racket-class-advanced-coverage
+           goal1-dashboard-coverage-extended-case-names))
   (check-equal?
    (sort (append goal1-dashboard-coverage-core-case-names
                  goal1-dashboard-coverage-extended-case-names)

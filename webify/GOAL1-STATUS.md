@@ -21,9 +21,10 @@ through the temporary provider bridge allowlist.
   diagnostics reached runtime.
 - Runtime-adjacent coverage now includes VFS file helpers, contract-erased
   queues, and the narrow logging export surface.
-- Explicit `racket/class` requires now include required extended runtime
-  coverage for ordinary class creation, `init-field`, inheritance, `new`,
-  `send`, `object?`, and `is-a?` through the module bridge.
+- Explicit `racket/class` requires now include extended runtime coverage for
+  ordinary class creation, `init-field`, inheritance, `new`, `send`, `object?`,
+  `is-a?`, interfaces, `class*`, `super`, `define/override`, keyword-style init
+  arguments, and caught final-method override errors through the module bridge.
 
 ## Current Boundaries
 

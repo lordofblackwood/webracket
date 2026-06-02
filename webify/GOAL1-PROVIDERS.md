@@ -195,12 +195,14 @@ remaining compatibility notes are:
   installed Racket.
 - `racket/class` is deferred from `webracket/full` for now, but explicit
   `racket/class` requires have real-provider coverage. The extended dashboard
-  row `installed-racket-class-basic-coverage` exercises ordinary class
-  creation, `init-field`, inheritance, `new`, `send`, `object?`, and `is-a?`
-  through the module bridge with provider substitutions disabled. The bridge
-  still treats class support as a deliberately seeded provider slice, so
-  `webracket/full` should not advertise class exports until the exported
-  language surface is chosen deliberately.
+  rows `installed-racket-class-basic-coverage` and
+  `installed-racket-class-advanced-coverage` exercise ordinary class creation,
+  `init-field`, inheritance, `new`, `send`, `object?`, `is-a?`, interfaces,
+  `class*`, `super`, `define/override`, keyword-style init arguments, and
+  caught final-method override errors through the module bridge with provider
+  substitutions disabled. The bridge still treats class support as a
+  deliberately seeded provider slice, so `webracket/full` should not advertise
+  class exports until the exported language surface is chosen deliberately.
 - Real-provider class diagnostics are intentionally separate from the older
   runtime-smoke class rows. Rows named `real-racket-class-*` run with
   `--no-provider-substitutions`, so `(require racket/class)` stays the installed

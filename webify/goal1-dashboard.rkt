@@ -224,6 +224,7 @@
     installed-data-queue-coverage
     installed-racket-logging-coverage
     installed-racket-class-basic-coverage
+    installed-racket-class-advanced-coverage
     ffi-js-math-coverage
     ffi-js-console-coverage))
 
@@ -2108,6 +2109,48 @@
          "(js-log (if (and (object? obj) (is-a? obj child%) (is-a? obj base%))\n"
          "            (send obj next)\n"
          "            0))\n")))
+    "main.rkt"
+    #rx"(?m:^42$)"
+    '("--webracket-module-bridge" "--no-provider-substitutions")
+    #:tier 'coverage)
+   (dashboard-case
+    'installed-racket-class-advanced-coverage
+    'installed-provider-coverage
+    '(racket/class)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/base\n"
+         "(require racket/class)\n"
+         "(define valued<%> (interface () value next))\n"
+         "(define base%\n"
+         "  (class object%\n"
+         "    (init-field [n 30])\n"
+         "    (super-new)\n"
+         "    (define/public (value) n)\n"
+         "    (define/public (next) (+ (value) 1))))\n"
+         "(define child%\n"
+         "  (class* base% (valued<%>)\n"
+         "    (init-field [delta 10])\n"
+         "    (super-new)\n"
+         "    (inherit value)\n"
+         "    (define/override (next) (+ (super next) delta))))\n"
+         "(define obj (new child% [n 39] [delta 2]))\n"
+         "(define final%\n"
+         "  (class object%\n"
+         "    (super-new)\n"
+         "    (define/public-final (sealed) 5)))\n"
+         "(define caught\n"
+         "  (with-handlers ([(lambda (e) #t) (lambda (e) 1)])\n"
+         "    (class final%\n"
+         "      (super-new)\n"
+         "      (define/override (sealed) 6))\n"
+         "    0))\n"
+         "(js-log (+ (if (is-a? obj valued<%>) 1 0)\n"
+         "           (if (is-a? obj child%) 2 0)\n"
+         "           (send obj value)\n"
+         "           (send obj next)\n"
+         "           caught\n"
+         "           -43))\n")))
     "main.rkt"
     #rx"(?m:^42$)"
     '("--webracket-module-bridge" "--no-provider-substitutions")
