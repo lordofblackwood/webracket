@@ -41,6 +41,7 @@
          (only-in racket/pretty     pretty-write)
          (only-in racket/format     ~a)
          (only-in racket/system     system*)
+         (only-in racket/string     string-prefix?)
          #;(only-in "lang/reader.rkt" read-syntax)
          (only-in "assembler.rkt"
                   run
@@ -2257,11 +2258,26 @@
 
 ;; webracket-owned-ffi-provider-name? : symbol? -> boolean?
 ;;   Recognize WebRacket provider modules that do not need contract erasure.
+(define webracket-owned-ffi-provider-exacts
+  '(web-easy
+    web-pict
+    webracket/private/ffi))
+
+(define webracket-owned-ffi-provider-prefixes
+  '("js/"
+    "browser/"
+    "web-easy/"
+    "web-pict/"
+    "webracket/unsafe/"))
+
 (define (webracket-owned-ffi-provider-name? name)
-  (and (symbol? name)
-       (regexp-match? #rx"^(js/|browser/|web-pict$|web-pict/|webracket/unsafe/|webracket/private/ffi$)"
-                      (symbol->string name))
-       #t))
+  (cond
+    [(not (symbol? name)) #f]
+    [(memq name webracket-owned-ffi-provider-exacts) #t]
+    [else
+     (define name-string (symbol->string name))
+     (for/or ([prefix (in-list webracket-owned-ffi-provider-prefixes)])
+       (string-prefix? name-string prefix))]))
 
 ;; webracket/base-reports->module-graph : symbol? reports keyword-args -> graph
 ;;   Build a bridge graph from already-extracted reports.

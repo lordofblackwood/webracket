@@ -103,6 +103,25 @@
 
 ;; ffi-public-alias-rows : (listof ffi-module-registry-row?)
 ;;   Extra public modules backed by an existing aggregate `.ffi` declaration.
+(define browser-aggregate-ffi-modules
+  '(browser/dom
+    web-easy
+    web-pict
+    webracket/unsafe/dom))
+
+(define browser-aggregate-ffi-filenames
+  '("audio.ffi"
+    "canvas.ffi"
+    "document.ffi"
+    "dom.ffi"
+    "domrect.ffi"
+    "element.ffi"
+    "event.ffi"
+    "image.ffi"
+    "media.ffi"
+    "websocket.ffi"
+    "window.ffi"))
+
 (define ffi-public-alias-rows
   (let ()
     (define (row module filename)
@@ -113,21 +132,10 @@
      values
      (append
       (list (row 'js/iterator "array.ffi"))
-      ;; `browser/dom` and `webracket/unsafe/dom` are aggregate facades used by
-      ;; migrated libraries such as `web-pict`; their module provider implies
-      ;; the full browser binding family, not only `dom.ffi`.
-      (for*/list ([module (in-list '(browser/dom webracket/unsafe/dom))]
-                  [filename (in-list '("audio.ffi"
-                                       "canvas.ffi"
-                                       "document.ffi"
-                                       "dom.ffi"
-                                       "domrect.ffi"
-                                       "element.ffi"
-                                       "event.ffi"
-                                       "image.ffi"
-                                       "media.ffi"
-                                       "websocket.ffi"
-                                       "window.ffi"))])
+      ;; Aggregate facades used by migrated libraries such as `web-easy` and
+      ;; `web-pict` imply the full browser binding family, not only `dom.ffi`.
+      (for*/list ([module (in-list browser-aggregate-ffi-modules)]
+                  [filename (in-list browser-aggregate-ffi-filenames)])
         (row module filename))))))
 
 ;; ffi-module-registry-rows : (listof ffi-module-registry-row?)

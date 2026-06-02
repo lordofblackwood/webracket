@@ -285,6 +285,8 @@
     browser/media
     browser/websocket
     browser/window
+    web-easy
+    web-easy/private/dom-like
     web-pict
     web-pict/private/entry
     jsxgraph
@@ -436,6 +438,8 @@
     browser/media
     browser/websocket
     browser/window
+    web-easy
+    web-easy/private/dom-like
     web-pict
     web-pict/private/entry
     jsxgraph

@@ -1,0 +1,261 @@
+/*
+ * Web Easy light theme showcase-page layout overrides.
+ *
+ * This file is page-specific (topbar, hero, grid cards) and is meant to be
+ * loaded together with theme-light.css.
+ */
+
+/* -------------------------------------------------------------------------- */
+/* 8) Theme Showcase Page Layout (for generated/example-browser-theme-showcase) */
+/* -------------------------------------------------------------------------- */
+html.we-theme-light .showcase-shell {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 14px 14px 14px;
+  gap: 14px;
+}
+
+/* Sticky topbar card to mimic the demo page header feel. */
+html.we-theme-light .showcase-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  /* Full-bleed trick: break out of centered shell to viewport width. */
+  width: 100vw;
+  margin-left: calc(50% - 50vw);
+  margin-right: calc(50% - 50vw);
+  border-bottom: 1px solid var(--we-border-soft);
+}
+
+/* Remove card framing so topbar reads as a full-width header band. */
+html.we-theme-light .showcase-topbar.we-top-bar {
+  border-left: none;
+  border-right: none;
+  border-top: none;
+  border-bottom: none;
+  border-radius: 0;
+  background: #f3f3f3;
+  gap: 0;
+  padding: 12px 14px;
+}
+
+html.we-theme-light .showcase-topbar-inner.we-inline {
+  max-width: 1200px;
+  margin: 0 auto;
+  width: 100%;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  /* Wrap keeps controls usable on narrow screens. */
+  flex-wrap: wrap;
+}
+
+html.we-theme-light .showcase-brand.we-stack {
+  gap: 3px;
+}
+
+html.we-theme-light .showcase-brand-title {
+  font-size: 17px;
+  letter-spacing: 0.02em;
+}
+
+html.we-theme-light .showcase-brand-subtitle {
+  font-size: 12px;
+  color: #777777;
+}
+
+html.we-theme-light .showcase-topbar-controls.we-stack {
+  align-items: stretch;
+  gap: 8px;
+  justify-content: flex-start;
+}
+
+html.we-theme-light .showcase-controls-download-row.we-toolbar {
+  align-items: center;
+  gap: 8px;
+  /* Allow buttons to wrap instead of shrinking text to unreadable sizes. */
+  flex-wrap: wrap;
+}
+
+html.we-theme-light .showcase-controls-label {
+  font-weight: 600;
+}
+
+html.we-theme-light .showcase-theme-choice.we-choice {
+  min-width: 170px;
+  width: 170px;
+}
+
+html.we-theme-light .showcase-topbar-controls .we-choice,
+html.we-theme-light .showcase-link-button.we-button,
+html.we-theme-light .showcase-link-button.we-link {
+  border-radius: 6px;
+  padding: 5px 10px;
+}
+
+html.we-theme-light .showcase-link-button.we-button,
+html.we-theme-light .showcase-link-button.we-link {
+  background: var(--we-bg);
+  border-color: var(--we-border);
+  color: var(--we-fg);
+  text-decoration: none;
+}
+
+html.we-theme-light .showcase-link-button.we-button:hover,
+html.we-theme-light .showcase-link-button.we-link:hover {
+  background: var(--we-bg-hover);
+  border-color: var(--we-border-hover);
+  color: var(--we-fg);
+}
+
+/* Hero card under the topbar. */
+html.we-theme-light .showcase-hero {
+  /* Full-bleed section with centered card inside (matches demo structure). */
+  width: 100vw;
+  margin-left: calc(50% - 50vw);
+  margin-right: calc(50% - 50vw);
+  margin-top: 16px;
+}
+
+html.we-theme-light .showcase-hero.we-card {
+  border-radius: 10px;
+  max-width: 1200px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+html.we-theme-light .showcase-hero .we-card-header {
+  background: #f3f3f3;
+  border-bottom-color: #f3f3f3;
+  color: #1a1f2b;
+  font-size: 23px;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+html.we-theme-light .showcase-hero .we-card-body {
+  background: #ffffff;
+  color: #4f607a;
+  line-height: 1.45;
+  width: 100%;
+  padding-top: 8px;
+  padding-bottom: 14px;
+}
+
+html.we-theme-light .showcase-hero-title {
+  font-size: 23px;
+  color: #1a1f2b;
+}
+
+html.we-theme-light .showcase-hero-lead {
+  color: #777777;
+  line-height: 1.5;
+}
+
+/* Grid rows: wrap cards as viewport changes, similar to demo cards grid. */
+html.we-theme-light .showcase-grid-row.we-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 12px;
+}
+
+html.we-theme-light .showcase-grid-row .showcase-card.we-card {
+  min-width: 0;
+}
+
+html.we-theme-light .showcase-card .we-card-header {
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 0.78rem;
+}
+
+html.we-theme-light .showcase-card .we-card-body {
+  gap: 8px;
+}
+
+/* Keep grouped button rows visually compact and aligned. */
+html.we-theme-light .showcase-button-row.we-inline {
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+/* Static list-group rows in showcase: keep count badge docked right with separator. */
+html.we-theme-light .showcase-list-group-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  width: 100%;
+  gap: 0.5rem;
+}
+
+html.we-theme-light .showcase-list-group-row > [data-we-widget="text"] {
+  white-space: nowrap;
+}
+
+html.we-theme-light .showcase-list-group-badge {
+  margin-left: auto;
+  padding-left: 0.75rem;
+  border-left: 1px solid #c0cee2;
+  border-radius: 0;
+  min-width: 2rem;
+  text-align: center;
+}
+
+/* Variant list-group rows in the Containers section. */
+html.we-theme-light .showcase-list-variant .we-list-group-item:nth-child(1) { background: #fff4dd; color: #5f4600; border-color: #e3c98b; }
+html.we-theme-light .showcase-list-variant .we-list-group-item:nth-child(2) { background: #eceff4; color: #414b57; border-color: #c8d0dc; }
+html.we-theme-light .showcase-list-variant .we-list-group-item:nth-child(3) { background: #e3f4e8; color: #234b2f; border-color: #abd8ba; }
+html.we-theme-light .showcase-list-variant .we-list-group-item:nth-child(4) { background: #e7f2ff; color: #23456f; border-color: #b5d3f5; }
+html.we-theme-light .showcase-list-variant .we-list-group-item:nth-child(5) { background: #fff0df; color: #6e3b14; border-color: #edc39a; }
+html.we-theme-light .showcase-list-variant .we-list-group-item:nth-child(6) { background: #fde8f2; color: #6e2345; border-color: #eeb7d0; }
+html.we-theme-light .showcase-list-variant .we-list-group-item:nth-child(7) { background: #ffffff; color: #2a3f5f; border-color: #d7e2f1; }
+html.we-theme-light .showcase-list-variant .we-list-group-item:nth-child(8) { background: #c8ced8; color: #1f2938; border-color: #b0b8c4; }
+
+/* Static toast sample in showcase. */
+html.we-theme-light .showcase-static-toast {
+  width: min(360px, 100%);
+  border: 1px solid #9aa9c3;
+  border-radius: 6px;
+  background: #ffffff;
+  color: var(--we-fg);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
+  overflow: hidden;
+}
+
+html.we-theme-light .showcase-static-toast-header.we-inline {
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.55rem 0.75rem;
+  border-bottom: 1px solid #c5d1e4;
+  background: #f6f9ff;
+}
+
+html.we-theme-light .showcase-static-toast-title {
+  font-weight: 700;
+}
+
+html.we-theme-light .showcase-static-toast-time {
+  color: #5f7190;
+}
+
+html.we-theme-light .showcase-static-toast-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 4px;
+  color: #4f607a;
+  line-height: 1;
+}
+
+html.we-theme-light .showcase-static-toast-close:hover {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+html.we-theme-light .showcase-static-toast-body {
+  display: block;
+  padding: 0.65rem 0.75rem;
+  line-height: 1.45;
+}

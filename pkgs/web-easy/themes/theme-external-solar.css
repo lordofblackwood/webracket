@@ -1,0 +1,1267 @@
+/*
+ * Web Easy external "Solar" theme example.
+ *
+ * Inspired by Bootswatch Solar (a Solarized-style palette), but adapted to
+ * web-easy widget classes and tokens.
+ *
+ * This file is beginner-facing:
+ * - Start by changing the variables in section 1.
+ * - Keep selectors unchanged until you are comfortable.
+ */
+
+/* -------------------------------------------------------------------------- */
+/* 1) Design Tokens (CSS variables)                                            */
+/* -------------------------------------------------------------------------- */
+html.we-theme-solar {
+  /* Main palette (Solarized-inspired). */
+  --we-bg: #002b36;
+  --we-bg-subtle: #073642;
+  --we-bg-selected: #0f3f4d;
+  --we-bg-disabled: #1a4753;
+  --we-bg-hover: #17414e;
+
+  --we-fg: #93a1a1;
+  --we-fg-muted: #6c8a8f;
+
+  --we-border: #2f6671;
+  --we-border-menu: #3a7480;
+  --we-border-muted: #376d78;
+  --we-border-soft: #4e818c;
+  --we-border-hover: #6d9aa3;
+  --we-border-strong: #b58900;
+
+  --we-focus: #268bd2;
+  --we-focus-tint: rgba(38, 139, 210, 0.24);
+  --we-overlay: rgba(0, 19, 24, 0.76);
+  --we-shadow: rgba(0, 0, 0, 0.52);
+  /* Menu hover and tab/input specifics for clearer customization examples. */
+  --we-menu-item-hover-bg: #17414e;
+  --we-menu-item-hover-fg: #93a1a1;
+  --we-tab-active-border: #0f3f4d;
+  --we-input-placeholder: #6c8a8f;
+  --we-field-bg: #002733;
+  --we-field-bg-focus: #00303d;
+
+  --we-space-xs: 2px;
+  --we-space-sm: 4px;
+  --we-space-md: 8px;
+  --we-space-lg: 10px;
+  --we-menu-popup-offset: 4px;
+  --we-menu-popup-min-width: 150px;
+  --we-menu-popup-gap: 4px;
+
+  /* Semantic accents. */
+  --we-progress-success: #859900;
+  --we-progress-warning: #b58900;
+  --we-progress-danger: #dc322f;
+
+  /* Optional close-button glyph token. */
+  --we-close-glyph: "✕";
+
+  background: var(--we-bg);
+  color: var(--we-fg);
+  margin: 0;
+  padding: 0;
+}
+
+html.we-theme-solar * {
+  box-sizing: border-box;
+}
+
+html.we-theme-solar body {
+  background: var(--we-bg);
+  color: var(--we-fg);
+  /* Match demo-theme-showcase typography. */
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  margin: 0;
+  padding: 0;
+}
+
+/* General text tone utilities (used by showcase and user apps). */
+html.we-theme-solar .we-text-primary { color: var(--we-primary, var(--we-border-strong)); }
+html.we-theme-solar .we-text-primary-emphasis { color: var(--we-primary-emphasis, var(--we-primary, var(--we-border-strong))); }
+html.we-theme-solar .we-text-secondary { color: var(--we-secondary, var(--we-fg-muted)); }
+html.we-theme-solar .we-text-secondary-emphasis { color: var(--we-secondary-emphasis, var(--we-secondary, var(--we-fg-muted))); }
+html.we-theme-solar .we-text-success { color: var(--we-success, var(--we-progress-success)); }
+html.we-theme-solar .we-text-success-emphasis { color: var(--we-success-emphasis, var(--we-success, var(--we-progress-success))); }
+html.we-theme-solar .we-text-info { color: var(--we-info, var(--we-focus)); }
+html.we-theme-solar .we-text-info-emphasis { color: var(--we-info-emphasis, var(--we-info, var(--we-focus))); }
+html.we-theme-solar .we-text-warning { color: var(--we-warning, var(--we-progress-warning)); }
+html.we-theme-solar .we-text-warning-emphasis { color: var(--we-warning-emphasis, var(--we-warning, var(--we-progress-warning))); }
+html.we-theme-solar .we-text-danger { color: var(--we-danger, var(--we-progress-danger)); }
+html.we-theme-solar .we-text-danger-emphasis { color: var(--we-danger-emphasis, var(--we-danger, var(--we-progress-danger))); }
+html.we-theme-solar .we-text-light { color: var(--we-light, #eee8d5); }
+html.we-theme-solar .we-text-light-emphasis { color: var(--we-light-emphasis, var(--we-light, #eee8d5)); }
+html.we-theme-solar .we-text-dark { color: var(--we-dark, #001f27); }
+html.we-theme-solar .we-text-dark-emphasis { color: var(--we-dark-emphasis, var(--we-dark, #001f27)); }
+html.we-theme-solar .we-text-body { color: var(--we-fg); }
+html.we-theme-solar .we-text-body-emphasis { color: var(--we-fg); }
+html.we-theme-solar .we-text-body-secondary { color: var(--we-body-secondary, var(--we-fg-muted)); }
+html.we-theme-solar .we-text-body-tertiary { color: var(--we-body-tertiary, var(--we-fg-muted)); }
+html.we-theme-solar .we-heading-subtitle {
+  margin-left: 0.35rem;
+  color: var(--we-fg-muted);
+  font-size: 0.7em;
+  font-weight: 400;
+}
+
+/* -------------------------------------------------------------------------- */
+/* 2) Controls (button/input/select/textarea)                                  */
+/* -------------------------------------------------------------------------- */
+html.we-theme-solar button,
+html.we-theme-solar input,
+html.we-theme-solar select,
+html.we-theme-solar textarea {
+  color: var(--we-fg);
+}
+
+html.we-theme-solar input,
+html.we-theme-solar textarea,
+html.we-theme-solar .we-input {
+  background: var(--we-field-bg);
+  border: 1px solid var(--we-border);
+  color: var(--we-fg);
+  min-height: 32px;
+  border-radius: 5px;
+  padding: 6px 8px;
+}
+
+html.we-theme-solar input::placeholder,
+html.we-theme-solar textarea::placeholder {
+  color: var(--we-input-placeholder);
+}
+
+html.we-theme-solar input:focus-visible,
+html.we-theme-solar textarea:focus-visible,
+html.we-theme-solar .we-input:focus-visible {
+  background-color: var(--we-field-bg-focus);
+  background-image: linear-gradient(var(--we-focus-tint), var(--we-focus-tint));
+  outline: 1px solid var(--we-focus);
+  outline-offset: 0;
+  border-color: #5c93a0;
+}
+
+html.we-theme-solar button,
+html.we-theme-solar .we-button {
+  background: var(--we-bg);
+  border: 1px solid var(--we-border);
+  color: var(--we-fg);
+  border-radius: 4px;
+  padding: 5px 9px;
+}
+
+html.we-theme-solar button:hover,
+html.we-theme-solar .we-button:hover {
+  background: var(--we-bg-hover);
+  border-color: var(--we-border-hover);
+  color: var(--we-fg);
+}
+
+html.we-theme-solar button:active,
+html.we-theme-solar .we-button:active {
+  background: var(--we-bg-selected);
+  border-color: var(--we-border-soft);
+}
+
+html.we-theme-solar button:focus-visible,
+html.we-theme-solar .we-button:focus-visible {
+  background-image: linear-gradient(var(--we-focus-tint), var(--we-focus-tint));
+  outline: 1px solid var(--we-focus);
+  outline-offset: 0;
+}
+
+/* Button variants used by the public showcase page. */
+html.we-theme-solar .we-button-primary {
+  background: var(--we-bg-selected);
+  border-color: var(--we-border-strong);
+  color: var(--we-fg);
+}
+
+html.we-theme-solar .we-button-primary:hover {
+  background: var(--we-bg-hover);
+  border-color: var(--we-border-soft);
+  color: var(--we-fg);
+}
+
+html.we-theme-solar .we-button-secondary {
+  background: var(--we-bg-subtle);
+  border-color: var(--we-border-soft);
+  color: var(--we-fg);
+}
+
+html.we-theme-solar .we-button-secondary:hover {
+  background: var(--we-bg-hover);
+  border-color: var(--we-border-hover);
+}
+
+html.we-theme-solar .we-button-ghost {
+  background: transparent;
+  border-color: var(--we-border);
+  color: var(--we-fg);
+}
+
+html.we-theme-solar .we-button-ghost:hover {
+  background: var(--we-bg-hover);
+  border-color: var(--we-border-hover);
+  color: var(--we-fg);
+}
+
+/* Pagination links should look like buttons, not underlined text links. */
+html.we-theme-solar .we-page-btn,
+html.we-theme-solar .we-page-btn:hover,
+html.we-theme-solar .we-page-btn:focus-visible {
+  text-decoration: none;
+}
+
+html.we-theme-solar select,
+html.we-theme-solar .we-choice {
+  background: var(--we-field-bg);
+  border: 1px solid var(--we-border);
+  color: var(--we-fg);
+  -webkit-text-fill-color: var(--we-fg);
+  min-height: 32px;
+  border-radius: 5px;
+  padding: 6px 30px 6px 8px;
+  line-height: 1.2;
+  appearance: none;
+  /* Draw a custom dropdown chevron with pure CSS gradients. */
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--we-fg-muted) 50%),
+    linear-gradient(135deg, var(--we-fg-muted) 50%, transparent 50%);
+  background-position:
+    calc(100% - 13px) calc(50% - 1px),
+    calc(100% - 8px) calc(50% - 1px);
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+}
+
+/* Keep selected value readable on hover/focus (some browsers dim select text). */
+html.we-theme-solar select:hover,
+html.we-theme-solar .we-choice:hover,
+html.we-theme-solar select:focus,
+html.we-theme-solar .we-choice:focus,
+html.we-theme-solar select:focus-visible,
+html.we-theme-solar .we-choice:focus-visible {
+  color: var(--we-fg);
+  -webkit-text-fill-color: var(--we-fg);
+}
+
+html.we-theme-solar select option {
+  background: var(--we-field-bg);
+  color: var(--we-fg);
+}
+
+html.we-theme-solar .we-close-button-icon::before {
+  content: var(--we-close-glyph);
+}
+
+/* -------------------------------------------------------------------------- */
+/* 2b) Layout spacing primitives                                               */
+/* -------------------------------------------------------------------------- */
+/* Keep spacing defaults in the theme so pages don't need local spacing hacks. */
+html.we-theme-solar .we-grid {
+  gap: 12px;
+}
+
+html.we-theme-solar .we-card-body {
+  padding: 10px;
+  gap: 8px;
+}
+
+html.we-theme-solar .we-card {
+  border-color: var(--we-border-soft);
+  border-radius: 6px;
+  background: var(--we-bg);
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+html.we-theme-solar .we-card-header,
+html.we-theme-solar .we-card-footer {
+  background: var(--we-bg-subtle);
+  background-clip: padding-box;
+  border-color: var(--we-border-soft);
+  color: var(--we-fg);
+  padding: 8px 10px;
+}
+
+html.we-theme-solar .we-card .we-heading {
+  margin: 0 0 2px 0;
+  color: inherit;
+}
+
+html.we-theme-solar .we-card-tone-primary   { --we-card-tone-bg: var(--we-border-strong); --we-card-tone-border: var(--we-border-strong); --we-card-tone-fg: #fff; }
+html.we-theme-solar .we-card-tone-secondary { --we-card-tone-bg: #6f878c; --we-card-tone-border: #6f878c; --we-card-tone-fg: #fff; }
+html.we-theme-solar .we-card-tone-success   { --we-card-tone-bg: var(--we-progress-success); --we-card-tone-border: var(--we-progress-success); --we-card-tone-fg: #f7fff6; }
+html.we-theme-solar .we-card-tone-info      { --we-card-tone-bg: var(--we-focus); --we-card-tone-border: var(--we-focus); --we-card-tone-fg: #f4fbff; }
+html.we-theme-solar .we-card-tone-warning   { --we-card-tone-bg: var(--we-progress-warning); --we-card-tone-border: var(--we-progress-warning); --we-card-tone-fg: #fff8ea; }
+html.we-theme-solar .we-card-tone-danger    { --we-card-tone-bg: var(--we-progress-danger); --we-card-tone-border: var(--we-progress-danger); --we-card-tone-fg: #fff3f3; }
+html.we-theme-solar .we-card-tone-light     { --we-card-tone-bg: #fdf6e3; --we-card-tone-border: #cdbf95; --we-card-tone-fg: #073642; }
+html.we-theme-solar .we-card-tone-dark      { --we-card-tone-bg: #073642; --we-card-tone-border: #073642; --we-card-tone-fg: #eee8d5; }
+
+html.we-theme-solar .we-card.we-card-tone-fill {
+  background: var(--we-card-tone-bg, var(--we-bg));
+  border-color: var(--we-card-tone-border, var(--we-border-soft));
+  color: var(--we-card-tone-fg, var(--we-fg));
+}
+
+html.we-theme-solar .we-card.we-card-tone-fill :is(.we-card-header, .we-card-body, .we-card-footer, .we-card-subtitle, .we-card-media-text, .we-card-action-text) {
+  color: var(--we-card-tone-fg, var(--we-fg));
+}
+
+html.we-theme-solar .we-card.we-card-tone-fill .we-card-header,
+html.we-theme-solar .we-card.we-card-tone-fill .we-card-footer {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.16);
+}
+
+html.we-theme-solar .we-card.we-card-tone-outline {
+  border-color: var(--we-card-tone-border, var(--we-border-soft));
+  color: var(--we-card-tone-border, var(--we-fg));
+}
+
+html.we-theme-solar .we-card.we-card-tone-outline .we-card-header,
+html.we-theme-solar .we-card.we-card-tone-outline .we-card-footer {
+  background: color-mix(in srgb, var(--we-card-tone-bg, var(--we-bg)) 12%, var(--we-bg));
+  border-color: color-mix(in srgb, var(--we-card-tone-border, var(--we-border-soft)) 55%, var(--we-bg));
+}
+
+html.we-theme-solar .we-card-actions {
+  border-top: 1px solid var(--we-border-soft);
+  padding: 8px 10px;
+}
+
+html.we-theme-solar .we-inline,
+html.we-theme-solar .we-toolbar,
+html.we-theme-solar .we-toolbar-group {
+  gap: 6px;
+}
+
+/* -------------------------------------------------------------------------- */
+/* 3) Menus                                                                     */
+/* -------------------------------------------------------------------------- */
+html.we-theme-solar .we-menu-bar {
+  gap: 6px;
+  padding: 5px;
+  border: 1px solid var(--we-border-menu);
+  border-radius: 5px;
+  background: var(--we-bg-subtle);
+  box-sizing: border-box;
+}
+
+html.we-theme-solar .we-menu-label {
+  -webkit-appearance: none;
+  appearance: none;
+  padding: 5px 9px;
+  border: 1px solid var(--we-border);
+  border-radius: 4px;
+  background: var(--we-bg);
+  color: var(--we-fg);
+}
+
+html.we-theme-solar .we-menu-label:hover {
+  background: var(--we-bg-hover);
+  border-color: var(--we-border-soft);
+}
+
+html.we-theme-solar .we-menu-label[aria-expanded='true'] {
+  background: var(--we-bg-selected);
+  border-color: var(--we-border-soft);
+}
+
+html.we-theme-solar .we-menu-popup {
+  padding: 4px;
+  border: 1px solid var(--we-border-menu);
+  border-radius: 6px;
+  background: var(--we-bg);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.38);
+}
+
+html.we-theme-solar .we-menu-item {
+  padding: 5px 9px;
+  border: 1px solid var(--we-border);
+  border-radius: 4px;
+  background: var(--we-bg);
+  color: var(--we-fg);
+}
+
+html.we-theme-solar .we-menu-item:hover {
+  background: var(--we-menu-item-hover-bg);
+  color: var(--we-menu-item-hover-fg);
+}
+
+html.we-theme-solar .we-menu-label:focus-visible,
+html.we-theme-solar .we-menu-item:focus-visible {
+  outline: 1px solid var(--we-focus);
+  /* Keep ring snug; no extra halo outside menu geometry. */
+  background-color: var(--we-focus-tint);
+}
+
+/* Keep focused menu item outline above neighboring rows (prevents clipping). */
+html.we-theme-solar .we-menu-item:focus-visible {
+  position: relative;
+  z-index: 1;
+}
+
+/* -------------------------------------------------------------------------- */
+/* 4) Tabs / Group / Dialog / Table                                             */
+/* -------------------------------------------------------------------------- */
+html.we-theme-solar .we-tab-list,
+html.we-theme-solar .tab-row {
+  gap: 0;
+  border-bottom: 1px solid var(--we-border-soft);
+  background: transparent;
+  padding: 0 8px;
+}
+
+html.we-theme-solar .tab-row {
+  display: flex;
+  align-items: flex-end;
+}
+
+html.we-theme-solar .we-tab-btn,
+html.we-theme-solar .tab-btn {
+  background: #0b3743;
+  border: 1px solid var(--we-border);
+  border-bottom: none;
+  border-radius: 8px 8px 0 0;
+  color: var(--we-fg);
+  padding: 5px 11px;
+  margin: 0 0 -1px 0;
+  position: relative;
+}
+
+html.we-theme-solar .we-tab-btn + .we-tab-btn,
+html.we-theme-solar .tab-btn + .tab-btn {
+  margin-left: -1px;
+}
+
+html.we-theme-solar .we-tab-btn:hover,
+html.we-theme-solar .tab-btn:hover {
+  background: var(--we-bg-hover);
+  color: var(--we-fg);
+}
+
+html.we-theme-solar .we-tab-btn[aria-selected='true'],
+html.we-theme-solar .tab-btn[aria-selected='true'] {
+  background: var(--we-bg-selected);
+  border-color: var(--we-border-strong);
+  border-bottom: 1px solid #073642;
+  color: var(--we-fg);
+  z-index: 1;
+}
+
+html.we-theme-solar .we-tab-content,
+html.we-theme-solar .tab-panel {
+  border: 1px solid var(--we-border-soft);
+  border-radius: 0 8px 8px 8px;
+  background: #073642;
+  padding: 10px;
+}
+
+/* Tab style variants (switchable via root class we-tab-style-*). */
+html.we-theme-solar.we-tab-style-joined .we-tab-list,
+html.we-theme-solar.we-tab-style-joined .tab-row {
+  gap: 0;
+  border-bottom: 1px solid var(--we-border-soft);
+  padding: 0 8px;
+  background: transparent;
+}
+
+html.we-theme-solar.we-tab-style-joined .we-tab-btn,
+html.we-theme-solar.we-tab-style-joined .tab-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  border-bottom: 1px solid transparent;
+  border-radius: 8px 8px 0 0;
+  color: var(--we-fg-muted);
+  padding: 5px 11px;
+  margin: 0 0 -1px 0;
+  position: relative;
+}
+
+html.we-theme-solar.we-tab-style-joined .we-tab-btn + .we-tab-btn,
+html.we-theme-solar.we-tab-style-joined .tab-btn + .tab-btn {
+  margin-left: -1px;
+}
+
+html.we-theme-solar.we-tab-style-joined .we-tab-btn[aria-selected='true'],
+html.we-theme-solar.we-tab-style-joined .tab-btn[aria-selected='true'] {
+  background: #073642;
+  border-color: var(--we-border-strong);
+  border-bottom-color: #073642;
+  color: var(--we-fg);
+  z-index: 2;
+}
+
+html.we-theme-solar.we-tab-style-joined .we-tab-content,
+html.we-theme-solar.we-tab-style-joined .tab-panel {
+  border: 1px solid var(--we-border-soft);
+  border-top: none;
+  border-radius: 0 0 8px 8px;
+  background: #073642;
+}
+
+html.we-theme-solar.we-tab-style-pills .we-tab-list,
+html.we-theme-solar.we-tab-style-pills .tab-row {
+  gap: 10px;
+  border-bottom: none;
+  padding: 2px 0 0 0;
+}
+
+html.we-theme-solar.we-tab-style-pills .we-tab-btn,
+html.we-theme-solar.we-tab-style-pills .tab-btn {
+  border: 2px solid var(--we-border-soft);
+  border-radius: 999px;
+  border-bottom: 2px solid var(--we-border-soft);
+  margin: 0;
+  background: transparent;
+  padding: 3px 14px;
+  font-size: 13px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+html.we-theme-solar.we-tab-style-pills .we-tab-btn + .we-tab-btn,
+html.we-theme-solar.we-tab-style-pills .tab-btn + .tab-btn {
+  margin-left: 0;
+}
+
+html.we-theme-solar.we-tab-style-pills .we-tab-btn[aria-selected='true'],
+html.we-theme-solar.we-tab-style-pills .tab-btn[aria-selected='true'] {
+  border-color: var(--we-border-strong);
+  background: rgba(181, 137, 0, 0.2);
+  color: #e4d4a2;
+}
+
+html.we-theme-solar.we-tab-style-pills .we-tab-content,
+html.we-theme-solar.we-tab-style-pills .tab-panel {
+  border: none;
+  border-radius: 10px;
+  margin-top: 12px;
+  background: rgba(7, 54, 66, 0.55);
+  box-shadow: inset 0 0 0 1px rgba(78, 129, 140, 0.35);
+}
+
+html.we-theme-solar.we-tab-style-underline .we-tab-list,
+html.we-theme-solar.we-tab-style-underline .tab-row {
+  gap: 14px;
+  padding: 0 2px;
+  border-bottom: 2px solid rgba(78, 129, 140, 0.45);
+}
+
+html.we-theme-solar.we-tab-style-underline .we-tab-btn,
+html.we-theme-solar.we-tab-style-underline .tab-btn {
+  border: none;
+  border-radius: 0;
+  margin: 0;
+  background: transparent;
+  padding: 3px 0 8px 0;
+  color: var(--we-fg-muted);
+  font-size: 14px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+html.we-theme-solar.we-tab-style-underline .we-tab-btn + .we-tab-btn,
+html.we-theme-solar.we-tab-style-underline .tab-btn + .tab-btn {
+  margin-left: 0;
+}
+
+html.we-theme-solar.we-tab-style-underline .we-tab-btn[aria-selected='true'],
+html.we-theme-solar.we-tab-style-underline .tab-btn[aria-selected='true'] {
+  border-bottom: 3px solid var(--we-border-strong);
+  color: #e4d4a2;
+  font-weight: 700;
+}
+
+html.we-theme-solar.we-tab-style-underline .we-tab-content,
+html.we-theme-solar.we-tab-style-underline .tab-panel {
+  border: none;
+  border-top: 1px dashed rgba(78, 129, 140, 0.45);
+  border-radius: 0;
+  padding: 12px 2px 6px 2px;
+  background: transparent;
+}
+
+html.we-theme-solar.we-tab-style-soft .we-tab-list,
+html.we-theme-solar.we-tab-style-soft .tab-row {
+  gap: 2px;
+  border-bottom: none;
+  padding: 3px;
+  background: rgba(7, 54, 66, 0.6);
+  border: 1px solid rgba(78, 129, 140, 0.4);
+  border-radius: 10px;
+}
+
+html.we-theme-solar.we-tab-style-soft .we-tab-btn,
+html.we-theme-solar.we-tab-style-soft .tab-btn {
+  border: 1px solid transparent;
+  border-radius: 8px;
+  border-bottom: 1px solid transparent;
+  margin: 0;
+  background: transparent;
+  padding: 5px 10px;
+  transition: background .15s ease, color .15s ease, border-color .15s ease;
+}
+
+html.we-theme-solar.we-tab-style-soft .we-tab-btn + .we-tab-btn,
+html.we-theme-solar.we-tab-style-soft .tab-btn + .tab-btn {
+  margin-left: 0;
+}
+
+html.we-theme-solar.we-tab-style-soft .we-tab-btn[aria-selected='true'],
+html.we-theme-solar.we-tab-style-soft .tab-btn[aria-selected='true'] {
+  border-color: rgba(181, 137, 0, 0.45);
+  background: rgba(181, 137, 0, 0.2);
+  color: #e4d4a2;
+}
+
+html.we-theme-solar.we-tab-style-soft .we-tab-content,
+html.we-theme-solar.we-tab-style-soft .tab-panel {
+  border: 1px solid rgba(78, 129, 140, 0.35);
+  border-radius: 8px;
+  margin-top: 8px;
+  background: rgba(7, 54, 66, 0.45);
+}
+
+html.we-theme-solar.we-tab-style-rail .we-tab-list,
+html.we-theme-solar.we-tab-style-rail .tab-row {
+  gap: 0;
+  padding: 0;
+  border-bottom: 3px solid rgba(78, 129, 140, 0.45);
+}
+
+html.we-theme-solar.we-tab-style-rail .we-tab-btn,
+html.we-theme-solar.we-tab-style-rail .tab-btn {
+  border: none;
+  border-radius: 0;
+  margin: 0;
+  padding: 6px 12px 8px 12px;
+  background: transparent;
+  color: var(--we-fg-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+html.we-theme-solar.we-tab-style-rail .we-tab-btn[aria-selected='true'],
+html.we-theme-solar.we-tab-style-rail .tab-btn[aria-selected='true'] {
+  color: #e4d4a2;
+  background: rgba(181, 137, 0, 0.12);
+  box-shadow: inset 0 -3px 0 0 var(--we-border-strong);
+}
+
+html.we-theme-solar.we-tab-style-rail .we-tab-content,
+html.we-theme-solar.we-tab-style-rail .tab-panel {
+  border: none;
+  border-radius: 0;
+  margin-top: 8px;
+  padding: 10px 0;
+  background: transparent;
+}
+
+html.we-theme-solar.we-tab-style-cards .we-tab-list,
+html.we-theme-solar.we-tab-style-cards .tab-row {
+  gap: 10px;
+  border-bottom: none;
+  padding: 0;
+}
+
+html.we-theme-solar.we-tab-style-cards .we-tab-btn,
+html.we-theme-solar.we-tab-style-cards .tab-btn {
+  border: 1px solid rgba(78, 129, 140, 0.45);
+  border-radius: 8px;
+  border-bottom: 1px solid rgba(78, 129, 140, 0.45);
+  margin: 0;
+  padding: 7px 12px;
+  background: rgba(7, 54, 66, 0.35);
+}
+
+html.we-theme-solar.we-tab-style-cards .we-tab-btn[aria-selected='true'],
+html.we-theme-solar.we-tab-style-cards .tab-btn[aria-selected='true'] {
+  border-color: var(--we-border-strong);
+  background: rgba(181, 137, 0, 0.22);
+  color: #e4d4a2;
+  transform: translateY(-1px);
+}
+
+html.we-theme-solar.we-tab-style-cards .we-tab-content,
+html.we-theme-solar.we-tab-style-cards .tab-panel {
+  border: 1px solid rgba(78, 129, 140, 0.45);
+  border-radius: 10px;
+  margin-top: 12px;
+  background: rgba(7, 54, 66, 0.55);
+}
+
+html.we-theme-solar.we-tab-style-mono .we-tab-list,
+html.we-theme-solar.we-tab-style-mono .tab-row {
+  gap: 0;
+  border: 1px solid var(--we-border-soft);
+  border-radius: 0;
+  padding: 0;
+}
+
+html.we-theme-solar.we-tab-style-mono .we-tab-btn,
+html.we-theme-solar.we-tab-style-mono .tab-btn {
+  border: none;
+  border-right: 1px solid var(--we-border-soft);
+  border-radius: 0;
+  margin: 0;
+  padding: 6px 10px;
+  background: #073642;
+  color: #9fb0b0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+}
+
+html.we-theme-solar.we-tab-style-mono .we-tab-btn:last-child,
+html.we-theme-solar.we-tab-style-mono .tab-btn:last-child {
+  border-right: none;
+}
+
+html.we-theme-solar.we-tab-style-mono .we-tab-btn[aria-selected='true'],
+html.we-theme-solar.we-tab-style-mono .tab-btn[aria-selected='true'] {
+  background: #0f3f4d;
+  color: #e4d4a2;
+}
+
+html.we-theme-solar.we-tab-style-mono .we-tab-content,
+html.we-theme-solar.we-tab-style-mono .tab-panel {
+  border: 1px solid var(--we-border-soft);
+  border-top: none;
+  border-radius: 0;
+  background: #073642;
+}
+
+html.we-theme-solar.we-tab-style-signal .we-tab-list,
+html.we-theme-solar.we-tab-style-signal .tab-row {
+  gap: 8px;
+  border-bottom: none;
+  padding: 0;
+}
+
+html.we-theme-solar.we-tab-style-signal .we-tab-btn,
+html.we-theme-solar.we-tab-style-signal .tab-btn {
+  border: 1px solid transparent;
+  border-radius: 3px;
+  border-bottom: 1px solid transparent;
+  margin: 0;
+  padding: 6px 10px;
+  background: transparent;
+  color: var(--we-fg-muted);
+}
+
+html.we-theme-solar.we-tab-style-signal .we-tab-btn[aria-selected='true'],
+html.we-theme-solar.we-tab-style-signal .tab-btn[aria-selected='true'] {
+  border-color: rgba(181, 137, 0, 0.35);
+  background: rgba(181, 137, 0, 0.16);
+  color: #e4d4a2;
+  box-shadow: 0 0 0 1px rgba(181, 137, 0, 0.24);
+}
+
+html.we-theme-solar.we-tab-style-signal .we-tab-content,
+html.we-theme-solar.we-tab-style-signal .tab-panel {
+  border: 1px dashed rgba(78, 129, 140, 0.55);
+  border-radius: 6px;
+  margin-top: 10px;
+  background: rgba(7, 54, 66, 0.35);
+}
+
+html.we-theme-solar.we-tab-style-notch .we-tab-list,
+html.we-theme-solar.we-tab-style-notch .tab-row {
+  gap: 0;
+  border-bottom: 1px solid rgba(78, 129, 140, 0.55);
+  padding: 0 6px;
+}
+
+html.we-theme-solar.we-tab-style-notch .we-tab-btn,
+html.we-theme-solar.we-tab-style-notch .tab-btn {
+  border: 1px solid rgba(78, 129, 140, 0.55);
+  border-bottom: none;
+  border-radius: 10px 10px 0 0;
+  margin: 0 4px -1px 0;
+  padding: 5px 10px;
+  background: linear-gradient(#0b3743, #0a3340);
+}
+
+html.we-theme-solar.we-tab-style-notch .we-tab-btn[aria-selected='true'],
+html.we-theme-solar.we-tab-style-notch .tab-btn[aria-selected='true'] {
+  border-color: var(--we-border-strong);
+  background: linear-gradient(#0f4451, #0c3d49);
+  color: #f0e2b8;
+}
+
+html.we-theme-solar.we-tab-style-notch .we-tab-content,
+html.we-theme-solar.we-tab-style-notch .tab-panel {
+  border: 1px solid rgba(78, 129, 140, 0.55);
+  border-radius: 0 10px 10px 10px;
+  background: #073642;
+}
+
+html.we-theme-solar .we-tab-btn:focus-visible,
+html.we-theme-solar .tab-btn:focus-visible,
+html.we-theme-solar .we-page-btn:focus-visible,
+html.we-theme-solar .we-breadcrumb-item:focus-visible {
+  outline: 1px solid var(--we-focus);
+  outline-offset: 0;
+  background-image: linear-gradient(var(--we-focus-tint), var(--we-focus-tint));
+}
+
+html.we-theme-solar .we-group {
+  border-color: var(--we-border-soft);
+  background: #073642;
+}
+
+html.we-theme-solar .we-dialog-panel,
+html.we-theme-solar .we-modal-panel {
+  border: 1px solid var(--we-border-menu);
+  border-radius: 6px;
+  border-color: var(--we-border-menu);
+  background: #073642;
+  color: var(--we-fg);
+  box-shadow: 0 14px 32px var(--we-shadow);
+}
+
+html.we-theme-solar .we-dialog-header,
+html.we-theme-solar .we-modal-header {
+  border-bottom: 1px solid var(--we-border-soft);
+  padding: 0.65rem 0.9rem;
+  margin: 0;
+}
+
+html.we-theme-solar .we-dialog-body,
+html.we-theme-solar .we-modal-body {
+  padding: 0.85rem 0.9rem;
+}
+
+html.we-theme-solar .we-dialog-footer,
+html.we-theme-solar .we-modal-footer {
+  border-top: 1px solid var(--we-border-soft);
+  padding: 0.65rem 0.9rem;
+  margin: 0;
+}
+
+html.we-theme-solar .we-dialog-close,
+html.we-theme-solar .we-modal-close {
+  margin-left: auto;
+  width: 1.5rem;
+  height: 1.5rem;
+  min-width: 1.5rem;
+  min-height: 1.5rem;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--we-fg);
+  opacity: 0.75;
+  font-size: 1.4rem;
+  font-weight: 400;
+  line-height: 1;
+  cursor: pointer;
+}
+
+html.we-theme-solar .we-dialog-close:hover,
+html.we-theme-solar .we-modal-close:hover {
+  background: rgba(147, 161, 161, 0.16);
+  opacity: 1;
+}
+
+html.we-theme-solar .we-dialog-close:focus-visible,
+html.we-theme-solar .we-modal-close:focus-visible {
+  outline: 1px solid var(--we-focus);
+  outline-offset: 0;
+  opacity: 1;
+}
+
+html.we-theme-solar .we-offcanvas-panel > .we-close-button {
+  align-self: flex-end;
+  margin: 0 0 0.25rem 0;
+  width: 1.5rem;
+  height: 1.5rem;
+  min-width: 1.5rem;
+  min-height: 1.5rem;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--we-fg);
+  opacity: 0.75;
+}
+
+html.we-theme-solar .we-offcanvas-panel > .we-close-button:hover {
+  background: rgba(147, 161, 161, 0.16);
+  opacity: 1;
+}
+
+html.we-theme-solar .we-offcanvas-panel > .we-close-button:focus-visible {
+  outline: 1px solid var(--we-focus);
+  outline-offset: 0;
+  opacity: 1;
+}
+
+html.we-theme-solar .we-table,
+html.we-theme-solar .we-table th,
+html.we-theme-solar .we-table td {
+  border-color: var(--we-border-soft);
+}
+
+html.we-theme-solar .we-table {
+  width: 100%;
+  border-collapse: collapse;
+  border: 1px solid var(--we-border-soft);
+  font-size: 14px;
+}
+
+html.we-theme-solar .we-table th,
+html.we-theme-solar .we-table td {
+  border: 1px solid var(--we-border-soft);
+  padding: 6px 8px;
+  line-height: 1.2;
+  text-align: left;
+}
+
+html.we-theme-solar .we-table th {
+  background: var(--we-bg-subtle);
+  color: var(--we-fg);
+}
+
+html.we-theme-solar .we-table td {
+  background: var(--we-bg);
+}
+
+/* -------------------------------------------------------------------------- */
+/* 5) Alerts / Toasts / Progress / List group                                   */
+/* -------------------------------------------------------------------------- */
+html.we-theme-solar .we-alert {
+  border: 1px solid var(--we-border);
+  border-radius: 6px;
+  padding: 7px 9px;
+  background: var(--we-bg-subtle);
+}
+
+html.we-theme-solar .we-alert-success,
+html.we-theme-solar .we-toast-success {
+  border-color: #7ba25f;
+  background: rgba(133, 153, 0, 0.18);
+}
+
+html.we-theme-solar .we-alert-warning,
+html.we-theme-solar .we-toast-warning {
+  border-color: #be9551;
+  background: rgba(181, 137, 0, 0.16);
+}
+
+html.we-theme-solar .we-alert-danger,
+html.we-theme-solar .we-toast-danger {
+  border-color: #bb6163;
+  background: rgba(220, 50, 47, 0.16);
+}
+
+html.we-theme-solar .we-toast {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "title close"
+    "message close";
+  column-gap: 0.625rem;
+  row-gap: 0.25rem;
+  align-items: start;
+  border-color: var(--we-border);
+  background: var(--we-bg);
+  border-radius: 6px;
+  padding: 0.75rem 0.875rem;
+  box-shadow: 0 8px 22px var(--we-shadow);
+}
+
+html.we-theme-solar .we-toast-title {
+  grid-area: title;
+  display: block;
+  margin: 0;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+html.we-theme-solar .we-toast-message {
+  grid-area: message;
+  display: block;
+  margin: 0;
+  line-height: 1.45;
+}
+
+html.we-theme-solar .we-close-button,
+html.we-theme-solar .we-toast-close {
+  grid-area: close;
+  align-self: start;
+  justify-self: end;
+  width: 1.5rem;
+  height: 1.5rem;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  font-size: 0;
+  line-height: 0;
+  opacity: 0.75;
+}
+
+html.we-theme-solar .we-close-button::before,
+html.we-theme-solar .we-toast-close::before {
+  content: "\00d7";
+  display: block;
+  font-size: 1.2rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+html.we-theme-solar .we-close-button:hover,
+html.we-theme-solar .we-toast-close:hover {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+html.we-theme-solar .we-close-button:focus-visible,
+html.we-theme-solar .we-toast-close:focus-visible {
+  opacity: 1;
+  outline: 1px solid var(--we-focus);
+  outline-offset: 1px;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+html.we-theme-solar progress {
+  accent-color: var(--we-progress-success);
+  height: 7px;
+}
+
+/* Segmented progress-fill helper classes (used by showcase and user pages). */
+html.we-theme-solar .we-progress-fill-default { background: var(--we-border-strong); }
+html.we-theme-solar .we-progress-fill-success { background: var(--we-progress-success); }
+html.we-theme-solar .we-progress-fill-info    { background: var(--we-focus); }
+html.we-theme-solar .we-progress-fill-warning { background: var(--we-progress-warning); }
+html.we-theme-solar .we-progress-fill-danger  { background: var(--we-progress-danger); }
+
+html.we-theme-solar .we-progress-fill-striped {
+  background-image:
+    linear-gradient(
+      -45deg,
+      rgba(255, 255, 255, 0.24) 25%,
+      transparent 25%,
+      transparent 50%,
+      rgba(255, 255, 255, 0.24) 50%,
+      rgba(255, 255, 255, 0.24) 75%,
+      transparent 75%,
+      transparent
+    );
+  background-size: 1rem 1rem;
+}
+
+html.we-theme-solar .we-progress-fill-animated {
+  animation: we-solar-progress-stripes 1s linear infinite;
+}
+
+@keyframes we-solar-progress-stripes {
+  from { background-position-x: 1rem; }
+  to { background-position-x: 0; }
+}
+
+html.we-theme-solar .we-pagination {
+  gap: 6px;
+}
+
+html.we-theme-solar .we-page-btn {
+  min-height: 31px;
+  padding: 5px 9px;
+}
+
+html.we-theme-solar .we-list-group-item {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  margin: 0;
+  border: 0;
+  /* Keep item corners square so only horizontal separators are visible inside. */
+  border-radius: 0;
+  padding: 8px;
+  border-bottom: 1px solid var(--we-border-soft);
+  background: var(--we-bg);
+  color: var(--we-fg);
+  font-size: 16px;
+  line-height: 1.35;
+}
+
+html.we-theme-solar button.we-list-group-item,
+html.we-theme-solar .we-list-group-item[data-we-widget="list-group-item"] {
+  appearance: none;
+  cursor: pointer;
+}
+
+html.we-theme-solar .we-list-group {
+  border: 1px solid var(--we-border-soft);
+  border-radius: 6px;
+  overflow: clip;
+}
+
+html.we-theme-solar .we-list-group-item.is-active,
+html.we-theme-solar .we-list-group-item.is-current {
+  background: var(--we-bg-selected);
+  text-decoration: none;
+}
+
+html.we-theme-solar .we-list-group-item:hover {
+  background: var(--we-bg-hover);
+}
+
+html.we-theme-solar .we-list-group-item:last-child {
+  border-bottom: none;
+}
+
+html.we-theme-solar .we-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--we-border);
+  background: var(--we-bg-subtle);
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+/* -------------------------------------------------------------------------- */
+/* 6) Breadcrumb                                                                */
+/* -------------------------------------------------------------------------- */
+html.we-theme-solar .we-breadcrumb {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+html.we-theme-solar .we-breadcrumb-item {
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  color: var(--we-fg);
+  padding: 0;
+}
+
+html.we-theme-solar .we-breadcrumb-item:hover {
+  background: transparent;
+  color: var(--we-fg);
+}
+
+html.we-theme-solar .we-breadcrumb-item.is-current {
+  background: transparent;
+  border: none;
+  color: var(--we-fg);
+  text-decoration: none;
+}
+
+html.we-theme-solar .we-breadcrumb-sep {
+  color: var(--we-fg-muted);
+  opacity: 1;
+  padding: 0;
+}
+
+html.we-theme-solar .we-spinner {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  width: auto;
+  height: auto;
+  animation: none;
+}
+
+html.we-theme-solar .we-spinner-label {
+  color: var(--we-fg-muted);
+}
+
+html.we-theme-solar .we-spinner-icon {
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--we-border-soft);
+  border-top-color: var(--we-border-strong);
+  border-radius: 50%;
+  animation: spin .9s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* -------------------------------------------------------------------------- */
+/* 7) Accordion                                                                 */
+/* -------------------------------------------------------------------------- */
+html.we-theme-solar .we-accordion {
+  border: none;
+  border-radius: 0;
+  overflow: visible;
+  background: transparent;
+  gap: 6px;
+}
+
+html.we-theme-solar .we-accordion-item,
+html.we-theme-solar .we-accordion-section {
+  border: 1px solid #2f6671;
+  border-radius: 6px;
+  overflow: hidden;
+  background: #073642;
+}
+
+html.we-theme-solar .we-accordion-item + .we-accordion-item,
+html.we-theme-solar .we-accordion-section + .we-accordion-section {
+  margin-top: 0;
+}
+
+html.we-theme-solar .we-accordion-trigger {
+  padding: 8px 9px;
+  border: none;
+  border-bottom: 1px solid #2f6671;
+  border-radius: 6px;
+  background: linear-gradient(#0a3a46, #083540);
+  color: #b8c9c9;
+  font-weight: 600;
+}
+
+html.we-theme-solar .we-accordion-trigger::after {
+  content: "▸";
+  margin-left: 0;
+  color: #2aa198;
+  transition-duration: .16s;
+}
+
+html.we-theme-solar .we-accordion-trigger.is-open {
+  background: linear-gradient(#0f4451, #0a3d49);
+  color: #e2d9b6;
+  border-bottom: none;
+  border-radius: 6px 6px 0 0;
+}
+
+html.we-theme-solar .we-accordion-trigger.is-open::after {
+  transform: rotate(90deg);
+}
+
+html.we-theme-solar .we-accordion-content {
+  background: #073642;
+  color: var(--we-fg);
+  padding: 8px 9px;
+}
+
+html.we-theme-solar .we-accordion-trigger.is-open + .we-accordion-content {
+  /* Draw divider on content instead of trigger to avoid corner seam artifacts. */
+  border-top: 1px solid #3a7480;
+}
+
+html.we-theme-solar .we-accordion-content > *:first-child {
+  margin-top: 0;
+}
+
+html.we-theme-solar .we-accordion-content > *:last-child {
+  margin-bottom: 0;
+}
+/* Showcase page shell/topbar/hero styles live in theme-showcase-solar.css. */

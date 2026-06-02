@@ -1,0 +1,997 @@
+
+/*
+ * Solar 2 showcase-only scaffolding styles.
+ * This file should contain page-specific rules only
+ * (selectors using .showcase-* and/or #solar2-* hooks).
+ */
+
+html.we-theme-solar2 .showcase-shell.we-container {
+  max-width: 1296px;
+  width: min(1296px, calc(100vw - 48px));
+  margin: 0 auto;
+}
+
+html.we-theme-solar2 .showcase-hero {
+  margin-bottom: 18px;
+}
+
+/* Topbar full-bleed header (same pattern as light/dark/solar showcase themes). */
+html.we-theme-solar2 .showcase-topbar {
+  position:     sticky;
+  top:          0;
+  z-index:      30;
+  width:        100vw;
+  margin-left:  calc(50% - 50vw);
+  margin-right: calc(50% - 50vw);
+  border-bottom: 1px solid var(--we-border-soft);
+}
+
+html.we-theme-solar2 .showcase-topbar.we-top-bar {
+  border-left:   none;
+  border-right:  none;
+  border-top:    none;
+  border-bottom: none;
+  border-radius: 0;
+  background: var(--we-bg-subtle);
+  gap:        0;
+  padding:    12px 14px;
+}
+
+html.we-theme-solar2 .showcase-topbar-inner.we-inline {
+  width:         min(1296px, calc(100vw - 48px));
+  max-width:     1296px;
+  margin:        0 auto;
+  justify-content: space-between;
+  align-items:   center;
+  gap:           10px;
+  flex-wrap:     wrap;
+}
+
+/* ========================================================================== */
+/* Block C: Showcase layout/polish (page-specific helpers)                    */
+/* ========================================================================== */
+html.we-theme-solar2 .showcase-list-group-row {
+  display:     flex;
+  align-items: center;
+  flex-wrap:   nowrap;
+  gap:         0.5rem;
+}
+
+html.we-theme-solar2 .showcase-list-group-row > [data-we-widget="text"] {
+  display:    inline;
+  white-space: nowrap;
+}
+
+html.we-theme-solar2 .showcase-list-group-badge {
+  display:      inline-block;
+  position:     static;
+  margin-left:   auto;
+  min-width:     2rem;
+  padding:       0.35em 0.65em;
+  padding-left:  0.75rem;
+  border-left:   1px solid var(--we-bg-subtle);
+  border-radius: 10rem;
+  border-top:    0;
+  border-right:  0;
+  border-bottom: 0;
+  background:    var(--we-primary);
+  color:         var(--we-light-emphasis);
+  font-weight:   700;
+  font-size:     0.75em;
+  line-height:   1;
+  text-align:    center;
+  flex:          0 0 auto;
+  overflow:      visible;
+}
+
+html.we-theme-solar2 .showcase-rich-list-group .showcase-rich-list-item {
+  display:     block;
+  white-space: normal;
+}
+
+html.we-theme-solar2 .showcase-rich-list-heading {
+  font-size:   1.25rem;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: 0;
+}
+
+html.we-theme-solar2 .showcase-rich-list-meta {
+  color:     color-mix(in srgb, var(--we-fg) 80%, var(--we-bg) 20%);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+html.we-theme-solar2 .showcase-rich-list-item.is-active .showcase-rich-list-meta {
+  color: rgba(255, 255, 255, 0.75);
+}
+
+html.we-theme-solar2 .showcase-rich-list-body {
+  color:       inherit;
+  font-size:   1rem;
+  line-height: 1.5;
+}
+
+html.we-theme-solar2 .showcase-rich-list-footnote {
+  color:       var(--we-fg-muted);
+  font-size:   1rem;
+  line-height: 1.5;
+}
+
+html.we-theme-solar2 .showcase-section-title {
+  margin: 0 0 8px 0;
+  padding: 32px 0;
+  font-size: 3rem;
+  line-height: 1.2;
+  color: rgb(131, 148, 150);
+  font-weight: 500;
+  font-family: var(--we-font-sans);
+}
+
+html.we-theme-solar2 .showcase-block-button-row .we-button {
+  display: block;
+  width: 100%;
+}
+
+html.we-theme-solar2 .showcase-buttons-grid > .we-stack {
+  min-width: 0;
+  --we-stack-gap: 1rem;
+}
+
+html.we-theme-solar2 .showcase-buttons-grid .we-button-row {
+  --we-gap: 0.5rem;
+}
+
+/* Variant wrappers are block by default; inline layout matches Bootstrap button rows. */
+html.we-theme-solar2 .showcase-buttons-grid .we-button-row > * {
+  display: inline-block;
+  min-height: 0;
+}
+
+html.we-theme-solar2 .showcase-block-button-grid {
+  max-width: 100%;
+}
+
+html.we-theme-solar2 .showcase-buttons-grid .we-dropdown .we-menu-label {
+  display:       inline-flex;
+  align-items:   center;
+  justify-content: center;
+  padding:       0.375rem 0.75rem;
+  border-radius: var(--we-radius);
+  line-height:   1.5;
+}
+
+html.we-theme-solar2 .showcase-buttons-grid .we-dropdown .we-menu-label::after {
+  margin-left: 0.5rem;
+}
+
+html.we-theme-solar2 .showcase-buttons-grid .we-dropdown.we-button-primary .we-menu-label[aria-expanded='true'],
+html.we-theme-solar2 .showcase-buttons-grid .we-button-primary .we-dropdown .we-menu-label[aria-expanded='true'] {
+  background:   var(--we-primary);
+  border-color: var(--we-primary);
+  color:        #fff;
+}
+
+html.we-theme-solar2 .showcase-buttons-grid .we-dropdown.we-button-secondary .we-menu-label[aria-expanded='true'],
+html.we-theme-solar2 .showcase-buttons-grid .we-button-secondary .we-dropdown .we-menu-label[aria-expanded='true'] {
+  background:   var(--we-secondary);
+  border-color: var(--we-secondary);
+  color:        #fff;
+}
+
+html.we-theme-solar2 .showcase-btn-check-group .we-toggle-button-group,
+html.we-theme-solar2 .showcase-btn-radio-group .we-toggle-button-group {
+  gap: 0;
+}
+
+html.we-theme-solar2 .showcase-btn-check-group .we-toggle-button,
+html.we-theme-solar2 .showcase-btn-radio-group .we-toggle-button {
+  border-radius: 0;
+  padding: 0.375rem 0.75rem;
+  border: 1px solid var(--we-primary);
+  color: var(--we-primary);
+  background: transparent;
+}
+
+html.we-theme-solar2 .showcase-btn-check-group .we-toggle-button + .we-toggle-button,
+html.we-theme-solar2 .showcase-btn-radio-group .we-toggle-button + .we-toggle-button {
+  border-left-width: 0;
+}
+
+html.we-theme-solar2 .showcase-btn-check-group .we-toggle-button:first-child,
+html.we-theme-solar2 .showcase-btn-radio-group .we-toggle-button:first-child {
+  border-top-left-radius: var(--we-radius-sm);
+  border-bottom-left-radius: var(--we-radius-sm);
+}
+
+html.we-theme-solar2 .showcase-btn-check-group .we-toggle-button:last-child,
+html.we-theme-solar2 .showcase-btn-radio-group .we-toggle-button:last-child {
+  border-top-right-radius: var(--we-radius-sm);
+  border-bottom-right-radius: var(--we-radius-sm);
+}
+
+html.we-theme-solar2 .showcase-btn-check-group .we-toggle-button.is-active,
+html.we-theme-solar2 .showcase-btn-radio-group .we-toggle-button.is-active {
+  background: var(--we-primary);
+  color: #fff;
+}
+
+html.we-theme-solar2 .showcase-buttons-grid .we-button-row .we-button-group,
+html.we-theme-solar2 .showcase-buttons-grid .we-button-row .we-toolbar-group {
+  border:     0;
+  background: transparent;
+}
+
+html.we-theme-solar2 .showcase-buttons-grid .we-button-row .we-toolbar-group {
+  display:       inline-flex;
+  gap:           0;
+  border:        1px solid var(--we-secondary);
+  border-radius: var(--we-radius-sm);
+  overflow:      hidden;
+  background:    var(--we-secondary);
+}
+
+html.we-theme-solar2 .showcase-buttons-grid .we-button-row .we-toolbar-group > .we-button {
+  margin:        0;
+  border:        0;
+  border-radius: 0;
+  background:    transparent;
+  color:         #fff;
+}
+
+html.we-theme-solar2 .showcase-buttons-grid .we-button-row .we-toolbar-group > .we-button + .we-button {
+  margin-left: 0;
+}
+
+html.we-theme-solar2 .showcase-buttons-grid .we-button-row.we-button-toolbar {
+  display:       flex;
+  align-items:   center;
+  gap:           0.75rem;
+}
+
+html.we-theme-solar2 .showcase-buttons-grid .we-button-row .we-button-group {
+  display:       inline-flex;
+  gap:           0;
+  border:        1px solid var(--we-secondary);
+  border-radius: var(--we-radius-sm);
+  overflow:      hidden;
+}
+
+html.we-theme-solar2 .showcase-buttons-grid .we-button-row .we-button-group > .we-button {
+  margin:        0;
+  border:        1px solid var(--we-secondary);
+  border-radius: 0;
+}
+
+html.we-theme-solar2 .showcase-buttons-grid .we-button-row .we-button-group > .we-button + .we-button {
+  margin-left: -1px;
+}
+
+html.we-theme-solar2 .showcase-buttons-grid .we-button-row .we-button-group > .we-button:first-child {
+  border-top-left-radius: var(--we-radius-sm);
+  border-bottom-left-radius: var(--we-radius-sm);
+}
+
+html.we-theme-solar2 .showcase-buttons-grid .we-button-row .we-button-group > .we-button:last-child {
+  border-top-right-radius: var(--we-radius-sm);
+  border-bottom-right-radius: var(--we-radius-sm);
+}
+
+html.we-theme-solar2 .we-button-group-vertical {
+  width: fit-content;
+}
+
+html.we-theme-solar2 .we-button-group-vertical.we-stack {
+  gap: 0;
+}
+
+html.we-theme-solar2 .we-button-group-vertical .we-button {
+  margin: 0;
+  border-radius: 0;
+}
+
+html.we-theme-solar2 .we-button-group-vertical .we-button + .we-button {
+  margin-top: -1px;
+}
+
+html.we-theme-solar2 .we-button-group-vertical .we-button:first-child {
+  border-top-left-radius: var(--we-radius-sm);
+  border-top-right-radius: var(--we-radius-sm);
+}
+
+html.we-theme-solar2 .we-button-group-vertical .we-button:last-child {
+  border-bottom-left-radius: var(--we-radius-sm);
+  border-bottom-right-radius: var(--we-radius-sm);
+}
+
+html.we-theme-solar2 .showcase-hero {
+  margin-bottom: 1.125rem;
+}
+
+html.we-theme-solar2 .showcase-text-muted {
+  color: var(--we-fg-muted);
+}
+
+html.we-theme-solar2 .showcase-text-primary {
+  color: var(--we-primary);
+}
+
+html.we-theme-solar2 .showcase-text-primary-emphasis {
+  color: var(--we-primary-emphasis);
+}
+
+html.we-theme-solar2 .showcase-text-secondary {
+  color: var(--we-secondary);
+}
+
+html.we-theme-solar2 .showcase-text-secondary-emphasis {
+  color: var(--we-secondary-emphasis);
+}
+
+html.we-theme-solar2 .showcase-text-success {
+  color: var(--we-success);
+}
+
+html.we-theme-solar2 .showcase-text-success-emphasis {
+  color: var(--we-success-emphasis);
+}
+
+html.we-theme-solar2 .showcase-text-info {
+  color: var(--we-info);
+}
+
+html.we-theme-solar2 .showcase-text-info-emphasis {
+  color: var(--we-info-emphasis);
+}
+
+html.we-theme-solar2 .showcase-text-warning {
+  color: var(--we-warning);
+}
+
+html.we-theme-solar2 .showcase-text-warning-emphasis {
+  color: var(--we-warning-emphasis);
+}
+
+html.we-theme-solar2 .showcase-text-danger {
+  color: var(--we-danger);
+}
+
+html.we-theme-solar2 .showcase-text-danger-emphasis {
+  color: var(--we-danger-emphasis);
+}
+
+html.we-theme-solar2 .showcase-text-body-secondary {
+  color: var(--we-body-secondary);
+}
+
+html.we-theme-solar2 .showcase-text-tertiary {
+  color: var(--we-body-tertiary);
+}
+
+html.we-theme-solar2 .showcase-text-light {
+  color: var(--we-light);
+}
+
+html.we-theme-solar2 .showcase-text-light-emphasis {
+  color: var(--we-light-emphasis);
+}
+
+html.we-theme-solar2 .showcase-text-dark {
+  color: var(--we-dark);
+}
+
+html.we-theme-solar2 .showcase-text-dark-emphasis {
+  color: var(--we-dark-emphasis);
+}
+
+html.we-theme-solar2 .showcase-text-body {
+  color: var(--we-fg);
+}
+
+html.we-theme-solar2 .showcase-text-body-emphasis {
+  color: var(--we-fg);
+}
+
+html.we-theme-solar2 .showcase-inline-code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  background: color-mix(in srgb, var(--we-bg-subtle) 90%, transparent);
+  border: 1px solid var(--we-border-soft);
+  border-radius: var(--we-radius-sm);
+  padding: 6px 8px;
+}
+
+html.we-theme-solar2 .showcase-pre {
+  white-space: pre-wrap;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  background: color-mix(in srgb, var(--we-bg-subtle) 90%, transparent);
+  border: 1px solid var(--we-border-soft);
+  border-radius: var(--we-radius);
+  padding: 10px 0.75rem;
+}
+
+html.we-theme-solar2 .showcase-typography-grid {
+  --we-grid-columns: repeat(3, minmax(0, 1fr));
+}
+
+html.we-theme-solar2 .showcase-typography-grid .we-grid {
+  align-items: start;
+}
+
+@media (max-width: 1100px) {
+  html.we-theme-solar2 .showcase-typography-grid {
+    --we-grid-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  html.we-theme-solar2 .showcase-typography-grid {
+    --we-grid-columns: minmax(0, 1fr);
+  }
+}
+
+html.we-theme-solar2 .showcase-typography-lead {
+  font-size: 1.25rem;
+  font-weight: 300;
+  line-height: 1.4;
+  color: var(--we-fg);
+}
+
+html.we-theme-solar2 .showcase-typography-grid .we-vpanel > * {
+  margin-bottom: 4px;
+}
+
+html.we-theme-solar2 .showcase-typography-grid .we-vpanel > *:last-child {
+  margin-bottom: 0;
+}
+
+html.we-theme-solar2 .showcase-forms-left,
+html.we-theme-solar2 .showcase-forms-right {
+  --we-stack-gap: 0;
+}
+
+html.we-theme-solar2 .showcase-static-row .we-inline {
+  align-items: center;
+  gap: 0.85rem;
+}
+
+html.we-theme-solar2 .showcase-static-label {
+  width: 3rem;
+  flex: 0 0 3rem;
+}
+
+html.we-theme-solar2 .showcase-static-value {
+  flex: 1 1 auto;
+}
+
+html.we-theme-solar2 .showcase-forms-right {
+  margin-left: 0;
+}
+
+html.we-theme-solar2 .showcase-accordion-lead {
+  color:       color-mix(in srgb, var(--we-fg) 92%, var(--we-light-emphasis) 8%);
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+html.we-theme-solar2 .showcase-accordion-body-row {
+  line-height: 1.45;
+}
+
+html.we-theme-solar2 .showcase-accordion-inline {
+  display: block;
+}
+
+html.we-theme-solar2 .showcase-accordion-inline > [data-we-widget="text"] {
+  display: inline;
+}
+
+html.we-theme-solar2 .showcase-accordion-inline > [data-we-widget="text"]:not(:first-child)::before {
+  content: " ";
+}
+
+html.we-theme-solar2 .showcase-accordion-copy {
+  color:       var(--we-fg-muted);
+  line-height: 1.45;
+}
+
+html.we-theme-solar2 .showcase-static-modal {
+  width:     min(100%, 31rem);
+  max-width: 31rem;
+}
+
+html.we-theme-solar2 .showcase-static-modal-wrap {
+  margin-left: 4.25rem;
+}
+
+html.we-theme-solar2 #solar2-indicators-section .we-heading-2 {
+  margin: 1rem 0 0.65rem 0;
+}
+
+/* Indicators rows: use Bootstrap-like row gutters instead of generic grid gaps. */
+html.we-theme-solar2 .showcase-spinner-sm .we-spinner-icon {
+  width: 0.75rem;
+  height: 0.75rem;
+  border-width: 2px;
+}
+
+html.we-theme-solar2 .showcase-spinner-lg .we-spinner-icon {
+  width: 1.75rem;
+  height: 1.75rem;
+  border-width: 3px;
+}
+
+/* Progress fill utilities for composed bars.
+   These classes are theme-level (not showcase-specific), so examples can build
+   deterministic striped/animated bars without inline style attributes. */
+html.we-theme-solar2 .we-progress-track {
+  margin: 0 0 10px 0;
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+
+/* Bootstrap-like section rhythm for the Progress block:
+   keep heading/bar margins in control and avoid additive stack gaps. */
+html.we-theme-solar2 #solar2-progress-section.we-stack {
+  --we-stack-gap: 0;
+}
+
+/* Keep hero/topbar containers as full-width layout blocks. */
+html.we-theme-solar2 #theme-showcase-hero.we-top-bar,
+html.we-theme-solar2 .showcase-topbar.we-top-bar,
+html.we-theme-solar2 .showcase-hero.we-card {
+  align-self:    stretch;
+  width:         100%;
+  max-width:     100%;
+  margin-left:   0;
+  margin-right:  0;
+  padding-top:   1.125rem;
+  padding-bottom: 1.125rem;
+}
+
+html.we-theme-solar2 .showcase-card-image-cap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  background: #868e96;
+  color: #dee2e6;
+  font-size: 1.125rem;
+  margin: 0 -1rem;
+}
+
+html.we-theme-solar2 [data-we-widget="text"].showcase-card-image-cap {
+  display: flex;
+  width: 100%;
+}
+
+html.we-theme-solar2 #solar2-accordions-body {
+  box-sizing: border-box;
+  width: 26rem;
+  max-width: 26rem;
+}
+
+/* Containers section: mirror Bootstrap row gutters (negative row margins + col padding). */
+html.we-theme-solar2 #solar2-containers + .we-heading-2 + .we-grid {
+  gap: 0;
+  margin-left: -12px;
+  margin-right: -12px;
+}
+
+html.we-theme-solar2 #solar2-containers + .we-heading-2 + .we-grid > * {
+  padding-left: 12px;
+  padding-right: 12px;
+  overflow-x: hidden;
+}
+
+/* Cards section also follows Bootstrap row gutters. */
+html.we-theme-solar2 #solar2-cards-body {
+  gap: 0;
+  margin-left: -12px;
+  margin-right: -12px;
+}
+
+html.we-theme-solar2 #solar2-cards-body > * {
+  padding-left: 12px;
+  padding-right: 12px;
+}
+
+html.we-theme-solar2 #solar2-cards-body .we-card {
+  margin-bottom: 1rem;
+}
+
+/* Dialogs section follows the same two-column gutter rhythm as cards/containers. */
+html.we-theme-solar2 #solar2-dialogs-body {
+  gap:          0;
+  margin-left:  -12px;
+  margin-right: -12px;
+}
+
+html.we-theme-solar2 #solar2-dialogs-body > * {
+  padding-left:  12px;
+  padding-right: 12px;
+}
+
+html.we-theme-solar2 .showcase-static-toast {
+  border: 1px solid var(--we-border-soft);
+  border-radius: 0.375rem;
+  overflow: hidden;
+  max-width: 350px;
+  padding: 0;
+}
+
+html.we-theme-solar2 .showcase-static-toast-header {
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--we-border-soft);
+}
+
+html.we-theme-solar2 .showcase-static-toast-title {
+  font-weight: 700;
+  font-size: 0.875rem;
+}
+
+html.we-theme-solar2 .showcase-static-toast-time {
+  font-size: 0.875rem;
+  color: var(--we-fg-muted);
+  margin-right: 0.5rem;
+}
+
+html.we-theme-solar2 .showcase-static-toast-body {
+  padding: 0.75rem;
+}
+
+html.we-theme-solar2 .showcase-toast-top-right.we-toast {
+  right: 8px;
+  top: 8px;
+  bottom: auto;
+}
+
+html.we-theme-solar2 .showcase-toast-bottom-left.we-toast {
+  left: 8px;
+  right: auto;
+  bottom: 8px;
+}
+
+/* Solar showcase: list-group and cards section variant rows/cards. */
+html.we-theme-solar2 .we-list-group {
+  overflow-x: visible !important;
+  overflow-y: visible !important;
+}
+
+html.we-theme-solar2 .showcase-list-variant .we-list-group-item {
+  border-left-width: 1px;
+}
+
+html.we-theme-solar2 .showcase-list-variant .we-list-group-item:nth-child(1) {
+  color:            rgb(72, 55, 0);
+  background-color: rgb(240, 231, 204);
+  border-color:     rgb(225, 208, 153);
+}
+
+html.we-theme-solar2 .showcase-list-variant .we-list-group-item:nth-child(2) {
+  color:            rgb(52, 59, 60);
+  background-color: rgb(230, 234, 234);
+  border-color:     rgb(205, 212, 213);
+}
+
+html.we-theme-solar2 .showcase-list-variant .we-list-group-item:nth-child(3) {
+  color:            rgb(17, 64, 61);
+  background-color: rgb(212, 236, 234);
+  border-color:     rgb(170, 217, 214);
+}
+
+html.we-theme-solar2 .showcase-list-variant .we-list-group-item:nth-child(4) {
+  color:            rgb(15, 56, 84);
+  background-color: rgb(212, 232, 246);
+  border-color:     rgb(168, 209, 237);
+}
+
+html.we-theme-solar2 .showcase-list-variant .we-list-group-item:nth-child(5) {
+  color:            rgb(81, 30, 9);
+  background-color: rgb(245, 219, 208);
+  border-color:     rgb(234, 183, 162);
+}
+
+html.we-theme-solar2 .showcase-list-variant .we-list-group-item:nth-child(6) {
+  color:            rgb(84, 22, 52);
+  background-color: rgb(246, 215, 230);
+  border-color:     rgb(237, 175, 205);
+}
+
+html.we-theme-solar2 .showcase-list-variant .we-list-group-item:nth-child(7) {
+  color:            rgb(73, 80, 87);
+  background-color: rgb(254, 251, 241);
+  border-color:     rgb(238, 232, 213);
+}
+
+html.we-theme-solar2 .showcase-list-variant .we-list-group-item:nth-child(8) {
+  color:            rgb(73, 80, 87);
+  background-color: rgb(206, 212, 218);
+  border-color:     rgb(173, 181, 189);
+}
+
+html.we-theme-solar2 .showcase-list-variant .we-list-group-item:nth-child(n + 2) {
+  border-top-width: 0;
+}
+
+/* Second list-group column in Containers: active/link/disabled row tones. */
+html.we-theme-solar2 #solar2-containers + .we-heading-2 + .we-grid > :nth-child(2) .we-list-group-item:nth-child(1) {
+  color:            var(--we-light-emphasis);
+  background-color: rgb(7, 54, 66);
+  border-color:     rgb(7, 54, 66);
+}
+
+html.we-theme-solar2 #solar2-containers + .we-heading-2 + .we-grid > :nth-child(2) .we-list-group-item:nth-child(2),
+html.we-theme-solar2 #solar2-containers + .we-heading-2 + .we-grid > :nth-child(2) .we-list-group-item:nth-child(3) {
+  color:            rgb(131, 148, 150);
+  background-color: transparent;
+  border-color:     rgb(7, 54, 66);
+  border-top-width: 0;
+}
+
+html.we-theme-solar2 #solar2-cards-body .we-card {
+  max-width: 20rem;
+}
+
+html.we-theme-solar2 #solar2-cards-body .we-card .we-heading-4 {
+  font-size:   1.5rem;
+  line-height: 1.2;
+}
+
+/* Navs section: Bootstrap Solar parity for tabs/pills/breadcrumb/pagination/underline. */
+html.we-theme-solar2 #solar2-navs-section {
+  --we-nav-link-color:          var(--bs-link-color, var(--we-success));
+  --we-nav-link-hover-color:    var(--bs-link-hover-color, var(--we-success));
+  --we-nav-link-disabled-color: var(--bs-secondary-color, rgba(131, 148, 150, 0.75));
+}
+
+html.we-theme-solar2 #solar2-navs-section .we-tab-list {
+  margin-bottom: 0;
+  gap:           0;
+}
+
+html.we-theme-solar2 #solar2-navs-section .we-tab-btn {
+  padding:       0.5rem 1rem;
+  color:         var(--we-nav-link-color);
+  border:        1px solid transparent;
+  border-radius: 0;
+  background:    transparent;
+  font-weight:   400;
+}
+
+html.we-theme-solar2 #solar2-navs-section .we-tab-btn:hover,
+html.we-theme-solar2 #solar2-navs-section .we-tab-btn:focus-visible {
+  color:        var(--we-nav-link-hover-color);
+  border-color: var(--we-bg-subtle);
+}
+
+html.we-theme-solar2 #solar2-navs-section .we-tab-btn.is-disabled {
+  color:           var(--we-nav-link-disabled-color);
+  pointer-events:  none;
+  cursor:          default;
+  background:      transparent;
+  border-color:    transparent;
+}
+
+html.we-theme-solar2 #solar2-navs-section .we-tab-panel:not(.we-tab-style-pills):not(.we-tab-style-underline) .we-tab-list {
+  border-bottom: 1px solid var(--we-bg-subtle);
+}
+
+html.we-theme-solar2 #solar2-navs-section .we-tab-panel:not(.we-tab-style-pills):not(.we-tab-style-underline) .we-tab-btn {
+  margin-bottom:                 -1px;
+  border-top-left-radius:        0.375rem;
+  border-top-right-radius:       0.375rem;
+}
+
+html.we-theme-solar2 #solar2-navs-section .we-tab-panel:not(.we-tab-style-pills):not(.we-tab-style-underline) .we-tab-btn.is-selected {
+  color:            rgba(255, 255, 255, 0.75);
+  background-color: #002b36;
+  border-color:     var(--we-bg-subtle);
+}
+
+html.we-theme-solar2 #solar2-navs-section .we-tab-panel:not(.we-tab-style-pills):not(.we-tab-style-underline) .we-tab-content {
+  border:     0;
+  border-top: 0;
+  padding:    1rem 0 0 0;
+  background: transparent;
+  color:      var(--we-secondary);
+  line-height: 1.5;
+}
+
+html.we-theme-solar2 #solar2-navs-section .we-tab-style-pills .we-tab-list {
+  gap: 0;
+  border-bottom: none;
+  padding: 0;
+}
+
+html.we-theme-solar2 #solar2-navs-section .we-tab-style-pills .we-tab-btn {
+  border-radius: 0.375rem;
+}
+
+html.we-theme-solar2 #solar2-navs-section .we-tab-style-pills .we-tab-btn.is-selected {
+  color:            rgba(255, 255, 255, 0.75);
+  background-color: var(--we-bg-subtle);
+  border-color:     var(--we-bg-subtle);
+}
+
+html.we-theme-solar2 #solar2-navs-section .we-tab-style-pills .we-tab-content {
+  display: none !important;
+}
+
+html.we-theme-solar2 #solar2-navs-section .we-nav-pills-vertical .we-tab-list {
+  flex-direction: column;
+  align-items:    stretch;
+  width:          100%;
+  border-bottom:  0;
+  margin-top:     1rem;
+}
+
+html.we-theme-solar2 #solar2-navs-section .we-nav-pills-vertical .we-tab-btn {
+  display:       block;
+  text-align:    left;
+  width:         100%;
+  margin-bottom: 0.25rem;
+  padding-left:  1rem;
+  padding-right: 1rem;
+}
+
+html.we-theme-solar2 #solar2-navs-section .we-breadcrumb {
+  display:          flex;
+  flex-wrap:        wrap;
+  padding:          0.375rem 0.75rem;
+  margin-bottom:    1rem;
+  list-style:       none;
+  background-color: var(--we-bg-subtle);
+  border-radius:    0.25rem;
+  gap:              0;
+}
+
+html.we-theme-solar2 #solar2-navs-section .we-breadcrumb-item {
+  border:        0;
+  border-radius: 0;
+  padding:       0;
+  color:         var(--we-nav-link-color);
+  background:    transparent;
+  box-shadow:    none;
+  font-size:     1rem;
+  font-weight:   400;
+  line-height:   1.5;
+}
+
+html.we-theme-solar2 #solar2-navs-section .we-breadcrumb-item.is-current {
+  color:       #adb5bd;
+  font-weight: 400;
+  text-decoration: none;
+}
+
+html.we-theme-solar2 #solar2-navs-section .we-breadcrumb-item.is-current::before {
+  color: var(--bs-secondary-color, rgba(131, 148, 150, 0.75));
+}
+
+html.we-theme-solar2 #solar2-navs-section .we-breadcrumb-sep {
+  display: inline-block;
+  padding: 0 0.5rem;
+  color: var(--bs-secondary-color, rgba(131, 148, 150, 0.75));
+}
+
+html.we-theme-solar2 #solar2-navs-section .we-pagination {
+  display:      flex;
+  padding-left: 0;
+  list-style:   none;
+  gap:          0;
+}
+
+html.we-theme-solar2 #solar2-navs-section .we-pagination > :is(.we-page-btn, .we-page-link):is(:first-child, :last-child) {
+  display: none;
+}
+
+html.we-theme-solar2 #solar2-navs-section :is(.we-page-btn, .we-page-link) {
+  position:         relative;
+  display:          block;
+  padding:          0.375rem 0.75rem;
+  font-size:        1rem;
+  color:            var(--we-nav-link-color);
+  background-color: transparent;
+  border:           1px solid var(--we-bg-subtle);
+  border-radius:    0;
+  text-decoration:  none;
+}
+
+html.we-theme-solar2 #solar2-navs-section :is(.we-page-btn, .we-page-link):hover {
+  z-index:          2;
+  color:            var(--we-nav-link-hover-color);
+  background-color: var(--we-bg-subtle);
+  border-color:     var(--we-bg-subtle);
+}
+
+html.we-theme-solar2 #solar2-navs-section :is(.we-page-btn, .we-page-link).is-current {
+  z-index:          3;
+  color:            rgba(255, 255, 255, 0.75);
+  background-color: var(--we-bg-subtle);
+  border-color:     var(--we-bg-subtle);
+  text-decoration:  none;
+}
+
+html.we-theme-solar2 #solar2-navs-section :is(.we-page-btn, .we-page-link).is-disabled {
+  color:            var(--we-bg-subtle);
+  pointer-events:   none;
+  background-color: transparent;
+  border-color:     var(--we-bg-subtle);
+  opacity:          1;
+}
+
+html.we-theme-solar2 #solar2-navs-section :is(.we-page-btn, .we-page-link) + :is(.we-page-btn, .we-page-link) {
+  margin-left: -1px;
+}
+
+html.we-theme-solar2 #solar2-navs-section .we-pagination > :is(.we-page-btn, .we-page-link):nth-child(2) {
+  border-top-left-radius:    0.375rem;
+  border-bottom-left-radius: 0.375rem;
+}
+
+html.we-theme-solar2 #solar2-navs-section .we-pagination > :is(.we-page-btn, .we-page-link):nth-last-child(2) {
+  border-top-right-radius:    0.375rem;
+  border-bottom-right-radius: 0.375rem;
+}
+
+html.we-theme-solar2 #solar2-navs-section .we-pagination > :is(.we-page-btn, .we-page-link):is(:nth-child(2), :nth-last-child(2)) {
+  font-size: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.25rem;
+  line-height: 1;
+}
+
+html.we-theme-solar2 #solar2-navs-section .we-pagination > :is(.we-page-btn, .we-page-link):nth-child(2)::before {
+  content: "«";
+  font-size: 1rem;
+  line-height: 1;
+  display: block;
+}
+
+html.we-theme-solar2 #solar2-navs-section .we-pagination > :is(.we-page-btn, .we-page-link):nth-last-child(2)::before {
+  content: "»";
+  font-size: 1rem;
+  line-height: 1;
+  display: block;
+}
+
+html.we-theme-solar2 #solar2-navs-section .we-pagination-lg :is(.we-page-btn, .we-page-link) {
+  padding:    0.75rem 1.5rem;
+  font-size:  1.25rem;
+}
+
+html.we-theme-solar2 #solar2-navs-section .we-pagination-sm :is(.we-page-btn, .we-page-link) {
+  padding:    0.25rem 0.5rem;
+  font-size:  0.875rem;
+}
+
+html.we-theme-solar2 #solar2-navs-section .we-tab-style-underline .we-tab-list {
+  gap: 1rem;
+  border-bottom: none;
+  padding: 0;
+}
+
+html.we-theme-solar2 #solar2-navs-section .we-tab-style-underline .we-tab-btn {
+  padding-right: 0;
+  padding-left:  0;
+  border:        0;
+  border-bottom: 0.125rem solid transparent;
+  border-radius: 0;
+}
+
+html.we-theme-solar2 #solar2-navs-section .we-tab-style-underline .we-tab-btn:hover,
+html.we-theme-solar2 #solar2-navs-section .we-tab-style-underline .we-tab-btn:focus-visible {
+  border-bottom-color: currentcolor;
+}
+
+html.we-theme-solar2 #solar2-navs-section .we-tab-style-underline .we-tab-btn.is-selected {
+  font-weight:         700;
+  color:               rgba(255, 255, 255, 0.75);
+  border-bottom-color: currentcolor;
+  background:          transparent;
+}
+
+html.we-theme-solar2 #solar2-navs-section .we-tab-style-underline .we-tab-content {
+  display: none !important;
+}

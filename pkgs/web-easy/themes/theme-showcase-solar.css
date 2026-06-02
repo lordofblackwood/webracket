@@ -1,0 +1,420 @@
+/*
+ * Web Easy Solar theme showcase-page layout overrides.
+ *
+ * This file is page-specific (topbar, hero, grid cards) and is meant to be
+ * loaded together with theme-external-solar.css.
+ */
+
+/* -------------------------------------------------------------------------- */
+/* 8) Theme Showcase Page Layout (for generated/example-browser-theme-showcase) */
+/* -------------------------------------------------------------------------- */
+/* This section styles only the showcase demo classes added via with-class. */
+html.we-theme-solar .showcase-shell {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 0 0 28px 0;
+  gap: 14px;
+}
+
+/* Sticky topbar card to mimic the demo page header feel. */
+html.we-theme-solar .showcase-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  width: 100%;
+  margin-left: 0;
+  margin-right: 0;
+  background: var(--we-bg-subtle);
+  backdrop-filter: blur(4px);
+  /* Bright divider is intentionally strong to mirror Solar demo header. */
+  border-bottom: 1px solid rgba(142, 195, 203, 0.92);
+}
+
+html.we-theme-solar .showcase-topbar::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 1px;
+  background: rgba(142, 195, 203, 0.86);
+  /* Decorative line only; allow pointer events to pass through. */
+  pointer-events: none;
+}
+
+/* Remove card framing so topbar reads as a full-width header band. */
+html.we-theme-solar .showcase-topbar.we-card {
+  border-left: none;
+  border-right: none;
+  border-top: none;
+  border-bottom: none;
+  border-radius: 0;
+}
+
+html.we-theme-solar .showcase-topbar .we-card-body {
+  background: var(--we-bg-subtle);
+  gap: 0;
+  padding: 10px 14px;
+}
+
+html.we-theme-solar .showcase-topbar-inner.we-inline {
+  max-width: 1200px;
+  margin: 0 auto;
+  width: 100%;
+  justify-content: flex-start;
+  align-items: center;
+  gap: 8px;
+  /* Keep top controls on one row in desktop layout. */
+  flex-wrap: nowrap;
+}
+
+html.we-theme-solar .showcase-brand.we-stack {
+  gap: 2px;
+}
+
+html.we-theme-solar .showcase-brand-title {
+  font-size: 17px;
+  line-height: 1.2;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--we-fg);
+}
+
+html.we-theme-solar .showcase-brand-subtitle {
+  font-size: 12px;
+  line-height: 1.2;
+  color: var(--we-fg-muted);
+}
+
+html.we-theme-solar .showcase-topbar-controls.we-stack {
+  align-items: stretch;
+  gap: 8px;
+  justify-content: flex-start;
+  /* Fixed-ish lane keeps Theme + select + download row visually aligned. */
+  width: min(56vw, 640px);
+  min-width: 340px;
+}
+
+html.we-theme-solar .showcase-controls-label {
+  font-weight: 700;
+  color: var(--we-fg);
+  font-size: 15px;
+  line-height: 1.15;
+  margin: 0;
+}
+
+html.we-theme-solar .showcase-theme-choice.we-choice {
+  min-width: 0;
+  width: 100%;
+  font-size: 16px;
+  line-height: 1.2;
+  min-height: 34px;
+  height: auto;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  border-radius: 6px;
+  background-position:
+    calc(100% - 14px) calc(50% - 1px),
+    calc(100% - 9px) calc(50% - 1px);
+  background-size: 7px 7px, 7px 7px;
+  text-transform: capitalize;
+}
+
+html.we-theme-solar .showcase-controls-download-row.we-toolbar {
+  align-items: flex-start;
+  gap: 8px;
+  /* Wrap keeps long button labels from overflowing on medium viewports. */
+  flex-wrap: wrap;
+}
+
+html.we-theme-solar .showcase-topbar-controls .we-choice,
+html.we-theme-solar .showcase-link-button.we-button,
+html.we-theme-solar .showcase-link-button.we-link {
+  border-radius: 6px;
+  padding: 5px 10px;
+  font-size: 16px;
+  line-height: 1.2;
+}
+
+html.we-theme-solar .showcase-link-button.we-button,
+html.we-theme-solar .showcase-link-button.we-link {
+  background: var(--we-bg);
+  border-width: 1px;
+  border-style: solid;
+  border-color: var(--we-border);
+  color: var(--we-fg);
+  white-space: nowrap;
+  text-decoration: none;
+  min-height: 0;
+}
+
+html.we-theme-solar .showcase-link-button.we-button:hover,
+html.we-theme-solar .showcase-link-button.we-link:hover {
+  background: var(--we-bg-hover);
+  border-color: var(--we-border-hover);
+  color: var(--we-fg);
+}
+
+/* Hero card under the topbar. */
+html.we-theme-solar .showcase-hero {
+  margin-top: 16px;
+  /* Constrained center column while header remains full-width. */
+  width: min(1168px, calc(100vw - 28px));
+  max-width: 1168px;
+  margin-left: auto;
+  margin-right: auto;
+  background: var(--we-bg-subtle);
+  border: 1px solid var(--we-border-soft);
+  border-radius: 10px;
+}
+
+html.we-theme-solar .showcase-hero.we-card {
+  border: 1px solid var(--we-border-soft);
+  border-radius: 10px;
+  margin-bottom: 0;
+  max-width: 1168px;
+  margin-left: auto;
+  margin-right: auto;
+  background: var(--we-bg-subtle);
+  padding: 14px;
+}
+
+html.we-theme-solar .showcase-hero .we-card-header {
+  background: transparent;
+  border-bottom-color: transparent;
+  color: var(--we-fg);
+  font-size: 23px;
+  font-weight: 600;
+  line-height: 1.2;
+  padding: 0 0 6px 0;
+  border-bottom: none;
+}
+
+html.we-theme-solar .showcase-hero .we-card-body {
+  background: transparent;
+  color: var(--we-fg-muted);
+  line-height: 1.5;
+  width: 100%;
+  padding: 0;
+  gap: 6px;
+}
+
+html.we-theme-solar .showcase-hero-title {
+  font-size: 23px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--we-fg);
+}
+
+html.we-theme-solar .showcase-hero-lead {
+  color: var(--we-fg-muted);
+  line-height: 1.45;
+  max-width: none;
+}
+
+html.we-theme-solar .showcase-main {
+  width: min(1200px, 100vw);
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 16px 14px 28px 14px;
+  gap: 12px;
+}
+
+/* Showcase-specific pagination shape: hide first/last buttons to match demo. */
+html.we-theme-solar .showcase-main .we-pagination .we-page-btn:first-child,
+html.we-theme-solar .showcase-main .we-pagination .we-page-btn:last-child {
+  display: none;
+}
+
+/* In the showcase card, render toast inline instead of viewport-fixed. */
+html.we-theme-solar .showcase-main .we-toast {
+  position: static;
+  right: auto;
+  bottom: auto;
+  min-width: 0;
+  max-width: 100%;
+  width: 100%;
+  margin-top: 2px;
+  box-shadow: none;
+  transform: none;
+}
+
+html.we-theme-solar .showcase-main .we-toast.is-open {
+  display: flex;
+  opacity: 1;
+}
+
+/* Grid rows: wrap cards as viewport changes, similar to demo cards grid. */
+html.we-theme-solar .showcase-grid-row.we-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+}
+
+/* Keep row 2 card widths aligned with the 3-column rhythm from the demo:
+   the two cards occupy columns 1 and 2, leaving column 3 empty on wide screens. */
+@media (min-width: 1080px) {
+  html.we-theme-solar .showcase-main > .showcase-grid-row.we-grid:nth-of-type(2) {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+html.we-theme-solar .showcase-grid-row .showcase-card.we-card {
+  min-width: 0;
+  border-radius: 8px;
+  overflow: hidden;
+  border-color: var(--we-border-soft);
+  background: var(--we-bg);
+}
+
+html.we-theme-solar .showcase-card .we-card-header {
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 13px;
+  line-height: 1.2;
+  background: var(--we-bg-subtle);
+  color: var(--we-fg-muted);
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--we-border-soft);
+}
+
+html.we-theme-solar .showcase-card .we-card-body {
+  display: grid;
+  background: var(--we-bg);
+}
+
+/* Keep grouped button rows visually compact and aligned. */
+html.we-theme-solar .showcase-button-row.we-inline {
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+/* Static list-group rows in showcase: keep count badge docked right with separator. */
+html.we-theme-solar .showcase-list-group-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  width: 100%;
+  gap: 0.5rem;
+}
+
+html.we-theme-solar .showcase-list-group-row > [data-we-widget="text"] {
+  white-space: nowrap;
+}
+
+html.we-theme-solar .showcase-list-group-badge {
+  margin-left: auto;
+  padding-left: 0.75rem;
+  border-left: 1px solid var(--we-border-soft);
+  border-radius: 0;
+  min-width: 2rem;
+  text-align: center;
+}
+
+/* Variant list-group rows in the Containers section. */
+html.we-theme-solar .showcase-list-variant .we-list-group-item:nth-child(1) { background: #f0e7cc; color: #483700; border-color: #e1d099; }
+html.we-theme-solar .showcase-list-variant .we-list-group-item:nth-child(2) { background: #e6eaea; color: #343b3c; border-color: #cdd4d5; }
+html.we-theme-solar .showcase-list-variant .we-list-group-item:nth-child(3) { background: #d4ecea; color: #11403d; border-color: #aad9d6; }
+html.we-theme-solar .showcase-list-variant .we-list-group-item:nth-child(4) { background: #d4e8f6; color: #0f3854; border-color: #a8d1ed; }
+html.we-theme-solar .showcase-list-variant .we-list-group-item:nth-child(5) { background: #f5dbd0; color: #511e09; border-color: #eab7a2; }
+html.we-theme-solar .showcase-list-variant .we-list-group-item:nth-child(6) { background: #f6d7e6; color: #541634; border-color: #edadcd; }
+html.we-theme-solar .showcase-list-variant .we-list-group-item:nth-child(7) { background: #fefbf1; color: #495057; border-color: #eee8d5; }
+html.we-theme-solar .showcase-list-variant .we-list-group-item:nth-child(8) { background: #ced4da; color: #495057; border-color: #adb5bd; }
+
+html.we-theme-solar .showcase-card .we-breadcrumb-item {
+  color: var(--we-fg);
+  padding: 0;
+}
+
+html.we-theme-solar .showcase-card .we-breadcrumb-sep {
+  color: var(--we-fg-muted);
+}
+
+html.we-theme-solar .showcase-card progress {
+  width: 100%;
+}
+
+/* Showcase-only accordion: match demo-theme-showcase simple card style. */
+html.we-theme-solar .showcase-card .we-accordion-item {
+  border: 1px solid var(--we-border-soft);
+  border-radius: 6px;
+  overflow: hidden;
+  margin-bottom: 6px;
+}
+
+html.we-theme-solar .showcase-card .we-accordion-trigger {
+  width: 100%;
+  display: block;
+  text-align: left;
+  padding: 8px 9px;
+  border: 0;
+  border-bottom: 1px solid var(--we-border-soft);
+  background: var(--we-bg-subtle);
+  color: var(--we-fg);
+  font-weight: 400;
+}
+
+html.we-theme-solar .showcase-card .we-accordion-trigger.is-open {
+  background: var(--we-bg-subtle);
+  color: var(--we-fg);
+  border-bottom-color: var(--we-border-soft);
+}
+
+html.we-theme-solar .showcase-card .we-accordion-trigger::after {
+  content: none;
+}
+
+html.we-theme-solar .showcase-card .we-accordion-content {
+  padding: 8px 9px;
+  background: var(--we-bg);
+  color: var(--we-fg);
+}
+
+/* Static toast sample in showcase. */
+html.we-theme-solar .showcase-static-toast {
+  width: min(360px, 100%);
+  border: 1px solid var(--we-border-soft);
+  border-radius: 6px;
+  background: var(--we-bg);
+  color: var(--we-fg);
+  box-shadow: 0 8px 22px var(--we-shadow);
+  overflow: hidden;
+}
+
+html.we-theme-solar .showcase-static-toast-header.we-inline {
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.55rem 0.75rem;
+  border-bottom: 1px solid var(--we-border-soft);
+  background: var(--we-bg-subtle);
+}
+
+html.we-theme-solar .showcase-static-toast-title {
+  font-weight: 700;
+}
+
+html.we-theme-solar .showcase-static-toast-time {
+  color: var(--we-fg-muted);
+}
+
+html.we-theme-solar .showcase-static-toast-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 4px;
+  color: var(--we-fg-muted);
+  line-height: 1;
+}
+
+html.we-theme-solar .showcase-static-toast-close:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+html.we-theme-solar .showcase-static-toast-body {
+  display: block;
+  padding: 0.65rem 0.75rem;
+  line-height: 1.45;
+}
