@@ -2308,6 +2308,10 @@
                                                   'webracket/contract)
                 (webify-module-provider-cache-ref provider-cache
                                                   'webracket/private/kw)
+                (webify-module-report/rename
+                 (webify-module-provider-cache-ref provider-cache
+                                                   'webracket/private/kw)
+                 'racket/private/kw)
                 (webify-module-provider-cache-ref provider-cache
                                                   'webracket/unsafe/undefined)
                 (webify-module-report/rename
@@ -2326,8 +2330,6 @@
                                                       'racket/private/map)
                     (webify-module-provider-cache-ref provider-cache
                                                       'racket/private/pico)
-                    (webify-module-provider-cache-ref provider-cache
-                                                      'racket/private/kw)
                     (webify-module-provider-cache-ref provider-cache
                                                       'webracket/list)
                     (webify-module-provider-cache-ref provider-cache

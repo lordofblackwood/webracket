@@ -596,6 +596,9 @@
      '(racket/contract/private/guts contract)]
     [(symbolic-name=? external 'struct:keyword-method/arity-error)
      '(racket/private/kw struct:keyword-method/arity-error)]
+    [(and (eq? module-name 'racket/private/kw)
+          (symbolic-name=? external 'new-prop:procedure))
+     '(#%kernel prop:procedure)]
     [(symbolic-name=? external 'find-method/who)
      '(racket/private/class-struct find-method/who)]
     [(symbolic-name=? external 'do-make-object)

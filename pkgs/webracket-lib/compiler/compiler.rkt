@@ -3331,10 +3331,107 @@
   (define (with-handlers-handler? id)
     (string-prefix? (symbol->string (syntax-e id))
                     "with-handlers-handler"))
+
+  ;; call-handled-body-target? : syntax? -> boolean?
+  ;;   Recognize direct and module-cell references to call-handled-body.
+  (define (call-handled-body-target? stx)
+    (syntax-case stx ()
+      [id
+       (identifier? #'id)
+       (with-handlers-prefix? #'id "call-handled-body")]
+      [(app ref cell)
+       (and (identifier? #'app)
+            (identifier? #'ref)
+            (identifier? #'cell)
+            (eq? (syntax-e #'app) '#%plain-app)
+            (eq? (syntax-e #'ref) 'module-variable-ref/no-check)
+            (with-handlers-prefix? #'cell "call-handled-body"))]
+      [_ #f]))
+
+  ;; break-enabled-key-target? : syntax? -> boolean?
+  ;;   Recognize direct and top-level-wrapped break-enabled-key references.
+  (define (break-enabled-key-target? stx)
+    (syntax-case stx ()
+      [id
+       (identifier? #'id)
+       (eq? (syntax-e #'id) 'break-enabled-key)]
+      [(top . id)
+       (and (identifier? #'top)
+            (identifier? #'id)
+            (eq? (syntax-e #'top) '#%top)
+            (eq? (syntax-e #'id) 'break-enabled-key))]
+      [_ #f]))
+
+  ;; with-handlers-binding-split : (listof identifier?) -> (or/c exact-nonnegative-integer? #f)
+  ;;   Determine where predicate temporaries end and handler temporaries begin.
+  (define (with-handlers-binding-split names)
+    (define prefix-preds (takef names with-handlers-predicate?))
+    (define prefix-rest  (dropf names with-handlers-predicate?))
+    (cond
+      [(and (pair? prefix-preds)
+            (andmap with-handlers-handler? prefix-rest))
+       (length prefix-preds)]
+      [(even? (length names))
+       ;; Module-bridge expansion can rename the predicate/handler temporaries
+       ;; to neutral loc_* ids, while still grouping predicates before handlers.
+       (quotient (length names) 2)]
+      [else #f]))
+
+  ;; build-catch* : syntax? (listof syntax?) (listof syntax?) syntax? -> syntax?
+  ;;   Build the simplified catch* form used by WebRacket exception handling.
+  (define (build-catch* stx pred-exprs handler-exprs lambda1)
+    (define preds    (map walk pred-exprs))
+    (define handlers (map walk handler-exprs))
+    (with-syntax ([(preds ...)    preds]
+                  [(handlers ...) handlers]
+                  [catch*         (datum->syntax stx 'catch*)]
+                  [list-id        (datum->syntax stx 'list)]
+                  [lambda1        (walk lambda1)])
+      (syntax-property
+       (syntax/loc stx
+         (#%plain-app
+          catch*
+          (#%plain-app list preds ...)
+          (#%plain-app list handlers ...)
+          lambda1))
+       'source-stx
+       stx)))
+
+  ;; extract-nested-with-handlers : syntax? -> (or/c syntax? #f)
+  ;;   Rewrite the nested let-values shape produced by module-bridge expansion.
+  (define (extract-nested-with-handlers stx)
+    (define (collect stx ids exprs)
+      (syntax-parse stx
+        #:literal-sets (kernel-literals)
+        #:literals (continuation-mark-set-first)
+        [(let-values ([(id:id) expr]) rest)
+         (define maybe-final
+           (syntax-parse #'expr
+             [(#%plain-app continuation-mark-set-first '#f break-enabled-key-target)
+              #:when (break-enabled-key-target? #'break-enabled-key-target)
+              (syntax-parse #'rest
+                [(#%plain-app call-handled-body-target bpz1 lambda0 lambda1)
+                 #:when (and (free-identifier=? #'id #'bpz1)
+                             (call-handled-body-target? #'call-handled-body-target))
+                 (list (reverse ids) (reverse exprs) #'lambda1)]
+                [_ #f])]
+             [_ #f]))
+         (or maybe-final
+             (collect #'rest (cons #'id ids) (cons #'expr exprs)))]
+        [_ #f]))
+    (define maybe (collect stx '() '()))
+    (and maybe
+         (match-let ([(list ids exprs lambda1) maybe])
+           (define split (with-handlers-binding-split ids))
+           (and split
+                (let ([pred-exprs    (take exprs split)]
+                      [handler-exprs (drop exprs split)])
+                  (build-catch* stx pred-exprs handler-exprs lambda1))))))
   
   
   (define (rewrite-with-handlers stx)
-    (syntax-parse stx
+    (or (extract-nested-with-handlers stx)
+        (syntax-parse stx
       #:literal-sets (kernel-literals) ; #%plain-app quote let-values
       #:literals (continuation-mark-set-first break-enabled-key)
       ;; Task 2 
@@ -3343,8 +3440,8 @@
       [(let-values ([(pred/handler ...) pred/handler-expr] ...)
          (let-values (((bpz)
                        (#%plain-app continuation-mark-set-first
-                                    '#f break-enabled-key)))
-           (#%plain-app call-handled-body:id
+                                    '#f break-enabled-key-target)))
+           (#%plain-app call-handled-body-target
                         bpz1
                         lambda0
                         lambda1)))
@@ -3358,44 +3455,20 @@
        ;            (lambda () body))
        #:when (let ()
                 (define names (syntax->list #'(pred/handler ... ...)))
-                (and (null?
-                      (dropf (dropf names with-handlers-predicate?)
-                             with-handlers-handler?))
-                     (eq? (syntax-e #'call-handled-body) 'call-handled-body)))
+                (and (with-handlers-binding-split names)
+                     (break-enabled-key-target? #'break-enabled-key-target)
+                     (call-handled-body-target? #'call-handled-body-target)))
        (define pred/handler*      (syntax->list #'(pred/handler ... ...)))
-       (define pred-count         (length (takef pred/handler*
-                                                 with-handlers-predicate?)))
+       (define pred-count         (with-handlers-binding-split pred/handler*))
        (define handlers-count     (- (length pred/handler*) pred-count))
        (define pred/handler-expr* (syntax->list #'(pred/handler-expr ...)))
        (define pred-exprs         (take pred/handler-expr* pred-count))
        (define handler-exprs      (drop pred/handler-expr* pred-count))
        
-       (define preds    (map walk pred-exprs))
-       (define handlers (map walk handler-exprs))
        #;(define bodies   (map walk (syntax->list #'(body ...))))
 
-       (with-syntax ([(preds ...)    preds]
-                     [(handlers ...) handlers]
-                     #;[(body ...)     bodies]
-                     [catch*         (datum->syntax stx 'catch*)]
-                     [list-id        (datum->syntax stx 'list)]
-                     [lambda-id      (datum->syntax stx '#%plain-lambda)]
-                     [lambda1        (walk #'lambda1)])
-         ; The expansion is:
-         ;    (catch* (list pred1    pred2)
-         ;            (list handler1 handler2)
-         ;            (lambda () body))
-         ; But we need to use the fully expanded form.
-         (syntax-property
-          (syntax/loc stx
-            (#%plain-app
-             catch*
-             (#%plain-app list preds ...)
-             (#%plain-app list handlers ...)
-             lambda1))
-          'source-stx
-          stx))]
-      [_ #f]))
+       (build-catch* stx pred-exprs handler-exprs #'lambda1)]
+      [_ #f])))
 
   (define (walk stx)
     (define rewritten (rewrite-with-handlers stx))

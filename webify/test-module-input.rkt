@@ -543,6 +543,17 @@
                 '((struct:keyword-method/arity-error
                    racket/private/kw
                    struct:keyword-method/arity-error)))
+  (define-values (keyword-new-prop-imports keyword-new-prop-outcomes)
+    (webify-resolve-module-linklet-imports/outcomes
+     '(linklet (([new-prop:procedure new-prop:procedure])) (y)
+        (define-values (y) new-prop:procedure))
+     '()
+     #:module-name 'racket/private/kw))
+  (check-equal? keyword-new-prop-imports
+                '((new-prop:procedure #%kernel prop:procedure)))
+  (check-equal? (map webify-module-resolution-outcome-status
+                     keyword-new-prop-outcomes)
+                '(resolved-by-compiled-primitive-alias))
   (define-values (class-runtime-imports _class-runtime-outcomes)
     (webify-resolve-module-linklet-imports/outcomes
      '(linklet (([do-make-object do-make-object])) (y)
