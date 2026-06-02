@@ -101,15 +101,13 @@
     (find-repo-root (or (current-load-relative-directory)
                         (current-directory))))
   (define racket-exe (repo-racket-executable repo-root))
+  (define hello-world-example
+    (build-path repo-root "pkgs" "web-easy" "examples" "hello-world.rkt"))
   (compile-web-easy-smoke
    repo-root
    racket-exe
-   "web-easy"
-   "#lang webracket/base
-(require web-easy)
-(define v (Div \"hi\"))
-(js-log (view? v))
-")
+   "web-easy-example"
+   (file->string hello-world-example))
   (compile-web-easy-smoke
    repo-root
    racket-exe
