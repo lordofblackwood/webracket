@@ -2541,7 +2541,7 @@
        ,(string-append
          "#lang webracket/base\n"
          "(require js/array)\n"
-         "(define arr (array-of (vector 40 2)))\n"
+         "(define arr (array-of 40 2))\n"
          "(js-log (apply + (vector->list (array->vector arr))))\n")))
     "main.rkt"
     #rx"(?m:^42$)"

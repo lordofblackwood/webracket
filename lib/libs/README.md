@@ -6,12 +6,14 @@ to normal module providers.
 
 New module-based code should prefer explicit requires:
 
+- `(require js/array)` replaces `(include-lib array)`.
 - `(require js/console)` replaces `(include-lib console)`.
 - `(require js/math)` is backed by `ffi/math.ffi`; compile runtime users with
   the matching FFI bundle while automatic module-to-FFI inference grows.
 
 Migration status:
 
+- `array.rkt`: migrated to `js/array`; kept here for compatibility.
 - `console.rkt`: migrated to `js/console`; kept here for compatibility.
 - `math`: no legacy include file existed; `js/math` starts directly as a module.
 - Other files: still legacy include-lib wrappers.

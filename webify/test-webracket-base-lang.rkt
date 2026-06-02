@@ -1879,11 +1879,26 @@
                         (unsafe-ffi-module-parity-row-missing row)
                         (unsafe-ffi-module-parity-row-extra row)))))
 
-(test-case "js/math, js/performance, js/standard, and js/temp have public wrappers"
+(test-case "js/array, js/math, js/performance, js/standard, and js/temp have public wrappers"
+  (define array-exports (module-runtime-export-symbols 'js/array))
   (define math-exports (module-runtime-export-symbols 'js/math))
   (define performance-exports (module-runtime-export-symbols 'js/performance))
   (define standard-exports (module-runtime-export-symbols 'js/standard))
   (define temp-exports (module-runtime-export-symbols 'js/temp))
+  (for ([name (in-list '(array?
+                         array-wrap
+                         array-unwrap
+                         array-of
+                         array->vector
+                         array->list
+                         vector->array
+                         list->array
+                         array-push!
+                         array-push
+                         array-set-length!
+                         array-to-spliced))])
+    (check-not-false (memq name array-exports)
+                     (symbol->string name)))
   (check-not-false (memq 'math-sqrt math-exports))
   (check-not-false (memq 'math-random math-exports))
   (check-not-false (memq 'performance-now performance-exports))
