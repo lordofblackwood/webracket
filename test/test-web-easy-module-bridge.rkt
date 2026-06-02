@@ -96,18 +96,34 @@
       (with-handlers ([exn:fail:filesystem? void])
         (delete-directory/files base)))))
 
+;; compile-web-easy-example : path? path? path-string? -> void
+;;   Compile a package example through the module bridge.
+(define (compile-web-easy-example repo-root racket-exe example-relative-path)
+  (define example-path (apply build-path repo-root example-relative-path))
+  (define label
+    (path->string
+     (path-replace-extension
+      (file-name-from-path example-path)
+      #"")))
+  (compile-web-easy-smoke
+   repo-root
+   racket-exe
+   label
+   (file->string example-path)))
+
 (module+ main
   (define repo-root
     (find-repo-root (or (current-load-relative-directory)
                         (current-directory))))
   (define racket-exe (repo-racket-executable repo-root))
-  (define hello-world-example
-    (build-path repo-root "pkgs" "web-easy" "examples" "hello-world.rkt"))
-  (compile-web-easy-smoke
+  (compile-web-easy-example
    repo-root
    racket-exe
-   "web-easy-example"
-   (file->string hello-world-example))
+   '("pkgs" "web-easy" "examples" "hello-world.rkt"))
+  (compile-web-easy-example
+   repo-root
+   racket-exe
+   '("pkgs" "web-easy" "examples" "single-counter.rkt"))
   (compile-web-easy-smoke
    repo-root
    racket-exe
