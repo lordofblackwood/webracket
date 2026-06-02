@@ -226,6 +226,7 @@
     installed-racket-class-basic-coverage
     installed-racket-class-advanced-coverage
     ffi-js-math-coverage
+    ffi-js-standard-coverage
     ffi-js-console-coverage))
 
 ;; goal1-dashboard-composition-case-names : (listof symbol?)
@@ -2550,6 +2551,28 @@
     `(("main.rkt" . "#lang webracket/base\n(require js/console)\n(console-log \"console-module\")\n"))
     "main.rkt"
     #rx"console-module"
+    '("--no-io-format-provider" "--webracket-module-bridge"))
+   (dashboard-case
+    'ffi-js-standard
+    'ffi-module
+    '(js/standard webracket/unsafe/standard)
+    `(("main.rkt" .
+       "#lang webracket/base\n(require js/standard)\n(js-log (standard-parse-int \"42\"))\n"))
+    "main.rkt"
+    #rx"(?m:^42$)"
+    '("--no-io-format-provider" "--webracket-module-bridge"))
+   (dashboard-case
+    'ffi-js-standard-coverage
+    'installed-provider-coverage
+    '(js/standard webracket/unsafe/standard)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/base\n"
+         "(require js/standard)\n"
+         "(define parsed (standard-number-parse-int \"40\"))\n"
+         "(js-log (+ parsed (if (standard-finite? 1.0) 2 0)))\n")))
+    "main.rkt"
+    #rx"(?m:^42$)"
     '("--no-io-format-provider" "--webracket-module-bridge"))
    (dashboard-case
     'ffi-js-console-coverage

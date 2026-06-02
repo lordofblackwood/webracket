@@ -35,6 +35,7 @@
                   webify-provider-trial-module-allowed?)
          "../pkgs/webracket-lib/compiler/webify/ffi-module-registry.rkt"
          "../pkgs/webracket-lib/compiler/webify/unsafe-ffi-module.rkt"
+         "ffi-migration-status.rkt"
          "test-module-support.rkt"
          "../pkgs/webracket-lib/compiler/webify/webracket-base-surface.rkt"
          "webracket-full-dashboard.rkt"
@@ -1867,6 +1868,7 @@
                 '(webracket/unsafe/console
                   webracket/unsafe/math
                   webracket/unsafe/performance
+                  webracket/unsafe/standard
                   webracket/unsafe/temp))
   (for ([row (in-list rows)])
     (check-true (unsafe-ffi-module-parity-row-ok? row)
@@ -1875,14 +1877,17 @@
                         (unsafe-ffi-module-parity-row-missing row)
                         (unsafe-ffi-module-parity-row-extra row)))))
 
-(test-case "js/math, js/performance, and js/temp have public wrappers"
+(test-case "js/math, js/performance, js/standard, and js/temp have public wrappers"
   (define math-exports (module-runtime-export-symbols 'js/math))
   (define performance-exports (module-runtime-export-symbols 'js/performance))
+  (define standard-exports (module-runtime-export-symbols 'js/standard))
   (define temp-exports (module-runtime-export-symbols 'js/temp))
   (check-not-false (memq 'math-sqrt math-exports))
   (check-not-false (memq 'math-random math-exports))
   (check-not-false (memq 'performance-now performance-exports))
   (check-not-false (memq 'performance-time-origin performance-exports))
+  (check-not-false (memq 'standard-parse-int standard-exports))
+  (check-not-false (memq 'standard-encode-uri-component standard-exports))
   (check-not-false (memq 'temp-x temp-exports))
   (check-not-false (memq 'temp-set-x! temp-exports)))
 
@@ -1891,10 +1896,12 @@
                 '(js/console
                   js/math
                   js/performance
+                  js/standard
                   js/temp
                   webracket/unsafe/console
                   webracket/unsafe/math
                   webracket/unsafe/performance
+                  webracket/unsafe/standard
                   webracket/unsafe/temp))
   (for ([row (in-list '((js/console console.ffi)
                         (webracket/unsafe/console console.ffi)
@@ -1902,6 +1909,8 @@
                         (webracket/unsafe/math math.ffi)
                         (js/performance performance.ffi)
                         (webracket/unsafe/performance performance.ffi)
+                        (js/standard standard.ffi)
+                        (webracket/unsafe/standard standard.ffi)
                         (js/temp temp.ffi)
                         (webracket/unsafe/temp temp.ffi)))])
     (check-equal? (module-provider->ffi-filename (car row))
@@ -1910,17 +1919,58 @@
     (check-not-false (module-provider->ffi-path (car row))
                      (symbol->string (car row)))))
 
+(test-case "FFI README records the current module-call performance boundary"
+  (define ffi-readme (build-path repo-root
+                                 "pkgs" "webracket-lib" "compiler" "ffi" "README.md"))
+  (define doc (file->string ffi-readme))
+  (for ([needle (in-list '("Performance note"
+                           "composability over direct-call performance"
+                           "unsafe-ffi-primitive"
+                           "ordinary closure/module-variable path"
+                           "direct primitive call"
+                           "future optimization"))])
+    (check-not-false (regexp-match? (regexp (regexp-quote needle)) doc)
+                     needle)))
+
+(test-case "FFI migration matrix records migrated and browser-policy rows"
+  (define migration-doc
+    (build-path repo-root "pkgs" "webracket-lib" "compiler" "ffi" "MIGRATION.md"))
+  (define doc (file->string migration-doc))
+  (for ([needle (in-list '("FFI Migration Matrix"
+                           "standard.ffi"
+                           "webracket/unsafe/standard"
+                           "js/standard"
+                           "browser/*"
+                           "direct-call optimization"))])
+    (check-not-false (regexp-match? (regexp (regexp-quote needle)) doc)
+                     needle)))
+
+(test-case "FFI migration status report tracks migrated standard provider"
+  (define rows (ffi-migration-status-rows))
+  (define standard-row
+    (for/first ([row (in-list rows)]
+                #:when (string=? (ffi-migration-status-row-ffi-filename row)
+                                 "standard.ffi"))
+      row))
+  (check-not-false standard-row)
+  (check-equal? (ffi-migration-status-row-unsafe-module standard-row)
+                'webracket/unsafe/standard)
+  (check-equal? (ffi-migration-status-row-public-module standard-row)
+                'js/standard)
+  (check-true (ffi-migration-status-row-bundle-inference? standard-row))
+  (check-true (ffi-migration-status-row-dashboard? standard-row))
+  (check-equal? (ffi-migration-status-row-status standard-row)
+                'migrated-covered))
+
 (test-case "FFI module registry ignores declarations without migrated modules"
   (for ([module-name (in-list '(js/canvas
                                 js/dom
                                 js/element
                                 js/jsxgraph
-                                js/standard
                                 webracket/unsafe/canvas
                                 webracket/unsafe/dom
                                 webracket/unsafe/element
-                                webracket/unsafe/jsxgraph
-                                webracket/unsafe/standard))])
+                                webracket/unsafe/jsxgraph))])
     (check-false (module-provider->ffi-filename module-name)
                  (symbol->string module-name))
     (check-false (webify-provider-trial-default-bridge-module-allowed? module-name)

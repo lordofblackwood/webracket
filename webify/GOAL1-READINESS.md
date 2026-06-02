@@ -60,7 +60,7 @@ choosing the next milestone from evidence instead of memory.
 | `racket/stream` | `webracket/stream` | substituted/postponed | stream coverage rows | Staged lazy stream syntax works for common cases; full stream internals postponed. |
 | `regexp` | staged original regexp slice | owned | regexp provider coverage | Always-available provider slice. |
 | `expander/read` | staged original reader slice | partial | expander/read provider tests | Useful because Goal 1 still uses host expansion, but reader runtime support is not complete. |
-| `js/console`, `js/math` | WebRacket FFI modules | owned | FFI coverage rows | Require implies matching unsafe FFI bundle. |
+| `js/console`, `js/math`, `js/standard` | WebRacket FFI modules | owned | FFI coverage rows | Require implies matching unsafe FFI bundle. |
 
 ## Postponed Or Diagnostic Edges
 

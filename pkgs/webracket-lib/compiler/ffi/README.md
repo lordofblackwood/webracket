@@ -20,6 +20,10 @@ ffi/math.ffi
 ffi/temp.ffi
   -> webracket/unsafe/temp
   -> js/temp
+
+ffi/standard.ffi
+  -> webracket/unsafe/standard
+  -> js/standard
 ```
 
 - `ffi/*.ffi` declares raw imported names, host module names, arities, result
@@ -32,7 +36,8 @@ ffi/temp.ffi
 - `lib/libs/*` is the legacy `include-lib` compatibility location while those
   libraries are migrated to modules.
 
-`webracket/unsafe/console`, `webracket/unsafe/math`, and
+`webracket/unsafe/console`, `webracket/unsafe/math`,
+`webracket/unsafe/performance`, `webracket/unsafe/standard`, and
 `webracket/unsafe/temp` are migrated unsafe modules whose bindings call the
 private `unsafe-ffi-primitive` hook. For `#lang webracket/base` and
 `#lang webracket/full` programs, the driver infers the matching `.ffi` bundle
@@ -44,6 +49,29 @@ declarations. The shared module-to-bundle mapping lives in
 `js/*.rkt`, and `unsafe/*.rkt` files. Adding `ffi/foo.ffi` plus
 `unsafe/foo.rkt` and/or `js/foo.rkt` makes the module provider infer
 `foo.ffi` without editing the registry.
+
+Performance note
+----------------
+
+The migrated module path currently favors composability over direct-call performance.
+A binding such as:
+
+```
+(define js-foo-bar (unsafe-ffi-primitive 'js-foo-bar))
+```
+
+is compiled as a module binding to a closure returned by
+`unsafe-ffi-primitive`. Calling `(js-foo-bar 42)` therefore goes through the
+ordinary closure/module-variable path. The underlying Wasm import and generated
+FFI wrapper are direct, but the module-level call is not yet compiled as a
+direct primitive call.
+
+This is intentional for the first module-based FFI migration: it lets ordinary
+`require`s infer `.ffi` bundles and keeps unsafe modules regular Racket modules.
+The future optimization is to recognize module bindings initialized from
+`unsafe-ffi-primitive` and compile calls to those aliases directly to the
+generated FFI wrapper, or to generate unsafe modules in a compiler-recognized
+primitive-binding form.
 
 
 dom.ffi

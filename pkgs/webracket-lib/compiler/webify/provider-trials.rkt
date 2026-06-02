@@ -270,6 +270,7 @@
   '(js/console
     js/math
     js/performance
+    js/standard
     js/temp
     data/queue
     racket/bool
@@ -378,6 +379,7 @@
     webracket/unsafe/console
     webracket/unsafe/math
     webracket/unsafe/performance
+    webracket/unsafe/standard
     webracket/unsafe/undefined
     webracket/unsafe/temp))
 
@@ -387,6 +389,7 @@
  '(js/console
     js/math
     js/performance
+    js/standard
     js/temp
     data/queue
     racket/bool

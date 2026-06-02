@@ -266,6 +266,8 @@
   (check-not-false
    (member 'ffi-js-console-coverage goal1-dashboard-coverage-extended-case-names))
   (check-not-false
+   (member 'ffi-js-standard-coverage goal1-dashboard-coverage-extended-case-names))
+  (check-not-false
    (member 'installed-racket-dict-coverage goal1-dashboard-coverage-extended-case-names))
   (check-not-false
    (member 'installed-data-queue-coverage goal1-dashboard-coverage-extended-case-names))
@@ -473,6 +475,7 @@
                          goal1-base-sort-keywords
                          goal1-vector-sort-keywords
                          ffi-js-math-coverage
+                         ffi-js-standard-coverage
                          ffi-js-console-coverage
                          regexp-provider-coverage))])
     (check-not-false (memq name coverage-names)
@@ -617,6 +620,7 @@
                            "racket/sequence"
                            "racket/private/for"
                            "racket/class"
+                           "js/standard"
                            "contract or sequence work"
                            "racket/class surface policy"))])
     (check-not-false (regexp-match? (regexp (regexp-quote needle)) doc) needle)))

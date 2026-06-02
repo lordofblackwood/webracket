@@ -3,6 +3,7 @@
 (provide ffi-file->unsafe-export-symbols
          ffi-file->unsafe-binding-datums
          ffi-file->unsafe-module-source
+         write-unsafe-ffi-module-source
          unsafe-ffi-module-parity-row
          unsafe-ffi-module-parity-row?
          unsafe-ffi-module-parity-row-module
@@ -66,6 +67,15 @@
               module-name
               name
               name)))))
+
+;; write-unsafe-ffi-module-source : path-string? symbol? path-string? path-string? -> void?
+;;   Write the generated unsafe module source for a `.ffi` declaration file.
+(define (write-unsafe-ffi-module-source ffi-path module-name require-path output-path)
+  (call-with-output-file output-path
+    (lambda (out)
+      (display (ffi-file->unsafe-module-source ffi-path module-name require-path)
+               out))
+    #:exists 'truncate/replace))
 
 (struct unsafe-ffi-module-parity-row
   (module ffi-path declared-exports actual-exports missing extra)
