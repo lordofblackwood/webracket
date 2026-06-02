@@ -1511,7 +1511,11 @@
       (for/list ([f (in-list active-ffi-foreigns)])
         (define pr    (foreign-racket-name f))
         (define ar    (length (foreign-argument-types f)))
-        (define shape (arity->shape ar))
+        ;; FFI wrappers with more than six arguments use the normal variadic
+        ;; rest-list function type. The procedure object still records the
+        ;; exact source arity, and the generated wrapper checks it after
+        ;; receiving the rest list.
+        (define shape (if (> ar 6) 6 (arity->shape ar)))
         (define $name ($ (string->symbol (~a "symbol:" pr))))
         `(global.set ,($ (prim: pr))
                      (struct.new $PrimitiveProcedure

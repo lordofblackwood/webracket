@@ -285,6 +285,8 @@
     browser/media
     browser/websocket
     browser/window
+    web-pict
+    web-pict/private/entry
     jsxgraph
     xterm
     data/queue
@@ -434,6 +436,8 @@
     browser/media
     browser/websocket
     browser/window
+    web-pict
+    web-pict/private/entry
     jsxgraph
     xterm
     data/queue

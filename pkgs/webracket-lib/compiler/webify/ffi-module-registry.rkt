@@ -6,7 +6,9 @@
          ffi-module-registry-row-ffi-filename
          ffi-module-registry-row-ffi-path
          ffi-module-registry-rows
+         module-provider->registry-rows
          module-provider->ffi-filename
+         module-provider->ffi-filenames
          module-provider->ffi-path
          migrated-unsafe-ffi-modules)
 
@@ -102,12 +104,31 @@
 ;; ffi-public-alias-rows : (listof ffi-module-registry-row?)
 ;;   Extra public modules backed by an existing aggregate `.ffi` declaration.
 (define ffi-public-alias-rows
-  (let ([array-ffi-path (build-path ffi-root "array.ffi")])
-    (if (file-exists? array-ffi-path)
-        (list (ffi-module-registry-row 'js/iterator
-                                       "array.ffi"
-                                       array-ffi-path))
-        '())))
+  (let ()
+    (define (row module filename)
+      (define path (build-path ffi-root filename))
+      (and (file-exists? path)
+           (ffi-module-registry-row module filename path)))
+    (filter
+     values
+     (append
+      (list (row 'js/iterator "array.ffi"))
+      ;; `browser/dom` and `webracket/unsafe/dom` are aggregate facades used by
+      ;; migrated libraries such as `web-pict`; their module provider implies
+      ;; the full browser binding family, not only `dom.ffi`.
+      (for*/list ([module (in-list '(browser/dom webracket/unsafe/dom))]
+                  [filename (in-list '("audio.ffi"
+                                       "canvas.ffi"
+                                       "document.ffi"
+                                       "dom.ffi"
+                                       "domrect.ffi"
+                                       "element.ffi"
+                                       "event.ffi"
+                                       "image.ffi"
+                                       "media.ffi"
+                                       "websocket.ffi"
+                                       "window.ffi"))])
+        (row module filename))))))
 
 ;; ffi-module-registry-rows : (listof ffi-module-registry-row?)
 ;;   Discover migrated module providers from `ffi/*.ffi` and existing modules.
@@ -124,8 +145,14 @@
 ;; module-provider->registry-row : symbol? -> (or/c ffi-module-registry-row? #f)
 ;;   Find the registry row for a module provider.
 (define (module-provider->registry-row module-name)
-  (for/first ([row (in-list ffi-module-registry-rows)]
-              #:when (eq? module-name (ffi-module-registry-row-module row)))
+  (define rows (module-provider->registry-rows module-name))
+  (and (pair? rows) (car rows)))
+
+;; module-provider->registry-rows : symbol? -> (listof ffi-module-registry-row?)
+;;   Find all registry rows for a module provider.
+(define (module-provider->registry-rows module-name)
+  (for/list ([row (in-list ffi-module-registry-rows)]
+             #:when (eq? module-name (ffi-module-registry-row-module row)))
     row))
 
 ;; module-provider->ffi-filename : symbol? -> (or/c path-string? #f)
@@ -133,6 +160,14 @@
 (define (module-provider->ffi-filename module-name)
   (define row (module-provider->registry-row module-name))
   (and row (ffi-module-registry-row-ffi-filename row)))
+
+;; module-provider->ffi-filenames : symbol? -> (listof path-string?)
+;;   Return every source `.ffi` bundle needed by a module provider.
+(define (module-provider->ffi-filenames module-name)
+  (remove-duplicates
+   (for/list ([row (in-list (module-provider->registry-rows module-name))])
+     (ffi-module-registry-row-ffi-filename row))
+   equal?))
 
 ;; module-provider->ffi-path : symbol? -> (or/c path? #f)
 ;;   Return the source `.ffi` path for a WebRacket module provider.

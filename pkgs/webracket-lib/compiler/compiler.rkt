@@ -947,6 +947,12 @@
        (let ([f (ffi-foreign-by-name sym)])
          (and f (length (foreign-argument-types f))))))
 
+;; wide-ffi-primitive? : symbol? -> boolean?
+;;   Check whether an FFI primitive is represented with a rest-list wrapper.
+(define (wide-ffi-primitive? sym)
+  (define arity (ffi-primitive-arity sym))
+  (and arity (> arity 6) #t))
+
 (define (primitive-arity sym)
   (hash-ref! primitive-arity-cache sym
              (λ ()
@@ -19007,7 +19013,9 @@
                   (let* ([aes (AExpr* ae1)]
                          [n   (length aes)])
                     (if (primitive-arity-accepts? sym n)
-                        `(call ,(Prim pr) ,@aes)
+                        (if (wide-ffi-primitive? sym)
+                            `(call ,(Prim pr) ,(build-rest-args aes))
+                            `(call ,(Prim pr) ,@aes))
                         (primapp-arity-error sym aes)))])])])]))
      (record-used-primitives-in-wat! work)
 

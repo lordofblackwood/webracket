@@ -448,26 +448,37 @@
     [(foreign racket-name module-name host-name argument-types result-types)
      (define $racket-name          (string->symbol (~a "$" racket-name)))
      (define $racket-name/imported (string->symbol (~a $racket-name "/imported")))
-     (define $prim-type            (string->symbol (~a "$Prim" (length argument-types))))
+     (define wide-ffi-wrapper?     (> (length argument-types) 6))
+     (define $prim-type
+       (if wide-ffi-wrapper?
+           '$Prim>=0
+           (string->symbol (~a "$Prim" (length argument-types)))))
 
      (define (fasl-needed? t) (member t '(string string/symbol value)))
      (define fasl-needed-for-arguments? (ormap fasl-needed? argument-types))
      (define fasl-needed-for-results?   (ormap fasl-needed? result-types))
 
-     (define local-start-index (length argument-types))
-     (define (param-index  argument-index) argument-index)
+     (define local-start-index (if wide-ffi-wrapper? 1 (length argument-types)))
+     (define (param-index  argument-index)
+       (if wide-ffi-wrapper? (local-index argument-index) argument-index))
      (define (local-index  argument-index) (+      local-start-index  argument-index))
      (define (import-index argument-index) (+ (* 2 local-start-index) argument-index))
      
      `(func ,$racket-name
             (type ,$prim-type)
             ;; Arguments
-            ,@(for/list ([t argument-types])  `(param (ref eq)))
+            ,@(if wide-ffi-wrapper?
+                  '((param $rest (ref eq)))
+                  (for/list ([t argument-types])  `(param (ref eq))))
 
             ;; Result
             (result (ref eq))              ;; todo - just one return value for now
 
             ;; Locals
+            ,@(if wide-ffi-wrapper?
+                  '((local $ffi-argc i32)
+                    (local $ffi-rest-cursor (ref eq)))
+                  '())
             
             ;;   - each argument will be type checked and converted
             ;;     they are stored in (local-index i)
@@ -497,6 +508,44 @@
                 [_ '()])
             ;; - a local to hold host exceptions caught from foreign imports
             (local $ffi-host externref)
+
+            ,@(if wide-ffi-wrapper?
+                  `((local.set $ffi-rest-cursor (local.get $rest))
+                    (local.set $ffi-argc (i32.const 0))
+                    (block $ffi-count-done
+                      (loop $ffi-count-loop
+                        (if (ref.eq (local.get $ffi-rest-cursor) (global.get $null))
+                            (then (br $ffi-count-done)))
+                        (if (i32.eqz (ref.test (ref $Pair) (local.get $ffi-rest-cursor)))
+                            (then (call $raise-unexpected-argument (local.get $ffi-rest-cursor))
+                                  (unreachable)))
+                        (local.set $ffi-argc
+                                   (i32.add (local.get $ffi-argc) (i32.const 1)))
+                        (local.set $ffi-rest-cursor
+                                   (struct.get $Pair $d
+                                               (ref.cast (ref $Pair)
+                                                         (local.get $ffi-rest-cursor))))
+                        (br $ffi-count-loop)))
+                    (if (i32.ne (local.get $ffi-argc)
+                                (i32.const ,(length argument-types)))
+                        (then
+                         (call $primitive-invoke:raise-arity-error
+                               (ref.cast (ref $PrimitiveProcedure)
+                                         (global.get ,(string->symbol (~a "$prim:" racket-name))))
+                               (local.get $ffi-argc))
+                         (unreachable)))
+                    (local.set $ffi-rest-cursor (local.get $rest))
+                    ,@(for/list ([t argument-types] [i (in-naturals)])
+                        `(block
+                          (local.set ,(local-index i)
+                                     (struct.get $Pair $a
+                                                 (ref.cast (ref $Pair)
+                                                           (local.get $ffi-rest-cursor))))
+                          (local.set $ffi-rest-cursor
+                                     (struct.get $Pair $d
+                                                 (ref.cast (ref $Pair)
+                                                           (local.get $ffi-rest-cursor)))))))
+                  '())
             
             ;; 0. Type check - fail early
             ,@(for/list ([t argument-types] [i (in-naturals)])

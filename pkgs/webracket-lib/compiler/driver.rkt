@@ -150,7 +150,7 @@
                   webify-provider-trial-module-allowed?
                   webify-provider-trial-module-allowlist)
          (only-in "webify/ffi-module-registry.rkt"
-                  module-provider->ffi-filename)
+                  module-provider->ffi-filenames)
          "compiler.rkt"
          "private/define-foreign.rkt")
 
@@ -263,13 +263,11 @@
      (append (map webify-module-report-name reports)
              (append-map webify-module-report-required-provider-names reports))
      eq?))
-  (for/list ([provider-name (in-list provider-names)]
-             #:do [(define ffi-filename
-                     (module-provider->ffi-filename provider-name))]
-             #:when ffi-filename
-             #:unless (member (ffi-filename-stem ffi-filename)
-                              suppressed-ffi-stems
-                              equal?))
+  (for*/list ([provider-name (in-list provider-names)]
+              [ffi-filename (in-list (module-provider->ffi-filenames provider-name))]
+              #:unless (member (ffi-filename-stem ffi-filename)
+                               suppressed-ffi-stems
+                               equal?))
     ffi-filename))
 
 ;; default-ffi-files : boolean? -> (listof path-string?)
@@ -2261,7 +2259,7 @@
 ;;   Recognize WebRacket provider modules that do not need contract erasure.
 (define (webracket-owned-ffi-provider-name? name)
   (and (symbol? name)
-       (regexp-match? #rx"^(js/|browser/|webracket/unsafe/|webracket/private/ffi$)"
+       (regexp-match? #rx"^(js/|browser/|web-pict$|web-pict/|webracket/unsafe/|webracket/private/ffi$)"
                       (symbol->string name))
        #t))
 
