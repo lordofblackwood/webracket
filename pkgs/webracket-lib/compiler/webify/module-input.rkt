@@ -344,13 +344,24 @@
 
 ;; prefer-provider-candidates : (listof symbol?) -> (listof symbol?)
 ;;   Prefer concrete module providers over broad aggregators and kernel fallback.
-(define (prefer-provider-candidates candidates)
+(define (kernel-runtime-dependency? dependency)
+  (eq? dependency '#%kernel))
+
+(define (prefer-provider-candidates candidates [external #f])
+  (define kernel-candidates
+    (filter kernel-runtime-dependency? candidates))
   (define concrete-candidates
     (filter (lambda (dependency)
               (and (not (broad-base-reexport-module? dependency))
                    (not (kernel-dependency? dependency))))
             candidates))
-  (if (null? concrete-candidates) candidates concrete-candidates))
+  (cond
+    [(and external
+          (webify-primitive-name? external)
+          (pair? kernel-candidates))
+     kernel-candidates]
+    [(null? concrete-candidates) candidates]
+    [else concrete-candidates]))
 
 ;; prefer-exact-export-candidates : dependency-exports symbol? (listof symbol?) -> (listof symbol?)
 ;;   Prefer providers that export the exact generated import name over providers
@@ -486,10 +497,10 @@
        (prefer-exact-export-candidates
         dependency-exports
         external
-        (prefer-provider-candidates candidates)))
+        (prefer-provider-candidates candidates external)))
      (cond
        [(null? candidates)
-       (raise-arguments-error who
+        (raise-arguments-error who
                                "missing-after-reflection"
                                "module" module-name
                                "import" local

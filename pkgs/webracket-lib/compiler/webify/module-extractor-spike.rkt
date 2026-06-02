@@ -1928,12 +1928,26 @@
     (reverse planned))
   (define (runtime-required-modules report)
     (define self-name (webify-module-extractor-spike-name report))
+    (define imported-externals
+      (remove-duplicates
+       (for/list ([binding (in-list (webify-linklet-import-bindings
+                                     (webify-module-extractor-spike-phase0-linklet-datum
+                                      report)))])
+         (cadr binding))
+       eq?))
+    (define (provider-exports-imported-name? provider-name)
+      (define provider-report (hash-ref reports-by-name provider-name #f))
+      (and provider-report
+           (for/or ([export (in-list (webify-module-extractor-spike-phase0-exports
+                                      provider-report))])
+             (for/or ([imported (in-list imported-externals)])
+               (symbolic-name=? export imported)))))
     (remove-duplicates
      (for/list ([candidate (in-list (webify-module-import-map-required-module-candidates
                                      (webify-module-extractor-spike-import-map report)))]
                 #:when (and (= 0 (car candidate))
                             (not (eq? (cadr candidate) self-name))
-                            (hash-has-key? reports-by-name (cadr candidate))))
+                            (provider-exports-imported-name? (cadr candidate))))
        (cadr candidate))
      eq?))
   (define demanded (make-hasheq))

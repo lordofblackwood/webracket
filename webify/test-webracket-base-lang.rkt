@@ -1924,8 +1924,20 @@
                      (symbol->string name)))
   (check-not-false (memq 'math-sqrt math-exports))
   (check-not-false (memq 'math-random math-exports))
-  (check-not-false (memq 'performance-now performance-exports))
-  (check-not-false (memq 'performance-time-origin performance-exports))
+  (for ([name (in-list '(performance-event-counts-info?
+                         performance-event-counts
+                         performance-event-count-map-size
+                         performance-event-count-map-entries
+                         performance-event-count-map-has?
+                         performance-interaction-count
+                         performance-memory-info?
+                         performance-memory
+                         performance-memory-info-used-js-heap-size
+                         performance-measure-user-agent-specific-memory
+                         performance-now
+                         performance-time-origin))])
+    (check-not-false (memq name performance-exports)
+                     (symbol->string name)))
   (check-not-false (memq 'standard-parse-int standard-exports))
   (check-not-false (memq 'standard-encode-uri-component standard-exports))
   (check-not-false (memq 'standard-object standard-exports))

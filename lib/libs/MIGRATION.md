@@ -27,7 +27,7 @@ and keep `include-lib` only as a compatibility path while old examples migrate.
 | `iterator.rkt` | safe wrapper | `js/iterator` | Migrated; module keeps the legacy helper surface and is backed by `array.ffi`. |
 | `jsx-graph.rkt` | safe wrapper | `jsxgraph` | High-level JSXGraph wrapper; current module facade should absorb this API. |
 | `media.rkt` | safe wrapper | `browser/media` | HTML media element wrapper and conversion helpers. |
-| `performance.rkt` | safe wrapper | `js/performance` | Performance API wrapper; depends on iterator helpers. |
+| `performance.rkt` | safe wrapper | `js/performance` | Migrated; module wraps Performance API helpers and depends on `js/iterator`. |
 | `rquery-chain.rkt` | syntax/helper | `browser/rquery/chain` or private helper | Chain macro used by `rquery`; likely not a standalone public API. |
 | `rquery.rkt` | safe wrapper | `browser/rquery` | DOM selection/query helper library; depends on document/element/event. |
 | `simple-pretty.rkt` | safe utility | `webracket/simple-pretty` | WebRacket-owned pretty printer; not JS/browser-specific. |

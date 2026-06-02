@@ -18,6 +18,7 @@ Migration status:
 - `domrect.rkt`: migrated to `browser/domrect`; kept here for compatibility.
 - `iterator.rkt`: migrated to `js/iterator`; kept here for compatibility.
 - `math`: no legacy include file existed; `js/math` starts directly as a module.
+- `performance.rkt`: migrated to `js/performance`; kept here for compatibility.
 - Other files: still legacy include-lib wrappers.
 
 When migrating another file, put raw bindings under `webracket/unsafe/*`.

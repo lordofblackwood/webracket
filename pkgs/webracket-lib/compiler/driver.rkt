@@ -501,6 +501,23 @@
                    (symbol->string name)
                    "_"))
 
+;; provider-module-source-fingerprint : symbol? -> any/c
+;;   Include provider source metadata in the disk cache key when available.
+(define (provider-module-source-fingerprint name)
+  (with-handlers ([exn:fail? (lambda (_exn) `(module-source unresolved ,name))])
+    (define resolved
+      (module-path-index-resolve
+       (module-path-index-join name #f)))
+    (define resolved-name (resolved-module-path-name resolved))
+    (cond
+      [(and (path? resolved-name) (file-exists? resolved-name))
+       `(module-source
+         path
+         ,(path->string (simplify-path resolved-name))
+         ,(file-size resolved-name)
+         ,(file-or-directory-modify-seconds resolved-name))]
+      [else `(module-source resolved ,resolved-name)])))
+
 ;; provider-report->cache-datum : webify-module-report? -> datum?
 ;;   Serialize provider reports without relying on reader-visible struct types.
 (define (provider-bundle-entry->cache-datum entry)
@@ -570,7 +587,11 @@
      "installed-provider-reports"
      (string-append (provider-cache-symbol-segment name) ".rktd")))
   (define fingerprint
-    `(installed-provider-report-cache 6 ,name ,(version)))
+    `(installed-provider-report-cache
+      7
+      ,name
+      ,(version)
+      ,(provider-module-source-fingerprint name)))
   (define cached (read-provider-cache cache-path fingerprint))
   (cond
     [cached
@@ -2236,6 +2257,14 @@
      "unsupported providers" unsupported
      "allowed providers" webify-provider-trial-module-allowlist)))
 
+;; webracket-owned-ffi-provider-name? : symbol? -> boolean?
+;;   Recognize WebRacket provider modules that do not need contract erasure.
+(define (webracket-owned-ffi-provider-name? name)
+  (and (symbol? name)
+       (regexp-match? #rx"^(js/|browser/|webracket/unsafe/|webracket/private/ffi$)"
+                      (symbol->string name))
+       #t))
+
 ;; webracket/base-reports->module-graph : symbol? reports keyword-args -> graph
 ;;   Build a bridge graph from already-extracted reports.
 (define (webracket/base-reports->module-graph root
@@ -2261,13 +2290,14 @@
            ;; public providers must keep their generated provide/contract
            ;; export names while their contract implementation dependencies
            ;; remain eligible for erased-provider routing.
-           (memq name '(racket/dict
-                        racket/private/for
-                        racket/private/map
-                        racket/private/define-struct
-                        racket/private/class-internal
-                        racket/private/class-struct
-                        racket/private/serialize-structs)))
+          (or (memq name '(racket/dict
+                           racket/private/for
+                           racket/private/map
+                           racket/private/define-struct
+                           racket/private/class-internal
+                           racket/private/class-struct
+                           racket/private/serialize-structs))
+              (webracket-owned-ffi-provider-name? name)))
          (define (extract)
            (webify-module-report/rename
             (if (eq? fetch-provider webify-module-path->report)
