@@ -266,7 +266,13 @@
   (check-not-false
    (member 'ffi-js-console-coverage goal1-dashboard-coverage-extended-case-names))
   (check-not-false
+   (member 'ffi-js-array-coverage goal1-dashboard-coverage-extended-case-names))
+  (check-not-false
+   (member 'ffi-js-performance-coverage goal1-dashboard-coverage-extended-case-names))
+  (check-not-false
    (member 'ffi-js-standard-coverage goal1-dashboard-coverage-extended-case-names))
+  (check-not-false
+   (member 'ffi-js-temp-coverage goal1-dashboard-coverage-extended-case-names))
   (check-not-false
    (member 'installed-racket-dict-coverage goal1-dashboard-coverage-extended-case-names))
   (check-not-false
@@ -474,8 +480,11 @@
                          goal1-full-list-surface
                          goal1-base-sort-keywords
                          goal1-vector-sort-keywords
+                         ffi-js-array-coverage
                          ffi-js-math-coverage
+                         ffi-js-performance-coverage
                          ffi-js-standard-coverage
+                         ffi-js-temp-coverage
                          ffi-js-console-coverage
                          regexp-provider-coverage))])
     (check-not-false (memq name coverage-names)

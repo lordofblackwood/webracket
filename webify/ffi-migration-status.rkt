@@ -24,7 +24,9 @@
 (define-runtime-path ffi-root "../pkgs/webracket-lib/compiler/ffi")
 (define-runtime-path browser-root "../pkgs/browser")
 (define-runtime-path public-js-root "../pkgs/js")
+(define-runtime-path jsxgraph-root "../pkgs/jsxgraph")
 (define-runtime-path unsafe-root "../pkgs/webracket/unsafe")
+(define-runtime-path xterm-root "../pkgs/xterm")
 
 (struct ffi-migration-status-row
   (ffi-filename
@@ -87,13 +89,29 @@
                               "element" "event" "image" "media"
                               "websocket" "window"))
        "browser"]
+      [(string=? stem "jsxgraph") "jsxgraph"]
+      [(string=? stem "xtermjs") "xterm"]
       [else "js"]))
-  (define public-module (string->symbol (format "~a/~a" public-root stem)))
+  (define public-module
+    (cond
+      [(string=? stem "js") 'js/array]
+      [(string=? public-root "jsxgraph") 'jsxgraph]
+      [(string=? public-root "xterm") 'xterm]
+      [else (string->symbol (format "~a/~a" public-root stem))]))
   (define unsafe?       (file-exists? (build-path unsafe-root (string-append stem ".rkt"))))
   (define public-root-path (if (string=? public-root "browser")
                                browser-root
-                               public-js-root))
-  (define public?       (file-exists? (build-path public-root-path (string-append stem ".rkt"))))
+                               (cond
+                                 [(string=? public-root "jsxgraph") jsxgraph-root]
+                                 [(string=? public-root "xterm") xterm-root]
+                                 [else public-js-root])))
+  (define public-file-stem
+    (if (or (string=? public-root "jsxgraph")
+            (string=? public-root "xterm"))
+        "main"
+        (if (string=? stem "js") "array" stem)))
+  (define public?       (file-exists? (build-path public-root-path
+                                                  (string-append public-file-stem ".rkt"))))
   (define inference?    (or (module-provider->ffi-filename unsafe-module)
                             (module-provider->ffi-filename public-module)))
   (define dashboard?    (and (or (dashboard-covers-module? unsafe-module)
@@ -107,7 +125,9 @@
    public?
    (and inference? #t)
    dashboard?
-   (status-for unsafe? public? inference? dashboard?)))
+   (if (string=? stem "js")
+       'included-by-array
+       (status-for unsafe? public? inference? dashboard?))))
 
 ;; ffi-migration-status-rows : -> (listof ffi-migration-status-row?)
 ;;   Return status rows for all declaration files.

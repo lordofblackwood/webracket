@@ -16,6 +16,7 @@
          standard-number-parse-float
          standard-number-parse-int
          standard-number-safe-integer?
+         standard-object
          standard-parse-float
          standard-parse-int
          standard-truthy?)
@@ -41,3 +42,4 @@
 (define standard-number-safe-integer? js-number-safe-integer?)
 (define standard-number-parse-float js-number-parse-float)
 (define standard-number-parse-int js-number-parse-int)
+(define standard-object js-object)

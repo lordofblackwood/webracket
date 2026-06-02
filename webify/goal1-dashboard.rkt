@@ -225,8 +225,11 @@
     installed-racket-logging-coverage
     installed-racket-class-basic-coverage
     installed-racket-class-advanced-coverage
+    ffi-js-array-coverage
     ffi-js-math-coverage
+    ffi-js-performance-coverage
     ffi-js-standard-coverage
+    ffi-js-temp-coverage
     ffi-js-console-coverage))
 
 ;; goal1-dashboard-composition-case-names : (listof symbol?)
@@ -2531,6 +2534,19 @@
     #rx"(?m:^3$)"
     '("--no-io-format-provider" "--webracket-module-bridge"))
    (dashboard-case
+    'ffi-js-array-coverage
+    'installed-provider-coverage
+    '(js/array webracket/unsafe/array)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/base\n"
+         "(require js/array)\n"
+         "(define arr (array-of (vector 40 2)))\n"
+         "(js-log (apply + (vector->list (array->vector arr))))\n")))
+    "main.rkt"
+    #rx"(?m:^42$)"
+    '("--no-io-format-provider" "--webracket-module-bridge"))
+   (dashboard-case
     'ffi-js-math-coverage
     'installed-provider-coverage
     '(js/math webracket/unsafe/math)
@@ -2571,6 +2587,32 @@
          "(require js/standard)\n"
          "(define parsed (standard-number-parse-int \"40\"))\n"
          "(js-log (+ parsed (if (standard-finite? 1.0) 2 0)))\n")))
+    "main.rkt"
+    #rx"(?m:^42$)"
+    '("--no-io-format-provider" "--webracket-module-bridge"))
+   (dashboard-case
+    'ffi-js-performance-coverage
+    'installed-provider-coverage
+    '(js/performance webracket/unsafe/performance)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/base\n"
+         "(require js/performance)\n"
+         "(js-log (if (number? (performance-now)) 42 0))\n")))
+    "main.rkt"
+    #rx"(?m:^42$)"
+    '("--no-io-format-provider" "--webracket-module-bridge"))
+   (dashboard-case
+    'ffi-js-temp-coverage
+    'installed-provider-coverage
+    '(js/temp js/standard webracket/unsafe/temp webracket/unsafe/standard)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/base\n"
+         "(require js/temp js/standard)\n"
+         "(define obj (standard-object '((x . 40))))\n"
+         "(temp-set-x! obj 42)\n"
+         "(js-log (temp-x obj))\n")))
     "main.rkt"
     #rx"(?m:^42$)"
     '("--no-io-format-provider" "--webracket-module-bridge"))

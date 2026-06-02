@@ -1728,6 +1728,7 @@ function testsuite(js_value_to_fasl, fasl_to_js_value, { log = true } = {}) {
 
 // hasDOM gives us a way of determining whether the host is a browser or Node
 const hasDOM = typeof document !== 'undefined' && typeof document.createTextNode === 'function';
+const hasPerformance = typeof performance !== 'undefined';
 
 // hasXterm indicates whether XTermJS is available
 // const hasXterm = typeof Terminal !== 'undefined';
@@ -3344,7 +3345,7 @@ var imports = {
         'report-error':        (err => window.reportError(from_fasl(err)))
     } : new Proxy({}, { get() { throw new Error('DOM not available in this environment'); } }),
     // Performance
-    'performance': hasDOM ? {
+    'performance': hasPerformance ? {
         'event-counts':        (() => performance.eventCounts),
         'interaction-count':   (() => performance.interactionCount),
         'memory':              (() => performance.memory),
@@ -3399,11 +3400,11 @@ var imports = {
         'measure-user-agent-specific-memory': (() => performance.measureUserAgentSpecificMemory()),
         'set-resource-timing-buffer-size': ((size) => performance.setResourceTimingBufferSize(size)),
         'to-json':             (() => performance.toJSON())
-    } : new Proxy({}, { get() { throw new Error('DOM not available in this environment'); } }),
-    'performance-event-count-map': hasDOM ? {
+    } : new Proxy({}, { get() { throw new Error('Performance API not available in this environment'); } }),
+    'performance-event-count-map': hasPerformance ? {
         'size':                (list => list.length)
-    } : new Proxy({}, { get() { throw new Error('DOM not available in this environment'); } }),
-    'performance-memory-info': hasDOM ? {
+    } : new Proxy({}, { get() { throw new Error('Performance API not available in this environment'); } }),
+    'performance-memory-info': hasPerformance ? {
         'js-heap-size-limit':  (mem => mem.jsHeapSizeLimit),
         'total-js-heap-size':  (mem => mem.totalJSHeapSize),
         'used-js-heap-size':   (mem => mem.usedJSHeapSize)

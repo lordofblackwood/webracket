@@ -268,10 +268,24 @@
 ;;   Private transitive providers that curated public trials currently demand.
 (define webify-provider-trial-support-modules
   '(js/console
+    js/array
     js/math
     js/performance
     js/standard
     js/temp
+    browser/audio
+    browser/canvas
+    browser/document
+    browser/dom
+    browser/domrect
+    browser/element
+    browser/event
+    browser/image
+    browser/media
+    browser/websocket
+    browser/window
+    jsxgraph
+    xterm
     data/queue
     racket/bool
     racket/class
@@ -376,21 +390,50 @@
     webracket/set
     webracket/string
     webracket/stream
+    webracket/unsafe/array
+    webracket/unsafe/audio
+    webracket/unsafe/canvas
     webracket/unsafe/console
+    webracket/unsafe/document
+    webracket/unsafe/dom
+    webracket/unsafe/domrect
+    webracket/unsafe/element
+    webracket/unsafe/event
+    webracket/unsafe/image
+    webracket/unsafe/js
+    webracket/unsafe/jsxgraph
     webracket/unsafe/math
+    webracket/unsafe/media
     webracket/unsafe/performance
     webracket/unsafe/standard
     webracket/unsafe/undefined
-    webracket/unsafe/temp))
+    webracket/unsafe/temp
+    webracket/unsafe/websocket
+    webracket/unsafe/window
+    webracket/unsafe/xtermjs))
 
 ;; webify-provider-trial-default-bridge-modules : (listof symbol?)
 ;;   External providers safe enough for the default module bridge path.
 (define webify-provider-trial-default-bridge-modules
  '(js/console
+    js/array
     js/math
     js/performance
     js/standard
     js/temp
+    browser/audio
+    browser/canvas
+    browser/document
+    browser/dom
+    browser/domrect
+    browser/element
+    browser/event
+    browser/image
+    browser/media
+    browser/websocket
+    browser/window
+    jsxgraph
+    xterm
     data/queue
     racket/bool
     racket/bytes

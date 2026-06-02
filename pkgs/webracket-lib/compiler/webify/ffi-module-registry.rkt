@@ -16,8 +16,11 @@
          racket/runtime-path)
 
 (define-runtime-path ffi-root "../ffi")
-(define-runtime-path js-root "../../../webracket/js")
+(define-runtime-path browser-root "../../../browser")
+(define-runtime-path js-root "../../../js")
 (define-runtime-path unsafe-root "../../../webracket/unsafe")
+(define-runtime-path jsxgraph-root "../../../jsxgraph")
+(define-runtime-path xterm-root "../../../xterm")
 
 (struct ffi-module-registry-row (module ffi-filename ffi-path)
   #:transparent)
@@ -43,7 +46,35 @@
 ;; ffi-stem->public-module : string? -> symbol?
 ;;   Derive the public module path for an ffi stem.
 (define (ffi-stem->public-module stem)
-  (string->symbol (format "js/~a" stem)))
+  (cond
+    [(member stem '("audio" "canvas" "document" "dom" "domrect"
+                            "element" "event" "image" "media"
+                            "websocket" "window"))
+     (string->symbol (format "browser/~a" stem))]
+    [(string=? stem "jsxgraph") 'jsxgraph]
+    [(string=? stem "xtermjs") 'xterm]
+    [else (string->symbol (format "js/~a" stem))]))
+
+;; ffi-stem->public-root : string? -> path?
+;;   Return the collection root for the public module mapped from stem.
+(define (ffi-stem->public-root stem)
+  (cond
+    [(member stem '("audio" "canvas" "document" "dom" "domrect"
+                            "element" "event" "image" "media"
+                            "websocket" "window"))
+     browser-root]
+    [(string=? stem "jsxgraph") jsxgraph-root]
+    [(string=? stem "xtermjs") xterm-root]
+    [else js-root]))
+
+;; ffi-stem->public-file-stem : string? -> string?
+;;   Return the file stem for the public module mapped from stem.
+(define (ffi-stem->public-file-stem stem)
+  (cond
+    [(or (string=? stem "jsxgraph")
+         (string=? stem "xtermjs"))
+     "main"]
+    [else stem]))
 
 ;; ffi-stem->unsafe-module : string? -> symbol?
 ;;   Derive the unsafe module path for an ffi stem.
@@ -56,7 +87,8 @@
   (define stem         (ffi-path->stem ffi-path))
   (define ffi-filename (path-basename-string ffi-path))
   (append
-   (if (module-file-exists? js-root stem)
+   (if (module-file-exists? (ffi-stem->public-root stem)
+                            (ffi-stem->public-file-stem stem))
        (list (ffi-module-registry-row (ffi-stem->public-module stem)
                                       ffi-filename
                                       ffi-path))
