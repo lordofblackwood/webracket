@@ -110,13 +110,23 @@
        (raise-arguments-error who
                               "linklet imports must be grouped pairs of symbols"
                               "linklet" linklet))
-     (define bindings (apply append importss))
-     (define duplicate (check-duplicates (map car bindings)))
-     (when duplicate
-       (raise-arguments-error who
-                              "duplicate linklet import names are not supported"
-                              "import" duplicate))
-     bindings]
+     (define seen (make-hasheq))
+     (define bindings
+       (for/fold ([acc '()]) ([binding (in-list (apply append importss))])
+         (match-define (list local external) binding)
+         (define prior (hash-ref seen local #f))
+         (cond
+           [(not prior)
+            (hash-set! seen local external)
+            (cons binding acc)]
+           [(symbolic-name=? prior external) acc]
+           [else
+            (raise-arguments-error who
+                                   "conflicting duplicate linklet import names are not supported"
+                                   "import" local
+                                   "first external" prior
+                                   "second external" external)])))
+     (reverse bindings)]
     [_
      (raise-arguments-error who
                             "expected a linklet datum"
@@ -197,11 +207,22 @@
        (void)]
       [_
        (raise-argument-error who "(list/c symbol? symbol? symbol?)" alias)]))
-  (define duplicate (check-duplicates (map car aliases)))
-  (when duplicate
-    (raise-arguments-error who
-                           "duplicate import alias entries are not supported"
-                           "import" duplicate)))
+  (define seen (make-hasheq))
+  (for ([alias (in-list aliases)])
+    (match-define (list import module export) alias)
+    (define prior (hash-ref seen import #f))
+    (cond
+      [(not prior)
+       (hash-set! seen import (list module export))]
+      [else
+       (match-define (list prior-module prior-export) prior)
+       (unless (and (eq? module prior-module)
+                    (symbolic-name=? export prior-export))
+         (raise-arguments-error who
+                                "conflicting duplicate import alias entries are not supported"
+                                "import" import
+                                "first alias" prior
+                                "second alias" (list module export)))])))
 
 ;; validate-reflection-hints! : symbol? any/c -> void?
 ;;   Reject metadata-derived local-import provider hints.
@@ -243,7 +264,8 @@
   (define (generated-base-name name)
     (define text (symbol->string name))
     (define without-prefix (regexp-replace #rx"^new[:-]" text ""))
-    (regexp-replace #rx"[0-9]*[.][0-9]+$" without-prefix ""))
+    (define without-index-prefix (regexp-replace #rx"^[0-9]+/" without-prefix ""))
+    (regexp-replace #rx"[0-9]*[.][0-9]+$" without-index-prefix ""))
   (or (eq? a b)
       (string=? (symbol->string a) (symbol->string b))
       (string=? (generated-base-name a) (generated-base-name b))
@@ -505,9 +527,46 @@
     [(and (eq? local '1/syntax-source)
           (eq? external 'syntax-source))
      '(webracket/primitives syntax-source)]
+    [(and (memq module-name '(webracket/contract
+                              racket/contract/base
+                              racket/contract/combinator
+                              racket/contract/region
+                              racket/contract/private/base
+                              racket/contract/private/blame
+                              racket/contract/private/guts
+                              racket/contract/private/object
+                              racket/contract/private/object-c-wrapper))
+          (eq? local 'datum->syntax)
+          (eq? external '1/datum->syntax))
+     '(webracket/primitives datum->syntax)]
+    [(and (memq module-name '(webracket/contract
+                              racket/contract/base
+                              racket/contract/combinator
+                              racket/contract/region
+                              racket/contract/private/base
+                              racket/contract/private/blame
+                              racket/contract/private/guts
+                              racket/contract/private/object
+                              racket/contract/private/object-c-wrapper))
+          (memq local '(syntax?
+                         syntax-span syntax-position syntax-column syntax-line syntax-source))
+          (memq external '(1/syntax-span
+                           1/syntax-position
+                           1/syntax-column
+                           1/syntax-line
+                           1/syntax-source
+                           1/syntax?)))
+     (list 'webracket/primitives local)]
     [(and (memq module-name '(racket/private/for webracket/private/for))
           (eq? local 'directory-list.1))
      '(#%kernel webracket-directory-list-build-first)]
+    [(and (memq module-name '(racket/private/for
+                              racket/private/list
+                              racket/private/class-struct
+                              webracket/list))
+          (eq? local 'reverse)
+          (eq? external '1/reverse))
+     '(racket/private/pico reverse)]
     [(and (eq? module-name 'racket/private/class-internal)
           (symbolic-name=? external 'coerce-contract))
      '(racket/contract/private/guts coerce-contract)]
@@ -523,6 +582,12 @@
     [(and (eq? module-name 'racket/private/class-internal)
           (symbolic-name=? external 'contract?))
      '(racket/contract/private/guts contract?)]
+    [(and (eq? module-name 'racket/private/class-internal)
+          (symbolic-name=? external 'contract-continuation-mark-key))
+     '(racket/contract/private/guts contract-continuation-mark-key)]
+    [(and (eq? module-name 'racket/private/class-internal)
+          (symbolic-name=? external 'variable-reference->module-source/submod))
+     '(syntax/location variable-reference->module-source/submod)]
     [(and (eq? module-name 'racket/private/class-internal)
           (symbolic-name=? external 'current-contract-region))
      '(racket/contract/region current-contract-region)]
@@ -609,9 +674,11 @@
       (match-define (list import module) dependency)
       (values import module)))
   (define alias-map
-    (for/hasheq ([alias (in-list import-aliases)])
+    (for/fold ([aliases (hasheq)]) ([alias (in-list import-aliases)])
       (match-define (list import module export) alias)
-      (values import (list module export))))
+      (if (hash-has-key? aliases import)
+          aliases
+          (hash-set aliases import (list module export)))))
   (define hint-map
     (reflection-hints->map who module-name reflection-hints))
   (define resolved

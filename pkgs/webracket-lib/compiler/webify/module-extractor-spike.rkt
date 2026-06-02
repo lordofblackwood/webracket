@@ -680,12 +680,22 @@
        (for*/list ([group   (in-list importss)]
                    [binding (in-list group)])
          binding))
-     (define duplicate (check-duplicates (map car bindings)))
-     (when duplicate
-       (raise-arguments-error 'webify-linklet-import-bindings
-                              "duplicate linklet import names are not supported"
-                              "import" duplicate))
-     bindings]))
+     (define seen (make-hasheq))
+     (reverse
+      (for/fold ([acc '()]) ([binding (in-list bindings)])
+        (match-define (list local external) binding)
+        (define prior (hash-ref seen local #f))
+        (cond
+          [(not prior)
+           (hash-set! seen local external)
+           (cons binding acc)]
+          [(symbolic-name=? prior external) acc]
+          [else
+           (raise-arguments-error 'webify-linklet-import-bindings
+                                  "conflicting duplicate linklet import names are not supported"
+                                  "import" local
+                                  "first external" prior
+                                  "second external" external)])))]))
 
 ;; module-protocol-import-binding? : (list/c symbol? symbol?) -> boolean?
 ;;   Recognize imports currently supplied only by Racket's module protocol.
@@ -877,7 +887,8 @@
 ;; generated-base-name : symbol? -> string?
 ;;   Strip Racket's generated numeric suffix from a decompiled linklet name.
 (define (generated-base-name name)
-  (regexp-replace #rx"[0-9]*[.][0-9]+$" (symbol->string name) ""))
+  (define without-prefix (regexp-replace #rx"^[0-9]+/" (symbol->string name) ""))
+  (regexp-replace #rx"[0-9]*[.][0-9]+$" without-prefix ""))
 
 ;; symbolic-name=? : symbol? symbol? -> boolean?
 ;;   Match generated symbols that print the same but are not necessarily eq?.
@@ -1598,19 +1609,21 @@
     (filter (lambda (id) (hash-has-key? definition-table id)) needed))
   (define demanded-imports/raw
     (filter (lambda (id) (not (memq id local-definitions))) needed))
+  (define kept-body-free-vars
+    (remove-duplicates
+     (append*
+      (for/list ([form (in-list kept-body)])
+        (linklet-expr-free-vars form)))))
   (define demanded-imports
     (remove-duplicates
      (append demanded-imports/raw
              (if (eq? (webify-module-extractor-spike-name report)
                       'racket/private/class-internal)
                  ;; `class-internal` builds object struct properties in code
-                 ;; that survives slicing, but the approximate free-variable
-                 ;; walk can miss these generated unsafe-undefined references.
-                 '(unsafe-undefined
-                   check-not-unsafe-undefined
-                   check-not-unsafe-undefined/assign
-                   prop:chaperone-unsafe-undefined
-                   chaperone-struct-unsafe-undefined)
+                 ;; that survives slicing. Add the repair imports only when
+                 ;; the kept body actually references the generated names.
+                 (filter (lambda (name) (memq name kept-body-free-vars))
+                         unsafe-undefined-import-names)
                  '()))))
   (define sliced-importss
     (add-missing-unsafe-undefined-imports
@@ -2185,9 +2198,12 @@
             (list local 'racket/contract/private/blame)]
            [(and (eq? module-name 'racket/private/class-internal)
                  (symbolic-name=? external 'raise-blame-error))
-            (list local 'racket/contract/private/blame)]
+           (list local 'racket/contract/private/blame)]
            [(and (eq? module-name 'racket/private/class-internal)
                  (symbolic-name=? external 'contract?))
+            (list local 'racket/contract/private/guts)]
+           [(and (eq? module-name 'racket/private/class-internal)
+                 (symbolic-name=? external 'contract-continuation-mark-key))
             (list local 'racket/contract/private/guts)]
            [(and (eq? module-name 'racket/private/class-internal)
                  (symbolic-name=? external 'current-contract-region))
@@ -2195,8 +2211,48 @@
            [(and (eq? module-name 'racket/private/class-internal)
                  (symbolic-name=? external 'contract))
             (list local 'racket/contract/private/guts)]
+           [(and (memq module-name '(webracket/contract
+                                     racket/contract/base
+                                     racket/contract/combinator
+                                     racket/contract/region
+                                     racket/contract/private/base
+                                     racket/contract/private/blame
+                                     racket/contract/private/guts
+                                     racket/contract/private/object
+                                     racket/contract/private/object-c-wrapper))
+                 (eq? local 'datum->syntax)
+                 (eq? external '1/datum->syntax))
+            (list local 'webracket/primitives)]
+           [(and (memq module-name '(webracket/contract
+                                     racket/contract/base
+                                     racket/contract/combinator
+                                     racket/contract/region
+                                     racket/contract/private/base
+                                     racket/contract/private/blame
+                                     racket/contract/private/guts
+                                     racket/contract/private/object
+                                     racket/contract/private/object-c-wrapper))
+                 (memq local '(syntax?
+                                syntax-span syntax-position syntax-column syntax-line syntax-source))
+                 (memq external '(1/syntax-span
+                                  1/syntax-position
+                                  1/syntax-column
+                                  1/syntax-line
+                                  1/syntax-source
+                                  1/syntax?)))
+            (list local 'webracket/primitives)]
+           [(and (memq module-name '(racket/private/for
+                                     racket/private/list
+                                     racket/private/class-struct
+                                     webracket/list))
+                 (eq? local 'reverse)
+                 (eq? external '1/reverse))
+            (list local 'racket/private/pico)]
            [(symbolic-name=? external 'struct:keyword-method/arity-error)
             (list local 'racket/private/kw)]
+           [(and (eq? module-name 'racket/private/class-internal)
+                 (symbolic-name=? external 'variable-reference->module-source/submod))
+            (list local 'syntax/location)]
            [(symbolic-member? external
                               '(apply-contract
                                 contract
@@ -3106,7 +3162,7 @@
     linklet
     (resolve-extracted-linklet-imports
      who
-     raw-linklet
+     linklet
      dependency-exports
      dependency-exports
      dependencies
@@ -3151,7 +3207,7 @@
     linklet
     (resolve-extracted-linklet-imports
      who
-     raw-linklet
+     linklet
      (or dependency-exports
          provider+self-dependency-exports)
      provider+self-dependency-exports

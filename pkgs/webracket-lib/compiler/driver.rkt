@@ -2284,6 +2284,20 @@
        (define provider-cache
          (make-webify-module-provider-cache
           (webracket/base-fetch-provider/timed fetch-provider/erased-contracts)))
+       (define erased-contract-support-names
+         '(racket/contract/base
+           racket/contract/combinator
+           racket/contract/region
+           racket/contract/private/base
+           racket/contract/private/blame
+           racket/contract/private/guts
+           racket/contract/private/object
+           racket/contract/private/object-c-wrapper))
+       (define erased-contract-support-reports
+         (let ([report (webify-module-provider-cache-ref provider-cache
+                                                         'webracket/contract)])
+           (for/list ([name (in-list erased-contract-support-names)])
+             (webify-module-report/rename report name))))
        ;; Some resolver hints target WebRacket-owned support modules directly;
        ;; include those reports even when the installed provider graph only
        ;; names the original Racket module.
@@ -2295,14 +2309,29 @@
                 (webify-module-provider-cache-ref provider-cache
                                                   'webracket/private/kw)
                 (webify-module-provider-cache-ref provider-cache
-                                                  'webracket/unsafe/undefined))
+                                                  'webracket/unsafe/undefined)
+                (webify-module-report/rename
+                 (webify-module-provider-cache-ref provider-cache
+                                                   'webracket/unsafe/undefined)
+                 'racket/unsafe/undefined))
+          erased-contract-support-reports
           (if (memq 'racket/class external-names)
               (list (webify-module-provider-cache-ref provider-cache
                                                       'racket/private/for)
+                    (webify-module-report/rename
+                     (webify-module-provider-cache-ref provider-cache
+                                                       'webracket/list)
+                     'racket/private/list)
                     (webify-module-provider-cache-ref provider-cache
                                                       'racket/private/map)
                     (webify-module-provider-cache-ref provider-cache
+                                                      'racket/private/pico)
+                    (webify-module-provider-cache-ref provider-cache
+                                                      'racket/private/kw)
+                    (webify-module-provider-cache-ref provider-cache
                                                       'webracket/list)
+                    (webify-module-provider-cache-ref provider-cache
+                                                      'syntax/location)
                     (webify-module-provider-cache-ref provider-cache
                                                       'racket/private/define-struct)
                     (webify-module-provider-cache-ref provider-cache

@@ -201,6 +201,31 @@ remaining compatibility notes are:
   still treats class support as a deliberately seeded provider slice, so
   `webracket/full` should not advertise class exports until the exported
   language surface is chosen deliberately.
+- Real-provider class diagnostics are intentionally separate from the older
+  runtime-smoke class rows. Rows named `real-racket-class-*` run with
+  `--no-provider-substitutions`, so `(require racket/class)` stays the installed
+  Racket provider. Rows named `class-*` in `probe-installed-runtime-smoke.rkt`
+  still use the transitional source-substitution smoke path and are useful for
+  broad behavior coverage, but they should not be cited as proof that the public
+  provider is unmodified.
+- Current class audit:
+  - `racket/class`: real installed provider in the `real-racket-class-*`
+    dashboard diagnostics.
+  - `racket/private/class-internal` and `racket/private/class-struct`: installed
+    private providers with targeted seeding/repair for generated
+    `unsafe-undefined` references.
+  - `racket/private/kw`: staged support remains important for keyword method
+    structures and `send/keyword-apply` compatibility in substituted smoke rows.
+  - `webracket/contract`: erased contract provider used for class transitive
+    contract dependencies; full contract/chaperone behavior remains outside the
+    class claim.
+  - `webracket/class`: transitional compatibility module used by legacy
+    substitution paths, not the long-term proof vehicle for Goal 1.
+- Class coverage now includes rich no-substitution diagnostics
+  `real-racket-class-rich-diagnostic` and `real-racket-class-error-diagnostic`,
+  plus broad substituted smokes for `inherit-field`, renamed methods,
+  `rename-super`, `inherit/super`, `pubment`/`augment`, `overment`, `augride`,
+  `inherit/inner`, `send/apply`, and `send/keyword-apply`.
 - `webracket/full` exports the staged set surface, but set behavior is tracked
   through dedicated `webracket/set` dashboard rows. External explicit requires
   still need the module bridge path.

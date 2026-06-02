@@ -33,6 +33,14 @@
 (struct webify-module-registry-entry (name linklet importss imports exports) #:transparent)
 (struct webify-module-composition (datum fragments instances exports-infos) #:transparent)
 
+;; symbolic-import-name=? : symbol? symbol? -> boolean?
+;;   Treat decompiler-generated import prefixes such as `1/reverse` as aliases.
+(define (symbolic-import-name=? a b)
+  (define (base-name name)
+    (regexp-replace #rx"^[0-9]+/" (symbol->string name) ""))
+  (or (eq? a b)
+      (string=? (base-name a) (base-name b))))
+
 ;; make-webify-module-registry : -> webify-module-registry?
 ;;   Create an empty mutable registry of named linklet slices.
 (define (make-webify-module-registry)
@@ -128,10 +136,14 @@
              (map car group))))
   (define declared-imports (map car imports))
   (define missing-imports
-    (filter (lambda (import) (not (memq import declared-imports)))
+    (filter (lambda (import)
+              (not (for/or ([declared (in-list declared-imports)])
+                     (symbolic-import-name=? import declared))))
             linklet-imports))
   (define extra-imports
-    (filter (lambda (import) (not (memq import linklet-imports)))
+    (filter (lambda (import)
+              (not (for/or ([linklet-import (in-list linklet-imports)])
+                     (symbolic-import-name=? import linklet-import))))
             declared-imports))
   (unless (null? missing-imports)
     (raise-arguments-error who

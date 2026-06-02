@@ -319,6 +319,7 @@
     racket/private/kw
     racket/private/list
     racket/private/map
+    racket/private/more-scheme
     racket/private/pico
     racket/private/port
     racket/private/sort

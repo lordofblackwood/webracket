@@ -52,6 +52,14 @@
      'webracket-directory-list-build-first]
     [else export-name]))
 
+;; symbolic-import-name=? : symbol? symbol? -> boolean?
+;;   Compare generated import names after stripping decompiler index prefixes.
+(define (symbolic-import-name=? a b)
+  (define (base-name name)
+    (regexp-replace #rx"^[0-9]+/" (symbol->string name) ""))
+  (or (eq? a b)
+      (string=? (base-name a) (base-name b))))
+
 ;; validate-begin-datum! : symbol? any/c -> void?
 ;;   Reject generated fragments that cannot be spliced into top-level code.
 (define (validate-begin-datum! who datum)
@@ -194,20 +202,39 @@
   (define source-table
     (for/hasheq ([entry (in-list entries)])
       (values (car entry) (cdr entry))))
+  (define (lookup-source import)
+    (define exact-source (hash-ref source-table import #f))
+    (cond
+      [exact-source exact-source]
+      [else
+       (define symbolic-sources
+         (for/list ([entry (in-list entries)]
+                    #:when (symbolic-import-name=? import (car entry)))
+           (cdr entry)))
+       (match symbolic-sources
+         [(list (list _import instance export))
+          (list import instance export)]
+         ['()
+          (raise-arguments-error who
+                                 "missing import source"
+                                 "name" name
+                                 "import" import
+                                 "imports" importss
+                                 "available imports" (hash-keys source-table))]
+         [_
+          (raise-arguments-error who
+                                 "ambiguous symbolic import source"
+                                 "name" name
+                                 "import" import
+                                 "imports" symbolic-sources)])]))
   (define grouped
     (for/list ([group (in-list importss)])
       (for/list ([import (in-list group)])
-        (hash-ref source-table
-                  import
-                  (lambda ()
-                    (raise-arguments-error who
-                                           "missing import source"
-                                           "name" name
-                                           "import" import
-                                           "imports" importss
-                                           "available imports" (hash-keys source-table)))))))
+        (lookup-source import))))
   (define extra-imports
-    (filter (lambda (import) (not (memq import imports)))
+    (filter (lambda (import)
+              (not (for/or ([linklet-import (in-list imports)])
+                     (symbolic-import-name=? import linklet-import))))
             (hash-keys source-table)))
   (unless (null? extra-imports)
     (raise-arguments-error who

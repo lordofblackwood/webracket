@@ -257,6 +257,8 @@
                   real-racket-private-for-diagnostic
                   real-racket-private-kw-diagnostic
                   real-racket-class-diagnostic
+                  real-racket-class-rich-diagnostic
+                  real-racket-class-error-diagnostic
                   real-racket-contract-diagnostic
                   real-racket-pretty-diagnostic
                   real-racket-pretty-coverage-diagnostic))
@@ -581,6 +583,8 @@
                            "real-racket-private-kw-diagnostic"
                            "real-racket-contract-diagnostic"
                            "real-racket-class-diagnostic"
+                           "real-racket-class-rich-diagnostic"
+                           "real-racket-class-error-diagnostic"
                            "real-racket-pretty-diagnostic"
                            "io/format"
                            "slow no-substitution"

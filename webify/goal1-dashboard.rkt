@@ -254,6 +254,8 @@
     real-racket-private-for-diagnostic
     real-racket-private-kw-diagnostic
     real-racket-class-diagnostic
+    real-racket-class-rich-diagnostic
+    real-racket-class-error-diagnostic
     real-racket-contract-diagnostic
     real-racket-pretty-diagnostic
     real-racket-pretty-coverage-diagnostic))
@@ -2026,6 +2028,59 @@
          "    (super-new)\n"
          "    (define/public (value) 42)))\n"
          "(js-log (send (new point%) value))\n")))
+    "main.rkt"
+    #rx"(?m:^42$)"
+   '("--webracket-module-bridge" "--no-provider-substitutions")
+   #:tier 'coverage
+   #:expectation 'diagnostic)
+   (dashboard-case
+    'real-racket-class-rich-diagnostic
+    'installed-provider-diagnostic
+    '(racket/class)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/base\n"
+         "(require racket/class)\n"
+         "(define base%\n"
+         "  (class object%\n"
+         "    (super-new)\n"
+         "    (field [n 40])\n"
+         "    (define/pubment (value x) (+ n x (inner 0 value x)))))\n"
+         "(define child%\n"
+         "  (class base%\n"
+         "    (super-new)\n"
+         "    (inherit-field n)\n"
+         "    (set! n 39)\n"
+         "    (define/augment (value x) 1)\n"
+         "    (define/public (next) (value 2))))\n"
+         "(define obj (new child%))\n"
+         "(js-log (if (and (object? obj) (is-a? obj child%))\n"
+         "            (send obj next)\n"
+         "            0))\n")))
+    "main.rkt"
+    #rx"(?m:^42$)"
+    '("--webracket-module-bridge" "--no-provider-substitutions")
+    #:tier 'coverage
+    #:expectation 'diagnostic)
+   (dashboard-case
+    'real-racket-class-error-diagnostic
+    'installed-provider-diagnostic
+    '(racket/class)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/base\n"
+         "(require racket/class)\n"
+         "(define final%\n"
+         "  (class object%\n"
+         "    (super-new)\n"
+         "    (define/public-final (value) 1)))\n"
+         "(define y\n"
+         "  (with-handlers ([(lambda (e) #t) (lambda (e) 42)])\n"
+         "    (class final%\n"
+         "      (super-new)\n"
+         "      (define/override (value) 2))\n"
+         "    0))\n"
+         "(js-log y)\n")))
     "main.rkt"
     #rx"(?m:^42$)"
     '("--webracket-module-bridge" "--no-provider-substitutions")
