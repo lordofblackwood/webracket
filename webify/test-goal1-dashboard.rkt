@@ -27,6 +27,7 @@
 (define-runtime-path webracket-full-main "../pkgs/webracket/full/main.rkt")
 (define-runtime-path goal1-providers-doc "GOAL1-PROVIDERS.md")
 (define-runtime-path goal1-status-doc "GOAL1-STATUS.md")
+(define-runtime-path goal1-readiness-doc "GOAL1-READINESS.md")
 
 ;; datum-contains-symbol? : any/c symbol? -> boolean?
 ;;   Check whether an expanded datum contains sym anywhere.
@@ -606,6 +607,18 @@
                            "--timeout 240"
                            "not a full compatibility claim"
                            "webracket/base should remain small"))])
+    (check-not-false (regexp-match? (regexp (regexp-quote needle)) doc) needle)))
+
+(test-case "Goal 1 readiness matrix records completed and postponed tracks"
+  (define doc (file->string goal1-readiness-doc))
+  (for ([needle (in-list '("Goal 1 Readiness Matrix"
+                           "racket/contract"
+                           "webracket/contract"
+                           "racket/sequence"
+                           "racket/private/for"
+                           "racket/class"
+                           "contract or sequence work"
+                           "racket/class surface policy"))])
     (check-not-false (regexp-match? (regexp (regexp-quote needle)) doc) needle)))
 
 (module+ main
