@@ -46,6 +46,27 @@
   (environment-variables-set! env #"PLTCOMPILEDROOTS" #"/private/tmp/webracket-raco-compiled-92")
   env)
 
+;; validate-wasm-output : string? path? -> void?
+;;   Validate generated Wasm so browser compile errors are caught by the smoke.
+(define (validate-wasm-output label wasm-path)
+  (define wasm-tools (find-executable-path "wasm-tools"))
+  (unless wasm-tools
+    (error 'test-web-easy-module-bridge
+           "could not find wasm-tools for validation"))
+  (define stdout (open-output-string))
+  (define stderr (open-output-string))
+  (define status
+    (parameterize ([current-output-port stdout]
+                   [current-error-port stderr])
+      (system*/exit-code wasm-tools "validate" (path->string wasm-path))))
+  (unless (zero? status)
+    (error 'test-web-easy-module-bridge
+           (format "~a generated invalid Wasm (~a): ~a~a"
+                   label
+                   status
+                   (get-output-string stdout)
+                   (get-output-string stderr)))))
+
 ;; compile-web-easy-smoke : path? path? string? string? -> void
 ;;   Compile a small module-bridge program and reject exact wide FFI call types.
 (define (compile-web-easy-smoke repo-root racket-exe label source-text)
@@ -88,6 +109,10 @@
       (unless (file-exists? wat-path)
         (error 'test-web-easy-module-bridge
                (format "~a compile did not produce WAT output" label)))
+      (unless (file-exists? wasm-path)
+        (error 'test-web-easy-module-bridge
+               (format "~a compile did not produce Wasm output" label)))
+      (validate-wasm-output label wasm-path)
       (define wat (file->string wat-path))
       (when (regexp-match? #rx"\\$Prim(7|8|9|10)" wat)
         (error 'test-web-easy-module-bridge

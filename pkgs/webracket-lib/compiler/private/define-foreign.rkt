@@ -90,7 +90,7 @@
 ;; The following are the parts needed for `ffi-file->foreigns`.
 
 (require (for-syntax racket/base)
-         (only-in racket/list last drop-right)
+         (only-in racket/list append* drop-right last take)
          (only-in racket/path path-only)
          racket/runtime-path
          "structs.rkt")
@@ -458,11 +458,20 @@
      (define fasl-needed-for-arguments? (ormap fasl-needed? argument-types))
      (define fasl-needed-for-results?   (ormap fasl-needed? result-types))
 
-     (define local-start-index (if wide-ffi-wrapper? 1 (length argument-types)))
+     ;; Wide wrappers receive one rest-list parameter and then declare two
+     ;; helper locals before the generated argument/import locals.
+     (define local-start-index (if wide-ffi-wrapper? 3 (length argument-types)))
      (define (param-index  argument-index)
        (if wide-ffi-wrapper? (local-index argument-index) argument-index))
      (define (local-index  argument-index) (+      local-start-index  argument-index))
-     (define (import-index argument-index) (+ (* 2 local-start-index) argument-index))
+     (define (import-index argument-index) (+ local-start-index
+                                              (length argument-types)
+                                              argument-index))
+     (define (argument-ref argument-index)
+       (define raw `(local.get ,(param-index argument-index)))
+       (if wide-ffi-wrapper?
+           `(ref.as_non_null ,raw)
+           raw))
      
      `(func ,$racket-name
             (type ,$prim-type)
@@ -483,7 +492,10 @@
             ;;   - each argument will be type checked and converted
             ;;     they are stored in (local-index i)
             ,@(for/list ([t argument-types])
-                (define expected (argument-type->wasm-primitive-expected t))
+                (define expected
+                  (if wide-ffi-wrapper?
+                      '(ref null eq)
+                      (argument-type->wasm-primitive-expected t)))
                 `(local ,expected))
             ;;   - the types needed for the /imported function
             ;;     they are stored in import-index
@@ -552,15 +564,15 @@
                 (define test
                   (match t                    
                     ['string/symbol `(i32.or (ref.test (ref $String) (local.get ,(param-index i)))
-                                             (ref.test (ref $Symbol) (local.get ,(param-index i))))]
+                                             (ref.test (ref $Symbol) ,(argument-ref i)))]
                     ; Any non-false value counts as true. So we can accept any value as argument.
                     ['boolean       `(i32.const 1)] ; any value is accepted
 
                     [_              (define expected (argument-type->wasm-primitive-expected t))
-                                    `(ref.test ,expected (local.get ,(param-index i)))]))
+                                    `(ref.test ,expected ,(argument-ref i))]))
                 `(if (i32.eqz ,test)
                      ; TODO  Call a more specific error function that includes the type.
-                     (then (call $raise-unexpected-argument (local.get ,(param-index i)))
+                     (then (call $raise-unexpected-argument ,(argument-ref i))
                            (unreachable))))
 
             ;; 1. Extract the values from the parameters and store them in the locals.
@@ -569,34 +581,34 @@
                 (match t
                   ['i32 ; signed
                    `(local.set ,(local-index i)
-                               (ref.cast (ref i31) (local.get ,(param-index i))))]
+                               (ref.cast (ref i31) ,(argument-ref i)))]
                   ['u32 ; unsigned
                    `(local.set ,(local-index i)
-                               (ref.cast (ref i31) (local.get ,(param-index i))))]
+                               (ref.cast (ref i31) ,(argument-ref i)))]
                   ['f64
                    `(local.set ,(local-index i)
                                (ref.cast (ref $Flonum)
-                                         (local.get ,(param-index i))))]
+                                         ,(argument-ref i)))]
                   ['boolean
-                   `(local.set ,(local-index i) (local.get ,(param-index i)))]
+                   `(local.set ,(local-index i) ,(argument-ref i))]
                   ['string
                    `(local.set ,(local-index i)
                                (ref.cast (ref $String)
-                                         (local.get ,(param-index i))))]
+                                         ,(argument-ref i)))]
                   ['string/symbol
                    ; todo - if the argument is a symbol, convert it to a string first
                    `(local.set ,(local-index i)
                                (if (result (ref $String))
-                                   (ref.test (ref $Symbol) (local.get ,(param-index i)))
+                                   (ref.test (ref $Symbol) ,(argument-ref i))
                                    (then (ref.cast (ref $String) (call $symbol->string
-                                                                       (local.get ,(param-index i)))))
-                                   (else (ref.cast (ref $String) (local.get ,(param-index i))))))]
+                                                                       ,(argument-ref i))))
+                                   (else (ref.cast (ref $String) ,(argument-ref i)))))]
                   ['value
-                   `(local.set ,(local-index i) (local.get ,(param-index i)))]
+                   `(local.set ,(local-index i) ,(argument-ref i))]
                   ['extern
-                   `(local.set ,(local-index i) (ref.cast (ref $External) (local.get ,(param-index i))))]
+                   `(local.set ,(local-index i) (ref.cast (ref $External) ,(argument-ref i)))]
                   [_
-                   `(local.set ,(local-index i) (local.get ,(param-index i)))]))
+                   `(local.set ,(local-index i) ,(argument-ref i))]))
             
             ;; 2. Convert the expected values into types for the /imported function
             ;;    I.e. convert (local-index i) and store into (import-index i)
@@ -610,20 +622,26 @@
                   ['i32
                    ;; pass-through primitives
                    `(local.set ,(import-index i)
-                               (i32.shr_s (i31.get_s (local.get ,(local-index i)))
+                               (i32.shr_s (i31.get_s
+                                           (ref.cast (ref i31)
+                                                     ,(argument-ref i)))
                                           (i32.const 1)))]
                   ['u32
                    ;; pass-through primitives
                    `(local.set ,(import-index i)
-                               (i32.shr_u (i31.get_u (local.get ,(local-index i)))
+                               (i32.shr_u (i31.get_u
+                                           (ref.cast (ref i31)
+                                                     ,(argument-ref i)))
                                           (i32.const 1)))]
                   ['f64
                    `(local.set ,(import-index i)
-                               (struct.get $Flonum $v (local.get ,(local-index i))))]
+                               (struct.get $Flonum $v
+                                           (ref.cast (ref $Flonum)
+                                                     ,(argument-ref i))))]
                   ['boolean                    
                    `(local.set ,(import-index i)
                                (if (result i32)
-                                   (ref.eq (local.get ,(local-index i)) (global.get $false))
+                                   (ref.eq ,(argument-ref i) (global.get $false))
                                    (then (i32.const 0))
                                    (else (i32.const 1))))]
 
@@ -634,7 +652,7 @@
                    ;; 4) Advance $fasl-index by the length
                    `(block
                      (local.set ,(import-index i) (local.get $fasl-index))
-                     (local.set $bs  (call $s-exp->fasl (local.get ,(local-index i))
+                     (local.set $bs  (call $s-exp->fasl ,(argument-ref i)
                                            (global.get $false)))
                      (local.set $b   (ref.cast (ref $Bytes) (local.get $bs)))
                      (local.set $len (call $copy-bytes-to-memory (local.get $b)
@@ -644,7 +662,7 @@
                   ['value
                    `(block
                      (local.set ,(import-index i) (local.get $fasl-index))
-                     (local.set $bs  (call $s-exp->fasl (local.get ,(local-index i))
+                     (local.set $bs  (call $s-exp->fasl ,(argument-ref i)
                                            (global.get $false)))
                      (local.set $b   (ref.cast (ref $Bytes) (local.get $bs)))
                      (local.set $len (call $copy-bytes-to-memory (local.get $b)
@@ -653,9 +671,11 @@
                                 (i32.add (local.get $fasl-index) (local.get $len))))]
                   ['extern
                    `(local.set ,(import-index i)
-                               (struct.get $External $v (local.get ,(local-index i))))]                   
+                               (struct.get $External $v
+                                           (ref.cast (ref $External)
+                                                     ,(argument-ref i))))]                   
                   [_
-                   `(local.set ,(import-index i) (local.get ,(local-index i)))]))
+                   `(local.set ,(import-index i) ,(argument-ref i))]))
             
             ;; 3) call the host function
             ,(case (length result-types)
@@ -761,6 +781,31 @@
 ; foreigns->primitive-names : list of `foreign` -> list of symbols
 (define (foreigns->primitive-names fs)
   (map foreign-racket-name fs))
+
+(module+ test
+  (define (collect-local-set-indices wat)
+    (let loop ([x wat])
+      (cond
+        [(and (pair? x) (eq? (car x) 'local.set) (integer? (cadr x)))
+         (cons (cadr x) (append* (map loop (cddr x))))]
+        [(pair? x)
+         (append* (map loop x))]
+        [else '()])))
+
+  (define wide-ffi-primitive
+    (foreign->primitive
+     (foreign 'test-wide "m" "h"
+              '(extern f64 f64 f64 f64 f64 i32)
+              '())))
+
+  (check-equal?
+   (take (collect-local-set-indices wide-ffi-primitive) 7)
+   '(3 4 5 6 7 8 9))
+
+  (check-true
+   (for/and ([idx (in-list '(10 11 12 13 14 15 16))])
+     (and (member idx (collect-local-set-indices wide-ffi-primitive))
+          #t))))
 
 ;;;
 ;;; TEST
