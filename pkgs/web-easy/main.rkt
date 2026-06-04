@@ -7,6 +7,10 @@
          racket/path
          racket/string
          webracket/define-key
+         (only-in webracket/private/kw
+                  make-keyword-procedure
+                  keyword-apply
+                  procedure-reduce-keyword-arity)
          (only-in webracket/primitives
                   external?
                   js-log

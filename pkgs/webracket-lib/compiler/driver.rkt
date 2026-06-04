@@ -1424,9 +1424,17 @@
 
   ; 8. Write the host file (default: "runtime.js")
   (define t-write-host-start (now-ms))
+  (define runtime-wasm-reference
+    (if browser?
+        (path->string
+         (find-relative-path
+          (path->complete-path (or (path-only out-host) (current-directory))
+                               (current-directory))
+          (path->complete-path out-wasm (current-directory))))
+        out-wasm))
   (with-output-to-file out-host
     (λ () (displayln
-           (runtime #:out out-wasm
+           (runtime #:out runtime-wasm-reference
                     #:host (if node? 'node 'browser)
                     #:console-bridge? console-bridge?
                     #:vfs-preloads vfs-preloads
@@ -2573,10 +2581,7 @@
              (current-source-module-language
               (webracket-module-lang-line->language first-line))
              (with-webracket-sequence-prelude
-              (if webracket-module-bridge?
-                  (module-file->module-bridge-top-level filename)
-                  (or (module-file->module-bridge-top-level/local-only filename)
-                      (module-file->top-level filename))))]
+              (module-file->module-bridge-top-level filename))]
             [else
              (current-source-module-language #f)
              (define forms (read-forms port))

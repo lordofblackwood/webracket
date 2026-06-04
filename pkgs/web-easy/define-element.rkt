@@ -351,6 +351,113 @@
   (reject-invalid-ref-attrs! who merged-attrs)
   (values positional merged-attrs))
 
+;; normalize-element-keyword-call : symbol? list? list? list? (or/c natural? 'any) (or/c #f list?) list? list? -> values list? any/c
+;;   Normalize a real Racket keyword call into positional content and attrs.
+(define (normalize-element-keyword-call who supplied-kws kw-args positional expected-positional-count allowed-attrs required-keywords required-any-keywords)
+  (define supplied-keywords supplied-kws)
+  (let check-required ([rest required-keywords])
+    (cond
+      [(null? rest) (void)]
+      [else
+       (define required-kw (car rest))
+       (unless (memq required-kw supplied-keywords)
+         (error who "expected exactly one ~a keyword argument" required-kw))
+       (check-required (cdr rest))]))
+  (unless (null? required-any-keywords)
+    (unless (let loop ([rest required-any-keywords])
+              (cond
+                [(null? rest) #f]
+                [(memq (car rest) supplied-keywords) #t]
+                [else (loop (cdr rest))]))
+      (error who
+             "expected at least one of keyword arguments: ~a"
+             required-any-keywords)))
+  (define-values (attrs extra-attrs-rev)
+    (let loop ([remaining-kws supplied-keywords]
+               [remaining-kw-args kw-args]
+               [attrs #f]
+               [extra-attrs-rev '()])
+      (cond
+        [(null? remaining-kws)
+         (values attrs extra-attrs-rev)]
+        [else
+         (define kw (car remaining-kws))
+         (define v  (car remaining-kw-args))
+         (cond
+           [(eq? kw '#:attrs)
+            (loop (cdr remaining-kws)
+                  (cdr remaining-kw-args)
+                  v
+                  extra-attrs-rev)]
+           [else
+            (define attr-key (keyword->attr-key kw))
+            (when (not (attr-key-allowed? attr-key allowed-attrs))
+              (error who "unknown keyword argument: ~a" kw))
+            (when (and (eq? attr-key 'ref)
+                       (not (obs? v)))
+              (error who "expected #:ref as observable?: ~a" kw))
+            (when (and (primitive-event-attr-key? attr-key)
+                       (not (event-handler-value-accepted? v)))
+              (error who
+                     "expected event handler as procedure?, observable?, or #f: ~a"
+                     kw))
+            (loop (cdr remaining-kws)
+                  (cdr remaining-kw-args)
+                  attrs
+                  (cons (cons attr-key v)
+                        extra-attrs-rev))])])))
+  (validate-positional-count! who positional expected-positional-count)
+  (define extra-attrs (reverse extra-attrs-rev))
+  (define merged-attrs (merge-element-attrs who attrs extra-attrs))
+  (reject-procedure-attrs! who merged-attrs)
+  (reject-invalid-ref-attrs! who merged-attrs)
+  (values positional merged-attrs))
+
+;; make-web-easy-element-keyword-procedure : procedure? list? (or/c list? #f) arity? -> procedure?
+;;   Build a keyword procedure whose metadata survives keyword-apply.
+(define (make-web-easy-element-keyword-procedure kw-proc required allowed arity)
+  (procedure-reduce-keyword-arity
+   (make-keyword-procedure
+    kw-proc
+    (lambda positional
+      (apply kw-proc '() '() positional)))
+   arity
+   required
+   allowed
+   'web-easy-element))
+
+;; keyword-call->legacy-args : list? list? list? -> list?
+;;   Rebuild the old define/key-style rest payload from a real keyword call.
+(define (keyword-call->legacy-args kws kw-args positional)
+  (let loop ([kws kws]
+             [kw-args kw-args]
+             [acc positional])
+    (cond
+      [(null? kws) acc]
+      [else
+       (loop (cdr kws)
+             (cdr kw-args)
+             (append acc
+                     (list (car kws)
+                           (car kw-args))))])))
+
+;; make-web-easy-component-keyword-procedure : procedure? -> procedure?
+;;   Let components accept normal Racket keywords while reusing old parsers.
+(define (make-web-easy-component-keyword-procedure proc)
+  (make-keyword-procedure
+   (lambda (kws kw-args . positional)
+     (apply proc
+            (keyword-call->legacy-args kws
+                                       kw-args
+                                       positional)))
+   proc))
+
+(define-syntax-rule (define-component-runtime name all-args body ...)
+  (define name
+    (make-web-easy-component-keyword-procedure
+     (lambda all-args
+       body ...))))
+
 ;; alist-set : list? any/c any/c -> list?
 ;;   Return alist with key updated to value, adding key when absent.
 (define (alist-set alist0 k v)
@@ -855,7 +962,7 @@
                      [allowed-attrs-stx (datum->syntax stx (list 'quote allowed-attrs) stx stx)]
                      [root-attrs/fn-id/stx root-attrs/fn-id]
                      [(body* ...) rewritten-body])
-         #'(define (name . all-args)
+         #'(define-component-runtime name all-args
              (define-values (positional/id forwarded-args/id component-values/id)
                (normalize-component-call 'name/sym
                                          all-args
@@ -894,7 +1001,7 @@
                      [allowed-attrs-stx (datum->syntax stx (list 'quote allowed-attrs) stx stx)]
                      [root-attrs/fn-id/stx root-attrs/fn-id]
                      [(body* ...) rewritten-body])
-         #'(define (name . all-args)
+         #'(define-component-runtime name all-args
              (define-values (positional/id forwarded-args/id component-values/id)
                (normalize-component-call 'name/sym all-args '()))
              (define component-allowed-attrs/id allowed-attrs-stx)
@@ -923,7 +1030,7 @@
                      [component-values/id (datum->syntax stx 'component-values stx stx)]
                      [component-allowed-attrs/id (datum->syntax stx 'component-allowed-attrs stx stx)]
                      [allowed-attrs-stx (datum->syntax stx (list 'quote allowed-attrs) stx stx)])
-         #'(define (name . all-args)
+         #'(define-component-runtime name all-args
              (define-values (positional/id forwarded-args/id component-values/id)
                (normalize-component-call 'name/sym
                                          all-args
@@ -948,7 +1055,7 @@
                      [component-values/id (datum->syntax stx 'component-values stx stx)]
                      [component-allowed-attrs/id (datum->syntax stx 'component-allowed-attrs stx stx)]
                      [allowed-attrs-stx (datum->syntax stx (list 'quote allowed-attrs) stx stx)])
-         #'(define (name . all-args)
+         #'(define-component-runtime name all-args
              (define-values (positional/id forwarded-args/id component-values/id)
                (normalize-component-call 'name/sym all-args '()))
              (define component-allowed-attrs/id allowed-attrs-stx)
@@ -1019,7 +1126,7 @@
                      [root-attrs/fn-id/stx root-attrs/fn-id]
                      [(pos-binding ...) pos-bindings]
                      [(body* ...) rewritten-body])
-         #'(define (name . all-args)
+         #'(define-component-runtime name all-args
              (define-values (positional/id forwarded-args/id component-values/id)
                (normalize-component-call 'name/sym
                                          all-args
@@ -1115,7 +1222,7 @@
                      [root-attrs/fn-id/stx root-attrs/fn-id]
                      [(pos-binding ...) pos-bindings]
                      [(body* ...) rewritten-body])
-         #'(define (name . all-args)
+         #'(define-component-runtime name all-args
              (define-values (positional/id forwarded-args/id component-values/id)
                (normalize-component-call 'name/sym all-args '()))
              (validate-component-positional-count! 'name/sym
@@ -1190,7 +1297,7 @@
                      [root-attrs/fn-id/stx root-attrs/fn-id]
                      [(pos-binding ...) pos-bindings]
                      [(body* ...) rewritten-body])
-         #'(define (name . all-args)
+         #'(define-component-runtime name all-args
              (define-values (positional/id forwarded-args/id component-values/id)
                (normalize-component-call 'name/sym all-args '()))
              (validate-component-positional-count! 'name/sym
@@ -1276,7 +1383,7 @@
                      [allowed-attrs-stx (datum->syntax stx (list 'quote allowed-attrs) stx stx)]
                      [count-spec-stx (datum->syntax stx (list 'quote count-datum) stx stx)]
                      [(pos-binding ...) pos-bindings])
-         #'(define (name . all-args)
+         #'(define-component-runtime name all-args
              (define-values (positional/id forwarded-args/id component-values/id)
                (normalize-component-call 'name/sym
                                          all-args
@@ -1343,7 +1450,7 @@
                      [allowed-attrs-stx (datum->syntax stx (list 'quote allowed-attrs) stx stx)]
                      [count-spec-stx (datum->syntax stx (list 'quote count-datum) stx stx)]
                      [(pos-binding ...) pos-bindings])
-         #'(define (name . all-args)
+         #'(define-component-runtime name all-args
              (define-values (positional/id forwarded-args/id component-values/id)
                (normalize-component-call 'name/sym
                                          all-args
@@ -1377,7 +1484,7 @@
                      [component-allowed-attrs/id (datum->syntax stx 'component-allowed-attrs stx stx)]
                      [allowed-attrs-stx (datum->syntax stx (list 'quote allowed-attrs) stx stx)]
                      [count-spec-stx (datum->syntax stx (list 'quote count-datum) stx stx)])
-         #'(define (name . all-args)
+         #'(define-component-runtime name all-args
              (define-values (positional/id forwarded-args/id component-values/id)
                (normalize-component-call 'name/sym
                                          all-args
@@ -1405,7 +1512,7 @@
                      [component-values/id (datum->syntax stx 'component-values stx stx)]
                      [component-allowed-attrs/id (datum->syntax stx 'component-allowed-attrs stx stx)]
                      [allowed-attrs-stx (datum->syntax stx (list 'quote allowed-attrs) stx stx)])
-         #'(define (name . all-args)
+         #'(define-component-runtime name all-args
              (define-values (positional/id forwarded-args/id component-values/id)
                (normalize-component-call 'name/sym
                                          all-args
@@ -1432,7 +1539,7 @@
                      [component-allowed-attrs/id (datum->syntax stx 'component-allowed-attrs stx stx)]
                      [allowed-attrs-stx (datum->syntax stx (list 'quote allowed-attrs) stx stx)]
                      [count-spec-stx (datum->syntax stx (list 'quote count-datum) stx stx)])
-         #'(define (name . all-args)
+         #'(define-component-runtime name all-args
              (define-values (positional/id forwarded-args/id component-values/id)
                (normalize-component-call 'name/sym all-args '()))
              (validate-component-positional-count! 'name/sym
@@ -1454,7 +1561,7 @@
                      [component-values/id (datum->syntax stx 'component-values stx stx)]
                      [component-allowed-attrs/id (datum->syntax stx 'component-allowed-attrs stx stx)]
                      [allowed-attrs-stx (datum->syntax stx (list 'quote allowed-attrs) stx stx)])
-         #'(define (name . all-args)
+         #'(define-component-runtime name all-args
              (define-values (positional/id forwarded-args/id component-values/id)
                (normalize-component-call 'name/sym all-args '()))
              (define component-allowed-attrs/id allowed-attrs-stx)
@@ -1471,7 +1578,7 @@
                    [forwarded-args/id (datum->syntax stx 'forwarded-args stx stx)]
                    [component-values/id (datum->syntax stx 'component-values stx stx)]
                    [component-allowed-attrs/id (datum->syntax stx 'component-allowed-attrs stx stx)])
-       #'(define (name . all-args)
+      #'(define-component-runtime name all-args
            (define-values (positional/id forwarded-args/id component-values/id)
              (normalize-component-call 'name/sym
                                        all-args
@@ -1496,7 +1603,7 @@
                      [component-values/id (datum->syntax stx 'component-values stx stx)]
                      [component-allowed-attrs/id (datum->syntax stx 'component-allowed-attrs stx stx)]
                      [count-spec-stx (datum->syntax stx (list 'quote count-datum) stx stx)])
-         #'(define (name . all-args)
+         #'(define-component-runtime name all-args
              (define-values (positional/id forwarded-args/id component-values/id)
                (normalize-component-call 'name/sym
                                          all-args
@@ -1521,7 +1628,7 @@
                      [component-values/id (datum->syntax stx 'component-values stx stx)]
                      [component-allowed-attrs/id (datum->syntax stx 'component-allowed-attrs stx stx)]
                      [count-spec-stx (datum->syntax stx (list 'quote count-datum) stx stx)])
-         #'(define (name . all-args)
+         #'(define-component-runtime name all-args
              (define-values (positional/id forwarded-args/id component-values/id)
                (normalize-component-call 'name/sym all-args '()))
              (validate-component-positional-count! 'name/sym
@@ -1537,7 +1644,7 @@
                    [forwarded-args/id (datum->syntax stx 'forwarded-args stx stx)]
                    [component-values/id (datum->syntax stx 'component-values stx stx)]
                    [component-allowed-attrs/id (datum->syntax stx 'component-allowed-attrs stx stx)])
-       #'(define (name . all-args)
+      #'(define-component-runtime name all-args
            (define-values (positional/id forwarded-args/id component-values/id)
              (normalize-component-call 'name/sym all-args '()))
            (define component-allowed-attrs/id #f)
@@ -1701,6 +1808,55 @@
          (define x (car rest))
          (loop (cdr rest)
                (if (member x acc) acc (cons x acc)))])))
+  ;; attr-symbol->keyword : symbol? -> keyword?
+  ;;   Convert an HTML attribute symbol to the matching constructor keyword.
+  (define (attr-symbol->keyword sym)
+    (string->keyword (symbol->string sym)))
+  ;; allowed-keywords-for-attrs : (or/c #f list?) list? list? -> (or/c #f list?)
+  ;;   Compute finite keyword metadata, keeping wildcard attrs behind #:attrs.
+  (define (allowed-keywords-for-attrs allowed-attrs required-kws required-any-kws)
+    (define (wildcard-attr-symbol/phase1? sym)
+      (define s (symbol->string sym))
+      (and (>= (string-length s) 2)
+           (char=? (string-ref s (- (string-length s) 1)) #\*)
+           (char=? (string-ref s (- (string-length s) 2)) #\-)))
+    (define wildcard?
+      (and allowed-attrs
+           (let loop ([rest allowed-attrs])
+             (cond
+               [(null? rest) #f]
+               [(and (symbol? (car rest))
+                     (wildcard-attr-symbol/phase1? (car rest)))
+                #t]
+               [else (loop (cdr rest))]))))
+    (cond
+      ;; `procedure-keywords` metadata cannot express wildcard families such as
+      ;; `data-*` and `aria-*`. Advertise open keyword acceptance, then let the
+      ;; constructor body validate the concrete attribute name.
+      [wildcard? #f]
+      [allowed-attrs
+       (sort
+        (let loop ([rest (append allowed-attrs
+                                 required-kws
+                                 required-any-kws
+                                 '(#:attrs))]
+                   [acc '()])
+          (cond
+            [(null? rest) acc]
+            [else
+             (define x (car rest))
+             (define kw
+               (cond
+                 [(keyword? x) x]
+                 [(symbol? x)
+                  (attr-symbol->keyword x)]
+                 [else #f]))
+             (loop (cdr rest)
+                   (if (and kw (not (memq kw acc)))
+                       (cons kw acc)
+                       acc))]))
+        keyword<?)]
+      [else #f]))
   ;; `#:content-mode text-or-children` is for primitive HTML elements such as
   ;; `Button` that preserve the old single text-like content form while also
   ;; accepting ordered mixed content sequences like a real container element.
@@ -1749,30 +1905,39 @@
                      [html-element-children-id (datum->syntax #'base 'html-element-children #'base #'base)]
                      [content-item->child-view-id (datum->syntax #'base 'content-item->child-view/internal #'base #'base)]
                      [allowed-attrs-stx (datum->syntax stx (list 'quote allowed-attrs) stx stx)]
+                     [allowed-kws-stx (datum->syntax stx (list 'quote (allowed-keywords-for-attrs allowed-attrs required-kws required-any-kws)) stx stx)]
                      [required-kws-stx (datum->syntax stx (list 'quote required-kws) stx stx)]
                      [required-any-kws-stx (datum->syntax stx (list 'quote required-any-kws) stx stx)])
-         #'(define (name . all-args)
-             (define-values (positional attrs)
-               (normalize-element-call 'name/sym
-                                       all-args
-                                       'any
-                                       allowed-attrs-stx
-                                       required-kws-stx
-                                       required-any-kws-stx))
-             (when (null? positional)
-               (error 'name/sym
-                      "wrong number of positional arguments (expected at least 1, got 0)"))
-             (if (and (= (length positional) 1)
-                      (not (view? (car positional))))
-                 (html-element-id fixed ...
-                                  (car positional)
-                                  #:attrs attrs)
-                 (apply html-element-children-id
-                        (append (list fixed ...)
-                                (map (lambda (item)
-                                       (content-item->child-view-id 'name/sym item))
-                                     positional)
-                                (list #:attrs attrs)))))))]
+         #'(define name
+             (make-web-easy-element-keyword-procedure
+              (lambda (kws kw-args . raw-positional)
+                (define-values (positional attrs)
+                  (normalize-element-keyword-call 'name/sym
+                                                  kws
+                                                  kw-args
+                                                  raw-positional
+                                                  'any
+                                                  allowed-attrs-stx
+                                                  required-kws-stx
+                                                  required-any-kws-stx))
+                (when (null? positional)
+                  (error 'name/sym
+                         "wrong number of positional arguments (expected at least 1, got 0)"))
+                (if (and (= (length positional) 1)
+                         (not (view? (car positional))))
+                    (html-element-id fixed ...
+                                     (car positional)
+                                     #:attrs attrs)
+                    (keyword-apply html-element-children-id
+                                   '(#:attrs)
+                                   (list attrs)
+                                   (append (list fixed ...)
+                                           (map (lambda (item)
+                                                  (content-item->child-view-id 'name/sym item))
+                                                positional)))))
+              required-kws-stx
+              allowed-kws-stx
+              (arity-at-least 1)))))]
     [(_ name base fixed ...
         #:required-keywords (required-kw ...)
         #:content-mode content-mode)
@@ -1815,29 +1980,38 @@
                      [html-element-children-id (datum->syntax #'base 'html-element-children #'base #'base)]
                      [content-item->child-view-id (datum->syntax #'base 'content-item->child-view/internal #'base #'base)]
                      [allowed-attrs-stx (datum->syntax stx (list 'quote allowed-attrs) stx stx)]
+                     [allowed-kws-stx (datum->syntax stx (list 'quote (allowed-keywords-for-attrs allowed-attrs required-kws '())) stx stx)]
                      [required-kws-stx (datum->syntax stx (list 'quote required-kws) stx stx)])
-         #'(define (name . all-args)
-             (define-values (positional attrs)
-               (normalize-element-call 'name/sym
-                                       all-args
-                                       'any
-                                       allowed-attrs-stx
-                                       required-kws-stx
-                                       '()))
-             (when (null? positional)
-               (error 'name/sym
-                      "wrong number of positional arguments (expected at least 1, got 0)"))
-             (if (and (= (length positional) 1)
-                      (not (view? (car positional))))
-                 (html-element-id fixed ...
-                                  (car positional)
-                                  #:attrs attrs)
-                 (apply html-element-children-id
-                        (append (list fixed ...)
-                                (map (lambda (item)
-                                       (content-item->child-view-id 'name/sym item))
-                                     positional)
-                                (list #:attrs attrs)))))))]
+         #'(define name
+             (make-web-easy-element-keyword-procedure
+              (lambda (kws kw-args . raw-positional)
+                (define-values (positional attrs)
+                  (normalize-element-keyword-call 'name/sym
+                                                  kws
+                                                  kw-args
+                                                  raw-positional
+                                                  'any
+                                                  allowed-attrs-stx
+                                                  required-kws-stx
+                                                  '()))
+                (when (null? positional)
+                  (error 'name/sym
+                         "wrong number of positional arguments (expected at least 1, got 0)"))
+                (if (and (= (length positional) 1)
+                         (not (view? (car positional))))
+                    (html-element-id fixed ...
+                                     (car positional)
+                                     #:attrs attrs)
+                    (keyword-apply html-element-children-id
+                                   '(#:attrs)
+                                   (list attrs)
+                                   (append (list fixed ...)
+                                           (map (lambda (item)
+                                                  (content-item->child-view-id 'name/sym item))
+                                                positional)))))
+              required-kws-stx
+              allowed-kws-stx
+              (arity-at-least 1)))))]
     [(_ name base fixed ...
         #:content-mode content-mode)
      (identifier? #'name)
@@ -1877,29 +2051,38 @@
                      [html-element-id (datum->syntax #'base 'html-element #'base #'base)]
                      [html-element-children-id (datum->syntax #'base 'html-element-children #'base #'base)]
                      [content-item->child-view-id (datum->syntax #'base 'content-item->child-view/internal #'base #'base)]
-                     [allowed-attrs-stx (datum->syntax stx (list 'quote allowed-attrs) stx stx)])
-         #'(define (name . all-args)
-             (define-values (positional attrs)
-               (normalize-element-call 'name/sym
-                                       all-args
-                                       'any
-                                       allowed-attrs-stx
-                                       '()
-                                       '()))
-             (when (null? positional)
-               (error 'name/sym
-                      "wrong number of positional arguments (expected at least 1, got 0)"))
-             (if (and (= (length positional) 1)
-                      (not (view? (car positional))))
-                 (html-element-id fixed ...
-                                  (car positional)
-                                  #:attrs attrs)
-                 (apply html-element-children-id
-                        (append (list fixed ...)
-                                (map (lambda (item)
-                                       (content-item->child-view-id 'name/sym item))
-                                     positional)
-                                (list #:attrs attrs)))))))]
+                     [allowed-attrs-stx (datum->syntax stx (list 'quote allowed-attrs) stx stx)]
+                     [allowed-kws-stx (datum->syntax stx (list 'quote (allowed-keywords-for-attrs allowed-attrs '() '())) stx stx)])
+         #'(define name
+             (make-web-easy-element-keyword-procedure
+              (lambda (kws kw-args . raw-positional)
+                (define-values (positional attrs)
+                  (normalize-element-keyword-call 'name/sym
+                                                  kws
+                                                  kw-args
+                                                  raw-positional
+                                                  'any
+                                                  allowed-attrs-stx
+                                                  '()
+                                                  '()))
+                (when (null? positional)
+                  (error 'name/sym
+                         "wrong number of positional arguments (expected at least 1, got 0)"))
+                (if (and (= (length positional) 1)
+                         (not (view? (car positional))))
+                    (html-element-id fixed ...
+                                     (car positional)
+                                     #:attrs attrs)
+                    (keyword-apply html-element-children-id
+                                   '(#:attrs)
+                                   (list attrs)
+                                   (append (list fixed ...)
+                                           (map (lambda (item)
+                                                  (content-item->child-view-id 'name/sym item))
+                                                positional)))))
+              '()
+              allowed-kws-stx
+              (arity-at-least 1)))))]
     [(_ name base fixed ...
         #:required-keywords (required-kw ...)
         #:required-any-keywords (required-any-kw ...)
@@ -1947,37 +2130,58 @@
          (if (eq? count-datum 'any)
              '(quote any)
              count-datum))
+       (define arity-expr-datum
+         (if (eq? count-datum 'any)
+             '(arity-at-least 0)
+             count-datum))
        (with-syntax ([name/sym (datum->syntax #'name (syntax-e #'name) #'name #'name)]
                      [allowed-attrs-stx (datum->syntax stx (list 'quote allowed-attrs) stx stx)]
+                     [allowed-kws-stx (datum->syntax stx (list 'quote (allowed-keywords-for-attrs allowed-attrs required-kws required-any-kws)) stx stx)]
                      [required-kws-stx (datum->syntax stx (list 'quote required-kws) stx stx)]
                      [required-any-kws-stx (datum->syntax stx (list 'quote required-any-kws) stx stx)]
-                     [expected-count-stx (datum->syntax stx count-expr-datum stx stx)])
+                     [expected-count-stx (datum->syntax stx count-expr-datum stx stx)]
+                     [wrapper-arity-stx (datum->syntax stx arity-expr-datum stx stx)])
          (cond
            [(and (eq? base-sym 'html-element) (equal? count-datum 0))
-            #'(define (name . all-args)
-                (define-values (positional attrs)
-                  (normalize-element-call 'name/sym
-                                          all-args
-                                          expected-count-stx
-                                          allowed-attrs-stx
-                                          required-kws-stx
-                                          required-any-kws-stx))
-                (base fixed ...
-                      ""
-                      #:attrs attrs))]
+            #'(define name
+                (make-web-easy-element-keyword-procedure
+                 (lambda (kws kw-args . raw-positional)
+                   (define-values (positional attrs)
+                     (normalize-element-keyword-call 'name/sym
+                                                     kws
+                                                     kw-args
+                                                     raw-positional
+                                                     expected-count-stx
+                                                     allowed-attrs-stx
+                                                     required-kws-stx
+                                                     required-any-kws-stx))
+                   (base fixed ...
+                         ""
+                         #:attrs attrs))
+                 required-kws-stx
+                 allowed-kws-stx
+                 wrapper-arity-stx))]
            [else
-            #'(define (name . all-args)
-                (define-values (positional attrs)
-                  (normalize-element-call 'name/sym
-                                          all-args
-                                          expected-count-stx
-                                          allowed-attrs-stx
-                                          required-kws-stx
-                                          required-any-kws-stx))
-                (apply base
-                       (append (list fixed ...)
-                               positional
-                               (list #:attrs attrs))))])))]
+            #'(define name
+                (make-web-easy-element-keyword-procedure
+                 (lambda (kws kw-args . raw-positional)
+                   (define-values (positional attrs)
+                     (normalize-element-keyword-call 'name/sym
+                                                     kws
+                                                     kw-args
+                                                     raw-positional
+                                                     expected-count-stx
+                                                     allowed-attrs-stx
+                                                     required-kws-stx
+                                                     required-any-kws-stx))
+                   (keyword-apply base
+                                  '(#:attrs)
+                                  (list attrs)
+                                  (append (list fixed ...)
+                                          positional)))
+                 required-kws-stx
+                 allowed-kws-stx
+                 wrapper-arity-stx))])))]
     [(_ name base fixed ...
         #:required-keywords (required-kw ...)
         #:positional-count positional-count)
@@ -2023,36 +2227,57 @@
          (if (eq? count-datum 'any)
              '(quote any)
              count-datum))
+       (define arity-expr-datum
+         (if (eq? count-datum 'any)
+             '(arity-at-least 0)
+             count-datum))
        (with-syntax ([name/sym (datum->syntax #'name (syntax-e #'name) #'name #'name)]
                      [allowed-attrs-stx (datum->syntax stx (list 'quote allowed-attrs) stx stx)]
+                     [allowed-kws-stx (datum->syntax stx (list 'quote (allowed-keywords-for-attrs allowed-attrs required-kws '())) stx stx)]
                      [required-kws-stx (datum->syntax stx (list 'quote required-kws) stx stx)]
-                     [expected-count-stx (datum->syntax stx count-expr-datum stx stx)])
+                     [expected-count-stx (datum->syntax stx count-expr-datum stx stx)]
+                     [wrapper-arity-stx (datum->syntax stx arity-expr-datum stx stx)])
          (cond
            [(and (eq? base-sym 'html-element) (equal? count-datum 0))
-            #'(define (name . all-args)
-                (define-values (positional attrs)
-                  (normalize-element-call 'name/sym
-                                          all-args
-                                          expected-count-stx
-                                          allowed-attrs-stx
-                                          required-kws-stx
-                                          '()))
-                (base fixed ...
-                      ""
-                      #:attrs attrs))]
+            #'(define name
+                (make-web-easy-element-keyword-procedure
+                 (lambda (kws kw-args . raw-positional)
+                   (define-values (positional attrs)
+                     (normalize-element-keyword-call 'name/sym
+                                                     kws
+                                                     kw-args
+                                                     raw-positional
+                                                     expected-count-stx
+                                                     allowed-attrs-stx
+                                                     required-kws-stx
+                                                     '()))
+                   (base fixed ...
+                         ""
+                         #:attrs attrs))
+                 required-kws-stx
+                 allowed-kws-stx
+                 wrapper-arity-stx))]
            [else
-            #'(define (name . all-args)
-                (define-values (positional attrs)
-                  (normalize-element-call 'name/sym
-                                          all-args
-                                          expected-count-stx
-                                          allowed-attrs-stx
-                                          required-kws-stx
-                                          '()))
-                (apply base
-                       (append (list fixed ...)
-                               positional
-                               (list #:attrs attrs))))])))]
+            #'(define name
+                (make-web-easy-element-keyword-procedure
+                 (lambda (kws kw-args . raw-positional)
+                   (define-values (positional attrs)
+                     (normalize-element-keyword-call 'name/sym
+                                                     kws
+                                                     kw-args
+                                                     raw-positional
+                                                     expected-count-stx
+                                                     allowed-attrs-stx
+                                                     required-kws-stx
+                                                     '()))
+                   (keyword-apply base
+                                  '(#:attrs)
+                                  (list attrs)
+                                  (append (list fixed ...)
+                                          positional)))
+                 required-kws-stx
+                 allowed-kws-stx
+                 wrapper-arity-stx))])))]
     [(_ name base fixed ...)
      (identifier? #'name)
      (let* ([base-sym (syntax-e #'base)]
@@ -2082,13 +2307,26 @@
                                           fixed0)]))
                  #f)])
        (with-syntax ([name/sym (datum->syntax #'name (syntax-e #'name) #'name #'name)]
-                     [allowed-attrs-stx (datum->syntax stx (list 'quote allowed-attrs) stx stx)])
-         #'(define (name . all-args)
-             (define-values (positional attrs)
-               (normalize-element-call 'name/sym all-args 1 allowed-attrs-stx '() '()))
-             (base fixed ...
-                   (car positional)
-                   #:attrs attrs))))]
+                     [allowed-attrs-stx (datum->syntax stx (list 'quote allowed-attrs) stx stx)]
+                     [allowed-kws-stx (datum->syntax stx (list 'quote (allowed-keywords-for-attrs allowed-attrs '() '())) stx stx)])
+         #'(define name
+             (make-web-easy-element-keyword-procedure
+              (lambda (kws kw-args . raw-positional)
+                (define-values (positional attrs)
+                  (normalize-element-keyword-call 'name/sym
+                                                  kws
+                                                  kw-args
+                                                  raw-positional
+                                                  1
+                                                  allowed-attrs-stx
+                                                  '()
+                                                  '()))
+                (base fixed ...
+                      (car positional)
+                      #:attrs attrs))
+              '()
+              allowed-kws-stx
+              1))))]
     [_
      (raise-syntax-error who
                          "expected `(define/element Name Base fixed-positional ...)`"

@@ -495,6 +495,12 @@
                   wcm-state)
   ;; `wcm-state` is one of: 'tail (= unknown), 'fresh (= no marks), or 'marked (= some marks)
   (let schemify/knowns ([knowns knowns] [inline-fuel init-inline-fuel] [wcm-state wcm-state] [unsafe-mode? unsafe-mode?] [v v])
+    (define (module-binding-id u)
+      (or (let ([ex (or (hash-ref exports u #f)
+                        (hash-ref extra-variables u #f))])
+            (and ex (export-id ex)))
+          (let ([im (hash-ref imports u #f)])
+            (and im (import-id im)))))
     (define (schemify v wcm-state [unsafe-mode? unsafe-mode?])
       (define s-v
         (reannotate
@@ -520,6 +526,9 @@
             (when serializable?-box
               (register-literal-serialization q serializable?-box datum-intern?))
             v]
+           [`(#%top . ,id)
+            (or (module-binding-id (unwrap id))
+                v)]
            [`(let-values () ,body)
             (schemify body wcm-state)]
            [`(let-values () ,bodys ...)
@@ -780,11 +789,7 @@
             'instance-variable-reference]
            [`(#%variable-reference ,id)
             (define u (unwrap id))
-            (define v (or (let ([ex (or (hash-ref exports u #f)
-                                        (hash-ref extra-variables u #f))])
-                            (and ex (export-id ex)))
-                          (let ([im (hash-ref imports u #f)])
-                            (and im (import-id im)))))
+            (define v (module-binding-id u))
             (if v
                 `(make-instance-variable-reference 
                   instance-variable-reference

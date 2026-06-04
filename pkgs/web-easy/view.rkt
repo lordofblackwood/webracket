@@ -728,6 +728,14 @@
           decorated-with-id
           (apply-extra-class/internal decorated-with-id class-value)))
 
+    ;; apply-with-attrs/internal : procedure? list? list? -> any/c
+    ;;   Apply a keyword-aware constructor with dynamic #:attrs.
+    (define (apply-with-attrs/internal proc positional attrs)
+      (keyword-apply proc
+                     '(#:attrs)
+                     (list attrs)
+                     positional))
+
     ;; window : view? ... -> view?
     ;;   Construct a root window view with children.
     (define (window . children)
@@ -752,9 +760,7 @@
       (define attrs/final
         (list (cons 'data-we-widget "container")
               (cons 'class "we-container")))
-      (apply Div
-             (append children
-                     (list #:attrs attrs/final))))
+      (apply-with-attrs/internal Div children attrs/final))
 
     ;; grid : any/c view? ... -> view?
     ;;   Construct a grid layout container with columns specification and children.
@@ -795,9 +801,7 @@
         (list (cons 'data-we-widget "grid")
               (cons 'class "we-grid")
               (cons 'style @style)))
-      (apply Div
-             (append children
-                     (list #:attrs attrs/final))))
+      (apply-with-attrs/internal Div children attrs/final))
 
     ;; stack : view? ... -> view?
     ;;   Construct a vertical stack layout container view.
@@ -808,9 +812,7 @@
       (define attrs/final
         (list (cons 'data-we-widget "stack")
               (cons 'class "we-stack")))
-      (apply Div
-             (append children
-                     (list #:attrs attrs/final))))
+      (apply-with-attrs/internal Div children attrs/final))
 
     ;; inline : view? ... -> view?
     ;;   Construct a horizontal inline layout container view.
@@ -821,9 +823,7 @@
       (define attrs/final
         (list (cons 'data-we-widget "inline")
               (cons 'class "we-inline")))
-      (apply Div
-             (append children
-                     (list #:attrs attrs/final))))
+      (apply-with-attrs/internal Div children attrs/final))
 
     ;; Fragment : view? ... -> view?
     ;;   Construct a composition view that contributes children without a wrapper node.
@@ -845,14 +845,15 @@
       (define attrs/final
         (list (cons 'data-we-widget "group")
               (cons 'class "we-group")))
-      (apply Fieldset
-             (append
-              (list (html-element 'legend
-                                  label
-                                  #:attrs (list (cons 'data-we-widget "group-legend")
-                                                (cons 'class "we-group-legend"))))
-              children
-              (list #:attrs attrs/final))))
+      (apply-with-attrs/internal
+       Fieldset
+       (append
+        (list (html-element 'legend
+                            label
+                            #:attrs (list (cons 'data-we-widget "group-legend")
+                                          (cons 'class "we-group-legend"))))
+        children)
+       attrs/final))
 
     ;; alert : (or/c string? observable?) [(or/c symbol? observable?)] -> view?
     ;;   Construct an inline alert/status view with optional severity level.
@@ -884,8 +885,7 @@
               (cons 'data-we-widget "alert")
               (cons 'class @class)
               (cons 'aria-live @aria-live)))
-      (apply html-element
-             (list 'div value '#:attrs attrs/final)))
+      (html-element 'div value #:attrs attrs/final))
 
     ;; options-alist? : any/c -> boolean?
     ;;   Check whether value is an options alist with symbol keys.
@@ -1702,11 +1702,11 @@
 
     ;; html-element : symbol? (or/c string? observable?) -> view?
     ;;   Construct a primitive HTML leaf element view from tag and content.
-    (define/key (html-element tag
-                              content
-                              #:id    [id    #f]
-                              #:class [class #f]
-                              #:attrs [attrs '()])
+    (define (html-element tag
+                          content
+                          #:id    [id    #f]
+                          #:class [class #f]
+                          #:attrs [attrs '()])
       (apply-root-decorators
        (view kind/html-element
              (list (cons 'tag   tag)
@@ -1719,9 +1719,9 @@
 
     ;; html-element-children : symbol? view? ... -> view?
     ;;   Construct a primitive HTML element view with children.
-    (define/key (html-element-children tag
-                                       #:attrs [attrs '()]
-                                       . children)
+    (define (html-element-children tag
+                                   #:attrs [attrs '()]
+                                   . children)
       (apply-root-decorators
        (view kind/html-element-children
              (list (cons 'tag tag))
@@ -2891,9 +2891,7 @@
       (define root-attrs
         (list (cons 'data-we-widget "blockquote")
               (cons 'class root-class)))
-      (apply Figure
-             (append children
-                     (list '#:attrs root-attrs))))
+      (apply-with-attrs/internal Figure children root-attrs))
 
 
     ;; button : content/c (-> any/c) [(or/c #f content/c)] [(or/c #f content/c)] -> view?
@@ -2917,8 +2915,8 @@
              (list (cons 'data-we-widget data-we-widget)
                    (cons 'class class)))
             (Span x
-                  #:data-we-widget data-we-widget
-                  #:class class)))
+                  #:class class
+                  #:attrs (list (cons 'data-we-widget data-we-widget)))))
       (define (button-children/static label0 leading-icon0 trailing-icon0)
         (append
          (if (eq? leading-icon0 #f)
@@ -2986,9 +2984,10 @@
       (if (and (not (obs? label))
                (not (obs? leading-icon))
                (not (obs? trailing-icon)))
-          (apply Button
-                 (append (button-children/static label leading-icon trailing-icon)
-                         (list #:attrs attrs/final)))
+          (keyword-apply Button
+                         '(#:attrs)
+                         (list attrs/final)
+                         (button-children/static label leading-icon trailing-icon))
           (observable-element-children
            'button
            @state
@@ -3091,9 +3090,7 @@
         (list (cons 'role 'group)
               (cons 'data-we-widget "button-group")
               (cons 'class "we-button-group")))
-      (apply Div
-             (append children
-                     (list #:attrs attrs/final))))
+      (apply-with-attrs/internal Div children attrs/final))
 
     ;; toggle-button-group : symbol? list? (or/c any/c observable?) (-> any/c any/c) -> view?
     ;;   Construct an exclusive/non-exclusive toggle button group.
@@ -3197,9 +3194,7 @@
         (list (cons 'role 'toolbar)
               (cons 'data-we-widget "button-toolbar")
               (cons 'class "we-button-toolbar")))
-      (apply Div
-             (append children
-                     (list #:attrs attrs/final))))
+      (apply-with-attrs/internal Div children attrs/final))
 
     ;; toolbar : view? ... -> view?
     ;;   Construct a generic horizontal toolbar container.
@@ -3211,9 +3206,7 @@
       (define attrs/final
         (list (cons 'data-we-widget "toolbar")
               (cons 'class "we-toolbar")))
-      (apply Div
-             (append children
-                     (list #:attrs attrs/final))))
+      (apply-with-attrs/internal Div children attrs/final))
 
     ;; toolbar-group : view? ... -> view?
     ;;   Construct a grouped toolbar section container.
@@ -3225,9 +3218,7 @@
       (define attrs/final
         (list (cons 'data-we-widget "toolbar-group")
               (cons 'class "we-toolbar-group")))
-      (apply Div
-             (append children
-                     (list #:attrs attrs/final))))
+      (apply-with-attrs/internal Div children attrs/final))
 
     ;; input : (or/c string? observable?) (-> any/c any/c) [(or/c (-> any/c) false/c)] [list?] -> view?
     ;;   Construct an input view with current value, change action, optional Enter action, and attrs.
@@ -3899,11 +3890,12 @@
                            #:attrs button-attrs/final)
                    (loop (cdr entries) (add1 idx)))])))
       (define tablist-view
-        (apply Div
-               (append tab-buttons
-                       (list #:attrs (list (cons 'role 'tablist)
-                                           (cons 'data-we-widget "tab-list")
-                                           (cons 'class "we-tab-list"))))))
+        (apply-with-attrs/internal
+         Div
+         tab-buttons
+         (list (cons 'role 'tablist)
+               (cons 'data-we-widget "tab-list")
+               (cons 'class "we-tab-list"))))
       (define @labelledby
         (selected-derived/internal selected-button-id/internal))
       (define content-view
@@ -4011,9 +4003,9 @@
       (define attrs/final
         (list (cons 'data-we-widget "accordion")
               (cons 'class "we-accordion")))
-      (apply Div
-             (append
-              (map
+      (apply-with-attrs/internal
+       Div
+       (map
                (lambda (section-entry)
                  (define section-id (list-ref section-entry 0))
                  (define section-label (list-ref section-entry 1))
@@ -4086,7 +4078,7 @@
                   #:attrs (list (cons 'data-we-widget "accordion-section")
                                 (cons 'class "we-accordion-section"))))
                sections/normalized)
-              (list #:attrs attrs/final))))
+       attrs/final))
 
     ;; offcanvas : (or/c boolean? observable?) (-> any/c) [view?] ... -> view?
     ;;   Construct an offcanvas side panel with open flag, close action, optional #:side, and body children.
@@ -4140,21 +4132,24 @@
       (define make-offcanvas-children
         (lambda (_state)
           (list
-           (apply Div
-                  (list #:attrs (list (cons 'data-we-widget "offcanvas-backdrop")
-                                      (cons 'class "we-offcanvas-backdrop")
-                                      (cons 'on-click-action
-                                            (lambda ()
-                                              (invoke-close-callback/internal on-close 'backdrop))))))
-           (apply Div
-                  (append (list (close-button
-                                 (lambda ()
-                                   (invoke-close-callback/internal on-close 'button))
-                                 "Close panel"))
-                          children
-                          (list #:attrs (list (cons 'data-we-widget "offcanvas-panel")
-                                              (cons 'class @panel-class)
-                                              (cons 'tabindex -1))))))))
+           (apply-with-attrs/internal
+            Div
+            '()
+            (list (cons 'data-we-widget "offcanvas-backdrop")
+                  (cons 'class "we-offcanvas-backdrop")
+                  (cons 'on-click-action
+                        (lambda ()
+                          (invoke-close-callback/internal on-close 'backdrop)))))
+           (apply-with-attrs/internal
+            Div
+            (append (list (close-button
+                           (lambda ()
+                             (invoke-close-callback/internal on-close 'button))
+                           "Close panel"))
+                    children)
+            (list (cons 'data-we-widget "offcanvas-panel")
+                  (cons 'class @panel-class)
+                  (cons 'tabindex -1))))))
       (define attrs/final
         (list (cons 'role 'dialog)
               (cons 'data-we-widget "offcanvas")
@@ -4343,25 +4338,29 @@
                         (list (cons 'aria-describedby dialog-desc-id))
                         '())))
           (list
-           (apply Div
-                  (append
-                   (if (null? header-children)
-                       '()
-                       (list (apply Div
-                                    (append header-children
-                                            (list #:data-we-widget "dialog-header"
-                                                  #:class "we-dialog-header")))))
-                   (list (apply Div
-                                (append body-children
-                                        (list #:data-we-widget "dialog-body"
-                                              #:class "we-dialog-body"))))
-                   (if (null? footer-children)
-                       '()
-                       (list (apply Div
-                                    (append footer-children
-                                            (list #:data-we-widget "dialog-footer"
-                                                  #:class "we-dialog-footer")))))
-                   (list #:attrs panel-attrs))))))
+           (apply-with-attrs/internal
+            Div
+            (append
+             (if (null? header-children)
+                 '()
+                 (list (apply-with-attrs/internal
+                        Div
+                        header-children
+                        (list (cons 'data-we-widget "dialog-header")
+                              (cons 'class "we-dialog-header")))))
+             (list (apply-with-attrs/internal
+                    Div
+                    body-children
+                    (list (cons 'data-we-widget "dialog-body")
+                          (cons 'class "we-dialog-body"))))
+             (if (null? footer-children)
+                 '()
+                 (list (apply-with-attrs/internal
+                        Div
+                        footer-children
+                        (list (cons 'data-we-widget "dialog-footer")
+                              (cons 'class "we-dialog-footer"))))))
+            panel-attrs))))
       (define attrs/final
         (list (cons 'role 'dialog)
               (cons 'data-we-widget "dialog")
@@ -4550,25 +4549,29 @@
                         (list (cons 'aria-describedby modal-desc-id))
                         '())))
           (list
-           (apply Div
-                  (append
-                   (if (null? header-children)
-                       '()
-                       (list (apply Div
-                                    (append header-children
-                                            (list #:data-we-widget "modal-header"
-                                                  #:class "we-modal-header")))))
-                   (list (apply Div
-                                (append body-children
-                                        (list #:data-we-widget "modal-body"
-                                              #:class "we-modal-body"))))
-                   (if (null? footer-children)
-                       '()
-                       (list (apply Div
-                                    (append footer-children
-                                            (list #:data-we-widget "modal-footer"
-                                                  #:class "we-modal-footer")))))
-                   (list #:attrs panel-attrs))))))
+           (apply-with-attrs/internal
+            Div
+            (append
+             (if (null? header-children)
+                 '()
+                 (list (apply-with-attrs/internal
+                        Div
+                        header-children
+                        (list (cons 'data-we-widget "modal-header")
+                              (cons 'class "we-modal-header")))))
+             (list (apply-with-attrs/internal
+                    Div
+                    body-children
+                    (list (cons 'data-we-widget "modal-body")
+                          (cons 'class "we-modal-body"))))
+             (if (null? footer-children)
+                 '()
+                 (list (apply-with-attrs/internal
+                        Div
+                        footer-children
+                        (list (cons 'data-we-widget "modal-footer")
+                              (cons 'class "we-modal-footer"))))))
+            panel-attrs))))
       (define attrs/final
         (list (cons 'role 'dialog)
               (cons 'data-we-widget "modal")
@@ -4602,12 +4605,12 @@
     ;;   Optional parameter equal-proc defaults to equal?.
     ;;   Optional parameter attrs defaults to '().
     ;;   Optional parameter after-render defaults to #f and is invoked by renderer after each children update.
-    (define/key (observable-element-children tag
-                                             data
-                                             make-children
-                                             [equal-proc equal?]
-                                             #:attrs [attrs '()]
-                                             #:after-render [after-render #f])
+    (define (observable-element-children tag
+                                         data
+                                         make-children
+                                         [equal-proc equal?]
+                                         #:attrs [attrs '()]
+                                         #:after-render [after-render #f])
       (view kind/observable-element-children
             (list (cons 'tag tag)
                   (cons 'data data)
@@ -5206,24 +5209,25 @@
           (if (null? normalized-columns)
               '()
               (list
-               (apply html-element-children
-                      (append
-                       (list 'tr)
-                       (map (lambda (column-spec)
-                              (define align-css
-                                (table-align-class/internal
-                                 (list-ref column-spec 1)))
-                              (html-element 'th
-                                            (list-ref column-spec 0)
-                                            #:attrs (list (cons 'data-we-widget "table-header-cell")
-                                                          (cons 'class
-                                                                (string-append
-                                                                 "we-table-header-cell "
-                                                                 density-css
-                                                                 " "
-                                                                 align-css)))))
-                            normalized-columns)
-                       (list #:attrs (list (cons 'data-we-widget "table-row"))))))))
+               (apply-with-attrs/internal
+                html-element-children
+                (append
+                 (list 'tr)
+                 (map (lambda (column-spec)
+                        (define align-css
+                          (table-align-class/internal
+                           (list-ref column-spec 1)))
+                        (html-element 'th
+                                      (list-ref column-spec 0)
+                                      #:attrs (list (cons 'data-we-widget "table-header-cell")
+                                                    (cons 'class
+                                                          (string-append
+                                                           "we-table-header-cell "
+                                                           density-css
+                                                           " "
+                                                           align-css)))))
+                      normalized-columns))
+                (list (cons 'data-we-widget "table-row"))))))
         (define (row-values row)
           (if (list? row)
               row
@@ -5275,10 +5279,11 @@
                                                          align-css))))))
                (cons cell-node
                      (cells-loop (cdr cells) (add1 cell-index)))]))
-          (apply html-element-children
-                 (append (list 'tr)
-                         (cells-loop (row-values row0) 0)
-                         (list #:attrs row-attrs))))
+          (apply-with-attrs/internal
+           html-element-children
+           (append (list 'tr)
+                   (cells-loop (row-values row0) 0))
+           row-attrs))
         (define data-rows
           (let loop ([remaining rows0]
                      [row-index 0])
@@ -5421,8 +5426,7 @@
                     #:data-we-widget "radio-option"
                     #:class "we-radio-option"))
              radio-entries))
-      (apply Div (append option-views
-                         (list #:attrs attrs/final))))
+      (apply-with-attrs/internal Div option-views attrs/final))
 
     ;; image : (or/c string? observable?) [any/c] [any/c] -> view?
     ;;   Construct an image view from a source path/string with optional width/height attrs.
@@ -5729,10 +5733,11 @@
                    #:data-we-widget "carousel-viewport"
                    #:class "we-carousel-viewport")
               (Div prev-node
-                   (apply Div
-                          (append indicators
-                                  (list #:data-we-widget "carousel-indicators"
-                                        #:class "we-carousel-indicators")))
+                   (apply-with-attrs/internal
+                    Div
+                    indicators
+                    (list (cons 'data-we-widget "carousel-indicators")
+                          (cons 'class "we-carousel-indicators")))
                    next-node
                    #:data-we-widget "carousel-controls"
                    #:class "we-carousel-controls")))
@@ -5937,14 +5942,16 @@
                           #:id (scrollspy-section-dom-id/internal
                                 (scrollspy-section-id/internal entry))))
                sections/list))
-        (list (apply Nav
-                     (append nav-items
-                             (list #:data-we-widget "scrollspy-nav"
-                                   #:class "we-scrollspy-nav")))
-              (apply Div
-                     (append section-nodes
-                             (list #:data-we-widget "scrollspy-sections"
-                                   #:class "we-scrollspy-sections")))))
+        (list (apply-with-attrs/internal
+               Nav
+               nav-items
+               (list (cons 'data-we-widget "scrollspy-nav")
+                     (cons 'class "we-scrollspy-nav")))
+              (apply-with-attrs/internal
+               Div
+               section-nodes
+               (list (cons 'data-we-widget "scrollspy-sections")
+                     (cons 'class "we-scrollspy-sections")))))
       (observable-element-children
        'div
        @state
@@ -6203,10 +6210,11 @@
                        (cons 'hidden (~> @title
                                          (lambda (title0)
                                            (if (eq? title0 #f) "hidden" #f))))))
-        (apply Div
-               (append children
-                       (list #:data-we-widget "popover-body"
-                             #:class "we-popover-body")))
+        (apply-with-attrs/internal
+         Div
+         children
+         (list (cons 'data-we-widget "popover-body")
+               (cons 'class "we-popover-body")))
         (html-element
          'div
          (~> @footer
@@ -6412,20 +6420,23 @@
                           #:class "we-card-subtitle")))
          (if (null? media-children)
              '()
-             (list (apply Div
-                          (append media-children
-                                  (list #:attrs (list (cons 'data-we-widget "card-media")
-                                                      (cons 'class "we-card-media")))))))
-         (list (apply Div
-                      (append rest/args
-                              (list #:attrs (list (cons 'data-we-widget "card-body")
-                                                  (cons 'class "we-card-body"))))))
+             (list (apply-with-attrs/internal
+                    Div
+                    media-children
+                    (list (cons 'data-we-widget "card-media")
+                          (cons 'class "we-card-media")))))
+         (list (apply-with-attrs/internal
+                Div
+                rest/args
+                (list (cons 'data-we-widget "card-body")
+                      (cons 'class "we-card-body"))))
          (if (null? action-list0)
              '()
-             (list (apply Div
-                          (append (map card-action-view action-list0)
-                                  (list #:attrs (list (cons 'data-we-widget "card-actions")
-                                                      (cons 'class "we-card-actions")))))))
+             (list (apply-with-attrs/internal
+                    Div
+                    (map card-action-view action-list0)
+                    (list (cons 'data-we-widget "card-actions")
+                          (cons 'class "we-card-actions")))))
          (if (eq? footer0 #f)
              '()
              (list (html-element 'div
@@ -6453,9 +6464,7 @@
         (list (cons 'role 'banner)
               (cons 'data-we-widget "top-bar")
               (cons 'class "we-top-bar")))
-      (apply Header
-             (append children
-                     (list #:attrs attrs/final))))
+      (apply-with-attrs/internal Header children attrs/final))
 
     ;; navigation-bar : view? ... -> view?
     ;;   Construct a navigation bar with optional #:orientation, #:collapsed?, and #:expand keywords plus children.
@@ -6520,24 +6529,26 @@
         (list (cons 'role 'navigation)
               (cons 'data-we-widget "navigation-bar")
               (cons 'class @root-class)))
-      (apply html-element-children
-             (append
-              (list 'nav)
-              (if show-toggle?
-                  (list (html-element 'button
-                                      "Menu"
-                                      #:attrs (list (cons 'role 'button)
-                                                    (cons 'data-we-widget "navigation-bar-toggle")
-                                                    (cons 'class "we-button we-navigation-bar-toggle")
-                                                    (cons 'aria-expanded @toggle-aria-expanded)
-                                                    (cons 'aria-label "Toggle navigation")
-                                                    (cons 'on-click-action toggle-navigation!))))
-                  '())
-              (list (apply Div
-                           (append children
-                                   (list #:data-we-widget "navigation-bar-items"
-                                         #:class "we-navigation-bar-items"))))
-              (list #:attrs attrs/final))))
+      (apply-with-attrs/internal
+       html-element-children
+       (append
+        (list 'nav)
+        (if show-toggle?
+            (list (html-element 'button
+                                "Menu"
+                                #:attrs (list (cons 'role 'button)
+                                              (cons 'data-we-widget "navigation-bar-toggle")
+                                              (cons 'class "we-button we-navigation-bar-toggle")
+                                              (cons 'aria-expanded @toggle-aria-expanded)
+                                              (cons 'aria-label "Toggle navigation")
+                                              (cons 'on-click-action toggle-navigation!))))
+            '())
+        (list (apply-with-attrs/internal
+               Div
+               children
+               (list (cons 'data-we-widget "navigation-bar-items")
+                     (cons 'class "we-navigation-bar-items")))))
+       attrs/final))
 
     ;; menu-bar : view? ... -> view?
     ;;   Construct a menu bar containing menu children.
@@ -6551,10 +6562,11 @@
               (cons 'data-we-widget "menu-bar")
               (cons 'role 'menubar)
               (cons 'aria-orientation "horizontal")))
-      (apply html-element-children
-             (append (list 'menu-bar)
-                     children
-                     (list #:attrs attrs/final))))
+      (apply-with-attrs/internal
+       html-element-children
+       (append (list 'menu-bar)
+               children)
+       attrs/final))
 
     ;; menu : text-content/c view? ... -> view?
     ;;   Construct a labeled menu containing menu-item children.
@@ -6627,13 +6639,14 @@
                                               (set-open! #f)]
                                              [else
                                               (void)])))))
-       (apply html-element-children
-              (append (list 'vpanel)
-                      children
-                      (list #:attrs (list (cons 'role 'menu)
-                                          (cons 'id popup-id)
-                                          (cons 'data-we-widget "menu-popup")
-                                          (cons 'class @popup-class)))))
+       (apply-with-attrs/internal
+        html-element-children
+        (append (list 'vpanel)
+                children)
+        (list (cons 'role 'menu)
+              (cons 'id popup-id)
+              (cons 'data-we-widget "menu-popup")
+              (cons 'class @popup-class)))
        #:attrs attrs/final))
 
     ;; menu-popup : view? ... -> view?
@@ -6656,10 +6669,11 @@
               (cons 'class "we-menu-popup is-open")
               (cons 'tabindex 0)
               (cons 'style popup-style))))
-      (apply html-element-children
-             (append (list 'vpanel)
-                     children
-                     (list #:attrs attrs/final))))
+      (apply-with-attrs/internal
+       html-element-children
+       (append (list 'vpanel)
+               children)
+       attrs/final))
 
     ;; menu-item : text-content/c (-> any/c) [(or/c #f content/c)] [(or/c #f content/c)] -> view?
     ;;   Construct a menu item with optional leading/trailing icon labels.
@@ -6734,15 +6748,16 @@
                       (Span trailing-icon
                             #:data-we-widget "menu-item-icon"
                             #:class "we-menu-item-icon we-menu-item-icon-trailing"))))
-            (apply html-element-children
-                   (append
-                    (list 'menu-item)
-                    (if (eq? leading-view #f) '() (list leading-view))
-                    (list (Span label
-                                #:data-we-widget "menu-item-label"
-                                #:class "we-menu-item-label"))
-                    (if (eq? trailing-view #f) '() (list trailing-view))
-                    (list #:attrs attrs/final))))))
+            (apply-with-attrs/internal
+             html-element-children
+             (append
+              (list 'menu-item)
+              (if (eq? leading-view #f) '() (list leading-view))
+              (list (Span label
+                          #:data-we-widget "menu-item-label"
+                          #:class "we-menu-item-label"))
+              (if (eq? trailing-view #f) '() (list trailing-view)))
+             attrs/final))))
 
     ;; list-view : (or/c list? observable?) (-> any/c any/c view?) [(-> any/c any/c)] -> view?
     ;;   Construct a keyed dynamic list container.

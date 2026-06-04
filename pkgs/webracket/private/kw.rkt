@@ -198,9 +198,7 @@
 (define (make-keyword-checker required allowed arity-mask)
   (lambda (kws argc)
     (and (keyword-args-accepted? kws required allowed)
-         (let ([normal-argc (- argc 2)])
-           (and (not (negative? normal-argc))
-                (bitwise-bit-set? arity-mask normal-argc))))))
+         (bitwise-bit-set? arity-mask argc))))
 
 ;; check-keyword-list : symbol? any/c exact-nonnegative-integer? -> void?
 ;;   Validate a sorted keyword list argument.
@@ -494,7 +492,13 @@
                               "required keywords" required
                               "allowed keywords" allowed))
      (define plain-proc
-       (and (null? required) proc))
+       (and (null? required)
+            (lambda normal-args
+              (do-keyword-apply 'procedure-reduce-keyword-arity-mask
+                                proc
+                                null
+                                null
+                                normal-args))))
      (define kw-proc
        (lambda (kws kw-args . normal-args)
          (do-keyword-apply 'procedure-reduce-keyword-arity-mask
@@ -502,8 +506,11 @@
                            kws
                            kw-args
                            normal-args)))
+     ;; Racket's expanded keyword-call protocol passes an argument count that
+     ;; includes the hidden `kws` and `kw-args` dispatcher arguments.
+     (define keyword-mask (arithmetic-shift mask 2))
      (make-optional-keyword-procedure
-      (make-keyword-checker required allowed mask)
+      (make-keyword-checker required allowed keyword-mask)
       kw-proc
       required
       allowed
