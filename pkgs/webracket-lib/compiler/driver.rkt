@@ -1817,7 +1817,9 @@
       [`(module ,name ,language ,forms ...)
        `(module ,name ,language ,@(map substitute-require-form forms))]
       [_ datum]))
-  (datum->syntax stx rewritten stx))
+  (if (equal? rewritten datum)
+      stx
+      (datum->syntax stx rewritten stx)))
 
 ;; module-stx->name+body : syntax? -> values
 ;;   Extract the module name and body from a #lang webracket/base or full datum.
@@ -2087,12 +2089,12 @@
   (define resolved (simplify-path (path->complete-path filename)))
   (parameterize ([current-directory (or (path-only resolved)
                                         (current-directory))])
-    (define module-datum (syntax->datum (read-webracket/base-module resolved)))
+    (define module-stx (read-webracket/base-module resolved))
     ;; Read with the normal resolver so #lang webracket/base itself is found,
     ;; then compile with the erased-contract resolver for provider imports.
     (provider-cache-log "#lang webracket/base local compile start: ~a" resolved)
     (webify-compile-module-report
-     module-datum
+     module-stx
      #:namespace namespace
      #:module-name-resolver module-name-resolver)))
 
@@ -2161,7 +2163,8 @@
       [else
        (hash-set! visiting resolved #t)
        (define source-dir (or (path-only resolved) (current-directory)))
-       (define module-datum (syntax->datum (read-webracket/base-module resolved)))
+       (define module-stx (read-webracket/base-module resolved))
+       (define module-datum (syntax->datum module-stx))
        (install-compile-stubs! module-datum)
        (define report
          (compile-webracket/base-module-file-report

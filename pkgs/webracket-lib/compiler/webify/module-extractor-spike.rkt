@@ -391,13 +391,22 @@
 ;; validate-source-module! : symbol? any/c -> symbol?
 ;;   Check the tiny source-module shape accepted by this extractor spike.
 (define (validate-source-module! who module-datum)
-  (match module-datum
+  (match (if (syntax? module-datum)
+             (syntax->datum module-datum)
+             module-datum)
     [`(module ,(? symbol? name) ,_language . ,_body)
      name]
     [_
      (raise-arguments-error who
                             "expected a source module datum"
                             "module" module-datum)]))
+
+;; source-module->syntax : any/c -> syntax?
+;;   Preserve source context when a caller already has module syntax.
+(define (source-module->syntax module)
+  (if (syntax? module)
+      module
+      (datum->syntax #f module)))
 
 ;; strip-correlated* : any/c -> any/c
 ;;   Recursively convert correlated objects to plain datum values.
@@ -2822,12 +2831,13 @@
                                                #:namespace [namespace (make-base-namespace)]
                                                #:module-name-resolver [module-name-resolver (current-module-name-resolver)])
   (define who 'webify-compile-module-extractor-spike)
-  (define name (validate-source-module! who module-datum))
+  (define module-stx (source-module->syntax module-datum))
+  (define name (validate-source-module! who module-stx))
   (define compiled
     (parameterize ([current-namespace namespace]
                    [current-module-name-resolver module-name-resolver])
       (parameterize ([current-compile-target-machine #f])
-        (compile (datum->syntax #f module-datum)))))
+        (compile module-stx))))
   (compiled-module->extractor-spike who name compiled))
 
 ;; webify-compile-module-extractor-spikes/shared-namespace : (listof module-datum) ... -> reports
@@ -2841,13 +2851,14 @@
     (raise-argument-error who "(listof source-module-datum?)" module-data))
   (parameterize ([current-namespace namespace])
     (for/list ([module-datum (in-list module-data)])
-      (define name (validate-source-module! who module-datum))
+      (define module-stx (source-module->syntax module-datum))
+      (define name (validate-source-module! who module-stx))
       (parameterize ([current-module-name-resolver module-name-resolver])
-        (eval module-datum))
+        (eval module-stx))
       (define compiled
         (parameterize ([current-module-name-resolver module-name-resolver]
                        [current-compile-target-machine #f])
-          (compile (datum->syntax #f module-datum))))
+          (compile module-stx)))
       (compiled-module->extractor-spike who name compiled))))
 
 ;; make-webify-contract-erasing-namespace : -> namespace?
