@@ -287,6 +287,7 @@
     browser/window
     web-easy
     web-easy/private/dom-like
+    fetch
     web-pict
     web-pict/private/entry
     rquery
@@ -356,6 +357,7 @@
     racket/private/object-c
     racket/stream
     racket/treelist
+    racket/undefined
     racket/unsafe/undefined
     racket/require-transform
     racket/splicing
@@ -442,6 +444,7 @@
     browser/window
     web-easy
     web-easy/private/dom-like
+    fetch
     web-pict
     web-pict/private/entry
     rquery
@@ -515,6 +518,7 @@
     racket/private/class-struct
     racket/private/object-c
     racket/stream
+    racket/undefined
     racket/unsafe/undefined
     racket/require-transform
     racket/splicing

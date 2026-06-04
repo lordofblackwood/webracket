@@ -2225,7 +2225,13 @@
   (remove-duplicates
    (for*/list ([report (in-list reports)]
                [name (in-list (webify-module-report-required-provider-names report))]
-               #:unless (or (memq name local-provider-names)
+               #:unless (or (and (memq name local-provider-names)
+                                  ;; A file module can have the same name as
+                                  ;; an external collection provider, such as
+                                  ;; `fetch.rkt` requiring collection `fetch`.
+                                  ;; The local module's own name must not hide
+                                  ;; that external provider from the bridge.
+                                  (not (eq? name (webify-module-report-name report))))
                             (webracket/base-language-provider-name? name)))
      name)
    eq?))
@@ -2265,6 +2271,30 @@
                       (- (now-ms) start-ms))
   report)
 
+;; webracket/base-local-collision-name : symbol? -> symbol?
+;;   Build a private bridge name for a local module/provider-name collision.
+(define (webracket/base-local-collision-name name)
+  (string->symbol (format "webracket/local/~a" name)))
+
+;; webracket/base-rename-self-colliding-local-reports : symbol? reports -> values
+;;   Rename local modules that import an external provider with the same name.
+(define (webracket/base-rename-self-colliding-local-reports root reports)
+  (define self-colliding-names
+    (for/list ([report (in-list reports)]
+               #:do [(define name (webify-module-report-name report))]
+               #:when (memq name (webify-module-report-required-provider-names report)))
+      name))
+  (define (renamed-name name)
+    (if (memq name self-colliding-names)
+        (webracket/base-local-collision-name name)
+        name))
+  (values (renamed-name root)
+          (for/list ([report (in-list reports)])
+            (define name (webify-module-report-name report))
+            (if (memq name self-colliding-names)
+                (webify-module-report/rename report (renamed-name name))
+                report))))
+
 ;; webracket/base-check-external-provider-allowlist! : reports -> void?
 ;;   Keep the temporary bridge from silently growing unsupported providers.
 (define (webracket/base-check-external-provider-allowlist! reports)
@@ -2284,6 +2314,7 @@
 ;;   Recognize WebRacket provider modules that do not need contract erasure.
 (define webracket-owned-ffi-provider-exacts
   '(web-easy
+    fetch
     web-pict
     rquery
     webracket/private/ffi))
@@ -2311,11 +2342,13 @@
                                              reports
                                              #:fetch-provider
                                              [fetch-provider webify-module-path->report])
+  (define-values (bridge-root bridge-reports)
+    (webracket/base-rename-self-colliding-local-reports root reports))
   (define registry
     (cond
-     [(webracket/base-reports-demand-external-providers? reports)
-       (webracket/base-check-external-provider-allowlist! reports)
-       (define external-names (webracket/base-external-provider-names reports))
+     [(webracket/base-reports-demand-external-providers? bridge-reports)
+       (webracket/base-check-external-provider-allowlist! bridge-reports)
+       (define external-names (webracket/base-external-provider-names bridge-reports))
        (define provider-namespace (make-webify-contract-erasing-namespace))
        (define provider-module-name-resolver
          (make-webify-contract-erasing-module-name-resolver))
@@ -2416,7 +2449,7 @@
           (io-format-provider-reports)))
        (define registry
          (webify-module-reports->discovered-registry
-          reports
+          bridge-reports
           #:extra-reports support-reports
           #:fetch-provider (lambda (name)
                              (unless (webify-provider-trial-module-allowed? name)
@@ -2437,9 +2470,9 @@
        (webify-module-linklet-inputs->registry
         (cons webify-module-protocol-input
               (webify-module-reports->resolved-linklet-inputs
-               reports
+               bridge-reports
                #:module-protocol-dependency webify-module-protocol-dependency)))]))
-  (webracket/base-local-module-graph root reports registry))
+  (webracket/base-local-module-graph bridge-root bridge-reports registry))
 
 ;; webracket/base-file->local-module-graph : path-string? -> webracket/base-local-module-graph?
 ;;   Build a local root graph plus demanded provider reports for the module bridge.
