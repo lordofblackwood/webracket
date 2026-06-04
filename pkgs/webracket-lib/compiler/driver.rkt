@@ -105,6 +105,8 @@
          (only-in "webify/module-adapter.rkt"
                   first-slice-top-level-export-cell-ids
                   webify-linklet-first-slice-top-level)
+         (only-in "webify/module-composer.rkt"
+                  current-composer-primitive-import-cell-overrides)
          (only-in "webify/module-registry.rkt"
                   webify-compose-module-registry/roots/composition
                   webify-module-composition-with-tail)
@@ -1961,6 +1963,17 @@
 (struct webracket/base-local-module-graph (root reports registry)
   #:transparent)
 
+;; module-composer-primitive-overrides : -> hash?
+;;   Override primitive cells whose compiled-module role differs from scripts.
+(define (module-composer-primitive-overrides)
+  (hasheq
+   'print-values
+   `(let ([cell (module-variable-make 'print-values)])
+      ;; Module body expression values are discarded, unlike script top-level
+      ;; results that may be printed by --print-top-level-results.
+      (module-variable-define! cell (lambda values (void)) 'constant)
+      cell)))
+
 ;; module-datum-direct-require-symbols : any/c -> (listof symbol?)
 ;;   Find plain direct external require symbols in a source module datum.
 (define (module-datum-direct-require-symbols module-datum)
@@ -2269,6 +2282,7 @@
 (define webracket-owned-ffi-provider-exacts
   '(web-easy
     web-pict
+    rquery
     webracket/private/ffi))
 
 (define webracket-owned-ffi-provider-prefixes
@@ -2276,6 +2290,7 @@
     "browser/"
     "web-easy/"
     "web-pict/"
+    "rquery/"
     "webracket/unsafe/"))
 
 (define (webracket-owned-ffi-provider-name? name)
@@ -2456,23 +2471,25 @@
                            "#lang webracket/base module bridge composition failed"
                            "root" (webracket/base-local-module-graph-root graph)
                            "message" (exn-message e)))])
-         (webify-compose-module-registry/roots/composition
-          (webracket/base-local-module-graph-registry graph)
-          (list (webracket/base-local-module-graph-root graph))
-          #:define-export-aliases? #f
-          #:serializable?-box     #f
-          #:datum-intern?         #f
-          #:target                #f
-          #:allow-set!-undefined? #f
-          #:unsafe-mode?          #f
-          #:enforce-constant?     #t
-          #:allow-inline?         #t
-          #:no-prompt?            #f
-          #:prim-knowns           (hasheq)
-          #:primitives            (hasheq)
-          #:compiler-query        (lambda (v) #f)
-          #:get-import-knowns     (lambda (key) (values #f #f #f))
-          #:import-keys           #f)))))
+         (parameterize ([current-composer-primitive-import-cell-overrides
+                         (module-composer-primitive-overrides)])
+           (webify-compose-module-registry/roots/composition
+            (webracket/base-local-module-graph-registry graph)
+            (list (webracket/base-local-module-graph-root graph))
+            #:define-export-aliases? #f
+            #:serializable?-box     #f
+            #:datum-intern?         #f
+            #:target                #f
+            #:allow-set!-undefined? #f
+            #:unsafe-mode?          #f
+            #:enforce-constant?     #t
+            #:allow-inline?         #t
+            #:no-prompt?            #f
+            #:prim-knowns           (hasheq)
+            #:primitives            (hasheq)
+            #:compiler-query        (lambda (v) #f)
+            #:get-import-knowns     (lambda (key) (values #f #f #f))
+            #:import-keys           #f))))))
   (datum->syntax
    #f
    (webify-module-composition-with-tail composition '((void)))))
@@ -2496,23 +2513,25 @@
         (with-driver-timing
          'module-bridge-compose
          (lambda ()
-           (webify-compose-module-registry/roots/composition
-            (webracket/base-local-module-graph-registry graph)
-            (list (webracket/base-local-module-graph-root graph))
-            #:define-export-aliases? #f
-            #:serializable?-box     #f
-            #:datum-intern?         #f
-            #:target                #f
-            #:allow-set!-undefined? #f
-            #:unsafe-mode?          #f
-            #:enforce-constant?     #t
-            #:allow-inline?         #t
-            #:no-prompt?            #f
-            #:prim-knowns           (hasheq)
-            #:primitives            (hasheq)
-            #:compiler-query        (lambda (v) #f)
-            #:get-import-knowns     (lambda (key) (values #f #f #f))
-            #:import-keys           #f))))
+           (parameterize ([current-composer-primitive-import-cell-overrides
+                           (module-composer-primitive-overrides)])
+             (webify-compose-module-registry/roots/composition
+              (webracket/base-local-module-graph-registry graph)
+              (list (webracket/base-local-module-graph-root graph))
+              #:define-export-aliases? #f
+              #:serializable?-box     #f
+              #:datum-intern?         #f
+              #:target                #f
+              #:allow-set!-undefined? #f
+              #:unsafe-mode?          #f
+              #:enforce-constant?     #t
+              #:allow-inline?         #t
+              #:no-prompt?            #f
+              #:prim-knowns           (hasheq)
+              #:primitives            (hasheq)
+              #:compiler-query        (lambda (v) #f)
+              #:get-import-knowns     (lambda (key) (values #f #f #f))
+              #:import-keys           #f)))))
       (datum->syntax
        #f
        (webify-module-composition-with-tail composition '((void))))))

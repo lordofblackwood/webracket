@@ -1497,6 +1497,11 @@
     prop:chaperone-unsafe-undefined
     chaperone-struct-unsafe-undefined))
 
+;; generated-effect-definition-name? : symbol? -> boolean?
+;;   Recognize module body expressions lowered by webify as effect definitions.
+(define (generated-effect-definition-name? name)
+  (regexp-match? #rx"^effect[0-9]+$" (symbol->string name)))
+
 ;; add-missing-unsafe-undefined-imports : importss (listof symbol?) -> importss
 ;;   Repair machine-independent decompile gaps for unsafe-undefined imports.
 (define (add-missing-unsafe-undefined-imports importss needed)
@@ -1582,6 +1587,15 @@
      (append
       (for/list ([descriptor (in-list demanded-export-descriptors)])
         (car descriptor))
+      ;; Webify lowers top-level module expressions into synthetic
+      ;; definitions. They are not exports, but module instantiation must
+      ;; still evaluate them for effects.
+      (for/list ([form (in-list body)]
+                 #:do [(define-values (ids _rhs) (linklet-definition form))]
+                 #:when (and ids
+                             (for/or ([id (in-list ids)])
+                               (generated-effect-definition-name? id))))
+        (car ids))
       initializer-needed)))
   (let loop ([queue needed])
     (cond

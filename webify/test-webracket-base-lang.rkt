@@ -14,6 +14,7 @@
                   cached-installed-provider-report
                   current-provider-cache-dir
                   current-provider-cache-force?
+                  module-file->module-bridge-top-level
                   provider-report-cache-entries
                   provider-compile-stub-safe?
                   read-top-level-from-file
@@ -187,6 +188,22 @@
     [(vector? datum)
      (for/or ([elem (in-vector datum)])
        (datum-contains-symbol? elem needle))]
+    [else #f]))
+
+;; datum-contains-module-print-values-discard? : any/c -> boolean?
+;;   Search for the module bridge's discard implementation of print-values.
+(define (datum-contains-module-print-values-discard? datum)
+  (cond
+    [(match datum
+       [`(module-variable-define! ,_cell (lambda values (void)) 'constant) #t]
+       [_ #f])
+     #t]
+    [(pair? datum)
+     (or (datum-contains-module-print-values-discard? (car datum))
+         (datum-contains-module-print-values-discard? (cdr datum)))]
+    [(vector? datum)
+     (for/or ([elem (in-vector datum)])
+       (datum-contains-module-print-values-discard? elem))]
     [else #f]))
 
 ;; module-runtime-export-symbols : symbol? -> (listof symbol?)
@@ -672,6 +689,38 @@
                                       #:webracket-module-bridge? #f)))))
       (check-true
        (datum-contains-symbol? lowered 'module-variable-ref)
+       (format "~s" lowered)))
+    (lambda ()
+      (with-handlers ([exn:fail:filesystem? void])
+        (delete-directory/files source-dir)))))
+
+(test-case "#lang webracket/base module bridge discards module body expression values"
+  (define source-dir (make-temporary-file "webracket-base-discard-values-src-~a" 'directory))
+  (define main-path  (build-path source-dir "main.rkt"))
+  (dynamic-wind
+    void
+    (lambda ()
+      (call-with-output-file main-path
+        (lambda (out)
+          (display "#lang webracket/base\n(cons 1 2)\n(cons 3 4)\n" out))
+        #:exists 'truncate/replace)
+      (define lowered
+        (call-with-webracket-collection-path
+         (lambda ()
+           (parameterize ([current-directory source-dir])
+             (syntax->datum
+              (module-file->module-bridge-top-level main-path))))))
+      (check-true
+       (datum-contains-symbol? lowered 'module-variable-make)
+       (format "~s" lowered))
+      (check-true
+       (datum-contains-symbol? lowered 'print-values)
+       (format "~s" lowered))
+      (check-true
+       (datum-contains-symbol? lowered 'module-variable-define!)
+       (format "~s" lowered))
+      (check-true
+       (datum-contains-module-print-values-discard? lowered)
        (format "~s" lowered)))
     (lambda ()
       (with-handlers ([exn:fail:filesystem? void])

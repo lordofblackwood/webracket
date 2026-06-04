@@ -289,6 +289,8 @@
     web-easy/private/dom-like
     web-pict
     web-pict/private/entry
+    rquery
+    rquery/chain
     jsxgraph
     xterm
     data/queue
@@ -442,6 +444,8 @@
     web-easy/private/dom-like
     web-pict
     web-pict/private/entry
+    rquery
+    rquery/chain
     jsxgraph
     xterm
     data/queue
