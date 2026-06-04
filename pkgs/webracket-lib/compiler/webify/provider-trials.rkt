@@ -288,6 +288,7 @@
     web-easy
     web-easy/private/dom-like
     fetch
+    storage
     web-pict
     web-pict/private/entry
     rquery
@@ -445,6 +446,7 @@
     web-easy
     web-easy/private/dom-like
     fetch
+    storage
     web-pict
     web-pict/private/entry
     rquery

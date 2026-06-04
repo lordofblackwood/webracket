@@ -2315,6 +2315,7 @@
 (define webracket-owned-ffi-provider-exacts
   '(web-easy
     fetch
+    storage
     web-pict
     rquery
     webracket/private/ffi))
