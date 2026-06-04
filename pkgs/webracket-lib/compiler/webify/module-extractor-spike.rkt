@@ -1010,8 +1010,16 @@
   (and (not (eq? name self-name))
        (not (memq name '(webracket/base racket/base racket/private/base)))))
 
+;; require-order-package-provider? : symbol? -> boolean?
+;;   Recognize package/library facades outside the core Racket/WebRacket families.
+(define (require-order-package-provider? name)
+  (define text (symbol->string name))
+  (not (or (regexp-match? #rx"^racket/" text)
+           (regexp-match? #rx"^webracket/" text)
+           (regexp-match? #rx"^#%" text))))
+
 ;; import-groups->require-order-aliases : import-groups providers symbol? -> aliases
-;;   Use require provider order for repeated external-name groups.
+;;   Use require provider order when it can disambiguate one import group per provider.
 (define (import-groups->require-order-aliases groups provider-order self-name)
   (define providers
     (filter (lambda (name) (require-order-provider? self-name name))
@@ -1020,9 +1028,15 @@
     (for/list ([group (in-list groups)])
       (for/list ([binding (in-list group)])
         (cadr binding))))
+  (define singleton-groups?
+    (for/and ([signature (in-list group-signatures)])
+      (null? (cdr signature))))
   (cond
     [(and (= (length groups) (length providers))
-          (check-duplicates group-signatures equal?))
+          (for/or ([provider (in-list providers)])
+            (require-order-package-provider? provider))
+          (or (check-duplicates group-signatures equal?)
+              singleton-groups?))
      (append*
       (for/list ([group (in-list groups)]
                  [provider (in-list providers)])

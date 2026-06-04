@@ -1713,6 +1713,33 @@
         (with-handlers ([exn:fail:filesystem? void])
           (delete-directory/files dir))))))
 
+(test-case "#lang webracket/base module bridge preserves repeated external provider names"
+  (define source-dir (make-temporary-file "webracket-base-repeated-provider-src-~a" 'directory))
+  (define source-path (build-path source-dir "main.rkt"))
+  (dynamic-wind
+    void
+    (lambda ()
+      (call-with-output-file source-path
+        (lambda (out)
+          (display
+           (string-append
+            "#lang webracket/base\n"
+            "(require (prefix-in ui: web-easy)\n"
+            "         (prefix-in pict: (except-in web-pict text)))\n"
+            "(define v (list ui:text pict:rectangle))\n"
+            "(void v)\n")
+           out))
+        #:exists 'truncate/replace)
+      (define report (compile-module-file-report source-path))
+      (define import-map (webify-module-report-import-map report))
+      (check-equal?
+       (webify-module-import-map-import-aliases import-map)
+       '((text web-easy text)
+         (rectangle web-pict rectangle))))
+    (lambda ()
+      (with-handlers ([exn:fail:filesystem? void])
+        (delete-directory/files source-dir)))))
+
 (test-case "#lang webracket/base supports multiple local requires with shared dependency"
   (define source-dir (make-temporary-file "webracket-base-multi-require-src-~a" 'directory))
   (define dest-dir   (make-temporary-file "webracket-base-multi-require-dest-~a" 'directory))
