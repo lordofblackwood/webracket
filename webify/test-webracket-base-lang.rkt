@@ -1187,6 +1187,19 @@
                  (webify-module-report-bundle-entries report-2)))
         (define entries (provider-report-cache-entries))
         (check-equal? (length entries) 1)
+        (match (call-with-input-file (caar entries) read)
+          [(list (list 'installed-provider-report-cache
+                       8
+                       'racket/list
+                       _racket-version
+                       _provider-source
+                       (list 'provider-report-extractor _ _ ...))
+                 _payload)
+           (void)]
+          [other
+           (fail-check
+            (format "provider cache fingerprint omits extractor metadata: ~s"
+                    other))])
         (check-regexp-match #rx"racket_list[.]rktd$"
                             (path->string (caar entries)))))
     (lambda ()

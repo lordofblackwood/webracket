@@ -520,6 +520,17 @@
          ,(file-or-directory-modify-seconds resolved-name))]
       [else `(module-source resolved ,resolved-name)])))
 
+;; provider-report-extractor-fingerprint : -> any/c
+;;   Include bridge/extractor implementation metadata in installed-provider
+;;   cache keys, since cached reports contain compiler-derived import maps.
+(define (provider-report-extractor-fingerprint)
+  (path-fingerprint
+   'provider-report-extractor
+   1
+   (list (build-path webify-root "module-extractor.rkt")
+         (build-path webify-root "module-extractor-spike.rkt")
+         (build-path webify-root "module-input.rkt"))))
+
 ;; provider-report->cache-datum : webify-module-report? -> datum?
 ;;   Serialize provider reports without relying on reader-visible struct types.
 (define (provider-bundle-entry->cache-datum entry)
@@ -590,10 +601,11 @@
      (string-append (provider-cache-symbol-segment name) ".rktd")))
   (define fingerprint
     `(installed-provider-report-cache
-      7
+      8
       ,name
       ,(version)
-      ,(provider-module-source-fingerprint name)))
+      ,(provider-module-source-fingerprint name)
+      ,(provider-report-extractor-fingerprint)))
   (define cached (read-provider-cache cache-path fingerprint))
   (cond
     [cached
