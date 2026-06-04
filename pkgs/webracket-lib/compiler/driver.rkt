@@ -526,7 +526,7 @@
 (define (provider-report-extractor-fingerprint)
   (path-fingerprint
    'provider-report-extractor
-   1
+   2
    (list (build-path webify-root "module-extractor.rkt")
          (build-path webify-root "module-extractor-spike.rkt")
          (build-path webify-root "module-input.rkt"))))
@@ -2389,6 +2389,7 @@
            ;; export names while their contract implementation dependencies
            ;; remain eligible for erased-provider routing.
           (or (memq name '(racket/dict
+                           racket/math
                            racket/private/for
                            racket/private/map
                            racket/private/define-struct

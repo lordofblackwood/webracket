@@ -187,8 +187,20 @@
    (webify-resolve-module-linklet-imports
     importer-linklet
      (list (webify-module-extractor-spike-dependency-exports provider-report)))
-   '((string-join.1 racket/string string-join.1)
+  '((string-join.1 racket/string string-join.1)
      (string-join9.1 racket/string string-join9.1))))
+
+(test-case "provider aliases preserve repeated external import groups"
+  (check-equal?
+   (webify-resolve-module-linklet-imports
+    '(linklet (((text text)) ((1/text text))) (v)
+       (define-values (v) (list text 1/text)))
+    '((web-easy (text))
+      (web-pict (text)))
+    #:import-aliases '((text web-easy text)
+                       (1/text web-pict text)))
+   '((text web-easy text)
+     (1/text web-pict text))))
 
 (test-case "linklet export pairs normalize to external provider names"
   (check-equal? (webify-normalize-linklet-exports
@@ -872,13 +884,24 @@
                 (regexp-match? #rx"^string-join"
                                (symbol->string (car binding))))
               string-join-group))
-     (check-exn
-      #rx"missing-after-reflection"
-      (lambda ()
-        (webify-source-module->resolved-linklet-input
-         module-datum
-         #:dependency-exports '((racket/string (string-join)))
-         #:module-protocol-dependency 'module-protocol)))
+     (define normalized-input
+       (webify-source-module->resolved-linklet-input
+        module-datum
+        #:dependency-exports '((racket/string (string-join))
+                               (racket/unsafe/undefined
+                                (unsafe-undefined
+                                 check-not-unsafe-undefined
+                                 check-not-unsafe-undefined/assign
+                                 prop:chaperone-unsafe-undefined
+                                 chaperone-struct-unsafe-undefined)))
+        #:module-protocol-dependency 'module-protocol))
+     (check-equal? (drop (webify-module-linklet-input-imports normalized-input) 2)
+                   (append
+                    (for/list ([binding (in-list string-join-group)])
+                      (list (car binding) 'racket/string 'string-join))
+                    '((unsafe-undefined
+                       racket/unsafe/undefined
+                       unsafe-undefined))))
      (define explicit-dependencies
        (for/list ([binding (in-list string-join-group)])
          (list (car binding) 'racket/string)))
@@ -886,12 +909,22 @@
        (webify-source-module->resolved-linklet-input
         module-datum
         #:dependency-exports
-        `((racket/string ,(map cadr string-join-group)))
+        `((racket/string ,(map cadr string-join-group))
+          (racket/unsafe/undefined
+           (unsafe-undefined
+            check-not-unsafe-undefined
+            check-not-unsafe-undefined/assign
+            prop:chaperone-unsafe-undefined
+            chaperone-struct-unsafe-undefined)))
         #:dependencies explicit-dependencies
         #:module-protocol-dependency 'module-protocol))
      (check-equal? (drop (webify-module-linklet-input-imports input) 2)
-                   (for/list ([binding (in-list string-join-group)])
-                     (list (car binding) 'racket/string (cadr binding))))]
+                   (append
+                    (for/list ([binding (in-list string-join-group)])
+                      (list (car binding) 'racket/string (cadr binding)))
+                    '((unsafe-undefined
+                       racket/unsafe/undefined
+                       unsafe-undefined))))]
     [else
      (check-equal? (webify-module-import-map-required-module-candidates import-map)
                    '())

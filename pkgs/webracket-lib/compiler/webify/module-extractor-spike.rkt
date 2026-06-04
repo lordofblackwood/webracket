@@ -991,6 +991,46 @@
         (list local maybe-dependency provider-export)
         (list local provider-export))))
 
+;; compiled-requires-provider-order : any/c any/c symbol? -> (listof symbol?)
+;;   Decode the source-order phase-0 providers from serialized require metadata.
+(define (compiled-requires-provider-order requires-expr mpi-vector self-name)
+  (define flat (flatten-datum requires-expr))
+  (let loop ([items flat]
+             [providers '()])
+    (match items
+      ['() (reverse providers)]
+      [(list* '#:mpi (? exact-nonnegative-integer? idx) more)
+       (define dependency (mpi-index->dependency-name mpi-vector idx self-name))
+       (loop more (if dependency (cons dependency providers) providers))]
+      [(cons _ more) (loop more providers)])))
+
+;; require-order-provider? : symbol? symbol? -> boolean?
+;;   Keep only providers that can plausibly correspond to unresolved import groups.
+(define (require-order-provider? self-name name)
+  (and (not (eq? name self-name))
+       (not (memq name '(webracket/base racket/base racket/private/base)))))
+
+;; import-groups->require-order-aliases : import-groups providers symbol? -> aliases
+;;   Use require provider order for repeated external-name groups.
+(define (import-groups->require-order-aliases groups provider-order self-name)
+  (define providers
+    (filter (lambda (name) (require-order-provider? self-name name))
+            provider-order))
+  (define group-signatures
+    (for/list ([group (in-list groups)])
+      (for/list ([binding (in-list group)])
+        (cadr binding))))
+  (cond
+    [(and (= (length groups) (length providers))
+          (check-duplicates group-signatures equal?))
+     (append*
+      (for/list ([group (in-list groups)]
+                 [provider (in-list providers)])
+        (for/list ([binding (in-list group)])
+          (match-define (list local external) binding)
+          (list local provider external))))]
+    [else '()]))
+
 ;; flatten-datum : any/c -> list?
 ;;   Flatten a datum/vector tree in source order for simple serialized metadata scans.
 (define (flatten-datum v)
@@ -1185,6 +1225,14 @@
      decl-provides-expression
      data-module-path-indexes
      (webify-module-extractor-spike-name report)))
+  (define require-order-aliases
+    (import-groups->require-order-aliases
+     unresolved-groups
+     (compiled-requires-provider-order
+      decl-requires-expression
+      data-module-path-indexes
+      (webify-module-extractor-spike-name report))
+     (webify-module-extractor-spike-name report)))
   (define require-rename-aliases
     (apply append
            (for/list ([group (in-list unresolved-groups)])
@@ -1193,9 +1241,16 @@
     (for/list ([group (in-list unresolved-groups)])
       (define require-aliases
         (import-group->require-rename-aliases group compiled-rename-specs))
+      (define require-order-group-aliases
+        (filter (lambda (alias)
+                  (for/or ([binding (in-list group)])
+                    (eq? (car alias) (car binding))))
+                require-order-aliases))
       (cons group
             (and (null? require-aliases)
-                 (or (import-group->keyword-runtime-aliases group)
+                 (or (and (pair? require-order-group-aliases)
+                          require-order-group-aliases)
+                     (import-group->keyword-runtime-aliases group)
                      (import-group->aliases group required-module-candidates))))))
   (define import-aliases
     (apply append
@@ -1209,7 +1264,11 @@
                            (not (cdr result))
                            (null? (import-group->require-rename-aliases
                                    group
-                                   compiled-rename-specs))))
+                                   compiled-rename-specs))
+                           (null? (filter (lambda (alias)
+                                            (for/or ([binding (in-list group)])
+                                              (eq? (car alias) (car binding))))
+                                          require-order-aliases))))
       group))
   (webify-module-import-map
    import-groups
@@ -2155,10 +2214,28 @@
   (when module-protocol-dependency
     (unless (symbol? module-protocol-dependency)
       (raise-argument-error who "symbol?" module-protocol-dependency)))
-  (define bindings (webify-linklet-import-bindings linklet))
+  (define normalized-import-groups
+    (match linklet
+      [`(linklet ,importss ,_exports . ,_body)
+       (unless (and (list? importss)
+                    (for/and ([group (in-list importss)])
+                      (and (list? group)
+                           (for/and ([binding (in-list group)])
+                             (match binding
+                               [(list (? symbol?) (? symbol?)) #t]
+                               [_ #f])))))
+         (raise-arguments-error who
+                                "normalized linklet imports must be grouped pairs of symbols"
+                                "linklet" linklet))
+       importss]
+      [_
+       (raise-arguments-error who
+                              "expected a linklet datum"
+                              "linklet" linklet)]))
+  (define bindings (apply append normalized-import-groups))
   (define unresolved-groups
     (filter (lambda (group) (not (protocol-import-group? group)))
-            (linklet-datum-import-groups linklet)))
+            normalized-import-groups))
   (define module-protocol-bindings (filter module-protocol-import-binding? bindings))
   (define module-bindings (filter (lambda (binding)
                                     (not (module-protocol-import-binding? binding)))
@@ -2257,8 +2334,8 @@
                                      racket/contract/private/guts
                                      racket/contract/private/object
                                      racket/contract/private/object-c-wrapper))
-                 (eq? local 'datum->syntax)
-                 (eq? external '1/datum->syntax))
+                 (eq? local '1/datum->syntax)
+                 (eq? external 'datum->syntax))
             (list local 'webracket/primitives)]
            [(and (memq module-name '(webracket/contract
                                      racket/contract/base
@@ -2269,21 +2346,25 @@
                                      racket/contract/private/guts
                                      racket/contract/private/object
                                      racket/contract/private/object-c-wrapper))
-                 (memq local '(syntax?
-                                syntax-span syntax-position syntax-column syntax-line syntax-source))
-                 (memq external '(1/syntax-span
-                                  1/syntax-position
-                                  1/syntax-column
-                                  1/syntax-line
-                                  1/syntax-source
-                                  1/syntax?)))
+                 (memq local '(1/syntax-span
+                                1/syntax-position
+                                1/syntax-column
+                                1/syntax-line
+                                1/syntax-source
+                                1/syntax?))
+                 (memq external '(syntax-span
+                                  syntax-position
+                                  syntax-column
+                                  syntax-line
+                                  syntax-source
+                                  syntax?)))
             (list local 'webracket/primitives)]
            [(and (memq module-name '(racket/private/for
                                      racket/private/list
                                      racket/private/class-struct
                                      webracket/list))
-                 (eq? local 'reverse)
-                 (eq? external '1/reverse))
+                 (eq? local '1/reverse)
+                 (eq? external 'reverse))
             (list local 'racket/private/pico)]
            [(symbolic-name=? external 'struct:keyword-method/arity-error)
             (list local 'racket/private/kw)]
@@ -2595,8 +2676,21 @@
   (define triples-by-import
     (for/hasheq ([triple (in-list (append module-protocol-triples module-triples))])
       (values (car triple) triple)))
+  (define all-triples (append module-protocol-triples module-triples))
   (for/list ([binding (in-list bindings)])
-    (hash-ref triples-by-import (car binding))))
+    (define local (car binding))
+    (hash-ref triples-by-import
+              local
+              (lambda ()
+                (match (filter (lambda (triple)
+                                 (symbolic-name=? (car triple) local))
+                               all-triples)
+                  [(list triple) triple]
+                  [matches
+                   (raise-arguments-error who
+                                          "resolved import triple is missing or ambiguous"
+                                          "import" local
+                                          "matches" matches)])))))
 
 ;; webify-module-extractor-spike-dependency-exports : report -> dependency-export-row
 ;;   Derive a resolver export row from the extracted provider's compiled phase-0 exports.

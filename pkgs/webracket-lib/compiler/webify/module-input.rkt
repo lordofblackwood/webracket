@@ -245,13 +245,17 @@
 ;;   Look up the exports declared for one dependency module.
 (define (dependency-exports-ref who dependency-exports name)
   (define found (assoc name dependency-exports))
-  (unless found
-    (raise-arguments-error who
-                           "import dependency has no export table entry"
-                           "dependency" name
-                           "available dependencies"
-                           (map car dependency-exports)))
-  (cadr found))
+  (cond
+    [found (cadr found)]
+    [(primitive-module-name? name)
+     (for/list ([info (in-list primitive-db)])
+       (primitive-info-name info))]
+    [else
+     (raise-arguments-error who
+                            "import dependency has no export table entry"
+                            "dependency" name
+                            "available dependencies"
+                            (map car dependency-exports))]))
 
 ;; kernel-dependency? : symbol? -> boolean?
 ;;   Recognize reflected origins for Racket's primitive kernel module.
@@ -356,10 +360,6 @@
                    (not (kernel-dependency? dependency))))
             candidates))
   (cond
-    [(and external
-          (webify-primitive-name? external)
-          (pair? kernel-candidates))
-     kernel-candidates]
     [(null? concrete-candidates) candidates]
     [else concrete-candidates]))
 
@@ -547,8 +547,8 @@
                               racket/contract/private/guts
                               racket/contract/private/object
                               racket/contract/private/object-c-wrapper))
-          (eq? local 'datum->syntax)
-          (eq? external '1/datum->syntax))
+          (eq? local '1/datum->syntax)
+          (eq? external 'datum->syntax))
      '(webracket/primitives datum->syntax)]
     [(and (memq module-name '(webracket/contract
                               racket/contract/base
@@ -559,15 +559,19 @@
                               racket/contract/private/guts
                               racket/contract/private/object
                               racket/contract/private/object-c-wrapper))
-          (memq local '(syntax?
-                         syntax-span syntax-position syntax-column syntax-line syntax-source))
-          (memq external '(1/syntax-span
-                           1/syntax-position
-                           1/syntax-column
-                           1/syntax-line
-                           1/syntax-source
-                           1/syntax?)))
-     (list 'webracket/primitives local)]
+          (memq local '(1/syntax-span
+                         1/syntax-position
+                         1/syntax-column
+                         1/syntax-line
+                         1/syntax-source
+                         1/syntax?))
+          (memq external '(syntax-span
+                           syntax-position
+                           syntax-column
+                           syntax-line
+                           syntax-source
+                           syntax?)))
+     (list 'webracket/primitives external)]
     [(and (memq module-name '(racket/private/for webracket/private/for))
           (eq? local 'directory-list.1))
      '(#%kernel webracket-directory-list-build-first)]
@@ -575,8 +579,8 @@
                               racket/private/list
                               racket/private/class-struct
                               webracket/list))
-          (eq? local 'reverse)
-          (eq? external '1/reverse))
+          (eq? local '1/reverse)
+          (eq? external 'reverse))
      '(racket/private/pico reverse)]
     [(and (eq? module-name 'racket/private/class-internal)
           (symbolic-name=? external 'coerce-contract))
@@ -669,37 +673,52 @@
   (unless (or (not module-name) (symbol? module-name))
     (raise-argument-error who "(or/c symbol? #f)" module-name))
   (define imports (map car bindings))
+  (define (canonical-import import kind)
+    (cond
+      [(memq import imports) import]
+      [else
+       (match (filter (lambda (candidate)
+                        (symbolic-name=? candidate import))
+                      imports)
+         [(list candidate) candidate]
+         [matches
+          (raise-arguments-error who
+                                 (format "~a references a name not imported by the linklet" kind)
+                                 "import" import
+                                 "matches" matches
+                                 "linklet imports" imports)])]))
   (for ([dependency (in-list dependencies)])
     (match-define (list import _module) dependency)
-    (unless (memq import imports)
-      (raise-arguments-error who
-                             "import dependency references a name not imported by the linklet"
-                             "import" import
-                             "linklet imports" imports)))
+    (canonical-import import "import dependency"))
   (for ([alias (in-list import-aliases)])
     (match-define (list import _module _export) alias)
-    (unless (memq import imports)
-      (raise-arguments-error who
-                             "import alias references a name not imported by the linklet"
-                             "import" import
-                             "linklet imports" imports)))
+    (canonical-import import "import alias"))
   (define dependency-map
     (for/hasheq ([dependency (in-list dependencies)])
       (match-define (list import module) dependency)
-      (values import module)))
+      (values (canonical-import import "import dependency") module)))
   (define alias-map
     (for/fold ([aliases (hasheq)]) ([alias (in-list import-aliases)])
       (match-define (list import module export) alias)
-      (if (hash-has-key? aliases import)
+      (define canonical (canonical-import import "import alias"))
+      (if (hash-has-key? aliases canonical)
           aliases
-          (hash-set aliases import (list module export)))))
+          (hash-set aliases canonical (list module export)))))
   (define hint-map
-    (reflection-hints->map who module-name reflection-hints))
+    (for/fold ([hints (hasheq)])
+              ([(import value) (in-hash (reflection-hints->map who module-name reflection-hints))])
+      (define canonical (canonical-import import "reflection hint"))
+      (if (hash-has-key? hints canonical)
+          hints
+          (hash-set hints canonical value))))
   (define resolved
     (for/list ([binding (in-list bindings)])
       (match-define (list local external) binding)
       (define primitive-alias-hint
-        (compiled-primitive-alias-hint module-name local external))
+        (and (not (or (hash-has-key? alias-map local)
+                      (hash-has-key? dependency-map local)
+                      (hash-has-key? hint-map local)))
+             (compiled-primitive-alias-hint module-name local external)))
       (match-define (list dependency provider-export status)
         (if primitive-alias-hint
             (match primitive-alias-hint
