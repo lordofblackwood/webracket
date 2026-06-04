@@ -737,15 +737,13 @@
   (check-audio-buffer 'audio-buffer-number-of-channels buffer)
   (js-audio-buffer-number-of-channels buffer))
 
-;; audio-buffer-get-channel-data : audio-buffer? exact-integer? -> vector?
-;;   Read a channel's sample data as a WebRacket vector of numbers.
+;; audio-buffer-get-channel-data : audio-buffer? exact-integer? -> external?
+;;   Read a channel's mutable browser Float32Array sample data.
 (define (audio-buffer-get-channel-data buffer channel)
   (check-audio-buffer 'audio-buffer-get-channel-data buffer)
   (unless (exact-integer? channel)
     (raise-argument-error 'audio-buffer-get-channel-data "exact-integer?" channel))
-  (array-like->vector 'audio-buffer-get-channel-data
-                      (js-audio-buffer-get-channel-data buffer channel)
-                      (lambda (value) value)))
+  (js-audio-buffer-get-channel-data buffer channel))
 
 ;; audio-gain-node-gain : audio-gain-node? -> audio-param?
 ;;   Read the GainNode gain parameter.

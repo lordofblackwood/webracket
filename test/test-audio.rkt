@@ -402,13 +402,13 @@
          (check-number= (audio-buffer-sample-rate buffer) 48000 "wrapper buffer sample rate")
          (check-number= (audio-buffer-number-of-channels buffer) 2 "wrapper buffer channels")
          (define channel-data (audio-buffer-get-channel-data buffer 0))
-         (check-true (vector? channel-data)
+         (check-true (external? channel-data)
                      "wrapper buffer channel data")
-         (check-number= (vector-length channel-data) 2
+         (check-number= (js-ref channel-data "length") 2
                         "wrapper buffer channel data length")
-         (check-number= (vector-ref channel-data 0) 0
+         (check-number= (js-index channel-data 0) 0
                         "wrapper buffer channel data sample 0")
-         (check-number= (vector-ref channel-data 1) 1
+         (check-number= (js-index channel-data 1) 1
                         "wrapper buffer channel data sample 1")
 
          (define buffer-source (audio-context-create-buffer-source ctx))
