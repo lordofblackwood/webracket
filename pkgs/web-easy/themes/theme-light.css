@@ -2243,25 +2243,31 @@ html.we-theme-light .we-checkbox:not(.we-switch-control) {
   appearance: none;
   -webkit-appearance: none;
   -moz-appearance: none;
+  display: inline-block;
   flex-shrink: 0;
   position: relative;
   overflow: visible;
-  float: left;
-  margin-left: var(--we-form-check-input-margin-left, calc(-1 * var(--we-form-check-padding-left, 1.5em)));
+  margin: 0 0.35em 0 0;
   font-size: var(--we-check-font-size, 1rem);
   font-family: inherit;
   line-height: var(--we-check-line-height, var(--we-body-line-height, 1.5));
-  width: var(--we-check-size);
-  height: var(--we-check-height, var(--we-check-size));
-  margin-top: 0.25em;
-  background-color: var(--we-check-bg);
+  width: var(--we-check-size, 1em);
+  height: var(--we-check-height, var(--we-check-size, 1em));
+  background-color: var(--we-check-bg, var(--we-field-bg, #ffffff));
   background-image: none;
   background-repeat: no-repeat;
   background-position: center;
   background-size: contain;
-  border: var(--we-check-border-width) solid var(--we-check-border-color);
-  border-radius: var(--we-check-radius);
+  border: var(--we-check-border-width, 1px) solid var(--we-check-border-color, var(--we-control-border, #888888));
+  border-radius: var(--we-check-radius, 0.25em);
   vertical-align: top;
+}
+
+html.we-theme-light .we-form-check .we-checkbox:not(.we-switch-control) {
+  float: left;
+  margin-left: var(--we-form-check-input-margin-left, calc(-1 * var(--we-form-check-padding-left, 1.5em)));
+  margin-top: 0.25em;
+  margin-right: 0;
 }
 
 html.we-theme-light .we-checkbox:not(.we-switch-control)::before {
@@ -2309,15 +2315,15 @@ html.we-theme-light .we-checkbox:not(.we-switch-control):focus {
 }
 
 html.we-theme-light .we-checkbox:not(.we-switch-control):checked {
-  background-color: var(--we-check-checked-bg);
-  background-image: var(--we-check-checked-icon);
-  border-color: var(--we-check-checked-border-color);
+  background-color: var(--we-check-checked-bg, var(--we-primary, #2f7ea0));
+  background-image: var(--we-check-checked-icon, url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath fill='none' stroke='white' stroke-linecap='round' stroke-linejoin='round' stroke-width='3' d='m6 10 3 3 6-6'/%3E%3C/svg%3E"));
+  border-color: var(--we-check-checked-border-color, var(--we-primary, #2f7ea0));
 }
 
 html.we-theme-light .we-checkbox:not(.we-switch-control):disabled {
   opacity: var(--we-check-disabled-opacity);
-  background-color: color-mix(in srgb, var(--we-check-bg) 75%, white 25%);
-  border-color: color-mix(in srgb, var(--we-check-border-color) 70%, white 30%);
+  background-color: color-mix(in srgb, var(--we-check-bg, var(--we-field-bg, #ffffff)) 75%, white 25%);
+  border-color: color-mix(in srgb, var(--we-check-border-color, var(--we-control-border, #888888)) 70%, white 30%);
 }
 
 html.we-theme-light .we-radio-input,

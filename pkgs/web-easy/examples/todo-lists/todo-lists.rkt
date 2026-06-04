@@ -31,6 +31,11 @@
 (define (todo-not-done? entry)
   (not (todo-done? entry)))
 
+(define (todo-label-style done?)
+  (if done?
+      "text-decoration: line-through; color: #777;"
+      ""))
+
 (define tasks
   '("laundry"          "get groceries"         "wash dishes"       "vacuum apartment"
     "take out trash"   "water plants"          "pay bills"         "check email"
@@ -173,7 +178,8 @@
                                       (lambda () (save-edit! id)))
                               (button "cancel" cancel-edit!))
                              (hpanel
-                              (text label)
+                              (text label
+                                    #:style (todo-label-style done?))
                               (button "edit"
                                       (lambda () (start-edit! entry)))))))
                  todo-id)
