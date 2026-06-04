@@ -19019,10 +19019,17 @@
                         (primapp-arity-error sym aes)))])])])]))
      (record-used-primitives-in-wat! work)
 
+     (define (tail-call-work work)
+       (match work
+         [`(call ,callee ,args ...)
+          `(return_call ,callee ,@args)]
+         [_ 
+          `(return ,work)]))
+
      (match dd
        [(or '<value> '<effect>)
         (match cd
-          ['<return>             `(return ,work)]
+          ['<return>             (tail-call-work work)]
           ['<expr>                work]
           ['<stat>                `(drop ,work)]
           [_ (error)])]
@@ -21988,6 +21995,14 @@
         [_ #f]))
     (sexp-any? direct-label-call? mod))
 
+  (define (module-has-return-call-to-primitive? mod primitive-label)
+    (define (return-call-to-primitive? x)
+      (match x
+        [(list 'return_call label _ ...)
+         (eq? label primitive-label)]
+        [_ #f]))
+    (sexp-any? return-call-to-primitive? mod))
+
   (define (module-has-local-closure-shell-allocation? mod)
     (define (undefined-slot? x)
       (equal? x '(global.get $undefined)))
@@ -22225,6 +22240,14 @@
    (module-has-direct-dummy-closure-call?
     (parameterize ([current-enable-cc-analysis? #t])
       (comp #'((lambda (x) x) 1)))))
+
+  (check-true
+   (module-has-return-call-to-primitive?
+    (comp #'((lambda ()
+               (call-with-values
+                (lambda () (values))
+                (lambda () 42)))))
+    '$call-with-values))
 
   (check-true
    (closure-converted-has-known0app? #'(let ([f (lambda (x) x)])
