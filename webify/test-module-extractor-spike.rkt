@@ -852,6 +852,28 @@
                                 (racket/math (sqr)))
          #:module-protocol-dependency 'module-protocol)))]))
 
+(test-case "source module resolver maps compiled random alias to kernel primitive"
+  (define module-datum
+    '(module a racket/base
+       (require racket/random)
+       (provide y)
+       (define y random)))
+  (define report (webify-compile-module-extractor-spike module-datum))
+  (cond
+    [(webify-module-extractor-spike-manifest-ready? report)
+     (define input
+       (webify-source-module->resolved-linklet-input
+        module-datum
+        #:module-protocol-dependency 'module-protocol))
+     (check-equal? (drop (webify-module-linklet-input-imports input) 2)
+                   '((-random #%kernel random)))]
+    [else
+     (check-not-false
+      (or (member "source module did not produce a decompilable phase-0 linklet datum"
+                  (webify-module-extractor-spike-notes report))
+          (member "host Racket does not provide decompile-linklet"
+                  (webify-module-extractor-spike-notes report))))]))
+
 (test-case "source module resolver exposes internalized required imports"
   (define module-datum
     '(module a racket/base

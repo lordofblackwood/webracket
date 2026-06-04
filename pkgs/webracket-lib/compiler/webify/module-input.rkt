@@ -535,6 +535,9 @@
           (eq? local '1/get-installation-name)
           (eq? external 'get-installation-name))
      '(#%utils get-installation-name)]
+    [(and (eq? local '-random)
+          (eq? external '-random))
+     '(#%kernel random)]
     [(and (eq? local '1/syntax-source)
           (eq? external 'syntax-source))
      '(webracket/primitives syntax-source)]
@@ -716,8 +719,9 @@
       (match-define (list local external) binding)
       (define primitive-alias-hint
         (and (not (or (hash-has-key? alias-map local)
-                      (hash-has-key? dependency-map local)
                       (hash-has-key? hint-map local)))
+             (or (not (hash-has-key? dependency-map local))
+                 (primitive-module-name? (hash-ref dependency-map local)))
              (compiled-primitive-alias-hint module-name local external)))
       (match-define (list dependency provider-export status)
         (if primitive-alias-hint

@@ -2315,6 +2315,9 @@
            (symbolic-name=? external name)))
        (define (compiled-provider-hint local external)
          (cond
+           [(and (eq? local '-random)
+                 (eq? external '-random))
+            (list local '#%kernel)]
            [(and (eq? module-name 'racket/private/class-internal)
                  (symbolic-name=? external 'coerce-contract))
             (list local 'racket/contract/private/guts)]
