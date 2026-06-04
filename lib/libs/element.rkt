@@ -3,7 +3,6 @@
 ;;;
 ;;; Element wrappers
 ;;;
-
 ;; element-stringish->string : symbol? any/c -> string?
 ;;   Normalize a string-like wrapper argument to a browser string.
 (define (element-stringish->string who v)
@@ -86,7 +85,11 @@
      (cond
        [cached cached]
        [else
-        (define external (procedure->external listener))
+        (define external
+          (procedure->external
+           (lambda args
+             (apply listener args)
+             (void))))
         (hash-set! element-event-listener-cache listener external)
         external])]
     [else

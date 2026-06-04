@@ -441,22 +441,18 @@
                      (list (car kws)
                            (car kw-args))))])))
 
-;; make-web-easy-component-keyword-procedure : procedure? -> procedure?
-;;   Let components accept normal Racket keywords while reusing old parsers.
-(define (make-web-easy-component-keyword-procedure proc)
-  (make-keyword-procedure
-   (lambda (kws kw-args . positional)
-     (apply proc
-            (keyword-call->legacy-args kws
-                                       kw-args
-                                       positional)))
-   proc))
-
 (define-syntax-rule (define-component-runtime name all-args body ...)
   (define name
-    (make-web-easy-component-keyword-procedure
-     (lambda all-args
-       body ...))))
+    (make-web-easy-element-keyword-procedure
+     (lambda (kws kw-args . positional)
+       (define all-args
+         (keyword-call->legacy-args kws
+                                    kw-args
+                                    positional))
+       body ...)
+     '()
+     #f
+     (arity-at-least 0))))
 
 ;; alist-set : list? any/c any/c -> list?
 ;;   Return alist with key updated to value, adding key when absent.
@@ -2135,6 +2131,7 @@
              '(arity-at-least 0)
              count-datum))
        (with-syntax ([name/sym (datum->syntax #'name (syntax-e #'name) #'name #'name)]
+                     [content-item->child-view-id (datum->syntax #'base 'content-item->child-view/internal #'base #'base)]
                      [allowed-attrs-stx (datum->syntax stx (list 'quote allowed-attrs) stx stx)]
                      [allowed-kws-stx (datum->syntax stx (list 'quote (allowed-keywords-for-attrs allowed-attrs required-kws required-any-kws)) stx stx)]
                      [required-kws-stx (datum->syntax stx (list 'quote required-kws) stx stx)]
@@ -2158,6 +2155,29 @@
                    (base fixed ...
                          ""
                          #:attrs attrs))
+                 required-kws-stx
+                 allowed-kws-stx
+                 wrapper-arity-stx))]
+           [(eq? base-sym 'html-element-children)
+            #'(define name
+                (make-web-easy-element-keyword-procedure
+                 (lambda (kws kw-args . raw-positional)
+                   (define-values (positional attrs)
+                     (normalize-element-keyword-call 'name/sym
+                                                     kws
+                                                     kw-args
+                                                     raw-positional
+                                                     expected-count-stx
+                                                     allowed-attrs-stx
+                                                     required-kws-stx
+                                                     required-any-kws-stx))
+                   (keyword-apply base
+                                  '(#:attrs)
+                                  (list attrs)
+                                  (append (list fixed ...)
+                                          (map (lambda (item)
+                                                 (content-item->child-view-id 'name/sym item))
+                                               positional))))
                  required-kws-stx
                  allowed-kws-stx
                  wrapper-arity-stx))]
@@ -2232,6 +2252,7 @@
              '(arity-at-least 0)
              count-datum))
        (with-syntax ([name/sym (datum->syntax #'name (syntax-e #'name) #'name #'name)]
+                     [content-item->child-view-id (datum->syntax #'base 'content-item->child-view/internal #'base #'base)]
                      [allowed-attrs-stx (datum->syntax stx (list 'quote allowed-attrs) stx stx)]
                      [allowed-kws-stx (datum->syntax stx (list 'quote (allowed-keywords-for-attrs allowed-attrs required-kws '())) stx stx)]
                      [required-kws-stx (datum->syntax stx (list 'quote required-kws) stx stx)]
@@ -2254,6 +2275,29 @@
                    (base fixed ...
                          ""
                          #:attrs attrs))
+                 required-kws-stx
+                 allowed-kws-stx
+                 wrapper-arity-stx))]
+           [(eq? base-sym 'html-element-children)
+            #'(define name
+                (make-web-easy-element-keyword-procedure
+                 (lambda (kws kw-args . raw-positional)
+                   (define-values (positional attrs)
+                     (normalize-element-keyword-call 'name/sym
+                                                     kws
+                                                     kw-args
+                                                     raw-positional
+                                                     expected-count-stx
+                                                     allowed-attrs-stx
+                                                     required-kws-stx
+                                                     '()))
+                   (keyword-apply base
+                                  '(#:attrs)
+                                  (list attrs)
+                                  (append (list fixed ...)
+                                          (map (lambda (item)
+                                                 (content-item->child-view-id 'name/sym item))
+                                               positional))))
                  required-kws-stx
                  allowed-kws-stx
                  wrapper-arity-stx))]
