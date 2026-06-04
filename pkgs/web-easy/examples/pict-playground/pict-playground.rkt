@@ -1,25 +1,76 @@
 #lang webracket/base
 
+;;;
+;;; Web Pict Playground
+;;;
+
 (require browser/dom
          (prefix-in ui: web-easy)
-         (prefix-in pict: (except-in web-pict text))
+         (prefix-in pict: web-pict)
          (only-in webracket/primitives
                   procedure->external))
 
-;; Module-based web-pict playground.
-;;
-;; This is the first packaged replacement for the legacy
-;; `lib/web-easy/examples/pict-playground` include-lib example. Keep it small
-;; enough to be a useful Goal 1 smoke: a normal module requires `web-easy` and
-;; `web-pict`, then draws a composed pict into a browser canvas.
+;; Keep the old playground body close to the legacy include-lib version, but
+;; make the dependencies explicit module imports. That keeps this example useful
+;; as a user-facing demo and as a regression test for module-based libraries.
+(define @                         ui:@)
+(define :=                        ui::=)
+(define ~>                        ui:~>)
+(define obs-peek                  ui:obs-peek)
+(define ui-window                 ui:window)
+(define ui-container              ui:container)
+(define ui-vpanel                 ui:vpanel)
+(define ui-hpanel                 ui:hpanel)
+(define ui-group                  ui:group)
+(define ui-h1                     ui:h1)
+(define ui-text                   ui:text)
+(define ui-choice                 ui:choice)
+(define ui-slider                 ui:slider)
+(define ui-button                 ui:button)
+(define ui-div                    ui:Div)
+(define ui-canvas                 ui:Canvas)
+(define ui-theme                  ui:theme)
+(define ui-install-theme-manager! ui:install-theme-manager!)
+(define ui-render                 ui:render)
+(define ui-mount-renderer!        ui:mount-renderer!)
 
-(define canvas-name   "pict-playground-canvas")
-(define canvas-width  720.0)
-(define canvas-height 420.0)
+(define standard-fish             pict:standard-fish)
+(define cc-superimpose            pict:cc-superimpose)
+(define colorize                  pict:colorize)
+(define disk                      pict:disk)
+(define text                      pict:text)
+(define frame                     pict:frame)
+(define inset                     pict:inset)
+(define vc-append                 pict:vc-append)
+(define hc-append                 pict:hc-append)
+(define filled-rounded-rectangle  pict:filled-rounded-rectangle)
+(define explain                   pict:explain)
+(define pict-width                pict:pict-width)
+(define pict-height               pict:pict-height)
+(define make-pict-drawer          pict:make-pict-drawer)
+(define rotate                    pict:rotate)
+(define dc                        pict:dc)
+(define pict-ascent               pict:pict-ascent)
+(define pict-descent              pict:pict-descent)
+(define scale                     pict:scale)
+(define canvas-context->dc        pict:canvas-context->dc)
+(define draw-pict                 pict:draw-pict)
 
-(define @fish-width   (ui:@ 220))
-(define @scale        (ui:@ 100))
-(define @status       (ui:@ "Ready."))
+(define canvas-name "pict-playground-canvas")
+(define canvas-width 720.)
+(define canvas-height 480.)
+(define pi 3.141592653589793)
+
+(define @preset (@ "Fish"))
+(define @direction (@ "left"))
+(define @fish-color (@ "royalblue"))
+(define @eye-color (@ "black"))
+(define @mouth-open (@ 0))
+(define @fish-width (@ 220))
+(define @fish-height (@ 120))
+(define @rotation-deg (@ 0))
+(define @scale-percent (@ 100))
+(define @status (@ "Ready."))
 
 ;; get-canvas : -> any/c
 ;;   Look up the preview canvas by id.
@@ -35,37 +86,155 @@
        (js-canvas-get-context canvas "2d" (js-var "undefined"))))
 
 ;; fill-background! : any/c -> void?
-;;   Clear and repaint the playground backdrop.
+;;   Paint the playground backdrop and a simple frame.
 (define (fill-background! dc)
   (dc 'fill-style "#f8fafc")
-  (dc 'fill-rect 0.0 0.0 canvas-width canvas-height)
+  (dc 'fill-rect 0. 0. canvas-width canvas-height)
   (dc 'stroke-style "#d6dde8")
   (dc 'line-width 1.0)
   (dc 'stroke-rect 0.5 0.5 (- canvas-width 1.0) (- canvas-height 1.0))
-  (dc 'fill-style "#70849d")
-  (dc 'font "13px Georgia")
-  (dc 'fill-text "A module-based web-easy page requiring web-pict." 18.0 28.0))
+  (dc 'fill-style "#8aa0b7")
+  (dc 'font "12px Georgia")
+  (dc 'fill-text "web-easy hosts the canvas; web-pict renders the scene." 18. 26.))
 
-;; playground-pict : -> pict?
-;;   Build a compact pict composition from the current controls.
-(define (playground-pict)
-  (define panel
-    (pict:colorize
-     (pict:filled-rounded-rectangle (ui:obs-peek @fish-width) 120 18)
-     "royalblue"))
+;; string->direction : string? -> symbol?
+;;   Normalize a direction choice to the symbol that `standard-fish` expects.
+(define (string->direction s)
+  (if (string=? s "right") 'right 'left))
+
+;; rotation-radians : -> real?
+;;   Convert the rotation slider to radians.
+(define (rotation-radians)
+  (* pi (/ (obs-peek @rotation-deg) 180.0)))
+
+;; scale-factor : -> real?
+;;   Convert the percentage slider to a multiplicative scale.
+(define (scale-factor)
+  (/ (obs-peek @scale-percent) 100.0))
+
+;; fish-pict : -> pict?
+;;   Build the interactive fish preset.
+(define (fish-pict)
+  (standard-fish (obs-peek @fish-width)
+                 (obs-peek @fish-height)
+                 #:direction  (string->direction (obs-peek @direction))
+                 #:color      (obs-peek @fish-color)
+                 #:eye-color  (obs-peek @eye-color)
+                 #:open-mouth (/ (obs-peek @mouth-open) 100.0)))
+
+;; poster-pict : -> pict?
+;;   Build a composed poster scene around the fish.
+(define (poster-pict)
+  (define fish (standard-fish (obs-peek @fish-width)
+                              (obs-peek @fish-height)
+                              #:direction (string->direction (obs-peek @direction))
+                              #:color (obs-peek @fish-color)
+                              #:eye-color (obs-peek @eye-color)
+                              #:open-mouth (/ (obs-peek @mouth-open) 100.0)))
   (define badge
-    (pict:cc-superimpose
-     (pict:colorize (pict:disk 54 #f) "gold")
-     (pict:colorize (pict:filled-rounded-rectangle 60 32 10) "#183153")))
-  (define caption
-    (pict:colorize
-     (pict:filled-rounded-rectangle 260 34 12)
+    (cc-superimpose
+     (colorize (disk 54 #:draw-border? #f) "gold")
+     (colorize (text "web-pict" null 17) "#183153")))
+  (define label
+    (colorize
+     (frame (inset (text "Functional fish poster" null 22) 14 10))
      "#30507a"))
-  (pict:scale
-   (pict:vc-append 18
-                   caption
-                   (pict:hc-append 18 panel badge))
-   (/ (ui:obs-peek @scale) 100.0)))
+  (vc-append 18
+             label
+             (hc-append 18 fish badge)))
+
+;; explain-pict : -> pict?
+;;   Build a small composition and overlay pict metrics.
+(define (explain-pict)
+  (define fish (standard-fish (obs-peek @fish-width)
+                              (obs-peek @fish-height)
+                              #:direction (string->direction (obs-peek @direction))
+                              #:color (obs-peek @fish-color)
+                              #:eye-color (obs-peek @eye-color)
+                              #:open-mouth (/ (obs-peek @mouth-open) 100.0)))
+  (define base
+    (vc-append 10
+               (text "Pict anatomy" null 20)
+               (hc-append 16
+                          fish
+                          (colorize (filled-rounded-rectangle 110 64 14) "lightsteelblue"))))
+  (explain base #:scale 2))
+
+;; current-pict : -> pict?
+;;   Choose the currently selected preset scene.
+(define (current-pict)
+  (case (string->symbol (string-downcase (obs-peek @preset)))
+    [(fish)    (fish-pict)]
+    [(poster)  (poster-pict)]
+    [(explain) (explain-pict)]
+    [else      (fish-pict)]))
+
+;; rotate-around-center : pict? real? -> pict?
+;;   Rotate p around its visual center instead of its top-left origin.
+(define (rotate-around-center/info p theta)
+  (define w      (pict-width p))
+  (define h      (pict-height p))
+  (define cx     (/ w 2.0))
+  (define cy     (/ h 2.0))
+  (define c      (cos theta))
+  (define s      (sin theta))
+  (define drawer (make-pict-drawer p))
+  (define rotated (rotate p theta))
+
+  (define (rot-x x y)
+    (- (* x c) (* y s)))
+  (define (rot-y x y)
+    (+ (* x s) (* y c)))
+
+  (define x0 (rot-x (- cx) (- cy)))
+  (define y0 (rot-y (- cx) (- cy)))
+  (define x1 (rot-x cx (- cy)))
+  (define y1 (rot-y cx (- cy)))
+  (define x2 (rot-x (- cx) cy))
+  (define y2 (rot-y (- cx) cy))
+  (define x3 (rot-x cx cy))
+  (define y3 (rot-y cx cy))
+
+  (define min-x (min x0 x1 x2 x3))
+  (define min-y (min y0 y1 y2 y3))
+  (define anchor-x (- cx min-x))
+  (define anchor-y (- cy min-y))
+
+  (values
+   (dc (lambda (dc x y)
+         (define t (dc 'transform))
+         (dc 'translate (+ x (- min-x)) (+ y (- min-y)))
+         (dc 'translate cx cy)
+         (dc 'rotate theta)
+         (dc 'translate (- cx) (- cy))
+         (drawer dc 0 0)
+         (dc 'transform t))
+       (pict-width rotated)
+       (pict-height rotated)
+       (pict-ascent rotated)
+       (pict-descent rotated))
+   anchor-x
+   anchor-y))
+
+(define (rotate-around-center p theta)
+  (define-values (rotated _anchor-x _anchor-y)
+    (rotate-around-center/info p theta))
+  rotated)
+
+;; transformed-pict : -> pict?
+;;   Apply the shared rotation and scaling controls.
+(define (transformed-pict/info)
+  (define-values (rotated anchor-x anchor-y)
+    (rotate-around-center/info (current-pict) (rotation-radians)))
+  (define factor (scale-factor))
+  (values (scale rotated factor)
+          (* anchor-x factor)
+          (* anchor-y factor)))
+
+(define (transformed-pict)
+  (define-values (p _anchor-x _anchor-y)
+    (transformed-pict/info))
+  p)
 
 ;; draw-current-pict! : -> void?
 ;;   Redraw the preview canvas using the current control values.
@@ -73,30 +242,29 @@
   (define ctx (get-drawing-context))
   (cond
     [(not ctx)
-     (ui::= @status "Waiting for the preview canvas...")
+     (:= @status "Waiting for the preview canvas...")
      (void)]
     [else
-     (define dc (pict:canvas-context->dc ctx))
-     (define p  (playground-pict))
-     (define x  (/ (- canvas-width (pict:pict-width p)) 2.0))
-     (define y  86.0)
+     (define dc (canvas-context->dc ctx))
+     (define-values (p anchor-x anchor-y)
+       (transformed-pict/info))
+     (define rotation-cx (/ canvas-width 2.0))
+     (define rotation-cy (/ canvas-height 2.0))
+     (define x  (- rotation-cx anchor-x))
+     (define y  (- rotation-cy anchor-y))
      (fill-background! dc)
-     (ui::= @status "Preparing pict...")
-     (with-handlers ([exn:fail?
-                      (lambda (e)
-                        (ui::= @status (format "draw-pict failed: ~a" (exn-message e)))
-                        (void))])
-       (ui::= @status "Drawing pict...")
-       (pict:draw-pict p dc x y)
-       (ui::= @status
-              (format "Rendered ~ax~a pict at ~a% scale."
-                      (inexact->exact (round (pict:pict-width p)))
-                      (inexact->exact (round (pict:pict-height p)))
-                      (ui:obs-peek @scale))))
+     (draw-pict p dc x y)
+     (:= @status
+         (format "~a preset, ~ax~a pict, scale ~a%, rotation ~a°"
+                 (obs-peek @preset)
+                 (inexact->exact (round (pict-width p)))
+                 (inexact->exact (round (pict-height p)))
+                 (obs-peek @scale-percent)
+                 (obs-peek @rotation-deg)))
      (void)]))
 
 ;; queue-redraw! : -> void?
-;;   Schedule a repaint after the DOM has updated.
+;;   Schedule a repaint after the DOM has had a chance to update.
 (define (queue-redraw!)
   (void
    (js-window-set-timeout/delay
@@ -106,57 +274,110 @@
 ;; update! : observable? any/c -> void?
 ;;   Set an observable and redraw the preview.
 (define (update! @obs value)
-  (ui::= @obs value)
+  (:= @obs value)
   (queue-redraw!))
+
+(define control-style
+  "width: min(280px, 100%);")
+
+(define preview-style
+  "width: min(760px, 100%);")
 
 (define canvas-style
   "display:block; width:min(720px, 100%); height:auto; border-radius:18px; box-shadow:0 12px 32px rgba(20,40,80,0.12); background:#f8fafc;")
 
 (define playground-app
-  (ui:window
-   (ui:container #:style "width:min(980px, calc(100vw - 28px));"
-    (ui:vpanel
-     (ui:h1 "web-pict Playground")
-     (ui:text "A packaged module example that renders picts onto a canvas.")
-     (ui:group "Controls"
-       (ui:vpanel
-        (ui:text "Fish width")
-        (ui:slider @fish-width
-                   (lambda (new-value)
-                     (update! @fish-width new-value))
-                   120
-                   320)
-        (ui:text (ui:obs-map @fish-width
-                             (lambda (n) (format "~a px" n))))
-        (ui:text "Scale")
-        (ui:slider @scale
-                   (lambda (new-value)
-                     (update! @scale new-value))
-                   50
-                   180)
-        (ui:text (ui:obs-map @scale
-                             (lambda (n) (format "~a%" n))))
-        (ui:button "Redraw now" draw-current-pict!)))
-     (ui:group "Preview"
-       (ui:vpanel
-        (ui:text @status)
-        (ui:Canvas #:id canvas-name
-                   #:width canvas-width
-                   #:height canvas-height
-                   #:style canvas-style)))))))
+  (ui-window
+   (ui-container #:style "width:min(1180px, calc(100vw - 28px));"
+    (ui-vpanel
+     (ui-h1 "web-pict Playground")
+     (ui-text "Use web-easy controls to drive a canvas preview rendered with web-pict.")
+     (ui-hpanel
+      (ui-group "Controls"
+                (ui-div #:attrs `((style ,control-style))
+                        (ui-vpanel
+                           (ui-text "Preset")
+                           (ui-choice '("Fish" "Poster" "Explain")
+                                      @preset
+                                      (lambda (new-value)
+                                        (update! @preset new-value)))
+                           (ui-text "Direction")
+                           (ui-choice '("left" "right")
+                                      @direction
+                                      (lambda (new-value)
+                                        (update! @direction new-value)))
+                           (ui-text "Fish color")
+                           (ui-choice '("royalblue" "salmon" "olive" "chocolate" "darkcyan")
+                                      @fish-color
+                                      (lambda (new-value)
+                                        (update! @fish-color new-value)))
+                           (ui-text "Eye color")
+                           (ui-choice '("black" "saddlebrown" "midnightblue" "white")
+                                      @eye-color
+                                      (lambda (new-value)
+                                        (update! @eye-color new-value)))
+                           (ui-text "Mouth openness")
+                           (ui-slider @mouth-open
+                                      (lambda (new-value)
+                                        (update! @mouth-open new-value))
+                                      0
+                                      100)
+                           (ui-text (@mouth-open . ~> . (lambda (n) (format "~a%" n))))
+                           (ui-text "Fish width")
+                           (ui-slider @fish-width
+                                      (lambda (new-value)
+                                        (update! @fish-width new-value))
+                                      80
+                                      320)
+                           (ui-text (@fish-width . ~> . (lambda (n) (format "~a px" n))))
+                           (ui-text "Fish height")
+                           (ui-slider @fish-height
+                                      (lambda (new-value)
+                                        (update! @fish-height new-value))
+                                      40
+                                      180)
+                           (ui-text (@fish-height . ~> . (lambda (n) (format "~a px" n))))
+                           (ui-text "Scale")
+                           (ui-slider @scale-percent
+                                      (lambda (new-value)
+                                        (update! @scale-percent new-value))
+                                      50
+                                      180)
+                           (ui-text (@scale-percent . ~> . (lambda (n) (format "~a%" n))))
+                           (ui-text "Rotation")
+                           (ui-slider @rotation-deg
+                                      (lambda (new-value)
+                                        (update! @rotation-deg new-value))
+                                      -180
+                                      180)
+                           (ui-text (@rotation-deg . ~> . (lambda (n) (format "~a°" n))))
+                           (ui-button "Redraw now" draw-current-pict!))))
+      (ui-group "Preview"
+                (ui-div #:attrs `((style ,preview-style))
+                        (ui-vpanel
+                           (ui-text @status)
+                           (ui-canvas #:id canvas-name
+                                      #:width canvas-width
+                                      #:height canvas-height
+                                      #:style canvas-style)
+                           (ui-text "Try the Explain preset to inspect pict bounds and baselines.")))))))))
 
 (define app-renderer
-  (ui:render playground-app))
+  (ui-render playground-app))
 
 (define light-theme
-  (ui:theme 'light
+  (ui-theme 'light
             "we-theme-light"
             "web-easy-core.css"
             "theme-light.css"
             #f))
 
 (define theme-manager
-  (ui:install-theme-manager! light-theme))
+  (ui-install-theme-manager! light-theme))
 
-(ui:mount-renderer! app-renderer)
-(queue-redraw!)
+(ui-mount-renderer! app-renderer)
+
+(define (main)
+  (queue-redraw!))
+
+(main)

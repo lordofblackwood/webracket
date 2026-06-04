@@ -1555,9 +1555,9 @@
       dx dy))
 
 (define (disk diameter
-              [draw-border? #t]
-              [border-color #f]
-              [border-width #f])
+              #:draw-border? [draw-border? #t]
+              #:border-color [border-color #f]
+              #:border-width [border-width #f])
   (filled-ellipse diameter diameter
                   draw-border?
                   border-color
@@ -2397,11 +2397,11 @@
          (cons (standard-fish-mirror-x direction w (- (* 5/8 w) delta)) (+ (* 1/4 h) delta))
          (cons (standard-fish-mirror-x direction w (- (* 5/8 w) delta)) (- (* 3/4 h) delta)))))
 
-(define/key (standard-fish w h
-                           #:direction [direction 'left]
-                           #:color [c "blue"]
-                           #:eye-color [ec "black"]
-                           #:open-mouth [mouth-open #f])
+(define (standard-fish w h
+                       #:direction [direction 'left]
+                       #:color [c "blue"]
+                       #:eye-color [ec "black"]
+                       #:open-mouth [mouth-open #f])
   (define (ensure-color who value)
     (cond
       [(color? value)      value]
@@ -2701,22 +2701,22 @@
 ;;; Explainers
 ;;;
 
-(define/key (explain p
-                     #:border     [b  "Firebrick"]
-                     #:ascent     [a  "MediumSeaGreen"]
-                     #:baseline   [d  "DodgerBlue"]
-                     #:scale      [s  5]
-                     #:line-width [lw 1])
+(define (explain p
+                 #:border     [b  "Firebrick"]
+                 #:ascent     [a  "MediumSeaGreen"]
+                 #:baseline   [d  "DodgerBlue"]
+                 #:scale      [s  5]
+                 #:line-width [lw 1])
   (explain-child* p p b a d s lw))
 
-(define/key (explain-child
-             p
-             #:border     [b  "Firebrick"]
-             #:ascent     [a  "MediumSeaGreen"]
-             #:baseline   [d  "DodgerBlue"]
-             #:scale      [s  5]
-             #:line-width [lw 1]
-             . child-path)
+(define (explain-child
+         p
+         #:border     [b  "Firebrick"]
+         #:ascent     [a  "MediumSeaGreen"]
+         #:baseline   [d  "DodgerBlue"]
+         #:scale      [s  5]
+         #:line-width [lw 1]
+         . child-path)
   (scale
    (for/fold ([p p])
              ([c (in-list child-path)])
