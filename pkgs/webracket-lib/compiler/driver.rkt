@@ -2459,6 +2459,13 @@
                     (webify-module-provider-cache-ref provider-cache
                                                       'racket/private/class-struct))
               '())
+          ;; WebRacket-owned browser/library providers are hand-authored
+          ;; modules with exported procedures that often close over private
+          ;; helpers. Until provider slicing can prove and retain those private
+          ;; closure dependencies, keep these providers unsliced.
+          (for/list ([name (in-list external-names)]
+                     #:when (webracket-owned-ffi-provider-name? name))
+            (webify-module-provider-cache-ref provider-cache name))
           (io-format-provider-reports)))
        (define registry
          (webify-module-reports->discovered-registry

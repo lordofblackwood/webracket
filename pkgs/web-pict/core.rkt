@@ -3291,12 +3291,9 @@
                      (+ dx x3) (- h+top (+ dy y3)))
                  (dc 'stroke))]
               [(with-color)
-               (js-log "render: with-color")
                (if b&w?
                    (loop dx dy (caddr x))
                    (let ([c1 (cadr x)]) ; todo rename back to c and have the define this leads to a problem
-                     (js-log (format "1.  ~a" c))        ; was 0
-                     (js-log (format "1.5 ~a" (cadr x))) ; was/should be "red"
                      (define c (if (string? c1) c1 (color->string c1)))
                      (let ([old-stroke     (dc 'stroke-style)]
                            [old-fill       (dc 'fill-style)])

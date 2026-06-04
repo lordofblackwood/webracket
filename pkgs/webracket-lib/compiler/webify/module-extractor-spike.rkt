@@ -1988,7 +1988,7 @@
        (webify-module-export-demand module fresh)]))
   (define initial-demands
     (append*
-     (for/list ([report (in-list root-reports)])
+     (for/list ([report (in-list (append extra-reports root-reports))])
        (webify-module-extractor-spike-import-export-demands
         report
         discovered-reports
