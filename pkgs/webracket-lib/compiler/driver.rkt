@@ -2223,17 +2223,23 @@
 (define (webracket/base-external-provider-names reports)
   (define local-provider-names (map webify-module-report-name reports))
   (remove-duplicates
-   (for*/list ([report (in-list reports)]
-               [name (in-list (webify-module-report-required-provider-names report))]
-               #:unless (or (and (memq name local-provider-names)
-                                  ;; A file module can have the same name as
-                                  ;; an external collection provider, such as
-                                  ;; `fetch.rkt` requiring collection `fetch`.
-                                  ;; The local module's own name must not hide
-                                  ;; that external provider from the bridge.
-                                  (not (eq? name (webify-module-report-name report))))
-                            (webracket/base-language-provider-name? name)))
-     name)
+   (append
+    (for/list ([report (in-list reports)]
+               #:do [(define name (webify-module-report-name report))]
+               #:when (and (webify-provider-trial-module-allowed? name)
+                           (not (webracket/base-language-provider-name? name))))
+      name)
+    (for*/list ([report (in-list reports)]
+                [name (in-list (webify-module-report-required-provider-names report))]
+                #:unless (or (and (memq name local-provider-names)
+                                   ;; A file module can have the same name as
+                                   ;; an external collection provider, such as
+                                   ;; `fetch.rkt` requiring collection `fetch`.
+                                   ;; The local module's own name must not hide
+                                   ;; that external provider from the bridge.
+                                   (not (eq? name (webify-module-report-name report))))
+                             (webracket/base-language-provider-name? name)))
+      name))
    eq?))
 
 ;; webify-module-report/rename : report symbol? -> report
@@ -2282,7 +2288,9 @@
   (define self-colliding-names
     (for/list ([report (in-list reports)]
                #:do [(define name (webify-module-report-name report))]
-               #:when (memq name (webify-module-report-required-provider-names report)))
+               #:when (or (memq name (webify-module-report-required-provider-names report))
+                           (and (webify-provider-trial-module-allowed? name)
+                                (not (webracket/base-language-provider-name? name)))))
       name))
   (define (renamed-name name)
     (if (memq name self-colliding-names)
@@ -2316,6 +2324,7 @@
   '(web-easy
     fetch
     storage
+    websocket
     web-pict
     rquery
     webracket/private/ffi))

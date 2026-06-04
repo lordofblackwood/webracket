@@ -289,6 +289,7 @@
     web-easy/private/dom-like
     fetch
     storage
+    websocket
     web-pict
     web-pict/private/entry
     rquery
@@ -447,6 +448,7 @@
     web-easy/private/dom-like
     fetch
     storage
+    websocket
     web-pict
     web-pict/private/entry
     rquery
