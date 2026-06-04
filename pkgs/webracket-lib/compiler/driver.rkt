@@ -322,6 +322,7 @@
     (domrect    . "domrect.ffi")
     (element    . "element.ffi")
     (event      . "event.ffi")
+    (audio      . "audio.ffi")
     (fetch      . "dom.ffi")          ; is window enough?
     (image      . "image.ffi")
     (iterator   . "iterator.ffi")
@@ -2322,6 +2323,7 @@
 ;;   Recognize WebRacket provider modules that do not need contract erasure.
 (define webracket-owned-ffi-provider-exacts
   '(web-easy
+    audio
     fetch
     indexed-db
     storage

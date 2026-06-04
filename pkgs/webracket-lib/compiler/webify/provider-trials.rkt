@@ -287,6 +287,7 @@
     browser/window
     web-easy
     web-easy/private/dom-like
+    audio
     fetch
     indexed-db
     storage
@@ -447,6 +448,7 @@
     browser/window
     web-easy
     web-easy/private/dom-like
+    audio
     fetch
     indexed-db
     storage
