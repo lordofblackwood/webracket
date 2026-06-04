@@ -2323,6 +2323,7 @@
 (define webracket-owned-ffi-provider-exacts
   '(web-easy
     fetch
+    indexed-db
     storage
     websocket
     web-pict

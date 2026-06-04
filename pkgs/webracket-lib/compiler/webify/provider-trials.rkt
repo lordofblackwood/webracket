@@ -288,6 +288,7 @@
     web-easy
     web-easy/private/dom-like
     fetch
+    indexed-db
     storage
     websocket
     web-pict
@@ -447,6 +448,7 @@
     web-easy
     web-easy/private/dom-like
     fetch
+    indexed-db
     storage
     websocket
     web-pict
