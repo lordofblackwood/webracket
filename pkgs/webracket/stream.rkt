@@ -14,6 +14,7 @@
          stream-append
          stream-map
          stream-filter
+         stream-add-between
          stream-rest
          stream?)
 
@@ -192,3 +193,21 @@
       [(pred (stream-first st))
        (stream-cons (stream-first st) (loop (stream-rest st)))]
       [else (loop (stream-rest st))])))
+
+;; stream-add-between : stream? any/c -> stream?
+;;   Lazily insert e between each pair of elements in st.
+(define (stream-add-between st e)
+  (unless (stream? st)
+    (raise-argument-error 'stream-add-between "stream?" st))
+  (cond
+    [(stream-empty? st) empty-stream]
+    [else
+     (stream-cons
+      (stream-first st)
+      (let loop ([st (stream-rest st)])
+        (cond
+          [(stream-empty? st) empty-stream]
+          [else
+           (stream-cons e
+                        (stream-cons (stream-first st)
+                                     (loop (stream-rest st))))])))]))
