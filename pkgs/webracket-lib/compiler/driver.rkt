@@ -1605,6 +1605,43 @@
   (and (symbol? candidate)
        (string->path (string-append (symbol->string candidate) ".rkt"))))
 
+;; local-require-spec-paths : any/c path? -> (listof path?)
+;;   Discover source-visible local files before expanded metadata is available.
+(define (local-require-spec-paths spec source-dir)
+  (define (relative-path->complete path-string base-dir)
+    (simplify-path (build-path base-dir path-string)))
+  (match spec
+    [(? string?)
+     (list (relative-path->complete spec source-dir))]
+    [`(relative-in ,(? string? base) ,inner ...)
+     (define base-path (relative-path->complete base source-dir))
+     (define base-dir  (or (path-only base-path) source-dir))
+     (append* (map (lambda (inner-spec)
+                     (local-require-spec-paths inner-spec base-dir))
+                   inner))]
+    [`(combine-in ,inner ...)
+     (append* (map (lambda (inner-spec)
+                     (local-require-spec-paths inner-spec source-dir))
+                   inner))]
+    [`(,(or 'only-in 'except-in 'rename-in 'prefix-in 'only-meta-in)
+       ,inner . ,_rest)
+     (local-require-spec-paths inner source-dir)]
+    [`(for-meta 0 ,inner ...)
+     (append* (map (lambda (inner-spec)
+                     (local-require-spec-paths inner-spec source-dir))
+                   inner))]
+    [_ '()]))
+
+;; local-require-form-paths : any/c path? -> (listof path?)
+;;   Discover local file dependencies from one source require form.
+(define (local-require-form-paths form source-dir)
+  (match form
+    [`(require ,specs ...)
+     (append* (map (lambda (spec)
+                     (local-require-spec-paths spec source-dir))
+                   specs))]
+    [_ '()]))
+
 (define (webracket/base-report-local-dependency-paths report source-dir)
   (define import-map (webify-module-report-import-map report))
   (define self-name (webify-module-report-name report))
@@ -2185,9 +2222,21 @@
           #:namespace extraction-namespace
           #:module-name-resolver module-name-resolver*))
        (define module-name (webify-module-report-name report))
-       (for ([dep-path (in-list (webracket/base-report-local-dependency-paths
-                                 report
-                                 source-dir))])
+       (define source-dependency-paths
+         (remove-duplicates
+          (append-map (lambda (form)
+                        (local-require-form-paths form source-dir))
+                      (match module-datum
+                        [`(module ,_name ,_language (#%module-begin ,forms ...)) forms]
+                        [`(module ,_name ,_language ,forms ...) forms]
+                        [_ '()]))
+          equal?))
+       (define report-dependency-paths
+         (webracket/base-report-local-dependency-paths report source-dir))
+       (for ([dep-path (in-list (remove-duplicates
+                                 (append report-dependency-paths
+                                         source-dependency-paths)
+                                 equal?))])
          (visit dep-path))
        (set! reports (append reports (list report)))
        (hash-remove! visiting resolved)

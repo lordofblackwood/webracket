@@ -213,6 +213,68 @@
         "(js-log (+ (add2 20) (sub2 22)))\n")))
    #rx"(?m:^42$)"))
 
+(test-case "relative-in local require"
+  (check-module-case
+   "relative-in"
+   `(("providers/base.rkt" "#lang webracket/base\n(provide add2)\n(define (add2 x) (+ x 2))\n")
+     ("providers/nested/use.rkt" "#lang webracket/base\n(provide sub2)\n(define (sub2 x) (- x 2))\n")
+     ("main.rkt"
+      ,(string-append
+        "#lang webracket/base\n"
+        "(require (relative-in \"providers/base.rkt\"\n"
+        "          \"base.rkt\"\n"
+        "          \"nested/use.rkt\"))\n"
+        "(js-log (+ (add2 20) (sub2 22)))\n")))
+   #rx"(?m:^42$)"))
+
+(test-case "for-syntax local require is not a runtime provider"
+  (check-module-case
+   "for-syntax-local"
+   `(("macros.rkt"
+      ,(string-append
+        "#lang webracket/base\n"
+        "(provide (for-syntax compile-answer))\n"
+        "(define-for-syntax compile-answer 42)\n"))
+     ("main.rkt"
+      ,(string-append
+        "#lang webracket/base\n"
+        "(require (for-syntax \"macros.rkt\"))\n"
+        "(js-log 42)\n")))
+   #rx"(?m:^42$)"))
+
+(test-case "for-label local require is not a runtime provider"
+  (check-module-case
+   "for-label-local"
+   `(("docs.rkt" "#lang webracket/base\n(provide doc-value)\n(define doc-value 42)\n")
+     ("main.rkt"
+      ,(string-append
+        "#lang webracket/base\n"
+        "(require (for-label \"docs.rkt\"))\n"
+        "(js-log 42)\n")))
+   #rx"(?m:^42$)"))
+
+(test-case "for-template local require is not a runtime provider"
+  (check-module-case
+   "for-template-local"
+   `(("template.rkt" "#lang webracket/base\n(provide template-value)\n(define template-value 42)\n")
+     ("main.rkt"
+      ,(string-append
+        "#lang webracket/base\n"
+        "(require (for-template \"template.rkt\"))\n"
+        "(js-log 42)\n")))
+   #rx"(?m:^42$)"))
+
+(test-case "only-meta-in phase zero keeps runtime imports"
+  (check-module-case
+   "only-meta-in-zero"
+   `(("lib.rkt" ,provider-source)
+     ("main.rkt"
+      ,(string-append
+        "#lang webracket/base\n"
+        "(require (only-meta-in 0 \"lib.rkt\"))\n"
+        "(js-log (add2 40))\n")))
+   #rx"(?m:^42$)"))
+
 (test-case "provider rename-out with plain local require"
   (check-module-case
    "provider-rename-out"
