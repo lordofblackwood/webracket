@@ -363,16 +363,43 @@
                twelfth))))
    (webify-provider-trial
     'racket/string
-    '(string-prefix? string-suffix? string-split string-join)
+    '(non-empty-string?
+      string-append*
+      string-contains?
+      string-find
+      string-join
+      string-normalize-spaces
+      string-prefix?
+      string-replace
+      string-split
+      string-suffix?
+      string-trim)
     '(module use-string racket/base
        (require (only-in racket/string
+                         non-empty-string?
+                         string-append*
+                         string-contains?
+                         string-find
+                         string-join
+                         string-normalize-spaces
                          string-prefix?
-                         string-suffix?
+                         string-replace
                          string-split
-                         string-join))
+                         string-suffix?
+                         string-trim))
        (provide answer)
        (define answer
-         (list string-prefix? string-suffix? string-split string-join))))
+         (list non-empty-string?
+               string-append*
+               string-contains?
+               string-find
+               string-join
+               string-normalize-spaces
+               string-prefix?
+               string-replace
+               string-split
+               string-suffix?
+               string-trim))))
    (webify-provider-trial
     'racket/bool
     '(xor boolean=?)

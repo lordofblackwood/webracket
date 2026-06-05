@@ -164,6 +164,7 @@
     installed-racket-list-expanded-coverage
     installed-racket-string-coverage
     installed-racket-string-join
+    real-racket-string-coverage
     full-bytes-coverage
     installed-racket-bool-coverage
     installed-racket-vector-coverage
@@ -255,7 +256,6 @@
     real-racket-function-diagnostic
     real-racket-function-coverage-diagnostic
     real-racket-list-diagnostic
-    real-racket-string-diagnostic
     real-racket-private-for-diagnostic
     real-racket-private-kw-diagnostic
     real-racket-class-diagnostic
@@ -777,8 +777,8 @@
    #rx"(?m:^webracket$)"
    '("--no-io-format-provider" "--webracket-module-bridge"))
    (dashboard-case
-    'real-racket-string-diagnostic
-    'installed-provider-diagnostic
+    'real-racket-string-coverage
+    'installed-provider-coverage
     '(racket/string)
     `(("main.rkt" .
        ,(string-append
@@ -799,7 +799,7 @@
     #rx"(?m:^42$)"
     '("--no-io-format-provider" "--webracket-module-bridge" "--no-provider-substitutions")
     #:tier 'coverage
-    #:expectation 'diagnostic)
+    #:expectation 'required)
    (dashboard-case
     'installed-racket-vector
     'installed-provider-graph
