@@ -23,6 +23,7 @@ Migration status:
 - `performance.rkt`: migrated to `js/performance`; kept here for compatibility.
 - `storage.rkt`: migrated to `storage`; kept here for compatibility.
 - `sxml.rkt`: migrated to `webracket/sxml`; kept here for compatibility.
+- `threading.rkt`: migrated to `webracket/threading`; kept here for compatibility.
 - Other files: still legacy include-lib wrappers or compatibility shims.
 
 When migrating another file, put raw bindings under `webracket/unsafe/*`.

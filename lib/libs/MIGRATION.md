@@ -34,7 +34,7 @@ and keep `include-lib` only as a compatibility path while old examples migrate.
 | `storage.rkt` | safe wrapper | `storage` | Migrated to native module source; exposes localStorage/sessionStorage helpers. |
 | `sxml.rkt` | safe utility | `webracket/sxml` | Migrated to native module source; no longer includes legacy source. |
 | `temp.rkt` | test/demo wrapper | `js/temp` | Tiny demo/test wrapper around `temp.ffi`; keep mostly for coverage. |
-| `threading.rkt` | syntax/helper | `webracket/threading` | Threading macros; not JS/browser-specific. |
+| `threading.rkt` | syntax/helper | `webracket/threading` | Migrated to native module source; provides threading macros. |
 | `websocket.rkt` | safe wrapper | `browser/websocket` | WebSocket wrapper with handler/listener normalization. |
 | `window.rkt` | safe wrapper | `browser/window` | Window wrapper and browser-global helpers. |
 
