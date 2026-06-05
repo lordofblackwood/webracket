@@ -17,8 +17,8 @@
          stream-rest
          stream?)
 
-(require "promise.rkt"
-         (only-in racket/private/for prop:sequence))
+(require webracket/promise
+         (only-in racket/private/for make-do-sequence prop:sequence))
 
 ;; A small finite-stream provider for Goal 1. It covers the common constructor
 ;; and selector surface without importing the full `racket/stream` library.
@@ -81,9 +81,19 @@
       [else (loop (stream-rest st) (cons (stream-first st) acc))])))
 
 ;; in-stream : stream? -> sequence?
-;;   Expose a staged stream to `for` forms through its finite list view.
+;;   Expose a staged stream to `for` forms without forcing the whole stream.
 (define (in-stream st)
-  (stream->list st))
+  (unless (stream? st)
+    (raise-argument-error 'in-stream "stream?" st))
+  (make-do-sequence
+   (lambda ()
+     (values stream-first
+             #f
+             stream-rest
+             st
+             (lambda (pos) (not (stream-empty? pos)))
+             #f
+             #f))))
 
 ;; stream-length : stream? -> exact-nonnegative-integer?
 ;;   Count the elements in a finite staged stream.

@@ -542,6 +542,40 @@
         (with-handlers ([exn:fail:filesystem? void])
           (delete-directory/files dir))))))
 
+(test-case "staged set and stream providers share a stream module instance"
+  (define source-dir (make-temporary-file "webracket-set-stream-instance-src-~a" 'directory))
+  (define dest-dir   (make-temporary-file "webracket-set-stream-instance-dest-~a" 'directory))
+  (define cache-dir  (make-temporary-file "webracket-set-stream-instance-cache-~a" 'directory))
+  (define source-path (build-path source-dir "set-stream-instance.rkt"))
+  (dynamic-wind
+    void
+    (lambda ()
+      (call-with-output-file source-path
+        (lambda (out)
+          (display
+           (string-append
+            "#lang webracket/base\n"
+            "(require racket/set webracket/stream)\n"
+            "(define stream-sum (for/sum ([x (in-stream (stream 1 2 3))]) x))\n"
+            "(define set-sum (for/sum ([x (in-set (set 10 20 12))]) x))\n"
+            "(js-log (+ stream-sum set-sum))\n")
+           out))
+        #:exists 'truncate/replace)
+      (define-values (status output)
+        (run-webracket/base
+         (list "-r" "--no-stdlib" "--no-io-format-provider"
+               "--webracket-module-bridge"
+               "--provider-cache-dir" (path->string cache-dir)
+               "--dest" (path->string dest-dir)
+               (path->string source-path))
+         source-dir))
+      (check-equal? status 0 output)
+      (check-regexp-match #rx"(?m:^48$)" output))
+    (lambda ()
+      (for ([dir (in-list (list source-dir dest-dir cache-dir))])
+        (with-handlers ([exn:fail:filesystem? void])
+          (delete-directory/files dir))))))
+
 (test-case "staged promise provider caches multiple values and exceptions"
   (define multi (staged-promise:delay (values 20 22)))
   (define multi-sum

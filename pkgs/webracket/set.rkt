@@ -90,7 +90,7 @@
          weak-seteq
          weak-seteqv)
 
-(require "stream.rkt"
+(require webracket/stream
          (for-syntax racket/base))
 
 ;; A staged hash-set provider for Goal 1. It intentionally does not implement
