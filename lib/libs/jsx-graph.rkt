@@ -608,31 +608,6 @@
 (define-jsx-alias (jsx-board-create-majorsector/raw board parents attrs)
   js-jsx-board-create-majorsector)
 
-;; jsx-board-create-curveintersection/raw : external/raw any/c any/c -> external/raw
-;;   Create a curveintersection on a board.
-(define-jsx-alias (jsx-board-create-curveintersection/raw board parents attrs)
-  js-jsx-board-create-curveintersection)
-
-;; jsx-board-create-curvedifference/raw : external/raw any/c any/c -> external/raw
-;;   Create a curvedifference on a board.
-(define-jsx-alias (jsx-board-create-curvedifference/raw board parents attrs)
-  js-jsx-board-create-curvedifference)
-
-;; jsx-board-create-curveunion/raw : external/raw any/c any/c -> external/raw
-;;   Create a curveunion on a board.
-(define-jsx-alias (jsx-board-create-curveunion/raw board parents attrs)
-  js-jsx-board-create-curveunion)
-
-;; jsx-board-create-derivative/raw : external/raw any/c any/c -> external/raw
-;;   Create a derivative on a board.
-(define-jsx-alias (jsx-board-create-derivative/raw board parents attrs)
-  js-jsx-board-create-derivative)
-
-;; jsx-board-create-integral/raw : external/raw any/c any/c -> external/raw
-;;   Create an integral on a board.
-(define-jsx-alias (jsx-board-create-integral/raw board parents attrs)
-  js-jsx-board-create-integral)
-
 ;; jsx-board-create-riemannsum/raw : external/raw any/c any/c -> external/raw
 ;;   Create a riemannsum on a board.
 (define-jsx-alias (jsx-board-create-riemannsum/raw board parents attrs)
@@ -3237,7 +3212,7 @@
   (js-jsx-board-id (jsx-board-raw board)))
 
 ;; jsx-board-container : jsx-board? -> any/c
-;;   Read the board container element.
+;;   Read the board container.
 (define (jsx-board-container board)
   (js-jsx-board-container (jsx-board-raw board)))
 
@@ -3783,11 +3758,6 @@
 ;;   Resume automatic board updates.
 (define (jsx-board-unsuspend-update! board)
   (jsx-board-unsuspend-update!/raw (jsx-board-raw board)))
-
-;; jsx-point? : any/c -> boolean?
-;;   Test whether a value is a JSXGraph point.
-(define (jsx-point? x)
-  (jsx-point?/raw x))
 
 ;; jsx-point-attractor-distance : jsx-point? -> flonum?
 ;;   Read the point's attractor distance.
