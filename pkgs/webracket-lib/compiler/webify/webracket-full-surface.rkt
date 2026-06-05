@@ -60,7 +60,7 @@
     (racket/format   exported extracts partial runs)
     (racket/function exported extracts composes runs)
     (racket/include  exported expands  partial host-only)
-    (racket/list     exported extracts partial runs)
+    (racket/list     exported extracts composes runs)
     (racket/local    exported expands  partial host-only)
     (racket/match    exported extracts partial runs)
     (racket/math     exported extracts partial runs)

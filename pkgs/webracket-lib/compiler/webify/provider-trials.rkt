@@ -156,11 +156,211 @@
   (list
    (webify-provider-trial
     'racket/list
-    '(first rest filter-map append-map)
+    '(add-between
+      append*
+      append-map
+      argmax
+      argmin
+      cartesian-product
+      check-duplicates
+      combinations
+      cons?
+      count
+      drop
+      drop-common-prefix
+      drop-right
+      dropf
+      dropf-right
+      eighth
+      eleventh
+      empty
+      empty?
+      fifteenth
+      fifth
+      filter-map
+      filter-not
+      first
+      flatten
+      fourteenth
+      fourth
+      group-by
+      in-combinations
+      in-permutations
+      inclusive-range
+      index-of
+      index-where
+      indexes-of
+      indexes-where
+      last
+      last-pair
+      list-prefix?
+      list-set
+      list-update
+      make-list
+      ninth
+      partition
+      permutations
+      range
+      remf
+      remf*
+      remove-duplicates
+      rest
+      second
+      seventh
+      shuffle
+      sixth
+      split-at
+      split-at-right
+      split-common-prefix
+      splitf-at
+      splitf-at-right
+      take
+      take-common-prefix
+      take-right
+      takef
+      takef-right
+      tenth
+      third
+      thirteenth
+      twelfth)
     '(module use-list racket/base
-       (require (only-in racket/list first rest filter-map append-map))
+       (require (only-in racket/list
+                         add-between
+                         append*
+                         append-map
+                         argmax
+                         argmin
+                         cartesian-product
+                         check-duplicates
+                         combinations
+                         cons?
+                         count
+                         drop
+                         drop-common-prefix
+                         drop-right
+                         dropf
+                         dropf-right
+                         eighth
+                         eleventh
+                         empty
+                         empty?
+                         fifteenth
+                         fifth
+                         filter-map
+                         filter-not
+                         first
+                         flatten
+                         fourteenth
+                         fourth
+                         group-by
+                         in-combinations
+                         in-permutations
+                         inclusive-range
+                         index-of
+                         index-where
+                         indexes-of
+                         indexes-where
+                         last
+                         last-pair
+                         list-prefix?
+                         list-set
+                         list-update
+                         make-list
+                         ninth
+                         partition
+                         permutations
+                         range
+                         remf
+                         remf*
+                         remove-duplicates
+                         rest
+                         second
+                         seventh
+                         shuffle
+                         sixth
+                         split-at
+                         split-at-right
+                         split-common-prefix
+                         splitf-at
+                         splitf-at-right
+                         take
+                         take-common-prefix
+                         take-right
+                         takef
+                         takef-right
+                         tenth
+                         third
+                         thirteenth
+                         twelfth))
        (provide answer)
-       (define answer (list first rest filter-map append-map))))
+       (define answer
+         (list add-between
+               append*
+               append-map
+               argmax
+               argmin
+               cartesian-product
+               check-duplicates
+               combinations
+               cons?
+               count
+               drop
+               drop-common-prefix
+               drop-right
+               dropf
+               dropf-right
+               eighth
+               eleventh
+               empty
+               empty?
+               fifteenth
+               fifth
+               filter-map
+               filter-not
+               first
+               flatten
+               fourteenth
+               fourth
+               group-by
+               in-combinations
+               in-permutations
+               inclusive-range
+               index-of
+               index-where
+               indexes-of
+               indexes-where
+               last
+               last-pair
+               list-prefix?
+               list-set
+               list-update
+               make-list
+               ninth
+               partition
+               permutations
+               range
+               remf
+               remf*
+               remove-duplicates
+               rest
+               second
+               seventh
+               shuffle
+               sixth
+               split-at
+               split-at-right
+               split-common-prefix
+               splitf-at
+               splitf-at-right
+               take
+               take-common-prefix
+               take-right
+               takef
+               takef-right
+               tenth
+               third
+               thirteenth
+               twelfth))))
    (webify-provider-trial
     'racket/string
     '(string-prefix? string-suffix? string-split string-join)
@@ -345,6 +545,7 @@
     racket/private/keyword-apply-dict
     racket/private/kw
     racket/private/list
+    racket/private/list-predicates
     racket/private/map
     racket/private/more-scheme
     racket/private/pico
@@ -532,6 +733,7 @@
     racket/private/keyword-apply-dict
     racket/private/kw
     racket/private/list
+    racket/private/list-predicates
     racket/private/map
     racket/private/pico
     racket/private/port
@@ -626,6 +828,39 @@
 (define (webify-provider-trial-default-bridge-module-allowed? module)
   (and (memq module webify-provider-trial-default-bridge-modules) #t))
 
+;; webify-provider-trial-provider-substitute : symbol? -> symbol?
+;;   Mirror provider routes introduced by extractor alias inference.
+(define (webify-provider-trial-provider-substitute name)
+  (case name
+    [(racket/private/kw) 'webracket/private/kw]
+    [else name]))
+
+;; webify-provider-trial-report/rename : report symbol? -> report
+;;   Register a substituted provider report under the requested dependency name.
+(define (webify-provider-trial-report/rename report name)
+  (if (eq? name (webify-module-report-name report))
+      report
+      (webify-module-report
+       name
+       (webify-module-report-directory-keys report)
+       (webify-module-report-bundle-keys report)
+       (webify-module-report-bundle-entries report)
+       (webify-module-report-phase0-imports report)
+       (webify-module-report-phase0-exports report)
+       (webify-module-report-phase0-linklet-datum report)
+       (webify-module-report-manifest-ready? report)
+       (cons (format "substituted provider registered as ~a" name)
+             (webify-module-report-notes report)))))
+
+;; webify-provider-cache-ref/substituted : cache symbol? -> webify-module-report?
+;;   Fetch through provider substitutions used by demand-sliced imports.
+(define (webify-provider-cache-ref/substituted provider-cache name)
+  (webify-provider-trial-report/rename
+   (webify-module-provider-cache-ref
+    provider-cache
+    (webify-provider-trial-provider-substitute name))
+   name))
+
 ;; webify-provider-trial-ref : symbol? -> webify-provider-trial?
 ;;   Look up a provider trial by module name.
 (define (webify-provider-trial-ref module)
@@ -666,21 +901,31 @@
                       (exn-message exn)))])
     (define importer-report
       (webify-compile-module-report (webify-provider-trial-source trial)))
+    (define kw-report
+      (webify-module-provider-cache-ref provider-cache 'webracket/private/kw))
+    (define undefined-report
+      (webify-module-provider-cache-ref provider-cache 'webracket/unsafe/undefined))
+    (define support-reports
+      (list webify-module-protocol-report
+            kw-report
+            (webify-provider-trial-report/rename kw-report 'racket/private/kw)
+            undefined-report
+            (webify-provider-trial-report/rename undefined-report 'racket/unsafe/undefined)))
     (define inputs
       (webify-module-reports->discovered-resolved-linklet-inputs
        (list importer-report)
-       #:extra-reports (list webify-module-protocol-report)
+       #:extra-reports support-reports
        #:fetch-provider
        (lambda (name)
-         (webify-module-provider-cache-ref provider-cache name))
+         (webify-provider-cache-ref/substituted provider-cache name))
        #:module-protocol-dependency webify-module-protocol-dependency
        #:demand-slice? #t))
     (define full-reports
       (webify-module-reports->required-provider-closure
-       (list webify-module-protocol-report importer-report)
+       (cons importer-report support-reports)
        #:fetch-provider
        (lambda (name)
-         (webify-module-provider-cache-ref provider-cache name))
+         (webify-provider-cache-ref/substituted provider-cache name))
        #:skip-unfetchable? #t))
     (define export-demands
       (webify-module-report-import-export-demands
