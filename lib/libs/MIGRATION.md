@@ -21,9 +21,9 @@ and keep `include-lib` only as a compatibility path while old examples migrate.
 | `domrect.rkt` | safe wrapper | `browser/domrect` | Migrated; module now owns DOMRect wrap/unwrap plus accessors. |
 | `element.rkt` | safe wrapper | `browser/element` | Large DOM Element wrapper with event-listener caching. |
 | `event.rkt` | legacy include adapter | `browser/event` | Includes `lib/web-easy/event-browser.rkt`; should become a real module source or wrapper. |
-| `fetch.rkt` | safe wrapper | `browser/fetch` | Fetch/Headers/Request/Response wrappers; no public module yet. |
+| `fetch.rkt` | safe wrapper | `fetch` | Migrated to native module source; exposes Fetch/Headers/Request/Response wrappers. |
 | `image.rkt` | safe wrapper | `browser/image` | HTML image wrapper. |
-| `indexed-db.rkt` | safe wrapper | `browser/indexed-db` | IndexedDB wrapper; no public module yet. |
+| `indexed-db.rkt` | safe wrapper | `indexed-db` | Migrated to native module source; exposes IndexedDB factory helpers. |
 | `iterator.rkt` | safe wrapper | `js/iterator` | Migrated; module keeps the legacy helper surface and is backed by `array.ffi`. |
 | `jsx-graph.rkt` | safe wrapper | `jsxgraph` | High-level JSXGraph wrapper; current module facade should absorb this API. |
 | `media.rkt` | safe wrapper | `browser/media` | HTML media element wrapper and conversion helpers. |
@@ -31,8 +31,8 @@ and keep `include-lib` only as a compatibility path while old examples migrate.
 | `rquery-chain.rkt` | syntax/helper | `browser/rquery/chain` or private helper | Chain macro used by `rquery`; likely not a standalone public API. |
 | `rquery.rkt` | safe wrapper | `browser/rquery` | DOM selection/query helper library; depends on document/element/event. |
 | `simple-pretty.rkt` | safe utility | `webracket/simple-pretty` | WebRacket-owned pretty printer; not JS/browser-specific. |
-| `storage.rkt` | safe wrapper | `browser/storage` | localStorage/sessionStorage wrapper; no public module yet. |
-| `sxml.rkt` | safe utility | `webracket/sxml` | SXML-to-HTML utility; module shim already exists but still includes legacy source. |
+| `storage.rkt` | safe wrapper | `storage` | Migrated to native module source; exposes localStorage/sessionStorage helpers. |
+| `sxml.rkt` | safe utility | `webracket/sxml` | Migrated to native module source; no longer includes legacy source. |
 | `temp.rkt` | test/demo wrapper | `js/temp` | Tiny demo/test wrapper around `temp.ffi`; keep mostly for coverage. |
 | `threading.rkt` | syntax/helper | `webracket/threading` | Threading macros; not JS/browser-specific. |
 | `websocket.rkt` | safe wrapper | `browser/websocket` | WebSocket wrapper with handler/listener normalization. |
@@ -70,12 +70,12 @@ Public surface:
 | `browser/domrect` | `domrect.rkt` |
 | `browser/element` | `element.rkt` |
 | `browser/event` | `event.rkt` |
-| `browser/fetch` | `fetch.rkt` |
+| `fetch` | `fetch.rkt` |
 | `browser/image` | `image.rkt` |
-| `browser/indexed-db` | `indexed-db.rkt` |
+| `indexed-db` | `indexed-db.rkt` |
 | `browser/media` | `media.rkt` |
 | `browser/rquery` | `rquery.rkt` |
-| `browser/storage` | `storage.rkt` |
+| `storage` | `storage.rkt` |
 | `browser/websocket` | `websocket.rkt` |
 | `browser/window` | `window.rkt` |
 | `jsxgraph` | `jsx-graph.rkt` |
