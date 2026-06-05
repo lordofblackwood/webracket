@@ -21,6 +21,15 @@
     ['composes (if row (cadddr row) 'unknown)]
     ['runs     (if row (list-ref row 4) 'unknown)]))
 
+;; audit-ref : symbol? symbol? -> symbol?
+;;   Look up the implementation owner metadata for a full-surface library.
+(define (audit-ref library key)
+  (define row (assoc library webracket-full-surface-audit))
+  (match key
+    ['implementation-provider (if row (cadr row) 'unknown)]
+    ['owner                   (if row (caddr row) 'unknown)]
+    ['dashboard-case          (if row (cadddr row) 'unknown)]))
+
 ;; provider-trial-status : symbol? -> symbol?
 ;;   Report whether the temporary external-provider bridge allowlist covers a library.
 (define (provider-trial-status library)
@@ -61,10 +70,14 @@
 ;;   Convert one row to a JSON-friendly status object.
 (define (dashboard-row->jsexpr row)
   (match-define
-    (list library exported extracts composes runs provider-allowlisted
+    (list library implementation-provider owner dashboard-case
+          exported extracts composes runs provider-allowlisted
           direct-runtime-smoke blocker)
     row)
   (hasheq 'library              (symbol->string library)
+          'implementation_provider (symbol->string implementation-provider)
+          'owner                (symbol->string owner)
+          'dashboard_case       (symbol->string dashboard-case)
           'exported             (symbol->string exported)
           'extracts             (symbol->string extracts)
           'composes             (symbol->string composes)
@@ -78,6 +91,9 @@
 (define (webracket-full-dashboard-rows)
   (for/list ([library (in-list webracket-full-addon-libraries)])
     (list library
+          (audit-ref library 'implementation-provider)
+          (audit-ref library 'owner)
+          (audit-ref library 'dashboard-case)
           (status-ref library 'exported)
           (status-ref library 'extracts)
           (status-ref library 'composes)
@@ -97,20 +113,21 @@
     [else
      (when tsv?
        (displayln
-        "library\texported\textracts\tcomposes\truns\tprovider-allowlisted\tdirect-runtime-smoke\tlast-known-blocker"))
+        "library\timplementation-provider\towner\tdashboard-case\texported\textracts\tcomposes\truns\tprovider-allowlisted\tdirect-runtime-smoke\tlast-known-blocker"))
      (for ([row (in-list (webracket-full-dashboard-rows))])
        (match-define
-         (list library exported extracts composes runs provider-allowlisted
+         (list library implementation-provider owner dashboard-case
+               exported extracts composes runs provider-allowlisted
                direct-runtime-smoke blocker)
          row)
        (if tsv?
-           (printf "~a\t~a\t~a\t~a\t~a\t~a\t~a\t~a\n"
-                   library exported extracts composes runs provider-allowlisted
-                   direct-runtime-smoke blocker)
+           (printf "~a\t~a\t~a\t~a\t~a\t~a\t~a\t~a\t~a\t~a\t~a\n"
+                   library implementation-provider owner dashboard-case
+                   exported extracts composes runs provider-allowlisted direct-runtime-smoke blocker)
            (printf
-            "~a exported=~a extracts=~a composes=~a runs=~a provider-allowlisted=~a direct-runtime-smoke=~a last-known-blocker=~a\n"
-            library exported extracts composes runs provider-allowlisted
-            direct-runtime-smoke blocker)))]))
+            "~a implementation-provider=~a owner=~a dashboard-case=~a exported=~a extracts=~a composes=~a runs=~a provider-allowlisted=~a direct-runtime-smoke=~a last-known-blocker=~a\n"
+            library implementation-provider owner dashboard-case
+            exported extracts composes runs provider-allowlisted direct-runtime-smoke blocker)))]))
 
 (module+ main
   (define args (vector->list (current-command-line-arguments)))

@@ -390,6 +390,7 @@
     webracket/function
     webracket/generator
     webracket/hash
+    webracket/js
     webracket/list
     webracket/mpair
     webracket/port
@@ -432,6 +433,24 @@
     js/array
     js/iterator
     js/math
+    js/performance
+    js/standard
+    js/temp
+    browser/audio
+    browser/canvas
+    browser/document
+    browser/dom
+    browser/domrect
+    browser/element
+    browser/event
+    browser/image
+    browser/media
+    browser/websocket
+    browser/window
+    web-easy
+    web-pict
+    jsxgraph
+    xterm
     js/performance
     js/standard
     js/temp
@@ -555,6 +574,7 @@
     webracket/function
     webracket/generator
     webracket/hash
+    webracket/js
     webracket/list
     webracket/mpair
     webracket/port
@@ -568,11 +588,27 @@
     webracket/set
     webracket/string
     webracket/stream
+    webracket/unsafe/array
+    webracket/unsafe/audio
+    webracket/unsafe/canvas
     webracket/unsafe/console
+    webracket/unsafe/document
+    webracket/unsafe/dom
+    webracket/unsafe/domrect
+    webracket/unsafe/element
+    webracket/unsafe/event
+    webracket/unsafe/image
+    webracket/unsafe/js
+    webracket/unsafe/jsxgraph
     webracket/unsafe/math
+    webracket/unsafe/media
     webracket/unsafe/performance
+    webracket/unsafe/standard
     webracket/unsafe/undefined
-    webracket/unsafe/temp))
+    webracket/unsafe/temp
+    webracket/unsafe/websocket
+    webracket/unsafe/window
+    webracket/unsafe/xtermjs))
 
 ;; webify-provider-trial-module-allowlist : (listof symbol?)
 ;;   External providers allowed in the temporary #lang webracket/base bridge.

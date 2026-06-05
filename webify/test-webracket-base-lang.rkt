@@ -1246,18 +1246,28 @@
                      (symbol->string name)))
   (define vector-row (assoc 'racket/vector rows))
   (define contract-row (assoc 'webracket/contract rows))
+  (define hash-row (assoc 'webracket/hash rows))
+  (define js-row (assoc 'webracket/js rows))
   (define promise-row (assoc 'webracket/promise rows))
   (define set-row (assoc 'webracket/set rows))
-  (check-equal? (length vector-row) 8)
-  (check-equal? (list-ref vector-row 5) 'allowlisted)
-  (check-equal? (list-ref vector-row 6) 'passes)
-  (check-equal? (list-ref vector-row 7) 'module-composition-partial)
-  (check-equal? (list-ref contract-row 5) 'allowlisted)
-  (check-equal? (list-ref contract-row 6) 'passes)
-  (check-equal? (list-ref promise-row 5) 'allowlisted)
-  (check-equal? (list-ref promise-row 6) 'passes)
-  (check-equal? (list-ref set-row 5) 'allowlisted)
-  (check-equal? (list-ref set-row 6) 'passes))
+  (check-equal? (length vector-row) 11)
+  (check-equal? (list-ref vector-row 1) 'racket/vector)
+  (check-equal? (list-ref vector-row 2) 'real-provider-proven)
+  (check-equal? (list-ref vector-row 3) 'installed-racket-vector-coverage)
+  (check-equal? (list-ref vector-row 8) 'allowlisted)
+  (check-equal? (list-ref vector-row 9) 'passes)
+  (check-equal? (list-ref vector-row 10) 'module-composition-partial)
+  (check-equal? (list-ref contract-row 2) 'webracket-owned)
+  (check-equal? (list-ref contract-row 8) 'allowlisted)
+  (check-equal? (list-ref contract-row 9) 'passes)
+  (check-equal? (list-ref hash-row 1) 'webracket/hash)
+  (check-equal? (list-ref hash-row 2) 'webracket-owned)
+  (check-equal? (list-ref js-row 1) 'webracket/js)
+  (check-equal? (list-ref js-row 2) 'webracket-owned)
+  (check-equal? (list-ref promise-row 8) 'allowlisted)
+  (check-equal? (list-ref promise-row 9) 'passes)
+  (check-equal? (list-ref set-row 8) 'allowlisted)
+  (check-equal? (list-ref set-row 9) 'passes))
 
 (test-case "#lang webracket/base provider allowlist covers current Goal 1 trials"
   (for ([name (in-list '(racket/list
@@ -1280,7 +1290,7 @@
   (check-true (webify-provider-trial-module-allowed? 'racket/contract))
   (for ([name (in-list '(racket/bool racket/list racket/string racket/vector
                          racket/function racket/bytes racket/hash racket/set racket/match
-                         racket/contract racket/math racket/path
+                         racket/contract racket/math racket/path webracket/js
                          webracket/contract webracket/set webracket/promise webracket/sequence webracket/stream
                          racket/private/sort js/console js/math js/performance))])
     (check-true (webify-provider-trial-default-bridge-module-allowed? name)
@@ -1329,15 +1339,15 @@
   (define (row-ref name)
     (or (assoc name rows)
         (error 'row-ref "missing full-dashboard row: ~a" name)))
-  (check-equal? (list-ref (row-ref 'racket/port) 5)
+  (check-equal? (list-ref (row-ref 'racket/port) 8)
                 'allowlisted-via-substitution)
-  (check-equal? (list-ref (row-ref 'racket/dict) 5)
+  (check-equal? (list-ref (row-ref 'racket/dict) 8)
                 'allowlisted)
-  (check-equal? (list-ref (row-ref 'racket/math) 5)
+  (check-equal? (list-ref (row-ref 'racket/math) 8)
                 'allowlisted)
-  (check-equal? (list-ref (row-ref 'racket/path) 5)
+  (check-equal? (list-ref (row-ref 'racket/path) 8)
                 'allowlisted)
-  (check-equal? (list-ref (row-ref 'racket/bytes) 5)
+  (check-equal? (list-ref (row-ref 'racket/bytes) 8)
                 'allowlisted))
 
 (test-case "#lang webracket/base runs an allowlisted provider without stdlib"
@@ -2324,7 +2334,8 @@
   (for ([name (in-list '(racket/list racket/string racket/vector racket/function
                                      racket/bool racket/sequence webracket/promise
                                      webracket/set racket/stream racket/match
-                                     racket/format))])
+                                     racket/format webracket/file webracket/hash
+                                     webracket/js webracket/pretty webracket/sequence))])
     (check-not-false (memq name webracket-full-addon-libraries)
                      (symbol->string name)))
   (check-not-false (assoc 'racket/format webracket-full-surface-statuses))
@@ -2334,8 +2345,11 @@
 
 (test-case "webracket/full surface statuses cover every curated add-on"
   (define status-names (map car webracket-full-surface-statuses))
+  (define audit-names (map car webracket-full-surface-audit))
   (for ([name (in-list webracket-full-addon-libraries)])
     (check-not-false (memq name status-names)
+                     (symbol->string name))
+    (check-not-false (memq name audit-names)
                      (symbol->string name)))
   (check-equal? (assoc 'racket/format webracket-full-surface-statuses)
                 '(racket/format exported extracts partial runs)))

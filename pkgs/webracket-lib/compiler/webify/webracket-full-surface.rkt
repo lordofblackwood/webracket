@@ -30,7 +30,12 @@
     racket/vector
     racket/contract
     webracket/contract
+    webracket/file
+    webracket/hash
+    webracket/js
+    webracket/pretty
     webracket/promise
+    webracket/sequence
     webracket/set
     webracket/stream))
 
@@ -69,7 +74,12 @@
     (racket/vector   exported extracts partial runs)
     (racket/contract exported substituted staged runs)
     (webracket/contract exported extracts staged runs)
+    (webracket/file     exported extracts staged runs)
+    (webracket/hash     exported extracts staged runs)
+    (webracket/js       exported extracts staged runs)
+    (webracket/pretty   exported extracts staged runs)
     (webracket/promise exported extracts staged runs)
+    (webracket/sequence exported extracts staged runs)
     (webracket/set     exported extracts staged runs)
     (webracket/stream  exported extracts staged runs)))
 
@@ -96,6 +106,11 @@
     (racket/vector   racket/vector      real-provider-proven installed-racket-vector-coverage)
     (racket/contract webracket/contract webracket-owned      full-contract-erased)
     (webracket/contract webracket/contract webracket-owned   full-contract-erased)
+    (webracket/file     webracket/file     webracket-owned   full-file-coverage)
+    (webracket/hash     webracket/hash     webracket-owned   installed-racket-hash-coverage)
+    (webracket/js       webracket/js       webracket-owned   ffi-js-console-coverage)
+    (webracket/pretty   webracket/pretty   webracket-owned   installed-racket-pretty-coverage)
     (webracket/promise  webracket/promise  webracket-owned   full-promise-coverage)
+    (webracket/sequence webracket/sequence webracket-owned   full-sequence-coverage)
     (webracket/set      webracket/set      webracket-owned   full-set-coverage)
     (webracket/stream   webracket/stream   webracket-owned   full-stream-coverage)))
