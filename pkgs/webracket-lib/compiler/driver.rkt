@@ -2227,7 +2227,9 @@
           ;; Require/provide transformer helpers run in the host expander while
           ;; extracting module metadata; they are not runtime provider demands.
           racket/private/modbeg
+          racket/require
           racket/require-syntax
+          racket/provide
           racket/provide-syntax)))
 
 ;; webracket/base-reports-demand-external-providers? : (listof webify-module-report?) -> boolean?
@@ -2239,16 +2241,25 @@
 ;;   List required providers outside local reports and the language root.
 (define (webracket/base-external-provider-names reports)
   (define local-provider-names (map webify-module-report-name reports))
+  (define (local-bridge-provider-name? name)
+    (and (symbol? name)
+         (string-prefix? (symbol->string name) "webracket/local/")))
+  (define (local-provider-name? name)
+    (and (symbol? name)
+         (or (memq name local-provider-names)
+             (local-bridge-provider-name? name))))
   (remove-duplicates
    (append
     (for/list ([report (in-list reports)]
                #:do [(define name (webify-module-report-name report))]
-               #:when (and (webify-provider-trial-module-allowed? name)
+               #:when (and (not (local-provider-name? name))
+                           (webify-provider-trial-module-allowed? name)
                            (not (webracket/base-language-provider-name? name))))
       name)
     (for*/list ([report (in-list reports)]
                 [name (in-list (webify-module-report-required-provider-names report))]
-                #:unless (or (and (memq name local-provider-names)
+                #:unless (or (local-bridge-provider-name? name)
+                             (and (local-provider-name? name)
                                    ;; A file module can have the same name as
                                    ;; an external collection provider, such as
                                    ;; `fetch.rkt` requiring collection `fetch`.
@@ -2305,9 +2316,7 @@
   (define self-colliding-names
     (for/list ([report (in-list reports)]
                #:do [(define name (webify-module-report-name report))]
-               #:when (or (memq name (webify-module-report-required-provider-names report))
-                           (and (webify-provider-trial-module-allowed? name)
-                                (not (webracket/base-language-provider-name? name)))))
+               #:when (memq name (webify-module-report-required-provider-names report)))
       name))
   (define (renamed-name name)
     (if (memq name self-colliding-names)

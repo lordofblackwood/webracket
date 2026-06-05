@@ -158,6 +158,61 @@
         "(js-log (add2 40))\n")))
    #rx"(?m:^42$)"))
 
+(test-case "matching-identifiers-in local require"
+  (check-module-case
+   "matching-identifiers-in"
+   `(("lib.rkt" ,provider-source)
+     ("main.rkt"
+      ,(string-append
+        "#lang webracket/base\n"
+        "(require racket/require\n"
+        "         (matching-identifiers-in #rx\"^add\" \"lib.rkt\"))\n"
+        "(js-log (add2 40))\n")))
+   #rx"(?m:^42$)"))
+
+(test-case "filtered-in local require"
+  (check-module-case
+   "filtered-in"
+   `(("lib.rkt" ,provider-source)
+     ("main.rkt"
+      ,(string-append
+        "#lang webracket/base\n"
+        "(require racket/require\n"
+        "         (for-syntax racket/base)\n"
+        "         (filtered-in\n"
+        "          (lambda (name)\n"
+        "            (cond [(equal? name \"add2\") \"plus2\"]\n"
+        "                  [else #f]))\n"
+        "          \"lib.rkt\"))\n"
+        "(js-log (plus2 40))\n")))
+   #rx"(?m:^42$)"))
+
+(test-case "subtract-in local require"
+  (check-module-case
+   "subtract-in"
+   `(("a.rkt" "#lang webracket/base\n(provide add2 sub2)\n(define (add2 x) (+ x 2))\n(define (sub2 x) (- x 2))\n")
+     ("b.rkt" "#lang webracket/base\n(provide sub2)\n(define (sub2 x) (- x 2))\n")
+     ("main.rkt"
+      ,(string-append
+        "#lang webracket/base\n"
+        "(require racket/require\n"
+        "         (subtract-in \"a.rkt\" \"b.rkt\"))\n"
+        "(js-log (add2 40))\n")))
+   #rx"(?m:^42$)"))
+
+(test-case "multi-in local require"
+  (check-module-case
+   "multi-in"
+   `(("math/add.rkt" "#lang webracket/base\n(provide add2)\n(define (add2 x) (+ x 2))\n")
+     ("math/sub.rkt" "#lang webracket/base\n(provide sub2)\n(define (sub2 x) (- x 2))\n")
+     ("main.rkt"
+      ,(string-append
+        "#lang webracket/base\n"
+        "(require racket/require\n"
+        "         (multi-in \"math\" (\"add.rkt\" \"sub.rkt\")))\n"
+        "(js-log (+ (add2 20) (sub2 22)))\n")))
+   #rx"(?m:^42$)"))
+
 (test-case "provider rename-out with plain local require"
   (check-module-case
    "provider-rename-out"
@@ -205,6 +260,37 @@
         "  (syntax-local-provide-introduce #'(rename-out [add2 plus2])))\n"
         "(provide (export-add2))\n"
         "(define (add2 x) (+ x 2))\n"))
+     ("main.rkt" "#lang webracket/base\n(require \"lib.rkt\")\n(js-log (plus2 40))\n"))
+   #rx"(?m:^42$)"))
+
+(test-case "matching-identifiers-out with plain local require"
+  (check-module-case
+   "matching-identifiers-out"
+   `(("lib.rkt"
+      ,(string-append
+        "#lang webracket/base\n"
+        "(require racket/provide)\n"
+        "(provide (matching-identifiers-out #rx\"^add\" (all-defined-out)))\n"
+        "(define (add2 x) (+ x 2))\n"
+        "(define hidden 999)\n"))
+     ("main.rkt" "#lang webracket/base\n(require \"lib.rkt\")\n(js-log (add2 40))\n"))
+   #rx"(?m:^42$)"))
+
+(test-case "filtered-out with plain local require"
+  (check-module-case
+   "filtered-out"
+   `(("lib.rkt"
+      ,(string-append
+        "#lang webracket/base\n"
+        "(require racket/provide\n"
+        "         (for-syntax racket/base))\n"
+        "(provide (filtered-out\n"
+        "          (lambda (name)\n"
+        "            (cond [(equal? name \"add2\") \"plus2\"]\n"
+        "                  [else #f]))\n"
+        "          (all-defined-out)))\n"
+        "(define (add2 x) (+ x 2))\n"
+        "(define hidden 999)\n"))
      ("main.rkt" "#lang webracket/base\n(require \"lib.rkt\")\n(js-log (plus2 40))\n"))
    #rx"(?m:^42$)"))
 
