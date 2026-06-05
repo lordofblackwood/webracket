@@ -2342,6 +2342,7 @@
     audio
     fetch
     indexed-db
+    jsxgraph
     storage
     websocket
     web-pict
