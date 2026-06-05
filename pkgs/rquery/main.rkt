@@ -1,96 +1,691 @@
-#lang webracket/base
+#lang racket/base
 
-(require racket/include
-         racket/list
+(require racket/list
          racket/vector
-         webracket/unsafe/dom
+         browser/document
+         browser/element
+         browser/event
+         rquery/chain
+         (only-in webracket/unsafe/dom
+                  js-new
+                  js-object
+                  js-send/boolean
+                  js-var)
          (only-in webracket/primitives
                   external?
-                  procedure->external)
-         (for-syntax racket/base))
+                  procedure->external))
 
-;; Module wrapper for the legacy RQuery library. The included files still use
-;; old `include-lib`/`require-lib` directives, so this module supplies the
-;; dependencies explicitly and makes those legacy directives no-ops here.
+(provide (all-defined-out)
+         (all-from-out rquery/chain))
 
-(provide (except-out (all-defined-out) include-lib require-lib))
+;; Module-owned RQuery helpers.
+;;
+;; This replaces the old include-lib composition with explicit module imports.
 
-(begin-for-syntax
-  (define (read-syntax/skip-first-line
-           [source-name (object-name (current-input-port))]
-           [in          (current-input-port)])
-    (read-line in)
-    (read-syntax source-name in)))
+;; safe-list-ref : (listof any/c) exact-nonnegative-integer? -> (or/c #f any/c)
+;;   Return the list element at i when it is in range, otherwise #f.
+(define (safe-list-ref xs i)
+  (define n (length xs))
+  (if (and (number? i) (exact? i) (integer? i)
+           (<= 0 i) (< i n))
+      (list-ref xs i)
+      #f))
 
-(define-syntax (include-lib stx)
-  (syntax-case stx ()
-    [(_) #'(void)]
-    [(_ _lib-id) #'(void)]))
+;; safe-vector-ref : vector? exact-nonnegative-integer? -> (or/c #f any/c)
+;;   Return the vector element at i when it is in range, otherwise #f.
+(define (safe-vector-ref xs i)
+  (define n (vector-length xs))
+  (if (and (number? i) (exact? i) (integer? i)
+           (<= 0 i) (< i n))
+      (vector-ref xs i)
+      #f))
 
-(define-syntax (require-lib stx)
-  (syntax-case stx ()
-    [(_) #'(void)]
-    [(_ _lib-id) #'(void)]))
+;; $selection : (struct (elements)) -> selection?
+;;   Represent a collection of DOM elements.
+(struct $selection (elements) #:transparent)
 
-(begin-for-syntax
-  (define (chain-dotted-identifier? stx)
-    (and (identifier? stx)
-         (let ([name (syntax-e stx)])
-           (and (symbol? name)
-                (let ([s (symbol->string name)])
-                  (and (positive? (string-length s))
-                       (char=? (string-ref s 0) #\.)))))))
+;; check-$selection : symbol? any/c -> void?
+;;   Ensure x is a selection wrapper.
+(define (check-$selection who x)
+  (unless ($selection? x)
+    (raise-argument-error who "$selection?" x)))
 
-  (define (chain-split-clauses rest who whole-stx)
-    (let loop ([xs rest] [current #f] [clauses '()])
-      (cond
-        [(null? xs)
-         (reverse (if current
-                      (cons (reverse current) clauses)
-                      clauses))]
-        [else
-         (define hd (car xs))
-         (cond
-           [(chain-dotted-identifier? hd)
-            (loop (cdr xs)
-                  (list hd)
-                  (if current
-                      (cons (reverse current) clauses)
-                      clauses))]
-           [current
-            (loop (cdr xs) (cons hd current) clauses)]
-           [else
-            (raise-syntax-error who
-                                "expected a dotted method name after the seed expression"
-                                whole-stx
-                                hd)])])))
+;; list->$selection : (listof any/c) -> $selection?
+;;   Pack a list into a selection wrapper.
+(define (list->$selection xs)
+  ($selection (list->vector xs)))
 
-  (define (chain-build seed clauses whole-stx)
-    (let loop ([current seed] [xs clauses])
-      (cond
-        [(null? xs) current]
-        [else
-         (define clause (car xs))
-         (define method (car clause))
-         (define args (cdr clause))
-         (define call-stx
-           (quasisyntax/loc whole-stx
-             (#,method #,current #,@args)))
-         (loop call-stx (cdr xs))]))))
+;; vector->$selection : vector? -> $selection?
+;;   Copy a vector into a selection wrapper.
+(define (vector->$selection xs)
+  ($selection (vector-copy xs)))
 
-(define-syntax ($chain stx)
-  (syntax-case stx ()
-    [(_ seed rest ...)
-     (let* ([rest-list (syntax->list #'(rest ...))]
-            [clauses   (chain-split-clauses rest-list '$chain stx)])
-       (chain-build #'seed clauses stx))]
-    [_ (raise-syntax-error '$chain
-                           "expected `($chain seed .method arg ... ...)`"
-                           stx)]))
+;; delegate-listener-cache : hash?
+;;   Reuse delegated listener wrappers per root element.
+(define delegate-listener-cache (make-hasheq))
 
-(include/reader "../../pkgs/webracket-lib/compiler/legacy-stdlib/shared-library-structs.rkt"
-                read-syntax/skip-first-line)
-(include/reader "../../lib/libs/document.rkt" read-syntax/skip-first-line)
-(include/reader "../../lib/libs/element.rkt"  read-syntax/skip-first-line)
-(include/reader "../../lib/libs/event.rkt"    read-syntax/skip-first-line)
-(include/reader "../../lib/libs/rquery.rkt"   read-syntax/skip-first-line)
+;; delegate-cache-for-root : external? -> hash?
+;;   Find or create the cache for one root element.
+(define (delegate-cache-for-root root)
+  (hash-ref! delegate-listener-cache root (lambda () (make-hash))))
+
+;; delegate-listener->external : symbol? element? (or/c string? symbol?) procedure? -> external?
+;;   Build a stable wrapper that only fires for matching descendants.
+;;   The callback receives the matched element and the event object.
+(define (delegate-listener->external who root selector listener)
+  (unless (procedure? listener)
+    (raise-argument-error who "procedure?" listener))
+  (define root* (element-unwrap root))
+  (define selector* (element-stringish->string who selector))
+  (define cache (delegate-cache-for-root root*))
+  (define key (list selector* listener))
+  (hash-ref!
+   cache
+   key
+   (lambda ()
+     (procedure->external
+      (lambda (evt)
+        (define target (event-target evt))
+        (when (external? target)
+          (define matched (element-closest (element-wrap target) selector*))
+          (when (and matched
+                     (js-send/boolean root* "contains"
+                                      (vector (element-unwrap matched))))
+            (listener matched evt))))))))
+
+;; make-$selection : (or/c list? vector? dom-node-list?) -> $selection?
+;;   Normalize supported selection sources into a wrapper.
+(define (make-$selection xs)
+  (cond
+    [(dom-node-list? xs) ($selection xs)]
+    [(vector? xs)    (vector->$selection xs)]
+    [(list? xs)      (list->$selection xs)]
+    [else
+     (raise-argument-error
+      'make-$selection
+      "(or/c dom-node-list? vector? list?)"
+      xs)]))
+
+;; $length : $selection? -> exact-nonnegative-integer?
+;;   Return the number of wrapped elements.
+(define ($length sel)
+  (check-$selection '$length sel)
+  (define xs ($selection-elements sel))
+  (cond
+    [(vector? xs)    (vector-length xs)]
+    [(dom-node-list? xs) (node-list-length xs)]
+    [else
+     (error '$length
+            "internal error: unexpected elements payload: ~a"
+            xs)]))
+
+;; $ref : $selection? exact-nonnegative-integer? -> (or/c #f any/c)
+;;   Return the selected element at i, or #f when i is out of range.
+(define ($ref sel i)
+  (check-$selection '$ref sel)
+  (define xs ($selection-elements sel))
+  (cond
+    [(vector? xs)    (safe-vector-ref xs i)]
+    [(dom-node-list? xs)
+     (define node (node-list-item xs i))
+     (and node (element-wrap (dom-node-raw node)))]
+    [else
+     (error '$ref
+            "internal error: unexpected elements payload: ~a"
+            xs)]))
+
+;; $first : $selection? -> (or/c #f any/c)
+;;   Return the first selected element, if any.
+(define ($first sel)
+  (check-$selection '$first sel)
+  ($ref sel 0))
+
+;; .first : $selection? -> (or/c #f any/c)
+;;   Chainable alias for $first.
+(define (.first sel)
+  ($first sel))
+
+;; $selection->vector : $selection? -> vector?
+;;   Convert a selection wrapper into a vector of raw elements.
+(define ($selection->vector sel)
+  (check-$selection '$selection->vector sel)
+  (define xs ($selection-elements sel))
+  (cond
+    [(vector? xs)    xs]
+    [(dom-node-list? xs)
+     (define n (node-list-length xs))
+     (for/vector #:length n ([i (in-range n)])
+       ($ref sel i))]
+    [else
+     (error '$selection->vector
+            "internal error: unexpected elements payload: ~a"
+            xs)]))
+
+;; $vector : $selection? -> vector?
+;;   Convert a selection wrapper into a vector of wrapped elements.
+(define ($vector sel)
+  (check-$selection '$vector sel)
+  ($selection->vector sel))
+
+;; .vector : $selection? -> vector?
+;;   Chainable alias for $vector.
+(define (.vector sel)
+  ($vector sel))
+
+;; $list : $selection? -> list?
+;;   Convert a selection wrapper into a list of wrapped elements.
+(define ($list sel)
+  (check-$selection '$list sel)
+  (vector->list ($selection->vector sel)))
+
+;; .list : $selection? -> list?
+;;   Chainable alias for $list.
+(define (.list sel)
+  ($list sel))
+
+;; $for-each : (any/c -> any/c) $selection? -> $selection?
+;;   Apply f to each wrapped element and return the original selection.
+(define ($for-each f sel)
+  (check-$selection '$for-each sel)
+  (for ([x (in-vector ($selection->vector sel))])
+    (f x))
+  sel)
+
+;; $map : (any/c -> any/c) $selection? -> $selection?
+;;   Map f over the wrapped elements and return a new selection.
+(define ($map f sel)
+  (check-$selection '$map sel)
+  (define n ($length sel))
+  (vector->$selection
+   (for/vector #:length n
+               ([x (in-vector ($selection->vector sel))])
+     (f x))))
+
+;; .map : $selection? (any/c -> any/c) -> $selection?
+;;   Chainable alias for $map.
+(define (.map sel f)
+  ($map f sel))
+
+;; .for-each : $selection? (any/c -> any/c) -> $selection?
+;;   Chainable alias for $for-each.
+(define (.for-each sel f)
+  ($for-each f sel))
+
+;; $filter : (any/c -> any/c) $selection? -> $selection?
+;;   Keep only the selected elements for which f returns true.
+(define ($filter f sel)
+  (check-$selection '$filter sel)
+  (vector->$selection
+   (for/list ([x (in-vector ($selection->vector sel))]
+              #:when (f x))
+     x)))
+
+;; .filter : $selection? (any/c -> any/c) -> $selection?
+;;   Chainable alias for $filter.
+(define (.filter sel f)
+  ($filter f sel))
+
+;; $where : (any/c -> any/c) $selection? -> $selection?
+;;   Alias for $filter with a selector-style name.
+(define ($where f sel)
+  ($filter f sel))
+
+;; .where : $selection? (any/c -> any/c) -> $selection?
+;;   Chainable alias for $where.
+(define (.where sel f)
+  ($where f sel))
+
+;; $not : (any/c -> any/c) $selection? -> $selection?
+;;   Keep only the selected elements for which f returns false.
+(define ($not f sel)
+  (check-$selection '$not sel)
+  (vector->$selection
+   (for/list ([x (in-vector ($selection->vector sel))]
+              #:when (not (f x)))
+     x)))
+
+;; .not : $selection? (any/c -> any/c) -> $selection?
+;;   Chainable alias for $not.
+(define (.not sel f)
+  ($not f sel))
+
+;; $toggle-class! : $selection? (or/c string? symbol?) -> $selection?
+;;   Toggle a class on each selected element and return the selection.
+(define ($toggle-class! sel class-name)
+  (check-$selection '$toggle-class! sel)
+  (for ([x (in-vector ($selection->vector sel))])
+    (define class-list (element-class-list x))
+    (when class-list
+      (dom-token-list-toggle! class-list class-name)))
+  sel)
+
+;; .toggle-class! : $selection? (or/c string? symbol?) -> $selection?
+;;   Chainable alias for $toggle-class!.
+(define (.toggle-class! sel class-name)
+  ($toggle-class! sel class-name))
+
+;; $text! : $selection? (or/c string? symbol?) -> $selection?
+;;   Replace the text content of each selected element and return the selection.
+(define ($text! sel text)
+  (check-$selection '$text! sel)
+  (for ([x (in-vector ($selection->vector sel))])
+    (element-set-text-content! x text))
+  sel)
+
+;; .text! : $selection? (or/c string? symbol?) -> $selection?
+;;   Chainable alias for $text!.
+(define (.text! sel text)
+  ($text! sel text))
+
+;; $val : $selection? -> (or/c #f string?)
+;;   Read the value property from the first selected element.
+(define ($val sel)
+  (check-$selection '$val sel)
+  (define x ($first sel))
+  (and x (element-value x)))
+
+;; .val : $selection? -> (or/c #f string?)
+;;   Chainable alias for $val.
+(define (.val sel)
+  ($val sel))
+
+;; $val! : $selection? (or/c string? symbol?) -> $selection?
+;;   Set the value property of each selected element and return the selection.
+(define ($val! sel value)
+  (check-$selection '$val! sel)
+  (for ([x (in-vector ($selection->vector sel))])
+    (element-set-value! x value))
+  sel)
+
+;; .val! : $selection? (or/c string? symbol?) -> $selection?
+;;   Chainable alias for $val!.
+(define (.val! sel value)
+  ($val! sel value))
+
+;; rquery-data-attr-name : symbol? any/c -> string?
+;;   Normalize a data helper name to a data-* attribute name.
+(define (rquery-data-attr-name who name)
+  (define name* (element-stringish->string who name))
+  (if (and (<= 5 (string-length name*))
+           (string=? (substring name* 0 5) "data-"))
+      name*
+      (string-append "data-" name*)))
+
+;; $data : $selection? (or/c string? symbol?) -> (or/c #f string?)
+;;   Read a data-* attribute from the first selected element.
+(define ($data sel name)
+  (check-$selection '$data sel)
+  (define x ($first sel))
+  (and x (element-get-attribute x (rquery-data-attr-name '$data name))))
+
+;; .data : $selection? (or/c string? symbol?) -> (or/c #f string?)
+;;   Chainable alias for $data.
+(define (.data sel name)
+  ($data sel name))
+
+;; $data! : $selection? (or/c string? symbol?) (or/c string? symbol?) -> $selection?
+;;   Set a data-* attribute on each selected element and return the selection.
+(define ($data! sel name value)
+  (check-$selection '$data! sel)
+  (define name* (rquery-data-attr-name '$data! name))
+  (for ([x (in-vector ($selection->vector sel))])
+    (element-set-attribute! x name* value))
+  sel)
+
+;; .data! : $selection? (or/c string? symbol?) (or/c string? symbol?) -> $selection?
+;;   Chainable alias for $data!.
+(define (.data! sel name value)
+  ($data! sel name value))
+
+;; $on : (or/c string? symbol?) (or/c procedure? external?) $selection? (or/c boolean? external?) ... -> $selection?
+;;   Attach a DOM event listener to each selected element and return the selection.
+(define ($on event-name listener sel . options)
+  (check-$selection '$on sel)
+  (for ([x (in-vector ($selection->vector sel))])
+    (apply element-add-event-listener! x event-name listener options))
+  sel)
+
+;; .on : $selection? (or/c string? symbol?) (or/c procedure? external?) (or/c boolean? external?) ... -> $selection?
+;;   Chainable alias for $on.
+(define (.on sel event-name listener . options)
+  (apply $on event-name listener sel options))
+
+;; $off : (or/c string? symbol?) (or/c procedure? external?) $selection? (or/c boolean? external?) ... -> $selection?
+;;   Remove a DOM event listener from each selected element and return the selection.
+(define ($off event-name listener sel . options)
+  (check-$selection '$off sel)
+  (for ([x (in-vector ($selection->vector sel))])
+    (apply element-remove-event-listener! x event-name listener options))
+  sel)
+
+;; .off : $selection? (or/c string? symbol?) (or/c procedure? external?) (or/c boolean? external?) ... -> $selection?
+;;   Chainable alias for $off.
+(define (.off sel event-name listener . options)
+  (apply $off event-name listener sel options))
+
+;; rquery-event-name->string : symbol? any/c -> string?
+;;   Normalize a query event name to a browser string.
+(define (rquery-event-name->string who event-name)
+  (cond
+    [(string? event-name) event-name]
+    [(symbol? event-name) (symbol->string event-name)]
+    [else (raise-argument-error who "(or/c string? symbol?)" event-name)]))
+
+;; $once : (or/c string? symbol?) procedure? $selection? (or/c boolean? external?) ... -> $selection?
+;;   Attach a DOM event listener that removes itself after the first fire.
+(define ($once event-name listener sel . options)
+  (check-$selection '$once sel)
+  (unless (procedure? listener)
+    (raise-argument-error '$once "procedure?" listener))
+  (for ([x (in-vector ($selection->vector sel))])
+    (letrec ([listener*
+              (procedure->external
+               (lambda (evt)
+                 (apply element-remove-event-listener! x event-name listener* options)
+                 (listener evt)))])
+      (apply element-add-event-listener! x event-name listener* options)))
+  sel)
+
+;; .once : $selection? (or/c string? symbol?) procedure? (or/c boolean? external?) ... -> $selection?
+;;   Chainable alias for $once.
+(define (.once sel event-name listener . options)
+  (apply $once event-name listener sel options))
+
+;; $trigger : (or/c string? symbol?) $selection? -> $selection?
+;;   Dispatch a bubbling DOM event on each selected element and return the selection.
+(define ($trigger event-name sel)
+  (check-$selection '$trigger sel)
+  (define event-name* (rquery-event-name->string '$trigger event-name))
+  (for ([x (in-vector ($selection->vector sel))])
+    (define evt
+      (js-new (js-var "Event")
+              (vector event-name*
+                      (js-object (vector (vector "bubbles" #t)
+                                         (vector "cancelable" #t))))))
+    (js-send/boolean (element-unwrap x) "dispatchEvent" (vector evt)))
+  sel)
+
+;; .trigger : $selection? (or/c string? symbol?) -> $selection?
+;;   Chainable alias for $trigger.
+(define (.trigger sel event-name)
+  ($trigger event-name sel))
+
+;; $on-delegate : (or/c string? symbol?) (or/c string? symbol?) procedure? $selection? (or/c boolean? external?) ... -> $selection?
+;;   Attach a delegated DOM event listener to each selected element and return the selection.
+;;   The callback receives the matched element and the event object.
+(define ($on-delegate event-name selector listener sel . options)
+  (check-$selection '$on-delegate sel)
+  (for ([x (in-vector ($selection->vector sel))])
+    (define listener*
+      (delegate-listener->external '$on-delegate x selector listener))
+    (apply element-add-event-listener! x event-name listener* options))
+  sel)
+
+;; .on-delegate : $selection? (or/c string? symbol?) (or/c string? symbol?) procedure? (or/c boolean? external?) ... -> $selection?
+;;   Chainable alias for $on-delegate.
+(define (.on-delegate sel event-name selector listener . options)
+  (apply $on-delegate event-name selector listener sel options))
+
+;; $off-delegate : (or/c string? symbol?) (or/c string? symbol?) procedure? $selection? (or/c boolean? external?) ... -> $selection?
+;;   Remove a delegated DOM event listener from each selected element and return the selection.
+(define ($off-delegate event-name selector listener sel . options)
+  (check-$selection '$off-delegate sel)
+  (for ([x (in-vector ($selection->vector sel))])
+    (define listener*
+      (delegate-listener->external '$off-delegate x selector listener))
+    (apply element-remove-event-listener! x event-name listener* options))
+  sel)
+
+;; .off-delegate : $selection? (or/c string? symbol?) (or/c string? symbol?) procedure? (or/c boolean? external?) ... -> $selection?
+;;   Chainable alias for $off-delegate.
+(define (.off-delegate sel event-name selector listener . options)
+  (apply $off-delegate event-name selector listener sel options))
+
+;; $select : string? -> $selection?
+;;   Query the document for matching elements.
+(define ($select s)
+  (unless (string? s)
+    (raise-argument-error '$select "string?" s))
+  (define nl (document-query-selector-all s))
+  (make-$selection (or nl '())))
+
+;; $ : string? -> $selection?
+;;   Public jQuery-style selector alias.
+(define ($ s)
+  ($select s))
+
+;; .text : $selection? -> string?
+;;   Read the text content of the first selected element.
+(define (.text sel)
+  (check-$selection '.text sel)
+  (define x ($first sel))
+  (or (and x (element-text-content x))
+      ""))
+
+;; $attr : $selection? (or/c string? symbol?) -> (or/c #f string?)
+;;   Read the named attribute from the first selected element.
+(define ($attr sel name)
+  (check-$selection '$attr sel)
+  (define x ($first sel))
+  (and x (element-get-attribute x name)))
+
+;; .attr : $selection? (or/c string? symbol?) -> (or/c #f string?)
+;;   Chainable alias for $attr.
+(define (.attr sel name)
+  ($attr sel name))
+
+;; $has-attr? : $selection? (or/c string? symbol?) -> boolean?
+;;   Report whether the first selected element has the named attribute.
+(define ($has-attr? sel name)
+  (check-$selection '$has-attr? sel)
+  (define x ($first sel))
+  (and x (element-has-attribute? x name)))
+
+;; .has-attr? : $selection? (or/c string? symbol?) -> boolean?
+;;   Chainable alias for $has-attr?.
+(define (.has-attr? sel name)
+  ($has-attr? sel name))
+
+;; $class-list : $selection? -> (or/c #f dom-token-list?)
+;;   Return the class list for the first selected element.
+(define ($class-list sel)
+  (check-$selection '$class-list sel)
+  (define x ($first sel))
+  (and x (element-class-list x)))
+
+;; .class-list : $selection? -> (or/c #f dom-token-list?)
+;;   Chainable alias for $class-list.
+(define (.class-list sel)
+  ($class-list sel))
+
+;; $has-class? : $selection? (or/c string? symbol?) -> boolean?
+;;   Report whether the first selected element has the named class.
+(define ($has-class? sel class-name)
+  (check-$selection '$has-class? sel)
+  (define class-list ($class-list sel))
+  (and class-list (dom-token-list-contains? class-list class-name)))
+
+;; .has-class? : $selection? (or/c string? symbol?) -> boolean?
+;;   Chainable alias for $has-class?.
+(define (.has-class? sel class-name)
+  ($has-class? sel class-name))
+
+;; $add-class! : $selection? (or/c string? symbol?) ... -> $selection?
+;;   Add one or more class tokens to the first selected element.
+(define ($add-class! sel class-name . more-class-names)
+  (check-$selection '$add-class! sel)
+  (define x ($first sel))
+  (when x
+    (define class-list (element-class-list x))
+    (when class-list
+      (apply dom-token-list-add! class-list class-name more-class-names)))
+  sel)
+
+;; .add-class! : $selection? (or/c string? symbol?) ... -> $selection?
+;;   Chainable alias for $add-class!.
+(define (.add-class! sel class-name . more-class-names)
+  (apply $add-class! sel class-name more-class-names))
+
+;; $remove-class! : $selection? (or/c string? symbol?) ... -> $selection?
+;;   Remove one or more class tokens from the first selected element.
+(define ($remove-class! sel class-name . more-class-names)
+  (check-$selection '$remove-class! sel)
+  (define x ($first sel))
+  (when x
+    (define class-list (element-class-list x))
+    (when class-list
+      (apply dom-token-list-remove! class-list class-name more-class-names)))
+  sel)
+
+;; .remove-class! : $selection? (or/c string? symbol?) ... -> $selection?
+;;   Chainable alias for $remove-class!.
+(define (.remove-class! sel class-name . more-class-names)
+  (apply $remove-class! sel class-name more-class-names))
+
+;; $find : $selection? (or/c string? symbol?) -> $selection?
+;;   Find descendant matches for each selected element and return a new selection.
+(define ($find sel selector)
+  (check-$selection '$find sel)
+  (define found
+    (for/fold ([acc '()])
+              ([node (in-vector ($selection->vector sel))])
+      (define matches (element-query-selector-all node selector))
+      (append acc
+              (for/list ([i (in-range (node-list-length matches))])
+                (element-wrap (dom-node-raw (node-list-item matches i)))))))
+  (list->$selection found))
+
+;; .find : $selection? (or/c string? symbol?) -> $selection?
+;;   Chainable alias for $find.
+(define (.find sel selector)
+  ($find sel selector))
+
+;; $children : $selection? -> $selection?
+;;   Return a selection of the child elements of each selected element.
+(define ($children sel)
+  (check-$selection '$children sel)
+  (define kids
+    (for/fold ([acc '()])
+              ([node (in-vector ($selection->vector sel))])
+      (define children (element-children node))
+      (append acc
+              (for/list ([i (in-range (html-collection-length children))])
+                (html-collection-item children i)))))
+  (list->$selection kids))
+
+;; .children : $selection? -> $selection?
+;;   Chainable alias for $children.
+(define (.children sel)
+  ($children sel))
+
+;; $parent : $selection? -> $selection?
+;;   Return a selection of the parent elements of each selected element.
+(define ($parent sel)
+  (check-$selection '$parent sel)
+  (define parents
+    (for/list ([node (in-vector ($selection->vector sel))]
+               #:when (element-parent-element node))
+      (element-parent-element node)))
+  (list->$selection parents))
+
+;; .parent : $selection? -> $selection?
+;;   Chainable alias for $parent.
+(define (.parent sel)
+  ($parent sel))
+
+;; $closest : $selection? (or/c string? symbol?) -> $selection?
+;;   Return the closest matching ancestor for each selected element.
+(define ($closest sel selector)
+  (check-$selection '$closest sel)
+  (define matches
+    (for/list ([node (in-vector ($selection->vector sel))]
+               #:when (element-closest node selector))
+      (element-closest node selector)))
+  (list->$selection matches))
+
+;; .closest : $selection? (or/c string? symbol?) -> $selection?
+;;   Chainable alias for $closest.
+(define (.closest sel selector)
+  ($closest sel selector))
+
+;; $next : $selection? -> $selection?
+;;   Return the next element sibling of each selected element.
+(define ($next sel)
+  (check-$selection '$next sel)
+  (define nexts
+    (for/list ([node (in-vector ($selection->vector sel))]
+               #:when (element-next-element-sibling node))
+      (element-next-element-sibling node)))
+  (list->$selection nexts))
+
+;; .next : $selection? -> $selection?
+;;   Chainable alias for $next.
+(define (.next sel)
+  ($next sel))
+
+;; $prev : $selection? -> $selection?
+;;   Return the previous element sibling of each selected element.
+(define ($prev sel)
+  (check-$selection '$prev sel)
+  (define prevs
+    (for/list ([node (in-vector ($selection->vector sel))]
+               #:when (element-previous-element-sibling node))
+      (element-previous-element-sibling node)))
+  (list->$selection prevs))
+
+;; .prev : $selection? -> $selection?
+;;   Chainable alias for $prev.
+(define (.prev sel)
+  ($prev sel))
+
+;; $siblings : $selection? -> $selection?
+;;   Return the element siblings surrounding each selected element.
+(define ($siblings sel)
+  (check-$selection '$siblings sel)
+  (define siblings
+    (for/fold ([acc '()])
+              ([node (in-vector ($selection->vector sel))])
+      (define prevs
+        (let loop ([current (element-previous-element-sibling node)] [acc '()])
+          (if current
+              (loop (element-previous-element-sibling current)
+                    (cons current acc))
+              acc)))
+      (define nexts
+        (let loop ([current (element-next-element-sibling node)] [acc '()])
+          (if current
+              (loop (element-next-element-sibling current)
+                    (append acc (list current)))
+              acc)))
+      (append acc prevs nexts)))
+  (list->$selection siblings))
+
+;; .siblings : $selection? -> $selection?
+;;   Chainable alias for $siblings.
+(define (.siblings sel)
+  ($siblings sel))
+
+;; $last : $selection? -> (or/c #f any/c)
+;;   Return the last selected element, if any.
+(define ($last sel)
+  (check-$selection '$last sel)
+  (define n ($length sel))
+  (if (zero? n)
+      #f
+      ($ref sel (sub1 n))))
+
+;; .last : $selection? -> (or/c #f any/c)
+;;   Chainable alias for $last.
+(define (.last sel)
+  ($last sel))
+
+;; $empty? : $selection? -> boolean?
+;;   Report whether the selection contains no elements.
+(define ($empty? sel)
+  (check-$selection '$empty? sel)
+  (zero? ($length sel)))
+
+;; .empty? : $selection? -> boolean?
+;;   Chainable alias for $empty?.
+(define (.empty? sel)
+  ($empty? sel))

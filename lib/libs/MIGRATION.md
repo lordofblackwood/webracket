@@ -12,7 +12,7 @@ and keep `include-lib` only as a compatibility path while old examples migrate.
 | Legacy file | Classification | Suggested owner | Notes |
 | --- | --- | --- | --- |
 | `array.rkt` | safe wrapper | `js/array` | Migrated; `js/array` is now the canonical safe wrapper API. |
-| `audio.rkt` | safe wrapper | `browser/audio` | Web Audio wrapper with callback caching and constructor checks. |
+| `audio.rkt` | safe wrapper | `audio` | Migrated to native module source; Web Audio wrapper with callback caching and constructor checks. |
 | `canvas.rkt` | safe wrapper, aggregate | `browser/canvas` | Depends on media and array wrappers; owns canvas/image-data/context structs. |
 | `console.rkt` | safe wrapper | `js/console` | Already has a module counterpart; legacy file should stay compatibility-only. |
 | `define.rkt` | syntax/helper | `webracket/define-key` | Keyword-definition helper macros; not a JS/browser API. |
@@ -20,7 +20,7 @@ and keep `include-lib` only as a compatibility path while old examples migrate.
 | `dom.rkt` | aggregate | `browser/dom` | Reexports window/document/domrect/element/image/event family. |
 | `domrect.rkt` | safe wrapper | `browser/domrect` | Migrated; module now owns DOMRect wrap/unwrap plus accessors. |
 | `element.rkt` | safe wrapper | `browser/element` | Large DOM Element wrapper with event-listener caching. |
-| `event.rkt` | legacy include adapter | `browser/event` | Includes `lib/web-easy/event-browser.rkt`; should become a real module source or wrapper. |
+| `event.rkt` | safe wrapper | `browser/event` | Migrated to native module source; checked browser event helpers. |
 | `fetch.rkt` | safe wrapper | `fetch` | Migrated to native module source; exposes Fetch/Headers/Request/Response wrappers. |
 | `image.rkt` | safe wrapper | `browser/image` | HTML image wrapper. |
 | `indexed-db.rkt` | safe wrapper | `indexed-db` | Migrated to native module source; exposes IndexedDB factory helpers. |
@@ -29,13 +29,13 @@ and keep `include-lib` only as a compatibility path while old examples migrate.
 | `media.rkt` | safe wrapper | `browser/media` | HTML media element wrapper and conversion helpers. |
 | `performance.rkt` | safe wrapper | `js/performance` | Migrated; module wraps Performance API helpers and depends on `js/iterator`. |
 | `rquery-chain.rkt` | syntax/helper | `browser/rquery/chain` or private helper | Chain macro used by `rquery`; likely not a standalone public API. |
-| `rquery.rkt` | safe wrapper | `browser/rquery` | DOM selection/query helper library; depends on document/element/event. |
+| `rquery.rkt` | safe wrapper | `rquery` | Migrated to native module source; DOM selection/query helper library depends on document/element/event. |
 | `simple-pretty.rkt` | safe utility | `webracket/simple-pretty` | WebRacket-owned pretty printer; not JS/browser-specific. |
 | `storage.rkt` | safe wrapper | `storage` | Migrated to native module source; exposes localStorage/sessionStorage helpers. |
 | `sxml.rkt` | safe utility | `webracket/sxml` | Migrated to native module source; no longer includes legacy source. |
 | `temp.rkt` | test/demo wrapper | `js/temp` | Tiny demo/test wrapper around `temp.ffi`; keep mostly for coverage. |
 | `threading.rkt` | syntax/helper | `webracket/threading` | Migrated to native module source; provides threading macros. |
-| `websocket.rkt` | safe wrapper | `browser/websocket` | WebSocket wrapper with handler/listener normalization. |
+| `websocket.rkt` | safe wrapper | `websocket` | Migrated to native module source; WebSocket wrapper with handler/listener normalization. |
 | `window.rkt` | safe wrapper | `browser/window` | Window wrapper and browser-global helpers. |
 
 Backup files (`*.rkt~`) and `compiled/` artifacts are not part of the migration
@@ -63,7 +63,7 @@ Public surface:
 | `js/iterator` | `iterator.rkt` |
 | `js/performance` | `performance.rkt` |
 | `js/temp` | `temp.rkt` |
-| `browser/audio` | `audio.rkt` |
+| `audio` | `audio.rkt` |
 | `browser/canvas` | `canvas.rkt` |
 | `browser/document` | `document.rkt` |
 | `browser/dom` | `dom.rkt` |
@@ -74,9 +74,9 @@ Public surface:
 | `browser/image` | `image.rkt` |
 | `indexed-db` | `indexed-db.rkt` |
 | `browser/media` | `media.rkt` |
-| `browser/rquery` | `rquery.rkt` |
+| `rquery` | `rquery.rkt` |
 | `storage` | `storage.rkt` |
-| `browser/websocket` | `websocket.rkt` |
+| `websocket` | `websocket.rkt` |
 | `browser/window` | `window.rkt` |
 | `jsxgraph` | `jsx-graph.rkt` |
 | `webracket/define-key` | `define.rkt` |
@@ -90,8 +90,9 @@ Decisions:
   dashboard coverage.
 - Keep `iterator` under `js/iterator`, since it is a JavaScript iterator-helper
   wrapper used by other JS-facing APIs.
-- Put `fetch`, `indexed-db`, and `storage` under `browser/*`, because the safe
-  wrappers target browser host APIs.
+- Keep `audio`, `fetch`, `indexed-db`, `rquery`, `storage`, and `websocket`
+  at their existing package-level require names for now, matching the examples
+  and public module layout.
 - Keep `rquery-chain` private unless user-facing chain macros become a
   standalone API.
 - Keep `simple-pretty`, `sxml`, and `threading` under `webracket/*` for now
