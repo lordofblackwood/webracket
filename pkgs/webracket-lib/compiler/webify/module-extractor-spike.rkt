@@ -961,7 +961,7 @@
   (and (keyword-runtime-import-group? group)
        (for/list ([binding (in-list group)])
          (match-define (list local external) binding)
-         (list local 'racket/private/kw external))))
+         (list local 'webracket/private/kw external))))
 
 ;; import-group->aliases : import-group candidates -> (or/c aliases #f)
 ;;   Infer aliases only for one clear phase-0 dependency and non-generated export names.
@@ -2384,7 +2384,7 @@
                  (eq? external 'reverse))
             (list local 'racket/private/pico)]
            [(symbolic-name=? external 'struct:keyword-method/arity-error)
-            (list local 'racket/private/kw)]
+            (list local 'webracket/private/kw)]
            [(and (eq? module-name 'racket/private/class-internal)
                  (symbolic-name=? external 'variable-reference->module-source/submod))
             (list local 'syntax/location)]
@@ -2540,7 +2540,7 @@
                                 struct:keyword-procedure/arity-error
                                 struct:keyword-method
                                 struct:keyword-method/arity-error))
-            (list local 'racket/private/kw)]
+            (list local 'webracket/private/kw)]
            [(symbolic-member? external
                               '(return/no-unsupplied
                                 return/no-unsupplied/param-mark

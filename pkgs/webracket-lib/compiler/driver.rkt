@@ -259,13 +259,11 @@
   (define suppressed-ffi-stems
     (remove-duplicates
      (filter values (map ffi-filename-stem ffi-files))))
-  (define-values (_root reports)
-    (webracket/base-file->local-module-reports filename))
   (define provider-names
-    (remove-duplicates
-     (append (map webify-module-report-name reports)
-             (append-map webify-module-report-required-provider-names reports))
-     eq?))
+    (or (current-source-module-provider-names)
+        (let-values ([(_root reports)
+                      (webracket/base-file->local-module-reports filename)])
+          (module-reports->provider-names reports))))
   (for*/list ([provider-name (in-list provider-names)]
               [ffi-filename (in-list (module-provider->ffi-filenames provider-name))]
               #:unless (member (ffi-filename-stem ffi-filename)
@@ -397,6 +395,9 @@
   (make-parameter '()))
 
 (define current-source-module-language
+  (make-parameter #f))
+
+(define current-source-module-provider-names
   (make-parameter #f))
 
 ;; provider-cache-path : path-string? ... -> path?
@@ -1176,6 +1177,7 @@
   (define compile-timings #f)
   (define t-driver-start (now-ms))
   (current-source-module-language #f)
+  (current-source-module-provider-names #f)
 
   (current-browser? browser?)
   (current-enable-cc-analysis? enable-cc-analysis?)
@@ -1719,7 +1721,30 @@
 ;;   Compatibility wrapper for WebRacket module readers.
 (define (read-webracket/base-module filename)
   (webracket/base-substitute-module-requires
-   (read-webracket/module filename (webracket-module-source-language filename))))
+   (webracket/full-module->base-require-module
+    (read-webracket/module filename (webracket-module-source-language filename)))))
+
+;; webracket/full-module->base-require-module : syntax? -> syntax?
+;;   Normalize #lang webracket/full to an explicit provider import. This keeps
+;;   the full surface available while avoiding host-expander phase-1 lazy
+;;   require resolution through the language-root module.
+(define (webracket/full-module->base-require-module stx)
+  (define datum (syntax->datum stx))
+  (define rewritten
+    (match datum
+      [`(module ,name webracket/full (#%module-begin ,forms ...))
+       `(module ,name webracket/base
+          (#%module-begin
+           (require webracket/full)
+           ,@forms))]
+      [`(module ,name webracket/full ,forms ...)
+       `(module ,name webracket/base
+          (require webracket/full)
+          ,@forms)]
+      [_ datum]))
+  (if (equal? rewritten datum)
+      stx
+      (datum->syntax stx rewritten stx)))
 
 ;; webracket/base-provider-substitution : struct
 ;;   Describe one provider substitution so temporary shims stay visible.
@@ -2015,6 +2040,14 @@
 (struct webracket/base-local-module-graph (root reports registry)
   #:transparent)
 
+;; module-reports->provider-names : (listof webify-module-report?) -> (listof symbol?)
+;;   Collect local and required provider names from extracted module reports.
+(define (module-reports->provider-names reports)
+  (remove-duplicates
+   (append (map webify-module-report-name reports)
+           (append-map webify-module-report-required-provider-names reports))
+   eq?))
+
 ;; module-composer-primitive-overrides : -> hash?
 ;;   Override primitive cells whose compiled-module role differs from scripts.
 (define (module-composer-primitive-overrides)
@@ -2132,21 +2165,22 @@
        (not (provider-has-phase0-syntax-exports? name))))
 
 ;; compile-webracket/base-module-file-report : path-string? [#:namespace namespace?] [#:module-name-resolver procedure?] -> webify-module-report?
-;;   Compile one module file while resolving relative requires from its directory.
+;;   Compile one module file from its absolute source path.
 (define (compile-webracket/base-module-file-report filename
                                                   #:namespace [namespace (make-base-namespace)]
                                                   #:module-name-resolver [module-name-resolver (current-module-name-resolver)])
   (define resolved (simplify-path (path->complete-path filename)))
-  (parameterize ([current-directory (or (path-only resolved)
-                                        (current-directory))])
-    (define module-stx (read-webracket/base-module resolved))
-    ;; Read with the normal resolver so #lang webracket/base itself is found,
-    ;; then compile with the erased-contract resolver for provider imports.
-    (provider-cache-log "#lang webracket/base local compile start: ~a" resolved)
-    (webify-compile-module-report
-     module-stx
-     #:namespace namespace
-     #:module-name-resolver module-name-resolver)))
+  (define module-stx (read-webracket/base-module resolved))
+  ;; Read with the normal resolver so #lang webracket/base itself is found,
+  ;; then compile with the erased-contract resolver for provider imports. Keep
+  ;; current-directory unchanged during compilation: installed providers such
+  ;; as racket/match can perform phase-1 lazy requires, and those relative
+  ;; requires must not be anchored to the user's source directory.
+  (provider-cache-log "#lang webracket/base local compile start: ~a" resolved)
+  (webify-compile-module-report
+   module-stx
+   #:namespace namespace
+   #:module-name-resolver module-name-resolver))
 
 ;; webracket/base-file->local-module-graph : path-string? -> webracket/base-local-module-graph?
 ;;   Extract local module reports for the module bridge path.
@@ -2592,6 +2626,8 @@
                            "file" filename
                            "message" (exn-message e)))])
          (webracket/base-file->local-module-graph filename)))))
+  (current-source-module-provider-names
+   (module-reports->provider-names (webracket/base-local-module-graph-reports graph)))
   (define composition
     (with-driver-timing
      'module-bridge-compose

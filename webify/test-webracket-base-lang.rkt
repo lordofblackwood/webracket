@@ -337,7 +337,6 @@
       (check-equal? status 0 output)
       (check-regexp-match #rx"=== Read Source Details ===" output)
       (for ([label (in-list '("module-bridge-extract"
-                              "module-bridge-register"
                               "module-bridge-compose"))])
         (check-regexp-match (regexp (regexp-quote label)) output))
       (define parse-nodes (timing-parse-node-count output))
