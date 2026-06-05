@@ -2224,7 +2224,11 @@
           racket/base
           racket/private/base
           racket/private/pre-base
-          racket/private/modbeg)))
+          ;; Require/provide transformer helpers run in the host expander while
+          ;; extracting module metadata; they are not runtime provider demands.
+          racket/private/modbeg
+          racket/require-syntax
+          racket/provide-syntax)))
 
 ;; webracket/base-reports-demand-external-providers? : (listof webify-module-report?) -> boolean?
 ;;   Check whether a bridge graph needs installed-provider discovery.
