@@ -1,5 +1,8 @@
 #lang racket/base
 
+(require (only-in '#%kernel
+                  checked-procedure-check-and-extract))
+
 (provide make-keyword-procedure
          keyword-apply
          new-keyword-apply
@@ -209,9 +212,9 @@
                           pos
                           kws)))
 
-;; keyword-procedure-extract : any/c (listof keyword?) exact-nonnegative-integer? -> procedure?
-;;   Extract the keyword dispatcher for an expanded keyword application.
-(define (keyword-procedure-extract proc kws argc)
+;; raw-keyword-procedure-extract : any/c (listof keyword?) exact-nonnegative-integer? -> procedure?
+;;   Extract the keyword dispatcher for an ordinary keyword-procedure struct.
+(define (raw-keyword-procedure-extract proc kws argc)
   (check-keyword-list 'keyword-procedure-extract kws 1)
   (cond
     [(and (keyword-procedure? proc)
@@ -228,6 +231,15 @@
                             "procedure" proc
                             "keywords" kws
                             "argument count" argc)]))
+
+;; keyword-procedure-extract : any/c (listof keyword?) exact-nonnegative-integer? -> procedure?
+;;   Extract the keyword dispatcher for an expanded keyword application.
+(define (keyword-procedure-extract proc kws argc)
+  (checked-procedure-check-and-extract struct:keyword-procedure
+                                       proc
+                                       raw-keyword-procedure-extract
+                                       kws
+                                       argc))
 
 ;; procedure-keywords : procedure? -> (values (listof keyword?) (or/c (listof keyword?) #f))
 ;;   Report keyword requirements for WebRacket keyword procedures.

@@ -59453,8 +59453,10 @@
                (if (ref.test (ref $PrimitiveProcedure) (local.get $v))
                    (then
                     (local.set $primitive (ref.cast (ref $PrimitiveProcedure) (local.get $v)))
-                    (if (ref.eq (struct.get $PrimitiveProcedure $name (local.get $primitive))
-                                (global.get $symbol:sort))
+                    (if (call $string=?/i32
+                              (call $symbol->string
+                                    (struct.get $PrimitiveProcedure $name (local.get $primitive)))
+                              (call $symbol->string (global.get $symbol:sort)))
                         (then
                          (return
                           (struct.new $PrimitiveProcedure
@@ -59465,8 +59467,10 @@
                                       (ref.func $primitive-invoke:shape-4)
                                       (ref.func $sort/keyword-apply)
                                       (global.get $false)))))
-                    (if (ref.eq (struct.get $PrimitiveProcedure $name (local.get $primitive))
-                                (global.get $symbol:vector-sort))
+                    (if (call $string=?/i32
+                              (call $symbol->string
+                                    (struct.get $PrimitiveProcedure $name (local.get $primitive)))
+                              (call $symbol->string (global.get $symbol:vector-sort)))
                         (then
                          (return
                           (struct.new $PrimitiveProcedure
@@ -59477,8 +59481,10 @@
                                       (ref.func $primitive-invoke:shape-4)
                                       (ref.func $vector-sort/keyword-apply)
                                       (global.get $false)))))
-                    (if (ref.eq (struct.get $PrimitiveProcedure $name (local.get $primitive))
-                                (global.get $symbol:vector-sort!))
+                    (if (call $string=?/i32
+                              (call $symbol->string
+                                    (struct.get $PrimitiveProcedure $name (local.get $primitive)))
+                              (call $symbol->string (global.get $symbol:vector-sort!)))
                         (then
                          (return
                           (struct.new $PrimitiveProcedure

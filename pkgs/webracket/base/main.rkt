@@ -15,7 +15,8 @@
                   prop:gen-sequence)
          (only-in "../primitives.rkt"
                   print-as-expression
-                  sort)
+                  [sort primitive-sort]
+                  [sort/expanded-keywords primitive-sort/expanded-keywords])
          (for-syntax racket/base)
          (for-syntax racket/splicing)
          (for-syntax webracket-lib/compiler/private/browser-options))
@@ -31,6 +32,30 @@
          (for-syntax (all-from-out racket/base))
          (for-syntax (all-from-out racket/splicing))
          (for-syntax (all-from-out webracket-lib/compiler/private/browser-options)))
+
+;; sort-keyword-options : (listof keyword?) list? -> values
+;;   Decode the keyword options supported by WebRacket's primitive sort bridge.
+(define (sort-keyword-options kws kw-args)
+  (let loop ([kws kws] [kw-args kw-args] [key #f] [cache-keys? #f])
+    (cond
+      [(null? kws) (values key cache-keys?)]
+      [(eq? (car kws) '#:key)
+       (loop (cdr kws) (cdr kw-args) (car kw-args) cache-keys?)]
+      [(eq? (car kws) '#:cache-keys?)
+       (loop (cdr kws) (cdr kw-args) key (car kw-args))]
+      [else
+       (raise-arguments-error 'sort
+                              "unsupported keyword"
+                              "keyword" (car kws))])))
+
+;; sort : list? procedure? -> list?
+;;   Keyword-aware public wrapper over WebRacket's primitive list sort.
+(define sort
+  (make-keyword-procedure
+   (lambda (kws kw-args xs less-than?)
+     (define-values (key cache-keys?) (sort-keyword-options kws kw-args))
+     (primitive-sort/expanded-keywords xs less-than? #f key #f cache-keys?))
+   primitive-sort))
 
 ;; read-bytes-line : [input-port?] [symbol?] -> (or/c bytes? eof-object?)
 ;;   Small WebRacket-compatible implementation. Optional mode defaults to 'linefeed.

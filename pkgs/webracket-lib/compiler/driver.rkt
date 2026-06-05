@@ -1790,6 +1790,10 @@
                  "mutable-pair representation is WebRacket runtime work")
    (substitution 'racket/port 'webracket/port 'runtime-owned 'low 'keep-webracket-owned
                  "ports are tied to WebRacket string ports, VFS, and browser IO")
+   (substitution 'racket/private/kw 'webracket/private/kw 'runtime-owned 'high 'keep-webracket-owned
+                 "keyword-procedure structs must share one WebRacket runtime type across composed providers")
+   (substitution 'racket/private/sort 'webracket/private/sort 'runtime-owned 'high 'keep-webracket-owned
+                 "keyword-capable sort bindings should use WebRacket's primitive sort bridge")
    (substitution 'racket/promise 'webracket/promise 'runtime-owned 'low 'keep-webracket-owned
                  "ordinary promises are small browser-local runtime behavior")
    (substitution 'racket/set 'webracket/set 'temporary-shim 'medium 'keep-webracket-owned
@@ -2285,8 +2289,6 @@
   (memq name
         '(webracket/base/main
           webracket/base
-          webracket/full/main
-          webracket/full
           webracket/js/main
           webracket/js
           webracket/core
@@ -2296,8 +2298,6 @@
           ;; installed and package-local module paths.
           base/main
           base
-          full/main
-          full
           js/main
           js
           core
@@ -2439,7 +2439,11 @@
     websocket
     web-pict
     rquery
-    webracket/private/ffi))
+    webracket/full
+    webracket/full/main
+    webracket/private/ffi
+    webracket/private/kw
+    webracket/private/sort))
 
 (define webracket-owned-ffi-provider-prefixes
   '("js/"
@@ -2538,6 +2542,12 @@
                  (webify-module-provider-cache-ref provider-cache
                                                    'webracket/private/kw)
                  'racket/private/kw)
+                (webify-module-provider-cache-ref provider-cache
+                                                  'webracket/private/sort)
+                (webify-module-report/rename
+                 (webify-module-provider-cache-ref provider-cache
+                                                   'webracket/private/sort)
+                 'racket/private/sort)
                 (webify-module-provider-cache-ref provider-cache
                                                   'webracket/unsafe/undefined)
                 (webify-module-report/rename

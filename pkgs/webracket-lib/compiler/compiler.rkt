@@ -2084,7 +2084,7 @@
   filter
   remove  remq  remv  remw  remf
   remove* remq* remv* remw* remf*
-  sort
+  sort sort/expanded-keywords
   ; 4.10.6 List Searching
   member  memq  memv memw   memf
   findf  
@@ -2326,7 +2326,7 @@
   vector-append vector-extend vector-count
   vector-filter vector-filter-not
   vector-member vector-memq vector-memv
-  vector-sort! vector-sort
+  vector-sort! vector-sort vector-sort/expanded-keywords vector-sort!/expanded-keywords
   vector-drop vector-drop-right
   vector-take vector-take-right
   vector-split-at vector-split-at-right

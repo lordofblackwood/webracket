@@ -71,7 +71,7 @@
     (racket/shared   exported expands  partial host-only)
     (racket/stream   substituted staged staged runs)
     (racket/string   exported extracts composes runs)
-    (racket/vector   exported extracts partial runs)
+    (racket/vector   exported extracts composes runs)
     (racket/contract exported substituted staged runs)
     (webracket/contract exported extracts staged runs)
     (webracket/file     exported extracts staged runs)

@@ -893,7 +893,7 @@
 
  argmax argmin
  group-by
- sort 
+ sort sort/expanded-keywords
  
  assoc assw assv assq assf
 
@@ -930,7 +930,7 @@
  vector-argmax vector-argmin
  vector-filter vector-filter-not
  vector-member vector-memq vector-memv
- vector-sort! vector-sort
+ vector-sort! vector-sort vector-sort/expanded-keywords vector-sort!/expanded-keywords
  build-vector
  vector-set/copy
  stencil-vector
@@ -2169,6 +2169,11 @@ current-parameterization    ; poor-man dynamic parameterization overlay
    (lambda (xs less-than?)
      (racket:sort xs less-than?))))
 
+;; sort/expanded-keywords : list? procedure? any/c procedure? any/c any/c -> list?
+;;   Host mirror for the fixed-shape runtime keyword helper.
+(define (sort/expanded-keywords xs less-than? _kw-key key _kw-cache cache-keys?)
+  (racket:sort xs less-than? #:key key #:cache-keys? cache-keys?))
+
 
 ; Added in version Racket 8.12.
 (define (vector-extend vec new-size [val 0])
@@ -2636,14 +2641,69 @@ current-parameterization    ; poor-man dynamic parameterization overlay
                 treelist->list))))
 
 (require (prefix-in racket: racket/vector))
-         
-; A simplified no-keywords version 
-(define (vector-sort! vec less-than? [start 0] [end (vector-length #f)])
-  (racket:vector-sort! vec less-than? start end))
 
-; A simplified no-keywords version 
-(define (vector-sort vec less-than? [start 0] [end (vector-length #f)])
-  (racket:vector-sort vec less-than? start end))
+;; apply-vector-sort : procedure? vector? procedure? (listof any/c) procedure? any/c -> any/c
+;;   Apply the host vector sort mirror with optional start/end and keyword options.
+(define (apply-vector-sort sorter vec less-than? maybe-range key cache-keys?)
+  (case (length maybe-range)
+    [(0) (sorter vec less-than? #:key key #:cache-keys? cache-keys?)]
+    [(1) (sorter vec less-than? (car maybe-range)
+                 #:key key #:cache-keys? cache-keys?)]
+    [(2) (sorter vec less-than? (car maybe-range) (cadr maybe-range)
+                 #:key key #:cache-keys? cache-keys?)]
+    [else (apply sorter vec less-than? maybe-range)]))
+
+;; keyword-sort-options : (listof keyword?) list? -> values
+;;   Extract the supported sort keyword values from parallel keyword lists.
+(define (keyword-sort-options kws kw-args)
+  (let loop ([kws kws] [kw-args kw-args] [key #f] [cache-keys? #f])
+    (cond
+      [(null? kws) (values key cache-keys?)]
+      [(eq? (car kws) '#:key)
+       (loop (cdr kws) (cdr kw-args) (car kw-args) cache-keys?)]
+      [(eq? (car kws) '#:cache-keys?)
+       (loop (cdr kws) (cdr kw-args) key (car kw-args))]
+      [else (loop (cdr kws) (cdr kw-args) key cache-keys?)])))
+
+; Host-side mirror for WebRacket's primitive vector-sort!. The compiler/runtime
+; supports the keyword-expanded shapes used by module-language programs.
+(define vector-sort!
+  (make-keyword-procedure
+   (lambda (kws kw-args vec less-than? . maybe-range)
+     (define-values (key cache-keys?) (keyword-sort-options kws kw-args))
+     (apply-vector-sort racket:vector-sort! vec less-than? maybe-range key cache-keys?))
+   (case-lambda
+     [(vec less-than?)
+      (racket:vector-sort! vec less-than?)]
+     [(vec less-than? start)
+      (racket:vector-sort! vec less-than? start)]
+     [(vec less-than? start end)
+      (racket:vector-sort! vec less-than? start end)])))
+
+; Host-side mirror for WebRacket's primitive vector-sort. The compiler/runtime
+; supports the keyword-expanded shapes used by module-language programs.
+(define vector-sort
+  (make-keyword-procedure
+   (lambda (kws kw-args vec less-than? . maybe-range)
+     (define-values (key cache-keys?) (keyword-sort-options kws kw-args))
+     (apply-vector-sort racket:vector-sort vec less-than? maybe-range key cache-keys?))
+   (case-lambda
+     [(vec less-than?)
+      (racket:vector-sort vec less-than?)]
+     [(vec less-than? start)
+      (racket:vector-sort vec less-than? start)]
+     [(vec less-than? start end)
+      (racket:vector-sort vec less-than? start end)])))
+
+;; vector-sort/expanded-keywords : vector? procedure? any/c procedure? any/c any/c -> vector?
+;;   Host mirror for the fixed-shape runtime keyword helper.
+(define (vector-sort/expanded-keywords vec less-than? _kw-key key _kw-cache cache-keys?)
+  (racket:vector-sort vec less-than? #:key key #:cache-keys? cache-keys?))
+
+;; vector-sort!/expanded-keywords : vector? procedure? any/c procedure? any/c any/c -> void?
+;;   Host mirror for the fixed-shape runtime keyword helper.
+(define (vector-sort!/expanded-keywords vec less-than? _kw-key key _kw-cache cache-keys?)
+  (racket:vector-sort! vec less-than? #:key key #:cache-keys? cache-keys?))
 
 
 ; This simplified version of flrandom ignores the random generator argument.

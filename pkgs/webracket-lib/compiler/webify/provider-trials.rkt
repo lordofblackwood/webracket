@@ -409,15 +409,94 @@
        (define answer (list xor boolean=?))))
    (webify-provider-trial
     'racket/vector
-    '(vector-map vector-filter vector-count vector-member)
+    '(vector*-append
+      vector*-copy
+      vector*-extend
+      vector*-set/copy
+      vector-append
+      vector-argmax
+      vector-argmin
+      vector-copy
+      vector-count
+      vector-drop
+      vector-drop-right
+      vector-empty?
+      vector-extend
+      vector-filter
+      vector-filter-not
+      vector-map
+      vector-map!
+      vector-member
+      vector-memq
+      vector-memv
+      vector-set*!
+      vector-set/copy
+      vector-sort
+      vector-sort!
+      vector-split-at
+      vector-split-at-right
+      vector-take
+      vector-take-right)
     '(module use-vector racket/base
        (require (only-in racket/vector
-                         vector-map
-                         vector-filter
+                         vector*-append
+                         vector*-copy
+                         vector*-extend
+                         vector*-set/copy
+                         vector-append
+                         vector-argmax
+                         vector-argmin
+                         vector-copy
                          vector-count
-                         vector-member))
+                         vector-drop
+                         vector-drop-right
+                         vector-empty?
+                         vector-extend
+                         vector-filter
+                         vector-filter-not
+                         vector-map
+                         vector-map!
+                         vector-member
+                         vector-memq
+                         vector-memv
+                         vector-set*!
+                         vector-set/copy
+                         vector-sort
+                         vector-sort!
+                         vector-split-at
+                         vector-split-at-right
+                         vector-take
+                         vector-take-right))
        (provide answer)
-       (define answer (list vector-map vector-filter vector-count vector-member))))
+       (define answer
+         (list vector*-append
+               vector*-copy
+               vector*-extend
+               vector*-set/copy
+               vector-append
+               vector-argmax
+               vector-argmin
+               vector-copy
+               vector-count
+               vector-drop
+               vector-drop-right
+               vector-empty?
+               vector-extend
+               vector-filter
+               vector-filter-not
+               vector-map
+               vector-map!
+               vector-member
+               vector-memq
+               vector-memv
+               vector-set*!
+               vector-set/copy
+               vector-sort
+               vector-sort!
+               vector-split-at
+               vector-split-at-right
+               vector-take
+               vector-take-right))))
    (webify-provider-trial
     'racket/function
     '(identity negate const curry curryr conjoin disjoin)
@@ -616,6 +695,8 @@
     webracket/dict
     webracket/file
     webracket/function
+    webracket/full
+    webracket/full/main
     webracket/generator
     webracket/hash
     webracket/js
@@ -627,6 +708,7 @@
     webracket/private/for
     webracket/private/format
     webracket/private/kw
+    webracket/private/sort
     webracket/sequence
     webracket/syntax/contract
     webracket/set
@@ -860,6 +942,7 @@
 (define (webify-provider-trial-provider-substitute name)
   (case name
     [(racket/private/kw) 'webracket/private/kw]
+    [(racket/private/sort) 'webracket/private/sort]
     [else name]))
 
 ;; webify-provider-trial-report/rename : report symbol? -> report
