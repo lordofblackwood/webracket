@@ -2395,6 +2395,11 @@
            [(and (eq? module-name 'racket/list)
                  (symbolic-name=? external 'sort))
             (list local 'racket/private/sort)]
+           [(and (memq module-name '(racket/list
+                                     racket/private/list
+                                     webracket/list))
+                 (symbolic-name=? external 'check-list))
+            (list local '#%kernel)]
            [(symbolic-name=? external 'struct:keyword-method/arity-error)
             (list local 'webracket/private/kw)]
            [(and (eq? module-name 'racket/private/class-internal)

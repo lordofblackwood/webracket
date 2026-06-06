@@ -2100,9 +2100,15 @@ current-parameterization    ; poor-man dynamic parameterization overlay
 
 ;; Checkers
 
-(define (check-list l)
+(define check-list-missing (gensym 'missing-list))
+
+(define (check-list who-or-list [maybe-list check-list-missing])
+  (define-values (who l)
+    (if (eq? maybe-list check-list-missing)
+        (values 'in-list who-or-list)
+        (values who-or-list maybe-list)))
   (unless (list? l)
-    (raise-argument-error 'in-list "list?" l)))
+    (raise-argument-error who "list?" l)))
 
 (define (check-vector v)
   (unless (vector? v)

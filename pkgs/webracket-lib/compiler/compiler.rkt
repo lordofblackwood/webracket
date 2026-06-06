@@ -1653,6 +1653,7 @@
    (append
     (make-inline-specs/by-name
      '(raise
+       check-list
        procedure-arity-includes?
        procedure-reduce-arity
        procedure-reduce-arity-mask
@@ -1689,7 +1690,7 @@
      'optional/default
      (λ (name)
        (case name
-         [(raise hash->list hash-keys hash-values
+         [(raise check-list hash->list hash-keys hash-values
                  string-join string->bytes/utf-8 string->bytes/locale bytes->path
                  string->path-element bytes->path-element datum->correlated
                  struct-type-property-predicate-procedure?) 1]
@@ -1709,7 +1710,7 @@
          [else 1]))
      (λ (name)
        (case name
-         [(raise number->string
+         [(raise check-list number->string
                  struct-type-property-predicate-procedure? hash->list hash-keys
                  hash-values string-join bytes->path path->complete-path) 2]
          [(string->path-element) 2]
@@ -1736,7 +1737,8 @@
          [(treelist-member? treelist-index-of) 'prim:equal?]
          [(struct->list) 'symbol:error]
          [(string-join) 'string:space]
-         [(procedure-reduce-arity procedure-reduce-arity-mask
+         [(check-list
+           procedure-reduce-arity procedure-reduce-arity-mask
                        bytes->path path->complete-path string->path-element
                        bytes->path-element datum->correlated correlated-property
                        inclusive-range inclusive-range-proc) 'missing]

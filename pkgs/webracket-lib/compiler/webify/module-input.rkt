@@ -262,14 +262,17 @@
 (define (kernel-dependency? dependency)
   (primitive-module-name? dependency))
 
+;; generated-base-name : symbol? -> string?
+;;   Strip common decompiler-generated prefixes and numeric suffixes.
+(define (generated-base-name name)
+  (define text (symbol->string name))
+  (define without-prefix (regexp-replace #rx"^new[:-]" text ""))
+  (define without-index-prefix (regexp-replace #rx"^[0-9]+/" without-prefix ""))
+  (regexp-replace #rx"[0-9]*[.][0-9]+$" without-index-prefix ""))
+
 ;; symbolic-name=? : symbol? symbol? -> boolean?
 ;;   Compare generated linklet names by printed identity when eq? is too strict.
 (define (symbolic-name=? a b)
-  (define (generated-base-name name)
-    (define text (symbol->string name))
-    (define without-prefix (regexp-replace #rx"^new[:-]" text ""))
-    (define without-index-prefix (regexp-replace #rx"^[0-9]+/" without-prefix ""))
-    (regexp-replace #rx"[0-9]*[.][0-9]+$" without-index-prefix ""))
   (or (eq? a b)
       (string=? (symbol->string a) (symbol->string b))
       (string=? (generated-base-name a) (generated-base-name b))
@@ -308,15 +311,22 @@
                #:when (symbolic-name=? export external))
       export))
   (define generated-primary
-    (string->symbol (format "~a.1" external)))
+    (string->symbol (format "~a.1" (generated-base-name external))))
   (define generated-primary-matches
     (for/list ([export (in-list matches)]
                #:when (equal? (symbol->string export)
                               (symbol->string generated-primary)))
       export))
+  (define public-base
+    (string->symbol (generated-base-name external)))
+  (define public-base-matches
+    (for/list ([export (in-list matches)]
+               #:when (eq? export public-base))
+      export))
   (define selected-matches
     (cond
       [(pair? exact-matches) exact-matches]
+      [(pair? public-base-matches) public-base-matches]
       [(pair? generated-primary-matches) generated-primary-matches]
       [else matches]))
   (match selected-matches
@@ -505,8 +515,16 @@
            'resolved-by-import-alias)]
     [explicit
      (define exports (dependency-exports-ref who dependency-exports explicit))
+     (define explicit-alias-hint
+       (compiled-primitive-alias-hint module-name local external))
+     (define provider-export
+       (match explicit-alias-hint
+         [(list dependency hinted-export)
+          #:when (eq? dependency explicit)
+          hinted-export]
+         [_ external]))
      (list explicit
-           (dependency-export-ref who explicit exports external)
+           (dependency-export-ref who explicit exports provider-export)
            'resolved-by-explicit-dependency)]
     [hint
      (match-define (list dependency provider-export) hint)
@@ -615,6 +633,11 @@
     [(and (eq? module-name 'racket/list)
           (symbolic-name=? external 'sort))
      '(racket/private/sort sort)]
+    [(and (memq module-name '(racket/list
+                              racket/private/list
+                              webracket/list))
+          (symbolic-name=? external 'check-list))
+     '(#%kernel check-list)]
     [(and (eq? module-name 'racket/private/class-internal)
           (symbolic-name=? external 'coerce-contract))
      '(racket/contract/private/guts coerce-contract)]
@@ -747,12 +770,22 @@
   (define resolved
     (for/list ([binding (in-list bindings)])
       (match-define (list local external) binding)
-      (define primitive-alias-hint
-        (and (not (or (hash-has-key? alias-map local)
+      (define primitive-alias-override?
+        (and (memq module-name '(racket/list
+                                 racket/private/list
+                                 webracket/list))
+             (symbolic-name=? external 'check-list)))
+      (define candidate-primitive-alias-hint
+        (and (not (or (and (not primitive-alias-override?)
+                            (hash-has-key? alias-map local))
                       (hash-has-key? hint-map local)))
-             (or (not (hash-has-key? dependency-map local))
-                 (primitive-module-name? (hash-ref dependency-map local)))
              (compiled-primitive-alias-hint module-name local external)))
+      (define primitive-alias-hint
+        (match candidate-primitive-alias-hint
+          [(list dependency _provider-export)
+           #:when (assoc dependency dependency-exports*)
+           candidate-primitive-alias-hint]
+          [_ #f]))
       (match-define (list dependency provider-export status)
         (if primitive-alias-hint
             (match primitive-alias-hint

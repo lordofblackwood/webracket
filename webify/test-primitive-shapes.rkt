@@ -17,7 +17,8 @@
 (define compiler-source      (file->string compiler-path))
 
 (define optional-direct-wrapper-expectations
-  '((number->string       "1 2"   "$Prim12")
+  '((check-list           "1 2"   "$Prim12")
+    (number->string       "1 2"   "$Prim12")
     (string-join          "1 2"   "$Prim12")
     (make-bytes           "1 2"   "$Prim12")
     (make-string          "1 2"   "$Prim12")

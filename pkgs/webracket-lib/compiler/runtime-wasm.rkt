@@ -10966,14 +10966,26 @@
          ;;; Checkers
          ;;;
 
-         (func $check-list (type $Prim1)
-               (param $l (ref eq)) ;; list
+         (func $check-list (type $Prim12)
+               (param $a (ref eq)) ;; list, or who when b is supplied
+               (param $b (ref eq)) ;; optional list; defaults to $missing
                (result   (ref eq))
+               (local $who (ref eq))
+               (local $l   (ref eq))
+               (local.set $who (local.get $a))
+               (local.set $l   (local.get $a))
+               (if (ref.eq (local.get $b) (global.get $missing))
+                   (then
+                    (local.set $who (global.get $symbol:in-list))
+                    (local.set $l   (local.get $a)))
+                   (else
+                    (local.set $who (local.get $a))
+                    (local.set $l   (local.get $b))))
                (if (result (ref eq))
                    (ref.eq (call $list? (local.get $l)) (global.get $true))
                    (then (global.get $void))
                    (else (call $raise-argument-error1
-                               (global.get $symbol:in-list)
+                               (local.get $who)
                                (global.get $string:list?)
                                (local.get $l))
                          (unreachable))))

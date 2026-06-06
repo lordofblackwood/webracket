@@ -242,7 +242,7 @@
 (define-primitive compile-linklet                           [1 2 3 4 5]         (ordered))
 (define-primitive compiled-expression?                      1                   (pure))
 (define-primitive compiled-module-expression?               1                   (pure))
-(define-primitive check-list                                1                   (ordered))
+(define-primitive check-list                                [1 2]               (ordered))
 (define-primitive check-mlist                               1                   (ordered))
 (define-primitive check-naturals                            1                   (ordered))
 (define-primitive check-range                               3                   (ordered))

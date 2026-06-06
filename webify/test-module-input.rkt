@@ -244,6 +244,57 @@
     '((racket/string (string-join9.1 string-join.2 string-join.1))))
    '((string-join racket/string string-join.1))))
 
+(test-case "dependency resolver uses compiled alias export for explicit generated dependencies"
+  (check-equal?
+   (webify-resolve-module-linklet-imports
+    '(linklet (((remove-duplicates28.1 remove-duplicates28.1))) (y)
+       (define-values (y) remove-duplicates28.1))
+    '((webracket/list (remove-duplicates46.1
+                       remove-duplicates.2
+                       remove-duplicates.1
+                       remove-duplicates)))
+    #:module-name 'racket/private/class-internal
+    #:dependencies '((remove-duplicates28.1 webracket/list)))
+   '((remove-duplicates28.1 webracket/list remove-duplicates))))
+
+(test-case "dependency resolver lets compiled alias override private generated dependency"
+  (check-equal?
+   (webify-resolve-module-linklet-imports
+    '(linklet (((remove-duplicates28.1 remove-duplicates28.1))) (y)
+       (define-values (y) remove-duplicates28.1))
+    '((racket/private/list (remove-duplicates46.1
+                            remove-duplicates.2
+                            remove-duplicates.1))
+      (webracket/list (remove-duplicates)))
+    #:module-name 'racket/private/class-internal
+    #:dependencies '((remove-duplicates28.1 racket/private/list)))
+   '((remove-duplicates28.1 webracket/list remove-duplicates))))
+
+(test-case "dependency resolver prefers public base export for explicit generated dependencies"
+  (check-equal?
+   (webify-resolve-module-linklet-imports
+    '(linklet (((remove-duplicates28.1 remove-duplicates28.1))) (y)
+       (define-values (y) remove-duplicates28.1))
+    '((racket/private/list (remove-duplicates46.1
+                            remove-duplicates.2
+                            remove-duplicates.1
+                            remove-duplicates)))
+    #:module-name 'racket/private/class-internal
+    #:dependencies '((remove-duplicates28.1 racket/private/list)))
+   '((remove-duplicates28.1 racket/private/list remove-duplicates))))
+
+(test-case "dependency resolver prefers generated primary export for generated dependencies"
+  (check-equal?
+   (webify-resolve-module-linklet-imports
+    '(linklet (((remove-duplicates28.1 remove-duplicates28.1))) (y)
+       (define-values (y) remove-duplicates28.1))
+    '((racket/private/list (remove-duplicates46.1
+                            remove-duplicates.2
+                            remove-duplicates.1)))
+    #:module-name 'racket/private/class-internal
+    #:dependencies '((remove-duplicates28.1 racket/private/list)))
+   '((remove-duplicates28.1 racket/private/list remove-duplicates.1))))
+
 (test-case "dependency resolver normalizes generated new: aliases"
   (define importer-linklet
     '(linklet (((new:procedure-reduce-arity-mask new:procedure-reduce-arity-mask))) (y)
@@ -453,6 +504,47 @@
   (check-equal? (map webify-module-resolution-outcome-status list-sort-outcomes)
                 '(resolved-by-compiled-primitive-alias
                   resolved-by-compiled-primitive-alias))
+  (define-values (list-check-list-imports list-check-list-outcomes)
+    (webify-resolve-module-linklet-imports/outcomes
+     '(linklet (([check-list7 check-list])) (y)
+        (define-values (y) check-list7))
+     '((racket/private/for (check-list))
+       (racket/private/list (check-list))
+       (#%kernel (check-list)))
+     #:module-name 'racket/list
+     #:dependencies '((check-list7 racket/private/for))))
+  (check-equal? list-check-list-imports
+                '((check-list7 #%kernel check-list)))
+  (check-equal? (map webify-module-resolution-outcome-status
+                     list-check-list-outcomes)
+                '(resolved-by-compiled-primitive-alias))
+  (define-values (list-check-list-alias-imports list-check-list-alias-outcomes)
+    (webify-resolve-module-linklet-imports/outcomes
+     '(linklet (([check-list7 check-list])) (y)
+        (define-values (y) check-list7))
+     '((racket/private/for (check-list))
+       (#%kernel (check-list)))
+     #:module-name 'racket/list
+     #:import-aliases '((check-list7 racket/private/for check-list))))
+  (check-equal? list-check-list-alias-imports
+                '((check-list7 #%kernel check-list)))
+  (check-equal? (map webify-module-resolution-outcome-status
+                     list-check-list-alias-outcomes)
+                '(resolved-by-compiled-primitive-alias))
+  (for ([module-name (in-list '(webracket/list racket/private/list))])
+    (define-values (staged-list-check-imports staged-list-check-outcomes)
+      (webify-resolve-module-linklet-imports/outcomes
+       '(linklet (([1/check-list check-list])) (y)
+          (define-values (y) 1/check-list))
+       '((racket/private/for (check-list))
+         (#%kernel (check-list)))
+       #:module-name module-name
+       #:import-aliases '((1/check-list racket/private/for check-list))))
+    (check-equal? staged-list-check-imports
+                  '((1/check-list #%kernel check-list)))
+    (check-equal? (map webify-module-resolution-outcome-status
+                       staged-list-check-outcomes)
+                  '(resolved-by-compiled-primitive-alias)))
   (define-values (exact-contract-export-imports exact-contract-export-outcomes)
     (webify-resolve-module-linklet-imports/outcomes
      '(linklet (([id-partially-applied42.1 id-partially-applied42.1])) (y)
