@@ -2528,6 +2528,15 @@
                                                          'webracket/contract)])
            (for/list ([name (in-list erased-contract-support-names)])
              (webify-module-report/rename report name))))
+       (define needs-class-support?
+         ;; `webracket/full` re-exports the installed `racket/class` surface, so
+         ;; its graph needs the same seeded private-provider support as an
+         ;; explicit `(require racket/class)` program.
+         (ormap (lambda (name)
+                  (memq name '(racket/class
+                               webracket/full
+                               webracket/full/main)))
+                external-names))
        ;; Some resolver hints target WebRacket-owned support modules directly;
        ;; include those reports even when the installed provider graph only
        ;; names the original Racket module.
@@ -2555,7 +2564,7 @@
                                                    'webracket/unsafe/undefined)
                  'racket/unsafe/undefined))
           erased-contract-support-reports
-          (if (memq 'racket/class external-names)
+          (if needs-class-support?
               (list (webify-module-provider-cache-ref provider-cache
                                                       'racket/private/for)
                     (webify-module-report/rename

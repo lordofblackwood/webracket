@@ -33,6 +33,7 @@
                     reverse)
          racket/bool
          racket/bytes
+         racket/class
          racket/dict
          racket/function
          racket/include
@@ -217,6 +218,7 @@
          sort
          (all-from-out racket/bool)
          (all-from-out racket/bytes)
+         (all-from-out racket/class)
          (all-from-out racket/dict)
          (all-from-out racket/function)
          (all-from-out racket/include)

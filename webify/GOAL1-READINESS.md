@@ -43,7 +43,7 @@ choosing the next milestone from evidence instead of memory.
 | `racket/shared` | installed provider | ready | `full-shared-coverage` | Expansion-oriented coverage. |
 | `racket/string` | installed provider | ready | string coverage rows | Real provider is the default route. |
 | `racket/vector` | installed provider | ready | vector coverage rows | Representative runtime coverage. |
-| `racket/class` | installed provider, explicit require only | ready/partial | class diagnostic and coverage rows | Not advertised by `webracket/full` yet. |
+| `racket/class` | installed provider, `webracket/full` add-on | ready/partial | `full-class`, class diagnostic and coverage rows | Requires the default staged `io/format` provider; no-IO-format diagnostics are not a valid class/full proof. |
 
 ## WebRacket-Owned Or Staged Providers
 
@@ -70,19 +70,18 @@ choosing the next milestone from evidence instead of memory.
 | `racket/generator` | postponed | Depends on continuation prompts/composable continuations. |
 | Weak/ephemeron hashes | postponed | Explicitly outside current HAMT/hash target. |
 | `racket/private/for` advanced edges | postponed | Includes `in-files`/`in-glob`, flvector/fxvector sequences, weak/ephemeron hash sequence variants, original stream internals, custom sequence syntax, and some advanced combinators. |
-| `racket/class` in `webracket/full` | postponed | Explicit requires have coverage, but the exported full-language surface has not been deliberately chosen. |
 | OS/network providers | postponed | `racket/cmdline`, `racket/future`, `racket/place`, `racket/system`, `racket/tcp`, and `racket/udp` are deferred. |
 | `racket/unit` | postponed | Deferred from `webracket/full`; needs separate provider evidence before promotion. |
 
 ## Next Recommended Milestones
 
 1. Run the compact checkpoint with a warm cache and record the current red/yellow rows.
-2. Promote or document `racket/class`: either add it deliberately to `webracket/full`, or keep it explicit-require-only with a short rationale.
+2. Keep `full-class` in the compact checkpoint with the default io/format provider; do not run it in the no-IO-format lane.
 3. Audit postponed `racket/private/for` exports with `webify/for-provider-surface.rkt` and decide which, if any, are Goal 1 requirements.
 4. Tighten the staged-provider list so every substitution is either clearly owned or has a diagnostic replacement path.
 5. Pick the next implementation target only from the matrix and dashboard output.
 
-The current strongest candidate is the racket/class surface policy, not more
-contract or sequence work. Contract and sequence already have explicit Goal 1
-stories; their remaining gaps are mostly deliberate boundaries rather than
-forgotten first steps.
+The current strongest candidate is now the next dashboard-selected red or
+yellow row after the class/full checkpoint. Contract, list, sequence, and class
+all have explicit Goal 1 stories; their remaining gaps are mostly deliberate
+boundaries rather than forgotten first steps.

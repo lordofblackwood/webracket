@@ -384,9 +384,9 @@
   (define dashboard-case-names (map goal1-dashboard-case-name goal1-dashboard-cases))
   (check-equal? (sort audit-public-names symbol<?)
                 (sort webracket-full-addon-libraries symbol<?))
-  (check-false (memq 'racket/class webracket-full-addon-libraries))
-  (check-false (memq 'racket/class status-names))
-  (check-not-false (memq 'racket/class webracket-full-deferred-libraries))
+  (check-not-false (memq 'racket/class webracket-full-addon-libraries))
+  (check-not-false (memq 'racket/class status-names))
+  (check-false (memq 'racket/class webracket-full-deferred-libraries))
   (for ([row (in-list webracket-full-surface-audit)])
     (match-define (list public-provider implementation-provider owner coverage-case) row)
     (check-not-false (memq owner '(real-provider-proven staged-original webracket-owned))
@@ -412,6 +412,7 @@
                          sqr
                          build-path
                          with-output-to-string
+                         object%
                          sequence->list
                          stream-first
                          string-contains?
@@ -630,8 +631,8 @@
                            "racket/private/for"
                            "racket/class"
                            "js/standard"
-                           "contract or sequence work"
-                           "racket/class surface policy"))])
+                           "default io/format provider"
+                           "class/full checkpoint"))])
     (check-not-false (regexp-match? (regexp (regexp-quote needle)) doc) needle)))
 
 (module+ main

@@ -356,6 +356,21 @@
     #rx"(?m:^42$)"
     '("--no-io-format-provider"))
    (dashboard-case
+    'full-class
+    'installed-provider-graph
+    '(racket/class)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/full\n"
+         "(define point%\n"
+         "  (class object%\n"
+         "    (super-new)\n"
+         "    (define/public (value) 42)))\n"
+         "(js-log (send (new point%) value))\n")))
+    "main.rkt"
+    #rx"(?m:^42$)"
+    '())
+   (dashboard-case
     'full-list
     'installed-provider-graph
     '(racket/list)

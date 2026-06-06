@@ -407,6 +407,38 @@
         (with-handlers ([exn:fail:filesystem? void])
           (delete-directory/files dir))))))
 
+(test-case "#lang webracket/full exposes racket/class"
+  (define source-dir (make-temporary-file "webracket-full-class-src-~a" 'directory))
+  (define dest-dir   (make-temporary-file "webracket-full-class-dest-~a" 'directory))
+  (define source-path (build-path source-dir "full-class-smoke.rkt"))
+  (dynamic-wind
+    void
+    (lambda ()
+      (call-with-output-file source-path
+        (lambda (out)
+          (display
+           (string-append
+            "#lang webracket/full\n"
+            "(define point%\n"
+            "  (class object%\n"
+            "    (super-new)\n"
+            "    (define/public (value) 42)))\n"
+            "(js-log (send (new point%) value))\n")
+           out))
+        #:exists 'truncate/replace)
+      (define-values (status output)
+        (run-webracket/base
+         (list "-r" "--no-stdlib"
+               "--dest" (path->string dest-dir)
+               (path->string source-path))
+         source-dir))
+      (check-equal? status 0 output)
+      (check-regexp-match #rx"(?m:^42$)" output))
+    (lambda ()
+      (for ([dir (in-list (list source-dir dest-dir))])
+        (with-handlers ([exn:fail:filesystem? void])
+          (delete-directory/files dir))))))
+
 (test-case "#lang webracket/full callable exports stay usable through the bridge"
   (define source-dir (make-temporary-file "webracket-full-callable-exports-src-~a" 'directory))
   (define dest-dir   (make-temporary-file "webracket-full-callable-exports-dest-~a" 'directory))
@@ -2343,7 +2375,8 @@
                                      racket/bool racket/sequence webracket/promise
                                      webracket/set racket/stream racket/match
                                      racket/format webracket/file webracket/hash
-                                     webracket/js webracket/pretty webracket/sequence))])
+                                     racket/class webracket/js webracket/pretty
+                                     webracket/sequence))])
     (check-not-false (memq name webracket-full-addon-libraries)
                      (symbol->string name)))
   (check-not-false (assoc 'racket/format webracket-full-surface-statuses))
