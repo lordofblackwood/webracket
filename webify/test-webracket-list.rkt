@@ -23,7 +23,7 @@
     (define missing
       (filter (lambda (name) (not (memq name staged-exports)))
               installed-exports))
-    (check-equal? missing '(shuffle)))
+    (check-equal? missing '()))
 
   (test-case "append* follows racket/list arity and behavior"
     (check-exn exn:fail? (lambda () (append*)))
@@ -47,6 +47,9 @@
       (check-equal? ys '(d))))
 
   (test-case "higher list utilities"
+    (define shuffled (shuffle '(1 2 3 4)))
+    (check-equal? (length shuffled) 4)
+    (check-not-false (andmap (lambda (x) (member x shuffled)) '(1 2 3 4)))
     (check-equal? (argmax car '((3 pears) (1 banana) (2 apples)))
                   '(3 pears))
     (check-equal? (argmin car '((3 pears) (1 banana) (2 apples)))

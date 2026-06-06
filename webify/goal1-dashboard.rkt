@@ -708,6 +708,7 @@
          "(define unique (remove-duplicates '((1 a) (1 b) (2 c)) = #:key car))\n"
          "(define dup (check-duplicates '(\"A\" \"a\" \"B\") string-ci=? #:key values))\n"
          "(define none (check-duplicates '(1 2 3) #:default 'none))\n"
+         "(define shuffled (shuffle '(1 2 3)))\n"
          "(js-log (+ (length cp)\n"
          "           (length combos)\n"
          "           (length perms)\n"
@@ -729,7 +730,9 @@
          "           (length unique)\n"
          "           (string-length dup)\n"
          "           (if (eq? none 'none) 3 0)\n"
-         "           -71))\n")))
+         "           (length shuffled)\n"
+         "           (if (and (member 1 shuffled) (member 2 shuffled) (member 3 shuffled)) 0 100)\n"
+         "           -74))\n")))
     "main.rkt"
     #rx"(?m:^42$)"
     '("--no-io-format-provider" "--webracket-module-bridge"))

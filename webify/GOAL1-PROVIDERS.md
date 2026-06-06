@@ -161,14 +161,16 @@ stable enough under the bounded dashboard.
 ## `racket/list` Export Audit
 
 The current installed-vs-staged audit shows 62 installed phase-0 exports and the
-staged provider now covers all of those exports except `shuffle`. The
+staged provider now covers all of those exports. The
 host-side audit in `webify/test-webracket-list.rkt` pins that boundary so new
 installed exports or accidental staged-provider regressions are visible. The
 remaining compatibility notes are:
 
-- Postponed/randomness-sensitive: `shuffle`. It should wait for an explicit
-  WebRacket randomness story instead of quietly choosing host-specific or
-  deterministic behavior.
+- Randomness-sensitive: `shuffle` is source-defined with the same Fisher-Yates
+  shape as `racket/list` and WebRacket's current `random` primitive. Tests check
+  permutation properties instead of expecting a host-Racket random sequence,
+  because WebRacket's generator is intentionally lightweight and not yet
+  Racket's documented MRG32k3a algorithm.
 - Keyword-sensitive coverage: `add-between`, `remove-duplicates`, and
   `check-duplicates` are source-defined in `webracket/list`; keep them that way,
   because equivalent primitive forms do not generally preserve Racket's keyword

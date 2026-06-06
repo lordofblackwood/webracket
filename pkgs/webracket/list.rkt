@@ -91,6 +91,7 @@
          in-combinations
          permutations
          in-permutations
+         shuffle
          range
          inclusive-range)
 
@@ -212,6 +213,19 @@
       [(null? xs) (reverse acc)]
       [(pred (car xs)) (loop (cdr xs) acc)]
       [else (loop (cdr xs) (cons (car xs) acc))])))
+
+;; shuffle : list? -> list?
+;;   Return a randomly shuffled list with the same elements as xs.
+(define (shuffle xs)
+  (check-list 'shuffle xs)
+  (define len (length xs))
+  (define a (make-vector len))
+  (for ([x (in-list xs)] [i (in-naturals)])
+    (define j (random (add1 i)))
+    (unless (= j i)
+      (vector-set! a i (vector-ref a j)))
+    (vector-set! a j x))
+  (vector->list a))
 
 ;; partition : (any/c -> any/c) list? -> (values list? list?)
 ;;   Split xs according to pred, applying pred once per element.
