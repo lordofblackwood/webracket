@@ -758,6 +758,15 @@
     [(path? module-path)
      (string->symbol (path->string module-path))]
     [(and (list? module-path)
+          (eq? (car module-path) 'submod)
+          (pair? (cdr module-path))
+          (andmap symbol? (cddr module-path)))
+     (string->symbol
+      (string-append
+       (symbol->string (module-path->dependency-name (cadr module-path)))
+       "/"
+       (string-join (map symbol->string (cddr module-path)) "/")))]
+    [(and (list? module-path)
           (eq? (car module-path) 'lib)
           (pair? (cdr module-path))
           (string? (cadr module-path)))
@@ -2345,6 +2354,18 @@
            [(and (eq? module-name 'racket/private/class-internal)
                  (symbolic-name=? external 'contract-continuation-mark-key))
             (list local 'racket/contract/private/guts)]
+           [(and (eq? module-name 'racket/private/unit/contract)
+                 (symbolic-name=? external 'contract-continuation-mark-key))
+            (list local 'racket/contract/private/guts)]
+           [(and (eq? module-name 'racket/private/unit/contract-syntax)
+                 (symbolic-name=? external 'unwind-to))
+            (list local 'syntax/parse/private/residual/state)]
+           [(and (eq? module-name 'racket/private/unit/contract-syntax)
+                 (symbolic-name=? external 'predicate-ellipsis-parser))
+            (list local 'syntax/parse/private/residual/parse-util)]
+           [(and (eq? module-name 'racket/private/unit/contract-syntax)
+                 (symbolic-name=? external 'expr-stx?))
+            (list local 'syntax/parse/private/lib)]
            [(and (eq? module-name 'racket/private/class-internal)
                  (symbolic-name=? external 'current-contract-region))
             (list local 'racket/contract/region)]
@@ -2894,22 +2915,49 @@
    #t
    notes))
 
-;; compiled-linklet-directory->extractor-spike : symbol? symbol? linklet-directory? -> report
-;;   Convert a compiled module directory into an extractor report.
-(define (compiled-linklet-directory->extractor-spike who name compiled)
+;; linklet-directory-select-bundle : symbol? linklet-directory? (listof symbol?) -> linklet-bundle?
+;;   Select the main bundle for a top-level module or nested submodule path.
+(define (linklet-directory-select-bundle who compiled submodule-path)
   (define directory-hash (linklet-directory->hash compiled))
-  (define main-bundle
-    (hash-ref directory-hash
-              #f
-              (lambda ()
-                (raise-arguments-error who
-                                       "compiled module has no main linklet bundle"
-                                       "directory keys" (hash-keys directory-hash)))))
-  (unless (linklet-bundle? main-bundle)
-    (raise-arguments-error who
-                           "main directory entry is not a linklet bundle"
-                           "entry" main-bundle))
-  (define bundle-hash (linklet-bundle->hash main-bundle))
+  (match submodule-path
+    ['()
+     (define bundle
+       (hash-ref directory-hash
+                 #f
+                 (lambda ()
+                   (raise-arguments-error who
+                                          "compiled module has no main linklet bundle"
+                                          "directory keys" (hash-keys directory-hash)))))
+     (unless (linklet-bundle? bundle)
+       (raise-arguments-error who
+                              "main directory entry is not a linklet bundle"
+                              "entry" bundle))
+     bundle]
+    [(cons submodule more)
+     (define subdirectory
+       (hash-ref directory-hash
+                 submodule
+                 (lambda ()
+                   (raise-arguments-error who
+                                          "compiled module has no requested submodule"
+                                          "submodule" submodule
+                                          "submodule path" submodule-path
+                                          "directory keys" (hash-keys directory-hash)))))
+     (unless (linklet-directory? subdirectory)
+       (raise-arguments-error who
+                              "submodule directory entry is not a linklet directory"
+                              "submodule" submodule
+                              "entry" subdirectory))
+     (linklet-directory-select-bundle who subdirectory more)]))
+
+;; compiled-linklet-directory->extractor-spike : symbol? symbol? linklet-directory? [#:submodule-path (listof symbol?)] -> report
+;;   Convert one compiled module-directory entry into an extractor report.
+(define (compiled-linklet-directory->extractor-spike who name compiled
+                                                     #:submodule-path [submodule-path '()])
+  (define directory-hash (linklet-directory->hash compiled))
+  (define selected-bundle
+    (linklet-directory-select-bundle who compiled submodule-path))
+  (define bundle-hash (linklet-bundle->hash selected-bundle))
   (define bundle-entries
     (sort
      (for/list ([(key value) (in-hash bundle-hash)])
@@ -3194,6 +3242,38 @@
                       [current-compile-target-machine #f])
          (compile (datum->syntax #f module-datum))))
      (compiled-module->extractor-spike who name compiled)]
+    [(and (list? module-path)
+          (eq? (car module-path) 'submod)
+          (pair? (cdr module-path))
+          (pair? (cddr module-path))
+          (andmap symbol? (cddr module-path)))
+     (parameterize ([current-namespace namespace])
+       (define source-path
+         (resolved-module-path-name
+          (module-path-index-resolve
+           (module-path-index-join (cadr module-path) #f)
+           #t)))
+       (unless (path-string? source-path)
+         (raise-arguments-error who
+                                "expected submodule root to resolve to a path"
+                                "module path" module-path
+                                "resolved root" source-path))
+       (define compiled
+         (get-module-code
+          source-path
+          #:choose (lambda (_src _zo _so) 'src)
+          #:compile (lambda (stx)
+                      (parameterize ([current-compile-target-machine #f])
+                        (compile stx)))))
+       (unless (linklet-directory? compiled)
+         (raise-arguments-error who
+                                "compiled submodule root did not produce a linklet directory"
+                                "module path" module-path
+                                "compiled" compiled))
+       (compiled-linklet-directory->extractor-spike who
+                                                    name
+                                                    compiled
+                                                    #:submodule-path (cddr module-path)))]
     [else
      (parameterize ([current-namespace namespace])
        (define source-path

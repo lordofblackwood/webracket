@@ -617,6 +617,7 @@
     racket/contract/private/arrow-higher-order
     racket/contract/private/arrow-val-first
     racket/contract/private/base
+    racket/contract/private/blame
     racket/contract/private/case-arrow
     racket/contract/private/guts
     racket/contract/private/list
@@ -660,15 +661,43 @@
     racket/private/reqprov
     racket/private/sequence
     racket/private/serialize-structs
+    racket/private/stx
     racket/private/string
     racket/private/custom-hash
     racket/private/class-c
     racket/private/class-internal
     racket/private/class-struct
     racket/private/object-c
+    racket/private/unit/contract
+    racket/private/unit/contract-syntax
+    racket/private/unit/keywords
+    racket/private/unit/runtime
+    racket/private/unit/signature
+    racket/private/unit/unit-core
+    racket/private/unit/unit-infer
+    racket/private/unit/util
+    racket/private/unit/exptime/import-export
+    racket/private/unit/exptime/signature
+    racket/private/unit/exptime/syntax
+    racket/private/unit/exptime/unit-infer
+    racket/private/unit/exptime/util
+    contract
+    contract-syntax
+    exptime/import-export
+    exptime/signature
+    exptime/syntax
+    exptime/unit-infer
+    exptime/util
+    keywords
+    runtime
+    signature
+    unit-core
+    unit-infer
+    util
     racket/stream
     racket/treelist
     racket/undefined
+    racket/unit
     racket/unsafe/undefined
     racket/require-transform
     racket/splicing
@@ -679,11 +708,20 @@
     racket/private/stxparamkey
     racket/syntax
     syntax/contract
+    syntax/context
     syntax/define
+    syntax/intdef
     syntax/kerncase
     syntax/location
+    syntax/name
+    syntax/parse/private/lib
     syntax/parse/pre
+    syntax/parse/private/residual
+    syntax/parse/private/residual/parse-util
+    syntax/parse/private/residual/state
+    syntax/private/id-table
     syntax/srcloc
+    syntax/stx
     private/arrow-common
     private/arrow-val-first
     private/base

@@ -656,6 +656,18 @@
     [(and (eq? module-name 'racket/private/class-internal)
           (symbolic-name=? external 'contract-continuation-mark-key))
      '(racket/contract/private/guts contract-continuation-mark-key)]
+    [(and (eq? module-name 'racket/private/unit/contract)
+          (symbolic-name=? external 'contract-continuation-mark-key))
+     '(racket/contract/private/guts contract-continuation-mark-key)]
+    [(and (eq? module-name 'racket/private/unit/contract-syntax)
+          (symbolic-name=? external 'unwind-to))
+     '(syntax/parse/private/residual/state unwind-to)]
+    [(and (eq? module-name 'racket/private/unit/contract-syntax)
+          (symbolic-name=? external 'predicate-ellipsis-parser))
+     '(syntax/parse/private/residual/parse-util predicate-ellipsis-parser)]
+    [(and (eq? module-name 'racket/private/unit/contract-syntax)
+          (symbolic-name=? external 'expr-stx?))
+     '(syntax/parse/private/lib expr-stx?)]
     [(and (eq? module-name 'racket/private/class-internal)
           (symbolic-name=? external 'variable-reference->module-source/submod))
      '(syntax/location variable-reference->module-source/submod)]

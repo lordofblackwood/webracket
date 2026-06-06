@@ -137,6 +137,36 @@
       (member "host Racket does not provide decompile-linklet"
               (webify-module-extractor-spike-notes report)))]))
 
+(test-case "extractor spike reports direct and nested file submodules"
+  (define source
+    (make-temporary-file "webracket-submodule-provider-~a.rkt"))
+  (call-with-output-file source
+    #:exists 'truncate
+    (lambda (out)
+      (write
+       '(module root racket/base
+          (module direct racket/base
+            (provide x)
+            (define x 10)
+            (module nested racket/base
+              (provide y)
+              (define y 20))))
+       out)))
+  (define direct-report
+    (webify-module-path->extractor-spike
+     `(submod ,source direct)))
+  (define nested-report
+    (webify-module-path->extractor-spike
+     `(submod ,source direct nested)))
+  (check-equal? (webify-module-extractor-spike-name direct-report)
+                (string->symbol (format "~a/direct" source)))
+  (check-equal? (webify-module-extractor-spike-name nested-report)
+                (string->symbol (format "~a/direct/nested" source)))
+  (check-not-false
+   (member 'x (webify-module-extractor-spike-phase0-exports direct-report)))
+  (check-not-false
+   (member 'y (webify-module-extractor-spike-phase0-exports nested-report))))
+
 (test-case "extractor spike rejects non-module data"
   (check-exn
    #rx"expected a source module datum"

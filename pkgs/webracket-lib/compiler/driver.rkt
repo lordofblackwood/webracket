@@ -2496,6 +2496,44 @@
                            racket/private/define-struct
                            racket/private/class-internal
                            racket/private/class-struct
+                           racket/private/stx
+                           syntax/context
+                           syntax/intdef
+                           syntax/kerncase
+                           syntax/name
+                           syntax/parse/private/lib
+                           syntax/parse/private/residual
+                           syntax/parse/private/residual/parse-util
+                           syntax/parse/private/residual/state
+                           syntax/private/id-table
+                           syntax/stx
+                           racket/unit
+                           racket/private/unit/contract
+                           racket/private/unit/contract-syntax
+                           racket/private/unit/keywords
+                           racket/private/unit/runtime
+                           racket/private/unit/signature
+                           racket/private/unit/unit-core
+                           racket/private/unit/unit-infer
+                           racket/private/unit/util
+                           racket/private/unit/exptime/import-export
+                           racket/private/unit/exptime/signature
+                           racket/private/unit/exptime/syntax
+                           racket/private/unit/exptime/unit-infer
+                           racket/private/unit/exptime/util
+                           contract
+                           contract-syntax
+                           exptime/import-export
+                           exptime/signature
+                           exptime/syntax
+                           exptime/unit-infer
+                           exptime/util
+                           keywords
+                           runtime
+                           signature
+                           unit-core
+                           unit-infer
+                           util
                            racket/private/serialize-structs))
               (webracket-owned-ffi-provider-name? name)))
          (define (extract)
@@ -2537,6 +2575,56 @@
                                webracket/full
                                webracket/full/main)))
                 external-names))
+       (define needs-unit-support?
+         (ormap (lambda (name)
+                  (memq name '(racket/unit
+                               racket/private/unit/contract
+                               racket/private/unit/runtime
+                               racket/private/unit/signature
+                               racket/private/unit/unit-core
+                               racket/private/unit/unit-infer)))
+                external-names))
+       (define unit-relative-provider-aliases
+         '((contract . racket/private/unit/contract)
+           (contract-syntax . racket/private/unit/contract-syntax)
+           (exptime/import-export . racket/private/unit/exptime/import-export)
+           (exptime/signature . racket/private/unit/exptime/signature)
+           (exptime/syntax . racket/private/unit/exptime/syntax)
+           (exptime/unit-infer . racket/private/unit/exptime/unit-infer)
+           (exptime/util . racket/private/unit/exptime/util)
+           (keywords . racket/private/unit/keywords)
+           (runtime . racket/private/unit/runtime)
+           (signature . racket/private/unit/signature)
+           (unit-core . racket/private/unit/unit-core)
+           (unit-infer . racket/private/unit/unit-infer)
+           (util . racket/private/unit/util)))
+       (define (unit-support-reports)
+         (append
+          (for/list ([name (in-list '(racket/private/unit/contract
+                                      racket/private/unit/contract-syntax
+                                      racket/private/unit/keywords
+                                      racket/private/unit/runtime
+                                      racket/private/unit/signature
+                                      racket/private/unit/unit-core
+                                      racket/private/unit/unit-infer
+                                      racket/private/unit/util
+                                      racket/private/unit/exptime/import-export
+                                      racket/private/unit/exptime/signature
+                                      racket/private/unit/exptime/syntax
+                                      racket/private/unit/exptime/unit-infer
+                                      racket/private/unit/exptime/util))])
+            (webify-module-provider-cache-ref provider-cache name))
+          (for/list ([alias (in-list unit-relative-provider-aliases)])
+            (webify-module-report/rename
+             (webify-module-provider-cache-ref provider-cache (cdr alias))
+             (car alias)))
+          (list
+           (webify-module-report/rename
+            (webify-module-path->report '(submod syntax/parse/private/residual parse-util))
+            'syntax/parse/private/residual/parse-util)
+           (webify-module-report/rename
+            (webify-module-path->report '(submod syntax/parse/private/residual state))
+            'syntax/parse/private/residual/state))))
        ;; Some resolver hints target WebRacket-owned support modules directly;
        ;; include those reports even when the installed provider graph only
        ;; names the original Racket module.
@@ -2587,6 +2675,9 @@
                                                       'racket/private/class-internal)
                     (webify-module-provider-cache-ref provider-cache
                                                       'racket/private/class-struct))
+              '())
+          (if needs-unit-support?
+              (unit-support-reports)
               '())
           ;; WebRacket-owned browser/library providers are hand-authored
           ;; modules with exported procedures that often close over private
