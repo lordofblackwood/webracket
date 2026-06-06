@@ -9,6 +9,7 @@
          generated-import-origin-row-provider-export
          generated-import-origin-row-base-name
          generated-import-origin-row-alternative-providers
+         generated-import-origin-rows/from-resolved-imports
          generated-import-origin-rows
          print-generated-import-origin-report)
 
@@ -47,13 +48,6 @@
      => (lambda (m) (string->symbol (cadr m)))]
     [else name]))
 
-;; dependency-exports-ref : dependency-exports symbol? -> (listof symbol?)
-;;   Return the export list for a provider dependency row.
-(define (dependency-exports-ref dependency-exports dependency)
-  (match (assoc dependency dependency-exports)
-    [(list _ exports) exports]
-    [_ '()]))
-
 ;; base-name-provider-alternatives : dependency-exports symbol? symbol? -> (listof symbol?)
 ;;   Find providers other than selected-dependency that export base-name exactly.
 (define (base-name-provider-alternatives dependency-exports selected-dependency base-name)
@@ -63,45 +57,52 @@
                          (memq base-name exports)))
     dependency))
 
-;; import-external-map : report -> hasheq?
-;;   Map local imports to their original external names from the report import map.
-(define (import-external-map report)
-  (define import-map (webify-module-report-import-map report))
-  (define bindings
-    (apply append (webify-module-import-map-phase0-import-groups import-map)))
-  (for/fold ([table (hasheq)])
-            ([binding (in-list bindings)])
-    (match-define (list local external) binding)
-    (if (hash-has-key? table local)
-        table
-        (hash-set table local external))))
-
 ;; report-generated-import-origin-rows : report reports dependency-exports -> rows
 ;;   Inspect one resolved provider report for suspicious exact generated exports.
 (define (report-generated-import-origin-rows report reports dependency-exports)
   (define module-name (webify-module-report-name report))
-  (define external-map (import-external-map report))
   (with-handlers ([exn:fail? (lambda (_exn) '())])
     (define input
       (webify-module-report->resolved-linklet-input/providers report reports))
-    (filter values
-            (for/list ([triple (in-list (webify-module-linklet-input-imports input))])
-              (match-define (list local dependency provider-export) triple)
-              (define external (hash-ref external-map local local))
-              (define base-name (generated-base-name provider-export))
-              (define alternatives
-                (if (generated-name? provider-export)
-                    (base-name-provider-alternatives dependency-exports dependency base-name)
-                    '()))
-              (and (generated-name? provider-export)
-                   (pair? alternatives)
-                   (generated-import-origin-row module-name
-                                                local
-                                                external
-                                                dependency
-                                                provider-export
-                                                base-name
-                                                alternatives))))))
+    (generated-import-origin-rows/from-resolved-imports
+     module-name
+     (apply append
+            (webify-module-import-map-phase0-import-groups
+             (webify-module-report-import-map report)))
+     (webify-module-linklet-input-imports input)
+     dependency-exports)))
+
+;; generated-import-origin-rows/from-resolved-imports :
+;; symbol? import-bindings imports dependency-exports -> (listof row?)
+;;   Find suspicious generated exports from already-resolved import triples.
+(define (generated-import-origin-rows/from-resolved-imports module-name
+                                                            import-bindings
+                                                            resolved-imports
+                                                            dependency-exports)
+  (define external-map
+    (for/fold ([table (hasheq)]) ([binding (in-list import-bindings)])
+      (match-define (list local external) binding)
+      (if (hash-has-key? table local)
+          table
+          (hash-set table local external))))
+  (filter values
+          (for/list ([triple (in-list resolved-imports)])
+            (match-define (list local dependency provider-export) triple)
+            (define external (hash-ref external-map local local))
+            (define base-name (generated-base-name provider-export))
+            (define alternatives
+              (if (generated-name? provider-export)
+                  (base-name-provider-alternatives dependency-exports dependency base-name)
+                  '()))
+            (and (generated-name? provider-export)
+                 (pair? alternatives)
+                 (generated-import-origin-row module-name
+                                              local
+                                              external
+                                              dependency
+                                              provider-export
+                                              base-name
+                                              alternatives)))))
 
 ;; fetch-provider-closure : (listof symbol?) -> (listof report?)
 ;;   Fetch root provider reports and their transitive provider closure.
