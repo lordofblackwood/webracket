@@ -69,6 +69,9 @@
                     0
                     '(0)))
 
+(define optional-keyword-procedure-plain
+  (make-struct-field-accessor optional-keyword-procedure-ref 0))
+
 (define-values (struct:keyword-method
                 make-raw-keyword-method
                 keyword-method?
@@ -503,24 +506,32 @@
                               "expected sorted distinct required keywords and compatible allowed keywords"
                               "required keywords" required
                               "allowed keywords" allowed))
-     (define plain-proc
-       (and (null? required)
-            (lambda normal-args
-              (do-keyword-apply 'procedure-reduce-keyword-arity-mask
-                                proc
-                                null
-                                null
-                                normal-args))))
-     (define kw-proc
-       (lambda (kws kw-args . normal-args)
-         (do-keyword-apply 'procedure-reduce-keyword-arity-mask
-                           proc
-                           kws
-                           kw-args
-                           normal-args)))
      ;; Racket's expanded keyword-call protocol passes an argument count that
      ;; includes the hidden `kws` and `kw-args` dispatcher arguments.
      (define keyword-mask (arithmetic-shift mask 2))
+     (define plain-base-proc
+       (if (optional-keyword-procedure? proc)
+           (optional-keyword-procedure-plain proc)
+           (lambda normal-args
+             (do-keyword-apply 'procedure-reduce-keyword-arity-mask
+                               proc
+                               null
+                               null
+                               normal-args))))
+     (define plain-proc
+       (and (null? required)
+            (procedure-reduce-arity-mask plain-base-proc mask name realm)))
+     (define kw-base-proc
+       (if (keyword-procedure? proc)
+           (keyword-procedure-proc proc)
+           (lambda (kws kw-args . normal-args)
+             (do-keyword-apply 'procedure-reduce-keyword-arity-mask
+                               proc
+                               kws
+                               kw-args
+                               normal-args))))
+     (define kw-proc
+       (procedure-reduce-arity-mask kw-base-proc keyword-mask name realm))
      (make-optional-keyword-procedure
       (make-keyword-checker required allowed keyword-mask)
       kw-proc

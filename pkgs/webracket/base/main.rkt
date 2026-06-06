@@ -15,7 +15,6 @@
                   prop:gen-sequence)
          (only-in "../primitives.rkt"
                   print-as-expression
-                  [sort primitive-sort]
                   [sort/expanded-keywords primitive-sort/expanded-keywords])
          (for-syntax racket/base)
          (for-syntax racket/splicing)
@@ -36,9 +35,18 @@
 ;; sort-keyword-options : (listof keyword?) list? -> values
 ;;   Decode the keyword options supported by WebRacket's primitive sort bridge.
 (define (sort-keyword-options kws kw-args)
+  (define original-kw-args kw-args)
   (let loop ([kws kws] [kw-args kw-args] [key #f] [cache-keys? #f])
     (cond
-      [(null? kws) (values key cache-keys?)]
+      [(null? kws)
+       (cond
+         [(and (not key)
+               (not cache-keys?)
+               (pair? original-kw-args)
+               (null? (cdr original-kw-args)))
+          (define value (car original-kw-args))
+          (values value cache-keys?)]
+         [else (values key cache-keys?)])]
       [(eq? (car kws) '#:key)
        (loop (cdr kws) (cdr kw-args) (car kw-args) cache-keys?)]
       [(eq? (car kws) '#:cache-keys?)
@@ -48,14 +56,38 @@
                               "unsupported keyword"
                               "keyword" (car kws))])))
 
+;; sort-expanded-call : any/c any/c any/c any/c -> list?
+;;   Support both internal expanded sort orders seen after module lowering.
+(define (sort-expanded-call a b c d)
+  (cond
+    [(or (null? a) (pair? a))
+     (primitive-sort/expanded-keywords a b #f d #f c)]
+    [else
+     (primitive-sort/expanded-keywords c d #f b #f a)]))
+
 ;; sort : list? procedure? -> list?
 ;;   Keyword-aware public wrapper over WebRacket's primitive list sort.
 (define sort
   (make-keyword-procedure
-   (lambda (kws kw-args xs less-than?)
+   (lambda (kws kw-args a b . rest)
      (define-values (key cache-keys?) (sort-keyword-options kws kw-args))
-     (primitive-sort/expanded-keywords xs less-than? #f key #f cache-keys?))
-   primitive-sort))
+     (case (length rest)
+       [(0)
+        (primitive-sort/expanded-keywords a b #f key #f cache-keys?)]
+       [(2)
+       ;; Expanded module code can pass sort's internal positional keyword
+       ;; shape as (cache-keys? key xs less-than?) before the fixed primitive
+       ;; helper reorders the values.
+        (sort-expanded-call a b (car rest) (cadr rest))]
+       [else
+        (raise-arguments-error 'sort
+                               "wrong number of arguments"
+                               "arguments" (cons a (cons b rest)))]))
+   (case-lambda
+     [(xs less-than?)
+      (primitive-sort/expanded-keywords xs less-than? #f #f #f #f)]
+     [(a b c d)
+      (sort-expanded-call a b c d)])))
 
 ;; read-bytes-line : [input-port?] [symbol?] -> (or/c bytes? eof-object?)
 ;;   Small WebRacket-compatible implementation. Optional mode defaults to 'linefeed.

@@ -351,6 +351,33 @@
 (define (kernel-runtime-dependency? dependency)
   (eq? dependency '#%kernel))
 
+;; symbol-name-prefix? : symbol? string? -> boolean?
+;;   Check whether a module-name symbol starts with a collection prefix.
+(define (symbol-name-prefix? sym prefix)
+  (define s (symbol->string sym))
+  (and (<= (string-length prefix) (string-length s))
+       (equal? (substring s 0 (string-length prefix)) prefix)))
+
+;; webracket-owned-provider? : symbol? -> boolean?
+;;   Recognize WebRacket collection providers that intentionally replace Racket internals.
+(define (webracket-owned-provider? dependency)
+  (symbol-name-prefix? dependency "webracket/"))
+
+;; racket-private-provider? : symbol? -> boolean?
+;;   Recognize installed Racket private providers that may have WebRacket substitutes.
+(define (racket-private-provider? dependency)
+  (symbol-name-prefix? dependency "racket/private/"))
+
+(define (prefer-webracket-owned-candidates candidates)
+  (define webracket-candidates
+    (filter webracket-owned-provider? candidates))
+  (define has-racket-private?
+    (for/or ([dependency (in-list candidates)])
+      (racket-private-provider? dependency)))
+  (if (and (pair? webracket-candidates) has-racket-private?)
+      webracket-candidates
+      candidates))
+
 (define (prefer-provider-candidates candidates [external #f])
   (define kernel-candidates
     (filter kernel-runtime-dependency? candidates))
@@ -361,7 +388,7 @@
             candidates))
   (cond
     [(null? concrete-candidates) candidates]
-    [else concrete-candidates]))
+    [else (prefer-webracket-owned-candidates concrete-candidates)]))
 
 ;; prefer-exact-export-candidates : dependency-exports symbol? (listof symbol?) -> (listof symbol?)
 ;;   Prefer providers that export the exact generated import name over providers
@@ -585,6 +612,9 @@
           (eq? local '1/reverse)
           (eq? external 'reverse))
      '(racket/private/pico reverse)]
+    [(and (eq? module-name 'racket/list)
+          (symbolic-name=? external 'sort))
+     '(racket/private/sort sort)]
     [(and (eq? module-name 'racket/private/class-internal)
           (symbolic-name=? external 'coerce-contract))
      '(racket/contract/private/guts coerce-contract)]

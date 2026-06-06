@@ -2084,6 +2084,8 @@
     (add-runtime-string-constant 'symbol?                    "symbol?")
     (add-runtime-string-constant 'ephemeron?                 "ephemeron?")
     (add-runtime-string-constant 'keyword?                   "keyword?")
+    (add-runtime-string-constant 'keyword:key                "key")
+    (add-runtime-string-constant 'keyword:cache-keys?        "cache-keys?")
     (add-runtime-string-constant 'pair?                      "pair?")
     (add-runtime-string-constant 'placeholder?               "placeholder?")
     (add-runtime-string-constant 'list?                      "list?")
@@ -29502,24 +29504,46 @@
               (local $kw-rest      (ref eq))
               (local $arg-cell     (ref $Pair))
               (local $arg-rest     (ref eq))
-              (local $second-cell  (ref $Pair))
               (local $key-proc     (ref eq))
               (local $cache-keys?  (ref eq))
 
-              ;; Racket's keyword-procedure extraction passes sorted keywords.
-              ;; For sort's supported surface, that means #:cache-keys? before
-              ;; #:key. This bridge is intentionally narrow for Goal 1.
+              ;; Racket's keyword-procedure extraction passes sorted keywords,
+              ;; but either #:key or #:cache-keys? can appear alone.
               (local.set $key-proc    (global.get $false))
               (local.set $cache-keys? (global.get $false))
+              (local.set $kw-rest (local.get $kws))
+              (local.set $arg-rest (local.get $kw-args))
+              (block $done
+                (loop $loop
+                  (if (i32.eqz (ref.test (ref $Pair) (local.get $kw-rest)))
+                      (then (br $done)))
+                  (local.set $kw-cell (ref.cast (ref $Pair) (local.get $kw-rest)))
+                  (local.set $arg-cell (ref.cast (ref $Pair) (local.get $arg-rest)))
+                  (if (ref.eq
+                       (struct.get $Pair $a (local.get $kw-cell))
+                       (call
+                        $string->keyword/checked
+                        (ref.cast (ref $String) (global.get $string:keyword:key))))
+                      (then
+                       (local.set $key-proc (struct.get $Pair $a (local.get $arg-cell)))))
+                  (if (ref.eq
+                       (struct.get $Pair $a (local.get $kw-cell))
+                       (call
+                        $string->keyword/checked
+                        (ref.cast (ref $String) (global.get $string:keyword:cache-keys?))))
+                      (then
+                       (local.set $cache-keys? (struct.get $Pair $a (local.get $arg-cell)))))
+                  (local.set $kw-rest (struct.get $Pair $d (local.get $kw-cell)))
+                  (local.set $arg-rest (struct.get $Pair $d (local.get $arg-cell)))
+                  (br $loop)))
               (if (ref.test (ref $Pair) (local.get $kw-args))
                   (then
                    (local.set $arg-cell (ref.cast (ref $Pair) (local.get $kw-args)))
-                   (local.set $cache-keys? (struct.get $Pair $a (local.get $arg-cell)))
-                   (local.set $arg-rest (struct.get $Pair $d (local.get $arg-cell)))
-                   (if (ref.test (ref $Pair) (local.get $arg-rest))
+                   (if (ref.eq (struct.get $Pair $d (local.get $arg-cell))
+                               (global.get $null))
                        (then
-                        (local.set $second-cell (ref.cast (ref $Pair) (local.get $arg-rest)))
-                        (local.set $key-proc (struct.get $Pair $a (local.get $second-cell)))))))
+                        (local.set $key-proc
+                                   (struct.get $Pair $a (local.get $arg-cell)))))))
               (return_call $sort/expanded-keywords
                            (local.get $xs)
                            (local.get $proc)
@@ -37353,25 +37377,49 @@
               (param $proc     (ref eq)) ; less-than? procedure
               (result          (ref eq))
 
+              (local $kw-cell      (ref $Pair))
+              (local $kw-rest      (ref eq))
               (local $arg-cell     (ref $Pair))
               (local $arg-rest     (ref eq))
-              (local $second-cell  (ref $Pair))
               (local $key-proc     (ref eq))
               (local $cache-keys?  (ref eq))
 
-              ;; Like the `sort` bridge, this accepts the sorted
-              ;; #:cache-keys?/#:key shape produced by keyword extraction.
+              ;; Like the `sort` bridge, parse each keyword/value pair by name.
               (local.set $key-proc    (global.get $false))
               (local.set $cache-keys? (global.get $false))
+              (local.set $kw-rest (local.get $kws))
+              (local.set $arg-rest (local.get $kw-args))
+              (block $done
+                (loop $loop
+                  (if (i32.eqz (ref.test (ref $Pair) (local.get $kw-rest)))
+                      (then (br $done)))
+                  (local.set $kw-cell (ref.cast (ref $Pair) (local.get $kw-rest)))
+                  (local.set $arg-cell (ref.cast (ref $Pair) (local.get $arg-rest)))
+                  (if (ref.eq
+                       (struct.get $Pair $a (local.get $kw-cell))
+                       (call
+                        $string->keyword/checked
+                        (ref.cast (ref $String) (global.get $string:keyword:key))))
+                      (then
+                       (local.set $key-proc (struct.get $Pair $a (local.get $arg-cell)))))
+                  (if (ref.eq
+                       (struct.get $Pair $a (local.get $kw-cell))
+                       (call
+                        $string->keyword/checked
+                        (ref.cast (ref $String) (global.get $string:keyword:cache-keys?))))
+                      (then
+                       (local.set $cache-keys? (struct.get $Pair $a (local.get $arg-cell)))))
+                  (local.set $kw-rest (struct.get $Pair $d (local.get $kw-cell)))
+                  (local.set $arg-rest (struct.get $Pair $d (local.get $arg-cell)))
+                  (br $loop)))
               (if (ref.test (ref $Pair) (local.get $kw-args))
                   (then
                    (local.set $arg-cell (ref.cast (ref $Pair) (local.get $kw-args)))
-                   (local.set $cache-keys? (struct.get $Pair $a (local.get $arg-cell)))
-                   (local.set $arg-rest (struct.get $Pair $d (local.get $arg-cell)))
-                   (if (ref.test (ref $Pair) (local.get $arg-rest))
+                   (if (ref.eq (struct.get $Pair $d (local.get $arg-cell))
+                               (global.get $null))
                        (then
-                        (local.set $second-cell (ref.cast (ref $Pair) (local.get $arg-rest)))
-                        (local.set $key-proc (struct.get $Pair $a (local.get $second-cell)))))))
+                        (local.set $key-proc
+                                   (struct.get $Pair $a (local.get $arg-cell)))))))
               (return_call $vector-sort/expanded-keywords
                            (local.get $v)
                            (local.get $proc)
@@ -37387,23 +37435,48 @@
               (param $proc     (ref eq)) ; less-than? procedure
               (result          (ref eq))
 
+              (local $kw-cell      (ref $Pair))
+              (local $kw-rest      (ref eq))
               (local $arg-cell     (ref $Pair))
               (local $arg-rest     (ref eq))
-              (local $second-cell  (ref $Pair))
               (local $key-proc     (ref eq))
               (local $cache-keys?  (ref eq))
 
               (local.set $key-proc    (global.get $false))
               (local.set $cache-keys? (global.get $false))
+              (local.set $kw-rest (local.get $kws))
+              (local.set $arg-rest (local.get $kw-args))
+              (block $done
+                (loop $loop
+                  (if (i32.eqz (ref.test (ref $Pair) (local.get $kw-rest)))
+                      (then (br $done)))
+                  (local.set $kw-cell (ref.cast (ref $Pair) (local.get $kw-rest)))
+                  (local.set $arg-cell (ref.cast (ref $Pair) (local.get $arg-rest)))
+                  (if (ref.eq
+                       (struct.get $Pair $a (local.get $kw-cell))
+                       (call
+                        $string->keyword/checked
+                        (ref.cast (ref $String) (global.get $string:keyword:key))))
+                      (then
+                       (local.set $key-proc (struct.get $Pair $a (local.get $arg-cell)))))
+                  (if (ref.eq
+                       (struct.get $Pair $a (local.get $kw-cell))
+                       (call
+                        $string->keyword/checked
+                        (ref.cast (ref $String) (global.get $string:keyword:cache-keys?))))
+                      (then
+                       (local.set $cache-keys? (struct.get $Pair $a (local.get $arg-cell)))))
+                  (local.set $kw-rest (struct.get $Pair $d (local.get $kw-cell)))
+                  (local.set $arg-rest (struct.get $Pair $d (local.get $arg-cell)))
+                  (br $loop)))
               (if (ref.test (ref $Pair) (local.get $kw-args))
                   (then
                    (local.set $arg-cell (ref.cast (ref $Pair) (local.get $kw-args)))
-                   (local.set $cache-keys? (struct.get $Pair $a (local.get $arg-cell)))
-                   (local.set $arg-rest (struct.get $Pair $d (local.get $arg-cell)))
-                   (if (ref.test (ref $Pair) (local.get $arg-rest))
+                   (if (ref.eq (struct.get $Pair $d (local.get $arg-cell))
+                               (global.get $null))
                        (then
-                        (local.set $second-cell (ref.cast (ref $Pair) (local.get $arg-rest)))
-                        (local.set $key-proc (struct.get $Pair $a (local.get $second-cell)))))))
+                        (local.set $key-proc
+                                   (struct.get $Pair $a (local.get $arg-cell)))))))
               (return_call $vector-sort!/expanded-keywords
                            (local.get $v)
                            (local.get $proc)
@@ -53724,6 +53797,7 @@
                (local.get $len))
 
          (func $procedure->external (export "procedure->external")
+               (type $Prim1)
                (param $proc (ref eq))
                (result (ref eq))
 

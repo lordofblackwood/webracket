@@ -2278,12 +2278,21 @@
              [(list local _dependency _export) local]
              [(list _importer local _dependency _export) local])))
        (define explicit-locals (map car dependencies))
+       (define racket-list-generated-sort-locals
+         (cond
+           [(eq? module-name 'racket/list)
+            (for/list ([binding (in-list (apply append unresolved-groups))]
+                       #:do [(match-define (list local external) binding)]
+                       #:when (symbolic-name=? external 'sort))
+              local)]
+           [else '()]))
        (define grouped-provider-aliases
          (import-groups->provider-coverage-aliases
           unresolved-groups
           required-module-candidates
           dependency-exports
           (append explicit-locals
+                  racket-list-generated-sort-locals
                   reflection-hint-locals
                   (for/list ([alias (in-list (append import-aliases
                                                       (resolve-compiled-rename-aliases
@@ -2383,6 +2392,9 @@
                  (eq? local '1/reverse)
                  (eq? external 'reverse))
             (list local 'racket/private/pico)]
+           [(and (eq? module-name 'racket/list)
+                 (symbolic-name=? external 'sort))
+            (list local 'racket/private/sort)]
            [(symbolic-name=? external 'struct:keyword-method/arity-error)
             (list local 'webracket/private/kw)]
            [(and (eq? module-name 'racket/private/class-internal)

@@ -94,6 +94,18 @@
     '()
     #f)
    (installed-runtime-smoke
+    'racket/list
+    "installed racket/list group-by reaches keyword-aware sort path"
+    '((module use-list-group-by racket/base
+        (require racket/list)
+        (provide y)
+        (define y (length (group-by (lambda (x) (modulo x 3))
+                                    '(1 2 54 5 0))))))
+    '((use-list-group-by y))
+    #rx"(?m:^3$)"
+    '()
+    #f)
+   (installed-runtime-smoke
     'racket/string
     "installed racket/string graph reaches WebRacket runtime smoke"
     '((module use-string racket/base

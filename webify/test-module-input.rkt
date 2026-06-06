@@ -439,6 +439,20 @@
                 '((1/syntax-source webracket/primitives syntax-source)))
   (check-equal? (map webify-module-resolution-outcome-status syntax-source-outcomes)
                 '(resolved-by-compiled-primitive-alias))
+  (define-values (list-sort-imports list-sort-outcomes)
+    (webify-resolve-module-linklet-imports/outcomes
+     '(linklet (([sort.1 sort.1]
+                 [sort7.1 sort7.1])) (y)
+        (define-values (y) sort.1))
+     '((racket/private/list (sort.1 sort7.1))
+       (racket/private/sort (sort)))
+     #:module-name 'racket/list))
+  (check-equal? list-sort-imports
+                '((sort.1 racket/private/sort sort)
+                  (sort7.1 racket/private/sort sort)))
+  (check-equal? (map webify-module-resolution-outcome-status list-sort-outcomes)
+                '(resolved-by-compiled-primitive-alias
+                  resolved-by-compiled-primitive-alias))
   (define-values (exact-contract-export-imports exact-contract-export-outcomes)
     (webify-resolve-module-linklet-imports/outcomes
      '(linklet (([id-partially-applied42.1 id-partially-applied42.1])) (y)
