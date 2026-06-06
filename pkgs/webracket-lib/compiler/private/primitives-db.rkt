@@ -113,6 +113,7 @@
 (define-primitive bitwise-ior                               at-least-0          (pure partial-foldable))
 (define-primitive bitwise-not                               1                   (pure))
 (define-primitive bitwise-xor                               at-least-0          (pure partial-foldable))
+;; Bootstrap syntax/reflection approximation: datum/name compare only.
 (define-primitive bound-identifier=?                        [2 3]               (pure))
 (define-primitive boolean=?                                 2                   (pure foldable partial-foldable))
 (define-primitive boolean?                                  1                   (pure foldable))
@@ -239,6 +240,7 @@
 (define-primitive char>=?                                   at-least-1          (pure))
 (define-primitive char>?                                    at-least-1          (pure))
 (define-primitive char?                                     1                   (pure foldable))
+;; Bootstrap syntax/reflection approximation: duplicate check uses current identifier equality.
 (define-primitive check-duplicate-identifier                1                   (pure))
 (define-primitive checked-procedure-check-and-extract       5                   (ordered))
 (define-primitive compile-linklet                           [1 2 3 4 5]         (ordered))
@@ -323,6 +325,7 @@
 (define-primitive current-date                              0                   (ordered allocates))
 (define-primitive collection-file-path                      at-least-2          (ordered))
 (define-primitive collection-path                           at-least-1          (ordered))
+;; Lightweight WebRacket namespace parameter for module/bootstrap composition.
 (define-primitive current-namespace                         [0 1]               (ordered))
 (define-primitive current-parameterization                  0                   (ordered))
 (define-primitive parameter?                                1                   (pure))
@@ -423,6 +426,7 @@
 (define-primitive dropf                                     2                   (ordered))
 (define-primitive dropf-right                               2                   (ordered))
 (define-primitive dynamic-wind                              3                   (ordered))
+;; Bootstrap compatibility only: no runtime module loading; uses failure thunk when supplied.
 (define-primitive dynamic-require                           [2 3]               (ordered))
 (define-primitive eighth                                    1                   (pure restricted partial-foldable))
 (define-primitive eleventh                                  1                   (pure restricted))
@@ -552,6 +556,7 @@
 (define-primitive filter                                    2                   (ordered partial-foldable))
 (define-primitive filter-map                                at-least-2          (ordered))
 (define-primitive filter-not                                2                   (ordered))
+;; Browser/VFS semantics: validates arguments, but executable search always reports not found.
 (define-primitive find-executable-path                      [1 2 3]             (ordered))
 (define-primitive find-relative-path                        [2 3 4 5]           (ordered))
 (define-primitive find-system-path                          1                   (ordered))
@@ -639,6 +644,7 @@
 (define-primitive fxxor                                     at-least-0          (pure))
 (define-primitive fxzero?                                   1                   (pure))
 (define-primitive gcd                                       at-least-0          (ordered))
+;; Bootstrap syntax/reflection approximation: generates gensym-backed syntax identifiers.
 (define-primitive generate-temporaries                      1                   (allocates))
 (define-primitive gensym                                    [0 1]               (ordered))
 (define-primitive get-output-bytes                          [1 2 3 4]           (ordered))
@@ -691,7 +697,9 @@
 (define-primitive hash?                                     1                   (pure))
 (define-primitive hasheqv                                   at-least-0          (allocates))
 (define-primitive identifier?                               1                   (pure))
+;; Bootstrap syntax/reflection approximation: no runtime binding table, returns no binding.
 (define-primitive identifier-binding                        [1 2 3 4]           (pure))
+;; Bootstrap syntax/reflection approximation: datum/name compare only.
 (define-primitive free-identifier=?                         [2 3 4]             (pure))
 (define-primitive identity                                  1                   (pure foldable))
 (define-primitive immutable-box?                            1                   (pure partial-foldable))
@@ -864,7 +872,9 @@
 (define-primitive make-prefab-struct                        at-least-1          (allocates))
 (define-primitive make-semaphore                            [0 1]               (allocates))
 (define-primitive make-srcloc                               5                   (allocates))
+;; Bootstrap syntax/reflection approximation: validates inputs, returns identity introducer.
 (define-primitive make-syntax-delta-introducer              [2 3]               (allocates))
+;; Bootstrap syntax/reflection approximation: returns identity introducer.
 (define-primitive make-syntax-introducer                    [0 1]               (allocates))
 (define-primitive make-string                               [1 2]               (allocates))
 (define-primitive make-thread-cell                          [1 2]               (allocates))
@@ -918,6 +928,7 @@
 (define-primitive namespace-set-variable-value!             [2 3 4 5]           (ordered))
 (define-primitive namespace-undefine-variable!              [1 2]               (ordered))
 (define-primitive namespace-variable-value-simple           2                   (ordered))
+;; Single-threaded bootstrap: validates namespace/thunk, no separate registry lock.
 (define-primitive namespace-call-with-registry-lock         2                   (ordered))
 (define-primitive namespace?                                1                   (pure))
 (define-primitive nan?                                      1                   (pure))
@@ -1065,6 +1076,7 @@
 (define-primitive remw                                      2                   (ordered))
 (define-primitive remw*                                     2                   (ordered))
 (define-primitive rename-file-or-directory                  [2 3]               (ordered))
+;; Bootstrap syntax/reflection placeholder: returns the identifier as representation.
 (define-primitive make-rename-transformer                   1                   (ordered))
 (define-primitive rename-transformer?                       1                   (pure))
 (define-primitive reroot-path                               2                   (ordered))
@@ -1079,6 +1091,7 @@
 (define-primitive round                                     1                   (ordered))
 (define-primitive s-exp->fasl                               [1 2]               (ordered))
 (define-primitive second                                    1                   (pure restricted partial-foldable))
+;; Bootstrap syntax/reflection placeholder: always raises while set!-transformers are unrepresented.
 (define-primitive set!-transformer-procedure                1                   (pure))
 (define-primitive set!-transformer?                        1                   (pure))
 (define-primitive set-box!                                  2                   (ordered))
@@ -1226,6 +1239,7 @@
 (define-primitive syntax-deserialize                       [0 1 2]             (ordered))
 (define-primitive syntax-e                                  1                   (pure))
 (define-primitive syntax-line                               1                   (pure))
+;; Bootstrap syntax/reflection approximations: no active WebRacket transformer context yet.
 (define-primitive syntax-local-phase-level                  0                   (pure))
 (define-primitive syntax-transforming?                      0                   (pure))
 (define-primitive syntax-local-infer-name                   [1 2]               (pure))
@@ -1406,6 +1420,7 @@
 (define-primitive use-user-specific-search-paths            [0 1]               (ordered))
 (define-primitive values                                    at-least-0          (pure multi partial-foldable))
 (define-primitive variable-reference->instance              [1 2]               (pure))
+;; Bootstrap variable-reference approximations: no source namespace/phase metadata yet.
 (define-primitive variable-reference->module-base-phase     1                   (pure))
 (define-primitive variable-reference->namespace             1                   (pure))
 (define-primitive variable-reference->module-path-index     1                   (pure))
