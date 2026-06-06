@@ -224,9 +224,14 @@
     installed-racket-file-coverage
     installed-data-queue-coverage
     installed-racket-logging-coverage
+    full-class-coverage
     installed-racket-class-basic-coverage
     installed-racket-class-advanced-coverage
     installed-racket-unit-basic-coverage
+    installed-racket-unit-compound-coverage
+    installed-racket-unit-infer-coverage
+    installed-racket-unit-prefix-rename-coverage
+    full-unit-coverage
     ffi-js-array-coverage
     ffi-js-math-coverage
     ffi-js-performance-coverage
@@ -371,6 +376,47 @@
     "main.rkt"
     #rx"(?m:^42$)"
     '())
+   (dashboard-case
+    'full-class-coverage
+    'language-full
+    '(webracket/full racket/class)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/full\n"
+         "(define valued<%> (interface () value next))\n"
+         "(define base%\n"
+         "  (class object%\n"
+         "    (init-field [n 30])\n"
+         "    (super-new)\n"
+         "    (define/public (value) n)\n"
+         "    (define/public (next) (+ (value) 1))))\n"
+         "(define child%\n"
+         "  (class* base% (valued<%>)\n"
+         "    (init-field [delta 10])\n"
+         "    (super-new)\n"
+         "    (inherit value)\n"
+         "    (define/override (next) (+ (super next) delta))))\n"
+         "(define obj (new child% [n 39] [delta 2]))\n"
+         "(define final%\n"
+         "  (class object%\n"
+         "    (super-new)\n"
+         "    (define/public-final (sealed) 5)))\n"
+         "(define caught\n"
+         "  (with-handlers ([(lambda (e) #t) (lambda (e) 1)])\n"
+         "    (class final%\n"
+         "      (super-new)\n"
+         "      (define/override (sealed) 6))\n"
+         "    0))\n"
+         "(js-log (+ (if (is-a? obj valued<%>) 1 0)\n"
+         "           (if (is-a? obj child%) 2 0)\n"
+         "           (send obj value)\n"
+         "           (send obj next)\n"
+         "           caught\n"
+         "           -43))\n")))
+    "main.rkt"
+    #rx"(?m:^42$)"
+    '("--webracket-module-bridge")
+    #:tier 'coverage)
    (dashboard-case
     'full-list
     'installed-provider-graph
@@ -2199,6 +2245,129 @@
          "(inc)\n"
          "(inc)\n"
          "(js-log (get))\n")))
+    "main.rkt"
+    #rx"(?m:^42$)"
+    '("--webracket-module-bridge")
+    #:tier 'coverage)
+   (dashboard-case
+    'installed-racket-unit-compound-coverage
+    'installed-provider-coverage
+    '(racket/unit)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/base\n"
+         "(require racket/unit)\n"
+         "(define-signature input^ [x])\n"
+         "(define-signature out^ [y])\n"
+         "(define add@\n"
+         "  (unit\n"
+         "    (import input^)\n"
+         "    (export out^)\n"
+         "    (define y (+ x 2))))\n"
+         "(define compound@\n"
+         "  (compound-unit\n"
+         "    (import [IN : input^])\n"
+         "    (export OUT)\n"
+         "    (link [([OUT : out^]) add@ IN])))\n"
+         "(define x 40)\n"
+         "(define-values/invoke-unit compound@\n"
+         "  (import input^)\n"
+         "  (export out^))\n"
+         "(js-log y)\n")))
+    "main.rkt"
+    #rx"(?m:^42$)"
+    '("--webracket-module-bridge")
+    #:tier 'coverage)
+   (dashboard-case
+    'installed-racket-unit-infer-coverage
+    'installed-provider-coverage
+    '(racket/unit)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/base\n"
+         "(require racket/unit)\n"
+         "(define-signature a^ [x])\n"
+         "(define-signature b^ [y])\n"
+         "(define-unit a@\n"
+         "  (import)\n"
+         "  (export a^)\n"
+         "  (define x 40))\n"
+         "(define-unit b@\n"
+         "  (import a^)\n"
+         "  (export b^)\n"
+         "  (define y (+ x 2)))\n"
+         "(define-compound-unit/infer both@\n"
+         "  (import)\n"
+         "  (export b^)\n"
+         "  (link a@ b@))\n"
+         "(define-values/invoke-unit both@\n"
+         "  (import)\n"
+         "  (export b^))\n"
+         "(js-log y)\n")))
+    "main.rkt"
+    #rx"(?m:^42$)"
+    '("--webracket-module-bridge")
+    #:tier 'coverage)
+   (dashboard-case
+    'installed-racket-unit-prefix-rename-coverage
+    'installed-provider-coverage
+    '(racket/unit)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/base\n"
+         "(require racket/unit)\n"
+         "(define-signature source^ [value])\n"
+         "(define-signature prefix-sink^ [prefix-answer])\n"
+         "(define-signature rename-sink^ [rename-answer])\n"
+         "(define-unit source@\n"
+         "  (import)\n"
+         "  (export source^)\n"
+         "  (define value 40))\n"
+         "(define-unit use-prefix@\n"
+         "  (import (prefix src: source^))\n"
+         "  (export prefix-sink^)\n"
+         "  (define prefix-answer (+ src:value 1)))\n"
+         "(define-unit use-rename@\n"
+         "  (import (rename source^ [n value]))\n"
+         "  (export rename-sink^)\n"
+         "  (define rename-answer (+ n 1)))\n"
+         "(define-compound-unit/infer both@\n"
+         "  (import)\n"
+         "  (export prefix-sink^ rename-sink^)\n"
+         "  (link source@ use-prefix@ use-rename@))\n"
+         "(define-values/invoke-unit both@\n"
+         "  (import)\n"
+         "  (export prefix-sink^ rename-sink^))\n"
+         "(js-log (+ prefix-answer rename-answer -40))\n")))
+    "main.rkt"
+    #rx"(?m:^42$)"
+    '("--webracket-module-bridge")
+    #:tier 'coverage)
+   (dashboard-case
+    'full-unit-coverage
+    'language-full
+    '(webracket/full racket/unit)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/full\n"
+         "(define-signature source^ [value])\n"
+         "(define-signature sink^ [answer])\n"
+         "(define-unit source@\n"
+         "  (import)\n"
+         "  (export source^)\n"
+         "  (define value 40))\n"
+         "(define-unit use-source@\n"
+         "  (import (prefix src: source^))\n"
+         "  (export sink^)\n"
+         "  (define answer (+ src:value 2)))\n"
+         "(define-compound-unit/infer both@\n"
+         "  (import)\n"
+         "  (export sink^)\n"
+         "  (link source@ use-source@))\n"
+         "(define-values/invoke-unit both@\n"
+         "  (import)\n"
+         "  (export sink^))\n"
+         "(js-log answer)\n")))
     "main.rkt"
     #rx"(?m:^42$)"
     '("--webracket-module-bridge")

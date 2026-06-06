@@ -28,6 +28,7 @@
     racket/shared
     racket/stream
     racket/string
+    racket/unit
     racket/vector
     racket/contract
     webracket/contract
@@ -47,8 +48,7 @@
     racket/place
     racket/system
     racket/tcp
-    racket/udp
-    racket/unit))
+    racket/udp))
 
 ;; webracket-full-surface-statuses : (listof (list/c symbol? symbol? symbol? symbol? symbol?))
 ;;   Track exported/extracted/composed/runtime status for the broader language surface.
@@ -72,6 +72,7 @@
     (racket/shared   exported expands  partial host-only)
     (racket/stream   substituted staged staged runs)
     (racket/string   exported extracts composes runs)
+    (racket/unit     exported extracts composes runs)
     (racket/vector   exported extracts composes runs)
     (racket/contract exported substituted staged runs)
     (webracket/contract exported extracts staged runs)
@@ -89,7 +90,7 @@
 (define webracket-full-surface-audit
   '((racket/bool     racket/bool        real-provider-proven installed-racket-bool-coverage)
     (racket/bytes    racket/bytes       real-provider-proven full-bytes-coverage)
-    (racket/class    racket/class       real-provider-proven installed-racket-class-advanced-coverage)
+    (racket/class    racket/class       real-provider-proven full-class-coverage)
     (racket/dict     racket/dict        real-provider-proven installed-racket-dict-coverage)
     (racket/format   io/format          staged-original      installed-racket-format-coverage)
     (racket/function racket/function   real-provider-proven installed-racket-function-coverage)
@@ -105,6 +106,7 @@
     (racket/shared   racket/shared      real-provider-proven full-shared-coverage)
     (racket/stream   webracket/stream   webracket-owned      full-stream-coverage)
     (racket/string   racket/string      real-provider-proven real-racket-string-coverage)
+    (racket/unit     racket/unit        real-provider-proven full-unit-coverage)
     (racket/vector   racket/vector      real-provider-proven installed-racket-vector-coverage)
     (racket/contract webracket/contract webracket-owned      full-contract-erased)
     (webracket/contract webracket/contract webracket-owned   full-contract-erased)

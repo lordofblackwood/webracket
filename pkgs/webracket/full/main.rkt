@@ -46,6 +46,7 @@
          racket/shared
          (except-in racket/string string-append* string-join)
          (only-in "../string.rkt" string-append* string-join)
+         racket/unit
          (except-in racket/vector vector-member vector-sort vector-sort!)
          (only-in "../primitives.rkt"
                   [sort/expanded-keywords primitive-sort/expanded-keywords]
@@ -232,6 +233,7 @@
          (all-from-out racket/string)
          string-append*
          string-join
+         (all-from-out racket/unit)
          (all-from-out racket/vector)
          vector-member
          vector-sort

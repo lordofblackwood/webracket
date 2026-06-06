@@ -42,9 +42,9 @@ choosing the next milestone from evidence instead of memory.
 | `racket/private/for` | installed provider with staged support pressure | ready/partial | sequence/for coverage cluster, `for-provider-surface.rkt` | No unexpected missing exports in the surface audit; remaining families are deliberately postponed. |
 | `racket/shared` | installed provider | ready | `full-shared-coverage` | Expansion-oriented coverage. |
 | `racket/string` | installed provider | ready | string coverage rows | Real provider is the default route. |
-| `racket/unit` | installed provider with WebRacket-owned support edges | ready/partial | `installed-racket-unit-basic-coverage` | Basic signatures, unit export/import, and `define-values/invoke-unit` run; broader unit forms still need coverage before full promotion. |
+| `racket/unit` | installed provider with WebRacket-owned support edges, `webracket/full` add-on | ready | unit coverage cluster, `full-unit-coverage` | Basic, explicit compound, inferred compound, prefix/rename signature specs, and full-language use run. |
 | `racket/vector` | installed provider | ready | vector coverage rows | Representative runtime coverage. |
-| `racket/class` | installed provider, `webracket/full` add-on | ready/partial | `full-class`, class diagnostic and coverage rows | Requires the default staged `io/format` provider; no-IO-format diagnostics are not a valid class/full proof. |
+| `racket/class` | installed provider, `webracket/full` add-on | ready | `full-class-coverage`, class coverage rows | Full-language coverage exercises interfaces, `class*`, override, inherited methods, final-method error handling, and object predicates. |
 
 ## WebRacket-Owned Or Staged Providers
 
@@ -72,17 +72,17 @@ choosing the next milestone from evidence instead of memory.
 | Weak/ephemeron hashes | postponed | Explicitly outside current HAMT/hash target. |
 | `racket/private/for` advanced edges | postponed | The surface audit reports no unexpected missing exports. Postponed families are flvector/fxvector generators, weak/ephemeron hash sequences, original stream/range internals, and filesystem glob/file traversal helpers. None are current Goal 1 requirements. |
 | OS/network providers | postponed | `racket/cmdline`, `racket/future`, `racket/place`, `racket/system`, `racket/tcp`, and `racket/udp` are deferred. |
-| `racket/unit` full surface | partial | Basic unit composition now has dashboard coverage, but compound/linking variants still need separate evidence before promotion to `webracket/full`. |
+| `racket/unit/c` and advanced contract/unit boundaries | partial | Ordinary unit composition is promoted to `webracket/full`; contract-bearing unit boundaries still inherit the postponed full contract semantics story. |
 
 ## Next Recommended Milestones
 
 1. Run the compact checkpoint with a warm cache and record the current red/yellow rows.
-2. Keep `full-class` in the compact checkpoint with the default io/format provider; do not run it in the no-IO-format lane.
-3. Tighten the staged-provider list so every substitution is either clearly owned or has a diagnostic replacement path.
-4. Pick the next implementation target only from the matrix and dashboard output.
-5. Revisit `racket/private/for` only if a concrete module program needs one of the postponed families.
+2. Tighten the staged-provider list so every substitution is either clearly owned or has a diagnostic replacement path.
+3. Pick the next implementation target only from the matrix and dashboard output.
+4. Revisit `racket/private/for` only if a concrete module program needs one of the postponed families.
+5. Keep `racket/unit/c` and full contract-bearing unit boundaries tied to the broader contract-semantics plan.
 
 The current strongest candidate is now the next dashboard-selected red or
-yellow row after the class/full/unit checkpoints. Contract, list, sequence,
-class, and unit all have explicit Goal 1 stories; their remaining gaps are
+yellow row after the full/class/unit checkpoints. Contract, list, sequence,
+class, and unit all have explicit Goal 1 stories; the remaining gaps are
 mostly deliberate boundaries rather than forgotten first steps.

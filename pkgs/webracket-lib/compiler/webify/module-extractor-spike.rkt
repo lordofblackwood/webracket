@@ -2396,6 +2396,13 @@
            [(and (memq module-name '(contract racket/private/unit/contract))
                  (symbolic-name=? external 'contract-continuation-mark-key))
             (list local 'racket/contract/private/guts)]
+           [(and (memq module-name '(contract racket/private/unit/contract))
+                 (symbolic-name=? external 'member))
+            ;; `racket/private/unit/contract` gets ordinary list membership from
+            ;; its `racket/base` import. In full-language compositions both
+            ;; `racket/private/pico` and `racket/private/list` can export a
+            ;; matching name, but the source-level provider is the list layer.
+            (list local 'racket/private/list)]
            [(and (memq module-name '(runtime racket/private/unit/runtime))
                  (symbolic-name=? external 'contract-continuation-mark-key))
             (list local 'racket/contract/private/guts)]
@@ -2453,9 +2460,28 @@
            [(and (eq? module-name 'racket/private/unit/contract-syntax)
                  (symbolic-name=? external 'expr-stx?))
             (list local 'syntax/parse/private/lib)]
-           [(and (eq? module-name 'racket/private/unit/exptime/import-export)
+           [(and (memq module-name '(exptime/import-export
+                                      racket/private/unit/exptime/import-export))
                  (symbolic-name=? external 's-any))
             (list local 'syntax/parse/private/residual-interp)]
+           [(and (memq module-name '(exptime/import-export
+                                      racket/private/unit/exptime/import-export))
+                 (symbolic-name=? external 'check-list))
+            ;; This unit exptime helper imports `racket/list` source-side. The
+            ;; compiled provider graph can see both the public list provider
+            ;; and its private implementation, so prefer the implementation
+            ;; module that actually owns the helper in the extracted bundle.
+            (list local 'racket/private/list)]
+           [(and (memq module-name '(exptime/import-export
+                                      racket/private/unit/exptime/import-export))
+                 (symbolic-name=? external 'empty?))
+            ;; `racket/list` re-exports `empty?` from its predicate helper.
+            (list local 'racket/private/list-predicates)]
+           [(and (memq module-name '(exptime/import-export
+                                      racket/private/unit/exptime/import-export))
+                 (symbolic-name=? external 'append-map))
+            ;; Source imports this public helper through `racket/list`.
+            (list local 'racket/list)]
            [(and (eq? module-name 'syntax/parse/private/residual-interp)
                  (symbol? external)
                  (regexp-match? #rx"^sim:" (symbol->string external)))
@@ -2463,9 +2489,16 @@
            [(and (eq? module-name 'racket/private/unit/exptime/syntax)
                  (symbolic-name=? external 'interp-match))
             (list local 'racket/private/stxcase)]
-           [(and (eq? module-name 'racket/private/unit/exptime/util)
+           [(and (memq module-name '(exptime/util
+                                      racket/private/unit/exptime/util))
                  (symbolic-name=? external 'make-hygienic-metafunction))
             (list local 'syntax/parse/experimental/template)]
+           [(and (memq module-name '(exptime/util
+                                      racket/private/unit/exptime/util))
+                 (symbolic-name=? external 'check-list))
+            ;; This helper uses `for/list`; the compiled form can expose list
+            ;; checks from both list internals and the for implementation.
+            (list local 'racket/private/for)]
            [(and (eq? module-name 'racket/private/class-internal)
                  (symbolic-name=? external 'current-contract-region))
             (list local 'racket/contract/region)]

@@ -662,6 +662,12 @@
     [(and (memq module-name '(contract racket/private/unit/contract))
           (symbolic-name=? external 'contract-continuation-mark-key))
      '(racket/contract/private/guts contract-continuation-mark-key)]
+    [(and (memq module-name '(contract racket/private/unit/contract))
+          (symbolic-name=? external 'member))
+     ;; `racket/private/unit/contract` gets ordinary list membership from its
+     ;; `racket/base` import. Prefer the list layer when full-language provider
+     ;; composition also exposes the lower pico helper.
+     '(racket/private/list member)]
     [(and (memq module-name '(runtime racket/private/unit/runtime))
           (symbolic-name=? external 'contract-continuation-mark-key))
      '(racket/contract/private/guts contract-continuation-mark-key)]
@@ -722,9 +728,26 @@
     [(and (eq? module-name 'racket/private/unit/contract-syntax)
           (symbolic-name=? external 'expr-stx?))
      '(syntax/parse/private/lib expr-stx?)]
-    [(and (eq? module-name 'racket/private/unit/exptime/import-export)
+    [(and (memq module-name '(exptime/import-export
+                               racket/private/unit/exptime/import-export))
           (symbolic-name=? external 's-any))
      '(syntax/parse/private/residual-interp s-any)]
+    [(and (memq module-name '(exptime/import-export
+                               racket/private/unit/exptime/import-export))
+          (symbolic-name=? external 'check-list))
+     ;; Source imports this through `racket/list`; prefer the private list
+     ;; implementation when the compiled bundle exposes both names.
+     '(racket/private/list check-list)]
+    [(and (memq module-name '(exptime/import-export
+                               racket/private/unit/exptime/import-export))
+          (symbolic-name=? external 'empty?))
+     ;; `racket/list` re-exports `empty?` from its predicate helper.
+     '(racket/private/list-predicates empty?)]
+    [(and (memq module-name '(exptime/import-export
+                               racket/private/unit/exptime/import-export))
+          (symbolic-name=? external 'append-map))
+     ;; Source imports this public helper through `racket/list`.
+     '(racket/list append-map)]
     [(and (eq? module-name 'syntax/parse/private/residual-interp)
           (symbol? external)
           (regexp-match? #rx"^sim:" (symbol->string external)))
@@ -732,9 +755,16 @@
     [(and (eq? module-name 'racket/private/unit/exptime/syntax)
           (symbolic-name=? external 'interp-match))
      '(racket/private/stxcase interp-match)]
-    [(and (eq? module-name 'racket/private/unit/exptime/util)
+    [(and (memq module-name '(exptime/util
+                               racket/private/unit/exptime/util))
           (symbolic-name=? external 'make-hygienic-metafunction))
      '(syntax/parse/experimental/template make-hygienic-metafunction)]
+    [(and (memq module-name '(exptime/util
+                               racket/private/unit/exptime/util))
+          (symbolic-name=? external 'check-list))
+     ;; This helper uses `for/list`; prefer the check emitted through the for
+     ;; implementation when list internals are also visible.
+     '(racket/private/for check-list)]
     [(and (eq? module-name 'racket/private/class-internal)
           (symbolic-name=? external 'variable-reference->module-source/submod))
      '(syntax/location variable-reference->module-source/submod)]
