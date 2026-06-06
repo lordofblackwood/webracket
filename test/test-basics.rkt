@@ -525,6 +525,7 @@
                            (parameter? current-logger)
                            (parameter? current-security-guard)
                            (parameter? current-print)
+                           (parameter? current-namespace)
                            (not (parameter? current-parameterization))
                            (not (parameter? add1))
                            (not (parameter? 42))
@@ -8227,6 +8228,101 @@
                           (equal? (identifier? 'pear) #f)
                           (equal? (identifier? 5) #f))))
 
+             (list "free-identifier=?/datum-bootstrap"
+                   (let ([a1 (datum->syntax #f 'apple)]
+                         [a2 (datum->syntax #f 'apple)]
+                         [b  (datum->syntax #f 'banana)])
+                     (and (equal? (free-identifier=? a1 a2) #t)
+                          (equal? (free-identifier=? a1 b) #f)
+                          (equal? (free-identifier=? a1 a2 #f) #t)
+                          (equal? (free-identifier=? a1 a2 #f #f) #t))))
+
+             (list "bound-identifier=?/datum-bootstrap"
+                   (let ([a1 (datum->syntax #f 'apple)]
+                         [a2 (datum->syntax #f 'apple)]
+                         [b  (datum->syntax #f 'banana)])
+                     (and (equal? (bound-identifier=? a1 a2) #t)
+                          (equal? (bound-identifier=? a1 b) #f)
+                          (equal? (bound-identifier=? a1 a2 #f) #t))))
+
+             (list "identifier-binding/bootstrap"
+                   (let ([id (datum->syntax #f 'apple)])
+                     (and (equal? (identifier-binding id) #f)
+                          (equal? (identifier-binding id 0) #f)
+                          (equal? (identifier-binding id #f #t #t) #f))))
+
+             (list "syntax-local-phase-level/bootstrap"
+                   (equal? (syntax-local-phase-level) 0))
+
+             (list "syntax-transforming?/bootstrap"
+                   (equal? (syntax-transforming?) #f))
+
+             (list "check-duplicate-identifier/datum-bootstrap"
+                   (let ([a1 (datum->syntax #f 'apple)]
+                         [a2 (datum->syntax #f 'apple)]
+                         [b  (datum->syntax #f 'banana)])
+                     (and (equal? (check-duplicate-identifier (list a1 b)) #f)
+                          (equal? (check-duplicate-identifier (list a1 b a2)) a2))))
+
+             (list "generate-temporaries/bootstrap"
+                   (let ([ids (generate-temporaries (datum->syntax #f '(a b c)))])
+                     (and (equal? (length ids) 3)
+                          (andmap identifier? ids)
+                          (equal? (check-duplicate-identifier ids) #f))))
+
+             (list "make-syntax-introducer/bootstrap"
+                   (let* ([stx (datum->syntax #f 'x)]
+                          [intro (make-syntax-introducer)]
+                          [use-site-intro (make-syntax-introducer #t)])
+                     (and (procedure? intro)
+                          (equal? (intro stx) stx)
+                          (equal? (intro stx 'add) stx)
+                          (equal? (intro stx 'remove) stx)
+                          (equal? (use-site-intro stx 'flip) stx))))
+
+             (list "syntax-local-introduce/bootstrap"
+                   (let ([stx (datum->syntax #f 'x)])
+                     (equal? (syntax-local-introduce stx) stx)))
+
+             (list "syntax-local-infer-name/bootstrap"
+                   (let ([stx (datum->syntax #f 'x)])
+                     (and (equal? (syntax-local-infer-name stx) #f)
+                          (equal? (syntax-local-infer-name stx #f) #f))))
+
+             (list "make-syntax-delta-introducer/bootstrap"
+                   (let* ([stx (datum->syntax #f 'x)]
+                          [intro (make-syntax-delta-introducer stx #f)])
+                     (and (procedure? intro)
+                          (equal? (intro stx) stx)
+                          (equal? (intro stx 'flip) stx)
+                          (equal? (intro stx 'remove) stx))))
+
+             (list "syntax-local-value/failure-thunk-bootstrap"
+                   (let ([id (datum->syntax #f 'missing-transformer)])
+                     (equal? (syntax-local-value id (lambda () 'fallback)) 'fallback)))
+
+             (list "namespace-call-with-registry-lock/bootstrap"
+                   (equal?
+                    (namespace-call-with-registry-lock
+                     (make-empty-namespace)
+                     (lambda () 'locked))
+                    'locked))
+
+             (list "variable-reference->namespace/bootstrap"
+                   (namespace? (variable-reference->namespace (#%variable-reference))))
+
+             (list "current-namespace/bootstrap"
+                   (let ([ns (make-empty-namespace)])
+                     (and (namespace? (current-namespace))
+                          (parameterize ([current-namespace ns])
+                            (equal? (current-namespace) ns)))))
+
+             (list "set!-transformer-procedure/bootstrap-contract"
+                   (and (equal? (set!-transformer? (lambda (stx) stx)) #f)
+                        (with-handlers ([exn:fail:contract? (lambda (_exn) #t)])
+                          (set!-transformer-procedure (lambda (stx) stx))
+                          #f)))
+
              (list "syntax->datum/basic"
                     (let* ([stx (datum->syntax #f 'pear)]
                            [datum (syntax->datum stx)])
@@ -8812,6 +8908,15 @@
                            #f)
                          (with-handlers ([exn:fail:contract? (lambda (_ex) #t)])
                            (find-system-path 'not-a-system-path)
+                           #f)))
+              (list "find-executable-path"
+                    (and (equal? (find-executable-path "webracket") #f)
+                         (equal? (find-executable-path "webracket" "collects" #t) #f)
+                         (with-handlers ([exn:fail:contract? (lambda (_ex) #t)])
+                           (find-executable-path 'webracket)
+                           #f)
+                         (with-handlers ([exn:fail:contract? (lambda (_ex) #t)])
+                           (find-executable-path "webracket" "/absolute")
                            #f)))
               (list "path->complete-path"
                     (and (equal? (path->string (path->complete-path "notes.txt" "/app/"))

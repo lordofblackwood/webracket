@@ -781,6 +781,21 @@
                             "expected a simple module path"
                             "module path" module-path)]))
 
+;; slash-symbol->submodule-candidates : symbol? -> (listof module-path?)
+;;   Interpret slash-separated dependency names as possible root/submodule paths.
+(define (slash-symbol->submodule-candidates module-path)
+  (define parts (string-split (symbol->string module-path) "/"))
+  (cond
+    [(< (length parts) 2) '()]
+    [else
+     (for/list ([root-count (in-range (sub1 (length parts)) 0 -1)])
+       (define root
+         (string->symbol
+          (string-join (take parts root-count) "/")))
+       (define submodules
+         (map string->symbol (drop parts root-count)))
+       `(submod ,root ,@submodules))]))
+
 ;; relative-module-name : symbol? string? -> symbol?
 ;;   Resolve a relative module path from compiled metadata against a module name.
 (define (relative-module-name base-name relative-path)
@@ -1230,6 +1245,21 @@
     (and decl-linklet (linklet-body-definition-expression decl-linklet 'provides)))
   (define decl-phase-to-link-modules-expression
     (and decl-linklet (linklet-body-definition-expression decl-linklet 'phase-to-link-modules)))
+  (define hinted-required-module-candidates
+    (remove-duplicates
+     (filter
+      values
+      (for*/list ([group (in-list unresolved-groups)]
+                  [binding (in-list group)])
+        (match-define (list local external) binding)
+        (match (compiled-primitive-alias-hint
+                (webify-module-extractor-spike-name report)
+                local
+                external)
+          [(list dependency _provider-export)
+           (list 0 dependency)]
+          [_ #f])))
+     equal?))
   (define required-module-candidates
     (remove-duplicates
      (append
@@ -1240,6 +1270,7 @@
       (data-module-path-index-candidates
        data-module-path-indexes
        (webify-module-extractor-spike-name report))
+      hinted-required-module-candidates
       (if (ormap keyword-runtime-import-group? unresolved-groups)
           '((0 racket/private/kw))
           '()))))
@@ -1449,12 +1480,14 @@
 (define (webify-module-extractor-spike-import-export-demands report
                                                             provider-reports
                                                             #:dependencies [dependencies '()]
+                                                            #:reflection-hints [reflection-hints '()]
                                                             #:module-protocol-dependency [module-protocol-dependency #f])
   (define input
     (webify-module-extractor-spike->resolved-linklet-input/providers
      report
      provider-reports
      #:dependencies dependencies
+     #:reflection-hints reflection-hints
      #:module-protocol-dependency module-protocol-dependency))
   (merge-export-demands
    (for/list ([import (in-list (webify-module-linklet-input-imports input))])
@@ -1466,12 +1499,14 @@
 (define (webify-module-extractor-spike-import-export-demand-reasons report
                                                                     provider-reports
                                                                     #:dependencies [dependencies '()]
+                                                                    #:reflection-hints [reflection-hints '()]
                                                                     #:module-protocol-dependency [module-protocol-dependency #f])
   (define input
     (webify-module-extractor-spike->resolved-linklet-input/providers
      report
      provider-reports
      #:dependencies dependencies
+     #:reflection-hints reflection-hints
      #:module-protocol-dependency module-protocol-dependency))
   (for/list ([import (in-list (webify-module-linklet-input-imports input))])
     (match-define (list local dependency provider-export) import)
@@ -1922,12 +1957,16 @@
              (for/list ([candidate (in-list (webify-module-import-map-required-module-candidates import-map))]
                         #:when (= 0 (car candidate)))
                (fetch-report (cadr candidate) 'unresolved-import-candidate))))))
-       (define (process-unresolved-external! external)
-         (define key (list demander external))
-         (unless (hash-ref unresolved-candidate-cache key #f)
-           (hash-set! unresolved-candidate-cache key #t)
-           (when (syntax-srcloc-export-name? external)
-             (fetch-report 'syntax/srcloc 'compiled-source-location-helper))
+      (define (process-unresolved-binding! local external)
+        (define key (list demander local external))
+        (unless (hash-ref unresolved-candidate-cache key #f)
+          (hash-set! unresolved-candidate-cache key #t)
+          (match (compiled-primitive-alias-hint demander local external)
+            [(list dependency _provider-export)
+             (fetch-report dependency 'compiled-alias-hint-provider)]
+            [_ (void)])
+          (when (syntax-srcloc-export-name? external)
+            (fetch-report 'syntax/srcloc 'compiled-source-location-helper))
            (when (symbolic-member? external
                                    '(do-make-object
                                      extract-arg
@@ -1979,7 +2018,7 @@
        (for* ([group (in-list (webify-module-import-map-unresolved-import-groups import-map))]
               [binding (in-list group)])
          (match-define (list _local external) binding)
-         (process-unresolved-external! external))
+         (process-unresolved-binding! _local external))
        (loop (append (cdr queue) new-reports))])))
 
 ;; webify-module-extractor-spikes->discovered-resolved-linklet-inputs : reports ... -> inputs
@@ -2354,18 +2393,79 @@
            [(and (eq? module-name 'racket/private/class-internal)
                  (symbolic-name=? external 'contract-continuation-mark-key))
             (list local 'racket/contract/private/guts)]
-           [(and (eq? module-name 'racket/private/unit/contract)
+           [(and (memq module-name '(contract racket/private/unit/contract))
                  (symbolic-name=? external 'contract-continuation-mark-key))
             (list local 'racket/contract/private/guts)]
+           [(and (memq module-name '(runtime racket/private/unit/runtime))
+                 (symbolic-name=? external 'contract-continuation-mark-key))
+            (list local 'racket/contract/private/guts)]
+           [(and (memq module-name '(runtime racket/private/unit/runtime))
+                 (symbolic-name=? external '-make-blame))
+            (list local 'racket/contract/private/blame)]
            [(and (eq? module-name 'racket/private/unit/contract-syntax)
                  (symbolic-name=? external 'unwind-to))
             (list local 'syntax/parse/private/residual/state)]
            [(and (eq? module-name 'racket/private/unit/contract-syntax)
+                 (memq external '(failure*
+                                  ps-add-cdr
+                                  ps-add-car
+                                  ps-add-stx
+                                  ps-add-post
+                                  ps-add
+                                  es-add-thing
+                                  es-add-literal
+                                  es-add-atom
+                                  es-add-proper-pair)))
+            (list local 'syntax/parse/private/residual/progress)]
+           [(and (eq? module-name 'racket/private/unit/contract-syntax)
+                 (memq external '(t-resyntax t-subst)))
+            (list local 'racket/private/template)]
+           [(and (eq? module-name 'racket/private/unit/contract-syntax)
                  (symbolic-name=? external 'predicate-ellipsis-parser))
             (list local 'syntax/parse/private/residual/parse-util)]
+           [(and (eq? module-name 'syntax/parse/private/residual/parse-util)
+                 (symbolic-name=? external '2d-stx?.1))
+            (list local 'syntax/parse/private/residual/3d-stx)]
+           [(and (eq? module-name 'syntax/parse/private/residual/parse-util)
+                 (symbolic-name=? external 'resolve-paths))
+            (list local 'racket/runtime-path)]
+           [(and (eq? module-name 'racket/runtime-path)
+                 (symbolic-name=? external 'table))
+            (list local 'racket/private/runtime-path-table)]
+           [(and (eq? module-name 'racket/runtime-path)
+                 (memq external '(decode-link-path encode-link-path encoded-link-path?)))
+            (list local 'racket/private/link-path)]
+           [(and (eq? module-name 'racket/runtime-path)
+                 (memq external '(so-find so-spec?)))
+            (list local 'webracket/private/so-search)]
+           [(and (eq? module-name 'racket/runtime-path)
+                 (memq external '(share-find share-spec?)))
+            (list local 'webracket/private/share-search)]
+           [(and (eq? module-name 'racket/runtime-path)
+                 (symbolic-name=? external 'new-apply-proc))
+            (list local 'webracket/private/pre-base-apply)]
+           [(and (eq? module-name 'racket/lazy-require)
+                 (symbolic-name=? external 'delay/sync))
+            (list local 'racket/promise)]
+           [(and (eq? module-name 'racket/lazy-require)
+                 (symbolic-name=? external 'register-external-module))
+            (list local 'compiler/cm-accomplice)]
            [(and (eq? module-name 'racket/private/unit/contract-syntax)
                  (symbolic-name=? external 'expr-stx?))
             (list local 'syntax/parse/private/lib)]
+           [(and (eq? module-name 'racket/private/unit/exptime/import-export)
+                 (symbolic-name=? external 's-any))
+            (list local 'syntax/parse/private/residual-interp)]
+           [(and (eq? module-name 'syntax/parse/private/residual-interp)
+                 (symbol? external)
+                 (regexp-match? #rx"^sim:" (symbol->string external)))
+            (list local 'syntax/parse/private/rep-patterns/simple)]
+           [(and (eq? module-name 'racket/private/unit/exptime/syntax)
+                 (symbolic-name=? external 'interp-match))
+            (list local 'racket/private/stxcase)]
+           [(and (eq? module-name 'racket/private/unit/exptime/util)
+                 (symbolic-name=? external 'make-hygienic-metafunction))
+            (list local 'syntax/parse/experimental/template)]
            [(and (eq? module-name 'racket/private/class-internal)
                  (symbolic-name=? external 'current-contract-region))
             (list local 'racket/contract/region)]
@@ -2608,13 +2708,15 @@
            [hinted-dependency hinted-dependency]
            [else
          (define candidates
-           (for/list ([candidate (in-list required-module-candidates)]
-                      #:when (and (= 0 (car candidate))
-                                  (dependency-exports-external?
-                                   dependency-exports
-                                   (cadr candidate)
-                                   external)))
-             candidate))
+           (remove-duplicates
+            (for/list ([candidate (in-list required-module-candidates)]
+                       #:when (and (= 0 (car candidate))
+                                   (dependency-exports-external?
+                                    dependency-exports
+                                    (cadr candidate)
+                                    external)))
+              candidate)
+            equal?))
          (define preferred-candidates
            (filter (lambda (candidate)
                      (dependency-exports-external?
@@ -2660,6 +2762,20 @@
          (define (webracket-module-name? name)
            (and (symbol? name)
                 (regexp-match? #rx"^webracket/" (symbol->string name))))
+         (define (collection-module-name? name)
+           (and (symbol? name)
+                (regexp-match? #rx"/" (symbol->string name))))
+         (define (prefer-collection-module-name candidates)
+           ;; Compiled linklets can expose both a short internal module name
+           ;; like `runtime` and the resolved collection path
+           ;; `racket/private/unit/runtime`. Prefer the collection path when
+           ;; both are valid providers, because it remains loadable outside the
+           ;; bundle's local naming convention.
+           (define collection-candidates
+             (filter (lambda (candidate)
+                       (collection-module-name? (cadr candidate)))
+                     candidates))
+           (if (null? collection-candidates) candidates collection-candidates))
          (define (prefer-installed-provider-internals candidates)
            (cond
              [(webracket-module-name? module-name) candidates]
@@ -2677,11 +2793,12 @@
            (if (null? non-self-candidates) candidates non-self-candidates))
          (define ranked-candidates
            (prefer-non-self-provider
-            (prefer-installed-provider-internals
-             (prefer-public-contract-substitute
-              (prefer-exact-provider-export
-               (prefer-stream-cons
-                (if (null? preferred-candidates) candidates preferred-candidates)))))))
+            (prefer-collection-module-name
+             (prefer-installed-provider-internals
+              (prefer-public-contract-substitute
+               (prefer-exact-provider-export
+                (prefer-stream-cons
+                 (if (null? preferred-candidates) candidates preferred-candidates))))))))
          (define (candidate-reason candidate)
            (list local
                  (cadr candidate)
@@ -2706,12 +2823,14 @@
                                    "candidate reasons"
                                    (map candidate-reason candidates))])]))
        (define inferred-dependencies
-         (filter
-          values
-          (for/list ([binding (in-list module-bindings)]
-                     #:do [(match-define (list local _external) binding)]
-                     #:unless (memq local explicit-or-alias-locals))
-            (candidate->inferred-dependency binding))))
+         (remove-duplicates
+          (filter
+           values
+           (for/list ([binding (in-list module-bindings)]
+                      #:do [(match-define (list local _external) binding)]
+                      #:unless (memq local explicit-or-alias-locals))
+             (candidate->inferred-dependency binding)))
+          equal?))
        (define duplicate-inferred (check-duplicates (map car inferred-dependencies)))
        (when duplicate-inferred
          (raise-arguments-error who
@@ -3229,9 +3348,25 @@
 (define (webify-module-path->extractor-spike module-path
                                              #:namespace [namespace (current-namespace)])
   (define who 'webify-module-path->extractor-spike)
-  (define name (module-path->dependency-name module-path))
+  (define effective-module-path
+    (case module-path
+      [(syntax/parse/private/residual/3d-stx)
+       '(submod syntax/parse/private/residual 3d-stx)]
+      [else module-path]))
+  (define name (module-path->dependency-name effective-module-path))
+  (define (try-slash-submodule-fallback original-exn)
+    (cond
+      [(symbol? effective-module-path)
+       (let loop ([candidates (slash-symbol->submodule-candidates effective-module-path)])
+         (cond
+           [(null? candidates) (raise original-exn)]
+           [else
+            (with-handlers ([exn:fail? (lambda (_exn) (loop (cdr candidates)))])
+              (webify-module-path->extractor-spike (car candidates)
+                                                   #:namespace namespace))]))]
+      [else (raise original-exn)]))
   (cond
-    [(unsafe-undefined-module-path? module-path)
+    [(unsafe-undefined-module-path? effective-module-path)
      (define unsafe-undefined-file (path->string webify-unsafe-undefined-path))
      (define module-datum
        `(module racket/unsafe/undefined racket/base
@@ -3242,21 +3377,21 @@
                       [current-compile-target-machine #f])
          (compile (datum->syntax #f module-datum))))
      (compiled-module->extractor-spike who name compiled)]
-    [(and (list? module-path)
-          (eq? (car module-path) 'submod)
-          (pair? (cdr module-path))
-          (pair? (cddr module-path))
-          (andmap symbol? (cddr module-path)))
+    [(and (list? effective-module-path)
+          (eq? (car effective-module-path) 'submod)
+          (pair? (cdr effective-module-path))
+          (pair? (cddr effective-module-path))
+          (andmap symbol? (cddr effective-module-path)))
      (parameterize ([current-namespace namespace])
        (define source-path
          (resolved-module-path-name
-          (module-path-index-resolve
-           (module-path-index-join (cadr module-path) #f)
+           (module-path-index-resolve
+           (module-path-index-join (cadr effective-module-path) #f)
            #t)))
        (unless (path-string? source-path)
          (raise-arguments-error who
                                 "expected submodule root to resolve to a path"
-                                "module path" module-path
+                                "module path" effective-module-path
                                 "resolved root" source-path))
        (define compiled
          (get-module-code
@@ -3268,27 +3403,28 @@
        (unless (linklet-directory? compiled)
          (raise-arguments-error who
                                 "compiled submodule root did not produce a linklet directory"
-                                "module path" module-path
+                                "module path" effective-module-path
                                 "compiled" compiled))
-       (compiled-linklet-directory->extractor-spike who
+      (compiled-linklet-directory->extractor-spike who
                                                     name
                                                     compiled
-                                                    #:submodule-path (cddr module-path)))]
+                                                    #:submodule-path (cddr effective-module-path)))]
     [else
-     (parameterize ([current-namespace namespace])
-       (define source-path
-         (resolved-module-path-name
-          (module-path-index-resolve
-           (module-path-index-join module-path #f)
-           #t)))
-       (define compiled
-         (get-module-code
-          source-path
-          #:choose (lambda (_src _zo _so) 'src)
-          #:compile (lambda (stx)
-                      (parameterize ([current-compile-target-machine #f])
-                        (compile stx)))))
-       (compiled-module->extractor-spike who name compiled))]))
+     (with-handlers ([exn:fail? try-slash-submodule-fallback])
+       (parameterize ([current-namespace namespace])
+         (define source-path
+           (resolved-module-path-name
+            (module-path-index-resolve
+             (module-path-index-join effective-module-path #f)
+             #t)))
+         (define compiled
+           (get-module-code
+            source-path
+            #:choose (lambda (_src _zo _so) 'src)
+            #:compile (lambda (stx)
+                        (parameterize ([current-compile-target-machine #f])
+                          (compile stx)))))
+         (compiled-module->extractor-spike who name compiled)))]))
 
 ;; module-path-variable-export-metadata : module-path? -> list?
 ;;   Declare/load a module and read its variable exports with defined-name metadata.

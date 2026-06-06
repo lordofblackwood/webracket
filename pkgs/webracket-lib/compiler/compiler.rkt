@@ -2000,6 +2000,7 @@
   
   values                     
   dynamic-wind
+  dynamic-require
   
 
   boxed      ; used by assignment elimination
@@ -2691,13 +2692,17 @@
   compiled-expression?
   compiled-module-expression?
   readtable?
+  make-rename-transformer
   rename-transformer?
+  set!-transformer-procedure
   set!-transformer?
   special-comment?
   syntax-original?
   syntax-tainted?
   variable-reference?
   variable-reference->instance
+  variable-reference->module-base-phase
+  variable-reference->namespace
   variable-reference->module-path-index
   variable-reference->module-source
   variable-reference->resolved-module-path
@@ -2752,6 +2757,7 @@
   continuation-prompt-tag?
   continuation?
   current-parameterization    ; poor-man dynamic parameterization overlay
+  current-namespace
   parameter?                  ; recognizes built-in parameter procedures
   parameterization?           ; recognizes poor-man parameterization overlays
   extend-parameterization     ; poor-man parameterization overlay constructor
@@ -2769,10 +2775,22 @@
   syntax-column
   syntax-position
   syntax-span
+  syntax-local-phase-level
+  syntax-transforming?
+  syntax-local-infer-name
+  syntax-local-introduce
+  syntax-local-value
+  make-syntax-delta-introducer
+  make-syntax-introducer
   syntax-property
   syntax-property-symbol-keys
 
   identifier?
+  identifier-binding
+  bound-identifier=?
+  free-identifier=?
+  check-duplicate-identifier
+  generate-temporaries
 
   datum->syntax
   syntax->datum
@@ -2928,6 +2946,7 @@
   directory-list
   webracket-directory-list-build-first
   filesystem-root-list
+  find-executable-path
   find-system-path
   current-drive
   file-size
@@ -3020,6 +3039,7 @@
   namespace-variable-value-simple ; ns sym -> value
   namespace-set-variable-value!
   namespace-undefine-variable!
+  namespace-call-with-registry-lock
   primitive-table
   ; namespace-has-key?
   

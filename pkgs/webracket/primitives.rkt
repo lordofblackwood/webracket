@@ -79,6 +79,7 @@
                    syntax/loc
                    with-syntax
                    generate-temporaries
+                   make-syntax-introducer
                    syntax-property
                    datum->syntax
                    syntax-e
@@ -94,6 +95,7 @@
                      syntax/loc
                      with-syntax
                      generate-temporaries
+                     make-syntax-introducer
                      syntax-property
                      datum->syntax
                      syntax-e
@@ -1163,12 +1165,24 @@
  srcloc->string
 
  identifier?
+ identifier-binding
+ bound-identifier=?
+ free-identifier=?
+ check-duplicate-identifier
+ generate-temporaries
+ syntax-local-infer-name
+ syntax-local-introduce
+ syntax-local-value
+ syntax-transforming?
+ make-syntax-delta-introducer
+ make-syntax-introducer
  
  syntax-srcloc  ; in racket/syntax-srcloc
  syntax-srclocs ; in racket/match/runtime.rkt
  
  ;; 10.5 Continuation Marks
  dynamic-wind
+ dynamic-require
  call-with-continuation-barrier ; bootstrap approximation: invokes thunk
 make-continuation-mark-key
 continuation-mark-key?
@@ -1180,6 +1194,7 @@ continuation-prompt-available? ; prompt support is currently permissive
 continuation-prompt-tag?
 continuation?
 current-parameterization    ; poor-man dynamic parameterization overlay
+ current-namespace
  parameter?                  ; recognizes built-in parameter procedures
  parameterization?           ; recognizes poor-man parameterization overlays
  extend-parameterization     ; poor-man parameterization overlay constructor
@@ -1224,11 +1239,23 @@ current-parameterization    ; poor-man dynamic parameterization overlay
  syntax-column
  syntax-position
  syntax-span
+ syntax-local-phase-level
  syntax-property
  syntax-property-symbol-keys
  syntax-serialize
  syntax-deserialize
 
+ identifier-binding
+ bound-identifier=?
+ free-identifier=?
+ check-duplicate-identifier
+ generate-temporaries
+ syntax-local-infer-name
+ syntax-local-introduce
+ syntax-local-value
+ syntax-transforming?
+ make-syntax-delta-introducer
+ make-syntax-introducer
  datum->syntax
  syntax->datum
  syntax->list
@@ -1337,13 +1364,17 @@ current-parameterization    ; poor-man dynamic parameterization overlay
  compiled-expression?
  compiled-module-expression?
  readtable?
+ make-rename-transformer
  rename-transformer?
+ set!-transformer-procedure
  set!-transformer?
  special-comment?
  syntax-original?
  syntax-tainted?
  variable-reference?
  variable-reference->instance
+ variable-reference->module-base-phase
+ variable-reference->namespace
  variable-reference->module-path-index
  variable-reference->resolved-module-path
  variable-reference->module-source
@@ -1364,6 +1395,7 @@ current-parameterization    ; poor-man dynamic parameterization overlay
  namespace-variable-value-simple
  namespace-set-variable-value!
  namespace-undefine-variable! 
+ namespace-call-with-registry-lock
  primitive-table
  ; namespace-variable-value
  ; namespace-has-key?
@@ -1500,6 +1532,7 @@ current-parameterization    ; poor-man dynamic parameterization overlay
  file-or-directory-type
  directory-list
  filesystem-root-list
+ find-executable-path
  find-system-path
  current-drive
  file-size
@@ -3747,6 +3780,20 @@ current-parameterization    ; poor-man dynamic parameterization overlay
 
 (define (identity v)
   v)
+
+;; syntax-local-infer-name : syntax? [any/c] -> (or/c symbol? #f)
+;;   Host-side mirror for WebRacket's bootstrap primitive. The compiled
+;;   runtime currently has no transformer name-inference context.
+(define syntax-local-infer-name
+  (case-lambda
+    [(stx)
+     (unless (syntax? stx)
+       (raise-argument-error 'syntax-local-infer-name "syntax?" stx))
+     #f]
+    [(stx use-local?)
+     (unless (syntax? stx)
+       (raise-argument-error 'syntax-local-infer-name "syntax?" stx))
+     #f]))
 
 ;; procedure-extract-target : procedure? -> (or/c #f procedure?)
 ;;   Host-side stand-in for WebRacket's conservative primitive.

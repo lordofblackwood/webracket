@@ -2018,6 +2018,7 @@
     (add-runtime-string-constant 'namespace                  "#<namespace>")
     (add-runtime-string-constant 'continuation-mark-set      "#<continuation-mark-set>")
     (add-runtime-string-constant 'hash-less-namespace-colon  "#<namespace:")
+    (add-runtime-string-constant 'namespace?                 "namespace?")
     (add-runtime-string-constant 'empty                      "")
     (add-runtime-string-constant 'open-paren                 "(")
     (add-runtime-string-constant 'close-paren                ")")
@@ -2333,6 +2334,10 @@
     (add-runtime-symbol-constant 'linklet)
     (add-runtime-symbol-constant '#%app)
     (add-runtime-symbol-constant '+)
+    (add-runtime-symbol-constant 'add)
+    (add-runtime-symbol-constant 'remove)
+    (add-runtime-symbol-constant 'flip)
+    (add-runtime-symbol-constant 'syntax-introducer)
     (add-runtime-symbol-constant '-)
     (add-runtime-symbol-constant '*)
     (add-runtime-symbol-constant 'values)
@@ -2414,6 +2419,17 @@
     (add-runtime-string-constant 'hash?                      "hash?")
 
     (add-runtime-string-constant 'syntax?                    "syntax?")
+    (add-runtime-string-constant 'identifier?                "identifier?")
+    (add-runtime-string-constant 'listof-identifier?         "(listof identifier?)")
+    (add-runtime-string-constant 'stx-list?                  "stx-list?")
+    (add-runtime-string-constant 'syntax-introducer-mode?    "(or/c 'add 'remove 'flip)")
+    (add-runtime-string-constant 'syntax-local-value-failure  "(or/c (-> any/c) #f)")
+    (add-runtime-string-constant 'syntax-local-value-binding  "identifier with transformer binding")
+    (add-runtime-string-constant 'set!-transformer?          "set!-transformer?")
+    (add-runtime-string-constant 'dynamic-require-unsupported "dynamic module loading is not supported")
+    (add-runtime-string-constant 'path-string?               "path-string?")
+    (add-runtime-string-constant 'relative-path-string-or-false
+                                 "(or/c #f (and/c path-string? relative-path?))")
     (add-runtime-string-constant 'correlated?                "correlated?")
     (add-runtime-string-constant 'correlated-or-false        "(or/c correlated? #f)")
     (add-runtime-symbol-constant 'correlated->datum)
@@ -61186,6 +61202,36 @@
                (drop (call $call-thunk (local.get $after)))
                (local.get $res))
 
+         ;; dynamic-require : module-path? (or/c symbol? #f 0) [(-> any/c)] -> any/c
+         ;;   WebRacket does not support runtime dynamic module loading yet.
+         ;;   When callers supply the optional failure thunk, use it as the
+         ;;   documented fallback; otherwise raise an unsupported-operation
+         ;;   error. The module path and requested name are intentionally not
+         ;;   interpreted in this bootstrap primitive.
+         (func $dynamic-require (type $Prim23)
+               (param $mod-path      (ref eq)) ;; module-path?; currently ignored
+               (param $name          (ref eq)) ;; symbol?, #f, or 0; currently ignored
+               (param $failure-thunk (ref eq)) ;; optional thunk, default = #f
+               (result               (ref eq))
+
+               (if (ref.eq (local.get $failure-thunk) (global.get $missing))
+                   (then (local.set $failure-thunk (global.get $false))))
+               (if (ref.eq (local.get $failure-thunk) (global.get $false))
+                   (then
+                    (call $raise-argument-error1
+                          (global.get $symbol:dynamic-require)
+                          (global.get $string:dynamic-require-unsupported)
+                          (local.get $mod-path))
+                    (unreachable)))
+               (if (ref.eq (call $procedure? (local.get $failure-thunk)) (global.get $true))
+                   (then (return_call $call-thunk (local.get $failure-thunk)))
+                   (else
+                    (call $raise-argument-error1
+                          (global.get $symbol:dynamic-require)
+                          (global.get $string:procedure?)
+                          (local.get $failure-thunk))
+                    (unreachable))))
+
          ;; call-with-continuation-barrier : (-> any/c) -> any/c
          ;;   Bootstrap approximation for the expander: WebRacket currently
          ;;   has no first-class continuation jumps, so there is no barrier to
@@ -61414,6 +61460,8 @@
                    (then (return (global.get $true))))
                (if (ref.eq (local.get $v) (global.get $prim:current-read-interaction))
                    (then (return (global.get $true))))
+               (if (ref.eq (local.get $v) (global.get $prim:current-namespace))
+                   (then (return (global.get $true))))
                (if (ref.eq (local.get $v) (global.get $prim:current-compile-target-machine))
                    (then (return (global.get $true))))
                (if (ref.eq (local.get $v) (global.get $prim:current-compile-realm))
@@ -61461,6 +61509,45 @@
                (param $p (ref eq)) ;; parameterization
                (result   (ref eq))
                (local.get $p))
+
+         ;; current-namespace : [namespace?] -> namespace?
+         ;;   Built-in parameter for the active namespace. WebRacket uses a
+         ;;   lightweight namespace for module/bootstrap code; parameterize
+         ;;   works through the same poor-man parameterization overlay as the
+         ;;   other built-in parameters.
+         (func $current-namespace/get (type $Prim0)
+               (result (ref eq))
+               (call $parameter-value-or-global
+                     (global.get $prim:current-namespace)
+                     (global.get $current-namespace-value)))
+
+         (func $current-namespace/set (type $Prim1)
+               (param $ns (ref eq)) ;; namespace?
+               (result    (ref eq))
+
+               (if (ref.eq (call $namespace? (local.get $ns)) (global.get $true))
+                   (then (nop))
+                   (else
+                    (call $raise-argument-error1
+                          (global.get $symbol:current-namespace)
+                          (global.get $string:namespace?)
+                          (local.get $ns))
+                    (unreachable)))
+               (if (i32.eqz (ref.eq (global.get $current-parameterization-value)
+                                    (global.get $false)))
+                   (then (return (call $extend-current-parameterization!
+                                       (global.get $prim:current-namespace)
+                                       (local.get $ns)))))
+               (global.set $current-namespace-value (local.get $ns))
+               (global.get $void))
+
+         (func $current-namespace (type $Prim01)
+               (param $ns (ref eq)) ;; optional namespace?, default = current value
+               (result    (ref eq))
+
+               (if (ref.eq (local.get $ns) (global.get $missing))
+                   (then (return (call $current-namespace/get))))
+               (call $current-namespace/set (local.get $ns)))
 
          ;; $build-parameterization-bindings : list? -> list?
          ;;   Reverse parameter/value pairs so lookup can stop at the first
@@ -62864,6 +62951,22 @@
               (result   (ref eq))
               (global.get $false))
 
+        ;; make-rename-transformer : identifier? -> any/c
+        ;;   Bootstrap identity representation. Full WebRacket expander support
+        ;;   should replace this with a real rename-transformer value and update
+        ;;   rename-transformer?/rename-transformer-target accordingly.
+        (func $make-rename-transformer (type $Prim1)
+              (param $id (ref eq)) ;; identifier?
+              (result    (ref eq))
+              (if (ref.eq (call $identifier? (local.get $id)) (global.get $true))
+                  (then (local.get $id))
+                  (else
+                   (call $raise-argument-error1
+                         (global.get $symbol:make-rename-transformer)
+                         (global.get $string:identifier?)
+                         (local.get $id))
+                   (unreachable))))
+
         ;; set!-transformer? : any/c -> boolean?
         ;;   Set!-transformers are compile-time transformer values produced
         ;;   by make-set!-transformer or struct properties. WebRacket does not
@@ -62872,6 +62975,20 @@
               (param $v (ref eq)) ;; any/c
               (result   (ref eq))
               (global.get $false))
+
+        ;; set!-transformer-procedure : set!-transformer? -> procedure?
+        ;;   Accessor placeholder until WebRacket represents assignment
+        ;;   transformers and prop:set!-transformer values. Since
+        ;;   set!-transformer? is currently always #f, this always raises the
+        ;;   documented contract error.
+        (func $set!-transformer-procedure (type $Prim1)
+              (param $v (ref eq)) ;; set!-transformer?
+              (result   (ref eq))
+              (call $raise-argument-error1
+                    (global.get $symbol:set!-transformer-procedure)
+                    (global.get $string:set!-transformer?)
+                    (local.get $v))
+              (unreachable))
 
         ;; special-comment? : any/c -> boolean?
         ;;   Reader extensions can manufacture special-comment values in full
@@ -63168,6 +63285,35 @@
                               (local.get $varref))
                         (unreachable)))
               (global.get $false))
+
+        ;; variable-reference->module-base-phase : variable-reference? -> exact-integer?
+        ;;   WebRacket variable references do not yet retain namespace phase
+        ;;   identity. Returning 0 matches Racket's non-module-reference result.
+        (func $variable-reference->module-base-phase (type $Prim1)
+              (param $varref (ref eq)) ;; variable-reference?
+              (result (ref eq))
+              (if (i32.eqz (ref.test (ref $VariableReference) (local.get $varref)))
+                  (then (call $raise-argument-error1
+                              (global.get $symbol:variable-reference->module-base-phase)
+                              (global.get $string:variable-reference?)
+                              (local.get $varref))
+                        (unreachable)))
+              (ref.i31 (i32.const 0)))
+
+        ;; variable-reference->namespace : variable-reference? -> namespace?
+        ;;   WebRacket variable references do not retain their source
+        ;;   namespace. Return the program's top-level namespace, which is the
+        ;;   namespace used by bootstrap helpers such as racket/lazy-require.
+        (func $variable-reference->namespace (type $Prim1)
+              (param $varref (ref eq)) ;; variable-reference?
+              (result (ref eq))
+              (if (i32.eqz (ref.test (ref $VariableReference) (local.get $varref)))
+                  (then (call $raise-argument-error1
+                              (global.get $symbol:variable-reference->namespace)
+                              (global.get $string:variable-reference?)
+                              (local.get $varref))
+                        (unreachable)))
+              (ref.cast (ref eq) (global.get $top-level-namespace)))
 
         ;; variable-reference->module-source : variable-reference? -> (or/c symbol? path? #f)
         ;;   WebRacket variable references do not yet retain source-module
@@ -68832,6 +68978,26 @@
                      (local.set $box (ref.cast (ref $Boxed) (local.get $got)))
                      (struct.get $Boxed $v (local.get $box)))
 
+               ;; namespace-call-with-registry-lock : namespace? (-> any/c) -> any/c
+               ;;   Full Racket serializes access to a namespace's module
+               ;;   registry. WebRacket's bootstrap namespace registry is not
+               ;;   independently locked yet, so validate the namespace and
+               ;;   thunk, then invoke the thunk directly.
+               (func $namespace-call-with-registry-lock (type $Prim2)
+                     (param $ns    (ref eq)) ;; namespace?
+                     (param $thunk (ref eq)) ;; zero-argument procedure
+                     (result       (ref eq))
+
+                     (if (ref.eq (call $namespace? (local.get $ns)) (global.get $true))
+                         (then (nop))
+                         (else
+                          (call $raise-argument-error1
+                                (global.get $symbol:namespace-call-with-registry-lock)
+                                (global.get $string:namespace?)
+                                (local.get $ns))
+                          (unreachable)))
+                     (call $call-thunk (local.get $thunk)))
+
 
                (func $namespace-set-variable-value!
                      (param $ns  (ref eq))
@@ -69847,6 +70013,485 @@
                               (then (global.get $true))
                               (else (global.get $false))))
                          (else (global.get $false))))
+
+               ;; identifier-binding : identifier? [(or/c exact-integer? #f)] [any/c] [any/c] -> any/c
+               ;;   Racket reports lexical/module binding metadata here.
+               ;;   WebRacket runtime syntax objects do not retain binding
+               ;;   tables yet, so validate the identifier and optional phase,
+               ;;   then report no binding with #f.
+               (func $identifier-binding (type $Prim1234)
+                     (param $id                (ref eq)) ;; identifier?
+                     (param $phase             (ref eq)) ;; optional phase, default = syntax-local-phase-level
+                     (param $top-level-symbol? (ref eq)) ;; optional any/c, default = #f; ignored
+                     (param $exact-scopes?     (ref eq)) ;; optional any/c, default = #f; ignored
+                     (result                   (ref eq))
+
+                     (if (ref.eq (call $identifier? (local.get $id)) (global.get $true))
+                         (then (nop))
+                         (else
+                          (call $raise-argument-error1
+                                (global.get $symbol:identifier-binding)
+                                (global.get $string:identifier?)
+                                (local.get $id))
+                          (unreachable)))
+                     (if (ref.eq (local.get $phase) (global.get $missing))
+                         (then (local.set $phase (call $syntax-local-phase-level))))
+                     (if (ref.eq (local.get $phase) (global.get $false))
+                         (then (return (global.get $false))))
+                     (if (ref.eq (call $exact-integer? (local.get $phase)) (global.get $true))
+                         (then (global.get $false))
+                         (else
+                          (call $raise-argument-error1
+                                (global.get $symbol:identifier-binding)
+                                (global.get $string:exact-integer?)
+                                (local.get $phase))
+                          (unreachable))))
+
+               ;; syntax-transforming? : -> boolean?
+               ;;   WebRacket currently runs host-expanded modules and has no
+               ;;   active runtime transformer context or module-visit dynamic
+               ;;   extent, so report #f.
+               (func $syntax-transforming? (type $Prim0)
+                     (result (ref eq))
+                     (global.get $false))
+
+               ;; syntax-local-phase-level : -> exact-integer?
+               ;;   Outside the dynamic extent of a transformer application,
+               ;;   Racket reports phase 0. WebRacket does not yet run an
+               ;;   internal expander transformer context, so return 0.
+               (func $syntax-local-phase-level (type $Prim0)
+                     (result (ref eq))
+                     (ref.i31 (i32.const 0)))
+
+               ;; syntax-local-infer-name : syntax? [any/c] -> (or/c symbol? #f)
+               ;;   Racket infers names from syntax properties, local context,
+               ;;   and source locations. WebRacket currently has no active
+               ;;   transformer/name-inference context in compiled modules, so
+               ;;   report no inferred name. The optional use-local? argument
+               ;;   defaults to #t and is currently ignored.
+               (func $syntax-local-infer-name (type $Prim12)
+                     (param $stx        (ref eq)) ;; syntax?
+                     (param $use-local? (ref eq)) ;; optional any/c, default = #t; ignored
+                     (result            (ref eq))
+
+                     (if (ref.eq (call $syntax? (local.get $stx)) (global.get $true))
+                         (then (global.get $false))
+                         (else
+                          (call $raise-argument-error:syntax-expected
+                                (global.get $symbol:syntax-local-infer-name)
+                                (local.get $stx))
+                          (unreachable))))
+
+               ;; syntax-local-introduce : syntax? -> syntax?
+               ;;   Racket flips macro-introduction/use-site scopes for the
+               ;;   current expansion context. WebRacket does not yet preserve
+               ;;   syntax scopes, so this validates and returns the syntax
+               ;;   object unchanged.
+               (func $syntax-local-introduce (type $Prim1)
+                     (param $stx (ref eq)) ;; syntax?
+                     (result     (ref eq))
+
+                     (if (ref.eq (call $syntax? (local.get $stx)) (global.get $true))
+                         (then (local.get $stx))
+                         (else
+                          (call $raise-argument-error:syntax-expected
+                                (global.get $symbol:syntax-local-introduce)
+                                (local.get $stx))
+                          (unreachable))))
+
+               ;; syntax-local-value : identifier? [(or/c (-> any/c) #f)] [any/c] -> any/c
+               ;;   WebRacket is compiling host-expanded modules here and does
+               ;;   not maintain an active transformer binding environment.
+               ;;   Therefore lookup always misses: invoke the optional
+               ;;   failure-thunk when supplied, or raise when it is #f/missing.
+               ;;   The optional intdef-ctx argument defaults to #f and is
+               ;;   currently ignored.
+               (func $syntax-local-value (type $Prim13)
+                     (param $id            (ref eq)) ;; identifier?
+                     (param $failure-thunk (ref eq)) ;; optional procedure or #f, default = #f
+                     (param $intdef-ctx    (ref eq)) ;; optional internal-definition context(s), default = #f; ignored
+                     (result               (ref eq))
+
+                     (local $proc   (ref $Procedure))
+                     (local $args   (ref $Args))
+                     (local $result (ref eq))
+
+                     (if (ref.eq (call $identifier? (local.get $id)) (global.get $true))
+                         (then (nop))
+                         (else
+                          (call $raise-argument-error1
+                                (global.get $symbol:syntax-local-value)
+                                (global.get $string:identifier?)
+                                (local.get $id))
+                          (unreachable)))
+                     (if (ref.eq (local.get $failure-thunk) (global.get $missing))
+                         (then (local.set $failure-thunk (global.get $false))))
+                     (if (ref.eq (local.get $failure-thunk) (global.get $false))
+                         (then
+                          (call $raise-argument-error1
+                                (global.get $symbol:syntax-local-value)
+                                (global.get $string:syntax-local-value-binding)
+                                (local.get $id))
+                          (unreachable)))
+                     (if (ref.eq (call $procedure? (local.get $failure-thunk)) (global.get $true))
+                         (then (nop))
+                         (else
+                          (call $raise-argument-error1
+                                (global.get $symbol:syntax-local-value)
+                                (global.get $string:syntax-local-value-failure)
+                                (local.get $failure-thunk))
+                          (unreachable)))
+                     (local.set $proc (ref.cast (ref $Procedure) (local.get $failure-thunk)))
+                     (local.set $args (array.new_fixed $Args 0))
+                     (local.set $result
+                                (call $expect-one-value
+                                      (call_ref $ProcedureInvoker
+                                                (local.get $proc)
+                                                (local.get $args)
+                                                (struct.get $Procedure $invoke (local.get $proc)))))
+                     (local.get $result))
+
+               ;; free-identifier=? : identifier? identifier? [(or/c exact-integer? #f)] [(or/c exact-integer? #f)] -> boolean?
+               ;;   Compare lightweight WebRacket identifiers by datum. Full Racket also
+               ;;   compares binding and phase information, which WebRacket syntax objects
+               ;;   do not yet preserve.
+               (func $free-identifier=? (type $Prim24)
+                     (param $a       (ref eq)) ;; identifier?
+                     (param $b       (ref eq)) ;; identifier?
+                     (param $a-phase (ref eq)) ;; optional phase level, default = syntax-local-phase-level; currently ignored
+                     (param $b-phase (ref eq)) ;; optional phase level, default = a-phase; currently ignored
+                     (result         (ref eq))
+
+                     (local $a-fields (ref $Array))
+                     (local $b-fields (ref $Array))
+                     (local $a-datum  (ref eq))
+                     (local $b-datum  (ref eq))
+
+                     (if (ref.eq (call $identifier? (local.get $a)) (global.get $true))
+                         (then (nop))
+                         (else
+                          (call $raise-argument-error1
+                                (global.get $symbol:free-identifier=?)
+                                (global.get $string:identifier?)
+                                (local.get $a))
+                          (unreachable)))
+
+                     (if (ref.eq (call $identifier? (local.get $b)) (global.get $true))
+                         (then (nop))
+                         (else
+                          (call $raise-argument-error1
+                                (global.get $symbol:free-identifier=?)
+                                (global.get $string:identifier?)
+                                (local.get $b))
+                          (unreachable)))
+
+                     (local.set $a-fields (call $syntax-unwrap
+                                                (global.get $symbol:free-identifier=?)
+                                                (local.get $a)))
+                     (local.set $b-fields (call $syntax-unwrap
+                                                (global.get $symbol:free-identifier=?)
+                                                (local.get $b)))
+                     (local.set $a-datum (array.get $Array (local.get $a-fields) (i32.const 0)))
+                     (local.set $b-datum (array.get $Array (local.get $b-fields) (i32.const 0)))
+                     (call $symbol=? (local.get $a-datum) (local.get $b-datum)))
+
+               ;; bound-identifier=? : identifier? identifier? [(or/c exact-integer? #f)] -> boolean?
+               ;;   Compare lightweight WebRacket identifiers by datum. Full
+               ;;   Racket compares local binding scopes, which WebRacket
+               ;;   runtime syntax objects do not retain yet.
+               (func $bound-identifier=? (type $Prim23)
+                     (param $a     (ref eq)) ;; identifier?
+                     (param $b     (ref eq)) ;; identifier?
+                     (param $phase (ref eq)) ;; optional phase level, default = syntax-local-phase-level
+                     (result       (ref eq))
+
+                     (if (ref.eq (local.get $phase) (global.get $missing))
+                         (then (local.set $phase (call $syntax-local-phase-level))))
+                     (if (ref.eq (local.get $phase) (global.get $false))
+                         (then (return (call $free-identifier=?
+                                             (local.get $a)
+                                             (local.get $b)
+                                             (global.get $false)
+                                             (global.get $false)))))
+                     (if (ref.eq (call $exact-integer? (local.get $phase)) (global.get $true))
+                         (then
+                          (call $free-identifier=?
+                                (local.get $a)
+                                (local.get $b)
+                                (local.get $phase)
+                                (local.get $phase)))
+                         (else
+                          (call $raise-argument-error1
+                                (global.get $symbol:bound-identifier=?)
+                                (global.get $string:exact-integer?)
+                                (local.get $phase))
+                          (unreachable))))
+
+               ;; check-duplicate-identifier : (listof identifier?) -> (or/c identifier? #f)
+               ;;   Return the first later identifier whose datum duplicates an earlier one.
+               (func $check-duplicate-identifier (type $Prim1)
+                     (param $ids (ref eq)) ;; (listof identifier?)
+                     (result     (ref eq))
+
+                     (local $scan       (ref eq))
+                     (local $outer      (ref eq))
+                     (local $inner      (ref eq))
+                     (local $scan-pair  (ref $Pair))
+                     (local $outer-pair (ref $Pair))
+                     (local $inner-pair (ref $Pair))
+                     (local $id         (ref eq))
+                     (local $other      (ref eq))
+
+                     (local.set $scan (local.get $ids))
+                     (block $validated
+                       (loop $validate-loop
+                         (br_if $validated (ref.eq (local.get $scan) (global.get $null)))
+                         (if (ref.test (ref $Pair) (local.get $scan))
+                             (then (local.set $scan-pair
+                                              (ref.cast (ref $Pair) (local.get $scan))))
+                             (else
+                              (call $raise-argument-error1
+                                    (global.get $symbol:check-duplicate-identifier)
+                                    (global.get $string:listof-identifier?)
+                                    (local.get $ids))
+                              (unreachable)))
+                         (local.set $id (struct.get $Pair $a (local.get $scan-pair)))
+                         (if (ref.eq (call $identifier? (local.get $id)) (global.get $true))
+                             (then (nop))
+                             (else
+                              (call $raise-argument-error1
+                                    (global.get $symbol:check-duplicate-identifier)
+                                    (global.get $string:listof-identifier?)
+                                    (local.get $ids))
+                              (unreachable)))
+                         (local.set $scan (struct.get $Pair $d (local.get $scan-pair)))
+                         (br $validate-loop)))
+
+                     (local.set $outer (local.get $ids))
+                     (block $outer-done
+                       (loop $outer-loop
+                         (br_if $outer-done (ref.eq (local.get $outer) (global.get $null)))
+                         (local.set $outer-pair (ref.cast (ref $Pair) (local.get $outer)))
+                         (local.set $id (struct.get $Pair $a (local.get $outer-pair)))
+                         (local.set $inner (struct.get $Pair $d (local.get $outer-pair)))
+                         (block $inner-done
+                           (loop $inner-loop
+                             (br_if $inner-done (ref.eq (local.get $inner) (global.get $null)))
+                             (local.set $inner-pair (ref.cast (ref $Pair) (local.get $inner)))
+                             (local.set $other (struct.get $Pair $a (local.get $inner-pair)))
+                             (if (ref.eq (call $free-identifier=?
+                                               (local.get $id)
+                                               (local.get $other)
+                                               (global.get $missing)
+                                               (global.get $missing))
+                                         (global.get $true))
+                                 (then (return (local.get $other)))
+                                 (else (nop)))
+                             (local.set $inner (struct.get $Pair $d (local.get $inner-pair)))
+                             (br $inner-loop)))
+                         (local.set $outer (struct.get $Pair $d (local.get $outer-pair)))
+                         (br $outer-loop)))
+                     (global.get $false))
+
+               ;; generate-temporaries : stx-list? -> (listof identifier?)
+               ;;   Generate one fresh identifier per input element. Racket uses
+               ;;   interned generated names plus scopes; WebRacket currently uses
+               ;;   existing gensym-backed symbols because full scope introduction
+               ;;   is not represented yet.
+               (func $generate-temporaries (type $Prim1)
+                     (param $v (ref eq)) ;; stx-list?
+                     (result   (ref eq))
+
+                     (local $current (ref eq))
+                     (local $pair    (ref $Pair))
+                     (local $acc     (ref eq))
+                     (local $sym     (ref eq))
+                     (local $id      (ref eq))
+
+                     (local.set $acc (global.get $null))
+                     (if (ref.eq (call $syntax? (local.get $v)) (global.get $true))
+                         (then
+                          (local.set $current (call $syntax->list (local.get $v)))
+                          (if (ref.eq (local.get $current) (global.get $false))
+                              (then
+                               (call $raise-argument-error1
+                                     (global.get $symbol:generate-temporaries)
+                                     (global.get $string:stx-list?)
+                                     (local.get $v))
+                               (unreachable))
+                              (else (nop))))
+                         (else
+                          (local.set $current (local.get $v))))
+
+                     (block $done
+                       (loop $loop
+                         (br_if $done (ref.eq (local.get $current) (global.get $null)))
+                         (if (ref.test (ref $Pair) (local.get $current))
+                             (then (local.set $pair
+                                              (ref.cast (ref $Pair) (local.get $current))))
+                             (else
+                              (call $raise-argument-error1
+                                    (global.get $symbol:generate-temporaries)
+                                    (global.get $string:stx-list?)
+                                    (local.get $v))
+                              (unreachable)))
+                         (local.set $sym (call $gensym (global.get $missing)))
+                         (local.set $id
+                                    (call $datum->syntax
+                                          (global.get $false)
+                                          (local.get $sym)
+                                          (global.get $missing)
+                                          (global.get $missing)
+                                          (global.get $missing)))
+                         (local.set $acc (struct.new $Pair
+                                                     (i32.const 0)
+                                                     (local.get $id)
+                                                     (local.get $acc)))
+                         (local.set $current (struct.get $Pair $d (local.get $pair)))
+                         (br $loop)))
+                     (call $reverse (local.get $acc)))
+
+               ;; syntax-introducer : syntax? [(or/c 'add 'remove 'flip)] -> syntax?
+               ;;   Bootstrap introducer body. Full Racket adds, removes, or
+               ;;   flips a scope set; WebRacket syntax objects do not yet
+               ;;   preserve scope metadata, so this validates the public
+               ;;   contract shape and returns the syntax object unchanged.
+               (func $syntax-introducer (type $Prim12)
+                     (param $stx  (ref eq)) ;; syntax?
+                     (param $mode (ref eq)) ;; optional mode, default = 'flip
+                     (result      (ref eq))
+
+                     (if (ref.eq (call $syntax? (local.get $stx)) (global.get $true))
+                         (then (nop))
+                         (else
+                          (call $raise-argument-error:syntax-expected
+                                (global.get $symbol:syntax-introducer)
+                                (local.get $stx))
+                          (unreachable)))
+
+                     (if (ref.eq (local.get $mode) (global.get $missing))
+                         (then (local.set $mode (global.get $symbol:flip))))
+                     (if (i32.or
+                          (ref.eq (local.get $mode) (global.get $symbol:flip))
+                          (i32.or
+                           (ref.eq (local.get $mode) (global.get $symbol:add))
+                           (ref.eq (local.get $mode) (global.get $symbol:remove))))
+                         (then (nop))
+                         (else
+                          (call $raise-argument-error1
+                                (global.get $symbol:syntax-introducer)
+                                (global.get $string:syntax-introducer-mode?)
+                                (local.get $mode))
+                          (unreachable)))
+                     (local.get $stx))
+
+               ;; syntax-delta-introducer : syntax? [(or/c 'add 'remove 'flip)] -> syntax?
+               ;;   Body for make-syntax-delta-introducer. Racket's delta
+               ;;   introducer defaults to 'add; WebRacket still returns the
+               ;;   syntax object unchanged because scope sets are not modeled.
+               (func $syntax-delta-introducer (type $Prim12)
+                     (param $stx  (ref eq)) ;; syntax?
+                     (param $mode (ref eq)) ;; optional mode, default = 'add
+                     (result      (ref eq))
+
+                     (if (ref.eq (call $syntax? (local.get $stx)) (global.get $true))
+                         (then (nop))
+                         (else
+                          (call $raise-argument-error:syntax-expected
+                                (global.get $symbol:syntax-introducer)
+                                (local.get $stx))
+                          (unreachable)))
+
+                     (if (ref.eq (local.get $mode) (global.get $missing))
+                         (then (local.set $mode (global.get $symbol:add))))
+                     (if (i32.or
+                          (ref.eq (local.get $mode) (global.get $symbol:flip))
+                          (i32.or
+                           (ref.eq (local.get $mode) (global.get $symbol:add))
+                           (ref.eq (local.get $mode) (global.get $symbol:remove))))
+                         (then (nop))
+                         (else
+                          (call $raise-argument-error1
+                                (global.get $symbol:syntax-introducer)
+                                (global.get $string:syntax-introducer-mode?)
+                                (local.get $mode))
+                          (unreachable)))
+                     (local.get $stx))
+
+               ;; make-syntax-introducer : [any/c] -> procedure?
+               ;;   The optional as-use-site? argument defaults to #f in Racket.
+               ;;   Since WebRacket does not model syntax scopes yet, both
+               ;;   macro-introduction and use-site introducers share the same
+               ;;   identity procedure body for now.
+               (func $make-syntax-introducer (type $Prim01)
+                     (param $as-use-site? (ref eq)) ;; optional any/c, default = #f; currently ignored
+                     (result              (ref eq))
+
+                     (struct.new $PrimitiveProcedure
+                                 (i32.const 0)
+                                 (global.get $symbol:syntax-introducer)
+                                 (ref.cast
+                                  (ref eq)
+                                  (array.new_fixed $I32Array 2
+                                                   (i32.const 1)
+                                                   (i32.const 2)))
+                                 (global.get $the-racket/primitive-realm)
+                                 (ref.func $primitive-invoke:shape-18)
+                                 (ref.func $syntax-introducer)
+                                 (global.get $false)))
+
+               ;; make-syntax-delta-introducer : syntax? (or/c syntax? #f) [(or/c #f exact-integer?)] -> procedure?
+               ;;   The optional phase-level defaults to syntax-local-phase-level.
+               ;;   The current runtime validates arguments but does not compute
+               ;;   or preserve scope deltas, so it returns an identity
+               ;;   introducer whose default mode is 'add.
+               (func $make-syntax-delta-introducer (type $Prim23)
+                     (param $ext-stx    (ref eq)) ;; syntax?
+                     (param $base-stx   (ref eq)) ;; syntax? or #f
+                     (param $phase      (ref eq)) ;; optional exact-integer? or #f, default = syntax-local-phase-level
+                     (result            (ref eq))
+
+                     (if (ref.eq (call $syntax? (local.get $ext-stx)) (global.get $true))
+                         (then (nop))
+                         (else
+                          (call $raise-argument-error:syntax-expected
+                                (global.get $symbol:make-syntax-delta-introducer)
+                                (local.get $ext-stx))
+                          (unreachable)))
+                     (if (i32.or
+                          (ref.eq (local.get $base-stx) (global.get $false))
+                          (ref.eq (call $syntax? (local.get $base-stx)) (global.get $true)))
+                         (then (nop))
+                         (else
+                          (call $raise-argument-error1
+                                (global.get $symbol:make-syntax-delta-introducer)
+                                (global.get $string:syntax-or-false)
+                                (local.get $base-stx))
+                          (unreachable)))
+                     (if (i32.or
+                          (ref.eq (local.get $phase) (global.get $missing))
+                          (i32.or
+                           (ref.eq (local.get $phase) (global.get $false))
+                           (ref.eq (call $exact-integer? (local.get $phase)) (global.get $true))))
+                         (then (nop))
+                         (else
+                          (call $raise-argument-error1
+                                (global.get $symbol:make-syntax-delta-introducer)
+                                (global.get $string:exact-integer?)
+                                (local.get $phase))
+                          (unreachable)))
+                     (struct.new $PrimitiveProcedure
+                                 (i32.const 0)
+                                 (global.get $symbol:syntax-introducer)
+                                 (ref.cast
+                                  (ref eq)
+                                  (array.new_fixed $I32Array 2
+                                                   (i32.const 1)
+                                                   (i32.const 2)))
+                                 (global.get $the-racket/primitive-realm)
+                                 (ref.func $primitive-invoke:shape-18)
+                                 (ref.func $syntax-delta-introducer)
+                                 (global.get $false)))
 
                ;; NOTE: This initial implementation does not yet recursively convert
                ;;       datum contents (pairs, vectors, boxes, etc.) as Racket's
@@ -71284,6 +71929,40 @@
                            (global.get $string:system-path-kind)
                            (local.get $kind-raw))
                      (unreachable))
+
+               ;; find-executable-path : path-string? [(or/c path-string? #f)] [any/c] -> (or/c path? #f)
+               ;;   WebRacket has no host executable search path, so this validates inputs
+               ;;   and reports that no executable can be found. The optional `related`
+               ;;   argument defaults to #f and must be a relative path string when present.
+               (func $find-executable-path (type $Prim123)
+                     (param $program-raw (ref eq)) ;; path-string?
+                     (param $related-raw (ref eq)) ;; optional (or/c #f relative-path-string?), default = #f
+                     (param $deepest-raw (ref eq)) ;; optional any/c, default = #f
+                     (result             (ref eq))
+
+                     (if (i32.eqz (ref.eq (call $path-string? (local.get $program-raw))
+                                          (global.get $true)))
+                         (then (call $raise-argument-error1
+                                     (global.get $symbol:find-executable-path)
+                                     (global.get $string:path-string?)
+                                     (local.get $program-raw))
+                               (unreachable)))
+                     (if (i32.eqz (ref.eq (local.get $related-raw) (global.get $missing)))
+                         (then
+                          (if (i32.eqz (ref.eq (local.get $related-raw) (global.get $false)))
+                              (then
+                               (if (i32.eqz
+                                    (i32.and
+                                     (ref.eq (call $path-string? (local.get $related-raw))
+                                             (global.get $true))
+                                     (ref.eq (call $relative-path? (local.get $related-raw))
+                                             (global.get $true))))
+                                   (then (call $raise-argument-error1
+                                               (global.get $symbol:find-executable-path)
+                                               (global.get $string:relative-path-string-or-false)
+                                               (local.get $related-raw))
+                                         (unreachable)))))))
+                     (global.get $false))
 
                ;; current-drive : -> path?
                ;;   Return the current VFS drive/root for WebRacket's Unix-style paths.
@@ -76443,6 +77122,7 @@
                (global $current-compile-target-machine-value (mut (ref eq)) (global.get $false))
                (global $current-compile-realm-value (mut (ref eq)) (global.get $false))
                (global $current-parameterization-value (mut (ref eq)) (global.get $false))
+               (global $current-namespace-value (mut (ref eq)) (global.get $false))
                (global $current-pseudo-random-generator-value (mut (ref eq)) (global.get $false))
                (global $current-thread-group-value (mut (ref eq)) (global.get $false))
                (global $error-value->string-handler-value (mut (ref eq)) (global.get $false))
@@ -76968,6 +77648,8 @@
                      ;; Initialize the top-level namespace
                      (global.set $top-level-namespace 
                                  (ref.cast (ref $Namespace) (call $make-empty-namespace)))
+                     (global.set $current-namespace-value
+                                 (ref.cast (ref eq) (global.get $top-level-namespace)))
                      
                      
                      ; Initialize local variables

@@ -21,6 +21,7 @@
          webify-module-resolution-outcome-dependency
          webify-module-resolution-outcome-provider-export
          webify-module-resolution-outcome-status
+         compiled-primitive-alias-hint
          webify-resolve-module-linklet-imports/outcomes
          webify-module-linklet-input/resolve-imports
          webify-register-module-linklet-input!
@@ -533,11 +534,13 @@
            'resolved-by-reflection-hint)]
     [else
      (define candidates
-       (for/list ([entry (in-list dependency-exports)]
-                  #:do [(match-define (list dependency exports) entry)]
-                  #:when (for/or ([export (in-list exports)])
-                           (symbolic-name=? export external)))
-         dependency))
+       (remove-duplicates
+        (for/list ([entry (in-list dependency-exports)]
+                   #:do [(match-define (list dependency exports) entry)]
+                   #:when (for/or ([export (in-list exports)])
+                            (symbolic-name=? export external)))
+          dependency)
+        eq?))
      (define ranked-candidates
        (prefer-exact-export-candidates
         dependency-exports
@@ -656,18 +659,82 @@
     [(and (eq? module-name 'racket/private/class-internal)
           (symbolic-name=? external 'contract-continuation-mark-key))
      '(racket/contract/private/guts contract-continuation-mark-key)]
-    [(and (eq? module-name 'racket/private/unit/contract)
+    [(and (memq module-name '(contract racket/private/unit/contract))
           (symbolic-name=? external 'contract-continuation-mark-key))
      '(racket/contract/private/guts contract-continuation-mark-key)]
+    [(and (memq module-name '(runtime racket/private/unit/runtime))
+          (symbolic-name=? external 'contract-continuation-mark-key))
+     '(racket/contract/private/guts contract-continuation-mark-key)]
+    [(and (memq module-name '(runtime racket/private/unit/runtime))
+          (symbolic-name=? external '-make-blame))
+     '(racket/contract/private/blame make-blame)]
     [(and (eq? module-name 'racket/private/unit/contract-syntax)
           (symbolic-name=? external 'unwind-to))
      '(syntax/parse/private/residual/state unwind-to)]
     [(and (eq? module-name 'racket/private/unit/contract-syntax)
+          (memq external '(failure*
+                           ps-add-cdr
+                           ps-add-car
+                           ps-add-stx
+                           ps-add-post
+                           ps-add
+                           es-add-thing
+                           es-add-literal
+                           es-add-atom
+                           es-add-proper-pair)))
+     (list 'syntax/parse/private/residual/progress external)]
+    [(and (eq? module-name 'racket/private/unit/contract-syntax)
+          (memq external '(t-resyntax t-subst)))
+     (list 'racket/private/template external)]
+    [(and (eq? module-name 'racket/private/unit/contract-syntax)
           (symbolic-name=? external 'predicate-ellipsis-parser))
      '(syntax/parse/private/residual/parse-util predicate-ellipsis-parser)]
+    [(and (eq? module-name 'syntax/parse/private/residual/parse-util)
+          (symbolic-name=? external '2d-stx?.1))
+     '(syntax/parse/private/residual/3d-stx 2d-stx?.1)]
+    [(and (eq? module-name 'syntax/parse/private/residual/parse-util)
+          (symbolic-name=? external 'resolve-paths))
+     '(racket/runtime-path resolve-paths)]
+    [(and (eq? module-name 'racket/runtime-path)
+          (symbolic-name=? external 'table))
+     '(racket/private/runtime-path-table table)]
+    [(and (eq? module-name 'racket/runtime-path)
+          (memq external '(decode-link-path encode-link-path encoded-link-path?)))
+     (list 'racket/private/link-path external)]
+    [(and (eq? module-name 'racket/runtime-path)
+          (memq external '(so-find so-spec?)))
+     (list 'webracket/private/so-search external)]
+    [(and (eq? module-name 'racket/runtime-path)
+          (memq external '(share-find share-spec?)))
+     (list 'webracket/private/share-search external)]
+    [(and (eq? module-name 'racket/runtime-path)
+          (symbolic-name=? external 'new-apply-proc))
+     '(webracket/private/pre-base-apply new-apply-proc)]
+    [(and (eq? module-name 'syntax/parse/private/residual/parse-util)
+          (symbolic-name=? external 'make-lazy-function))
+     '(racket/lazy-require make-lazy-function)]
+    [(and (eq? module-name 'racket/lazy-require)
+          (symbolic-name=? external 'delay/sync))
+     '(racket/promise delay/sync/proc)]
+    [(and (eq? module-name 'racket/lazy-require)
+          (symbolic-name=? external 'register-external-module))
+     '(compiler/cm-accomplice register-external-module)]
     [(and (eq? module-name 'racket/private/unit/contract-syntax)
           (symbolic-name=? external 'expr-stx?))
      '(syntax/parse/private/lib expr-stx?)]
+    [(and (eq? module-name 'racket/private/unit/exptime/import-export)
+          (symbolic-name=? external 's-any))
+     '(syntax/parse/private/residual-interp s-any)]
+    [(and (eq? module-name 'syntax/parse/private/residual-interp)
+          (symbol? external)
+          (regexp-match? #rx"^sim:" (symbol->string external)))
+     (list 'syntax/parse/private/rep-patterns/simple external)]
+    [(and (eq? module-name 'racket/private/unit/exptime/syntax)
+          (symbolic-name=? external 'interp-match))
+     '(racket/private/stxcase interp-match)]
+    [(and (eq? module-name 'racket/private/unit/exptime/util)
+          (symbolic-name=? external 'make-hygienic-metafunction))
+     '(syntax/parse/experimental/template make-hygienic-metafunction)]
     [(and (eq? module-name 'racket/private/class-internal)
           (symbolic-name=? external 'variable-reference->module-source/submod))
      '(syntax/location variable-reference->module-source/submod)]

@@ -662,6 +662,7 @@
     racket/private/sequence
     racket/private/serialize-structs
     racket/private/stx
+    racket/private/stxcase
     racket/private/string
     racket/private/custom-hash
     racket/private/class-c
@@ -688,6 +689,7 @@
     exptime/syntax
     exptime/unit-infer
     exptime/util
+    compiler/cm-accomplice
     keywords
     runtime
     signature
@@ -698,14 +700,19 @@
     racket/treelist
     racket/undefined
     racket/unit
+    racket/lazy-require
     racket/unsafe/undefined
     racket/require-transform
+    racket/runtime-path
     racket/splicing
     racket-src/racket/format-web
     racket/struct-info
     racket/stxparam
     racket/private/stxparam
     racket/private/stxparamkey
+    racket/private/template
+    racket/private/link-path
+    racket/private/runtime-path-table
     racket/syntax
     syntax/contract
     syntax/context
@@ -715,10 +722,15 @@
     syntax/location
     syntax/name
     syntax/parse/private/lib
+    syntax/parse/experimental/template
     syntax/parse/pre
     syntax/parse/private/residual
+    syntax/parse/private/residual/3d-stx
+    syntax/parse/private/residual-interp
+    syntax/parse/private/residual/progress
     syntax/parse/private/residual/parse-util
     syntax/parse/private/residual/state
+    syntax/parse/private/rep-patterns/simple
     syntax/private/id-table
     syntax/srcloc
     syntax/stx
@@ -746,6 +758,9 @@
     webracket/private/for
     webracket/private/format
     webracket/private/kw
+    webracket/private/pre-base-apply
+    webracket/private/share-search
+    webracket/private/so-search
     webracket/private/sort
     webracket/sequence
     webracket/syntax/contract
@@ -980,6 +995,8 @@
 (define (webify-provider-trial-provider-substitute name)
   (case name
     [(racket/private/kw) 'webracket/private/kw]
+    [(racket/private/share-search) 'webracket/private/share-search]
+    [(racket/private/so-search) 'webracket/private/so-search]
     [(racket/private/sort) 'webracket/private/sort]
     [else name]))
 

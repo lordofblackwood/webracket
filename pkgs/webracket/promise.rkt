@@ -3,6 +3,7 @@
 (provide delay
          delay/strict
          delay/sync
+         delay/sync/proc
          force
          promise-forced?
          promise-running?
@@ -14,6 +15,11 @@
 
 (struct webracket-promise (thunk result failed? forced? running?) #:mutable)
 
+;; make-delayed-promise : (-> any) -> promise?
+;;   Build a single-threaded WebRacket promise from a thunk.
+(define (make-delayed-promise thunk)
+  (webracket-promise thunk '() #f #f #f))
+
 ;; promise-result->values : (listof any/c) -> any
 ;;   Return cached promise results, preserving multiple values.
 (define (promise-result->values results)
@@ -24,7 +30,7 @@
 ;; delay : syntax -> promise?
 ;;   Delay body evaluation until the promise is forced.
 (define-syntax-rule (delay body ...)
-  (webracket-promise (lambda () (let () body ...)) '() #f #f #f))
+  (make-delayed-promise (lambda () (let () body ...))))
 
 ;; delay/strict : syntax -> promise?
 ;;   Create an already-forced promise for body.
@@ -34,8 +40,15 @@
    (lambda results
      (webracket-promise (lambda () (apply values results)) results #f #t #f))))
 
+;; delay/sync/proc : (-> any) -> promise?
+;;   Value-level form used by compiled racket/lazy-require. Racket's
+;;   `delay/sync` is also a synchronizable event. WebRacket does not expose
+;;   threads/events yet, so Goal 1 uses ordinary cached semantics.
+(define (delay/sync/proc thunk)
+  (make-delayed-promise thunk))
+
 ;; delay/sync : syntax -> promise?
-;;   Create a promise with ordinary single-threaded delay behavior.
+;;   Source-level form for WebRacket code.
 (define-syntax-rule (delay/sync body ...)
   ;; Racket's `delay/sync` is also a synchronizable event. WebRacket does not
   ;; expose threads/events yet, so Goal 1 uses the ordinary cached semantics.

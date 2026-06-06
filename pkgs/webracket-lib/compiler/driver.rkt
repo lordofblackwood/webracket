@@ -1794,6 +1794,10 @@
                  "keyword-procedure structs must share one WebRacket runtime type across composed providers")
    (substitution 'racket/private/sort 'webracket/private/sort 'runtime-owned 'high 'keep-webracket-owned
                  "keyword-capable sort bindings should use WebRacket's primitive sort bridge")
+   (substitution 'racket/private/share-search 'webracket/private/share-search 'runtime-owned 'low 'keep-webracket-owned
+                 "runtime-path shared-data search has no browser host directory equivalent")
+   (substitution 'racket/private/so-search 'webracket/private/so-search 'runtime-owned 'low 'keep-webracket-owned
+                 "runtime-path shared-object search has no browser native-library equivalent")
    (substitution 'racket/promise 'webracket/promise 'runtime-owned 'low 'keep-webracket-owned
                  "ordinary promises are small browser-local runtime behavior")
    (substitution 'racket/set 'webracket/set 'temporary-shim 'medium 'keep-webracket-owned
@@ -2608,6 +2612,7 @@
                                       racket/private/unit/unit-core
                                       racket/private/unit/unit-infer
                                       racket/private/unit/util
+                                      racket/promise
                                       racket/private/unit/exptime/import-export
                                       racket/private/unit/exptime/signature
                                       racket/private/unit/exptime/syntax
@@ -2624,7 +2629,10 @@
             'syntax/parse/private/residual/parse-util)
            (webify-module-report/rename
             (webify-module-path->report '(submod syntax/parse/private/residual state))
-            'syntax/parse/private/residual/state))))
+            'syntax/parse/private/residual/state)
+           (webify-module-report/rename
+            (webify-module-path->report '(submod syntax/parse/private/rep-patterns simple))
+            'syntax/parse/private/rep-patterns/simple))))
        ;; Some resolver hints target WebRacket-owned support modules directly;
        ;; include those reports even when the installed provider graph only
        ;; names the original Racket module.
