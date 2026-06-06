@@ -25,6 +25,9 @@ through the temporary provider bridge allowlist.
   ordinary class creation, `init-field`, inheritance, `new`, `send`, `object?`,
   `is-a?`, interfaces, `class*`, `super`, `define/override`, keyword-style init
   arguments, and caught final-method override errors through the module bridge.
+- Explicit `racket/unit` requires now include basic runtime coverage for
+  signatures, unit imports/exports, and `define-values/invoke-unit` through the
+  module bridge. Broader unit/linking forms are still separate coverage work.
 
 ## Current Boundaries
 

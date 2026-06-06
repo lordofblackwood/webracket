@@ -32,16 +32,17 @@ choosing the next milestone from evidence instead of memory.
 | `racket/bytes` | installed provider | ready | `full-bytes-coverage` | Representative runtime coverage. |
 | `racket/dict` | installed provider | ready | `installed-racket-dict-coverage`, `installed-racket-dict-extra-coverage` | Old staged dict shim retired from default route. |
 | `racket/function` | installed provider | ready | `installed-racket-function-coverage` | Real provider is used directly. |
-| `racket/list` | installed provider | ready | list coverage cluster | `shuffle` remains randomness-sensitive later work. |
+| `racket/list` | installed provider | ready | list coverage cluster | `shuffle` is covered with permutation-property tests; random sequence parity remains tied to the broader PRNG story. |
 | `racket/match` | installed provider | ready | `full-match-coverage`, `installed-racket-match-explicit` | Host expansion plus module bridge. |
 | `racket/math` | installed provider plus inferred FFI where needed | ready | `full-math-coverage`, `ffi-js-math-coverage` | FFI bundle inference is part of this story. |
 | `racket/path` | installed provider/runtime support | ready | `full-path-coverage` | Browser path behavior is still bounded by WebRacket runtime choices. |
 | `racket/port` | substituted to `webracket/port` where needed | owned | `installed-racket-port-coverage`, `installed-racket-port-display` | Ports are tied to WebRacket string ports, VFS, and browser IO. |
 | `racket/pretty` | installed provider | ready | pretty coverage rows | Uses real provider by default. |
 | `racket/sequence` | installed provider | ready/partial | `real-racket-sequence-coverage` | Public helper surface is covered; advanced sequence edges remain documented. |
-| `racket/private/for` | installed provider with staged support pressure | ready/partial | sequence/for coverage cluster | Not full upstream `racket/private/for`; see postponed edges below. |
+| `racket/private/for` | installed provider with staged support pressure | ready/partial | sequence/for coverage cluster, `for-provider-surface.rkt` | No unexpected missing exports in the surface audit; remaining families are deliberately postponed. |
 | `racket/shared` | installed provider | ready | `full-shared-coverage` | Expansion-oriented coverage. |
 | `racket/string` | installed provider | ready | string coverage rows | Real provider is the default route. |
+| `racket/unit` | installed provider with WebRacket-owned support edges | ready/partial | `installed-racket-unit-basic-coverage` | Basic signatures, unit export/import, and `define-values/invoke-unit` run; broader unit forms still need coverage before full promotion. |
 | `racket/vector` | installed provider | ready | vector coverage rows | Representative runtime coverage. |
 | `racket/class` | installed provider, `webracket/full` add-on | ready/partial | `full-class`, class diagnostic and coverage rows | Requires the default staged `io/format` provider; no-IO-format diagnostics are not a valid class/full proof. |
 
@@ -69,19 +70,19 @@ choosing the next milestone from evidence instead of memory.
 | Full `racket/contract` semantics | postponed | Needs contract enforcement, blame, chaperones, impersonators. |
 | `racket/generator` | postponed | Depends on continuation prompts/composable continuations. |
 | Weak/ephemeron hashes | postponed | Explicitly outside current HAMT/hash target. |
-| `racket/private/for` advanced edges | postponed | Includes `in-files`/`in-glob`, flvector/fxvector sequences, weak/ephemeron hash sequence variants, original stream internals, custom sequence syntax, and some advanced combinators. |
+| `racket/private/for` advanced edges | postponed | The surface audit reports no unexpected missing exports. Postponed families are flvector/fxvector generators, weak/ephemeron hash sequences, original stream/range internals, and filesystem glob/file traversal helpers. None are current Goal 1 requirements. |
 | OS/network providers | postponed | `racket/cmdline`, `racket/future`, `racket/place`, `racket/system`, `racket/tcp`, and `racket/udp` are deferred. |
-| `racket/unit` | postponed | Deferred from `webracket/full`; needs separate provider evidence before promotion. |
+| `racket/unit` full surface | partial | Basic unit composition now has dashboard coverage, but compound/linking variants still need separate evidence before promotion to `webracket/full`. |
 
 ## Next Recommended Milestones
 
 1. Run the compact checkpoint with a warm cache and record the current red/yellow rows.
 2. Keep `full-class` in the compact checkpoint with the default io/format provider; do not run it in the no-IO-format lane.
-3. Audit postponed `racket/private/for` exports with `webify/for-provider-surface.rkt` and decide which, if any, are Goal 1 requirements.
-4. Tighten the staged-provider list so every substitution is either clearly owned or has a diagnostic replacement path.
-5. Pick the next implementation target only from the matrix and dashboard output.
+3. Tighten the staged-provider list so every substitution is either clearly owned or has a diagnostic replacement path.
+4. Pick the next implementation target only from the matrix and dashboard output.
+5. Revisit `racket/private/for` only if a concrete module program needs one of the postponed families.
 
 The current strongest candidate is now the next dashboard-selected red or
-yellow row after the class/full checkpoint. Contract, list, sequence, and class
-all have explicit Goal 1 stories; their remaining gaps are mostly deliberate
-boundaries rather than forgotten first steps.
+yellow row after the class/full/unit checkpoints. Contract, list, sequence,
+class, and unit all have explicit Goal 1 stories; their remaining gaps are
+mostly deliberate boundaries rather than forgotten first steps.

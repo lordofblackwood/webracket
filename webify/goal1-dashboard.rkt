@@ -226,6 +226,7 @@
     installed-racket-logging-coverage
     installed-racket-class-basic-coverage
     installed-racket-class-advanced-coverage
+    installed-racket-unit-basic-coverage
     ffi-js-array-coverage
     ffi-js-math-coverage
     ffi-js-performance-coverage
@@ -2176,6 +2177,31 @@
     "main.rkt"
     #rx"(?m:^42$)"
     '("--webracket-module-bridge" "--no-provider-substitutions")
+    #:tier 'coverage)
+   (dashboard-case
+    'installed-racket-unit-basic-coverage
+    'installed-provider-coverage
+    '(racket/unit)
+    `(("main.rkt" .
+       ,(string-append
+         "#lang webracket/base\n"
+         "(require racket/unit)\n"
+         "(define-signature counter^ [inc get])\n"
+         "(define-unit counter@\n"
+         "  (import)\n"
+         "  (export counter^)\n"
+         "  (define n 40)\n"
+         "  (define (inc) (set! n (add1 n)))\n"
+         "  (define (get) n))\n"
+         "(define-values/invoke-unit counter@\n"
+         "  (import)\n"
+         "  (export counter^))\n"
+         "(inc)\n"
+         "(inc)\n"
+         "(js-log (get))\n")))
+    "main.rkt"
+    #rx"(?m:^42$)"
+    '("--webracket-module-bridge")
     #:tier 'coverage)
    (dashboard-case
     'base-make-do-sequence
