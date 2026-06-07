@@ -3,9 +3,6 @@
 (require web-easy)
 
 ;; Quickstart: Multiple Counters (Light Theme)
-;;
-;; This mirrors the legacy `(include-lib web-easy)` example, but uses
-;; `(require web-easy)` so it exercises the module-based WebRacket path.
 
 (define (counter @count action)
   (hpanel
