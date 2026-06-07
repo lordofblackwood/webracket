@@ -1,23 +1,22 @@
 #lang webracket/base
-
 (require web-easy)
 
-;; A small stateful module-based WebRacket/web-easy program.
-;;
-;; This mirrors the legacy `(include-lib web-easy)` counter shape, but uses
-;; `(require web-easy)` so it exercises observables and callbacks through the
-;; module bridge.
+;; This example builds a small reactive counter application.
 
-(define @count (@ 0))
+;; First the observable (a reactive value) `@count` is initialized to 0.
+;; The UI below reads from `@count`, and the two buttons update it.
+;; Whenever `@count` changes, the displayed text is automatically re-rendered.
+
+(define @count (@ 0)) ; an observable value
 
 (define single-counter-app
   (window
    (container
     (h1 "A Single Counter")
     (hpanel
-     (button "-" (lambda () (@count . <~ . sub1)))
-     (text (@count . ~> . number->string))
-     (button "+" (lambda () (@count . <~ . add1)))))))
+     (button "-" (lambda () (@count . <~ . sub1)))          ; callback updates count
+     (text                  (@count . ~> . number->string)) ; read count
+     (button "+" (lambda () (@count . <~ . add1)))))))      ; callback updates count
 
 (define app-renderer
   (render single-counter-app))
