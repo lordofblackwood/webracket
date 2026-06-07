@@ -3,9 +3,6 @@
 (require web-easy)
 
 ;; Quickstart: Dynamic Counters (Light Theme)
-;;
-;; Module-based port of the legacy `(include-lib web-easy)` example.
-;; Exercises keyed `list-view` rendering and dynamic observable list updates.
 
 (define @counters (@ '((0 . 0))))
 
