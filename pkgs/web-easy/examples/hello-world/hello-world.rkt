@@ -3,9 +3,6 @@
 (require web-easy)
 
 ;; A small module-based WebRacket/web-easy program.
-;;
-;; This mirrors the legacy `(include-lib web-easy)` hello-world example, but
-;; uses the package module provider so it exercises the Goal 1 path.
 
 (define hello-world-app
   (window
