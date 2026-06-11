@@ -8,6 +8,7 @@
          "private/parameters.rkt"
          "private/timings.rkt"
          "private/structs.rkt"
+         file/sha1
          racket/fasl
          racket/file
          racket/runtime-path)
@@ -279,11 +280,20 @@
                   (file-size path)
                   (file-or-directory-modify-seconds path)))))
 
-    (define (runtime-analysis-cache-fingerprint)
+    (define (module-fingerprint module)
+      (bytes->hex-string
+       (sha1-bytes
+        (string->bytes/utf-8
+         (with-output-to-string
+           (lambda ()
+             (write module)))))))
+
+    (define (runtime-analysis-cache-fingerprint module)
       `(runtime-analysis-cache
         1
         ,(if (current-browser?) 'browser 'node)
         ,(runtime-source-fingerprint)
+        ,(module-fingerprint module)
         ,(sort (map foreign-racket-name active-ffi-foreigns) symbol<?)
         ,(equal-hash-code active-ffi-imports-wat)
         ,(equal-hash-code active-ffi-funcs-wat)))
@@ -77871,7 +77881,7 @@
     (runtime-metric-add! "runtime:export-count-before-prune"
                          (module-export-count full-module))
     (define analysis-cache-fingerprint
-      (runtime-analysis-cache-fingerprint))
+      (runtime-analysis-cache-fingerprint full-module))
     (define analysis-cache-path
       (runtime-analysis-cache-path))
     (runtime-metric-add! "tree-shake:analysis-cache-enabled?"
