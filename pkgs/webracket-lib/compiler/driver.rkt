@@ -155,6 +155,7 @@
                   webify-module-report-import-map
                   webify-module-report-manifest-ready?
                   webify-module-report-name
+                  webify-module-report?
                   webify-module-report-notes
                   webify-module-report-phase0-exports
                   webify-module-report-phase0-imports
@@ -539,6 +540,13 @@
                    (symbol->string name)
                    "_"))
 
+;; provider-cache-string-segment : string? -> string?
+;;   Make a conservative filename segment for path-keyed cache rows.
+(define (provider-cache-string-segment str)
+  (regexp-replace* #px"[^A-Za-z0-9_.-]"
+                   str
+                   "_"))
+
 ;; provider-module-source-fingerprint : symbol? -> any/c
 ;;   Include provider source metadata in the disk cache key when available.
 (define (provider-module-source-fingerprint name)
@@ -584,6 +592,21 @@
    (list (build-path webify-root "module-extractor.rkt")
          (build-path webify-root "module-extractor-spike.rkt")
          (build-path webify-root "module-input.rkt"))))
+
+;; local-module-graph-extractor-fingerprint : -> any/c
+;;   Include bridge-reader and extractor implementation metadata in cached
+;;   local #lang webracket/base report graphs.
+(define (local-module-graph-extractor-fingerprint)
+  (path-fingerprint
+   'local-module-graph-extractor
+   1
+   (filter values
+           (list (build-path webracket-root "pkgs" "webracket-lib" "compiler" "driver.rkt")
+                 (build-path webify-root "module-extractor.rkt")
+                 (build-path webify-root "module-extractor-spike.rkt")
+                 (build-path webify-root "module-input.rkt")
+                 (webracket/base-reader-path)
+                 (webracket/module-reader-path 'full)))))
 
 ;; provider-report->cache-datum : webify-module-report? -> datum?
 ;;   Serialize provider reports without relying on reader-visible struct types.
@@ -650,6 +673,85 @@
                            manifest-ready?
                            (cache-readable->datum notes)))]
     [else #f]))
+
+;; local-module-graph-cache-path : path-string? -> path?
+;;   Cache one extracted local bridge graph per root source file.
+(define (local-module-graph-cache-path filename)
+  (define resolved (simplify-path (path->complete-path filename)))
+  (provider-cache-path
+   "local-module-graphs"
+   (string-append
+    (provider-cache-string-segment (path->string resolved))
+    ".rktd")))
+
+;; local-module-graph-fingerprint : (listof path?) -> any/c
+;;   Fingerprint extracted local-module graphs using source files and bridge code.
+(define (local-module-graph-fingerprint local-source-paths)
+  `(local-module-graph-cache
+    1
+    ,(version)
+    ,(path-fingerprint 'local-module-graph-source 1 local-source-paths)
+    ,(local-module-graph-extractor-fingerprint)))
+
+;; local-module-graph->cache-datum : symbol? (listof report?) (listof path?) -> datum?
+;;   Serialize extracted local-module reports plus their visited source files.
+(define (local-module-graph->cache-datum root reports local-source-paths)
+  `(local-module-graph
+    ,root
+    (reports
+     ,@(for/list ([report (in-list reports)])
+         (provider-report->cache-datum report)))
+    (local-source-paths
+     ,@(for/list ([path (in-list local-source-paths)])
+         (cache-readable-datum path)))))
+
+;; cache-datum->local-module-graph-payload : datum? -> (or/c vector? #f)
+;;   Rehydrate cached local-module graph payload fields.
+(define (cache-datum->local-module-graph-payload datum)
+  (match datum
+    [`(local-module-graph
+       ,root
+       (reports ,report-data ...)
+       (local-source-paths ,path-data ...))
+     (define reports
+       (for/list ([report-datum (in-list report-data)])
+         (cache-datum->provider-report report-datum)))
+     (define local-source-paths
+       (for/list ([path-datum (in-list path-data)])
+         (cache-readable->datum path-datum)))
+     (and (symbol? root)
+          (andmap webify-module-report? reports)
+          (andmap path? local-source-paths)
+          (vector root
+                  reports
+                  (sort (map simplify-path local-source-paths)
+                        string<?
+                        #:key path->string)))]
+    [_ #f]))
+
+;; read-local-module-graph-cache : path? -> (or/c vector? #f)
+;;   Read a cached local-module graph when its extracted source fingerprint still matches.
+(define (read-local-module-graph-cache cache-path)
+  (and (not (current-provider-cache-force?))
+       (file-exists? cache-path)
+       (with-handlers ([exn:fail? (lambda (_exn) #f)])
+         (match (call-with-input-file cache-path read)
+           [`(,cached-fingerprint ,payload)
+            (define decoded (cache-datum->local-module-graph-payload payload))
+            (and decoded
+                 (equal? cached-fingerprint
+                         (local-module-graph-fingerprint
+                          (vector-ref decoded 2)))
+                 decoded)]
+           [_ #f]))))
+
+;; write-local-module-graph-cache! : path? symbol? (listof report?) (listof path?) -> void?
+;;   Persist one extracted local-module graph payload under its dynamic fingerprint.
+(define (write-local-module-graph-cache! cache-path root reports local-source-paths)
+  (write-provider-cache!
+   cache-path
+   (local-module-graph-fingerprint local-source-paths)
+   (local-module-graph->cache-datum root reports local-source-paths)))
 
 ;; cached-installed-provider-report : symbol? (symbol? -> report?) -> report?
 ;;   Reuse extracted installed-provider reports across driver runs.
@@ -3079,8 +3181,53 @@
 ;; webracket/base-file->local-module-graph : path-string? -> webracket/base-local-module-graph?
 ;;   Build a local root graph plus demanded provider reports for the module bridge.
 (define (webracket/base-file->local-module-graph filename)
+  (define resolved (simplify-path (path->complete-path filename)))
+  (define cache-path (local-module-graph-cache-path resolved))
+  (define cached
+    (with-module-bridge-timing
+     'local-module-graph-cache-lookup
+     (lambda ()
+       (read-local-module-graph-cache cache-path))))
   (define-values (root reports local-source-paths)
-    (webracket/base-file->local-module-reports filename))
+    (cond
+      [cached
+       (provider-cache-log "#lang webracket/base local module graph hit: ~a" resolved)
+       (with-module-bridge-timing
+        'local-module-graph-cache-hit
+        (lambda ()
+          (values (vector-ref cached 0)
+                  (vector-ref cached 1)
+                  (vector-ref cached 2))))]
+      [else
+       (provider-cache-log "#lang webracket/base local module graph miss: ~a" resolved)
+       (call-with-provider-cache-lock
+        cache-path
+        (lambda ()
+          (define cached*
+            (with-module-bridge-timing
+             'local-module-graph-cache-lookup
+             (lambda ()
+               (read-local-module-graph-cache cache-path))))
+          (cond
+            [cached*
+             (provider-cache-log "#lang webracket/base local module graph hit: ~a" resolved)
+             (with-module-bridge-timing
+              'local-module-graph-cache-hit
+              (lambda ()
+                (values (vector-ref cached* 0)
+                        (vector-ref cached* 1)
+                        (vector-ref cached* 2))))]
+            [else
+             (define-values (root reports local-source-paths)
+               (with-module-bridge-timing
+                'local-module-graph-cache-miss
+                (lambda ()
+                  (webracket/base-file->local-module-reports resolved))))
+             (write-local-module-graph-cache! cache-path
+                                              root
+                                              reports
+                                              local-source-paths)
+             (values root reports local-source-paths)])))]))
   (webracket/base-reports->module-graph
    root
    reports
