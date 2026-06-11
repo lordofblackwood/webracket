@@ -107,3 +107,40 @@ Inputs that clearly affect runtime generation or pruning:
 This means the best first cache boundary is likely the emitted runtime module or
 its analyzed dependency graph, keyed by runtime/compiler source fingerprints,
 target kind, and FFI inputs. Root retention should remain program-specific.
+
+## Current Full-Module Shape
+
+The current runtime tree-shake pass still works over one combined module
+produced by `build-runtime-module` in
+`pkgs/webracket-lib/compiler/runtime-wasm.rkt`.
+
+The combined module currently contains:
+
+- stable runtime support: runtime primitive functions, helper functions, type
+  declarations, target-specific host support, and active FFI wrapper/import
+  forms
+- generated program helper functions from `dls`
+- program globals from `top-level-variable-declarations`
+- the `$entry` function and its uncaught-exception helpers
+
+Important current behavior:
+
+- pruning already treats generated program functions specially by retaining
+  `program-function-names` even when runtime functions are removed
+- analysis does not split the module yet; `analyze-runtime-primitives` still
+  scans the full combined module
+- program roots are currently injected later via `used-primitives` and
+  console-bridge roots, but the cached analysis still depends on the combined
+  module shape
+
+That explains the current tradeoff:
+
+- keying the cache by the whole module is safe
+- but small edits that change `$entry` or generated program helpers are likely
+  to invalidate the cache unnecessarily
+
+The next runtime-cache refactor should therefore split:
+
+- stable runtime analysis, cached across edits for the same target/FFI/runtime
+  configuration
+- program-specific root and runtime-edge analysis, recomputed every compile

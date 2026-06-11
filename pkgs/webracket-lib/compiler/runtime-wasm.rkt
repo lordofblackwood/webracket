@@ -250,6 +250,46 @@
     (define (eq-set-keys/sorted ht)
       (sort (hash-keys ht) symbol<?))
 
+    ;; Tree-shake currently analyzes one combined module s-expression.
+    ;; The boundary is already implicit in pruning, though:
+    ;;   - `dls` contributes generated program helper functions
+    ;;   - `$entry` runs the user program and top-level initialization
+    ;;   - `top-level-variable-declarations` contributes program globals
+    ;; Everything else in `build-runtime-module` is intended to be stable
+    ;; runtime/target/FFI support. This classifier exists to document that
+    ;; seam and to support a future split cache without changing behavior yet.
+    (define program-function-name-set
+      (list->eq-set
+       (append program-function-names
+               '($entry
+                 $entry-uncaught-exception
+                 $entry-uncaught-exception1
+                 $entry-uncaught-exception2))))
+
+    (define program-global-name-set
+      (list->eq-set
+       (cons result
+             (for/list ([form (in-list top-level-variable-declarations)]
+                        #:do [(define name (module-global-name form))]
+                        #:when name)
+               name))))
+
+    (define (program-module-form? form)
+      (define func-name (module-func-name form))
+      (define global-name (module-global-name form))
+      (or (and func-name
+               (hash-ref program-function-name-set func-name #f))
+          (and global-name
+               (hash-ref program-global-name-set global-name #f))))
+
+    (define (split-module-forms module)
+      (for/fold ([runtime-forms '()]
+                 [program-forms '()])
+                ([form (in-list (cdr module))])
+        (if (program-module-form? form)
+            (values runtime-forms (cons form program-forms))
+            (values (cons form runtime-forms) program-forms))))
+
     (define (time-runtime-step label thunk)
       (if (current-runtime-timing-rows)
           (let-values ([(vals ms)
@@ -77880,6 +77920,16 @@
                          (module-global-count full-module))
     (runtime-metric-add! "runtime:export-count-before-prune"
                          (module-export-count full-module))
+    (define-values (runtime-forms-before-prune program-forms-before-prune)
+      (split-module-forms full-module))
+    (runtime-metric-add! "runtime:runtime-form-count-before-prune"
+                         (length runtime-forms-before-prune))
+    (runtime-metric-add! "runtime:program-form-count-before-prune"
+                         (length program-forms-before-prune))
+    (runtime-metric-add! "runtime:program-function-count-before-prune"
+                         (length program-function-names))
+    (runtime-metric-add! "runtime:program-global-count-before-prune"
+                         (length top-level-variable-declarations))
     (define analysis-cache-fingerprint
       (runtime-analysis-cache-fingerprint full-module))
     (define analysis-cache-path
