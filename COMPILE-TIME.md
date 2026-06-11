@@ -139,8 +139,32 @@ That explains the current tradeoff:
 - but small edits that change `$entry` or generated program helpers are likely
   to invalidate the cache unnecessarily
 
-The next runtime-cache refactor should therefore split:
+The runtime-analysis-v2 cache now follows that split:
 
-- stable runtime analysis, cached across edits for the same target/FFI/runtime
-  configuration
-- program-specific root and runtime-edge analysis, recomputed every compile
+- stable runtime analysis is cached by target/runtime/FFI fingerprint
+- program-specific root and runtime-edge analysis is recomputed every compile
+
+Verified behavior:
+
+- unchanged rebuild: cache hit on the second compile
+- small source edit: cache hit remains after editing the program text
+- different small program: cache hit remains when compiling a different module
+  under the same browser/runtime/FFI configuration
+
+This behavior is locked in by
+`test/test-runtime-analysis-cache.rkt`, which asserts the
+`runtime-analysis-v2-cache-hit?` diagnostic sequence `no`, `yes`, `yes`,
+`yes` across those four compiles.
+
+The remaining cost is still substantial even when the cache behaves correctly.
+In the regression run, the first tiny `#lang webracket/base` browser compile
+still spent about:
+
+- 9.1 seconds in `read-source`
+- 48.2 seconds in `add-stdlib`
+- 19.7 seconds in `compile-pipeline`
+- 77.1 seconds total driver time
+
+So the stable-runtime cache is no longer only same-program useful, but the next
+big wins are still in standard-library/module-loading work and the main compile
+pipeline rather than in more cache key changes.
