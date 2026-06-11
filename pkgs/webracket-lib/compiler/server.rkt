@@ -141,14 +141,15 @@
           (tcp-close listener))
         (loop))))
 
-;; main : -> void?
+;; main : [vector?] -> void?
 ;;   Start the long-lived compile server.
-(define (main)
+(define (main [argv (current-command-line-arguments)])
   (define state-dir (default-compile-server-state-dir))
   (define start-port (default-compile-server-port))
   (define verbose? #f)
   (command-line
    #:program "webracket-server"
+   #:argv argv
    #:once-each
    [("--state-dir") dir "Use <dir> for server state files"
                     (set! state-dir dir)]

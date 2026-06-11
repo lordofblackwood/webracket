@@ -43,7 +43,7 @@
 ;; default-compile-server-state-dir : -> path?
 ;;   Return the shared temp directory for this checkout's compile server.
 (define (default-compile-server-state-dir)
-  (build-path (find-system-path 'temp-dir)
+  (build-path "/private/tmp"
               (format "webracket-compile-server-~a"
                       (abs (equal-hash-code
                             (path->string (simplify-path repo-root)))))))

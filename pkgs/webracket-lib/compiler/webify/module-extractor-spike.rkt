@@ -2968,24 +2968,40 @@
      (define phase0-linklet-datum
        (webify-module-bundle-entry-datum phase0-entry))
      (define manifest-ready? (linklet-datum? phase0-linklet-datum))
-     (webify-module-extractor-spike
-      name
-      '(#f)
-      '(0)
-      (list phase0-entry)
-      (linklet-import-variables compiled)
-      (linklet-export-variables compiled)
-      phase0-linklet-datum
-      manifest-ready?
-      (cond
-        [manifest-ready?
-         '("machine-independent compilation exposes a direct decompilable phase-0 linklet datum")]
-        [maybe-decompile-linklet
-         '("compiled module exposes a direct linklet object"
-           "decompile-linklet did not produce a linklet datum for the phase-0 linklet")]
-        [else
-         `("compiled module exposes a direct linklet object"
-           ,decompile-linklet-missing-note)]))]
+     (cond
+       [manifest-ready?
+        (webify-module-extractor-spike
+         name
+         '(#f)
+         '(0)
+         (list phase0-entry)
+         (linklet-import-variables compiled)
+         (linklet-export-variables compiled)
+         phase0-linklet-datum
+         #t
+         '("machine-independent compilation exposes a direct decompilable phase-0 linklet datum"))]
+       [else
+        (define parsed (webify-compiled-expression->zo compiled))
+        (cond
+          [parsed
+           (compiled-zo->extractor-spike who name parsed)]
+          [else
+           (webify-module-extractor-spike
+            name
+            '(#f)
+            '(0)
+            (list phase0-entry)
+            (linklet-import-variables compiled)
+            (linklet-export-variables compiled)
+            phase0-linklet-datum
+            #f
+            (cond
+              [maybe-decompile-linklet
+               '("compiled module exposes a direct linklet object"
+                 "decompile-linklet did not produce a linklet datum for the phase-0 linklet")]
+              [else
+               `("compiled module exposes a direct linklet object"
+                 ,decompile-linklet-missing-note)]))])])]
     [(not (linklet-directory? compiled))
      (define parsed (webify-compiled-expression->zo compiled))
      (cond
@@ -2995,7 +3011,16 @@
                                "compiled module did not produce a linklet directory or direct linklet"
                                "compiled" compiled)])]
     [else
-     (compiled-linklet-directory->extractor-spike who name compiled)]))
+     (define report
+       (compiled-linklet-directory->extractor-spike who name compiled))
+     (cond
+       [(webify-module-extractor-spike-manifest-ready? report)
+        report]
+       [else
+        (define parsed (webify-compiled-expression->zo compiled))
+        (if parsed
+            (compiled-zo->extractor-spike who name parsed)
+            report)])]))
 
 ;; parsed-bundle->extractor-spike : symbol? symbol? hash? any/c any/c -> report
 ;;   Convert a parsed zo linklet bundle into an extractor report.

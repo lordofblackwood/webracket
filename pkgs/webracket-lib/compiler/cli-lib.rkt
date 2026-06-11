@@ -200,6 +200,7 @@
   (define clear-provider-cache? #f)
   (define force-provider-cache-refresh? #f)
   (define provider-cache-report? #f)
+  (define server-command #f)
 
   (define (normalize-vfs-preload-path-for-duplicates path)
     (regexp-replace #px"/+$" path ""))
@@ -329,6 +330,12 @@
                             (set! list-primitives? #t)]
      [("--list-provider-slices") "Print original-Racket provider slices and exit"
                                  (set! list-provider-slices? #t)]
+     [("--server-start") "Run the local compile server in the foreground"
+                         (set! server-command 'start)]
+     [("--server-status") "Print local compile server status and exit"
+                          (set! server-command 'status)]
+     [("--server-stop") "Stop the local compile server and exit"
+                        (set! server-command 'stop)]
      [("--enable-cc-analysis") "Enable the new closure-conversion analysis"
                                (set! enable-cc-analysis? #t)]
      [("--enable-simplify") "Run the early simplify-LFE pass"
@@ -443,6 +450,10 @@
      #:args filenames
      filenames))
 
+  (define (ensure-no-positional-filenames! who)
+    (unless (null? positional-filenames)
+      (error who "does not accept source filenames")))
+
   (cond
     [list-primitives?
      (webracket-cli-command 'list-primitives (reverse ffi-files))]
@@ -450,6 +461,14 @@
      (webracket-cli-command 'list-provider-slices #f)]
     [provider-cache-report?
      (webracket-cli-command 'provider-cache-report provider-cache-dir)]
+    [server-command
+     (ensure-no-positional-filenames! 'webracket)
+     (webracket-cli-command
+      (case server-command
+        [(start)  'server-start]
+        [(status) 'server-status]
+        [(stop)   'server-stop])
+      #f)]
     [else
      (unless (= (length positional-filenames) 1)
        (error 'webracket

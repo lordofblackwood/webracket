@@ -20,11 +20,29 @@
 (define (main)
   (define command (parse-webracket-cli))
   (define exit-code
-    (if (and (eq? (webracket-cli-command-kind command) 'compile)
-             (compile-server-enabled?))
-        (run-webracket-compile-via-server
-         (webracket-cli-command-payload command))
-        (run-webracket-cli-command command)))
+    (match (webracket-cli-command-kind command)
+      ['server-start
+       (run-compile-server-foreground)
+       0]
+      ['server-status
+       (define status (compile-server-status))
+       (printf "running:\t~a\n" (if (compile-server-status-info-running? status) "yes" "no"))
+       (printf "port:\t~a\n" (or (compile-server-status-info-port status) "-"))
+       (printf "pid:\t~a\n" (or (compile-server-status-info-pid status) "-"))
+       (printf "state-dir:\t~a\n" (path->string (compile-server-status-info-state-dir status)))
+       (printf "log:\t~a\n" (path->string (compile-server-status-info-log-path status)))
+       0]
+      ['server-stop
+       (define stopped? (stop-compile-server!))
+       (printf "stopped:\t~a\n" (if stopped? "yes" "no"))
+       0]
+      ['compile
+       (if (compile-server-enabled?)
+           (run-webracket-compile-via-server
+            (webracket-cli-command-payload command))
+           (run-webracket-cli-command command))]
+      [_
+       (run-webracket-cli-command command)]))
   (unless (zero? exit-code)
     (exit exit-code)))
 
