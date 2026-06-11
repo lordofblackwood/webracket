@@ -809,7 +809,14 @@
                (path->string source-path))
          source-dir))
       (check-equal? status 0 output)
-      (check-regexp-match #rx"Skipping temporary stdlib root for module-language input"
+      (check-regexp-match #rx"Ignoring legacy stdlib root for module-language input"
+                          output)
+      (check-regexp-match
+       #rx"Skipping staged io/format provider for module-language input; module providers resolve racket/format directly"
+       output)
+      (check-regexp-match #rx"legacy-stdlib-mode[ ]*:[ ]*ignored-module-input"
+                          output)
+      (check-regexp-match #rx"io-format-provider-mode[ ]*:[ ]*skipped-module-input"
                           output)
       (check-regexp-match #rx"(?m:^42$)" output))
     (lambda ()

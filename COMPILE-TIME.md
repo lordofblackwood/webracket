@@ -156,15 +156,32 @@ This behavior is locked in by
 `runtime-analysis-v2-cache-hit?` diagnostic sequence `no`, `yes`, `yes`,
 `yes` across those four compiles.
 
-The remaining cost is still substantial even when the cache behaves correctly.
-In the regression run, the first tiny `#lang webracket/base` browser compile
-still spent about:
+The remaining cost is still substantial even when the cache behaves correctly,
+but the earlier `add-stdlib: 48.2s` diagnosis turned out to be misleading for
+module-based programs.
 
-- 9.1 seconds in `read-source`
-- 48.2 seconds in `add-stdlib`
-- 19.7 seconds in `compile-pipeline`
-- 77.1 seconds total driver time
+What was happening:
 
-So the stable-runtime cache is no longer only same-program useful, but the next
-big wins are still in standard-library/module-loading work and the main compile
-pipeline rather than in more cache key changes.
+- `#lang webracket/base` already ignored the legacy `--stdlib` root
+- but module input still composed the staged `io/format` provider by default
+- that provider work was being charged to the broad `add-stdlib` phase
+
+Current behavior:
+
+- module input now reports an explicit stdlib/provider decision block
+- `legacy-stdlib-mode` is skipped or ignored for module input
+- `io-format-provider-mode` is skipped for module input by default
+- script-style input still supports explicit `--stdlib` and `io/format`
+  composition
+
+After that change, a tiny `#lang webracket/base` browser compile spent about:
+
+- 10.3 seconds in `read-source`
+- 0.1 seconds in `add-stdlib`
+- 21.4 seconds in `compile-pipeline`
+- 31.8 seconds total driver time
+
+So the stable-runtime cache is no longer only same-program useful, and module
+programs no longer pay the old staged `io/format` default cost. The next big
+wins are now in module-bridge extraction and the main compile pipeline rather
+than in legacy stdlib cleanup.

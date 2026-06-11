@@ -57,8 +57,8 @@
    vfs-preloads                           ; VFS preload specs for the generated host
    vfs-mounts                             ; VFS mount specs for the generated host
    source-filename                        ; source program to compile
-   stdlib?                                ; include the legacy stdlib wrapper
-   stdlib-io-format-provider?             ; compose the staged io/format provider
+   stdlib?                                ; include the legacy stdlib wrapper for script-style input
+   stdlib-io-format-provider?             ; compose the staged io/format provider for script-style input
    expander-read-provider?                ; compose the staged expander/read provider
    expander-read-syntax-provider?         ; compose the staged read-syntax provider
    webracket-module-bridge?               ; force #lang webracket/* through the module bridge
@@ -371,7 +371,7 @@
      [("--no-stdlib") "Do not include the legacy standard library (default)"
                       (set! stdlib? #f)]
      [("--io-format-provider" "--stdlib-io-format-provider")
-      "Compose staged original-Racket io/format provider (default)"
+      "Compose staged original-Racket io/format provider (default for script-style input)"
       (set! stdlib-io-format-provider? #t)]
      [("--no-io-format-provider" "--no-stdlib-io-format-provider")
       "Disable staged original-Racket io/format provider for debugging"

@@ -73,6 +73,7 @@
                                     current-runtime-primitive-report-path)
          (only-in "private/timings.rkt"
                   now-ms
+                  format-metric-table
                   format-timing-table)
          "private/wat-identifiers.rkt"
          racket/runtime-path
@@ -1512,6 +1513,11 @@
    )
   #:transparent)
 
+;; stdlib-decision-note : string? string? -> (list/c string? string?)
+;;   Build one stdlib/provider diagnostic row for timing output.
+(define (stdlib-decision-note label value)
+  (list label value))
+
 ;; resolve-compilation-output-paths : path-string? (or/c path-string? #f) (or/c path-string? #f) (or/c path-string? #f) (or/c path-string? #f) boolean? -> compilation-output-paths?
 ;;   Compute the effective output paths for one compilation request.
 (define (resolve-compilation-output-paths filename
@@ -1636,6 +1642,49 @@
     (if print-top-level-results?
         (add-print-top-level-results-sentinel stx)
         stx))
+  (define module-input? (and (current-source-module-language) #t))
+  (define effective-legacy-stdlib?
+    (and (not module-input?) stdlib?))
+  (define effective-io-format-provider?
+    (and (not module-input?) stdlib-io-format-provider?))
+  (define effective-expander-read-provider?
+    expander-read-provider?)
+  (define effective-expander-read-syntax-provider?
+    expander-read-syntax-provider?)
+  (define stdlib-decision-rows
+    (list
+     (stdlib-decision-note "input-mode"
+                           (if module-input? "module" "script"))
+     (stdlib-decision-note "legacy-stdlib-mode"
+                           (cond
+                             [module-input?
+                              (if stdlib?
+                                  "ignored-module-input"
+                                  "skipped-module-input")]
+                             [stdlib?
+                              "enabled-script-input"]
+                             [else
+                              "disabled-script-input"]))
+     (stdlib-decision-note "io-format-provider-mode"
+                           (cond
+                             [module-input?
+                              (if stdlib-io-format-provider?
+                                  "skipped-module-input"
+                                  "disabled-module-input")]
+                             [stdlib-io-format-provider?
+                              "enabled-script-input"]
+                             [else
+                              "disabled-script-input"]))
+     (stdlib-decision-note "expander-read-provider-mode"
+                           (if effective-expander-read-provider?
+                               "enabled"
+                               "disabled"))
+     (stdlib-decision-note "expander-read-syntax-provider-mode"
+                           (if effective-expander-read-syntax-provider?
+                               "enabled"
+                               "disabled"))
+     (stdlib-decision-note "regexp-provider-mode"
+                           "enabled")))
 
   ; 2. Handle ffi-files.
   (define t-ffi-setup-start  (now-ms))
@@ -1671,24 +1720,20 @@
   (define stx-with-stdlib
     (cond
       [(current-source-module-language)
-       (when (and verbose?
-                  (or stdlib?
-                      stdlib-io-format-provider?
-                      expander-read-provider?
-                      expander-read-syntax-provider?))
+       (when (and verbose? stdlib?)
          (displayln
-          "Skipping temporary stdlib root for module-language input; composing provider slices only"
+          "Ignoring legacy stdlib root for module-language input"
+          (current-error-port)))
+       (when (and verbose? stdlib-io-format-provider?)
+         (displayln
+          "Skipping staged io/format provider for module-language input; module providers resolve racket/format directly"
           (current-error-port)))
        (cond
-         [stdlib-io-format-provider?
-          (add-io-format-provider stx-for-compile
-                                  #:expander-read-provider? expander-read-provider?
-                                  #:expander-read-syntax-provider? expander-read-syntax-provider?)]
-         [expander-read-provider?
+         [effective-expander-read-provider?
           (add-expander-read-provider stx-for-compile
                                       #:expander-read-syntax-provider?
-                                      expander-read-syntax-provider?)]
-         [expander-read-syntax-provider?
+                                      effective-expander-read-syntax-provider?)]
+         [effective-expander-read-syntax-provider?
           (with-syntax ([(provider-form ...)
                          (map (lambda (form)
                                 (datum->syntax stx-for-compile form stx-for-compile))
@@ -1701,39 +1746,39 @@
                 #,stx-for-compile))]
          [else
           (add-regexp-provider stx-for-compile)])]
-      [(and stdlib? browser?)
+      [(and effective-legacy-stdlib? browser?)
        (when verbose?
          (displayln "Composing module stdlib root `legacy-stdlib/stdlib-for-browser.rkt`"
                     (current-error-port)))
        (add-module-stdlib stx-for-compile
                            #t
-                           #:io-format-provider? stdlib-io-format-provider?
-                           #:expander-read-provider? expander-read-provider?
-                           #:expander-read-syntax-provider? expander-read-syntax-provider?)]
-      [stdlib?
+                           #:io-format-provider? effective-io-format-provider?
+                           #:expander-read-provider? effective-expander-read-provider?
+                           #:expander-read-syntax-provider? effective-expander-read-syntax-provider?)]
+      [effective-legacy-stdlib?
        (when verbose?
          (displayln "Composing module stdlib root `legacy-stdlib/stdlib.rkt`"
                     (current-error-port)))
        (add-module-stdlib stx-for-compile
                            #f
-                           #:io-format-provider? stdlib-io-format-provider?
-                           #:expander-read-provider? expander-read-provider?
-                           #:expander-read-syntax-provider? expander-read-syntax-provider?)]
-      [stdlib-io-format-provider?
+                           #:io-format-provider? effective-io-format-provider?
+                           #:expander-read-provider? effective-expander-read-provider?
+                           #:expander-read-syntax-provider? effective-expander-read-syntax-provider?)]
+      [effective-io-format-provider?
        (when verbose?
          (displayln "Composing module stdlib-free `io/format` provider"
                     (current-error-port)))
        (add-io-format-provider stx-for-compile
-                               #:expander-read-provider? expander-read-provider?
-                               #:expander-read-syntax-provider? expander-read-syntax-provider?)]
-      [expander-read-provider?
+                               #:expander-read-provider? effective-expander-read-provider?
+                               #:expander-read-syntax-provider? effective-expander-read-syntax-provider?)]
+      [effective-expander-read-provider?
        (when verbose?
          (displayln "Composing module stdlib-free `expander/read` provider"
                     (current-error-port)))
        (add-expander-read-provider stx-for-compile
                                    #:expander-read-syntax-provider?
-                                   expander-read-syntax-provider?)]
-      [expander-read-syntax-provider?
+                                   effective-expander-read-syntax-provider?)]
+      [effective-expander-read-syntax-provider?
        (when verbose?
          (displayln "Composing module stdlib-free `expander/read-syntax` provider"
                     (current-error-port)))
@@ -1806,8 +1851,8 @@
   (define t-compile-start (now-ms))
   (define provider-owned-primitive-aliases
     (provider-owned-primitive-alias-symbols
-     #:expander-read-provider? expander-read-provider?
-     #:io-format-provider? stdlib-io-format-provider?))
+     #:expander-read-provider? effective-expander-read-provider?
+     #:io-format-provider? effective-io-format-provider?))
   (define wat
     (with-handlers (#;[exn:fail? (λ (e)
                                  (error 'drive-compilation
@@ -1940,6 +1985,8 @@
              (list "total"      compile-total-ms))))
     (displayln "=== Driver Timings ===")
     (displayln (format-timing-table driver-rows))
+    (displayln "=== Stdlib Decision ===")
+    (displayln (format-metric-table stdlib-decision-rows))
     (when (pair? read-detail-rows)
       (displayln "=== Read Source Details ===")
       (displayln (format-timing-table read-detail-rows)))
