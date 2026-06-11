@@ -2499,6 +2499,12 @@
             ;; This helper uses `for/list`; the compiled form can expose list
             ;; checks from both list internals and the for implementation.
             (list local 'racket/private/for)]
+           [(and (eq? module-name 'webracket/stream)
+                 (symbolic-name=? external 'check-list))
+            ;; The staged stream provider uses `for` internally for checks.
+            ;; Route its generated `check-list` to the for implementation when
+            ;; list internals are also present in the composed bundle.
+            (list local 'racket/private/for)]
            [(and (eq? module-name 'racket/private/class-internal)
                  (symbolic-name=? external 'current-contract-region))
             (list local 'racket/contract/region)]
@@ -2766,6 +2772,18 @@
                         candidates))
               (if (null? stream-cons-candidates) candidates stream-cons-candidates)]
              [else candidates]))
+         (define (prefer-list-member-provider candidates)
+           ;; `#lang webracket/full` can expose both pico's lower helper and
+           ;; the list-layer `member`. Prefer the list layer only after export
+           ;; scanning has proved that it is a valid provider for this bundle.
+           (cond
+             [(and (symbolic-name=? external 'member)
+                   (for/or ([candidate (in-list candidates)])
+                     (eq? (cadr candidate) 'racket/private/list)))
+              (filter (lambda (candidate)
+                        (eq? (cadr candidate) 'racket/private/list))
+                      candidates)]
+             [else candidates]))
          (define public-contract-substitute-modules
            '(racket/contract
              racket/contract/base
@@ -2830,8 +2848,9 @@
              (prefer-installed-provider-internals
               (prefer-public-contract-substitute
                (prefer-exact-provider-export
-                (prefer-stream-cons
-                 (if (null? preferred-candidates) candidates preferred-candidates))))))))
+                (prefer-list-member-provider
+                 (prefer-stream-cons
+                  (if (null? preferred-candidates) candidates preferred-candidates)))))))))
          (define (candidate-reason candidate)
            (list local
                  (cadr candidate)

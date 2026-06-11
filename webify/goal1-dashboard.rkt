@@ -3195,14 +3195,15 @@
 (define (goal1-dashboard-case-exclusive? c)
   (eq? (goal1-dashboard-case-category c) 'installed-provider-diagnostic))
 
-;; run-goal1-dashboard-cases/parallel : list? path? exact-positive-integer? exact-positive-integer? exact-positive-integer? path? -> list?
+;; run-goal1-dashboard-cases/parallel : list? path? exact-positive-integer? exact-positive-integer? exact-positive-integer? path? procedure? -> list?
 ;;   Run cases with stable result order while allowing independent child processes.
 (define (run-goal1-dashboard-cases/parallel cases
                                            cache-dir
                                            timeout-seconds
                                            memory-mb
                                            jobs
-                                           compiled-root-dir)
+                                           compiled-root-dir
+                                           on-row)
   (define indexed-cases cases)
   (define next-box (box indexed-cases))
   (define results  (make-hasheq))
@@ -3235,20 +3236,22 @@
               (call-with-semaphore
                results-lock
                (lambda ()
-                 (hash-set! results idx row)))
+                 (hash-set! results idx row)
+                 (on-row row)))
               (loop)]))))))
   (for ([worker (in-list workers)])
     (thread-wait worker))
   results)
 
-;; run-goal1-dashboard-cases/scheduled : list? path? exact-positive-integer? exact-positive-integer? exact-positive-integer? path? -> list?
+;; run-goal1-dashboard-cases/scheduled : list? path? exact-positive-integer? exact-positive-integer? exact-positive-integer? path? procedure? -> list?
 ;;   Run heavyweight diagnostics serially while preserving parallelism elsewhere.
 (define (run-goal1-dashboard-cases/scheduled cases
                                              cache-dir
                                              timeout-seconds
                                              memory-mb
                                              jobs
-                                             compiled-root-dir)
+                                             compiled-root-dir
+                                             on-row)
   (define indexed-cases
     (for/list ([c (in-list cases)]
                [idx (in-naturals)])
@@ -3260,19 +3263,22 @@
   (define results (make-vector (length indexed-cases) #f))
   (for ([item (in-list exclusive)])
     (match-define (cons idx c) item)
-    (vector-set! results idx
-                 (run-goal1-dashboard-case c
-                                           cache-dir
-                                           timeout-seconds
-                                           memory-mb
-                                           compiled-root-dir)))
+    (define row
+      (run-goal1-dashboard-case c
+                                cache-dir
+                                timeout-seconds
+                                memory-mb
+                                compiled-root-dir))
+    (vector-set! results idx row)
+    (on-row row))
   (define parallel-results
     (run-goal1-dashboard-cases/parallel regular
                                        cache-dir
                                        timeout-seconds
                                        memory-mb
                                        jobs
-                                       compiled-root-dir))
+                                       compiled-root-dir
+                                       on-row))
   (for ([(idx row) (in-hash parallel-results)])
     (vector-set! results idx row))
   (vector->list results))
@@ -3285,7 +3291,8 @@
                              #:memory-mb [memory-mb goal1-dashboard-default-memory-mb]
                              #:cases [cases goal1-dashboard-cases]
                              #:jobs [jobs goal1-dashboard-default-jobs]
-                             #:warm-cache? [warm-cache? 'auto])
+                             #:warm-cache? [warm-cache? 'auto]
+                             #:on-row [on-row void])
   (define normalized-jobs (normalize-dashboard-jobs jobs))
   (define should-warm-cache?
     (if (eq? warm-cache? 'auto)
@@ -3311,11 +3318,14 @@
       (cond
         [(or (null? cases) (= normalized-jobs 1))
          (for/list ([c (in-list cases)])
-           (run-goal1-dashboard-case c
-                                     cache-dir
-                                     timeout-seconds
-                                     memory-mb
-                                     compiled-root-dir))]
+           (define row
+             (run-goal1-dashboard-case c
+                                       cache-dir
+                                       timeout-seconds
+                                       memory-mb
+                                       compiled-root-dir))
+           (on-row row)
+           row)]
         [else
          (run-goal1-dashboard-cases/scheduled
           cases
@@ -3323,7 +3333,8 @@
           timeout-seconds
           memory-mb
           normalized-jobs
-          compiled-root-dir)]))
+          compiled-root-dir
+          on-row)]))
     (lambda ()
       (with-handlers ([exn:fail:filesystem? void])
         (delete-directory/files compiled-root-dir)))))
@@ -3340,6 +3351,24 @@
           'cache_events (symbol->string (goal1-dashboard-row-cache-events row))
           'cache_files_before (goal1-dashboard-row-cache-files-before row)
           'cache_files_after (goal1-dashboard-row-cache-files-after row)))
+
+;; print-goal1-dashboard-tsv-row : goal1-dashboard-row? -> void?
+;;   Print one TSV row and flush so long checkpoint runs are inspectable.
+(define (print-goal1-dashboard-tsv-row row)
+  (printf "~a\t~a\t~a\t~a\t~a\t~a\t~a\t~a\t~a\t~a\t~a\n"
+          (goal1-dashboard-row-name row)
+          (goal1-dashboard-row-category row)
+          (goal1-dashboard-row-tier row)
+          (string-join (map symbol->string (goal1-dashboard-row-libraries row))
+                       ",")
+          (goal1-dashboard-row-expectation row)
+          (goal1-dashboard-row-status row)
+          (goal1-dashboard-row-detail row)
+          (goal1-dashboard-row-note row)
+          (goal1-dashboard-row-cache-events row)
+          (goal1-dashboard-row-cache-files-before row)
+          (goal1-dashboard-row-cache-files-after row))
+  (flush-output))
 
 ;; print-goal1-dashboard : keyword-args -> void?
 ;;   Print compact Goal 1 no-stdlib dashboard rows.
@@ -3377,6 +3406,11 @@
        (or cache-dir
            (make-temporary-file "webracket-goal1-dashboard-cache-~a" 'directory)))
      (warn-if-dashboard-timeout-too-low! selected-cases timeout-seconds)
+     (define stream-tsv? (and tsv? (not json?)))
+     (when stream-tsv?
+       (displayln
+        "name\tcategory\ttier\tlibraries\texpectation\tstatus\tdetail\tnote\tcache-events\tcache-files-before\tcache-files-after")
+       (flush-output))
      (define rows
        (run-goal1-dashboard #:cache-dir actual-cache-dir
                             #:timeout-seconds timeout-seconds
@@ -3384,29 +3418,21 @@
                             #:memory-mb memory-mb
                             #:jobs jobs
                             #:warm-cache? warm-cache?
-                            #:cases selected-cases))
+                            #:cases selected-cases
+                            #:on-row (if stream-tsv?
+                                         print-goal1-dashboard-tsv-row
+                                         void)))
      (cond
        [json?
         (write-json (map row->jsexpr rows))
         (newline)]
+       [stream-tsv? (void)]
        [else
         (when tsv?
           (displayln
            "name\tcategory\ttier\tlibraries\texpectation\tstatus\tdetail\tnote\tcache-events\tcache-files-before\tcache-files-after"))
         (for ([row (in-list rows)])
-          (printf "~a\t~a\t~a\t~a\t~a\t~a\t~a\t~a\t~a\t~a\t~a\n"
-                  (goal1-dashboard-row-name row)
-                  (goal1-dashboard-row-category row)
-                  (goal1-dashboard-row-tier row)
-                  (string-join (map symbol->string (goal1-dashboard-row-libraries row))
-                               ",")
-                  (goal1-dashboard-row-expectation row)
-                  (goal1-dashboard-row-status row)
-                  (goal1-dashboard-row-detail row)
-                  (goal1-dashboard-row-note row)
-                  (goal1-dashboard-row-cache-events row)
-                  (goal1-dashboard-row-cache-files-before row)
-                  (goal1-dashboard-row-cache-files-after row)))])]))
+          (print-goal1-dashboard-tsv-row row))])]))
 
 (module+ main
   (define tsv? #f)
