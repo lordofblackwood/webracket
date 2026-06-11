@@ -4108,6 +4108,25 @@
 (define-pass simplify-LFE/pass1 : LFE (T κ) -> LFE (κ)
   (definitions
     (define blocked-constant-binding '#:blocked)
+    (define simplify-profile-stats
+      (current-simplify-profile-stats))
+    ;; simplify-profile-note! : symbol? LFE Expr LFE Expr -> void?
+    ;;   Record one simplify rewrite and its approximate node delta when profiling.
+    (define (simplify-profile-note! family before after)
+      (when simplify-profile-stats
+        (define fires-ht (hash-ref simplify-profile-stats 'rule-fires))
+        (define delta-ht (hash-ref simplify-profile-stats 'rule-deltas))
+        (simplify-profile-inc-hash! fires-ht family)
+        (simplify-profile-inc-hash! delta-ht family
+                                    (- (count-unparsed unparse-LFE before)
+                                       (count-unparsed unparse-LFE after)))))
+    ;; simplify-profile-note-when-changed! : symbol? LFE Expr (or/c LFE Expr #f) -> (or/c LFE Expr #f)
+    ;;   Record a rewrite only when `after` exists and differs structurally from `before`.
+    (define (simplify-profile-note-when-changed! family before after)
+      (when (and after
+                 (not (same-expression? before after)))
+        (simplify-profile-note! family before after))
+      after)
     ;; κ-empty : -> free-id-table?
     ;;   Construct an empty constant-propagation environment.
     (define κ-empty
@@ -6107,69 +6126,94 @@
   (Expr : Expr (E κ) -> Expr (κ)
     [,x
      (let ([e (κ-ref κ x)])
+       (when e
+         (simplify-profile-note! 'let-constant-propagation x e))
        (values (or e x) κ))]
     [(quote ,s ,d)
      (values `(quote ,s ,d) κ)]
     [(quote-syntax ,s ,d)
      (values `(quote-syntax ,s ,d) κ)]
     [(top ,s ,x)
-     (values (or (κ-ref κ x) `(top ,s ,x)) κ)]
+     (define e (κ-ref κ x))
+     (when e
+       (simplify-profile-note! 'let-constant-propagation `(top ,s ,x) e))
+     (values (or e `(top ,s ,x)) κ)]
 
     ;; Conditional Simplification
     ;   (if (begin ... e0) e1 e2) => (begin ... (if e0 e1 e2))
     [(if ,s ,e0 ,e1 ,e2)
      (guard (begin-sequence e0))
-     (Expr (if-test-begin s e0 e1 e2) κ)]
+     (define rewritten (if-test-begin s e0 e1 e2))
+     (simplify-profile-note! 'if-test-begin-hoist `(if ,s ,e0 ,e1 ,e2) rewritten)
+     (Expr rewritten κ)]
 
     ;   (if (if e0 #f #f) e1 e2) => (begin e0 e2)
     [(if ,s (if ,s0 ,e0 ,e3 ,e4) ,e1 ,e2)
      (guard (and (false-constant-expression? e3)
                  (false-constant-expression? e4)))
-     (Expr (Begin s (list e0 e2)) κ)]
+     (define rewritten (Begin s (list e0 e2)))
+     (simplify-profile-note! 'if-nested `(if ,s (if ,s0 ,e0 ,e3 ,e4) ,e1 ,e2) rewritten)
+     (Expr rewritten κ)]
 
     ;   (if (if e0 (if e3 #t #f) e4) e1 e2) => (if (if e0 e3 e4) e1 e2)
     [(if ,s (if ,s0 ,e0 ,e3 ,e4) ,e1 ,e2)
      (guard (booleanized-test e3))
      (let ([e3* (booleanized-test e3)])
+       (simplify-profile-note! 'if-nested `(if ,s (if ,s0 ,e0 ,e3 ,e4) ,e1 ,e2)
+                               `(if ,s (if ,s0 ,e0 ,e3* ,e4) ,e1 ,e2))
        (Expr `(if ,s (if ,s0 ,e0 ,e3* ,e4) ,e1 ,e2) κ))]
 
     ;   (if (if e0 e3 (if e4 #t #f)) e1 e2) => (if (if e0 e3 e4) e1 e2)
     [(if ,s (if ,s0 ,e0 ,e3 ,e4) ,e1 ,e2)
      (guard (booleanized-test e4))
      (let ([e4* (booleanized-test e4)])
+       (simplify-profile-note! 'if-nested `(if ,s (if ,s0 ,e0 ,e3 ,e4) ,e1 ,e2)
+                               `(if ,s (if ,s0 ,e0 ,e3 ,e4*) ,e1 ,e2))
        (Expr `(if ,s (if ,s0 ,e0 ,e3 ,e4*) ,e1 ,e2) κ))]
 
     ;   (if (if x x e4) e1 e2) => (if (if x #t e4) e1 e2)   where x is a variable
     [(if ,s (if ,s0 ,e0 ,e3 ,e4) ,e1 ,e2)
      (guard (same-variable-expression? e0 e3))
+     (simplify-profile-note! 'if-nested `(if ,s (if ,s0 ,e0 ,e3 ,e4) ,e1 ,e2)
+                             `(if ,s (if ,s0 ,e0 ,(Quote s0 #t) ,e4) ,e1 ,e2))
      (Expr `(if ,s (if ,s0 ,e0 ,(Quote s0 #t) ,e4) ,e1 ,e2) κ)]
 
     ;   (if (if x e3 x) e1 e2) => (if (if x e3 #f) e1 e2)   where x is a variable
     [(if ,s (if ,s0 ,e0 ,e3 ,e4) ,e1 ,e2)
      (guard (same-variable-expression? e0 e4))
+     (simplify-profile-note! 'if-nested `(if ,s (if ,s0 ,e0 ,e3 ,e4) ,e1 ,e2)
+                             `(if ,s (if ,s0 ,e0 ,e3 ,(Quote s0 #f)) ,e1 ,e2))
      (Expr `(if ,s (if ,s0 ,e0 ,e3 ,(Quote s0 #f)) ,e1 ,e2) κ)]
 
     ;   (if (if e0 e3 e4) e1 e2) => (begin e0 e1)   where e3 and e4 are truthy constants
     [(if ,s (if ,s0 ,e0 ,e3 ,e4) ,e1 ,e2)
      (guard (and (truthy-constant-expression? e3)
                  (truthy-constant-expression? e4)))
-     (Expr (Begin s (list e0 e1)) κ)]
+     (define rewritten (Begin s (list e0 e1)))
+     (simplify-profile-note! 'if-nested `(if ,s (if ,s0 ,e0 ,e3 ,e4) ,e1 ,e2) rewritten)
+     (Expr rewritten κ)]
 
     ;   (if (if e0 e3 #f) e1 e2) => (if e0 e1 e2)   where e3 is a truthy constant
     [(if ,s (if ,s0 ,e0 ,e3 ,e4) ,e1 ,e2)
      (guard (and (truthy-constant-expression? e3)
                  (false-constant-expression? e4)))
+     (simplify-profile-note! 'if-nested `(if ,s (if ,s0 ,e0 ,e3 ,e4) ,e1 ,e2)
+                             `(if ,s ,e0 ,e1 ,e2))
      (Expr `(if ,s ,e0 ,e1 ,e2) κ)]
 
     ;   (if (if e0 #f e3) e1 e2) => (if e0 e2 e1)   where e3 is a truthy constant
     [(if ,s (if ,s0 ,e0 ,e3 ,e4) ,e1 ,e2)
      (guard (and (false-constant-expression? e3)
                  (truthy-constant-expression? e4)))
+     (simplify-profile-note! 'if-nested `(if ,s (if ,s0 ,e0 ,e3 ,e4) ,e1 ,e2)
+                             `(if ,s ,e0 ,e2 ,e1))
      (Expr `(if ,s ,e0 ,e2 ,e1) κ)]
 
     ;   (if (not e0) e1 e2) => (if e0 e2 e1)
     [(if ,s (app ,s0 ,x ,e0) ,e1 ,e2)
      (guard (the-not-primitive? x))
+     (simplify-profile-note! 'not-if-swap `(if ,s (app ,s0 ,x ,e0) ,e1 ,e2)
+                             `(if ,s ,e0 ,e2 ,e1))
      (Expr `(if ,s ,e0 ,e2 ,e1) κ)]
 
     ;   (if ((lambda (x) (if x x e0)) e1) e2 e3)
@@ -6181,12 +6225,14 @@
 
     [(if ,s ,e0 ,e1 ,e2)
      (letv ((e0 κ) (Expr e0 κ))
-       (case (constant-truthiness e0)
+        (case (constant-truthiness e0)
          [(#t)
+         (simplify-profile-note! 'if-constant `(if ,s ,e0 ,e1 ,e2) e1)
           (Expr e1 κ)]
-         [(#f)
+        [(#f)
+         (simplify-profile-note! 'if-constant `(if ,s ,e0 ,e1 ,e2) e2)
           (Expr e2 κ)]
-         [else
+        [else
           (letv ((e1 κ1) (Expr e1 κ))
             (letv ((e2 κ2) (Expr e2 κ))
               (values (if (same-expression? e1 e2)
@@ -6199,6 +6245,7 @@
      (letv ((es κ) (Expr* (cons e0 e1) κ))
        (match es
          [(list e)
+          (simplify-profile-note! 'let-empty `(let-values ,s () ,e0 ,e1 ...) e)
           (values e κ)]
          [(cons e0 e1)
           (values `(let-values ,s () ,e0 ,e1 ...) κ)]))]
@@ -6207,6 +6254,7 @@
     [(let-values ,s ([(,x) ,e]) ,xd)
      (guard (id=? x xd))
      (letv ((e κ) (Expr e κ))
+       (simplify-profile-note! 'let-trivial `(let-values ,s ([(,x) ,e]) ,xd) e)
        (values e κ))]
 
     [(let-values ,s ([(,x) ,e]) ,e0)
@@ -6228,12 +6276,15 @@
          (cond
            [(and (constant-expression? e*)
                  (constant-expression? e0))
+             (simplify-profile-note! 'let-trivial `(let-values ,s ([(,x) ,e]) ,e0) e0)
              (values e0 κ-out)]
            [else
              (nanopass-case (LFE Expr) e0
                [,xd
                 (if (id=? x xd)
-                   (values e* κ-out)
+                   (begin
+                     (simplify-profile-note! 'let-trivial `(let-values ,s ([(,x) ,e]) ,e0) e*)
+                     (values e* κ-out))
                    (values `(let-values ,s ([(,x) ,e*]) ,e0) κ-out))]
                [else
                (values `(let-values ,s ([(,x) ,e*]) ,e0) κ-out)])])))]
@@ -6264,11 +6315,17 @@
     ;   ((lambda () e)) => e
     [(app ,s (λ ,s0 ,f ,e0 ,e1 ...) )
      (guard (nullary-formals? f))
+     (simplify-profile-note! 'lambda-nullary-application
+                             `(app ,s (λ ,s0 ,f ,e0 ,e1 ...))
+                             (lambda-body s0 e0 e1))
      (Expr (lambda-body s0 e0 e1) κ)]
 
     ;; Unary λ-normalization
     ;   ((lambda (x) body) e) => (let-values ([(x) e]) body)
     [(app ,s (λ ,s0 (formals (,x)) ,e0 ,e1 ...) ,e2)
+     (simplify-profile-note! 'lambda-unary-application
+                             `(app ,s (λ ,s0 (formals (,x)) ,e0 ,e1 ...) ,e2)
+                             `(let-values ,s ([(,x) ,e2]) ,e0 ,e1 ...))
      (Expr `(let-values ,s ([(,x) ,e2]) ,e0 ,e1 ...)
            κ)]
 
@@ -6277,6 +6334,9 @@
     ;      => ((lambda (x1 ... xk xr) body) e1 ... ek (list ek+1 ...))
     [(app ,s (λ ,s0 ,f ,e0 ,e1 ...) ,e2 ...)
      (guard (rest-normalizable-application? f e2))
+     (simplify-profile-note! 'rest-application-normalization
+                             `(app ,s (λ ,s0 ,f ,e0 ,e1 ...) ,e2 ...)
+                             (normalize-rest-application s s0 f e2 (cons e0 e1)))
      (Expr (normalize-rest-application s s0 f e2 (cons e0 e1)) κ)]
 
     ;; Foldable Applications
@@ -6292,6 +6352,25 @@
            (and (variable? e0)
                 (partial-foldable? e0)
                 (partial-fold-primitive-application s e0 e1)))
+         (when folded
+           (simplify-profile-note! 'primitive-constant-fold
+                                   `(app ,s ,e0 ,e1 ...)
+                                   folded))
+         (when partially-folded
+           (define family
+             (case (syntax-e (variable-id e0))
+               [(+ - * / add1 sub1 abs) 'arithmetic-partial-fold]
+               [(bitwise-and bitwise-ior bitwise-xor) 'bitwise-partial-fold]
+               [(eq? eqv? equal? equal-always? boolean=? char=? string=? bytes=? string-ci=?
+                     symbol=? = < <= > >= zero?) 'equality-fold]
+               [(car cdr first second third fourth fifth sixth seventh eighth ninth tenth
+                     rest list-ref vector-ref string-ref bytes-ref) 'accessor-fold]
+               [(null? pair? list? boolean? char? symbol? string? bytes? vector?) 'predicate-fold]
+               [(list append member memq memv assoc assq assv remove remq remv) 'list-sequence-fold]
+               [else 'primitive-constant-fold]))
+           (simplify-profile-note! family
+                                   `(app ,s ,e0 ,e1 ...)
+                                   partially-folded))
          (values (or folded
                      partially-folded
                      `(app ,s ,e0 ,e1 ...))
@@ -6300,6 +6379,7 @@
     ;   (set! x (begin ... e)) => (begin ... (set! x e))
     [(set! ,s ,x ,e)
      (guard (begin-sequence e))
+     (simplify-profile-note! 'set-begin-hoist `(set! ,s ,x ,e) (set!-rhs-begin s x e))
      (Expr (set!-rhs-begin s x e) κ)]
 
     [(set! ,s ,x ,e)
@@ -6309,8 +6389,13 @@
 
     [(begin ,s ,e0 ,e1 ...)
      (letv ((es κ) (Expr* (cons e0 e1) κ))
-       (values (Begin s (live-begin-expressions
-                         (append-map begin-expressions es)))
+       (define flattened (append-map begin-expressions es))
+       (define live      (live-begin-expressions flattened))
+       (when (> (length flattened) (length es))
+         (simplify-profile-note! 'begin-flatten `(begin ,s ,e0 ,e1 ...) (Begin s flattened)))
+       (when (< (length live) (length flattened))
+         (simplify-profile-note! 'dead-pure-begin (Begin s flattened) (Begin s live)))
+       (values (Begin s live)
                κ))]
 
     [(begin0 ,s ,e0 ,e1 ...)
@@ -6318,6 +6403,13 @@
        (letv ((e1 κ) (Expr* e1 κ))
          (define e1*
            (live-begin0-tail-expressions e1))
+         (when (< (length e1*) (length e1))
+           (simplify-profile-note! 'dead-pure-begin
+                                   `(begin0 ,s ,e0 ,e1 ...)
+                                   (match e1*
+                                     ['()
+                                      e0]
+                                     [_ `(begin0 ,s ,e0 ,e1* ...)])))
          (values (match e1*
                    ['()
                     e0]
@@ -20638,6 +20730,9 @@
 (define current-gen-timing-table  (make-parameter #f))
 (define current-alpha-rename-profile? (make-parameter #f))
 (define current-alpha-rename-profile-report (make-parameter #f))
+(define current-simplify-profile? (make-parameter #f))
+(define current-simplify-profile-stats (make-parameter #f))
+(define current-simplify-profile-report (make-parameter #f))
 (define current-compiler-progress? (make-parameter #f))
 (define current-compiler-progress-port (make-parameter #f))
 (define current-pass-dump-dir     (make-parameter #f))
@@ -20668,6 +20763,160 @@
     (format "lookup-ms\t~a"                   (ref 'lookup-ms 0.0))
     (format "fresh-name-ms\t~a"               (ref 'fresh-name-ms 0.0)))
    "\n"))
+
+(define simplify-profile-rule-families
+  '(begin-flatten
+    dead-pure-begin
+    if-constant
+    if-nested
+    not-if-swap
+    let-empty
+    let-trivial
+    let-constant-propagation
+    lambda-nullary-application
+    lambda-unary-application
+    rest-application-normalization
+    primitive-constant-fold
+    arithmetic-partial-fold
+    bitwise-partial-fold
+    list-sequence-fold
+    equality-fold
+    accessor-fold
+    predicate-fold
+    set-begin-hoist
+    if-test-begin-hoist))
+
+(define (simplify-profile-inc-hash! ht key [delta 1])
+  (hash-update! ht key (λ (n) (+ n delta)) 0))
+
+(define (simplify-profile-shape-key datum)
+  (cond
+    [(pair? datum)
+     (define head (car datum))
+     (cond
+       [(symbol? head) head]
+       [else #f])]
+    [(vector? datum) '<vector>]
+    [(box? datum)    '<box>]
+    [(syntax? datum) '<syntax>]
+    [else            #f]))
+
+(define simplify-profile-special-form-heads
+  '(quote
+    quote-syntax
+    if
+    begin
+    begin0
+    let-values
+    letrec-values
+    lambda
+    λ
+    case-lambda
+    set!
+    #%expression
+    topbegin
+    topmodule
+    define-values
+    define-syntaxes
+    #%provide
+    #%require
+    top
+    variable-reference))
+
+(define (simplify-profile-app-operator-key datum)
+  (match datum
+    [(? symbol?) datum]
+    [`(top ,_ ,(? symbol? sym)) sym]
+    [(cons '#%top (? symbol? sym)) sym]
+    [_ '<complex>]))
+
+(define (collect-simplify-profile-datum! datum shape-ht app-ht)
+  (define shape-key (simplify-profile-shape-key datum))
+  (when shape-key
+    (simplify-profile-inc-hash! shape-ht shape-key))
+  (when (list? datum)
+    (match datum
+      [(list 'app _ op _ ...)
+       (simplify-profile-inc-hash! app-ht (simplify-profile-app-operator-key op))]
+      [_ (void)]))
+  (when (and (pair? datum)
+             (list? datum)
+             (symbol? (car datum))
+             (> (length datum) 1)
+             (not (memq (car datum) simplify-profile-special-form-heads)))
+    (simplify-profile-inc-hash! app-ht (car datum)))
+  (cond
+    [(pair? datum)
+     (collect-simplify-profile-datum! (car datum) shape-ht app-ht)
+     (collect-simplify-profile-datum! (cdr datum) shape-ht app-ht)]
+    [(vector? datum)
+     (for ([e (in-vector datum)])
+       (collect-simplify-profile-datum! e shape-ht app-ht))]
+    [(box? datum)
+     (collect-simplify-profile-datum! (unbox datum) shape-ht app-ht)]
+    [else
+     (void)]))
+
+(define (collect-simplify-profile-summary ast)
+  (define datum (unparse-all (unparse-LFE ast)))
+  (define shape-ht (make-hasheq))
+  (define app-ht   (make-hasheq))
+  (collect-simplify-profile-datum! datum shape-ht app-ht)
+  (hash 'nodes  (count-sexp datum)
+        'shapes shape-ht
+        'apps   app-ht))
+
+(define (top-simplify-profile-entries ht [limit 8])
+  (take
+   (sort (hash->list ht)
+         (λ (a b)
+           (define av (cdr a))
+           (define bv (cdr b))
+           (if (= av bv)
+               (string<? (~a (car a)) (~a (car b)))
+               (> av bv))))
+   (min limit (hash-count ht))))
+
+(define (format-simplify-profile-entry-list label entries)
+  (if (null? entries)
+      (format "~a\t-" label)
+      (string-join
+       (cons (format "~a\t~a\t~a" label (caar entries) (cdar entries))
+             (for/list ([entry (in-list (cdr entries))])
+               (format "~a\t~a" (car entry) (cdr entry))))
+       "\n")))
+
+(define (format-simplify-profile-report stats)
+  (define before (hash-ref stats 'before))
+  (define after  (hash-ref stats 'after))
+  (define rule-ht (hash-ref stats 'rule-fires))
+  (define delta-ht (hash-ref stats 'rule-deltas))
+  (define lines
+    (append
+     (list
+      (format "input-nodes\t~a" (hash-ref before 'nodes))
+      (format "output-nodes\t~a" (hash-ref after 'nodes))
+      (format "nodes-removed\t~a" (- (hash-ref before 'nodes)
+                                     (hash-ref after 'nodes))))
+     (for/list ([family (in-list simplify-profile-rule-families)])
+       (format "rule\t~a\tfires\t~a\tnode-delta\t~a"
+               family
+               (hash-ref rule-ht family 0)
+               (hash-ref delta-ht family 0)))
+     (list
+      (format-simplify-profile-entry-list
+       "shape-before"
+       (top-simplify-profile-entries (hash-ref before 'shapes)))
+      (format-simplify-profile-entry-list
+       "shape-after"
+       (top-simplify-profile-entries (hash-ref after 'shapes)))
+      (format-simplify-profile-entry-list
+       "app-operators-before"
+       (top-simplify-profile-entries (hash-ref before 'apps)))
+      (format-simplify-profile-entry-list
+       "app-operators-after"
+       (top-simplify-profile-entries (hash-ref after 'apps))))))
+  (string-join lines "\n"))
 
 (define (console-bridge-source->string src)
   (cond
@@ -20702,6 +20951,7 @@
   (current-pass-timing-table #f)
   (current-gen-timing-table #f)
   (current-alpha-rename-profile-report #f)
+  (current-simplify-profile-report #f)
   (current-console-bridge-top-binding-names '())
   (current-console-bridge-mutable-top-binding-names '())
   (current-console-bridge-program-source-path
@@ -20783,9 +21033,30 @@
   (define p0  (time-pass "parse"                (λ () (parse u))
                          (λ (v) (count-unparsed unparse-LFE v))
                          (λ (v) (unparse-all (unparse-LFE v)))))
-  (define s0  (time-pass "simplify-LFE"         (λ () (if (current-enable-simplify?)
-                                                          (simplify-LFE p0)
-                                                          p0))
+  (define s0  (time-pass "simplify-LFE"
+                         (λ ()
+                           (if (current-enable-simplify?)
+                               (let* ([profile? (current-simplify-profile?)]
+                                      [stats    (and profile?
+                                                     (hash 'rule-fires (make-hasheq)
+                                                           'rule-deltas (make-hasheq)))])
+                                 (define before
+                                   (and profile?
+                                        (collect-simplify-profile-summary p0)))
+                                 (define out
+                                   (parameterize ([current-simplify-profile-stats stats])
+                                     (simplify-LFE p0)))
+                                 (when profile?
+                                   (define after
+                                     (collect-simplify-profile-summary out))
+                                   (current-simplify-profile-report
+                                    (format-simplify-profile-report
+                                     (hash-set*
+                                      stats
+                                      'before before
+                                      'after after))))
+                                 out)
+                               p0))
                          (λ (v) (count-unparsed unparse-LFE v))
                          (λ (v) (unparse-all (unparse-LFE v)))))
   (define p   (time-pass "print-top-level-results"

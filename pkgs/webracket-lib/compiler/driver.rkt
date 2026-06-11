@@ -1555,6 +1555,7 @@
          #:dump-passes-limit dump-passes-limit  ; max number of passes to dump
          #:timings?          timings?
          #:alpha-rename-profile? alpha-rename-profile?
+         #:simplify-profile? simplify-profile?
          #:pretty-wat?       pretty-wat?        ; pretty print (slow) the wat-file
          #:verbose?          verbose?
          ;; Targets
@@ -1848,6 +1849,7 @@
   (current-pass-dump-limit dump-passes-limit)
   (current-pass-timings?   timings?)
   (current-alpha-rename-profile? alpha-rename-profile?)
+  (current-simplify-profile? simplify-profile?)
   (define t-compile-start (now-ms))
   (define provider-owned-primitive-aliases
     (provider-owned-primitive-alias-symbols
@@ -1936,6 +1938,8 @@
   ; 10. Output timings
   (define alpha-rename-profile-report
     (current-alpha-rename-profile-report))
+  (define simplify-profile-report
+    (current-simplify-profile-report))
   (when timings?
     (define ffi-setup-ms     (- t-ffi-setup-end   t-ffi-setup-start))
     (define read-source-ms   (- t-read-source-end t-read-source-start))
@@ -2011,6 +2015,9 @@
   (when alpha-rename-profile-report
     (displayln "=== Alpha-Rename Profile ===")
     (displayln alpha-rename-profile-report))
+  (when simplify-profile-report
+    (displayln "=== Simplify-LFE Profile ===")
+    (displayln simplify-profile-report))
   (values exit-code compile-timings))
 
 ;;;

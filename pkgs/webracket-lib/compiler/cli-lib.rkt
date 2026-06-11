@@ -40,6 +40,7 @@
    dump-passes-limit                      ; maximum number of pass dumps, or #f for default
    timings?                               ; print timing tables during compilation
    alpha-rename-profile?                  ; print alpha-rename pass diagnostics
+   simplify-profile?                      ; print simplify-LFE diagnostics
    pretty-wat?                            ; pretty-print emitted WAT
    enable-cc-analysis?                    ; enable the new closure-conversion analysis
    enable-simplify?                       ; enable the early simplify pass
@@ -83,6 +84,7 @@
     (dump-passes-limit . ,(webracket-compile-config-dump-passes-limit cfg))
     (timings? . ,(webracket-compile-config-timings? cfg))
     (alpha-rename-profile? . ,(webracket-compile-config-alpha-rename-profile? cfg))
+    (simplify-profile? . ,(webracket-compile-config-simplify-profile? cfg))
     (pretty-wat? . ,(webracket-compile-config-pretty-wat? cfg))
     (enable-cc-analysis? . ,(webracket-compile-config-enable-cc-analysis? cfg))
     (enable-simplify? . ,(webracket-compile-config-enable-simplify? cfg))
@@ -130,6 +132,7 @@
    (ref 'dump-passes-limit)
    (ref 'timings?)
    (ref 'alpha-rename-profile?)
+   (ref 'simplify-profile?)
    (ref 'pretty-wat?)
    (ref 'enable-cc-analysis?)
    (ref 'enable-simplify?)
@@ -171,6 +174,7 @@
   (define dump-passes-limit #f)
   (define timings? #f)
   (define alpha-rename-profile? #f)
+  (define simplify-profile? #f)
   (define pretty-wat? #f)
   (define list-primitives? #f)
   (define list-provider-slices? #f)
@@ -322,6 +326,9 @@
      [("--alpha-rename-profile")
       "Print alpha-rename/pass1 counters and helper timings"
       (set! alpha-rename-profile? #t)]
+     [("--simplify-profile")
+      "Print simplify-LFE rule and shape diagnostics"
+      (set! simplify-profile? #t)]
      [("--pretty-wat") "Write .wat with pretty formatting"
                        (set! pretty-wat? #t)]
      [("--no-pretty-wat") "Write .wat without pretty formatting (default)"
@@ -489,6 +496,7 @@
        dump-passes-limit
        timings?
        alpha-rename-profile?
+       simplify-profile?
        pretty-wat?
        enable-cc-analysis?
        enable-simplify?
@@ -538,6 +546,7 @@
                        #:dump-passes-limit (webracket-compile-config-dump-passes-limit cfg)
                        #:timings? (webracket-compile-config-timings? cfg)
                        #:alpha-rename-profile? (webracket-compile-config-alpha-rename-profile? cfg)
+                       #:simplify-profile? (webracket-compile-config-simplify-profile? cfg)
                        #:pretty-wat? (webracket-compile-config-pretty-wat? cfg)
                        #:verbose? (webracket-compile-config-verbose-mode cfg)
                        #:browser? (webracket-compile-config-browser cfg)
