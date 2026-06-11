@@ -144,6 +144,13 @@
                  #:when (eq? kind 'primitive))
         (second binding)))
 
+    (define initial-program-string-constant-names
+      (map first string-constants))
+    (define initial-program-bytes-constant-names
+      (map first bytes-constants))
+    (define initial-program-symbol-constant-names
+      (map first symbol-constants))
+
     (define primitive-table-module-symbols
       '(#%bootstrap-linklet
         #%kernel
@@ -221,6 +228,13 @@
            (symbol? (cadr form))
            (cadr form)))
 
+    (define (module-data-name form)
+      (and (pair? form)
+           (eq? (car form) 'data)
+           (pair? (cdr form))
+           (symbol? (cadr form))
+           (cadr form)))
+
     (define (primitive-global-init-form? x)
       (and (pair? x)
            (eq? (car x) 'global.set)
@@ -268,19 +282,40 @@
 
     (define program-global-name-set
       (list->eq-set
-       (cons result
-             (for/list ([form (in-list top-level-variable-declarations)]
-                        #:do [(define name (module-global-name form))]
-                        #:when name)
-               name))))
+       (append
+        (list result)
+        (for/list ([form (in-list top-level-variable-declarations)]
+                   #:do [(define name (module-global-name form))]
+                   #:when name)
+          name)
+        (append*
+         (for/list ([name (in-list initial-program-string-constant-names)])
+           (list (string->symbol (~a "$string:" name))))
+         (for/list ([name (in-list initial-program-bytes-constant-names)])
+           (list (string->symbol (~a "$bytes:" name))))
+         (for/list ([name (in-list initial-program-symbol-constant-names)])
+           (list (string->symbol (~a "$symbol:" name))))))))
+
+    (define program-data-name-set
+      (list->eq-set
+       (append
+        (for/list ([name (in-list initial-program-string-constant-names)])
+          (string->symbol (~a "$string-data:" name)))
+        (for/list ([name (in-list initial-program-bytes-constant-names)])
+          (string->symbol (~a "$bytes-data:" name)))
+        (for/list ([name (in-list initial-program-symbol-constant-names)])
+          (string->symbol (~a "$symbol-data:" name))))))
 
     (define (program-module-form? form)
       (define func-name (module-func-name form))
       (define global-name (module-global-name form))
+      (define data-name (module-data-name form))
       (or (and func-name
                (hash-ref program-function-name-set func-name #f))
           (and global-name
-               (hash-ref program-global-name-set global-name #f))))
+               (hash-ref program-global-name-set global-name #f))
+          (and data-name
+               (hash-ref program-data-name-set data-name #f))))
 
     (define (split-module-forms module)
       (for/fold ([runtime-forms '()]
@@ -328,26 +363,25 @@
            (lambda ()
              (write module)))))))
 
-    (define (runtime-analysis-cache-fingerprint module)
-      `(runtime-analysis-cache
+    (define (stable-runtime-analysis-cache-fingerprint runtime-module)
+      `(stable-runtime-analysis-cache
         1
         ,(if (current-browser?) 'browser 'node)
         ,(runtime-source-fingerprint)
-        ,(module-fingerprint module)
+        ,(module-fingerprint runtime-module)
         ,(sort (map foreign-racket-name active-ffi-foreigns) symbol<?)
         ,(equal-hash-code active-ffi-imports-wat)
         ,(equal-hash-code active-ffi-funcs-wat)))
 
-    (define (runtime-analysis-cache-path)
+    (define (stable-runtime-analysis-cache-path fingerprint)
       (define cache-root (current-runtime-cache-dir))
       (and cache-root
            (build-path cache-root
-                       "runtime-analysis"
+                       "runtime-analysis-v2"
                        (format "~x.fasl"
-                               (abs (equal-hash-code
-                                     (runtime-analysis-cache-fingerprint)))))))
+                               (abs (equal-hash-code fingerprint))))))
 
-    (define (read-runtime-analysis-cache cache-path fingerprint)
+    (define (read-stable-runtime-analysis-cache cache-path fingerprint)
       (and cache-path
            (file-exists? cache-path)
            (with-handlers ([exn:fail? (lambda (_exn) #f)])
@@ -358,7 +392,7 @@
                 (and (equal? cached-fingerprint fingerprint) analysis)]
                [_ #f]))))
 
-    (define (write-runtime-analysis-cache! cache-path fingerprint analysis)
+    (define (write-stable-runtime-analysis-cache! cache-path fingerprint analysis)
       (when cache-path
         (make-directory* (path-only cache-path))
         (call-with-output-file cache-path
@@ -393,22 +427,26 @@
           (lambda ()
             (write module))))))
 
-    (define (analyze-runtime-primitives module)
-      (define (walk-symbol-refs x symbol->value)
-        (define refs (make-hasheq))
-        (define (walk x)
-          (cond
-            [(primitive-global-init-form? x) (void)]
-            [(symbol? x)
-             (define v (hash-ref symbol->value x #f))
-             (when v
-               (hash-set! refs (if (eq? v #t) x v) #t))]
-            [(pair? x)
-             (walk (car x))
-             (walk (cdr x))]
-            [else (void)]))
-        (walk x)
-        (eq-set-keys refs))
+    (define (forms->module forms)
+      `(module ,@forms))
+
+    (define (walk-symbol-refs x symbol->value)
+      (define refs (make-hasheq))
+      (define (walk x)
+        (cond
+          [(primitive-global-init-form? x) (void)]
+          [(symbol? x)
+           (define v (hash-ref symbol->value x #f))
+           (when v
+             (hash-set! refs (if (eq? v #t) x v) #t))]
+          [(pair? x)
+           (walk (car x))
+           (walk (cdr x))]
+          [else (void)]))
+      (walk x)
+      (eq-set-keys refs))
+
+    (define (analyze-stable-runtime module)
       (define primitive-ref->symbol
         (time-runtime-step
          "tree-shake:build-primitive-ref-map"
@@ -575,7 +613,7 @@
            (let ([incoming (make-hasheq)])
              (for ([entry (in-list primitive-graph)])
                (eq-set-add-all! incoming (cdr entry)))
-             (eq-set-keys incoming)))))
+            (eq-set-keys incoming)))))
       (define incoming-primitives-ht
         (list->eq-set incoming-primitives))
       (define runtime-root-primitives-ht
@@ -608,6 +646,41 @@
             (cons 'runtime-root-primitives runtime-root-primitives)
             (cons 'isolated-primitives isolated-primitives)))
 
+    (define (analyze-program-fragment program-forms runtime-analysis)
+      (define runtime-function-names
+        (for/list ([entry (in-list (primitive-graph-ref runtime-analysis 'function-graph))])
+          (car entry)))
+      (define runtime-function-name-set
+        (list->eq-set runtime-function-names))
+      (define primitive-ref->symbol
+        (let ([ht (make-hasheq)])
+          (for ([(k v) (in-hash primitive-func->symbol)])
+            (hash-set! ht k v))
+          (for ([(k v) (in-hash primitive-global->symbol)])
+            (hash-set! ht k v))
+          ht))
+      (define runtime-root-functions
+        (sort
+         (remove-duplicates
+          (for/fold ([roots '()]) ([form (in-list program-forms)])
+            (append (walk-symbol-refs form runtime-function-name-set)
+                    roots)))
+         symbol<?))
+      (define program-root-primitives
+        (sort
+         (remove-duplicates
+          (append
+           (filter primitive->description
+                   (remove-duplicates
+                    (append used-primitives
+                            console-bridge-primitive-names)))
+           (for/fold ([roots '()]) ([form (in-list program-forms)])
+             (append (walk-symbol-refs form primitive-ref->symbol)
+                     roots))))
+         symbol<?))
+      (list (cons 'program-root-functions runtime-root-functions)
+            (cons 'program-root-primitives program-root-primitives)))
+
     (define (primitive-graph-ref analysis key)
       (cdr (assq key analysis)))
 
@@ -632,11 +705,7 @@
       (define graph          (primitive-graph-ref analysis 'primitive-graph))
       (define runtime-roots  (primitive-graph-ref analysis 'runtime-root-primitives))
       (define program-roots
-        (sort (filter primitive->description
-                      (remove-duplicates
-                       (append used-primitives
-                               console-bridge-primitive-names)))
-              symbol<?))
+        (primitive-graph-ref analysis 'program-root-primitives))
       (primitive-transitive-closure (append runtime-roots program-roots) graph))
 
     (define (primitive-refs-for-functions analysis function-names)
@@ -654,6 +723,7 @@
       (define function-graph (primitive-graph-ref analysis 'function-graph))
       (define module-roots   (primitive-graph-ref analysis 'module-root-functions))
       (define elem-roots     (primitive-graph-ref analysis 'elem-root-functions))
+      (define program-roots  (primitive-graph-ref analysis 'program-root-functions))
       (define retained-primitive-ht (make-hasheq))
       (for ([pr (in-list retained-primitives)])
         (hash-set! retained-primitive-ht pr #t))
@@ -663,7 +733,7 @@
       (define function-graph-ht
         (for/hasheq ([entry (in-list function-graph)])
           (values (car entry) (cdr entry))))
-      (let loop ([pending (append module-roots elem-roots retained-primitive-funcs)]
+      (let loop ([pending (append module-roots elem-roots program-roots retained-primitive-funcs)]
                  [seen (make-hasheq)])
         (match pending
           ['() (eq-set-keys/sorted seen)]
@@ -738,9 +808,9 @@
       (define report-path (current-runtime-primitive-report-path))
       (when report-path
         (define program-root-primitives
-          (sort (filter primitive->description
-                        (remove-duplicates used-primitives))
-                symbol<?))
+          (primitive-graph-ref analysis 'program-root-primitives))
+        (define program-root-functions
+          (primitive-graph-ref analysis 'program-root-functions))
         (define isolated-primitives
           (primitive-graph-ref analysis 'isolated-primitives))
         (define runtime-root-primitives
@@ -755,12 +825,15 @@
              (list (list 'summary
                          (list 'total-primitives total-primitives)
                          (list 'program-root-count (length program-root-primitives))
+                         (list 'program-root-function-count (length program-root-functions))
                          (list 'retained-count retained-count)
                          (list 'isolated-count (length isolated-primitives))
                          (list 'runtime-root-count (length runtime-root-primitives))
                          (list 'omitted-count (- total-primitives retained-count)))
                    (cons 'program-root-primitives
                          program-root-primitives)
+                   (cons 'program-root-functions
+                         program-root-functions)
                    (cons 'retained-primitives retained-primitives)
                    (cons 'isolated-primitives isolated-primitives)
                    (cons 'module-root-functions
@@ -77930,40 +78003,56 @@
                          (length program-function-names))
     (runtime-metric-add! "runtime:program-global-count-before-prune"
                          (length top-level-variable-declarations))
-    (define analysis-cache-fingerprint
-      (runtime-analysis-cache-fingerprint full-module))
-    (define analysis-cache-path
-      (runtime-analysis-cache-path))
-    (runtime-metric-add! "tree-shake:analysis-cache-enabled?"
-                         (if analysis-cache-path "yes" "no"))
-    (define cached-analysis
+    (define runtime-only-module
+      (forms->module runtime-forms-before-prune))
+    (define program-only-forms
+      program-forms-before-prune)
+    (define stable-runtime-cache-fingerprint
+      (stable-runtime-analysis-cache-fingerprint runtime-only-module))
+    (define stable-runtime-cache-path
+      (stable-runtime-analysis-cache-path stable-runtime-cache-fingerprint))
+    (runtime-metric-add! "tree-shake:runtime-analysis-v2-cache-enabled?"
+                         (if stable-runtime-cache-path "yes" "no"))
+    (define cached-stable-runtime-analysis
       (time-runtime-step
-       "tree-shake:analysis-cache-lookup"
+       "tree-shake:runtime-analysis-v2-cache-lookup"
        (lambda ()
-         (read-runtime-analysis-cache analysis-cache-path
-                                      analysis-cache-fingerprint))))
-    (define analysis
+         (read-stable-runtime-analysis-cache stable-runtime-cache-path
+                                             stable-runtime-cache-fingerprint))))
+    (define stable-runtime-analysis
       (cond
-        [cached-analysis
-         (runtime-metric-add! "tree-shake:analysis-cache-hit?" "yes")
+        [cached-stable-runtime-analysis
+         (runtime-metric-add! "tree-shake:runtime-analysis-v2-cache-hit?" "yes")
          (time-runtime-step
-          "tree-shake:analysis-cache-hit"
+          "tree-shake:runtime-analysis-v2-cache-hit"
           (lambda ()
-            cached-analysis))]
+            cached-stable-runtime-analysis))]
         [else
-         (runtime-metric-add! "tree-shake:analysis-cache-hit?" "no")
-         (define computed-analysis
+         (runtime-metric-add! "tree-shake:runtime-analysis-v2-cache-hit?" "no")
+         (define computed-stable-runtime-analysis
            (time-runtime-step
-            "tree-shake:analyze-runtime-primitives"
+            "tree-shake:analyze-stable-runtime"
             (lambda ()
-              (analyze-runtime-primitives full-module))))
+              (analyze-stable-runtime runtime-only-module))))
          (time-runtime-step
-          "tree-shake:analysis-cache-write"
+          "tree-shake:runtime-analysis-v2-cache-write"
           (lambda ()
-            (write-runtime-analysis-cache! analysis-cache-path
-                                           analysis-cache-fingerprint
-                                           computed-analysis)))
-         computed-analysis]))
+            (write-stable-runtime-analysis-cache! stable-runtime-cache-path
+                                                  stable-runtime-cache-fingerprint
+                                                  computed-stable-runtime-analysis)))
+         computed-stable-runtime-analysis]))
+    (define program-analysis
+      (time-runtime-step
+       "tree-shake:analyze-program-fragment"
+       (lambda ()
+         (analyze-program-fragment program-only-forms
+                                   stable-runtime-analysis))))
+    (define analysis
+      (time-runtime-step
+       "tree-shake:combine-analysis"
+       (lambda ()
+         (append stable-runtime-analysis
+                 program-analysis))))
     (define-values (retained-primitives retained-functions)
       (time-runtime-step
        "tree-shake:retain-closure"
