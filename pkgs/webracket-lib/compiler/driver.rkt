@@ -3,6 +3,12 @@
 ;;; DRIVER 
 ;;;        
 
+;; This file is the host-side orchestration layer for compilation.
+;; The compiler pipeline itself lives deeper in the compiler and webify
+;; modules, while this file owns file-system checks, output naming, provider
+;; cache setup, external tool invocation, and the shared execution path used by
+;; both the ordinary CLI and the long-lived compile server.
+
 ;; The functions in this module "drive" the compiler so to speak.
 ;; The settings given by the user via the command line are
 ;; passed as arguments to `drive-compilation`.
@@ -18,7 +24,9 @@
 ;;;
 
 (provide drive-compilation
+         (struct-out compilation-output-paths)
          (struct-out compilation-timings)
+         resolve-compilation-output-paths
          (all-defined-out))
 
 
@@ -1109,19 +1117,51 @@
 ;;      Print timing breakdown for compilation steps.
 
 (struct compilation-timings
-  (ffi-setup
-   read-source
-   add-stdlib
-   preflight
-   compile
-   write-wat
-   assemble
-   write-map
-   write-host
-   compile-total
-   run
-   driver-total)
+  (ffi-setup     ; time spent resolving and loading FFI declarations
+   read-source   ; time spent reading source and module-language input
+   add-stdlib    ; time spent composing stdlib and provider slices
+   preflight     ; time spent validating outputs, tools, and runtime mode
+   compile       ; core compiler pipeline time
+   write-wat     ; time spent writing the .wat file
+   assemble      ; time spent producing the .wasm file
+   write-map     ; time spent writing the label-map sidecar
+   write-host    ; time spent writing the JS or HTML host wrapper
+   compile-total ; compile-pipeline subtotal excluding optional run-after
+   run           ; optional Node run-after time
+   driver-total  ; total driver time including orchestration and optional run
+   )
   #:transparent)
+
+(struct compilation-output-paths
+  (wat   ; emitted WebAssembly text path
+   wasm  ; emitted WebAssembly binary path
+   map   ; emitted label-map sidecar path
+   host  ; emitted JS or HTML host wrapper path
+   )
+  #:transparent)
+
+;; resolve-compilation-output-paths : path-string? (or/c path-string? #f) (or/c path-string? #f) (or/c path-string? #f) (or/c path-string? #f) boolean? -> compilation-output-paths?
+;;   Compute the effective output paths for one compilation request.
+(define (resolve-compilation-output-paths filename
+                                          wat-filename
+                                          wasm-filename
+                                          host-filename
+                                          dest-dir
+                                          node?)
+  (define (default-output-path ext)
+    (define source-base (or (file-name-from-path filename) filename))
+    (define default-name (path-replace-extension source-base ext))
+    (if dest-dir
+        (build-path dest-dir default-name)
+        (path-replace-extension filename ext)))
+  (define out-wat  (or wat-filename  (default-output-path ".wat")))
+  (define out-wasm (or wasm-filename (default-output-path ".wasm")))
+  (define out-map  (path-replace-extension out-wasm ".wasm.map.sexp"))
+  (define out-host (or host-filename
+                       (if node?
+                           (default-output-path ".js")
+                           (default-output-path ".html"))))
+  (compilation-output-paths out-wat out-wasm out-map out-host))
 
 
 (define (drive-compilation
@@ -1351,20 +1391,17 @@
     (check-node! 'drive-compilation))
 
   ; Precompute output paths for preflight checks.
-  (define (default-output-path ext)
-    (define source-base (or (file-name-from-path filename) filename))
-    (define default-name (path-replace-extension source-base ext))
-    (if dest-dir
-        (build-path dest-dir default-name)
-        (path-replace-extension filename ext)))
-
-  (define out-wat  (or wat-filename  (default-output-path ".wat")))
-  (define out-wasm (or wasm-filename (default-output-path ".wasm")))
-  (define out-map  (path-replace-extension out-wasm ".wasm.map.sexp"))
-  (define out-host (or host-filename
-                       (if node?
-                           (default-output-path ".js")
-                           (default-output-path ".html"))))
+  (define output-paths
+    (resolve-compilation-output-paths filename
+                                      wat-filename
+                                      wasm-filename
+                                      host-filename
+                                      dest-dir
+                                      node?))
+  (define out-wat  (compilation-output-paths-wat output-paths))
+  (define out-wasm (compilation-output-paths-wasm output-paths))
+  (define out-map  (compilation-output-paths-map output-paths))
+  (define out-host (compilation-output-paths-host output-paths))
 
   ; Preflight: ensure output files do not collide.
   (ensure-distinct-output-files!
