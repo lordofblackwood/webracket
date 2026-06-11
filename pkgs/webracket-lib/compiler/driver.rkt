@@ -553,7 +553,12 @@
          ,(path->string (simplify-path resolved-name))
          ,(file-size resolved-name)
          ,(file-or-directory-modify-seconds resolved-name))]
-      [else `(module-source resolved ,resolved-name)])))
+      [else
+       `(module-source
+         resolved
+         ,(if (path-string? resolved-name)
+              (path->string resolved-name)
+              resolved-name))])))
 
 ;; module-path-available? : module-path? -> boolean?
 ;;   Check whether the current host can resolve a module path to an existing source.
@@ -686,6 +691,52 @@
              (fetch-provider name))))))
      (write-provider-cache! cache-path fingerprint (provider-report->cache-datum report))
      report]))
+
+;; log-discovered-provider-graph-cache-miss! : path? any/c -> void?
+;;   Explain why the discovered provider-graph cache did not hit.
+(define (log-discovered-provider-graph-cache-miss! cache-path fingerprint)
+  (when (and (current-provider-cache-verbose?)
+             (file-exists? cache-path))
+    (with-handlers ([exn:fail?
+                     (lambda (e)
+                       (provider-cache-log
+                        "#lang webracket/base discovered provider graph cache unreadable: ~a"
+                        (exn-message e)))])
+      (match (call-with-input-file cache-path read)
+        [`(,cached-fingerprint ,_payload)
+         (unless (equal? cached-fingerprint fingerprint)
+           (define labels
+             '(tag
+               cache-version
+               root
+               demand-slice?
+               module-protocol-dependency
+               racket-version
+               extractor-fingerprint
+               local-source-fingerprint
+               support-provider-fingerprints))
+           (define cached-parts
+             (if (list? cached-fingerprint) cached-fingerprint '()))
+           (define current-parts
+             (if (list? fingerprint) fingerprint '()))
+           (define mismatch-index
+             (for/or ([label (in-list labels)]
+                      [cached-part (in-list cached-parts)]
+                      [current-part (in-list current-parts)]
+                      [i (in-naturals)])
+               (and (not (equal? cached-part current-part))
+                    (list i label cached-part current-part))))
+           (match mismatch-index
+             [(list _i label cached-part current-part)
+              (provider-cache-log
+               "#lang webracket/base discovered provider graph fingerprint mismatch at ~a"
+               label)
+              (provider-cache-log "  cached: ~s" cached-part)
+              (provider-cache-log "  current: ~s" current-part)]
+             [_ (provider-cache-log
+                 "#lang webracket/base discovered provider graph fingerprint mismatch in unlabelled tail")]))]
+        [_ (provider-cache-log
+            "#lang webracket/base discovered provider graph cache has unexpected shape")]))))
 
 ;; module-linklet-input->cache-datum : webify-module-linklet-input? -> datum?
 ;;   Serialize one resolved linklet input using the manifest handoff shape.
@@ -821,6 +872,7 @@
       (lambda ()
         (webify-module-linklet-manifest->registry manifest)))]
     [else
+     (log-discovered-provider-graph-cache-miss! cache-path fingerprint)
      (provider-cache-log "#lang webracket/base discovered provider graph miss: ~a" root)
      (define inputs
        (with-module-bridge-timing
