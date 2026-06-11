@@ -8,6 +8,7 @@
          current-enable-simplify?
          current-letrec-strategy
          current-tree-shake?
+         current-runtime-cache-dir
          current-runtime-primitive-report-path
          current-runtime-timing-rows
          current-runtime-metric-rows)
@@ -25,6 +26,8 @@
 (define current-enable-simplify? (make-parameter #f)) ; boolean? run early simplify-LFE pass
 (define current-letrec-strategy (make-parameter 'scc)) ; 'basic, 'waddell, or 'scc
 (define current-tree-shake?     (make-parameter #t))  ; boolean? tree shake runtime primitives
+(define current-runtime-cache-dir
+  (make-parameter #f))                                 ; path-string? or #f
 (define current-runtime-primitive-report-path
   (make-parameter #f))                                 ; path-string? or #f
 (define current-runtime-timing-rows

@@ -7,7 +7,18 @@
          "private/priminfo.rkt"
          "private/parameters.rkt"
          "private/timings.rkt"
-         "private/structs.rkt")
+         "private/structs.rkt"
+         racket/fasl
+         racket/file
+         racket/runtime-path)
+
+(define-runtime-path runtime-wasm-path "runtime-wasm.rkt")
+(define-runtime-path priminfo-path "private/priminfo.rkt")
+(define-runtime-path parameters-path "private/parameters.rkt")
+(define-runtime-path structs-path "private/structs.rkt")
+(define-runtime-path wasm-data-path "private/wasm-data.rkt")
+(define-runtime-path wasm-utils-path "private/wasm-utils.rkt")
+(define-runtime-path immediates-path "private/immediates.rkt")
 
 ; See the end of `generate-code` in `compiler.rkt` for an
 ; explanation of the arguments.
@@ -253,6 +264,59 @@
       (when (current-runtime-metric-rows)
         (current-runtime-metric-rows
          (cons (list label (~a value)) (current-runtime-metric-rows)))))
+
+    (define (runtime-source-fingerprint)
+      `(runtime-source
+        1
+        ,@(for/list ([path (in-list (list runtime-wasm-path
+                                          priminfo-path
+                                          parameters-path
+                                          structs-path
+                                          wasm-data-path
+                                          wasm-utils-path
+                                          immediates-path))])
+            (list (path->string path)
+                  (file-size path)
+                  (file-or-directory-modify-seconds path)))))
+
+    (define (runtime-analysis-cache-fingerprint)
+      `(runtime-analysis-cache
+        1
+        ,(if (current-browser?) 'browser 'node)
+        ,(runtime-source-fingerprint)
+        ,(sort (map foreign-racket-name active-ffi-foreigns) symbol<?)
+        ,(equal-hash-code active-ffi-imports-wat)
+        ,(equal-hash-code active-ffi-funcs-wat)))
+
+    (define (runtime-analysis-cache-path)
+      (define cache-root (current-runtime-cache-dir))
+      (and cache-root
+           (build-path cache-root
+                       "runtime-analysis"
+                       (format "~x.fasl"
+                               (abs (equal-hash-code
+                                     (runtime-analysis-cache-fingerprint)))))))
+
+    (define (read-runtime-analysis-cache cache-path fingerprint)
+      (and cache-path
+           (file-exists? cache-path)
+           (with-handlers ([exn:fail? (lambda (_exn) #f)])
+             (match (call-with-input-file cache-path
+                      (lambda (in)
+                        (fasl->s-exp (port->bytes in))))
+               [`(,cached-fingerprint ,analysis)
+                (and (equal? cached-fingerprint fingerprint) analysis)]
+               [_ #f]))))
+
+    (define (write-runtime-analysis-cache! cache-path fingerprint analysis)
+      (when cache-path
+        (make-directory* (path-only cache-path))
+        (call-with-output-file cache-path
+          (lambda (out)
+            (write-bytes
+             (s-exp->fasl (list fingerprint analysis))
+             out))
+          #:exists 'truncate/replace)))
 
     (define (module-form-count module predicate)
       (for/sum ([form (in-list (cdr module))]
@@ -77806,10 +77870,40 @@
                          (module-global-count full-module))
     (runtime-metric-add! "runtime:export-count-before-prune"
                          (module-export-count full-module))
+    (define analysis-cache-fingerprint
+      (runtime-analysis-cache-fingerprint))
+    (define analysis-cache-path
+      (runtime-analysis-cache-path))
+    (runtime-metric-add! "tree-shake:analysis-cache-enabled?"
+                         (if analysis-cache-path "yes" "no"))
+    (define cached-analysis
+      (time-runtime-step
+       "tree-shake:analysis-cache-lookup"
+       (lambda ()
+         (read-runtime-analysis-cache analysis-cache-path
+                                      analysis-cache-fingerprint))))
     (define analysis
-      (time-runtime-step "tree-shake:analyze-runtime-primitives"
-        (λ ()
-          (analyze-runtime-primitives full-module))))
+      (cond
+        [cached-analysis
+         (runtime-metric-add! "tree-shake:analysis-cache-hit?" "yes")
+         (time-runtime-step
+          "tree-shake:analysis-cache-hit"
+          (lambda ()
+            cached-analysis))]
+        [else
+         (runtime-metric-add! "tree-shake:analysis-cache-hit?" "no")
+         (define computed-analysis
+           (time-runtime-step
+            "tree-shake:analyze-runtime-primitives"
+            (lambda ()
+              (analyze-runtime-primitives full-module))))
+         (time-runtime-step
+          "tree-shake:analysis-cache-write"
+          (lambda ()
+            (write-runtime-analysis-cache! analysis-cache-path
+                                           analysis-cache-fingerprint
+                                           computed-analysis)))
+         computed-analysis]))
     (define-values (retained-primitives retained-functions)
       (time-runtime-step
        "tree-shake:retain-closure"

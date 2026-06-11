@@ -69,6 +69,7 @@
                                     current-enable-simplify?
                                     current-letrec-strategy
                                     current-tree-shake?
+                                    current-runtime-cache-dir
                                     current-runtime-primitive-report-path)
          (only-in "private/timings.rkt"
                   now-ms
@@ -1596,13 +1597,14 @@
   (current-enable-cc-analysis? enable-cc-analysis?)
   (current-console-bridge? console-bridge?)
   (current-tree-shake? tree-shake?)
-  (current-runtime-primitive-report-path tree-shake-report)
-  (set-browser-mode! browser?)
   (define provider-cache-path
     (let ([p (if (path? provider-cache-dir)
                  provider-cache-dir
                  (string->path provider-cache-dir))])
       (path->complete-path p)))
+  (current-runtime-cache-dir provider-cache-path)
+  (current-runtime-primitive-report-path tree-shake-report)
+  (set-browser-mode! browser?)
   (current-provider-cache-dir provider-cache-path)
   (current-provider-cache-force? force-provider-cache-refresh?)
   (current-provider-cache-verbose? verbose?)
