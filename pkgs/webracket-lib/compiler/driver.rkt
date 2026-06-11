@@ -83,6 +83,10 @@
                   stdlib-definition-form-symbols)
          (only-in "webify/io-format-bridge.rkt"
                   webify-io-format-root-name
+                  webify-io-format-printf-name
+                  webify-io-format-adapter-name
+                  webify-io-format-map-shim-name
+                  webify-io-format-module-protocol-name
                   webify-io-format-export-symbols
                   webify-io-format-reports
                   webify-io-format-registry
@@ -163,6 +167,7 @@
                   webify-module-report-required-provider-names
                   webify-module-reports->resolved-linklet-inputs)
          (only-in "webify/module-protocol.rkt"
+                  webify-module-protocol-name
                   webify-module-protocol-input
                   webify-module-protocol-report
                   webify-module-protocol-dependency)
@@ -932,11 +937,11 @@
     (roots ,roots)
     ,@(map module-linklet-input->cache-datum inputs)))
 
-;; discovered-provider-graph-fingerprint : symbol? (listof path?) reports boolean? any/c -> any/c
+;; discovered-provider-graph-fingerprint : symbol? (listof path?) (listof symbol?) boolean? any/c -> any/c
 ;;   Fingerprint discovered provider graphs using stable source file metadata.
 (define (discovered-provider-graph-fingerprint root
                                                local-source-paths
-                                               support-reports
+                                               support-provider-names
                                                demand-slice?
                                                module-protocol-dependency)
   `(discovered-provider-graph-cache
@@ -950,15 +955,14 @@
       'discovered-provider-graph-local-sources
       1
       local-source-paths)
-    ,(for/list ([report (in-list support-reports)])
-       (provider-module-source-fingerprint
-        (webify-module-report-name report)))))
+    ,(for/list ([name (in-list support-provider-names)])
+       (provider-module-source-fingerprint name))))
 
-;; cached-discovered-provider-registry : symbol? (listof path?) reports (-> inputs) -> registry
+;; cached-discovered-provider-registry : symbol? (listof path?) (listof symbol?) (-> inputs) -> registry
 ;;   Cache the expensive discovered provider graph as resolved linklet inputs.
 (define (cached-discovered-provider-registry root
                                              local-source-paths
-                                             support-reports
+                                             support-provider-names
                                              demand-slice?
                                              module-protocol-dependency
                                              discover-inputs)
@@ -969,7 +973,7 @@
   (define fingerprint
     (discovered-provider-graph-fingerprint root
                                            local-source-paths
-                                           support-reports
+                                           support-provider-names
                                            demand-slice?
                                            module-protocol-dependency))
   (define cached
@@ -2998,7 +3002,7 @@
            racket/contract/private/guts
            racket/contract/private/object
            racket/contract/private/object-c-wrapper))
-       (define erased-contract-support-reports
+       (define (erased-contract-support-reports)
          (let ([report (webify-module-provider-cache-ref provider-cache
                                                          'webracket/contract)])
            (for/list ([name (in-list erased-contract-support-names)])
@@ -3039,6 +3043,73 @@
            (unit-core . racket/private/unit/unit-core)
            (unit-infer . racket/private/unit/unit-infer)
            (util . racket/private/unit/util)))
+       (define erased-contract-support-report-names
+         (cons 'webracket/contract erased-contract-support-names))
+       (define class-support-report-names
+         (append
+          '(racket/private/for
+            racket/private/map
+            webracket/list
+            syntax/location
+            racket/private/define-struct
+            racket/private/serialize-structs
+            racket/private/class-internal
+            racket/private/class-struct
+            racket/private/list)
+          (if have-racket/private/pico?
+              '(racket/private/pico)
+              (if have-racket/private/reverse?
+                  '(racket/private/reverse)
+                  '()))))
+       (define unit-support-report-names
+         (append
+          '(racket/private/unit/contract
+            racket/private/unit/contract-syntax
+            racket/private/unit/keywords
+            racket/private/unit/runtime
+            racket/private/unit/signature
+            racket/private/unit/unit-core
+            racket/private/unit/unit-infer
+            racket/private/unit/util
+            racket/promise
+            racket/private/unit/exptime/import-export
+            racket/private/unit/exptime/signature
+            racket/private/unit/exptime/syntax
+            racket/private/unit/exptime/unit-infer
+            racket/private/unit/exptime/util)
+          (map car unit-relative-provider-aliases)
+          (map cdr unit-relative-provider-aliases)
+          '(syntax/parse/private/residual/parse-util
+            syntax/parse/private/residual/state
+            syntax/parse/private/rep-patterns/simple)))
+       (define ffi-support-report-names
+         (for/list ([name (in-list external-names)]
+                    #:when (webracket-owned-ffi-provider-name? name))
+           name))
+       (define io-format-support-report-names
+         (list webify-io-format-adapter-name
+               webify-io-format-printf-name
+               webify-io-format-root-name
+               webify-io-format-map-shim-name))
+       (define support-report-names
+         (append
+          (list webify-module-protocol-name
+                'webracket/contract
+                'webracket/private/kw
+                'racket/private/kw
+                'webracket/private/sort
+                'racket/private/sort
+                'webracket/unsafe/undefined
+                'racket/unsafe/undefined)
+          erased-contract-support-report-names
+          (if needs-class-support?
+              class-support-report-names
+              '())
+          (if needs-unit-support?
+              unit-support-report-names
+              '())
+          ffi-support-report-names
+          io-format-support-report-names))
        (define (unit-support-reports)
          (append
           (for/list ([name (in-list '(racket/private/unit/contract
@@ -3065,87 +3136,87 @@
             (webify-module-path->report '(submod syntax/parse/private/residual parse-util))
             'syntax/parse/private/residual/parse-util)
            (webify-module-report/rename
-            (webify-module-path->report '(submod syntax/parse/private/residual state))
-            'syntax/parse/private/residual/state)
+           (webify-module-path->report '(submod syntax/parse/private/residual state))
+           'syntax/parse/private/residual/state)
            (webify-module-report/rename
             (webify-module-path->report '(submod syntax/parse/private/rep-patterns simple))
             'syntax/parse/private/rep-patterns/simple))))
-       ;; Some resolver hints target WebRacket-owned support modules directly;
-       ;; include those reports even when the installed provider graph only
-       ;; names the original Racket module.
-       (define support-reports
-         (append
-          (list webify-module-protocol-report
-                (webify-module-provider-cache-ref provider-cache
-                                                  'webracket/contract)
-                (webify-module-provider-cache-ref provider-cache
-                                                  'webracket/private/kw)
-                (webify-module-report/rename
-                 (webify-module-provider-cache-ref provider-cache
-                                                   'webracket/private/kw)
-                 'racket/private/kw)
-                (webify-module-provider-cache-ref provider-cache
-                                                  'webracket/private/sort)
-                (webify-module-report/rename
-                 (webify-module-provider-cache-ref provider-cache
-                                                   'webracket/private/sort)
-                 'racket/private/sort)
-                (webify-module-provider-cache-ref provider-cache
-                                                  'webracket/unsafe/undefined)
-                (webify-module-report/rename
-                 (webify-module-provider-cache-ref provider-cache
-                                                   'webracket/unsafe/undefined)
-                 'racket/unsafe/undefined))
-          erased-contract-support-reports
-          (if needs-class-support?
-              (append
-               (list (webify-module-provider-cache-ref provider-cache
-                                                       'racket/private/for)
-                     (webify-module-report/rename
-                      (webify-module-provider-cache-ref provider-cache
-                                                        'webracket/list)
-                      'racket/private/list)
-                     (webify-module-provider-cache-ref provider-cache
-                                                       'racket/private/map))
-               (if have-racket/private/pico?
-                   (list (webify-module-provider-cache-ref provider-cache
-                                                           'racket/private/pico))
-                   (if have-racket/private/reverse?
-                       (list (webify-module-provider-cache-ref provider-cache
-                                                               'racket/private/reverse))
-                       '()))
-               (list (webify-module-provider-cache-ref provider-cache
-                                                       'webracket/list)
-                     (webify-module-provider-cache-ref provider-cache
-                                                       'syntax/location)
-                     (webify-module-provider-cache-ref provider-cache
-                                                       'racket/private/define-struct)
-                     (webify-module-provider-cache-ref provider-cache
-                                                       'racket/private/serialize-structs)
-                     (webify-module-provider-cache-ref provider-cache
-                                                       'racket/private/class-internal)
-                     (webify-module-provider-cache-ref provider-cache
-                                                       'racket/private/class-struct)))
-              '())
-          (if needs-unit-support?
-              (unit-support-reports)
-              '())
-          ;; WebRacket-owned browser/library providers are hand-authored
-          ;; modules with exported procedures that often close over private
-          ;; helpers. Until provider slicing can prove and retain those private
-          ;; closure dependencies, keep these providers unsliced.
-          (for/list ([name (in-list external-names)]
-                     #:when (webracket-owned-ffi-provider-name? name))
-            (webify-module-provider-cache-ref provider-cache name))
-          (io-format-provider-reports)))
        (define registry
          (cached-discovered-provider-registry
           root
           local-source-paths
-          support-reports
+          support-report-names
           #t
           webify-module-protocol-dependency
           (lambda ()
+            ;; Some resolver hints target WebRacket-owned support modules
+            ;; directly; only materialize those reports when the discovered
+            ;; provider graph cache itself misses.
+            (define support-reports
+              (append
+               (list webify-module-protocol-report
+                     (webify-module-provider-cache-ref provider-cache
+                                                       'webracket/contract)
+                     (webify-module-provider-cache-ref provider-cache
+                                                       'webracket/private/kw)
+                     (webify-module-report/rename
+                      (webify-module-provider-cache-ref provider-cache
+                                                        'webracket/private/kw)
+                      'racket/private/kw)
+                     (webify-module-provider-cache-ref provider-cache
+                                                       'webracket/private/sort)
+                     (webify-module-report/rename
+                      (webify-module-provider-cache-ref provider-cache
+                                                        'webracket/private/sort)
+                      'racket/private/sort)
+                     (webify-module-provider-cache-ref provider-cache
+                                                       'webracket/unsafe/undefined)
+                     (webify-module-report/rename
+                      (webify-module-provider-cache-ref provider-cache
+                                                        'webracket/unsafe/undefined)
+                      'racket/unsafe/undefined))
+               (erased-contract-support-reports)
+               (if needs-class-support?
+                   (append
+                    (list (webify-module-provider-cache-ref provider-cache
+                                                            'racket/private/for)
+                          (webify-module-report/rename
+                           (webify-module-provider-cache-ref provider-cache
+                                                             'webracket/list)
+                           'racket/private/list)
+                          (webify-module-provider-cache-ref provider-cache
+                                                            'racket/private/map))
+                    (if have-racket/private/pico?
+                        (list (webify-module-provider-cache-ref provider-cache
+                                                                'racket/private/pico))
+                        (if have-racket/private/reverse?
+                            (list (webify-module-provider-cache-ref provider-cache
+                                                                    'racket/private/reverse))
+                            '()))
+                    (list (webify-module-provider-cache-ref provider-cache
+                                                            'webracket/list)
+                          (webify-module-provider-cache-ref provider-cache
+                                                            'syntax/location)
+                          (webify-module-provider-cache-ref provider-cache
+                                                            'racket/private/define-struct)
+                          (webify-module-provider-cache-ref provider-cache
+                                                            'racket/private/serialize-structs)
+                          (webify-module-provider-cache-ref provider-cache
+                                                            'racket/private/class-internal)
+                          (webify-module-provider-cache-ref provider-cache
+                                                            'racket/private/class-struct)))
+                   '())
+               (if needs-unit-support?
+                   (unit-support-reports)
+                   '())
+               ;; WebRacket-owned browser/library providers are hand-authored
+               ;; modules with exported procedures that often close over private
+               ;; helpers. Until provider slicing can prove and retain those private
+               ;; closure dependencies, keep these providers unsliced.
+               (for/list ([name (in-list external-names)]
+                          #:when (webracket-owned-ffi-provider-name? name))
+                 (webify-module-provider-cache-ref provider-cache name))
+               (io-format-provider-reports)))
             (with-module-bridge-timing
              'discover-provider-graph
              (lambda ()
