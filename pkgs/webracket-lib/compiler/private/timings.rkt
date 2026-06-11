@@ -15,6 +15,9 @@
   [pct (-> real? real? real?)]
   [with-timing (-> (-> any/c) (values any/c real?))]
   [format-timing-table (-> (listof (list/c string? real?)) string?)]
+  [format-metric-table
+   (-> (listof (list/c string? string?))
+       string?)]
   [format-timing-table/size
    (-> (listof (list/c string? real? (or/c #f exact-nonnegative-integer?)))
        string?)]))
@@ -63,6 +66,28 @@
    (cons header
          (for/list ([row rows])
            (row->string (first row) (second row) total-ms)))
+   "\n"))
+
+;; Format a metric table from (label value) rows.
+(define (format-metric-table rows)
+  (define label-width
+    (for/fold ([w 0]) ([row rows])
+      (max w (string-length (first row)))))
+  (define value-width
+    (for/fold ([w 0]) ([row rows])
+      (max w (string-length (second row)))))
+  (define header
+    (let* ([title "Metric"]
+           [pad1 (max 1 (- (+ 2 label-width) (string-length title)))]
+           [left (string-append title (make-string pad1 #\space))]
+           [pad2 (max 1 (- value-width (string-length "Value")))])
+      (string-append left "Value")))
+  (string-join
+   (cons header
+         (for/list ([row rows])
+           (format "  ~a : ~a"
+                   (~a (first row) #:min-width label-width)
+                   (second row))))
    "\n"))
 
 ;; Format a timing table from (label ms nodes) rows.

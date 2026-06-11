@@ -249,6 +249,36 @@
             (apply values vals))
           (thunk)))
 
+    (define (runtime-metric-add! label value)
+      (when (current-runtime-metric-rows)
+        (current-runtime-metric-rows
+         (cons (list label (~a value)) (current-runtime-metric-rows)))))
+
+    (define (module-form-count module predicate)
+      (for/sum ([form (in-list (cdr module))]
+                #:when (predicate form))
+        1))
+
+    (define (module-func-count module)
+      (module-form-count module module-func-name))
+
+    (define (module-global-count module)
+      (module-form-count module module-global-name))
+
+    (define (module-export-count module)
+      (module-form-count
+       module
+       (lambda (form)
+         (and (pair? form)
+              (eq? (car form) 'export)))))
+
+    (define (module-byte-size module)
+      (bytes-length
+       (string->bytes/utf-8
+        (with-output-to-string
+          (lambda ()
+            (write module))))))
+
     (define (analyze-runtime-primitives module)
       (define (walk-symbol-refs x symbol->value)
         (define refs (make-hasheq))
@@ -266,17 +296,23 @@
         (walk x)
         (eq-set-keys refs))
       (define primitive-ref->symbol
-        (let ([ht (make-hasheq)])
-          (for ([(k v) (in-hash primitive-func->symbol)])
-            (hash-set! ht k v))
-          (for ([(k v) (in-hash primitive-global->symbol)])
-            (hash-set! ht k v))
-          ht))
+        (time-runtime-step
+         "tree-shake:build-primitive-ref-map"
+         (lambda ()
+           (let ([ht (make-hasheq)])
+             (for ([(k v) (in-hash primitive-func->symbol)])
+               (hash-set! ht k v))
+             (for ([(k v) (in-hash primitive-global->symbol)])
+               (hash-set! ht k v))
+             ht))))
       (define named-funcs
-        (for/list ([form (in-list (cdr module))]
-                   #:do [(define name (module-func-name form))]
-                   #:when name)
-          name))
+        (time-runtime-step
+         "tree-shake:collect-named-functions"
+         (lambda ()
+           (for/list ([form (in-list (cdr module))]
+                      #:do [(define name (module-func-name form))]
+                      #:when name)
+             name))))
       (define (func-export-names form)
         (and (pair? form)
              (eq? (car form) 'func)
@@ -293,17 +329,20 @@
           (values name #t)))
       (define func->func-refs (make-hasheq))
       (define func->primitive-refs (make-hasheq))
-      (for ([form (in-list (cdr module))])
-        (define name (module-func-name form))
-        (when name
-          (define refs
-            (for/list ([sym (in-list (walk-symbol-refs (cddr form) primitive-ref->symbol))]
-                       #:when (not (eq? sym name)))
-              sym))
-          (hash-set! func->primitive-refs name refs)
-          (hash-set! func->func-refs
-                     name
-                     (walk-symbol-refs (cddr form) named-funcs-ht))))
+      (time-runtime-step
+       "tree-shake:build-call-graph"
+       (lambda ()
+         (for ([form (in-list (cdr module))])
+           (define name (module-func-name form))
+           (when name
+             (define refs
+               (for/list ([sym (in-list (walk-symbol-refs (cddr form) primitive-ref->symbol))]
+                          #:when (not (eq? sym name)))
+                 sym))
+             (hash-set! func->primitive-refs name refs)
+             (hash-set! func->func-refs
+                        name
+                        (walk-symbol-refs (cddr form) named-funcs-ht))))))
       (define primitive-func-name?
         (λ (name) (and (symbol? name) (hash-ref primitive-func->symbol name #f))))
       (define exported-runtime-functions
@@ -328,30 +367,36 @@
         (walk x)
         (eq-set-keys refs))
       (define module-root-funcs
-        (let ([roots (list->eq-set exported-runtime-functions)])
-          (for ([form (in-list (cdr module))]
-                #:unless (or (module-func-name form)
-                             (and (pair? form)
-                                  (eq? (car form) 'elem)
-                                  (pair? (cdr form))
-                                  (eq? (cadr form) 'declare)
-                                  (pair? (cddr form))
-                                  (eq? (caddr form) 'funcref))))
-            (eq-set-add-all! roots (collect-nonprimitive-function-refs form)))
-          (eq-set-keys roots)))
+        (time-runtime-step
+         "tree-shake:seed-module-roots"
+         (lambda ()
+           (let ([roots (list->eq-set exported-runtime-functions)])
+             (for ([form (in-list (cdr module))]
+                   #:unless (or (module-func-name form)
+                                (and (pair? form)
+                                     (eq? (car form) 'elem)
+                                     (pair? (cdr form))
+                                     (eq? (cadr form) 'declare)
+                                     (pair? (cddr form))
+                                     (eq? (caddr form) 'funcref))))
+               (eq-set-add-all! roots (collect-nonprimitive-function-refs form)))
+             (eq-set-keys roots)))))
       (define elem-root-functions
-        (let ([roots (make-hasheq)])
-          (for ([form (in-list (cdr module))]
-                #:when (and (pair? form)
-                            (eq? (car form) 'elem)
-                            (pair? (cdr form))
-                            (eq? (cadr form) 'declare)
-                            (pair? (cddr form))
-                            (eq? (caddr form) 'funcref)))
-            (eq-set-add-all! roots
-                             (filter (λ (name) (not (primitive-func-name? name)))
-                                     (walk-symbol-refs form named-funcs-ht))))
-          (eq-set-keys roots)))
+        (time-runtime-step
+         "tree-shake:seed-elem-roots"
+         (lambda ()
+           (let ([roots (make-hasheq)])
+             (for ([form (in-list (cdr module))]
+                   #:when (and (pair? form)
+                               (eq? (car form) 'elem)
+                               (pair? (cdr form))
+                               (eq? (cadr form) 'declare)
+                               (pair? (cddr form))
+                               (eq? (caddr form) 'funcref)))
+               (eq-set-add-all! roots
+                                (filter (lambda (name) (not (primitive-func-name? name)))
+                                        (walk-symbol-refs form named-funcs-ht))))
+             (eq-set-keys roots)))))
       (define (reachable-runtime-funcs roots)
         (let loop ([pending roots] [seen (make-hasheq)])
           (match pending
@@ -366,55 +411,71 @@
                 (hash-set! seen name #t)
                 (loop (append (hash-ref func->func-refs name '()) rest)
                       seen)])])))
-      (define runtime-funcs (reachable-runtime-funcs module-root-funcs))
+      (define runtime-funcs
+        (time-runtime-step
+         "tree-shake:reach-runtime-roots"
+         (lambda ()
+           (reachable-runtime-funcs module-root-funcs))))
       (define runtime-root-primitives
-        (let ([roots (make-hasheq)])
-          (for ([name (in-list runtime-funcs)])
-            (eq-set-add-all! roots (hash-ref func->primitive-refs name '())))
-          (eq-set-keys/sorted roots)))
+        (time-runtime-step
+         "tree-shake:collect-runtime-root-primitives"
+         (lambda ()
+           (let ([roots (make-hasheq)])
+             (for ([name (in-list runtime-funcs)])
+               (eq-set-add-all! roots (hash-ref func->primitive-refs name '())))
+             (eq-set-keys/sorted roots)))))
       (define primitive-graph
-        (for/list ([pr (in-list (sort described-primitives symbol<?))])
-          (define start ($ pr))
-          (define reachable
-            (let loop ([pending (hash-ref func->func-refs start '())]
-                       [seen (let ([ht (make-hasheq)])
-                               (hash-set! ht start #t)
-                               ht)])
-              (match pending
-                ['() (eq-set-keys seen)]
-                [(cons name rest)
-                 (cond
-                   [(hash-ref seen name #f)
-                    (loop rest seen)]
-                   [(primitive-func-name? name)
-                    (loop rest seen)]
-                   [else
-                    (hash-set! seen name #t)
-                    (loop (append (hash-ref func->func-refs name '()) rest)
-                          seen)])])))
-          (cons pr
-                (let ([deps (make-hasheq)])
-                  (for ([name (in-list reachable)])
-                    (for ([dep (in-list (hash-ref func->primitive-refs name '()))]
-                          #:unless (eq? dep pr))
-                      (hash-set! deps dep #t)))
-                  (eq-set-keys/sorted deps)))))
+        (time-runtime-step
+         "tree-shake:build-primitive-graph"
+         (lambda ()
+           (for/list ([pr (in-list (sort described-primitives symbol<?))])
+             (define start ($ pr))
+             (define reachable
+               (let loop ([pending (hash-ref func->func-refs start '())]
+                          [seen (let ([ht (make-hasheq)])
+                                  (hash-set! ht start #t)
+                                  ht)])
+                 (match pending
+                   ['() (eq-set-keys seen)]
+                   [(cons name rest)
+                    (cond
+                      [(hash-ref seen name #f)
+                       (loop rest seen)]
+                      [(primitive-func-name? name)
+                       (loop rest seen)]
+                      [else
+                       (hash-set! seen name #t)
+                       (loop (append (hash-ref func->func-refs name '()) rest)
+                             seen)])])))
+             (cons pr
+                   (let ([deps (make-hasheq)])
+                     (for ([name (in-list reachable)])
+                       (for ([dep (in-list (hash-ref func->primitive-refs name '()))]
+                             #:unless (eq? dep pr))
+                         (hash-set! deps dep #t)))
+                     (eq-set-keys/sorted deps)))))))
       (define incoming-primitives
-        (let ([incoming (make-hasheq)])
-          (for ([entry (in-list primitive-graph)])
-            (eq-set-add-all! incoming (cdr entry)))
-          (eq-set-keys incoming)))
+        (time-runtime-step
+         "tree-shake:collect-incoming-primitives"
+         (lambda ()
+           (let ([incoming (make-hasheq)])
+             (for ([entry (in-list primitive-graph)])
+               (eq-set-add-all! incoming (cdr entry)))
+             (eq-set-keys incoming)))))
       (define incoming-primitives-ht
         (list->eq-set incoming-primitives))
       (define runtime-root-primitives-ht
         (list->eq-set runtime-root-primitives))
       (define isolated-primitives
-        (sort
-         (for/list ([pr (in-list described-primitives)]
-                    #:unless (or (hash-ref incoming-primitives-ht pr #f)
-                                 (hash-ref runtime-root-primitives-ht pr #f)))
-           pr)
-         symbol<?))
+        (time-runtime-step
+         "tree-shake:classify-isolated-primitives"
+         (lambda ()
+           (sort
+            (for/list ([pr (in-list described-primitives)]
+                       #:unless (or (hash-ref incoming-primitives-ht pr #f)
+                                    (hash-ref runtime-root-primitives-ht pr #f)))
+              pr)
+            symbol<?))))
       (list (cons 'primitive-graph primitive-graph)
             (cons 'function-graph
                   (for/list ([name (in-list (sort named-funcs symbol<?))])
@@ -77693,7 +77754,7 @@
                ))
 
     (time-runtime-step
-     "ffi-wrapper-filter"
+     "runtime:ffi-wrapper-filter"
      (λ ()
        (define active-ffi-primitive-names
          (if (and (current-tree-shake?)
@@ -77729,15 +77790,29 @@
                 form)
               eq?
               #:key module-func-name))))
+    (runtime-metric-add! "runtime:target"
+                         (if (current-browser?) "browser" "node"))
+    (runtime-metric-add! "runtime:ffi-foreign-count"
+                         (length active-ffi-foreigns))
+    (runtime-metric-add! "runtime:program-primitive-count"
+                         (length used-primitives))
     (define full-module
-      (time-runtime-step "tree-shake-build-module" build-runtime-module))
+      (time-runtime-step "runtime:build-runtime-module" build-runtime-module))
+    (runtime-metric-add! "runtime:module-bytes-before-prune"
+                         (module-byte-size full-module))
+    (runtime-metric-add! "runtime:function-count-before-prune"
+                         (module-func-count full-module))
+    (runtime-metric-add! "runtime:global-count-before-prune"
+                         (module-global-count full-module))
+    (runtime-metric-add! "runtime:export-count-before-prune"
+                         (module-export-count full-module))
     (define analysis
-      (time-runtime-step "tree-shake-analyze"
+      (time-runtime-step "tree-shake:analyze-runtime-primitives"
         (λ ()
           (analyze-runtime-primitives full-module))))
     (define-values (retained-primitives retained-functions)
       (time-runtime-step
-       "tree-shake-retain"
+       "tree-shake:retain-closure"
        (λ ()
          (if (current-tree-shake?)
              (let loop ([retained-primitives (primitive-retained-set analysis)])
@@ -77753,15 +77828,34 @@
                    (loop next-primitives)))
              (values (sort described-primitives symbol<?)
                      '())))))
+    (runtime-metric-add! "tree-shake:root-primitive-count"
+                         (length retained-primitives))
+    (runtime-metric-add! "tree-shake:retained-function-count"
+                         (length retained-functions))
     (time-runtime-step
-     "tree-shake-report"
+     "tree-shake:write-report"
      (λ ()
        (write-runtime-primitive-report! analysis retained-primitives)))
     (set! active-primitives retained-primitives)
-    (if (current-tree-shake?)
-        (time-runtime-step
-         "tree-shake-prune"
-         (λ ()
-           (prune-runtime-module full-module retained-primitives retained-functions)))
-        full-module)
+    (define final-module
+      (if (current-tree-shake?)
+          (time-runtime-step
+           "tree-shake:prune-runtime-module"
+           (λ ()
+             (prune-runtime-module full-module retained-primitives retained-functions)))
+          full-module))
+    (runtime-metric-add! "tree-shake:enabled?"
+                         (if (current-tree-shake?) "yes" "no"))
+    (runtime-metric-add! "tree-shake:retained-primitive-count"
+                         (length retained-primitives))
+    (runtime-metric-add! "tree-shake:removed-primitive-count"
+                         (- (length described-primitives)
+                            (length retained-primitives)))
+    (runtime-metric-add! "tree-shake:function-count-after-prune"
+                         (module-func-count final-module))
+    (runtime-metric-add! "tree-shake:global-count-after-prune"
+                         (module-global-count final-module))
+    (runtime-metric-add! "tree-shake:module-bytes-after-prune"
+                         (module-byte-size final-module))
+    final-module
     )))

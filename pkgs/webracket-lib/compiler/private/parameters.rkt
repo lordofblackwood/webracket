@@ -9,7 +9,8 @@
          current-letrec-strategy
          current-tree-shake?
          current-runtime-primitive-report-path
-         current-runtime-timing-rows)
+         current-runtime-timing-rows
+         current-runtime-metric-rows)
 
 ; The parameters are used by the driver to send
 ; the generated imports and funcs to the compiler and runtime generator.
@@ -28,3 +29,5 @@
   (make-parameter #f))                                 ; path-string? or #f
 (define current-runtime-timing-rows
   (make-parameter #f))                                 ; (or/c #f (listof (list/c string? real?)))
+(define current-runtime-metric-rows
+  (make-parameter #f))                                 ; (or/c #f (listof (list/c string? string?)))

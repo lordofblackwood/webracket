@@ -54,8 +54,24 @@
                   primitive-info-properties)
          "runtime-wasm.rkt"   ;
          "private/define-foreign.rkt"
-         "private/parameters.rkt"
-         "private/timings.rkt"
+         (only-in "private/parameters.rkt"
+                  current-ffi-foreigns
+                  current-ffi-imports-wat
+                  current-ffi-funcs-wat
+                  current-browser?
+                  current-enable-cc-analysis?
+                  current-console-bridge?
+                  current-enable-simplify?
+                  current-letrec-strategy
+                  current-tree-shake?
+                  current-runtime-primitive-report-path
+                  current-runtime-timing-rows
+                  current-runtime-metric-rows)
+         (only-in "private/timings.rkt"
+                  with-timing
+                  format-timing-table
+                  format-timing-table/size
+                  format-metric-table)
          "private/wat-identifiers.rkt"
          ; "private/wasm-data.rkt"
          nanopass/base
@@ -20395,7 +20411,7 @@
   ;; (displayln "-- primitives also declared as variables at top-level --")
   ;; (displayln primitives-also-declared-as-variables-at-top-level)
   
-  (define-values (gen runtime-gen-rows)
+  (define-values (gen runtime-gen-rows runtime-metric-rows)
     (time-gen "generate-runtime"
       (λ ()
         (parameterize ([current-runtime-primitive-report-path
@@ -20404,6 +20420,8 @@
                                  (build-path (current-pass-dump-dir)
                                              "runtime-primitives.sexp")))]
                        [current-runtime-timing-rows
+                        (and (current-pass-timings?) '())]
+                       [current-runtime-metric-rows
                         (and (current-pass-timings?) '())])
           (define mod
             (generate-runtime
@@ -20423,13 +20441,69 @@
              bytes-constants                  ; (list (list name bytes) ...)
              symbol-constants                 ; (list (list name symbol) ...)
              ))
-          (values mod (current-runtime-timing-rows))))))
+          (values mod
+                  (current-runtime-timing-rows)
+                  (current-runtime-metric-rows))))))
   (when (current-pass-timings?)
     (when runtime-gen-rows
       (set! gen-times (append runtime-gen-rows gen-times))))
   (when (current-pass-timings?)
+    (define gen-table
+      (format-timing-table (reverse gen-times)))
+    (define runtime-detail-rows
+      (filter (lambda (row)
+                (or (string-prefix? (first row) "runtime:")
+                    (string-prefix? (first row) "tree-shake:")))
+              runtime-gen-rows))
+    (define runtime-generation-rows
+      (for/list ([row (in-list (reverse runtime-detail-rows))]
+                 #:when (string-prefix? (first row) "runtime:"))
+        (list (substring (first row) (string-length "runtime:"))
+              (second row))))
+    (define tree-shake-rows
+      (for/list ([row (in-list (reverse runtime-detail-rows))]
+                 #:when (string-prefix? (first row) "tree-shake:"))
+        (list (substring (first row) (string-length "tree-shake:"))
+              (second row))))
+    (define runtime-generation-metrics
+      (for/list ([row (in-list (reverse runtime-metric-rows))]
+                 #:when (string-prefix? (first row) "runtime:"))
+        (list (substring (first row) (string-length "runtime:"))
+              (second row))))
+    (define tree-shake-metrics
+      (for/list ([row (in-list (reverse runtime-metric-rows))]
+                 #:when (string-prefix? (first row) "tree-shake:"))
+        (list (substring (first row) (string-length "tree-shake:"))
+              (second row))))
     (current-gen-timing-table
-     (format-timing-table (reverse gen-times))))
+     (string-join
+      (filter values
+              (list gen-table
+                    (and (pair? runtime-generation-rows)
+                         (string-append
+                          "=== Runtime Generation Details ===\n"
+                          (format-timing-table
+                           (append runtime-generation-rows
+                                   (list (list "total"
+                                               (for/sum ([row (in-list runtime-generation-rows)])
+                                                 (second row))))))))
+                    (and (pair? runtime-generation-metrics)
+                         (string-append
+                          "=== Runtime Generation Metrics ===\n"
+                          (format-metric-table runtime-generation-metrics)))
+                    (and (pair? tree-shake-rows)
+                         (string-append
+                          "=== Tree-Shake Details ===\n"
+                          (format-timing-table
+                           (append tree-shake-rows
+                                   (list (list "total"
+                                               (for/sum ([row (in-list tree-shake-rows)])
+                                                 (second row))))))))
+                    (and (pair? tree-shake-metrics)
+                         (string-append
+                          "=== Tree-Shake Metrics ===\n"
+                          (format-metric-table tree-shake-metrics)))))
+      "\n")))
   gen
   )
 
