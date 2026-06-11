@@ -65,7 +65,7 @@
          racket/pretty
          (rename-in racket/unsafe/undefined
                     [unsafe-undefined host-unsafe-undefined])
-         (only-in racket/string string-prefix? string-replace)
+         (only-in racket/string string-prefix? string-replace string-join)
          (only-in racket/format ~a)
          (only-in racket/list partition append* first second third last
                   index-where append-map make-list rest take drop
@@ -7831,6 +7831,24 @@
 
 (define-pass α-rename/pass1 : LFE2 (T top-bindings) -> LFE2 (ρ)
   (definitions
+    (define profile? (current-alpha-rename-profile?))
+    (define profile-stats (and profile? (make-hasheq)))
+    (define (profile-inc! key [delta 1])
+      (when profile?
+        (hash-update! profile-stats key (λ (n) (+ n delta)) 0)))
+    (define (profile-add-ms! key delta)
+      (when profile?
+        (hash-update! profile-stats key (λ (n) (+ n delta)) 0.0)))
+    (define (profile-max! key value)
+      (when profile?
+        (hash-update! profile-stats key (λ (n) (max n value)) value)))
+    (define (profile-time key thunk)
+      (if profile?
+          (let ([start (current-inexact-milliseconds)])
+            (define result (thunk))
+            (profile-add-ms! key (- (current-inexact-milliseconds) start))
+            result)
+          (thunk)))
     (define (reserved-target-language-keyword? id)
       ; Any reserved keywords in the target language that needs renaming.
       ; In WebAssembly the "user" names are prefixed with $, so
@@ -7845,6 +7863,7 @@
                    #:do [(define sym (syntax-e (variable-id top-binding)))]
                    #:when (symbol? sym))
         (values sym top-binding)))
+    (define top-bindings-set (ids->id-set top-bindings))
     (define seen-top-bindings empty-set)
     (define seen-top-binding-symbols (make-hasheq))
     (define (seen-top-binding? x)
@@ -7852,6 +7871,7 @@
     (define (seen-top-binding-symbol? sym)
       (hash-ref seen-top-binding-symbols sym #f))
     (define (provider-owned-top-binding x)
+      (profile-inc! 'provider-owned-top-lookups)
       (and (variable? x)
            (provider-owned-primitive-alias? x)
            (symbol? (syntax-e (variable-id x)))
@@ -7860,37 +7880,78 @@
                                         #f)])
              (and top-binding
                   (seen-top-binding-symbol? (syntax-e (variable-id x)))
-                  top-binding))))
+                  (begin
+                    (profile-inc! 'provider-owned-top-hits)
+                    top-binding)))))
     (define (lookup ρ x)
-      (or (ρ-ref ρ x)
-          (provider-owned-top-binding x)
-          (initial-binding x)))
+      (profile-inc! 'lookup-total)
+      (define result
+        (profile-time
+         'lookup-ms
+         (λ ()
+           (or (ρ-ref ρ x)
+               (provider-owned-top-binding x)
+               (initial-binding x)))))
+      (profile-inc! (if result 'lookup-hits 'lookup-misses))
+      result)
     (define (lookup/lexical ρ x)
-      (or (ρ-ref/lexical ρ x)
-          (provider-owned-top-binding x)
-          (initial-binding x)))
+      (profile-inc! 'lookup-total)
+      (profile-inc! 'lookup-lexical)
+      (define result
+        (profile-time
+         'lookup-ms
+         (λ ()
+           (or (ρ-ref/lexical ρ x)
+               (provider-owned-top-binding x)
+               (initial-binding x)))))
+      (profile-inc! (if result 'lookup-hits 'lookup-misses))
+      result)
     (define (lookup/expr ρ x)
+      (profile-inc! 'lookup-expr)
       (if (lexical-bound-variable? x)
           (lookup/lexical ρ x)
           (lookup ρ x)))
     (define (initial-ρ)
       (ρ-set* (ρ-empty) top-bindings))
+    (define (generate-fresh-name x)
+      (profile-inc! 'generated-names)
+      (new-var x))
     (define (fresh/simple x ρ [orig-x x])
-      (if (ρ-name-used? ρ x) (fresh (new-var x) ρ x) x))
+      (profile-time
+       'fresh-name-ms
+       (λ ()
+         (if (ρ-name-used? ρ x)
+             (begin
+               (profile-inc! 'name-collision-retries)
+               (fresh (generate-fresh-name x) ρ x))
+             x))))
     (define (fresh/full x ρ [orig-x x])
-      (if (ρ-name-used? ρ x) (fresh (new-var x) ρ x) (new-var x)))
+      (profile-time
+       'fresh-name-ms
+       (λ ()
+         (if (ρ-name-used? ρ x)
+             (begin
+               (profile-inc! 'name-collision-retries)
+               (fresh (generate-fresh-name x) ρ x))
+             (generate-fresh-name x)))))
     (define fresh (case (α-rename-mode)
                     [(simple) fresh/simple]
                     [(full)   fresh/full]))
     (define (rename x ρ)
       (define x* (fresh x ρ))
+      (profile-inc! 'bindings-introduced)
       (values x* (ρ-set ρ x x*)))
     (define (rename*          xs ρ) (map2* rename   xs ρ))
     (define (rename**        xss ρ) (map2* rename* xss ρ))
     (define (top-binding? x)
-      (ormap (λ (top-binding) (id=? x top-binding)) top-bindings))
+      (profile-inc! 'top-binding-checks)
+      (define found? (set-in? x top-bindings-set))
+      (when found?
+        (profile-inc! 'top-binding-hits))
+      found?)
     (define (remember-top-level! xs)
       (set! seen-top-bindings (set-union seen-top-bindings (ids->id-set xs)))
+      (profile-inc! 'seen-top-level-updates (length xs))
       (for ([x (in-list xs)])
         (define sym (syntax-e (variable-id x)))
         (when (symbol? sym)
@@ -8130,7 +8191,16 @@
                             [else `(non-top ,s ,x)])])
   
   (let ([ρ0 (initial-ρ)])
+    (when profile?
+      (hash-set! profile-stats 'top-bindings (length top-bindings))
+      (for ([bucket (in-hash-values (rename-env-by-name ρ0))])
+        (profile-max! 'max-name-bucket (length bucket))))
     (letv ((T ρ) (TopLevelForm T ρ0))
+      (when profile?
+        (for ([bucket (in-hash-values (rename-env-by-name ρ))])
+          (profile-max! 'max-name-bucket (length bucket)))
+        (current-alpha-rename-profile-report
+         (format-alpha-rename-profile-report profile-stats)))
       (values T ρ))))
 
   ;; (VariableReferenceId (vrx)
@@ -20492,6 +20562,8 @@
 (define current-pass-timings?     (make-parameter #f))
 (define current-pass-timing-table (make-parameter #f))
 (define current-gen-timing-table  (make-parameter #f))
+(define current-alpha-rename-profile? (make-parameter #f))
+(define current-alpha-rename-profile-report (make-parameter #f))
 (define current-compiler-progress? (make-parameter #f))
 (define current-compiler-progress-port (make-parameter #f))
 (define current-pass-dump-dir     (make-parameter #f))
@@ -20499,6 +20571,29 @@
 (define current-console-bridge-top-binding-names (make-parameter '()))
 (define current-console-bridge-mutable-top-binding-names (make-parameter '()))
 (define current-console-bridge-program-source-path (make-parameter #f))
+
+(define (format-alpha-rename-profile-report stats)
+  (define (ref key [default 0]) (hash-ref stats key default))
+  (string-join
+   (list
+    (format "top-bindings\t~a"                (ref 'top-bindings))
+    (format "lookup-total\t~a"                (ref 'lookup-total))
+    (format "lookup-hits\t~a"                 (ref 'lookup-hits))
+    (format "lookup-misses\t~a"               (ref 'lookup-misses))
+    (format "lookup-lexical\t~a"              (ref 'lookup-lexical))
+    (format "lookup-expr\t~a"                 (ref 'lookup-expr))
+    (format "bindings-introduced\t~a"         (ref 'bindings-introduced))
+    (format "generated-names\t~a"             (ref 'generated-names))
+    (format "name-collision-retries\t~a"      (ref 'name-collision-retries))
+    (format "top-binding-checks\t~a"          (ref 'top-binding-checks))
+    (format "top-binding-hits\t~a"            (ref 'top-binding-hits))
+    (format "seen-top-level-updates\t~a"      (ref 'seen-top-level-updates))
+    (format "provider-owned-top-lookups\t~a"  (ref 'provider-owned-top-lookups))
+    (format "provider-owned-top-hits\t~a"     (ref 'provider-owned-top-hits))
+    (format "max-name-bucket\t~a"             (ref 'max-name-bucket))
+    (format "lookup-ms\t~a"                   (ref 'lookup-ms 0.0))
+    (format "fresh-name-ms\t~a"               (ref 'fresh-name-ms 0.0)))
+   "\n"))
 
 (define (console-bridge-source->string src)
   (cond
@@ -20532,6 +20627,7 @@
   (reset-label-map!)
   (current-pass-timing-table #f)
   (current-gen-timing-table #f)
+  (current-alpha-rename-profile-report #f)
   (current-console-bridge-top-binding-names '())
   (current-console-bridge-mutable-top-binding-names '())
   (current-console-bridge-program-source-path

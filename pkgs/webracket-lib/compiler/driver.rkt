@@ -1176,6 +1176,7 @@
          #:dump-passes-dir   dump-passes-dir     
          #:dump-passes-limit dump-passes-limit  ; max number of passes to dump
          #:timings?          timings?
+         #:alpha-rename-profile? alpha-rename-profile?
          #:pretty-wat?       pretty-wat?        ; pretty print (slow) the wat-file
          #:verbose?          verbose?
          ;; Targets
@@ -1426,6 +1427,7 @@
   (current-pass-dump-dir   dump-passes-dir)
   (current-pass-dump-limit dump-passes-limit)
   (current-pass-timings?   timings?)
+  (current-alpha-rename-profile? alpha-rename-profile?)
   (define t-compile-start (now-ms))
   (define provider-owned-primitive-aliases
     (provider-owned-primitive-alias-symbols
@@ -1512,6 +1514,8 @@
     (set! t-run-ms (- (now-ms) t-run-start)))
 
   ; 10. Output timings
+  (define alpha-rename-profile-report
+    (current-alpha-rename-profile-report))
   (when timings?
     (define ffi-setup-ms     (- t-ffi-setup-end   t-ffi-setup-start))
     (define read-source-ms   (- t-read-source-end t-read-source-start))
@@ -1573,6 +1577,9 @@
     (when gen-table
       (displayln "=== Generate-Code Phases ===")
       (displayln gen-table)))
+  (when alpha-rename-profile-report
+    (displayln "=== Alpha-Rename Profile ===")
+    (displayln alpha-rename-profile-report))
   (values exit-code compile-timings))
 
 ;;;
