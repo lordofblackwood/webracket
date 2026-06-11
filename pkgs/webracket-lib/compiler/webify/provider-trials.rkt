@@ -657,6 +657,7 @@
     racket/private/more-scheme
     racket/private/pico
     racket/private/port
+    racket/private/reverse
     racket/private/sort
     racket/private/reqprov
     racket/private/sequence
@@ -899,6 +900,7 @@
     racket/private/map
     racket/private/pico
     racket/private/port
+    racket/private/reverse
     racket/private/sort
     racket/private/sequence
     racket/private/serialize-structs

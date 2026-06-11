@@ -120,6 +120,19 @@
 
 (define unsafe-undefined-literal-marker 'webracket-internal-unsafe-undefined-literal)
 
+;; module-path-available? : module-path? -> boolean?
+;;   Check whether the current host can resolve a module path to an existing source.
+(define (module-path-available? module-path)
+  (with-handlers ([exn:fail? (lambda (_exn) #f)])
+    (define resolved
+      (resolved-module-path-name
+       (module-path-index-resolve
+        (module-path-index-join module-path #f)
+        #t)))
+    (cond
+      [(path-string? resolved) (file-exists? resolved)]
+      [else resolved])))
+
 ;; readable-linklet-datum : any/c -> any/c
 ;;   Replace host-only literals with readable markers for manifest output.
 (define (readable-linklet-datum v)
@@ -2551,7 +2564,12 @@
                                      webracket/list))
                  (eq? local '1/reverse)
                  (eq? external 'reverse))
-            (list local 'racket/private/pico)]
+            ;; On newer hosts this helper lives in pico; on 8.12 it resolves
+            ;; through the dedicated private reverse implementation module.
+            (list local
+                  (if (module-path-available? 'racket/private/pico)
+                      'racket/private/pico
+                      'racket/private/reverse))]
            [(and (eq? module-name 'racket/list)
                  (symbolic-name=? external 'sort))
             (list local 'racket/private/sort)]
@@ -2954,16 +2972,60 @@
       dependency-exports
       (cons self-row dependency-exports)))
 
+;; parsed-directory-select-bundle : symbol? hash? (listof symbol?) -> hash?
+;;   Select the main parsed zo bundle for a top-level module or nested submodule path.
+(define (parsed-directory-select-bundle who directory-hash submodule-path)
+  (match submodule-path
+    ['()
+     (define bundle
+       (or (hash-ref directory-hash #f #f)
+           (hash-ref directory-hash '() #f)))
+     (unless (webify-zo-linklet-bundle? bundle)
+       (raise-arguments-error who
+                              "parsed directory has no main linklet bundle"
+                              "directory keys" (hash-keys directory-hash)))
+     bundle]
+    [(cons submodule more)
+     (define subdirectory
+       (hash-ref directory-hash
+                 submodule
+                 (lambda ()
+                   (raise-arguments-error who
+                                          "parsed directory has no requested submodule"
+                                          "submodule" submodule
+                                          "submodule path" submodule-path
+                                          "directory keys" (hash-keys directory-hash)))))
+     (unless (webify-zo-linklet-directory? subdirectory)
+       (raise-arguments-error who
+                              "parsed submodule entry is not a parsed linklet directory"
+                              "submodule" submodule
+                              "entry" subdirectory))
+     (parsed-directory-select-bundle
+      who
+      (webify-zo-linklet-directory->hash subdirectory)
+      more)]))
+
 ;; compiled-module->extractor-spike : symbol? any/c -> webify-module-extractor-spike?
 ;;   Convert one machine-independent compiled module to an extractor report.
-(define (compiled-module->extractor-spike who name compiled)
+(define (compiled-module->extractor-spike who name compiled
+                                          #:submodule-path [submodule-path '()])
   (cond
     [(webify-faslable-correlated-linklet? compiled)
+     (unless (null? submodule-path)
+       (raise-arguments-error who
+                              "compiled faslable linklet cannot satisfy a submodule request"
+                              "name" name
+                              "submodule path" submodule-path))
      (compiled-linklet-datum->extractor-spike
       name
       (webify-faslable-correlated-linklet->datum compiled)
       '("machine-independent compilation exposes a faslable-correlated phase-0 linklet datum"))]
     [(linklet? compiled)
+     (unless (null? submodule-path)
+       (raise-arguments-error who
+                              "direct compiled linklet cannot satisfy a submodule request"
+                              "name" name
+                              "submodule path" submodule-path))
      (define phase0-entry (bundle-value->entry 0 compiled))
      (define phase0-linklet-datum
        (webify-module-bundle-entry-datum phase0-entry))
@@ -2984,7 +3046,7 @@
         (define parsed (webify-compiled-expression->zo compiled))
         (cond
           [parsed
-           (compiled-zo->extractor-spike who name parsed)]
+           (compiled-zo->extractor-spike who name parsed #:submodule-path submodule-path)]
           [else
            (webify-module-extractor-spike
             name
@@ -3002,25 +3064,20 @@
               [else
                `("compiled module exposes a direct linklet object"
                  ,decompile-linklet-missing-note)]))])])]
-    [(not (linklet-directory? compiled))
+    [else
      (define parsed (webify-compiled-expression->zo compiled))
      (cond
-       [parsed (compiled-zo->extractor-spike who name parsed)]
+       [parsed
+        (compiled-zo->extractor-spike who name parsed #:submodule-path submodule-path)]
+       [(linklet-directory? compiled)
+        (compiled-linklet-directory->extractor-spike who
+                                                     name
+                                                     compiled
+                                                     #:submodule-path submodule-path)]
        [else
         (raise-arguments-error who
-                               "compiled module did not produce a linklet directory or direct linklet"
-                               "compiled" compiled)])]
-    [else
-     (define report
-       (compiled-linklet-directory->extractor-spike who name compiled))
-     (cond
-       [(webify-module-extractor-spike-manifest-ready? report)
-        report]
-       [else
-        (define parsed (webify-compiled-expression->zo compiled))
-        (if parsed
-            (compiled-zo->extractor-spike who name parsed)
-            report)])]))
+                               "compiled module did not produce a linklet directory, parsed zo, or direct linklet"
+                               "compiled" compiled)])]))
 
 ;; parsed-bundle->extractor-spike : symbol? symbol? hash? any/c any/c -> report
 ;;   Convert a parsed zo linklet bundle into an extractor report.
@@ -3057,9 +3114,15 @@
 
 ;; compiled-zo->extractor-spike : symbol? symbol? any/c -> report
 ;;   Convert compiler/zo-parse's bundle or directory structures into a report.
-(define (compiled-zo->extractor-spike who name parsed)
+(define (compiled-zo->extractor-spike who name parsed
+                                      #:submodule-path [submodule-path '()])
   (cond
     [(webify-zo-linklet-bundle? parsed)
+     (unless (null? submodule-path)
+       (raise-arguments-error who
+                              "parsed linklet bundle cannot satisfy a submodule request"
+                              "name" name
+                              "submodule path" submodule-path))
      (parsed-bundle->extractor-spike
       who
       name
@@ -3068,12 +3131,7 @@
     [(webify-zo-linklet-directory? parsed)
      (define directory-hash (webify-zo-linklet-directory->hash parsed))
      (define main-bundle
-       (or (hash-ref directory-hash #f #f)
-           (hash-ref directory-hash '() #f)))
-     (unless (webify-zo-linklet-bundle? main-bundle)
-       (raise-arguments-error who
-                              "parsed directory has no main linklet bundle"
-                              "directory keys" (hash-keys directory-hash)))
+       (parsed-directory-select-bundle who directory-hash submodule-path))
      (parsed-bundle->extractor-spike
       who
       name
@@ -3477,15 +3535,10 @@
           #:compile (lambda (stx)
                       (parameterize ([current-compile-target-machine #f])
                         (compile stx)))))
-       (unless (linklet-directory? compiled)
-         (raise-arguments-error who
-                                "compiled submodule root did not produce a linklet directory"
-                                "module path" effective-module-path
-                                "compiled" compiled))
-      (compiled-linklet-directory->extractor-spike who
-                                                    name
-                                                    compiled
-                                                    #:submodule-path (cddr effective-module-path)))]
+       (compiled-module->extractor-spike who
+                                         name
+                                         compiled
+                                         #:submodule-path (cddr effective-module-path)))]
     [else
      (with-handlers ([exn:fail? try-slash-submodule-fallback])
        (parameterize ([current-namespace namespace])

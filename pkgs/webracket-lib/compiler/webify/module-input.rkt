@@ -39,6 +39,19 @@
   (local dependency provider-export status)
   #:transparent)
 
+;; module-path-available? : module-path? -> boolean?
+;;   Check whether the current host can resolve a module path to an existing source.
+(define (module-path-available? module-path)
+  (with-handlers ([exn:fail? (lambda (_exn) #f)])
+    (define resolved
+      (resolved-module-path-name
+       (module-path-index-resolve
+        (module-path-index-join module-path #f)
+        #t)))
+    (cond
+      [(path-string? resolved) (file-exists? resolved)]
+      [else resolved])))
+
 ;; validate-roots! : symbol? any/c -> void?
 ;;   Reject manifest roots that cannot identify module-linklet inputs.
 (define (validate-roots! who roots)
@@ -645,7 +658,10 @@
                               webracket/list))
           (eq? local '1/reverse)
           (eq? external 'reverse))
-     '(racket/private/pico reverse)]
+     (list (if (module-path-available? 'racket/private/pico)
+               'racket/private/pico
+               'racket/private/reverse)
+           'reverse)]
     [(and (eq? module-name 'racket/list)
           (symbolic-name=? external 'sort))
      '(racket/private/sort sort)]

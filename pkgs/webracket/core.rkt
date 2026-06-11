@@ -1,5 +1,7 @@
 #lang racket/base
-(require               "fully.rkt" "primitives.rkt")
+(require               "fully.rkt"
+                       "primitives.rkt"
+                       (only-in "private/for.rkt" in-parallel-values))
 (provide (all-from-out "fully.rkt" "primitives.rkt")
          primitive-table)
 
@@ -321,7 +323,6 @@
                   in-port in-lines in-bytes-lines
                   in-bytes in-hash in-hash-keys in-hash-values in-hash-pairs
                   in-indexed in-sequences in-cycle in-parallel
-                  in-parallel-values
                   in-values-sequence in-values*-sequence stop-before stop-after
                   in-producer in-value sequence-generate sequence-generate*
                   ))

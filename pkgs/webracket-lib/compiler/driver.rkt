@@ -48,6 +48,7 @@
          (only-in racket/port       open-output-nowhere with-output-to-string)
          (only-in racket/pretty     pretty-write)
          (only-in racket/format     ~a)
+         (only-in racket/fasl       fasl->s-exp s-exp->fasl)
          (only-in racket/system     system*)
          (only-in racket/string     string-prefix?)
          #;(only-in "lang/reader.rkt" read-syntax)
@@ -55,7 +56,7 @@
                   run
                   wat->wasm
                   runtime)
-         (only-in racket/list       append* append-map remove-duplicates)
+         (only-in racket/list       append* append-map remove-duplicates second)
          (only-in racket/match      match)
          setup/dirs
          (only-in "private/parameters.rkt"  current-ffi-foreigns
@@ -119,7 +120,13 @@
                   webify-compose-module-registry/roots/composition
                   webify-module-composition-with-tail)
          (only-in "webify/module-input.rkt"
-                  webify-module-linklet-inputs->registry)
+                  datum->webify-module-linklet-manifest
+                  webify-module-linklet-input
+                  webify-module-linklet-input-imports
+                  webify-module-linklet-input-linklet
+                  webify-module-linklet-input-name
+                  webify-module-linklet-inputs->registry
+                  webify-module-linklet-manifest->registry)
          (only-in "webify/module-extractor.rkt"
                   make-webify-contract-erasing-namespace
                   make-webify-contract-erasing-module-name-resolver
@@ -131,6 +138,7 @@
                   webify-module-provider-cache-miss-count
                   webify-module-provider-cache-ref
                   webify-module-reports->discovered-registry
+                  webify-module-reports->discovered-resolved-linklet-inputs
                   webify-module-bundle-entry
                   webify-module-bundle-entry?
                   webify-module-bundle-entry-datum
@@ -269,7 +277,7 @@
      (filter values (map ffi-filename-stem ffi-files))))
   (define provider-names
     (or (current-source-module-provider-names)
-        (let-values ([(_root reports)
+        (let-values ([(_root reports _local-source-paths)
                       (webracket/base-file->local-module-reports filename)])
           (module-reports->provider-names reports))))
   (for*/list ([provider-name (in-list provider-names)]
@@ -402,6 +410,9 @@
 (define current-read-source-timing-rows
   (make-parameter '()))
 
+(define current-module-bridge-detail-rows
+  (make-parameter '()))
+
 (define current-source-module-language
   (make-parameter #f))
 
@@ -447,6 +458,21 @@
   (begin0
     (thunk)
     (driver-timing-add! name (- (now-ms) start-ms))))
+
+;; module-bridge-timing-add! : symbol? exact-integer? -> void?
+;;   Record fine-grained module-bridge extraction rows for `--timings`.
+(define (module-bridge-timing-add! name elapsed-ms)
+  (current-module-bridge-detail-rows
+   (append (current-module-bridge-detail-rows)
+           (list (list (symbol->string name) elapsed-ms)))))
+
+;; with-module-bridge-timing : symbol? (-> any/c) -> any/c
+;;   Time one module-bridge extraction phase and append it to the detail rows.
+(define (with-module-bridge-timing name thunk)
+  (define start-ms (now-ms))
+  (begin0
+    (thunk)
+    (module-bridge-timing-add! name (- (now-ms) start-ms))))
 
 ;; path-fingerprint : symbol? exact-integer? (listof path?) -> any/c
 ;;   Fingerprint files using path, size, and mtime.
@@ -528,6 +554,19 @@
          ,(file-size resolved-name)
          ,(file-or-directory-modify-seconds resolved-name))]
       [else `(module-source resolved ,resolved-name)])))
+
+;; module-path-available? : module-path? -> boolean?
+;;   Check whether the current host can resolve a module path to an existing source.
+(define (module-path-available? module-path)
+  (with-handlers ([exn:fail? (lambda (_exn) #f)])
+    (define resolved
+      (resolved-module-path-name
+       (module-path-index-resolve
+        (module-path-index-join module-path #f)
+        #t)))
+    (cond
+      [(path-string? resolved) (file-exists? resolved)]
+      [else resolved])))
 
 ;; provider-report-extractor-fingerprint : -> any/c
 ;;   Include bridge/extractor implementation metadata in installed-provider
@@ -615,23 +654,183 @@
       ,(version)
       ,(provider-module-source-fingerprint name)
       ,(provider-report-extractor-fingerprint)))
-  (define cached (read-provider-cache cache-path fingerprint))
+  (define cached
+    (with-module-bridge-timing
+     'provider-cache-lookup
+     (lambda ()
+       (read-provider-cache cache-path fingerprint))))
   (cond
     [cached
      (provider-cache-log "installed provider report hit: ~a" name)
      (or (cache-datum->provider-report cached)
          (let ()
            (provider-cache-log "installed provider report cache unreadable; extracting: ~a" name)
-           (define report (fetch-provider name))
+           (define report
+             (with-module-bridge-timing
+              'provider-report-extraction-miss
+              (lambda ()
+                (fetch-provider name))))
            (write-provider-cache! cache-path
                                   fingerprint
                                   (provider-report->cache-datum report))
            report))]
     [else
      (provider-cache-log "installed provider report miss; extracting: ~a" name)
-     (define report (fetch-provider name))
+     (define report
+       (with-module-bridge-timing
+        'provider-cache-miss
+        (lambda ()
+          (with-module-bridge-timing
+           'provider-report-extraction-miss
+           (lambda ()
+             (fetch-provider name))))))
      (write-provider-cache! cache-path fingerprint (provider-report->cache-datum report))
      report]))
+
+;; module-linklet-input->cache-datum : webify-module-linklet-input? -> datum?
+;;   Serialize one resolved linklet input using the manifest handoff shape.
+(define (cache-readable-datum v)
+  (cond
+    [(path? v)
+     `(webracket-cache:path ,(path->string v))]
+    [(pair? v)
+     (cons (cache-readable-datum (car v))
+           (cache-readable-datum (cdr v)))]
+    [(vector? v)
+     `(webracket-cache:vector
+       ,@(for/list ([elem (in-vector v)])
+           (cache-readable-datum elem)))]
+    [(box? v)
+     `(webracket-cache:box ,(cache-readable-datum (unbox v)))]
+    [(prefab-struct-key v)
+     (define data (struct->vector v))
+     `(webracket-cache:prefab
+       ,(prefab-struct-key v)
+       ,@(for/list ([i (in-range 1 (vector-length data))])
+           (cache-readable-datum (vector-ref data i))))]
+    [(hash? v)
+     `(webracket-cache:hash
+       ,(cond
+          [(hash-eq? v)  'eq]
+          [(hash-eqv? v) 'eqv]
+          [else          'equal])
+       ,(for/list ([(key value) (in-hash v)])
+          (list (cache-readable-datum key)
+                (cache-readable-datum value))))]
+    [else v]))
+
+(define (cache-readable->datum v)
+  (cond
+    [(pair? v)
+     (match v
+       [`(webracket-cache:path ,s)
+        (string->path s)]
+       [`(webracket-cache:vector ,elems ...)
+        (list->vector (map cache-readable->datum elems))]
+       [`(webracket-cache:box ,elem)
+        (box (cache-readable->datum elem))]
+       [`(webracket-cache:prefab ,key ,fields ...)
+        (apply make-prefab-struct key (map cache-readable->datum fields))]
+       [`(webracket-cache:hash ,kind ,entries)
+        (define decoded-entries
+          (for/list ([entry (in-list entries)])
+            (match entry
+              [(list key value)
+               (cons (cache-readable->datum key)
+                     (cache-readable->datum value))]
+              [_ (error 'cache-readable->datum
+                        "invalid cached hash entry: ~e"
+                        entry)])))
+        (for/fold ([h (case kind
+                        [(eq)  (hasheq)]
+                        [(eqv) (hasheqv)]
+                        [else  (hash)])])
+                  ([entry (in-list decoded-entries)])
+          (hash-set h (car entry) (cdr entry)))]
+       [else
+        (cons (cache-readable->datum (car v))
+              (cache-readable->datum (cdr v)))])]
+    [else v]))
+
+(define (module-linklet-input->cache-datum input)
+  `(input
+    ,(webify-module-linklet-input-name input)
+    ,(cache-readable-datum (webify-module-linklet-input-linklet input))
+    (imports ,(webify-module-linklet-input-imports input))))
+
+;; module-linklet-manifest->cache-datum : (listof input?) (listof symbol?) -> datum?
+;;   Serialize cached discovered inputs using the manifest handoff format.
+(define (module-linklet-manifest->cache-datum inputs roots)
+  `(webify-module-linklet-manifest
+    (roots ,roots)
+    ,@(map module-linklet-input->cache-datum inputs)))
+
+;; discovered-provider-graph-fingerprint : symbol? (listof path?) reports boolean? any/c -> any/c
+;;   Fingerprint discovered provider graphs using stable source file metadata.
+(define (discovered-provider-graph-fingerprint root
+                                               local-source-paths
+                                               support-reports
+                                               demand-slice?
+                                               module-protocol-dependency)
+  `(discovered-provider-graph-cache
+    2
+    ,root
+    ,demand-slice?
+    ,module-protocol-dependency
+    ,(version)
+    ,(provider-report-extractor-fingerprint)
+    ,(path-fingerprint
+      'discovered-provider-graph-local-sources
+      1
+      local-source-paths)
+    ,(for/list ([report (in-list support-reports)])
+       (provider-module-source-fingerprint
+        (webify-module-report-name report)))))
+
+;; cached-discovered-provider-registry : symbol? (listof path?) reports (-> inputs) -> registry
+;;   Cache the expensive discovered provider graph as resolved linklet inputs.
+(define (cached-discovered-provider-registry root
+                                             local-source-paths
+                                             support-reports
+                                             demand-slice?
+                                             module-protocol-dependency
+                                             discover-inputs)
+  (define cache-path
+    (provider-cache-path
+     "discovered-provider-graphs"
+     (string-append (provider-cache-symbol-segment root) ".rktd")))
+  (define fingerprint
+    (discovered-provider-graph-fingerprint root
+                                           local-source-paths
+                                           support-reports
+                                           demand-slice?
+                                           module-protocol-dependency))
+  (define cached
+    (with-module-bridge-timing
+     'discover-provider-graph-cache-lookup
+     (lambda ()
+       (read-provider-cache cache-path fingerprint))))
+  (cond
+    [cached
+     (provider-cache-log "#lang webracket/base discovered provider graph hit: ~a" root)
+     (define manifest
+       (datum->webify-module-linklet-manifest
+        (fasl->s-exp cached)))
+     (with-module-bridge-timing
+      'discover-provider-graph-cache-hit
+      (lambda ()
+        (webify-module-linklet-manifest->registry manifest)))]
+    [else
+     (provider-cache-log "#lang webracket/base discovered provider graph miss: ~a" root)
+     (define inputs
+       (with-module-bridge-timing
+        'discover-provider-graph-cache-miss
+        discover-inputs))
+     (write-provider-cache! cache-path
+                            fingerprint
+                            (s-exp->fasl
+                             (module-linklet-manifest->cache-datum inputs (list root))))
+     (webify-module-linklet-inputs->registry inputs)]))
 
 ;; staged-io-source-fingerprint : symbol? -> any/c
 ;;   Fingerprint staged io provider inputs.
@@ -1219,6 +1418,7 @@
   (define t-driver-start (now-ms))
   (current-source-module-language #f)
   (current-source-module-provider-names #f)
+  (current-module-bridge-detail-rows '())
 
   (current-browser? browser?)
   (current-enable-cc-analysis? enable-cc-analysis?)
@@ -1250,8 +1450,9 @@
   ; 1. Read the top-level forms from `filename`.
   (define t-read-source-start (now-ms))
   (define stx
-    (with-handlers ([exn:fail? (λ (e)
+    (with-handlers ([exn:fail? (lambda (e)
                                  (error 'drive-compilation
+                                        "~a"
                                         (~a "read failed: " (exn-message e))))])
       (read-top-level-from-file
        filename
@@ -1542,8 +1743,9 @@
                                compile-total-ms
                                t-run-ms
                                driver-total-ms))
-  (define read-detail-rows (current-read-source-timing-rows))
-  (define driver-rows
+    (define read-detail-rows (current-read-source-timing-rows))
+    (define module-bridge-detail-rows (current-module-bridge-detail-rows))
+    (define driver-rows
       (append
        (list (list "ffi-setup"        ffi-setup-ms)
              (list "read-source"      read-source-ms)
@@ -1567,6 +1769,14 @@
     (when (pair? read-detail-rows)
       (displayln "=== Read Source Details ===")
       (displayln (format-timing-table read-detail-rows)))
+    (when (pair? module-bridge-detail-rows)
+      (displayln "=== Module Bridge Extract Details ===")
+      (displayln
+       (format-timing-table
+        (append module-bridge-detail-rows
+                (list (list "total"
+                            (for/sum ([row (in-list module-bridge-detail-rows)])
+                              (second row))))))))
     (displayln "=== Compile Pipeline ===")
     (displayln overall-table)
     (define pass-table (current-pass-timing-table))
@@ -2229,13 +2439,16 @@
   ;; as racket/match can perform phase-1 lazy requires, and those relative
   ;; requires must not be anchored to the user's source directory.
   (provider-cache-log "#lang webracket/base local compile start: ~a" resolved)
-  (webify-compile-module-report
-   module-stx
-   #:namespace namespace
-   #:module-name-resolver module-name-resolver))
+  (with-module-bridge-timing
+   'source-compile-decompile
+   (lambda ()
+     (webify-compile-module-report
+      module-stx
+      #:namespace namespace
+      #:module-name-resolver module-name-resolver))))
 
-;; webracket/base-file->local-module-graph : path-string? -> webracket/base-local-module-graph?
-;;   Extract local module reports for the module bridge path.
+;; webracket/base-file->local-module-reports : path-string? -> values
+;;   Extract local module reports plus the visited source files for the bridge path.
 (define (webracket/base-file->local-module-reports filename)
   (define extraction-namespace (make-base-namespace))
   (define provider-namespace (make-webify-contract-erasing-namespace))
@@ -2257,32 +2470,35 @@
       [(resolved namespace)
        (base-module-name-resolver resolved namespace)]))
   (define (install-compile-stubs! module-datum)
-    (for ([name (in-list (module-datum-direct-require-symbols module-datum))]
-          #:unless (webracket/base-language-provider-name? name)
-          #:unless (webracket-owned-module-name? name)
-          #:when (provider-compile-stub-safe? name)
-          #:when (webify-provider-trial-module-allowed? name))
-      (define substitute-name (webracket/base-provider-substitute name))
-      (unless (memq name compile-stub-names)
-        (provider-cache-log "#lang webracket/base compile stub install: ~a via ~a"
-                            name
-                            substitute-name)
-        (define report
-          (parameterize ([current-namespace provider-namespace]
-                         [current-module-name-resolver provider-module-name-resolver])
-            (webify-module-path->report substitute-name
-                                        #:namespace provider-namespace)))
-        (define public-exports
-          (provider-public-export-symbols
-           name
-           (make-webify-contract-erasing-namespace)
-           provider-module-name-resolver))
-        (declare-provider-compile-stub!
-         extraction-namespace
-         name
-         (append public-exports
-                 (webify-module-report-phase0-exports report)))
-        (set! compile-stub-names (cons name compile-stub-names)))))
+    (with-module-bridge-timing
+     'provider-substitution
+     (lambda ()
+       (for ([name (in-list (module-datum-direct-require-symbols module-datum))]
+             #:unless (webracket/base-language-provider-name? name)
+             #:unless (webracket-owned-module-name? name)
+             #:when (provider-compile-stub-safe? name)
+             #:when (webify-provider-trial-module-allowed? name))
+         (define substitute-name (webracket/base-provider-substitute name))
+         (unless (memq name compile-stub-names)
+           (provider-cache-log "#lang webracket/base compile stub install: ~a via ~a"
+                               name
+                               substitute-name)
+           (define report
+             (parameterize ([current-namespace provider-namespace]
+                            [current-module-name-resolver provider-module-name-resolver])
+               (webify-module-path->report substitute-name
+                                           #:namespace provider-namespace)))
+           (define public-exports
+             (provider-public-export-symbols
+              name
+              (make-webify-contract-erasing-namespace)
+              provider-module-name-resolver))
+           (declare-provider-compile-stub!
+            extraction-namespace
+            name
+            (append public-exports
+                    (webify-module-report-phase0-exports report)))
+           (set! compile-stub-names (cons name compile-stub-names)))))))
   (define visiting (make-hash))
   (define permanent (make-hash))
   (define reports '())
@@ -2329,7 +2545,11 @@
        (hash-set! permanent resolved module-name)
        module-name]))
   (define root (visit filename))
-  (values root reports))
+  (define local-source-paths
+    (sort (hash-keys permanent)
+          string<?
+          #:key path->string))
+  (values root reports local-source-paths))
 
 ;; webracket/base-language-provider-name? : symbol? -> boolean?
 ;;   Recognize providers that are part of the #lang webracket/base language root.
@@ -2514,6 +2734,7 @@
 ;;   Build a bridge graph from already-extracted reports.
 (define (webracket/base-reports->module-graph root
                                              reports
+                                             #:local-source-paths [local-source-paths '()]
                                              #:fetch-provider
                                              [fetch-provider webify-module-path->report])
   (define-values (bridge-root bridge-reports)
@@ -2623,6 +2844,10 @@
                                webracket/full
                                webracket/full/main)))
                 external-names))
+       (define have-racket/private/pico?
+         (module-path-available? 'racket/private/pico))
+       (define have-racket/private/reverse?
+         (module-path-available? 'racket/private/reverse))
        (define needs-unit-support?
          (ormap (lambda (name)
                   (memq name '(racket/unit
@@ -2705,28 +2930,34 @@
                  'racket/unsafe/undefined))
           erased-contract-support-reports
           (if needs-class-support?
-              (list (webify-module-provider-cache-ref provider-cache
-                                                      'racket/private/for)
-                    (webify-module-report/rename
+              (append
+               (list (webify-module-provider-cache-ref provider-cache
+                                                       'racket/private/for)
+                     (webify-module-report/rename
+                      (webify-module-provider-cache-ref provider-cache
+                                                        'webracket/list)
+                      'racket/private/list)
                      (webify-module-provider-cache-ref provider-cache
+                                                       'racket/private/map))
+               (if have-racket/private/pico?
+                   (list (webify-module-provider-cache-ref provider-cache
+                                                           'racket/private/pico))
+                   (if have-racket/private/reverse?
+                       (list (webify-module-provider-cache-ref provider-cache
+                                                               'racket/private/reverse))
+                       '()))
+               (list (webify-module-provider-cache-ref provider-cache
                                                        'webracket/list)
-                     'racket/private/list)
-                    (webify-module-provider-cache-ref provider-cache
-                                                      'racket/private/map)
-                    (webify-module-provider-cache-ref provider-cache
-                                                      'racket/private/pico)
-                    (webify-module-provider-cache-ref provider-cache
-                                                      'webracket/list)
-                    (webify-module-provider-cache-ref provider-cache
-                                                      'syntax/location)
-                    (webify-module-provider-cache-ref provider-cache
-                                                      'racket/private/define-struct)
-                    (webify-module-provider-cache-ref provider-cache
-                                                      'racket/private/serialize-structs)
-                    (webify-module-provider-cache-ref provider-cache
-                                                      'racket/private/class-internal)
-                    (webify-module-provider-cache-ref provider-cache
-                                                      'racket/private/class-struct))
+                     (webify-module-provider-cache-ref provider-cache
+                                                       'syntax/location)
+                     (webify-module-provider-cache-ref provider-cache
+                                                       'racket/private/define-struct)
+                     (webify-module-provider-cache-ref provider-cache
+                                                       'racket/private/serialize-structs)
+                     (webify-module-provider-cache-ref provider-cache
+                                                       'racket/private/class-internal)
+                     (webify-module-provider-cache-ref provider-cache
+                                                       'racket/private/class-struct)))
               '())
           (if needs-unit-support?
               (unit-support-reports)
@@ -2740,41 +2971,63 @@
             (webify-module-provider-cache-ref provider-cache name))
           (io-format-provider-reports)))
        (define registry
-         (webify-module-reports->discovered-registry
-          bridge-reports
-          #:extra-reports support-reports
-          #:fetch-provider (lambda (name)
-                             (unless (webify-provider-trial-module-allowed? name)
-                               (raise-arguments-error
-                                'webracket/base-reports->module-graph
-                                "#lang webracket/base transitive provider is not in the Goal 1 trial allowlist"
-                                "unsupported provider" name
-                                "allowed providers" webify-provider-trial-module-allowlist))
-                             (webify-module-provider-cache-ref provider-cache name))
-          #:skip-provider? webracket/base-language-provider-name?
-          #:module-protocol-dependency webify-module-protocol-dependency
-          #:demand-slice? #t))
+         (cached-discovered-provider-registry
+          root
+          local-source-paths
+          support-reports
+          #t
+          webify-module-protocol-dependency
+          (lambda ()
+            (with-module-bridge-timing
+             'discover-provider-graph
+             (lambda ()
+               (webify-module-reports->discovered-resolved-linklet-inputs
+                bridge-reports
+                #:extra-reports support-reports
+                #:fetch-provider (lambda (name)
+                                   (unless (webify-provider-trial-module-allowed? name)
+                                     (raise-arguments-error
+                                      'webracket/base-reports->module-graph
+                                      "#lang webracket/base transitive provider is not in the Goal 1 trial allowlist"
+                                      "unsupported provider" name
+                                      "allowed providers" webify-provider-trial-module-allowlist))
+                                   (webify-module-provider-cache-ref provider-cache name))
+                #:skip-provider? webracket/base-language-provider-name?
+                #:module-protocol-dependency webify-module-protocol-dependency
+                #:demand-slice? #t))))))
        (provider-cache-log "#lang webracket/base provider cache: ~a hit(s), ~a miss(es)"
                            (webify-module-provider-cache-hit-count provider-cache)
                            (webify-module-provider-cache-miss-count provider-cache))
        registry]
       [else
-       (webify-module-linklet-inputs->registry
-        (cons webify-module-protocol-input
-              (webify-module-reports->resolved-linklet-inputs
-               bridge-reports
-               #:module-protocol-dependency webify-module-protocol-dependency)))]))
+       (with-module-bridge-timing
+        'final-extracted-form-assembly
+        (lambda ()
+          (webify-module-linklet-inputs->registry
+           (cons webify-module-protocol-input
+                 (webify-module-reports->resolved-linklet-inputs
+                  bridge-reports
+                  #:module-protocol-dependency webify-module-protocol-dependency)))))]))
   (webracket/base-local-module-graph bridge-root bridge-reports registry))
 
 ;; webracket/base-file->local-module-graph : path-string? -> webracket/base-local-module-graph?
 ;;   Build a local root graph plus demanded provider reports for the module bridge.
 (define (webracket/base-file->local-module-graph filename)
-  (define-values (root reports)
+  (define-values (root reports local-source-paths)
     (webracket/base-file->local-module-reports filename))
-  (webracket/base-reports->module-graph root reports))
+  (webracket/base-reports->module-graph
+   root
+   reports
+   #:local-source-paths local-source-paths))
 
 ;; module-file->module-bridge-top-level : path-string? -> syntax?
 ;;   Compose a local #lang webracket/base graph through module instances.
+;;   `module-bridge-extract` covers this exact path:
+;;   `module-file->module-bridge-top-level`
+;;    -> `webracket/base-file->local-module-graph`
+;;    -> `webracket/base-file->local-module-reports`
+;;    -> `compile-webracket/base-module-file-report`
+;;    -> `webracket/base-reports->module-graph`.
 (define (module-file->module-bridge-top-level filename)
   (define graph
     (with-driver-timing
@@ -2782,7 +3035,7 @@
      (lambda ()
        (with-handlers ([exn:fail?
                         (lambda (e)
-                          (raise-arguments-error
+                         (raise-arguments-error
                            'read-top-level-from-file
                            "#lang webracket/base module bridge graph extraction failed"
                            "file" filename
@@ -2827,7 +3080,7 @@
 ;; module-file->module-bridge-top-level/local-only : path-string? -> (or/c syntax? #f)
 ;;   Use the default bridge only for local or explicitly staged provider graphs.
 (define (module-file->module-bridge-top-level/local-only filename)
-  (define-values (root reports)
+  (define-values (root reports _local-source-paths)
     (with-driver-timing
      'module-bridge-extract
      (lambda ()
@@ -2896,6 +3149,7 @@
                                   #:webracket-module-bridge?
                                   [webracket-module-bridge? #f])
   (current-read-source-timing-rows '())
+  (current-module-bridge-detail-rows '())
   (current-source-module-language #f)
   (define first-line
     (call-with-input-file filename
