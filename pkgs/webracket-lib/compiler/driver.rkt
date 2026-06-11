@@ -51,6 +51,7 @@
          (only-in racket/fasl       fasl->s-exp s-exp->fasl)
          (only-in racket/system     system*)
          (only-in racket/string     string-prefix?)
+         racket/unsafe/undefined
          #;(only-in "lang/reader.rkt" read-syntax)
          (only-in "assembler.rkt"
                   run
@@ -590,15 +591,20 @@
   `(bundle-entry
     ,(webify-module-bundle-entry-key entry)
     ,(webify-module-bundle-entry-kind entry)
-    ,(webify-module-bundle-entry-imports entry)
-    ,(webify-module-bundle-entry-exports entry)
-    ,(webify-module-bundle-entry-datum entry)
-    ,(webify-module-bundle-entry-value entry)))
+    ,(cache-readable-datum (webify-module-bundle-entry-imports entry))
+    ,(cache-readable-datum (webify-module-bundle-entry-exports entry))
+    ,(cache-readable-datum (webify-module-bundle-entry-datum entry))
+    ,(cache-readable-datum (webify-module-bundle-entry-value entry))))
 
 (define (cache-datum->provider-bundle-entry datum)
   (match datum
     [`(bundle-entry ,key ,kind ,imports ,exports ,entry-datum ,value)
-     (webify-module-bundle-entry key kind imports exports entry-datum value)]
+     (webify-module-bundle-entry key
+                                 kind
+                                 (cache-readable->datum imports)
+                                 (cache-readable->datum exports)
+                                 (cache-readable->datum entry-datum)
+                                 (cache-readable->datum value))]
     [_ #f]))
 
 (define (provider-report->cache-datum report)
@@ -608,11 +614,11 @@
     ,(webify-module-report-bundle-keys report)
     ,(map provider-bundle-entry->cache-datum
           (webify-module-report-bundle-entries report))
-    ,(webify-module-report-phase0-imports report)
-    ,(webify-module-report-phase0-exports report)
-    ,(webify-module-report-phase0-linklet-datum report)
+    ,(cache-readable-datum (webify-module-report-phase0-imports report))
+    ,(cache-readable-datum (webify-module-report-phase0-exports report))
+    ,(cache-readable-datum (webify-module-report-phase0-linklet-datum report))
     ,(webify-module-report-manifest-ready? report)
-    ,(webify-module-report-notes report)))
+    ,(cache-readable-datum (webify-module-report-notes report))))
 
 ;; cache-datum->provider-report : datum? -> webify-module-report?
 ;;   Rehydrate the conservative provider-report cache representation.
@@ -638,11 +644,11 @@
                            directory-keys
                            bundle-keys
                            parsed-bundle-entries
-                           phase0-imports
-                           phase0-exports
-                           phase0-linklet-datum
+                           (cache-readable->datum phase0-imports)
+                           (cache-readable->datum phase0-exports)
+                           (cache-readable->datum phase0-linklet-datum)
                            manifest-ready?
-                           notes))]
+                           (cache-readable->datum notes)))]
     [else #f]))
 
 ;; cached-installed-provider-report : symbol? (symbol? -> report?) -> report?
@@ -654,7 +660,7 @@
      (string-append (provider-cache-symbol-segment name) ".rktd")))
   (define fingerprint
     `(installed-provider-report-cache
-      8
+      9
       ,name
       ,(version)
       ,(provider-module-source-fingerprint name)
@@ -742,6 +748,10 @@
 ;;   Serialize one resolved linklet input using the manifest handoff shape.
 (define (cache-readable-datum v)
   (cond
+    [(void? v)
+     'webracket-cache:void]
+    [(eq? v unsafe-undefined)
+     'webracket-cache:unsafe-undefined]
     [(path? v)
      `(webracket-cache:path ,(path->string v))]
     [(pair? v)
@@ -772,6 +782,10 @@
 
 (define (cache-readable->datum v)
   (cond
+    [(eq? v 'webracket-cache:void)
+     (void)]
+    [(eq? v 'webracket-cache:unsafe-undefined)
+     unsafe-undefined]
     [(pair? v)
      (match v
        [`(webracket-cache:path ,s)
