@@ -427,6 +427,39 @@
           (lambda ()
             (write module))))))
 
+    (define (symbol-prefix-count syms prefix)
+      (for/sum ([sym (in-list syms)]
+                #:when (string-prefix? (symbol->string sym) prefix))
+        1))
+
+    (define (constant-global-name? name)
+      (and (symbol? name)
+           (let ([s (symbol->string name)])
+             (or (string-prefix? s "$string:")
+                 (string-prefix? s "$bytes:")
+                 (string-prefix? s "$symbol:")))))
+
+    (define (constant-data-name? name)
+      (and (symbol? name)
+           (let ([s (symbol->string name)])
+             (or (string-prefix? s "$string-data:")
+                 (string-prefix? s "$bytes-data:")
+                 (string-prefix? s "$symbol-data:")))))
+
+    (define (stable-runtime-analysis-form? form)
+      (define global-name (module-global-name form))
+      (define data-name (module-data-name form))
+      (and (not (and global-name
+                     (constant-global-name? global-name)))
+           (not (and data-name
+                     (constant-data-name? data-name)))))
+
+    (define (stable-runtime-analysis-module module)
+      (forms->module
+       (for/list ([form (in-list (cdr module))]
+                  #:when (stable-runtime-analysis-form? form))
+         form)))
+
     (define (forms->module forms)
       `(module ,@forms))
 
@@ -77981,6 +78014,11 @@
                          (if (current-browser?) "browser" "node"))
     (runtime-metric-add! "runtime:ffi-foreign-count"
                          (length active-ffi-foreigns))
+    (runtime-metric-add! "runtime:ffi-foreign-fingerprint"
+                         (format "~x"
+                                 (abs (equal-hash-code
+                                       (sort (map foreign-racket-name active-ffi-foreigns)
+                                             symbol<?)))))
     (runtime-metric-add! "runtime:program-primitive-count"
                          (length used-primitives))
     (define full-module
@@ -77999,16 +78037,44 @@
                          (length runtime-forms-before-prune))
     (runtime-metric-add! "runtime:program-form-count-before-prune"
                          (length program-forms-before-prune))
+    (define runtime-only-global-names
+      (for/list ([form (in-list runtime-forms-before-prune)]
+                 #:do [(define name (module-global-name form))]
+                 #:when name)
+        name))
+    (define runtime-only-data-names
+      (for/list ([form (in-list runtime-forms-before-prune)]
+                 #:do [(define name (module-data-name form))]
+                 #:when name)
+        name))
+    (runtime-metric-add! "runtime:runtime-string-global-count"
+                         (symbol-prefix-count runtime-only-global-names "$string:"))
+    (runtime-metric-add! "runtime:runtime-bytes-global-count"
+                         (symbol-prefix-count runtime-only-global-names "$bytes:"))
+    (runtime-metric-add! "runtime:runtime-symbol-global-count"
+                         (symbol-prefix-count runtime-only-global-names "$symbol:"))
+    (runtime-metric-add! "runtime:runtime-string-data-count"
+                         (symbol-prefix-count runtime-only-data-names "$string-data:"))
+    (runtime-metric-add! "runtime:runtime-bytes-data-count"
+                         (symbol-prefix-count runtime-only-data-names "$bytes-data:"))
+    (runtime-metric-add! "runtime:runtime-symbol-data-count"
+                         (symbol-prefix-count runtime-only-data-names "$symbol-data:"))
     (runtime-metric-add! "runtime:program-function-count-before-prune"
                          (length program-function-names))
     (runtime-metric-add! "runtime:program-global-count-before-prune"
                          (length top-level-variable-declarations))
     (define runtime-only-module
       (forms->module runtime-forms-before-prune))
+    (define stable-runtime-module
+      (stable-runtime-analysis-module runtime-only-module))
     (define program-only-forms
       program-forms-before-prune)
     (define stable-runtime-cache-fingerprint
-      (stable-runtime-analysis-cache-fingerprint runtime-only-module))
+      (stable-runtime-analysis-cache-fingerprint stable-runtime-module))
+    (runtime-metric-add! "runtime:stable-runtime-fingerprint"
+                         (format "~x"
+                                 (abs (equal-hash-code
+                                       stable-runtime-cache-fingerprint))))
     (define stable-runtime-cache-path
       (stable-runtime-analysis-cache-path stable-runtime-cache-fingerprint))
     (runtime-metric-add! "tree-shake:runtime-analysis-v2-cache-enabled?"
@@ -78033,7 +78099,7 @@
            (time-runtime-step
             "tree-shake:analyze-stable-runtime"
             (lambda ()
-              (analyze-stable-runtime runtime-only-module))))
+              (analyze-stable-runtime stable-runtime-module))))
          (time-runtime-step
           "tree-shake:runtime-analysis-v2-cache-write"
           (lambda ()
