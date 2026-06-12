@@ -32,6 +32,7 @@
 (struct webify-lowered-slice-spec (name expr importss import-sources exports) #:transparent)
 (struct webify-linklet-slice-spec (name linklet import-sources) #:transparent)
 (struct webify-module-fragment (datum instance) #:transparent)
+(struct analyzed-linklet-slice (name expr importss exports import-sources imports-abis exports-info) #:transparent)
 
 (define current-composer-primitive-import-cell-overrides
   (make-parameter (hasheq)))
@@ -312,10 +313,37 @@
                                                 "import" import-name
                                                 "available instances" (hash-keys instances)))))
            (if import-abi
-               (begin
-                 (webify-bridge-stats-inc! 'bridge-direct-local-ref-count)
-                 (webify-module-instance-export-value-id instance export-name))
+               (let ()
+                  (webify-bridge-stats-inc! 'bridge-direct-local-ref-count)
+                  (if (webify-module-instance-export-plain-value? instance export-name)
+                      (begin
+                       (webify-bridge-stats-inc! 'bridge-import-from-plain-public-value-count)
+                       (webify-module-instance-export-boundary-expression instance export-name))
+                     (begin
+                       (webify-bridge-stats-inc! 'bridge-import-from-cell-public-value-count)
+                       (webify-module-instance-export-value-expression instance export-name))))
                (webify-module-instance-export-cell-id instance export-name))])))
+
+;; forced-cell-export-table : (listof analyzed-linklet-slice?) -> hash?
+;;   Conservatively keep any cross-module imported export cell-backed.
+(define (forced-cell-export-table analyzed-specs)
+  (for/fold ([table (hasheq)])
+            ([spec (in-list analyzed-specs)])
+    (for/fold ([table* table])
+              ([group (in-list (analyzed-linklet-slice-import-sources spec))]
+               [abi-group (in-list (analyzed-linklet-slice-imports-abis spec))])
+      (for/fold ([group-table table*])
+                ([source (in-list group)]
+                 [import-abi (in-list abi-group)])
+        (match-define (list _import dependency export) source)
+        (if (or (primitive-module-name? dependency)
+                (eq? dependency (analyzed-linklet-slice-name spec)))
+            group-table
+            (hash-update group-table
+                         dependency
+                         (lambda (exports)
+                           (hash-set exports export #t))
+                         (hasheq)))))))
 
 ;; import-sources->envs : hash? (listof (listof source?)) (listof (listof any/c)) -> (listof hash?)
 ;;   Resolve grouped import source triples to grouped explicit-import environments.
@@ -359,6 +387,21 @@
   (unless (list? specs)
     (raise-argument-error who "list?" specs))
   (validate-tail-forms! who tail-forms)
+  (define lowered-forced-cell-exports
+    (for/fold ([table (hasheq)])
+              ([spec (in-list specs)])
+      (validate-slice-spec! who spec)
+      (for/fold ([table* table])
+                ([source (in-list (webify-lowered-slice-spec-import-sources spec))])
+        (match-define (list _import dependency export) source)
+        (if (or (primitive-module-name? dependency)
+                (eq? dependency (webify-lowered-slice-spec-name spec)))
+            table*
+            (hash-update table*
+                         dependency
+                         (lambda (exports)
+                           (hash-set exports export #t))
+                         (hasheq))))))
   (define-values (reverse-fragments instances _reserved)
     (for/fold ([reverse-fragments '()]
                [instances         (hasheq)]
@@ -374,7 +417,14 @@
       (define import-sources (webify-lowered-slice-spec-import-sources spec))
       (define exports (webify-lowered-slice-spec-exports spec))
       (define self-instance
-        (make-webify-module-instance name exports #:reserved reserved))
+        (make-webify-module-instance name
+                                     exports
+                                     #:reserved reserved
+                                     #:expr (webify-lowered-slice-spec-expr spec)
+                                     #:module-name name
+                                     #:importss importss
+                                     #:forced-cell-exports
+                                     (hash-ref lowered-forced-cell-exports name (hasheq))))
       (define instances/self
         (hash-set instances name self-instance))
       (when (and (null? importss)
@@ -430,18 +480,10 @@
   (unless (list? specs)
     (raise-argument-error who "list?" specs))
   (validate-tail-forms! who tail-forms)
-  (define-values (reverse-fragments instances _reserved exports-infos)
-    (for/fold ([reverse-fragments '()]
-               [instances         (hasheq)]
-               [reserved          '()]
-               [exports-infos     (hasheq)])
-              ([spec (in-list specs)])
+  (define analyzed-specs
+    (for/list ([spec (in-list specs)])
       (validate-linklet-slice-spec! who spec)
       (define name (webify-linklet-slice-spec-name spec))
-      (when (hash-has-key? instances name)
-        (raise-arguments-error who
-                               "duplicate module instance names are not supported"
-                               "name" name))
       (define-values (expr importss exports new-import-keys imports-abis exports-info)
         (webify-linklet-first-slice
          (webify-linklet-slice-spec-linklet spec)
@@ -467,8 +509,36 @@
       (define raw-import-sources (webify-linklet-slice-spec-import-sources spec))
       (define import-sources
         (normalize-linklet-import-sources who name importss raw-import-sources))
+      (analyzed-linklet-slice name expr importss exports import-sources imports-abis exports-info)))
+  (define forced-cell-exports
+    (forced-cell-export-table analyzed-specs))
+  (define-values (reverse-fragments instances _reserved exports-infos)
+    (for/fold ([reverse-fragments '()]
+               [instances         (hasheq)]
+               [reserved          '()]
+               [exports-infos     (hasheq)])
+              ([spec (in-list analyzed-specs)])
+      (define name (analyzed-linklet-slice-name spec))
+      (when (hash-has-key? instances name)
+        (raise-arguments-error who
+                               "duplicate module instance names are not supported"
+                               "name" name))
+      (define expr (analyzed-linklet-slice-expr spec))
+      (define importss (analyzed-linklet-slice-importss spec))
+      (define exports (analyzed-linklet-slice-exports spec))
+      (define import-sources (analyzed-linklet-slice-import-sources spec))
+      (define imports-abis (analyzed-linklet-slice-imports-abis spec))
+      (define exports-info (analyzed-linklet-slice-exports-info spec))
       (define self-instance
-        (make-webify-module-instance name exports #:reserved reserved))
+        (make-webify-module-instance name
+                                     exports
+                                     #:reserved reserved
+                                     #:expr expr
+                                     #:module-name name
+                                     #:importss importss
+                                     #:imports-abis imports-abis
+                                     #:forced-cell-exports
+                                     (hash-ref forced-cell-exports name (hasheq))))
       (define instances/self
         (hash-set instances name self-instance))
       (when (and (null? importss)

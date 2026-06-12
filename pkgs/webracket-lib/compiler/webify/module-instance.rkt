@@ -4,10 +4,15 @@
          webify-module-instance?
          webify-module-instance-name
          webify-module-instance-exports
+         webify-module-instance-export-entries
          webify-module-instance-export-cell-ids
          webify-module-instance-export-value-ids
          webify-module-instance-helper-ids
          make-webify-module-instance
+         webify-module-instance-export-entry
+         webify-module-instance-export-plain-value?
+         webify-module-instance-export-boundary-expression
+         webify-module-instance-export-value-expression
          webify-module-instance-export-cell-id
          webify-module-instance-export-value-id
          webify-module-instances-export-cell-id
@@ -20,7 +25,7 @@
          racket/match
          "module-adapter.rkt")
 
-(struct webify-module-instance (name exports export-cell-ids export-value-ids helper-ids) #:transparent)
+(struct webify-module-instance (name exports export-entries export-cell-ids export-value-ids helper-ids) #:transparent)
 
 ;; validate-instance-name! : symbol? any/c -> void?
 ;;   Reject instance names that cannot identify generated module-instance plans.
@@ -42,32 +47,92 @@
 
 ;; make-webify-module-instance : symbol? (listof symbol?) [#:reserved (listof symbol?)] -> webify-module-instance?
 ;;   Describe the helper ids and export cells generated for one adapted slice.
-(define (make-webify-module-instance name exports #:reserved [reserved '()])
+(define (make-webify-module-instance name
+                                     exports
+                                     #:reserved [reserved '()]
+                                     #:expr [expr #f]
+                                     #:module-name [module-name name]
+                                     #:importss [importss #f]
+                                     #:imports-abis [imports-abis #f]
+                                     #:forced-cell-exports [forced-cell-exports (hasheq)])
   (define who 'make-webify-module-instance)
   (validate-instance-name! who name)
   (validate-instance-exports! who exports)
-  (define helper-ids (first-slice-top-level-helper-ids exports #:reserved reserved))
-  (define export-cell-ids (first-slice-top-level-export-cell-ids exports #:reserved reserved))
-  (define export-value-ids (first-slice-top-level-export-value-ids exports #:reserved reserved))
-  (webify-module-instance name exports export-cell-ids export-value-ids helper-ids))
+  (define helper-ids
+    (first-slice-top-level-helper-ids exports #:reserved reserved))
+  (define export-cell-ids
+    (first-slice-top-level-export-cell-ids exports #:reserved reserved))
+  (define export-value-ids
+    (first-slice-top-level-export-value-ids exports #:reserved reserved))
+  (define export-entries
+    (if expr
+        (first-slice-export-plan-entry-map
+         (build-first-slice-export-plan expr
+                                        exports
+                                        #:import-count (if importss
+                                                           (apply + (map length importss))
+                                                           0)
+                                        #:reserved reserved
+                                        #:module-name module-name
+                                        #:importss importss
+                                        #:imports-abis imports-abis
+                                        #:forced-cell-exports forced-cell-exports))
+        (default-export-entry-map exports export-cell-ids export-value-ids)))
+  (webify-module-instance name exports export-entries export-cell-ids export-value-ids helper-ids))
 
-;; webify-module-instance-export-cell-id : webify-module-instance? symbol? -> symbol?
-;;   Look up the generated cell id for one module-instance export.
-(define (webify-module-instance-export-cell-id instance export)
+;; webify-module-instance-export-entry : webify-module-instance? symbol? -> bridge-export-entry?
+;;   Look up the mixed-ABI export entry for one module-instance export.
+(define (webify-module-instance-export-entry instance export)
   (unless (webify-module-instance? instance)
-    (raise-argument-error 'webify-module-instance-export-cell-id
+    (raise-argument-error 'webify-module-instance-export-entry
                           "webify-module-instance?"
                           instance))
   (unless (symbol? export)
-    (raise-argument-error 'webify-module-instance-export-cell-id "symbol?" export))
-  (hash-ref (webify-module-instance-export-cell-ids instance)
+    (raise-argument-error 'webify-module-instance-export-entry "symbol?" export))
+  (hash-ref (webify-module-instance-export-entries instance)
             export
             (lambda ()
-              (raise-arguments-error 'webify-module-instance-export-cell-id
+              (raise-arguments-error 'webify-module-instance-export-entry
                                      "module instance has no such export"
                                      "instance" (webify-module-instance-name instance)
                                      "export" export
                                      "available exports" (webify-module-instance-exports instance)))))
+
+;; webify-module-instance-export-plain-value? : webify-module-instance? symbol? -> boolean?
+;;   Check whether one module-instance export is publicly value-backed.
+(define (webify-module-instance-export-plain-value? instance export)
+  (bridge-export-entry-plain-value?
+   (webify-module-instance-export-entry instance export)))
+
+;; webify-module-instance-export-boundary-expression : webify-module-instance? symbol? -> any/c
+;;   Return the boundary binding used when passing one export to another slice.
+(define (webify-module-instance-export-boundary-expression instance export)
+  (bridge-export-entry-boundary-expression
+   (webify-module-instance-export-entry instance export)))
+
+;; webify-module-instance-export-value-expression : webify-module-instance? symbol? -> any/c
+;;   Return the direct value binding for one export, regardless of boundary kind.
+(define (webify-module-instance-export-value-expression instance export)
+  (define entry
+    (webify-module-instance-export-entry instance export))
+  (if (bridge-export-entry-plain-value? entry)
+      (bridge-export-entry-binding entry)
+      (hash-ref (bridge-export-entry-metadata entry)
+                'value-id
+                (lambda ()
+                  (webify-module-instance-export-value-id instance export)))))
+
+;; webify-module-instance-export-cell-id : webify-module-instance? symbol? -> symbol?
+;;   Look up the generated cell id for one module-instance export.
+(define (webify-module-instance-export-cell-id instance export)
+  (define entry
+    (webify-module-instance-export-entry instance export))
+  (unless (bridge-export-entry-cell-backed? entry)
+    (raise-arguments-error 'webify-module-instance-export-cell-id
+                           "module instance export is not cell-backed"
+                           "instance" (webify-module-instance-name instance)
+                           "export" export))
+  (bridge-export-entry-binding entry))
 
 ;; webify-module-instance-export-value-id : webify-module-instance? symbol? -> symbol?
 ;;   Look up the generated lexical value id for one module-instance export.
@@ -126,7 +191,7 @@
   (define entries
     (for/list ([mapping (in-list mappings)])
       (define-values (import export) (normalize-import-mapping who mapping))
-      (cons import (webify-module-instance-export-cell-id instance export))))
+      (cons import (webify-module-instance-export-boundary-expression instance export))))
   (define duplicate (check-duplicates (map car entries)))
   (when duplicate
     (raise-arguments-error who
@@ -143,8 +208,7 @@
                           "webify-module-instance?"
                           instance))
   (append (webify-module-instance-exports instance)
-          (for/list ([export (in-list (webify-module-instance-exports instance))])
-            (webify-module-instance-export-value-id instance export))
+          (hash-values (webify-module-instance-export-value-ids instance))
           (webify-module-instance-helper-ids instance)))
 
 ;; first-slice->module-instance-datum : symbol? any/c (listof symbol?) [#:reserved (listof symbol?)] -> values
@@ -154,12 +218,18 @@
                                             exports
                                             #:reserved [reserved '()]
                                             #:define-export-aliases? [define-export-aliases? #t])
-  (define instance (make-webify-module-instance name exports #:reserved reserved))
+  (define instance
+    (make-webify-module-instance name
+                                 exports
+                                 #:reserved reserved
+                                 #:expr expr
+                                 #:module-name name))
   (values (first-slice->top-level-datum
            expr
            exports
            #:reserved reserved
            #:module-name name
+           #:export-entries (webify-module-instance-export-entries instance)
            #:define-export-aliases? define-export-aliases?)
           instance))
 
@@ -177,7 +247,13 @@
   (define import-args (first-slice-import-args importss import-envs))
   (define instance*
     (or instance
-        (make-webify-module-instance name exports #:reserved reserved)))
+        (make-webify-module-instance name
+                                     exports
+                                     #:reserved reserved
+                                     #:expr expr
+                                     #:module-name name
+                                     #:importss importss
+                                     #:imports-abis imports-abis)))
   (values (first-slice->top-level-datum/imports
            expr
            import-args
@@ -186,5 +262,6 @@
            #:module-name name
            #:importss importss
            #:imports-abis imports-abis
+           #:export-entries (webify-module-instance-export-entries instance*)
            #:define-export-aliases? define-export-aliases?)
           instance*))

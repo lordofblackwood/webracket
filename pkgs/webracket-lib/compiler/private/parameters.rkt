@@ -6,6 +6,8 @@
          current-enable-cc-analysis?
          current-console-bridge?
          current-enable-simplify?
+         current-module-bridge-elide-public-cells?
+         current-module-bridge-elidable-module-names
          current-letrec-strategy
          current-tree-shake?
          current-runtime-cache-dir
@@ -24,6 +26,10 @@
   (make-parameter #f))                                 ; boolean? enable new closure-conversion analysis
 (define current-console-bridge? (make-parameter #f))  ; boolean? install browser console bridge
 (define current-enable-simplify? (make-parameter #f)) ; boolean? run early simplify-LFE pass
+(define current-module-bridge-elide-public-cells?
+  (make-parameter #f))                                 ; boolean? expose safe module-bridge exports as plain values
+(define current-module-bridge-elidable-module-names
+  (make-parameter #f))                                 ; (or/c #f (listof symbol?)) modules allowed to elide public cells
 (define current-letrec-strategy (make-parameter 'scc)) ; 'basic, 'waddell, or 'scc
 (define current-tree-shake?     (make-parameter #t))  ; boolean? tree shake runtime primitives
 (define current-runtime-cache-dir

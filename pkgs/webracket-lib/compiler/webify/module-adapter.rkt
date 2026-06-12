@@ -1,8 +1,16 @@
 #lang racket/base
 
 (provide strip-correlated
+         (struct-out bridge-export-entry)
+         (struct-out first-slice-export-plan)
+         bridge-export-entry-cell-backed?
+         bridge-export-entry-plain-value?
+         bridge-export-entry-ref-expression
+         bridge-export-entry-boundary-expression
+         default-export-entry-map
          first-slice-import-args
          first-slice-import-cell-args
+         build-first-slice-export-plan
          first-slice-top-level-helper-ids
          first-slice-top-level-export-cell-ids
          first-slice-top-level-export-value-ids
@@ -14,9 +22,36 @@
 
 (require racket/list
          racket/match
+         "../private/parameters.rkt"
          "bridge-stats.rkt"
          "first-slice.rkt"
          "wrap.rkt")
+
+(struct bridge-export-entry (name kind binding metadata) #:transparent)
+(struct first-slice-export-plan (adapted-expr helper-ids cell-ids value-id-map value-ids export-args candidate-specs entry-map)
+  #:transparent)
+
+;; bridge-export-entry-cell-backed? : bridge-export-entry? -> boolean?
+;;   Check whether entry exposes a module-variable cell at the public boundary.
+(define (bridge-export-entry-cell-backed? entry)
+  (eq? (bridge-export-entry-kind entry) 'cell))
+
+;; bridge-export-entry-plain-value? : bridge-export-entry? -> boolean?
+;;   Check whether entry exposes a plain lexical value at the public boundary.
+(define (bridge-export-entry-plain-value? entry)
+  (eq? (bridge-export-entry-kind entry) 'value))
+
+;; bridge-export-entry-ref-expression : bridge-export-entry? -> any/c
+;;   Read one export through the mixed boundary ABI.
+(define (bridge-export-entry-ref-expression entry)
+  (if (bridge-export-entry-cell-backed? entry)
+      `(module-variable-ref/no-check ,(bridge-export-entry-binding entry))
+      (bridge-export-entry-binding entry)))
+
+;; bridge-export-entry-boundary-expression : bridge-export-entry? -> any/c
+;;   Return the boundary binding passed to downstream importers.
+(define (bridge-export-entry-boundary-expression entry)
+  (bridge-export-entry-binding entry))
 
 ;; quote-like-form? : any/c -> boolean?
 ;;   Recognize datum forms that should not count as executable bridge code.
@@ -31,6 +66,81 @@
   (match v
     [`(quote ,inner) inner]
     [_ v]))
+
+;; export-arg-metadata-list : any/c (listof symbol?) (listof symbol?) (or/c symbol? #f) any/c -> (listof hash?)
+;;   Build conservative metadata rows for each public export argument.
+(define (export-arg-metadata-list expr exports export-args module-name importss)
+  (define usage (lowered-export-usage-summary expr export-args))
+  (define mutated (hash-ref usage 'mutated))
+  (define undefined-sensitive (hash-ref usage 'undefined-sensitive))
+  (define reflection-visible (hash-ref usage 'reflection-visible))
+  (define define-constances (hash-ref usage 'define-constances))
+  (define imported-names
+    (if importss
+        (flatten-groups importss)
+        '()))
+  (for/list ([export (in-list exports)]
+             [export-arg (in-list export-args)])
+    (define reexport?
+      (memq export imported-names))
+    (define constance
+      (hash-ref define-constances export-arg #f))
+    (hasheq 'module-name module-name
+            'export export
+            'public-boundary? #t
+            'internal? #f
+            'immutable? (and constance #t)
+            'constance constance
+            'reexport? (and reexport? #t)
+            'mutated? (and (hash-ref mutated export-arg #f) #t)
+            'undefined-sensitive? (and (hash-ref undefined-sensitive export-arg #f) #t)
+            'reflection-visible? (and (hash-ref reflection-visible export-arg #f) #t)
+            'phase0-value-space-only? #t
+            'dynamic-require-sensitive? #f)))
+
+;; plain-value-export-candidate? : hash? -> boolean?
+;;   Check the conservative safety preconditions for eliding one public export cell.
+(define (plain-value-export-candidate? meta)
+  (define module-name (hash-ref meta 'module-name #f))
+  (define allowed-modules
+    (current-module-bridge-elidable-module-names))
+  (and module-name
+       (symbol? module-name)
+       (or (not allowed-modules)
+           (memq module-name allowed-modules))
+       (hash-ref meta 'public-boundary? #f)
+       (hash-ref meta 'immutable? #f)
+       (not (hash-ref meta 'reexport? #f))
+       (not (hash-ref meta 'mutated? #f))
+       (not (hash-ref meta 'undefined-sensitive? #f))
+       (not (hash-ref meta 'reflection-visible? #f))
+       (not (hash-ref meta 'dynamic-require-sensitive? #f))
+       (hash-ref meta 'phase0-value-space-only? #f)))
+
+;; export-entry-kind : hash? hash? -> symbol?
+;;   Decide whether one public export should stay cell-backed or become a plain value.
+(define (export-entry-kind meta forced-cell-exports)
+  (define export (hash-ref meta 'export #f))
+  (if (and (current-module-bridge-elide-public-cells?)
+           export
+           (not (hash-ref forced-cell-exports export #f))
+           (plain-value-export-candidate? meta))
+      'value
+      'cell))
+
+;; default-export-entry-map : (listof symbol?) hash? hash? -> hasheq?
+;;   Build the legacy all-cell export-entry map when no expression analysis is available.
+(define (default-export-entry-map exports cell-id-map value-id-map)
+  (for/hasheq ([export (in-list exports)])
+    (define cell-id (hash-ref cell-id-map export))
+    (define value-id (hash-ref value-id-map export))
+    (values export
+            (bridge-export-entry
+             export
+             'cell
+             cell-id
+             (hasheq 'cell-id cell-id
+                     'value-id value-id)))))
 
 ;; lowered-export-usage-summary : any/c (listof symbol?) -> hasheq?
 ;;   Collect conservative per-export usage flags from one lowered first slice.
@@ -103,51 +213,27 @@
 ;; record-export-cell-stats! : any/c (listof symbol?) (listof symbol?) (or/c symbol? #f) -> void?
 ;;   Publish conservative export-cell metadata for dry-run bridge analysis.
 (define (record-export-cell-stats! expr exports export-args module-name importss)
-  (define usage (lowered-export-usage-summary expr export-args))
-  (define mutated (hash-ref usage 'mutated))
-  (define undefined-sensitive (hash-ref usage 'undefined-sensitive))
-  (define reflection-visible (hash-ref usage 'reflection-visible))
-  (define define-constances (hash-ref usage 'define-constances))
-  (define imported-names
-    (if importss
-        (flatten-groups importss)
-        '()))
-  (for ([export (in-list exports)]
-        [export-arg (in-list export-args)])
-    (define reexport?
-      (memq export imported-names))
-    (define constance
-      (hash-ref define-constances export-arg #f))
-    (define meta
-      (hasheq 'module-name module-name
-              'export export
-              'public-boundary? #t
-              'internal? #f
-              'immutable? (and constance #t)
-              'constance constance
-              'reexport? (and reexport? #t)
-              'mutated? (and (hash-ref mutated export-arg #f) #t)
-              'undefined-sensitive? (and (hash-ref undefined-sensitive export-arg #f) #t)
-              'reflection-visible? (and (hash-ref reflection-visible export-arg #f) #t)
-              ;; Current bridge reports are phase-0 value exports only.
-              'phase0-value-space-only? #t
-              ;; Dry-run classification defaults to "not observed" until the
-              ;; bridge records an explicit dynamic-require-sensitive path.
-              'dynamic-require-sensitive? #f))
+  (define metas
+    (export-arg-metadata-list expr exports export-args module-name importss))
+  (for ([meta (in-list metas)])
+    (define export (hash-ref meta 'export))
     (webify-bridge-stats-set! (list 'bridge-export-cell-meta module-name export) meta)
     (when module-name
       (webify-bridge-stats-inc! (list 'bridge-export-cell-module module-name)))
     (webify-bridge-stats-inc! (list 'bridge-export-cell-name export)))
   (webify-bridge-stats-inc! 'bridge-export-cell-public-boundary-count (length exports))
   (webify-bridge-stats-inc! 'bridge-export-cell-reexport-count
-                            (for/sum ([export (in-list exports)])
-                              (if (memq export imported-names) 1 0)))
+                            (for/sum ([meta (in-list metas)])
+                              (if (hash-ref meta 'reexport? #f) 1 0)))
   (webify-bridge-stats-inc! 'bridge-export-cell-mutated-count
-                            (hash-count mutated))
+                            (for/sum ([meta (in-list metas)])
+                              (if (hash-ref meta 'mutated? #f) 1 0)))
   (webify-bridge-stats-inc! 'bridge-export-cell-undefined-sensitive-count
-                            (hash-count undefined-sensitive))
+                            (for/sum ([meta (in-list metas)])
+                              (if (hash-ref meta 'undefined-sensitive? #f) 1 0)))
   (webify-bridge-stats-inc! 'bridge-export-cell-reflection-visible-count
-                            (hash-count reflection-visible)))
+                            (for/sum ([meta (in-list metas)])
+                              (if (hash-ref meta 'reflection-visible? #f) 1 0))))
 
 ;; late-materializable-export-specs : any/c (listof symbol?) (listof symbol?) (listof symbol?) any/c -> (listof vector?)
 ;;   Identify exports that can use lexical values internally before cell materialization.
@@ -494,6 +580,76 @@
                [value-id (in-list value-ids)])
     (values export value-id)))
 
+;; build-first-slice-export-plan : any/c (listof symbol?) keyword-args -> first-slice-export-plan?
+;;   Analyze one lowered first slice and compute the mixed public export plan.
+(define (build-first-slice-export-plan expr
+                                       exports
+                                       #:import-count [import-count 0]
+                                       #:reserved [reserved '()]
+                                       #:module-name [module-name #f]
+                                       #:importss [importss #f]
+                                       #:imports-abis [imports-abis #f]
+                                       #:forced-cell-exports [forced-cell-exports (hasheq)])
+  (validate-top-level-exports! 'build-first-slice-export-plan exports)
+  (validate-reserved-ids! 'build-first-slice-export-plan reserved)
+  (unless (exact-nonnegative-integer? import-count)
+    (raise-argument-error 'build-first-slice-export-plan "exact-nonnegative-integer?" import-count))
+  (unless (hash? forced-cell-exports)
+    (raise-argument-error 'build-first-slice-export-plan "hash?" forced-cell-exports))
+  (define clean-expr (strip-correlated expr))
+  (validate-first-slice-lambda! 'build-first-slice-export-plan clean-expr import-count exports)
+  (define adapted-expr
+    (if importss
+        (bind-imports clean-expr
+                      importss
+                      (or imports-abis
+                          (default-imports-abis importss))
+                      import-count)
+        clean-expr))
+  (define helper-ids (first-slice-top-level-helper-ids exports #:reserved reserved))
+  (define cell-id-map (first-slice-top-level-export-cell-ids exports #:reserved reserved))
+  (define value-id-map (first-slice-top-level-export-value-ids exports #:reserved reserved))
+  (define value-ids
+    (for/list ([export (in-list exports)])
+      (hash-ref value-id-map export)))
+  (define export-args
+    (match adapted-expr
+      [`(lambda ,args ,_body ...)
+       (take-right args (length exports))]))
+  (define candidate-specs
+    (late-materializable-export-specs adapted-expr
+                                      exports
+                                      export-args
+                                      value-ids
+                                      importss))
+  (define metas
+    (export-arg-metadata-list adapted-expr exports export-args module-name importss))
+  (define entry-map
+    (for/hasheq ([export (in-list exports)]
+                 [meta (in-list metas)])
+      (define cell-id (hash-ref cell-id-map export))
+      (define value-id (hash-ref value-id-map export))
+      (define enriched-meta
+        (hash-set* meta
+                   'cell-id cell-id
+                   'value-id value-id))
+      (values export
+              (bridge-export-entry
+               export
+               (export-entry-kind enriched-meta forced-cell-exports)
+               (if (eq? (export-entry-kind enriched-meta forced-cell-exports) 'value)
+                   value-id
+                   cell-id)
+               enriched-meta))))
+  (first-slice-export-plan adapted-expr
+                           helper-ids
+                           (cdr helper-ids)
+                           value-id-map
+                           value-ids
+                           export-args
+                           candidate-specs
+                           entry-map))
+
 ;; export-alias-enabled? : any/c symbol? -> boolean?
 ;;   Decide whether to define a top-level alias for an exported cell.
 (define (export-alias-enabled? mode export)
@@ -507,6 +663,7 @@
                                       exports
                                       #:reserved [reserved '()]
                                       #:module-name [module-name #f]
+                                      #:export-entries [export-entries #f]
                                       #:define-export-aliases? [define-export-aliases? #t])
   (first-slice->top-level-datum/imports
    expr
@@ -514,6 +671,7 @@
    exports
    #:reserved reserved
    #:module-name module-name
+   #:export-entries export-entries
    #:define-export-aliases? define-export-aliases?))
 
 ;; first-slice->top-level-datum/imports : any/c (listof any/c) (listof symbol?) -> any/c
@@ -525,39 +683,36 @@
                                              #:module-name [module-name #f]
                                              #:importss [importss #f]
                                              #:imports-abis [imports-abis #f]
+                                             #:export-entries [export-entries #f]
                                              #:define-export-aliases? [define-export-aliases? #t])
   (unless (list? import-args)
     (raise-argument-error 'first-slice->top-level-datum/imports "list?" import-args))
-  (validate-top-level-exports! 'first-slice->top-level-datum exports)
-  (validate-reserved-ids! 'first-slice->top-level-datum reserved)
-  (define clean-expr (strip-correlated expr))
-  (validate-first-slice-lambda! 'first-slice->top-level-datum clean-expr (length import-args) exports)
+  (define plan
+    (build-first-slice-export-plan expr
+                                   exports
+                                   #:import-count (length import-args)
+                                   #:reserved reserved
+                                   #:module-name module-name
+                                   #:importss importss
+                                   #:imports-abis imports-abis))
   (define adapted-expr
-    (if importss
-        (bind-imports clean-expr
-                      importss
-                      (or imports-abis
-                          (default-imports-abis importss))
-                      (length import-args))
-        clean-expr))
-  (define helper-ids (first-slice-top-level-helper-ids exports #:reserved reserved))
+    (first-slice-export-plan-adapted-expr plan))
+  (define helper-ids
+    (first-slice-export-plan-helper-ids plan))
   (define proc-id (car helper-ids))
-  (define cell-ids (cdr helper-ids))
-  (define export-args
-    (match adapted-expr
-      [`(lambda ,args ,_body ...)
-       (take-right args (length exports))]))
+  (define cell-ids
+    (first-slice-export-plan-cell-ids plan))
   (define value-id-map
-    (first-slice-top-level-export-value-ids exports #:reserved reserved))
+    (first-slice-export-plan-value-id-map plan))
   (define value-ids
-    (for/list ([export (in-list exports)])
-      (hash-ref value-id-map export)))
+    (first-slice-export-plan-value-ids plan))
+  (define export-args
+    (first-slice-export-plan-export-args plan))
   (define candidate-specs
-    (late-materializable-export-specs adapted-expr
-                                      exports
-                                      export-args
-                                      value-ids
-                                      importss))
+    (first-slice-export-plan-candidate-specs plan))
+  (define chosen-export-entries
+    (or export-entries
+        (first-slice-export-plan-entry-map plan)))
   (define candidate-export-args
     (for/list ([spec (in-list candidate-specs)])
       (vector-ref spec 1)))
@@ -572,57 +727,98 @@
       (values arg #t)))
   (define late-adapted-expr
     (late-materialize-exports adapted-expr candidate-specs))
-  (webify-bridge-stats-inc! 'bridge-export-cell-count (length cell-ids))
-  (webify-bridge-stats-inc! 'bridge-module-variable-make-count (length cell-ids))
+  (define cell-backed-exports
+    (for/list ([export (in-list exports)]
+               #:when (bridge-export-entry-cell-backed?
+                       (hash-ref chosen-export-entries export)))
+      export))
+  (define value-backed-exports
+    (for/list ([export (in-list exports)]
+               #:when (bridge-export-entry-plain-value?
+                       (hash-ref chosen-export-entries export)))
+      export))
+  (webify-bridge-stats-inc! 'bridge-export-cell-count (length cell-backed-exports))
+  (webify-bridge-stats-inc! 'bridge-module-variable-make-count (length cell-backed-exports))
   (webify-bridge-stats-inc! 'bridge-export-cell-late-materialization-candidate-count
                             (length candidate-specs))
+  (webify-bridge-stats-inc! 'bridge-public-cell-elided-count (length value-backed-exports))
+  (webify-bridge-stats-inc! 'bridge-public-cell-kept-count (length cell-backed-exports))
+  (when (current-module-bridge-elide-public-cells?)
+    (for ([export (in-list exports)])
+      (define entry (hash-ref chosen-export-entries export))
+      (when (bridge-export-entry-cell-backed? entry)
+        (define meta (bridge-export-entry-metadata entry))
+        (define required?
+          (or (not (plain-value-export-candidate? meta))
+              (bridge-export-entry-plain-value?
+               (hash-ref (first-slice-export-plan-entry-map plan) export))))
+        (when required?
+          (webify-bridge-stats-inc! 'bridge-public-cell-kept-required-count))
+        (cond
+          [(hash-ref meta 'reflection-visible? #f)
+           (webify-bridge-stats-inc! 'bridge-public-cell-kept-reflection-count)]
+          [(hash-ref meta 'dynamic-require-sensitive? #f)
+           (webify-bridge-stats-inc! 'bridge-public-cell-kept-dynamic-require-count)]
+          [(or (not (hash-ref meta 'immutable? #f))
+               (hash-ref meta 'mutated? #f))
+           (webify-bridge-stats-inc! 'bridge-public-cell-kept-mutation-count)]
+          [(hash-ref meta 'undefined-sensitive? #f)
+           (webify-bridge-stats-inc! 'bridge-public-cell-kept-undefined-count)]
+          [(hash-ref meta 'reexport? #f)
+           (webify-bridge-stats-inc! 'bridge-public-cell-kept-reexport-count)]
+          [(not (hash-ref meta 'phase0-value-space-only? #f))
+           (webify-bridge-stats-inc! 'bridge-public-cell-kept-phase-space-count)]
+          [(plain-value-export-candidate? meta)
+           (webify-bridge-stats-inc! 'bridge-public-cell-kept-unknown-count)]
+          [else
+           (webify-bridge-stats-inc! 'bridge-public-cell-kept-unknown-count)]))))
   (record-export-cell-stats! adapted-expr exports export-args module-name importss)
   `(begin
      (define ,proc-id ,late-adapted-expr)
-     ,@(for/list ([cell-id    (in-list cell-ids)]
-                  [export     (in-list exports)]
+     ,@(for/list ([export     (in-list exports)]
                   [export-arg (in-list export-args)]
-                  #:unless (hash-ref candidate-arg-set export-arg #f))
+                  #:when (and (bridge-export-entry-cell-backed?
+                               (hash-ref chosen-export-entries export))
+                              (not (hash-ref candidate-arg-set export-arg #f))))
+         (define entry (hash-ref chosen-export-entries export))
+         (define cell-id (bridge-export-entry-binding entry))
          `(define ,cell-id (module-variable-make ',export)))
      ,(if (null? candidate-value-ids)
           `(,proc-id (#%variable-reference)
                      ,@import-args
-                     ,@(for/list ([cell-id    (in-list cell-ids)]
+                     ,@(for/list ([export     (in-list exports)]
                                   [export-arg (in-list export-args)])
+                         (define entry (hash-ref chosen-export-entries export))
                          (if (hash-ref candidate-arg-set export-arg #f)
                              '(void)
-                             cell-id)))
+                             (bridge-export-entry-binding entry))))
           `(define-values ,candidate-value-ids
              (,proc-id (#%variable-reference)
                        ,@import-args
-                       ,@(for/list ([cell-id    (in-list cell-ids)]
+                       ,@(for/list ([export     (in-list exports)]
                                     [export-arg (in-list export-args)])
+                           (define entry (hash-ref chosen-export-entries export))
                            (if (hash-ref candidate-arg-set export-arg #f)
                                '(void)
-                               cell-id)))))
+                               (bridge-export-entry-binding entry))))))
      ,@(for/list ([spec (in-list candidate-specs)])
          (define export (vector-ref spec 0))
          (define value-id (vector-ref spec 2))
          (define constance (vector-ref spec 3))
-         (define cell-id
-           (list-ref cell-ids
-                     (let loop ([remaining exports] [index 0])
-                       (cond
-                         [(null? remaining)
-                          (error 'first-slice->top-level-datum/imports
-                                 "missing cell id for late-materialized export")]
-                         [(eq? export (car remaining)) index]
-                         [else (loop (cdr remaining) (add1 index))]))))
-         `(begin
-            (define ,cell-id (module-variable-make ',export))
-            (module-variable-define! ,cell-id ,value-id ',constance)))
-     ,@(for/list ([cell-id   (in-list cell-ids)]
-                  [value-id  (in-list value-ids)]
-                  [export-arg (in-list export-args)]
-                  #:unless (hash-ref candidate-arg-set export-arg #f))
-         `(define ,value-id (module-variable-ref ,cell-id)))
-     ,@(for/list ([cell-id (in-list cell-ids)]
-                  [export  (in-list exports)]
+         (define entry (hash-ref chosen-export-entries export))
+         (and (bridge-export-entry-cell-backed? entry)
+              `(begin
+                 (define ,(bridge-export-entry-binding entry) (module-variable-make ',export))
+                 (module-variable-define! ,(bridge-export-entry-binding entry) ,value-id ',constance))))
+     ,@(filter values
+               (for/list ([export (in-list exports)]
+                          [value-id  (in-list value-ids)]
+                          [export-arg (in-list export-args)]
+                          #:unless (hash-ref candidate-arg-set export-arg #f))
+                 (define entry (hash-ref chosen-export-entries export))
+                 (and (bridge-export-entry-cell-backed? entry)
+                      `(define ,value-id (module-variable-ref ,(bridge-export-entry-binding entry))))))
+     ,@(for/list ([export  (in-list exports)]
                   [value-id (in-list value-ids)]
                   #:when (export-alias-enabled? define-export-aliases? export))
          `(define ,export ,value-id))

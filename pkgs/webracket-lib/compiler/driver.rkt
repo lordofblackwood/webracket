@@ -68,6 +68,8 @@
                                     current-enable-cc-analysis?
                                     current-console-bridge?
                                     current-enable-simplify?
+                                    current-module-bridge-elide-public-cells?
+                                    current-module-bridge-elidable-module-names
                                     current-letrec-strategy
                                     current-tree-shake?
                                     current-runtime-cache-dir
@@ -604,6 +606,8 @@
   (define reports (webracket/base-local-module-graph-reports graph))
   (define datum   (webify-module-composition-datum composition))
   (define stats   (or (current-webify-bridge-stats) (make-hash)))
+  (define elision-enabled?
+    (current-module-bridge-elide-public-cells?))
   (define local-module-count (length reports))
   (define direct-provider-names (webracket/base-external-provider-names reports))
   (define graph-module-count
@@ -654,6 +658,8 @@
          (stat 'bridge-export-cell-late-materialization-candidate-count))
    (list "bridge-public-cell-count"
          (stat 'bridge-export-cell-public-boundary-count))
+   (list "module-bridge-public-cell-elision-mode"
+         (if elision-enabled? "enabled" "disabled"))
    (list "bridge-public-cell-required-reflection-count"
          (hash-ref public-cell-counts 'required-reflection 0))
    (list "bridge-public-cell-required-dynamic-require-count"
@@ -670,6 +676,24 @@
          (hash-ref public-cell-counts 'required-unknown 0))
    (list "bridge-public-cell-plain-value-candidate-count"
          (hash-ref public-cell-counts 'plain-value-candidate 0))
+   (list "bridge-public-cell-elided-count"
+         (stat 'bridge-public-cell-elided-count))
+   (list "bridge-public-cell-kept-count"
+         (stat 'bridge-public-cell-kept-count))
+   (list "bridge-public-cell-kept-required-count"
+         (stat 'bridge-public-cell-kept-required-count))
+   (list "bridge-public-cell-kept-mutation-count"
+         (stat 'bridge-public-cell-kept-mutation-count))
+   (list "bridge-public-cell-kept-undefined-count"
+         (stat 'bridge-public-cell-kept-undefined-count))
+   (list "bridge-public-cell-kept-reflection-count"
+         (stat 'bridge-public-cell-kept-reflection-count))
+   (list "bridge-public-cell-kept-dynamic-require-count"
+         (stat 'bridge-public-cell-kept-dynamic-require-count))
+   (list "bridge-public-cell-kept-reexport-count"
+         (stat 'bridge-public-cell-kept-reexport-count))
+   (list "bridge-public-cell-kept-unknown-count"
+         (stat 'bridge-public-cell-kept-unknown-count))
    (list "bridge-public-cell-top-required-reasons"
          (bridge-top-count-summary
           (for/hasheq ([(key value) (in-hash public-cell-counts)]
@@ -701,6 +725,10 @@
    (list "bridge-direct-import-count" (stat 'bridge-direct-import-count))
    (list "bridge-direct-local-ref-count" (stat 'bridge-direct-local-ref-count))
    (list "bridge-cell-elision-count" (stat 'bridge-cell-elision-count))
+   (list "bridge-import-from-plain-public-value-count"
+         (stat 'bridge-import-from-plain-public-value-count))
+   (list "bridge-import-from-cell-public-value-count"
+         (stat 'bridge-import-from-cell-public-value-count))
    (list "bridge-unsafe-struct-ref-count"
          (+ (module-bridge-datum-operator-count datum 'unsafe-struct-ref)
             (module-bridge-datum-operator-count datum 'unsafe-struct*-ref)))
@@ -1859,6 +1887,7 @@
          ;; Optimization
          #:enable-cc-analysis? enable-cc-analysis?
          #:enable-simplify?  enable-simplify?
+         #:module-bridge-elide-public-cells? [module-bridge-elide-public-cells? #f]
          #:tree-shake?       tree-shake?        ; remove dead code from the wat-file
          #:tree-shake-report tree-shake-report
          ;; Program Debug
@@ -1891,6 +1920,7 @@
   (define t-driver-start (now-ms))
   (current-source-module-language #f)
   (current-source-module-provider-names #f)
+  (current-module-bridge-elidable-module-names #f)
   (current-module-bridge-detail-rows '())
   (current-webify-bridge-stats (make-hash))
 
@@ -1898,6 +1928,7 @@
   (current-enable-cc-analysis? enable-cc-analysis?)
   (current-console-bridge? console-bridge?)
   (current-tree-shake? tree-shake?)
+  (current-module-bridge-elide-public-cells? module-bridge-elide-public-cells?)
   (define provider-cache-path
     (let ([p (if (path? provider-cache-dir)
                  provider-cache-dir
@@ -2157,6 +2188,8 @@
                      [current-enable-cc-analysis? enable-cc-analysis?]
                      [current-letrec-strategy letrec-strategy]
                      [current-enable-simplify? enable-simplify?]
+                     [current-module-bridge-elide-public-cells?
+                      module-bridge-elide-public-cells?]
                      [current-print-top-level-results? print-top-level-results?]
                      [current-internal-treelist-debug-shape?
                       internal-bind-treelist-debug-shape?]
@@ -3701,6 +3734,9 @@
          (webracket/base-file->local-module-graph filename)))))
   (current-source-module-provider-names
    (module-reports->provider-names (webracket/base-local-module-graph-reports graph)))
+  (current-module-bridge-elidable-module-names
+   (map webify-module-report-name
+        (webracket/base-local-module-graph-reports graph)))
   (define composition
     (with-driver-timing
      'module-bridge-compose
@@ -3747,6 +3783,8 @@
      (lambda ()
        (webracket/base-file->local-module-reports filename))))
   (define external-names (webracket/base-external-provider-names reports))
+  (current-module-bridge-elidable-module-names
+   (map webify-module-report-name reports))
   (define (compose)
     (let ([graph
            (with-driver-timing

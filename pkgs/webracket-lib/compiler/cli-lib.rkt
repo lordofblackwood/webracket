@@ -44,6 +44,7 @@
    pretty-wat?                            ; pretty-print emitted WAT
    enable-cc-analysis?                    ; enable the new closure-conversion analysis
    enable-simplify?                       ; enable the early simplify pass
+   module-bridge-elide-public-cells?      ; expose safe public bridge exports as plain values
    tree-shake?                            ; remove unused runtime primitives
    tree-shake-report                      ; optional runtime primitive reachability report path
    letrec-strategy                        ; letrec lowering strategy symbol
@@ -88,6 +89,7 @@
     (pretty-wat? . ,(webracket-compile-config-pretty-wat? cfg))
     (enable-cc-analysis? . ,(webracket-compile-config-enable-cc-analysis? cfg))
     (enable-simplify? . ,(webracket-compile-config-enable-simplify? cfg))
+    (module-bridge-elide-public-cells? . ,(webracket-compile-config-module-bridge-elide-public-cells? cfg))
     (tree-shake? . ,(webracket-compile-config-tree-shake? cfg))
     (tree-shake-report . ,(webracket-compile-config-tree-shake-report cfg))
     (letrec-strategy . ,(webracket-compile-config-letrec-strategy cfg))
@@ -136,6 +138,7 @@
    (ref 'pretty-wat?)
    (ref 'enable-cc-analysis?)
    (ref 'enable-simplify?)
+   (ref 'module-bridge-elide-public-cells?)
    (ref 'tree-shake?)
    (ref 'tree-shake-report)
    (ref 'letrec-strategy)
@@ -180,6 +183,7 @@
   (define list-provider-slices? #f)
   (define enable-cc-analysis? #f)
   (define enable-simplify? #f)
+  (define module-bridge-elide-public-cells? #f)
   (define tree-shake? #t)
   (define tree-shake-report #f)
   (define letrec-strategy 'waddell)
@@ -347,6 +351,9 @@
                                (set! enable-cc-analysis? #t)]
      [("--enable-simplify") "Run the early simplify-LFE pass"
                             (set! enable-simplify? #t)]
+     [("--module-bridge-elide-public-cells")
+      "Expose safe module-bridge public exports as plain values"
+      (set! module-bridge-elide-public-cells? #t)]
      [("--tree-shake") "Tree shake runtime primitives (default)"
                        (set! tree-shake? #t)]
      [("--no-tree-shake") "Do not tree shake runtime primitives"
@@ -500,6 +507,7 @@
        pretty-wat?
        enable-cc-analysis?
        enable-simplify?
+       module-bridge-elide-public-cells?
        tree-shake?
        tree-shake-report
        letrec-strategy
@@ -554,6 +562,8 @@
                        #:letrec-strategy (webracket-compile-config-letrec-strategy cfg)
                        #:enable-cc-analysis? (webracket-compile-config-enable-cc-analysis? cfg)
                        #:enable-simplify? (webracket-compile-config-enable-simplify? cfg)
+                       #:module-bridge-elide-public-cells?
+                       (webracket-compile-config-module-bridge-elide-public-cells? cfg)
                        #:tree-shake? (webracket-compile-config-tree-shake? cfg)
                        #:tree-shake-report (webracket-compile-config-tree-shake-report cfg)
                        #:print-top-level-results? (webracket-compile-config-print-top-level-results? cfg)

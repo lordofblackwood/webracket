@@ -2,6 +2,7 @@
 
 (require rackunit
          "../pkgs/webracket-lib/compiler/driver.rkt"
+         "../pkgs/webracket-lib/compiler/private/parameters.rkt"
          "../pkgs/webracket-lib/compiler/webify/bridge-stats.rkt"
          "../pkgs/webracket-lib/compiler/webify/module-adapter.rkt"
          "../pkgs/webracket-lib/compiler/webify/module-instance.rkt")
@@ -294,6 +295,68 @@
    (for/or ([(name count) (in-hash (bridge-public-cell-candidate-name-counts graph stats))])
      (and (eq? name 'out)
           (= count 1)))))
+
+(test-case "experimental public-cell elision keeps candidate exports as plain values"
+  (define exports '(out))
+  (define cell-id
+    (hash-ref (first-slice-top-level-export-cell-ids exports) 'out))
+  (define value-id
+    (hash-ref (first-slice-top-level-export-value-ids exports) 'out))
+  (define datum
+    (parameterize ([current-module-bridge-elide-public-cells? #t])
+      (first-slice->top-level-datum
+       '(lambda (instance out-cell)
+       (module-variable-define! out-cell 42 'constant)
+       (module-variable-ref/no-check out-cell))
+       exports
+       #:module-name 'demo-elide-out)))
+  (check-true
+   (datum-contains? datum
+                    `(define-values (,value-id)
+                       (webify-linklet-proc$0 (#%variable-reference) (void)))))
+  (check-true
+   (datum-contains? datum
+                    `(define out ,value-id)))
+  (check-false
+   (datum-contains? datum
+                    `(define ,cell-id (module-variable-make 'out))))
+  (check-false
+   (datum-contains? datum
+                    `(module-variable-define! ,cell-id ,value-id 'constant))))
+
+(test-case "module instances expose plain public exports to value-safe importers"
+  (define provider
+    (parameterize ([current-module-bridge-elide-public-cells? #t])
+      (make-webify-module-instance
+       'provider
+       '(x)
+       #:expr
+       '(lambda (instance x-cell)
+          (module-variable-define! x-cell 41 'constant)
+          (module-variable-ref/no-check x-cell))
+       #:module-name 'provider)))
+  (define provider-entry
+    (webify-module-instance-export-entry provider 'x))
+  (define provider-value-id
+    (webify-module-instance-export-value-id provider 'x))
+  (define-values (datum _instance)
+    (parameterize ([current-module-bridge-elide-public-cells? #t])
+      (first-slice->module-instance-datum/imports
+       'consumer
+       '(lambda (instance import-arg out-cell)
+          imported)
+       '((imported))
+       (list (hasheq 'imported
+                     (webify-module-instance-export-boundary-expression provider 'x)))
+       '(out)
+       #:imports-abis '((#t)))))
+  (check-true (bridge-export-entry-plain-value? provider-entry))
+  (check-true
+   (datum-contains? datum
+                    `(webify-linklet-proc$0 (#%variable-reference) ,provider-value-id webify-export-cell0$0)))
+  (check-false
+   (datum-contains? datum
+                    '(define imported (module-variable-ref import-arg)))))
 
 (module+ main
   (void))
