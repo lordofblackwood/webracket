@@ -92,6 +92,30 @@
    (datum-contains? datum
                     `(define ,value-id (module-variable-ref ,cell-id)))))
 
+(test-case "real bridge-style export definitions can materialize late"
+  (define exports '(out))
+  (define cell-id
+    (hash-ref (first-slice-top-level-export-cell-ids exports) 'out))
+  (define value-id
+    (hash-ref (first-slice-top-level-export-value-ids exports) 'out))
+  (define datum
+    (first-slice->top-level-datum
+     '(lambda (instance out-cell)
+        (module-variable-define! out-cell 42 'constant)
+        (module-variable-ref/no-check out-cell))
+     exports
+     #:module-name 'demo/real-out))
+  (check-true
+   (datum-contains? datum
+                    `(define-values (,value-id)
+                       (webify-linklet-proc$0 (#%variable-reference) (void)))))
+  (check-true
+   (datum-contains? datum
+                    `(module-variable-define! ,cell-id ,value-id 'constant)))
+  (check-false
+   (datum-contains? datum
+                    `(define ,value-id (module-variable-ref ,cell-id)))))
+
 (test-case "module instances expose direct value ids for value-safe imports"
   (define provider
     (make-webify-module-instance 'provider '(x)))
@@ -171,6 +195,25 @@
    (for/or ([(key value) (in-hash stats)])
      (and (equal? key '(bridge-export-cell-name out))
           (= value 1)))))
+
+(test-case "late-materialization candidates allow refs after define"
+  (define stats (make-hash))
+  (parameterize ([current-webify-bridge-stats stats])
+    (first-slice->top-level-datum
+     '(lambda (instance out-cell)
+        (module-variable-define! out-cell 42 'constant)
+        (module-variable-ref/no-check out-cell))
+     '(out)
+     #:module-name 'demo/out))
+  (define meta
+    (for/or ([(key value) (in-hash stats)])
+      (and (equal? key '(bridge-export-cell-meta demo/out out))
+           value)))
+  (check-false (hash-ref meta 'mutated? #f))
+  (check-false (hash-ref meta 'undefined-sensitive? #f))
+  (check-equal?
+   (hash-ref stats 'bridge-export-cell-late-materialization-candidate-count 0)
+   1))
 
 (module+ main
   (void))

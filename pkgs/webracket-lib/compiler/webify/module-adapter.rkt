@@ -25,6 +25,13 @@
     [`(,(or 'quote 'quote-syntax 'syntax 'quasiquote) . ,_) #t]
     [_ #f]))
 
+;; strip-quote : any/c -> any/c
+;;   Decode one quoted datum layer when bridge metadata stores literal symbols.
+(define (strip-quote v)
+  (match v
+    [`(quote ,inner) inner]
+    [_ v]))
+
 ;; lowered-export-usage-summary : any/c (listof symbol?) -> hasheq?
 ;;   Collect conservative per-export usage flags from one lowered first slice.
 (define (lowered-export-usage-summary expr export-args)
@@ -35,6 +42,7 @@
   (define undefined-sensitive (make-hasheq))
   (define reflection-visible (make-hasheq))
   (define define-constances (make-hasheq))
+  (define defined (make-hasheq))
   (define (record! table id)
     (when (hash-ref export-set id #f)
       (hash-set! table id #t)))
@@ -45,17 +53,38 @@
          (match v
            [`(,(or 'variable-set! 'variable-set!/check-undefined) ,cell ,rhs)
             (record! mutated cell)
+            (when (eq? (car v) 'variable-set!/check-undefined)
+              (record! undefined-sensitive cell))
+            (walk rhs)]
+           [`(module-variable-set! ,cell ,rhs)
+            (record! mutated cell)
+            (walk rhs)]
+           [`(module-variable-set!/check-undefined! ,cell ,rhs)
+            (record! mutated cell)
             (record! undefined-sensitive cell)
             (walk rhs)]
            [`(variable-set!/define ,cell ,rhs ,_constance)
+            (walk rhs)
             (when (hash-ref export-set cell #f)
-              (hash-set! define-constances cell _constance))
-            (walk rhs)]
+              (hash-set! define-constances cell (strip-quote _constance)))
+            (hash-set! defined cell #t)]
+           [`(module-variable-define! ,cell ,rhs ,_constance)
+            (walk rhs)
+            (when (hash-ref export-set cell #f)
+              (hash-set! define-constances cell (strip-quote _constance)))
+            (hash-set! defined cell #t)]
            [`(,(or 'variable-ref 'variable-ref/no-check) ,cell)
-            (record! undefined-sensitive cell)]
+            (unless (hash-ref defined cell #f)
+              (record! undefined-sensitive cell))]
+           [`(,(or 'module-variable-ref 'module-variable-ref/no-check) ,cell)
+            (unless (hash-ref defined cell #f)
+              (record! undefined-sensitive cell))]
            [`(module-variable-reference ,instance ,cell)
             (walk instance)
             (record! reflection-visible cell)]
+           [`(begin ,es ...)
+            (for ([e (in-list es)])
+              (walk e))]
            [`(,head . ,rest)
             (walk head)
             (walk rest)]
@@ -132,7 +161,7 @@
     (vector export export-arg value-id (hash-ref define-constances export-arg) (memq export imported-names))))
 
 ;; rewrite-late-materialized-export : any/c hasheq? -> any/c
-;;   Replace candidate export-cell operations with lexical value bindings.
+;;   Replace candidate export-cell references with lexical value bindings.
 (define (rewrite-late-materialized-export v candidate-map)
   (define (rewrite-list xs)
     (map (lambda (entry) (rewrite-late-materialized-export entry candidate-map)) xs))
@@ -153,6 +182,10 @@
             (or (hash-ref candidate-map cell #f) v)]
            [`(variable-ref/no-check ,cell)
             (or (hash-ref candidate-map cell #f) v)]
+           [`(module-variable-ref ,cell)
+            (or (hash-ref candidate-map cell #f) v)]
+           [`(module-variable-ref/no-check ,cell)
+            (or (hash-ref candidate-map cell #f) v)]
            [`(,head . ,rest)
             (cons (rewrite-late-materialized-export head candidate-map)
                   (rewrite-late-materialized-export rest candidate-map))]
@@ -161,6 +194,36 @@
      (list->vector (rewrite-list (vector->list v)))]
     [else
      v]))
+
+;; late-materialized-body-forms : (listof any/c) hasheq? -> (listof any/c)
+;;   Rewrite the top-level slice body while hoisting candidate export definitions.
+(define (late-materialized-body-forms body candidate-map)
+  (apply
+   append
+   (for/list ([form (in-list body)])
+     (match form
+       [`(define ,id
+           (begin
+             (module-variable-define! ,cell ,rhs ,_constance)
+             (void)))
+        (define candidate (hash-ref candidate-map cell #f))
+        (if candidate
+            (list `(define ,candidate
+                     ,(rewrite-late-materialized-export rhs candidate-map))
+                  `(define ,id (begin (void) (void))))
+            (list `(define ,id
+                     (begin
+                       (module-variable-define!
+                        ,cell
+                        ,(rewrite-late-materialized-export rhs candidate-map)
+                        ,_constance)
+                       (void)))))]
+       [`(define ,id (,(or 'module-variable-ref 'module-variable-ref/no-check) ,cell))
+        (define candidate (hash-ref candidate-map cell #f))
+        (list (if candidate
+                  `(define ,id ,candidate)
+                  form))]
+       [_ (list (rewrite-late-materialized-export form candidate-map))]))))
 
 ;; late-materialize-exports : any/c (listof vector?) -> any/c
 ;;   Make candidate exports lexical inside the slice and return their values.
@@ -174,8 +237,7 @@
              (values (vector-ref spec 1)
                      (vector-ref spec 2))))
          `(lambda ,args
-            ,@(for/list ([form (in-list body)])
-                (rewrite-late-materialized-export form candidate-map))
+            ,@(late-materialized-body-forms body candidate-map)
             (values ,@(for/list ([spec (in-list candidate-specs)])
                         (vector-ref spec 2))))]
         [_ expr])))
