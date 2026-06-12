@@ -167,6 +167,13 @@
    (regexp-match? (pregexp (regexp-quote needle)) output)
    (format "expected output to contain ~a\n--- output ---\n~a" needle output)))
 
+;; assert-output-matches! : string? string? -> void
+;;   Check that the transcript matches one explicit regexp pattern.
+(define (assert-output-matches! pattern output)
+  (check-true
+   (regexp-match? (pregexp pattern) output)
+   (format "expected output to match ~a\n--- output ---\n~a" pattern output)))
+
 (define temp-root
   (make-temp-dir "webracket-simplify-profile~a"))
 (define compiled-root
@@ -190,8 +197,11 @@
     '("#lang webracket/base"
       ""
       "(define (demo x)"
-      "  (let-values ([(y) (if #t (+ 1 2) (+ 3 4))])"
-      "    ((lambda (z) z) y)))"
+      "  (let-values ([(unused) (string-append \"a\" \"b\")])"
+      "    ((case-lambda"
+      "       [(y) y]"
+      "       [(y z) ((lambda (a b) (+ a b)) y z)])"
+      "     1 2)))"
       ""
       "(demo 0)")
     "\n")))
@@ -211,11 +221,27 @@
     (assert-output-contains! "input-nodes" output)
     (assert-output-contains! "output-nodes" output)
     (assert-output-contains! "nodes-removed" output)
+    (assert-output-contains! "free-var-summary-cache-hits" output)
+    (assert-output-contains! "free-var-summary-cache-misses" output)
+    (assert-output-contains! "free-var-summary-root-ms" output)
+    (assert-output-contains! "free-var-summary-total-inclusive-ms" output)
+    (assert-output-contains! "free-var-summary-max-expression-nodes" output)
+    (assert-output-contains! "free-var-summary-total-root-nodes" output)
+    (assert-output-contains! "let-unused-pure-membership-checks" output)
+    (assert-output-contains! "let-unused-pure-fallback-scans" output)
     (assert-output-contains! "rule\tprimitive-constant-fold\tfires\t" output)
     (assert-output-contains! "shape-before" output)
     (assert-output-contains! "shape-after" output)
     (assert-output-contains! "app-operators-before" output)
-    (assert-output-contains! "app-operators-after" output))))
+    (assert-output-contains! "app-operators-after" output))
+   (test-case
+    "targeted simplify rules fire on the fixture"
+    (define dest-dir (build-path generated-root "module-simplify-targeted"))
+    (make-directory* dest-dir)
+    (define-values (status output)
+      (compile-with-profile module-source dest-dir env))
+    (check-equal? status 0 output)
+    (assert-output-matches! "rule\tlet-unused-pure\tfires\t[1-9]" output))))
 
 (module+ main
   (define result

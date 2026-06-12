@@ -116,6 +116,9 @@
 (define (count-unparsed unparse-fn x)
   (count-sexp (unparse-all (unparse-fn x))))
 
+(define (count-structured x)
+  (count-sexp (strip* x)))
+
 
 ;;; todo - just for testing FFI
 
@@ -4110,16 +4113,28 @@
     (define blocked-constant-binding '#:blocked)
     (define simplify-profile-stats
       (current-simplify-profile-stats))
+    (define simplify-profile-enabled?
+      (and simplify-profile-stats #t))
+    ;; simplify-profile-inc! : symbol? [real?] -> void?
+    ;;   Increment a numeric simplify-profile counter when profiling is active.
+    (define (simplify-profile-inc! key [delta 1])
+      (when simplify-profile-enabled?
+        (hash-update! simplify-profile-stats key (λ (n) (+ n delta)) 0)))
+    ;; simplify-profile-max! : symbol? real? -> void?
+    ;;   Track the maximum observed simplify-profile metric.
+    (define (simplify-profile-max! key value)
+      (when simplify-profile-enabled?
+        (hash-update! simplify-profile-stats key (λ (n) (max n value)) value)))
     ;; simplify-profile-note! : symbol? LFE Expr LFE Expr -> void?
     ;;   Record one simplify rewrite and its approximate node delta when profiling.
     (define (simplify-profile-note! family before after)
-      (when simplify-profile-stats
+      (when simplify-profile-enabled?
         (define fires-ht (hash-ref simplify-profile-stats 'rule-fires))
         (define delta-ht (hash-ref simplify-profile-stats 'rule-deltas))
         (simplify-profile-inc-hash! fires-ht family)
         (simplify-profile-inc-hash! delta-ht family
-                                    (- (count-unparsed unparse-LFE before)
-                                       (count-unparsed unparse-LFE after)))))
+                                    (- (count-structured before)
+                                       (count-structured after)))))
     ;; simplify-profile-note-when-changed! : symbol? LFE Expr (or/c LFE Expr #f) -> (or/c LFE Expr #f)
     ;;   Record a rewrite only when `after` exists and differs structurally from `before`.
     (define (simplify-profile-note-when-changed! family before after)
@@ -4201,8 +4216,17 @@
     ;; same-expression? : LFE Expr LFE Expr -> boolean?
     ;;   Compare expressions while ignoring syntax-object identity details.
     (define (same-expression? e1 e2)
-      (equal? (unparse-all (unparse-LFE e1))
-              (unparse-all (unparse-LFE e2))))
+      (if simplify-profile-enabled?
+          (let-values ([(same? ms)
+                        (with-timing
+                          (λ ()
+                            (equal? (unparse-all (unparse-LFE e1))
+                                    (unparse-all (unparse-LFE e2)))))])
+            (simplify-profile-inc! 'same-expression-calls)
+            (simplify-profile-inc! 'same-expression-ms ms)
+            same?)
+          (equal? (unparse-all (unparse-LFE e1))
+                  (unparse-all (unparse-LFE e2)))))
     ;; formals-bind-variable? : LFE Formals variable? -> boolean?
     ;;   Check whether formals bind x.
     (define (formals-bind-variable? f x)
@@ -4214,6 +4238,160 @@
       (nanopass-case (LFE Formals) f
         [(formals ()) #t]
         [else         #f]))
+    ;; fixed-formals->variables/maybe : LFE Formals -> (or/c (listof variable?) #f)
+    ;;   Return the fixed-arity variables when `f` has no rest argument.
+    (define (fixed-formals->variables/maybe f)
+      (nanopass-case (LFE Formals) f
+        [(formals (,x ...)) x]
+        [else               #f]))
+    ;; formals-arity-matches? : LFE Formals exact-nonnegative-integer? -> boolean?
+    ;;   Check whether `f` is fixed-arity and accepts exactly `argc` arguments.
+    (define (formals-arity-matches? f argc)
+      (match (fixed-formals->variables/maybe f)
+        [#f #f]
+        [xs (= (length xs) argc)]))
+    (define free-var-summary-cache
+      (make-hasheq))
+    (define free-var-summary-depth
+      0)
+    ;; free-vars-remove* : id-set? (listof variable?) -> id-set?
+    ;;   Remove each variable in `xs` from `fv`.
+    (define (free-vars-remove* fv xs)
+      (for/fold ([fv fv]) ([x (in-list xs)])
+        (set-remove fv x)))
+    ;; expr-free-variable-ids/body : (listof LFE Expr) -> (values id-set? exact-positive-integer?)
+    ;;   Compute free variables for a body sequence once, with a node count.
+    (define (expr-free-variable-ids/body body)
+      (for/fold ([fv empty-set] [nodes 0]) ([e (in-list body)])
+        (define-values (e-fv e-nodes)
+          (expr-free-variable-ids e))
+        (values (set-union fv e-fv)
+                (+ nodes e-nodes))))
+    ;; expr-free-variable-ids/raw : LFE Expr -> (values id-set? exact-positive-integer?)
+    ;;   Compute free variables for `e` respecting lexical shadowing.
+    (define (expr-free-variable-ids/raw e)
+      (nanopass-case (LFE Expr) e
+        [,x
+         (values (set-add empty-set x) 1)]
+        [(quote ,s ,d)
+         (values empty-set 1)]
+        [(quote-syntax ,s ,d)
+         (values empty-set 1)]
+        [(top ,s ,x)
+         (values empty-set 1)]
+        [(if ,s ,e0 ,e1 ,e2)
+         (define-values (fv0 n0) (expr-free-variable-ids e0))
+         (define-values (fv1 n1) (expr-free-variable-ids e1))
+         (define-values (fv2 n2) (expr-free-variable-ids e2))
+         (values (set-union* (list fv0 fv1 fv2))
+                 (+ 1 n0 n1 n2))]
+        [(begin ,s ,e0 ,e1 ...)
+         (define-values (fv n) (expr-free-variable-ids/body (cons e0 e1)))
+         (values fv (+ 1 n))]
+        [(begin0 ,s ,e0 ,e1 ...)
+         (define-values (fv n) (expr-free-variable-ids/body (cons e0 e1)))
+         (values fv (+ 1 n))]
+        [(wcm ,s ,e0 ,e1 ,e2)
+         (define-values (fv0 n0) (expr-free-variable-ids e0))
+         (define-values (fv1 n1) (expr-free-variable-ids e1))
+         (define-values (fv2 n2) (expr-free-variable-ids e2))
+         (values (set-union* (list fv0 fv1 fv2))
+                 (+ 1 n0 n1 n2))]
+        [(app ,s ,e0 ,e1 ...)
+         (define-values (fv0 n0) (expr-free-variable-ids e0))
+         (define-values (fv1 n1) (expr-free-variable-ids/body e1))
+         (values (set-union fv0 fv1)
+                 (+ 1 n0 n1))]
+        [(set! ,s ,xd ,e)
+         (define-values (fv n) (expr-free-variable-ids e))
+         (values (set-add fv xd)
+                 (+ 1 n))]
+        [(λ ,s ,f ,e0 ,e1 ...)
+         (define-values (fv n) (expr-free-variable-ids/body (cons e0 e1)))
+         (values (free-vars-remove* fv (formals->variables f))
+                 (+ 1 n))]
+        [(case-lambda ,s (,f ,e0 ,e1 ...) ...)
+         (define-values (fv n)
+           (for/fold ([fv empty-set] [nodes 0])
+                     ([fi (in-list f)]
+                      [e0i (in-list e0)]
+                      [e1i (in-list e1)])
+             (define-values (body-fv body-n)
+               (expr-free-variable-ids/body (cons e0i e1i)))
+             (values (set-union fv
+                                (free-vars-remove* body-fv (formals->variables fi)))
+                     (+ nodes body-n))))
+         (values fv (+ 1 n))]
+        [(let-values ,s ([(,x* ...) ,e*] ...) ,e0 ,e1 ...)
+         (define-values (rhs-fv rhs-n)
+           (expr-free-variable-ids/body e*))
+         (define-values (body-fv body-n)
+           (expr-free-variable-ids/body (cons e0 e1)))
+         (values (set-union rhs-fv
+                            (free-vars-remove* body-fv (bindings->variables x*)))
+                 (+ 1 rhs-n body-n))]
+        [(letrec-values ,s ([(,x* ...) ,e*] ...) ,e0 ,e1 ...)
+         (define bound-xs (bindings->variables x*))
+         (define-values (rhs-fv rhs-n)
+           (expr-free-variable-ids/body e*))
+         (define-values (body-fv body-n)
+           (expr-free-variable-ids/body (cons e0 e1)))
+         (values (free-vars-remove* (set-union rhs-fv body-fv) bound-xs)
+                 (+ 1 rhs-n body-n))]
+        [(variable-reference ,s ,vrx)
+         (values empty-set 1)]))
+    ;; expr-free-variable-ids : LFE Expr -> (values id-set? exact-positive-integer?)
+    ;;   Compute free variables once per expression, memoized within one simplify pass.
+    (define (expr-free-variable-ids e)
+      (define cached (hash-ref free-var-summary-cache e #f))
+      (if cached
+          (begin
+            (when simplify-profile-enabled?
+              (simplify-profile-inc! 'free-var-summary-cache-hits))
+            (values (car cached) (cdr cached)))
+          (begin
+            (when simplify-profile-enabled?
+              (simplify-profile-inc! 'free-var-summary-cache-misses))
+            (let* ([root-call? (zero? free-var-summary-depth)])
+              (set! free-var-summary-depth (+ free-var-summary-depth 1))
+              (define-values (fv nodes ms)
+                (if simplify-profile-enabled?
+                    (let-values ([(result inclusive-ms)
+                                  (with-timing
+                                    (λ ()
+                                      (call-with-values
+                                       (λ () (expr-free-variable-ids/raw e))
+                                       cons)))])
+                      (values (car result) (cdr result) inclusive-ms))
+                    (let-values ([(fv nodes)
+                                  (expr-free-variable-ids/raw e)])
+                      (values fv nodes 0.0))))
+              (set! free-var-summary-depth (- free-var-summary-depth 1))
+              (when simplify-profile-enabled?
+                (simplify-profile-inc! 'free-var-summary-total-inclusive-ms ms)
+                (when root-call?
+                  (simplify-profile-inc! 'free-var-summary-root-ms ms)
+                  (simplify-profile-inc! 'free-var-summary-total-root-nodes nodes)
+                  (simplify-profile-max! 'free-var-summary-max-expression-nodes nodes)))
+              (hash-set! free-var-summary-cache e (cons fv nodes))
+              (values fv nodes)))))
+    ;; body-free-variable-ids/profiled : (listof LFE Expr) -> id-set?
+    ;;   Compute one body free-variable summary and record scan metrics when profiling.
+    (define (body-free-variable-ids/profiled body)
+      (define-values (fv nodes)
+        (if simplify-profile-enabled?
+            (let-values ([(result ms)
+                          (with-timing
+                            (λ ()
+                              (call-with-values
+                               (λ () (expr-free-variable-ids/body body))
+                               cons)))])
+              (simplify-profile-inc! 'let-unused-pure-fallback-scans)
+              (values (car result) (cdr result)))
+            (expr-free-variable-ids/body body)))
+      (when simplify-profile-enabled?
+        (void))
+      fv)
     ;; pure-expression? : LFE Expr -> boolean?
     ;;   Recognize obviously effect-free expressions for dead-code pruning.
     (define (pure-expression? e)
@@ -5047,6 +5225,32 @@
       (with-output-language (LFE Expr)
         (match e1
           [(list e ...) `(app ,s ,e0 ,e ...)])))
+    ;; LetValues* : syntax? (listof variable?) (listof LFE Expr) (listof LFE Expr) -> LFE Expr
+    ;;   Build nested single-binding `let-values` forms preserving argument evaluation order.
+    (define (LetValues* s xs rhs* body)
+      (for/fold ([out (lambda-body s (car body) (cdr body))])
+                ([x (in-list (reverse xs))]
+                 [rhs (in-list (reverse rhs*))])
+        (Let1 s x rhs out)))
+    ;; fixed-lambda-application : syntax? LFE Formals (listof LFE Expr) (listof LFE Expr) -> (or/c LFE Expr #f)
+    ;;   Normalize exact fixed-arity lambda application to `let-values`.
+    (define (fixed-lambda-application s f body es)
+      (match (fixed-formals->variables/maybe f)
+        [#f
+         #f]
+        [xs
+         (and (= (length xs) (length es))
+              (>= (length xs) 2)
+              (LetValues* s xs es body))]))
+    ;; case-lambda-select-fixed-arm : syntax? (listof LFE Formals) (listof (listof LFE Expr)) (listof LFE Expr)
+    ;;                              -> (or/c LFE Expr #f)
+    ;;   Select one fixed-arity `case-lambda` arm for an immediate application.
+    (define (case-lambda-select-fixed-arm s fs bodies es)
+      (define argc (length es))
+      (for/or ([f (in-list fs)]
+               [body (in-list bodies)])
+        (and (formals-arity-matches? f argc)
+             (App s (Lambda s f body) es))))
     ;; self-test-lambda? : LFE Formals LFE Expr -> boolean?
     ;;   Check whether `e` has the form `(if x x e2)` for the unary formal `x`.
     ;;   Note: This shape originates from `or`.
@@ -6258,6 +6462,8 @@
        (values e κ))]
 
     [(let-values ,s ([(,x) ,e]) ,e0)
+     (when simplify-profile-enabled?
+       (simplify-profile-inc! 'let-unused-pure-candidates))
      (letv ((e  κ) (Expr e κ))
        (define e*
          (nanopass-case (LFE Expr) e
@@ -6273,10 +6479,26 @@
        (letv ((e0 κ-body) (Expr e0 (extend-κ/let-values κ (list (list x)) (list e*))))
          (define κ-out
            (κ-pop* κ-body (list x)))
+         (define body-free-vars
+           (and (pure-expression? e*)
+                (obviously-single-valued-expression? e*)
+                (body-free-variable-ids/profiled (list e0))))
          (cond
            [(and (constant-expression? e*)
                  (constant-expression? e0))
              (simplify-profile-note! 'let-trivial `(let-values ,s ([(,x) ,e]) ,e0) e0)
+             (values e0 κ-out)]
+           [(and body-free-vars
+                 (begin
+                   (when simplify-profile-enabled?
+                     (simplify-profile-inc! 'let-unused-pure-membership-checks))
+                   #t)
+                 (not (set-in? x body-free-vars))
+                 (pure-expression? e*)
+                 (obviously-single-valued-expression? e*))
+             (simplify-profile-note! 'let-unused-pure
+                                     `(let-values ,s ([(,x) ,e]) ,e0)
+                                     e0)
              (values e0 κ-out)]
            [else
              (nanopass-case (LFE Expr) e0
@@ -6296,9 +6518,36 @@
        (letv ((body κ-body-end) (Expr* (cons e0 e1) κ-body-start))
          (define κ-out
            (κ-pop* κ-body-end (bindings->variables x*)))
+         (when simplify-profile-enabled?
+           (simplify-profile-inc! 'let-unused-pure-candidates (length x*)))
+         (define body-free-vars
+           (body-free-variable-ids/profiled body))
+         (define kept-clauses
+           (for/fold ([clauses '()]) ([xs (in-list x*)]
+                                      [rhs (in-list e*)])
+             (if (and (= (length xs) 1)
+                      (pure-expression? rhs)
+                      (obviously-single-valued-expression? rhs)
+                      (begin
+                        (when simplify-profile-enabled?
+                          (simplify-profile-inc! 'let-unused-pure-membership-checks))
+                        #t)
+                      (not (set-in? (car xs) body-free-vars)))
+                 (begin
+                   (simplify-profile-note! 'let-unused-pure
+                                           `(let-values ,s ([(,(car xs)) ,rhs]) ,(lambda-body s (car body) (cdr body)))
+                                           (lambda-body s (car body) (cdr body)))
+                   clauses)
+                 (cons (list xs rhs) clauses))))
+         (define kept-clauses*
+           (reverse kept-clauses))
          (match body
            [(cons e0 e1)
-            (values `(let-values ,s ([(,x* ...) ,e*] ...) ,e0 ,e1 ...) κ-out)])))]
+            (match kept-clauses*
+              ['()
+               (values (lambda-body s e0 e1) κ-out)]
+              [(list (list xs rhs) ...)
+               (values `(let-values ,s ([(,xs ...) ,rhs] ...) ,e0 ,e1 ...) κ-out)])])))]
 
     [(letrec-values ,s ([(,x* ...) ,e*] ...) ,e0 ,e1 ...)
      (define xs (bindings->variables x*))
@@ -6328,6 +6577,38 @@
                              `(let-values ,s ([(,x) ,e2]) ,e0 ,e1 ...))
      (Expr `(let-values ,s ([(,x) ,e2]) ,e0 ,e1 ...)
            κ)]
+
+    ;; Fixed-arity λ-normalization
+    ;   ((lambda (x y ...) body) a b ...) => (let-values ([(x) a] [(y) b] ...) body)
+    [(app ,s (λ ,s0 ,f ,e0 ,e1 ...) ,e2 ...)
+     (guard (fixed-lambda-application s f (cons e0 e1) e2))
+     (define rewritten
+       (fixed-lambda-application s f (cons e0 e1) e2))
+     (simplify-profile-note! 'lambda-fixed-application
+                             `(app ,s (λ ,s0 ,f ,e0 ,e1 ...) ,e2 ...)
+                             rewritten)
+     (Expr rewritten κ)]
+
+    ;; Immediate case-lambda arm selection
+    ;   ((case-lambda [(x) e] [(x y) e]) a b) => ((lambda (x y) e) a b)
+    [(app ,s (case-lambda ,s0 (,f ,e0 ,e1 ...) ...) ,e2 ...)
+     (guard (case-lambda-select-fixed-arm
+             s
+             f
+             (for/list ([e0i (in-list e0)]
+                        [e1i (in-list e1)])
+               (cons e0i e1i))
+             e2))
+     (define bodies
+       (for/list ([e0i (in-list e0)]
+                  [e1i (in-list e1)])
+         (cons e0i e1i)))
+     (define rewritten
+       (case-lambda-select-fixed-arm s f bodies e2))
+     (simplify-profile-note! 'case-lambda-arm-selection
+                             `(app ,s (case-lambda ,s0 (,f ,e0 ,e1 ...) ...) ,e2 ...)
+                             rewritten)
+     (Expr rewritten κ)]
 
     ;; Rest-argument λ-normalization
     ;   ((lambda (x1 ... xk . xr) body) e1 ... ek ek+1 ...)
@@ -20772,9 +21053,12 @@
     not-if-swap
     let-empty
     let-trivial
+    let-unused-pure
     let-constant-propagation
     lambda-nullary-application
     lambda-unary-application
+    lambda-fixed-application
+    case-lambda-arm-selection
     rest-application-normalization
     primitive-constant-fold
     arithmetic-partial-fold
@@ -20891,13 +21175,25 @@
   (define after  (hash-ref stats 'after))
   (define rule-ht (hash-ref stats 'rule-fires))
   (define delta-ht (hash-ref stats 'rule-deltas))
+  (define (ref key [default 0]) (hash-ref stats key default))
   (define lines
     (append
      (list
-      (format "input-nodes\t~a" (hash-ref before 'nodes))
+     (format "input-nodes\t~a" (hash-ref before 'nodes))
       (format "output-nodes\t~a" (hash-ref after 'nodes))
       (format "nodes-removed\t~a" (- (hash-ref before 'nodes)
-                                     (hash-ref after 'nodes))))
+                                     (hash-ref after 'nodes)))
+      (format "let-unused-pure-candidates\t~a" (ref 'let-unused-pure-candidates))
+      (format "let-unused-pure-membership-checks\t~a" (ref 'let-unused-pure-membership-checks))
+      (format "let-unused-pure-fallback-scans\t~a" (ref 'let-unused-pure-fallback-scans))
+      (format "free-var-summary-cache-hits\t~a" (ref 'free-var-summary-cache-hits))
+      (format "free-var-summary-cache-misses\t~a" (ref 'free-var-summary-cache-misses))
+      (format "free-var-summary-root-ms\t~a" (ref 'free-var-summary-root-ms 0.0))
+      (format "free-var-summary-total-inclusive-ms\t~a" (ref 'free-var-summary-total-inclusive-ms 0.0))
+      (format "free-var-summary-max-expression-nodes\t~a" (ref 'free-var-summary-max-expression-nodes))
+      (format "free-var-summary-total-root-nodes\t~a" (ref 'free-var-summary-total-root-nodes))
+      (format "same-expression-calls\t~a" (ref 'same-expression-calls))
+      (format "same-expression-ms\t~a" (ref 'same-expression-ms 0.0)))
      (for/list ([family (in-list simplify-profile-rule-families)])
        (format "rule\t~a\tfires\t~a\tnode-delta\t~a"
                family
@@ -21038,8 +21334,10 @@
                            (if (current-enable-simplify?)
                                (let* ([profile? (current-simplify-profile?)]
                                       [stats    (and profile?
-                                                     (hash 'rule-fires (make-hasheq)
-                                                           'rule-deltas (make-hasheq)))])
+                                                     (let ([ht (make-hasheq)])
+                                                       (hash-set! ht 'rule-fires (make-hasheq))
+                                                       (hash-set! ht 'rule-deltas (make-hasheq))
+                                                       ht))])
                                  (define before
                                    (and profile?
                                         (collect-simplify-profile-summary p0)))
@@ -21049,12 +21347,10 @@
                                  (when profile?
                                    (define after
                                      (collect-simplify-profile-summary out))
+                                   (hash-set! stats 'before before)
+                                   (hash-set! stats 'after after)
                                    (current-simplify-profile-report
-                                    (format-simplify-profile-report
-                                     (hash-set*
-                                      stats
-                                      'before before
-                                      'after after))))
+                                    (format-simplify-profile-report stats)))
                                  out)
                                p0))
                          (λ (v) (count-unparsed unparse-LFE v))

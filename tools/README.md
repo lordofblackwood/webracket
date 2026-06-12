@@ -79,6 +79,52 @@ With the recorded form:
 racket tools/find-callback-source.rkt --show-form test/test-ffi.wasm.map.sexp label.5792
 ```
 
+check-treelist-shape-smoke.rkt
+------------------------------
+Runs the compiler-private treelist shape smoke and validates representative
+treelist workloads. This uses the internal `--internal-bind-treelist-debug-shape`
+flag, but does not expose any normal WebRacket binding.
+
+It exits `0` when all audited shapes validate and the key shape expectations
+still hold, and non-zero on failure.
+
+Run:
+
+```sh
+racket tools/check-treelist-shape-smoke.rkt
+```
+
+Make target:
+
+```sh
+make smoke-treelist-shape
+```
+
+measure-simplify-module-builds.rkt
+----------------------------------
+Compiles representative module examples with and without `--enable-simplify`,
+warming each mode once before collecting the measured run. It uses one pinned
+Racket toolchain per invocation plus an isolated `PLTCOMPILEDROOTS`, and
+prints a compact comparison for:
+- `driver total`
+- `compile-pipeline`
+- `compile subtotal`
+- `simplify-LFE`
+- `lower-letrec-values`
+- `closure-conversion`
+- `generate-code`
+- simplify profile node counts and free-variable summary counters
+
+By default it measures:
+- `hello-world`
+- `single-counter`
+
+You can also request a subset by name:
+
+```sh
+racket tools/measure-simplify-module-builds.rkt hello-world
+```
+
 fetch-html-element-attributes.mjs
 ---------------------------------
 Generator for a machine-readable HTML element/attribute snapshot.
