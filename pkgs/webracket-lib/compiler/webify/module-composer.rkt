@@ -284,6 +284,18 @@
 ;; import-source->mapping : symbol? hash? any/c any/c -> pair?
 ;;   Resolve one source triple to the explicit import argument expected by a slice.
 (define (import-source->mapping who instances source import-abi)
+  (define (record-public-import-stat! kind provider-kind)
+    (case kind
+      [(plain)
+       (webify-bridge-stats-inc! 'bridge-import-from-plain-public-value-count)
+       (if (eq? provider-kind 'local-user)
+           (webify-bridge-stats-inc! 'bridge-import-from-plain-local-value-count)
+           (webify-bridge-stats-inc! 'bridge-import-from-plain-provider-value-count))]
+      [(cell)
+       (webify-bridge-stats-inc! 'bridge-import-from-cell-public-value-count)
+       (if (eq? provider-kind 'local-user)
+           (webify-bridge-stats-inc! 'bridge-import-from-cell-local-value-count)
+           (webify-bridge-stats-inc! 'bridge-import-from-cell-provider-value-count))]))
   (validate-import-source! who source)
   (match-define (list import-name instance-name export-name) source)
   (cons import-name
@@ -315,17 +327,21 @@
            (if import-abi
                (let ()
                   (webify-bridge-stats-inc! 'bridge-direct-local-ref-count)
+                  (define entry
+                    (webify-module-instance-export-entry instance export-name))
+                  (define provider-kind
+                    (webify-module-instance-export-provider-kind instance export-name))
                   (if (webify-module-instance-export-plain-value? instance export-name)
                       (begin
-                       (webify-bridge-stats-inc! 'bridge-import-from-plain-public-value-count)
+                       (record-public-import-stat! 'plain provider-kind)
                        (webify-module-instance-export-boundary-expression instance export-name))
                      (begin
-                       (webify-bridge-stats-inc! 'bridge-import-from-cell-public-value-count)
+                       (record-public-import-stat! 'cell provider-kind)
                        (webify-module-instance-export-value-expression instance export-name))))
                (webify-module-instance-export-cell-id instance export-name))])))
 
 ;; forced-cell-export-table : (listof analyzed-linklet-slice?) -> hash?
-;;   Conservatively keep any cross-module imported export cell-backed.
+;;   Keep exported cells only for cross-module imports that explicitly need cell ABI.
 (define (forced-cell-export-table analyzed-specs)
   (for/fold ([table (hasheq)])
             ([spec (in-list analyzed-specs)])
@@ -336,7 +352,8 @@
                 ([source (in-list group)]
                  [import-abi (in-list abi-group)])
         (match-define (list _import dependency export) source)
-        (if (or (primitive-module-name? dependency)
+        (if (or import-abi
+                (primitive-module-name? dependency)
                 (eq? dependency (analyzed-linklet-slice-name spec)))
             group-table
             (hash-update group-table

@@ -53,6 +53,18 @@
 (define (bridge-export-entry-boundary-expression entry)
   (bridge-export-entry-binding entry))
 
+;; module-provider-kind : (or/c symbol? #f) -> symbol?
+;;   Classify one module name using the active bridge graph, if available.
+(define (module-provider-kind module-name)
+  (define module-kinds
+    (current-module-bridge-module-kinds))
+  (cond
+    [(not (symbol? module-name)) 'unknown-provider]
+    [(and module-kinds
+          (hash-has-key? module-kinds module-name))
+     (hash-ref module-kinds module-name)]
+    [else 'unknown-provider]))
+
 ;; quote-like-form? : any/c -> boolean?
 ;;   Recognize datum forms that should not count as executable bridge code.
 (define (quote-like-form? v)
@@ -119,10 +131,13 @@
   (define module-name (hash-ref meta 'module-name #f))
   (define allowed-modules
     (current-module-bridge-elidable-module-names))
+  (define provider-kind
+    (hash-ref meta 'provider-kind (module-provider-kind module-name)))
   (and module-name
        (symbol? module-name)
-       (or (not allowed-modules)
-           (memq module-name allowed-modules))))
+       (or (memq provider-kind '(local-user support-provider))
+           (and allowed-modules
+                (memq module-name allowed-modules)))))
 
 ;; plain-value-export-candidate? : hash? -> boolean?
 ;;   Check whether one public export satisfies both safety and policy checks.
@@ -657,6 +672,7 @@
         (hash-set* meta
                    'cell-id cell-id
                    'value-id value-id
+                   'provider-kind (module-provider-kind module-name)
                    'plain-value-base-candidate? (plain-value-export-base-candidate? meta)
                    'plain-value-policy-eligible? (plain-value-export-policy-eligible? meta)
                    'forced-cell? (and export

@@ -8,6 +8,7 @@
          current-enable-simplify?
          current-module-bridge-elide-public-cells?
          current-module-bridge-elidable-module-names
+         current-module-bridge-module-kinds
          current-letrec-strategy
          current-tree-shake?
          current-runtime-cache-dir
@@ -30,6 +31,8 @@
   (make-parameter #f))                                 ; boolean? expose safe module-bridge exports as plain values
 (define current-module-bridge-elidable-module-names
   (make-parameter #f))                                 ; (or/c #f (listof symbol?)) modules allowed to elide public cells
+(define current-module-bridge-module-kinds
+  (make-parameter #f))                                 ; (or/c #f hasheq?) module-name -> local/support/installed kind
 (define current-letrec-strategy (make-parameter 'scc)) ; 'basic, 'waddell, or 'scc
 (define current-tree-shake?     (make-parameter #t))  ; boolean? tree shake runtime primitives
 (define current-runtime-cache-dir

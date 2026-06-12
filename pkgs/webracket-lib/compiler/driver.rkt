@@ -70,6 +70,7 @@
                                     current-enable-simplify?
                                     current-module-bridge-elide-public-cells?
                                     current-module-bridge-elidable-module-names
+                                    current-module-bridge-module-kinds
                                     current-letrec-strategy
                                     current-tree-shake?
                                     current-runtime-cache-dir
@@ -878,6 +879,14 @@
          (stat 'bridge-import-from-plain-public-value-count))
    (list "bridge-import-from-cell-public-value-count"
          (stat 'bridge-import-from-cell-public-value-count))
+   (list "bridge-import-from-plain-local-value-count"
+         (stat 'bridge-import-from-plain-local-value-count))
+   (list "bridge-import-from-cell-local-value-count"
+         (stat 'bridge-import-from-cell-local-value-count))
+   (list "bridge-import-from-plain-provider-value-count"
+         (stat 'bridge-import-from-plain-provider-value-count))
+   (list "bridge-import-from-cell-provider-value-count"
+         (stat 'bridge-import-from-cell-provider-value-count))
    (list "bridge-unsafe-struct-ref-count"
          (+ (module-bridge-datum-operator-count datum 'unsafe-struct-ref)
             (module-bridge-datum-operator-count datum 'unsafe-struct*-ref)))
@@ -2070,6 +2079,7 @@
   (current-source-module-language #f)
   (current-source-module-provider-names #f)
   (current-module-bridge-elidable-module-names #f)
+  (current-module-bridge-module-kinds #f)
   (current-module-bridge-detail-rows '())
   (current-webify-bridge-stats (make-hash))
 
@@ -3883,9 +3893,15 @@
          (webracket/base-file->local-module-graph filename)))))
   (current-source-module-provider-names
    (module-reports->provider-names (webracket/base-local-module-graph-reports graph)))
+  (current-module-bridge-module-kinds
+   (webracket/base-local-module-graph-module-kinds graph))
   (current-module-bridge-elidable-module-names
-   (map webify-module-report-name
-        (webracket/base-local-module-graph-reports graph)))
+   (for/list ([report (in-list (webracket/base-local-module-graph-reports graph))]
+              #:when (memq (hash-ref (webracket/base-local-module-graph-module-kinds graph)
+                                     (webify-module-report-name report)
+                                     'installed-provider)
+                           '(local-user support-provider)))
+     (webify-module-report-name report)))
   (define composition
     (with-driver-timing
      'module-bridge-compose
@@ -3932,14 +3948,22 @@
      (lambda ()
        (webracket/base-file->local-module-reports filename))))
   (define external-names (webracket/base-external-provider-names reports))
-  (current-module-bridge-elidable-module-names
-   (map webify-module-report-name reports))
+  (current-module-bridge-elidable-module-names #f)
   (define (compose)
     (let ([graph
            (with-driver-timing
             'module-bridge-register
             (lambda ()
               (webracket/base-reports->module-graph root reports)))])
+      (current-module-bridge-module-kinds
+       (webracket/base-local-module-graph-module-kinds graph))
+      (current-module-bridge-elidable-module-names
+       (for/list ([report (in-list reports)]
+                  #:when (memq (hash-ref (webracket/base-local-module-graph-module-kinds graph)
+                                         (webify-module-report-name report)
+                                         'installed-provider)
+                               '(local-user support-provider)))
+         (webify-module-report-name report)))
       (define composition
         (with-driver-timing
          'module-bridge-compose

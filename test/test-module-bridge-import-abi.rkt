@@ -188,7 +188,7 @@
   (check-true (hash-ref meta 'phase0-value-space-only? #f))
   (check-false (hash-ref meta 'dynamic-require-sensitive? #t))
   (check-false (hash-ref meta 'plain-value-base-candidate? #t))
-  (check-true (hash-ref meta 'plain-value-policy-eligible? #f))
+  (check-false (hash-ref meta 'plain-value-policy-eligible? #t))
   (check-false (hash-ref meta 'forced-cell? #t))
   (check-equal? (hash-ref meta 'selected-export-kind 'missing) 'cell)
   (check-equal? (hash-ref stats 'bridge-export-cell-public-boundary-count 0) 1)
@@ -414,7 +414,9 @@
   (define value-id
     (hash-ref (first-slice-top-level-export-value-ids exports) 'out))
   (define datum
-    (parameterize ([current-module-bridge-elide-public-cells? #t])
+    (parameterize ([current-module-bridge-elide-public-cells? #t]
+                   [current-module-bridge-module-kinds
+                    (hasheq 'demo-elide-out 'local-user)])
       (first-slice->top-level-datum
        '(lambda (instance out-cell)
        (module-variable-define! out-cell 42 'constant)
@@ -437,7 +439,9 @@
 
 (test-case "module instances expose plain public exports to value-safe importers"
   (define provider
-    (parameterize ([current-module-bridge-elide-public-cells? #t])
+    (parameterize ([current-module-bridge-elide-public-cells? #t]
+                   [current-module-bridge-module-kinds
+                    (hasheq 'provider 'local-user)])
       (make-webify-module-instance
        'provider
        '(x)
@@ -451,7 +455,9 @@
   (define provider-value-id
     (webify-module-instance-export-value-id provider 'x))
   (define-values (datum _instance)
-    (parameterize ([current-module-bridge-elide-public-cells? #t])
+    (parameterize ([current-module-bridge-elide-public-cells? #t]
+                   [current-module-bridge-module-kinds
+                    (hasheq 'provider 'local-user)])
       (first-slice->module-instance-datum/imports
        'consumer
        '(lambda (instance import-arg out-cell)
@@ -468,6 +474,64 @@
   (check-false
    (datum-contains? datum
                     '(define imported (module-variable-ref import-arg)))))
+
+(test-case "support-provider exports can elide public cells for value-safe importers"
+  (define stats (make-hash))
+  (define provider
+    (parameterize ([current-module-bridge-elide-public-cells? #t]
+                   [current-module-bridge-module-kinds
+                    (hasheq 'web-easy 'support-provider)]
+                   [current-webify-bridge-stats stats])
+      (make-webify-module-instance
+       'web-easy
+       '(helper)
+       #:expr
+       '(lambda (instance helper-cell)
+          (module-variable-define! helper-cell 41 'constant)
+          (module-variable-ref/no-check helper-cell))
+       #:module-name 'web-easy)))
+  (define provider-entry
+    (webify-module-instance-export-entry provider 'helper))
+  (define provider-value-id
+    (webify-module-instance-export-value-id provider 'helper))
+  (define-values (datum _instance)
+    (parameterize ([current-module-bridge-elide-public-cells? #t]
+                   [current-module-bridge-module-kinds
+                    (hasheq 'web-easy 'support-provider)]
+                   [current-webify-bridge-stats stats])
+      (first-slice->module-instance-datum/imports
+       'consumer
+       '(lambda (instance import-arg out-cell)
+          imported)
+       '((imported))
+       (list (hasheq 'imported
+                     (webify-module-instance-export-boundary-expression provider 'helper)))
+       '(out)
+       #:imports-abis '((#t)))))
+  (check-true (bridge-export-entry-plain-value? provider-entry))
+  (check-true
+   (datum-contains? datum
+                    `(webify-linklet-proc$0 (#%variable-reference) ,provider-value-id webify-export-cell0$0)))
+  (check-false
+   (datum-contains? datum
+                    '(define imported (module-variable-ref import-arg)))))
+
+(test-case "installed-provider exports stay cell-backed in first provider milestone"
+  (define provider
+    (parameterize ([current-module-bridge-elide-public-cells? #t]
+                   [current-module-bridge-module-kinds
+                    (hasheq 'racket/private/kw 'installed-provider)])
+      (make-webify-module-instance
+       'racket/private/kw
+       '(keyword-apply)
+       #:expr
+       '(lambda (instance keyword-apply-cell)
+          (module-variable-define! keyword-apply-cell 41 'constant)
+          (module-variable-ref/no-check keyword-apply-cell))
+       #:module-name 'racket/private/kw)))
+  (check-true
+   (bridge-export-entry-cell-backed?
+    (webify-module-instance-export-entry provider 'keyword-apply))))
 
 (module+ main
   (void))

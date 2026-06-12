@@ -12,6 +12,7 @@
          webify-module-instance-export-entry
          webify-module-instance-export-plain-value?
          webify-module-instance-export-boundary-expression
+         webify-module-instance-export-provider-kind
          webify-module-instance-export-value-expression
          webify-module-instance-export-cell-id
          webify-module-instance-export-value-id
@@ -109,6 +110,14 @@
 (define (webify-module-instance-export-boundary-expression instance export)
   (bridge-export-entry-boundary-expression
    (webify-module-instance-export-entry instance export)))
+
+;; webify-module-instance-export-provider-kind : webify-module-instance? symbol? -> symbol?
+;;   Return the recorded provider kind for one export entry.
+(define (webify-module-instance-export-provider-kind instance export)
+  (hash-ref (bridge-export-entry-metadata
+             (webify-module-instance-export-entry instance export))
+            'provider-kind
+            'unknown-provider))
 
 ;; webify-module-instance-export-value-expression : webify-module-instance? symbol? -> any/c
 ;;   Return the direct value binding for one export, regardless of boundary kind.
