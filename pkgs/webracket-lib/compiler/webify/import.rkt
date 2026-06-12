@@ -5,6 +5,7 @@
 (provide (struct-out import)
          (struct-out import-group)
 
+         import-group-force-knowns!
          import-group-lookup-ready?
          
          import-group-lookup
@@ -38,6 +39,12 @@
 (define (import-group-lookup-ready? grp)
   (define knowns/proc (import-group-knowns/proc grp))
   (not (procedure? knowns/proc)))
+
+;; import-group-force-knowns! : import-group? -> void?
+;;   Force one import group's knowns table without looking up a specific import.
+(define (import-group-force-knowns! grp)
+  (import-group-knowns grp)
+  (void))
 
 (define (import-group-lookup g id)
   (define v (hash-ref (import-group-knowns g) id #f))

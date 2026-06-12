@@ -695,7 +695,7 @@
                       #:allow-set!-undefined? allow-set!-undefined?
                       #:unsafe-mode?          unsafe-mode?
                       #:enforce-constant?     enforce-constant?
-                      #:allow-inline?         allow-inline?
+                      #:allow-inline?         #f
                       #:no-prompt?            no-prompt?
                       #:prim-knowns           prim-knowns
                       #:primitives            primitives
@@ -703,8 +703,11 @@
                       #:get-import-knowns     compose-get-import-knowns
                       #:import-keys           local-import-keys))
                    list)))))
-       (define rerun-new-import-keys
+       (define rerun-revised-import-keys
          (and rerun-result (list-ref rerun-result 3)))
+       (define rerun-added-import-groups?
+         (and rerun-revised-import-keys
+              (not (equal? rerun-revised-import-keys local-import-keys))))
        (define rerun-has-app/value?
          (and rerun-result
               (datum-contains-symbol? (list-ref rerun-result 0) '#%app/value)))
@@ -713,18 +716,20 @@
               (equal? (list-ref rerun-result 1) baseline-importss)))
        (define use-rerun-public-cell-abis?
          (and rerun-result
-              (not rerun-new-import-keys)
+              (not rerun-added-import-groups?)
               rerun-importss-match?))
        (define expr baseline-expr)
        (define importss baseline-importss)
        (define exports baseline-exports)
-       (define imports-abis baseline-imports-abis)
-       ;; Cross-slice knowns are analysis-only here: keep the original lowered body
-       ;; ABI, but let forced-cell export planning consult the richer classification.
-       (define public-cell-imports-abis
+       ;; Cross-slice knowns are analysis-only here: keep the original lowered
+       ;; body, but let a successful rerun refine the import ABI classification
+       ;; used by both importer binding and forced-cell export planning.
+       (define refined-imports-abis
          (if use-rerun-public-cell-abis?
              (list-ref rerun-result 4)
              baseline-imports-abis))
+       (define imports-abis refined-imports-abis)
+       (define public-cell-imports-abis refined-imports-abis)
        (define exports-info baseline-exports-info)
        (record-import-abi-metadata! name
                                     import-sources
@@ -734,7 +739,7 @@
                                     #:false-reason
                                     (and use-prior-knowns?
                                          (cond
-                                           [rerun-new-import-keys
+                                           [rerun-added-import-groups?
                                             'import-group-added-by-inlining]
                                            [rerun-failure
                                             (rerun-failure-reason rerun-failure)]

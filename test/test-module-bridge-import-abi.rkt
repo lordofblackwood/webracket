@@ -4,6 +4,8 @@
          "../pkgs/webracket-lib/compiler/driver.rkt"
          "../pkgs/webracket-lib/compiler/private/parameters.rkt"
          "../pkgs/webracket-lib/compiler/webify/bridge-stats.rkt"
+         "../pkgs/webracket-lib/compiler/webify/first-slice.rkt"
+         "../pkgs/webracket-lib/compiler/webify/known.rkt"
          "../pkgs/webracket-lib/compiler/webify/module-adapter.rkt"
          "../pkgs/webracket-lib/compiler/webify/module-instance.rkt")
 
@@ -515,6 +517,31 @@
   (check-false
    (datum-contains? datum
                     '(define imported (module-variable-ref import-arg)))))
+
+(test-case "abi-only knowns classify imports without app/value or added import groups"
+  (define-values (expr _importss _exports revised-import-keys imports-abis _exports-info)
+    (parameterize ([current-webify-knowns-mode 'abi-only])
+      (webify-linklet-first-slice
+       '(linklet (((helper helper))) ()
+          (helper 'ok))
+       #:serializable?-box #f
+       #:datum-intern? #f
+       #:target #f
+       #:allow-set!-undefined? #f
+       #:unsafe-mode? #f
+       #:enforce-constant? #t
+       #:allow-inline? #t
+       #:no-prompt? #f
+       #:prim-knowns (hasheq)
+       #:primitives (hasheq)
+       #:compiler-query (lambda (_v) #f)
+       #:get-import-knowns
+       (lambda (_key)
+         (values (hasheq 'helper (known-procedure/single-valued 2)) #f #f))
+       #:import-keys '#(demo/provider))))
+  (check-equal? revised-import-keys '#(demo/provider))
+  (check-equal? imports-abis '((proc)))
+  (check-false (datum-contains? expr '#%app/value)))
 
 (test-case "installed-provider exports stay cell-backed in first provider milestone"
   (define provider

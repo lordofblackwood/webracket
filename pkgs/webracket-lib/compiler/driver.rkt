@@ -972,6 +972,8 @@
          (stat 'bridge-import-abi-resolved-from-prior-export-knowns-count))
    (list "bridge-import-abi-still-false-after-prior-knowns-count"
          (stat 'bridge-import-abi-still-false-after-prior-knowns-count))
+   (list "bridge-abi-only-import-group-knowns-forced-count"
+         (stat 'bridge-abi-only-import-group-knowns-forced-count))
    (list "bridge-import-from-plain-local-value-count"
          (stat 'bridge-import-from-plain-local-value-count))
    (list "bridge-import-from-cell-local-value-count"

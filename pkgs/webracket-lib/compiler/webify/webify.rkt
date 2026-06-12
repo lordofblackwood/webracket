@@ -29,6 +29,8 @@
          "find-known.rkt"
          "ptr-ref-set.rkt"
          "optimize.rkt"
+         "bridge-stats.rkt"
+         "../private/parameters.rkt"
          )
 
 ;; Convert a linklet into a WebRacket lambda
@@ -125,6 +127,14 @@
                        unsafe-mode? enforce-constant? allow-inline? no-prompt? #t
                        compiler-query))
        (define all-grps (append grps (reverse new-grps)))
+       (when (eq? (current-webify-knowns-mode) 'abi-only)
+         ;; ABI-only reruns still need known tables for the existing import
+         ;; groups so import ABI classification can use prior export metadata
+         ;; without relying on value inlining as a side effect.
+         (for ([grp (in-list grps)])
+           (import-group-force-knowns! grp))
+         (webify-bridge-stats-inc! 'bridge-abi-only-import-group-knowns-forced-count
+                                   (length grps)))
 
        (values
         ;; Build `lambda` with webified body:
@@ -184,6 +194,11 @@
             [else knowns])))])))
 
 ;; ----------------------------------------
+
+;; abi-only-knowns-mode? : -> boolean?
+;;   Check whether Webify is running in analysis-only cross-slice knowns mode.
+(define (abi-only-knowns-mode?)
+  (eq? (current-webify-knowns-mode) 'abi-only))
 
 (define (webify-body l prim-knowns primitives imports exports
                        target unsafe-mode? no-prompt? explicit-unnamed?)
@@ -985,25 +1000,29 @@
                                 ;; Don't inline in 'system mode, because there will
                                 ;; be no `|#%struct-constructor| in the way, and
                                 ;; it's more readable to use the normal constructor name
-                                (aim? target 'system)))
+                                (aim? target 'system)
+                                (abi-only-knowns-mode?)))
                           (known-struct-constructor? k)
                           (inline-struct-constructor k s-rator im args))
                      => (lambda (e) e)]
                     [(and (not (or
                                 (aim? target 'cify)
-                                (aim? target 'system)))
+                                (aim? target 'system)
+                                (abi-only-knowns-mode?)))
                           (known-struct-predicate? k)
                           (inline-struct-predicate k s-rator im args))
                      => (lambda (e) e)]
                     [(and (not (or
                                 (aim? target 'cify)
-                                (aim? target 'system)))
+                                (aim? target 'system)
+                                (abi-only-knowns-mode?)))
                           (known-field-accessor? k)
                           (inline-field-access k s-rator im args))
                      => (lambda (e) e)]
                     [(and (not (or
                                 (aim? target 'cify)
-                                (aim? target 'system)))
+                                (aim? target 'system)
+                                (abi-only-knowns-mode?)))
                           (known-field-mutator? k)
                           (inline-field-mutate k s-rator im args))
                      => (lambda (e) e)]
@@ -1023,7 +1042,8 @@
                                           [(and (not (aim? target 'system))
                                                 (known-procedure/no-return? k))
                                            '#%app/no-return]
-                                          [(and im
+                                          [(and (not (abi-only-knowns-mode?))
+                                                im
                                                 (known-procedure/single-valued? k))
                                            '#%app/value]
                                           [(or (known-procedure? k)
