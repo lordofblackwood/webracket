@@ -50,14 +50,15 @@
          (only-in racket/format     ~a)
          (only-in racket/fasl       fasl->s-exp s-exp->fasl)
          (only-in racket/system     system*)
-         (only-in racket/string     string-prefix?)
+         (only-in racket/string     string-join
+                                    string-prefix?)
          racket/unsafe/undefined
          #;(only-in "lang/reader.rkt" read-syntax)
          (only-in "assembler.rkt"
                   run
                   wat->wasm
                   runtime)
-         (only-in racket/list       append* append-map remove-duplicates second)
+         (only-in racket/list       append* append-map remove-duplicates second take)
          (only-in racket/match      match)
          setup/dirs
          (only-in "private/parameters.rkt"  current-ffi-foreigns
@@ -130,6 +131,7 @@
                   webify-module-composition-datum
                   webify-module-composition-fragments
                   webify-module-composition-instances
+                  webify-module-registry-names
                   webify-module-composition-with-tail)
          (only-in "webify/module-input.rkt"
                   datum->webify-module-linklet-manifest
@@ -458,12 +460,108 @@
                               eq?))])
     (if (memq export imported) 1 0)))
 
+;; bridge-export-cell-meta-entries : hash? -> (listof (cons/c list? hash?))
+;;   Extract per-cell metadata rows recorded during bridge generation.
+(define (bridge-export-cell-meta-entries stats)
+  (for/list ([(key value) (in-hash stats)]
+             #:when (match key
+                      [(list 'bridge-export-cell-meta _module-name _export) #t]
+                      [_ #f]))
+    (cons key value)))
+
+;; bridge-export-cell-module-counts : hash? -> hasheq?
+;;   Collect per-module export-cell counts from the active bridge stats.
+(define (bridge-export-cell-module-counts stats)
+  (for/hasheq ([(key value) (in-hash stats)]
+               #:when (match key
+                        [(list 'bridge-export-cell-module (? symbol? _name)) #t]
+                        [_ #f]))
+    (match key
+      [(list 'bridge-export-cell-module name)
+       (values name value)])))
+
+;; bridge-export-cell-name-counts : hash? -> hasheq?
+;;   Collect per-export-name bridge counts from the active bridge stats.
+(define (bridge-export-cell-name-counts stats)
+  (for/hasheq ([(key value) (in-hash stats)]
+               #:when (match key
+                        [(list 'bridge-export-cell-name (? symbol? _name)) #t]
+                        [_ #f]))
+    (match key
+      [(list 'bridge-export-cell-name name)
+       (values name value)])))
+
+;; bridge-top-count-summary : hasheq? -> string?
+;;   Render the largest bucket counts in descending order for timing output.
+(define (bridge-top-count-summary counts)
+  (define entries
+    (sort (hash->list counts)
+          (lambda (a b)
+            (define av (cdr a))
+            (define bv (cdr b))
+            (or (> av bv)
+                (and (= av bv)
+                     (symbol<? (car a) (car b)))))))
+  (if (null? entries)
+      "-"
+      (string-join
+       (for/list ([entry (in-list (take entries (min 5 (length entries))))])
+         (format "~a(~a)" (car entry) (cdr entry)))
+       ", ")))
+
+;; bridge-export-cell-role-counts : graph hash? -> hasheq?
+;;   Partition export-cell counts by local/support/installed module ownership.
+(define (bridge-export-cell-role-counts graph stats)
+  (define module-counts (bridge-export-cell-module-counts stats))
+  (for/fold ([counts (hasheq 'local-user 0
+                             'support-provider 0
+                             'installed-provider 0)])
+            ([(name cell-count) (in-hash module-counts)])
+    (define kind
+      (hash-ref (webracket/base-local-module-graph-module-kinds graph)
+                name
+                'installed-provider))
+    (hash-update counts kind (lambda (n) (+ n cell-count)) 0)))
+
+;; bridge-export-cell-dry-run-counts : graph hash? -> hasheq?
+;;   Apply the conservative no-elision rule set to recorded export-cell metadata.
+(define (bridge-export-cell-dry-run-counts graph stats)
+  (for/fold ([counts (hasheq 'candidate 0
+                             'blocked-public 0
+                             'blocked-reexport 0
+                             'blocked-mutated 0
+                             'blocked-undefined 0
+                             'blocked-reflection 0
+                             'blocked-unknown 0)])
+            ([entry (in-list (bridge-export-cell-meta-entries stats))])
+    (define meta (cdr entry))
+    (define module-name (hash-ref meta 'module-name #f))
+    (define unknown?
+      (or (not module-name)
+          (not (hash-has-key? (webracket/base-local-module-graph-module-kinds graph)
+                              module-name))))
+    (cond
+      [unknown?
+       (hash-update counts 'blocked-unknown add1 0)]
+      [(hash-ref meta 'public-boundary? #f)
+       (hash-update counts 'blocked-public add1 0)]
+      [(hash-ref meta 'reexport? #f)
+       (hash-update counts 'blocked-reexport add1 0)]
+      [(hash-ref meta 'mutated? #f)
+       (hash-update counts 'blocked-mutated add1 0)]
+      [(hash-ref meta 'undefined-sensitive? #f)
+       (hash-update counts 'blocked-undefined add1 0)]
+      [(hash-ref meta 'reflection-visible? #f)
+       (hash-update counts 'blocked-reflection add1 0)]
+      [else
+       (hash-update counts 'candidate add1 0)])))
+
 ;; module-bridge-graph-metric-rows : graph composition -> (listof (list/c string? any/c))
 ;;   Summarize bridge scaffolding and graph shape before the main compiler pipeline.
 (define (module-bridge-graph-metric-rows graph composition)
   (define reports (webracket/base-local-module-graph-reports graph))
   (define datum   (webify-module-composition-datum composition))
-  (define stats   (or (current-webify-bridge-stats) (make-hasheq)))
+  (define stats   (or (current-webify-bridge-stats) (make-hash)))
   (define local-module-count (length reports))
   (define direct-provider-names (webracket/base-external-provider-names reports))
   (define graph-module-count
@@ -477,6 +575,10 @@
   (define reexport-count
     (for/sum ([report (in-list reports)])
       (module-bridge-report-reexport-count report)))
+  (define role-counts
+    (bridge-export-cell-role-counts graph stats))
+  (define dry-run-counts
+    (bridge-export-cell-dry-run-counts graph stats))
   (define (stat key [default 0])
     (hash-ref stats key default))
   (list
@@ -492,6 +594,38 @@
          (+ (module-bridge-datum-operator-count datum 'module-variable-set!)
             (module-bridge-datum-operator-count datum 'module-variable-set!/check-undefined!)))
    (list "bridge-export-cell-count" (stat 'bridge-export-cell-count))
+   (list "bridge-export-cell-local-user-count" (hash-ref role-counts 'local-user 0))
+   (list "bridge-export-cell-support-provider-count" (hash-ref role-counts 'support-provider 0))
+   (list "bridge-export-cell-installed-provider-count" (hash-ref role-counts 'installed-provider 0))
+   (list "bridge-export-cell-reexport-count" (stat 'bridge-export-cell-reexport-count))
+   (list "bridge-export-cell-internal-count"
+         (- (stat 'bridge-export-cell-count)
+            (stat 'bridge-export-cell-public-boundary-count)))
+   (list "bridge-export-cell-mutated-count" (stat 'bridge-export-cell-mutated-count))
+   (list "bridge-export-cell-undefined-sensitive-count"
+         (stat 'bridge-export-cell-undefined-sensitive-count))
+   (list "bridge-export-cell-reflection-visible-count"
+         (stat 'bridge-export-cell-reflection-visible-count))
+   (list "bridge-export-cell-public-boundary-count"
+         (stat 'bridge-export-cell-public-boundary-count))
+   (list "bridge-export-cell-elision-candidate-count"
+         (hash-ref dry-run-counts 'candidate 0))
+   (list "bridge-export-cell-elision-blocked-public-count"
+         (hash-ref dry-run-counts 'blocked-public 0))
+   (list "bridge-export-cell-elision-blocked-reexport-count"
+         (hash-ref dry-run-counts 'blocked-reexport 0))
+   (list "bridge-export-cell-elision-blocked-mutated-count"
+         (hash-ref dry-run-counts 'blocked-mutated 0))
+   (list "bridge-export-cell-elision-blocked-undefined-count"
+         (hash-ref dry-run-counts 'blocked-undefined 0))
+   (list "bridge-export-cell-elision-blocked-reflection-count"
+         (hash-ref dry-run-counts 'blocked-reflection 0))
+   (list "bridge-export-cell-elision-blocked-unknown-count"
+         (hash-ref dry-run-counts 'blocked-unknown 0))
+   (list "bridge-export-cell-top-modules"
+         (bridge-top-count-summary (bridge-export-cell-module-counts stats)))
+   (list "bridge-export-cell-top-names"
+         (bridge-top-count-summary (bridge-export-cell-name-counts stats)))
    (list "bridge-import-cell-count" (stat 'bridge-import-cell-count))
    (list "bridge-direct-import-count" (stat 'bridge-direct-import-count))
    (list "bridge-direct-local-ref-count" (stat 'bridge-direct-local-ref-count))
@@ -1687,7 +1821,7 @@
   (current-source-module-language #f)
   (current-source-module-provider-names #f)
   (current-module-bridge-detail-rows '())
-  (current-webify-bridge-stats (make-hasheq))
+  (current-webify-bridge-stats (make-hash))
 
   (current-browser? browser?)
   (current-enable-cc-analysis? enable-cc-analysis?)
@@ -2629,7 +2763,7 @@
                [datum (list datum)]))
    stx))
 
-(struct webracket/base-local-module-graph (root reports registry)
+(struct webracket/base-local-module-graph (root reports registry module-kinds)
   #:transparent)
 
 ;; module-reports->provider-names : (listof webify-module-report?) -> (listof symbol?)
@@ -3069,6 +3203,9 @@
                                              [fetch-provider webify-module-path->report])
   (define-values (bridge-root bridge-reports)
     (webracket/base-rename-self-colliding-local-reports root reports))
+  (define local-report-names
+    (map webify-module-report-name bridge-reports))
+  (define support-report-names '())
   (define registry
     (cond
      [(webracket/base-reports-demand-external-providers? bridge-reports)
@@ -3249,25 +3386,25 @@
                webify-io-format-printf-name
                webify-io-format-root-name
                webify-io-format-map-shim-name))
-       (define support-report-names
-         (append
-          (list webify-module-protocol-name
-                'webracket/contract
-                'webracket/private/kw
-                'racket/private/kw
-                'webracket/private/sort
-                'racket/private/sort
-                'webracket/unsafe/undefined
-                'racket/unsafe/undefined)
-          erased-contract-support-report-names
-          (if needs-class-support?
-              class-support-report-names
-              '())
-          (if needs-unit-support?
-              unit-support-report-names
-              '())
-          ffi-support-report-names
-          io-format-support-report-names))
+       (set! support-report-names
+             (append
+              (list webify-module-protocol-name
+                    'webracket/contract
+                    'webracket/private/kw
+                    'racket/private/kw
+                    'webracket/private/sort
+                    'racket/private/sort
+                    'webracket/unsafe/undefined
+                    'racket/unsafe/undefined)
+              erased-contract-support-report-names
+              (if needs-class-support?
+                  class-support-report-names
+                  '())
+              (if needs-unit-support?
+                  unit-support-report-names
+                  '())
+              ffi-support-report-names
+              io-format-support-report-names))
        (define (unit-support-reports)
          (append
           (for/list ([name (in-list '(racket/private/unit/contract
@@ -3397,6 +3534,7 @@
                            (webify-module-provider-cache-miss-count provider-cache))
        registry]
       [else
+       (set! support-report-names (list webify-module-protocol-name))
        (with-module-bridge-timing
         'final-extracted-form-assembly
         (lambda ()
@@ -3404,8 +3542,15 @@
            (cons webify-module-protocol-input
                  (webify-module-reports->resolved-linklet-inputs
                   bridge-reports
-                  #:module-protocol-dependency webify-module-protocol-dependency)))))]))
-  (webracket/base-local-module-graph bridge-root bridge-reports registry))
+                 #:module-protocol-dependency webify-module-protocol-dependency)))))]))
+  (define module-kinds
+    (for/hasheq ([name (in-list (webify-module-registry-names registry))])
+      (values name
+              (cond
+                [(memq name local-report-names) 'local-user]
+                [(memq name support-report-names) 'support-provider]
+                [else 'installed-provider]))))
+  (webracket/base-local-module-graph bridge-root bridge-reports registry module-kinds))
 
 ;; webracket/base-file->local-module-graph : path-string? -> webracket/base-local-module-graph?
 ;;   Build a local root graph plus demanded provider reports for the module bridge.
@@ -3598,7 +3743,7 @@
                                   [webracket-module-bridge? #f])
   (current-read-source-timing-rows '())
   (current-module-bridge-detail-rows '())
-  (current-webify-bridge-stats (make-hasheq))
+  (current-webify-bridge-stats (make-hash))
   (current-source-module-language #f)
   (define first-line
     (call-with-input-file filename

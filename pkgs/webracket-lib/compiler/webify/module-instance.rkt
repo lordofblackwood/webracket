@@ -159,6 +159,7 @@
            expr
            exports
            #:reserved reserved
+           #:module-name name
            #:define-export-aliases? define-export-aliases?)
           instance))
 
@@ -182,6 +183,7 @@
            import-args
            exports
            #:reserved reserved
+           #:module-name name
            #:importss importss
            #:imports-abis imports-abis
            #:define-export-aliases? define-export-aliases?)

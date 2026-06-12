@@ -18,6 +18,94 @@
          "first-slice.rkt"
          "wrap.rkt")
 
+;; quote-like-form? : any/c -> boolean?
+;;   Recognize datum forms that should not count as executable bridge code.
+(define (quote-like-form? v)
+  (match v
+    [`(,(or 'quote 'quote-syntax 'syntax 'quasiquote) . ,_) #t]
+    [_ #f]))
+
+;; lowered-export-usage-summary : any/c (listof symbol?) -> hasheq?
+;;   Collect conservative per-export usage flags from one lowered first slice.
+(define (lowered-export-usage-summary expr export-args)
+  (define export-set
+    (for/hasheq ([arg (in-list export-args)])
+      (values arg #t)))
+  (define mutated (make-hasheq))
+  (define undefined-sensitive (make-hasheq))
+  (define reflection-visible (make-hasheq))
+  (define (record! table id)
+    (when (hash-ref export-set id #f)
+      (hash-set! table id #t)))
+  (define (walk v)
+    (cond
+      [(pair? v)
+       (unless (quote-like-form? v)
+         (match v
+           [`(,(or 'variable-set! 'variable-set!/check-undefined) ,cell ,rhs)
+            (record! mutated cell)
+            (record! undefined-sensitive cell)
+            (walk rhs)]
+           [`(variable-set!/define ,cell ,rhs ,_constance)
+            (walk rhs)]
+           [`(,(or 'variable-ref 'variable-ref/no-check) ,cell)
+            (record! undefined-sensitive cell)]
+           [`(module-variable-reference ,instance ,cell)
+            (walk instance)
+            (record! reflection-visible cell)]
+           [`(,head . ,rest)
+            (walk head)
+            (walk rest)]
+           [_ (void)]))]
+      [(vector? v)
+       (for ([entry (in-vector v)])
+         (walk entry))]
+      [else
+       (void)]))
+  (walk expr)
+  (hasheq 'mutated mutated
+          'undefined-sensitive undefined-sensitive
+          'reflection-visible reflection-visible))
+
+;; record-export-cell-stats! : any/c (listof symbol?) (listof symbol?) (or/c symbol? #f) -> void?
+;;   Publish conservative export-cell metadata for dry-run bridge analysis.
+(define (record-export-cell-stats! expr exports export-args module-name importss)
+  (define usage (lowered-export-usage-summary expr export-args))
+  (define mutated (hash-ref usage 'mutated))
+  (define undefined-sensitive (hash-ref usage 'undefined-sensitive))
+  (define reflection-visible (hash-ref usage 'reflection-visible))
+  (define imported-names
+    (if importss
+        (flatten-groups importss)
+        '()))
+  (for ([export (in-list exports)]
+        [export-arg (in-list export-args)])
+    (define reexport?
+      (memq export imported-names))
+    (define meta
+      (hasheq 'module-name module-name
+              'export export
+              'public-boundary? #t
+              'internal? #f
+              'reexport? (and reexport? #t)
+              'mutated? (and (hash-ref mutated export-arg #f) #t)
+              'undefined-sensitive? (and (hash-ref undefined-sensitive export-arg #f) #t)
+              'reflection-visible? (and (hash-ref reflection-visible export-arg #f) #t)))
+    (webify-bridge-stats-set! (list 'bridge-export-cell-meta module-name export) meta)
+    (when module-name
+      (webify-bridge-stats-inc! (list 'bridge-export-cell-module module-name)))
+    (webify-bridge-stats-inc! (list 'bridge-export-cell-name export)))
+  (webify-bridge-stats-inc! 'bridge-export-cell-public-boundary-count (length exports))
+  (webify-bridge-stats-inc! 'bridge-export-cell-reexport-count
+                            (for/sum ([export (in-list exports)])
+                              (if (memq export imported-names) 1 0)))
+  (webify-bridge-stats-inc! 'bridge-export-cell-mutated-count
+                            (hash-count mutated))
+  (webify-bridge-stats-inc! 'bridge-export-cell-undefined-sensitive-count
+                            (hash-count undefined-sensitive))
+  (webify-bridge-stats-inc! 'bridge-export-cell-reflection-visible-count
+                            (hash-count reflection-visible)))
+
 ;; strip-correlated : any/c -> any/c
 ;;   Remove correlated wrappers so compiler terms can become source datums.
 (define (strip-correlated v)
@@ -273,12 +361,14 @@
 (define (first-slice->top-level-datum expr
                                       exports
                                       #:reserved [reserved '()]
+                                      #:module-name [module-name #f]
                                       #:define-export-aliases? [define-export-aliases? #t])
   (first-slice->top-level-datum/imports
    expr
    '()
    exports
    #:reserved reserved
+   #:module-name module-name
    #:define-export-aliases? define-export-aliases?))
 
 ;; first-slice->top-level-datum/imports : any/c (listof any/c) (listof symbol?) -> any/c
@@ -287,6 +377,7 @@
                                              import-args
                                              exports
                                              #:reserved [reserved '()]
+                                             #:module-name [module-name #f]
                                              #:importss [importss #f]
                                              #:imports-abis [imports-abis #f]
                                              #:define-export-aliases? [define-export-aliases? #t])
@@ -307,6 +398,10 @@
   (define helper-ids (first-slice-top-level-helper-ids exports #:reserved reserved))
   (define proc-id (car helper-ids))
   (define cell-ids (cdr helper-ids))
+  (define export-args
+    (match adapted-expr
+      [`(lambda ,args ,_body ...)
+       (take-right args (length exports))]))
   (define value-id-map
     (first-slice-top-level-export-value-ids exports #:reserved reserved))
   (define value-ids
@@ -314,6 +409,7 @@
       (hash-ref value-id-map export)))
   (webify-bridge-stats-inc! 'bridge-export-cell-count (length cell-ids))
   (webify-bridge-stats-inc! 'bridge-module-variable-make-count (length cell-ids))
+  (record-export-cell-stats! adapted-expr exports export-args module-name importss)
   `(begin
      (define ,proc-id ,adapted-expr)
      ,@(for/list ([cell-id (in-list cell-ids)]

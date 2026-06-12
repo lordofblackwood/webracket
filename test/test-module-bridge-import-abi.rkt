@@ -95,7 +95,7 @@
                     `(webify-linklet-proc$0 (#%variable-reference) ,provider-cell-id webify-export-cell0$0))))
 
 (test-case "bridge stats count direct and cell-backed import decisions"
-  (define stats (make-hasheq))
+  (define stats (make-hash))
   (parameterize ([current-webify-bridge-stats stats])
     (first-slice->top-level-datum/imports
      '(lambda (instance cell-arg value-arg out-cell)
@@ -110,6 +110,43 @@
   (check-equal? (hash-ref stats 'bridge-cell-elision-count 0) 1)
   (check-equal? (hash-ref stats 'bridge-export-cell-count 0) 1)
   (check-equal? (hash-ref stats 'bridge-module-variable-make-count 0) 1))
+
+(test-case "bridge stats record conservative export-cell metadata"
+  (define stats (make-hash))
+  (parameterize ([current-webify-bridge-stats stats])
+    (first-slice->top-level-datum/imports
+     '(lambda (instance imported out-cell)
+        (module-variable-reference instance out-cell)
+        (variable-set!/check-undefined out-cell 1)
+        (variable-ref out-cell)
+        imported)
+     '(provider-cell)
+     '(out)
+     #:module-name 'demo/provider
+     #:importss '((out))
+     #:imports-abis '((#f))))
+  (define meta
+    (for/or ([(key value) (in-hash stats)])
+      (and (equal? key '(bridge-export-cell-meta demo/provider out))
+           value)))
+  (check-true (hash-ref meta 'public-boundary? #f))
+  (check-true (hash-ref meta 'reexport? #f))
+  (check-true (hash-ref meta 'mutated? #f))
+  (check-true (hash-ref meta 'undefined-sensitive? #f))
+  (check-true (hash-ref meta 'reflection-visible? #f))
+  (check-equal? (hash-ref stats 'bridge-export-cell-public-boundary-count 0) 1)
+  (check-equal? (hash-ref stats 'bridge-export-cell-reexport-count 0) 1)
+  (check-equal? (hash-ref stats 'bridge-export-cell-mutated-count 0) 1)
+  (check-equal? (hash-ref stats 'bridge-export-cell-undefined-sensitive-count 0) 1)
+  (check-equal? (hash-ref stats 'bridge-export-cell-reflection-visible-count 0) 1)
+  (check-true
+   (for/or ([(key value) (in-hash stats)])
+     (and (equal? key '(bridge-export-cell-module demo/provider))
+          (= value 1))))
+  (check-true
+   (for/or ([(key value) (in-hash stats)])
+     (and (equal? key '(bridge-export-cell-name out))
+          (= value 1)))))
 
 (module+ main
   (void))

@@ -2,6 +2,7 @@
 
 (provide current-webify-bridge-stats
          webify-bridge-stats-inc!
+         webify-bridge-stats-set!
          webify-bridge-stats-ref)
 
 ;; current-webify-bridge-stats : (parameterof (or/c hash? #f))
@@ -15,6 +16,13 @@
   (define stats (current-webify-bridge-stats))
   (when stats
     (hash-update! stats key (lambda (n) (+ n delta)) 0)))
+
+;; webify-bridge-stats-set! : any/c any/c -> void?
+;;   Record one bridge-generation datum when diagnostics are active.
+(define (webify-bridge-stats-set! key value)
+  (define stats (current-webify-bridge-stats))
+  (when stats
+    (hash-set! stats key value)))
 
 ;; webify-bridge-stats-ref : symbol? [any/c] -> any/c
 ;;   Read one bridge-generation counter with a default when inactive.
