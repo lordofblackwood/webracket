@@ -60,6 +60,43 @@ The next likely improvement path is either reducing simplify overhead
 further or finding stronger downstream wins before reconsidering a
 default-on or threshold policy.
 
+Because Webify already overlaps with Schemify, `simplify-LFE` only
+handles rewrites that survive into post-parse LFE. Rule selection is
+profile-driven.
+
+## Rule Source Matrix
+
+Candidate discovery on warm-cache module examples
+(`hello-world`, `single-counter`, and `todo-lists`) shows that the top
+surviving applications are dominated by internal bridge/runtime
+operators such as:
+
+- `module-variable-ref/no-check`
+- `module-variable-make`
+- `module-variable-define!`
+- `unsafe-struct?`
+- `unsafe-struct*-ref`
+
+The only recurring surface-style query families that still show up in
+the discovery report are `procedure?` and
+`procedure-arity-includes?`, and those already overlap with upstream
+optimization sources.
+
+| candidate | seen in simplify input? | already handled by Webify/Schemify? | source inspiration | risk | decision |
+| --- | --- | --- | --- | --- | --- |
+| `not` on literal inputs | not meaningfully, after current folds | yes | Webify/Schemify optimize | low | do not add a second copy here |
+| `procedure?` on lambdas/known procedures | yes, but only in small numbers after lowering | yes | Webify/Schemify optimize | low semantics, low payoff | keep current handling only |
+| `procedure-arity-includes?` on immediate lambdas | yes, but only in small numbers after lowering | yes | Webify/Schemify optimize | low semantics, low payoff | keep current handling only |
+| `length` on quoted lists | not a hot surviving candidate in module examples | partly, plus current partial folds already cover local cases | Chez/Schemify style evidence | low | defer until discovery shows it matters |
+| `list-tail` on quoted lists | not a hot surviving candidate in module examples | partly, plus current partial folds already cover local cases | Chez `cpprim.ss` | low | defer until discovery shows it matters |
+| `reverse` on quoted lists | not a hot surviving candidate in module examples | Chez has inline support, but no evidence it matters here | Chez `cpprim.ss` | medium due to list-shape preservation | defer |
+| internal `module-variable-*` and `unsafe-struct*` apps | yes, very hot | no, but they are bridge/runtime-specific rather than general simplifier rules | discovery only | high and representation-specific | do not treat as a general simplify rule group |
+
+Current conclusion from discovery: no new low-risk second rule group is
+justified yet. The current profile output is more valuable as a filter
+against redundant Schemify/Webify-style ideas than as evidence for
+adding more local rewrites right now.
+
 ## Current Targeted Rule Group
 
 The current profiling-guided rule group focuses on reducing expanded

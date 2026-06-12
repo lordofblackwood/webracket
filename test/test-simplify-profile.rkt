@@ -233,7 +233,12 @@
     (assert-output-contains! "shape-before" output)
     (assert-output-contains! "shape-after" output)
     (assert-output-contains! "app-operators-before" output)
-    (assert-output-contains! "app-operators-after" output))
+    (assert-output-contains! "app-operators-after" output)
+    (assert-output-contains! "top-unsimplified-app-operators" output)
+    (assert-output-contains! "top-unsimplified-pure-app-operators" output)
+    (assert-output-contains! "top-unsimplified-foldable-looking-app-operators" output)
+    (assert-output-contains! "top-unsimplified-arity-query-apps" output)
+    (assert-output-contains! "top-unsimplified-procedure-query-apps" output))
    (test-case
     "targeted simplify rules fire on the fixture"
     (define dest-dir (build-path generated-root "module-simplify-targeted"))

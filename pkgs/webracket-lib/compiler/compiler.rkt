@@ -4115,6 +4115,13 @@
       (current-simplify-profile-stats))
     (define simplify-profile-enabled?
       (and simplify-profile-stats #t))
+    ;; simplify-profile-ref-subhash! : symbol? -> hash?
+    ;;   Fetch or create one mutable nested hash table in the profile stats map.
+    (define (simplify-profile-ref-subhash! key)
+      (or (hash-ref simplify-profile-stats key #f)
+          (let ([ht (make-hasheq)])
+            (hash-set! simplify-profile-stats key ht)
+            ht)))
     ;; simplify-profile-inc! : symbol? [real?] -> void?
     ;;   Increment a numeric simplify-profile counter when profiling is active.
     (define (simplify-profile-inc! key [delta 1])
@@ -4125,6 +4132,13 @@
     (define (simplify-profile-max! key value)
       (when simplify-profile-enabled?
         (hash-update! simplify-profile-stats key (λ (n) (max n value)) value)))
+    ;; simplify-profile-inc-subhash! : symbol? any/c [real?] -> void?
+    ;;   Increment one nested hash counter when profiling is active.
+    (define (simplify-profile-inc-subhash! key subkey [delta 1])
+      (when simplify-profile-enabled?
+        (define ht
+          (simplify-profile-ref-subhash! key))
+        (hash-update! ht subkey (λ (n) (+ n delta)) 0)))
     ;; simplify-profile-note! : symbol? LFE Expr LFE Expr -> void?
     ;;   Record one simplify rewrite and its approximate node delta when profiling.
     (define (simplify-profile-note! family before after)
@@ -4250,6 +4264,55 @@
       (match (fixed-formals->variables/maybe f)
         [#f #f]
         [xs (= (length xs) argc)]))
+    ;; simple-expression? : LFE Expr -> boolean?
+    ;;   Recognize cheap, obviously single-valued arguments worth reporting as foldable-looking.
+    (define (simple-expression? e)
+      (or (duplicable-constant-expression? e)
+          (and (pure-expression? e)
+               (obviously-single-valued-expression? e))))
+    ;; procedure-query-primitive? : symbol? -> boolean?
+    ;;   Recognize hot procedure-shape queries worth surfacing in profile output.
+    (define (procedure-query-primitive? sym)
+      (memq sym
+            '(procedure?
+              struct-constructor-procedure?
+              struct-predicate-procedure?
+              struct-accessor-procedure?
+              struct-mutator-procedure?
+              struct-type-property-accessor-procedure?
+              struct-type-property-predicate-procedure?
+              impersonator-property-accessor-procedure?)))
+    ;; arity-query-primitive? : symbol? -> boolean?
+    ;;   Recognize hot arity-query operators worth surfacing in profile output.
+    (define (arity-query-primitive? sym)
+      (memq sym
+            '(procedure-arity
+              procedure-arity-mask
+              procedure-arity?
+              procedure-arity-includes?
+              arity-at-least-value)))
+    ;; simplify-profile-record-unsimplified-app! : symbol? symbol? (listof LFE Expr) -> void?
+    ;;   Record one unresolved application and aggregate its argument-shape summary.
+    (define (simplify-profile-record-unsimplified-app! bucket op args)
+      (when simplify-profile-enabled?
+        (define rec-ht
+          (simplify-profile-ref-subhash! bucket))
+        (define stats
+          (or (hash-ref rec-ht op #f)
+              (let ([ht (make-hasheq)])
+                (hash-set! rec-ht op ht)
+                ht)))
+        (define constant-count
+          (count constant-expression? args))
+        (define simple-count
+          (count simple-expression? args))
+        (hash-update! stats 'count add1 0)
+        (hash-update! stats 'constant-arg-count (λ (n) (+ n constant-count)) 0)
+        (hash-update! stats 'simple-arg-count (λ (n) (+ n simple-count)) 0)
+        (when (= constant-count (length args))
+          (hash-update! stats 'all-constant-arg-count add1 0))
+        (when (= simple-count (length args))
+          (hash-update! stats 'all-simple-arg-count add1 0))))
     (define free-var-summary-cache
       (make-hasheq))
     (define free-var-summary-depth
@@ -6637,9 +6700,9 @@
            (simplify-profile-note! 'primitive-constant-fold
                                    `(app ,s ,e0 ,e1 ...)
                                    folded))
-         (when partially-folded
-           (define family
-             (case (syntax-e (variable-id e0))
+        (when partially-folded
+          (define family
+            (case (syntax-e (variable-id e0))
                [(+ - * / add1 sub1 abs) 'arithmetic-partial-fold]
                [(bitwise-and bitwise-ior bitwise-xor) 'bitwise-partial-fold]
                [(eq? eqv? equal? equal-always? boolean=? char=? string=? bytes=? string-ci=?
@@ -6652,6 +6715,20 @@
            (simplify-profile-note! family
                                    `(app ,s ,e0 ,e1 ...)
                                    partially-folded))
+         (when (and (not folded)
+                    (not partially-folded)
+                    (variable? e0))
+           (define op
+             (syntax-e (variable-id e0)))
+           (simplify-profile-record-unsimplified-app! 'unsimplified-apps op e1)
+           (when (andmap pure-expression? e1)
+             (simplify-profile-record-unsimplified-app! 'unsimplified-pure-apps op e1))
+           (when (andmap simple-expression? e1)
+             (simplify-profile-record-unsimplified-app! 'unsimplified-foldable-looking-apps op e1))
+           (when (arity-query-primitive? op)
+             (simplify-profile-record-unsimplified-app! 'unsimplified-arity-query-apps op e1))
+           (when (procedure-query-primitive? op)
+             (simplify-profile-record-unsimplified-app! 'unsimplified-procedure-query-apps op e1)))
          (values (or folded
                      partially-folded
                      `(app ,s ,e0 ,e1 ...))
@@ -21170,12 +21247,44 @@
                (format "~a\t~a" (car entry) (cdr entry))))
        "\n")))
 
+(define (top-unsimplified-app-entries ht [limit 12])
+  (take
+   (sort (hash->list ht)
+         (λ (a b)
+           (define a-count (hash-ref (cdr a) 'count 0))
+           (define b-count (hash-ref (cdr b) 'count 0))
+           (if (= a-count b-count)
+               (string<? (~a (car a)) (~a (car b)))
+               (> a-count b-count))))
+   (min limit (hash-count ht))))
+
+(define (format-unsimplified-app-entry-list label ht [limit 12])
+  (define entries
+    (top-unsimplified-app-entries ht limit))
+  (if (null? entries)
+      (format "~a\t-" label)
+      (string-join
+       (for/list ([entry (in-list entries)])
+         (define op (car entry))
+         (define stats (cdr entry))
+         (format "~a\t~a\tcount\t~a\tconstant-arg-count\t~a\tsimple-arg-count\t~a\tall-constant-arg-count\t~a\tall-simple-arg-count\t~a"
+                 label
+                 op
+                 (hash-ref stats 'count 0)
+                 (hash-ref stats 'constant-arg-count 0)
+                 (hash-ref stats 'simple-arg-count 0)
+                 (hash-ref stats 'all-constant-arg-count 0)
+                 (hash-ref stats 'all-simple-arg-count 0)))
+       "\n")))
+
 (define (format-simplify-profile-report stats)
   (define before (hash-ref stats 'before))
   (define after  (hash-ref stats 'after))
   (define rule-ht (hash-ref stats 'rule-fires))
   (define delta-ht (hash-ref stats 'rule-deltas))
   (define (ref key [default 0]) (hash-ref stats key default))
+  (define (ref-table key)
+    (hash-ref stats key (make-hasheq)))
   (define lines
     (append
      (list
@@ -21211,7 +21320,22 @@
        (top-simplify-profile-entries (hash-ref before 'apps)))
       (format-simplify-profile-entry-list
        "app-operators-after"
-       (top-simplify-profile-entries (hash-ref after 'apps))))))
+       (top-simplify-profile-entries (hash-ref after 'apps)))
+      (format-unsimplified-app-entry-list
+       "top-unsimplified-app-operators"
+       (ref-table 'unsimplified-apps))
+      (format-unsimplified-app-entry-list
+       "top-unsimplified-pure-app-operators"
+       (ref-table 'unsimplified-pure-apps))
+      (format-unsimplified-app-entry-list
+       "top-unsimplified-foldable-looking-app-operators"
+       (ref-table 'unsimplified-foldable-looking-apps))
+      (format-unsimplified-app-entry-list
+       "top-unsimplified-arity-query-apps"
+       (ref-table 'unsimplified-arity-query-apps))
+      (format-unsimplified-app-entry-list
+       "top-unsimplified-procedure-query-apps"
+       (ref-table 'unsimplified-procedure-query-apps)))))
   (string-join lines "\n"))
 
 (define (console-bridge-source->string src)
