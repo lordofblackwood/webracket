@@ -9,6 +9,7 @@
          current-module-bridge-elide-public-cells?
          current-module-bridge-elidable-module-names
          current-module-bridge-module-kinds
+         current-webify-knowns-mode
          current-letrec-strategy
          current-tree-shake?
          current-runtime-cache-dir
@@ -33,6 +34,8 @@
   (make-parameter #f))                                 ; (or/c #f (listof symbol?)) modules allowed to elide public cells
 (define current-module-bridge-module-kinds
   (make-parameter #f))                                 ; (or/c #f hasheq?) module-name -> local/support/installed kind
+(define current-webify-knowns-mode
+  (make-parameter 'normal))                            ; 'normal or 'abi-only knowns usage during webify
 (define current-letrec-strategy (make-parameter 'scc)) ; 'basic, 'waddell, or 'scc
 (define current-tree-shake?     (make-parameter #t))  ; boolean? tree shake runtime primitives
 (define current-runtime-cache-dir

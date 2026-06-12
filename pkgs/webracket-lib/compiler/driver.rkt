@@ -71,6 +71,7 @@
                                     current-module-bridge-elide-public-cells?
                                     current-module-bridge-elidable-module-names
                                     current-module-bridge-module-kinds
+                                    current-webify-knowns-mode
                                     current-letrec-strategy
                                     current-tree-shake?
                                     current-runtime-cache-dir
@@ -494,6 +495,59 @@
       [(list 'bridge-export-cell-name name)
        (values name value)])))
 
+;; bridge-import-abi-meta-entries : hash? -> (listof hash?)
+;;   Extract per-import ABI metadata recorded during linklet slice analysis.
+(define (bridge-import-abi-meta-entries stats)
+  (for/list ([(key value) (in-hash stats)]
+             #:when (match key
+                      [(list 'bridge-import-abi-meta _importer _provider _import _export) #t]
+                      [_ #f]))
+    value))
+
+;; bridge-import-abi-false-module-counts : hash? -> hasheq?
+;;   Count ABI-`#f` imports by provider module.
+(define (bridge-import-abi-false-module-counts stats)
+  (for/hasheq ([(key value) (in-hash stats)]
+               #:when (match key
+                        [(list 'bridge-import-abi-false-module (? symbol? _name)) #t]
+                        [_ #f]))
+    (match key
+      [(list 'bridge-import-abi-false-module name)
+       (values name value)])))
+
+;; bridge-import-abi-false-name-counts : hash? -> hasheq?
+;;   Count ABI-`#f` imports by provider export name.
+(define (bridge-import-abi-false-name-counts stats)
+  (for/hasheq ([(key value) (in-hash stats)]
+               #:when (match key
+                        [(list 'bridge-import-abi-false-name (? symbol? _name)) #t]
+                        [_ #f]))
+    (match key
+      [(list 'bridge-import-abi-false-name name)
+       (values name value)])))
+
+;; bridge-import-abi-false-provider-kind-counts : hash? -> hasheq?
+;;   Count ABI-`#f` imports by provider ownership kind.
+(define (bridge-import-abi-false-provider-kind-counts stats)
+  (for/hasheq ([(key value) (in-hash stats)]
+               #:when (match key
+                        [(list 'bridge-import-abi-false-provider-kind _kind) #t]
+                        [_ #f]))
+    (match key
+      [(list 'bridge-import-abi-false-provider-kind kind)
+       (values kind value)])))
+
+;; bridge-import-abi-false-reason-counts : hash? -> hasheq?
+;;   Count ABI-`#f` imports by the recorded analysis fallback reason.
+(define (bridge-import-abi-false-reason-counts stats)
+  (for/hasheq ([(key value) (in-hash stats)]
+               #:when (match key
+                        [(list 'bridge-import-abi-false-reason _reason) #t]
+                        [_ #f]))
+    (match key
+      [(list 'bridge-import-abi-false-reason reason)
+       (values reason value)])))
+
 ;; bridge-top-count-summary : hasheq? -> string?
 ;;   Render the largest bucket counts in descending order for timing output.
 (define (bridge-top-count-summary counts)
@@ -710,6 +764,23 @@
         (hash-update counts export-name add1 0)
         counts)))
 
+;; bridge-import-abi-false-elision-candidate-count : hash? hash? -> exact-nonnegative-integer?
+;;   Count ABI-`#f` imports whose provider exports are otherwise plain-value candidates.
+(define (bridge-import-abi-false-elision-candidate-count graph stats)
+  (for/sum ([entry (in-list (bridge-import-abi-meta-entries stats))])
+    (define provider (hash-ref entry 'provider-module #f))
+    (define export-name (hash-ref entry 'export-name #f))
+    (define export-meta
+      (and provider
+           export-name
+           (hash-ref stats (list 'bridge-export-cell-meta provider export-name) #f)))
+    (if (and export-meta
+             (eq? (bridge-public-cell-classification graph export-meta)
+                  'plain-value-candidate)
+             (not (hash-ref entry 'abi #f)))
+        1
+        0)))
+
 ;; module-bridge-graph-metric-rows : graph composition -> (listof (list/c string? any/c))
 ;;   Summarize bridge scaffolding and graph shape before the main compiler pipeline.
 (define (module-bridge-graph-metric-rows graph composition)
@@ -879,6 +950,28 @@
          (stat 'bridge-import-from-plain-public-value-count))
    (list "bridge-import-from-cell-public-value-count"
          (stat 'bridge-import-from-cell-public-value-count))
+   (list "bridge-import-abi-false-count"
+         (stat 'bridge-import-abi-false-count))
+   (list "bridge-import-abi-false-top-modules"
+         (bridge-top-count-summary
+          (bridge-import-abi-false-module-counts stats)))
+   (list "bridge-import-abi-false-top-names"
+         (bridge-top-count-summary
+          (bridge-import-abi-false-name-counts stats)))
+   (list "bridge-import-abi-false-top-provider-kinds"
+         (bridge-top-count-summary
+          (bridge-import-abi-false-provider-kind-counts stats)))
+   (list "bridge-import-abi-false-top-reasons"
+         (bridge-top-count-summary
+          (bridge-import-abi-false-reason-counts stats)))
+   (list "bridge-import-abi-false-elision-candidate-count"
+         (bridge-import-abi-false-elision-candidate-count graph stats))
+   (list "bridge-import-abi-false-cell-forcing-count"
+         (stat 'bridge-import-abi-false-cell-forcing-count))
+   (list "bridge-import-abi-resolved-from-prior-export-knowns-count"
+         (stat 'bridge-import-abi-resolved-from-prior-export-knowns-count))
+   (list "bridge-import-abi-still-false-after-prior-knowns-count"
+         (stat 'bridge-import-abi-still-false-after-prior-knowns-count))
    (list "bridge-import-from-plain-local-value-count"
          (stat 'bridge-import-from-plain-local-value-count))
    (list "bridge-import-from-cell-local-value-count"
@@ -2080,6 +2173,7 @@
   (current-source-module-provider-names #f)
   (current-module-bridge-elidable-module-names #f)
   (current-module-bridge-module-kinds #f)
+  (current-webify-knowns-mode 'normal)
   (current-module-bridge-detail-rows '())
   (current-webify-bridge-stats (make-hash))
 

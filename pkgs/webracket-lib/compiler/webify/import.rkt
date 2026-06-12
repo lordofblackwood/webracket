@@ -1,5 +1,6 @@
 #lang racket/base
-(require "gensym.rkt")
+(require "../private/parameters.rkt"
+         "gensym.rkt")
 
 (provide (struct-out import)
          (struct-out import-group)
@@ -71,6 +72,9 @@
        (define import-keys (import-group-import-keys grp))
        (define key (and import-keys (vector-ref import-keys index)))
        (and key ; no key available => can't inline
+            ;; ABI-only knowns may classify imports, but must not grow import
+            ;; groups or add new imported bindings as an inlining side effect.
+            (not (eq? (current-webify-knowns-mode) 'abi-only))
             (let ([from-grp (find-or-add-import-group! grps key
                                                        get-import-knowns
                                                        add-group!

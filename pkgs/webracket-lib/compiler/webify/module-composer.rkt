@@ -24,6 +24,7 @@
 
 (require racket/list
          racket/match
+         "../private/parameters.rkt"
          "bridge-stats.rkt"
          "first-slice.rkt"
          "module-instance.rkt"
@@ -32,10 +33,32 @@
 (struct webify-lowered-slice-spec (name expr importss import-sources exports) #:transparent)
 (struct webify-linklet-slice-spec (name linklet import-sources) #:transparent)
 (struct webify-module-fragment (datum instance) #:transparent)
-(struct analyzed-linklet-slice (name expr importss exports import-sources imports-abis exports-info) #:transparent)
+(struct analyzed-linklet-slice (name
+                                expr
+                                importss
+                                exports
+                                import-sources
+                                imports-abis
+                                public-cell-imports-abis
+                                exports-info)
+  #:transparent)
 
 (define current-composer-primitive-import-cell-overrides
   (make-parameter (hasheq)))
+
+;; datum-contains-symbol? : any/c symbol? -> boolean?
+;;   Check whether sym appears anywhere inside datum.
+(define (datum-contains-symbol? datum sym)
+  (or (eq? datum sym)
+      (cond
+        [(pair? datum)
+         (or (datum-contains-symbol? (car datum) sym)
+             (datum-contains-symbol? (cdr datum) sym))]
+        [(vector? datum)
+         (for/or ([entry (in-vector datum)])
+           (datum-contains-symbol? entry sym))]
+        [else
+         #f])))
 
 ;; compiled-directory-list-build-first-import? : symbol? -> boolean?
 ;;   Recognize Racket CS's internal directory-list variant after Webify's
@@ -201,6 +224,116 @@
   (and (list? v)
        (andmap import-source? v)))
 
+;; import-source-groups->import-keys : symbol? (listof (listof source?)) -> (vectorof (or/c symbol? #f))
+;;   Derive one provider key per import group for on-demand prior export knowns.
+(define (import-source-groups->import-keys who grouped-sources)
+  (list->vector
+   (for/list ([group (in-list grouped-sources)])
+     (unless (list? group)
+       (raise-argument-error who "(listof list?)" grouped-sources))
+     (define dependencies
+       (remove-duplicates
+        (for/list ([source (in-list group)])
+          (validate-import-source! who source)
+          (second source))
+        eq?))
+     (match dependencies
+       [(list (? symbol? dependency)) dependency]
+       [_ #f]))))
+
+;; current-module-provider-kind : symbol? -> symbol?
+;;   Classify one module according to the active bridge graph metadata.
+(define (current-module-provider-kind module-name)
+  (define module-kinds
+    (current-module-bridge-module-kinds))
+  (cond
+    [(and module-kinds
+          (hash-has-key? module-kinds module-name))
+     (hash-ref module-kinds module-name)]
+    [else 'unknown-provider]))
+
+;; prior-export-knowns : hash? symbol? -> any/c
+;;   Look up one provider module's previously analyzed export metadata.
+(define (prior-export-knowns prior-exports-infos module-name)
+  (and (symbol? module-name)
+       (hash-ref prior-exports-infos module-name #f)))
+
+;; import-abi-false-reason : hash? symbol? symbol? boolean? boolean? -> symbol?
+;;   Classify why one import ABI remained `#f`.
+(define (import-abi-false-reason prior-exports-infos provider export had-new-imports? had-app-value?)
+  (cond
+    [had-new-imports? 'import-group-added-by-inlining]
+    [had-app-value?    'unsupported-lowered-form]
+    [(eq? (current-module-provider-kind provider) 'unknown-provider)
+     'unknown-provider-kind]
+    [(not (prior-export-knowns prior-exports-infos provider))
+     'missing-export-info]
+    [(not (hash-has-key? (prior-export-knowns prior-exports-infos provider) export))
+     'missing-export-info]
+    [else
+     'unknown]))
+
+;; rerun-failure-reason : exn:fail? -> symbol?
+;;   Classify an analysis-only rerun failure for bridge diagnostics.
+(define (rerun-failure-reason e)
+  (if (regexp-match? #rx"#%app/value" (exn-message e))
+      'unsupported-lowered-form
+      'analysis-error))
+
+;; record-import-abi-metadata! : symbol? (listof (listof source?)) (listof (listof any/c)) hash? keyword args -> void?
+;;   Record per-import ABI decisions for bridge diagnostics and planning.
+(define (record-import-abi-metadata! importer-name
+                                     import-sources
+                                     imports-abis
+                                     prior-exports-infos
+                                     #:baseline-imports-abis [baseline-imports-abis #f]
+                                     #:false-reason [false-reason #f])
+  (define baseline-groups
+    (or baseline-imports-abis imports-abis))
+  (for ([group (in-list import-sources)]
+        [abi-group (in-list imports-abis)]
+        [baseline-group (in-list baseline-groups)])
+    (for ([source (in-list group)]
+          [abi (in-list abi-group)]
+          [baseline-abi (in-list baseline-group)])
+      (match-define (list import-name provider-name export-name) source)
+      (define provider-kind
+        (current-module-provider-kind provider-name))
+      (define prior-knowns
+        (prior-export-knowns prior-exports-infos provider-name))
+      (define prior-export-known?
+        (and prior-knowns (hash-has-key? prior-knowns export-name)))
+      (define false-reason*
+        (and (not abi)
+             (or false-reason
+                 (import-abi-false-reason prior-exports-infos
+                                          provider-name
+                                          export-name
+                                          #f
+                                          #f))))
+      (webify-bridge-stats-set!
+       (list 'bridge-import-abi-meta importer-name provider-name import-name export-name)
+       (hasheq 'importer-module importer-name
+               'provider-module provider-name
+               'import-name import-name
+               'export-name export-name
+               'provider-kind provider-kind
+               'abi abi
+               'baseline-abi baseline-abi
+               'prior-export-known? (and prior-export-known? #t)
+               'false-reason false-reason*))
+      (when (not abi)
+        (webify-bridge-stats-inc! 'bridge-import-abi-false-count)
+        (webify-bridge-stats-inc! (list 'bridge-import-abi-false-module provider-name))
+        (webify-bridge-stats-inc! (list 'bridge-import-abi-false-name export-name))
+        (webify-bridge-stats-inc! (list 'bridge-import-abi-false-provider-kind provider-kind))
+        (webify-bridge-stats-inc! (list 'bridge-import-abi-false-reason false-reason*))
+        (webify-bridge-stats-inc! 'bridge-import-abi-false-cell-forcing-count))
+      (when (and (not baseline-abi) abi)
+        (webify-bridge-stats-inc! 'bridge-import-abi-resolved-from-prior-export-knowns-count))
+      (when (and (not baseline-abi) (not abi) prior-export-known?)
+        (webify-bridge-stats-inc! 'bridge-import-abi-still-false-after-prior-knowns-count)))))
+
 ;; flat-import-sources->groups : symbol? symbol? (listof (listof symbol?)) (listof source?) -> (listof (listof source?))
 ;;   Group flat source triples according to linklet import metadata.
 (define (flat-import-sources->groups who name importss import-sources)
@@ -347,7 +480,7 @@
             ([spec (in-list analyzed-specs)])
     (for/fold ([table* table])
               ([group (in-list (analyzed-linklet-slice-import-sources spec))]
-               [abi-group (in-list (analyzed-linklet-slice-imports-abis spec))])
+               [abi-group (in-list (analyzed-linklet-slice-public-cell-imports-abis spec))])
       (for/fold ([group-table table*])
                 ([source (in-list group)]
                  [import-abi (in-list abi-group)])
@@ -497,36 +630,133 @@
   (unless (list? specs)
     (raise-argument-error who "list?" specs))
   (validate-tail-forms! who tail-forms)
+  (define-values (reverse-analyzed-specs _prior-exports-infos)
+    (for/fold ([analyzed '()]
+               [prior-exports-infos (hasheq)])
+              ([spec (in-list specs)])
+       (validate-linklet-slice-spec! who spec)
+       (define name (webify-linklet-slice-spec-name spec))
+       (define-values (baseline-expr
+                       baseline-importss
+                       baseline-exports
+                       baseline-new-import-keys
+                       baseline-imports-abis
+                       baseline-exports-info)
+         (webify-linklet-first-slice
+          (webify-linklet-slice-spec-linklet spec)
+          #:serializable?-box     serializable?-box
+          #:datum-intern?         datum-intern?
+          #:target                target
+          #:allow-set!-undefined? allow-set!-undefined?
+          #:unsafe-mode?          unsafe-mode?
+          #:enforce-constant?     enforce-constant?
+          #:allow-inline?         allow-inline?
+          #:no-prompt?            no-prompt?
+          #:prim-knowns           prim-knowns
+          #:primitives            primitives
+          #:compiler-query        compiler-query
+          #:get-import-knowns     get-import-knowns
+          #:import-keys           import-keys))
+       (when baseline-new-import-keys
+         (error who
+                "inlining-added import groups are not supported by the linklet composer yet"))
+       (unless (valid-imports-abis? baseline-imports-abis)
+         (error who
+                "unsupported import ABI metadata in the linklet composer"))
+       (define raw-import-sources (webify-linklet-slice-spec-import-sources spec))
+       (define import-sources
+         (normalize-linklet-import-sources who name baseline-importss raw-import-sources))
+       (define local-import-keys
+         (import-source-groups->import-keys who import-sources))
+       (define use-prior-knowns?
+         (for/or ([key (in-vector local-import-keys)])
+           (and key (hash-has-key? prior-exports-infos key))))
+       (define (compose-get-import-knowns key)
+         (define local-knowns
+           (and key (hash-ref prior-exports-infos key #f)))
+         (if local-knowns
+             (values local-knowns #f #f)
+             (get-import-knowns key)))
+       (define rerun-failure #f)
+       (define rerun-result
+         (and use-prior-knowns?
+              (parameterize ([current-webify-knowns-mode 'abi-only])
+                (with-handlers ([exn:fail?
+                                 (lambda (e)
+                                   (set! rerun-failure e)
+                                   #f)])
+                  (call-with-values
+                   (lambda ()
+                     (webify-linklet-first-slice
+                      (webify-linklet-slice-spec-linklet spec)
+                      #:serializable?-box     serializable?-box
+                      #:datum-intern?         datum-intern?
+                      #:target                target
+                      #:allow-set!-undefined? allow-set!-undefined?
+                      #:unsafe-mode?          unsafe-mode?
+                      #:enforce-constant?     enforce-constant?
+                      #:allow-inline?         allow-inline?
+                      #:no-prompt?            no-prompt?
+                      #:prim-knowns           prim-knowns
+                      #:primitives            primitives
+                      #:compiler-query        compiler-query
+                      #:get-import-knowns     compose-get-import-knowns
+                      #:import-keys           local-import-keys))
+                   list)))))
+       (define rerun-new-import-keys
+         (and rerun-result (list-ref rerun-result 3)))
+       (define rerun-has-app/value?
+         (and rerun-result
+              (datum-contains-symbol? (list-ref rerun-result 0) '#%app/value)))
+       (define rerun-importss-match?
+         (and rerun-result
+              (equal? (list-ref rerun-result 1) baseline-importss)))
+       (define use-rerun-public-cell-abis?
+         (and rerun-result
+              (not rerun-new-import-keys)
+              rerun-importss-match?))
+       (define expr baseline-expr)
+       (define importss baseline-importss)
+       (define exports baseline-exports)
+       (define imports-abis baseline-imports-abis)
+       ;; Cross-slice knowns are analysis-only here: keep the original lowered body
+       ;; ABI, but let forced-cell export planning consult the richer classification.
+       (define public-cell-imports-abis
+         (if use-rerun-public-cell-abis?
+             (list-ref rerun-result 4)
+             baseline-imports-abis))
+       (define exports-info baseline-exports-info)
+       (record-import-abi-metadata! name
+                                    import-sources
+                                    public-cell-imports-abis
+                                    prior-exports-infos
+                                    #:baseline-imports-abis baseline-imports-abis
+                                    #:false-reason
+                                    (and use-prior-knowns?
+                                         (cond
+                                           [rerun-new-import-keys
+                                            'import-group-added-by-inlining]
+                                           [rerun-failure
+                                            (rerun-failure-reason rerun-failure)]
+                                           [(not rerun-importss-match?)
+                                            'analysis-shape-changed]
+                                           [(and rerun-has-app/value?
+                                                 (not use-rerun-public-cell-abis?))
+                                            'unsupported-lowered-form]
+                                           [else #f])))
+       (values (cons (analyzed-linklet-slice
+                      name
+                      expr
+                      importss
+                      exports
+                      import-sources
+                      imports-abis
+                      public-cell-imports-abis
+                      exports-info)
+                     analyzed)
+               (hash-set prior-exports-infos name exports-info))))
   (define analyzed-specs
-    (for/list ([spec (in-list specs)])
-      (validate-linklet-slice-spec! who spec)
-      (define name (webify-linklet-slice-spec-name spec))
-      (define-values (expr importss exports new-import-keys imports-abis exports-info)
-        (webify-linklet-first-slice
-         (webify-linklet-slice-spec-linklet spec)
-         #:serializable?-box     serializable?-box
-         #:datum-intern?         datum-intern?
-         #:target                target
-         #:allow-set!-undefined? allow-set!-undefined?
-         #:unsafe-mode?          unsafe-mode?
-         #:enforce-constant?     enforce-constant?
-         #:allow-inline?         allow-inline?
-         #:no-prompt?            no-prompt?
-         #:prim-knowns           prim-knowns
-         #:primitives            primitives
-         #:compiler-query        compiler-query
-         #:get-import-knowns     get-import-knowns
-         #:import-keys           import-keys))
-      (when new-import-keys
-        (error who
-               "inlining-added import groups are not supported by the linklet composer yet"))
-      (unless (valid-imports-abis? imports-abis)
-        (error who
-               "unsupported import ABI metadata in the linklet composer"))
-      (define raw-import-sources (webify-linklet-slice-spec-import-sources spec))
-      (define import-sources
-        (normalize-linklet-import-sources who name importss raw-import-sources))
-      (analyzed-linklet-slice name expr importss exports import-sources imports-abis exports-info)))
+    (reverse reverse-analyzed-specs))
   (define forced-cell-exports
     (forced-cell-export-table analyzed-specs))
   (define-values (reverse-fragments instances _reserved exports-infos)
@@ -572,23 +802,32 @@
                                "actual count" (length import-sources)
                                "imports" importss))
       (define-values (datum instance)
-        (if (null? importss)
-            (first-slice->module-instance-datum
-             name
-             expr
-             exports
-             #:reserved reserved
-             #:define-export-aliases? define-export-aliases?)
-            (first-slice->module-instance-datum/imports
-             name
-             expr
-             importss
-             (import-sources->envs who instances/self import-sources imports-abis)
-             exports
-             #:reserved reserved
-             #:instance self-instance
-             #:imports-abis imports-abis
-             #:define-export-aliases? define-export-aliases?)))
+        (with-handlers ([exn:fail?
+                         (lambda (e)
+                           (raise-arguments-error
+                            who
+                            "failed while adapting one analyzed linklet slice"
+                            "name" name
+                            "imports" importss
+                            "import ABI metadata" imports-abis
+                            "message" (exn-message e)))])
+          (if (null? importss)
+              (first-slice->module-instance-datum
+               name
+               expr
+               exports
+               #:reserved reserved
+               #:define-export-aliases? define-export-aliases?)
+              (first-slice->module-instance-datum/imports
+               name
+               expr
+               importss
+               (import-sources->envs who instances/self import-sources imports-abis)
+               exports
+               #:reserved reserved
+               #:instance self-instance
+               #:imports-abis imports-abis
+               #:define-export-aliases? define-export-aliases?))))
       (values (cons (webify-module-fragment datum instance) reverse-fragments)
               (hash-set instances name instance)
               (append reserved (webify-module-instance-reserved-ids instance))
