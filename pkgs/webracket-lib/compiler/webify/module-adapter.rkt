@@ -209,8 +209,7 @@
         (define candidate (hash-ref candidate-map cell #f))
         (if candidate
             (list `(define ,candidate
-                     ,(rewrite-late-materialized-export rhs candidate-map))
-                  `(define ,id (begin (void) (void))))
+                     ,(rewrite-late-materialized-export rhs candidate-map)))
             (list `(define ,id
                      (begin
                        (module-variable-define!
