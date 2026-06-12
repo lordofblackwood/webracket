@@ -30,9 +30,9 @@
          (error 'test-module-bridge-extraction
                 "could not find a racket executable"))]))
 
-;; env-with-collections : path? -> environment-variables?
+;; env-with-collections : path? path? -> environment-variables?
 ;;   Build a subprocess environment for the package-root collection layout.
-(define (env-with-collections repo-root)
+(define (env-with-collections repo-root compiled-root)
   (define env (environment-variables-copy (current-environment-variables)))
   (define racket-collects
     (build-path repo-root ".." "racket" "racket" "collects"))
@@ -42,7 +42,9 @@
      ":"
      (path->string racket-collects)))
   (environment-variables-set! env #"PLTCOLLECTS" (string->bytes/utf-8 collects))
-  (environment-variables-set! env #"PLTCOMPILEDROOTS" #"/private/tmp/webracket-raco-compiled-92")
+  (environment-variables-set! env
+                              #"PLTCOMPILEDROOTS"
+                              (string->bytes/utf-8 (path->string compiled-root)))
   env)
 
 ;; run-bridge-extraction-smoke : path? path? -> void?
@@ -50,11 +52,13 @@
 (define (run-bridge-extraction-smoke repo-root racket-exe)
   (define base (make-temporary-file "webracket-module-bridge-extraction-~a" 'directory))
   (define script-path (build-path base "bridge-extract-smoke.rkt"))
+  (define compiled-root (build-path base "compiled"))
   (define source-path
     (build-path repo-root "pkgs" "web-easy" "examples" "hello-world" "hello-world.rkt"))
   (dynamic-wind
     void
     (lambda ()
+      (make-directory* compiled-root)
       (call-with-output-file script-path
         (lambda (out)
           (display "#lang racket/base\n" out)
@@ -77,7 +81,7 @@
         (parameterize ([current-directory repo-root]
                        [current-output-port stdout]
                        [current-error-port stderr]
-                       [current-environment-variables (env-with-collections repo-root)])
+                       [current-environment-variables (env-with-collections repo-root compiled-root)])
           (system*/exit-code racket-exe (path->string script-path))))
       (define output
         (string-append (get-output-string stdout)
