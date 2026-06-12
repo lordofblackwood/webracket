@@ -1,6 +1,7 @@
 #lang racket/base
 
 (require rackunit
+         "../pkgs/webracket-lib/compiler/driver.rkt"
          "../pkgs/webracket-lib/compiler/webify/bridge-stats.rkt"
          "../pkgs/webracket-lib/compiler/webify/module-adapter.rkt"
          "../pkgs/webracket-lib/compiler/webify/module-instance.rkt")
@@ -178,10 +179,13 @@
       (and (equal? key '(bridge-export-cell-meta demo/provider out))
            value)))
   (check-true (hash-ref meta 'public-boundary? #f))
+  (check-false (hash-ref meta 'immutable? #t))
   (check-true (hash-ref meta 'reexport? #f))
   (check-true (hash-ref meta 'mutated? #f))
   (check-true (hash-ref meta 'undefined-sensitive? #f))
   (check-true (hash-ref meta 'reflection-visible? #f))
+  (check-true (hash-ref meta 'phase0-value-space-only? #f))
+  (check-false (hash-ref meta 'dynamic-require-sensitive? #t))
   (check-equal? (hash-ref stats 'bridge-export-cell-public-boundary-count 0) 1)
   (check-equal? (hash-ref stats 'bridge-export-cell-reexport-count 0) 1)
   (check-equal? (hash-ref stats 'bridge-export-cell-mutated-count 0) 1)
@@ -214,6 +218,82 @@
   (check-equal?
    (hash-ref stats 'bridge-export-cell-late-materialization-candidate-count 0)
    1))
+
+(test-case "public cell classification distinguishes candidates and blockers"
+  (define stats
+    (make-hash
+     `(((bridge-export-cell-meta demo/candidate out)
+        . ,(hasheq 'module-name 'demo/candidate
+                   'export 'out
+                   'public-boundary? #t
+                   'immutable? #t
+                   'reexport? #f
+                   'mutated? #f
+                   'undefined-sensitive? #f
+                   'reflection-visible? #f
+                   'dynamic-require-sensitive? #f
+                   'phase0-value-space-only? #t))
+       ((bridge-export-cell-meta demo/reexport out)
+        . ,(hasheq 'module-name 'demo/reexport
+                   'export 'out
+                   'public-boundary? #t
+                   'immutable? #t
+                   'reexport? #t
+                   'mutated? #f
+                   'undefined-sensitive? #f
+                   'reflection-visible? #f
+                   'dynamic-require-sensitive? #f
+                   'phase0-value-space-only? #t))
+       ((bridge-export-cell-meta demo/mutated state)
+        . ,(hasheq 'module-name 'demo/mutated
+                   'export 'state
+                   'public-boundary? #t
+                   'immutable? #f
+                   'reexport? #f
+                   'mutated? #t
+                   'undefined-sensitive? #f
+                   'reflection-visible? #f
+                   'dynamic-require-sensitive? #f
+                   'phase0-value-space-only? #t))
+       ((bridge-export-cell-meta demo/reflective ref)
+        . ,(hasheq 'module-name 'demo/reflective
+                   'export 'ref
+                   'public-boundary? #t
+                   'immutable? #t
+                   'reexport? #f
+                   'mutated? #f
+                   'undefined-sensitive? #f
+                   'reflection-visible? #t
+                   'dynamic-require-sensitive? #f
+                   'phase0-value-space-only? #t)))))
+  (define graph
+    (webracket/base-local-module-graph
+     'demo/root
+     '()
+     #f
+     (hasheq 'demo/candidate 'local-user
+             'demo/reexport 'local-user
+             'demo/mutated 'local-user
+             'demo/reflective 'support-provider)))
+  (define counts
+    (bridge-public-cell-required-counts graph stats))
+  (check-equal? (hash-ref counts 'plain-value-candidate 0) 1)
+  (check-equal? (hash-ref counts 'required-reexport 0) 1)
+  (check-equal? (hash-ref counts 'required-mutation 0) 1)
+  (check-equal? (hash-ref counts 'required-reflection 0) 1)
+  (check-equal?
+   (bridge-public-cell-classification
+    graph
+    (hash-ref stats '(bridge-export-cell-meta demo/candidate out)))
+   'plain-value-candidate)
+  (check-true
+   (for/or ([(name count) (in-hash (bridge-public-cell-candidate-module-counts graph stats))])
+     (and (eq? name 'demo/candidate)
+          (= count 1))))
+  (check-true
+   (for/or ([(name count) (in-hash (bridge-public-cell-candidate-name-counts graph stats))])
+     (and (eq? name 'out)
+          (= count 1)))))
 
 (module+ main
   (void))

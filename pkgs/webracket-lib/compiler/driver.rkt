@@ -509,6 +509,38 @@
          (format "~a(~a)" (car entry) (cdr entry)))
        ", ")))
 
+;; bridge-public-cell-classification : hash? hash? -> symbol?
+;;   Classify one public export cell by the first conservative reason it must stay cell-backed.
+(define (bridge-public-cell-classification graph meta)
+  (define module-name (hash-ref meta 'module-name #f))
+  (define module-kinds
+    (webracket/base-local-module-graph-module-kinds graph))
+  (define (missing? key)
+    (not (hash-has-key? meta key)))
+  (define unknown?
+    (or (not module-name)
+        (not (hash-has-key? module-kinds module-name))
+        (missing? 'public-boundary?)
+        (missing? 'immutable?)
+        (missing? 'reexport?)
+        (missing? 'mutated?)
+        (missing? 'undefined-sensitive?)
+        (missing? 'reflection-visible?)
+        (missing? 'dynamic-require-sensitive?)
+        (missing? 'phase0-value-space-only?)))
+  (cond
+    [unknown? 'required-unknown]
+    [(not (hash-ref meta 'public-boundary? #f)) 'required-unknown]
+    [(hash-ref meta 'reflection-visible? #f) 'required-reflection]
+    [(hash-ref meta 'dynamic-require-sensitive? #f) 'required-dynamic-require]
+    [(or (not (hash-ref meta 'immutable? #f))
+         (hash-ref meta 'mutated? #f))
+     'required-mutation]
+    [(hash-ref meta 'undefined-sensitive? #f) 'required-undefined]
+    [(hash-ref meta 'reexport? #f) 'required-reexport]
+    [(not (hash-ref meta 'phase0-value-space-only? #f)) 'required-phase-space]
+    [else 'plain-value-candidate]))
+
 ;; bridge-export-cell-role-counts : graph hash? -> hasheq?
 ;;   Partition export-cell counts by local/support/installed module ownership.
 (define (bridge-export-cell-role-counts graph stats)
@@ -523,38 +555,48 @@
                 'installed-provider))
     (hash-update counts kind (lambda (n) (+ n cell-count)) 0)))
 
-;; bridge-export-cell-dry-run-counts : graph hash? -> hasheq?
-;;   Apply the conservative no-elision rule set to recorded export-cell metadata.
-(define (bridge-export-cell-dry-run-counts graph stats)
-  (for/fold ([counts (hasheq 'candidate 0
-                             'blocked-public 0
-                             'blocked-reexport 0
-                             'blocked-mutated 0
-                             'blocked-undefined 0
-                             'blocked-reflection 0
-                             'blocked-unknown 0)])
+;; bridge-public-cell-required-counts : graph hash? -> hasheq?
+;;   Count public export cells by the conservative reason they must keep a cell.
+(define (bridge-public-cell-required-counts graph stats)
+  (for/fold ([counts (hasheq 'required-reflection 0
+                             'required-dynamic-require 0
+                             'required-mutation 0
+                             'required-undefined 0
+                             'required-reexport 0
+                             'required-phase-space 0
+                             'required-unknown 0
+                             'plain-value-candidate 0)])
+            ([entry (in-list (bridge-export-cell-meta-entries stats))])
+    (define meta (cdr entry))
+    (define reason
+      (bridge-public-cell-classification graph meta))
+    (hash-update counts reason add1 0)))
+
+;; bridge-public-cell-candidate-module-counts : graph hash? -> hasheq?
+;;   Count candidate plain-value public exports per provider module.
+(define (bridge-public-cell-candidate-module-counts graph stats)
+  (for/fold ([counts (hasheq)])
             ([entry (in-list (bridge-export-cell-meta-entries stats))])
     (define meta (cdr entry))
     (define module-name (hash-ref meta 'module-name #f))
-    (define unknown?
-      (or (not module-name)
-          (not (hash-has-key? (webracket/base-local-module-graph-module-kinds graph)
-                              module-name))))
-    (cond
-      [unknown?
-       (hash-update counts 'blocked-unknown add1 0)]
-      [(hash-ref meta 'public-boundary? #f)
-       (hash-update counts 'blocked-public add1 0)]
-      [(hash-ref meta 'reexport? #f)
-       (hash-update counts 'blocked-reexport add1 0)]
-      [(hash-ref meta 'mutated? #f)
-       (hash-update counts 'blocked-mutated add1 0)]
-      [(hash-ref meta 'undefined-sensitive? #f)
-       (hash-update counts 'blocked-undefined add1 0)]
-      [(hash-ref meta 'reflection-visible? #f)
-       (hash-update counts 'blocked-reflection add1 0)]
-      [else
-       (hash-update counts 'candidate add1 0)])))
+    (if (and module-name
+             (eq? (bridge-public-cell-classification graph meta)
+                  'plain-value-candidate))
+        (hash-update counts module-name add1 0)
+        counts)))
+
+;; bridge-public-cell-candidate-name-counts : graph hash? -> hasheq?
+;;   Count candidate plain-value public exports per exported name.
+(define (bridge-public-cell-candidate-name-counts graph stats)
+  (for/fold ([counts (hasheq)])
+            ([entry (in-list (bridge-export-cell-meta-entries stats))])
+    (define meta (cdr entry))
+    (define export-name (hash-ref meta 'export #f))
+    (if (and export-name
+             (eq? (bridge-public-cell-classification graph meta)
+                  'plain-value-candidate))
+        (hash-update counts export-name add1 0)
+        counts)))
 
 ;; module-bridge-graph-metric-rows : graph composition -> (listof (list/c string? any/c))
 ;;   Summarize bridge scaffolding and graph shape before the main compiler pipeline.
@@ -577,8 +619,8 @@
       (module-bridge-report-reexport-count report)))
   (define role-counts
     (bridge-export-cell-role-counts graph stats))
-  (define dry-run-counts
-    (bridge-export-cell-dry-run-counts graph stats))
+  (define public-cell-counts
+    (bridge-public-cell-required-counts graph stats))
   (define (stat key [default 0])
     (hash-ref stats key default))
   (list
@@ -610,20 +652,47 @@
          (stat 'bridge-export-cell-public-boundary-count))
    (list "bridge-export-cell-late-materialization-candidate-count"
          (stat 'bridge-export-cell-late-materialization-candidate-count))
+   (list "bridge-public-cell-count"
+         (stat 'bridge-export-cell-public-boundary-count))
+   (list "bridge-public-cell-required-reflection-count"
+         (hash-ref public-cell-counts 'required-reflection 0))
+   (list "bridge-public-cell-required-dynamic-require-count"
+         (hash-ref public-cell-counts 'required-dynamic-require 0))
+   (list "bridge-public-cell-required-mutation-count"
+         (hash-ref public-cell-counts 'required-mutation 0))
+   (list "bridge-public-cell-required-undefined-count"
+         (hash-ref public-cell-counts 'required-undefined 0))
+   (list "bridge-public-cell-required-reexport-count"
+         (hash-ref public-cell-counts 'required-reexport 0))
+   (list "bridge-public-cell-required-phase-space-count"
+         (hash-ref public-cell-counts 'required-phase-space 0))
+   (list "bridge-public-cell-required-unknown-count"
+         (hash-ref public-cell-counts 'required-unknown 0))
+   (list "bridge-public-cell-plain-value-candidate-count"
+         (hash-ref public-cell-counts 'plain-value-candidate 0))
+   (list "bridge-public-cell-top-required-reasons"
+         (bridge-top-count-summary
+          (for/hasheq ([(key value) (in-hash public-cell-counts)]
+                       #:unless (eq? key 'plain-value-candidate))
+            (values key value))))
+   (list "bridge-public-cell-top-plain-value-candidate-modules"
+         (bridge-top-count-summary
+          (bridge-public-cell-candidate-module-counts graph stats)))
+   (list "bridge-public-cell-top-plain-value-candidate-names"
+         (bridge-top-count-summary
+          (bridge-public-cell-candidate-name-counts graph stats)))
    (list "bridge-export-cell-elision-candidate-count"
-         (hash-ref dry-run-counts 'candidate 0))
-   (list "bridge-export-cell-elision-blocked-public-count"
-         (hash-ref dry-run-counts 'blocked-public 0))
+         (hash-ref public-cell-counts 'plain-value-candidate 0))
    (list "bridge-export-cell-elision-blocked-reexport-count"
-         (hash-ref dry-run-counts 'blocked-reexport 0))
+         (hash-ref public-cell-counts 'required-reexport 0))
    (list "bridge-export-cell-elision-blocked-mutated-count"
-         (hash-ref dry-run-counts 'blocked-mutated 0))
+         (hash-ref public-cell-counts 'required-mutation 0))
    (list "bridge-export-cell-elision-blocked-undefined-count"
-         (hash-ref dry-run-counts 'blocked-undefined 0))
+         (hash-ref public-cell-counts 'required-undefined 0))
    (list "bridge-export-cell-elision-blocked-reflection-count"
-         (hash-ref dry-run-counts 'blocked-reflection 0))
+         (hash-ref public-cell-counts 'required-reflection 0))
    (list "bridge-export-cell-elision-blocked-unknown-count"
-         (hash-ref dry-run-counts 'blocked-unknown 0))
+         (hash-ref public-cell-counts 'required-unknown 0))
    (list "bridge-export-cell-top-modules"
          (bridge-top-count-summary (bridge-export-cell-module-counts stats)))
    (list "bridge-export-cell-top-names"

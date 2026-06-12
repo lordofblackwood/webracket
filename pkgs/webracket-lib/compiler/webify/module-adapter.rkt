@@ -107,6 +107,7 @@
   (define mutated (hash-ref usage 'mutated))
   (define undefined-sensitive (hash-ref usage 'undefined-sensitive))
   (define reflection-visible (hash-ref usage 'reflection-visible))
+  (define define-constances (hash-ref usage 'define-constances))
   (define imported-names
     (if importss
         (flatten-groups importss)
@@ -115,15 +116,24 @@
         [export-arg (in-list export-args)])
     (define reexport?
       (memq export imported-names))
+    (define constance
+      (hash-ref define-constances export-arg #f))
     (define meta
       (hasheq 'module-name module-name
               'export export
               'public-boundary? #t
               'internal? #f
+              'immutable? (and constance #t)
+              'constance constance
               'reexport? (and reexport? #t)
               'mutated? (and (hash-ref mutated export-arg #f) #t)
               'undefined-sensitive? (and (hash-ref undefined-sensitive export-arg #f) #t)
-              'reflection-visible? (and (hash-ref reflection-visible export-arg #f) #t)))
+              'reflection-visible? (and (hash-ref reflection-visible export-arg #f) #t)
+              ;; Current bridge reports are phase-0 value exports only.
+              'phase0-value-space-only? #t
+              ;; Dry-run classification defaults to "not observed" until the
+              ;; bridge records an explicit dynamic-require-sensitive path.
+              'dynamic-require-sensitive? #f))
     (webify-bridge-stats-set! (list 'bridge-export-cell-meta module-name export) meta)
     (when module-name
       (webify-bridge-stats-inc! (list 'bridge-export-cell-module module-name)))
