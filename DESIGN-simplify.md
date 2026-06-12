@@ -23,6 +23,56 @@ This pass is intentionally conservative:
 - no aggressive inlining
 - no code duplication unless safe
 
+## Current Default Policy
+
+`simplify-LFE` remains opt-in for module builds.
+
+The current local rule set is useful and consistently removes around
+12k nodes from representative module examples, but the wall-clock
+impact is mixed under warm-cache measurement:
+
+- `hello-world`: slower overall with simplify
+- `single-counter`: faster overall with simplify
+- `todo-lists`: slower overall with simplify
+
+That is not a clean size-based progression, so the pass is not enabled
+by default and no parsed-node threshold is currently justified.
+
+Recommended diagnostic usage:
+
+```sh
+racket webracket.rkt \
+  --browser \
+  --dest /private/tmp/webracket-simplify \
+  --timings \
+  --enable-simplify \
+  --simplify-profile \
+  pkgs/web-easy/examples/hello-world/hello-world.rkt
+```
+
+The profiling output is still valuable for experiments:
+
+- `nodes-removed` shows whether the current rules materially shrink the module
+- `free-var-summary-root-ms` shows wall-clock-relevant occurrence-summary cost
+- `free-var-summary-total-inclusive-ms` is retained only as explicitly inclusive diagnostic data
+
+The next likely improvement path is either reducing simplify overhead
+further or finding stronger downstream wins before reconsidering a
+default-on or threshold policy.
+
+## Current Targeted Rule Group
+
+The current profiling-guided rule group focuses on reducing expanded
+module noise before `lower-letrec-values`:
+
+- exact fixed-arity lambda application normalization
+- immediate fixed-arm `case-lambda` selection
+- unused pure single-binding `let-values` elimination
+
+These rewrites are intentionally local and feed into the existing
+`let-values`, constant-propagation, and dead-sequence cleanup rules
+instead of trying to become a whole-program optimizer.
+
 ---
 
 ## Design Principles

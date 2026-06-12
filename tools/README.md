@@ -108,21 +108,37 @@ Racket toolchain per invocation plus an isolated `PLTCOMPILEDROOTS`, and
 prints a compact comparison for:
 - `driver total`
 - `compile-pipeline`
-- `compile subtotal`
+- `parse-nodes`
+- `simplified-nodes`
+- `nodes-removed`
 - `simplify-LFE`
 - `lower-letrec-values`
 - `closure-conversion`
 - `generate-code`
-- simplify profile node counts and free-variable summary counters
+- `free-var-summary-root-ms`
 
 By default it measures:
 - `hello-world`
 - `single-counter`
 
-You can also request a subset by name:
+You can also pass explicit example paths:
 
 ```sh
-racket tools/measure-simplify-module-builds.rkt hello-world
+racket tools/measure-simplify-module-builds.rkt \
+  pkgs/web-easy/examples/hello-world/hello-world.rkt \
+  pkgs/web-easy/examples/todo-lists/todo-lists.rkt
+```
+
+Optional:
+
+- `--tsv` emits baseline, simplify, and delta rows in TSV form
+
+Example:
+
+```sh
+racket tools/measure-simplify-module-builds.rkt \
+  --tsv \
+  pkgs/web-easy/examples/hello-world/hello-world.rkt
 ```
 
 fetch-html-element-attributes.mjs
