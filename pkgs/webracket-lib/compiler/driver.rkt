@@ -543,6 +543,48 @@
     [(not (hash-ref meta 'phase0-value-space-only? #f)) 'required-phase-space]
     [else 'plain-value-candidate]))
 
+;; bridge-public-cell-provider-kind : hash? hash? -> symbol?
+;;   Classify one public export by the graph ownership of its defining module.
+(define (bridge-public-cell-provider-kind graph meta)
+  (define module-name (hash-ref meta 'module-name #f))
+  (cond
+    [(not (symbol? module-name)) 'unknown-provider]
+    [else
+     (hash-ref (webracket/base-local-module-graph-module-kinds graph)
+               module-name
+               'unknown-provider)]))
+
+;; bridge-public-cell-base-candidate? : hash? -> boolean?
+;;   Check whether one export is safety-eligible before policy and importer constraints.
+(define (bridge-public-cell-base-candidate? meta)
+  (hash-ref meta
+            'plain-value-base-candidate?
+            (eq? (hash-ref meta 'selected-export-kind 'cell)
+                 'value)))
+
+;; bridge-public-cell-policy-eligible? : hash? -> boolean?
+;;   Check whether the current elision policy allows this export's defining module.
+(define (bridge-public-cell-policy-eligible? meta)
+  (hash-ref meta
+            'plain-value-policy-eligible?
+            (bridge-public-cell-base-candidate? meta)))
+
+;; bridge-public-cell-forced-cell? : hash? -> boolean?
+;;   Check whether some importer path still requires a cell-backed export entry.
+(define (bridge-public-cell-forced-cell? meta)
+  (hash-ref meta 'forced-cell? #f))
+
+;; bridge-public-cell-selected-kind : hash? -> symbol?
+;;   Read the final export-entry ABI choice recorded for one public export.
+(define (bridge-public-cell-selected-kind meta)
+  (hash-ref meta 'selected-export-kind 'cell))
+
+;; bridge-public-cell-candidate-not-elided? : hash? -> boolean?
+;;   Check whether a safety-eligible export stayed cell-backed.
+(define (bridge-public-cell-candidate-not-elided? meta)
+  (and (bridge-public-cell-base-candidate? meta)
+       (not (eq? (bridge-public-cell-selected-kind meta) 'value))))
+
 ;; bridge-export-cell-role-counts : graph hash? -> hasheq?
 ;;   Partition export-cell counts by local/support/installed module ownership.
 (define (bridge-export-cell-role-counts graph stats)
@@ -600,6 +642,73 @@
         (hash-update counts export-name add1 0)
         counts)))
 
+;; bridge-public-cell-candidate-not-elided-counts : hash? hash? -> hasheq?
+;;   Count why safety-eligible exports stayed cell-backed under the current ABI.
+(define (bridge-public-cell-candidate-not-elided-counts graph stats)
+  (for/fold ([counts (hasheq 'candidate-not-elided 0
+                             'candidate-not-elided-local-only-policy 0
+                             'candidate-not-elided-provider-export 0
+                             'candidate-not-elided-support-provider 0
+                             'candidate-not-elided-installed-provider 0
+                             'candidate-not-elided-importer-needs-cell 0
+                             'candidate-not-elided-registry-shape 0
+                             'candidate-not-elided-unknown 0)])
+            ([entry (in-list (bridge-export-cell-meta-entries stats))])
+    (define meta (cdr entry))
+    (if (not (bridge-public-cell-candidate-not-elided? meta))
+        counts
+        (let* ([provider-kind (bridge-public-cell-provider-kind graph meta)]
+               [counts* (hash-update counts 'candidate-not-elided add1 0)]
+               [counts** (case provider-kind
+                           [(support-provider)
+                            (hash-update
+                             (hash-update counts* 'candidate-not-elided-provider-export add1 0)
+                             'candidate-not-elided-support-provider
+                             add1
+                             0)]
+                           [(installed-provider)
+                            (hash-update
+                             (hash-update counts* 'candidate-not-elided-provider-export add1 0)
+                             'candidate-not-elided-installed-provider
+                             add1
+                             0)]
+                           [(unknown-provider)
+                            (hash-update counts* 'candidate-not-elided-unknown add1 0)]
+                           [else counts*])])
+          (cond
+            [(not (bridge-public-cell-policy-eligible? meta))
+             (hash-update counts** 'candidate-not-elided-local-only-policy add1 0)]
+            [(bridge-public-cell-forced-cell? meta)
+             (hash-update counts** 'candidate-not-elided-importer-needs-cell add1 0)]
+            [(eq? (bridge-public-cell-selected-kind meta) 'value)
+             counts**]
+            [else
+             (hash-update counts** 'candidate-not-elided-registry-shape add1 0)])))))
+
+;; bridge-public-cell-candidate-not-elided-module-counts : hash? hash? -> hasheq?
+;;   Count non-elided safety candidates per defining module.
+(define (bridge-public-cell-candidate-not-elided-module-counts graph stats)
+  (for/fold ([counts (hasheq)])
+            ([entry (in-list (bridge-export-cell-meta-entries stats))])
+    (define meta (cdr entry))
+    (define module-name (hash-ref meta 'module-name #f))
+    (if (and module-name
+             (bridge-public-cell-candidate-not-elided? meta))
+        (hash-update counts module-name add1 0)
+        counts)))
+
+;; bridge-public-cell-candidate-not-elided-name-counts : hash? hash? -> hasheq?
+;;   Count non-elided safety candidates per export name.
+(define (bridge-public-cell-candidate-not-elided-name-counts graph stats)
+  (for/fold ([counts (hasheq)])
+            ([entry (in-list (bridge-export-cell-meta-entries stats))])
+    (define meta (cdr entry))
+    (define export-name (hash-ref meta 'export #f))
+    (if (and export-name
+             (bridge-public-cell-candidate-not-elided? meta))
+        (hash-update counts export-name add1 0)
+        counts)))
+
 ;; module-bridge-graph-metric-rows : graph composition -> (listof (list/c string? any/c))
 ;;   Summarize bridge scaffolding and graph shape before the main compiler pipeline.
 (define (module-bridge-graph-metric-rows graph composition)
@@ -625,6 +734,8 @@
     (bridge-export-cell-role-counts graph stats))
   (define public-cell-counts
     (bridge-public-cell-required-counts graph stats))
+  (define public-cell-candidate-not-elided-counts
+    (bridge-public-cell-candidate-not-elided-counts graph stats))
   (define (stat key [default 0])
     (hash-ref stats key default))
   (list
@@ -705,6 +816,44 @@
    (list "bridge-public-cell-top-plain-value-candidate-names"
          (bridge-top-count-summary
           (bridge-public-cell-candidate-name-counts graph stats)))
+   (list "bridge-public-cell-candidate-not-elided-count"
+         (hash-ref public-cell-candidate-not-elided-counts
+                   'candidate-not-elided
+                   0))
+   (list "bridge-public-cell-candidate-not-elided-local-only-policy-count"
+         (hash-ref public-cell-candidate-not-elided-counts
+                   'candidate-not-elided-local-only-policy
+                   0))
+   (list "bridge-public-cell-candidate-not-elided-provider-export-count"
+         (hash-ref public-cell-candidate-not-elided-counts
+                   'candidate-not-elided-provider-export
+                   0))
+   (list "bridge-public-cell-candidate-not-elided-support-provider-count"
+         (hash-ref public-cell-candidate-not-elided-counts
+                   'candidate-not-elided-support-provider
+                   0))
+   (list "bridge-public-cell-candidate-not-elided-installed-provider-count"
+         (hash-ref public-cell-candidate-not-elided-counts
+                   'candidate-not-elided-installed-provider
+                   0))
+   (list "bridge-public-cell-candidate-not-elided-importer-needs-cell-count"
+         (hash-ref public-cell-candidate-not-elided-counts
+                   'candidate-not-elided-importer-needs-cell
+                   0))
+   (list "bridge-public-cell-candidate-not-elided-registry-shape-count"
+         (hash-ref public-cell-candidate-not-elided-counts
+                   'candidate-not-elided-registry-shape
+                   0))
+   (list "bridge-public-cell-candidate-not-elided-unknown-count"
+         (hash-ref public-cell-candidate-not-elided-counts
+                   'candidate-not-elided-unknown
+                   0))
+   (list "bridge-public-cell-candidate-not-elided-top-modules"
+         (bridge-top-count-summary
+          (bridge-public-cell-candidate-not-elided-module-counts graph stats)))
+   (list "bridge-public-cell-candidate-not-elided-top-names"
+         (bridge-top-count-summary
+          (bridge-public-cell-candidate-not-elided-name-counts graph stats)))
    (list "bridge-export-cell-elision-candidate-count"
          (hash-ref public-cell-counts 'plain-value-candidate 0))
    (list "bridge-export-cell-elision-blocked-reexport-count"

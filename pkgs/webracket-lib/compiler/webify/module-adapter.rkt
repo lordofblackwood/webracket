@@ -98,16 +98,12 @@
             'phase0-value-space-only? #t
             'dynamic-require-sensitive? #f)))
 
-;; plain-value-export-candidate? : hash? -> boolean?
+;; plain-value-export-base-candidate? : hash? -> boolean?
 ;;   Check the conservative safety preconditions for eliding one public export cell.
-(define (plain-value-export-candidate? meta)
+(define (plain-value-export-base-candidate? meta)
   (define module-name (hash-ref meta 'module-name #f))
-  (define allowed-modules
-    (current-module-bridge-elidable-module-names))
   (and module-name
        (symbol? module-name)
-       (or (not allowed-modules)
-           (memq module-name allowed-modules))
        (hash-ref meta 'public-boundary? #f)
        (hash-ref meta 'immutable? #f)
        (not (hash-ref meta 'reexport? #f))
@@ -116,6 +112,23 @@
        (not (hash-ref meta 'reflection-visible? #f))
        (not (hash-ref meta 'dynamic-require-sensitive? #f))
        (hash-ref meta 'phase0-value-space-only? #f)))
+
+;; plain-value-export-policy-eligible? : hash? -> boolean?
+;;   Check whether the current public-cell elision policy allows this module.
+(define (plain-value-export-policy-eligible? meta)
+  (define module-name (hash-ref meta 'module-name #f))
+  (define allowed-modules
+    (current-module-bridge-elidable-module-names))
+  (and module-name
+       (symbol? module-name)
+       (or (not allowed-modules)
+           (memq module-name allowed-modules))))
+
+;; plain-value-export-candidate? : hash? -> boolean?
+;;   Check whether one public export satisfies both safety and policy checks.
+(define (plain-value-export-candidate? meta)
+  (and (plain-value-export-base-candidate? meta)
+       (plain-value-export-policy-eligible? meta)))
 
 ;; export-entry-kind : hash? hash? -> symbol?
 ;;   Decide whether one public export should stay cell-backed or become a plain value.
@@ -212,9 +225,18 @@
 
 ;; record-export-cell-stats! : any/c (listof symbol?) (listof symbol?) (or/c symbol? #f) -> void?
 ;;   Publish conservative export-cell metadata for dry-run bridge analysis.
-(define (record-export-cell-stats! expr exports export-args module-name importss)
+(define (record-export-cell-stats! expr
+                                   exports
+                                   export-args
+                                   module-name
+                                   importss
+                                   #:export-entries [export-entries #f])
   (define metas
-    (export-arg-metadata-list expr exports export-args module-name importss))
+    (if export-entries
+        (for/list ([export (in-list exports)])
+          (bridge-export-entry-metadata
+           (hash-ref export-entries export)))
+        (export-arg-metadata-list expr exports export-args module-name importss)))
   (for ([meta (in-list metas)])
     (define export (hash-ref meta 'export))
     (webify-bridge-stats-set! (list 'bridge-export-cell-meta module-name export) meta)
@@ -629,15 +651,23 @@
                  [meta (in-list metas)])
       (define cell-id (hash-ref cell-id-map export))
       (define value-id (hash-ref value-id-map export))
+      (define selected-kind
+        (export-entry-kind meta forced-cell-exports))
       (define enriched-meta
         (hash-set* meta
                    'cell-id cell-id
-                   'value-id value-id))
+                   'value-id value-id
+                   'plain-value-base-candidate? (plain-value-export-base-candidate? meta)
+                   'plain-value-policy-eligible? (plain-value-export-policy-eligible? meta)
+                   'forced-cell? (and export
+                                      (hash-ref forced-cell-exports export #f)
+                                      #t)
+                   'selected-export-kind selected-kind))
       (values export
               (bridge-export-entry
                export
-               (export-entry-kind enriched-meta forced-cell-exports)
-               (if (eq? (export-entry-kind enriched-meta forced-cell-exports) 'value)
+               selected-kind
+               (if (eq? selected-kind 'value)
                    value-id
                    cell-id)
                enriched-meta))))
@@ -772,7 +802,12 @@
            (webify-bridge-stats-inc! 'bridge-public-cell-kept-unknown-count)]
           [else
            (webify-bridge-stats-inc! 'bridge-public-cell-kept-unknown-count)]))))
-  (record-export-cell-stats! adapted-expr exports export-args module-name importss)
+  (record-export-cell-stats! adapted-expr
+                            exports
+                            export-args
+                            module-name
+                            importss
+                            #:export-entries chosen-export-entries)
   `(begin
      (define ,proc-id ,late-adapted-expr)
      ,@(for/list ([export     (in-list exports)]

@@ -187,6 +187,10 @@
   (check-true (hash-ref meta 'reflection-visible? #f))
   (check-true (hash-ref meta 'phase0-value-space-only? #f))
   (check-false (hash-ref meta 'dynamic-require-sensitive? #t))
+  (check-false (hash-ref meta 'plain-value-base-candidate? #t))
+  (check-true (hash-ref meta 'plain-value-policy-eligible? #f))
+  (check-false (hash-ref meta 'forced-cell? #t))
+  (check-equal? (hash-ref meta 'selected-export-kind 'missing) 'cell)
   (check-equal? (hash-ref stats 'bridge-export-cell-public-boundary-count 0) 1)
   (check-equal? (hash-ref stats 'bridge-export-cell-reexport-count 0) 1)
   (check-equal? (hash-ref stats 'bridge-export-cell-mutated-count 0) 1)
@@ -233,7 +237,11 @@
                    'undefined-sensitive? #f
                    'reflection-visible? #f
                    'dynamic-require-sensitive? #f
-                   'phase0-value-space-only? #t))
+                   'phase0-value-space-only? #t
+                   'plain-value-base-candidate? #t
+                   'plain-value-policy-eligible? #t
+                   'forced-cell? #f
+                   'selected-export-kind 'value))
        ((bridge-export-cell-meta demo/reexport out)
         . ,(hasheq 'module-name 'demo/reexport
                    'export 'out
@@ -244,7 +252,11 @@
                    'undefined-sensitive? #f
                    'reflection-visible? #f
                    'dynamic-require-sensitive? #f
-                   'phase0-value-space-only? #t))
+                   'phase0-value-space-only? #t
+                   'plain-value-base-candidate? #f
+                   'plain-value-policy-eligible? #t
+                   'forced-cell? #f
+                   'selected-export-kind 'cell))
        ((bridge-export-cell-meta demo/mutated state)
         . ,(hasheq 'module-name 'demo/mutated
                    'export 'state
@@ -255,7 +267,11 @@
                    'undefined-sensitive? #f
                    'reflection-visible? #f
                    'dynamic-require-sensitive? #f
-                   'phase0-value-space-only? #t))
+                   'phase0-value-space-only? #t
+                   'plain-value-base-candidate? #f
+                   'plain-value-policy-eligible? #t
+                   'forced-cell? #f
+                   'selected-export-kind 'cell))
        ((bridge-export-cell-meta demo/reflective ref)
         . ,(hasheq 'module-name 'demo/reflective
                    'export 'ref
@@ -266,7 +282,11 @@
                    'undefined-sensitive? #f
                    'reflection-visible? #t
                    'dynamic-require-sensitive? #f
-                   'phase0-value-space-only? #t)))))
+                   'phase0-value-space-only? #t
+                   'plain-value-base-candidate? #f
+                   'plain-value-policy-eligible? #t
+                   'forced-cell? #f
+                   'selected-export-kind 'cell)))))
   (define graph
     (webracket/base-local-module-graph
      'demo/root
@@ -294,6 +314,97 @@
   (check-true
    (for/or ([(name count) (in-hash (bridge-public-cell-candidate-name-counts graph stats))])
      (and (eq? name 'out)
+          (= count 1)))))
+
+(test-case "candidate-not-elided diagnostics separate policy and importer blockers"
+  (define stats
+    (make-hash
+     `(((bridge-export-cell-meta demo/local out)
+        . ,(hasheq 'module-name 'demo/local
+                   'export 'out
+                   'public-boundary? #t
+                   'immutable? #t
+                   'reexport? #f
+                   'mutated? #f
+                   'undefined-sensitive? #f
+                   'reflection-visible? #f
+                   'dynamic-require-sensitive? #f
+                   'phase0-value-space-only? #t
+                   'plain-value-base-candidate? #t
+                   'plain-value-policy-eligible? #t
+                   'forced-cell? #t
+                   'selected-export-kind 'cell))
+       ((bridge-export-cell-meta web-easy helper)
+        . ,(hasheq 'module-name 'web-easy
+                   'export 'helper
+                   'public-boundary? #t
+                   'immutable? #t
+                   'reexport? #f
+                   'mutated? #f
+                   'undefined-sensitive? #f
+                   'reflection-visible? #f
+                   'dynamic-require-sensitive? #f
+                   'phase0-value-space-only? #t
+                   'plain-value-base-candidate? #t
+                   'plain-value-policy-eligible? #f
+                   'forced-cell? #f
+                   'selected-export-kind 'cell))
+       ((bridge-export-cell-meta racket/private/kw keyword-apply)
+        . ,(hasheq 'module-name 'racket/private/kw
+                   'export 'keyword-apply
+                   'public-boundary? #t
+                   'immutable? #t
+                   'reexport? #f
+                   'mutated? #f
+                   'undefined-sensitive? #f
+                   'reflection-visible? #f
+                   'dynamic-require-sensitive? #f
+                   'phase0-value-space-only? #t
+                   'plain-value-base-candidate? #t
+                   'plain-value-policy-eligible? #f
+                   'forced-cell? #f
+                   'selected-export-kind 'cell))
+       ((bridge-export-cell-meta demo/elided ok)
+        . ,(hasheq 'module-name 'demo/elided
+                   'export 'ok
+                   'public-boundary? #t
+                   'immutable? #t
+                   'reexport? #f
+                   'mutated? #f
+                   'undefined-sensitive? #f
+                   'reflection-visible? #f
+                   'dynamic-require-sensitive? #f
+                   'phase0-value-space-only? #t
+                   'plain-value-base-candidate? #t
+                   'plain-value-policy-eligible? #t
+                   'forced-cell? #f
+                   'selected-export-kind 'value)))))
+  (define graph
+    (webracket/base-local-module-graph
+     'demo/root
+     '()
+     #f
+     (hasheq 'demo/local 'local-user
+             'web-easy 'support-provider
+             'racket/private/kw 'installed-provider
+             'demo/elided 'local-user)))
+  (define counts
+    (bridge-public-cell-candidate-not-elided-counts graph stats))
+  (check-equal? (hash-ref counts 'candidate-not-elided 0) 3)
+  (check-equal? (hash-ref counts 'candidate-not-elided-local-only-policy 0) 2)
+  (check-equal? (hash-ref counts 'candidate-not-elided-provider-export 0) 2)
+  (check-equal? (hash-ref counts 'candidate-not-elided-support-provider 0) 1)
+  (check-equal? (hash-ref counts 'candidate-not-elided-installed-provider 0) 1)
+  (check-equal? (hash-ref counts 'candidate-not-elided-importer-needs-cell 0) 1)
+  (check-equal? (hash-ref counts 'candidate-not-elided-registry-shape 0) 0)
+  (check-equal? (hash-ref counts 'candidate-not-elided-unknown 0) 0)
+  (check-true
+   (for/or ([(name count) (in-hash (bridge-public-cell-candidate-not-elided-module-counts graph stats))])
+     (and (eq? name 'web-easy)
+          (= count 1))))
+  (check-true
+   (for/or ([(name count) (in-hash (bridge-public-cell-candidate-not-elided-name-counts graph stats))])
+     (and (eq? name 'helper)
           (= count 1)))))
 
 (test-case "experimental public-cell elision keeps candidate exports as plain values"
