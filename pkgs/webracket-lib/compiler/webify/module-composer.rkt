@@ -24,6 +24,7 @@
 
 (require racket/list
          racket/match
+         "bridge-stats.rkt"
          "first-slice.rkt"
          "module-instance.rkt"
          "primitive-modules.rkt")
@@ -43,6 +44,22 @@
   (and (symbol? name)
        (regexp-match? #rx"^directory-list\\.[0-9]+$" (symbol->string name))))
 
+;; compiled-primitive-base-name : symbol? -> symbol?
+;;   Remove decompiler/internal suffixes such as `sort7.1` from primitive imports.
+(define (compiled-primitive-base-name name)
+  (string->symbol
+   (regexp-replace #rx"[0-9]*[.][0-9]+$"
+                   (symbol->string name)
+                   "")))
+
+;; compiled-keyword-primitive-alias : symbol? symbol? -> (or/c symbol? #f)
+;;   Recover canonical primitive names for keyword-capable primitive aliases.
+(define (compiled-keyword-primitive-alias import-name export-name)
+  (for/or ([name (in-list (list import-name export-name))])
+    (define base (compiled-primitive-base-name name))
+    (and (memq base '(sort vector-sort vector-sort!))
+         base)))
+
 ;; compiled-primitive-import-cell-export : symbol? symbol? -> symbol?
 ;;   Adapt compiled internal primitive imports whose local calling convention
 ;;   differs from the public WebRacket primitive.
@@ -50,6 +67,7 @@
   (cond
     [(compiled-directory-list-build-first-import? import-name)
      'webracket-directory-list-build-first]
+    [(compiled-keyword-primitive-alias import-name export-name)]
     [else export-name]))
 
 ;; symbolic-import-name=? : symbol? symbol? -> boolean?
@@ -140,13 +158,17 @@
                            "slice name must be a symbol"
                            "name" (webify-linklet-slice-spec-name spec))))
 
-;; all-cell-import-abis? : any/c -> boolean?
-;;   Check whether import ABI metadata says every import is passed as a cell.
-(define (all-cell-import-abis? imports-abis)
+;; valid-imports-abis? : any/c -> boolean?
+;;   Check whether grouped import ABI metadata uses supported boolean/shape tags.
+(define (valid-imports-abis? imports-abis)
   (and (list? imports-abis)
        (for/and ([group (in-list imports-abis)])
          (and (list? group)
-              (andmap not group)))))
+              (for/and ([abi (in-list group)])
+                (or (not abi)
+                    (eq? abi #t)
+                    (eq? abi 'proc)
+                    (exact-nonnegative-integer? abi)))))))
 
 ;; validate-import-source! : symbol? any/c -> void?
 ;;   Reject import source triples that cannot resolve through previous instances.
@@ -258,9 +280,9 @@
                            "(or/c (listof source-triple?) (listof (listof source-triple?)))"
                            import-sources)]))
 
-;; import-source->mapping : symbol? hash? any/c -> pair?
-;;   Resolve one source triple to the mapping expected by instance import-envs.
-(define (import-source->mapping who instances source)
+;; import-source->mapping : symbol? hash? any/c any/c -> pair?
+;;   Resolve one source triple to the explicit import argument expected by a slice.
+(define (import-source->mapping who instances source import-abi)
   (validate-import-source! who source)
   (match-define (list import-name instance-name export-name) source)
   (cons import-name
@@ -268,13 +290,17 @@
           [(primitive-module-name? instance-name)
            (define cell-export-name
              (compiled-primitive-import-cell-export import-name export-name))
-           (hash-ref
-            (current-composer-primitive-import-cell-overrides)
-            cell-export-name
-            (lambda ()
-              `(let ([cell (module-variable-make ',cell-export-name)])
-                 (module-variable-define! cell ,cell-export-name 'constant)
-                 cell)))]
+           (if import-abi
+               (begin
+                 (webify-bridge-stats-inc! 'bridge-direct-primitive-import-count)
+                 cell-export-name)
+               (hash-ref
+                (current-composer-primitive-import-cell-overrides)
+                cell-export-name
+                (lambda ()
+                  `(let ([cell (module-variable-make ',cell-export-name)])
+                     (module-variable-define! cell ,cell-export-name 'constant)
+                     cell))))]
           [else
            (define instance
              (hash-ref instances
@@ -285,19 +311,37 @@
                                                 "instance" instance-name
                                                 "import" import-name
                                                 "available instances" (hash-keys instances)))))
-           (webify-module-instance-export-cell-id instance export-name)])))
+           (if import-abi
+               (begin
+                 (webify-bridge-stats-inc! 'bridge-direct-local-ref-count)
+                 (webify-module-instance-export-value-id instance export-name))
+               (webify-module-instance-export-cell-id instance export-name))])))
 
-;; import-sources->envs : hash? (listof (listof source?)) -> (listof hash?)
-;;   Resolve grouped import source triples to grouped import cell environments.
-(define (import-sources->envs who instances import-sources)
+;; import-sources->envs : hash? (listof (listof source?)) (listof (listof any/c)) -> (listof hash?)
+;;   Resolve grouped import source triples to grouped explicit-import environments.
+(define (import-sources->envs who instances import-sources imports-abis)
   (unless (list? import-sources)
     (raise-argument-error who "list?" import-sources))
-  (for/list ([group (in-list import-sources)])
+  (unless (valid-imports-abis? imports-abis)
+    (raise-argument-error who "(listof (listof (or/c #f #t 'proc exact-nonnegative-integer?)))" imports-abis))
+  (unless (= (length import-sources) (length imports-abis))
+    (raise-arguments-error who
+                           "import ABI group count does not match import sources"
+                           "import source groups" (length import-sources)
+                           "import ABI groups" (length imports-abis)))
+  (for/list ([group     (in-list import-sources)]
+             [abi-group (in-list imports-abis)])
     (unless (list? group)
       (raise-argument-error who "(listof list?)" import-sources))
+    (unless (= (length group) (length abi-group))
+      (raise-arguments-error who
+                             "import ABI count does not match one import group"
+                             "import group" group
+                             "import ABI group" abi-group))
     (define entries
-      (for/list ([source (in-list group)])
-        (import-source->mapping who instances source)))
+      (for/list ([source     (in-list group)]
+                 [import-abi (in-list abi-group)])
+        (import-source->mapping who instances source import-abi)))
     (define duplicate (check-duplicates (map car entries)))
     (when duplicate
       (raise-arguments-error who
@@ -417,9 +461,9 @@
       (when new-import-keys
         (error who
                "inlining-added import groups are not supported by the linklet composer yet"))
-      (unless (all-cell-import-abis? imports-abis)
+      (unless (valid-imports-abis? imports-abis)
         (error who
-               "value import ABIs are not supported by the linklet composer yet"))
+               "unsupported import ABI metadata in the linklet composer"))
       (define raw-import-sources (webify-linklet-slice-spec-import-sources spec))
       (define import-sources
         (normalize-linklet-import-sources who name importss raw-import-sources))
@@ -452,10 +496,11 @@
              name
              expr
              importss
-             (import-sources->envs who instances/self import-sources)
+             (import-sources->envs who instances/self import-sources imports-abis)
              exports
              #:reserved reserved
              #:instance self-instance
+             #:imports-abis imports-abis
              #:define-export-aliases? define-export-aliases?)))
       (values (cons (webify-module-fragment datum instance) reverse-fragments)
               (hash-set instances name instance)

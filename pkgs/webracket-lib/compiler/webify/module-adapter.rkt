@@ -1,9 +1,11 @@
 #lang racket/base
 
 (provide strip-correlated
+         first-slice-import-args
          first-slice-import-cell-args
          first-slice-top-level-helper-ids
          first-slice-top-level-export-cell-ids
+         first-slice-top-level-export-value-ids
          first-slice->top-level-datum
          first-slice->top-level-datum/imports
          first-slice->top-level-syntax
@@ -12,6 +14,7 @@
 
 (require racket/list
          racket/match
+         "bridge-stats.rkt"
          "first-slice.rkt"
          "wrap.rkt")
 
@@ -83,32 +86,68 @@
                            "duplicate import names are not supported"
                            "import" duplicate)))
 
-;; bind-import-cells : any/c (listof (listof symbol?)) exact-nonnegative-integer? -> any/c
-;;   Introduce lexical imports by reading the corresponding module-variable cells.
-(define (bind-import-cells expr importss import-count)
-  (validate-importss! 'bind-import-cells importss)
+;; validate-imports-abis! : symbol? any/c (listof (listof symbol?)) -> void?
+;;   Reject import ABI metadata that does not match grouped import names.
+(define (validate-imports-abis! who imports-abis importss)
+  (define valid?
+    (and (list? imports-abis)
+         (= (length imports-abis) (length importss))
+         (for/and ([group      (in-list imports-abis)]
+                   [name-group (in-list importss)])
+           (and (list? group)
+                (= (length group) (length name-group))))))
+  (unless valid?
+    (raise-arguments-error who
+                           "import ABI metadata does not match grouped imports"
+                           "imports-abis" imports-abis
+                           "imports" importss)))
+
+;; default-imports-abis : (listof (listof symbol?)) -> (listof (listof #f))
+;;   Treat every import as a cell-backed binding when no ABI metadata is present.
+(define (default-imports-abis importss)
+  (for/list ([group (in-list importss)])
+    (for/list ([name (in-list group)])
+      #f)))
+
+;; bind-imports : any/c (listof (listof symbol?)) any/c exact-nonnegative-integer? -> any/c
+;;   Introduce lexical imports from either direct values or module-variable cells.
+(define (bind-imports expr importss imports-abis import-count)
+  (validate-importss! 'bind-imports importss)
+  (validate-imports-abis! 'bind-imports imports-abis importss)
   (define import-names (flatten-groups importss))
+  (define import-abis  (flatten-groups imports-abis))
+  (define direct-import-count
+    (for/sum ([abi (in-list import-abis)])
+      (if abi 1 0)))
+  (define cell-import-count
+    (- (length import-abis) direct-import-count))
+  (webify-bridge-stats-inc! 'bridge-direct-import-count direct-import-count)
+  (webify-bridge-stats-inc! 'bridge-import-cell-count cell-import-count)
+  (webify-bridge-stats-inc! 'bridge-cell-elision-count direct-import-count)
   (unless (= (length import-names) import-count)
-    (raise-arguments-error 'bind-import-cells
+    (raise-arguments-error 'bind-imports
                            "import metadata count does not match lowered lambda"
                            "metadata count" (length import-names)
                            "lambda import count" import-count
                            "imports" importss))
   (match expr
     [`(lambda ,args ,body ...)
-     (define import-cell-args (take (cdr args) import-count))
+     (define import-args (take (cdr args) import-count))
      (define duplicate (check-duplicates (append import-names args)))
      (when duplicate
-       (raise-arguments-error 'bind-import-cells
+       (raise-arguments-error 'bind-imports
                               "import name collides with generated lambda argument"
                               "name" duplicate))
      `(lambda ,args
         ,@(for/list ([name (in-list import-names)]
-                     [cell (in-list import-cell-args)])
-            `(define ,name (module-variable-ref ,cell)))
+                     [arg  (in-list import-args)]
+                     [abi  (in-list import-abis)])
+            `(define ,name ,(if abi
+                                arg
+                                `(module-variable-ref ,arg))))
         ,@body)]
     [_
-     (raise-arguments-error 'bind-import-cells
+     (raise-arguments-error 'bind-imports
                             "expected lowered first-slice value to be a lambda"
                             "form" expr)]))
 
@@ -133,6 +172,12 @@
   (fresh-internal-id (string->symbol (format "webify-export-cell~a" index))
                      reserved))
 
+;; generated-value-id : exact-nonnegative-integer? (listof symbol?) -> symbol?
+;;   Build an internal lexical binding name for one exported value.
+(define (generated-value-id index reserved)
+  (fresh-internal-id (string->symbol (format "webify-export-value~a" index))
+                     reserved))
+
 ;; validate-reserved-ids! : symbol? any/c -> void?
 ;;   Reject reserved-name lists that cannot be used for deterministic avoidance.
 (define (validate-reserved-ids! who reserved)
@@ -145,44 +190,41 @@
 (define (flatten-groups groups)
   (apply append groups))
 
-;; all-cell-import-abis? : any/c -> boolean?
-;;   Check whether import ABI metadata says every import is passed as a cell.
-(define (all-cell-import-abis? imports-abis)
-  (and (list? imports-abis)
-       (for/and ([group (in-list imports-abis)])
-         (and (list? group)
-              (andmap not group)))))
-
-;; first-slice-import-cell-args : (listof (listof symbol?)) (listof hash?) -> (listof any/c)
-;;   Resolve grouped import metadata to the flat import-cell argument order.
-(define (first-slice-import-cell-args importss import-cell-envs)
-  (define who 'first-slice-import-cell-args)
+;; first-slice-import-args : (listof (listof symbol?)) (listof hash?) -> (listof any/c)
+;;   Resolve grouped import metadata to the flat explicit-import argument order.
+(define (first-slice-import-args importss import-envs)
+  (define who 'first-slice-import-args)
   (unless (and (list? importss)
                (for/and ([group (in-list importss)])
                  (and (list? group)
                       (andmap symbol? group))))
     (raise-argument-error who "(listof (listof symbol?))" importss))
-  (unless (and (list? import-cell-envs)
-               (andmap hash? import-cell-envs))
-    (raise-argument-error who "(listof hash?)" import-cell-envs))
-  (unless (= (length importss) (length import-cell-envs))
+  (unless (and (list? import-envs)
+               (andmap hash? import-envs))
+    (raise-argument-error who "(listof hash?)" import-envs))
+  (unless (= (length importss) (length import-envs))
     (raise-arguments-error who
-                           "import cell environment count does not match import groups"
+                           "import argument environment count does not match import groups"
                            "expected count" (length importss)
-                           "actual count" (length import-cell-envs)
+                           "actual count" (length import-envs)
                            "imports" importss))
   (apply
    append
    (for/list ([imports (in-list importss)]
-              [env     (in-list import-cell-envs)])
+              [env     (in-list import-envs)])
      (for/list ([import (in-list imports)])
        (hash-ref env
                  import
                  (lambda ()
                    (raise-arguments-error who
-                                          "missing import cell"
+                                          "missing import argument"
                                           "import" import
                                           "available imports" (hash-keys env))))))))
+
+;; first-slice-import-cell-args : (listof (listof symbol?)) (listof hash?) -> (listof any/c)
+;;   Backward-compatible alias for explicit import argument resolution.
+(define first-slice-import-cell-args
+  first-slice-import-args)
 
 ;; first-slice-top-level-helper-ids : (listof symbol?) [#:reserved (listof symbol?)] -> (listof symbol?)
 ;;   Return the internal helper ids that the adapter would reserve for exports.
@@ -205,6 +247,19 @@
   (for/hasheq ([export  (in-list exports)]
                [cell-id (in-list cell-ids)])
     (values export cell-id)))
+
+;; first-slice-top-level-export-value-ids : (listof symbol?) [#:reserved (listof symbol?)] -> hasheq?
+;;   Map export names to internal lexical bindings that cache exported values.
+(define (first-slice-top-level-export-value-ids exports #:reserved [reserved '()])
+  (define helper-ids (first-slice-top-level-helper-ids exports #:reserved reserved))
+  (define reserved* (append exports reserved helper-ids))
+  (define value-ids
+    (for/list ([_export (in-list exports)]
+               [index   (in-naturals)])
+      (generated-value-id index reserved*)))
+  (for/hasheq ([export   (in-list exports)]
+               [value-id (in-list value-ids)])
+    (values export value-id)))
 
 ;; export-alias-enabled? : any/c symbol? -> boolean?
 ;;   Decide whether to define a top-level alias for an exported cell.
@@ -233,6 +288,7 @@
                                              exports
                                              #:reserved [reserved '()]
                                              #:importss [importss #f]
+                                             #:imports-abis [imports-abis #f]
                                              #:define-export-aliases? [define-export-aliases? #t])
   (unless (list? import-args)
     (raise-argument-error 'first-slice->top-level-datum/imports "list?" import-args))
@@ -242,21 +298,36 @@
   (validate-first-slice-lambda! 'first-slice->top-level-datum clean-expr (length import-args) exports)
   (define adapted-expr
     (if importss
-        (bind-import-cells clean-expr importss (length import-args))
+        (bind-imports clean-expr
+                      importss
+                      (or imports-abis
+                          (default-imports-abis importss))
+                      (length import-args))
         clean-expr))
   (define helper-ids (first-slice-top-level-helper-ids exports #:reserved reserved))
   (define proc-id (car helper-ids))
   (define cell-ids (cdr helper-ids))
+  (define value-id-map
+    (first-slice-top-level-export-value-ids exports #:reserved reserved))
+  (define value-ids
+    (for/list ([export (in-list exports)])
+      (hash-ref value-id-map export)))
+  (webify-bridge-stats-inc! 'bridge-export-cell-count (length cell-ids))
+  (webify-bridge-stats-inc! 'bridge-module-variable-make-count (length cell-ids))
   `(begin
      (define ,proc-id ,adapted-expr)
      ,@(for/list ([cell-id (in-list cell-ids)]
                   [export  (in-list exports)])
          `(define ,cell-id (module-variable-make ',export)))
      (,proc-id (#%variable-reference) ,@import-args ,@cell-ids)
+     ,@(for/list ([cell-id   (in-list cell-ids)]
+                  [value-id  (in-list value-ids)])
+         `(define ,value-id (module-variable-ref ,cell-id)))
      ,@(for/list ([cell-id (in-list cell-ids)]
                   [export  (in-list exports)]
+                  [value-id (in-list value-ids)]
                   #:when (export-alias-enabled? define-export-aliases? export))
-         `(define ,export (module-variable-ref ,cell-id)))
+         `(define ,export ,value-id))
      (void)))
 
 ;; first-slice->top-level-syntax : any/c (listof symbol?) keyword-args -> syntax?
@@ -315,9 +386,6 @@
   (when new-import-keys
     (error 'webify-linklet-first-slice-top-level/imports
            "inlining-added import groups are not supported by the explicit-import adapter yet"))
-  (unless (all-cell-import-abis? imports-abis)
-    (error 'webify-linklet-first-slice-top-level/imports
-           "value import ABIs are not supported by the explicit-import adapter yet"))
   (define import-count (length (flatten-groups importss)))
   (unless (= import-count (length import-args))
     (raise-arguments-error 'webify-linklet-first-slice-top-level/imports
@@ -333,6 +401,7 @@
             exports
             #:reserved reserved
             #:importss importss
+            #:imports-abis imports-abis
             #:define-export-aliases? define-export-aliases?))
           importss
           exports

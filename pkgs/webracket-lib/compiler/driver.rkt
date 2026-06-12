@@ -123,8 +123,13 @@
                   webify-linklet-first-slice-top-level)
          (only-in "webify/module-composer.rkt"
                   current-composer-primitive-import-cell-overrides)
+         (only-in "webify/bridge-stats.rkt"
+                  current-webify-bridge-stats)
          (only-in "webify/module-registry.rkt"
                   webify-compose-module-registry/roots/composition
+                  webify-module-composition-datum
+                  webify-module-composition-fragments
+                  webify-module-composition-instances
                   webify-module-composition-with-tail)
          (only-in "webify/module-input.rkt"
                   datum->webify-module-linklet-manifest
@@ -421,6 +426,89 @@
 
 (define current-module-bridge-detail-rows
   (make-parameter '()))
+
+;; module-bridge-datum-operator-count : any/c symbol? -> exact-nonnegative-integer?
+;;   Count bridge operator calls while skipping quoted/template data.
+(define (module-bridge-datum-operator-count datum target)
+  (cond
+    [(pair? datum)
+     (match datum
+       [`(,(or 'quote 'quote-syntax 'syntax 'quasiquote) . ,_)
+        0]
+       [`(,head . ,rest)
+        (+ (if (eq? head target) 1 0)
+           (module-bridge-datum-operator-count head target)
+           (module-bridge-datum-operator-count rest target))]
+       [_ 0])]
+    [(vector? datum)
+     (for/sum ([entry (in-vector datum)])
+       (module-bridge-datum-operator-count entry target))]
+    [else
+     0]))
+
+;; module-bridge-report-reexport-count : webify-module-report? -> exact-nonnegative-integer?
+;;   Approximate phase-0 reexports as names that are both imported and exported.
+(define (module-bridge-report-reexport-count report)
+  (define imported
+    (remove-duplicates
+     (webify-module-report-phase0-imports report)
+     eq?))
+  (for/sum ([export (in-list (remove-duplicates
+                              (webify-module-report-phase0-exports report)
+                              eq?))])
+    (if (memq export imported) 1 0)))
+
+;; module-bridge-graph-metric-rows : graph composition -> (listof (list/c string? any/c))
+;;   Summarize bridge scaffolding and graph shape before the main compiler pipeline.
+(define (module-bridge-graph-metric-rows graph composition)
+  (define reports (webracket/base-local-module-graph-reports graph))
+  (define datum   (webify-module-composition-datum composition))
+  (define stats   (or (current-webify-bridge-stats) (make-hasheq)))
+  (define local-module-count (length reports))
+  (define direct-provider-names (webracket/base-external-provider-names reports))
+  (define graph-module-count
+    (hash-count (webify-module-composition-instances composition)))
+  (define total-export-count
+    (for/sum ([report (in-list reports)])
+      (length (webify-module-report-phase0-exports report))))
+  (define total-import-count
+    (for/sum ([report (in-list reports)])
+      (length (webify-module-report-phase0-imports report))))
+  (define reexport-count
+    (for/sum ([report (in-list reports)])
+      (module-bridge-report-reexport-count report)))
+  (define (stat key [default 0])
+    (hash-ref stats key default))
+  (list
+   (list "bridge-module-variable-make-count"
+         (module-bridge-datum-operator-count datum 'module-variable-make))
+   (list "bridge-module-variable-define-count"
+         (module-bridge-datum-operator-count datum 'module-variable-define!))
+   (list "bridge-module-variable-ref-count"
+         (module-bridge-datum-operator-count datum 'module-variable-ref))
+   (list "bridge-module-variable-ref-no-check-count"
+         (module-bridge-datum-operator-count datum 'module-variable-ref/no-check))
+   (list "bridge-module-variable-set-count"
+         (+ (module-bridge-datum-operator-count datum 'module-variable-set!)
+            (module-bridge-datum-operator-count datum 'module-variable-set!/check-undefined!)))
+   (list "bridge-export-cell-count" (stat 'bridge-export-cell-count))
+   (list "bridge-import-cell-count" (stat 'bridge-import-cell-count))
+   (list "bridge-direct-import-count" (stat 'bridge-direct-import-count))
+   (list "bridge-direct-local-ref-count" (stat 'bridge-direct-local-ref-count))
+   (list "bridge-cell-elision-count" (stat 'bridge-cell-elision-count))
+   (list "bridge-unsafe-struct-ref-count"
+         (+ (module-bridge-datum-operator-count datum 'unsafe-struct-ref)
+            (module-bridge-datum-operator-count datum 'unsafe-struct*-ref)))
+   (list "bridge-unsafe-struct-predicate-count"
+         (+ (module-bridge-datum-operator-count datum 'unsafe-struct?)
+            (module-bridge-datum-operator-count datum 'unsafe-struct*?)))
+   (list "provider-count" (length direct-provider-names))
+   (list "local-module-count" local-module-count)
+   (list "graph-module-count" graph-module-count)
+   (list "export-count" total-export-count)
+   (list "import-count" total-import-count)
+   (list "reexport-count" reexport-count)
+   (list "transitive-provider-count" (max 0 (- graph-module-count local-module-count)))))
 
 (define current-source-module-language
   (make-parameter #f))
@@ -1599,6 +1687,7 @@
   (current-source-module-language #f)
   (current-source-module-provider-names #f)
   (current-module-bridge-detail-rows '())
+  (current-webify-bridge-stats (make-hasheq))
 
   (current-browser? browser?)
   (current-enable-cc-analysis? enable-cc-analysis?)
@@ -2002,6 +2091,19 @@
                 (list (list "total"
                             (for/sum ([row (in-list module-bridge-detail-rows)])
                               (second row))))))))
+      (define module-bridge-metric-rows
+        (filter (lambda (row)
+                  (let ([value (second row)])
+                    (not (and (number? value)
+                              (zero? value)))))
+                (hash-ref (current-webify-bridge-stats)
+                          'module-bridge-metric-rows
+                          '())))
+      (when (pair? module-bridge-metric-rows)
+        (displayln
+         (format-metric-table
+          (for/list ([row (in-list module-bridge-metric-rows)])
+            (list (car row) (~a (second row)))))))
     (displayln "=== Compile Pipeline ===")
     (displayln overall-table)
     (define pass-table (current-pass-timing-table))
@@ -3413,6 +3515,9 @@
             #:compiler-query        (lambda (v) #f)
             #:get-import-knowns     (lambda (key) (values #f #f #f))
             #:import-keys           #f))))))
+  (hash-set! (current-webify-bridge-stats)
+             'module-bridge-metric-rows
+             (module-bridge-graph-metric-rows graph composition))
   (datum->syntax
    #f
    (webify-module-composition-with-tail composition '((void)))))
@@ -3455,6 +3560,9 @@
               #:compiler-query        (lambda (v) #f)
               #:get-import-knowns     (lambda (key) (values #f #f #f))
               #:import-keys           #f)))))
+      (hash-set! (current-webify-bridge-stats)
+                 'module-bridge-metric-rows
+                 (module-bridge-graph-metric-rows graph composition))
       (datum->syntax
        #f
        (webify-module-composition-with-tail composition '((void))))))
@@ -3490,6 +3598,7 @@
                                   [webracket-module-bridge? #f])
   (current-read-source-timing-rows '())
   (current-module-bridge-detail-rows '())
+  (current-webify-bridge-stats (make-hasheq))
   (current-source-module-language #f)
   (define first-line
     (call-with-input-file filename

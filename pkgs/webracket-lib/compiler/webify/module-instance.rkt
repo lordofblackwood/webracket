@@ -5,9 +5,11 @@
          webify-module-instance-name
          webify-module-instance-exports
          webify-module-instance-export-cell-ids
+         webify-module-instance-export-value-ids
          webify-module-instance-helper-ids
          make-webify-module-instance
          webify-module-instance-export-cell-id
+         webify-module-instance-export-value-id
          webify-module-instances-export-cell-id
          webify-module-instance-import-env
          webify-module-instance-reserved-ids
@@ -18,7 +20,7 @@
          racket/match
          "module-adapter.rkt")
 
-(struct webify-module-instance (name exports export-cell-ids helper-ids) #:transparent)
+(struct webify-module-instance (name exports export-cell-ids export-value-ids helper-ids) #:transparent)
 
 ;; validate-instance-name! : symbol? any/c -> void?
 ;;   Reject instance names that cannot identify generated module-instance plans.
@@ -46,7 +48,8 @@
   (validate-instance-exports! who exports)
   (define helper-ids (first-slice-top-level-helper-ids exports #:reserved reserved))
   (define export-cell-ids (first-slice-top-level-export-cell-ids exports #:reserved reserved))
-  (webify-module-instance name exports export-cell-ids helper-ids))
+  (define export-value-ids (first-slice-top-level-export-value-ids exports #:reserved reserved))
+  (webify-module-instance name exports export-cell-ids export-value-ids helper-ids))
 
 ;; webify-module-instance-export-cell-id : webify-module-instance? symbol? -> symbol?
 ;;   Look up the generated cell id for one module-instance export.
@@ -61,6 +64,24 @@
             export
             (lambda ()
               (raise-arguments-error 'webify-module-instance-export-cell-id
+                                     "module instance has no such export"
+                                     "instance" (webify-module-instance-name instance)
+                                     "export" export
+                                     "available exports" (webify-module-instance-exports instance)))))
+
+;; webify-module-instance-export-value-id : webify-module-instance? symbol? -> symbol?
+;;   Look up the generated lexical value id for one module-instance export.
+(define (webify-module-instance-export-value-id instance export)
+  (unless (webify-module-instance? instance)
+    (raise-argument-error 'webify-module-instance-export-value-id
+                          "webify-module-instance?"
+                          instance))
+  (unless (symbol? export)
+    (raise-argument-error 'webify-module-instance-export-value-id "symbol?" export))
+  (hash-ref (webify-module-instance-export-value-ids instance)
+            export
+            (lambda ()
+              (raise-arguments-error 'webify-module-instance-export-value-id
                                      "module instance has no such export"
                                      "instance" (webify-module-instance-name instance)
                                      "export" export
@@ -122,6 +143,8 @@
                           "webify-module-instance?"
                           instance))
   (append (webify-module-instance-exports instance)
+          (for/list ([export (in-list (webify-module-instance-exports instance))])
+            (webify-module-instance-export-value-id instance export))
           (webify-module-instance-helper-ids instance)))
 
 ;; first-slice->module-instance-datum : symbol? any/c (listof symbol?) [#:reserved (listof symbol?)] -> values
@@ -144,12 +167,13 @@
 (define (first-slice->module-instance-datum/imports name
                                                     expr
                                                     importss
-                                                    import-cell-envs
+                                                    import-envs
                                                     exports
                                                     #:reserved [reserved '()]
                                                     #:instance [instance #f]
+                                                    #:imports-abis [imports-abis #f]
                                                     #:define-export-aliases? [define-export-aliases? #t])
-  (define import-args (first-slice-import-cell-args importss import-cell-envs))
+  (define import-args (first-slice-import-args importss import-envs))
   (define instance*
     (or instance
         (make-webify-module-instance name exports #:reserved reserved)))
@@ -159,5 +183,6 @@
            exports
            #:reserved reserved
            #:importss importss
+           #:imports-abis imports-abis
            #:define-export-aliases? define-export-aliases?)
           instance*))
