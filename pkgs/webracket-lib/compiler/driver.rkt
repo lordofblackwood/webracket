@@ -561,6 +561,72 @@
               counts))
         counts)))
 
+;; bridge-import-abi-false-kernel-entries : hash? -> (listof hash?)
+;;   Collect ABI-`#f` import metadata rows for `#%kernel`-classified providers.
+(define (bridge-import-abi-false-kernel-entries stats)
+  (for/list ([entry (in-list (bridge-import-abi-meta-entries stats))]
+             #:when (and (not (hash-ref entry 'abi #f))
+                         (eq? (hash-ref entry 'provider-kind #f) 'kernel-provider)))
+    entry))
+
+;; bridge-import-abi-false-kernel-counts : hash? (-> hash? any/c) -> hasheq?
+;;   Count kernel ABI holdouts using one metadata field extractor.
+(define (bridge-import-abi-false-kernel-counts stats extractor)
+  (for/fold ([counts (hasheq)])
+            ([entry (in-list (bridge-import-abi-false-kernel-entries stats))])
+    (define key (extractor entry))
+    (if key
+        (hash-update counts key add1 0)
+        counts)))
+
+;; bridge-import-abi-false-kernel-details : hash? -> string?
+;;   Render a bounded detail list for residual kernel ABI-`#f` imports.
+(define (bridge-import-abi-false-kernel-details stats)
+  (define entries
+    (sort (bridge-import-abi-false-kernel-entries stats)
+          (lambda (a b)
+            (define a-importer (~a (hash-ref a 'importer-module #f)))
+            (define b-importer (~a (hash-ref b 'importer-module #f)))
+            (or (string<? a-importer b-importer)
+                (and (string=? a-importer b-importer)
+                     (string<?
+                      (~a (hash-ref a 'import-name #f))
+                      (~a (hash-ref b 'import-name #f))))))))
+  (define details
+    (for/list ([entry (in-list (take entries (min 10 (length entries))))])
+      (define importer-module (hash-ref entry 'importer-module #f))
+      (define import-name (hash-ref entry 'import-name #f))
+      (define export-name (hash-ref entry 'export-name #f))
+      (define group-key (hash-ref entry 'group-key #f))
+      (define false-reason (hash-ref entry 'false-reason #f))
+      (define kernel-known? (hash-ref entry 'kernel-known? #f))
+      (define provider-export-meta
+        (and (symbol? (hash-ref entry 'provider-module #f))
+             (symbol? export-name)
+             (hash-ref stats
+                       (list 'bridge-export-cell-meta
+                             (hash-ref entry 'provider-module #f)
+                             export-name)
+                       #f)))
+      (format "~a import=~a export=~a group=~a abi-false=~a candidate=~a forced-cell=~a kernel-known=~a"
+              importer-module
+              import-name
+              export-name
+              (or group-key '-)
+              false-reason
+              (cond
+                [(not provider-export-meta) "-"]
+                [(bridge-public-cell-base-candidate? provider-export-meta) "yes"]
+                [else "no"])
+              (if (and provider-export-meta
+                       (bridge-public-cell-forced-cell? provider-export-meta))
+                  "yes"
+                  (if provider-export-meta "no" "-"))
+              (if kernel-known? "yes" "no"))))
+  (if (null? details)
+      ""
+      (string-join details " | ")))
+
 ;; bridge-top-count-summary : hasheq? -> string?
 ;;   Render the largest bucket counts in descending order for timing output.
 (define (bridge-top-count-summary counts)
@@ -659,7 +725,8 @@
   (define module-counts (bridge-export-cell-module-counts stats))
   (for/fold ([counts (hasheq 'local-user 0
                              'support-provider 0
-                             'installed-provider 0)])
+                             'installed-provider 0
+                             'kernel-provider 0)])
             ([(name cell-count) (in-hash module-counts)])
     (define kind
       (hash-ref (webracket/base-local-module-graph-module-kinds graph)
@@ -718,6 +785,7 @@
                              'candidate-not-elided-provider-export 0
                              'candidate-not-elided-support-provider 0
                              'candidate-not-elided-installed-provider 0
+                             'candidate-not-elided-kernel-provider 0
                              'candidate-not-elided-importer-needs-cell 0
                              'candidate-not-elided-registry-shape 0
                              'candidate-not-elided-unknown 0)])
@@ -735,9 +803,15 @@
                              add1
                              0)]
                            [(installed-provider)
-                            (hash-update
+                           (hash-update
                              (hash-update counts* 'candidate-not-elided-provider-export add1 0)
                              'candidate-not-elided-installed-provider
+                             add1
+                             0)]
+                           [(kernel-provider)
+                            (hash-update
+                             (hash-update counts* 'candidate-not-elided-provider-export add1 0)
+                             'candidate-not-elided-kernel-provider
                              add1
                              0)]
                            [(unknown-provider)
@@ -932,6 +1006,7 @@
    (list "bridge-export-cell-local-user-count" (hash-ref role-counts 'local-user 0))
    (list "bridge-export-cell-support-provider-count" (hash-ref role-counts 'support-provider 0))
    (list "bridge-export-cell-installed-provider-count" (hash-ref role-counts 'installed-provider 0))
+   (list "bridge-export-cell-kernel-provider-count" (hash-ref role-counts 'kernel-provider 0))
    (list "bridge-export-cell-reexport-count" (stat 'bridge-export-cell-reexport-count))
    (list "bridge-export-cell-internal-count"
          (- (stat 'bridge-export-cell-count)
@@ -1028,6 +1103,10 @@
          (hash-ref public-cell-candidate-not-elided-counts
                    'candidate-not-elided-installed-provider
                    0))
+   (list "bridge-public-cell-candidate-not-elided-kernel-provider-count"
+         (hash-ref public-cell-candidate-not-elided-counts
+                   'candidate-not-elided-kernel-provider
+                   0))
    (list "bridge-public-cell-candidate-not-elided-importer-needs-cell-count"
          (hash-ref public-cell-candidate-not-elided-counts
                    'candidate-not-elided-importer-needs-cell
@@ -1084,6 +1163,20 @@
    (list "bridge-import-abi-false-top-reasons"
          (bridge-top-count-summary
           (bridge-import-abi-false-reason-counts stats)))
+   (list "bridge-import-abi-false-kernel-provider-count"
+         (stat 'bridge-import-abi-false-kernel-provider-count))
+   (list "bridge-import-abi-false-kernel-top-names"
+         (bridge-top-count-summary
+          (bridge-import-abi-false-kernel-counts
+           stats
+           (lambda (entry) (hash-ref entry 'import-name #f)))))
+   (list "bridge-import-abi-false-kernel-top-importers"
+         (bridge-top-count-summary
+          (bridge-import-abi-false-kernel-counts
+           stats
+           (lambda (entry) (hash-ref entry 'importer-module #f)))))
+   (list "bridge-import-abi-false-kernel-details"
+         (bridge-import-abi-false-kernel-details stats))
    (list "bridge-import-abi-false-unknown-top-modules"
          (bridge-top-count-summary
           (bridge-import-abi-false-filtered-counts
@@ -1114,8 +1207,12 @@
          (stat 'bridge-import-abi-false-cell-forcing-count))
    (list "bridge-import-abi-resolved-from-prior-export-knowns-count"
          (stat 'bridge-import-abi-resolved-from-prior-export-knowns-count))
+   (list "bridge-import-abi-resolved-from-kernel-knowns-count"
+         (stat 'bridge-import-abi-resolved-from-kernel-knowns-count))
    (list "bridge-import-abi-still-false-after-prior-knowns-count"
          (stat 'bridge-import-abi-still-false-after-prior-knowns-count))
+   (list "bridge-import-abi-false-kernel-after-knowns-count"
+         (stat 'bridge-import-abi-false-kernel-after-knowns-count))
    (list "bridge-abi-only-import-group-knowns-forced-count"
          (stat 'bridge-abi-only-import-group-knowns-forced-count))
    (list "bridge-import-from-plain-local-value-count"

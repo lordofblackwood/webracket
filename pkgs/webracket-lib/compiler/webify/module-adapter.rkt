@@ -25,6 +25,7 @@
          "../private/parameters.rkt"
          "bridge-stats.rkt"
          "first-slice.rkt"
+         "primitive-modules.rkt"
          "wrap.rkt")
 
 (struct bridge-export-entry (name kind binding metadata) #:transparent)
@@ -53,12 +54,13 @@
 (define (bridge-export-entry-boundary-expression entry)
   (bridge-export-entry-binding entry))
 
-;; module-provider-kind : (or/c symbol? #f) -> symbol?
+;; module-provider-kind : any/c -> symbol?
 ;;   Classify one module name using the active bridge graph, if available.
 (define (module-provider-kind module-name)
   (define module-kinds
     (current-module-bridge-module-kinds))
   (cond
+    [(kernel-provider-name? module-name) 'kernel-provider]
     [(not (symbol? module-name)) 'unknown-provider]
     [(and module-kinds
           (hash-has-key? module-kinds module-name))

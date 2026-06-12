@@ -27,6 +27,7 @@
          "../private/parameters.rkt"
          "bridge-stats.rkt"
          "first-slice.rkt"
+         "known.rkt"
          "module-instance.rkt"
          "primitive-modules.rkt")
 
@@ -273,22 +274,59 @@
               key)))))
   (values group-keys group-knowns))
 
-;; current-module-provider-kind : symbol? -> symbol?
+;; kernel-known-export-names : (listof symbol?)
+;;   Narrow kernel exports currently approved for value-safe ABI classification.
+(define kernel-known-export-names
+  '(displayln
+    external?
+    js-log
+    print-values
+    procedure->external
+    procedure-rename
+    procedure-reduce-arity-mask
+    prop:procedure
+    qq-append
+    sort/expanded-keywords
+    string->number
+    unsafe-ffi-primitive
+    vector-sort/expanded-keywords
+    vector-sort!/expanded-keywords))
+
+;; kernel-provider-knowns : hasheq?
+;;   Conservative known table for the observed kernel ABI holdouts.
+(define kernel-provider-knowns
+  (for/hasheq ([name (in-list kernel-known-export-names)])
+    (values name a-known-constant)))
+
+;; current-module-provider-kind : any/c -> symbol?
 ;;   Classify one module according to the active bridge graph metadata.
 (define (current-module-provider-kind module-name)
   (define module-kinds
     (current-module-bridge-module-kinds))
   (cond
+    [(kernel-provider-name? module-name) 'kernel-provider]
     [(and module-kinds
           (hash-has-key? module-kinds module-name))
      (hash-ref module-kinds module-name)]
     [else 'unknown-provider]))
 
-;; prior-export-knowns : hash? symbol? -> any/c
+;; prior-export-knowns : hash? any/c -> any/c
 ;;   Look up one provider module's previously analyzed export metadata.
 (define (prior-export-knowns prior-exports-infos module-name)
-  (and (symbol? module-name)
-       (hash-ref prior-exports-infos module-name #f)))
+  (cond
+    [(kernel-provider-name? module-name)
+     kernel-provider-knowns]
+    [(symbol? module-name)
+     (hash-ref prior-exports-infos module-name #f)]
+    [else
+     #f]))
+
+;; kernel-prior-known? : hash? any/c symbol? -> boolean?
+;;   Check whether one kernel import resolved through the explicit kernel-known table.
+(define (kernel-prior-known? prior-exports-infos module-name export-name)
+  (and (eq? (current-module-provider-kind module-name) 'kernel-provider)
+       (hash-has-key? (prior-export-knowns prior-exports-infos module-name)
+                      export-name)))
 
 ;; import-abi-false-reason : hash? symbol? symbol? boolean? boolean? -> symbol?
 ;;   Classify why one import ABI remained `#f`.
@@ -319,18 +357,24 @@
                                      imports-abis
                                      prior-exports-infos
                                      #:baseline-imports-abis [baseline-imports-abis #f]
+                                     #:group-keys [group-keys #f]
                                      #:false-reason [false-reason #f])
   (define baseline-groups
     (or baseline-imports-abis imports-abis))
   (for ([group (in-list import-sources)]
         [abi-group (in-list imports-abis)]
-        [baseline-group (in-list baseline-groups)])
+        [baseline-group (in-list baseline-groups)]
+        [group-key (in-list (if group-keys
+                                group-keys
+                                (make-list (length import-sources) #f)))])
     (for ([source (in-list group)]
           [abi (in-list abi-group)]
           [baseline-abi (in-list baseline-group)])
       (match-define (list import-name provider-name export-name) source)
       (define provider-kind
         (current-module-provider-kind provider-name))
+      (define kernel-known?
+        (kernel-prior-known? prior-exports-infos provider-name export-name))
       (define prior-knowns
         (prior-export-knowns prior-exports-infos provider-name))
       (define prior-export-known?
@@ -349,9 +393,11 @@
                'provider-module provider-name
                'import-name import-name
                'export-name export-name
+               'group-key group-key
                'provider-kind provider-kind
                'abi abi
                'baseline-abi baseline-abi
+               'kernel-known? (and kernel-known? #t)
                'prior-export-known? (and prior-export-known? #t)
                'false-reason false-reason*))
       (when (not abi)
@@ -359,12 +405,18 @@
         (webify-bridge-stats-inc! (list 'bridge-import-abi-false-module provider-name))
         (webify-bridge-stats-inc! (list 'bridge-import-abi-false-name export-name))
         (webify-bridge-stats-inc! (list 'bridge-import-abi-false-provider-kind provider-kind))
+        (when (eq? provider-kind 'kernel-provider)
+          (webify-bridge-stats-inc! 'bridge-import-abi-false-kernel-provider-count))
         (webify-bridge-stats-inc! (list 'bridge-import-abi-false-reason false-reason*))
         (webify-bridge-stats-inc! 'bridge-import-abi-false-cell-forcing-count))
       (when (and (not baseline-abi) abi)
-        (webify-bridge-stats-inc! 'bridge-import-abi-resolved-from-prior-export-knowns-count))
+        (webify-bridge-stats-inc! 'bridge-import-abi-resolved-from-prior-export-knowns-count)
+        (when kernel-known?
+          (webify-bridge-stats-inc! 'bridge-import-abi-resolved-from-kernel-knowns-count)))
       (when (and (not baseline-abi) (not abi) prior-export-known?)
-        (webify-bridge-stats-inc! 'bridge-import-abi-still-false-after-prior-knowns-count)))))
+        (webify-bridge-stats-inc! 'bridge-import-abi-still-false-after-prior-knowns-count)
+        (when kernel-known?
+          (webify-bridge-stats-inc! 'bridge-import-abi-false-kernel-after-knowns-count))))))
 
 ;; flat-import-sources->groups : symbol? symbol? (listof (listof symbol?)) (listof source?) -> (listof (listof source?))
 ;;   Group flat source triples according to linklet import metadata.
@@ -698,6 +750,8 @@
        (define raw-import-sources (webify-linklet-slice-spec-import-sources spec))
        (define import-sources
          (normalize-linklet-import-sources who name baseline-importss raw-import-sources))
+       (define diagnostic-group-keys
+         (vector->list (import-source-groups->import-keys who import-sources)))
        (define-values (local-import-keys
                        local-prior-known-groups)
          (import-source-groups->abi-only-knowns who
@@ -771,6 +825,7 @@
                                     public-cell-imports-abis
                                     prior-exports-infos
                                     #:baseline-imports-abis baseline-imports-abis
+                                    #:group-keys diagnostic-group-keys
                                     #:false-reason
                                     (and use-prior-knowns?
                                          (cond

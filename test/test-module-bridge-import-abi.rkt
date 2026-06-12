@@ -645,6 +645,81 @@
   (check-not-false keyword-meta)
   (check-equal? (hash-ref keyword-meta 'abi #f) 'proc))
 
+(test-case "kernel provider imports resolve through the narrow kernel-known table"
+  (define stats (make-hash))
+  (parameterize ([current-webify-bridge-stats stats])
+    (webify-compose-linklet-first-slices
+     (list
+      (webify-linklet-slice-spec
+       'consumer
+       '(linklet (((displayln displayln))) ()
+          (displayln 'ok))
+       '((displayln #%kernel displayln))))
+     #:tail '((void))
+     #:define-export-aliases? #f
+     #:serializable?-box #f
+     #:datum-intern? #f
+     #:target #f
+     #:allow-set!-undefined? #f
+     #:unsafe-mode? #f
+     #:enforce-constant? #t
+     #:allow-inline? #t
+     #:no-prompt? #f
+     #:prim-knowns (hasheq)
+     #:primitives (hasheq)
+     #:compiler-query (lambda (_v) #f)
+     #:get-import-knowns (lambda (_key) (values #f #f #f))
+     #:import-keys #f))
+  (check-equal?
+   (hash-ref stats 'bridge-import-abi-resolved-from-kernel-knowns-count 0)
+   1)
+  (define meta
+    (hash-ref stats
+              '(bridge-import-abi-meta consumer #%kernel displayln displayln)
+              #f))
+  (check-not-false meta)
+  (check-equal? (hash-ref meta 'provider-kind #f) 'kernel-provider)
+  (check-true (hash-ref meta 'kernel-known? #f))
+  (check-true (hash-ref meta 'prior-export-known? #f))
+  (check-equal? (hash-ref meta 'baseline-abi #f) #f)
+  (check-equal? (hash-ref meta 'abi #f) #t))
+
+(test-case "unknown kernel imports stay conservative after classification"
+  (define stats (make-hash))
+  (parameterize ([current-webify-bridge-stats stats])
+    (webify-compose-linklet-first-slices
+     (list
+      (webify-linklet-slice-spec
+       'consumer
+       '(linklet (((car car))) ()
+          (car 'ok))
+       '((car #%kernel car))))
+     #:tail '((void))
+     #:define-export-aliases? #f
+     #:serializable?-box #f
+     #:datum-intern? #f
+     #:target #f
+     #:allow-set!-undefined? #f
+     #:unsafe-mode? #f
+     #:enforce-constant? #t
+     #:allow-inline? #t
+     #:no-prompt? #f
+     #:prim-knowns (hasheq)
+     #:primitives (hasheq)
+     #:compiler-query (lambda (_v) #f)
+     #:get-import-knowns (lambda (_key) (values #f #f #f))
+     #:import-keys #f))
+  (check-equal? (hash-ref stats 'bridge-import-abi-false-kernel-provider-count 0) 1)
+  (define meta
+    (hash-ref stats
+              '(bridge-import-abi-meta consumer #%kernel car car)
+              #f))
+  (check-not-false meta)
+  (check-equal? (hash-ref meta 'provider-kind #f) 'kernel-provider)
+  (check-false (hash-ref meta 'kernel-known? #f))
+  (check-equal? (hash-ref meta 'abi #f) #f)
+  (check-equal? (hash-ref meta 'false-reason #f) 'missing-export-info))
+
 (test-case "installed-provider exports stay cell-backed in first provider milestone"
   (define provider
     (parameterize ([current-module-bridge-elide-public-cells? #t]
