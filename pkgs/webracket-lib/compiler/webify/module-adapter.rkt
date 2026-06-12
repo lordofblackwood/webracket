@@ -34,6 +34,7 @@
   (define mutated (make-hasheq))
   (define undefined-sensitive (make-hasheq))
   (define reflection-visible (make-hasheq))
+  (define define-constances (make-hasheq))
   (define (record! table id)
     (when (hash-ref export-set id #f)
       (hash-set! table id #t)))
@@ -47,6 +48,8 @@
             (record! undefined-sensitive cell)
             (walk rhs)]
            [`(variable-set!/define ,cell ,rhs ,_constance)
+            (when (hash-ref export-set cell #f)
+              (hash-set! define-constances cell _constance))
             (walk rhs)]
            [`(,(or 'variable-ref 'variable-ref/no-check) ,cell)
             (record! undefined-sensitive cell)]
@@ -65,7 +68,8 @@
   (walk expr)
   (hasheq 'mutated mutated
           'undefined-sensitive undefined-sensitive
-          'reflection-visible reflection-visible))
+          'reflection-visible reflection-visible
+          'define-constances define-constances))
 
 ;; record-export-cell-stats! : any/c (listof symbol?) (listof symbol?) (or/c symbol? #f) -> void?
 ;;   Publish conservative export-cell metadata for dry-run bridge analysis.
@@ -105,6 +109,76 @@
                             (hash-count undefined-sensitive))
   (webify-bridge-stats-inc! 'bridge-export-cell-reflection-visible-count
                             (hash-count reflection-visible)))
+
+;; late-materializable-export-specs : any/c (listof symbol?) (listof symbol?) (listof symbol?) any/c -> (listof vector?)
+;;   Identify exports that can use lexical values internally before cell materialization.
+(define (late-materializable-export-specs expr exports export-args value-ids importss)
+  (define usage (lowered-export-usage-summary expr export-args))
+  (define mutated (hash-ref usage 'mutated))
+  (define undefined-sensitive (hash-ref usage 'undefined-sensitive))
+  (define reflection-visible (hash-ref usage 'reflection-visible))
+  (define define-constances (hash-ref usage 'define-constances))
+  (define imported-names
+    (if importss
+        (flatten-groups importss)
+        '()))
+  (for/list ([export (in-list exports)]
+             [export-arg (in-list export-args)]
+             [value-id (in-list value-ids)]
+             #:unless (or (hash-ref mutated export-arg #f)
+                          (hash-ref undefined-sensitive export-arg #f)
+                          (hash-ref reflection-visible export-arg #f)
+                          (not (hash-has-key? define-constances export-arg))))
+    (vector export export-arg value-id (hash-ref define-constances export-arg) (memq export imported-names))))
+
+;; rewrite-late-materialized-export : any/c hasheq? -> any/c
+;;   Replace candidate export-cell operations with lexical value bindings.
+(define (rewrite-late-materialized-export v candidate-map)
+  (define (rewrite-list xs)
+    (map (lambda (entry) (rewrite-late-materialized-export entry candidate-map)) xs))
+  (cond
+    [(pair? v)
+     (if (quote-like-form? v)
+         v
+         (match v
+           [`(variable-set!/define ,cell ,rhs ,_constance)
+            (define candidate (hash-ref candidate-map cell #f))
+            (if candidate
+                `(define ,candidate ,(rewrite-late-materialized-export rhs candidate-map))
+                `(variable-set!/define
+                  ,cell
+                  ,(rewrite-late-materialized-export rhs candidate-map)
+                  ,_constance))]
+           [`(variable-ref ,cell)
+            (or (hash-ref candidate-map cell #f) v)]
+           [`(variable-ref/no-check ,cell)
+            (or (hash-ref candidate-map cell #f) v)]
+           [`(,head . ,rest)
+            (cons (rewrite-late-materialized-export head candidate-map)
+                  (rewrite-late-materialized-export rest candidate-map))]
+           [_ v]))]
+    [(vector? v)
+     (list->vector (rewrite-list (vector->list v)))]
+    [else
+     v]))
+
+;; late-materialize-exports : any/c (listof vector?) -> any/c
+;;   Make candidate exports lexical inside the slice and return their values.
+(define (late-materialize-exports expr candidate-specs)
+  (if (null? candidate-specs)
+      expr
+      (match expr
+        [`(lambda ,args ,body ...)
+         (define candidate-map
+           (for/hasheq ([spec (in-list candidate-specs)])
+             (values (vector-ref spec 1)
+                     (vector-ref spec 2))))
+         `(lambda ,args
+            ,@(for/list ([form (in-list body)])
+                (rewrite-late-materialized-export form candidate-map))
+            (values ,@(for/list ([spec (in-list candidate-specs)])
+                        (vector-ref spec 2))))]
+        [_ expr])))
 
 ;; strip-correlated : any/c -> any/c
 ;;   Remove correlated wrappers so compiler terms can become source datums.
@@ -407,17 +481,74 @@
   (define value-ids
     (for/list ([export (in-list exports)])
       (hash-ref value-id-map export)))
+  (define candidate-specs
+    (late-materializable-export-specs adapted-expr
+                                      exports
+                                      export-args
+                                      value-ids
+                                      importss))
+  (define candidate-export-args
+    (for/list ([spec (in-list candidate-specs)])
+      (vector-ref spec 1)))
+  (define candidate-value-ids
+    (for/list ([spec (in-list candidate-specs)])
+      (vector-ref spec 2)))
+  (define candidate-constances
+    (for/list ([spec (in-list candidate-specs)])
+      (vector-ref spec 3)))
+  (define candidate-arg-set
+    (for/hasheq ([arg (in-list candidate-export-args)])
+      (values arg #t)))
+  (define late-adapted-expr
+    (late-materialize-exports adapted-expr candidate-specs))
   (webify-bridge-stats-inc! 'bridge-export-cell-count (length cell-ids))
   (webify-bridge-stats-inc! 'bridge-module-variable-make-count (length cell-ids))
+  (webify-bridge-stats-inc! 'bridge-export-cell-late-materialization-candidate-count
+                            (length candidate-specs))
   (record-export-cell-stats! adapted-expr exports export-args module-name importss)
   `(begin
-     (define ,proc-id ,adapted-expr)
-     ,@(for/list ([cell-id (in-list cell-ids)]
-                  [export  (in-list exports)])
+     (define ,proc-id ,late-adapted-expr)
+     ,@(for/list ([cell-id    (in-list cell-ids)]
+                  [export     (in-list exports)]
+                  [export-arg (in-list export-args)]
+                  #:unless (hash-ref candidate-arg-set export-arg #f))
          `(define ,cell-id (module-variable-make ',export)))
-     (,proc-id (#%variable-reference) ,@import-args ,@cell-ids)
+     ,(if (null? candidate-value-ids)
+          `(,proc-id (#%variable-reference)
+                     ,@import-args
+                     ,@(for/list ([cell-id    (in-list cell-ids)]
+                                  [export-arg (in-list export-args)])
+                         (if (hash-ref candidate-arg-set export-arg #f)
+                             '(void)
+                             cell-id)))
+          `(define-values ,candidate-value-ids
+             (,proc-id (#%variable-reference)
+                       ,@import-args
+                       ,@(for/list ([cell-id    (in-list cell-ids)]
+                                    [export-arg (in-list export-args)])
+                           (if (hash-ref candidate-arg-set export-arg #f)
+                               '(void)
+                               cell-id)))))
+     ,@(for/list ([spec (in-list candidate-specs)])
+         (define export (vector-ref spec 0))
+         (define value-id (vector-ref spec 2))
+         (define constance (vector-ref spec 3))
+         (define cell-id
+           (list-ref cell-ids
+                     (let loop ([remaining exports] [index 0])
+                       (cond
+                         [(null? remaining)
+                          (error 'first-slice->top-level-datum/imports
+                                 "missing cell id for late-materialized export")]
+                         [(eq? export (car remaining)) index]
+                         [else (loop (cdr remaining) (add1 index))]))))
+         `(begin
+            (define ,cell-id (module-variable-make ',export))
+            (module-variable-define! ,cell-id ,value-id ',constance)))
      ,@(for/list ([cell-id   (in-list cell-ids)]
-                  [value-id  (in-list value-ids)])
+                  [value-id  (in-list value-ids)]
+                  [export-arg (in-list export-args)]
+                  #:unless (hash-ref candidate-arg-set export-arg #f))
          `(define ,value-id (module-variable-ref ,cell-id)))
      ,@(for/list ([cell-id (in-list cell-ids)]
                   [export  (in-list exports)]

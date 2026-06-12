@@ -68,6 +68,30 @@
    (datum-contains? datum
                     `(define out ,value-id))))
 
+(test-case "simple public exports can materialize cells after execution"
+  (define exports '(out))
+  (define cell-id
+    (hash-ref (first-slice-top-level-export-cell-ids exports) 'out))
+  (define value-id
+    (hash-ref (first-slice-top-level-export-value-ids exports) 'out))
+  (define datum
+    (first-slice->top-level-datum
+     '(lambda (instance out-cell)
+        (variable-set!/define out-cell 42 constant)
+        (void))
+     exports
+     #:module-name 'demo/out))
+  (check-true
+   (datum-contains? datum
+                    `(define-values (,value-id)
+                       (webify-linklet-proc$0 (#%variable-reference) (void)))))
+  (check-true
+   (datum-contains? datum
+                    `(module-variable-define! ,cell-id ,value-id 'constant)))
+  (check-false
+   (datum-contains? datum
+                    `(define ,value-id (module-variable-ref ,cell-id)))))
+
 (test-case "module instances expose direct value ids for value-safe imports"
   (define provider
     (make-webify-module-instance 'provider '(x)))

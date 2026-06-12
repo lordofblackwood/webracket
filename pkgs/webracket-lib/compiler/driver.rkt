@@ -608,6 +608,8 @@
          (stat 'bridge-export-cell-reflection-visible-count))
    (list "bridge-export-cell-public-boundary-count"
          (stat 'bridge-export-cell-public-boundary-count))
+   (list "bridge-export-cell-late-materialization-candidate-count"
+         (stat 'bridge-export-cell-late-materialization-candidate-count))
    (list "bridge-export-cell-elision-candidate-count"
          (hash-ref dry-run-counts 'candidate 0))
    (list "bridge-export-cell-elision-blocked-public-count"
