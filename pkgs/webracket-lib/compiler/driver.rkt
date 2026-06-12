@@ -961,6 +961,132 @@
       ""
       (string-join details " | ")))
 
+;; installed-provider-policy-class : symbol? -> symbol?
+;;   Split installed providers into the current public-cell elision policy buckets.
+(define (installed-provider-policy-class module-name)
+  (cond
+    [(not (symbol? module-name))
+     'unknown-installed-provider]
+    [(webracket-owned-ffi-provider-name? module-name)
+     'webracket-owned-installed-provider]
+    [(string-prefix? (symbol->string module-name) "racket/")
+     'racket-installed-provider]
+    [else
+     'third-party-installed-provider]))
+
+;; bridge-installed-provider-candidate-not-elided-entries : hash? hash? -> (listof (cons any/c hash?))
+;;   Collect non-elided installed-provider candidate export metadata entries.
+(define (bridge-installed-provider-candidate-not-elided-entries graph stats)
+  (for/list ([entry (in-list (bridge-export-cell-meta-entries stats))]
+             #:do [(define meta (cdr entry))]
+             #:when (and (bridge-public-cell-candidate-not-elided? meta)
+                         (eq? (bridge-public-cell-provider-kind graph meta)
+                              'installed-provider)))
+    entry))
+
+;; bridge-installed-provider-candidate-class-counts : hash? hash? -> hasheq?
+;;   Count residual installed-provider candidates by policy class.
+(define (bridge-installed-provider-candidate-class-counts graph stats)
+  (for/fold ([counts (hasheq 'webracket-owned-installed-provider 0
+                             'racket-installed-provider 0
+                             'third-party-installed-provider 0
+                             'unknown-installed-provider 0)])
+            ([entry (in-list (bridge-installed-provider-candidate-not-elided-entries graph stats))])
+    (define meta (cdr entry))
+    (hash-update counts
+                 (installed-provider-policy-class (hash-ref meta 'module-name #f))
+                 add1
+                 0)))
+
+;; bridge-installed-provider-candidate-module-counts : hash? hash? -> hasheq?
+;;   Count residual installed-provider candidates by provider module.
+(define (bridge-installed-provider-candidate-module-counts graph stats)
+  (for/fold ([counts (hasheq)])
+            ([entry (in-list (bridge-installed-provider-candidate-not-elided-entries graph stats))])
+    (define module-name (hash-ref (cdr entry) 'module-name #f))
+    (if module-name
+        (hash-update counts module-name add1 0)
+        counts)))
+
+;; bridge-installed-provider-candidate-name-counts : hash? hash? -> hasheq?
+;;   Count residual installed-provider candidates by export name.
+(define (bridge-installed-provider-candidate-name-counts graph stats)
+  (for/fold ([counts (hasheq)])
+            ([entry (in-list (bridge-installed-provider-candidate-not-elided-entries graph stats))])
+    (define export-name (hash-ref (cdr entry) 'export #f))
+    (if export-name
+        (hash-update counts export-name add1 0)
+        counts)))
+
+;; bridge-installed-provider-candidate-class-details : hash? hash? symbol? -> string?
+;;   Render a bounded detail list for one installed-provider policy class.
+(define (bridge-installed-provider-candidate-class-details graph stats class)
+  (define entries
+    (filter (lambda (entry)
+              (eq? (installed-provider-policy-class
+                    (hash-ref (cdr entry) 'module-name #f))
+                   class))
+            (bridge-installed-provider-candidate-not-elided-entries graph stats)))
+  (define details
+    (for/list ([entry (in-list (take entries (min 50 (length entries))))])
+      (define meta (cdr entry))
+      (define provider-module (hash-ref meta 'module-name #f))
+      (define export-name (hash-ref meta 'export #f))
+      (define import-entries
+        (bridge-import-abi-provider-export-entries stats provider-module export-name))
+      (define importer-modules
+        (remove-duplicates
+         (for/list ([import-entry (in-list import-entries)])
+           (hash-ref import-entry 'importer-module #f))
+         eq?))
+      (define import-abis
+        (remove-duplicates
+         (for/list ([import-entry (in-list import-entries)])
+           (hash-ref import-entry 'abi #f))
+         equal?))
+      (format "~a/~a constance=~a immutable=~a phase0=~a dynamic=~a reflection=~a importers=~a importer-modules=~a import-abi=~a reason=~a"
+              provider-module
+              export-name
+              (hash-ref meta 'constance #f)
+              (hash-ref meta 'immutable? #f)
+              (hash-ref meta 'phase0-value-space-only? #f)
+              (hash-ref meta 'dynamic-require-sensitive? #f)
+              (hash-ref meta 'reflection-visible? #f)
+              (length importer-modules)
+              (if (null? importer-modules) "-" (string-join (map ~a importer-modules) ","))
+              (if (null? import-abis) "-" (string-join (map ~a import-abis) ","))
+              (bridge-public-cell-candidate-not-elided-reason graph meta))))
+  (if (null? details)
+      ""
+      (string-join details " | ")))
+
+;; bridge-public-cell-elided-installed-provider-class-counts : hash? hash? -> hasheq?
+;;   Count installed-provider exports that now elide by policy class.
+(define (bridge-public-cell-elided-installed-provider-class-counts graph stats)
+  (for/fold ([counts (hasheq 'webracket-owned-installed-provider 0
+                             'racket-installed-provider 0
+                             'third-party-installed-provider 0
+                             'unknown-installed-provider 0)])
+            ([entry (in-list (bridge-export-cell-meta-entries stats))])
+    (define meta (cdr entry))
+    (if (and (eq? (bridge-public-cell-provider-kind graph meta) 'installed-provider)
+             (eq? (bridge-public-cell-selected-kind meta) 'value))
+        (hash-update counts
+                     (installed-provider-policy-class (hash-ref meta 'module-name #f))
+                     add1
+                     0)
+        counts)))
+
+;; bridge-module-elidable-public-modules : graph -> (listof symbol?)
+;;   List modules currently allowed to expose safe public exports as plain values.
+(define (bridge-module-elidable-public-modules graph)
+  (for/list ([(name kind)
+              (in-hash (webracket/base-local-module-graph-module-kinds graph))]
+             #:when (or (memq kind '(local-user support-provider))
+                        (and (eq? kind 'installed-provider)
+                             (webracket-owned-ffi-provider-name? name))))
+    name))
+
 ;; module-bridge-graph-metric-rows : graph composition -> (listof (list/c string? any/c))
 ;;   Summarize bridge scaffolding and graph shape before the main compiler pipeline.
 (define (module-bridge-graph-metric-rows graph composition)
@@ -988,6 +1114,10 @@
     (bridge-public-cell-required-counts graph stats))
   (define public-cell-candidate-not-elided-counts
     (bridge-public-cell-candidate-not-elided-counts graph stats))
+  (define installed-provider-candidate-class-counts
+    (bridge-installed-provider-candidate-class-counts graph stats))
+  (define installed-provider-elided-class-counts
+    (bridge-public-cell-elided-installed-provider-class-counts graph stats))
   (define (stat key [default 0])
     (hash-ref stats key default))
   (list
@@ -1102,6 +1232,54 @@
    (list "bridge-public-cell-candidate-not-elided-installed-provider-count"
          (hash-ref public-cell-candidate-not-elided-counts
                    'candidate-not-elided-installed-provider
+                   0))
+   (list "bridge-public-cell-candidate-not-elided-installed-provider-top-modules"
+         (bridge-top-count-summary
+          (bridge-installed-provider-candidate-module-counts graph stats)))
+   (list "bridge-public-cell-candidate-not-elided-installed-provider-top-names"
+         (bridge-top-count-summary
+          (bridge-installed-provider-candidate-name-counts graph stats)))
+   (list "bridge-public-cell-candidate-not-elided-installed-provider-details"
+         (bridge-installed-provider-candidate-class-details
+          graph
+          stats
+          'webracket-owned-installed-provider))
+   (list "bridge-installed-provider-candidate-webracket-owned-count"
+         (hash-ref installed-provider-candidate-class-counts
+                   'webracket-owned-installed-provider
+                   0))
+   (list "bridge-installed-provider-candidate-racket-count"
+         (hash-ref installed-provider-candidate-class-counts
+                   'racket-installed-provider
+                   0))
+   (list "bridge-installed-provider-candidate-third-party-count"
+         (hash-ref installed-provider-candidate-class-counts
+                   'third-party-installed-provider
+                   0))
+   (list "bridge-installed-provider-candidate-unknown-count"
+         (hash-ref installed-provider-candidate-class-counts
+                   'unknown-installed-provider
+                   0))
+   (list "bridge-installed-provider-racket-candidate-details"
+         (bridge-installed-provider-candidate-class-details
+          graph
+          stats
+          'racket-installed-provider))
+   (list "bridge-public-cell-elided-webracket-owned-installed-provider-count"
+         (hash-ref installed-provider-elided-class-counts
+                   'webracket-owned-installed-provider
+                   0))
+   (list "bridge-public-cell-kept-webracket-owned-installed-provider-count"
+         (hash-ref installed-provider-candidate-class-counts
+                   'webracket-owned-installed-provider
+                   0))
+   (list "bridge-public-cell-elided-racket-installed-provider-count"
+         (hash-ref installed-provider-elided-class-counts
+                   'racket-installed-provider
+                   0))
+   (list "bridge-public-cell-kept-racket-installed-provider-count"
+         (hash-ref installed-provider-candidate-class-counts
+                   'racket-installed-provider
                    0))
    (list "bridge-public-cell-candidate-not-elided-kernel-provider-count"
          (hash-ref public-cell-candidate-not-elided-counts
@@ -4233,12 +4411,7 @@
   (current-module-bridge-module-kinds
    (webracket/base-local-module-graph-module-kinds graph))
   (current-module-bridge-elidable-module-names
-   (for/list ([report (in-list (webracket/base-local-module-graph-reports graph))]
-              #:when (memq (hash-ref (webracket/base-local-module-graph-module-kinds graph)
-                                     (webify-module-report-name report)
-                                     'installed-provider)
-                           '(local-user support-provider)))
-     (webify-module-report-name report)))
+   (bridge-module-elidable-public-modules graph))
   (define composition
     (with-driver-timing
      'module-bridge-compose
@@ -4295,12 +4468,7 @@
       (current-module-bridge-module-kinds
        (webracket/base-local-module-graph-module-kinds graph))
       (current-module-bridge-elidable-module-names
-       (for/list ([report (in-list reports)]
-                  #:when (memq (hash-ref (webracket/base-local-module-graph-module-kinds graph)
-                                         (webify-module-report-name report)
-                                         'installed-provider)
-                               '(local-user support-provider)))
-         (webify-module-report-name report)))
+       (bridge-module-elidable-public-modules graph))
       (define composition
         (with-driver-timing
          'module-bridge-compose

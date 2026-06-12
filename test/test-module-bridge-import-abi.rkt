@@ -737,5 +737,120 @@
    (bridge-export-entry-cell-backed?
     (webify-module-instance-export-entry provider 'keyword-apply))))
 
+(test-case "webracket-owned installed-provider exports can elide under experimental policy"
+  (define provider
+    (parameterize ([current-module-bridge-elide-public-cells? #t]
+                   [current-module-bridge-module-kinds
+                    (hasheq 'webracket/unsafe/dom 'installed-provider)]
+                   [current-module-bridge-elidable-module-names
+                    '(webracket/unsafe/dom)])
+      (make-webify-module-instance
+       'webracket/unsafe/dom
+       '(node)
+       #:expr
+       '(lambda (instance node-cell)
+          (module-variable-define! node-cell 41 'constant)
+          (module-variable-ref/no-check node-cell))
+       #:module-name 'webracket/unsafe/dom)))
+  (check-true
+   (bridge-export-entry-plain-value?
+    (webify-module-instance-export-entry provider 'node))))
+
+(test-case "installed-provider candidate audit splits policy classes"
+  (define stats
+    (hasheq
+     '(bridge-export-cell-meta webracket/unsafe/dom node)
+     (hasheq 'module-name 'webracket/unsafe/dom
+             'export 'node
+             'public-boundary? #t
+             'immutable? #t
+             'reexport? #f
+             'mutated? #f
+             'undefined-sensitive? #f
+             'reflection-visible? #f
+             'dynamic-require-sensitive? #f
+             'phase0-value-space-only? #t
+             'plain-value-base-candidate? #t
+             'plain-value-policy-eligible? #f
+             'forced-cell? #f
+             'selected-export-kind 'cell)
+     '(bridge-export-cell-meta racket/list first)
+     (hasheq 'module-name 'racket/list
+             'export 'first
+             'public-boundary? #t
+             'immutable? #t
+             'reexport? #f
+             'mutated? #f
+             'undefined-sensitive? #f
+             'reflection-visible? #f
+             'dynamic-require-sensitive? #f
+             'phase0-value-space-only? #t
+             'plain-value-base-candidate? #t
+             'plain-value-policy-eligible? #f
+             'forced-cell? #f
+             'selected-export-kind 'cell)
+     '(bridge-export-cell-meta some/pkg value)
+     (hasheq 'module-name 'some/pkg
+             'export 'value
+             'public-boundary? #t
+             'immutable? #t
+             'reexport? #f
+             'mutated? #f
+             'undefined-sensitive? #f
+             'reflection-visible? #f
+             'dynamic-require-sensitive? #f
+             'phase0-value-space-only? #t
+             'plain-value-base-candidate? #t
+             'plain-value-policy-eligible? #f
+             'forced-cell? #f
+             'selected-export-kind 'cell)
+     '(bridge-import-abi-meta consumer webracket/unsafe/dom node node)
+     (hasheq 'importer-module 'consumer
+             'provider-module 'webracket/unsafe/dom
+             'import-name 'node
+             'export-name 'node
+             'abi #t)
+     '(bridge-import-abi-meta consumer racket/list first first)
+     (hasheq 'importer-module 'consumer
+             'provider-module 'racket/list
+             'import-name 'first
+             'export-name 'first
+             'abi #t)
+     '(bridge-import-abi-meta consumer some/pkg value value)
+     (hasheq 'importer-module 'consumer
+             'provider-module 'some/pkg
+             'import-name 'value
+             'export-name 'value
+             'abi #t)))
+  (define graph
+    (webracket/base-local-module-graph
+     'demo/root
+     '()
+     #f
+     (hasheq 'webracket/unsafe/dom 'installed-provider
+             'racket/list 'installed-provider
+             'some/pkg 'installed-provider)))
+  (define counts
+    (bridge-installed-provider-candidate-class-counts graph stats))
+  (check-equal?
+   (hash-ref counts 'webracket-owned-installed-provider 0)
+   1)
+  (check-equal?
+   (hash-ref counts 'racket-installed-provider 0)
+   1)
+  (check-equal?
+   (hash-ref counts 'third-party-installed-provider 0)
+   1)
+  (check-equal?
+   (hash-ref counts 'unknown-installed-provider 0)
+   0)
+  (check-true
+   (regexp-match?
+    #rx"racket/list/first"
+    (bridge-installed-provider-candidate-class-details
+     graph
+     stats
+     'racket-installed-provider))))
+
 (module+ main
   (void))
