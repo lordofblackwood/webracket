@@ -756,6 +756,61 @@
    (bridge-export-entry-plain-value?
     (webify-module-instance-export-entry provider 'node))))
 
+(test-case "allowlisted racket installed-provider exports can elide under experimental policy"
+  (define provider
+    (parameterize ([current-module-bridge-elide-public-cells? #t]
+                   [current-module-bridge-module-kinds
+                    (hasheq 'racket/list 'installed-provider)]
+                   [current-module-bridge-elidable-module-names
+                    '(racket/list)])
+      (make-webify-module-instance
+       'racket/list
+       '(first)
+       #:expr
+       '(lambda (instance first-cell)
+          (module-variable-define! first-cell 41 'constant)
+          (module-variable-ref/no-check first-cell))
+       #:module-name 'racket/list)))
+  (check-true
+   (bridge-export-entry-plain-value?
+    (webify-module-instance-export-entry provider 'first))))
+
+(test-case "non-allowlisted installed providers stay cell-backed"
+  (define provider
+    (parameterize ([current-module-bridge-elide-public-cells? #t]
+                   [current-module-bridge-module-kinds
+                    (hasheq 'racket/vector 'installed-provider)])
+      (make-webify-module-instance
+       'racket/vector
+       '(vector-copy)
+       #:expr
+       '(lambda (instance vector-copy-cell)
+          (module-variable-define! vector-copy-cell 41 'constant)
+          (module-variable-ref/no-check vector-copy-cell))
+       #:module-name 'racket/vector)))
+  (check-true
+   (bridge-export-entry-cell-backed?
+    (webify-module-instance-export-entry provider 'vector-copy))))
+
+(test-case "unsafe allowlisted racket installed-provider exports stay cell-backed"
+  (define provider
+    (parameterize ([current-module-bridge-elide-public-cells? #t]
+                   [current-module-bridge-module-kinds
+                    (hasheq 'racket/list 'installed-provider)]
+                   [current-module-bridge-elidable-module-names
+                    '(racket/list)])
+      (make-webify-module-instance
+       'racket/list
+       '(first)
+       #:expr
+       '(lambda (instance first-cell)
+          (module-variable-set! first-cell 41)
+          (module-variable-ref/no-check first-cell))
+       #:module-name 'racket/list)))
+  (check-true
+   (bridge-export-entry-cell-backed?
+    (webify-module-instance-export-entry provider 'first))))
+
 (test-case "installed-provider candidate audit splits policy classes"
   (define stats
     (hasheq

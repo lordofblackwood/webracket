@@ -144,6 +144,48 @@ remaining sequence compatibility work is concentrated in
 `webracket/private/for`, where stream, flvector/fxvector, weak-hash, and
 ephemeron-hash exports are explicitly postponed.
 
+## Module-Bridge Public-Cell Elision Policy
+
+The module bridge now uses a narrow, diagnostics-driven public-cell elision
+policy instead of treating all installed providers alike.
+
+Eligible classes under `--module-bridge-elide-public-cells` are:
+
+- local user modules
+- support-provider modules staged under bridge control
+- WebRacket-owned installed providers such as `webracket/unsafe/dom`
+- selected upstream Racket installed providers with proven-safe metadata
+
+Current selected Racket installed providers are:
+
+- `racket/private/list`
+- `racket/list`
+- `racket/private/more-scheme`
+- `racket/private/string`
+- `racket/string`
+
+Those allowlisted Racket providers still must pass the existing safety checks:
+
+- `plain-value-candidate?`
+- immutable / non-mutated / non-undefined-sensitive export metadata
+- phase-0 value-space only
+- not dynamic-require-sensitive
+- not reflection-visible
+- not forced cell-backed by importer ABI
+
+Third-party and unknown installed providers remain cell-backed. This keeps the
+bridge policy reviewable while still removing the large internal scaffolding
+cost from the known safe installed-provider surface.
+
+Representative bridge results after the current policy:
+
+- `hello-world`: installed-provider holdouts dropped from `94` to `2`
+- `single-counter`: installed-provider holdouts dropped from `19` to `2`
+- `todo-lists`: installed-provider holdouts dropped from `18` to `2`
+
+The remaining installed-provider holdouts in those examples are syntax-literal
+helper modules, not the audited `racket/...` provider set.
+
 ## Real Provider Readiness
 
 Use `webify/goal1-dashboard.rkt --real-provider-readiness --jobs 4
@@ -155,7 +197,7 @@ stable enough under the bounded dashboard.
 | Provider/frontier | Readiness row | Current blocker/action |
 | --- | --- | --- |
 | `webracket/contract` | `real-racket-contract-diagnostic` | Current failure is provider-graph extraction for real `racket/contract`; keep using erased-contract shims while narrowing the transitive provider graph and runtime primitive demand. |
-| real installed providers | `real-racket-class-diagnostic`, `real-racket-dict-diagnostic`, `real-racket-dict-coverage-diagnostic`, `real-racket-function-diagnostic`, `real-racket-function-coverage-diagnostic`, `real-racket-list-diagnostic`, `real-racket-string-diagnostic`, `real-racket-pretty-diagnostic`, `real-racket-pretty-coverage-diagnostic`, `real-racket-private-for-diagnostic`, `real-racket-private-kw-diagnostic` | These rows keep no-substitution real-provider pressure visible, but a 4-lane bounded run can still time out before row output. Promote one only after it passes the 120-second bounded dashboard reliably. |
+| real installed providers | `real-racket-class-diagnostic`, `real-racket-dict-diagnostic`, `real-racket-dict-coverage-diagnostic`, `real-racket-function-diagnostic`, `real-racket-function-coverage-diagnostic`, `real-racket-list-diagnostic`, `real-racket-pretty-diagnostic`, `real-racket-pretty-coverage-diagnostic`, `real-racket-private-for-diagnostic`, `real-racket-private-kw-diagnostic` | These rows keep no-substitution real-provider pressure visible, but a 4-lane bounded run can still time out before row output. Promote one only after it passes the 120-second bounded dashboard reliably. |
 | `racket/sequence` | `real-racket-sequence-coverage` | Promoted from readiness to required coverage for representative `sequence->list` use through the real installed provider. |
 
 ## `racket/list` Export Audit
@@ -239,7 +281,9 @@ remaining compatibility notes are:
   those tests are checking the smaller no-IO-provider path.
 - `racket/string` now uses the installed provider by default. The earlier
   staged route remains useful as a narrow regression shim, but it is no longer
-  the Goal 1 default path for explicit module requires.
+  the Goal 1 default path for explicit module requires. The
+  `real-racket-string-coverage` row is required coverage, not merely a
+  readiness diagnostic.
 - Coverage rows now exercise representative clusters for `racket/math`,
   `racket/path`, `racket/match`, `racket/sequence`, and the staged
   `webracket/file` VFS surface, not just single-function smoke tests.
@@ -283,6 +327,10 @@ remaining compatibility notes are:
   exports with the staged provider and classifies them as supported, postponed,
   or missing. Use it when deciding whether the next sequence feature belongs in
   the staged provider or should remain documented as postponed.
+  The current audit has no unexpected `missing` exports. Postponed exports are
+  grouped around flvector/fxvector generators, weak/ephemeron hash sequences,
+  original stream/range internals, and file/glob traversal helpers; none are a
+  current Goal 1 requirement without a concrete module-program demand.
 - `racket/dict` now uses the installed provider by default. Coverage checks ordinary
   functions (`dict-map`, `dict-count`), sequence exports such as
   `in-dict-pairs`, capability predicates, mutation/update helpers, removal,

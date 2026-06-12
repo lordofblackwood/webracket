@@ -974,6 +974,17 @@
     [else
      'third-party-installed-provider]))
 
+;; racket-installed-provider-elision-allowed-module? : any/c -> boolean?
+;;   Narrow allowlist for upstream Racket installed providers eligible for elision.
+(define (racket-installed-provider-elision-allowed-module? module-name)
+  (and (symbol? module-name)
+       (memq module-name
+             '(racket/private/list
+               racket/list
+               racket/private/more-scheme
+               racket/private/string
+               racket/string))))
+
 ;; bridge-installed-provider-candidate-not-elided-entries : hash? hash? -> (listof (cons any/c hash?))
 ;;   Collect non-elided installed-provider candidate export metadata entries.
 (define (bridge-installed-provider-candidate-not-elided-entries graph stats)
@@ -1077,6 +1088,28 @@
                      0)
         counts)))
 
+;; bridge-racket-installed-provider-kept-reason-counts : hash? hash? -> hasheq?
+;;   Count why Racket installed-provider exports remain cell-backed.
+(define (bridge-racket-installed-provider-kept-reason-counts graph stats)
+  (for/fold ([counts (hasheq 'metadata 0
+                             'abi 0
+                             'policy 0)])
+            ([entry (in-list (bridge-export-cell-meta-entries stats))])
+    (define meta (cdr entry))
+    (define module-name (hash-ref meta 'module-name #f))
+    (if (and (eq? (bridge-public-cell-provider-kind graph meta) 'installed-provider)
+             (eq? (installed-provider-policy-class module-name)
+                  'racket-installed-provider)
+             (not (eq? (bridge-public-cell-selected-kind meta) 'value)))
+        (cond
+          [(not (bridge-public-cell-base-candidate? meta))
+           (hash-update counts 'metadata add1 0)]
+          [(bridge-public-cell-forced-cell? meta)
+           (hash-update counts 'abi add1 0)]
+          [else
+           (hash-update counts 'policy add1 0)])
+        counts)))
+
 ;; bridge-module-elidable-public-modules : graph -> (listof symbol?)
 ;;   List modules currently allowed to expose safe public exports as plain values.
 (define (bridge-module-elidable-public-modules graph)
@@ -1084,7 +1117,8 @@
               (in-hash (webracket/base-local-module-graph-module-kinds graph))]
              #:when (or (memq kind '(local-user support-provider))
                         (and (eq? kind 'installed-provider)
-                             (webracket-owned-ffi-provider-name? name))))
+                             (or (webracket-owned-ffi-provider-name? name)
+                                 (racket-installed-provider-elision-allowed-module? name)))))
     name))
 
 ;; module-bridge-graph-metric-rows : graph composition -> (listof (list/c string? any/c))
@@ -1118,6 +1152,8 @@
     (bridge-installed-provider-candidate-class-counts graph stats))
   (define installed-provider-elided-class-counts
     (bridge-public-cell-elided-installed-provider-class-counts graph stats))
+  (define racket-installed-provider-kept-reason-counts
+    (bridge-racket-installed-provider-kept-reason-counts graph stats))
   (define (stat key [default 0])
     (hash-ref stats key default))
   (list
@@ -1280,6 +1316,18 @@
    (list "bridge-public-cell-kept-racket-installed-provider-count"
          (hash-ref installed-provider-candidate-class-counts
                    'racket-installed-provider
+                   0))
+   (list "bridge-racket-installed-provider-elision-blocked-metadata-count"
+         (hash-ref racket-installed-provider-kept-reason-counts
+                   'metadata
+                   0))
+   (list "bridge-racket-installed-provider-elision-blocked-abi-count"
+         (hash-ref racket-installed-provider-kept-reason-counts
+                   'abi
+                   0))
+   (list "bridge-racket-installed-provider-elision-blocked-policy-count"
+         (hash-ref racket-installed-provider-kept-reason-counts
+                   'policy
                    0))
    (list "bridge-public-cell-candidate-not-elided-kernel-provider-count"
          (hash-ref public-cell-candidate-not-elided-counts
