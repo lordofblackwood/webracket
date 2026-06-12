@@ -122,6 +122,34 @@
    (datum-contains? datum
                     `(define ,value-id (module-variable-ref ,cell-id)))))
 
+(test-case "nested body export definitions materialize late"
+  (define exports '(out))
+  (define cell-id
+    (hash-ref (first-slice-top-level-export-cell-ids exports) 'out))
+  (define value-id
+    (hash-ref (first-slice-top-level-export-value-ids exports) 'out))
+  (define datum
+    (first-slice->top-level-datum
+     '(lambda (instance out-cell)
+        (let-values (((tmp) 42))
+          (module-variable-define! out-cell tmp 'constant)
+          (module-variable-ref/no-check out-cell)))
+     exports
+     #:module-name 'demo/nested-out))
+  (check-true
+   (datum-contains? datum
+                    `(define-values (,value-id)
+                       (webify-linklet-proc$0 (#%variable-reference) (void)))))
+  (check-true
+   (datum-contains? datum
+                    `(define ,value-id tmp)))
+  (check-true
+   (datum-contains? datum
+                    `(module-variable-define! ,cell-id ,value-id 'constant)))
+  (check-false
+   (datum-contains? datum
+                    '(module-variable-define! out-cell tmp 'constant))))
+
 (test-case "module instances expose direct value ids for value-safe imports"
   (define provider
     (make-webify-module-instance 'provider '(x)))
@@ -582,7 +610,8 @@
    1)
   (define meta
     (for/or ([(key value) (in-hash stats)])
-      (and (pair? key)
+      (and (list? key)
+           (<= 5 (length key))
            (equal? (take key 5)
                    (list 'bridge-import-abi-meta
                          'consumer
@@ -676,6 +705,45 @@
   (define meta
     (hash-ref stats
               '(bridge-import-abi-meta consumer #%kernel displayln displayln)
+              #f))
+  (check-not-false meta)
+  (check-equal? (hash-ref meta 'provider-kind #f) 'kernel-provider)
+  (check-true (hash-ref meta 'kernel-known? #f))
+  (check-true (hash-ref meta 'prior-export-known? #f))
+  (check-equal? (hash-ref meta 'baseline-abi #f) #f)
+  (check-equal? (hash-ref meta 'abi #f) #t))
+
+(test-case "kernel provider error imports resolve through the kernel-known table"
+  (define stats (make-hash))
+  (parameterize ([current-webify-bridge-stats stats])
+    (webify-compose-linklet-first-slices
+     (list
+      (webify-linklet-slice-spec
+       'consumer
+       '(linklet (((error error))) ()
+          (error 'consumer "boom"))
+       '((error #%kernel error))))
+     #:tail '((void))
+     #:define-export-aliases? #f
+     #:serializable?-box #f
+     #:datum-intern? #f
+     #:target #f
+     #:allow-set!-undefined? #f
+     #:unsafe-mode? #f
+     #:enforce-constant? #t
+     #:allow-inline? #t
+     #:no-prompt? #f
+     #:prim-knowns (hasheq)
+     #:primitives (hasheq)
+     #:compiler-query (lambda (_v) #f)
+     #:get-import-knowns (lambda (_key) (values #f #f #f))
+     #:import-keys #f))
+  (check-equal?
+   (hash-ref stats 'bridge-import-abi-resolved-from-kernel-knowns-count 0)
+   1)
+  (define meta
+    (hash-ref stats
+              '(bridge-import-abi-meta consumer #%kernel error error)
               #f))
   (check-not-false meta)
   (check-equal? (hash-ref meta 'provider-kind #f) 'kernel-provider)

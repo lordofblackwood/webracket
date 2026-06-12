@@ -278,6 +278,7 @@
 ;;   Narrow kernel exports currently approved for value-safe ABI classification.
 (define kernel-known-export-names
   '(displayln
+    error
     external?
     js-log
     print-values
