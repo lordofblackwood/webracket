@@ -241,6 +241,38 @@
        [(list (? symbol? dependency)) dependency]
        [_ #f]))))
 
+;; import-source-groups->abi-only-knowns : symbol? symbol? (listof (listof source?)) hash? -> values
+;;   Build per-group prior-known tables keyed by the importer's own import names.
+(define (import-source-groups->abi-only-knowns who importer-name grouped-sources prior-exports-infos)
+  (define group-knowns (make-hasheq))
+  (define group-keys
+    (list->vector
+     (for/list ([group (in-list grouped-sources)]
+                [index (in-naturals)])
+       (unless (list? group)
+         (raise-argument-error who "(listof list?)" grouped-sources))
+       (define knowns
+         (for/fold ([knowns (hasheq)])
+                   ([source (in-list group)])
+           (validate-import-source! who source)
+           (match-define (list import-name provider-name export-name) source)
+           (define provider-knowns
+             (prior-export-knowns prior-exports-infos provider-name))
+           (if (and provider-knowns
+                    (hash-has-key? provider-knowns export-name))
+               ;; Use the current import name as the key, because compiled linklets
+               ;; can preserve readable-but-uninterned symbols like `theme4.1`.
+               (hash-set knowns
+                         import-name
+                         (hash-ref provider-knowns export-name))
+               knowns)))
+       (and (positive? (hash-count knowns))
+            (let ([key (string->uninterned-symbol
+                        (format "~a-abi-knowns-group-~a" importer-name index))])
+              (hash-set! group-knowns key knowns)
+              key)))))
+  (values group-keys group-knowns))
+
 ;; current-module-provider-kind : symbol? -> symbol?
 ;;   Classify one module according to the active bridge graph metadata.
 (define (current-module-provider-kind module-name)
@@ -666,14 +698,17 @@
        (define raw-import-sources (webify-linklet-slice-spec-import-sources spec))
        (define import-sources
          (normalize-linklet-import-sources who name baseline-importss raw-import-sources))
-       (define local-import-keys
-         (import-source-groups->import-keys who import-sources))
+       (define-values (local-import-keys
+                       local-prior-known-groups)
+         (import-source-groups->abi-only-knowns who
+                                                name
+                                                import-sources
+                                                prior-exports-infos))
        (define use-prior-knowns?
-         (for/or ([key (in-vector local-import-keys)])
-           (and key (hash-has-key? prior-exports-infos key))))
+         (positive? (hash-count local-prior-known-groups)))
        (define (compose-get-import-knowns key)
          (define local-knowns
-           (and key (hash-ref prior-exports-infos key #f)))
+           (and key (hash-ref local-prior-known-groups key #f)))
          (if local-knowns
              (values local-knowns #f #f)
              (get-import-knowns key)))

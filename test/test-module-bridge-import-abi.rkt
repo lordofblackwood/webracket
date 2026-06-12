@@ -1,12 +1,14 @@
 #lang racket/base
 
-(require rackunit
+(require racket/list
+         rackunit
          "../pkgs/webracket-lib/compiler/driver.rkt"
          "../pkgs/webracket-lib/compiler/private/parameters.rkt"
          "../pkgs/webracket-lib/compiler/webify/bridge-stats.rkt"
          "../pkgs/webracket-lib/compiler/webify/first-slice.rkt"
          "../pkgs/webracket-lib/compiler/webify/known.rkt"
          "../pkgs/webracket-lib/compiler/webify/module-adapter.rkt"
+         "../pkgs/webracket-lib/compiler/webify/module-composer.rkt"
          "../pkgs/webracket-lib/compiler/webify/module-instance.rkt")
 
 ;; datum-contains? : any/c any/c -> boolean?
@@ -542,6 +544,106 @@
   (check-equal? revised-import-keys '#(demo/provider))
   (check-equal? imports-abis '((proc)))
   (check-false (datum-contains? expr '#%app/value)))
+
+(test-case "composer rekeys abi-only knowns for uninterned import names"
+  (define theme-import
+    (string->uninterned-symbol "theme4.1"))
+  (define stats (make-hash))
+  (parameterize ([current-webify-bridge-stats stats])
+    (webify-compose-linklet-first-slices
+     (list
+      (webify-linklet-slice-spec
+       'provider
+       '(linklet () (theme4.1)
+          (define-values (theme4.1) (lambda (x) x)))
+       '())
+      (webify-linklet-slice-spec
+       'consumer
+       `(linklet (((,theme-import ,theme-import))) ()
+          (,theme-import 'ok))
+       (list (list theme-import 'provider 'theme4.1))))
+     #:tail '((void))
+     #:define-export-aliases? #f
+     #:serializable?-box #f
+     #:datum-intern? #f
+     #:target #f
+     #:allow-set!-undefined? #f
+     #:unsafe-mode? #f
+     #:enforce-constant? #t
+     #:allow-inline? #t
+     #:no-prompt? #f
+     #:prim-knowns (hasheq)
+     #:primitives (hasheq)
+     #:compiler-query (lambda (_v) #f)
+     #:get-import-knowns (lambda (_key) (values #f #f #f))
+     #:import-keys #f))
+  (check-equal?
+   (hash-ref stats 'bridge-import-abi-resolved-from-prior-export-knowns-count 0)
+   1)
+  (define meta
+    (for/or ([(key value) (in-hash stats)])
+      (and (pair? key)
+           (equal? (take key 5)
+                   (list 'bridge-import-abi-meta
+                         'consumer
+                         'provider
+                         theme-import
+                         'theme4.1))
+           value)))
+  (check-not-false meta)
+  (check-equal? (hash-ref meta 'abi #f) 'proc)
+  (check-true (hash-ref meta 'prior-export-known? #f)))
+
+(test-case "composer merges abi-only knowns across mixed-provider import groups"
+  (define stats (make-hash))
+  (parameterize ([current-webify-bridge-stats stats])
+    (webify-compose-linklet-first-slices
+     (list
+      (webify-linklet-slice-spec
+       'kw-provider
+       '(linklet () (keyword-apply)
+          (define-values (keyword-apply) (lambda (x) x)))
+       '())
+      (webify-linklet-slice-spec
+       'helper-provider
+       '(linklet () (helper)
+          (define-values (helper) 'ok))
+       '())
+      (webify-linklet-slice-spec
+       'consumer
+       '(linklet (((keyword-apply keyword-apply)
+                   (helper helper)))
+          ()
+          helper
+          (keyword-apply 'ok))
+       '((keyword-apply kw-provider keyword-apply)
+         (helper helper-provider helper))))
+     #:tail '((void))
+     #:define-export-aliases? #f
+     #:serializable?-box #f
+     #:datum-intern? #f
+     #:target #f
+     #:allow-set!-undefined? #f
+     #:unsafe-mode? #f
+     #:enforce-constant? #t
+     #:allow-inline? #t
+     #:no-prompt? #f
+     #:prim-knowns (hasheq)
+     #:primitives (hasheq)
+     #:compiler-query (lambda (_v) #f)
+     #:get-import-knowns (lambda (_key) (values #f #f #f))
+     #:import-keys #f))
+  (check-equal?
+   (hash-ref stats 'bridge-import-abi-resolved-from-prior-export-knowns-count 0)
+   2)
+  (define keyword-meta
+    (for/or ([(key value) (in-hash stats)])
+      (and (pair? key)
+           (equal? key
+                   '(bridge-import-abi-meta consumer kw-provider keyword-apply keyword-apply))
+           value)))
+  (check-not-false keyword-meta)
+  (check-equal? (hash-ref keyword-meta 'abi #f) 'proc))
 
 (test-case "installed-provider exports stay cell-backed in first provider milestone"
   (define provider

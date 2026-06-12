@@ -548,6 +548,19 @@
       [(list 'bridge-import-abi-false-reason reason)
        (values reason value)])))
 
+;; bridge-import-abi-false-filtered-counts : hash? symbol? (-> hash? any/c) -> hasheq?
+;;   Count ABI-`#f` import metadata rows by extractor after filtering on reason.
+(define (bridge-import-abi-false-filtered-counts stats false-reason extractor)
+  (for/fold ([counts (hasheq)])
+            ([entry (in-list (bridge-import-abi-meta-entries stats))])
+    (if (and (not (hash-ref entry 'abi #f))
+             (eq? (hash-ref entry 'false-reason #f) false-reason))
+        (let ([key (extractor entry)])
+          (if key
+              (hash-update counts key add1 0)
+              counts))
+        counts)))
+
 ;; bridge-top-count-summary : hasheq? -> string?
 ;;   Render the largest bucket counts in descending order for timing output.
 (define (bridge-top-count-summary counts)
@@ -781,6 +794,99 @@
         1
         0)))
 
+;; bridge-public-cell-candidate-not-elided-reason : hash? hash? -> symbol?
+;;   Explain why one safety-eligible export stayed cell-backed.
+(define (bridge-public-cell-candidate-not-elided-reason graph meta)
+  (cond
+    [(not (bridge-public-cell-policy-eligible? meta))
+     'local-only-policy]
+    [(bridge-public-cell-forced-cell? meta)
+     'importer-needs-cell]
+    [(eq? (bridge-public-cell-selected-kind meta) 'value)
+     'elided]
+    [else
+     'registry-shape]))
+
+;; bridge-import-abi-provider-export-entries : hash? symbol? symbol? -> (listof hash?)
+;;   Collect per-import ABI metadata rows for one provider export.
+(define (bridge-import-abi-provider-export-entries stats provider-name export-name)
+  (for/list ([entry (in-list (bridge-import-abi-meta-entries stats))]
+             #:when (and (eq? (hash-ref entry 'provider-module #f) provider-name)
+                         (eq? (hash-ref entry 'export-name #f) export-name)))
+    entry))
+
+;; bridge-public-cell-candidate-not-elided-support-provider-entries : hash? hash? -> (listof (cons any/c hash?))
+;;   Collect non-elided support-provider candidate export metadata entries.
+(define (bridge-public-cell-candidate-not-elided-support-provider-entries graph stats)
+  (for/list ([entry (in-list (bridge-export-cell-meta-entries stats))]
+             #:do [(define meta (cdr entry))]
+             #:when (and (bridge-public-cell-candidate-not-elided? meta)
+                         (eq? (bridge-public-cell-provider-kind graph meta)
+                              'support-provider)))
+    entry))
+
+;; bridge-public-cell-candidate-not-elided-support-provider-module-counts : hash? hash? -> hasheq?
+;;   Count residual support-provider holdouts by provider module.
+(define (bridge-public-cell-candidate-not-elided-support-provider-module-counts graph stats)
+  (for/fold ([counts (hasheq)])
+            ([entry (in-list (bridge-public-cell-candidate-not-elided-support-provider-entries graph stats))])
+    (define module-name (hash-ref (cdr entry) 'module-name #f))
+    (if module-name
+        (hash-update counts module-name add1 0)
+        counts)))
+
+;; bridge-public-cell-candidate-not-elided-support-provider-name-counts : hash? hash? -> hasheq?
+;;   Count residual support-provider holdouts by export name.
+(define (bridge-public-cell-candidate-not-elided-support-provider-name-counts graph stats)
+  (for/fold ([counts (hasheq)])
+            ([entry (in-list (bridge-public-cell-candidate-not-elided-support-provider-entries graph stats))])
+    (define export-name (hash-ref (cdr entry) 'export #f))
+    (if export-name
+        (hash-update counts export-name add1 0)
+        counts)))
+
+;; bridge-public-cell-candidate-not-elided-support-provider-details : hash? hash? -> string?
+;;   Render a bounded detail list for residual support-provider holdouts.
+(define (bridge-public-cell-candidate-not-elided-support-provider-details graph stats)
+  (define support-provider-entries
+    (bridge-public-cell-candidate-not-elided-support-provider-entries graph stats))
+  (define details
+    (for/list ([entry (in-list (take support-provider-entries
+                                     (min 10 (length support-provider-entries))))])
+      (define meta (cdr entry))
+      (define provider-module (hash-ref meta 'module-name #f))
+      (define export-name (hash-ref meta 'export #f))
+      (define import-entries
+        (bridge-import-abi-provider-export-entries stats provider-module export-name))
+      (define importer-modules
+        (remove-duplicates
+         (for/list ([import-entry (in-list import-entries)])
+           (hash-ref import-entry 'importer-module #f))
+         eq?))
+      (define import-abis
+        (remove-duplicates
+         (for/list ([import-entry (in-list import-entries)])
+           (hash-ref import-entry 'abi #f))
+         equal?))
+      (define abi-false-reasons
+        (remove-duplicates
+         (for/list ([import-entry (in-list import-entries)]
+                    #:when (not (hash-ref import-entry 'abi #f)))
+           (hash-ref import-entry 'false-reason #f))
+         eq?))
+      (format "~a/~a importers=~a abi=~a provider-kind=~a not-elided=~a abi-false=~a cell-forced=~a"
+              provider-module
+              export-name
+              (if (null? importer-modules) "-" (string-join (map ~a importer-modules) ","))
+              (if (null? import-abis) "-" (string-join (map ~a import-abis) ","))
+              (hash-ref meta 'provider-kind 'unknown-provider)
+              (bridge-public-cell-candidate-not-elided-reason graph meta)
+              (if (null? abi-false-reasons) "-" (string-join (map ~a abi-false-reasons) ","))
+              (if (bridge-public-cell-forced-cell? meta) "yes" "no"))))
+  (if (null? details)
+      ""
+      (string-join details " | ")))
+
 ;; module-bridge-graph-metric-rows : graph composition -> (listof (list/c string? any/c))
 ;;   Summarize bridge scaffolding and graph shape before the main compiler pipeline.
 (define (module-bridge-graph-metric-rows graph composition)
@@ -904,6 +1010,20 @@
          (hash-ref public-cell-candidate-not-elided-counts
                    'candidate-not-elided-support-provider
                    0))
+   (list "bridge-public-cell-candidate-not-elided-support-provider-top-modules"
+         (bridge-top-count-summary
+          (bridge-public-cell-candidate-not-elided-support-provider-module-counts
+           graph
+           stats)))
+   (list "bridge-public-cell-candidate-not-elided-support-provider-top-names"
+         (bridge-top-count-summary
+          (bridge-public-cell-candidate-not-elided-support-provider-name-counts
+           graph
+           stats)))
+   (list "bridge-public-cell-candidate-not-elided-support-provider-details"
+         (bridge-public-cell-candidate-not-elided-support-provider-details
+          graph
+          stats))
    (list "bridge-public-cell-candidate-not-elided-installed-provider-count"
          (hash-ref public-cell-candidate-not-elided-counts
                    'candidate-not-elided-installed-provider
@@ -964,6 +1084,30 @@
    (list "bridge-import-abi-false-top-reasons"
          (bridge-top-count-summary
           (bridge-import-abi-false-reason-counts stats)))
+   (list "bridge-import-abi-false-unknown-top-modules"
+         (bridge-top-count-summary
+          (bridge-import-abi-false-filtered-counts
+           stats
+           'unknown
+           (lambda (entry) (hash-ref entry 'provider-module #f)))))
+   (list "bridge-import-abi-false-unknown-top-names"
+         (bridge-top-count-summary
+          (bridge-import-abi-false-filtered-counts
+           stats
+           'unknown
+           (lambda (entry) (hash-ref entry 'export-name #f)))))
+   (list "bridge-import-abi-false-unknown-provider-kind-top-modules"
+         (bridge-top-count-summary
+          (bridge-import-abi-false-filtered-counts
+           stats
+           'unknown-provider-kind
+           (lambda (entry) (hash-ref entry 'provider-module #f)))))
+   (list "bridge-import-abi-false-unknown-provider-kind-top-names"
+         (bridge-top-count-summary
+          (bridge-import-abi-false-filtered-counts
+           stats
+           'unknown-provider-kind
+           (lambda (entry) (hash-ref entry 'export-name #f)))))
    (list "bridge-import-abi-false-elision-candidate-count"
          (bridge-import-abi-false-elision-candidate-count graph stats))
    (list "bridge-import-abi-false-cell-forcing-count"
