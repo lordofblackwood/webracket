@@ -70305,7 +70305,7 @@
                ;;   WebRacket runtime syntax objects do not retain binding
                ;;   tables yet, so validate the identifier and optional phase,
                ;;   then report no binding with #f.
-               (func $identifier-binding (type $Prim1234)
+               (func $identifier-binding (type $Prim14)
                      (param $id                (ref eq)) ;; identifier?
                      (param $phase             (ref eq)) ;; optional phase, default = syntax-local-phase-level
                      (param $top-level-symbol? (ref eq)) ;; optional any/c, default = #f; ignored
@@ -72220,7 +72220,7 @@
                ;;   WebRacket has no host executable search path, so this validates inputs
                ;;   and reports that no executable can be found. The optional `related`
                ;;   argument defaults to #f and must be a relative path string when present.
-               (func $find-executable-path (type $Prim123)
+               (func $find-executable-path (type $Prim13)
                      (param $program-raw (ref eq)) ;; path-string?
                      (param $related-raw (ref eq)) ;; optional (or/c #f relative-path-string?), default = #f
                      (param $deepest-raw (ref eq)) ;; optional any/c, default = #f

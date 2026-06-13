@@ -8263,6 +8263,7 @@
                    (let ([id (datum->syntax #f 'apple)])
                      (and (equal? (identifier-binding id) #f)
                           (equal? (identifier-binding id 0) #f)
+                          (equal? (identifier-binding id #f #t) #f)
                           (equal? (identifier-binding id #f #t #t) #f))))
 
              (list "syntax-local-phase-level/bootstrap"
