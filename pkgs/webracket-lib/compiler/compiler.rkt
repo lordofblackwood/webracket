@@ -3444,6 +3444,24 @@
        'source-stx
        stx)))
 
+  ;; wrap-collected-bindings : syntax? (listof syntax?) (listof syntax?) syntax? -> syntax?
+  ;;   Rebuild the collected temporary `let-values` wrappers around the rewritten
+  ;;   catch* form so helper bindings remain in scope after we remove the
+  ;;   original continuation-mark/call-handled-body scaffolding.
+  (define (wrap-collected-bindings stx ids exprs body)
+    (for/foldr ([wrapped body])
+               ([id   (in-list ids)]
+                [expr (in-list exprs)])
+      (with-syntax ([id      id]
+                    [expr    (walk expr)]
+                    [wrapped wrapped])
+        (syntax-property
+         (syntax/loc stx
+           (let-values ([(id) expr])
+             wrapped))
+         'source-stx
+         stx))))
+
   ;; extract-handler-pairs : syntax? -> (or/c (listof (list syntax? syntax?)) #f)
   ;;   Recognize the newer with-handlers expansion shape where selector data is
   ;;   passed as a list of `(cons pred handler)` pairs.
@@ -3506,16 +3524,9 @@
                 [(#%plain-app call-handled-body-target bpz1 lambda0 lambda1)
                  #:when (and (free-identifier=? #'id #'bpz1)
                              (call-handled-body-target? #'call-handled-body-target))
-                 (or (let ([split (with-handlers-binding-split (reverse ids))])
-                       (and split
-                            (positive? split)
-                            (list "plain"
-                                  (reverse ids)
-                                  (reverse exprs)
-                                  #'lambda1)))
-                     (syntax-parse #'lambda0
+                 (or (syntax-parse #'lambda0
                        [(lambda (handler-arg) selector-body)
-                        (define maybe-pair-list
+                       (define maybe-pair-list
                           (extract-selector-pair-list
                            #'selector-body
                            #'handler-arg
@@ -3526,10 +3537,19 @@
                         (and maybe-pairs
                              (andmap values maybe-pairs)
                              (list "selector"
+                                   (reverse ids)
+                                   (reverse exprs)
                                    (map first maybe-pairs)
                                    (map second maybe-pairs)
                                    #'lambda1))]
-                       [_ #f]))]
+                       [_ #f])
+                     (let ([split (with-handlers-binding-split (reverse ids))])
+                       (and split
+                            (positive? split)
+                            (list "plain"
+                                  (reverse ids)
+                                  (reverse exprs)
+                                  #'lambda1))))]
                 [_ #f])]
              [_ #f]))
          (or maybe-final
@@ -3542,11 +3562,19 @@
             (define split (with-handlers-binding-split ids))
             (and split
                  (positive? split)
-                 (let ([pred-exprs    (take exprs split)]
-                       [handler-exprs (drop exprs split)])
-                   (build-catch* stx pred-exprs handler-exprs lambda1)))]
-           [(list "selector" pred-exprs handler-exprs lambda1)
-            (build-catch* stx pred-exprs handler-exprs lambda1)]
+                 (let ([pred-exprs    (take ids split)]
+                       [handler-exprs (drop ids split)])
+                   (wrap-collected-bindings
+                    stx
+                    ids
+                    exprs
+                    (build-catch* stx pred-exprs handler-exprs lambda1))))]
+           [(list "selector" ids exprs pred-exprs handler-exprs lambda1)
+            (wrap-collected-bindings
+             stx
+             ids
+             exprs
+             (build-catch* stx pred-exprs handler-exprs lambda1))]
            [_ #f])))
 
   ;; extract-selector-with-handlers : syntax? -> (or/c syntax? #f)

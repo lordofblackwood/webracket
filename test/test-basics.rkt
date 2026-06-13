@@ -119,6 +119,20 @@
                              (make-arity-at-least 2))
                      (with-handlers ([exn? (lambda (ex) #t)])
                        ((procedure-reduce-arity-mask (lambda xs xs) 4) 'a))))
+              (list "with-handlers: success path keeps local handler bindings"
+                    (and
+                     (equal? (with-handlers ([exn? (lambda (_e) 'handled)])
+                               'ok)
+                             'ok)
+                     (equal? (let ()
+                               (define (return-string tag exp)
+                                 (define tag-name (symbol->string tag))
+                                 (define (handle-exn e)
+                                   (list tag-name exp (exn-message e)))
+                                 (with-handlers ([exn? handle-exn])
+                                   tag-name))
+                               (return-string 'div '(div)))
+                             "div")))
               (list "closedapp: mutation with 0/1/2/3 free variables"
                     (and
                      ;; 0 free variables: mutation is local to the activation.
