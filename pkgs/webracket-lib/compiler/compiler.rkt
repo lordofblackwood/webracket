@@ -4015,6 +4015,70 @@
            (define es  (Expr* #'(e ...)))
            `(letrec-values ,E ([(,xss ...) ,es] ...)
               ,(Expr #'e0) ,(Expr* #'(e1 ...)) ...))]
+        [(parameterize ([p e] ...) e0 e1 ...)
+         (let ()
+           (define paramz (car (generate-temporaries #'(paramz))))
+           (define pe-args
+             (append-map list
+                         (syntax->list #'(p ...))
+                         (syntax->list #'(e ...))))
+           (Expr #`(let-values ([(#,paramz)
+                                 (#%plain-app extend-parameterization
+                                              (#%plain-app current-parameterization)
+                                              #,@pe-args)])
+                      (#%plain-app call-with-parameterization
+                                   #,paramz
+                                   (#%plain-lambda () e0 e1 ...)))))]
+        [(#%plain-app parameterize-id:id ((p e) ...) e0 e1 ...)
+         #:when (memq (syntax-e #'parameterize-id)
+                      '(parameterize wr-top-level/parameterize))
+         (let ()
+           (define paramz (car (generate-temporaries #'(paramz))))
+           (define pe-args
+             (append-map list
+                         (syntax->list #'(p ...))
+                         (syntax->list #'(e ...))))
+           (Expr #`(let-values ([(#,paramz)
+                                 (#%plain-app extend-parameterization
+                                              (#%plain-app current-parameterization)
+                                              #,@pe-args)])
+                      (#%plain-app call-with-parameterization
+                                   #,paramz
+                                   (#%plain-lambda () e0 e1 ...)))))]
+        [(#%plain-app (#%top . parameterize-id:id)
+                      (#%plain-app (#%plain-app p e))
+                      e0 e1 ...)
+         #:when (eq? (syntax-e #'parameterize-id) 'parameterize)
+         (let ()
+           (define paramz (car (generate-temporaries #'(paramz))))
+           ;; In the current no-stdlib path, `parameterize` can lose its syntax
+           ;; binding before parse and arrive as a bogus `#%top` operator call.
+           ;; Repair that expanded shape by lowering to the existing runtime
+           ;; parameterization protocol. Long term, `parameterize` should stay in
+           ;; scope as syntax earlier so this fallback is only a safety net.
+           (Expr #`(let-values ([(#,paramz)
+                                 (#%plain-app extend-parameterization
+                                              (#%plain-app current-parameterization)
+                                              p
+                                              e)])
+                      (#%plain-app call-with-parameterization
+                                   #,paramz
+                                   (#%plain-lambda () e0 e1 ...)))))]
+        [(#%plain-app parameterize-id:id
+                      (#%plain-app (#%plain-app p e))
+                      e0 e1 ...)
+         #:when (memq (syntax-e #'parameterize-id)
+                      '(parameterize wr-top-level/parameterize))
+         (let ()
+           (define paramz (car (generate-temporaries #'(paramz))))
+           (Expr #`(let-values ([(#,paramz)
+                                 (#%plain-app extend-parameterization
+                                              (#%plain-app current-parameterization)
+                                              p
+                                              e)])
+                      (#%plain-app call-with-parameterization
+                                   #,paramz
+                                   (#%plain-lambda () e0 e1 ...)))))]
         [(set! x:id e)                              `(set! ,E ,(variable #'x) ,(Expr #'e))]
         [(with-continuation-mark e0 e1 e2)          `(wcm ,E ,(Expr #'e0) ,(Expr #'e1) ,(Expr #'e2))]
         [(#%plain-app e0 e1 ...)                    `(app ,E ,(Expr #'e0) ,(Expr* #'(e1 ...)) ...)]
