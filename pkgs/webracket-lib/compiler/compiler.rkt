@@ -1875,7 +1875,7 @@
   catch   ; single predicate and handler
   catch*  ; multiple predicates and handlers
   call-with-exception-handler
-  
+
   raise
   raise-unbound-variable-reference
   raise-argument-error
@@ -3444,6 +3444,52 @@
        'source-stx
        stx)))
 
+  ;; extract-handler-pairs : syntax? -> (or/c (listof (list syntax? syntax?)) #f)
+  ;;   Recognize the newer with-handlers expansion shape where selector data is
+  ;;   passed as a list of `(cons pred handler)` pairs.
+  (define (extract-handler-pairs stx)
+    (syntax-parse stx
+      #:literal-sets (kernel-literals)
+      [(#%plain-app list-id pair-expr ...)
+       #:when (and (identifier? #'list-id)
+                   (eq? (syntax-e #'list-id) 'list))
+       (for/list ([pair-stx (in-list (syntax->list #'(pair-expr ...)))])
+         (syntax-parse pair-stx
+           #:literal-sets (kernel-literals)
+           [(#%plain-app cons-id pred handler)
+            #:when (and (identifier? #'cons-id)
+                        (eq? (syntax-e #'cons-id) 'cons))
+            (list #'pred #'handler)]
+           [_ #f]))]
+      [_ #f]))
+
+  ;; extract-selector-pair-list : syntax? identifier? identifier? -> (or/c syntax? #f)
+  ;;   Pull out the `(list (cons pred handler) ...)` argument from the selector
+  ;;   continuation body used by newer `with-handlers` expansions.
+  (define (extract-selector-pair-list stx handler-arg bpz)
+    (define (match-call call-stx)
+      (syntax-parse call-stx
+        #:literal-sets (kernel-literals)
+        [(#%plain-app _ selector-arg bpz2 pair-list-expr)
+         #:when (and (identifier? #'selector-arg)
+                     (identifier? #'bpz2)
+                     (free-identifier=? handler-arg #'selector-arg)
+                     (free-identifier=? bpz #'bpz2))
+         #'pair-list-expr]
+        [_ #f]))
+    (define (search stx)
+      (or (match-call stx)
+          (syntax-parse stx
+            #:literal-sets (kernel-literals)
+            [(let-values ([(ids:id ...) rhs] ...) body ...)
+             (for/or ([body-stx (in-list (syntax->list #'(body ...)))])
+               (search body-stx))]
+            [(begin body ...)
+             (for/or ([body-stx (in-list (syntax->list #'(body ...)))])
+               (search body-stx))]
+            [_ #f])))
+    (search stx))
+
   ;; extract-nested-with-handlers : syntax? -> (or/c syntax? #f)
   ;;   Rewrite the nested let-values shape produced by module-bridge expansion.
   (define (extract-nested-with-handlers stx)
@@ -3453,14 +3499,37 @@
         #:literals (continuation-mark-set-first)
         [(let-values ([(id:id) expr]) rest)
          (define maybe-final
-           (syntax-parse #'expr
+             (syntax-parse #'expr
              [(#%plain-app continuation-mark-set-first '#f break-enabled-key-target)
               #:when (break-enabled-key-target? #'break-enabled-key-target)
               (syntax-parse #'rest
                 [(#%plain-app call-handled-body-target bpz1 lambda0 lambda1)
                  #:when (and (free-identifier=? #'id #'bpz1)
                              (call-handled-body-target? #'call-handled-body-target))
-                 (list (reverse ids) (reverse exprs) #'lambda1)]
+                 (or (let ([split (with-handlers-binding-split (reverse ids))])
+                       (and split
+                            (positive? split)
+                            (list "plain"
+                                  (reverse ids)
+                                  (reverse exprs)
+                                  #'lambda1)))
+                     (syntax-parse #'lambda0
+                       [(lambda (handler-arg) selector-body)
+                        (define maybe-pair-list
+                          (extract-selector-pair-list
+                           #'selector-body
+                           #'handler-arg
+                           #'bpz1))
+                        (define maybe-pairs
+                          (and maybe-pair-list
+                               (extract-handler-pairs maybe-pair-list)))
+                        (and maybe-pairs
+                             (andmap values maybe-pairs)
+                             (list "selector"
+                                   (map first maybe-pairs)
+                                   (map second maybe-pairs)
+                                   #'lambda1))]
+                       [_ #f]))]
                 [_ #f])]
              [_ #f]))
          (or maybe-final
@@ -3468,16 +3537,52 @@
         [_ #f]))
     (define maybe (collect stx '() '()))
     (and maybe
-         (match-let ([(list ids exprs lambda1) maybe])
-           (define split (with-handlers-binding-split ids))
-           (and split
-                (let ([pred-exprs    (take exprs split)]
-                      [handler-exprs (drop exprs split)])
-                  (build-catch* stx pred-exprs handler-exprs lambda1))))))
+         (match maybe
+           [(list "plain" ids exprs lambda1)
+            (define split (with-handlers-binding-split ids))
+            (and split
+                 (positive? split)
+                 (let ([pred-exprs    (take exprs split)]
+                       [handler-exprs (drop exprs split)])
+                   (build-catch* stx pred-exprs handler-exprs lambda1)))]
+           [(list "selector" pred-exprs handler-exprs lambda1)
+            (build-catch* stx pred-exprs handler-exprs lambda1)]
+           [_ #f])))
+
+  ;; extract-selector-with-handlers : syntax? -> (or/c syntax? #f)
+  ;;   Rewrite the current expansion shape that routes handler pairs through
+  ;;   `select-handler/no-breaks` inside the call-handled-body continuation.
+  (define (extract-selector-with-handlers stx)
+    (syntax-parse stx
+      #:literal-sets (kernel-literals)
+      #:literals (continuation-mark-set-first)
+      [(let-values ([(bpz)
+                     (#%plain-app continuation-mark-set-first
+                                  '#f
+                                  break-enabled-key-target)])
+         (#%plain-app call-handled-body-target
+                      bpz1
+                      (lambda (handler-arg) selector-body)
+                      lambda1))
+       #:when (and (break-enabled-key-target? #'break-enabled-key-target)
+                   (call-handled-body-target? #'call-handled-body-target)
+                   (free-identifier=? #'bpz #'bpz1))
+       (define maybe-pair-list
+         (extract-selector-pair-list #'selector-body #'handler-arg #'bpz))
+       (define maybe-pairs
+         (and maybe-pair-list
+              (extract-handler-pairs maybe-pair-list)))
+       (and maybe-pairs
+            (andmap values maybe-pairs)
+            (let ([pred-exprs (map first maybe-pairs)]
+                  [handler-exprs (map second maybe-pairs)])
+              (build-catch* stx pred-exprs handler-exprs #'lambda1)))]
+      [_ #f]))
   
   
   (define (rewrite-with-handlers stx)
     (or (extract-nested-with-handlers stx)
+        (extract-selector-with-handlers stx)
         (syntax-parse stx
       #:literal-sets (kernel-literals) ; #%plain-app quote let-values
       #:literals (continuation-mark-set-first break-enabled-key)
