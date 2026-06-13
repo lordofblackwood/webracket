@@ -249,6 +249,12 @@
                  #:when name)
         name))
 
+    (define program-driver-function-names
+      '($entry
+        $entry-uncaught-exception
+        $entry-uncaught-exception1
+        $entry-uncaught-exception2))
+
     (define (list->eq-set xs)
       (define ht (make-hasheq))
       (eq-set-add-all! ht xs)
@@ -275,10 +281,7 @@
     (define program-function-name-set
       (list->eq-set
        (append program-function-names
-               '($entry
-                 $entry-uncaught-exception
-                 $entry-uncaught-exception1
-                 $entry-uncaught-exception2))))
+               program-driver-function-names)))
 
     (define program-global-name-set
       (list->eq-set
@@ -787,7 +790,9 @@
 
     (define (prune-runtime-module module retained-primitives retained-functions)
       (define retained-ht
-        (for/hasheq ([name (in-list (append program-function-names retained-functions))])
+        (for/hasheq ([name (in-list (append program-function-names
+                                            program-driver-function-names
+                                            retained-functions))])
           (values name #t)))
       (define retained-primitive-ht (make-hasheq))
       (for ([pr (in-list retained-primitives)])
@@ -4373,7 +4378,7 @@
                                        (global.get $missing)))
                            (global.get $true)))
                (unreachable))
-         
+
          (func $raise-argument-error1
                (param $who      (ref eq))      ;; symbol
                (param $expected (ref eq))      ;; expected description
