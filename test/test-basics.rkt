@@ -10029,7 +10029,7 @@
        (list
         (list "compile-linklet import-key protocol"
               (and (let-values ([(linklet import-keys)
-                                  (compile-linklet 'placeholder #f '#(a b))])
+                                 (compile-linklet 'placeholder #f '#(a b))])
                      (and (eq? linklet #f)
                           (equal? import-keys '#(a b))))
                    (eq? (compile-linklet 'placeholder #f #f) #f)
@@ -10041,12 +10041,12 @@
                      (linklet? compiled))))
         (list "recompile-linklet import-key protocol"
               (and (let-values ([(linklet import-keys)
-                                  (recompile-linklet 'compiled #f '#(k))])
+                                 (recompile-linklet 'compiled #f '#(k))])
                      (and (equal? linklet 'compiled)
                           (equal? import-keys '#(k))))
                    (equal? (recompile-linklet 'compiled #f #f)
                            'compiled)))))
-       
+
  (list "Checkers"
        (list
         (list "check-list"          (equal? (begin (check-list '(1 2 3)) 'ok)            'ok))
@@ -10056,11 +10056,9 @@
         (list "check-range-generic" (equal? (begin (check-range-generic 'who 0 1 1) 'ok) 'ok))
         (list "check-naturals"      (equal? (begin (check-naturals 5) 'ok)               'ok))))
 
-(list "FFI"
-        (list
-         #;(list "external-number->flonum"
-                 (let ([e (js-eval "new Number(42)")])
-                   (equal? (external-number->flonum e) 42.0))))
-        )
-
+ (list "FFI"
+       (list
+        #;(list "external-number->flonum"
+                (let ([e (js-eval "new Number(42)")])
+                  (equal? (external-number->flonum e) 42.0))))
  )
