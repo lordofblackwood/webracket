@@ -22,6 +22,7 @@
 
 (require racket/list
          racket/match
+         racket/string
          "../private/parameters.rkt"
          "bridge-stats.rkt"
          "first-slice.rkt"
@@ -274,9 +275,14 @@
                             (for/sum ([meta (in-list metas)])
                               (if (hash-ref meta 'reflection-visible? #f) 1 0))))
 
-;; late-materializable-export-specs : any/c (listof symbol?) (listof symbol?) (listof symbol?) any/c -> (listof vector?)
+;; late-materializable-export-specs : any/c (listof symbol?) (listof symbol?) (listof symbol?) (listof symbol?) any/c -> (listof vector?)
 ;;   Identify exports that can use lexical values internally before cell materialization.
-(define (late-materializable-export-specs expr exports export-args value-ids importss)
+(define (late-materializable-export-specs expr
+                                          exports
+                                          export-args
+                                          value-ids
+                                          candidate-local-ids
+                                          importss)
   (define usage (lowered-export-usage-summary expr export-args))
   (define mutated (hash-ref usage 'mutated))
   (define undefined-sensitive (hash-ref usage 'undefined-sensitive))
@@ -289,75 +295,355 @@
   (for/list ([export (in-list exports)]
              [export-arg (in-list export-args)]
              [value-id (in-list value-ids)]
+             [candidate-local-id (in-list candidate-local-ids)]
              #:unless (or (hash-ref mutated export-arg #f)
                           (hash-ref undefined-sensitive export-arg #f)
                           (hash-ref reflection-visible export-arg #f)
                           (not (hash-has-key? define-constances export-arg))))
-    (vector export export-arg value-id (hash-ref define-constances export-arg) (memq export imported-names))))
+    (vector export
+            export-arg
+            value-id
+            candidate-local-id
+            (hash-ref define-constances export-arg)
+            (memq export imported-names))))
 
-;; rewrite-late-materialized-export : any/c hasheq? -> any/c
-;;   Replace candidate export-cell references with lexical value bindings.
-(define (rewrite-late-materialized-export v candidate-map)
-  (define (rewrite-list xs)
-    (map (lambda (entry) (rewrite-late-materialized-export entry candidate-map)) xs))
+;; id-list : any/c -> (listof symbol?)
+;;   Collect symbol binders from lowered argument or binding forms.
+(define (id-list ids)
   (cond
+    [(symbol? ids) (list ids)]
+    [(pair? ids)   (append (id-list (car ids))
+                           (id-list (cdr ids)))]
+    [(null? ids)   '()]
+    [else          '()]))
+
+;; canonical-candidate-value-id : symbol? hasheq? -> (or/c symbol? #f)
+;;   Map alpha-renamed candidate value ids back to the canonical export value id.
+(define (canonical-candidate-value-id id candidate-map)
+  (and (symbol? id)
+       (for/or ([candidate (in-list (hash-values candidate-map))])
+         (define candidate-str (symbol->string candidate))
+         (define id-str (symbol->string id))
+         (and (string-prefix? id-str (string-append candidate-str "."))
+              candidate))))
+
+;; normalize-rewritten-id : any/c hasheq? -> any/c
+;;   Canonicalize candidate value-id variants that passes may alpha-rename.
+(define (normalize-rewritten-id id candidate-map)
+  (or (canonical-candidate-value-id id candidate-map)
+      id))
+
+;; normalize-id-tree : any/c hasheq? -> any/c
+;;   Canonicalize candidate value-id variants within binder shapes.
+(define (normalize-id-tree ids candidate-map)
+  (cond
+    [(symbol? ids) (normalize-rewritten-id ids candidate-map)]
+    [(pair? ids)   (cons (normalize-id-tree (car ids) candidate-map)
+                         (normalize-id-tree (cdr ids) candidate-map))]
+    [else          ids]))
+
+;; binding-ids : any/c -> (listof symbol?)
+;;   Collect binders from one lowered let-values binding clause.
+(define (binding-ids binding)
+  (match binding
+    [(list ids _rhs) (id-list ids)]
+    [_ '()]))
+
+;; extend-bound-set : hasheq? (listof symbol?) hasheq? -> hasheq?
+;;   Record identifiers that shadow candidate export-arg rewrites.
+(define (extend-bound-set bound-set ids candidate-map)
+  (for/fold ([set bound-set])
+            ([id (in-list ids)])
+    (hash-set set (normalize-rewritten-id id candidate-map) #t)))
+
+;; rewrite-late-materialized-export : any/c hasheq? [hasheq?] -> any/c
+;;   Replace candidate export-arg references with lexical value bindings.
+(define (rewrite-late-materialized-export v candidate-map [bound-set (hasheq)])
+  (define (rewrite entry [bound bound-set])
+    (rewrite-late-materialized-export entry candidate-map bound))
+  (define (rewrite-list xs [bound bound-set])
+    (map (lambda (entry) (rewrite entry bound)) xs))
+  (cond
+    [(symbol? v)
+     (define normalized (normalize-rewritten-id v candidate-map))
+     (if (hash-ref bound-set normalized #f)
+         normalized
+         (hash-ref candidate-map normalized normalized))]
     [(pair? v)
      (if (quote-like-form? v)
          v
          (match v
-           [`(variable-set!/define ,cell ,rhs ,_constance)
-            (define candidate (hash-ref candidate-map cell #f))
-            (if candidate
-                `(define ,candidate ,(rewrite-late-materialized-export rhs candidate-map))
-                `(variable-set!/define
-                  ,cell
-                  ,(rewrite-late-materialized-export rhs candidate-map)
-                  ,_constance))]
            [`(variable-ref ,cell)
-            (or (hash-ref candidate-map cell #f) v)]
+            (define normalized (normalize-rewritten-id cell candidate-map))
+            (or (and (not (hash-ref bound-set normalized #f))
+                     (hash-ref candidate-map normalized #f))
+                v)]
            [`(variable-ref/no-check ,cell)
-            (or (hash-ref candidate-map cell #f) v)]
+            (define normalized (normalize-rewritten-id cell candidate-map))
+            (or (and (not (hash-ref bound-set normalized #f))
+                     (hash-ref candidate-map normalized #f))
+                v)]
            [`(module-variable-ref ,cell)
-            (or (hash-ref candidate-map cell #f) v)]
+            (define normalized (normalize-rewritten-id cell candidate-map))
+            (or (and (not (hash-ref bound-set normalized #f))
+                     (hash-ref candidate-map normalized #f))
+                v)]
            [`(module-variable-ref/no-check ,cell)
-            (or (hash-ref candidate-map cell #f) v)]
+            (define normalized (normalize-rewritten-id cell candidate-map))
+            (or (and (not (hash-ref bound-set normalized #f))
+                     (hash-ref candidate-map normalized #f))
+                v)]
+           [`(#%top . ,id)
+            (define normalized (normalize-rewritten-id id candidate-map))
+            (or (and (not (hash-ref bound-set normalized #f))
+                     (hash-ref candidate-map normalized #f))
+                v)]
+           [`(lambda ,args ,body ...)
+            (define body-bound
+              (extend-bound-set bound-set (id-list args) candidate-map))
+            `(lambda ,args
+               ,@(late-materialized-body-forms body candidate-map body-bound))]
+           [`(case-lambda ,clauses ...)
+            `(case-lambda
+               ,@(for/list ([clause (in-list clauses)])
+                   (match clause
+                     [`(,args ,body ...)
+                      (define body-bound
+                        (extend-bound-set bound-set (id-list args) candidate-map))
+                      `(,args ,@(late-materialized-body-forms body candidate-map body-bound))]
+                     [_ clause])))]
+           [`(let-values ,bindings ,body ...)
+            (define body-bound
+              (extend-bound-set bound-set
+                                (apply append (map binding-ids bindings))
+                                candidate-map))
+           `(let-values
+               ,(for/list ([binding (in-list bindings)])
+                  (match binding
+                    [(list ids rhs)
+                     `(,ids
+                       ,(rewrite rhs bound-set))]
+                    [_ binding]))
+               ,@(late-materialized-body-forms body candidate-map body-bound))]
+           [`(letrec-values ,bindings ,body ...)
+            (define body-bound
+              (extend-bound-set bound-set
+                                (apply append (map binding-ids bindings))
+                                candidate-map))
+           `(letrec-values
+               ,(for/list ([binding (in-list bindings)])
+                  (match binding
+                    [(list ids rhs)
+                     `(,ids
+                       ,(rewrite rhs body-bound))]
+                    [_ binding]))
+               ,@(late-materialized-body-forms body candidate-map body-bound))]
+           [`(letrec-syntaxes+values ,syntax-bindings ,value-bindings ,body ...)
+            (define body-bound
+              (extend-bound-set bound-set
+                                (apply append (map binding-ids value-bindings))
+                                candidate-map))
+           `(letrec-syntaxes+values
+               ,syntax-bindings
+               ,(for/list ([binding (in-list value-bindings)])
+                  (match binding
+                    [(list ids rhs)
+                     `(,ids
+                       ,(rewrite rhs body-bound))]
+                    [_ binding]))
+               ,@(late-materialized-body-forms body candidate-map body-bound))]
+           [`(begin ,forms ...)
+            `(begin ,@(late-materialized-body-forms forms candidate-map bound-set))]
+           [`(begin0 ,head ,rest ...)
+            `(begin0 ,(rewrite head bound-set)
+                     ,@(late-materialized-body-forms rest candidate-map bound-set))]
+           [`(if ,test ,then ,else)
+            `(if ,(rewrite test bound-set)
+                 ,(rewrite then bound-set)
+                 ,(rewrite else bound-set))]
+           [`(set! ,id ,rhs)
+            `(set! ,id ,(rewrite rhs bound-set))]
+           [`(variable-set! ,cell ,rhs)
+            `(variable-set! ,cell ,(rewrite rhs bound-set))]
+           [`(variable-set!/check-undefined ,cell ,rhs)
+            `(variable-set!/check-undefined ,cell ,(rewrite rhs bound-set))]
+           [`(module-variable-set! ,cell ,rhs)
+            `(module-variable-set! ,cell ,(rewrite rhs bound-set))]
+           [`(module-variable-set!/check-undefined! ,cell ,rhs)
+            `(module-variable-set!/check-undefined! ,cell ,(rewrite rhs bound-set))]
+           [`(module-variable-define! ,cell ,rhs ,constance)
+            `(module-variable-define! ,cell ,(rewrite rhs bound-set) ,constance)]
+           [`(variable-set!/define ,cell ,rhs ,constance)
+            `(variable-set!/define ,cell ,(rewrite rhs bound-set) ,constance)]
+           [`(define ,id ,rhs)
+            (define define-bound
+              (extend-bound-set bound-set (if (symbol? id) (list id) '()) candidate-map))
+            `(define ,id ,(rewrite rhs define-bound))]
+           [`(define-values ,ids ,rhs)
+            (define bound-ids (id-list ids))
+            (define normalized-id
+              (and (= (length bound-ids) 1)
+                   (normalize-rewritten-id (car bound-ids) candidate-map)))
+            (define candidate
+              (and normalized-id
+                   (not (hash-ref bound-set normalized-id #f))
+                   (hash-ref candidate-map normalized-id #f)))
+            (define define-bound
+              (extend-bound-set bound-set bound-ids candidate-map))
+            (if candidate
+                `(begin
+                   (set! ,candidate ,(rewrite rhs bound-set))
+                   (void))
+                `(define-values ,ids ,(rewrite rhs define-bound)))]
            [`(,head . ,rest)
-            (cons (rewrite-late-materialized-export head candidate-map)
-                  (rewrite-late-materialized-export rest candidate-map))]
+            (cons (rewrite head bound-set)
+                  (rewrite rest bound-set))]
            [_ v]))]
     [(vector? v)
-     (list->vector (rewrite-list (vector->list v)))]
+     (list->vector (rewrite-list (vector->list v) bound-set))]
     [else
      v]))
 
-;; late-materialized-body-forms : (listof any/c) hasheq? -> (listof any/c)
-;;   Rewrite the top-level slice body while hoisting candidate export definitions.
-(define (late-materialized-body-forms body candidate-map)
-  (apply
-   append
-   (for/list ([form (in-list body)])
-     (match form
-       [`(define ,id
-           (begin
-             (module-variable-define! ,cell ,rhs ,_constance)
-             (void)))
-        (define candidate (hash-ref candidate-map cell #f))
-        (if candidate
-            (list `(define ,candidate
-                     ,(rewrite-late-materialized-export rhs candidate-map)))
-            (list `(define ,id
-                     (begin
-                       (module-variable-define!
-                        ,cell
-                        ,(rewrite-late-materialized-export rhs candidate-map)
-                        ,_constance)
-                       (void)))))]
-       [`(define ,id (,(or 'module-variable-ref 'module-variable-ref/no-check) ,cell))
-        (define candidate (hash-ref candidate-map cell #f))
-        (list (if candidate
-                  `(define ,id ,candidate)
-                  form))]
-       [_ (list (rewrite-late-materialized-export form candidate-map))]))))
+;; late-materialized-body-forms : (listof any/c) hasheq? [hasheq?] -> (listof any/c)
+;;   Rewrite one body context while hoisting candidate export definitions.
+(define (late-materialized-body-forms body candidate-map [bound-set (hasheq)])
+  (let loop ([remaining body]
+             [body-bound-set bound-set]
+             [acc '()])
+    (cond
+      [(null? remaining) (reverse acc)]
+      [else
+       (define form (car remaining))
+       (match form
+         [`(define ,id
+             (begin
+               (module-variable-define! ,cell ,rhs ,_constance)
+               (void)))
+          (define normalized-cell
+            (normalize-rewritten-id cell candidate-map))
+         (define candidate
+            (and (not (hash-ref body-bound-set normalized-cell #f))
+                 (hash-ref candidate-map normalized-cell #f)))
+         (loop (cdr remaining)
+                (if candidate
+                    body-bound-set
+                    (extend-bound-set body-bound-set (if (symbol? id) (list id) '()) candidate-map))
+                (cons (if candidate
+                          `(begin
+                             (set! ,candidate
+                                   ,(rewrite-late-materialized-export rhs candidate-map body-bound-set))
+                             (void))
+                          `(define ,id
+                             (begin
+                               (module-variable-define!
+                                ,cell
+                                ,(rewrite-late-materialized-export rhs candidate-map body-bound-set)
+                                ,_constance)
+                               (void))))
+                      acc))]
+         [`(module-variable-define! ,cell ,rhs ,_constance)
+          (define normalized-cell
+            (normalize-rewritten-id cell candidate-map))
+          (define candidate
+            (and (not (hash-ref body-bound-set normalized-cell #f))
+                 (hash-ref candidate-map normalized-cell #f)))
+         (loop (cdr remaining)
+                body-bound-set
+                (cons (if candidate
+                          `(begin
+                             (set! ,candidate
+                                   ,(rewrite-late-materialized-export rhs candidate-map body-bound-set))
+                             (void))
+                          `(module-variable-define!
+                            ,cell
+                            ,(rewrite-late-materialized-export rhs candidate-map body-bound-set)
+                            ,_constance))
+                      acc))]
+         [`(variable-set!/define ,cell ,rhs ,_constance)
+          (define normalized-cell
+            (normalize-rewritten-id cell candidate-map))
+          (define candidate
+            (and (not (hash-ref body-bound-set normalized-cell #f))
+                 (hash-ref candidate-map normalized-cell #f)))
+         (loop (cdr remaining)
+                body-bound-set
+                (cons (if candidate
+                          `(begin
+                             (set! ,candidate
+                                   ,(rewrite-late-materialized-export rhs candidate-map body-bound-set))
+                             (void))
+                          `(variable-set!/define
+                            ,cell
+                            ,(rewrite-late-materialized-export rhs candidate-map body-bound-set)
+                            ,_constance))
+                      acc))]
+         [`(begin ,forms ...)
+          (loop (cdr remaining)
+                body-bound-set
+                (cons `(begin
+                         ,@(late-materialized-body-forms forms candidate-map body-bound-set))
+                      acc))]
+         [`(define ,id (,(and op (or 'module-variable-ref 'module-variable-ref/no-check)) ,cell))
+          (define normalized-cell
+            (normalize-rewritten-id cell candidate-map))
+          (define candidate
+            (and (not (hash-ref body-bound-set normalized-cell #f))
+                 (hash-ref candidate-map normalized-cell #f)))
+         (loop (cdr remaining)
+                (extend-bound-set body-bound-set (if (symbol? id) (list id) '()) candidate-map)
+                (cons (if candidate
+                          `(define ,id ,candidate)
+                          `(define ,id
+                             ,(rewrite-late-materialized-export
+                               `(,op ,cell)
+                               candidate-map
+                               body-bound-set)))
+                      acc))]
+         [`(define ,id ,rhs)
+          (define normalized-id
+            (normalize-rewritten-id id candidate-map))
+          (define candidate
+            (and (not (hash-ref body-bound-set normalized-id #f))
+                 (hash-ref candidate-map normalized-id #f)))
+          (define define-bound
+            (extend-bound-set body-bound-set (if (symbol? id) (list id) '()) candidate-map))
+          (loop (cdr remaining)
+                (if candidate body-bound-set define-bound)
+                (cons (if candidate
+                          `(begin
+                             (set! ,candidate
+                                   ,(rewrite-late-materialized-export rhs candidate-map body-bound-set))
+                             (void))
+                          `(define ,id
+                             ,(rewrite-late-materialized-export rhs candidate-map define-bound)))
+                      acc))]
+         [`(define-values ,ids ,rhs)
+          (define bound-ids
+            (id-list ids))
+          (define normalized-id
+            (and (= (length bound-ids) 1)
+                 (normalize-rewritten-id (car bound-ids) candidate-map)))
+          (define candidate
+            (and normalized-id
+                 (not (hash-ref body-bound-set normalized-id #f))
+                 (hash-ref candidate-map normalized-id #f)))
+          (define define-bound
+            (extend-bound-set body-bound-set bound-ids candidate-map))
+          (loop (cdr remaining)
+                (if candidate body-bound-set define-bound)
+                (cons (if candidate
+                          `(begin
+                             (set! ,candidate
+                                   ,(rewrite-late-materialized-export rhs candidate-map body-bound-set))
+                             (void))
+                          `(define-values ,ids
+                             ,(rewrite-late-materialized-export rhs candidate-map define-bound)))
+                      acc))]
+         [_
+          (loop (cdr remaining)
+                body-bound-set
+                (cons (rewrite-late-materialized-export form candidate-map body-bound-set)
+                      acc))])])))
 
 ;; late-materialize-exports : any/c (listof vector?) -> any/c
 ;;   Make candidate exports lexical inside the slice and return their values.
@@ -369,11 +655,13 @@
          (define candidate-map
            (for/hasheq ([spec (in-list candidate-specs)])
              (values (vector-ref spec 1)
-                     (vector-ref spec 2))))
+                     (vector-ref spec 3))))
          `(lambda ,args
+            ,@(for/list ([spec (in-list candidate-specs)])
+                `(define ,(vector-ref spec 3) (void)))
             ,@(late-materialized-body-forms body candidate-map)
             (values ,@(for/list ([spec (in-list candidate-specs)])
-                        (vector-ref spec 2))))]
+                        (vector-ref spec 3))))]
         [_ expr])))
 
 ;; strip-correlated : any/c -> any/c
@@ -469,6 +757,32 @@
 
 ;; bind-imports : any/c (listof (listof symbol?)) any/c exact-nonnegative-integer? -> any/c
 ;;   Introduce lexical imports from either direct values or module-variable cells.
+(define (rewrite-direct-import-ref-forms v direct-import-args)
+  (cond
+    [(pair? v)
+     (if (quote-like-form? v)
+         v
+         (match v
+           [`(,(or 'variable-ref
+                   'variable-ref/no-check
+                   'module-variable-ref
+                   'module-variable-ref/no-check)
+              ,cell)
+            (if (hash-ref direct-import-args cell #f)
+                cell
+                v)]
+           [`(,head . ,rest)
+            (cons (rewrite-direct-import-ref-forms head direct-import-args)
+                  (rewrite-direct-import-ref-forms rest direct-import-args))]
+           [_ v]))]
+    [(vector? v)
+     (list->vector
+      (map (lambda (entry)
+             (rewrite-direct-import-ref-forms entry direct-import-args))
+           (vector->list v)))]
+    [else
+     v]))
+
 (define (bind-imports expr importss imports-abis import-count)
   (validate-importss! 'bind-imports importss)
   (validate-imports-abis! 'bind-imports imports-abis importss)
@@ -491,6 +805,11 @@
   (match expr
     [`(lambda ,args ,body ...)
      (define import-args (take (cdr args) import-count))
+     (define direct-import-args
+       (for/hasheq ([arg (in-list import-args)]
+                    [abi (in-list import-abis)]
+                    #:when abi)
+         (values arg #t)))
      (define duplicate (check-duplicates (append import-names args)))
      (when duplicate
        (raise-arguments-error 'bind-imports
@@ -503,7 +822,9 @@
             `(define ,name ,(if abi
                                 arg
                                 `(module-variable-ref ,arg))))
-        ,@body)]
+        ,@(map (lambda (form)
+                 (rewrite-direct-import-ref-forms form direct-import-args))
+               body))]
     [_
      (raise-arguments-error 'bind-imports
                             "expected lowered first-slice value to be a lambda"
@@ -518,6 +839,23 @@
     (if (memq candidate reserved)
         (loop (add1 n))
         candidate)))
+
+;; datum-symbols : any/c -> (listof symbol?)
+;;   Collect symbols already present in one lowered slice datum.
+(define (datum-symbols datum)
+  (let walk ([v datum] [acc '()])
+    (cond
+      [(symbol? v)
+       (if (memq v acc)
+           acc
+           (cons v acc))]
+      [(pair? v)
+       (walk (cdr v) (walk (car v) acc))]
+      [(vector? v)
+       (for/fold ([acc* acc]) ([entry (in-vector v)])
+         (walk entry acc*))]
+      [else
+       acc])))
 
 ;; generated-linklet-proc-id : (listof symbol?) -> symbol?
 ;;   Build an internal binding name for the lowered linklet procedure.
@@ -534,6 +872,12 @@
 ;;   Build an internal lexical binding name for one exported value.
 (define (generated-value-id index reserved)
   (fresh-internal-id (string->symbol (format "webify-export-value~a" index))
+                     reserved))
+
+;; generated-candidate-local-id : exact-nonnegative-integer? (listof symbol?) -> symbol?
+;;   Build a collision-resistant local cache id for late-materialized exports.
+(define (generated-candidate-local-id index reserved)
+  (fresh-internal-id (string->symbol (format "webify-late-export-local-value~a" index))
                      reserved))
 
 ;; validate-reserved-ids! : symbol? any/c -> void?
@@ -651,6 +995,17 @@
   (define value-ids
     (for/list ([export (in-list exports)])
       (hash-ref value-id-map export)))
+  (define candidate-local-ids
+    (for/list ([export (in-list exports)]
+               [index (in-naturals)])
+      (generated-candidate-local-id
+       index
+       (append reserved
+               exports
+               helper-ids
+               value-ids
+               (datum-symbols adapted-expr)
+               (list export)))))
   (define export-args
     (match adapted-expr
       [`(lambda ,args ,_body ...)
@@ -660,6 +1015,7 @@
                                       exports
                                       export-args
                                       value-ids
+                                      candidate-local-ids
                                       importss))
   (define metas
     (export-arg-metadata-list adapted-expr exports export-args module-name importss))
@@ -767,9 +1123,12 @@
   (define candidate-value-ids
     (for/list ([spec (in-list candidate-specs)])
       (vector-ref spec 2)))
-  (define candidate-constances
+  (define candidate-local-ids
     (for/list ([spec (in-list candidate-specs)])
       (vector-ref spec 3)))
+  (define candidate-constances
+    (for/list ([spec (in-list candidate-specs)])
+      (vector-ref spec 4)))
   (define candidate-arg-set
     (for/hasheq ([arg (in-list candidate-export-args)])
       (values arg #t)))
@@ -857,7 +1216,7 @@
      ,@(for/list ([spec (in-list candidate-specs)])
          (define export (vector-ref spec 0))
          (define value-id (vector-ref spec 2))
-         (define constance (vector-ref spec 3))
+         (define constance (vector-ref spec 4))
          (define entry (hash-ref chosen-export-entries export))
          (and (bridge-export-entry-cell-backed? entry)
               `(begin

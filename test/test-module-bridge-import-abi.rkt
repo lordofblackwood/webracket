@@ -142,13 +142,41 @@
                        (webify-linklet-proc$0 (#%variable-reference) (void)))))
   (check-true
    (datum-contains? datum
-                    `(define ,value-id tmp)))
-  (check-true
-   (datum-contains? datum
                     `(module-variable-define! ,cell-id ,value-id 'constant)))
   (check-false
    (datum-contains? datum
                     '(module-variable-define! out-cell tmp 'constant))))
+
+(test-case "late-materialization locals avoid lowered helper name collisions"
+  (define datum
+    (first-slice->top-level-datum
+     '(lambda (instance out-cell)
+        (define webify-export-local-value0$0 17)
+        (module-variable-define! out-cell 42 'constant)
+        (module-variable-ref/no-check out-cell))
+     '(out)
+     #:module-name 'demo/collision))
+  (check-false
+   (datum-contains? datum
+                    '(define webify-export-local-value0$0 (void)))))
+
+(test-case "bridged define materialization updates late local instead of rebinding it"
+  (define datum
+    (first-slice->top-level-datum
+     '(lambda (instance out-cell)
+        (define out
+          (begin
+            (module-variable-define! out-cell 42 'constant)
+            (void)))
+        out)
+     '(out)
+     #:module-name 'demo/bridged-define))
+  (check-true
+   (datum-contains? datum
+                    '(set! webify-late-export-local-value0$0 42)))
+  (check-false
+   (datum-contains? datum
+                    '(define webify-late-export-local-value0$0 42))))
 
 (test-case "module instances expose direct value ids for value-safe imports"
   (define provider
@@ -468,6 +496,81 @@
   (check-false
    (datum-contains? datum
                     `(module-variable-define! ,cell-id ,value-id 'constant))))
+
+(test-case "late-materialized export rewriting covers nested refs and respects shadowing"
+  (define exports '(out))
+  (define value-id
+    (hash-ref (first-slice-top-level-export-value-ids exports) 'out))
+  (define datum
+    (parameterize ([current-module-bridge-elide-public-cells? #t]
+                   [current-module-bridge-module-kinds
+                    (hasheq 'demo-late-rewrite 'local-user)])
+      (first-slice->top-level-datum
+       '(lambda (instance out-cell)
+          (module-variable-define! out-cell 41 'constant)
+          (define direct out-cell)
+          (define nested-let
+            (let-values (((tmp) out-cell))
+              tmp))
+          (define nested-begin
+            (begin out-cell))
+          (define nested-app
+            (list out-cell))
+          (define shadowed
+            (let-values (((out-cell) 99))
+              out-cell))
+          direct)
+       exports
+       #:module-name 'demo-late-rewrite)))
+  (check-true
+   (datum-contains? datum
+                    '(define shadowed
+                       (let-values (((out-cell) 99))
+                         out-cell))))
+  (check-true
+   (datum-contains? datum
+                    `(define out ,value-id)))
+  (check-false
+   (datum-contains? datum
+                    '(define direct out-cell)))
+  (check-false
+   (datum-contains? datum
+                    '(define nested-let
+                       (let-values (((tmp) out-cell))
+                         tmp))))
+  (check-false
+   (datum-contains? datum
+                    '(define nested-begin
+                       (begin out-cell))))
+  (check-false
+   (datum-contains? datum
+                    '(define nested-app
+                       (list out-cell)))))
+
+(test-case "late-materialized export rewriting covers lowered #%top refs"
+  (define exports '(out))
+  (define value-id
+    (hash-ref (first-slice-top-level-export-value-ids exports) 'out))
+  (define datum
+    (parameterize ([current-module-bridge-elide-public-cells? #t]
+                   [current-module-bridge-module-kinds
+                    (hasheq 'demo-late-top-rewrite 'local-user)])
+      (first-slice->top-level-datum
+       '(lambda (instance out-cell)
+          (module-variable-define! out-cell 41 'constant)
+          (define via-top (#%top . out-cell))
+          via-top)
+       exports
+       #:module-name 'demo-late-top-rewrite)))
+  (check-true
+   (datum-contains? datum
+                    `(define out ,value-id)))
+  (check-false
+   (datum-contains? datum
+                    '(define via-top (#%top . out-cell))))
+  (check-false
+   (datum-contains? datum
+                    '(define via-top out-cell))))
 
 (test-case "module instances expose plain public exports to value-safe importers"
   (define provider
