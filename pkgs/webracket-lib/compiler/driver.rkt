@@ -67,6 +67,8 @@
                                     current-browser?
                                     current-enable-cc-analysis?
                                     current-console-bridge?
+                                    current-console-bridge-root-export-bindings
+                                    current-console-bridge-root-source-path
                                     current-enable-simplify?
                                     current-module-bridge-elide-public-cells?
                                     current-module-bridge-elidable-module-names
@@ -124,6 +126,9 @@
                   webify-read-syntax-lowered-provider-cache-path
                   webify-read-syntax-source-fingerprint)
          (only-in "webify/module-adapter.rkt"
+                  bridge-export-entry-binding
+                  bridge-export-entry-kind
+                  bridge-export-entry-metadata
                   first-slice-top-level-export-cell-ids
                   webify-linklet-first-slice-top-level)
          (only-in "webify/module-composer.rkt"
@@ -145,6 +150,9 @@
                   webify-module-linklet-input-name
                   webify-module-linklet-inputs->registry
                   webify-module-linklet-manifest->registry)
+         (only-in "webify/module-instance.rkt"
+                  webify-module-instance-exports
+                  webify-module-instance-export-entry)
          (only-in "webify/module-extractor.rkt"
                   make-webify-contract-erasing-namespace
                   make-webify-contract-erasing-module-name-resolver
@@ -2642,6 +2650,8 @@
   (current-source-module-provider-names #f)
   (current-module-bridge-elidable-module-names #f)
   (current-module-bridge-module-kinds #f)
+  (current-console-bridge-root-export-bindings #f)
+  (current-console-bridge-root-source-path #f)
   (current-webify-knowns-mode 'normal)
   (current-module-bridge-detail-rows '())
   (current-webify-bridge-stats (make-hash))
@@ -3860,10 +3870,12 @@
           js
           core
           primitives
+          #%kernel
           fully
           browser-options
           racket/base
           racket/private/base
+          racket/private/misc
           racket/private/pre-base
           ;; Require/provide transformer helpers run in the host expander while
           ;; extracting module metadata; they are not runtime provider demands.
@@ -4433,6 +4445,32 @@
    reports
    #:local-source-paths local-source-paths))
 
+;; module-bridge-root-export-bindings : webracket/base-local-module-graph? webify-module-composition? -> (listof hash?)
+;;   Collect authoritative public export bindings for the root user module.
+(define (module-bridge-root-export-bindings graph composition)
+  (define who 'module-bridge-root-export-bindings)
+  (define root-name
+    (webracket/base-local-module-graph-root graph))
+  (define root-instance
+    (hash-ref (webify-module-composition-instances composition)
+              root-name
+              (lambda ()
+                (raise-arguments-error who
+                                       "composition is missing the root module instance"
+                                       "root" root-name
+                                       "available instances"
+                                       (hash-keys
+                                        (webify-module-composition-instances composition))))))
+  (for/list ([export-name (in-list (webify-module-instance-exports root-instance))])
+    (define entry
+      (webify-module-instance-export-entry root-instance export-name))
+    (define meta
+      (bridge-export-entry-metadata entry))
+    (hasheq 'name export-name
+            'binding-kind (bridge-export-entry-kind entry)
+            'binding-id (bridge-export-entry-binding entry)
+            'mutable? (and (hash-ref meta 'mutated? #f) #t))))
+
 ;; module-file->module-bridge-top-level : path-string? -> syntax?
 ;;   Compose a local #lang webracket/base graph through module instances.
 ;;   `module-bridge-extract` covers this exact path:
@@ -4442,6 +4480,8 @@
 ;;    -> `compile-webracket/base-module-file-report`
 ;;    -> `webracket/base-reports->module-graph`.
 (define (module-file->module-bridge-top-level filename)
+  (define resolved-filename
+    (path->string (simplify-path (path->complete-path filename))))
   (define graph
     (with-driver-timing
      'module-bridge-extract
@@ -4490,6 +4530,9 @@
             #:compiler-query        (lambda (v) #f)
             #:get-import-knowns     (lambda (key) (values #f #f #f))
             #:import-keys           #f))))))
+  (current-console-bridge-root-export-bindings
+   (module-bridge-root-export-bindings graph composition))
+  (current-console-bridge-root-source-path resolved-filename)
   (hash-set! (current-webify-bridge-stats)
              'module-bridge-metric-rows
              (module-bridge-graph-metric-rows graph composition))
@@ -4500,12 +4543,16 @@
 ;; module-file->module-bridge-top-level/local-only : path-string? -> (or/c syntax? #f)
 ;;   Use the default bridge only for local or explicitly staged provider graphs.
 (define (module-file->module-bridge-top-level/local-only filename)
+  (define resolved-filename
+    (path->string (simplify-path (path->complete-path filename))))
   (define-values (root reports _local-source-paths)
     (with-driver-timing
      'module-bridge-extract
      (lambda ()
        (webracket/base-file->local-module-reports filename))))
   (define external-names (webracket/base-external-provider-names reports))
+  (current-console-bridge-root-export-bindings #f)
+  (current-console-bridge-root-source-path #f)
   (current-module-bridge-elidable-module-names #f)
   (define (compose)
     (let ([graph
@@ -4540,6 +4587,9 @@
               #:compiler-query        (lambda (v) #f)
               #:get-import-knowns     (lambda (key) (values #f #f #f))
               #:import-keys           #f)))))
+      (current-console-bridge-root-export-bindings
+       (module-bridge-root-export-bindings graph composition))
+      (current-console-bridge-root-source-path resolved-filename)
       (hash-set! (current-webify-bridge-stats)
                  'module-bridge-metric-rows
                  (module-bridge-graph-metric-rows graph composition))

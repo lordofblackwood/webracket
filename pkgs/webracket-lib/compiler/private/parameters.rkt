@@ -5,6 +5,8 @@
          current-browser?
          current-enable-cc-analysis?
          current-console-bridge?
+         current-console-bridge-root-export-bindings
+         current-console-bridge-root-source-path
          current-enable-simplify?
          current-module-bridge-elide-public-cells?
          current-module-bridge-elidable-module-names
@@ -27,6 +29,10 @@
 (define current-enable-cc-analysis?
   (make-parameter #f))                                 ; boolean? enable new closure-conversion analysis
 (define current-console-bridge? (make-parameter #f))  ; boolean? install browser console bridge
+(define current-console-bridge-root-export-bindings
+  (make-parameter #f))                                 ; (or/c #f (listof hash?)) authoritative root export bridge metadata
+(define current-console-bridge-root-source-path
+  (make-parameter #f))                                 ; (or/c #f string?) original root module source path for bridge metadata
 (define current-enable-simplify? (make-parameter #f)) ; boolean? run early simplify-LFE pass
 (define current-module-bridge-elide-public-cells?
   (make-parameter #f))                                 ; boolean? expose safe module-bridge exports as plain values

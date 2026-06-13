@@ -61,6 +61,8 @@
                   current-browser?
                   current-enable-cc-analysis?
                   current-console-bridge?
+                  current-console-bridge-root-export-bindings
+                  current-console-bridge-root-source-path
                   current-enable-simplify?
                   current-letrec-strategy
                   current-tree-shake?
@@ -993,6 +995,64 @@
 (define (primitive-arity-accepts? sym n)
   (define arity (primitive-arity sym))
   (or (not arity) (arity-accepts? arity n)))
+
+;; primitive-direct-call-args : symbol? (listof any/c) -> (listof any/c)
+;;   Pad finite optional-arity primitive calls with `$missing` so direct Wasm
+;;   calls match the runtime entry point's fixed maximum arity.
+;;   For `optional-rest` primitives, bundle trailing arguments into one
+;;   rest-list argument instead of padding with `$missing`.
+(define (primitive-direct-call-args sym aes)
+  (define arity (primitive-arity sym))
+  (define spec  (primitive-inline-spec-ref sym))
+  (define (build-rest-list aes)
+    (let loop ([aes aes])
+      (if (null? aes)
+          '(global.get $null)
+          `(block (result (ref eq))
+                  (call $debug-allocation-tick (i32.const 0))
+                  (struct.new $Pair
+                              (i32.const 0)
+                              ,(first aes)
+                              ,(loop (rest aes)))))))
+  (cond
+    [(and spec
+          (eq? (primitive-inline-spec-kind spec) 'optional-rest))
+     (define min        (primitive-inline-spec-min spec))
+     (define max        (primitive-inline-spec-max spec))
+     (define rest-start (primitive-inline-spec-rest-start spec))
+     (define n          (length aes))
+     (if (and max (<= min n max))
+         (append (take aes rest-start)
+                 (list (build-rest-list (drop aes rest-start))))
+         aes)]
+    [(and (list? arity)
+          (pair? arity)
+          (andmap exact-nonnegative-integer? arity))
+     (define sorted (sort arity <))
+     (define min-arity (car sorted))
+     (define max-arity (last sorted))
+     (define consecutive?
+       (= (length sorted) (+ 1 (- max-arity min-arity))))
+     (if (and consecutive?
+              (<= min-arity (length aes) max-arity))
+         (append aes
+                 (make-list (- max-arity (length aes))
+                            '(global.get $missing)))
+         aes)]
+    [else
+     aes]))
+
+;; primitive-tail-call-args : symbol? (listof any/c) -> (listof any/c)
+;;   Adjust primitive tail-call arguments for direct Wasm `return_call`.
+;;   `optional-rest` primitives are already bundled by the ordinary inline
+;;   path, so re-running `primitive-direct-call-args` would wrap the rest
+;;   list a second time.
+(define (primitive-tail-call-args sym args)
+  (define spec (primitive-inline-spec-ref sym))
+  (if (and spec
+           (eq? (primitive-inline-spec-kind spec) 'optional-rest))
+      args
+      (primitive-direct-call-args sym args)))
 
 
 ;;;
@@ -2724,11 +2784,14 @@
   variable-reference->namespace
   variable-reference->module-path-index
   variable-reference->module-source
+  variable-reference->module-source/submod
   variable-reference->resolved-module-path
   variable-reference-from-unsafe?
   variable-reference-constant?
   internal-definition-context?
   liberal-define-context?
+  module-name-fixup
+  module-path-fixup
   module-path-index-join
   module-path-index-resolve
   module-path-index-split
@@ -3689,8 +3752,9 @@
 ;;; Renaming of exception structures
 ;;;
 
-;; The fully expanded syntax contains the names `kernel:exn`, `kernel:exn:fail`, etc.
-;; instead of `exn`, `exn:fail`, etc.
+;; The fully expanded syntax contains names like `kernel:exn`,
+;; `kernel:arity-at-least`, and `kernel:date` instead of the shorter runtime
+;; names that WebRacket exposes directly.
 ;; We prefer to use the shorter names in the runtime, so when parsing the
 ;; fully expanded syntax into the nanopass representation, we substitute these
 ;; identifiers.
@@ -3739,6 +3803,8 @@
                          kern-exn:fail:syntax:missing-module-path
                          kern-exn:fail:syntax:unbound kern-exn:fail:syntax:unbound?
                          kern-arity-at-least
+                         kern-date
+                         kern-date*
                           )
     [kern-exn                               #'exn]
     [kern-exn?                              #'exn?]
@@ -3804,6 +3870,8 @@
     [kern-exn:fail:syntax:unbound           #'exn:fail:syntax:unbound]
     [kern-exn:fail:syntax:unbound?          #'exn:fail:syntax:unbound?]
     [kern-arity-at-least                    #'arity-at-least]
+    [kern-date                              #'date]
+    [kern-date*                             #'date*]
     
     [_ id]))
 
@@ -8356,6 +8424,57 @@
   (TopLevelForm T)
   top)
 
+;; collect-console-bridge-module-cell-bindings : LFE2+ -> (hash/c symbol? variable?)
+;;   Collect source-module export cells created with `module-variable-make`.
+(define-pass collect-console-bridge-source-binding-names : LFE2 (T) -> * ()
+  (definitions
+    (define names '())
+    (define current-module-names #f)
+
+    (define (record-name! x)
+      (define sym (and (variable? x) (syntax-e (variable-id x))))
+      (when (and (symbol? sym)
+                 current-module-names
+                 (not (memq sym current-module-names)))
+        (set! current-module-names (cons sym current-module-names))))
+
+    (define (TopLevelForm* Ts)
+      (for-each TopLevelForm Ts))
+    (define (ModuleLevelForm* Ms)
+      (for-each ModuleLevelForm Ms)))
+
+  (TopLevelForm : TopLevelForm (T) -> * ()
+    [(topbegin ,s ,t ...)
+     (TopLevelForm* t)]
+    [(#%expression ,s ,e)
+     (void)]
+    [(topmodule ,s ,mn ,mp ,mf ...)
+     (define saved current-module-names)
+     (set! current-module-names '())
+     (ModuleLevelForm* mf)
+     (set! names (reverse current-module-names))
+     (set! current-module-names saved)]
+    [,g
+     (GeneralTopLevelForm g)])
+
+  (ModuleLevelForm : ModuleLevelForm (M) -> * ()
+    [(#%provide ,rps ...)
+     (void)]
+    [,g
+     (GeneralTopLevelForm g)])
+
+  (GeneralTopLevelForm : GeneralTopLevelForm (G) -> * ()
+    [(define-values ,s (,x ...) ,e)
+     (for-each record-name! x)]
+    [(define-syntaxes ,s (,x ...) ,e)
+     (void)]
+    [(#%require ,s ,rrs ...)
+     (void)]
+    [,e
+     (void)])
+
+  (TopLevelForm T)
+  names)
 
 ;;;
 ;;; α-RENAMING
@@ -8389,6 +8508,102 @@
   (SpacelessSpec (sls)
     (- x)
     (+ [x0 x1])))  ; [x_before x_after] names before and after renaming
+
+;; collect-console-bridge-module-cell-bindings : LFE2+ -> (hash/c symbol? variable?)
+;;   Collect source-module export cells created with `module-variable-make`.
+(define-pass collect-console-bridge-module-cell-bindings : LFE2+ (T) -> * ()
+  (definitions
+    (define bindings (make-hasheq))
+    (define current-group (make-hasheq))
+
+    (define (record-binding! sym x)
+      (when (and (symbol? sym)
+                 (not (hash-has-key? current-group sym)))
+        (hash-set! current-group sym x)))
+
+    (define (commit-current-group!)
+      (when (positive? (hash-count current-group))
+        (set! bindings current-group)
+        (set! current-group (make-hasheq))))
+
+    (define (TopLevelForm* Ts)
+      (for-each TopLevelForm Ts))
+    (define (ModuleLevelForm* Ms)
+      (for-each ModuleLevelForm Ms)))
+
+  (TopLevelForm : TopLevelForm (T) -> * ()
+    [(topbegin ,s ,t ...)
+     (TopLevelForm* t)]
+    [(#%expression ,s ,e)
+     (commit-current-group!)
+     (void)]
+    [(topmodule ,s ,mn ,mp ,mf ...)
+     (commit-current-group!)
+     (ModuleLevelForm* mf)
+     (commit-current-group!)]
+    [,g
+     (GeneralTopLevelForm g)])
+
+  (ModuleLevelForm : ModuleLevelForm (M) -> * ()
+    [(#%provide ,rps ...)
+     (void)]
+    [,g
+     (GeneralTopLevelForm g)])
+
+  (GeneralTopLevelForm : GeneralTopLevelForm (G) -> * ()
+    [(define-values ,s (,x)
+       (app ,s1 ,e0 (quote ,s2 ,d)))
+     (when (and (variable? e0)
+                (eq? (syntax-e (variable-id e0)) 'module-variable-make))
+       (record-binding! d x))]
+    [(define-values ,s (,x ...) ,e)
+     (commit-current-group!)
+     (void)]
+    [(define-syntaxes ,s (,x ...) ,e)
+     (commit-current-group!)
+     (void)]
+    [(#%require ,s ,rrs ...)
+     (commit-current-group!)
+     (void)]
+    [,e
+     (commit-current-group!)
+     (void)])
+
+  (TopLevelForm T)
+  (commit-current-group!)
+  bindings)
+
+;; collect-console-bridge-module-cell-binding-symbols : any/c -> (hash/c symbol? symbol?)
+;;   Collect the last contiguous group of `(module-variable-make 'name)` cell
+;;   definitions from an unparsed top-level program.
+(define (collect-console-bridge-module-cell-binding-symbols datum)
+  (define latest '())
+  (define current '())
+
+  (define (commit-current-group!)
+    (when (pair? current)
+      (set! latest current)
+      (set! current '())))
+
+  (define (scan-top-level-form form)
+    (match form
+      [`(define-values (,x) (module-variable-make ',sym))
+       (when (and (symbol? x) (symbol? sym))
+         (set! current (cons (cons sym x) current)))]
+      [_ (commit-current-group!)]))
+
+  (define forms
+    (match datum
+      [`(begin ,fs ...) fs]
+      [(? list?) datum]
+      [_ '()]))
+
+  (for ([form (in-list forms)])
+    (scan-top-level-form form))
+  (commit-current-group!)
+
+  (for/hasheq ([entry (in-list (reverse latest))])
+    (values (car entry) (cdr entry))))
 
 
 ;; New identifiers are produced by new-var.
@@ -8450,18 +8665,31 @@
 ; α-rename : LFE2 -> LFE2+
 (define (α-rename/prepare T)
   (define top-bindings (collect-top-level-bindings T))
+  (define all-top-binding-names
+    (for/list ([x (in-list top-bindings)]
+               #:do [(define sym (syntax-e (variable-id x)))]
+               #:when (symbol? sym))
+      sym))
+  (define source-top-binding-names
+    (and (current-console-bridge?)
+         (collect-console-bridge-source-binding-names T)))
   (current-top-symbols-needing-defined-check (make-hasheq))
   (current-console-bridge-top-binding-names
-   (for/list ([x (in-list top-bindings)]
-              #:do [(define sym (syntax-e (variable-id x)))]
-              #:when (symbol? sym))
-     sym))
+   (if (and (pair? source-top-binding-names))
+       source-top-binding-names
+       all-top-binding-names))
   (α-rename/pass1 T top-bindings))
 
 (define (α-rename/finish T ρ)
   ; pass 2 patches the `provide` form to hold both variables
   ; before and after renaming.
-  (α-rename/pass2 T ρ))
+  (define T2 (α-rename/pass2 T ρ))
+  (current-console-bridge-module-cell-bindings
+   (if (current-console-bridge?)
+       (collect-console-bridge-module-cell-binding-symbols
+        (unparse-all (unparse-LFE2+ T2)))
+       (make-hasheq)))
+  T2)
 
 (define (α-rename T)
   (letv ((T ρ) (α-rename/prepare T))
@@ -19669,7 +19897,8 @@
                  [(fx*)      '(global.get $one)]
                  [(fl*)      '(global.get $flone)]
                  [else       (if (primitive-arity-accepts? sym 0)
-                                 `(call ,(Prim pr))
+                                 `(call ,(Prim pr)
+                                        ,@(primitive-direct-call-args sym '()))
                                  (primapp-arity-error sym '()))])]
             [1 (case sym
                  [(fx+ fx*)  (AExpr (first ae1))]
@@ -19680,7 +19909,8 @@
                  [(fl/)      `(call ,(Prim pr) (global.get $flone)  ,(AExpr (first ae1)))]
                  [else       (let ([aes (AExpr* ae1)])
                                (if (primitive-arity-accepts? sym 1)
-                                   `(call ,(Prim pr) ,@aes)
+                                   `(call ,(Prim pr)
+                                          ,@(primitive-direct-call-args sym aes))
                                    (primapp-arity-error sym aes)))])]
             [2 (case sym
                  [(-)           `(call ,(Prim pr)
@@ -19701,7 +19931,8 @@
                  ; / needs to signal an Racket error if denominator is zero
                  [else   (let ([aes (AExpr* ae1)])
                            (if (primitive-arity-accepts? sym 2)
-                               `(call ,(Prim pr) ,@aes)
+                               `(call ,(Prim pr)
+                                      ,@(primitive-direct-call-args sym aes))
                                (primapp-arity-error sym aes)))])]
             [_ (case sym
                  [(fx+ fl+
@@ -19765,19 +19996,27 @@
                   ;;     `(call ,(Prim pr) ,@(AExpr* ae1))
                   ;; But this gives a compile time error from the web assembly compiler,
                   ;; due to too many or too few arguments on the stack.
-                  (let* ([aes (AExpr* ae1)]
-                         [n   (length aes)])
+                 (let* ([aes (AExpr* ae1)]
+                        [n   (length aes)])
                     (if (primitive-arity-accepts? sym n)
                         (if (wide-ffi-primitive? sym)
                             `(call ,(Prim pr) ,(build-rest-args aes))
-                            `(call ,(Prim pr) ,@aes))
+                            `(call ,(Prim pr)
+                                   ,@(primitive-direct-call-args sym aes)))
                         (primapp-arity-error sym aes)))])])])]))
      (record-used-primitives-in-wat! work)
 
      (define (tail-call-work work)
-       (match work
-         [`(call ,callee ,args ...)
-          `(return_call ,callee ,@args)]
+     (match work
+       [`(call ,callee ,args ...)
+          (define args*
+            (cond
+              [(hash-ref primitive-func->symbol callee #f)
+               => (lambda (sym)
+                    (primitive-tail-call-args sym args))]
+              [else
+               args]))
+          `(return_call ,callee ,@args*)]
          [_ 
           `(return ,work)]))
 
@@ -20994,6 +21233,13 @@
       (λ ()
         (generate-global-declarations-for-top-level-variables))))
 
+  (define console-bridge-module-cells
+    (current-console-bridge-module-cell-bindings))
+  (define console-bridge-root-export-bindings
+    (current-console-bridge-root-export-bindings))
+  (define console-bridge-root-source-path
+    (current-console-bridge-root-source-path))
+
   (define console-bridge-bindings
     (if (not (current-console-bridge?))
         '()
@@ -21006,17 +21252,93 @@
                              #:do [(define sym (syntax-e (variable-id x)))]
                              #:when (symbol? sym))
                   (values sym x))]
+               [root-export-bindings-by-name
+                (for/hasheq ([entry (in-list (or console-bridge-root-export-bindings '()))])
+                  (values (hash-ref entry 'name)
+                          entry))]
+               [module-binding-names
+                (sort (hash-keys console-bridge-module-cells) symbol<?)]
+               [root-export-binding-names
+                (sort (hash-keys root-export-bindings-by-name) symbol<?)]
                [console-top-binding-names
                 (for/list ([sym (in-list (set->list top-binding-names))]
                            #:when (hash-ref top-vars-by-name sym #f))
                   sym)]
                [exposed-names
-                (sort (remove-duplicates console-top-binding-names) symbol<?)])
+                (sort (remove-duplicates
+                       (cond
+                         [(pair? root-export-binding-names)
+                          root-export-binding-names]
+                         [(pair? module-binding-names)
+                           module-binding-names
+                          console-top-binding-names]
+                         [else
+                          console-top-binding-names]))
+                      symbol<?)])
           (add-string-constant 'wr-console-bridge-kind "top-level")
           (for/list ([sym (in-list exposed-names)])
             (define const-name (console-bridge-symbol-constant-name sym))
             (add-symbol-constant const-name sym)
             (cond
+              [(hash-ref root-export-bindings-by-name sym #f)
+               => (λ (binding)
+                    (define binding-id
+                      (hash-ref binding 'binding-id))
+                    (define x
+                      (hash-ref top-vars-by-name binding-id #f))
+                    (unless x
+                      (error 'console-bridge-bindings
+                             "internal error: console bridge root export without runtime binding: ~s"
+                             binding-id))
+                    (define source-path
+                      (or console-bridge-root-source-path
+                          (current-console-bridge-program-source-path)))
+                    (define origin-kind
+                      (console-bridge-binding-origin-kind source-path))
+                    (define origin-kind-const-name
+                      (console-bridge-origin-kind-constant-name sym))
+                    (define source-path-const-name
+                      (console-bridge-source-path-constant-name sym))
+                    (add-string-constant origin-kind-const-name origin-kind)
+                    (when source-path
+                      (add-string-constant source-path-const-name source-path))
+                    (case (hash-ref binding 'binding-kind)
+                      [(cell)
+                       (list 'module-cell sym const-name x
+                             (hash-ref binding 'mutable? #f)
+                             origin-kind-const-name
+                             (and source-path source-path-const-name))]
+                      [(value)
+                       (list 'top sym const-name x
+                             #f
+                             origin-kind-const-name
+                             (and source-path source-path-const-name))]
+                      [else
+                       (error 'console-bridge-bindings
+                              "internal error: unknown console bridge root export kind: ~s"
+                              (hash-ref binding 'binding-kind))]))]
+              [(hash-ref console-bridge-module-cells sym #f)
+               => (λ (cell-sym)
+                    (define x
+                      (hash-ref top-vars-by-name cell-sym #f))
+                    (unless x
+                      (error 'console-bridge-bindings
+                             "internal error: console bridge cell without runtime binding: ~s"
+                             cell-sym))
+                    (define source-path (current-console-bridge-program-source-path))
+                    (define origin-kind
+                      (console-bridge-binding-origin-kind source-path))
+                    (define origin-kind-const-name
+                      (console-bridge-origin-kind-constant-name sym))
+                    (define source-path-const-name
+                      (console-bridge-source-path-constant-name sym))
+                    (add-string-constant origin-kind-const-name origin-kind)
+                    (when source-path
+                      (add-string-constant source-path-const-name source-path))
+                    (list 'module-cell sym const-name x
+                          (set-member? mutable-top-binding-names sym)
+                          origin-kind-const-name
+                          (and source-path source-path-const-name)))]
               [(hash-ref top-vars-by-name sym #f)
                => (λ (x)
                     (define source-path
@@ -21294,6 +21616,7 @@
 (define current-pass-dump-limit   (make-parameter #f))
 (define current-console-bridge-top-binding-names (make-parameter '()))
 (define current-console-bridge-mutable-top-binding-names (make-parameter '()))
+(define current-console-bridge-module-cell-bindings (make-parameter (make-hasheq)))
 (define current-console-bridge-program-source-path (make-parameter #f))
 
 (define (format-alpha-rename-profile-report stats)
@@ -21571,6 +21894,7 @@
   (current-simplify-profile-report #f)
   (current-console-bridge-top-binding-names '())
   (current-console-bridge-mutable-top-binding-names '())
+  (current-console-bridge-module-cell-bindings (make-hasheq))
   (current-console-bridge-program-source-path
    (and (syntax? stx)
         (console-bridge-source->string (syntax-source stx))))
@@ -22777,7 +23101,11 @@
     (check-not-false (member "wr-call"   (module-func-exports mod '$wr-call)))
     (check-not-false (member "wr-names"  (module-func-exports mod '$wr-names)))
     (check-not-false (member "wr-names-detailed" (module-func-exports mod '$wr-names-detailed)))
-    (check-not-false (member "wr-format" (module-func-exports mod '$wr-format))))
+    (check-not-false (member "wr-format" (module-func-exports mod '$wr-format)))
+    (define rendered (~s mod))
+    (check-true (regexp-match? #rx"wr-origin-kind/x" rendered))
+    (check-true (regexp-match? #rx"wr-origin-kind/y" rendered))
+    (check-true (regexp-match? #rx"wr-origin-kind/f" rendered)))
 
   (check-equal? (run-expr #'(append '(1) '(2 3) '(4)))
                 '(1 2 3 4))

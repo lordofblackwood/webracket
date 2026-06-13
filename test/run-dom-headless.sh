@@ -23,6 +23,7 @@ compile_test test-dom-canvas-media-image.rkt
 compile_test test-dom-image.rkt
 compile_test test-dom-event.rkt
 compile_test test-console-bridge-smoke.rkt --console-bridge
+compile_test test-console-bridge-module-smoke.rkt --console-bridge
 racket make-vfs-tgz-browser-assets.rkt
 compile_test test-vfs-tgz-browser.rkt --vfs-tar-url /assets=browser-assets.tgz
 
@@ -84,5 +85,5 @@ fi
 SMOKE_BASE_URL="$BASE_URL" \
 SMOKE_NODE_MODULES="$LOCAL_NODE_MODULES" \
 SMOKE_CHROME_EXECUTABLE="$CHROME_EXECUTABLE" \
-SMOKE_TESTS="test-dom-window-document.html,test-dom-canvas-media-image.html,test-dom-image.html,test-dom-event.html,test-console-bridge-smoke.html,test-vfs-tgz-browser.html" \
+SMOKE_TESTS="test-dom-window-document.html,test-dom-canvas-media-image.html,test-dom-image.html,test-dom-event.html,test-console-bridge-smoke.html,test-console-bridge-module-smoke.html,test-vfs-tgz-browser.html" \
 node "$SCRIPT_DIR/run-dom-headless.mjs"

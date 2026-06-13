@@ -17,6 +17,54 @@ async function runPageProbe(page, testPage, consoleMessages) {
     );
   }
 
+  if (testPage === "test-console-bridge-module-smoke.html") {
+    await page.waitForFunction(() => typeof globalThis.WR === "function");
+
+    const probe = await page.evaluate(() => {
+      const names = globalThis.WR.names();
+      const namesDetailed = globalThis.WR.namesDetailed();
+      const currentCounter = globalThis.WR.call("current-counter");
+      const incremented = globalThis.WR.raw("increment!", 5);
+      const mutated = globalThis.WR.raw("counter");
+      return {
+        hasWR: typeof globalThis.WR === "function",
+        names,
+        namesDetailed,
+        currentCounter,
+        incremented,
+        mutated,
+      };
+    });
+
+    if (!probe.hasWR) {
+      throw new Error("window.WR was not installed for module smoke");
+    }
+    const expectedNames = ["counter", "current-counter", "explode!", "increment!"];
+    if (!Array.isArray(probe.names) ||
+        JSON.stringify([...probe.names].sort()) !== JSON.stringify([...expectedNames].sort())) {
+      throw new Error(`Module WR.names() mismatch: ${JSON.stringify(probe.names)}`);
+    }
+    if (probe.names.some((name) => String(name).startsWith("webify-export-"))) {
+      throw new Error(`Module WR.names() leaked generated bindings: ${JSON.stringify(probe.names)}`);
+    }
+    if (!Array.isArray(probe.namesDetailed) || !probe.namesDetailed.every((entry) =>
+      typeof entry.source === "string" &&
+      entry.source.endsWith("/test/test-console-bridge-module-smoke.rkt") &&
+      entry.origin === "program")) {
+      throw new Error(`Module WR.namesDetailed() mismatch: ${JSON.stringify(probe.namesDetailed)}`);
+    }
+    if (probe.currentCounter !== 0) {
+      throw new Error(`WR.call(\"current-counter\") returned ${JSON.stringify(probe.currentCounter)}`);
+    }
+    if (!probe.incremented?.ok || probe.incremented.value !== 5) {
+      throw new Error(`WR.raw(\"increment!\", 5) returned ${JSON.stringify(probe.incremented)}`);
+    }
+    if (!probe.mutated?.ok || probe.mutated.value !== 5) {
+      throw new Error(`WR.raw(\"counter\") after increment returned ${JSON.stringify(probe.mutated)}`);
+    }
+    return;
+  }
+
   if (testPage !== "test-console-bridge-smoke.html") {
     return;
   }
