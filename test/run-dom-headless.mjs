@@ -3,6 +3,30 @@
 import { createRequire } from "node:module";
 import process from "node:process";
 
+function parseTimeoutMs(value, fallback) {
+  const parsed = Number.parseInt(value ?? "", 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+async function withTimeout(label, timeoutMs, thunk) {
+  let timeoutId = null;
+
+  try {
+    return await Promise.race([
+      thunk(),
+      new Promise((_, reject) => {
+        timeoutId = setTimeout(() => {
+          reject(new Error(`Timeout after ${timeoutMs}ms while running ${label}`));
+        }, timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timeoutId !== null) {
+      clearTimeout(timeoutId);
+    }
+  }
+}
+
 // Return the page-specific smoke probe for browser fixtures that need one.
 async function runPageProbe(page, testPage, consoleMessages) {
   if (testPage === "test-vfs-tgz-browser.html") {
@@ -205,6 +229,7 @@ async function main() {
     .map((s) => s.trim())
     .filter(Boolean);
   const chromeExecutable = process.env.SMOKE_CHROME_EXECUTABLE || "";
+  const perTestTimeoutMs = parseTimeoutMs(process.env.SMOKE_TEST_TIMEOUT_MS, 45000);
 
   if (tests.length === 0) {
     console.error("SMOKE_TESTS is required.");
@@ -244,9 +269,12 @@ async function main() {
 
   try {
     for (const testPage of tests) {
+      console.log(`START ${testPage}`);
       const page = await browser.newPage();
       const consoleMessages = [];
       const pageErrors = [];
+
+      page.setDefaultTimeout(perTestTimeoutMs);
 
       page.on("console", (msg) => {
         consoleMessages.push(msg.text());
@@ -256,21 +284,25 @@ async function main() {
       });
 
       try {
-        await page.goto(`${baseUrl}/${testPage}`, { waitUntil: "load" });
-        await page.waitForTimeout(1000);
+        await withTimeout(testPage, perTestTimeoutMs, async () => {
+          await page.goto(`${baseUrl}/${testPage}`, { waitUntil: "load" });
+          await page.waitForTimeout(1000);
 
-        if (pageErrors.length > 0) {
-          throw pageErrors[0];
-        }
+          if (pageErrors.length > 0) {
+            throw pageErrors[0];
+          }
 
-        await runPageProbe(page, testPage, consoleMessages);
+          await runPageProbe(page, testPage, consoleMessages);
 
-        const meaningful = consoleMessages.filter((text) => text.trim().length > 0);
-        if (meaningful.length === 0) {
-          throw new Error(`No console output observed for ${testPage}`);
-        }
-
+          const meaningful = consoleMessages.filter((text) => text.trim().length > 0);
+          if (meaningful.length === 0) {
+            throw new Error(`No console output observed for ${testPage}`);
+          }
+        });
         console.log(`PASS ${testPage}`);
+      } catch (err) {
+        console.error(`FAIL ${testPage}`);
+        throw err;
       } finally {
         await page.close();
       }

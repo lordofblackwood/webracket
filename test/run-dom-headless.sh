@@ -11,11 +11,13 @@ CHROME_EXECUTABLE="${DOM_HEADLESS_EXECUTABLE:-/Applications/Google Chrome.app/Co
 compile_test() {
   local file="$1"
   shift || true
+  echo "START compile $file"
   racket ../webracket.rkt \
     --browser \
     --ffi ../ffi/dom.ffi \
     "$@" \
     "$file"
+  echo "PASS compile $file"
 }
 
 compile_test test-dom-window-document.rkt
