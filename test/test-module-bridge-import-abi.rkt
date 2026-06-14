@@ -178,6 +178,74 @@
    (datum-contains? datum
                     '(define webify-late-export-local-value0$0 42))))
 
+(test-case "forward export reads stay cell-backed instead of late materialized"
+  (define datum
+    (first-slice->top-level-datum
+     '(lambda (instance out-cell)
+        (define captured
+          (lambda ()
+            (module-variable-ref/no-check out-cell)))
+        (module-variable-define! out-cell 42 'constant)
+        captured)
+     '(out)
+     #:module-name 'demo/forward-export-read))
+  (check-false
+   (datum-contains? datum
+                    '(define webify-late-export-local-value0$0 (void))))
+  (check-true
+   (datum-contains? datum
+                    '(module-variable-define! webify-export-cell0$0 42 'constant))))
+
+(test-case "define-values rhs export reads stay cell-backed"
+  (define datum
+    (first-slice->top-level-datum
+     '(lambda (instance out-cell)
+        (define-values (internal-cache)
+          (unboxed out-cell))
+        (module-variable-define! out-cell 42 'constant)
+        internal-cache)
+     '(out)
+     #:module-name 'demo/define-values-forward-export-read))
+  (check-false
+   (datum-contains? datum
+                    '(define webify-late-export-local-value0$0 (void))))
+  (check-true
+   (datum-contains? datum
+                    '(module-variable-define! webify-export-cell0$0 42 'constant))))
+
+(test-case "placeholder void exports stay cell-backed"
+  (define datum
+    (first-slice->top-level-datum
+     '(lambda (instance out-cell)
+        (module-variable-define! out-cell (boxed (void)) 'constant)
+        (module-variable-ref/no-check out-cell))
+     '(out)
+     #:module-name 'demo/placeholder-export))
+  (check-false
+   (datum-contains? datum
+                    '(define webify-late-export-local-value0$0 (void))))
+  (check-true
+   (datum-contains? datum
+                    '(module-variable-define! webify-export-cell0$0 (boxed (void)) 'constant))))
+
+(test-case "export writes before later definitions stay cell-backed"
+  (define datum
+    (first-slice->top-level-datum
+     '(lambda (instance out-cell)
+        (module-variable-define! out-cell (make-hasheq) 'constant)
+        (define cache (module-variable-ref/no-check out-cell))
+        (define (lookup key)
+          (hash-ref cache key #f))
+        lookup)
+     '(out)
+     #:module-name 'demo/export-write-before-definitions))
+  (check-false
+   (datum-contains? datum
+                    '(define webify-late-export-local-value0$0 (void))))
+  (check-true
+   (datum-contains? datum
+                    '(module-variable-define! webify-export-cell0$0 (make-hasheq) 'constant))))
+
 (test-case "module instances expose direct value ids for value-safe imports"
   (define provider
     (make-webify-module-instance 'provider '(x)))

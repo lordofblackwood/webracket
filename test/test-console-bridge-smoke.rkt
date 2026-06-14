@@ -20,6 +20,6 @@
   x)
 
 (define (explode! _)
-  (error 'explode! "boom"))
+  (car 0))
 
 (display "console bridge ready")

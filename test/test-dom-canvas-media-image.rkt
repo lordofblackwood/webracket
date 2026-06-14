@@ -1,3 +1,5 @@
+#lang webracket/base
+
 ;;;
 ;;; dom.ffi
 ;;;
@@ -7,10 +9,22 @@
 ;; Build:
 ;;   racket -l errortrace -t ../webracket.rkt -- --ffi ../ffi/standard.ffi --ffi ../ffi/dom.ffi -r test-dom-canvas-media-image.rkt
 
-(include-lib canvas)
-(include-lib domrect)
-(include-lib element)
-(include-lib image)
+(require browser/canvas
+         (only-in browser/domrect
+                  dom-rect-left
+                  dom-rect-top
+                  dom-rect-width
+                  dom-rect-height)
+         browser/element
+         browser/image
+         browser/media
+         (only-in webracket/primitives
+                  external?
+                  procedure->external)
+         (only-in webracket/unsafe/standard
+                  js-eval
+                  js-ref
+                  js-var))
 (define (check-equal got want label)
   (unless (if (and (number? got) (number? want))
               (= got want)

@@ -1,8 +1,16 @@
 #lang racket/base
 
-(require (prefix-in unsafe: webracket/unsafe/domrect))
+(require (only-in browser/private/shared-library-structs
+                  dom-rect
+                  dom-rect?
+                  dom-rect-raw
+                  dom-rect-unwrap
+                  dom-rect-wrap)
+         (prefix-in unsafe: webracket/unsafe/domrect))
 
-(provide (struct-out dom-rect)
+(provide dom-rect
+         dom-rect?
+         dom-rect-raw
          dom-rect-height
          dom-rect-left
          dom-rect-top
@@ -11,21 +19,8 @@
          dom-rect-wrap)
 
 ;; This is the canonical module version of the old `include-lib domrect` safe
-;; wrapper. Raw bindings remain in `webracket/unsafe/domrect`.
-
-(struct dom-rect (raw) #:transparent)
-
-;; dom-rect-wrap : any/c -> dom-rect?
-;;   Wrap a browser DOMRect value.
-(define (dom-rect-wrap value)
-  (dom-rect value))
-
-;; dom-rect-unwrap : any/c -> any/c
-;;   Unwrap a browser DOMRect value when available.
-(define (dom-rect-unwrap value)
-  (if (dom-rect? value)
-      (dom-rect-raw value)
-      value))
+;; accessor layer. The wrapper struct comes from the shared DOM wrapper module
+;; so values produced by `browser/element` and consumed here have one identity.
 
 ;; dom-rect-left : any/c -> real?
 ;;   Read the left coordinate of a DOMRect.

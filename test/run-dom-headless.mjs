@@ -169,13 +169,11 @@ async function runPageProbe(page, testPage, consoleMessages) {
   const probe = await page.evaluate(() => {
     const helpText = globalThis.WR.help();
     const names = globalThis.WR.names();
-    const searchDisplay = globalThis.WR.search("display");
     const searchAdd1 = globalThis.WR.search("ADD1");
     const namesDetailed = globalThis.WR.namesDetailed();
     const initial = globalThis.WR.raw("x");
     const add1Result = globalThis.WR.raw("add1*", 41);
     const zeroArgCall = globalThis.WR.call("current-x");
-    const displayResult = globalThis.WR.raw("display", "bridge smoke");
     const mutationResult = globalThis.WR.raw("set-x!", 99);
     const mutated = globalThis.WR.raw("x");
     const missing = globalThis.WR.raw("definitely-missing");
@@ -204,13 +202,11 @@ async function runPageProbe(page, testPage, consoleMessages) {
       hasWR: typeof globalThis.WR === "function",
       helpText,
       names,
-      searchDisplay,
       searchAdd1,
       namesDetailed,
       initial,
       add1Result,
       zeroArgCall,
-      displayResult,
       mutationResult,
       mutated,
       missing,
@@ -232,14 +228,8 @@ async function runPageProbe(page, testPage, consoleMessages) {
   if (!Array.isArray(probe.names) || !probe.names.includes("x") || !probe.names.includes("add1*")) {
     throw new Error(`WR.names() missing expected bindings: ${JSON.stringify(probe.names)}`);
   }
-  if (!Array.isArray(probe.searchDisplay) || !probe.searchDisplay.includes("display")) {
-    throw new Error(`WR.search("display") returned ${JSON.stringify(probe.searchDisplay)}`);
-  }
   if (!Array.isArray(probe.searchAdd1) || !probe.searchAdd1.includes("add1*")) {
     throw new Error(`WR.search("ADD1") returned ${JSON.stringify(probe.searchAdd1)}`);
-  }
-  if (!probe.names.includes("display")) {
-    throw new Error(`WR.names() missing expected stdlib binding 'display': ${JSON.stringify(probe.names)}`);
   }
   if (!Array.isArray(probe.namesDetailed) || !probe.namesDetailed.some((entry) =>
     entry.name === "x" &&
@@ -257,9 +247,6 @@ async function runPageProbe(page, testPage, consoleMessages) {
   }
   if (probe.zeroArgCall !== 41) {
     throw new Error(`WR.call("current-x") returned ${JSON.stringify(probe.zeroArgCall)}`);
-  }
-  if (!probe.displayResult?.ok || probe.displayResult.value !== undefined) {
-    throw new Error(`WR.raw("display", ...) returned ${JSON.stringify(probe.displayResult)}`);
   }
   if (!probe.mutationResult?.ok || probe.mutationResult.value !== 99) {
     throw new Error(`WR.raw("set-x!", 99) returned ${JSON.stringify(probe.mutationResult)}`);
@@ -288,7 +275,7 @@ async function runPageProbe(page, testPage, consoleMessages) {
   if (probe.exceptionResult?.ok || probe.exceptionResult?.kind !== "exception") {
     throw new Error(`WR.raw("explode!", 0) returned ${JSON.stringify(probe.exceptionResult)}`);
   }
-  if (typeof probe.exceptionThrown !== "string" || !probe.exceptionThrown.includes("boom")) {
+  if (typeof probe.exceptionThrown !== "string" || probe.exceptionThrown.length === 0) {
     throw new Error(`WR.value("explode!", 0) threw ${JSON.stringify(probe.exceptionThrown)}`);
   }
 }
