@@ -29,6 +29,7 @@
 
 (require racket/list
          racket/match
+         racket/unsafe/undefined
          "../private/primitives-db.rkt"
          "primitive-modules.rkt"
          "module-registry.rkt")
@@ -61,26 +62,65 @@
 
 ;; datum->webify-module-linklet-input : any/c -> webify-module-linklet-input?
 ;;   Parse one manifest input clause.
+(define (cache-readable->datum v)
+  (cond
+    [(eq? v 'webracket-cache:void)
+     (void)]
+    [(eq? v 'webracket-cache:unsafe-undefined)
+     unsafe-undefined]
+    [(pair? v)
+     (match v
+       [`(webracket-cache:path ,s)
+        (string->path s)]
+       [`(webracket-cache:vector ,elems ...)
+        (list->vector (map cache-readable->datum elems))]
+       [`(webracket-cache:box ,elem)
+        (box (cache-readable->datum elem))]
+       [`(webracket-cache:prefab ,key ,fields ...)
+        (apply make-prefab-struct key (map cache-readable->datum fields))]
+       [`(webracket-cache:hash ,kind ,entries)
+        (define decoded-entries
+          (for/list ([entry (in-list entries)])
+            (match entry
+              [(list key value)
+               (cons (cache-readable->datum key)
+                     (cache-readable->datum value))]
+              [_ (error 'cache-readable->datum
+                        "invalid cached hash entry: ~e"
+                        entry)])))
+        (for/fold ([h (case kind
+                        [(eq)  (hasheq)]
+                        [(eqv) (hasheqv)]
+                        [else  (hash)])])
+                  ([entry (in-list decoded-entries)])
+          (hash-set h (car entry) (cdr entry)))]
+       [else
+        (cons (cache-readable->datum (car v))
+              (cache-readable->datum (cdr v)))])]
+    [else v]))
+
 (define (datum->webify-module-linklet-input datum)
   (match datum
     [`(input ,(? symbol? name) ,linklet (imports ,imports))
-     (webify-module-linklet-input name linklet imports)]
+     (webify-module-linklet-input name
+                                  (cache-readable->datum linklet)
+                                  (cache-readable->datum imports))]
     [`(input ,(? symbol? name)
              ,linklet
              (resolve-imports (dependency-exports ,dependency-exports)))
      (webify-module-linklet-input/resolve-imports
       name
-      linklet
-      dependency-exports)]
+      (cache-readable->datum linklet)
+      (cache-readable->datum dependency-exports))]
     [`(input ,(? symbol? name)
              ,linklet
              (resolve-imports (dependency-exports ,dependency-exports)
                               (dependencies ,dependencies)))
      (webify-module-linklet-input/resolve-imports
       name
-      linklet
-      dependency-exports
-      #:dependencies dependencies)]
+      (cache-readable->datum linklet)
+      (cache-readable->datum dependency-exports)
+      #:dependencies (cache-readable->datum dependencies))]
     [_
      (raise-arguments-error 'datum->webify-module-linklet-manifest
                             "expected module-linklet input clause"
