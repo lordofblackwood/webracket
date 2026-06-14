@@ -19655,7 +19655,9 @@
      (define work
        (cond
          [(eq? sym 'void)
-          (define (AE ae)   `(drop ,(AExpr3 ae <effect>)))
+          ;; `void` evaluates its arguments for effects only, so each argument
+          ;; should already leave no stack value in `<effect>` mode.
+          (define (AE ae)   (AExpr3 ae <effect>))
           (define (AE* aes) (map AE aes))
           `(block (result (ref eq))
                   ,@(AE* ae1)
@@ -23964,6 +23966,7 @@
           (equal? (run `(boolean? 42))   #f)
           (equal? (run `(integer? 42))   #t)
           (equal? (run `(integer? #t))   #f)
+          (equal? (run `(void 1 2 3))    (void))
           (equal? (run `(void? ,(void))) #t)
           (equal? (run `(void? 1))       #f)         
           (equal? (run `(null? ()))      #t)
