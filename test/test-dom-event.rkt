@@ -1,3 +1,5 @@
+#lang webracket/base
+
 ;;;
 ;;; dom.ffi
 ;;;
@@ -7,7 +9,11 @@
 ;; Build:
 ;;   racket -l errortrace -t ../webracket.rkt -- --ffi ../ffi/standard.ffi --ffi ../ffi/dom.ffi -r test-dom-event.rkt
 
-(include-lib event)
+(require browser/event
+         (only-in webracket/unsafe/standard
+                  js-eval
+                  js-ref
+                  js-var))
 
 (define (check-equal got want label)
   (unless (if (and (number? got) (number? want))

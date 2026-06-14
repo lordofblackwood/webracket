@@ -3,12 +3,71 @@
 (require webracket/unsafe/event
          (only-in webracket/primitives external?))
 
-(provide (all-defined-out)
-         (all-from-out webracket/unsafe/event))
+(provide event?
+         message-event?
+         close-event?
+         mouse-event?
+         keyboard-event?
+         pointer-event?
+         focus-event?
+         input-event?
+         submit-event?
+         touch-event?
+         wheel-event?
+         touch-list?
+         touch?
+         event-type
+         message-event-data
+         message-event-origin
+         message-event-last-event-id
+         message-event-source
+         message-event-ports
+         close-event-was-clean
+         close-event-code
+         close-event-reason
+         event-target
+         event-current-target
+         prevent-default!
+         stop-propagation!
+         stop-immediate-propagation!
+         mouse-event-offset-x
+         mouse-event-offset-y
+         mouse-event-client-x
+         mouse-event-client-y
+         mouse-event-page-x
+         mouse-event-page-y
+         mouse-event-screen-x
+         mouse-event-screen-y
+         mouse-event-button
+         mouse-event-buttons
+         mouse-event-alt-key?
+         mouse-event-ctrl-key?
+         mouse-event-meta-key?
+         mouse-event-shift-key?
+         keyboard-event-key
+         keyboard-event-code
+         keyboard-event-alt-key?
+         keyboard-event-ctrl-key?
+         keyboard-event-meta-key?
+         keyboard-event-shift-key?
+         keyboard-event-repeat?
+         touch-event-touches
+         touch-event-target-touches
+         touch-event-changed-touches
+         touch-list-length
+         touch-list-ref
+         touch-identifier
+         touch-client-x
+         touch-client-y
+         touch-page-x
+         touch-page-y
+         touch-screen-x
+         touch-screen-y)
 
 ;; Public browser event helpers.
 ;;
-;; This is the module-owned version of the old include-lib event surface.
+;; This is the canonical module version of the old `include-lib event`
+;; safe wrapper. Raw bindings remain in `webracket/unsafe/event`.
 
 
 ;;;
