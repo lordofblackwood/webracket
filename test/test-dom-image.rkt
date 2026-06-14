@@ -1,3 +1,5 @@
+#lang webracket/base
+
 ;;;
 ;;; dom.ffi
 ;;;
@@ -7,7 +9,9 @@
 ;; Build:
 ;;   racket -l errortrace -t ../webracket.rkt -- --ffi ../ffi/standard.ffi --ffi ../ffi/dom.ffi -r test-dom-image.rkt
 
-(include-lib image)
+(require browser/image
+         (only-in webracket/unsafe/standard
+                  js-eval))
 
 (define (check-equal got want label)
   (unless (if (and (number? got) (number? want))
