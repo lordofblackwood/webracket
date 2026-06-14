@@ -160,6 +160,22 @@ async function runPageProbe(page, testPage, consoleMessages) {
     return;
   }
 
+  if (testPage === "test-js-string-symbol-ffi.html") {
+    await page.waitForFunction(() =>
+      document.body?.getAttribute("data-state") === "loaded");
+    const probe = await page.evaluate(() => ({
+      state: document.body?.getAttribute("data-state") ?? null,
+      bodyText: document.body?.innerText ?? "",
+      assigned: globalThis.WebRacketStringSymbolFFITest ?? null,
+    }));
+    if (probe.state !== "loaded" ||
+        probe.assigned !== "assigned" ||
+        !probe.bodyText.includes("js-string-symbol-ffi-ok")) {
+      throw new Error(`string/symbol FFI smoke mismatch: ${JSON.stringify(probe)}`);
+    }
+    return;
+  }
+
   if (testPage !== "test-console-bridge-smoke.html") {
     return;
   }

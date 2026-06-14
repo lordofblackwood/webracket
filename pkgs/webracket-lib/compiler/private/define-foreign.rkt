@@ -596,7 +596,6 @@
                                (ref.cast (ref $String)
                                          ,(argument-ref i)))]
                   ['string/symbol
-                   ; todo - if the argument is a symbol, convert it to a string first
                    `(local.set ,(local-index i)
                                (if (result (ref $String))
                                    (ref.test (ref $Symbol) ,(argument-ref i))
@@ -652,7 +651,7 @@
                    ;; 4) Advance $fasl-index by the length
                    `(block
                      (local.set ,(import-index i) (local.get $fasl-index))
-                     (local.set $bs  (call $s-exp->fasl ,(argument-ref i)
+                     (local.set $bs  (call $s-exp->fasl (local.get ,(local-index i))
                                            (global.get $false)))
                      (local.set $b   (ref.cast (ref $Bytes) (local.get $bs)))
                      (local.set $len (call $copy-bytes-to-memory (local.get $b)
