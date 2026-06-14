@@ -27,6 +27,77 @@ async function withTimeout(label, timeoutMs, thunk) {
   }
 }
 
+function formatConsoleEntry(entry) {
+  const parts = [entry.type.toUpperCase()];
+  if (entry.location) {
+    const { url = "", lineNumber = 0, columnNumber = 0 } = entry.location;
+    if (url) {
+      parts.push(`${url}:${lineNumber}:${columnNumber}`);
+    }
+  }
+  parts.push(entry.text);
+  return parts.join(" ");
+}
+
+function formatRequestFailure(entry) {
+  return `${entry.method} ${entry.url} ${entry.failureText || "request failed"}`;
+}
+
+async function capturePageSnapshot(page) {
+  try {
+    return await page.evaluate(() => ({
+      href: globalThis.location ? String(globalThis.location.href) : null,
+      readyState: globalThis.document ? globalThis.document.readyState : null,
+      title: globalThis.document ? globalThis.document.title : null,
+      bodyState: globalThis.document?.body?.getAttribute("data-state") ?? null,
+      hasDomTest: !!globalThis.__domTest,
+      domTestKeys: globalThis.__domTest ? Object.keys(globalThis.__domTest) : [],
+    }));
+  } catch (_err) {
+    return null;
+  }
+}
+
+async function reportFailure({
+  page,
+  testPage,
+  err,
+  consoleEntries,
+  pageErrors,
+  requestFailures,
+}) {
+  const snapshot = await capturePageSnapshot(page);
+  const recentConsole = consoleEntries.slice(-12).map(formatConsoleEntry);
+  const recentPageErrors = pageErrors.slice(-6).map((entry) =>
+    entry && entry.stack ? entry.stack : String(entry));
+  const recentRequestFailures = requestFailures.slice(-6).map(formatRequestFailure);
+
+  console.error(`FAIL ${testPage}`);
+  console.error(`URL ${page.url() || testPage}`);
+  if (snapshot) {
+    console.error(`READY ${JSON.stringify(snapshot)}`);
+  }
+  if (recentConsole.length > 0) {
+    console.error("CONSOLE");
+    for (const line of recentConsole) {
+      console.error(`  ${line}`);
+    }
+  }
+  if (recentPageErrors.length > 0) {
+    console.error("PAGEERROR");
+    for (const line of recentPageErrors) {
+      console.error(`  ${line}`);
+    }
+  }
+  if (recentRequestFailures.length > 0) {
+    console.error("REQUESTFAIL");
+    for (const line of recentRequestFailures) {
+      console.error(`  ${line}`);
+    }
+  }
+  console.error(err && err.stack ? err.stack : String(err));
+}
+
 // Return the page-specific smoke probe for browser fixtures that need one.
 async function runPageProbe(page, testPage, consoleMessages) {
   if (testPage === "test-vfs-tgz-browser.html") {
@@ -262,25 +333,44 @@ async function main() {
   }
 
   const { chromium } = playwrightPkg;
-  const browser = await chromium.launch({
-    headless: true,
-    executablePath: chromeExecutable || undefined,
-  });
+  let browser = null;
 
   try {
+    browser = await chromium.launch({
+      headless: true,
+      executablePath: chromeExecutable || undefined,
+    });
+
     for (const testPage of tests) {
       console.log(`START ${testPage}`);
       const page = await browser.newPage();
+      const consoleEntries = [];
       const consoleMessages = [];
       const pageErrors = [];
+      const requestFailures = [];
 
       page.setDefaultTimeout(perTestTimeoutMs);
 
       page.on("console", (msg) => {
-        consoleMessages.push(msg.text());
+        const location = msg.location ? msg.location() : null;
+        const entry = {
+          type: msg.type ? msg.type() : "log",
+          text: msg.text(),
+          location,
+        };
+        consoleEntries.push(entry);
+        consoleMessages.push(entry.text);
       });
       page.on("pageerror", (err) => {
         pageErrors.push(err);
+      });
+      page.on("requestfailed", (request) => {
+        const failure = request.failure ? request.failure() : null;
+        requestFailures.push({
+          url: request.url(),
+          method: request.method(),
+          failureText: failure?.errorText ?? null,
+        });
       });
 
       try {
@@ -301,7 +391,14 @@ async function main() {
         });
         console.log(`PASS ${testPage}`);
       } catch (err) {
-        console.error(`FAIL ${testPage}`);
+        await reportFailure({
+          page,
+          testPage,
+          err,
+          consoleEntries,
+          pageErrors,
+          requestFailures,
+        });
         throw err;
       } finally {
         await page.close();
@@ -312,7 +409,9 @@ async function main() {
     console.error(err && err.message ? err.message : String(err));
     process.exitCode = 1;
   } finally {
-    await browser.close();
+    if (browser) {
+      await browser.close();
+    }
   }
 }
 
