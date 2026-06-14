@@ -8,6 +8,19 @@
 (provide (struct-out dom-window)
          (struct-out window-document-info)
          (struct-out window-location-info)
+         (struct-out window-custom-elements-info)
+         (struct-out window-history-info)
+         (struct-out window-visual-viewport-info)
+         (struct-out window-navigator-info)
+         (struct-out window-screen-info)
+         (struct-out window-performance-info)
+         (struct-out window-local-storage-info)
+         (struct-out window-session-storage-info)
+         (struct-out window-indexed-db-info)
+         (struct-out window-caches-info)
+         (struct-out window-speech-synthesis-info)
+         (struct-out window-style-media-info)
+         (struct-out window-crypto-info)
          (struct-out window-scroll-options)
          Window
          window-self
@@ -15,18 +28,70 @@
          window-name
          window-set-name!
          window-location
+         window-custom-elements
+         window-history
+         window-visual-viewport
+         window-navigator
+         window-screen
+         window-performance
+         window-local-storage
+         window-session-storage
+         window-indexed-db
+         window-caches
+         window-speech-synthesis
+         window-style-media
+         window-crypto
+         window-set-location!
+         window-closed?
+         window-length
+         window-origin
+         window-device-pixel-ratio
+         window-inner-height
+         window-inner-width
+         window-outer-height
+         window-outer-width
+         window-screen-x
+         window-screen-y
+         window-screen-left
+         window-screen-top
+         window-page-x-offset
+         window-page-y-offset
+         window-scroll-x
+         window-scroll-y
+         window-is-secure-context?
+         window-cross-origin-isolated?
          window-open
+         window-fetch
          window-confirm
+         window-prompt
+         window-alert
+         window-print
+         window-focus
+         window-stop
          window-scroll-to
+         window-scroll-by
+         window-scroll
+         window-resize-to
+         window-resize-by
+         window-move-to
+         window-move-by
+         window-set-timeout
          window-set-timeout/delay
+         window-clear-timeout
+         window-set-interval
+         window-clear-interval
+         window-request-animation-frame
+         window-cancel-animation-frame
+         window-request-idle-callback
+         window-cancel-idle-callback
+         window-get-selection
          window-match-media
          window-get-computed-style
-         (all-from-out webracket/unsafe/window))
+         window-structured-clone)
 
 ;; This is the canonical module version of the old `include-lib window`
 ;; safe wrapper. Raw bindings remain in `webracket/unsafe/window`.
-;; The checked wrapper surface below currently covers the migrated legacy subset;
-;; add further legacy names here as module clients move off `include-lib`.
+;; Require `webracket/unsafe/window` directly for raw FFI access.
 
 ;;;
 ;;; Window wrappers
@@ -160,10 +225,225 @@
 ;;   Wrap the current window location object.
 (struct window-location-info (raw) #:transparent)
 
+;; window-custom-elements-info : external/raw -> window-custom-elements-info?
+;;   Wrap the browser CustomElementRegistry object.
+(struct window-custom-elements-info (raw) #:transparent)
+
+;; window-history-info : external/raw -> window-history-info?
+;;   Wrap the browser History object.
+(struct window-history-info (raw) #:transparent)
+
+;; window-visual-viewport-info : external/raw -> window-visual-viewport-info?
+;;   Wrap the browser VisualViewport object.
+(struct window-visual-viewport-info (raw) #:transparent)
+
+;; window-navigator-info : external/raw -> window-navigator-info?
+;;   Wrap the browser Navigator object.
+(struct window-navigator-info (raw) #:transparent)
+
+;; window-screen-info : external/raw -> window-screen-info?
+;;   Wrap the browser Screen object.
+(struct window-screen-info (raw) #:transparent)
+
+;; window-performance-info : external/raw -> window-performance-info?
+;;   Wrap the browser Performance object.
+(struct window-performance-info (raw) #:transparent)
+
+;; window-local-storage-info : external/raw -> window-local-storage-info?
+;;   Wrap the browser Storage object.
+(struct window-local-storage-info (raw) #:transparent)
+
+;; window-session-storage-info : external/raw -> window-session-storage-info?
+;;   Wrap the browser Storage object.
+(struct window-session-storage-info (raw) #:transparent)
+
+;; window-indexed-db-info : external/raw -> window-indexed-db-info?
+;;   Wrap the browser IndexedDB factory object.
+(struct window-indexed-db-info (raw) #:transparent)
+
+;; window-caches-info : external/raw -> window-caches-info?
+;;   Wrap the browser CacheStorage object.
+(struct window-caches-info (raw) #:transparent)
+
+;; window-speech-synthesis-info : external/raw -> window-speech-synthesis-info?
+;;   Wrap the browser SpeechSynthesis object.
+(struct window-speech-synthesis-info (raw) #:transparent)
+
+;; window-style-media-info : external/raw -> window-style-media-info?
+;;   Wrap the browser StyleMedia object.
+(struct window-style-media-info (raw) #:transparent)
+
+;; window-crypto-info : external/raw -> window-crypto-info?
+;;   Wrap the browser Crypto object.
+(struct window-crypto-info (raw) #:transparent)
+
 ;; window-location : -> window-location-info?
 ;;   Read the window location object.
 (define (window-location)
   (window-location-info (js-window-location)))
+
+;; window-custom-elements : -> window-custom-elements-info?
+;;   Read the browser CustomElementRegistry object.
+(define (window-custom-elements)
+  (window-custom-elements-info (js-window-custom-elements)))
+
+;; window-history : -> window-history-info?
+;;   Read the browser History object.
+(define (window-history)
+  (window-history-info (js-window-history)))
+
+;; window-visual-viewport : -> (or/c #f window-visual-viewport-info?)
+;;   Read the browser VisualViewport object when present.
+(define (window-visual-viewport)
+  (define value (js-window-visual-viewport))
+  (and (not (eq? value #f))
+       (window-visual-viewport-info value)))
+
+;; window-navigator : -> window-navigator-info?
+;;   Read the browser Navigator object.
+(define (window-navigator)
+  (window-navigator-info (js-window-navigator)))
+
+;; window-screen : -> window-screen-info?
+;;   Read the browser Screen object.
+(define (window-screen)
+  (window-screen-info (js-window-screen)))
+
+;; window-performance : -> window-performance-info?
+;;   Read the browser Performance object.
+(define (window-performance)
+  (window-performance-info (js-window-performance)))
+
+;; window-local-storage : -> window-local-storage-info?
+;;   Read the browser localStorage object.
+(define (window-local-storage)
+  (window-local-storage-info (js-window-local-storage)))
+
+;; window-session-storage : -> window-session-storage-info?
+;;   Read the browser sessionStorage object.
+(define (window-session-storage)
+  (window-session-storage-info (js-window-session-storage)))
+
+;; window-indexed-db : -> window-indexed-db-info?
+;;   Read the browser IndexedDB factory object.
+(define (window-indexed-db)
+  (window-indexed-db-info (js-window-indexed-db)))
+
+;; window-caches : -> window-caches-info?
+;;   Read the browser CacheStorage object.
+(define (window-caches)
+  (window-caches-info (js-window-caches)))
+
+;; window-speech-synthesis : -> window-speech-synthesis-info?
+;;   Read the browser SpeechSynthesis object.
+(define (window-speech-synthesis)
+  (window-speech-synthesis-info (js-window-speech-synthesis)))
+
+;; window-style-media : -> window-style-media-info?
+;;   Read the browser StyleMedia object.
+(define (window-style-media)
+  (window-style-media-info (js-window-style-media)))
+
+;; window-crypto : -> window-crypto-info?
+;;   Read the browser Crypto object.
+(define (window-crypto)
+  (window-crypto-info (js-window-crypto)))
+
+;; window-set-location! : any/c -> void?
+;;   Navigate the window to a new URL or Location.
+(define (window-set-location! loc)
+  (js-set-window-location! loc)
+  (void))
+
+;; window-closed? : -> boolean?
+;;   Report whether the browsing context is closed.
+(define (window-closed?)
+  (window-i32->boolean (js-window-closed)))
+
+;; window-length : -> exact-nonnegative-integer?
+;;   Read the number of child browsing contexts.
+(define (window-length)
+  (js-window-length))
+
+;; window-origin : -> string?
+;;   Read the origin string for the browsing context.
+(define (window-origin)
+  (js-window-origin))
+
+;; window-device-pixel-ratio : -> real?
+;;   Read the current device pixel ratio.
+(define (window-device-pixel-ratio)
+  (js-window-device-pixel-ratio))
+
+;; window-inner-height : -> real?
+;;   Read the viewport's inner height.
+(define (window-inner-height)
+  (js-window-inner-height))
+
+;; window-inner-width : -> real?
+;;   Read the viewport's inner width.
+(define (window-inner-width)
+  (js-window-inner-width))
+
+;; window-outer-height : -> real?
+;;   Read the window's outer height.
+(define (window-outer-height)
+  (js-window-outer-height))
+
+;; window-outer-width : -> real?
+;;   Read the window's outer width.
+(define (window-outer-width)
+  (js-window-outer-width))
+
+;; window-screen-x : -> real?
+;;   Read the screen X coordinate.
+(define (window-screen-x)
+  (js-window-screen-x))
+
+;; window-screen-y : -> real?
+;;   Read the screen Y coordinate.
+(define (window-screen-y)
+  (js-window-screen-y))
+
+;; window-screen-left : -> real?
+;;   Read the screen's left edge.
+(define (window-screen-left)
+  (js-window-screen-left))
+
+;; window-screen-top : -> real?
+;;   Read the screen's top edge.
+(define (window-screen-top)
+  (js-window-screen-top))
+
+;; window-page-x-offset : -> real?
+;;   Read the horizontal page offset.
+(define (window-page-x-offset)
+  (js-window-page-x-offset))
+
+;; window-page-y-offset : -> real?
+;;   Read the vertical page offset.
+(define (window-page-y-offset)
+  (js-window-page-y-offset))
+
+;; window-scroll-x : -> real?
+;;   Read the horizontal scroll offset.
+(define (window-scroll-x)
+  (js-window-scroll-x))
+
+;; window-scroll-y : -> real?
+;;   Read the vertical scroll offset.
+(define (window-scroll-y)
+  (js-window-scroll-y))
+
+;; window-is-secure-context? : -> boolean?
+;;   Report whether the browsing context is secure.
+(define (window-is-secure-context?)
+  (window-i32->boolean (js-window-is-secure-context)))
+
+;; window-cross-origin-isolated? : -> boolean?
+;;   Report whether the browsing context is cross-origin isolated.
+(define (window-cross-origin-isolated?)
+  (window-i32->boolean (js-window-cross-origin-isolated)))
 
 ;; window-open : (or/c string? symbol?) [target (or/c string? symbol? procedure?) #f] [features (or/c string? symbol? procedure?) #f] [replace (or/c boolean? procedure?) #f] -> (or/c #f window?)
 ;;   Open a new browsing context.
@@ -183,11 +463,47 @@
     (raise-argument-error 'window-open "(or/c #f boolean? procedure?)" replace))
   (window-wrap-optional (js-window-open url* target* features* replace*)))
 
+;; window-fetch : any/c [any/c #f] -> external/raw
+;;   Start a fetch request.
+(define (window-fetch request [init #f])
+  (js-window-fetch request (window-resolve-optional init)))
+
 ;; window-confirm : (or/c string? symbol?) -> boolean?
 ;;   Show a confirmation dialog.
 (define (window-confirm message)
   (define message* (window-stringish->string 'window-confirm message))
   (window-i32->boolean (js-window-confirm message*)))
+
+;; window-prompt : (or/c string? symbol?) [any/c #f] -> any/c
+;;   Show a prompt dialog.
+(define (window-prompt message [default-value #f])
+  (define message* (window-stringish->string 'window-prompt message))
+  (js-window-prompt message* (window-resolve-optional default-value)))
+
+;; window-alert : (or/c string? symbol?) -> void?
+;;   Show an alert dialog.
+(define (window-alert message)
+  (define message* (window-stringish->string 'window-alert message))
+  (js-window-alert message*)
+  (void))
+
+;; window-print : -> void?
+;;   Show the print dialog.
+(define (window-print)
+  (js-window-print)
+  (void))
+
+;; window-focus : -> void?
+;;   Focus the current browsing context.
+(define (window-focus)
+  (js-window-focus)
+  (void))
+
+;; window-stop : -> void?
+;;   Stop loading the current browsing context.
+(define (window-stop)
+  (js-window-stop)
+  (void))
 
 ;; window-scroll-to : real? real? [or/c #f window-scroll-options? procedure?] -> void?
 ;;   Scroll the window to an absolute position.
@@ -206,10 +522,121 @@
                            options)])
   (void))
 
+;; window-scroll-by : real? real? [or/c #f window-scroll-options? procedure?] -> void?
+;;   Scroll the window by a relative offset.
+(define (window-scroll-by x y [options #f])
+  (define x* (window-real->flonum 'window-scroll-by x))
+  (define y* (window-real->flonum 'window-scroll-by y))
+  (define options* (window-resolve-scroll-options options))
+  (cond
+    [(eq? options* #f)
+     (js-window-scroll-by x* y* (void))]
+    [(window-scroll-options? options*)
+     (js-window-scroll-by x* y* (window-scroll-options->raw options* x* y*))]
+    [else
+     (raise-argument-error 'window-scroll-by
+                           "(or/c #f window-scroll-options? procedure?)"
+                           options)])
+  (void))
+
+;; window-scroll : real? real? [or/c #f window-scroll-options? procedure?] -> void?
+;;   Scroll the document to an absolute position.
+(define (window-scroll x y [options #f])
+  (define x* (window-real->flonum 'window-scroll x))
+  (define y* (window-real->flonum 'window-scroll y))
+  (define options* (window-resolve-scroll-options options))
+  (cond
+    [(eq? options* #f)
+     (js-window-scroll x* y* (void))]
+    [(window-scroll-options? options*)
+     (js-window-scroll x* y* (window-scroll-options->raw options* x* y*))]
+    [else
+     (raise-argument-error 'window-scroll
+                           "(or/c #f window-scroll-options? procedure?)"
+                           options)])
+  (void))
+
+;; window-resize-to : real? real? -> void?
+;;   Resize the window to a given size.
+(define (window-resize-to w h)
+  (js-window-resize-to (window-real->flonum 'window-resize-to w)
+                       (window-real->flonum 'window-resize-to h))
+  (void))
+
+;; window-resize-by : real? real? -> void?
+;;   Resize the window by a delta.
+(define (window-resize-by w h)
+  (js-window-resize-by (window-real->flonum 'window-resize-by w)
+                       (window-real->flonum 'window-resize-by h))
+  (void))
+
+;; window-move-to : real? real? -> void?
+;;   Move the window to a given position.
+(define (window-move-to x y)
+  (js-window-move-to (window-real->flonum 'window-move-to x)
+                     (window-real->flonum 'window-move-to y))
+  (void))
+
+;; window-move-by : real? real? -> void?
+;;   Move the window by a given delta.
+(define (window-move-by x y)
+  (js-window-move-by (window-real->flonum 'window-move-by x)
+                     (window-real->flonum 'window-move-by y))
+  (void))
+
+;; window-set-timeout : external? -> u32?
+;;   Schedule a one-shot timer callback.
+(define (window-set-timeout callback)
+  (js-window-set-timeout callback))
+
 ;; window-set-timeout/delay : external? real? -> u32?
 ;;   Schedule a one-shot timer callback with an explicit delay.
 (define (window-set-timeout/delay callback delay)
   (js-window-set-timeout/delay callback delay))
+
+;; window-clear-timeout : exact-integer? -> void?
+;;   Cancel a timeout handle.
+(define (window-clear-timeout id)
+  (js-window-clear-timeout id)
+  (void))
+
+;; window-set-interval : external? real? -> u32?
+;;   Schedule a repeated timer callback.
+(define (window-set-interval callback delay)
+  (js-window-set-interval callback delay))
+
+;; window-clear-interval : exact-integer? -> void?
+;;   Cancel an interval handle.
+(define (window-clear-interval id)
+  (js-window-clear-interval id)
+  (void))
+
+;; window-request-animation-frame : external? -> u32?
+;;   Schedule a repaint callback.
+(define (window-request-animation-frame callback)
+  (js-window-request-animation-frame callback))
+
+;; window-cancel-animation-frame : exact-integer? -> void?
+;;   Cancel a repaint callback.
+(define (window-cancel-animation-frame id)
+  (js-window-cancel-animation-frame id)
+  (void))
+
+;; window-request-idle-callback : external? [any/c #f] -> u32?
+;;   Schedule an idle callback.
+(define (window-request-idle-callback callback [options #f])
+  (js-window-request-idle-callback callback (window-resolve-optional options)))
+
+;; window-cancel-idle-callback : exact-integer? -> void?
+;;   Cancel an idle callback.
+(define (window-cancel-idle-callback id)
+  (js-window-cancel-idle-callback id)
+  (void))
+
+;; window-get-selection : -> (or/c #f dom-selection?)
+;;   Read the current selection object.
+(define (window-get-selection)
+  (dom-selection-wrap (js-window-get-selection)))
 
 ;; window-match-media : (or/c string? symbol?) -> media-query-list?
 ;;   Evaluate a media query.
@@ -224,3 +651,8 @@
                                                              pseudo-element))
   (css-style-declaration-wrap
    (js-window-get-computed-style (element-unwrap element) pseudo-element*)))
+
+;; window-structured-clone : any/c [any/c #f] -> any/c
+;;   Clone a value using the structured-clone algorithm.
+(define (window-structured-clone value [options #f])
+  (js-window-structured-clone value (window-resolve-optional options)))
