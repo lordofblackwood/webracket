@@ -29,6 +29,7 @@
 
 (require racket/list
          racket/match
+         racket/string
          racket/unsafe/undefined
          "../private/primitives-db.rkt"
          "primitive-modules.rkt"
@@ -343,14 +344,34 @@
 ;;   Check whether a kernel-origin binding is already a known Webify primitive.
 (define (webify-primitive-name? name)
   (for/or ([info (in-list primitive-db)])
-    (symbolic-name=? (primitive-info-name info) name)))
+    (symbolic-name=? (primitive-info-name info) (kernel-primitive-base-name name))))
+
+;; kernel-primitive-base-name : symbol? -> symbol?
+;;   Strip the host expander's `kernel:` prefix from synthetic #%kernel names.
+(define (kernel-primitive-base-name name)
+  (define text (symbol->string name))
+  (cond
+    [(string-prefix? text "kernel:")
+     (string->symbol (substring text (string-length "kernel:")))]
+    [else name]))
+
+;; kernel-primitive-export-names : primitive-info? -> (listof symbol?)
+;;   List the public and host-expander alias names for one #%kernel primitive.
+(define (kernel-primitive-export-names info)
+  (define name (primitive-info-name info))
+  (define base (kernel-primitive-base-name name))
+  (if (eq? name base)
+      (list base (string->symbol (format "kernel:~a" (symbol->string base))))
+      (list name base)))
 
 ;; kernel-dependency-export-row : -> dependency-export-row
 ;;   Expose only supported Webify primitives as resolvable #%kernel exports.
 (define (kernel-dependency-export-row)
   (list '#%kernel
-        (for/list ([info (in-list primitive-db)])
-          (primitive-info-name info))))
+        (remove-duplicates
+         (append*
+          (for/list ([info (in-list primitive-db)])
+            (kernel-primitive-export-names info))))))
 
 ;; dependency-exports/add-kernel : dependency-exports -> dependency-exports
 ;;   Add a synthetic #%kernel row so unhinted kernel primitive imports can resolve.
@@ -588,8 +609,9 @@
 (define (validate-provider-export! who dependency-exports dependency provider-export)
   (cond
     [(primitive-module-name? dependency)
+     (define base-export (kernel-primitive-base-name provider-export))
      (cond
-       [(webify-primitive-name? provider-export) provider-export]
+       [(webify-primitive-name? base-export) base-export]
        [else
         (raise-arguments-error who
                                "unsupported kernel-origin binding"
@@ -628,7 +650,10 @@
                               "dependency" dependency
                               "export" provider-export))
      (list dependency
-           (dependency-export-ref who dependency exports provider-export)
+           (validate-provider-export! who
+                                      dependency-exports
+                                      dependency
+                                      (dependency-export-ref who dependency exports provider-export))
            'resolved-by-import-alias)]
     [explicit
      (define exports (dependency-exports-ref who dependency-exports explicit))
@@ -641,7 +666,10 @@
           hinted-export]
          [_ external]))
      (list explicit
-           (dependency-export-ref who explicit exports provider-export)
+           (validate-provider-export! who
+                                      dependency-exports
+                                      explicit
+                                      (dependency-export-ref who explicit exports provider-export))
            'resolved-by-explicit-dependency)]
     [hint
      (match-define (list dependency provider-export) hint)
@@ -673,10 +701,17 @@
                                "import" local
                                "export" external)]
        [(null? (cdr ranked-candidates))
-        (define dependency (car ranked-candidates))
-        (define exports (dependency-exports-ref who dependency-exports dependency))
-        (list dependency
-              (dependency-export-ref who dependency exports external)
+       (define dependency (car ranked-candidates))
+       (define exports (dependency-exports-ref who dependency-exports dependency))
+       (list dependency
+              (validate-provider-export! who
+                                         dependency-exports
+                                         dependency
+                                         (dependency-export-ref
+                                          who
+                                          dependency
+                                          exports
+                                          external))
               (if (equal? ranked-candidates candidates)
                   'resolved-by-export-scan
                   'resolved-by-export-scan/provider-precedence))]

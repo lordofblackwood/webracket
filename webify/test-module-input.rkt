@@ -169,6 +169,23 @@
   (check-equal? (map webify-module-resolution-outcome-status kernel-outcomes)
                 '(resolved-by-export-scan)))
 
+(test-case "module linklet import resolver canonicalizes kernel-prefixed imports"
+  (define missing-module-linklet
+    '(linklet (((kernel:exn:fail:filesystem:missing-module
+                 kernel:exn:fail:filesystem:missing-module)))
+       (y)
+       (define-values (y) kernel:exn:fail:filesystem:missing-module)))
+  (define-values (kernel-imports kernel-outcomes)
+    (webify-resolve-module-linklet-imports/outcomes
+     missing-module-linklet
+     '()))
+  (check-equal? kernel-imports
+                '((kernel:exn:fail:filesystem:missing-module
+                   #%kernel
+                   exn:fail:filesystem:missing-module)))
+  (check-equal? (map webify-module-resolution-outcome-status kernel-outcomes)
+                '(resolved-by-export-scan)))
+
 (test-case "module linklet import resolver ranks concrete providers above kernel fallback"
   (define syntax-linklet
     '(linklet (([syntax? syntax?])) (y)
