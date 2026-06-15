@@ -3184,7 +3184,6 @@
     (unless (null? l)
       ; first command
       (let ([x (car l)]) ; x is the first command
-        (js-log (format "render: ~a" x))        
         (if (string? x)
             (error 'draw-pict "how did a string get here?: ~s" x)
             (case (car x)

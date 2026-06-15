@@ -192,6 +192,19 @@ async function runPageProbe(page, testPage, consoleMessages) {
     return;
   }
 
+  if (testPage === "test-webracket-base-format.html") {
+    await page.waitForFunction(() =>
+      ["loaded", "error"].includes(document.body?.getAttribute("data-state")));
+    const probe = await page.evaluate(() => ({
+      state: document.body?.getAttribute("data-state") ?? null,
+      bodyText: document.body?.innerText ?? "",
+    }));
+    if (probe.state !== "loaded" || probe.bodyText.trim() !== "42") {
+      throw new Error(`webracket/base format smoke failed: ${JSON.stringify(probe)}`);
+    }
+    return;
+  }
+
   if (testPage !== "test-console-bridge-smoke.html") {
     return;
   }

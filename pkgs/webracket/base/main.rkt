@@ -1,6 +1,7 @@
 #lang racket/base
 
 (require (except-in racket/base
+                    format
                     make-keyword-procedure
                     keyword-apply
                     procedure-keywords
@@ -16,13 +17,17 @@
          (only-in "../primitives.rkt"
                   print-as-expression
                   [sort/expanded-keywords primitive-sort/expanded-keywords])
+         (only-in "../private/format.rkt"
+                  [format wr-format])
          (for-syntax racket/base)
          (for-syntax racket/splicing)
          (for-syntax webracket-lib/compiler/private/browser-options))
 
 ;; `webracket/base` is the small foundation, mirroring Racket's distinction
 ;; between `racket/base` and the broader `racket` language.
-(provide (all-from-out racket/base)
+(provide (except-out (all-from-out racket/base)
+                     format)
+         (rename-out [wr-format format])
          read-bytes-line
          sort
          prop:gen-sequence
