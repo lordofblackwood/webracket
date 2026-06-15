@@ -3042,6 +3042,26 @@
                         (eq? (cadr candidate) 'racket/private/list))
                       candidates)]
              [else candidates]))
+         (define (public-racket-counterpart name)
+           (and (symbol? name)
+                (match (regexp-match #rx"^racket/private/(.+)$"
+                                     (symbol->string name))
+                  [(list _ suffix)
+                   (string->symbol (string-append "racket/" suffix))]
+                  [_ #f])))
+         (define (prefer-public-racket-provider candidates)
+           ;; Public imports such as `racket/list` can coexist with their
+           ;; implementation modules like `racket/private/list` in the same
+           ;; candidate set. Prefer the public surface unless another earlier
+           ;; rule has already narrowed the choice to the private helper.
+           (define public-candidates
+             (filter (lambda (candidate)
+                       (define dependency (cadr candidate))
+                       (for/or ([other (in-list candidates)])
+                         (eq? dependency
+                              (public-racket-counterpart (cadr other)))))
+                     candidates))
+           (if (null? public-candidates) candidates public-candidates))
          (define public-contract-substitute-modules
            '(racket/contract
              racket/contract/base
@@ -3130,9 +3150,10 @@
              (prefer-installed-provider-internals
               (prefer-public-contract-substitute
                (prefer-exact-provider-export
+                (prefer-public-racket-provider
                 (prefer-list-member-provider
                  (prefer-stream-cons
-                  (if (null? preferred-candidates) candidates preferred-candidates)))))))))
+                  (if (null? preferred-candidates) candidates preferred-candidates))))))))))
          (define (candidate-reason candidate)
            (list local
                  (cadr candidate)

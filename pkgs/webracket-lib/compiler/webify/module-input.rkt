@@ -471,6 +471,28 @@
              candidates)]
     [else candidates]))
 
+;; public-racket-counterpart : symbol? -> (or/c symbol? #f)
+;;   Map a private Racket implementation module to its public facade when it has one.
+(define (public-racket-counterpart dependency)
+  (and (symbol? dependency)
+       (match (regexp-match #rx"^racket/private/(.+)$"
+                            (symbol->string dependency))
+         [(list _ suffix)
+          (string->symbol (string-append "racket/" suffix))]
+         [_ #f])))
+
+;; prefer-public-racket-candidates : (listof symbol?) -> (listof symbol?)
+;;   Prefer a public `racket/...` facade over its `racket/private/...`
+;;   implementation when both survive export scanning.
+(define (prefer-public-racket-candidates candidates)
+  (define public-candidates
+    (filter (lambda (dependency)
+              (for/or ([other (in-list candidates)])
+                (eq? dependency
+                     (public-racket-counterpart other))))
+            candidates))
+  (if (null? public-candidates) candidates public-candidates))
+
 ;; prefer-exact-export-candidates : dependency-exports symbol? (listof symbol?) -> (listof symbol?)
 ;;   Prefer providers that export the exact generated import name over providers
 ;;   that only match after generated-suffix normalization.
@@ -633,10 +655,11 @@
      (define ranked-candidates
        (prefer-list-member-candidates
         external
-        (prefer-exact-export-candidates
-         dependency-exports
-         external
-         (prefer-provider-candidates candidates external))))
+        (prefer-public-racket-candidates
+         (prefer-exact-export-candidates
+          dependency-exports
+          external
+          (prefer-provider-candidates candidates external)))))
      (cond
        [(null? candidates)
         (raise-arguments-error who

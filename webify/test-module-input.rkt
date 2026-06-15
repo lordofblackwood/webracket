@@ -526,6 +526,18 @@
   (check-equal? (map webify-module-resolution-outcome-status
                      webracket-list-sort-outcomes)
                 '(resolved-by-export-scan/provider-precedence))
+  (define-values (list-last-imports list-last-outcomes)
+    (webify-resolve-module-linklet-imports/outcomes
+     '(linklet (([last.1 last])) (y)
+        (define-values (y) last.1))
+     '((racket/private/list (last))
+       (racket/list (last)))
+     #:module-name 'minischeme))
+  (check-equal? list-last-imports
+                '((last.1 racket/list last)))
+  (check-equal? (map webify-module-resolution-outcome-status
+                     list-last-outcomes)
+                '(resolved-by-export-scan/provider-precedence))
   (define-values (list-check-list-imports list-check-list-outcomes)
     (webify-resolve-module-linklet-imports/outcomes
      '(linklet (([check-list7 check-list])) (y)
