@@ -1,3 +1,10 @@
+#lang webracket/base
+
+(require browser/dom
+         browser/sxml
+         (only-in webracket/primitives
+                  procedure->external))
+
 ;;;
 ;;; MathJax 4 live preview
 ;;;
@@ -113,6 +120,10 @@
 
 (define page-structure
   `(div (@ (class "mathjax-demo"))
+        (div (@ (id "status")
+                (data-state "loading")
+                (style "margin:0 0 18px;padding:8px 12px;border-radius:999px;display:inline-flex;align-items:center;gap:8px;background:#e0e7ff;color:#3730a3;font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;"))
+             "loading")
         (h1 (@ (class "title")) "MathJax 4 live preview")
         (p (@ (class "intro"))
            "MathJax 4 parses LaTeX input and renders high-quality mathematics in the browser. " (br)
@@ -138,7 +149,13 @@
 
 (define latex-textarea    #f)
 (define preview-container #f)
+(define status-banner     #f)
 (define mathjax-loaded?   #f)
+
+(define (mark-status! state text)
+  (when status-banner
+    (js-set-attribute! status-banner "data-state" state)
+    (js-set! status-banner "textContent" text)))
 
 (define (inject-style!)
   (define head  (js-document-head))
@@ -152,24 +169,20 @@
   (js-append-child! body layout)
   (set! latex-textarea (js-get-element-by-id "latex-input"))
   (set! preview-container (js-get-element-by-id "mathjax-preview"))
+  (set! status-banner (js-get-element-by-id "status"))
   (void))
 
 (define (mathjax-typeset-clear element)
   (js-send (js-var "MathJax") "typesetClear" (vector (vector element))))
 
 (define (mathjax-typeset-promise element)
-  (js-log "promise!")
   (js-send (js-var "MathJax") "typesetPromise" (vector (vector element))))
 
 (define (render-preview)
-  (js-log "render-preview")
   (when (and latex-textarea preview-container)
-    (js-log "latex and preview")
     (define latex (js-ref latex-textarea "value"))
     (when (string? latex)
-      (js-log "latex is string")
       (when mathjax-loaded?
-        (js-log "mathjax is loaded")
         (mathjax-typeset-clear preview-container))
       (js-set! preview-container "textContent"
                (string-append "$$" latex "$$"))
@@ -191,7 +204,14 @@
   (procedure->external
    (lambda (_evt)
      (set! mathjax-loaded? #t)
+     (mark-status! "ready" "ready")
      (render-preview)
+     (void))))
+
+(define mathjax-error-handler
+  (procedure->external
+   (lambda (_evt)
+     (mark-status! "error" "failed to load MathJax")
      (void))))
 
 (define (load-mathjax-script!)
@@ -201,6 +221,7 @@
   (js-set-attribute! script "async" "")
   (js-set-attribute! script "src" mathjax-cdn-url)
   (js-add-event-listener! script "load" mathjax-loaded-handler)
+  (js-add-event-listener! script "error" mathjax-error-handler)
   (js-append-child! head script))
 
 (js-set! (js-var "document") "title" "MathJax 4 live preview")
@@ -209,4 +230,5 @@
 (build-layout!)
 (attach-input-handler!)
 (render-preview)
+(mark-status! "loading" "loading MathJax")
 (load-mathjax-script!)

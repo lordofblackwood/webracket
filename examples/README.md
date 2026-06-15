@@ -30,7 +30,7 @@ are listed separately and are not intended to compile directly as tutorials.
 | Pict | `pict/pict.rkt` | `already-module` | Module-based browser example with local assets and `generated/` output. |
 | MiniScheme | `minischeme/minischeme-page.rkt` | `legacy-include-lib` | Intended user-facing REPL page; depends on support files. |
 | MiniScheme 2 | `minischeme2/minischeme-page.rkt` | `legacy-include-lib` | Duplicate MiniScheme entry; needs classification before more work. |
-| MathJax 4 | `mathjax4/mathjax.rkt` | `legacy-script` | Browser example with old top-level script shape. |
+| MathJax 4 | `mathjax4/mathjax.rkt` | `module-based` | Module-based browser example with CDN-loaded MathJax preview. |
 | Matrix Rain | `matrix-rain/matrix-rain.rkt` | `legacy-script` | Browser/xterm example with old top-level script shape. |
 | Snake | `snake/snake.rkt` | `module-based` | Browser game with `generated/` output. |
 | Snake 2 | `snake2/snake2.rkt` | `module-based` | Alternate Snake implementation with separate example layout. |
@@ -55,5 +55,5 @@ Planned Conversion Order
 2. `minischeme`
 3. `minischeme2` if it is still meant to be user-facing
 4. `matrix-rain`
-5. `mathjax4`
+5. `minischeme`
 6. `raco` if it remains part of the user-facing examples set
