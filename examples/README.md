@@ -32,7 +32,9 @@ are listed separately and are not intended to compile directly as tutorials.
 | MiniScheme 2 | `minischeme2/minischeme-page.rkt` | `legacy-include-lib` | Duplicate MiniScheme entry; needs classification before more work. |
 | MathJax 4 | `mathjax4/mathjax.rkt` | `legacy-script` | Browser example with old top-level script shape. |
 | Matrix Rain | `matrix-rain/matrix-rain.rkt` | `legacy-script` | Browser/xterm example with old top-level script shape. |
-| Snake | `snake/snake.rkt` | `legacy-script` | Browser game; likely the main snake entry. |
+| Snake | `snake/snake.rkt` | `module-based` | Browser game with `generated/` output. |
+| Snake 2 | `snake2/snake2.rkt` | `module-based` | Alternate Snake implementation with separate example layout. |
+| Snake 3 | `snake/snake3.rkt` | `debug/internal` | Experimental commented-out variant, not a runnable tutorial entry. |
 | Space Invaders | `space-invaders/space-invaders.rkt` | `already-module` | Module-based browser game with `generated/` output. |
 | Raco | `raco/raco.rkt` | `legacy-script` | Advanced/example-stress candidate; confirm user-facing status before conversion. |
 
@@ -44,7 +46,7 @@ Support Files And Non-Entry Sources
 - `minischeme2/build-id.rkt`, `minischeme2/minischeme.rkt`: MiniScheme 2 support files.
 - `pict/pict-removed.rkt`: old/removed pict experiment.
 - `raco/tiles.rkt`: support generator/demo source, not the main raco entry.
-- `snake/snake2.rkt`, `snake/snake3.rkt`: alternate snake variants, not the default tutorial entry.
+- `snake/snake3.rkt`: experimental commented-out Snake variant, not currently runnable.
 
 Planned Conversion Order
 ------------------------
@@ -52,6 +54,6 @@ Planned Conversion Order
 1. `pict`
 2. `minischeme`
 3. `minischeme2` if it is still meant to be user-facing
-4. `matrix-rain` and `snake`
+4. `matrix-rain`
 5. `mathjax4`
 6. `raco` if it remains part of the user-facing examples set

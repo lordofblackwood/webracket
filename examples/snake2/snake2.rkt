@@ -1,8 +1,15 @@
-;;; 
-;;; SNAKE
+#lang webracket/base
+
+(require browser/dom
+         (only-in webracket/primitives
+                  procedure->external))
+
+;;;
+;;; SNAKE 2
 ;;;
 
-; This is an implementation of the classical snake game.
+;; This variant keeps a more minimal DOM layout and resets immediately after
+;; collisions instead of showing a delayed restart state.
 
 (define cell-size       20)
 (define cell-size-f     (exact->inexact cell-size))
@@ -45,7 +52,6 @@
     [(pos=? (car lst) p) #t]
     [else (pos-in-list? p (cdr lst))]))
 
-
 (define (within-grid? p)
   (and (<= 0 (pos-x p) (sub1 columns))
        (<= 0 (pos-y p) (sub1 rows))))
@@ -71,22 +77,33 @@
 ;;;
 
 (define body (js-document-body))
-
 (define wrapper (js-create-element "div"))
-(js-set-attribute! wrapper "style"
-                   "display:flex;flex-direction:column;align-items:center;gap:16px;margin:24px auto;font-family:monospace;color:#0f172a;")
-
 (define score-display (js-create-element "div"))
+(define status-display (js-create-element "div"))
+(define canvas (js-create-element "canvas"))
+
+(define (mark-status! state message)
+  (js-set-attribute! status-display "data-state" state)
+  (js-set! status-display "textContent" message))
+
+(js-set-attribute! body "style"
+                   "margin:0;background:#020617;display:flex;justify-content:center;font-family:monospace;")
+(js-set-attribute! wrapper "style"
+                   "display:flex;flex-direction:column;align-items:center;gap:16px;margin:24px auto;color:#e2e8f0;")
 (js-set-attribute! score-display "style"
                    "font-size:20px;letter-spacing:1px;text-transform:uppercase;")
 (js-set! score-display "textContent" "Score: 0")
-(js-append-child! wrapper score-display)
-
-(define canvas (js-create-element "canvas"))
+(js-set-attribute! status-display "id" "status")
+(js-set-attribute! status-display "data-state" "loading")
+(js-set-attribute! status-display "style"
+                   "font-size:14px;min-height:18px;color:#93c5fd;")
+(js-set! status-display "textContent" "loading")
 (js-set-canvas-width! canvas canvas-width)
 (js-set-canvas-height! canvas canvas-height)
 (js-set-attribute! canvas "style"
                    "background:#0f172a;border:2px solid #1f2937;border-radius:4px;box-shadow:0 12px 30px rgba(15,23,42,0.35);image-rendering:pixelated;")
+(js-append-child! wrapper score-display)
+(js-append-child! wrapper status-display)
 (js-append-child! wrapper canvas)
 (js-append-child! body wrapper)
 
@@ -98,7 +115,7 @@
 
 (define (update-score! score)
   (js-set! score-display "textContent"
-          (string-append "Score: " (number->string score))))
+           (string-append "Score: " (number->string score))))
 
 (define (draw-background!)
   (js-set-canvas2d-fill-style! ctx "#0b1220")
@@ -130,6 +147,7 @@
                              (inexact (* cell-size-f (pos-y segment)))
                              cell-size-f
                              cell-size-f))))
+
 ;;;
 ;;; GAME STATE
 ;;;
@@ -139,7 +157,6 @@
 (define direction         'right)
 (define pending-direction 'right)
 (define score             0)
-
 
 (define (random-empty-cell)
   (let loop ()
@@ -155,7 +172,6 @@
   (unless (opposite-direction? direction new-dir)
     (set! pending-direction new-dir)))
 
-
 (define (reset-game!)
   (set! snake (list (make-pos 5 10)
                     (make-pos 4 10)
@@ -164,32 +180,37 @@
   (set! pending-direction 'right)
   (set! score 0)
   (update-score! score)
+  (mark-status! "ready" "Use the arrow keys or WASD to move.")
   (randomize-apple!))
-
 
 (define (advance!)
   (when (pair? snake)
-    (set! direction  pending-direction)
+    (set! direction pending-direction)
     (define head     (car snake))
     (define new-head (next-pos head direction))
     (define grew?    (pos=? new-head apple))
-    (define body     (if grew? snake (drop-last snake)))
+    (define body*    (if grew? snake (drop-last snake)))
     (if (or (not (within-grid? new-head))
-            (pos-in-list? new-head body))
-        (reset-game!)
+            (pos-in-list? new-head body*))
         (begin
-          (set! snake (cons new-head body))
+          (mark-status! "ready"
+                        (string-append "Restarting after crash. Score: "
+                                       (number->string score)))
+          (reset-game!))
+        (begin
+          (set! snake (cons new-head body*))
           (when grew?
             (set! score (add1 score))
             (update-score! score)
-            (randomize-apple!))))
-    (render!)))
+            (mark-status! "ready"
+                          (string-append "Score: " (number->string score)))
+            (randomize-apple!)))))
+  (render!))
 
 (define (render!)
   (draw-background!)
   (draw-apple! apple)
   (draw-snake! snake))
-
 
 (define (handle-key evt)
   (define key (js-ref evt "key"))
@@ -208,13 +229,14 @@
      (js-event-prevent-default evt)]
     [else (void)]))
 
-
 (define key-listener  (procedure->external handle-key))
 (define tick-callback (procedure->external advance!))
 
-(reset-game!)
-
-(js-add-event-listener! (js-document) "keydown" key-listener)
-(js-window-set-interval tick-callback 120.)
-
-(js-log "Hello world!")
+(with-handlers ([exn:fail?
+                 (lambda (e)
+                   (mark-status! "error" (exn-message e))
+                   (raise e))])
+  (reset-game!)
+  (render!)
+  (js-add-event-listener! (js-document) "keydown" key-listener)
+  (js-window-set-interval tick-callback 120.))

@@ -1,14 +1,14 @@
-# Snake Examples
+# Snake Example
 
-This folder contains multiple variants (`snake`, `snake2`, and an experimental `snake3`).
+This is the original/basic Snake browser example: a simple canvas-based grid
+game with keyboard controls and automatic restart after game over.
 
 ## Build
 
 From this folder:
 
 ```sh
-racket ../../webracket.rkt --ffi dom --ffi standard -b snake.rkt
-racket ../../webracket.rkt --ffi dom --ffi standard -b snake2.rkt
+./compile.sh
 ```
 
 ## Serve
@@ -16,12 +16,27 @@ racket ../../webracket.rkt --ffi dom --ffi standard -b snake2.rkt
 From this folder:
 
 ```sh
-raco static-web
+python3 -m http.server
 ```
 
 ## Open
 
 Open:
 
-- `http://localhost:8000/snake.html`
-- `http://localhost:8000/snake2.html`
+- `http://localhost:8000/generated/snake.html`
+
+## Current Status
+
+The example now:
+
+- starts with `#lang webracket/base`
+- compiles from this directory with `./compile.sh`
+- keeps compiled artifacts under `generated/.compiled`
+- keeps its provider cache under `generated/.provider-cache`
+- writes browser output to `generated/`
+- exposes `#status[data-state=\"loading\" | \"ready\" | \"error\"]`
+
+Related variants:
+
+- `examples/snake2/`: alternate Snake implementation with separate example layout
+- `snake3.rkt`: experimental/incomplete variant, not currently treated as a user-facing tutorial entry

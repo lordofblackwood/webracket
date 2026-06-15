@@ -1,3 +1,9 @@
+#lang webracket/base
+
+(require browser/dom
+         (only-in webracket/primitives
+                  procedure->external))
+
 (let ()
   (struct pos (x y))
   
@@ -33,7 +39,10 @@
   (js-set-attribute! scoreboard "style" "font-size:22px;font-weight:700;min-height:28px;")
 
   (define status (js-create-element "div"))
+  (js-set-attribute! status "id" "status")
+  (js-set-attribute! status "data-state" "loading")
   (js-set-attribute! status "style" "font-size:14px;color:#95a5a6;min-height:18px;")
+  (js-set! status "textContent" "loading")
 
   (define canvas (js-create-element "canvas"))
   (js-set-canvas-width! canvas board-width)
@@ -122,7 +131,12 @@
     (js-set! scoreboard "textContent"
              (string-append "Score: " (number->string score))))
 
+  (define (mark-status! state message)
+    (js-set-attribute! status "data-state" state)
+    (js-set! status "textContent" message))
+
   (define (set-status! message)
+    (js-set-attribute! status "data-state" "ready")
     (js-set! status "textContent" message))
 
   (define (draw!)
@@ -196,7 +210,7 @@
   (define restart-callback (procedure->external restart-game!))
 
   (define (game-over! message)
-    (set-status! message)
+    (mark-status! "ready" message)
     (when interval-id
       (js-window-clear-interval interval-id)
       (set! interval-id #f)
@@ -224,7 +238,11 @@
 
   (js-add-event-listener! (js-window-window) "keydown" keydown-callback)
 
-  (reset-state!)
-  (start-loop!)
+  (with-handlers ([exn:fail?
+                   (lambda (e)
+                     (mark-status! "error" (exn-message e))
+                     (raise e))])
+    (reset-state!)
+    (start-loop!))
 
   )
