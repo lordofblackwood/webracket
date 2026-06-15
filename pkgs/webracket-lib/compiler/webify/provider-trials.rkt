@@ -585,6 +585,7 @@
     browser/document
     browser/dom
     browser/domrect
+    browser/sxml
     browser/element
     browser/event
     browser/image
@@ -649,6 +650,7 @@
     racket/private/generic
     racket/private/generic-methods
     racket/private/hash
+    racket/private/kernstruct
     racket/private/keyword-apply-dict
     racket/private/kw
     racket/private/list
@@ -805,6 +807,7 @@
     browser/document
     browser/dom
     browser/domrect
+    browser/sxml
     browser/element
     browser/event
     browser/image

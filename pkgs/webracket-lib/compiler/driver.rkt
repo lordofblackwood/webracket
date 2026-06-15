@@ -3272,13 +3272,20 @@
   (with-driver-timing
    'module-read
    (lambda ()
-     (call-with-input-file filename
+     (define resolved (simplify-path (path->complete-path filename)))
+     (call-with-input-file resolved
        (lambda (port)
          (port-count-lines! port)
-         (with-module-reading-parameterization
-           (lambda ()
-             (ensure-webracket/module-reader! language)
-             (read-syntax filename port))))))))
+         (define dir (or (path-only resolved) (current-directory)))
+         (parameterize ([current-directory dir]
+                        [current-load-relative-directory dir]
+                        [current-write-relative-directory dir])
+           (with-module-reading-parameterization
+             (lambda ()
+               ;; Module readers and expander-time relative requires must be
+               ;; anchored to the source file, not the caller's cwd.
+               (ensure-webracket/module-reader! language)
+               (read-syntax resolved port)))))))))
 
 ;; read-webracket/base-module : path-string? -> syntax?
 ;;   Compatibility wrapper for WebRacket module readers.
@@ -3753,19 +3760,23 @@
                                                   #:module-name-resolver [module-name-resolver (current-module-name-resolver)])
   (define resolved (simplify-path (path->complete-path filename)))
   (define module-stx (read-webracket/base-module resolved))
+  (define source-dir (or (path-only resolved) (current-directory)))
   ;; Read with the normal resolver so #lang webracket/base itself is found,
-  ;; then compile with the erased-contract resolver for provider imports. Keep
-  ;; current-directory unchanged during compilation: installed providers such
-  ;; as racket/match can perform phase-1 lazy requires, and those relative
-  ;; requires must not be anchored to the user's source directory.
+  ;; then compile with the erased-contract resolver for provider imports. The
+  ;; root source module itself must still compile relative to its own path so
+  ;; sibling string requires resolve the same way they do during ordinary host
+  ;; expansion.
   (provider-cache-log "#lang webracket/base local compile start: ~a" resolved)
   (with-module-bridge-timing
    'source-compile-decompile
    (lambda ()
-     (webify-compile-module-report
-      module-stx
-      #:namespace namespace
-      #:module-name-resolver module-name-resolver))))
+     (parameterize ([current-directory source-dir]
+                    [current-load-relative-directory source-dir]
+                    [current-write-relative-directory source-dir])
+       (webify-compile-module-report
+        module-stx
+        #:namespace namespace
+        #:module-name-resolver module-name-resolver)))))
 
 ;; webracket/base-file->local-module-reports : path-string? -> values
 ;;   Extract local module reports plus the visited source files for the bridge path.
@@ -4092,6 +4103,7 @@
                            racket/private/for
                            racket/private/map
                            racket/private/define-struct
+                           racket/private/kernstruct
                            racket/private/class-internal
                            racket/private/class-struct
                            racket/private/stx
@@ -4173,9 +4185,12 @@
        (define needs-class-support?
          ;; `webracket/full` re-exports the installed `racket/class` surface, so
          ;; its graph needs the same seeded private-provider support as an
-         ;; explicit `(require racket/class)` program.
+         ;; explicit `(require racket/class)` program. The same support bundle
+         ;; also carries the private struct helpers that expanded local modules
+         ;; can surface as phase-0 provider candidates.
          (ormap (lambda (name)
                   (memq name '(racket/class
+                               racket/private/kernstruct
                                webracket/full
                                webracket/full/main)))
                 external-names))
@@ -4215,6 +4230,7 @@
             webracket/list
             syntax/location
             racket/private/define-struct
+            racket/private/kernstruct
             racket/private/serialize-structs
             racket/private/class-internal
             racket/private/class-struct
@@ -4365,6 +4381,8 @@
                                                             'syntax/location)
                           (webify-module-provider-cache-ref provider-cache
                                                             'racket/private/define-struct)
+                          (webify-module-provider-cache-ref provider-cache
+                                                            'racket/private/kernstruct)
                           (webify-module-provider-cache-ref provider-cache
                                                             'racket/private/serialize-structs)
                           (webify-module-provider-cache-ref provider-cache

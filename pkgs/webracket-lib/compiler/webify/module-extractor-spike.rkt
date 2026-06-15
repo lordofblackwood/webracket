@@ -1380,11 +1380,13 @@
   (unless (webify-module-extractor-spike? report)
     (raise-argument-error who "webify-module-extractor-spike?" report))
   (define import-map (webify-module-extractor-spike-import-map report))
+  (define self-name (webify-module-extractor-spike-name report))
   (remove-duplicates
    (append
     (for/list ([candidate (in-list (webify-module-import-map-required-module-candidates
                                     import-map))]
-               #:when (= 0 (car candidate)))
+               #:when (= 0 (car candidate))
+               #:unless (eq? (cadr candidate) self-name))
       (cadr candidate))
     '())))
 
