@@ -2198,6 +2198,15 @@
         (webify-module-report/rename format-report 'racket-src/racket/format-web)
         (webify-module-report/rename format-report 'racket/format)))
 
+;; io-format-provider-report/ref : symbol? -> (or/c webify-module-report? #f)
+;;   Resolve staged io/format support aliases without falling back to generic
+;;   module-path extraction. Some aliases, such as `racket-src/racket/format-web`,
+;;   are report names but not real collection-path module names.
+(define (io-format-provider-report/ref name)
+  (for/or ([report (in-list (io-format-provider-reports))])
+    (and (eq? name (webify-module-report-name report))
+         report)))
+
 ;; read-syntax-provider-forms : -> (listof datum?)
 ;;   Compose the private staged original-Racket read-syntax provider and publish
 ;;   only Webify-owned aliases. Public `read-syntax` ownership is still pending.
@@ -3372,6 +3381,8 @@
           racket/contract/base
           racket/contract/combinator
           racket/contract/region
+          racket/in-out
+          racket/module-boundary-ctc
           racket/contract/private/arrow-collapsible
           racket/contract/private/arrow-common
           racket/contract/private/arrow-higher-order
@@ -3706,6 +3717,15 @@
 (define (webracket-owned-module-name? name)
   (regexp-match? #rx"^webracket/" (symbol->string name)))
 
+;; webracket-owned-provider-compile-stub-name? : symbol? -> boolean?
+;;   Some WebRacket-owned staged adapters compile cleanly by module path but
+;;   are still too awkward to inline into the local source-module extraction
+;;   namespace. Let them use the same value-only compile-stub path as external
+;;   providers, then fetch their real bridge reports later.
+(define (webracket-owned-provider-compile-stub-name? name)
+  (memq name
+        '(webracket/private/format)))
+
 (define provider-phase0-syntax-export-cache (make-hasheq))
 
 ;; provider-has-phase0-syntax-exports? : symbol? -> boolean?
@@ -3775,7 +3795,8 @@
      (lambda ()
        (for ([name (in-list (module-datum-direct-require-symbols module-datum))]
              #:unless (webracket/base-language-provider-name? name)
-             #:unless (webracket-owned-module-name? name)
+             #:unless (and (webracket-owned-module-name? name)
+                           (not (webracket-owned-provider-compile-stub-name? name)))
              #:when (provider-compile-stub-safe? name)
              #:when (webify-provider-trial-module-allowed? name))
          (define substitute-name (webracket/base-provider-substitute name))
@@ -3790,7 +3811,7 @@
                                            #:namespace provider-namespace)))
            (define public-exports
              (provider-public-export-symbols
-              name
+              substitute-name
               (make-webify-contract-erasing-namespace)
               provider-module-name-resolver))
            (declare-provider-compile-stub!
@@ -4013,6 +4034,7 @@
     webracket/full/main
     webracket/private/ffi
     webracket/private/kw
+    webracket/private/sort-public
     webracket/private/sort))
 
 (define webracket-owned-ffi-provider-prefixes
@@ -4053,6 +4075,8 @@
        (define provider-module-name-resolver
          (make-webify-contract-erasing-module-name-resolver))
        (define (fetch-provider/erased-contracts name)
+         (define staged-io-format-report
+           (io-format-provider-report/ref name))
          (define substitute-name (webracket/base-provider-substitute name))
          (define extraction-name
            (if (webracket/base-erased-contract-provider-name? name)
@@ -4110,19 +4134,23 @@
                            util
                            racket/private/serialize-structs))
               (webracket-owned-ffi-provider-name? name)))
-         (define (extract)
-           (webify-module-report/rename
-            (if (eq? fetch-provider webify-module-path->report)
-                (if normal-export-shape?
-                    (webify-module-path->report extraction-name)
-                    (webify-module-path->report extraction-name #:namespace provider-namespace))
-                (fetch-provider extraction-name))
-            name))
-         (if normal-export-shape?
-             (extract)
-             (parameterize ([current-namespace provider-namespace]
-                            [current-module-name-resolver provider-module-name-resolver])
-               (extract))))
+         (cond
+           [staged-io-format-report
+            staged-io-format-report]
+           [else
+            (define (extract)
+              (webify-module-report/rename
+               (if (eq? fetch-provider webify-module-path->report)
+                   (if normal-export-shape?
+                       (webify-module-path->report extraction-name)
+                       (webify-module-path->report extraction-name #:namespace provider-namespace))
+                   (fetch-provider extraction-name))
+               name))
+            (if normal-export-shape?
+                (extract)
+                (parameterize ([current-namespace provider-namespace]
+                               [current-module-name-resolver provider-module-name-resolver])
+                  (extract)))]) )
        (define provider-cache
          (make-webify-module-provider-cache
           (webracket/base-fetch-provider/timed fetch-provider/erased-contracts)))
@@ -4130,6 +4158,8 @@
          '(racket/contract/base
            racket/contract/combinator
            racket/contract/region
+           racket/in-out
+           racket/module-boundary-ctc
            racket/contract/private/base
            racket/contract/private/blame
            racket/contract/private/guts
@@ -4223,11 +4253,14 @@
          (list webify-io-format-adapter-name
                webify-io-format-printf-name
                webify-io-format-root-name
-               webify-io-format-map-shim-name))
+               webify-io-format-map-shim-name
+               'racket-src/racket/format-web
+               'racket/format))
        (set! support-report-names
              (append
               (list webify-module-protocol-name
                     'webracket/contract
+                    'webracket/private/sort-public
                     'webracket/private/kw
                     'racket/private/kw
                     'webracket/private/sort
@@ -4291,6 +4324,8 @@
                      (webify-module-provider-cache-ref provider-cache
                                                        'webracket/contract)
                      (webify-module-provider-cache-ref provider-cache
+                                                       'webracket/private/sort-public)
+                     (webify-module-provider-cache-ref provider-cache
                                                        'webracket/private/kw)
                      (webify-module-report/rename
                       (webify-module-provider-cache-ref provider-cache
@@ -4327,8 +4362,6 @@
                                                                     'racket/private/reverse))
                             '()))
                     (list (webify-module-provider-cache-ref provider-cache
-                                                            'webracket/list)
-                          (webify-module-provider-cache-ref provider-cache
                                                             'syntax/location)
                           (webify-module-provider-cache-ref provider-cache
                                                             'racket/private/define-struct)

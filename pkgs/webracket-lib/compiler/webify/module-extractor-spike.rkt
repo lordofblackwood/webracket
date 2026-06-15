@@ -2570,9 +2570,10 @@
                   (if (module-path-available? 'racket/private/pico)
                       'racket/private/pico
                       'racket/private/reverse))]
-           [(and (eq? module-name 'racket/list)
+           [(and (memq module-name '(racket/list
+                                     racket/private/list))
                  (symbolic-name=? external 'sort))
-            (list local 'racket/private/sort)]
+            (list local 'webracket/private/sort-public)]
            [(and (memq module-name '(racket/list
                                      racket/private/list
                                      webracket/list))
@@ -2827,7 +2828,31 @@
                        (dependency-exports-exact-external? (cadr candidate)
                                                            external))
                      candidates))
-           (if (null? exact-candidates) candidates exact-candidates))
+           (define base-name
+             (and (generated-import-name? external)
+                  (string->symbol (generated-base-name external))))
+           (define base-exact-candidates
+             (if base-name
+                 (filter (lambda (candidate)
+                           (dependency-exports-exact-external? (cadr candidate)
+                                                               base-name))
+                         candidates)
+                 '()))
+           (define (racket-private-provider? name)
+             (and (symbol? name)
+                  (regexp-match? #rx"^racket/private/" (symbol->string name))))
+           (cond
+             [(and (generated-import-name? external)
+                   (pair? exact-candidates)
+                   (pair? base-exact-candidates)
+                   (for/or ([candidate (in-list base-exact-candidates)])
+                     (webracket-module-name? (cadr candidate)))
+                   (andmap (lambda (candidate)
+                             (racket-private-provider? (cadr candidate)))
+                           exact-candidates))
+              base-exact-candidates]
+             [(null? exact-candidates) candidates]
+             [else exact-candidates]))
          (define (webracket-module-name? name)
            (and (symbol? name)
                 (regexp-match? #rx"^webracket/" (symbol->string name))))

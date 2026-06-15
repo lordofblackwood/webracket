@@ -218,6 +218,18 @@
       "rendered")
     "\n")))
 
+(define format-module-source
+  (write-source!
+   sources-root
+   "module-format.rkt"
+   (string-join
+    '("#lang webracket/base"
+      ""
+      "(require racket/format)"
+      ""
+      "(~a 42)")
+    "\n")))
+
 (define test-suite/module-no-legacy-stdlib
   (test-suite
    "module-no-legacy-stdlib"
@@ -251,8 +263,20 @@
     (make-directory* dest-dir)
     (define-values (status output)
       (compile-with-timings module-source dest-dir '("--stdlib") env))
+   (check-equal? status 0 output)
+   (assert-stdlib-mode! "legacy-stdlib-mode" "ignored-module-input" output)
+   (assert-stdlib-mode! "io-format-provider-mode" "skipped-module-input" output)
+   (assert-generated-output! dest-dir))
+
+   (test-case
+    "module input can require racket/format through provider substitution"
+    (define dest-dir (build-path generated-root "module-format"))
+    (make-directory* dest-dir)
+    (define-values (status output)
+      (compile-with-timings format-module-source dest-dir '() env))
     (check-equal? status 0 output)
-    (assert-stdlib-mode! "legacy-stdlib-mode" "ignored-module-input" output)
+    (assert-stdlib-mode! "input-mode" "module" output)
+    (assert-stdlib-mode! "legacy-stdlib-mode" "skipped-module-input" output)
     (assert-stdlib-mode! "io-format-provider-mode" "skipped-module-input" output)
     (assert-generated-output! dest-dir))
 

@@ -324,6 +324,12 @@
   (define without-index-prefix (regexp-replace #rx"^[0-9]+/" without-prefix ""))
   (regexp-replace #rx"[0-9]*[.][0-9]+$" without-index-prefix ""))
 
+;; generated-name? : symbol? -> boolean?
+;;   Detect common decompiler-generated imports such as `sort.1` or `1/reverse`.
+(define (generated-name? name)
+  (not (string=? (symbol->string name)
+                 (generated-base-name name))))
+
 ;; symbolic-name=? : symbol? symbol? -> boolean?
 ;;   Compare generated linklet names by printed identity when eq? is too strict.
 (define (symbolic-name=? a b)
@@ -477,7 +483,26 @@
                                                dependency))
        (memq external exports))
      candidates))
-  (if (null? exact-candidates) candidates exact-candidates))
+  (define base-name
+    (string->symbol (generated-base-name external)))
+  (define base-exact-candidates
+    (filter
+     (lambda (dependency)
+       (define exports (dependency-exports-ref 'prefer-exact-export-candidates
+                                               dependency-exports
+                                               dependency))
+       (memq base-name exports))
+     candidates))
+  (cond
+    [(and (generated-name? external)
+          (pair? exact-candidates)
+          (pair? base-exact-candidates)
+          (for/or ([dependency (in-list base-exact-candidates)])
+            (webracket-owned-provider? dependency))
+          (andmap racket-private-provider? exact-candidates))
+     base-exact-candidates]
+    [(null? exact-candidates) candidates]
+    [else exact-candidates]))
 
 ;; provider-candidate-reasons : (listof symbol?) -> (listof list?)
 ;;   Explain why export-scan candidates survived far enough to be ambiguous.
@@ -702,9 +727,10 @@
                'racket/private/pico
                'racket/private/reverse)
            'reverse)]
-    [(and (eq? module-name 'racket/list)
+    [(and (memq module-name '(racket/list
+                              racket/private/list))
           (symbolic-name=? external 'sort))
-     '(racket/private/sort sort)]
+     '(webracket/private/sort-public sort)]
     [(and (memq module-name '(racket/list
                               racket/private/list
                               webracket/list))

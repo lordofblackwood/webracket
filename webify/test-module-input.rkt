@@ -499,11 +499,33 @@
        (racket/private/sort (sort)))
      #:module-name 'racket/list))
   (check-equal? list-sort-imports
-                '((sort.1 racket/private/sort sort)
-                  (sort7.1 racket/private/sort sort)))
+                '((sort.1 racket/private/list sort.1)
+                  (sort7.1 racket/private/list sort7.1)))
   (check-equal? (map webify-module-resolution-outcome-status list-sort-outcomes)
-                '(resolved-by-compiled-primitive-alias
-                  resolved-by-compiled-primitive-alias))
+                '(resolved-by-export-scan/provider-precedence
+                  resolved-by-export-scan/provider-precedence))
+  (define-values (private-list-sort-imports private-list-sort-outcomes)
+    (webify-resolve-module-linklet-imports/outcomes
+     '(linklet (([sort sort])) (y)
+        (define-values (y) sort))
+     '((racket/private/sort (sort))
+       (webracket/private/sort-public (sort)))
+     #:module-name 'racket/private/list))
+  (check-equal? private-list-sort-imports
+                '((sort webracket/private/sort-public sort)))
+  (check-equal? (map webify-module-resolution-outcome-status private-list-sort-outcomes)
+                '(resolved-by-compiled-primitive-alias))
+  (define-values (webracket-list-sort-imports webracket-list-sort-outcomes)
+    (webify-resolve-module-linklet-imports/outcomes
+     '(linklet (([sort.1 sort.1])) (y)
+        (define-values (y) sort.1))
+     '((racket/private/list (sort.1 sort7.1))
+       (webracket/private/sort-public (sort)))))
+  (check-equal? webracket-list-sort-imports
+                '((sort.1 webracket/private/sort-public sort)))
+  (check-equal? (map webify-module-resolution-outcome-status
+                     webracket-list-sort-outcomes)
+                '(resolved-by-export-scan/provider-precedence))
   (define-values (list-check-list-imports list-check-list-outcomes)
     (webify-resolve-module-linklet-imports/outcomes
      '(linklet (([check-list7 check-list])) (y)
