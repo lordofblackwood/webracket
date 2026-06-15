@@ -3815,16 +3815,24 @@
            (provider-cache-log "#lang webracket/base compile stub install: ~a via ~a"
                                name
                                substitute-name)
+           (define use-erased-provider-namespace?
+             (not (webracket-owned-ffi-provider-name? substitute-name)))
            (define report
-             (parameterize ([current-namespace provider-namespace]
-                            [current-module-name-resolver provider-module-name-resolver])
-               (webify-module-path->report substitute-name
-                                           #:namespace provider-namespace)))
+             (if use-erased-provider-namespace?
+                 (parameterize ([current-namespace provider-namespace]
+                                [current-module-name-resolver provider-module-name-resolver])
+                   (webify-module-path->report substitute-name
+                                               #:namespace provider-namespace))
+                 (webify-module-path->report substitute-name)))
            (define public-exports
              (provider-public-export-symbols
               substitute-name
-              (make-webify-contract-erasing-namespace)
-              provider-module-name-resolver))
+              (if use-erased-provider-namespace?
+                  (make-webify-contract-erasing-namespace)
+                  (make-base-namespace))
+              (if use-erased-provider-namespace?
+                  provider-module-name-resolver
+                  base-module-name-resolver)))
            (declare-provider-compile-stub!
             extraction-namespace
             name

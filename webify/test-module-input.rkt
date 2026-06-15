@@ -538,6 +538,18 @@
   (check-equal? (map webify-module-resolution-outcome-status
                      list-last-outcomes)
                 '(resolved-by-export-scan/provider-precedence))
+  (define-values (format-imports format-outcomes)
+    (webify-resolve-module-linklet-imports/outcomes
+     '(linklet (([~a ~a])) (y)
+        (define-values (y) ~a))
+     '((racket-src/racket/format-web (~a))
+       (racket/format (~a)))
+     #:module-name 'module-format))
+  (check-equal? format-imports
+                '((~a racket/format ~a)))
+  (check-equal? (map webify-module-resolution-outcome-status
+                     format-outcomes)
+                '(resolved-by-export-scan/provider-precedence))
   (define-values (list-check-list-imports list-check-list-outcomes)
     (webify-resolve-module-linklet-imports/outcomes
      '(linklet (([check-list7 check-list])) (y)

@@ -471,25 +471,30 @@
              candidates)]
     [else candidates]))
 
-;; public-racket-counterpart : symbol? -> (or/c symbol? #f)
-;;   Map a private Racket implementation module to its public facade when it has one.
-(define (public-racket-counterpart dependency)
+;; public-provider-counterpart : symbol? -> (or/c symbol? #f)
+;;   Map an implementation provider to the public facade that should win
+;;   import-resolution ties when both export the same surface name.
+(define (public-provider-counterpart dependency)
   (and (symbol? dependency)
-       (match (regexp-match #rx"^racket/private/(.+)$"
-                            (symbol->string dependency))
-         [(list _ suffix)
-          (string->symbol (string-append "racket/" suffix))]
-         [_ #f])))
+       (or
+        (match (regexp-match #rx"^racket/private/(.+)$"
+                             (symbol->string dependency))
+          [(list _ suffix)
+           (string->symbol (string-append "racket/" suffix))]
+          [_ #f])
+        (match dependency
+          ['racket-src/racket/format-web 'racket/format]
+          [_ #f]))))
 
-;; prefer-public-racket-candidates : (listof symbol?) -> (listof symbol?)
-;;   Prefer a public `racket/...` facade over its `racket/private/...`
-;;   implementation when both survive export scanning.
-(define (prefer-public-racket-candidates candidates)
+;; prefer-public-provider-candidates : (listof symbol?) -> (listof symbol?)
+;;   Prefer public facades over their private or staged implementation
+;;   providers when both survive export scanning.
+(define (prefer-public-provider-candidates candidates)
   (define public-candidates
     (filter (lambda (dependency)
               (for/or ([other (in-list candidates)])
                 (eq? dependency
-                     (public-racket-counterpart other))))
+                     (public-provider-counterpart other))))
             candidates))
   (if (null? public-candidates) candidates public-candidates))
 
@@ -655,7 +660,7 @@
      (define ranked-candidates
        (prefer-list-member-candidates
         external
-        (prefer-public-racket-candidates
+        (prefer-public-provider-candidates
          (prefer-exact-export-candidates
           dependency-exports
           external
