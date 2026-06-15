@@ -33,7 +33,7 @@ are listed separately and are not intended to compile directly as tutorials.
 | MathJax 4 | `mathjax4/mathjax.rkt` | `legacy-script` | Browser example with old top-level script shape. |
 | Matrix Rain | `matrix-rain/matrix-rain.rkt` | `legacy-script` | Browser/xterm example with old top-level script shape. |
 | Snake | `snake/snake.rkt` | `legacy-script` | Browser game; likely the main snake entry. |
-| Space Invaders | `space-invaders/space-invaders.rkt` | `legacy-script` | Browser game with old top-level script shape. |
+| Space Invaders | `space-invaders/space-invaders.rkt` | `already-module` | Module-based browser game with `generated/` output. |
 | Raco | `raco/raco.rkt` | `legacy-script` | Advanced/example-stress candidate; confirm user-facing status before conversion. |
 
 Support Files And Non-Entry Sources
@@ -52,6 +52,6 @@ Planned Conversion Order
 1. `pict`
 2. `minischeme`
 3. `minischeme2` if it is still meant to be user-facing
-4. `matrix-rain`, `snake`, and `space-invaders`
+4. `matrix-rain` and `snake`
 5. `mathjax4`
 6. `raco` if it remains part of the user-facing examples set

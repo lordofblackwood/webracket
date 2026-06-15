@@ -1,3 +1,10 @@
+#lang webracket/base
+
+(require racket/list
+         browser/dom
+         (only-in webracket/primitives
+                  procedure->external))
+
 ;;;
 ;;; Utilities
 ;;;
@@ -71,16 +78,36 @@
 ;;; DOM
 ;;;
 
+(define body   (js-document-body))
+(define status-banner (js-create-element "div"))
 (define canvas (js-create-element "canvas"))
-(js-set-canvas-width!  canvas canvas-width)
+
+;; mark-status! : string? string? -> void?
+;;   Update the example status marker for browser smoke and manual checks.
+(define (mark-status! state text)
+  (js-set-attribute! status-banner "data-state" state)
+  (js-set! status-banner "textContent" text))
+
+(js-set-attribute! body "style"
+                   "margin: 0; background: #000; font-family: sans-serif;")
+(js-set-attribute! status-banner "id" "status")
+(js-set-attribute! status-banner "data-state" "loading")
+(js-set-attribute! status-banner "style"
+                   (string-append
+                    "display:block; width:max-content; margin:24px auto 8px; "
+                    "padding:6px 12px; border:1px solid #0ff; border-radius:999px; "
+                    "color:#0ff; background:#021014; font-size:12px; letter-spacing:0.12em; "
+                    "text-transform:uppercase;"))
+(js-set! status-banner "textContent" "loading")
+(js-append-child! body status-banner)
+
+(js-set-canvas-width! canvas canvas-width)
 (js-set-canvas-height! canvas canvas-height)
-(js-set-attribute!     canvas "style"
-                       (string-append
-                        "background: black; image-rendering: pixelated; "
-                        "display: block; margin: 32px auto; border: 2px solid #0ff;"))
-(js-set-attribute! (js-document-body)
-                   "style" "margin: 0; background: #000; font-family: sans-serif;")
-(js-append-child! (js-document-body) canvas)
+(js-set-attribute! canvas "style"
+                   (string-append
+                    "background: black; image-rendering: pixelated; "
+                    "display: block; margin: 0 auto 32px; border: 2px solid #0ff;"))
+(js-append-child! body canvas)
 
 (define ctx (js-canvas-get-context canvas "2d" (js-undefined)))
 
@@ -159,7 +186,6 @@
        (max half-player-width x)))
 
 (define (fire!)
-  #;(js-log (vector (player-x player-pos) (player-y player-pos)))
   (when (and (eq? status 'playing)
              (>= time-since-last-shot shoot-cooldown))
     (define new-bullet (bullet (player-x player-pos)
@@ -204,9 +230,6 @@
 (define (update-enemies dt)
   (when (pair? enemies)
     (define dx (* enemy-speed dt enemies-dir))
-    (when (> dx 1.0)
-      (js-log (vector enemy-speed dt enemies-dir))
-      (js-log dx))
     (define drop?
       (for/or ([e (in-list enemies)])
         (define new-x (+ (enemy-x e) dx))
@@ -254,29 +277,29 @@
 (define (render!)
   ; Background
   (js-set-canvas2d-fill-style! ctx "#000")
-  (js-canvas2d-fill-rect ctx 0. 0. (inexact width) (inexact height))
+  (js-canvas2d-fill-rect ctx 0. 0. width height)
 
   ; Player
   (js-set-canvas2d-fill-style! ctx "#0ff")
   (define player-left (- (player-x player-pos) half-player-width))
   (js-canvas2d-fill-rect ctx
-                         (inexact player-left)  (inexact (player-y player-pos))
-                         (inexact player-width) (inexact player-height))
+                         player-left (player-y player-pos)
+                         player-width player-height)
 
   ; Bullets
   (js-set-canvas2d-fill-style! ctx "#ff0")
   (for ([b (in-list bullets)])
     (js-canvas2d-fill-rect ctx
-                           (inexact (- (bullet-x b) bullet-half-width))
-                           (inexact (bullet-y b))
-                           (inexact bullet-width)
-                           (inexact bullet-height)))
+                           (- (bullet-x b) bullet-half-width)
+                           (bullet-y b)
+                           bullet-width
+                           bullet-height))
   ; Enemies
   (js-set-canvas2d-fill-style! ctx "#f66")
   (for ([e (in-list enemies)])
     (js-canvas2d-fill-rect ctx
-                           (inexact (enemy-x e)) (inexact (enemy-y e))
-                           (inexact enemy-width) (inexact enemy-height)))
+                           (enemy-x e) (enemy-y e)
+                           enemy-width enemy-height))
 
   ; Instruction Text
   (js-set-canvas2d-fill-style!    ctx "#fff")
@@ -315,5 +338,10 @@
 
 (set! tick-external (procedure->external tick))
 
-(render!)
-(js-window-request-animation-frame tick-external)
+(with-handlers ([exn:fail?
+                 (lambda (e)
+                   (mark-status! "error" (exn-message e))
+                   (raise e))])
+  (render!)
+  (mark-status! "ready" "ready")
+  (js-window-request-animation-frame tick-external))
