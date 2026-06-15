@@ -217,10 +217,29 @@
       (void)
       value))
 
+;; canvas-optional->extern : any/c -> any/c
+;;   Treat #f as JavaScript undefined for optional extern arguments.
+;;   The unsafe FFI binding expects a JS-side omitted value here; Racket
+;;   void is a distinct WebRacket value and should not be passed instead.
+(define (canvas-optional->extern value)
+  (if (eq? value #f)
+      (js-undefined)
+      value))
+
 ;; canvas-boolean->i32 : boolean? -> exact-integer?
 ;;   Convert a Racket boolean to a browser i32 flag.
 (define (canvas-boolean->i32 value)
   (if value 1 0))
+
+;; canvas-real->flonum : symbol? any/c -> flonum?
+;;   Normalize a browser real argument to a flonum for FFI calls.
+;;   Public canvas wrappers accept ordinary Racket reals, while the unsafe
+;;   FFI `f64` path expects a WebRacket flonum value.
+(define (canvas-real->flonum who value)
+  (cond
+    [(flonum? value) value]
+    [(real? value)   (exact->inexact value)]
+    [else (raise-argument-error who "real?" value)]))
 
 ;; canvas-source-unwrap : any/c -> any/c
 ;;   Unwrap browser canvas-like sources when available.
@@ -355,7 +374,7 @@
   (define context-id* (canvas-stringish->string 'canvas-get-context context-id))
   (define ctx (js-canvas-get-context (canvas-unwrap canvas)
                                      context-id*
-                                     (canvas-resolve-optional options)))
+                                     (canvas-optional->extern options)))
   (and ctx (canvas-2d-context-wrap ctx)))
 
 ;; canvas-width : (or/c html-canvas-element? external?) -> exact-nonnegative-integer?
@@ -958,8 +977,8 @@
 (define (canvas-2d-draw-image ctx source dx dy)
   (js-canvas2d-draw-image (canvas-2d-context-unwrap ctx)
                           (canvas-source-unwrap source)
-                          dx
-                          dy)
+                          (canvas-real->flonum 'canvas-2d-draw-image dx)
+                          (canvas-real->flonum 'canvas-2d-draw-image dy))
   (void))
 
 ;; canvas-2d-draw-image-5 : (or/c canvas-rendering-context-2d? external?) any/c real? real? real? real? -> void?
@@ -967,10 +986,10 @@
 (define (canvas-2d-draw-image-5 ctx source dx dy dwidth dheight)
   (js-canvas2d-draw-image-5 (canvas-2d-context-unwrap ctx)
                             (canvas-source-unwrap source)
-                            dx
-                            dy
-                            dwidth
-                            dheight)
+                            (canvas-real->flonum 'canvas-2d-draw-image-5 dx)
+                            (canvas-real->flonum 'canvas-2d-draw-image-5 dy)
+                            (canvas-real->flonum 'canvas-2d-draw-image-5 dwidth)
+                            (canvas-real->flonum 'canvas-2d-draw-image-5 dheight))
   (void))
 
 ;; canvas-2d-draw-image-9 : (or/c canvas-rendering-context-2d? external?) any/c real? real? real? real? real? real? real? real? -> void?
@@ -978,14 +997,14 @@
 (define (canvas-2d-draw-image-9 ctx source sx sy sw sh dx dy dw dh)
   (js-canvas2d-draw-image-9 (canvas-2d-context-unwrap ctx)
                             (canvas-source-unwrap source)
-                            sx
-                            sy
-                            sw
-                            sh
-                            dx
-                            dy
-                            dw
-                            dh)
+                            (canvas-real->flonum 'canvas-2d-draw-image-9 sx)
+                            (canvas-real->flonum 'canvas-2d-draw-image-9 sy)
+                            (canvas-real->flonum 'canvas-2d-draw-image-9 sw)
+                            (canvas-real->flonum 'canvas-2d-draw-image-9 sh)
+                            (canvas-real->flonum 'canvas-2d-draw-image-9 dx)
+                            (canvas-real->flonum 'canvas-2d-draw-image-9 dy)
+                            (canvas-real->flonum 'canvas-2d-draw-image-9 dw)
+                            (canvas-real->flonum 'canvas-2d-draw-image-9 dh))
   (void))
 
 ;; canvas-2d-ellipse : (or/c canvas-rendering-context-2d? external?) real? real? real? real? real? real? real? -> void?

@@ -160,6 +160,22 @@ async function runPageProbe(page, testPage, consoleMessages) {
     return;
   }
 
+  if (testPage === "test-browser-canvas-draw-image-integers.html") {
+    await page.waitForFunction(() =>
+      ["loaded", "error"].includes(document.body?.getAttribute("data-state")));
+    const probe = await page.evaluate(() => ({
+      state: document.body?.getAttribute("data-state") ?? null,
+      bodyText: document.body?.innerText ?? "",
+    }));
+    if (probe.state !== "loaded") {
+      throw new Error(`canvas draw-image integer smoke failed: ${JSON.stringify(probe)}`);
+    }
+    if (!probe.bodyText.includes("canvas-draw-image-integers-ok")) {
+      throw new Error(`canvas draw-image integer marker missing: ${JSON.stringify(probe)}`);
+    }
+    return;
+  }
+
   if (testPage === "test-js-string-symbol-ffi.html") {
     await page.waitForFunction(() =>
       document.body?.getAttribute("data-state") === "loaded");
