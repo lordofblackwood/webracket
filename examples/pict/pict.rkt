@@ -1,4 +1,9 @@
-(include-lib web-pict)
+#lang webracket/base
+
+(require racket/list
+         racket/math
+         browser/dom
+         web-pict)
 
 ;;;
 ;;; Web Pict Example
@@ -7,11 +12,24 @@
 ;; Small browser demo that exercises the extracted `web-pict` library.
 
 (define image-urls
-  (list "https://i.imgur.com/dI22MrB.png"
-        "https://i.imgur.com/BRJ0UpN.png"))
+  (list "../assets/fish-1.png"
+        "../assets/fish-2.png"))
 
 (define pending-images (length image-urls))
 (define main-started?  #f)
+(define body           (js-document-body))
+(define status         (js-create-element "div"))
+
+(js-set-attribute! status "id" "status")
+(js-set-attribute! status "data-state" "loading")
+(js-set! status "textContent" "loading")
+(js-append-child! body status)
+
+;; mark-status! : string? string? -> void?
+;;   Update the example status marker for browser smoke/manual checks.
+(define (mark-status! state text)
+  (js-set-attribute! status "data-state" state)
+  (js-set! status "textContent" text))
 
 ;; flush : -> void?
 ;;   Forward buffered output to the browser log.
@@ -80,7 +98,7 @@
   (define canvas (js-create-element "canvas"))
   (js-set-canvas-width! canvas 1024)
   (js-set-canvas-height! canvas 1024)
-  (js-append-child! (js-document-body) canvas)
+  (js-append-child! body canvas)
 
   (define ctx (js-canvas-get-context canvas "2d" (js-undefined)))
   (define dc  (canvas-context->dc ctx))
@@ -88,9 +106,14 @@
   (define nemo-image (bitmap-ref (first image-urls)))
   (define tropical-image (bitmap-ref (second image-urls)))
 
-  (displayln
-   (with-handlers ([(lambda _ #t) (lambda (e) e)])
-     (draw-demo dc nemo-image tropical-image)))
+  (with-handlers ([exn:fail?
+                   (lambda (e)
+                     (mark-status! "error"
+                                   (string-append "msg=" (exn-message e)))
+                     (displayln e)
+                     (flush))])
+    (draw-demo dc nemo-image tropical-image)
+    (mark-status! "ready" "ready"))
   (flush))
 
 (for-each
@@ -99,6 +122,8 @@
                 (lambda (_url _image)
                   (note-image-finished!))
                 (lambda (failed-url)
-                  (displayln (format "bitmap load failed: ~a" failed-url))
+                  (mark-status! "error" (string-append "bitmap load failed: " failed-url))
+                  (displayln "bitmap load failed:")
+                  (displayln failed-url)
                   (note-image-finished!))))
  image-urls)
