@@ -114,9 +114,30 @@
          "module-input.rkt")
 
 (define-runtime-path webify-contract-path "../../../webracket/contract.rkt")
+(define-runtime-path webify-private-format-path "../../../webracket/private/format.rkt")
+(define-runtime-path webify-private-in-path "../../../webracket/private/in.rkt")
+(define-runtime-path webify-private-in-out-path "../../../webracket/private/in-out.rkt")
+(define-runtime-path webify-private-module-boundary-ctc-path "../../../webracket/private/module-boundary-ctc.rkt")
 (define-runtime-path webify-syntax-contract-path "../../../webracket/syntax/contract.rkt")
 (define-runtime-path webify-syntax-srcloc-path "../../../webracket/syntax/srcloc.rkt")
 (define-runtime-path webify-unsafe-undefined-path "../../../webracket/unsafe/undefined.rkt")
+
+(define webify-private-in-path/resolved
+  (simplify-path webify-private-in-path))
+(define webify-private-in-out-path/resolved
+  (simplify-path webify-private-in-out-path))
+(define webify-private-module-boundary-ctc-path/resolved
+  (simplify-path webify-private-module-boundary-ctc-path))
+(define webify-private-format-path/resolved
+  (simplify-path webify-private-format-path))
+(define webify-contract-path/resolved
+  (simplify-path webify-contract-path))
+(define webify-syntax-contract-path/resolved
+  (simplify-path webify-syntax-contract-path))
+(define webify-syntax-srcloc-path/resolved
+  (simplify-path webify-syntax-srcloc-path))
+(define webify-unsafe-undefined-path/resolved
+  (simplify-path webify-unsafe-undefined-path))
 
 (define unsafe-undefined-literal-marker 'webracket-internal-unsafe-undefined-literal)
 
@@ -204,6 +225,17 @@
   (or (eq? module-path 'syntax/srcloc)
       (equal? module-path '(lib "syntax/srcloc.rkt"))))
 
+;; staged-format-module-path? : any/c -> boolean?
+;;   Recognize public format providers that should route to the staged adapter.
+(define (staged-format-module-path? module-path)
+  (or (eq? module-path 'racket/format)
+      (equal? module-path '(lib "racket/format.rkt"))))
+
+;; staged-format-module-path->resolved : -> resolved-module-path?
+;;   Resolve public format imports to the synthetic staged namespace module.
+(define (staged-format-module-path->resolved)
+  (make-resolved-module-path 'racket/format))
+
 ;; syntax-srcloc-export-names : (listof symbol?)
 ;;   Public source-location helpers used by contract internals.
 (define syntax-srcloc-export-names
@@ -290,7 +322,7 @@
       'racket/contract/private/misc]
      [(or (eq? module-path 'racket/contract/private/module-boundary-ctc)
           (equal? module-path '(lib "racket/contract/private/module-boundary-ctc.rkt")))
-      'racket/contract/private/module-boundary-ctc]
+      webify-private-module-boundary-ctc-path/resolved]
      [(or (eq? module-path 'racket/contract/private/object-c-wrapper)
           (equal? module-path '(lib "racket/contract/private/object-c-wrapper.rkt")))
       'racket/contract/private/object-c-wrapper]
@@ -305,6 +337,199 @@
       'racket/contract/private/prop]
      [else 'racket/contract])))
 
+;; contract-relative-source? : any/c -> boolean?
+;;   Check whether source resolves inside Racket's contract implementation tree.
+(define (contract-relative-source? source)
+  (define source-name
+    (cond
+      [(resolved-module-path? source) (resolved-module-path-name source)]
+      [(path-string? source) source]
+      [else #f]))
+  (or (memq source-name '(racket/contract
+                          racket/contract/base
+                          racket/contract/combinator
+                          racket/contract/region
+                          racket/contract/private/base
+                          racket/contract/private/arr-i
+                          racket/contract/private/arrow-collapsible
+                          racket/contract/private/arrow-common
+                          racket/contract/private/arrow-higher-order
+                          racket/contract/private/arrow-val-first
+                          racket/contract/private/blame
+                          racket/contract/private/case-arrow
+                          racket/contract/private/guts
+                          racket/contract/private/list
+                          racket/contract/private/misc
+                          racket/contract/private/module-boundary-ctc
+                          racket/contract/private/object-c-wrapper
+                          racket/contract/private/opt
+                          racket/contract/private/orc
+                          racket/contract/private/prop
+                          webracket/private/in
+                          webracket/private/in-out
+                          webracket/private/module-boundary-ctc))
+      (and (path-string? source-name)
+           (regexp-match? #rx"(/racket/contract(?:/private)?/|/webracket/contract[.]rkt$|/webracket/syntax/contract[.]rkt$|/webracket/private/(?:in|in-out|module-boundary-ctc)[.]rkt$)"
+                          (path->string (simplify-path source-name))))))
+
+;; webracket-contract-source? : any/c -> boolean?
+;;   Check whether source resolves to WebRacket's staged contract shim.
+(define (webracket-contract-source? source)
+  (define source-name
+    (cond
+      [(resolved-module-path? source) (resolved-module-path-name source)]
+      [(path-string? source) source]
+      [else #f]))
+  (or (eq? source-name 'webracket/contract)
+      (and (path-string? source-name)
+           (regexp-match? #rx"/webracket/contract[.]rkt$"
+                          (path->string (simplify-path source-name))))))
+
+;; contract-relative-module-path->resolved : any/c any/c -> (or/c resolved-module-path? #f)
+;;   Map relative contract implementation paths onto seeded synthetic modules.
+(define (contract-relative-module-path->resolved module-path source)
+  (define key
+    (cond
+      [(path? module-path) (path->string module-path)]
+      [(string? module-path) module-path]
+      [else #f]))
+  (define maybe-name
+    (and key
+         (contract-relative-source? source)
+         (cond
+           [(equal? key "private/base.rkt")
+            'racket/contract/private/base]
+           [(equal? key "private/arr-i.rkt")
+            'racket/contract/private/arr-i]
+           [(equal? key "private/arrow-collapsible.rkt")
+            'racket/contract/private/arrow-collapsible]
+           [(equal? key "private/arrow-common.rkt")
+            'racket/contract/private/arrow-common]
+           [(equal? key "private/arrow-higher-order.rkt")
+            'racket/contract/private/arrow-higher-order]
+           [(equal? key "private/arrow-val-first.rkt")
+            'racket/contract/private/arrow-val-first]
+           [(equal? key "private/blame.rkt")
+            'racket/contract/private/blame]
+           [(equal? key "private/case-arrow.rkt")
+            'racket/contract/private/case-arrow]
+           [(equal? key "private/guts.rkt")
+            'racket/contract/private/guts]
+           [(equal? key "private/list.rkt")
+            'racket/contract/private/list]
+           [(equal? key "private/misc.rkt")
+            'racket/contract/private/misc]
+           [(equal? key "private/in.rkt")
+            webify-private-in-path/resolved]
+           [(or (equal? key "private/in-out.rkt")
+                (equal? key "in-out.rkt"))
+            webify-private-in-out-path/resolved]
+           [(or (equal? key "private/module-boundary-ctc.rkt")
+                (equal? key "module-boundary-ctc.rkt"))
+            webify-private-module-boundary-ctc-path/resolved]
+           [(equal? key "private/object-c-wrapper.rkt")
+            'racket/contract/private/object-c-wrapper]
+           [(equal? key "private/opt.rkt")
+            'racket/contract/private/opt]
+           [(equal? key "private/orc.rkt")
+            'racket/contract/private/orc]
+           [(equal? key "private/prop.rkt")
+            'racket/contract/private/prop]
+           [else #f])))
+  (and maybe-name
+       (make-resolved-module-path maybe-name)))
+
+;; resolved-synthetic-module-name : any/c -> (or/c symbol? #f)
+;;   Canonicalize resolved host module identities onto seeded synthetic ones.
+(define (resolved-synthetic-module-name resolved-name)
+  (define (path-matches? rx)
+    (and (path-string? resolved-name)
+         (regexp-match? rx (path->string (simplify-path resolved-name)))))
+  (cond
+    [(path-matches? #rx"/racket/format[.]rkt$") 'racket/format]
+    [(path-matches? #rx"/webracket/private/format[.]rkt$") 'webracket/private/format]
+    [(path-matches? #rx"/webracket/private/in[.]rkt$") 'webracket/private/in]
+    [(path-matches? #rx"/webracket/private/in-out[.]rkt$") 'webracket/private/in-out]
+    [(path-matches? #rx"/syntax/contract[.]rkt$") 'syntax/contract]
+    [(path-matches? #rx"/syntax/srcloc[.]rkt$") 'syntax/srcloc]
+    [(path-matches? #rx"/racket/unsafe/undefined[.]rkt$") 'racket/unsafe/undefined]
+    [(path-matches? #rx"/racket/contract/private/module-boundary-ctc[.]rkt$")
+     'webracket/private/module-boundary-ctc]
+    [(path-matches? #rx"/webracket/private/module-boundary-ctc[.]rkt$")
+     'webracket/private/module-boundary-ctc]
+    [(path-matches? #rx"/racket/contract/private/object-c-wrapper[.]rkt$")
+     'racket/contract/private/object-c-wrapper]
+    [(path-matches? #rx"/racket/contract/private/arrow-collapsible[.]rkt$")
+     'racket/contract/private/arrow-collapsible]
+    [(path-matches? #rx"/racket/contract/private/arrow-common[.]rkt$")
+     'racket/contract/private/arrow-common]
+    [(path-matches? #rx"/racket/contract/private/arrow-higher-order[.]rkt$")
+     'racket/contract/private/arrow-higher-order]
+    [(path-matches? #rx"/racket/contract/private/arrow-val-first[.]rkt$")
+     'racket/contract/private/arrow-val-first]
+    [(path-matches? #rx"/racket/contract/private/blame[.]rkt$")
+     'racket/contract/private/blame]
+    [(path-matches? #rx"/racket/contract/private/case-arrow[.]rkt$")
+     'racket/contract/private/case-arrow]
+    [(path-matches? #rx"/racket/contract/private/guts[.]rkt$")
+     'racket/contract/private/guts]
+    [(path-matches? #rx"/racket/contract/private/list[.]rkt$")
+     'racket/contract/private/list]
+    [(path-matches? #rx"/racket/contract/private/misc[.]rkt$")
+     'racket/contract/private/misc]
+    [(path-matches? #rx"/racket/contract/private/opt[.]rkt$")
+     'racket/contract/private/opt]
+    [(path-matches? #rx"/racket/contract/private/orc[.]rkt$")
+     'racket/contract/private/orc]
+    [(path-matches? #rx"/racket/contract/private/prop[.]rkt$")
+     'racket/contract/private/prop]
+    [(path-matches? #rx"/racket/contract/private/base[.]rkt$")
+     'racket/contract/private/base]
+    [(path-matches? #rx"/racket/contract[.]rkt$") 'racket/contract]
+    [else #f]))
+
+;; resolved-module-source-path : any/c -> (or/c path-string? #f)
+;;   Recover a backing source path for seeded synthetic module identities.
+(define (resolved-module-source-path resolved-name)
+  (cond
+    [(path-string? resolved-name) resolved-name]
+    [(memq resolved-name '(racket/contract
+                           racket/contract/base
+                           racket/contract/combinator
+                           racket/contract/region
+                           racket/contract/private/base
+                           racket/contract/private/arr-i
+                           racket/contract/private/arrow-collapsible
+                           racket/contract/private/arrow-common
+                           racket/contract/private/arrow-higher-order
+                           racket/contract/private/arrow-val-first
+                           racket/contract/private/blame
+                           racket/contract/private/case-arrow
+                           racket/contract/private/guts
+                           racket/contract/private/list
+                           racket/contract/private/misc
+                           racket/contract/private/module-boundary-ctc
+                           racket/contract/private/object-c-wrapper
+                           racket/contract/private/opt
+                           racket/contract/private/orc
+                           racket/contract/private/prop))
+     (path->string webify-contract-path/resolved)]
+    [(eq? resolved-name 'webracket/private/module-boundary-ctc)
+     (path->string webify-private-module-boundary-ctc-path/resolved)]
+    [(memq resolved-name '(racket/format webracket/private/format))
+     (path->string webify-private-format-path/resolved)]
+    [(eq? resolved-name 'webracket/private/in)
+     (path->string webify-private-in-path/resolved)]
+    [(eq? resolved-name 'webracket/private/in-out)
+     (path->string webify-private-in-out-path/resolved)]
+    [(eq? resolved-name 'syntax/contract)
+     (path->string webify-syntax-contract-path/resolved)]
+    [(eq? resolved-name 'syntax/srcloc)
+     (path->string webify-syntax-srcloc-path/resolved)]
+    [(eq? resolved-name 'racket/unsafe/undefined)
+     (path->string webify-unsafe-undefined-path/resolved)]
+    [else #f]))
+
 ;; make-webify-contract-erasing-module-name-resolver : [procedure?] -> procedure?
 ;;   Build a resolver that redirects public contract modules to erased ones.
 (define (make-webify-contract-erasing-module-name-resolver
@@ -314,13 +539,25 @@
      (cond
        [(contract-module-path? module-path)
         (contract-module-path->resolved module-path)]
+       [(contract-relative-module-path->resolved module-path source)
+        => values]
        [(syntax-srcloc-module-path? module-path)
         (make-resolved-module-path 'syntax/srcloc)]
+       [(staged-format-module-path? module-path)
+       (staged-format-module-path->resolved)]
        [(unsafe-undefined-module-path? module-path)
         (make-resolved-module-path 'racket/unsafe/undefined)]
        [else (base-resolver module-path source syntax load?)])]
     [(resolved namespace)
-     (base-resolver resolved namespace)]))
+     (define resolved-name
+       (cond
+         [(resolved-module-path? resolved) (resolved-module-path-name resolved)]
+         [else resolved]))
+     (define synthetic-name
+       (resolved-synthetic-module-name resolved-name))
+     (if synthetic-name
+         (base-resolver (make-resolved-module-path synthetic-name) namespace)
+         (base-resolver resolved namespace))]))
 
 (struct webify-module-extractor-spike
   (name
@@ -3322,10 +3559,11 @@
 ;;   Create an extraction namespace where Racket contract providers are erased.
 (define (make-webify-contract-erasing-namespace)
   (define namespace (make-base-namespace))
-  (define contract-file (path->string webify-contract-path))
-  (define syntax-contract-file (path->string webify-syntax-contract-path))
-  (define syntax-srcloc-file (path->string webify-syntax-srcloc-path))
-  (define unsafe-undefined-file (path->string webify-unsafe-undefined-path))
+  (define contract-file (path->string webify-contract-path/resolved))
+  (define private-format-file (path->string webify-private-format-path/resolved))
+  (define syntax-contract-file (path->string webify-syntax-contract-path/resolved))
+  (define syntax-srcloc-file (path->string webify-syntax-srcloc-path/resolved))
+  (define unsafe-undefined-file (path->string webify-unsafe-undefined-path/resolved))
   (define erased-contract-coercion-exports
     '(coerce-contract
       coerce-contracts
@@ -3346,10 +3584,20 @@
      `(module ,name racket/base
         (require (file ,contract-file))
         (provide ,@provide-specs))))
+  (define (declare-staged-format-module! name)
+    (eval
+     `(module ,name racket/base
+        (require (file ,private-format-file))
+        (provide (all-from-out (file ,private-format-file))))))
   (parameterize ([current-namespace namespace])
     (namespace-call-with-registry-lock
      namespace
      (lambda ()
+       (declare-staged-format-module! 'webracket/private/format)
+       (eval
+        `(module racket/format racket/base
+           (require webracket/private/format)
+           (provide (all-from-out webracket/private/format))))
        (declare-erased-contract-module!
         'racket/contract/base
         `((except-out (all-from-out (file ,contract-file))
@@ -3500,6 +3748,11 @@
        (dynamic-require ''racket/contract/private/orc #f)
        (dynamic-require ''racket/contract/private/prop #f)
        (dynamic-require ''racket/contract #f)
+       (dynamic-require `(file ,(path->string webify-private-in-path/resolved)) #f)
+       (dynamic-require `(file ,(path->string webify-private-in-out-path/resolved)) #f)
+       (dynamic-require `(file ,(path->string webify-private-module-boundary-ctc-path/resolved)) #f)
+       (dynamic-require ''webracket/private/format #f)
+       (dynamic-require ''racket/format #f)
        (dynamic-require ''syntax/contract #f)
        (dynamic-require ''syntax/srcloc #f)
        (dynamic-require ''racket/unsafe/undefined #f))))
@@ -3569,11 +3822,18 @@
     [else
      (with-handlers ([exn:fail? try-slash-submodule-fallback])
        (parameterize ([current-namespace namespace])
-         (define source-path
+         (define resolved-name
            (resolved-module-path-name
             (module-path-index-resolve
              (module-path-index-join effective-module-path #f)
              #t)))
+         (define source-path
+           (resolved-module-source-path resolved-name))
+         (unless source-path
+           (raise-arguments-error who
+                                  "expected module path to resolve to a source file"
+                                  "module path" effective-module-path
+                                  "resolved root" resolved-name))
          (define compiled
            (get-module-code
             source-path

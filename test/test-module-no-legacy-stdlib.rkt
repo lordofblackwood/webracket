@@ -230,6 +230,19 @@
       "(~a 42)")
     "\n")))
 
+(define format-web-easy-list-module-source
+  (write-source!
+   sources-root
+   "module-format-web-easy-list.rkt"
+   (string-join
+    '("#lang webracket/base"
+      ""
+      "(require web-easy"
+      "         racket/list)"
+      ""
+      "(format \"~a\" (first '(42)))")
+    "\n")))
+
 (define test-suite/module-no-legacy-stdlib
   (test-suite
    "module-no-legacy-stdlib"
@@ -274,6 +287,18 @@
     (make-directory* dest-dir)
     (define-values (status output)
       (compile-with-timings format-module-source dest-dir '() env))
+    (check-equal? status 0 output)
+    (assert-stdlib-mode! "input-mode" "module" output)
+    (assert-stdlib-mode! "legacy-stdlib-mode" "skipped-module-input" output)
+    (assert-stdlib-mode! "io-format-provider-mode" "skipped-module-input" output)
+    (assert-generated-output! dest-dir))
+
+   (test-case
+    "module input keeps staged format routing through transitive web-easy providers"
+    (define dest-dir (build-path generated-root "module-format-web-easy-list"))
+    (make-directory* dest-dir)
+    (define-values (status output)
+      (compile-with-timings format-web-easy-list-module-source dest-dir '() env))
     (check-equal? status 0 output)
     (assert-stdlib-mode! "input-mode" "module" output)
     (assert-stdlib-mode! "legacy-stdlib-mode" "skipped-module-input" output)

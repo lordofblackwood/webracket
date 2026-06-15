@@ -4088,11 +4088,21 @@
        (define (fetch-provider/erased-contracts name)
          (define staged-io-format-report
            (io-format-provider-report/ref name))
-         (define substitute-name (webracket/base-provider-substitute name))
-         (define extraction-name
-           (if (webracket/base-erased-contract-provider-name? name)
-               'webracket/contract
-               substitute-name))
+       (define substitute-name (webracket/base-provider-substitute name))
+        (define extraction-name
+           (cond
+             [(eq? name 'racket/in-out)
+              'webracket/private/in-out]
+             [(memq name '(racket/module-boundary-ctc
+                           racket/contract/private/module-boundary-ctc))
+              'webracket/private/module-boundary-ctc]
+             [(webracket/base-erased-contract-provider-name? name)
+              'webracket/contract]
+             [else
+              substitute-name]))
+         (define webracket-owned-provider?
+           (and (symbol? extraction-name)
+                (string-prefix? (symbol->string extraction-name) "webracket/")))
          (define normal-export-shape?
            ;; The root module is expanded by normal Racket, so contracted
            ;; public providers must keep their generated provide/contract
@@ -4153,12 +4163,14 @@
             (define (extract)
               (webify-module-report/rename
                (if (eq? fetch-provider webify-module-path->report)
-                   (if normal-export-shape?
+                   (if (or normal-export-shape?
+                           webracket-owned-provider?)
                        (webify-module-path->report extraction-name)
                        (webify-module-path->report extraction-name #:namespace provider-namespace))
                    (fetch-provider extraction-name))
                name))
-            (if normal-export-shape?
+            (if (or normal-export-shape?
+                    webracket-owned-provider?)
                 (extract)
                 (parameterize ([current-namespace provider-namespace]
                                [current-module-name-resolver provider-module-name-resolver])
