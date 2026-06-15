@@ -2615,15 +2615,15 @@
    e f))
 
 (define (get-child-transformation/search pict listx)
-  (cond  [(empty? list)
+  (cond  [(null? listx)
           (vector 1 0 0
                   0 1 0
                   0 0 1)]
          [else
           (define t
-            (find-next-target pict (first listx)))
+            (find-next-target pict (car listx)))
           (transformation-compose
-           (get-child-transformation/search (first listx) (rest listx))
+           (get-child-transformation/search (car listx) (cdr listx))
            t)]))
 
 
