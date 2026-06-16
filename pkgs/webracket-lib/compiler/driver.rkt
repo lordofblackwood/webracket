@@ -4341,6 +4341,7 @@
                     'webracket/private/sort-public
                     'webracket/private/kw
                     'racket/private/kw
+                    'racket/private/pre-base
                     'webracket/private/sort
                     'racket/private/sort
                     'webracket/unsafe/undefined
@@ -4409,6 +4410,8 @@
                         (webify-module-provider-cache-ref provider-cache
                                                           'webracket/private/kw)
                         'racket/private/kw)
+                       (webify-module-provider-cache-ref provider-cache
+                                                         'racket/private/pre-base)
                        (webify-module-provider-cache-ref provider-cache
                                                          'webracket/private/sort)
                        (webify-module-report/rename

@@ -594,7 +594,7 @@
    import-aliases
    require-rename-aliases
    missing-alias-import-groups
-   notes)
+  notes)
   #:transparent)
 
 (struct webify-module-provider-cache (fetch-provider table hits misses) #:transparent)
@@ -1282,7 +1282,8 @@
 ;;   Keep only providers that can plausibly correspond to unresolved import groups.
 (define (require-order-provider? self-name name)
   (and (not (eq? name self-name))
-       (not (memq name '(webracket/base racket/base racket/private/base)))))
+       (not (memq name '(webracket/base racket/base racket/private/base)))
+       (not (regexp-match? #rx"^racket/private/" (symbol->string name)))))
 
 ;; require-order-package-provider? : symbol? -> boolean?
 ;;   Recognize package/library facades outside the core Racket/WebRacket families.
@@ -3257,6 +3258,33 @@
       dependency-exports
       (cons self-row dependency-exports)))
 
+;; dependency-exports/merge-missing : dependency-exports dependency-exports -> dependency-exports
+;;   Add rows from extra only when base has no entry for that dependency.
+(define (dependency-exports/merge-missing base extra)
+  (define who 'dependency-exports/merge-missing)
+  (unless (and (list? base)
+               (andmap (lambda (row)
+                         (match row
+                           [(list (? symbol?) exports)
+                            (and (list? exports)
+                                 (andmap symbol? exports))]
+                           [_ #f]))
+                       base))
+    (raise-argument-error who "(listof (list/c symbol? (listof symbol?)))" base))
+  (unless (and (list? extra)
+               (andmap (lambda (row)
+                         (match row
+                           [(list (? symbol?) exports)
+                            (and (list? exports)
+                                 (andmap symbol? exports))]
+                           [_ #f]))
+                       extra))
+    (raise-argument-error who "(listof (list/c symbol? (listof symbol?)))" extra))
+  (append base
+          (for/list ([row (in-list extra)]
+                     #:unless (assoc (car row) base))
+            row)))
+
 ;; parsed-directory-select-bundle : symbol? hash? (listof symbol?) -> hash?
 ;;   Select the main parsed zo bundle for a top-level module or nested submodule path.
 (define (parsed-directory-select-bundle who directory-hash submodule-path)
@@ -4022,6 +4050,11 @@
     (webify-module-extractor-spikes-dependency-exports provider-reports))
   (define provider+self-dependency-exports
     (dependency-exports/include-self report provider-dependency-exports))
+  (define resolved-dependency-exports
+    (if dependency-exports
+        (dependency-exports/merge-missing dependency-exports
+                                          provider+self-dependency-exports)
+        provider+self-dependency-exports))
   (route-syntax-literal-import
    (webify-module-linklet-input
     (webify-module-extractor-spike-name report)
@@ -4029,8 +4062,7 @@
     (resolve-extracted-linklet-imports
      who
      linklet
-     (or dependency-exports
-         provider+self-dependency-exports)
+     resolved-dependency-exports
      provider+self-dependency-exports
      dependencies
      (webify-module-import-map-import-aliases import-map)

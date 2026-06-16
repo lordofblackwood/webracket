@@ -93,9 +93,62 @@
       (with-handlers ([exn:fail:filesystem? void])
         (delete-directory/files base)))))
 
+;; run-imported-binding-extraction-smoke : path? path? -> void?
+;;   Assert that referenced imports from extracted providers resolve during
+;;   module-bridge extraction.
+(define (run-imported-binding-extraction-smoke repo-root racket-exe)
+  (define base (make-temporary-file "webracket-module-bridge-import-binding-~a" 'directory))
+  (define script-path (build-path base "bridge-extract-import-binding.rkt"))
+  (define compiled-root (build-path base "compiled"))
+  (define source-path (build-path base "repro-web-easy-text-binding.rkt"))
+  (dynamic-wind
+    void
+    (lambda ()
+      (make-directory* compiled-root)
+      (call-with-output-file source-path
+        (lambda (out)
+          (display "#lang webracket/base\n" out)
+          (display "(require web-easy)\n" out)
+          (display "text\n" out))
+        #:exists 'truncate/replace)
+      (call-with-output-file script-path
+        (lambda (out)
+          (display "#lang racket/base\n" out)
+          (display "(require (file \"" out)
+          (display (path->string (build-path repo-root "pkgs" "webracket-lib" "compiler" "driver.rkt")) out)
+          (display "\"))\n" out)
+          (display "(define graph\n" out)
+          (display "  (webracket/base-file->local-module-graph\n" out)
+          (display "   \"" out)
+          (display (path->string source-path) out)
+          (display "\"))\n" out)
+          (display "(unless (pair? (webracket/base-local-module-graph-reports graph))\n" out)
+          (display "  (error 'bridge-extract-import-binding \"expected local reports\"))\n" out)
+          (display "(write (webracket/base-local-module-graph-root graph))\n" out)
+          (display "(newline)\n" out))
+        #:exists 'truncate/replace)
+      (define stdout (open-output-string))
+      (define stderr (open-output-string))
+      (define status
+        (parameterize ([current-directory repo-root]
+                       [current-output-port stdout]
+                       [current-error-port stderr]
+                       [current-environment-variables (env-with-collections repo-root compiled-root)])
+          (system*/exit-code racket-exe (path->string script-path))))
+      (define output
+        (string-append (get-output-string stdout)
+                       (get-output-string stderr)))
+      (unless (zero? status)
+        (error 'test-module-bridge-extraction
+               (format "imported binding extraction failed (~a): ~a" status output))))
+    (lambda ()
+      (with-handlers ([exn:fail:filesystem? void])
+        (delete-directory/files base)))))
+
 (module+ main
   (define repo-root
     (find-repo-root (or (current-load-relative-directory)
                         (current-directory))))
   (define racket-exe (repo-racket-executable repo-root))
-  (run-bridge-extraction-smoke repo-root racket-exe))
+  (run-bridge-extraction-smoke repo-root racket-exe)
+  (run-imported-binding-extraction-smoke repo-root racket-exe))
