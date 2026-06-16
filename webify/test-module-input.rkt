@@ -186,6 +186,33 @@
   (check-equal? (map webify-module-resolution-outcome-status kernel-outcomes)
                 '(resolved-by-export-scan)))
 
+(test-case "composer canonicalizes kernel-prefixed primitive import cells"
+  (define base-dir
+    (or (current-load-relative-directory)
+        (current-directory)))
+  (define repo-root
+    (if (directory-exists? (build-path base-dir "pkgs"))
+        base-dir
+        (simplify-path (build-path base-dir ".."))))
+  (define module-composer-path
+    (build-path repo-root
+                "pkgs"
+                "webracket-lib"
+                "compiler"
+                "webify"
+                "module-composer.rkt"))
+  (dynamic-require module-composer-path #f)
+  (define composer-ns
+    (module->namespace module-composer-path))
+  (define resolved-name
+    (parameterize ([current-namespace composer-ns])
+      (eval
+       '(compiled-primitive-import-cell-export
+         'kernel:exn:fail:filesystem:missing-module
+         'kernel:exn:fail:filesystem:missing-module))))
+  (check-equal? resolved-name
+                'exn:fail:filesystem:missing-module))
+
 (test-case "module linklet import resolver ranks concrete providers above kernel fallback"
   (define syntax-linklet
     '(linklet (([syntax? syntax?])) (y)
@@ -335,6 +362,53 @@
    '((new-keyword-apply
       racket/private/list
       keyword-apply))))
+
+(test-case "module linklet import resolver keeps keyword runtime ownership together"
+  (define-values (kw-imports kw-outcomes)
+    (webify-resolve-module-linklet-imports/outcomes
+     '(linklet (([make-keyword-procedure make-keyword-procedure]
+                 [keyword-apply keyword-apply]
+                 [procedure-reduce-keyword-arity procedure-reduce-keyword-arity]
+                 [procedure-reduce-keyword-arity-mask procedure-reduce-keyword-arity-mask]
+                 [keyword-procedure-extract keyword-procedure-extract]
+                 [struct:keyword-procedure struct:keyword-procedure]))
+        (y)
+        (define-values (y) procedure-reduce-keyword-arity))
+     '((webracket/private/kw (make-keyword-procedure
+                              keyword-apply
+                              procedure-reduce-keyword-arity
+                              procedure-reduce-keyword-arity-mask
+                              keyword-procedure-extract
+                              struct:keyword-procedure))
+       (racket/private/kw (make-keyword-procedure
+                           keyword-apply
+                           procedure-reduce-keyword-arity
+                           procedure-reduce-keyword-arity-mask
+                           keyword-procedure-extract
+                           struct:keyword-procedure)))
+     #:module-name 'racket/private/kw))
+  (check-equal? kw-imports
+                '((make-keyword-procedure webracket/private/kw make-keyword-procedure)
+                  (keyword-apply webracket/private/kw keyword-apply)
+                  (procedure-reduce-keyword-arity
+                   webracket/private/kw
+                   procedure-reduce-keyword-arity)
+                  (procedure-reduce-keyword-arity-mask
+                   webracket/private/kw
+                   procedure-reduce-keyword-arity-mask)
+                  (keyword-procedure-extract
+                   webracket/private/kw
+                   keyword-procedure-extract)
+                  (struct:keyword-procedure
+                   webracket/private/kw
+                   struct:keyword-procedure)))
+  (check-equal? (map webify-module-resolution-outcome-status kw-outcomes)
+                '(resolved-by-compiled-primitive-alias
+                  resolved-by-compiled-primitive-alias
+                  resolved-by-compiled-primitive-alias
+                  resolved-by-compiled-primitive-alias
+                  resolved-by-compiled-primitive-alias
+                  resolved-by-compiled-primitive-alias)))
 
 (test-case "dependency resolver honors explicit internal export aliases"
   (define importer-local 'string-join.1)

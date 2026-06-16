@@ -794,6 +794,22 @@
                               racket/private/list))
           (symbolic-name=? external 'sort))
      '(webracket/private/sort-public sort)]
+    [(and (eq? module-name 'racket/private/kw)
+          (memq external '(make-keyword-procedure
+                           keyword-apply
+                           new-keyword-apply
+                           make-optional-keyword-procedure
+                           make-optional-keyword-method
+                           make-required-keyword-method/arity-error
+                           keyword-procedure-extract
+                           procedure-reduce-keyword-arity
+                           procedure-reduce-keyword-arity-mask
+                           procedure-keywords
+                           struct:keyword-procedure
+                           struct:keyword-procedure/arity-error
+                           struct:keyword-method
+                           struct:keyword-method/arity-error)))
+     (list 'webracket/private/kw external)]
     [(and (memq module-name '(racket/list
                               racket/private/list
                               webracket/list))

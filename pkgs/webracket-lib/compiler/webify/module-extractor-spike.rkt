@@ -1210,7 +1210,11 @@
         (generated-import-name? external))))
 
 (define keyword-runtime-import-names
-  '(keyword-procedure-extract
+  '(keyword-apply
+    keyword-procedure-extract
+    make-keyword-procedure
+    procedure-reduce-keyword-arity
+    procedure-reduce-keyword-arity-mask
     struct:keyword-procedure
     struct:keyword-procedure/arity-error
     struct:keyword-method
@@ -1523,7 +1527,7 @@
        (webify-module-extractor-spike-name report))
       hinted-required-module-candidates
       (if (ormap keyword-runtime-import-group? unresolved-groups)
-          '((0 racket/private/kw))
+          '((0 webracket/private/kw))
           '()))))
   (define compiled-rename-specs
     (compiled-module-binding-rename-specs
@@ -2965,12 +2969,15 @@
                                 object%))
             (list local 'racket/private/class-internal)]
            [(symbolic-member? external
-                              '(make-keyword-procedure
+                              '(keyword-apply
+                                make-keyword-procedure
                                 new-keyword-apply
                                 make-optional-keyword-procedure
                                 make-optional-keyword-method
                                 make-required-keyword-method/arity-error
                                 keyword-procedure-extract
+                                procedure-reduce-keyword-arity
+                                procedure-reduce-keyword-arity-mask
                                 procedure-keywords
                                 struct:keyword-procedure
                                 struct:keyword-procedure/arity-error
