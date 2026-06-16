@@ -60723,7 +60723,7 @@
                          (unreachable)))
                (global.get $false))
 
-         (func $procedure-reduce-arity
+         (func $procedure-reduce-arity (type $Prim24)
                (param $proc  (ref eq)) ; procedure?
                (param $arity (ref eq)) ; procedure-arity?
                (param $name  (ref eq)) ; (or/c symbol? #f), default #f
@@ -60800,7 +60800,7 @@
                            (ref.func $dummy-code)
                            (local.get $free)))
 
-         (func $procedure-reduce-arity-mask
+         (func $procedure-reduce-arity-mask (type $Prim24)
                (param $proc  (ref eq)) ; procedure?
                (param $mask  (ref eq)) ; exact-integer?
                (param $name  (ref eq)) ; (or/c symbol? #f), default #f
