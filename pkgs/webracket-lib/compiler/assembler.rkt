@@ -1158,6 +1158,15 @@ function fasl_to_js_value(arr, i = 0) {
                                        
   const tag = arr[i++];
 
+  function keywordValue(name) {
+    return {
+      tag: 'keyword',
+      name,
+      toString() { return `#:${name}`; },
+      [Symbol.toPrimitive]() { return `#:${name}`; }
+    };
+  }
+
   function u32() {
     const v = read_u32(arr, i);
     i += 4;
@@ -1186,6 +1195,8 @@ function fasl_to_js_value(arr, i = 0) {
       return [String.fromCodePoint(u32()), i];
     case @|fasl-symbol|:
       return [Symbol.for(read_string()), i];
+    case @|fasl-keyword|:
+      return [keywordValue(read_string()), i];
     case @|fasl-string|:
       return [read_string(), i];
     case @|fasl-bytes|:
@@ -1282,6 +1293,10 @@ function js_value_to_fasl(v) {
     writeByte(@|fasl-symbol|);
     writeString(name);
   }
+  function writeKeyword(name) {
+    writeByte(@|fasl-keyword|);
+    writeString(name);
+  }
   function writeStringVal(s) {
     writeByte(@|fasl-string|);
     writeString(s);
@@ -1332,6 +1347,10 @@ function js_value_to_fasl(v) {
     }
     if (typeof x === "boolean") {
       writeBoolean(x);
+      return;
+    }
+    if (x && x.tag === "keyword" && typeof x.name === "string") {
+      writeKeyword(x.name);
       return;
     }
     if (x === null) {
@@ -1643,6 +1662,9 @@ function testsuite(js_value_to_fasl, fasl_to_js_value, { log = true } = {}) {
       const kb = Symbol.keyFor(b) ?? b.description ?? '';
       return ka === kb;
     }
+    if (a && b && a.tag === 'keyword' && b.tag === 'keyword') {
+      return a.name === b.name;
+    }
     // Pairs
     if (a && b && a.tag === 'pair' && b.tag === 'pair') {
       return deepEq(a.car, b.car) && deepEq(a.cdr, b.cdr);
@@ -1697,6 +1719,7 @@ function testsuite(js_value_to_fasl, fasl_to_js_value, { log = true } = {}) {
   test('char snowman', { tag: 'char', cp: '☃'.codePointAt(0) });
   // Symbols
   test('symbol foo', Symbol.for('foo'));
+  test('keyword attrs', { tag: 'keyword', name: 'attrs' });
   // Bytes (Uint8Array)
   test('bytes', new Uint8Array([0, 1, 2, 255]));
   // Pairs

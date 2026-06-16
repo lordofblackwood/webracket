@@ -19,7 +19,8 @@
          fasl-flonum
          fasl-void
          fasl-eof
-         fasl-external)
+         fasl-external
+         fasl-keyword)
 
 (define fasl-fixnum     0)
 (define fasl-character  1)
@@ -34,4 +35,4 @@
 (define fasl-void      10)
 (define fasl-eof       11)
 (define fasl-external  12)
-
+(define fasl-keyword   13)
