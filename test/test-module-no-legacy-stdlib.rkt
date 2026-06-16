@@ -230,6 +230,16 @@
       "(~a 42)")
     "\n")))
 
+(define regexp-module-source
+  (write-source!
+   sources-root
+   "module-regexp.rkt"
+   (string-join
+    '("#lang webracket/base"
+      ""
+      "(regexp-match #rx\"x\" \"x\")")
+    "\n")))
+
 (define format-web-easy-list-module-source
   (write-source!
    sources-root
@@ -257,6 +267,7 @@
     (assert-stdlib-mode! "input-mode" "module" output)
     (assert-stdlib-mode! "legacy-stdlib-mode" "skipped-module-input" output)
     (assert-stdlib-mode! "io-format-provider-mode" "skipped-module-input" output)
+    (assert-stdlib-mode! "regexp-provider-mode" "skipped-module-no-demand" output)
     (assert-generated-output! dest-dir))
 
    (test-case
@@ -268,6 +279,7 @@
     (check-equal? status 0 output)
     (assert-stdlib-mode! "legacy-stdlib-mode" "skipped-module-input" output)
     (assert-stdlib-mode! "io-format-provider-mode" "skipped-module-input" output)
+    (assert-stdlib-mode! "regexp-provider-mode" "skipped-module-no-demand" output)
     (assert-generated-output! dest-dir))
 
    (test-case
@@ -279,6 +291,7 @@
    (check-equal? status 0 output)
    (assert-stdlib-mode! "legacy-stdlib-mode" "ignored-module-input" output)
    (assert-stdlib-mode! "io-format-provider-mode" "skipped-module-input" output)
+   (assert-stdlib-mode! "regexp-provider-mode" "skipped-module-no-demand" output)
    (assert-generated-output! dest-dir))
 
    (test-case
@@ -291,6 +304,7 @@
     (assert-stdlib-mode! "input-mode" "module" output)
     (assert-stdlib-mode! "legacy-stdlib-mode" "skipped-module-input" output)
     (assert-stdlib-mode! "io-format-provider-mode" "skipped-module-input" output)
+    (assert-stdlib-mode! "regexp-provider-mode" "skipped-module-no-demand" output)
     (assert-generated-output! dest-dir))
 
    (test-case
@@ -303,6 +317,20 @@
     (assert-stdlib-mode! "input-mode" "module" output)
     (assert-stdlib-mode! "legacy-stdlib-mode" "skipped-module-input" output)
     (assert-stdlib-mode! "io-format-provider-mode" "skipped-module-input" output)
+    (assert-stdlib-mode! "regexp-provider-mode" "skipped-module-no-demand" output)
+    (assert-generated-output! dest-dir))
+
+   (test-case
+    "module input enables regexp provider only on demand"
+    (define dest-dir (build-path generated-root "module-regexp"))
+    (make-directory* dest-dir)
+    (define-values (status output)
+      (compile-with-timings regexp-module-source dest-dir '() env))
+    (check-equal? status 0 output)
+    (assert-stdlib-mode! "input-mode" "module" output)
+    (assert-stdlib-mode! "legacy-stdlib-mode" "skipped-module-input" output)
+    (assert-stdlib-mode! "io-format-provider-mode" "skipped-module-input" output)
+    (assert-stdlib-mode! "regexp-provider-mode" "enabled-module-demand" output)
     (assert-generated-output! dest-dir))
 
    (test-case
