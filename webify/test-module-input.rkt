@@ -3,6 +3,8 @@
 (require racket/file
          racket/path
          rackunit
+         (only-in "../pkgs/webracket-lib/compiler/private/parameters.rkt"
+                  current-provider-owned-primitive-aliases)
          "test-module-support.rkt")
 
 ;; extracted-module-inputs : (listof webify-module-linklet-input?)
@@ -185,6 +187,67 @@
                    exn:fail:filesystem:missing-module)))
   (check-equal? (map webify-module-resolution-outcome-status kernel-outcomes)
                 '(resolved-by-export-scan)))
+
+(test-case "module linklet import resolver prefers staged read provider aliases"
+  (define read-linklet
+    '(linklet (((read read))
+               ((string->number string->number)))
+       (y)
+       (define-values (y) read)))
+  (parameterize ([current-provider-owned-primitive-aliases
+                  '(read string->number)])
+    (define-values (imports outcomes)
+      (webify-resolve-module-linklet-imports/outcomes
+       read-linklet
+       '()))
+    (check-equal? imports
+                  '((read expander/read read)
+                    (string->number expander/read string->number)))
+    (check-equal? (map webify-module-resolution-outcome-status outcomes)
+                  '(resolved-by-export-scan/provider-precedence
+                    resolved-by-export-scan/provider-precedence))))
+
+(test-case "module linklet import resolver prefers public staged read facade for generated aliases"
+  (define read-linklet
+    '(linklet (((1/string->number string->number))) (y)
+       (define-values (y) 1/string->number)))
+  (parameterize ([current-provider-owned-primitive-aliases
+                  '(read string->number)])
+    (define dependency-exports
+      '((expander/read (string->number))
+        (racket-src/expander/read/number (string->number))
+        (racket-src/expander/host/string-to-number (string->number))))
+    (define-values (imports outcomes)
+      (webify-resolve-module-linklet-imports/outcomes
+       read-linklet
+       dependency-exports
+       #:module-name 'web-easy))
+    (check-equal? imports
+                  '((1/string->number expander/read string->number)))
+    (check-equal? (map webify-module-resolution-outcome-status outcomes)
+                  '(resolved-by-export-scan/provider-precedence))))
+
+(test-case "module linklet import resolver keeps staged read internals on private string->number"
+  (define read-linklet
+    '(linklet (((1/string->number string->number))) (y)
+       (define-values (y) 1/string->number)))
+  (parameterize ([current-provider-owned-primitive-aliases
+                  '(read string->number)])
+    (define dependency-exports
+      '((expander/read (string->number))
+        (racket-src/expander/read/number (string->number))
+        (racket-src/expander/host/string-to-number (string->number))))
+    (define-values (imports outcomes)
+      (webify-resolve-module-linklet-imports/outcomes
+       read-linklet
+       dependency-exports
+       #:module-name 'racket-src/expander/read-provider-root.rkt))
+    (check-equal? imports
+                  '((1/string->number
+                     racket-src/expander/host/string-to-number
+                     string->number)))
+    (check-equal? (map webify-module-resolution-outcome-status outcomes)
+                  '(resolved-by-compiled-primitive-alias))))
 
 (test-case "composer canonicalizes kernel-prefixed primitive import cells"
   (define base-dir
@@ -784,7 +847,7 @@
      #:module-name 'main))
   (check-equal? class-keyword-method-imports
                 '((struct:keyword-method/arity-error
-                   racket/private/kw
+                   webracket/private/kw
                    struct:keyword-method/arity-error)))
   (define-values (keyword-new-prop-imports keyword-new-prop-outcomes)
     (webify-resolve-module-linklet-imports/outcomes

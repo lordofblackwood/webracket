@@ -29,11 +29,15 @@
 
 (require racket/list
          racket/match
+         racket/set
          racket/string
          racket/unsafe/undefined
          "../private/primitives-db.rkt"
+         "../private/parameters.rkt"
          "primitive-modules.rkt"
-         "module-registry.rkt")
+         "module-registry.rkt"
+         "read-provider.rkt"
+         "regexp-provider.rkt")
 
 (struct webify-module-linklet-input (name linklet imports) #:transparent)
 (struct webify-module-linklet-manifest (inputs roots) #:transparent)
@@ -375,10 +379,91 @@
 
 ;; dependency-exports/add-kernel : dependency-exports -> dependency-exports
 ;;   Add a synthetic #%kernel row so unhinted kernel primitive imports can resolve.
-(define (dependency-exports/add-kernel dependency-exports)
-  (if (assoc '#%kernel dependency-exports)
+(define io-format-provider-owned-export-symbols
+  '(format fprintf printf eprintf))
+
+(define (provider-owned-primitive-alias-scope-blocked? module-name)
+  (define (implementation-prefix? prefix)
+    (and (symbol? module-name)
+         (string-prefix? (symbol->string module-name) prefix)))
+  (or (memq module-name
+            '(expander/read
+              expander/read-syntax
+              racket-src/expander/read-provider-root.rkt
+              racket-src/expander/read-syntax-provider-root.rkt))
+      (implementation-prefix? "racket-src/expander/read/")
+      (implementation-prefix? "racket-src/expander/read-syntax/")))
+
+(define (blocked-provider-owned-dependencies module-name)
+  (append
+   (if (or (memq module-name
+                 '(expander/read
+                   racket-src/expander/read-provider-root.rkt))
+           (and (symbol? module-name)
+                (string-prefix? (symbol->string module-name)
+                                "racket-src/expander/read/")))
+       '(expander/read)
+       '())
+   (if (or (memq module-name
+                 '(expander/read-syntax
+                   racket-src/expander/read-syntax-provider-root.rkt))
+           (and (symbol? module-name)
+                (string-prefix? (symbol->string module-name)
+                                "racket-src/expander/read-syntax/")))
+       '(expander/read-syntax)
+       '())))
+
+(define (expander-read-private-provider-candidate? dependency)
+  (and (symbol? dependency)
+       (let ([s (symbol->string dependency)])
+         (or (equal? s "racket-src/expander/read-provider-root.rkt")
+             (string-prefix? s "racket-src/expander/read/")
+             (string-prefix? s "racket-src/expander/common/")
+             (string-prefix? s "racket-src/expander/host/")))))
+
+(define (dependency-exports/filter-provider-owned-rows dependency-exports [module-name #f])
+  (define blocked-dependencies
+    (blocked-provider-owned-dependencies module-name))
+  (if (null? blocked-dependencies)
       dependency-exports
-      (append dependency-exports (list (kernel-dependency-export-row)))))
+      (filter (lambda (row)
+                (not (memq (car row) blocked-dependencies)))
+              dependency-exports)))
+
+(define (provider-owned-primitive-dependency-export-rows [module-name #f])
+  (if (provider-owned-primitive-alias-scope-blocked? module-name)
+      '()
+      (let ()
+        (define aliases (current-provider-owned-primitive-aliases))
+        (define (active-exports exports)
+          (for/list ([name (in-list exports)]
+                     #:when (set-member? aliases name))
+            name))
+        (define read-exports
+          (active-exports webify-read-public-alias-symbols))
+        (define regexp-exports
+          (active-exports webify-regexp-provider-owned-symbols))
+        (define io-format-exports
+          (active-exports io-format-provider-owned-export-symbols))
+        (filter values
+                (list
+                 (and (pair? read-exports)
+                      (list 'expander/read read-exports))
+                 (and (pair? regexp-exports)
+                      (list 'regexp regexp-exports))
+                 (and (pair? io-format-exports)
+                      (list 'io/format io-format-exports)))))))
+
+;; dependency-exports/add-synthetic-rows : dependency-exports -> dependency-exports
+;;   Add synthetic provider rows for kernel and staged provider-owned primitive aliases.
+(define (dependency-exports/add-synthetic-rows dependency-exports [module-name #f])
+  (for/fold ([rows dependency-exports])
+            ([row (in-list
+                   (cons (kernel-dependency-export-row)
+                         (provider-owned-primitive-dependency-export-rows module-name)))])
+    (if (assoc (car row) rows)
+        rows
+        (append rows (list row)))))
 
 ;; dependency-export-ref : symbol? dependency-name (listof symbol?) symbol? -> symbol?
 ;;   Find the provider export symbol that corresponds to an import's external name.
@@ -480,6 +565,23 @@
   (cond
     [(null? concrete-candidates) candidates]
     [else (prefer-webracket-owned-candidates concrete-candidates)]))
+
+;; prefer-staged-read-public-candidates : (or/c symbol? #f) symbol? (listof symbol?) -> (listof symbol?)
+;;   Prefer the public staged `expander/read` facade for user-module imports of
+;;   reader-owned aliases, while keeping private staged-reader modules inside
+;;   their implementation closure.
+(define (prefer-staged-read-public-candidates module-name external candidates)
+  (define public-read-alias?
+    (for/or ([name (in-list webify-read-public-alias-symbols)])
+      (symbolic-name=? external name)))
+  (cond
+    [(and public-read-alias?
+          (not (provider-owned-primitive-alias-scope-blocked? module-name))
+          (memq 'expander/read candidates)
+          (for/or ([dependency (in-list candidates)])
+            (expander-read-private-provider-candidate? dependency)))
+     '(expander/read)]
+    [else candidates]))
 
 ;; prefer-list-member-candidates : symbol? (listof symbol?) -> (listof symbol?)
 ;;   Prefer the list-layer `member` only when export scanning found it.
@@ -692,7 +794,10 @@
          (prefer-exact-export-candidates
           dependency-exports
           external
-          (prefer-provider-candidates candidates external)))))
+          (prefer-staged-read-public-candidates
+           module-name
+           external
+           (prefer-provider-candidates candidates external))))))
      (cond
        [(null? candidates)
         (raise-arguments-error who
@@ -737,6 +842,20 @@
           (eq? local '1/get-installation-name)
           (eq? external 'get-installation-name))
      '(#%utils get-installation-name)]
+    [(and (eq? module-name 'racket-src/expander/read-provider-root.rkt)
+          (eq? local '1/string->number)
+          (eq? external 'string->number))
+     '(racket-src/expander/host/string-to-number string->number)]
+    [(and (memq module-name '(racket-src/expander/read/vector
+                              racket-src/expander/read/vector.rkt))
+          (eq? local 'not-an-fX.1)
+          (eq? external 'not-an-fX.1))
+     '(racket/fixnum not-an-fX.1)]
+    [(and (memq module-name '(racket-src/expander/read/vector
+                              racket-src/expander/read/vector.rkt))
+          (eq? local '1/not-an-fX.1)
+          (eq? external 'not-an-fX.1))
+     '(racket/flonum not-an-fX.1)]
     [(and (eq? local '-random)
           (eq? external '-random))
      '(#%kernel random)]
@@ -954,10 +1073,15 @@
           (symbolic-name=? external 'contract))
      '(racket/contract/private/guts contract)]
     [(symbolic-name=? external 'struct:keyword-method/arity-error)
-     '(racket/private/kw struct:keyword-method/arity-error)]
+     '(webracket/private/kw struct:keyword-method/arity-error)]
+    [(symbolic-name=? external 'subsets?)
+     '(webracket/private/kw subsets?)]
     [(and (eq? module-name 'racket/private/kw)
           (symbolic-name=? external 'new-prop:procedure))
      '(#%kernel prop:procedure)]
+    [(and (eq? module-name 'racket-src/expander/read-provider-root.rkt)
+          (symbolic-name=? external 'string->number))
+     '(racket-src/expander/host/string-to-number string->number)]
     [(symbolic-name=? external 'find-method/who)
      '(racket/private/class-struct find-method/who)]
     [(symbolic-name=? external 'do-make-object)
@@ -1010,7 +1134,10 @@
                                                         #:reflection-hints [reflection-hints '()])
   (define who 'webify-resolve-module-linklet-imports)
   (define bindings (linklet-import-bindings who linklet))
-  (define dependency-exports* (dependency-exports/add-kernel dependency-exports))
+  (define dependency-exports*
+    (dependency-exports/add-synthetic-rows
+     (dependency-exports/filter-provider-owned-rows dependency-exports module-name)
+     module-name))
   (validate-dependency-exports! who dependency-exports*)
   (validate-import-dependencies! who dependencies)
   (validate-import-aliases! who import-aliases)
