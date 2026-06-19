@@ -145,10 +145,72 @@
       (with-handlers ([exn:fail:filesystem? void])
         (delete-directory/files base)))))
 
+;; run-staged-read-list-extraction-smoke : path? path? -> void?
+;;   Assert that user-facing staged `read` ownership does not leak into support
+;;   provider extraction and create a registry cycle through list/for helpers.
+(define (run-staged-read-list-extraction-smoke repo-root racket-exe)
+  (define base (make-temporary-file "webracket-module-bridge-staged-read-list-~a" 'directory))
+  (define script-path (build-path base "bridge-extract-staged-read-list.rkt"))
+  (define compiled-root (build-path base "compiled"))
+  (define source-path (build-path base "repro-staged-read-list.rkt"))
+  (dynamic-wind
+    void
+    (lambda ()
+      (make-directory* compiled-root)
+      (call-with-output-file source-path
+        (lambda (out)
+          (display "#lang webracket/base\n" out)
+          (display "(require racket/list)\n" out)
+          (display "(read (open-input-string \"42\"))\n" out))
+        #:exists 'truncate/replace)
+      (call-with-output-file script-path
+        (lambda (out)
+          (display "#lang racket/base\n" out)
+          (display "(require racket/set\n" out)
+          (display "         (file \"" out)
+          (display (path->string (build-path repo-root "pkgs" "webracket-lib" "compiler" "driver.rkt")) out)
+          (display "\")\n" out)
+          (display "         (only-in (file \"" out)
+          (display (path->string (build-path repo-root "pkgs" "webracket-lib" "compiler" "private" "parameters.rkt")) out)
+          (display "\") current-provider-owned-primitive-aliases))\n" out)
+          (display "(parameterize ([current-provider-owned-primitive-aliases\n" out)
+          (display "                (list->seteq\n" out)
+          (display "                 (provider-owned-primitive-alias-symbols\n" out)
+          (display "                  #:expander-read-provider? #t\n" out)
+          (display "                  #:io-format-provider? #f))])\n" out)
+          (display "  (define graph\n" out)
+          (display "    (webracket/base-file->local-module-graph\n" out)
+          (display "     \"" out)
+          (display (path->string source-path) out)
+          (display "\"))\n" out)
+          (display "  (unless (pair? (webracket/base-local-module-graph-reports graph))\n" out)
+          (display "    (error 'bridge-extract-staged-read-list \"expected local reports\"))\n" out)
+          (display "  (write (webracket/base-local-module-graph-root graph))\n" out)
+          (display "  (newline))\n" out))
+        #:exists 'truncate/replace)
+      (define stdout (open-output-string))
+      (define stderr (open-output-string))
+      (define status
+        (parameterize ([current-directory repo-root]
+                       [current-output-port stdout]
+                       [current-error-port stderr]
+                       [current-environment-variables (env-with-collections repo-root compiled-root)])
+          (system*/exit-code racket-exe (path->string script-path))))
+      (define output
+        (string-append (get-output-string stdout)
+                       (get-output-string stderr)))
+      (unless (zero? status)
+        (error 'test-module-bridge-extraction
+               (format "staged read + list extraction failed (~a): ~a" status output))))
+    (lambda ()
+      (with-handlers ([exn:fail:filesystem? void])
+        (delete-directory/files base)))))
+
 (module+ main
   (define repo-root
     (find-repo-root (or (current-load-relative-directory)
                         (current-directory))))
   (define racket-exe (repo-racket-executable repo-root))
   (run-bridge-extraction-smoke repo-root racket-exe)
-  (run-imported-binding-extraction-smoke repo-root racket-exe))
+  (run-imported-binding-extraction-smoke repo-root racket-exe)
+  (run-staged-read-list-extraction-smoke repo-root racket-exe))

@@ -52,6 +52,8 @@
          (only-in racket/system     system*)
          (only-in racket/string     string-join
                                     string-prefix?)
+         (only-in racket/set        set-member?
+                                    seteq)
          racket/unsafe/undefined
          #;(only-in "lang/reader.rkt" read-syntax)
          (only-in "assembler.rkt"
@@ -73,6 +75,7 @@
                                     current-module-bridge-elide-public-cells?
                                     current-module-bridge-elidable-module-names
                                     current-module-bridge-module-kinds
+                                    current-provider-owned-primitive-aliases
                                     current-webify-knowns-mode
                                     current-letrec-strategy
                                     current-tree-shake?
@@ -117,6 +120,7 @@
                   webify-read-export-symbols
                   webify-read-linklet
                   webify-read-lowered-provider-cache-path
+                  webify-read-public-alias-pairs
                   webify-read-public-alias-forms
                   webify-read-public-alias-symbols
                   webify-read-source-fingerprint)
@@ -2240,6 +2244,72 @@
     (and (eq? name (webify-module-report-name report))
          report)))
 
+;; read-provider-wrapper-module : datum?
+;;   Public staged `expander/read` facade that re-exports reader aliases.
+(define read-provider-wrapper-module
+  `(module expander-read-public racket/base
+     (require (file "racket-src/expander/read-provider-root.rkt"))
+     (provide ,@(map car webify-read-public-alias-pairs))
+     ,@(for/list ([alias (in-list webify-read-public-alias-pairs)])
+         `(define ,(car alias) ,(cdr alias)))))
+
+(define (expander-read-private-provider-name? name)
+  (define s (and (symbol? name) (symbol->string name)))
+  (and s
+       (or (equal? s "racket-src/expander/read-provider-root.rkt")
+           (string-prefix? s "racket-src/expander/read/")
+           (string-prefix? s "racket-src/expander/common/")
+           (string-prefix? s "racket-src/expander/host/"))))
+
+(define (expander-read-private-provider-path name)
+  (define s (symbol->string name))
+  (string->path
+   (if (regexp-match? #rx"[.]rkt$" s)
+       s
+       (string-append s ".rkt"))))
+
+(define (expander-read-private-provider-file-backed? name)
+  (file-exists? (build-path webracket-root
+                            (expander-read-private-provider-path name))))
+
+;; read-provider-reports : -> (listof webify-module-report?)
+;;   Expose the staged expander/read private implementation closure plus the
+;;   public facade used for user-module alias ownership.
+(define (read-provider-reports)
+  (parameterize ([current-directory webracket-root])
+    (parameterize ([current-provider-owned-primitive-aliases (seteq)])
+      (define visited (make-hasheq))
+      (define ordered-reports '())
+      (define (visit! name)
+        (unless (hash-ref visited name #f)
+          (hash-set! visited name #t)
+          (define report
+            (let ([report
+                   (webify-module-path->report
+                    (expander-read-private-provider-path name))])
+              (if (eq? name (webify-module-report-name report))
+                  report
+                  (webify-module-report/rename report name))))
+          (set! ordered-reports (append ordered-reports (list report)))
+          (for ([required (in-list (webify-module-report-required-provider-names report))]
+                #:when (and (expander-read-private-provider-name? required)
+                            (expander-read-private-provider-file-backed? required)))
+            (visit! required))))
+      (visit! 'racket-src/expander/read-provider-root.rkt)
+      (append
+       ordered-reports
+       (list
+        (webify-module-report/rename
+         (webify-compile-module-report read-provider-wrapper-module)
+         'expander/read))))))
+
+;; read-provider-report/ref : symbol? -> (or/c webify-module-report? #f)
+;;   Resolve staged expander/read support aliases without generic extraction.
+(define (read-provider-report/ref name)
+  (for/or ([report (in-list (read-provider-reports))])
+    (and (eq? name (webify-module-report-name report))
+         report)))
+
 ;; read-syntax-provider-forms : -> (listof datum?)
 ;;   Compose the private staged original-Racket read-syntax provider and publish
 ;;   only Webify-owned aliases. Public `read-syntax` ownership is still pending.
@@ -2724,6 +2794,10 @@
     (provider-cache-log "cache directory: ~a" provider-cache-path)
     (when force-provider-cache-refresh?
       (provider-cache-log "force refresh enabled")))
+  (define provider-owned-primitive-aliases/pre-read
+    (provider-owned-primitive-alias-symbols
+     #:expander-read-provider? expander-read-provider?
+     #:io-format-provider? #f))
 
   ; 0. Check that `filename` exists and is a source file.
   (ensure-source-file! 'drive-compilation filename)
@@ -2735,9 +2809,11 @@
                                  (error 'drive-compilation
                                         "~a"
                                         (~a "read failed: " (exn-message e))))])
-      (read-top-level-from-file
-       filename
-       #:webracket-module-bridge? webracket-module-bridge?)))
+      (parameterize ([current-provider-owned-primitive-aliases
+                      provider-owned-primitive-aliases/pre-read])
+        (read-top-level-from-file
+         filename
+         #:webracket-module-bridge? webracket-module-bridge?))))
   (define t-read-source-end (now-ms))
   (define stx-for-compile
     (if print-top-level-results?
@@ -4127,9 +4203,13 @@
   (define local-report-names
     (map webify-module-report-name bridge-reports))
   (define support-report-names '())
+  (define needs-expander-read-support?
+    (for/or ([name (in-list webify-read-public-alias-symbols)])
+      (set-member? (current-provider-owned-primitive-aliases) name)))
   (define registry
     (cond
-     [(webracket/base-reports-demand-external-providers? bridge-reports)
+     [(or (webracket/base-reports-demand-external-providers? bridge-reports)
+          needs-expander-read-support?)
        (webracket/base-check-external-provider-allowlist! bridge-reports)
        (define external-names (webracket/base-external-provider-names bridge-reports))
        (define provider-namespace (make-webify-contract-erasing-namespace))
@@ -4138,6 +4218,8 @@
        (define (fetch-provider/erased-contracts name)
          (define staged-io-format-report
            (io-format-provider-report/ref name))
+         (define staged-read-report
+           (read-provider-report/ref name))
        (define substitute-name (webracket/base-provider-substitute name))
         (define extraction-name
            (cond
@@ -4209,16 +4291,23 @@
          (cond
            [staged-io-format-report
             staged-io-format-report]
+           [staged-read-report
+            staged-read-report]
            [else
             (define (extract)
-              (webify-module-report/rename
-               (if (eq? fetch-provider webify-module-path->report)
-                   (if (or normal-export-shape?
-                           webracket-owned-provider?)
-                       (webify-module-path->report extraction-name)
-                       (webify-module-path->report extraction-name #:namespace provider-namespace))
-                   (fetch-provider extraction-name))
-               name))
+              ;; Provider-owned primitive aliases are a user-module boundary
+              ;; routing rule. Keep installed/support provider extraction in its
+              ;; ordinary world so private support modules do not grow spurious
+              ;; facade dependencies like `expander/read`.
+              (parameterize ([current-provider-owned-primitive-aliases (seteq)])
+                (webify-module-report/rename
+                 (if (eq? fetch-provider webify-module-path->report)
+                     (if (or normal-export-shape?
+                             webracket-owned-provider?)
+                         (webify-module-path->report extraction-name)
+                         (webify-module-path->report extraction-name #:namespace provider-namespace))
+                     (fetch-provider extraction-name))
+                 name)))
             (if (or normal-export-shape?
                     webracket-owned-provider?)
                 (extract)
@@ -4327,6 +4416,14 @@
          (for/list ([name (in-list external-names)]
                     #:when (webracket-owned-ffi-provider-name? name))
            name))
+       (define expander-read-support-report-names
+         (if needs-expander-read-support?
+             (append
+              (map webify-module-report-name (read-provider-reports))
+              ;; The private staged reader closure reaches racket/prefab through
+              ;; racket-src/expander/common/prefab.
+              '(racket/prefab))
+             '()))
        (define io-format-support-report-names
          (list webify-io-format-adapter-name
                webify-io-format-printf-name
@@ -4340,7 +4437,6 @@
                     'webracket/contract
                     'webracket/private/sort-public
                     'webracket/private/kw
-                    'racket/private/kw
                     'racket/private/pre-base
                     'webracket/private/sort
                     'racket/private/sort
@@ -4354,6 +4450,7 @@
                   unit-support-report-names
                   '())
               ffi-support-report-names
+              expander-read-support-report-names
               io-format-support-report-names))
        (define (unit-support-reports)
          (append
@@ -4406,10 +4503,6 @@
                                                          'webracket/private/sort-public)
                        (webify-module-provider-cache-ref provider-cache
                                                          'webracket/private/kw)
-                       (webify-module-report/rename
-                        (webify-module-provider-cache-ref provider-cache
-                                                          'webracket/private/kw)
-                        'racket/private/kw)
                        (webify-module-provider-cache-ref provider-cache
                                                          'racket/private/pre-base)
                        (webify-module-provider-cache-ref provider-cache
@@ -4465,6 +4558,14 @@
                  (for/list ([name (in-list external-names)]
                             #:when (webracket-owned-ffi-provider-name? name))
                    (webify-module-provider-cache-ref provider-cache name))
+                 (if needs-expander-read-support?
+                     (append
+                      (read-provider-reports)
+                      ;; The private staged reader closure reaches racket/prefab
+                      ;; through racket-src/expander/common/prefab.
+                      (list (webify-module-provider-cache-ref provider-cache
+                                                              'racket/prefab)))
+                     '())
                  (io-format-provider-reports)))
               (with-module-bridge-timing
                'discover-provider-graph
