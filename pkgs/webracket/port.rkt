@@ -1,6 +1,13 @@
 #lang racket/base
 
-(provide port->string)
+(require (only-in "./primitives.rkt"
+                  open-output-string
+                  get-output-string))
+
+(provide port->string
+         open-output-string
+         get-output-string
+         call-with-output-string)
 
 ;; A small contract-free `racket/port` substitute for Goal 1 module programs.
 
@@ -17,3 +24,12 @@
        (if (eof-object? ch)
            (list->string (reverse chars))
            (loop (cons ch chars))))]))
+
+;; call-with-output-string : (output-port? -> any/c) -> string?
+;;   Run proc with a fresh string output port and return the accumulated text.
+(define (call-with-output-string proc)
+  (unless (procedure? proc)
+    (raise-argument-error 'call-with-output-string "procedure?" proc))
+  (define out (open-output-string))
+  (proc out)
+  (get-output-string out))
