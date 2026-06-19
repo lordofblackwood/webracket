@@ -28,8 +28,8 @@ are listed separately and are not intended to compile directly as tutorials.
 | Console Bridge | `console-bridge/console-bridge.rkt` | `already-module` | Browser console bridge example. |
 | Xterm.js Demo | `xtermjs-demo/xtermjs-demo.rkt` | `already-module` | Browser terminal example. |
 | Pict | `pict/pict.rkt` | `already-module` | Module-based browser example with local assets and `generated/` output. |
-| MiniScheme | `minischeme/minischeme-page.rkt` | `legacy-include-lib` | Intended user-facing REPL page; depends on support files. |
-| MiniScheme 2 | `minischeme2/minischeme-page.rkt` | `legacy-include-lib` | Duplicate MiniScheme entry; needs classification before more work. |
+| MiniScheme | `minischeme/minischeme-page.rkt` | `module-based` | Browser REPL page backed by a module-based MiniScheme interpreter. |
+| MiniScheme 2 | `minischeme2/minischeme-page.rkt` | `duplicate/pending` | Duplicate MiniScheme copy; do not port separately unless it regains a distinct purpose. |
 | MathJax 4 | `mathjax4/mathjax.rkt` | `module-based` | Module-based browser example with CDN-loaded MathJax preview. |
 | Matrix Rain | `matrix-rain/matrix-rain.rkt` | `legacy-script` | Browser/xterm example with old top-level script shape. |
 | Snake | `snake/snake.rkt` | `module-based` | Browser game with `generated/` output. |
@@ -55,5 +55,4 @@ Planned Conversion Order
 2. `minischeme`
 3. `minischeme2` if it is still meant to be user-facing
 4. `matrix-rain`
-5. `minischeme`
-6. `raco` if it remains part of the user-facing examples set
+5. `raco` if it remains part of the user-facing examples set

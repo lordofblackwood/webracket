@@ -1,2158 +1,2250 @@
-;;;
-;;; MiniScheme
-;;;
-
-;; This file implements a little "mini Scheme" evaluator and
-;; a repl to interact with the evaluator.
-;; The terminal is provided by Xtermjs.
-
-;; Project Idea
-;;   - replace the evaluator with your own interpreter
-
+#lang webracket/base
 
 ;;;
-;;; Build Instructions
+;;; MiniScheme Interpreter (shared by minischeme-page)
 ;;;
 
-;; racket ../../webracket.rkt --ffi standard --ffi xtermjs --ffi js --ffi dom  -b minischeme.rkt
-
-;; Start a local web-server and open "minischeme.html".
-
-;;;
-;;; Scripts and CSS-files
-;;;
-
-;; Before the main program (the repl) starts, we need to
-;; wait for the Xtermjs files to be loaded. This section
-;; handles the loading of scripts and css-files.
-
-(define xtermjs-url
-  "https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.min.js")
-(define xtermjs-css-url
-  "https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.min.css")
-
-(define xtermjs-addon-fit-url
-  ; fits the terminal dimension to a containing element
-  "https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.min.js")
-
-(define xtermjs-addon-clipboard-url
-  ; enables clipboard integration for mouse copy/paste
-  "https://cdn.jsdelivr.net/npm/@xterm/addon-clipboard@0.1.0/lib/addon-clipboard.min.js")
-
-(define scripts         (list xtermjs-url xtermjs-addon-fit-url xtermjs-addon-clipboard-url))
-(define scripts-to-load (length scripts))
-(define scripts-loaded  0)
-
-(define css-files       (list xtermjs-css-url))
-
-(define (script-ready . _)
-  (js-log "Scripts ready")
-  (set! scripts-loaded (add1 scripts-loaded))
-  (when (= scripts-loaded scripts-to-load)
-    (start-main)))
-
-(define (script-error . _)
-  (js-log "Failed to load xterm.js"))
-
-(define (register-script-events! element)
-  (define ready (procedure->external script-ready))
-  (define error (procedure->external script-error))
-  (js-add-event-listener! element "load" ready)
-  (js-add-event-listener! element "error" error))
-
-(define (load-script script-url)
-  (define head (js-document-head))
-  (define script (js-create-element "script"))
-  (js-set-attribute! script "src" script-url)
-  (register-script-events! script)
-  (js-append-child! head script))
-
-(define (load-scripts)
-  (for-each load-script scripts))
-
-(define (load-css-file css-url)
-  (define head (js-document-head))
-  (define link (js-create-element "link"))
-  (js-set-attribute! link "rel" "stylesheet")
-  (js-set-attribute! link "href" css-url)
-  (js-append-child! head link))
-
-(define (load-css-files)
-  (for-each load-css-file css-files))
-
-(load-scripts)
-(load-css-files)
-
-;;;
-;;; Main
-;;;
-
-(define (start-main)
-  (init-dom)
-  (init-terminal)
-  (start-minischeme))
-
-;;;
-;;; DOM (Html)
-;;;
-
-;; To keep the example in a single file, we dynamically
-;; create the DOM. One could argue it would be simpler
-;; to use an html-file instead.
-
-(define terminal-host #f)  ; a `div` for the terminal
-
-(define (init-dom)
-  (define head (js-document-head))
-  (define body (js-document-body))
-
-  (js-set-attribute!
-   body "style"
-   (string-append
-    "margin: 0; min-height: 100vh; display: flex;"
-    "align-items: center; justify-content: center;"
-    "background: #101216; font-family: 'Fira Code', monospace;"))
-
-  (define style (js-create-element "style"))
-  (js-set! style "textContent"
-           (string-append
-            ".minischeme-container {\n"
-            "  width: min(90vw, 1024px);\n"
-            "  padding: 24px;\n"
-            "  border-radius: 16px;\n"
-            "  background: rgba(15, 18, 26, 0.85);\n"
-            "  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);\n"
-            "}\n"
-
-            ".minischeme-title {\n"
-            "  margin: 0 0 16px;\n"
-            "  color: #E2F1FF;\n"
-            "  font-size: 18px;\n"
-            "  text-align: center;\n"
-            "  letter-spacing: 0.12em;\n"
-            "}\n"
-
-            ".minischeme-description {\n"
-            "  margin: 0 0 20px;\n"
-            "  color: #C7D7EA;\n"
-            "  font-size: 14px;\n"
-            "  line-height: 1.6;\n"
-            "  text-align: left;\n"
-            "}\n"
-
-            ".minischeme-terminal {\n"
-            "  background: rgb(0,0,0);\n"
-            "  padding: 12px;"
-            "  border-radius: 12px;\n"
-            "  overflow: hidden;\n"
-            "  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);\n"
-            "}\n"))
-  (js-append-child! head style)
-
-  (define container (js-create-element "div"))
-  (js-set-attribute! container "class" "minischeme-container")
-
-  (define title (js-create-element "h1"))
-  (js-set-attribute! title "class" "minischeme-title")
-  (js-set! title "textContent" "MiniScheme")
-
-  (define description1 (js-create-element "p"))
-  (js-set-attribute! description1 "class" "minischeme-description")
-  (js-set! description1 "textContent"
-           "This is a small interpreter implemented in WebRacket.")
-
-  (define description2 (js-create-element "p"))
-  (js-set-attribute! description2 "class" "minischeme-description")
-  (js-set! description2 "textContent"
-           "The variables `keywords`, `constants`, and `primitives` are available in the repl.")
-
-  (define description3 (js-create-element "p"))
-  (js-set-attribute! description3 "class" "minischeme-description")
-  (js-set! description3 "textContent"
-           "Some Emacs keybindings are available.")
-
-  
-  (set! terminal-host (js-create-element "div"))
-  (js-set-attribute! terminal-host "class" "minischeme-terminal")
-
-  (js-append-child! container title)
-  (js-append-child! container description1)
-  (js-append-child! container description2)
-  (js-append-child! container description3)
-  (js-append-child! container terminal-host)
-  (js-append-child! body container))
-
-
-;;;
-;;; The Terminal
-;;;
-
-(define term #f) ; the Terminal js-object
-
-(define term-on-key    #f)
-(define term-on-data   #f)
-(define term-on-binary #f)
-(define term-on-click  #f) 
-(define last-key-data  #f) ; for pasting into the terminal
-
-(define (init-terminal)
-  (define terminal-options
-    (js-object
-     (vector (vector "fontSize"    16)
-             (vector "cursorBlink" #t)
-             (vector "theme"
-                     (js-object
-                      '(("foreground" "#E2F1FF")
-                        ("background" "#141922")
-                        ("cursor"     "#6DF7C1")
-                        ("selection"  "#26465366")))))))
-
-  
-  ; Use Fit addon (makes terminal dimensions fit the containing element)
-  (define fit-addon
-    (let* ([win               (js-window-window)]
-           [addon-namespace   (js-ref/extern win "FitAddon")]
-           [addon-constructor (js-ref/extern addon-namespace "FitAddon")])
-      (js-new addon-constructor (vector))))
-
-  ; Use clipboard addon
-  (define clipboard-addon
-    (let* ([win               (js-window-window)]
-           [addon-namespace   (js-ref/extern win "ClipboardAddon")]
-           [addon-constructor (js-ref/extern addon-namespace "ClipboardAddon")])
-      (js-new addon-constructor (vector))))
-
-  (set! term (xterm-terminal-new terminal-options))
-  (xterm-terminal-load-addon term fit-addon)
-  (xterm-terminal-load-addon term clipboard-addon)
-  (xterm-terminal-open term terminal-host)
-  (xterm-fit-addon-fit fit-addon)
-  (xterm-terminal-focus term))
-
-  
-
-;;;
-;;; Utilities
-;;;
-
-(define (printable-char? ch)
-  (let ([code (char->integer ch)])
-    (or (and (>= code #x20) (<= code #x7E))
-        (>= code #x00A0))))
-
-(define (printable-string? s)
-  (for/and ([ch (in-string s)])
-    (printable-char? ch)))
-
-;;;
-;;; MiniScheme Editor
-;;;
-
-;       Key                 ; Emacs binding
-(define ESC     "\u001b")
-(define CTRL-A  "\u0001")   ; beginning-of-line
-(define CTRL-D  "\u0004")   ; delete-char
-(define CTRL-E  "\u0005")   ; end-of-line
-(define CTRL-J  "\n")       ; newline
-(define CTRL-K  "\v")       ; kill-line
-(define CTRL-L  "\f")       ; recenter-top-bottom
-(define CTRL-N  "\u000e")   ; next-line
-(define CTRL-P  "\u0010")   ; previous-line
-(define DELETE  "\u007f")   ; backward-delete-char
-(define ENTER   "\r")       ; newline
-(define TAB     "\t")       ; indent-for-tab-command
-
-(define CTRL-RBRACKET "\u001d") ; ctrl-]  (inserts literal `)`)
-
-
-(define DELETE-RIGHT (string-append ESC "[3~"))
-(define UP           (string-append ESC "[A"))
-(define DOWN         (string-append ESC "[B"))
-(define RIGHT        (string-append ESC "[C"))
-(define LEFT         (string-append ESC "[D"))
-(define END          (string-append ESC "[F"))
-(define HOME         (string-append ESC "[H"))
-(define F1           (string-append ESC "[BOP"))
-(define F2           (string-append ESC "[BOQ"))
-(define PAGEUP       (string-append ESC "[5~"))
-(define PAGEDOWN     (string-append ESC "[6~"))
-(define DEL          (string-append ESC "[3~"))
-
-(define (CSI cmd)
-  (string-append ESC "[" cmd))
-
-(define (DECSET pm)
-  (string-append ESC "[" "?" pm "h"))
-
-(struct mark   (row col)      #:mutable)
-(struct line   (raw rendered) #:mutable)
-(struct buffer (name lines point start prompts active-prompt locked?
-                     first-screen-row screen-col)
-  #:mutable)
-
-(define (make-line raw [rendered #f])
-  (line raw rendered))
-
-(define (line-dirty! l)
-  (set-line-rendered! l #f))
-
-(define (make-empty-lines count)
-  (let ([vec (make-vector count)])
-    (let loop ([i 0])
-      (when (< i count)
-        (vector-set! vec i (make-line ""))
-        (loop (add1 i))))
-    vec))
-
-(define (make-buffer name)
-  (buffer name
-          (make-empty-lines 1)
-          (mark 0 0)
-          (mark 0 0)
-          '()
-          0
-          #t
-          0
-          0))
-
-(define current-buffer #f)
-
-(define the-prompt        "> ")
-(define the-prompt-length 2)
-
-(define ansi-black          "\u001b[30m")
-(define ansi-red            "\u001b[31m")
-(define ansi-green          "\u001b[32m")
-(define ansi-yellow         "\u001b[33m")
-(define ansi-blue           "\u001b[34m")
-(define ansi-magenta        "\u001b[35m")
-(define ansi-cyan           "\u001b[36m")
-(define ansi-white          "\u001b[37m")
-
-(define ansi-bright-black   "\u001b[30;1m")
-(define ansi-bright-red     "\u001b[31;1m")
-(define ansi-bright-green   "\u001b[32;1m")
-(define ansi-bright-yellow  "\u001b[33;1m")
-(define ansi-bright-blue    "\u001b[34;1m")
-(define ansi-bright-magenta "\u001b[35;1m")
-(define ansi-bright-cyan    "\u001b[36;1m")
-(define ansi-bright-white   "\u001b[37;1m")
-
-(define ansi-default        "\u001b[39m")
-(define ansi-reset          "\u001b[0m")
-
-(define ansi-keyword   ansi-yellow)
-(define ansi-primitive ansi-cyan)
-(define ansi-literal   ansi-bright-blue)
-(define ansi-error     ansi-bright-red)
-(define ansi-paren     ansi-bright-yellow)
-(define ansi-binding   ansi-bright-green)
-
-(define (vector-insert vec idx value)
-  (let* ([len (vector-length vec)]
-         [new (make-vector (add1 len))])
-    (let loop ([i 0])
-      (when (< i len)
-        (define src (vector-ref vec i))
-        (if (< i idx)
-            (vector-set! new i src)
-            (vector-set! new (add1 i) src))
-        (loop (add1 i))))
-    (vector-set! new idx value)
-    new))
-
-(define (vector-remove vec idx)
-  (let* ([len (vector-length vec)]
-         [new (make-vector (max 0 (sub1 len)))])
-    (let loop ([i 0])
-      (when (< i len)
-        (unless (= i idx)
-          (define dest (if (< i idx) i (sub1 i)))
-          (vector-set! new dest (vector-ref vec i)))
-        (loop (add1 i))))
-    new))
-
-(define (vector-insert-list vec idx lst)
-  (let* ([len (vector-length vec)]
-         [add (length lst)]
-         [new (make-vector (+ len add))])
-    (let loop ([i 0])
-      (when (< i idx)
-        (vector-set! new i (vector-ref vec i))
-        (loop (add1 i))))
-    (let loop ([items lst]
-               [i idx])
-      (when (pair? items)
-        (vector-set! new i (car items))
-        (loop (cdr items) (add1 i))))
-    (let loop ([i idx])
-      (when (< i len)
-        (vector-set! new (+ i add) (vector-ref vec i))
-        (loop (add1 i))))
-    new))
-
-(define (buffer-lines-count b)
-  (vector-length (buffer-lines b)))
-
-(define (buffer-line-at b row)
-  (vector-ref (buffer-lines b) row))
-
-(define (buffer-line-at-point b)
-  (buffer-line-at b (mark-row (buffer-point b))))
-
-(define (prompt-line? b row)
-  (let loop ([ps (buffer-prompts b)])
-    (cond
-      [(null? ps) #f]
-      [(= (car ps) row) #t]
-      [else (loop (cdr ps))])))
-
-(define (mark-move-to! m absolute-row absolute-col)
-  (set-mark-row! m absolute-row)
-  (set-mark-col! m absolute-col))
-
-(define (mark-move-relative-to! m delta-row delta-col)
-  (set-mark-row! m (+ (mark-row m) delta-row))
-  (set-mark-col! m (+ (mark-col m) delta-col)))
-
-(define (mark=? m1 m2)
-  (and (= (mark-row m1) (mark-row m2))
-       (= (mark-col m1) (mark-col m2))))
-
-(define (mark<? m1 m2)
-  (or (< (mark-row m1) (mark-row m2))
-      (and (= (mark-row m1) (mark-row m2))
-           (< (mark-col m1) (mark-col m2)))))
-
-(define (mark<=? m1 m2)
-  (or (mark<? m1 m2)
-      (mark=? m1 m2)))
-
-(define (buffer-get-prompt-input b)
-  (let ([start (buffer-active-prompt b)]
-        [len   (buffer-lines-count b)])
-    (let loop ([i      start]
-               [pieces '()])
-      (if (= i len)
-          (if (null? pieces)
-              ""
-              (string-join (reverse pieces) "\n"))
-          (loop (add1 i)
-                (cons (line-raw (buffer-line-at b i)) pieces))))))
-
-(define (buffer-new-prompt! b)
-  (define row (mark-row (buffer-point b)))
-  (set-buffer-prompts! b (append (buffer-prompts b) (list row)))
-  (set-buffer-active-prompt! b row)
-  (mark-move-to! (buffer-start b) row 0))
-
-(define (buffer-can-edit-here? b)
-  (let* ([p (buffer-point b)]
-         [row (mark-row p)])
-    (or (not (buffer-locked? b))
-        (>= row (buffer-active-prompt b)))))
-
-(define (buffer-can-delete-here? b)
-  (let* ([p (buffer-point b)]
-         [row (mark-row p)]
-         [col (mark-col p)])
-    (or (not (buffer-locked? b))
-        (or (and (= row (buffer-active-prompt b)) (> col 0))
-            (> row (buffer-active-prompt b))))))
-
-(define (buffer-set-point! b r c)
-  (mark-move-to! (buffer-point b) r c))
-
-(define (point-at-last-line? b)
-  (= (mark-row (buffer-point b)) (sub1 (buffer-lines-count b))))
-
-(define (point-at-first-line? b)
-  (= (mark-row (buffer-point b)) 0))
-
-(define (point-at-end-of-line? b)
-  (= (mark-col (buffer-point b))
-     (string-length (line-raw (buffer-line-at-point b)))))
-
-(define (point-at-start-of-line? b)
-  (= (mark-col (buffer-point b)) 0))
-
-(define (point-at-end-of-buffer? b)
-  (and (point-at-end-of-line? b)
-       (point-at-last-line? b)))
-
-(define (point-at-start-of-buffer? b)
-  (and (point-at-first-line? b)
-       (point-at-start-of-line? b)))
-
-(define (point-end! b)
-  (define last-row (sub1 (buffer-lines-count b)))
-  (define last-line (buffer-line-at b last-row))
-  (buffer-set-point! b last-row (string-length (line-raw last-line))))
-
-(define (point-home! b)
-  (buffer-set-point! b (buffer-active-prompt b) 0))
-
-(define (point-forward! b [n 1])
-  (let loop ([remaining n])
-    (when (> remaining 0)
+;; Generated by build.sh for website builds; defaults to a static value in repo.
+(require racket/math
+         racket/list
+         racket/string
+         "build-id.rkt")
+
+(provide minischeme-reset-state!
+         minischeme-process-input
+         minischeme-start-job!
+         minischeme-job-step!
+         minischeme-job-stop!
+         minischeme-job-active?)
+
+(define minischeme-keywords-cache '())
+(define minischeme-primitives-cache '())
+
+(define (minischeme-keywords)
+  minischeme-keywords-cache)
+
+(define (minischeme-primitives)
+  minischeme-primitives-cache)
+
+;; Exported evaluator API:
+;; - `minischeme-process-input` is the synchronous, run-to-completion entry point.
+;; - `minischeme-start-job!` / `minischeme-job-step!` / `minischeme-job-stop!`
+;;   / `minischeme-job-active?` provide cooperative execution for UI loops.
+(define-values (minischeme-reset-state!
+                minischeme-process-input
+                minischeme-start-job!
+                minischeme-job-step!
+                minischeme-job-stop!
+                minischeme-job-active?)
+  (let ()
+    (struct env               (table parent))
+    (struct closure           (params body env))
+    (struct prim              (name proc))
+    (struct mvals             (vals))
+    (struct environment-value (env))
+    (struct promise           (state thunk value) #:mutable)
+    (struct captured-kont     (kont env winds))
+    (struct wind              (before after))
+
+    (struct k-apply           (args env))
+    (struct k-args            (proc rest env values))
+    (struct k-if              (then else env))
+    (struct k-begin           (rest env))
+    (struct k-let             (vars rest-rhss values body env))
+    (struct k-let*            (name rest-bindings body env))
+    (struct k-letrec1         (cell body env))
+    (struct k-set!            (cell name))
+    (struct k-define          (cell name))
+    (struct k-force           (promise))
+    (struct k-dw-enter        (wf thunk env winds-before))
+    (struct k-dw-exit         (after env winds-before))
+    (struct k-dw-return       (produced env winds-before))
+
+    (struct cek-state         (mode control env kont winds))
+    (struct run-controller    (step-limit step-count stop?) #:mutable)
+    (struct eval-job          (remaining current-state last-value stop?) #:mutable)
+    (struct exn:fail:minischeme-yield exn:fail (state) #:transparent)
+    (struct exn:fail:minischeme-stop  exn:fail ()      #:transparent)
+
+    (define uninitialized (gensym 'uninitialized))
+    (define no-else       (gensym 'no-else))
+
+    ;; Keep MiniScheme diagnostics stable even if the surrounding program has
+    ;; rebound top-level `error` (observed in website builds).
+    (define (local-error who . args)
+      (define msg
+        (cond
+          [(and (symbol? who) (pair? args) (string? (car args)))
+           (apply format (string-append (symbol->string who) ": " (car args))
+                  (cdr args))]
+          [(string? who)
+           (if (null? args)
+               who
+               (apply format who args))]
+          [(symbol? who)
+           (string-append "error: " (symbol->string who))]
+          [else
+           (format "~a" who)]))
+      (raise (make-exn:fail msg (current-continuation-marks))))
+    (define error local-error)
+
+    (define (make-env parent)
+      (env (make-hasheq) parent))
+
+    (define (env-bound-current? e name)
+      (hash-has-key? (env-table e) name))
+
+    (define (env-lookup-cell e name)
       (cond
-        [(point-at-end-of-buffer? b)
-         (set! remaining 0)]
-        [(point-at-end-of-line? b)
-         (mark-move-to! (buffer-point b)
-                        (add1 (mark-row (buffer-point b)))
-                        0)
-         (loop (sub1 remaining))]
+        [(hash-has-key? (env-table e) name)
+         (hash-ref (env-table e) name)]
+        [(env-parent e)
+         (env-lookup-cell (env-parent e) name)]
         [else
-         (define l (buffer-line-at-point b))
-         (define m (min remaining (- (string-length (line-raw l))
-                                     (mark-col (buffer-point b)))))
-         (mark-move-relative-to! (buffer-point b) 0 m)
-         (loop (- remaining m))]))))
+         (error 'minischeme "unbound identifier ~a" name)]))
 
-(define (point-backward! b [n 1])
-  (let loop ([remaining n])
-    (when (> remaining 0)
+    (define (cell-value cell)
+      (define v (unbox cell))
+      (if (eq? v uninitialized)
+          (error 'minischeme "accessing uninitialized binding")
+          v))
+
+    (define (env-lookup e name)
+      (cell-value (env-lookup-cell e name)))
+
+    (define (env-define! e name value)
+      (hash-set! (env-table e) name (box value)))
+
+    (define (env-define-cell! e name cell)
+      (hash-set! (env-table e) name cell))
+
+    (define (literal? expr)
+      (or (boolean? expr)
+          (number? expr)
+          (string? expr)
+          (char? expr)
+          (null? expr)))
+
+    (define (ensure-identifier sym)
+      (unless (symbol? sym)
+        (error 'minischeme "expected identifier, got ~a" sym)))
+
+    (define (ensure-parameters params)
+      (define (bad)
+        (error 'minischeme "invalid parameter list ~a" params))
       (cond
-        [(point-at-start-of-buffer? b)
-         (set! remaining 0)]
-        [(point-at-start-of-line? b)
-         (mark-move-to! (buffer-point b)
-                        (sub1 (mark-row (buffer-point b)))
-                        (string-length (line-raw (buffer-line-at b (sub1 (mark-row (buffer-point b)))))))
-         (loop (sub1 remaining))]
-        [else
-          (define m (min remaining (mark-col (buffer-point b))))
-          (mark-move-relative-to! (buffer-point b) 0 (- m))
-          (loop (- remaining m))]))))
+        [(symbol? params) params]
+        [(null?   params) params]
+        [(pair?   params)
+         (let loop ([ps params])
+           (cond
+             [(null? ps)   params]
+             [(pair? ps)   (unless (symbol? (car ps)) (bad))
+                           (loop (cdr ps))]
+             [(symbol? ps) params]
+             [else         (bad)]))]
+        [else (bad)]))
 
-(define (point-down! b [n 1])
-  (let loop ([remaining n])
-    (when (> remaining 0)
+    (define (split-formals params)
       (cond
-        [(point-at-last-line? b)
-         (set! remaining 0)]
+        [(symbol? params) (values '() params)]
+        [(null?   params) (values '() #f)]
         [else
-         (mark-move-to! (buffer-point b)
-                        (add1 (mark-row (buffer-point b)))
-                        (min (mark-col (buffer-point b))
-                             (string-length (line-raw (buffer-line-at-point b)))))
-         (loop (sub1 remaining))]))))
+         (let loop ([ps params] [required '()])
+           (cond
+             [(null? ps) (values (reverse required) #f)]
+             [(pair? ps) (loop (cdr ps) (cons (car ps) required))]
+             [else       (values (reverse required) ps)]))]))
 
-(define (point-up! b [n 1])
-  (let loop ([remaining n])
-    (when (> remaining 0)
-      (cond
-        [(point-at-first-line? b)
-         (set! remaining 0)]
-        [else
-         (mark-move-to! (buffer-point b)
-                        (sub1 (mark-row (buffer-point b)))
-                        (min (mark-col (buffer-point b))
-                             (string-length (line-raw (buffer-line-at-point b)))))
-         (loop (sub1 remaining))]))))
+    (define (check-numbers name args)
+      (for-each (λ (v)
+                  (unless (number? v)
+                    (error 'minischeme "~a expects numbers, got ~a" name v)))
+                args))
 
-(define (shift-prompts! b start delta)
-  (let ([adjusted
-         (let loop ([ps (buffer-prompts b)])
-           (if (null? ps)
-               '()
-               (let* ([p (car ps)]
-                      [rest (loop (cdr ps))]
-                      [new (if (>= p start) (+ p delta) p)])
-                 (cons new rest))))])
-    (set-buffer-prompts! b adjusted))
-  (when (>= (buffer-active-prompt b) start)
-    (set-buffer-active-prompt! b (+ (buffer-active-prompt b) delta)))
-  (when (>= (mark-row (buffer-start b)) start)
-    (mark-move-to! (buffer-start b)
-                   (+ (mark-row (buffer-start b)) delta)
-                   (mark-col (buffer-start b)))))
+    (define (check-integers name args)
+      (for-each (λ (v)
+                  (unless (integer? v)
+                    (error 'minischeme "~a expects integers, got ~a" name v)))
+                args))
 
-(define (buffer-insert! b char)
-  (define line (buffer-line-at-point b))
-  (line-dirty! line)
-  (define raw (line-raw line))
-  (define col (mark-col (buffer-point b)))
-  (define before (substring raw 0 col))
-  (define after  (substring raw col (string-length raw)))
-  (set-line-raw! line (string-append before char after))
-  (mark-move-relative-to! (buffer-point b) 0 1))
+    (define (check-reals name args)
+      (for-each (λ (v)
+                  (unless (real? v)
+                    (error 'minischeme "~a expects real numbers, got ~a" name v)))
+                args))
 
-(define (buffer-insert-raw-lines! b rls)
-  (define ls (map make-line rls))
-  (define new-lines (vector-insert-list (buffer-lines b)
-                                       (mark-row (buffer-point b))
-                                       ls))
-  (set-buffer-lines! b new-lines)
-  (shift-prompts! b (mark-row (buffer-point b)) (length ls)))
+    (define (nan-value? v)
+      (and (real? v)
+           (not (= v v))))
 
-(define (buffer-join-lines! b row)
-  (when (<= row (- (buffer-lines-count b) 2))
-    (define lines (buffer-lines b))
-    (define l1 (vector-ref lines row))
-    (define l2 (vector-ref lines (add1 row)))
-    (line-dirty! l1)
-    (set-line-raw! l1 (string-append (line-raw l1) (line-raw l2)))
-    (set-buffer-lines! b (vector-remove lines (add1 row)))
-    (shift-prompts! b (add1 row) -1)
-    (mark-move-to! (buffer-point b) row (string-length (line-raw l1)))))
+    (define (infinite-value? v)
+      (and (real? v)
+           (or (= v +inf.0)
+               (= v -inf.0))))
 
-(define (buffer-delete! b)
-  (when (buffer-can-delete-here? b)
-    (define col  (mark-col (buffer-point b)))
-    (define row  (mark-row (buffer-point b)))
-    (define line (buffer-line-at-point b))
-    (line-dirty! line)
-    (cond
-      [(= col 0)
-       (when (> row 0)
-         (buffer-set-point! b row 0)
-         (buffer-join-lines! b (sub1 row)))]
-      [else
-       (define raw (line-raw line))
-       (define before (substring raw 0 (sub1 col)))
-       (define after  (substring raw col (string-length raw)))
-       (set-line-raw! line (string-append before after))
-       (mark-move-relative-to! (buffer-point b) 0 -1)])))
+    (define (check-arg-count name args expected)
+      (unless (= (length args) expected)
+        (error 'minischeme "~a expects ~a argument~a"
+               name expected (if (= expected 1) "" "s"))))
 
-(define (buffer-split-line! b)
-  (define p (buffer-point b))
-  (define c (mark-col p))
-  (define r (mark-row p))
-  (define l (buffer-line-at-point b))
-  (line-dirty! l)
-  (define n (string-length (line-raw l)))
-  (define before (substring (line-raw l) 0 c))
-  (define after  (substring (line-raw l) c n))
-  (set-line-raw! l before)
-  (set-buffer-lines! b (vector-insert (buffer-lines b) (add1 r) (make-line after)))
-  (mark-move-to! p (add1 r) 0)
-  (shift-prompts! b (add1 r) 1))
+    (define (check-at-least name args expected)
+      (unless (>= (length args) expected)
+        (error 'minischeme "~a expects at least ~a argument~a"
+               name expected (if (= expected 1) "" "s"))))
 
-(define (buffer-replace-editor-with-string! b s)
-  (define start-row (buffer-active-prompt b))
-  (define current-lines (buffer-lines b))
-  (define before-count start-row)
-  (define editor-strings
-    (let ([pieces (string->lines s)])
-      (if (null? pieces)
-          '("")
-          pieces)))
-  (define editor-lines (map make-line editor-strings))
-  (define total (+ before-count (length editor-lines)))
-  (define new-vector (make-vector total))
-  (let loop ([i 0])
-    (when (< i before-count)
-      (vector-set! new-vector i (vector-ref current-lines i))
-      (loop (add1 i))))
-  (let loop ([i before-count]
-             [rest editor-lines])
-    (when (pair? rest)
-      (vector-set! new-vector i (car rest))
-      (loop (add1 i) (cdr rest))))
-  (set-buffer-lines! b new-vector)
-  (set-buffer-active-prompt! b start-row)
-  (mark-move-to! (buffer-start b) start-row 0)
-  (buffer-set-point! b start-row 0))
+    (define (check-r5rs-version name args)
+      (check-arg-count name args 1)
+      (define v (car args))
+      (unless (exact-integer? v)
+        (error 'minischeme "~a expects an exact integer version, got ~a" name v))
+      (unless (= v 5)
+        (error 'minischeme "~a supports only version 5, got ~a" name v)))
 
-(define (buffer-total-visible-rows b cols)
-  (let loop ([i     0]
-             [len   (buffer-lines-count b)]
-             [total 0])
-    (if (= i len)
-        total
-        (loop (add1 i)
-              len
-              (+ total (line-visible-rows b i cols))))))
+    (define (environment-value-env/checked who v)
+      (unless (environment-value? v)
+        (error 'minischeme "~a expects an environment, got ~a" who v))
+      (environment-value-env v))
 
-(define (buffer-display-position b row col cols)
-  (define offset       (+ (prompt-offset b row) col))
-  (define base-row     (visible-rows-before b row cols))
-  (define wrapped-rows (quotient offset cols))
-  (define display-row  (+ base-row wrapped-rows))
-  (define display-col  (remainder offset cols))
-  (values display-row display-col))
+    (define (value->values-list v)
+      (if (mvals? v) (mvals-vals v) (list v)))
 
-(define (buffer-position-from-display b display-row display-col cols)
-  (define len         (buffer-lines-count b))
-  (define total-rows  (max 1 (buffer-total-visible-rows b cols)))
-  (define safe-row    (min (max 0 display-row) (sub1 total-rows)))
-  (define safe-col    (min (max 0 display-col) (sub1 cols)))
-  (let loop ([row       0]
-             [row-start 0])
-    (cond
-      [(>= row len)
-       (define fallback-row (sub1 len))
-       (values fallback-row
-               (string-length (line-raw (buffer-line-at b fallback-row))))]
-      [else
-       (define line-rows (line-visible-rows b row cols))
-       (define row-end   (+ row-start line-rows))
-       (if (< safe-row row-end)
-           (let* ([relative    (- safe-row row-start)]
-                  [offset      (+ (* relative cols) safe-col)]
-                  [prompt-len  (prompt-offset b row)]
-                  [raw-len     (string-length (line-raw (buffer-line-at b row)))]
-                  [max-offset  (+ prompt-len raw-len)]
-                  [clamped     (min (max offset prompt-len) max-offset)]
-                  [col         (max 0 (- clamped prompt-len))])
-             (values row col))
-           (loop (add1 row) row-end))])))
+    (define (single-value who v)
+      (if (mvals? v)
+          (let ([vs (mvals-vals v)])
+            (if (= (length vs) 1)
+                (car vs)
+                (error 'minischeme "~a: expected 1 value, got ~a" who (length vs))))
+          v))
 
-(define (buffer-adjust-first-screen-row! b display-row rows total-rows)
-  (define max-first     (max 0 (- total-rows rows)))
-  (define current-first (min (buffer-first-screen-row b) max-first))
-  (define ensure-visible
-    (cond
-      [(< display-row current-first)
-       display-row]
-      [(>= display-row (+ current-first rows))
-       (max 0 (- (+ display-row 1) rows))]
-      [else
-       current-first]))
-  (define new-first (min max-first ensure-visible))
-  (set-buffer-first-screen-row! b new-first)
-  new-first)
+    (define (ensure-list who v)
+      (unless (list? v)
+        (error 'minischeme "~a expects a list, got ~a" who v)))
 
-;;;
-;;; Rendering
-;;;
+    ;; Hyperbolic inverses expressed via log/sqrt to avoid extra dependencies.
+    (define (ms-asinh x)
+      (log (+ x (sqrt (+ (* x x) 1)))))
+    (define (ms-acosh x)
+      (log (+ x (* (sqrt (+ x 1)) (sqrt (- x 1))))))
+    (define (ms-atanh x)
+      (* 1/2 (- (log (+ 1 x)) (log (- 1 x)))))
 
-(define (render-line! line prompt-line?)
-  (unless (line-rendered line)
-    (define raw (line-raw line))
-    (define sanitized
-      (let loop ([i 0]
-                 [acc '()])
-        (if (= i (string-length raw))
-            (list->string (reverse acc))
-            (let ([ch (string-ref raw i)])
-              (loop (add1 i)
-                    (cons (if (printable-char? ch) ch #\?) acc))))))
-    (define highlighted (highlight sanitized))
-    ; (define highlighted sanitized)
-    (define prefix (if prompt-line?
-                       (string-append ansi-white the-prompt ansi-reset)
-                       ""))
-    (set-line-rendered! line (string-append prefix highlighted))))
+    (define (procedure-value? v)
+      (or (closure? v)
+          (prim? v)
+          (captured-kont? v)))
 
-(define (render-buffer-lines! b)
-  (let loop ([i 0]
-             [len (buffer-lines-count b)])
-    (when (< i len)
-      (render-line! (buffer-line-at b i) (prompt-line? b i))
-      (loop (add1 i) len))))
+    (define (create-initial-state)
+      (define base-env (make-env #f))
 
-#;(define (render-buffer->string b)
-  (render-buffer-lines! b)
-  (define len    (buffer-lines-count b))
-  (define pieces (let loop ([i 0]
-                            [acc '()])
-                   (if (= i len)
-                       (reverse acc)
-                       (loop (add1 i)
-                             (cons (line-rendered (buffer-line-at b i)) acc)))))
-  (if (zero? len)
-      ""
-      (string-join pieces "\r\n")))
+      (define all-primitives '())
+      (define all-constants  '())
+      ;; Language forms are fixed (no macro system), so we expose a static set.
+      (define all-keywords
+        '(quote quasiquote unquote unquote-splicing
+                lambda if begin set! define
+                let let* letrec
+                and or cond case
+                when unless
+                delay do
+                else =>))
 
-(define (prompt-offset b row)
-  (if (prompt-line? b row) the-prompt-length 0))
+      (define (install name proc)
+        (env-define! base-env name (prim name proc))
+        (set! all-primitives (cons name all-primitives)))
 
-; A buffer line might be longer than a terminal line.
+      (define (numeric name f)
+        (install name (λ (args)
+                        (check-numbers name args)
+                        (apply f args))))
+      (define (constant name value)
+        (env-define! base-env name value)
+        (set! all-constants (cons name all-constants)))
 
-(define (line-visible-length b row)
-  (+ (prompt-offset b row)
-     (string-length (line-raw (buffer-line-at b row)))))
+      (define (list-tail* who lst idx)
+        (unless (exact-nonnegative-integer? idx)
+          (error 'minischeme "~a expects a nonnegative exact integer index, got ~a" who idx))
+        (let loop ([xs lst] [n idx])
+          (if (= n 0)
+              xs
+              (begin
+                (unless (pair? xs)
+                  (error 'minischeme "~a: index out of bounds for list-like value" who))
+                (loop (cdr xs) (sub1 n))))))
 
-(define (line-visible-rows b row cols)
-  (define width (max 1 cols))
-  (define length (max 1 (line-visible-length b row)))
-  (quotient (+ length (sub1 width)) width))
-
-(define (visible-rows-before b row cols)
-  (let loop ([i 0]
-             [total 0])
-    (if (= i row)
-        total
-        (loop (add1 i) (+ total (line-visible-rows b i cols))))))
-
-
-
-(define (terminal-goto row col)
-  (string-append ESC "[" (number->string row) ";" (number->string col) "H"))
-
-(define (terminal-move-cursor row col)
-  (when (and term current-buffer)
-    (define b            current-buffer)
-    (define cols0        (inexact->exact (xterm-terminal-cols term)))
-    (define cols         (if (> cols0 0) cols0 1))
-    (define rows0        (inexact->exact (xterm-terminal-rows term)))
-    (define rows         (if (> rows0 0) rows0 1))
-    (define total-rows   (buffer-total-visible-rows b cols))
-    (define-values (display-row display-col)
-      (buffer-display-position b row col cols))
-    (define first-row (buffer-adjust-first-screen-row!
-                       b display-row rows total-rows))
-    (xterm-terminal-scroll-to-line term first-row)
-    (define viewport-row (- display-row first-row))
-    (xterm-terminal-write term
-                          (terminal-goto (add1 viewport-row) (add1 display-col))
-                          (void))))
-
-(define (render-buffer-in-terminal b)
-  (when term
-    ; hide cursor
-    (xterm-terminal-write term (CSI "?25l") (void))
-    ; start renering
-    (render-buffer-lines! b)
-    (define len   (buffer-lines-count b))
-    (define cols0 (inexact->exact (xterm-terminal-cols term)))
-    (define cols  (if (> cols0 0) cols0 1))
-    (define total-rows
-      (let loop ([i 0]
-                 [row-offset 0])
-        (if (= i len)
-            row-offset
-            (let* ([line      (buffer-line-at b i)]
-                   [rendered  (line-rendered line)]
-                   [line-rows (line-visible-rows b i cols)])
-              (let clear-loop ([offset 0])
-                (when (< offset line-rows)
-                  (define target-row (+ row-offset offset 1))
-                  (xterm-terminal-write term
-                                        (string-append (terminal-goto target-row 1)
-                                                       (CSI "2K"))
-                                        (void))
-                  (clear-loop (add1 offset))))
-              (when rendered
-                (xterm-terminal-write term
-                                      (string-append (terminal-goto (add1 row-offset) 1)
-                                                     rendered)
-                                      (void)))
-              (loop (add1 i) (+ row-offset line-rows))))))
-    (xterm-terminal-write term
-                          (string-append (terminal-goto (add1 total-rows) 1)
-                                         (CSI "J"))
-                          (void))
-    (define p (buffer-point b))
-    (terminal-move-cursor (mark-row p) (mark-col p))
-    ; show cursor again
-    (xterm-terminal-write term (CSI "?25h") (void))))
-
-(define (render-current-buffer)
-  (when current-buffer
-    (render-buffer-in-terminal current-buffer)))
-
-;;;
-;;; S-expressions
-;;;
-
-(define (matches? closer opener)
-  (or (and (char=? closer #\)) (char=? opener #\())
-      (and (char=? closer #\]) (char=? opener #\[))
-      (and (char=? closer #\}) (char=? opener #\{))))
-
-(define (is-balanced? s)
-  (let loop ([i          0]
-             [stack      '()]
-             [in-string? #f]
-             [escaped?   #f])
-    (cond
-      [(>= i (string-length s))
-       (and (null? stack) (not in-string?))]
-      [else
-       (define ch (string-ref s i))
-       (cond
-         [in-string?
+      (define (mem* who cmp key lst)
+        (let loop ([xs lst])
           (cond
-            [escaped?
-             (loop (add1 i) stack #t #f)]
-            [(char=? ch #\\)
-             (loop (add1 i) stack #t #t)]
-            [(char=? ch #\")
-             (loop (add1 i) stack #f #f)]
+            [(null? xs) #f]
+            [(pair? xs)
+             (if (cmp key (car xs))
+                 xs
+                 (loop (cdr xs)))]
             [else
-             (loop (add1 i) stack #t #f)])]
-         [(char=? ch #\")
-          (loop (add1 i) stack #t #f)]
-         [(or (char=? ch #\() (char=? ch #\[) (char=? ch #\{))
-          (loop (add1 i) (cons ch stack) #f #f)]
-         [(or (char=? ch #\)) (char=? ch #\]) (char=? ch #\}))
-          (if (and (pair? stack) (matches? ch (car stack)))
-              (loop (add1 i) (cdr stack) #f #f)
-              #f)]
-         [else
-          (loop (add1 i) stack #f #f)])])))
-
-(define (last-opener input)
-  (define len   (string-length input))
-  (define stack '())
-  (let loop ([i          0]
-             [in-string? #f]
-             [escaped?   #f])
-    (when (< i len)
-      (define ch (string-ref input i))
-      (cond
-        [in-string?
-         (cond
-           [escaped?
-            (loop (add1 i) #t #f)]
-           [(char=? ch #\\)
-            (loop (add1 i) #t #t)]
-           [(char=? ch #\")
-            (loop (add1 i) #f #f)]
-           [else
-            (loop (add1 i) #t #f)])]
-        [(char=? ch #\")
-         (loop (add1 i) #t #f)]
-        [(or (char=? ch #\() (char=? ch #\[) (char=? ch #\{))
-         (set! stack (cons (cons ch i) stack))
-         (loop (add1 i) #f #f)]
-        [(or (char=? ch #\)) (char=? ch #\]) (char=? ch #\}))
-         (when (and (pair? stack)
-                    (matches? ch (caar stack)))
-           (set! stack (cdr stack)))
-         (loop (add1 i) #f #f)]
-        [else
-         (loop (add1 i) #f #f)])))
-  (if (null? stack)
-      #f
-      (cdar stack)))
-
-(define (matching-closer opener)
-  (case opener
-    [(#\() #\)]
-    [(#\[) #\]]
-    [(#\{) #\}]
-    [else  #\]]))
-
-(define (matching-closer-string opener)
-  (string (matching-closer opener)))
-
-
-(define (string-index-to-row-and-column input index)
-  (define len (string-length input))
-  (define row 0)
-  (define col 0)
-  (define result #f)
-  (let loop ([i 0])
-    (when (and (not result) (<= i len))
-      (cond
-        [(= i index)
-         (set! result (cons row col))]
-        [(= i len)
-         (set! result (cons row col))]
-        [else
-         (define ch (string-ref input i))
-         (if (char=? ch #\newline)
-             (begin
-               (set! row (add1 row))
-               (set! col 0))
-             (set! col (add1 col)))
-         (loop (add1 i))])))
-  result)
-
-
-;;;
-;;; Syntax highlighting
-;;;
-
-(define all-keywords-names
-  '("and" "begin" "cond" "define" "if" "lambda" "let"
-    "or" "quote" "set!" "unless" "when"))
-
-(define all-primitives-names '())
-
-(define delimiter-chars
-  '(#\( #\) #\[ #\] #\{ #\} #\" #\' #\` #\, #\; #\.))
-
-(define (identifier-delimiter? ch)
-  (or (char-whitespace? ch)
-      (memv ch delimiter-chars)))
-
-(define (keyword-token? token)
-  (and (member token all-keywords-names) #t))
-
-(define (primitive-token? token)
-  (and (member token all-primitives-names) #t))
-
-(define (identifier-token? token)
-  ; approximate (okay - we are just using it as a filter)
-  (and (> (string-length token) 0)
-       (let ([first (string-ref token 0)])
-         (not (char=? first #\#)))))
-
-(define (bound-token? token)
-  ; Note: We are using `get-minischeme-global-env` to make sure
-  ;      `minischeme-global-env` is initialized.
-  (define env (get-minischeme-global-env))
-  (and env
-       (identifier-token? token)
-       (let ([sym (string->symbol token)])
-         (env-bound? env sym))))
-
-(define (highlight-token token)
-  (cond
-    [(keyword-token? token)   (string-append ansi-keyword   token ansi-reset)]
-    [(primitive-token? token) (string-append ansi-primitive token ansi-reset)]
-    [(bound-token? token)     (string-append ansi-binding   token ansi-reset)]
-    [else token]))
-
-(define (pieces->string pieces)
-  (define ordered (reverse pieces))
-  (if (null? ordered)
-      ""
-      (apply string-append ordered)))
-
-(define (highlight input)
-  (define len (string-length input))
-
-  (define (emit-token pieces token-chars)
-    (cond
-      [(null? token-chars)
-       pieces]
-      [else
-       (define hi-token (highlight-token (list->string (reverse token-chars))))
-       (cons hi-token pieces)]))
-  
-  (let loop ([i           0]
-             [token-chars '()]
-             [pieces      '()]
-             [in-string?  #f]
-             [escaped?    #f])
-    (cond
-      [(= i len)
-       (pieces->string (emit-token pieces token-chars))]
-      [in-string?
-       (define ch (string-ref input i))
-       (define new-pieces (cons (string ch) pieces))
-       (cond
-         [escaped?
-          (loop (add1 i) token-chars new-pieces #t #f)]
-         [(char=? ch #\\)
-          (loop (add1 i) token-chars new-pieces #t #t)]
-         [(char=? ch #\")
-          (loop (add1 i) token-chars new-pieces #f #f)]
-         [else
-          (loop (add1 i) token-chars new-pieces #t #f)])]
-      [else
-       (define ch (string-ref input i))
-       (cond
-         [(char=? ch #\")
-          (define flushed (emit-token pieces token-chars))
-          (loop (add1 i) '() (cons (string ch) flushed) #t #f)]
-         [(identifier-delimiter? ch)
-          (define flushed (emit-token pieces token-chars))
-          (loop (add1 i) '() (cons (string ch) flushed) #f #f)]
-         [else
-          (loop (add1 i) (cons ch token-chars) pieces #f #f)])])))
-
-(define (nohighlight input)
-  input)
-
-;;;
-;;; Syntax highlighting
-;;;
-
-;; Temporarily disabled - until support for regular expressions arrive.
-
-;; (define all-keywords-names
-;;   '("and" "begin" "cond" "define" "if" "lambda" "let"
-;;     "or" "quote" "(set[!])"
-;;     "unless" "when"))
-
-;; (define all-primitives-names
-;;   '("[+]" "[-]" "[*]" "[/]"
-;;     "[=]" "[<]" "[>]"
-;;     "([<][=])" "([>][=])"
-;;     "null?" "cons" "car" "cdr"
-;;     "vector" "vector-ref" "vector-set!"
-;;     "boolean?" "number?" "symbol?" "string?" "void?" "procedure?"))
-
-;; (define all-parens
-;;   '("[(]" "[)]" "[[]"
-;;     "[\\]]" "[{]" "[}]"))
-
-;; (define ansi-regexp   #px"\u001B[@-_][0-?]*[ -/]*[@-~]")
-
-;; (define number-regexp #px"(?<![a-z])([-+]?[0-9](?:\.([0-9]*)?)?)")
-
-;; (define all-keywords-regexp
-;;   (regexp (string-append "(?<![a-z])(" (join-with all-keywords-names "|") ")(?![a-z]|[0-9])")))
-
-;; (define all-primitives-regexp
-;;   (regexp (string-append "(?<![a-z])(" (join-with all-primitives-names "|") ")(?![a-z]|[0-9])")))
-
-;; (define all-parens-regexp
-;;   (regexp (string-append "(" (join-with all-parens "|") ")")))
-
-;; (define (replace-raw-string input needle replacement)
-;;   (regexp-replace* needle input replacement))
-
-;; (define (tokenize-ansi input)
-;;   (define len (string-length input))
-;;   (let loop ([matches (regexp-match-positions* ansi-regexp input)]
-;;              [pos 0]
-;;              [acc '()])
-;;     (if (null? matches)
-;;         (let ([tail (if (< pos len) (substring input pos len) "")])
-;;           (if (string=? tail "")
-;;               (reverse acc)
-;;               (reverse (cons tail acc))))
-;;         (let* ([match (car matches)]
-;;                [start (car match)]
-;;                [end (cdr match)]
-;;                [before (substring input pos start)]
-;;                [code (substring input start end)]
-;;                [acc1 (if (string=? before "") acc (cons before acc))])
-;;           (loop (cdr matches) end (cons code acc1))))))
-
-;; (define (replace-ansi input needle replacement)
-;;   (define tokens (tokenize-ansi input))
-;;   (let loop ([ts tokens]
-;;              [acc '()])
-;;     (if (null? ts)
-;;         (string-append* (reverse acc))
-;;         (let ([token (car ts)])
-;;           (if (regexp-match? ansi-regexp token)
-;;               (loop (cdr ts) (cons token acc))
-;;               (loop (cdr ts) (cons (regexp-replace* needle token replacement) acc)))))))
-
-;; (define (highlight-numbers input)
-;;   (regexp-replace* number-regexp input (string-append ansi-literal "\\1" ansi-reset)))
-
-;; (define (highlight-keywords input)
-;;   (replace-ansi input all-keywords-regexp (string-append ansi-keyword "\\1" ansi-reset)))
-
-;; (define (highlight-primitives input)
-;;   (replace-ansi input all-primitives-regexp (string-append ansi-primitive "\\1" ansi-reset)))
-
-;; (define (highlight-parens input)
-;;   (replace-ansi input all-parens-regexp (string-append ansi-paren "\\1" ansi-reset)))
-
-;; (define (highlight input)
-;;   (highlight-primitives
-;;    (highlight-keywords
-;;     (highlight-numbers input))))
-
-;; (define (nohighlight input)
-;;   input)
-
-;;;
-;;; Indentation
-;;;
-
-(define (first-non-whitespace-index s)
-  (let loop ([i 0]
-             [len (string-length s)])
-    (cond
-      [(= i len) #f]
-      [(char-whitespace? (string-ref s i)) (loop (add1 i) len)]
-      [else i])))
-
-(define (indentation-level b)
-  (define p (buffer-point b))
-  (define prev-row (if (= (mark-row p) 0)
-                       0
-                       (max (buffer-active-prompt b) (sub1 (mark-row p)))))
-  (define l (buffer-line-at b prev-row))
-  (define idx (first-non-whitespace-index (line-raw l)))
-  (define base (if idx idx 0))
-  (+ base (if (prompt-line? b prev-row) the-prompt-length 0)))
-
-;;;
-;;; History
-;;;
-
-(define input-history       '())
-(define input-history-count 0)
-(define history-position    0)
-(define history-draft       "")
-
-(define (history-reset!)
-  (set! input-history       '())
-  (set! input-history-count 0)
-  (set! history-position    0)
-  (set! history-draft       ""))
-
-(define (history-record-entry! entry)
-  (when entry
-    (set! input-history       (cons entry input-history))
-    (set! input-history-count (add1 input-history-count))))
-
-(define (history-update-draft! b)
-  (when b
-    (set! history-draft (buffer-get-prompt-input b))))
-
-(define (history-update-after-edit! b)
-  (when b
-    (set! history-position 0)
-    (history-update-draft! b)))
-
-(define (history-prepare-for-new-prompt! b)
-  (set! history-position 0)
-  (history-update-draft! b))
-
-(define (history-previous! b)
-  (when (and b (> input-history-count 0))
-    (when (= history-position 0)
-      (history-update-draft! b))
-    (when (< history-position input-history-count)
-      (set! history-position (add1 history-position))
-      (define entry (list-ref input-history (sub1 history-position)))
-      (buffer-replace-editor-with-string! b entry)
-      (point-end! b))))
-
-(define (history-next! b)
-  (when (and b (> history-position 0))
-    (set! history-position (sub1 history-position))
-    (if (= history-position 0)
-        (begin
-          (buffer-replace-editor-with-string! b history-draft)
-          (point-end! b)
-          (history-update-after-edit! b))
-        (let ([entry (list-ref input-history (sub1 history-position))])
-          (buffer-replace-editor-with-string! b entry)
-          (point-end! b)))))
-
-
-;;;
-;;; Key and data handling
-;;;
-
-(define latest-error #f)
-
-(define (indent-with-spaces! b spaces)
-  (let loop ([i 0])
-    (when (< i spaces)
-      (buffer-insert! b " ")
-      (loop (add1 i)))))
-
-(define (editor-at-start? b)
-  (and (= (mark-row (buffer-point b)) (mark-row (buffer-start b)))
-       (= (mark-col (buffer-point b)) (mark-col (buffer-start b)))))
-
-(define (editor-at-end? b)
-  (point-at-end-of-buffer? b))
-
-(define (ee-previous-line)
-  (define b current-buffer)
-  (when b
-    (if (or (editor-at-start? b)
-            (> history-position 0))
-        (history-previous! b)
-        (point-up! b 1))))
-
-(define (ee-next-line)
-  (define b current-buffer)
-  (when b
-    (if (editor-at-end? b)
-        (history-next! b)
-        (point-down! b 1))))
-
-
-(define (on-tab)
-  (define b current-buffer)
-  (when (and b (buffer-can-edit-here? b))
-    (indent-with-spaces! b 2)
-    (history-update-after-edit! b)))
-
-(define (on-home)
-  (define b current-buffer)
-  (when b (point-home! b)))
-
-(define (on-newline)
-  (define b current-buffer)
-  (when (and b (buffer-can-edit-here? b))
-    (insert-newline-with-indentation! b)))
-
-(define (on-end)
-  (define b current-buffer)
-  (when b (point-end! b)))
-
-(define (on-cursor-up)
-  #;(define b current-buffer)
-  #;(when b (point-up! b 1))
-  (ee-previous-line))
-
-(define (on-cursor-down)
-  #;(define b current-buffer)
-  #;(when b (point-down! b 1))
-  (ee-next-line))
-
-(define (on-cursor-right)
-  (define b current-buffer)
-  (when b (point-forward! b 1)))
-
-(define (on-cursor-left)
-  (define b current-buffer)
-  (when b (point-backward! b 1)))
-
-(define (on-delete)
-  (define b current-buffer)
-  (when b
-    (buffer-delete! b)
-    (history-update-after-edit! b)))
-
-(define (on-delete-right)
-  (define b current-buffer)
-  (when b
-    (when (and (buffer-can-edit-here? b)
-               (not (point-at-end-of-buffer? b)))
-      (point-forward! b 1)
-      (buffer-delete! b)
-      (history-update-after-edit! b))))
-
-(define (on-printable-key key)
-  (define b current-buffer)
-  (when (and b (buffer-can-edit-here? b))
-    (buffer-insert! b key)
-    (history-update-after-edit! b)))
-
-(define (on-move-to-beginning-of-line)
-  (define b current-buffer)
-  (when b
-    (define p (buffer-point b))
-    (point-backward! b (mark-col p))))
-
-(define (on-move-to-end-of-line)
-  (define b current-buffer)
-  (when b
-    (define p (buffer-point b))
-    (define l (buffer-line-at-point b))
-    (define n (string-length (line-raw l)))
-    (point-forward! b (- n (mark-col p)))))
-
-(define (perform-close-paren! b key input index)
-  (buffer-insert! b key)
-  (history-update-after-edit! b)
-  (when index
-    (define rowcol     (string-index-to-row-and-column input index))
-    (define target-row (+ (buffer-active-prompt b) (car rowcol)))
-    (define target-col (cdr rowcol))
-    (js-window-set-timeout
-     (procedure->external (lambda () (terminal-move-cursor target-row target-col))))
-    (js-window-set-timeout/delay
-     (procedure->external
-      (lambda ()
-        (define latest-point (buffer-point b))
-        (terminal-move-cursor (mark-row latest-point) (mark-col latest-point))))
-     500.0)))
-
-(define (on-close-paren key)
-  (define b current-buffer)
-  (when (and b (buffer-can-edit-here? b))
-    (define input (buffer-get-prompt-input b))
-    (define index (last-opener input))
-    (perform-close-paren! b key input index)))
-
-(define (on-auto-close-paren key)
-  (define b current-buffer)
-  (when (and b (buffer-can-edit-here? b))
-    (define input      (buffer-get-prompt-input b))
-    (define index      (last-opener input))
-    (define opener     (and index (string-ref input index)))
-    (define closer-key (matching-closer-string opener))
-    (perform-close-paren! b closer-key input index)))
-
-(define (insert-newline-with-indentation! b)
-  (buffer-split-line! b)
-  (define level (indentation-level b))
-  (when (> level 0)
-    (indent-with-spaces! b level))
-  (history-update-after-edit! b))
-
-(define (strip-trailing-return s)
-  (define len (string-length s))
-  (if (and (> len 0)
-           (char=? (string-ref s (sub1 len)) #\return))
-      (substring s 0 (sub1 len))
-      s))
-
-(define (string->lines s)
-  (define len (string-length s))
-  (let loop ([i     0]
-             [start 0]
-             [acc   '()])
-    (cond
-      [(= i len)
-       (define final-line (strip-trailing-return (substring s start len)))
-       (reverse (cons final-line acc))]
-      [else
-       (define ch (string-ref s i))
-       (cond
-         [(char=? ch #\return)
-          (let* ([line     (substring s start i)]
-                 [next-pos (if (and (< (add1 i) len)
-                                    (char=? (string-ref s (add1 i)) #\newline))
-                               (+ i 2)
-                               (add1 i))])
-            (loop next-pos next-pos (cons line acc)))]
-         [(char=? ch #\newline)
-          (let ([line (substring s start i)])
-            (loop (add1 i) (add1 i) (cons line acc)))]
-         [else
-          (loop (add1 i) start acc)])])))
-
-
-(define (on-enter)
-  (define b current-buffer)
-  (when (and b (buffer-can-edit-here? b))
-    (define input (buffer-get-prompt-input b))
-    (cond
-      [(is-balanced? input)
-       ; Evaluate Input
-
-       ;; (def result #f)
-       ;;    (try ((:= result (evaluate-and-format input)))
-       ;;         (catch error
-       ;;           (:= latest-error error)
-       ;;           (:= result (+ "error: " error.message))))
-          
-       #;(define result (with-handlers
-                        ([(λ (x) #t) ; catch all
-                          (lambda (e)
-                            (set! latest-error e)
-                            (string-append "error: " (exn-message e)))])
-                        (process-input input)))
-
-       (define result (process-input input))
-       (set! latest-error #f)
-       (history-record-entry! input)
-
-       ; Insert result and make new prompt
-       (point-end! b)
-       (buffer-split-line! b)
-       (buffer-insert-raw-lines! b (string->lines result))
-       (point-end! b)
-       (buffer-new-prompt! b)
-       (history-prepare-for-new-prompt! b)]
-      [else
-       (insert-newline-with-indentation! b)])))
-
-(define (printable-key? key)
-  (and (string? key)
-       (= (string-length key) 1)
-       (printable-char? (string-ref key 0))))
-
-(define (handle-key-event event . _)
-  (define key (js-ref event "key"))
-  (define dom-event (js-ref event "domEvent"))
-  (when dom-event (js-send dom-event "preventDefault" (vector)))
-  (when (string? key)
-    ; user pasted something into the terminal
-    (set! last-key-data key))
-  (cond
-    [(equal? key UP)            (on-cursor-up)]
-    [(equal? key DOWN)          (on-cursor-down)]
-    [(equal? key LEFT)          (on-cursor-left)]
-    [(equal? key RIGHT)         (on-cursor-right)]
-    [(equal? key ENTER)         (on-enter)]
-    [(equal? key TAB)           (on-tab)]
-    [(equal? key CTRL-A)        (on-move-to-beginning-of-line)]
-    [(equal? key CTRL-D)        (on-delete-right)]
-    [(equal? key CTRL-E)        (on-move-to-end-of-line)]
-    [(equal? key CTRL-J)        (on-newline)]
-    [(equal? key CTRL-P)        (on-cursor-up)]
-    [(equal? key CTRL-N)        (on-cursor-down)]
-    [(equal? key CTRL-RBRACKET) (on-close-paren "]")]
-    [(equal? key HOME)          (on-home)]
-    [(equal? key END)           (on-end)]
-    [(equal? key DELETE)        (on-delete)]
-    [(equal? key DELETE-RIGHT)  (on-delete-right)]
-    [(equal? key "]")           (on-auto-close-paren key)]
-    [(equal? key ")")           (on-close-paren key)]
-    [(equal? key "}")           (on-close-paren key)]
-    [else                       (when (printable-key? key)
-                                  (on-printable-key key))])
-  (render-current-buffer)
-  (void))
-
-(define (handle-data-event data . _)
-  (when (string? data)
-    (js-log (string-append "<data> " data)))
-  (cond
-    [(and last-key-data (equal? data last-key-data))
-     (set! last-key-data #f)]
-    [(and (string? data) current-buffer (buffer-can-edit-here? current-buffer))
-     (insert-pasted-text! current-buffer data)
-     (history-update-after-edit! current-buffer)
-     (render-current-buffer)])
-  (void))
-
-(define (terminal-cell-dimensions)
-  (js-log "terminal-cell-dimensions")
-  (define screen        (js-query-selector ".xterm-screen"))
-  (define cols          (and term (xterm-terminal-cols term)))
-  (define rows          (and term (xterm-terminal-rows term)))
-  (define rect          (and screen (js-send/extern/null screen "getBoundingClientRect" (vector))))
-  (define total-width   (and rect (js-ref rect "width")))
-  (define total-height  (and rect (js-ref rect "height")))
-  (define valid-cols?   (and (number? cols) (> cols 0)))
-  (define valid-rows?   (and (number? rows) (> rows 0)))
-  (define valid-width?  (and (number? total-width) (> total-width 0)))
-  (define valid-height? (and (number? total-height) (> total-height 0)))
-  (if (and valid-cols? valid-rows? valid-width? valid-height?)
-      (values (/ total-width cols) (/ total-height rows))
-      (values #f #f)))
-
-(define (event->viewport-coordinates event)
-  (define target (or (js-ref event "currentTarget") (js-ref event "target")))
-  (define-values (cell-width cell-height) (terminal-cell-dimensions))
-  (if (and target cell-width cell-height)
-      (let* ([rect      (js-send/extern/null target "getBoundingClientRect" (vector))]
-             [left      (and rect (js-ref rect "left"))]
-             [top       (and rect (js-ref rect "top"))]
-             [client-x  (js-ref event "clientX")]
-             [client-y  (js-ref event "clientY")])
-        (if (and (number? left) (number? top)
-                 (number? client-x) (number? client-y))
-            (let* ([col (inexact->exact (max 0 (floor (/ (- client-x left) cell-width))))]
-                   [row (inexact->exact (max 0 (floor (/ (- client-y top) cell-height))))])
-              (values row col))
-            (values #f #f)))
-      (values #f #f)))
-
-(define (move-point-from-viewport! viewport-row viewport-col)
-  (when (and term current-buffer)
-    (define b            current-buffer)
-    (define cols0        (inexact->exact (xterm-terminal-cols term)))
-    (define cols         (if (> cols0 0) cols0 1))
-    (define display-row  (+ (buffer-first-screen-row b) viewport-row))
-    (define display-col  viewport-col)
-    (define-values (row col)
-      (buffer-position-from-display b display-row display-col cols))
-    (buffer-set-point! b row col)
-    (render-current-buffer)))
-
-(define (handle-terminal-click event . _)
-  (js-log "handle-terminal-click")
-  (define-values (row col) (event->viewport-coordinates event))
-  (js-log (format "(row,col) = (~a,~a)" row col))
-  (when (and row col)
-    (move-point-from-viewport! row col))
-  (void))
-
-(define (enable-mouse-events!)  
-  ; (xterm-terminal-write term (DECSET "1000") (void))
-  ; Keep default mouse behavior enabled so users can select text and use
-  ; the clipboard via the mouse (using the Clipboard addon).
-  (define screen (js-query-selector ".xterm-screen"))
-  (js-log "enable-mouse-events!")
-  (js-log (format "screen: ~a" screen))
-  (when screen
-    (set! term-on-click (procedure->external handle-terminal-click))
-    (js-add-event-listener! screen "mousedown" term-on-click)))
-
-(define (register-terminal-handlers!)
-  (set! term-on-key        (procedure->external handle-key-event))
-  (set! term-on-data       (procedure->external handle-data-event))
-  (set! term-on-binary     (procedure->external handle-data-event))
-  (js-send term "onKey"    (vector term-on-key))
-  (js-send term "onData"   (vector term-on-data))
-  (js-send term "onBinary" (vector term-on-binary)))
-
-(define (last-item xs)
-  (if (null? xs) #f (last xs)))
-
-(define (insert-pasted-text! b data)
-  (define row         (mark-row (buffer-point b)))
-  (define col         (mark-col (buffer-point b)))
-  (define line        (buffer-line-at-point b))
-  (define raw         (line-raw line))
-  (define before      (substring raw 0 col))
-  (define after       (substring raw col (string-length raw)))
-  (define pieces      (string->lines data))
-  (define first-piece (car pieces))
-  (define remaining   (cdr pieces))
-  (define new-first   (string-append before first-piece))
-  
-  (line-dirty! line)
-  (set-line-raw! line new-first)
-  (cond
-    [(null? remaining)
-     (set-line-raw! line (string-append new-first after))
-     (mark-move-to! (buffer-point b) row (string-length new-first))]
-    [else
-     (define last-piece (last-item remaining))
-     (define middle-pieces
-       (let loop ([rest remaining]
-                  [acc  '()])
-         (if (null? (cdr rest))
-             (reverse acc)
-             (loop (cdr rest) (cons (car rest) acc)))))
-     (define insert-lines (append middle-pieces (list (string-append last-piece after))))
-     (buffer-set-point! b (add1 row) 0)
-     (buffer-insert-raw-lines! b insert-lines)
-     (mark-move-to! (buffer-point b)
-                    (+ row (length insert-lines))
-                    (string-length last-piece))]))
-
-;;;
-;;; MiniScheme
-;;;
-
-(define (start-minischeme . _)
-  (history-reset!)
-  (reset-minischeme-state!)
-  
-  (define intro-lines
-    '("Welcome to MiniScheme."
-      ""
-      "- What should we evaluate next?"
-      ""))
-
-  (define b     (make-buffer "repl"))
-  (define lines (list->vector (append (map make-line intro-lines)
-                                      (list (make-line "")))))
-  (set-buffer-lines! b lines)
-  (set-buffer-prompts! b '())
-  (mark-move-to! (buffer-point b) (length intro-lines) 0)
-  (mark-move-to! (buffer-start b) (length intro-lines) 0)
-  (set! current-buffer b)
-  (buffer-new-prompt! b)
-  (history-prepare-for-new-prompt! b)
-  (register-terminal-handlers!)
-  (enable-mouse-events!)
-  (render-current-buffer)
-  (void))
-
-
-  ;; (for ([line (in-list intro-lines)])
-  ;;   (xterm-terminal-writeln term line (void)))
-
-  ;; (define prompt        "> ")
-  ;; (define current-input "")
-
-  ;; (define (show-prompt)
-  ;;   (set! current-input "")
-  ;;   (xterm-terminal-write term prompt (void)))
-
-  ;; (define (echo-line line)
-  ;;   (xterm-terminal-writeln term line (void)))
-
-  ;; (define on-data
-  ;;   (procedure->external
-  ;;    (λ (data . _)
-  ;;      (when (string? data)
-  ;;        (cond
-  ;;          [(string=? data "\u0003")                 ; ETX = End of Text (caused by ctrl-c)
-  ;;           (xterm-terminal-write term "^C" (void))
-  ;;           (show-prompt)]
-  ;;          [(string=? data "\r")                     
-  ;;           (xterm-terminal-writeln term "" (void))
-  ;;           (echo-line current-input)
-  ;;           (show-prompt)]
-  ;;          [(string=? data "\u007F")                 ; DELETE
-  ;;           (when (> (string-length current-input) 0)
-  ;;             (set! current-input
-  ;;                   (substring current-input 0 (sub1 (string-length current-input))))
-  ;;             (xterm-terminal-write term "\b \b" (void)))]
-  ;;          [else
-  ;;           (when (printable-string? data)
-  ;;             (set! current-input (string-append current-input data))
-  ;;             (xterm-terminal-write term data (void)))]))
-  ;;      (void))))
-
-  ;; (js-send/extern term "onData" (vector on-data))
-  ;; (show-prompt)
-  ;; (void))
-
-
-;;;
-;;; EVALUATOR
-;;;
-
-(struct env     (table parent))
-(struct closure (params body env))
-(struct prim    (name proc))
-
-(struct exn:minischeme:undefined exn:fail (identifier) #:transparent)
-
-(struct k-apply   (args env))
-(struct k-args    (proc rest env values))
-(struct k-if      (then else env))
-(struct k-begin   (rest env))
-(struct k-set!    (cell name))
-(struct k-define  (cell name))
-
-(define uninitialized (gensym 'uninitialized))
-(define no-else       (gensym 'no-else))
-
-(define (make-env parent)
-  (env (make-hasheq) parent))
-
-(define (env-bound-current? e name)
-  (hash-has-key? (env-table e) name))
-
-(define (env-bound? e name)
-  (cond
-    [(not e)                     #f]
-    [(env-bound-current? e name) #t]
-    [else                        (env-bound? (env-parent e) name)]))
-
-(define (env-lookup-cell e name)
-  (cond
-    [(hash-has-key? (env-table e) name)
-     (hash-ref (env-table e) name)]
-    [(env-parent e)
-     (env-lookup-cell (env-parent e) name)]
-    [else
-     (define who (if (symbol? name) name 'minischeme))
-     (raise (exn:minischeme:undefined
-             (format "~a: undefined;\n cannot reference an identifier before its definition" who)
-             (current-continuation-marks)
-             who))]))
-
-(define (cell-value cell)
-  (define v (unbox cell))
-  (if (eq? v uninitialized)
-      (error 'minischeme "accessing uninitialized binding")
-      v))
-
-(define (env-lookup e name)
-  (cell-value (env-lookup-cell e name)))
-
-(define (env-define! e name value)
-  (hash-set! (env-table e) name (box value)))
-
-(define (env-define-cell! e name cell)
-  (hash-set! (env-table e) name cell))
-
-(define (literal? expr)
-  (or (null?    expr)
-      (boolean? expr)
-      (number?  expr)
-      (string?  expr)
-      (bytes?   expr)
-      (char?    expr)))
-
-(define (ensure-identifier sym)
-  (unless (symbol? sym)
-    (error 'minischeme "expected identifier, got `~a`" sym)))
-
-(define (ensure-parameters params)
-  (define (bad)
-    (error 'minischeme "invalid parameter list `~a`" params))
-  (cond
-    [(symbol? params) params]
-    [(null? params) params]
-    [(pair? params)
-     (let loop ([ps params])
-       (cond
-         [(null? ps) params]
-         [(pair? ps)
-          (unless (symbol? (car ps)) (bad))
-          (loop (cdr ps))]
-         [(symbol? ps) params]
-         [else (bad)]))]
-    [else (bad)]))
-
-(define (split-formals params)
-  (cond
-    [(symbol? params) (values '() params)]
-    [(null? params) (values '() #f)]
-    [else
-     (let loop ([ps params] [required '()])
-       (cond
-         [(null? ps) (values (reverse required) #f)]
-         [(pair? ps) (loop (cdr ps) (cons (car ps) required))]
-         [else (values (reverse required) ps)]))]))
-
-(define (check-numbers name args)
-  (for-each (λ (v)
-              (unless (number? v)
-                (error 'minischeme "`~a` expects numbers, got `~a`" name v)))
-            args))
-
-(define (check-arg-count name args expected)
-  (unless (= (length args) expected)
-    (error 'minischeme "`~a` expects ~a argument~a"
-           name expected (if (= expected 1) "" "s"))))
-
-(define (check-at-least name args expected)
-  (unless (>= (length args) expected)
-    (error 'minischeme "`~a` expects at least ~a argument~a"
-           name expected (if (= expected 1) "" "s"))))
-
-(define (create-initial-state)
-  (define base-env (make-env #f))
-
-  (define all-primitives '())
-  (define all-constants  '())
-  (define all-keywords   (map string->symbol all-keywords-names))
-
-  (define (install name proc)
-    (env-define! base-env name (prim name proc))
-    (set! all-primitives (cons name all-primitives)))
-
-  (define (numeric name f)
-    (install name (λ (args)
-                    (check-numbers name args)
-                    (apply f args))))
-
-  (define (constant name value)
-    (env-define! base-env name value)
-    (set! all-constants (cons name all-constants)))
-
-  (constant 'null   '())
-  (constant 'empty  '())
-  (constant 'true   #t)
-  (constant 'false  #f)
-
-  (numeric '+  +)
-  (numeric '*  *)
-  (install '-  (λ (args)
-                 (check-at-least '- args 1)
-                 (check-numbers '- args)
-                 (if (null? (cdr args))
-                     (- (car args))
-                     (apply - args))))
-  (install '/  (λ (args)
-                 (check-at-least '/ args 1)
-                 (check-numbers '/ args)
-                 (if (null? (cdr args))
-                     (/ 1 (car args))
-                     (apply / args))))
-
-  (install '=  (λ (args)
-                 (check-numbers '= args)
-                 (if (null? args) #t (apply = args))))
-  (install '<  (λ (args)
-                 (check-at-least '< args 2)
-                 (check-numbers '< args)
-                 (apply < args)))
-  (install '<= (λ (args)
-                 (check-at-least '<= args 2)
-                 (check-numbers '<= args)
-                 (apply <= args)))
-  (install '>  (λ (args)
-                 (check-at-least '> args 2)
-                 (check-numbers '> args)
-                 (apply > args)))
-  (install '>= (λ (args)
-                 (check-at-least '>= args 2)
-                 (check-numbers '>= args)
-                 (apply >= args)))
-
-  (install 'cons     (λ (args)
+             (error 'minischeme "~a expects a proper list, got ~a" who lst)])))
+
+      (define (assoc* who cmp key alist)
+        (let loop ([xs alist])
+          (cond
+            [(null? xs) #f]
+            [(pair? xs)
+             (define entry (car xs))
+             (unless (pair? entry)
+               (error 'minischeme "~a expects an association list of pairs, got entry ~a" who entry))
+             (if (cmp key (car entry))
+                 entry
+                 (loop (cdr xs)))]
+            [else
+             (error 'minischeme "~a expects a proper association list, got ~a" who alist)])))
+
+      (define (selector-apply who v middle)
+        (let loop ([x v] [ops (reverse (string->list middle))])
+          (if (null? ops)
+              x
+              (begin
+                (unless (pair? x)
+                  (error 'minischeme "~a expects a pair while traversing, got ~a" who x))
+                (loop (if (char=? (car ops) #\a) (car x) (cdr x))
+                      (cdr ops))))))
+
+      (constant 'null     '())
+      (constant 'empty    '())
+      (constant 'true     #t)
+      (constant 'false    #f)
+      (constant 'build-id minischeme-build-id)
+
+      (numeric '+ +)
+      (numeric '* *)
+      (install '- (λ (args)
+                    (check-at-least '- args 1)
+                    (check-numbers '- args)
+                    (if (null? (cdr args))
+                        (- (car args))
+                        (apply - args))))
+      (install '/ (λ (args)
+                    (check-at-least '/ args 1)
+                    (check-numbers '/ args)
+                    (if (null? (cdr args))
+                        (/ 1 (car args))
+                        (apply / args))))
+      (install '= (λ (args)
+                    (check-numbers '= args)
+                    (if (null? args) #t (apply = args))))
+      (install '< (λ (args)
+                    (check-at-least '< args 2)
+                    (check-numbers '< args)
+                    (apply < args)))
+      (install '<= (λ (args)
+                     (check-at-least '<= args 2)
+                     (check-numbers '<= args)
+                     (apply <= args)))
+      (install '> (λ (args)
+                    (check-at-least '> args 2)
+                    (check-numbers '> args)
+                    (apply > args)))
+      (install '>= (λ (args)
+                     (check-at-least '>= args 2)
+                     (check-numbers '>= args)
+                     (apply >= args)))
+      (install 'cons (λ (args)
                        (check-arg-count 'cons args 2)
                        (cons (car args) (cadr args))))
-  (install 'car      (λ (args)
-                       (check-arg-count 'car args 1)
-                       (let ([v (car args)])
-                         (unless (pair? v)
-                           (error 'minischeme "car expects a non-empty pair"))
-                         (car v))))
-  (install 'cdr      (λ (args)
-                       (check-arg-count 'cdr args 1)
-                       (let ([v (car args)])
-                         (unless (pair? v)
-                           (error 'minischeme "cdr expects a non-empty pair"))
-                         (cdr v))))
-  (install 'list     (λ (args) args))
-  (install 'list?    (λ (args)
-                       (check-arg-count 'list? args 1)
-                       (list? (car args))))
-  (install 'pair?    (λ (args)
-                       (check-arg-count 'pair? args 1)
-                       (pair? (car args))))
-  (install 'null?    (λ (args)
-                       (check-arg-count 'null? args 1)
-                       (null? (car args))))
+      (install 'car (λ (args)
+                      (check-arg-count 'car args 1)
+                      (let ([v (car args)])
+                        (unless (pair? v)
+                          (error 'minischeme "car expects a non-empty pair"))
+                        (car v))))
+      (install 'cdr (λ (args)
+                      (check-arg-count 'cdr args 1)
+                      (let ([v (car args)])
+                        (unless (pair? v)
+                          (error 'minischeme "cdr expects a non-empty pair"))
+                        (cdr v))))
+      (install 'list (λ (args) args))
+      (install 'list* (λ (args)
+                        (check-at-least 'list* args 1)
+                        (apply list* args)))
+      (install 'list? (λ (args)
+                        (check-arg-count 'list? args 1)
+                        (list? (car args))))
+      (install 'vector (λ (args)
+                         (list->vector args)))
+      (install 'vector? (λ (args)
+                          (check-arg-count 'vector? args 1)
+                          (vector? (car args))))
+      (install 'make-vector (λ (args)
+                              (unless (or (= (length args) 1) (= (length args) 2))
+                                (error 'minischeme "make-vector expects 1 or 2 arguments"))
+                              (define n (car args))
+                              (unless (exact-nonnegative-integer? n)
+                                (error 'minischeme "make-vector expects a nonnegative exact integer length, got ~a" n))
+                              (if (= (length args) 1)
+                                  (make-vector n)
+                                  (make-vector n (cadr args)))))
+      (install 'vector-length (λ (args)
+                                (check-arg-count 'vector-length args 1)
+                                (define v (car args))
+                                (unless (vector? v)
+                                  (error 'minischeme "vector-length expects a vector, got ~a" v))
+                                (vector-length v)))
+      (install 'vector-ref (λ (args)
+                             (check-arg-count 'vector-ref args 2)
+                             (define v (car args))
+                             (define i (cadr args))
+                             (unless (vector? v)
+                               (error 'minischeme "vector-ref expects a vector, got ~a" v))
+                             (unless (exact-nonnegative-integer? i)
+                               (error 'minischeme "vector-ref expects a nonnegative exact integer index, got ~a" i))
+                             (vector-ref v i)))
+      (install 'vector-set! (λ (args)
+                              (check-arg-count 'vector-set! args 3)
+                              (define v (car args))
+                              (define i (cadr args))
+                              (define val (caddr args))
+                              (unless (vector? v)
+                                (error 'minischeme "vector-set! expects a vector, got ~a" v))
+                              (unless (exact-nonnegative-integer? i)
+                                (error 'minischeme "vector-set! expects a nonnegative exact integer index, got ~a" i))
+                              (vector-set! v i val)
+                              (void)))
+      (install 'vector->list (λ (args)
+                               (check-arg-count 'vector->list args 1)
+                               (define v (car args))
+                               (unless (vector? v)
+                                 (error 'minischeme "vector->list expects a vector, got ~a" v))
+                               (vector->list v)))
+      (install 'list->vector (λ (args)
+                               (check-arg-count 'list->vector args 1)
+                               (define v (car args))
+                               (ensure-list 'list->vector v)
+                               (list->vector v)))
+      (install 'vector-fill! (λ (args)
+                               (check-arg-count 'vector-fill! args 2)
+                               (define v (car args))
+                               (define val (cadr args))
+                               (unless (vector? v)
+                                 (error 'minischeme "vector-fill! expects a vector, got ~a" v))
+                               (vector-fill! v val)
+                               (void)))
+      (install 'char? (λ (args)
+                        (check-arg-count 'char? args 1)
+                        (char? (car args))))
+      (install 'char-alphabetic? (λ (args)
+                                   (check-arg-count 'char-alphabetic? args 1)
+                                   (define c (car args))
+                                   (unless (char? c)
+                                     (error 'minischeme "char-alphabetic? expects a character, got ~a" c))
+                                   (char-alphabetic? c)))
+      (install 'char-numeric? (λ (args)
+                                (check-arg-count 'char-numeric? args 1)
+                                (define c (car args))
+                                (unless (char? c)
+                                  (error 'minischeme "char-numeric? expects a character, got ~a" c))
+                                (char-numeric? c)))
+      (install 'char-whitespace? (λ (args)
+                                   (check-arg-count 'char-whitespace? args 1)
+                                   (define c (car args))
+                                   (unless (char? c)
+                                     (error 'minischeme "char-whitespace? expects a character, got ~a" c))
+                                   (char-whitespace? c)))
+      (install 'char-lower-case? (λ (args)
+                                   (check-arg-count 'char-lower-case? args 1)
+                                   (define c (car args))
+                                   (unless (char? c)
+                                     (error 'minischeme "char-lower-case? expects a character, got ~a" c))
+                                   (char-lower-case? c)))
+      (install 'char-upper-case? (λ (args)
+                                   (check-arg-count 'char-upper-case? args 1)
+                                   (define c (car args))
+                                   (unless (char? c)
+                                     (error 'minischeme "char-upper-case? expects a character, got ~a" c))
+                                   (char-upper-case? c)))
+      (install 'char->integer (λ (args)
+                                (check-arg-count 'char->integer args 1)
+                                (define c (car args))
+                                (unless (char? c)
+                                  (error 'minischeme "char->integer expects a character, got ~a" c))
+                                (char->integer c)))
+      (install 'char-upcase (λ (args)
+                              (check-arg-count 'char-upcase args 1)
+                              (define c (car args))
+                              (unless (char? c)
+                                (error 'minischeme "char-upcase expects a character, got ~a" c))
+                              (char-upcase c)))
+      (install 'char-downcase (λ (args)
+                                (check-arg-count 'char-downcase args 1)
+                                (define c (car args))
+                                (unless (char? c)
+                                  (error 'minischeme "char-downcase expects a character, got ~a" c))
+                                (char-downcase c)))
+      (install 'integer->char (λ (args)
+                                (check-arg-count 'integer->char args 1)
+                                (define i (car args))
+                                (unless (exact-nonnegative-integer? i)
+                                  (error 'minischeme "integer->char expects a nonnegative exact integer, got ~a" i))
+                                (integer->char i)))
+      (install 'char=? (λ (args)
+                         (check-at-least 'char=? args 2)
+                         (for-each (λ (v)
+                                     (unless (char? v)
+                                       (error 'minischeme "char=? expects characters, got ~a" v)))
+                                   args)
+                         (apply char=? args)))
+      (install 'char<? (λ (args)
+                         (check-at-least 'char<? args 2)
+                         (for-each (λ (v)
+                                     (unless (char? v)
+                                       (error 'minischeme "char<? expects characters, got ~a" v)))
+                                   args)
+                         (apply char<? args)))
+      (install 'char>? (λ (args)
+                         (check-at-least 'char>? args 2)
+                         (for-each (λ (v)
+                                     (unless (char? v)
+                                       (error 'minischeme "char>? expects characters, got ~a" v)))
+                                   args)
+                         (apply char>? args)))
+      (install 'char<=? (λ (args)
+                          (check-at-least 'char<=? args 2)
+                          (for-each (λ (v)
+                                      (unless (char? v)
+                                        (error 'minischeme "char<=? expects characters, got ~a" v)))
+                                    args)
+                          (apply char<=? args)))
+      (install 'char>=? (λ (args)
+                          (check-at-least 'char>=? args 2)
+                          (for-each (λ (v)
+                                      (unless (char? v)
+                                        (error 'minischeme "char>=? expects characters, got ~a" v)))
+                                    args)
+                          (apply char>=? args)))
+      (install 'char-ci=? (λ (args)
+                            (check-at-least 'char-ci=? args 2)
+                            (for-each (λ (v)
+                                        (unless (char? v)
+                                          (error 'minischeme "char-ci=? expects characters, got ~a" v)))
+                                      args)
+                            (apply char-ci=? args)))
+      (install 'char-ci<? (λ (args)
+                            (check-at-least 'char-ci<? args 2)
+                            (for-each (λ (v)
+                                        (unless (char? v)
+                                          (error 'minischeme "char-ci<? expects characters, got ~a" v)))
+                                      args)
+                            (apply char-ci<? args)))
+      (install 'char-ci>? (λ (args)
+                            (check-at-least 'char-ci>? args 2)
+                            (for-each (λ (v)
+                                        (unless (char? v)
+                                          (error 'minischeme "char-ci>? expects characters, got ~a" v)))
+                                      args)
+                            (apply char-ci>? args)))
+      (install 'char-ci<=? (λ (args)
+                             (check-at-least 'char-ci<=? args 2)
+                             (for-each (λ (v)
+                                         (unless (char? v)
+                                           (error 'minischeme "char-ci<=? expects characters, got ~a" v)))
+                                       args)
+                             (apply char-ci<=? args)))
+      (install 'char-ci>=? (λ (args)
+                             (check-at-least 'char-ci>=? args 2)
+                             (for-each (λ (v)
+                                         (unless (char? v)
+                                           (error 'minischeme "char-ci>=? expects characters, got ~a" v)))
+                                       args)
+                             (apply char-ci>=? args)))
+      (install 'string? (λ (args)
+                          (check-arg-count 'string? args 1)
+                          (string? (car args))))
+      (install 'make-string (λ (args)
+                              (unless (or (= (length args) 1) (= (length args) 2))
+                                (error 'minischeme "make-string expects 1 or 2 arguments"))
+                              (define n (car args))
+                              (unless (exact-nonnegative-integer? n)
+                                (error 'minischeme "make-string expects a nonnegative exact integer length, got ~a" n))
+                              (if (= (length args) 1)
+                                  (make-string n #\space)
+                                  (let ([c (cadr args)])
+                                    (unless (char? c)
+                                      (error 'minischeme "make-string expects a character fill, got ~a" c))
+                                    (make-string n c)))))
+      (install 'string (λ (args)
+                         (for-each (λ (v)
+                                     (unless (char? v)
+                                       (error 'minischeme "string expects characters, got ~a" v)))
+                                   args)
+                         (list->string args)))
+      (install 'string-length (λ (args)
+                                (check-arg-count 'string-length args 1)
+                                (define s (car args))
+                                (unless (string? s)
+                                  (error 'minischeme "string-length expects a string, got ~a" s))
+                                (string-length s)))
+      (install 'string-ref (λ (args)
+                             (check-arg-count 'string-ref args 2)
+                             (define s (car args))
+                             (define i (cadr args))
+                             (unless (string? s)
+                               (error 'minischeme "string-ref expects a string, got ~a" s))
+                             (unless (exact-nonnegative-integer? i)
+                               (error 'minischeme "string-ref expects a nonnegative exact integer index, got ~a" i))
+                             (string-ref s i)))
+      (install 'string-set! (λ (args)
+                              (check-arg-count 'string-set! args 3)
+                              (define s (car args))
+                              (define i (cadr args))
+                              (define c (caddr args))
+                              (unless (string? s)
+                                (error 'minischeme "string-set! expects a string, got ~a" s))
+                              (unless (exact-nonnegative-integer? i)
+                                (error 'minischeme "string-set! expects a nonnegative exact integer index, got ~a" i))
+                              (unless (char? c)
+                                (error 'minischeme "string-set! expects a character, got ~a" c))
+                              (string-set! s i c)
+                              (void)))
+      (install 'substring (λ (args)
+                            (unless (or (= (length args) 2) (= (length args) 3))
+                              (error 'minischeme "substring expects 2 or 3 arguments"))
+                            (define s (car args))
+                            (define start (cadr args))
+                            (unless (string? s)
+                              (error 'minischeme "substring expects a string, got ~a" s))
+                            (unless (exact-nonnegative-integer? start)
+                              (error 'minischeme "substring expects a nonnegative exact integer start, got ~a" start))
+                            (if (= (length args) 2)
+                                (substring s start)
+                                (let ([end (caddr args)])
+                                  (unless (exact-nonnegative-integer? end)
+                                    (error 'minischeme "substring expects a nonnegative exact integer end, got ~a" end))
+                                  (substring s start end)))))
+      (install 'string-append (λ (args)
+                                (for-each (λ (v)
+                                            (unless (string? v)
+                                              (error 'minischeme "string-append expects strings, got ~a" v)))
+                                          args)
+                                (apply string-append args)))
+      (install 'string->list (λ (args)
+                               (check-arg-count 'string->list args 1)
+                               (define s (car args))
+                               (unless (string? s)
+                                 (error 'minischeme "string->list expects a string, got ~a" s))
+                               (string->list s)))
+      (install 'list->string (λ (args)
+                               (check-arg-count 'list->string args 1)
+                               (define xs (car args))
+                               (ensure-list 'list->string xs)
+                               (for-each (λ (v)
+                                           (unless (char? v)
+                                             (error 'minischeme "list->string expects a list of characters, got element ~a" v)))
+                                         xs)
+                               (list->string xs)))
+      (install 'string-copy (λ (args)
+                              (check-arg-count 'string-copy args 1)
+                              (define s (car args))
+                              (unless (string? s)
+                                (error 'minischeme "string-copy expects a string, got ~a" s))
+                              (string-copy s)))
+      (install 'string-fill! (λ (args)
+                               (check-arg-count 'string-fill! args 2)
+                               (define s (car args))
+                               (define c (cadr args))
+                               (unless (string? s)
+                                 (error 'minischeme "string-fill! expects a string, got ~a" s))
+                               (unless (char? c)
+                                 (error 'minischeme "string-fill! expects a character, got ~a" c))
+                               (string-fill! s c)
+                               (void)))
+      (install 'string=? (λ (args)
+                           (check-at-least 'string=? args 2)
+                           (for-each (λ (v)
+                                       (unless (string? v)
+                                         (error 'minischeme "string=? expects strings, got ~a" v)))
+                                     args)
+                           (apply string=? args)))
+      (install 'string<? (λ (args)
+                           (check-at-least 'string<? args 2)
+                           (for-each (λ (v)
+                                       (unless (string? v)
+                                         (error 'minischeme "string<? expects strings, got ~a" v)))
+                                     args)
+                           (apply string<? args)))
+      (install 'string>? (λ (args)
+                           (check-at-least 'string>? args 2)
+                           (for-each (λ (v)
+                                       (unless (string? v)
+                                         (error 'minischeme "string>? expects strings, got ~a" v)))
+                                     args)
+                           (apply string>? args)))
+      (install 'string<=? (λ (args)
+                            (check-at-least 'string<=? args 2)
+                            (for-each (λ (v)
+                                        (unless (string? v)
+                                          (error 'minischeme "string<=? expects strings, got ~a" v)))
+                                      args)
+                            (apply string<=? args)))
+      (install 'string>=? (λ (args)
+                            (check-at-least 'string>=? args 2)
+                            (for-each (λ (v)
+                                        (unless (string? v)
+                                          (error 'minischeme "string>=? expects strings, got ~a" v)))
+                                      args)
+                            (apply string>=? args)))
+      (install 'string-ci=? (λ (args)
+                              (check-at-least 'string-ci=? args 2)
+                              (for-each (λ (v)
+                                          (unless (string? v)
+                                            (error 'minischeme "string-ci=? expects strings, got ~a" v)))
+                                        args)
+                              (apply string-ci=? args)))
+      (install 'string-ci<? (λ (args)
+                              (check-at-least 'string-ci<? args 2)
+                              (for-each (λ (v)
+                                          (unless (string? v)
+                                            (error 'minischeme "string-ci<? expects strings, got ~a" v)))
+                                        args)
+                              (apply string-ci<? args)))
+      (install 'string-ci>? (λ (args)
+                              (check-at-least 'string-ci>? args 2)
+                              (for-each (λ (v)
+                                          (unless (string? v)
+                                            (error 'minischeme "string-ci>? expects strings, got ~a" v)))
+                                        args)
+                              (apply string-ci>? args)))
+      (install 'string-ci<=? (λ (args)
+                               (check-at-least 'string-ci<=? args 2)
+                               (for-each (λ (v)
+                                           (unless (string? v)
+                                             (error 'minischeme "string-ci<=? expects strings, got ~a" v)))
+                                         args)
+                               (apply string-ci<=? args)))
+      (install 'string-ci>=? (λ (args)
+                               (check-at-least 'string-ci>=? args 2)
+                               (for-each (λ (v)
+                                           (unless (string? v)
+                                             (error 'minischeme "string-ci>=? expects strings, got ~a" v)))
+                                         args)
+                               (apply string-ci>=? args)))
+      (install 'pair? (λ (args)
+                        (check-arg-count 'pair? args 1)
+                        (pair? (car args))))
+      (install 'null? (λ (args)
+                        (check-arg-count 'null? args 1)
+                        (null? (car args))))
+      (install 'symbol? (λ (args)
+                          (check-arg-count 'symbol? args 1)
+                          (symbol? (car args))))
+      (install 'procedure? (λ (args)
+                             (check-arg-count 'procedure? args 1)
+                             (procedure-value? (car args))))
+      (install 'symbol->string (λ (args)
+                                 (check-arg-count 'symbol->string args 1)
+                                 (define s (car args))
+                                 (unless (symbol? s)
+                                   (error 'minischeme "symbol->string expects a symbol, got ~a" s))
+                                 (symbol->string s)))
+      (install 'string->symbol (λ (args)
+                                 (check-arg-count 'string->symbol args 1)
+                                 (define s (car args))
+                                 (unless (string? s)
+                                   (error 'minischeme "string->symbol expects a string, got ~a" s))
+                                 (string->symbol s)))
+      (install 'number? (λ (args)
+                          (check-arg-count 'number? args 1)
+                          (number? (car args))))
+      (install 'real? (λ (args)
+                        (check-arg-count 'real? args 1)
+                        (real? (car args))))
+      (install 'rational? (λ (args)
+                            (check-arg-count 'rational? args 1)
+                            (and (real? (car args))
+                                 (not (nan-value? (car args)))
+                                 (not (infinite-value? (car args))))))
+      (install 'integer? (λ (args)
+                           (check-arg-count 'integer? args 1)
+                           (integer? (car args))))
+      (install 'exact? (λ (args)
+                         (check-arg-count 'exact? args 1)
+                         (exact? (car args))))
+      (install 'inexact? (λ (args)
+                           (check-arg-count 'inexact? args 1)
+                           (inexact? (car args))))
+      (install 'boolean? (λ (args)
+                           (check-arg-count 'boolean? args 1)
+                           (boolean? (car args))))
+      (install 'not (λ (args)
+                      (check-arg-count 'not args 1)
+                      (not (car args))))
+      (install 'equal? (λ (args)
+                         (check-arg-count 'equal? args 2)
+                         (equal? (car args) (cadr args))))
+      (install 'eq? (λ (args)
+                      (check-arg-count 'eq? args 2)
+                      (eq? (car args) (cadr args))))
+      (install 'eqv? (λ (args)
+                       (check-arg-count 'eqv? args 2)
+                       (eqv? (car args) (cadr args))))
+      (install 'append (λ (args)
+                         (let loop-append-check ([xs args])
+                           (unless (or (null? xs) (null? (cdr xs)))
+                             (ensure-list 'append (car xs))
+                             (loop-append-check (cdr xs))))
+                         (apply append args)))
+      (install 'reverse (λ (args)
+                          (check-arg-count 'reverse args 1)
+                          (ensure-list 'reverse (car args))
+                          (reverse (car args))))
+      (install 'length (λ (args)
+                         (check-arg-count 'length args 1)
+                         (ensure-list 'length (car args))
+                         (length (car args))))
+      (install 'list-ref (λ (args)
+                           (check-arg-count 'list-ref args 2)
+                           (define lst (car args))
+                           (define idx (cadr args))
+                           (ensure-list 'list-ref lst)
+                           (unless (exact-nonnegative-integer? idx)
+                             (error 'minischeme "list-ref expects a nonnegative exact integer index, got ~a" idx))
+                           (list-ref lst idx)))
+      (install 'list-tail (λ (args)
+                            (check-arg-count 'list-tail args 2)
+                            (list-tail* 'list-tail (car args) (cadr args))))
+      (install 'first (λ (args)
+                        (check-arg-count 'first args 1)
+                        (define lst (car args))
+                        (ensure-list 'first lst)
+                        (when (null? lst)
+                          (error 'minischeme "first expects a non-empty list"))
+                        (car lst)))
+      (install 'second (λ (args)
+                         (check-arg-count 'second args 1)
+                         (define lst (car args))
+                         (ensure-list 'second lst)
+                         (when (or (null? lst) (null? (cdr lst)))
+                           (error 'minischeme "second expects a list with at least 2 elements"))
+                         (cadr lst)))
+      (install 'rest (λ (args)
+                       (check-arg-count 'rest args 1)
+                       (define lst (car args))
+                       (ensure-list 'rest lst)
+                       (when (null? lst)
+                         (error 'minischeme "rest expects a non-empty list"))
+                       (cdr lst)))
+      (install 'memq (λ (args)
+                       (check-arg-count 'memq args 2)
+                       (mem* 'memq eq? (car args) (cadr args))))
+      (install 'memv (λ (args)
+                       (check-arg-count 'memv args 2)
+                       (mem* 'memv eqv? (car args) (cadr args))))
+      (install 'member (λ (args)
+                         (check-arg-count 'member args 2)
+                         (mem* 'member equal? (car args) (cadr args))))
+      (install 'assq (λ (args)
+                       (check-arg-count 'assq args 2)
+                       (assoc* 'assq eq? (car args) (cadr args))))
+      (install 'assv (λ (args)
+                       (check-arg-count 'assv args 2)
+                       (assoc* 'assv eqv? (car args) (cadr args))))
+      (install 'assoc (λ (args)
+                        (check-arg-count 'assoc args 2)
+                        (assoc* 'assoc equal? (car args) (cadr args))))
+      (for-each
+       (λ (name)
+         (define name-str (symbol->string name))
+         (define middle (substring name-str 1 (sub1 (string-length name-str))))
+         (install name (λ (args)
+                         (check-arg-count name args 1)
+                         (selector-apply name (car args) middle))))
+       '(caar cadr cdar cddr
+         caaar caadr cadar caddr cdaar cdadr cddar cdddr
+         caaaar caaadr caadar caaddr cadaar cadadr caddar cadddr
+         cdaaar cdaadr cdadar cdaddr cddaar cddadr cdddar cddddr))
+      (install 'zero? (λ (args)
+                        (check-arg-count 'zero? args 1)
+                        (unless (number? (car args))
+                          (error 'minischeme "zero? expects a number, got ~a" (car args)))
+                        (zero? (car args))))
+      (install 'add1 (λ (args)
+                       (check-arg-count 'add1 args 1)
+                       (unless (number? (car args))
+                         (error 'minischeme "add1 expects a number, got ~a" (car args)))
+                       (add1 (car args))))
+      (install 'sub1 (λ (args)
+                       (check-arg-count 'sub1 args 1)
+                       (unless (number? (car args))
+                         (error 'minischeme "sub1 expects a number, got ~a" (car args)))
+                       (sub1 (car args))))
+      (install 'positive? (λ (args)
+                            (check-arg-count 'positive? args 1)
+                            (unless (number? (car args))
+                              (error 'minischeme "positive? expects a number, got ~a" (car args)))
+                            (positive? (car args))))
+      (install 'negative? (λ (args)
+                            (check-arg-count 'negative? args 1)
+                            (unless (number? (car args))
+                              (error 'minischeme "negative? expects a number, got ~a" (car args)))
+                            (negative? (car args))))
+      (install 'even? (λ (args)
+                        (check-arg-count 'even? args 1)
+                        (unless (integer? (car args))
+                          (error 'minischeme "even? expects an integer, got ~a" (car args)))
+                        (even? (car args))))
+      (install 'odd? (λ (args)
+                       (check-arg-count 'odd? args 1)
+                       (unless (integer? (car args))
+                         (error 'minischeme "odd? expects an integer, got ~a" (car args)))
+                       (odd? (car args))))
+      (install 'abs (λ (args)
+                      (check-arg-count 'abs args 1)
+                      (unless (number? (car args))
+                        (error 'minischeme "abs expects a number, got ~a" (car args)))
+                      (abs (car args))))
+      (install 'quotient (λ (args)
+                           (check-arg-count 'quotient args 2)
+                           (check-integers 'quotient args)
+                           (quotient (car args) (cadr args))))
+      (install 'remainder (λ (args)
+                            (check-arg-count 'remainder args 2)
+                            (check-integers 'remainder args)
+                            (remainder (car args) (cadr args))))
+      (install 'modulo (λ (args)
+                         (check-arg-count 'modulo args 2)
+                         (check-integers 'modulo args)
+                         (modulo (car args) (cadr args))))
+      (install 'gcd (λ (args)
+                      (check-integers 'gcd args)
+                      (apply gcd args)))
+      (install 'lcm (λ (args)
+                      (check-integers 'lcm args)
+                      (apply lcm args)))
+      (install 'numerator (λ (args)
+                            (check-arg-count 'numerator args 1)
+                            (unless (integer? (car args))
+                              (error 'minischeme "numerator currently supports integers only, got ~a" (car args)))
+                            (car args)))
+      (install 'denominator (λ (args)
+                              (check-arg-count 'denominator args 1)
+                              (unless (integer? (car args))
+                                (error 'minischeme "denominator currently supports integers only, got ~a" (car args)))
+                              1))
+      (install 'floor (λ (args)
+                        (check-arg-count 'floor args 1)
+                        (check-reals 'floor args)
+                        (floor (car args))))
+      (install 'ceiling (λ (args)
+                          (check-arg-count 'ceiling args 1)
+                          (check-reals 'ceiling args)
+                          (ceiling (car args))))
+      (install 'truncate (λ (args)
+                           (check-arg-count 'truncate args 1)
+                           (check-reals 'truncate args)
+                           (truncate (car args))))
+      (install 'round (λ (args)
+                        (check-arg-count 'round args 1)
+                        (check-reals 'round args)
+                        (round (car args))))
+      (install 'rationalize (λ (args)
+                              (check-arg-count 'rationalize args 2)
+                              (check-reals 'rationalize args)
+                              (car args)))
+      (install 'max (λ (args)
+                      (check-at-least 'max args 1)
+                      (check-numbers 'max args)
+                      (apply max args)))
+      (install 'min (λ (args)
+                      (check-at-least 'min args 1)
+                      (check-numbers 'min args)
+                      (apply min args)))
+      (install 'exp (λ (args)
+                      (check-arg-count 'exp args 1)
+                      (check-numbers 'exp args)
+                      (exp (car args))))
+      (install 'log (λ (args)
+                      (check-arg-count 'log args 1)
+                      (check-numbers 'log args)
+                      (log (car args))))
+      (install 'sin (λ (args)
+                      (check-arg-count 'sin args 1)
+                      (check-numbers 'sin args)
+                      (sin (car args))))
+      (install 'cos (λ (args)
+                      (check-arg-count 'cos args 1)
+                      (check-numbers 'cos args)
+                      (cos (car args))))
+      (install 'tan (λ (args)
+                      (check-arg-count 'tan args 1)
+                      (check-numbers 'tan args)
+                      (tan (car args))))
+      (install 'asin (λ (args)
+                       (check-arg-count 'asin args 1)
+                       (check-numbers 'asin args)
+                       (asin (car args))))
+      (install 'acos (λ (args)
+                       (check-arg-count 'acos args 1)
+                       (check-numbers 'acos args)
+                       (acos (car args))))
+      (install 'atan (λ (args)
+                       (unless (or (= (length args) 1) (= (length args) 2))
+                         (error 'minischeme "atan expects 1 or 2 arguments"))
+                       (check-numbers 'atan args)
+                       (if (= (length args) 1)
+                           (atan (car args))
+                           (atan (car args) (cadr args)))))
+      (install 'sinh (λ (args)
+                       (check-arg-count 'sinh args 1)
+                       (check-numbers 'sinh args)
+                       (sinh (car args))))
+      (install 'cosh (λ (args)
+                       (check-arg-count 'cosh args 1)
+                       (check-numbers 'cosh args)
+                       (cosh (car args))))
+      (install 'tanh (λ (args)
+                       (check-arg-count 'tanh args 1)
+                       (check-numbers 'tanh args)
+                       (tanh (car args))))
+      (install 'asinh (λ (args)
+                        (check-arg-count 'asinh args 1)
+                        (check-numbers 'asinh args)
+                        (ms-asinh (car args))))
+      (install 'acosh (λ (args)
+                        (check-arg-count 'acosh args 1)
+                        (check-numbers 'acosh args)
+                        (ms-acosh (car args))))
+      (install 'atanh (λ (args)
+                        (check-arg-count 'atanh args 1)
+                        (check-numbers 'atanh args)
+                        (ms-atanh (car args))))
+      (install 'sqrt (λ (args)
+                       (check-arg-count 'sqrt args 1)
+                       (check-numbers 'sqrt args)
+                       (sqrt (car args))))
+      (install 'expt (λ (args)
+                       (check-arg-count 'expt args 2)
+                       (check-numbers 'expt args)
+                       (expt (car args) (cadr args))))
+      (install 'exact->inexact (λ (args)
+                                 (check-arg-count 'exact->inexact args 1)
+                                 (check-numbers 'exact->inexact args)
+                                 (exact->inexact (car args))))
+      (install 'inexact->exact (λ (args)
+                                 (check-arg-count 'inexact->exact args 1)
+                                 (check-numbers 'inexact->exact args)
+                                 (inexact->exact (car args))))
+      (install 'number->string (λ (args)
+                                 (unless (or (= (length args) 1) (= (length args) 2))
+                                   (error 'minischeme "number->string expects 1 or 2 arguments"))
+                                 (unless (number? (car args))
+                                   (error 'minischeme "number->string expects a number, got ~a" (car args)))
+                                 (if (= (length args) 1)
+                                     (number->string (car args))
+                                     (number->string (car args) (cadr args)))))
+      (install 'string->number (λ (args)
+                                 (unless (or (= (length args) 1) (= (length args) 2))
+                                   (error 'minischeme "string->number expects 1 or 2 arguments"))
+                                 (unless (string? (car args))
+                                   (error 'minischeme "string->number expects a string, got ~a" (car args)))
+                                 (if (= (length args) 1)
+                                     (string->number (car args))
+                                     (string->number (car args) (cadr args)))))
+      ;; Higher-order primitives are handled in `apply-now`.
+      (install 'apply (λ (_args)
+                        (error 'minischeme "internal error: apply should be handled by evaluator")))
+      (install 'map (λ (_args)
+                      (error 'minischeme "internal error: map should be handled by evaluator")))
+      (install 'for-each (λ (_args)
+                           (error 'minischeme "internal error: for-each should be handled by evaluator")))
+      (install 'filter (λ (_args)
+                         (error 'minischeme "internal error: filter should be handled by evaluator")))
+      (install 'values (λ (_args)
+                         (error 'minischeme "internal error: values should be handled by evaluator")))
+      (install 'call-with-values (λ (_args)
+                                   (error 'minischeme "internal error: call-with-values should be handled by evaluator")))
+      (install 'call/cc (λ (_args)
+                          (error 'minischeme "internal error: call/cc should be handled by evaluator")))
+      (install 'call-with-current-continuation (λ (_args)
+                                                 (error 'minischeme "internal error: call-with-current-continuation should be handled by evaluator")))
+      (install 'dynamic-wind (λ (_args)
+                               (error 'minischeme "internal error: dynamic-wind should be handled by evaluator")))
+      (install 'force (λ (_args)
+                        (error 'minischeme "internal error: force should be handled by evaluator")))
+      (install 'eval (λ (_args)
+                       (error 'minischeme "internal error: eval should be handled by evaluator")))
+      (install 'interaction-environment (λ (_args)
+                                          (error 'minischeme "internal error: interaction-environment should be handled by evaluator")))
+      (install 'scheme-report-environment (λ (_args)
+                                            (error 'minischeme "internal error: scheme-report-environment should be handled by evaluator")))
+      (install 'null-environment (λ (_args)
+                                   (error 'minischeme "internal error: null-environment should be handled by evaluator")))
+      (install 'display (λ (args)
+                          (check-arg-count 'display args 1)
+                          (write-string (display-value->string (car args)) current-output)
+                          (void)))
+      (install 'displayln (λ (args)
+                            (check-arg-count 'displayln args 1)
+                            (write-string (display-value->string (car args)) current-output)
+                            (write-string "\n" current-output)
+                            (void)))
+      (install 'write (λ (args)
+                        (check-arg-count 'write args 1)
+                        (write-string (value->string (car args)) current-output)
+                        (void)))
+      (install 'writeln (λ (args)
+                          (check-arg-count 'writeln args 1)
+                          (write-string (value->string (car args)) current-output)
+                          (write-string "\n" current-output)
+                          (void)))
+      (install 'write-char (λ (args)
+                             (check-arg-count 'write-char args 1)
+                             (define c (car args))
+                             (unless (char? c)
+                               (error 'minischeme "write-char expects a character, got ~a" c))
+                             (write-string (string c) current-output)
+                             (void)))
+      (install 'newline (λ (args)
+                          (check-arg-count 'newline args 0)
+                          (write-string "\n" current-output)
+                          (void)))
+      (install 'promise? (λ (args)
+                           (check-arg-count 'promise? args 1)
+                           (promise? (car args))))
+      (install 'promise-forced? (λ (args)
+                                  (check-arg-count 'promise-forced? args 1)
+                                  (define v (car args))
+                                  (unless (promise? v)
+                                    (error 'minischeme "promise-forced?: expected a promise, got ~a" v))
+                                  (or (eq? (promise-state v) 'forced)
+                                      (eq? (promise-state v) 'failed))))
+      (install 'promise-running? (λ (args)
+                                   (check-arg-count 'promise-running? args 1)
+                                   (define v (car args))
+                                   (unless (promise? v)
+                                     (error 'minischeme "promise-running?: expected a promise, got ~a" v))
+                                   (eq? (promise-state v) 'running)))
+      (define sorted-primitives (sort all-primitives (λ (x y) (symbol<? x y))))
+      (define sorted-constants  (sort all-constants  (λ (x y) (symbol<? x y))))
+      (define sorted-keywords   (sort all-keywords   (λ (x y) (symbol<? x y))))
 
-  (install 'symbol?  (λ (args)
-                       (check-arg-count 'symbol? args 1)
-                       (symbol? (car args))))
-  (install 'number?  (λ (args)
-                       (check-arg-count 'number? args 1)
-                       (number? (car args))))
-  (install 'boolean? (λ (args)
-                       (check-arg-count 'boolean? args 1)
-                       (boolean? (car args))))
-  (install 'not      (λ (args)
-                       (check-arg-count 'not args 1)
-                       (false? (car args))))
-  (install 'equal?   (λ (args)
-                       (check-arg-count 'equal? args 2)
-                       (equal? (car args) (cadr args))))
+      (set! minischeme-primitives-cache sorted-primitives)
+      (set! minischeme-keywords-cache   sorted-keywords)
 
-  ; The syntax highlighter needs to know the names
-  ; of the primitives.
-  (set! all-primitives-names
-        (map symbol->string (sort all-primitives (λ (x y) (symbol<? x y)))))
+      (constant 'primitives sorted-primitives)
+      (constant 'constants  sorted-constants)
+      (constant 'keywords   sorted-keywords)
+      base-env)
 
-  (constant 'primitives (sort all-primitives (λ (x y) (symbol<? x y))))
-  (constant 'constants  (sort all-constants  (λ (x y) (symbol<? x y))))
-  (constant 'keywords   (sort all-keywords   (λ (x y) (symbol<? x y))))
-  (constant 'help       (list "Available primitives and constants:"
-                              (sort (append all-primitives all-constants)
-                                    (λ (x y) (symbol<? x y)))))
+    (define global-env     #f)
+    (define current-output #f)
+    (define current-job    #f)
 
-  ; Return environment
-  base-env)
+    (define (reset-state!)
+      (set! global-env (create-initial-state))
+      (set! current-output (open-output-string))
+      (set! current-job #f))
 
-(define minischeme-global-env #f)
+    (define (reset-output!)
+      (set! current-output (open-output-string)))
 
-(define (get-minischeme-global-env)
-  minischeme-global-env)
+    (define (get-output!)
+      (if current-output
+          (get-output-string current-output)
+          ""))
 
-(define (reset-minischeme-state!)
-  (set! minischeme-global-env (create-initial-state)))
+    ;; Parse via WebRacket's `read`.
+    (define (parse-program/read s)
+      (define in (open-input-string s))
+      (let loop ([exprs '()])
+        (define datum (read in))
+        (if (eof-object? datum)
+            (reverse exprs)
+            (loop (cons datum exprs)))))
 
-(define (parse-program s)
-  (define in (open-input-string s))
-  (let loop ([acc '()])
-    (define next (read in))
-    (if (eof-object? next)
-        (reverse acc)
-        (loop (cons next acc)))))
+    (define (value->string v)
+      (cond
+        [(closure? v)           "#<closure>"]
+        [(prim? v)              (format "#<primitive ~a>" (prim-name v))]
+        [(captured-kont? v)     "#<continuation>"]
+        [(environment-value? v) "#<environment>"]
+        [(void? v)              "#<void>"]
+        [else                   (format "~s" v)]))
 
-(define (value->string v)
-  (cond
-    [(closure? v)  "#<closure>"]
-    [(prim? v)     (format "#<primitive ~a>" (prim-name v))]
-    [(void? v)     "#<void>"]
-    [else          (format "~s" v)]))
+    (define (display-value->string v)
+      (cond
+        [(closure? v)           "#<closure>"]
+        [(prim? v)              (format "#<primitive ~a>" (prim-name v))]
+        [(captured-kont? v)     "#<continuation>"]
+        [(environment-value? v) "#<environment>"]
+        [(void? v)              "#<void>"]
+        [else                   (format "~a" v)]))
 
-(define (apply-procedure value args caller-env kont loop)
-  (cond
-    [(closure? value)
-     (define params (closure-params value))
-     (define-values (required rest-id) (split-formals params))
-     (define req-count (length required))
-     (define arg-count (length args))
-     (if rest-id
-         (when (< arg-count req-count)
-           (error 'minischeme "arity mismatch: expected at least ~a arguments, got ~a"
-                  req-count arg-count))
-         (unless (= req-count arg-count)
-           (error 'minischeme "arity mismatch: expected ~a arguments, got ~a"
-                  req-count arg-count)))
-     (define new-env (make-env (closure-env value)))
-     (let bind-loop ([ps required] [as args])
-       (unless (null? ps)
-         (ensure-identifier (car ps))
-         (env-define! new-env (car ps) (car as))
-         (bind-loop (cdr ps) (cdr as))))
-     (when rest-id
-       (ensure-identifier rest-id)
-       (env-define! new-env rest-id (list-tail args req-count)))
-     (define body (closure-body value))
-     (if (null? body)
-         (loop 'value (void) caller-env kont)
-         (loop 'eval (car body) new-env
-               (cons (k-begin (cdr body) new-env) kont)))]
-    [(prim? value)
-     (define result ((prim-proc value) args))
-     (loop 'value result caller-env kont)]
-    [else
-     (error 'minischeme "application of non-procedure: ~a" value)]))
-
-(define (desugar-let bindings body)
-  (define vars '())
-  (define vals '())
-  (for-each
-   (λ (binding)
-     (unless (and (pair? binding)
-                  (symbol? (car binding))
-                  (pair? (cdr binding))
-                  (null? (cddr binding)))
-       (error 'minischeme "malformed let binding: ~s" binding))
-     (set! vars (cons (car binding) vars))
-     (set! vals (cons (cadr binding) vals)))
-   bindings)
-  (cons (cons 'lambda (cons (reverse vars) body))
-        (reverse vals)))
-
-(define (cek-evaluate expr env)
-  (let loop ([mode        'eval]
-             [control     expr]
-             [current-env env]
-             [kont        '()])
-    (define (continue mode control env kont)
-      (loop mode control env kont))
-    (define (apply-now proc args env kont)
-      (apply-procedure proc args env kont continue))
-    (define (eval-sequence forms env kont)
-      (if (null? forms)
-          (continue 'value (void) env kont)
-          (continue 'eval (car forms) env
-                    (cons (k-begin (cdr forms) env) kont))))
-    (cond
-      [(eq? mode 'eval)
-       (cond
-         [(literal? control)
-          (continue 'value control current-env kont)]
-         [(symbol? control)
-          (continue 'value (env-lookup current-env control) current-env kont)]
-         [(and (pair? control) (eq? (car control) 'quote))
-          (let ([rest (cdr control)])
-            (if (and (pair? rest) (null? (cdr rest)))
-                (continue 'value (car rest) current-env kont)
-                (error 'minischeme "malformed quote: ~s" control)))]
-         [(and (pair? control) (eq? (car control) 'lambda))
-          (let ([rest (cdr control)])
-            (if (and (pair? rest))
-                (let ([params (car rest)]
-                      [body (cdr rest)])
-                  (continue 'value (closure (ensure-parameters params) body current-env)
-                            current-env kont))
-                (error 'minischeme "malformed lambda: ~s" control)))]
-         [(and (pair? control) (eq? (car control) 'if))
-          (let* ([rest (cdr control)]
-                 [len (length rest)])
+    (define (top-level-value->string v)
+      (if (mvals? v)
+          (let ([vs (mvals-vals v)])
             (cond
-              [(or (< len 2) (> len 3)) (error 'minischeme "malformed if: ~s" control)]
+              [(null? vs) "=> ; no values"]
               [else
-               (define test (car rest))
-               (define then (cadr rest))
-               (define else-expr (if (= len 3) (caddr rest) no-else))
-               (continue 'eval test current-env
-                         (cons (k-if then else-expr current-env) kont))]))]
-         [(and (pair? control) (eq? (car control) 'begin))
-          (eval-sequence (cdr control) current-env kont)]
-         [(and (pair? control) (eq? (car control) 'set!))
-          (let ([rest (cdr control)])
-            (if (and (pair? rest)
-                     (symbol? (car rest))
-                     (pair? (cdr rest))
-                     (null? (cddr rest)))
-                (let ([name (car rest)]
-                      [rhs (cadr rest)])
-                  (define cell (env-lookup-cell current-env name))
-                  (continue 'eval rhs current-env
-                            (cons (k-set! cell name) kont)))
-                (error 'minischeme "malformed set!: ~s" control)))]
-         [(and (pair? control) (eq? (car control) 'define))
-          (let ([rest (cdr control)])
+               (string-append
+                "=> "
+                (string-join (map value->string vs) "\n=> "))]))
+          (string-append "=> " (value->string v))))
+
+    (define (apply-procedure value args caller-env kont loop)
+      (cond
+        [(closure? value)
+         (define params    (closure-params value))
+         (define-values (required rest-id) (split-formals params))
+         (define req-count (length required))
+         (define arg-count (length args))
+         (if rest-id
+             (when (< arg-count req-count)
+               (error 'minischeme "arity mismatch: expected at least ~a arguments, got ~a"
+                      req-count arg-count))
+             (unless (= req-count arg-count)
+               (error 'minischeme "arity mismatch: expected ~a arguments, got ~a"
+                      req-count arg-count)))
+         (define new-env (make-env (closure-env value)))
+         (let bind-loop ([ps required] [as args])
+           (unless (null? ps)
+             (ensure-identifier (car ps))
+             (env-define! new-env (car ps) (car as))
+             (bind-loop (cdr ps) (cdr as))))
+         (when rest-id
+           (ensure-identifier rest-id)
+           (env-define! new-env rest-id (list-tail args req-count)))
+         (define body (closure-body value))
+         (if (null? body)
+             (loop 'value (void)     caller-env kont)
+             (loop 'eval  (car body) new-env
+                   (cons (k-begin (cdr body) new-env) kont)))]
+        [(prim? value)
+         (define result ((prim-proc value) args))
+         (loop 'value result caller-env kont)]
+        [else
+         (error 'minischeme "application of non-procedure: ~a" value)]))
+
+    (define (validate-binding binding who)
+      (unless (and (pair?   binding)
+                   (symbol? (car binding))
+                   (pair?   (cdr binding))
+                   (null?   (cddr binding)))
+        (error 'minischeme "~a binding malformed: ~s" who binding)))
+
+    (define (validate-bindings bindings who)
+      (unless (list? bindings)
+        (error 'minischeme "~a malformed: bindings must be a list: ~s" who bindings))
+      (for-each (λ (b) (validate-binding b who)) bindings))
+
+    (define (expand-body forms)
+      (cond
+        [(null? forms)       '(begin)]
+        [(null? (cdr forms)) (expand-expr (car forms))]
+        [else                (cons 'begin (map expand-expr forms))]))
+
+    (define (expand-and forms)
+      (cond
+        [(null? forms)       #t]
+        [(null? (cdr forms)) (expand-expr (car forms))]
+        [else
+         (list 'if (expand-expr (car forms))
+               (expand-and (cdr forms))
+               #f)]))
+
+    (define (expand-or forms)
+      (cond
+        [(null? forms)       #f]
+        [(null? (cdr forms)) (expand-expr (car forms))]
+        [else
+         (define tmp (gensym 'or-tmp))
+         (list 'let (list (list tmp (expand-expr (car forms))))
+               (list 'if tmp tmp (expand-or (cdr forms))))]))
+
+    (define (desugar-cond clauses)
+      (cond
+        [(null? clauses) '(begin)]
+        [else
+         (define clause (car clauses))
+         (unless (pair? clause)
+           (error 'minischeme "malformed cond clause: ~s" clause))
+         (define test (car clause))
+         (define body (cdr clause))
+         (cond
+           [(eq? test 'else)
+            (unless (null? (cdr clauses))
+              (error 'minischeme "cond: else clause must be last: ~s" clauses))
+            (expand-body body)]
+           [(and (pair? body) (eq? (car body) '=>))
+            (unless (and (pair? (cdr body)) (null? (cddr body)))
+              (error 'minischeme "malformed cond => clause: ~s" clause))
+            (define tmp       (gensym 'cond-tmp))
+            (define recipient (cadr body))
+            (list 'let (list (list tmp (expand-expr test)))
+                  (list 'if tmp
+                        (list (expand-expr recipient) tmp)
+                        (desugar-cond (cdr clauses))))]
+           [(null? body)
+            (define tmp (gensym 'cond-tmp))
+            (list 'let (list (list tmp (expand-expr test)))
+                  (list 'if tmp tmp (desugar-cond (cdr clauses))))]
+           [else
+            (list 'if (expand-expr test)
+                  (expand-body body)
+                  (desugar-cond (cdr clauses)))])]))
+
+    (define (case-clause-test key clauses)
+      (expand-or
+       (map (λ (datum) (list 'equal? key (list 'quote datum))) clauses)))
+
+    (define (desugar-case key clauses)
+      (define tmp (gensym 'case-key))
+      (define (loop cls)
+        (cond
+          [(null? cls) '(begin)]
+          [else
+           (define clause (car cls))
+           (unless (pair? clause)
+             (error 'minischeme "malformed case clause: ~s" clause))
+           (define head (car clause))
+           (define body (cdr clause))
+           (cond
+             [(eq? head 'else)
+              (unless (null? (cdr cls))
+                (error 'minischeme "case: else clause must be last: ~s" clauses))
+              (expand-body body)]
+             [(list? head)
+              (list 'if (case-clause-test tmp head)
+                    (expand-body body)
+                    (loop (cdr cls)))]
+             [else
+              (error 'minischeme "malformed case clause: ~s" clause)])]))
+      (list 'let (list (list tmp (expand-expr key)))
+            (loop clauses)))
+
+    (define (expand-binding b)
+      (unless (and (pair? b)
+                   (symbol? (car b))
+                   (pair? (cdr b))
+                   (null? (cddr b)))
+        (error 'minischeme "malformed binding: ~s" b))
+      (list (car b) (expand-expr (cadr b))))
+
+    (define (desugar-do tail expr)
+      (unless (pair? tail)
+        (error 'minischeme "malformed do: ~s" expr))
+      (define bindings (car tail))
+      (define rest     (cdr tail))
+      (unless (pair? rest)
+        (error 'minischeme "malformed do: ~s" expr))
+      (define test-clause (car rest))
+      (define commands    (cdr rest))
+      (unless (list? bindings)
+        (error 'minischeme "do malformed: bindings must be a list: ~s" bindings))
+      (unless (and (pair? test-clause) (list? test-clause))
+        (error 'minischeme "malformed do test clause: ~s" test-clause))
+      (define inits '())
+      (define steps '())
+      (for-each
+       (λ (binding)
+         (unless (and (pair? binding) (symbol? (car binding)))
+           (error 'minischeme "do binding malformed: ~s" binding))
+         (define var  (car binding))
+         (define spec (cdr binding))
+         (unless (or (and (pair? spec) (null? (cdr spec)))
+                     (and (pair? spec) (pair? (cdr spec)) (null? (cddr spec))))
+           (error 'minischeme "do binding malformed: ~s" binding))
+         (define init (car spec))
+         (define step (if (null? (cdr spec)) var (cadr spec)))
+         (set! inits (cons (list var init) inits))
+         (set! steps (cons step steps)))
+       bindings)
+      (define test      (car test-clause))
+      (define results   (cdr test-clause))
+      (define loop-name (gensym 'do-loop))
+      (expand-expr
+       (list 'let loop-name (reverse inits)
+             (list 'if test
+                   (if (null? results)
+                       '(begin)
+                       (cons 'begin results))
+                   (cons 'begin
+                         (append commands
+                                 (list (cons loop-name (reverse steps)))))))))
+
+    (define (expand-expr expr)
+      (cond
+        [(or (symbol? expr)
+             (number? expr)
+             (boolean? expr)
+             (string? expr)
+             (char? expr)
+             (null? expr)
+             (vector? expr))
+         expr]
+        [(pair? expr)
+         (define head (car expr))
+         (define tail (cdr expr))
+         (cond
+           [(eq? head 'quote)            expr]
+           [(eq? head 'quasiquote)       expr]
+           [(eq? head 'unquote)          expr]
+           [(eq? head 'unquote-splicing) expr]
+           [(eq? head 'and)              (expand-and tail)]
+           [(eq? head 'or)               (expand-or tail)]
+           [(eq? head 'when)
+            (unless (pair? tail)
+              (error 'minischeme "malformed when: ~s" expr))
+            (list 'if (expand-expr (car tail))
+                  (expand-body (cdr tail))
+                  '(begin))]
+           [(eq? head 'unless)
+            (unless (pair? tail)
+              (error 'minischeme "malformed unless: ~s" expr))
+            (list 'if (expand-expr (car tail))
+                  '(begin)
+                  (expand-body (cdr tail)))]
+           [(eq? head 'cond) (desugar-cond tail)]
+           [(eq? head 'case)
+            (unless (pair? tail)
+              (error 'minischeme "malformed case: ~s" expr))
+            (desugar-case (car tail) (cdr tail))]
+           [(eq? head 'let*)
+            (unless (pair? tail)
+              (error 'minischeme "malformed let*: ~s" expr))
+            (cons 'let* (cons (map expand-binding (car tail))
+                              (map expand-expr (cdr tail))))]
+           [(eq? head 'letrec)
+            (unless (pair? tail)
+              (error 'minischeme "malformed letrec: ~s" expr))
+            (cons 'letrec (cons (map expand-binding (car tail))
+                                (map expand-expr (cdr tail))))]
+           [(eq? head 'let)
+            (unless (pair? tail)
+              (error 'minischeme "malformed let: ~s" expr))
+            (if (symbol? (car tail))
+                (let* ([name (car tail)]
+                       [named-tail (cdr tail)])
+                  (unless (pair? named-tail)
+                    (error 'minischeme "malformed named let: ~s" expr))
+                  (define bindings (car named-tail))
+                  (define body (cdr named-tail))
+                  (validate-bindings bindings 'let)
+                  (define params (map car bindings))
+                  (define args (map cadr bindings))
+                  (expand-expr
+                   (list 'letrec
+                         (list (list name (cons 'lambda (cons params body))))
+                         (cons name args))))
+                (cons 'let (cons (map expand-binding (car tail))
+                                 (map expand-expr (cdr tail)))))]
+           [(eq? head 'do) (desugar-do tail expr)]
+           [(eq? head 'delay)
+            (if (and (pair? tail) (null? (cdr tail)))
+                (list 'delay (expand-expr (car tail)))
+                (error 'minischeme "malformed delay: ~s" expr))]
+           [(eq? head 'lambda)
+            (if (and (pair? tail) (pair? (cdr tail)))
+                (cons 'lambda (cons (car tail) (map expand-expr (cdr tail))))
+                expr)]
+           [(eq? head 'if)
+            (if (and (pair? tail) (pair? (cdr tail)))
+                (let ([test (car tail)]
+                      [then (cadr tail)]
+                      [else-tail (cddr tail)])
+                  (if (null? else-tail)
+                      (list 'if (expand-expr test) (expand-expr then))
+                      (list 'if (expand-expr test)
+                            (expand-expr then)
+                            (expand-expr (car else-tail)))))
+                expr)]
+           [(eq? head 'begin) (cons 'begin (map expand-expr tail))]
+           [(eq? head 'set!)
+            (if (and (pair? tail) (pair? (cdr tail)) (null? (cddr tail)))
+                (list 'set! (car tail) (expand-expr (cadr tail)))
+                expr)]
+           [(eq? head 'define)
             (cond
-              [(and (pair? rest) (symbol? (car rest)))
-               (let ([name (car rest)]
-                     [tail (cdr rest)])
-                 (unless (and (pair? tail) (null? (cdr tail)))
-                   (error 'minischeme "malformed define: ~s" control))
-                 (define cell (if (env-bound-current? current-env name)
-                                  (hash-ref (env-table current-env) name)
-                                  (let ([c (box uninitialized)])
-                                    (env-define-cell! current-env name c)
-                                    c)))
-                 (set-box! cell uninitialized)
-                 (continue 'eval (car tail) current-env
-                           (cons (k-define cell name) kont)))]
-              [(and (pair? rest)
-                    (pair? (car rest))
-                    (symbol? (caar rest)))
-               (let* ([head (car rest)]
-                      [name (car head)]
-                      [params (cdr head)]
-                      [body (cdr rest)])
-                 (define cell (if (env-bound-current? current-env name)
-                                  (hash-ref (env-table current-env) name)
-                                  (let ([c (box uninitialized)])
-                                    (env-define-cell! current-env name c)
-                                    c)))
-                 (set-box! cell uninitialized)
-                 (define lambda-expr (cons 'lambda (cons params body)))
-                 (continue 'eval lambda-expr current-env
-                           (cons (k-define cell name) kont)))]
-              [else (error 'minischeme "malformed define: ~s" control)]))]
-         [(and (pair? control) (eq? (car control) 'let))
-          (let ([rest (cdr control)])
-            (if (and (pair? rest))
-                (let ([bindings (car rest)]
-                      [body (cdr rest)])
-                  (continue 'eval (desugar-let bindings body) current-env kont))
-                (error 'minischeme "malformed let: ~s" control)))]
-         [(pair? control)
-          (define op (car control))
-          (define args (cdr control))
-          (continue 'eval op current-env
-                    (cons (k-apply args current-env) kont))]
-         [else
-          (error 'minischeme "cannot evaluate expression ~a" control)])]
-      [(eq? mode 'value)
-       (if (null? kont)
-           (values control current-env)
-           (let* ([frame (car kont)]
-                  [rest (cdr kont)])
+              [(and (pair? tail) (symbol? (car tail))
+                    (pair? (cdr tail)) (null? (cddr tail)))
+               (list 'define (car tail) (expand-expr (cadr tail)))]
+              [(and (pair? tail) (pair? (car tail)) (symbol? (caar tail)))
+               (cons 'define
+                     (cons (car tail) (map expand-expr (cdr tail))))]
+              [else expr])]
+           [else (map expand-expr expr)])]
+        [else expr]))
+
+    (define (expand-program exprs)
+      (map expand-expr exprs))
+
+    (define (single-arg who form)
+      (define rest (cdr form))
+      (unless (and (pair? rest) (null? (cdr rest)))
+        (error 'minischeme "~a: malformed form: ~s" who form))
+      (car rest))
+
+    (define (cek-evaluate expr
+                          env
+                          [initial-kont '()]
+                          [initial-winds '()]
+                          [controller #f]
+                          [allow-yield? #t]
+                          [resume-state #f])
+      (define start-mode
+        (if resume-state (cek-state-mode resume-state) 'eval))
+      (define start-control
+        (if resume-state (cek-state-control resume-state) expr))
+      (define start-env
+        (if resume-state (cek-state-env resume-state) env))
+      (define start-kont
+        (if resume-state (cek-state-kont resume-state) initial-kont))
+      (define start-winds
+        (if resume-state (cek-state-winds resume-state) initial-winds))
+      (let loop ([mode          start-mode]
+                 [control       start-control]
+                 [current-env   start-env]
+                 [kont          start-kont]
+                 [current-winds start-winds])
+        (when controller
+          (when ((run-controller-stop? controller))
+            (raise
+             (exn:fail:minischeme-stop
+              "MiniScheme evaluation stopped"
+              (current-continuation-marks))))
+          (define next-count (+ 1 (run-controller-step-count controller)))
+          (set-run-controller-step-count! controller next-count)
+          (when (and allow-yield?
+                     (>= next-count (run-controller-step-limit controller)))
+            (raise
+             (exn:fail:minischeme-yield
+              "MiniScheme evaluation yielded"
+              (current-continuation-marks)
+              (cek-state mode control current-env kont current-winds)))))
+        (define (continue mode control env kont [winds current-winds])
+          (loop mode control env kont winds))
+        (define (eval-now e env [winds current-winds])
+          (call-with-values
+           (λ () (cek-evaluate e env '() winds controller #f #f))
+           (λ (v _env _winds) v)))
+        (define (apply-now proc args env kont [winds current-winds])
+          (define (apply-result proc args [winds* winds])
+            (define tmp-env (make-env env))
+            (define f-id    (gensym 'apply-f))
+            (env-define! tmp-env f-id proc)
+            (define arg-ids
+              (let loop-args ([xs args] [acc '()])
+                (if (null? xs)
+                    (reverse acc)
+                    (let ([id (gensym 'apply-a)])
+                      (env-define! tmp-env id (car xs))
+                      (loop-args (cdr xs) (cons id acc))))))
+            (eval-now (cons f-id arg-ids) tmp-env winds*))
+          (define (apply-single proc args who)
+            (single-value who (apply-result proc args)))
+          (define (continue* mode control env kont [w winds])
+            (continue mode control env kont w))
+          (define (common-prefix-length xs ys)
+            (let loop-prefix ([xs xs] [ys ys] [n 0])
+              (if (or (null? xs) (null? ys) (not (eq? (car xs) (car ys))))
+                  n
+                  (loop-prefix (cdr xs) (cdr ys) (add1 n)))))
+          (define (invoke-captured-cont k arg)
+            (define target-kont  (captured-kont-kont k))
+            (define target-env   (captured-kont-env k))
+            (define target-winds (captured-kont-winds k))
+            (define current-out  (reverse winds))
+            (define target-out   (reverse target-winds))
+            (define common       (common-prefix-length current-out target-out))
+            (define after-count  (- (length winds) common))
+            (define before-out   (drop target-out common))
+            (define run-winds    winds)
+            (for-each
+             (λ (wf)
+               (void (apply-result (wind-after wf) '() run-winds))
+               (set! run-winds (cdr run-winds)))
+             (take current-winds after-count))
+            (for-each
+             (λ (wf)
+               (void (apply-result (wind-before wf) '() run-winds))
+               (set! run-winds (cons wf run-winds)))
+             before-out)
+            (continue 'value arg target-env target-kont run-winds))
+          (cond
+            [(captured-kont? proc)
+             (check-arg-count 'continuation args 1)
+             (invoke-captured-cont proc (car args))]
+            [(prim? proc)
+             (let ([pname (prim-name proc)])
+               (cond
+                 [(eq? pname 'apply)
+                  (check-at-least 'apply args 2)
+                  (define proc-arg (car args))
+                  (define initial (cdr (drop-right args 1)))
+                  (define final-list (last args))
+                  (ensure-list 'apply final-list)
+                  (apply-now proc-arg (append initial final-list) env kont)]
+                 [(eq? pname 'values)
+                  (continue 'value (mvals args) env kont winds)]
+                 [(eq? pname 'call-with-values)
+                  (check-arg-count 'call-with-values args 2)
+                  (define producer (car args))
+                  (define consumer (cadr args))
+                  (define produced (apply-result producer '()))
+                  (apply-now consumer (value->values-list produced) env kont winds)]
+                 [(or (eq? pname 'call/cc)
+                      (eq? pname 'call-with-current-continuation))
+                  (check-arg-count pname args 1)
+                  (define proc-arg (car args))
+                  (define k-proc   (captured-kont kont env winds))
+                  (apply-now proc-arg (list k-proc) env kont winds)]
+                 [(eq? pname 'dynamic-wind)
+                  (check-arg-count 'dynamic-wind args 3)
+                  (define before (car   args))
+                  (define thunk  (cadr  args))
+                  (define after  (caddr args))
+                  (unless (procedure-value? before)
+                    (error 'minischeme "dynamic-wind: before must be a procedure, got ~a" before))
+                  (unless (procedure-value? thunk)
+                    (error 'minischeme "dynamic-wind: thunk must be a procedure, got ~a" thunk))
+                  (unless (procedure-value? after)
+                    (error 'minischeme "dynamic-wind: after must be a procedure, got ~a" after))
+                  (define wf (wind before after))
+                  (apply-now before '() env
+                            (cons (k-dw-enter wf thunk env winds) kont)
+                            winds)]
+                 [(eq? pname 'force)
+                  (check-arg-count 'force args 1)
+                  (define v (car args))
+                  (if (promise? v)
+                      (let ([state (promise-state v)])
+                        (cond
+                          [(eq? state 'forced)
+                           (continue 'value (promise-value v) env kont winds)]
+                          [(eq? state 'failed)
+                           (raise (promise-value v))]
+                          [(eq? state 'running)
+                           (error 'minischeme "force: reentrant force on running promise")]
+                          [(eq? state 'pending)
+                           (define thunk (promise-thunk v))
+                           (unless (procedure-value? thunk)
+                             (error 'minischeme "force: invalid promise thunk ~a" thunk))
+                           (set-promise-state! v 'running)
+                           (with-handlers
+                             ([(λ (_e) #t)
+                               (λ (e)
+                                 (set-promise-state! v 'failed)
+                                 (set-promise-value! v e)
+                                 (set-promise-thunk! v #f)
+                                 (raise e))])
+                             (apply-now thunk '() env (cons (k-force v) kont) winds))]
+                          [else
+                           (error 'minischeme "force: invalid promise state ~a" state)]))
+                      (continue 'value v env kont winds))]
+                 [(eq? pname 'eval)
+                  (check-arg-count 'eval args 2)
+                  (define expr       (car  args))
+                  (define env-value  (cadr args))
+                  (define target-env (environment-value-env/checked 'eval env-value))
+                  (continue 'eval (expand-expr expr) target-env kont winds)]
+                 [(eq? pname 'interaction-environment)
+                  (check-arg-count 'interaction-environment args 0)
+                  (continue 'value (environment-value global-env) env kont winds)]
+                 [(eq? pname 'scheme-report-environment)
+                  (check-r5rs-version 'scheme-report-environment args)
+                  (continue 'value
+                            (environment-value (create-initial-state))
+                            env
+                            kont
+                            winds)]
+                 [(eq? pname 'null-environment)
+                  (check-r5rs-version 'null-environment args)
+                  (continue 'value
+                            (environment-value (make-env #f))
+                            env
+                            kont
+                            winds)]
+                 [(eq? pname 'map)
+                  (check-at-least 'map args 2)
+                  (define f     (car args))
+                  (define lists (cdr args))
+                  (for-each (λ (lst) (ensure-list 'map lst)) lists)
+                  (let loop-map ([xss lists] [acc '()])
+                    (cond
+                      [(andmap null? xss)
+                       (continue 'value (reverse acc) env kont winds)]
+                      [(ormap null? xss)
+                       (error 'minischeme "map expects lists of the same length")]
+                      [else
+                       (define step-args (map car xss))
+                       (define next-xss (map cdr xss))
+                       (define mapped (apply-single f step-args 'map))
+                       (loop-map next-xss (cons mapped acc))]))]
+                 [(eq? pname 'for-each)
+                  (check-at-least 'for-each args 2)
+                  (define f     (car args))
+                  (define lists (cdr args))
+                  (for-each (λ (lst) (ensure-list 'for-each lst)) lists)
+                  (let loop-for-each ([xss lists])
+                    (cond
+                      [(andmap null? xss)
+                       (continue 'value (void) env kont winds)]
+                      [(ormap null? xss)
+                       (error 'minischeme "for-each expects lists of the same length")]
+                      [else
+                       (define step-args (map car xss))
+                       (define next-xss (map cdr xss))
+                       (apply-single f step-args 'for-each)
+                       (loop-for-each next-xss)]))]
+                 [(eq? pname 'filter)
+                  (check-arg-count 'filter args 2)
+                  (define pred (car args))
+                  (define lst  (cadr args))
+                  (ensure-list 'filter lst)
+                  (let loop-filter ([xs lst] [acc '()])
+                    (if (null? xs)
+                        (continue 'value (reverse acc) env kont winds)
+                        (let ([ok (apply-single pred (list (car xs)) 'filter)])
+                          (loop-filter (cdr xs)
+                                       (if (not ok)
+                                           acc
+                                           (cons (car xs) acc))))))]
+                 [else
+                  (apply-procedure proc args env kont continue*)]))]
+            [else
+             (apply-procedure proc args env kont continue*)]))
+        (define (eval-sequence forms env kont)
+          (if (null? forms)
+              (continue 'value (void)      env kont)
+              (continue 'eval  (car forms) env
+                        (cons (k-begin (cdr forms) env) kont))))
+
+        (define (qq-general datum depth)
+          (cond
+            [(pair? datum)
+             (define head (car datum))
              (cond
-               [(k-apply? frame)
-                (define args (k-apply-args frame))
-                (define call-env (k-apply-env frame))
-                (if (null? args)
-                    (apply-now control '() call-env rest)
-                    (continue 'eval (car args) call-env
-                              (cons (k-args control (cdr args) call-env '()) rest)))]
-               [(k-args? frame)
-                (define proc (k-args-proc frame))
-                (define rest-args (k-args-rest frame))
-                (define call-env (k-args-env frame))
-                (define collected (cons control (k-args-values frame)))
-                (if (null? rest-args)
-                    (apply-now proc (reverse collected) call-env rest)
-                    (continue 'eval (car rest-args) call-env
-                              (cons (k-args proc (cdr rest-args) call-env collected) rest)))]
-               [(k-if? frame)
-                (define branch-env (k-if-env frame))
-                (define then (k-if-then frame))
-                (define else-expr (k-if-else frame))
-                (if (false? control)
-                    (if (eq? else-expr no-else)
-                        (continue 'value (void) branch-env rest)
-                        (continue 'eval else-expr branch-env rest))
-                    (continue 'eval then branch-env rest))]
-               [(k-begin? frame)
-                (define begin-env (k-begin-env frame))
-                (define rest-forms (k-begin-rest frame))
-                (if (null? rest-forms)
-                    (continue 'value control begin-env rest)
-                    (continue 'eval (car rest-forms) begin-env
-                              (cons (k-begin (cdr rest-forms) begin-env) rest)))]
-               [(k-set!? frame)
-                (set-box! (k-set!-cell frame) control)
-                (continue 'value control current-env rest)]
-               [(k-define? frame)
-                (set-box! (k-define-cell frame) control)
-                (continue 'value (k-define-name frame) current-env rest)]
+               [(and (symbol? head) (eq? head 'quasiquote))
+                (define arg (single-arg 'quasiquote datum))
+                (list 'quasiquote (qq-general arg (add1 depth)))]
+               [(and (symbol? head) (eq? head 'unquote))
+                (define arg (single-arg 'unquote datum))
+                (if (= depth 1)
+                    (eval-now arg current-env)
+                    (list 'unquote (qq-general arg (sub1 depth))))]
+               [(and (symbol? head) (eq? head 'unquote-splicing))
+                (define arg (single-arg 'unquote-splicing datum))
+                (if (= depth 1)
+                    (error 'minischeme "unquote-splicing outside list/vector context: ~s" datum)
+                    (list 'unquote-splicing (qq-general arg (sub1 depth))))]
                [else
-                (error 'minischeme "unknown continuation frame ~a" frame)])))]
-      [else
-       (error 'minischeme "invalid evaluation mode" mode)])))
+                (qq-list datum depth)])]
+            [(vector? datum)
+             (qq-vector datum depth)]
+            [else
+             datum]))
 
-(define (evaluate-program exprs)
-  (let loop ([forms      exprs]
-             [last-value (void)])
-    (if (null? forms)
-        last-value
-        (call-with-values
-         (λ ()
-           (cek-evaluate (car forms)
-                         minischeme-global-env))
-         (λ (value _env)
-           (loop (cdr forms) value))))))
+        (define (qq-item datum depth)
+          (if (and (pair?   datum)
+                   (symbol? (car datum))
+                   (eq?     (car datum) 'unquote-splicing))
+              (let ([arg (single-arg 'unquote-splicing datum)])
+                (if (= depth 1)
+                    (values #t (eval-now arg current-env))
+                    (values #f (list 'unquote-splicing
+                                     (qq-general arg (sub1 depth))))))
+              (values #f (qq-general datum depth))))
 
-(define (process-input s)
-  (unless minischeme-global-env
-    (reset-minischeme-state!))
+        (define (qq-list datum depth)
+          (cond
+            [(null? datum) '()]
+            [(pair? datum)
+             (define-values (splice? v) (qq-item (car datum) depth))
+             (define rest (qq-list (cdr datum) depth))
+             (if splice?
+                 (begin
+                   (unless (list? v)
+                     (error 'minischeme "unquote-splicing expects a list in list context: ~s" v))
+                   (append v rest))
+                 (cons v rest))]
+            [else
+             (qq-general datum depth)]))
 
-  (define-values (exprs read-error)
-    (with-handlers
-      ([exn:fail:read?
-        (λ (e)    (values #f (string-append "=> read error: " (exn-message e))))]
-       [(λ _ #t)
-        (λ (e)    (values #f (string-append "=> read error: " (exn-message e))))])
+        (define (qq-vector vec depth)
+          (let loopv ([xs (vector->list vec)] [acc '()])
+            (if (null? xs)
+                (list->vector (reverse acc))
+                (let-values ([(splice? v) (qq-item (car xs) depth)])
+                  (if splice?
+                      (begin
+                        (unless (list? v)
+                          (error 'minischeme "unquote-splicing expects a list in vector context: ~s" v))
+                        (loopv (cdr xs) (append (reverse v) acc)))
+                      (loopv (cdr xs) (cons v acc)))))))
 
-      (values (parse-program s) #f)))
+        (cond
+          [(eq? mode 'eval)
+           (cond
+             [(literal? control)
+              (continue 'value control current-env kont)]
+             [(symbol? control)
+              (continue 'value (env-lookup current-env control) current-env kont)]
+             [(and (pair? control) (eq? (car control) 'quote))
+             (let ([rest (cdr control)])
+                (if (and (pair? rest) (null? (cdr rest)))
+                    (continue 'value (car rest) current-env kont)
+                    (error 'minischeme "malformed quote: ~s" control)))]
+             [(and (pair? control) (eq? (car control) 'quasiquote))
+              (continue 'value (qq-general (single-arg 'quasiquote control) 1)
+                        current-env kont)]
+             [(and (pair? control) (eq? (car control) 'unquote))
+              (error 'minischeme "unquote outside quasiquote: ~s" control)]
+             [(and (pair? control) (eq? (car control) 'unquote-splicing))
+              (error 'minischeme "unquote-splicing outside quasiquote: ~s" control)]
+             [(and (pair? control) (eq? (car control) 'lambda))
+              (let ([rest (cdr control)])
+                (if (and (pair? rest))
+                    (let ([params (car rest)]
+                          [body   (cdr rest)])
+                      (continue 'value (closure (ensure-parameters params)
+                                                body current-env)
+                                current-env kont))
+                    (error 'minischeme "malformed lambda: ~s" control)))]
+             [(and (pair? control) (eq? (car control) 'delay))
+              (let ([rest (cdr control)])
+                (if (and (pair? rest) (null? (cdr rest)))
+                    (continue 'value
+                              (promise 'pending
+                                       (closure '() (list (car rest)) current-env)
+                                       #f)
+                              current-env
+                              kont)
+                    (error 'minischeme "malformed delay: ~s" control)))]
+             [(and (pair? control) (eq? (car control) 'if))
+              (let* ([rest (cdr control)]
+                     [len  (length rest)])
+                (cond
+                  [(or (< len 2) (> len 3))
+                   (error 'minischeme "malformed if: ~s" control)]
+                  [else
+                   (define test      (car rest))
+                   (define then      (cadr rest))
+                   (define else-expr (if (= len 3) (caddr rest) no-else))
+                   (continue 'eval test current-env
+                             (cons (k-if then else-expr current-env) kont))]))]
+             [(and (pair? control) (eq? (car control) 'begin))
+              (eval-sequence (cdr control) current-env kont)]
+             [(and (pair? control) (eq? (car control) 'set!))
+              (let ([rest (cdr control)])
+                (if (and (pair? rest)
+                         (symbol? (car rest))
+                         (pair?   (cdr rest))
+                         (null?   (cddr rest)))
+                    (let ([name (car rest)]
+                          [rhs  (cadr rest)])
+                      (define cell (env-lookup-cell current-env name))
+                      (continue 'eval rhs current-env
+                                (cons (k-set! cell name) kont)))
+                    (error 'minischeme "malformed set!: ~s" control)))]
+             [(and (pair? control) (eq? (car control) 'define))
+              (let ([rest (cdr control)])
+                (cond
+                  [(and (pair? rest) (symbol? (car rest)))
+                   (let ([name (car rest)]
+                         [tail (cdr rest)])
+                     (unless (and (pair? tail) (null? (cdr tail)))
+                       (error 'minischeme "malformed define: ~s" control))
+                     (define cell
+                       (if (env-bound-current? current-env name)
+                           (hash-ref (env-table current-env) name)
+                           (let ([c (box uninitialized)])
+                             (env-define-cell! current-env name c)
+                             c)))
+                     (set-box! cell uninitialized)
+                     (continue 'eval (car tail) current-env
+                               (cons (k-define cell name) kont)))]
+                  [(and (pair? rest)
+                        (pair? (car rest))
+                        (symbol? (caar rest)))
+                   (let* ([head   (car rest)]
+                          [name   (car head)]
+                          [params (cdr head)]
+                          [body   (cdr rest)])
+                     (define cell
+                       (if (env-bound-current? current-env name)
+                           (hash-ref (env-table current-env) name)
+                           (let ([c (box uninitialized)])
+                             (env-define-cell! current-env name c)
+                             c)))
+                     (set-box! cell uninitialized)
+                     (define lambda-expr (cons 'lambda (cons params body)))
+                     (continue 'eval lambda-expr current-env
+                               (cons (k-define cell name) kont)))]
+                  [else (error 'minischeme "malformed define: ~s" control)]))]
+             [(and (pair? control) (eq? (car control) 'let))
+              (let ([rest (cdr control)])
+                (if (and (pair? rest))
+                    (let ([bindings (car rest)]
+                          [body     (cdr rest)])
+                      (validate-bindings bindings 'let)
+                      (define vars (map car bindings))
+                      (define rhss (map cadr bindings))
+                      (if (null? rhss)
+                          (let ([new-env (make-env current-env)])
+                            (eval-sequence body new-env kont))
+                          (continue 'eval (car rhss) current-env
+                                    (cons (k-let vars (cdr rhss) '() body current-env)
+                                          kont))))
+                    (error 'minischeme "malformed let: ~s" control)))]
+             [(and (pair? control) (eq? (car control) 'let*))
+              (let ([rest (cdr control)])
+                (if (and (pair? rest))
+                    (let ([bindings (car rest)]
+                          [body     (cdr rest)])
+                      (validate-bindings bindings 'let*)
+                      (define base-env (make-env current-env))
+                      (if (null? bindings)
+                          (eval-sequence body base-env kont)
+                          (let ([b (car bindings)])
+                            (continue 'eval (cadr b) base-env
+                                      (cons (k-let* (car b) (cdr bindings) body base-env)
+                                            kont)))))
+                    (error 'minischeme "malformed let*: ~s" control)))]
+             [(and (pair? control) (eq? (car control) 'letrec))
+              (let ([rest (cdr control)])
+                (if (and (pair? rest))
+                    (let ([bindings (car rest)]
+                          [body     (cdr rest)])
+                      (validate-bindings bindings 'letrec)
+                      (if (and (pair? bindings) (null? (cdr bindings)))
+                          (let* ([binding (car bindings)])
+                            (unless (and (pair?   binding)
+                                         (symbol? (car binding))
+                                         (pair?   (cdr binding))
+                                         (null?   (cddr binding)))
+                              (error 'minischeme "malformed letrec binding: ~s" binding))
+                            (define new-env (make-env current-env))
+                            (define cell    (box uninitialized))
+                            (env-define-cell! new-env (car binding) cell)
+                            (continue 'eval (cadr binding) new-env
+                                      (cons (k-letrec1 cell body new-env) kont)))
+                          (let ([new-env (make-env current-env)])
+                            ;; Keep historical MiniScheme/Scheme behavior for
+                            ;; multi-binding letrec (regression-locked test).
+                            (define cells '())
+                            (define rhss  '())
+                            (for-each
+                             (λ (binding)
+                               (unless (and (pair?   binding)
+                                            (symbol? (car binding))
+                                            (pair?   (cdr binding))
+                                            (null?   (cddr binding)))
+                                 (error 'minischeme "malformed letrec binding: ~s" binding))
+                               (define cell (box uninitialized))
+                               (env-define-cell! new-env (car binding) cell)
+                               (set! cells (cons cell cells))
+                               (set! rhss (cons (cadr binding) rhss)))
+                             bindings)
+                            (let loopr ([cs (reverse cells)] [es (reverse rhss)])
+                              (unless (null? cs)
+                                (set-box! (car cs) (single-value 'letrec-binding
+                                                                 (eval-now (car es) new-env)))
+                                (loopr (cdr cs) (cdr es))))
+                            (eval-sequence body new-env kont))))
+                    (error 'minischeme "malformed letrec: ~s" control)))]
+             [(pair? control)
+              (define op   (car control))
+              (define args (cdr control))
+              (continue 'eval op current-env
+                        (cons (k-apply args current-env) kont))]
+             [else
+              (error 'minischeme "cannot evaluate expression ~a" control)])]
+          [(eq? mode 'value)
+           (if (null? kont)
+               (values control current-env current-winds)
+               (let* ([frame (car kont)]
+                      [rest  (cdr kont)])
+                 (cond
+                   [(k-apply? frame)
+                    (define args     (k-apply-args frame))
+                    (define call-env (k-apply-env frame))
+                    (define op       (single-value 'application control))
+                    (if (null? args)
+                        (apply-now op '() call-env rest)
+                        (continue 'eval (car args) call-env
+                                  (cons (k-args op (cdr args) call-env '())
+                                        rest)))]
+                   [(k-args? frame)
+                    (define proc      (k-args-proc frame))
+                    (define rest-args (k-args-rest frame))
+                    (define call-env  (k-args-env frame))
+                    (define arg       (single-value 'application-argument control))
+                    (define collected (cons arg (k-args-values frame)))
+                    (if (null? rest-args)
+                        (apply-now proc (reverse collected) call-env rest)
+                        (continue 'eval (car rest-args) call-env
+                                  (cons (k-args proc (cdr rest-args)
+                                                call-env collected) rest)))]
+                   [(k-if? frame)
+                    (define branch-env (k-if-env frame))
+                    (define then       (k-if-then frame))
+                    (define else-expr  (k-if-else frame))
+                    (define test-v    (single-value 'if-test control))
+                    (if (not test-v)
+                        (if (eq? else-expr no-else)
+                            (continue 'value (void) branch-env rest)
+                            (continue 'eval else-expr branch-env rest))
+                        (continue 'eval then branch-env rest))]
+                   [(k-begin? frame)
+                    (define begin-env  (k-begin-env frame))
+                    (define rest-forms (k-begin-rest frame))
+                    (if (null? rest-forms)
+                        (continue 'value control begin-env rest)
+                        (continue 'eval (car rest-forms) begin-env
+                                  (cons (k-begin (cdr rest-forms) begin-env) rest)))]
+                   [(k-let? frame)
+                    (define value     (single-value 'let-binding control))
+                    (define vars      (k-let-vars frame))
+                    (define rest-rhss (k-let-rest-rhss frame))
+                    (define values    (cons value (k-let-values frame)))
+                    (define let-env   (k-let-env frame))
+                    (define body      (k-let-body frame))
+                    (if (null? rest-rhss)
+                        (let ([new-env (make-env let-env)])
+                          (let bind-loop ([vs vars] [vals (reverse values)])
+                            (unless (null? vs)
+                              (env-define! new-env (car vs) (car vals))
+                              (bind-loop (cdr vs) (cdr vals))))
+                          (eval-sequence body new-env rest))
+                        (continue 'eval (car rest-rhss) let-env
+                                  (cons (k-let vars (cdr rest-rhss) values body let-env)
+                                        rest)))]
+                   [(k-let*? frame)
+                    (define value         (single-value 'let*-binding control))
+                    (define name          (k-let*-name frame))
+                    (define rest-bindings (k-let*-rest-bindings frame))
+                    (define body          (k-let*-body frame))
+                    (define let*-env      (k-let*-env frame))
+                    (define new-env       (make-env let*-env))
+                    (env-define! new-env name value)
+                    (if (null? rest-bindings)
+                        (eval-sequence body new-env rest)
+                        (let ([b (car rest-bindings)])
+                          (continue 'eval (cadr b) new-env
+                                    (cons (k-let* (car b) (cdr rest-bindings) body new-env)
+                                          rest))))]
+                   [(k-letrec1? frame)
+                    (set-box! (k-letrec1-cell frame)
+                              (single-value 'letrec-binding control))
+                    (eval-sequence (k-letrec1-body frame)
+                                   (k-letrec1-env frame)
+                                   rest)]
+                   [(k-set!? frame)
+                    (set-box! (k-set!-cell frame) (single-value (k-set!-name frame) control))
+                    (continue 'value control current-env rest)]
+                   [(k-define? frame)
+                   (set-box! (k-define-cell frame) (single-value (k-define-name frame) control))
+                   (continue 'value (k-define-name frame) current-env rest)]
+                   [(k-force? frame)
+                    (define p (k-force-promise frame))
+                    (set-promise-state! p 'forced)
+                    (set-promise-value! p control)
+                    (set-promise-thunk! p #f)
+                    (continue 'value control current-env rest)]
+                   [(k-dw-enter? frame)
+                    (define wf            (k-dw-enter-wf frame))
+                    (define thunk         (k-dw-enter-thunk frame))
+                    (define dyn-env       (k-dw-enter-env frame))
+                    (define winds-before  (k-dw-enter-winds-before frame))
+                    (define entered-winds (cons wf winds-before))
+                    (apply-now thunk '() dyn-env
+                              (cons (k-dw-exit (wind-after wf) dyn-env winds-before) rest)
+                              entered-winds)]
+                   [(k-dw-exit? frame)
+                    (define produced     control)
+                    (define after        (k-dw-exit-after frame))
+                    (define dyn-env      (k-dw-exit-env frame))
+                    (define winds-before (k-dw-exit-winds-before frame))
+                    (apply-now after '() dyn-env
+                              (cons (k-dw-return produced dyn-env winds-before) rest)
+                              current-winds)]
+                   [(k-dw-return? frame)
+                    (continue 'value
+                              (k-dw-return-produced frame)
+                              (k-dw-return-env frame)
+                              rest
+                              (k-dw-return-winds-before frame))]
+                   [else
+                    (error 'minischeme "unknown continuation frame ~a" frame)])))]
+          [else
+           (error 'minischeme "invalid evaluation mode" mode)])))
 
-  (if read-error
-      read-error
+    (define (evaluate-program exprs)
+      (let loop ([forms      exprs]
+                 [last-value (void)])
+        (if (null? forms)
+            last-value
+            (call-with-values
+             (λ () (cek-evaluate (car forms) global-env))
+             (λ (value _env _winds)
+               (loop (cdr forms) value))))))
+
+    (define (prepend-output result)
+      (define out (get-output!))
+      (if (string=? out "")
+          result
+          (if (and (> (string-length out) 0)
+                   (char=? (string-ref out (sub1 (string-length out))) #\newline))
+              (string-append out result)
+              (string-append out "\n" result))))
+
+    (define (format-read-error e)
+      (prepend-output (string-append "=> read error: " (exn-message e))))
+
+    (define (format-eval-error e)
+      (define msg    (exn-message e))
+      (define prefix "minischeme: ")
+      (define normalized
+        (if (and (>= (string-length msg) (string-length prefix))
+                 (string=? (substring msg 0 (string-length prefix)) prefix))
+            (substring msg (string-length prefix))
+            msg))
+      (prepend-output (string-append "=> eval error: " normalized)))
+
+    (define (parse-and-expand-program s)
       (with-handlers
-        ([exn:minischeme:undefined? (λ (e) (string-append "=> " (exn-message e)))]
-         [(λ _ #t)                  (λ _ "evaluation error")])
-        (if (null? exprs)
-            "=> ; no input"
-            (let ([value (evaluate-program exprs)])
-              (string-append "=> " (value->string value)))))))
+        ([exn:fail:read?
+          (λ (e) (values #f (format-read-error e)))]
+         [exn:fail?
+          (λ (e) (values #f (format-eval-error e)))]
+         [(λ _ #t)
+          (λ (e) (values #f (format-read-error e)))])
+        (values (expand-program (parse-program/read s)) #f)))
+
+    ;; start-job! : string -> (values symbol string)
+    ;; Initializes a new cooperative evaluation job from source text.
+    ;; Status symbols:
+    ;; - 'ready : accepted and ready for stepping
+    ;; - 'done  : immediate completion (for empty input)
+    ;; - 'error : parse/expand failure, message already formatted
+    ;;
+    ;; Side effects:
+    ;; - clears any previous job
+    ;; - resets output buffer for the new run
+    (define (start-job! s)
+      (unless global-env
+        (reset-state!))
+      (set! current-job #f)
+      (reset-output!)
+      (define-values (expanded read-error)
+        (parse-and-expand-program s))
+      (cond
+        [read-error
+         (values 'error read-error)]
+        [(null? expanded)
+         (values 'done (prepend-output "=> ; no input"))]
+        [else
+         (set! current-job (eval-job expanded #f (void) #f))
+         (values 'ready "")]))
+
+    ;; job-active? : -> boolean
+    ;; Returns #t iff a job object is currently active (running or paused by caller).
+    (define (job-active?)
+      (and current-job #t))
+
+    ;; job-stop! : -> void
+    ;; Requests cooperative stop by setting the job stop-flag.
+    ;; The stop takes effect on the next `job-step!`.
+    (define (job-stop!)
+      (when current-job
+        (set-eval-job-stop?! current-job #t))
+      (void))
+
+    (define (job-running-output)
+      (get-output!))
+
+    ;; job-step! : [exact-positive-integer] -> (values symbol string)
+    ;; Executes up to `step-limit` CEK transitions in the current job.
+    ;; If omitted or invalid, `step-limit` defaults to 4000.
+    ;;
+    ;; Status symbols:
+    ;; - 'idle    : no active job exists
+    ;; - 'running : job yielded due to step limit
+    ;; - 'done    : evaluation completed successfully
+    ;; - 'stopped : stop request observed
+    ;; - 'error   : evaluation failed, message already formatted
+    ;;
+    ;; Output string is the current visible output text for UI display.
+    (define (job-step! [step-limit 4000])
+      (if (not current-job)
+          (values 'idle "No active computation.")
+          (let* ([normalized-step-limit
+                  (if (and (exact-integer? step-limit) (> step-limit 0))
+                      step-limit
+                      4000)]
+                 [controller
+                  (run-controller normalized-step-limit
+                                  0
+                                  (λ () (and current-job (eval-job-stop? current-job))))])
+            (let loop ()
+              (cond
+                [(not current-job)
+                 (values 'idle "No active computation.")]
+                [(null? (eval-job-remaining current-job))
+                 (define final-out
+                   (prepend-output (top-level-value->string (eval-job-last-value current-job))))
+                 (set! current-job #f)
+                 (values 'done final-out)]
+                [else
+                 (define expr (car (eval-job-remaining current-job)))
+                 (define resume-state (eval-job-current-state current-job))
+                 (with-handlers
+                   ([exn:fail:minischeme-yield?
+                     (λ (e)
+                       (set-eval-job-current-state! current-job
+                                                    (exn:fail:minischeme-yield-state e))
+                       (values 'running (job-running-output)))]
+                    [exn:fail:minischeme-stop?
+                     (λ (_e)
+                       (define stopped-out (prepend-output "=> execution stopped."))
+                       (set! current-job #f)
+                       (values 'stopped stopped-out))]
+                    [exn:fail?
+                     (λ (e)
+                       (define err-out (format-eval-error e))
+                       (set! current-job #f)
+                       (values 'error err-out))])
+                   (call-with-values
+                    (λ ()
+                      (cek-evaluate expr
+                                    global-env
+                                    '()
+                                    '()
+                                    controller
+                                    #t
+                                    resume-state))
+                    (λ (value _env _winds)
+                      (set-eval-job-last-value! current-job value)
+                      (set-eval-job-current-state! current-job #f)
+                      (set-eval-job-remaining! current-job
+                                               (cdr (eval-job-remaining current-job)))
+                      (if (null? (eval-job-remaining current-job))
+                          (let ([final-out (prepend-output (top-level-value->string value))])
+                            (set! current-job #f)
+                            (values 'done final-out))
+                          (loop)))))])))))
+
+    (define (process-input s)
+      (unless global-env
+        (reset-state!))
+      (set! current-job #f)
+      (reset-output!)
+      (define-values (expanded read-error)
+        (parse-and-expand-program s))
+      (if read-error
+          read-error
+          (with-handlers
+            ([exn:fail? (λ (e) (format-eval-error e))])
+            (if (null? expanded)
+                (prepend-output "=> ; no input")
+                (let ([value (evaluate-program expanded)])
+                  (prepend-output (top-level-value->string value)))))))
+
+    (reset-state!)
+    (values reset-state! process-input start-job! job-step! job-stop! job-active?)))
