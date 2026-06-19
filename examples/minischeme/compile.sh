@@ -6,7 +6,7 @@ ROOT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 RACKET="${RACKET:-racket}"
 BASENAME="minischeme-page"
 CACHE_TAG="expander-read-provider"
-PROVIDER_CACHE_DIR="$SCRIPT_DIR/generated/.provider-cache-$CACHE_TAG"
+PROVIDER_CACHE_DIR="${PROVIDER_CACHE_DIR:-$SCRIPT_DIR/generated/.provider-cache-$CACHE_TAG}"
 COMPILED_ROOTS_DIR="${PLTCOMPILEDROOTS:-$SCRIPT_DIR/generated/.compiled-$CACHE_TAG}"
 
 cd "$SCRIPT_DIR"

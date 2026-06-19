@@ -28,7 +28,7 @@ are listed separately and are not intended to compile directly as tutorials.
 | Console Bridge | `console-bridge/console-bridge.rkt` | `already-module` | Browser console bridge example. |
 | Xterm.js Demo | `xtermjs-demo/xtermjs-demo.rkt` | `already-module` | Browser terminal example. |
 | Pict | `pict/pict.rkt` | `already-module` | Module-based browser example with local assets and `generated/` output. |
-| MiniScheme | `minischeme/minischeme-page.rkt` | `module-based` | Browser REPL page backed by a module-based MiniScheme interpreter. |
+| MiniScheme | `minischeme/minischeme-page.rkt` | `module-based` | Browser REPL page backed by a module-based MiniScheme interpreter; uses staged reader support and an opt-in slow browser smoke. |
 | MiniScheme 2 | `minischeme2/minischeme-page.rkt` | `duplicate/pending` | Duplicate MiniScheme copy; do not port separately unless it regains a distinct purpose. |
 | MathJax 4 | `mathjax4/mathjax.rkt` | `module-based` | Module-based browser example with CDN-loaded MathJax preview. |
 | Matrix Rain | `matrix-rain/matrix-rain.rkt` | `legacy-script` | Browser/xterm example with old top-level script shape. |

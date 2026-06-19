@@ -40,3 +40,15 @@ The page exposes a small browser smoke marker:
 - `#status[data-state="loading"]` while initializing
 - `#status[data-state="ready"]` when the REPL is ready
 - `#status[data-state="error"]` if evaluation fails
+
+## Slow Smoke
+
+Run the guarded browser smoke from this folder:
+
+```sh
+./check-smoke.sh
+```
+
+It compiles with the staged `expander/read` provider under an RSS/time guard,
+then verifies in a headless browser that the page reaches `ready` and
+evaluating `(+ 1 2)` produces `=> 3`.
