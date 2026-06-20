@@ -3,7 +3,7 @@
 (require browser/dom
          racket/include
          racket/list
-         racket/match
+         racket/unsafe/undefined
          webracket/define-key
          (only-in webracket/primitives
                   external?

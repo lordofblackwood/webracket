@@ -2610,7 +2610,12 @@
 ;; matricies to allow for easy composition. This
 ;; converts back to the 2x3 form used by dc<%>
 (define (convert-affine-form v)
-  (match-define (vector a b e c d f _ _ _) v)
+  (define a (vector-ref v 0))
+  (define b (vector-ref v 1))
+  (define e (vector-ref v 2))
+  (define c (vector-ref v 3))
+  (define d (vector-ref v 4))
+  (define f (vector-ref v 5))
   (vector
    a b
    c d
@@ -2630,21 +2635,23 @@
 
 
 (define (find-next-target p target)
-  (let loop ([p        p]
-             [children (pict-children p)]
-             [foundk   (lambda (t) t)]
-             [failk    (lambda () (error 'explain-child "could not find child pict"))])
-    (match children
-      [(list) (failk)]
-      [(cons r h)
-       #:when (pict-path-element=? (child-pict r) target)
-       (foundk (child->transformation p r))]
-      [(cons r h)
-       (loop
-        (child-pict r)
-        (pict-children (child-pict r))
-        (lambda (t) (foundk (transformation-compose (child->transformation p r) t)))
-        (lambda ()  (loop p h foundk failk)))])))
+  (define (search parent children)
+    (cond
+      [(null? children) #f]
+      [else
+       (define r (car children))
+       (define h (cdr children))
+       (cond
+         [(pict-path-element=? (child-pict r) target)
+          (child->transformation parent r)]
+         [else
+          (or (let ([t (search (child-pict r)
+                               (pict-children (child-pict r)))])
+                (and t
+                     (transformation-compose (child->transformation parent r) t)))
+              (search parent h))])]))
+  (or (search p (pict-children p))
+      (error 'explain-child "could not find child pict")))
       
 (define (transformation-compose1 t1 t2)
   (define w 3)
@@ -2656,13 +2663,12 @@
          (vector-ref t2 (+ (* w k) j))))))
 
 (define (transformation-compose t1 . t2)
-  (match t2
-    [(list) t1]
-    [(cons r h)
-     (apply
-      transformation-compose
-      (transformation-compose1 t1 r)
-      h)]))
+  (if (null? t2)
+      t1
+      (apply
+       transformation-compose
+       (transformation-compose1 t1 (car t2))
+       (cdr t2))))
 
 (define (transformation-apply t v)
   (define w 3)
@@ -2674,19 +2680,25 @@
 ;; switch from the inverted coordinates used by
 ;; pict-child to normal drawing coordinates.
 (define (uninvert-coordinartes p c t)
-  (match-define (vector sx sxy dx syx sy dy _ _ _) t)
-  (match-define (vector _ _ ndx _ _ ndy _ _ _)
-    (let ()
-      (transformation-compose
-       (vector
-        1 0 0
-        0 -1 (pict-height p)
-        0 0 1)
-       t
-       (vector
-        1 0 0
-        0 -1 (pict-height c)
-        0 0 1))))  
+  (define sx (vector-ref t 0))
+  (define sxy (vector-ref t 1))
+  (define dx (vector-ref t 2))
+  (define syx (vector-ref t 3))
+  (define sy (vector-ref t 4))
+  (define dy (vector-ref t 5))
+  (define t*
+    (transformation-compose
+     (vector
+      1 0 0
+      0 -1 (pict-height p)
+      0 0 1)
+     t
+     (vector
+      1 0 0
+      0 -1 (pict-height c)
+      0 0 1)))
+  (define ndx (vector-ref t* 2))
+  (define ndy (vector-ref t* 5))
   (vector
    sx sxy ndx
    syx sy ndy

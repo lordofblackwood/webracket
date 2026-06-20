@@ -484,8 +484,13 @@
                            prev-smoothing?)))
 
 (define (end-alpha ctx group)
-  (match group
-    [(alpha-group off _ (alpha-prev prev-opacity prev-global-alpha _ _))
+  (cond
+    [(and (alpha-group? group)
+          (alpha-prev? (alpha-group-prev group)))
+     (define off (alpha-group-canvas group))
+     (define prev (alpha-group-prev group))
+     (define prev-opacity (alpha-prev-opacity prev))
+     (define prev-global-alpha (alpha-prev-global-alpha prev))
      (js-canvas2d-save ctx)
      (alpha-identity-transform ctx)
      (define old-alpha (js-canvas2d-global-alpha ctx))
@@ -494,7 +499,7 @@
      (js-canvas2d-draw-image ctx off 0.0 0.0)
      (js-set-canvas2d-global-alpha! ctx old-alpha)
      (js-canvas2d-restore ctx)]
-    [_
+    [else
      (error 'end-alpha "expected an alpha-group, got: ~a" group)]))
 
 
@@ -828,373 +833,225 @@
       [(or (list? x) (vector? x) (external? x)) (to-array x)]
       [else (to-real x)]))
   
-  (λ args
-    (match args
-      [(list 'context)
-       ctx]
-      [(list 'direction dir)
-       (js-set-canvas2d-direction! ctx (to-string dir))]
-      [(list 'fill-style)
-       (js-canvas2d-fill-style ctx)]
-      [(list 'fill-style val)
-       ; <color>, CanvasGradient, CanvasPattern
-       (js-set-canvas2d-fill-style! ctx (to-string val))]
-      [(list 'font)
-       (js-canvas2d-font ctx)]
-      [(list 'font val)
-       (js-set-canvas2d-font! ctx (to-string val))]
-      [(list 'font-kerning val)
-       (js-set-canvas2d-font-kerning! ctx (to-string val))]
+  (case-lambda
+    [(cmd)
+     (case cmd
+       [(context)      ctx]
+       [(fill-style)   (js-canvas2d-fill-style ctx)]
+       [(font)         (js-canvas2d-font ctx)]
+       [(global-alpha) (js-canvas2d-global-alpha ctx)]
+       [(line-join)    (js-canvas2d-line-join ctx)]
+       [(line-width)   (js-canvas2d-line-width ctx)]
+       [(miter-limit)  (js-canvas2d-miter-limit ctx)]
+       [(shadow-blur)  (js-canvas2d-shadow-blur ctx)]
+       [(shadow-color) (js-canvas2d-shadow-color ctx)]
+       [(shadow-offset-x) (js-canvas2d-shadow-offset-x ctx)]
+       [(shadow-offset-y) (js-canvas2d-shadow-offset-y ctx)]
+       [(stroke-style) (js-canvas2d-stroke-style ctx)]
+       [(text-align)   (js-canvas2d-text-align ctx)]
+       [(text-baseline) (js-canvas2d-text-baseline ctx)]
+       [(text-rendering) (js-canvas2d-text-rendering ctx)]
+       [(word-spacing) (js-canvas2d-word-spacing ctx)]
+       [(begin-path)   (js-canvas2d-begin-path ctx)]
+       [(clip)         (js-canvas2d-clip ctx (void) (void))]
+       [(close-path)   (js-canvas2d-close-path ctx)]
+       [(fill)         (js-canvas2d-fill ctx (void) (void))]
+       [(get-transform) (js-canvas2d-get-transform ctx)]
+       [(reset)        (js-canvas2d-reset ctx)]
+       [(reset-transform) (js-canvas2d-reset-transform ctx)]
+       [(restore)      (js-canvas2d-restore ctx)]
+       [(save)         (js-canvas2d-save ctx)]
+       [(stroke)       (js-canvas2d-stroke ctx (void))]
+       [(transform)    (js-canvas2d-get-transform ctx)]
+       [else
+        (error 'canvas-context->dc "unknown canvas command: ~a" (list cmd))])]
+    [(cmd arg)
+     (case cmd
+       [(direction) (js-set-canvas2d-direction! ctx (to-string arg))]
+       [(fill-style) (js-set-canvas2d-fill-style! ctx (to-string arg))]
+       [(font) (js-set-canvas2d-font! ctx (to-string arg))]
+       [(font-kerning) (js-set-canvas2d-font-kerning! ctx (to-string arg))]
       ; deprecated:
       ;   [(list 'font-stretch val)
       ;    (js-set-canvas2d-font-stretch! ctx (to-string val))]
       ; missing in Safari:
       ;   [(list 'font-variant-caps val)
       ;    (js-set-canvas2d-font-variant-caps! ctx (to-string val))]      
-      [(list 'global-alpha)
-       (js-canvas2d-global-alpha ctx)]
-      [(list 'global-alpha val)
-       (js-set-canvas2d-global-alpha! ctx (to-real-01 val))]
-      [(list 'global-composite-operation val)
-       (js-set-canvas2d-global-composite-operation! ctx (to-string val))]
-      [(list 'image-smoothing-enabled val)
-       (js-set-canvas2d-image-smoothing-enabled! ctx (to-boolean val))]
+       [(global-alpha) (js-set-canvas2d-global-alpha! ctx (to-real-01 arg))]
+       [(global-composite-operation) (js-set-canvas2d-global-composite-operation! ctx (to-string arg))]
+       [(image-smoothing-enabled) (js-set-canvas2d-image-smoothing-enabled! ctx (to-boolean arg))]
       ;; image-smooting-quality  -- currently missing from Firefox
       ;;   [(list 'image-smoothing-quality val)
       ;;    (js-set-canvas2d-image-smoothing-quality! ctx (to-string val))]      
-      [(list 'letter-spacing val)
-       (js-set-canvas2d-letter-spacing! ctx (to-string val))]
-      [(list 'line-cap val)
-       (js-set-canvas2d-line-cap! ctx (to-string val))]
-      [(list 'line-dash-offset val)
-       (js-set-canvas2d-line-dash-offset! ctx (to-real val))]
-
-      [(list 'line-join)
-       (js-canvas2d-line-join ctx)]
-      [(list 'line-join val)
-       (js-set-canvas2d-line-join! ctx (to-string val))]
-      [(list 'line-width)
-       (js-canvas2d-line-width ctx)]
-      [(list 'line-width val)
-       (js-set-canvas2d-line-width! ctx (to-real val))]
-      [(list 'miter-limit)
-       (js-canvas2d-miter-limit ctx)]
-      [(list 'miter-limit val)
-       (js-set-canvas2d-miter-limit! ctx (to-real val))]
-      [(list 'shadow-blur)
-       (js-canvas2d-shadow-blur ctx)]
-      [(list 'shadow-blur val)
-       (js-set-canvas2d-shadow-blur! ctx (to-real val))]
-      [(list 'shadow-color)
-       (js-canvas2d-shadow-color ctx)]
-      [(list 'shadow-color val)
-       (js-set-canvas2d-shadow-color! ctx (to-string val))]
-      [(list 'shadow-offset-x)
-       (js-canvas2d-shadow-offset-x ctx)]
-      [(list 'shadow-offset-x val)
-       (js-set-canvas2d-shadow-offset-x! ctx (to-real val))]
-      [(list 'shadow-offset-y)
-       (js-canvas2d-shadow-offset-y ctx)]
-      [(list 'shadow-offset-y val)
-       (js-set-canvas2d-shadow-offset-y! ctx (to-real val))]
-      [(list 'stroke-style)
-       (js-canvas2d-stroke-style ctx)]
-      [(list 'stroke-style val)
-       (js-set-canvas2d-stroke-style! ctx (to-string val))]
-      [(list 'text-align)
-       (js-canvas2d-text-align ctx)]
-      [(list 'text-align val)
-       (js-set-canvas2d-text-align! ctx (to-string val))]
-      [(list 'text-baseline)
-       (js-canvas2d-text-baseline ctx)]
-      [(list 'text-baseline val)
-       (js-set-canvas2d-text-baseline! ctx (to-string val))]
-      [(list 'text-rendering)
-       (js-canvas2d-text-rendering ctx)]
-      [(list 'text-rendering val)
-       (js-set-canvas2d-text-rendering! ctx (to-string val))]
-      [(list 'word-spacing)
-       (js-canvas2d-word-spacing ctx)]
-      [(list 'word-spacing val)
-       (js-set-canvas2d-word-spacing! ctx (to-string val))]
-      [(list 'arc x y radius start-angle end-angle)
-       (js-canvas2d-arc ctx
-                         (to-real x)
-                         (to-real y)
-                         (to-real radius)
-                         (to-real start-angle)
-                         (to-real end-angle)
-                         (to-boolean #f))]
-      [(list 'arc x y radius start-angle end-angle ccw)
-       (js-canvas2d-arc ctx
-                         (to-real x)
-                         (to-real y)
-                         (to-real radius)
-                         (to-real start-angle)
-                         (to-real end-angle)
-                         (to-boolean ccw))]
-      [(list 'arc-to x1 y1 x2 y2 radius)
-       (js-canvas2d-arc-to ctx
-                            (to-real x1)
-                            (to-real y1)
-                            (to-real x2)
-                            (to-real y2)
-                            (to-real radius))]
-      [(list 'begin-path)
-       (js-canvas2d-begin-path ctx)]
-      [(list 'bezier-curve-to cp1x cp1y cp2x cp2y x y)
-       (js-canvas2d-bezier-curve-to ctx
-                                    (to-real cp1x)
-                                    (to-real cp1y)
-                                    (to-real cp2x)
-                                    (to-real cp2y)
-                                    (to-real x)
-                                    (to-real y))]
-      [(list 'clear-rect x y w h)
-       (js-canvas2d-clear-rect ctx
-                               (to-real x)
-                               (to-real y)
-                               (to-real w)
-                               (to-real h))]
-      [(list 'clip)
-       (js-canvas2d-clip ctx (void) (void))]
-      [(list 'clip arg)
-       (if (or (string? arg) (symbol? arg))
-           (js-canvas2d-clip ctx (void) (to-string arg))
-           (js-canvas2d-clip ctx (maybe-extern arg) (void)))]
-      [(list 'clip path rule)
-       (if (or (string? path) (symbol? path))
-           (js-canvas2d-clip ctx (void) (maybe-string rule))
-           (js-canvas2d-clip ctx (maybe-extern path) (maybe-string rule)))]
-      [(list 'close-path)
-       (js-canvas2d-close-path ctx)]
-      [(list 'create-image-data width height)
-       (js-canvas2d-create-image-data ctx (to-real width) (to-real height))]
-      [(list 'create-image-data-from other)
-       (js-canvas2d-create-image-data-from ctx (to-extern other 'create-image-data-from))]
-      [(list 'create-linear-gradient x0 y0 x1 y1)
-       (js-canvas2d-create-linear-gradient ctx
-                                           (to-real x0)
-                                           (to-real y0)
-                                           (to-real x1)
-                                           (to-real y1))]
-      [(list 'create-pattern image repetition)
-       (js-canvas2d-create-pattern ctx
-                                   (to-extern image 'create-pattern)
-                                   (to-string repetition))]
-      [(list 'create-radial-gradient x0 y0 r0 x1 y1 r1)
-       (js-canvas2d-create-radial-gradient ctx
-                                           (to-real x0)
-                                           (to-real y0)
-                                           (to-real r0)
-                                           (to-real x1)
-                                           (to-real y1)
-                                           (to-real r1))]
-      [(list 'create-conic-gradient angle x y)
-       (js-canvas2d-create-conic-gradient ctx
-                                          (to-real angle)
-                                          (to-real x)
-                                          (to-real y))]
-      [(list 'draw-image image dx dy)
-       (js-canvas2d-draw-image ctx
-                               (to-extern image 'draw-image)
-                               (to-real dx)
-                               (to-real dy))]
-      [(list 'draw-image image dx dy dw dh)
-       (js-canvas2d-draw-image-5 ctx
-                                  (to-extern image 'draw-image)
-                                  (to-real dx)
-                                  (to-real dy)
-                                  (to-real dw)
-                                  (to-real dh))]
-      [(list 'draw-image image sx sy sw sh dx dy dw dh)
-       (js-canvas2d-draw-image-9 ctx
-                                  (to-extern image 'draw-image)
-                                  (to-real sx)
-                                  (to-real sy)
-                                  (to-real sw)
-                                  (to-real sh)
-                                  (to-real dx)
-                                  (to-real dy)
-                                  (to-real dw)
-                                  (to-real dh))]
-      [(list 'ellipse x y radius-x radius-y rotation start-angle end-angle)
-       (js-canvas2d-ellipse ctx
-                            (to-real x)
-                            (to-real y)
-                            (to-real radius-x)
-                            (to-real radius-y)
-                            (to-real rotation)
-                            (to-real start-angle)
-                            (to-real end-angle)
-                            (to-boolean #f))]
-      [(list 'ellipse x y radius-x radius-y rotation start-angle end-angle ccw)
-       (js-canvas2d-ellipse ctx
-                            (to-real x)
-                            (to-real y)
-                            (to-real radius-x)
-                            (to-real radius-y)
-                            (to-real rotation)
-                            (to-real start-angle)
-                            (to-real end-angle)
-                            (to-boolean ccw))]
-
-      [(list 'fill)
-       (js-canvas2d-fill ctx (void) (void))]
-      [(list 'fill arg)
-       (if (or (string? arg) (symbol? arg))
-           (js-canvas2d-fill ctx (void) (to-string arg))
-           (js-canvas2d-fill ctx (maybe-extern arg) (void)))]
-      [(list 'fill path rule)
-       (if (or (string? path) (symbol? path))
-           (js-canvas2d-fill ctx (void) (maybe-string rule))
-           (js-canvas2d-fill ctx (maybe-extern path) (maybe-string rule)))]
-
-      [(list 'fill-rect x y w h)
-       (js-canvas2d-fill-rect ctx
-                              (to-real x)
-                              (to-real y)
-                              (to-real w)
-                              (to-real h))]
-      [(list 'fill-text text x y)
-       (js-canvas2d-fill-text ctx (to-string text) (to-real x) (to-real y) (void))]
-      [(list 'fill-text text x y max-width)
-       (js-canvas2d-fill-text ctx (to-string text) (to-real x) (to-real y) (maybe-real max-width))]
-
-      [(list 'get-image-data sx sy sw sh)
-       (js-canvas2d-get-image-data ctx
-                                   (to-real sx)
-                                   (to-real sy)
-                                   (to-real sw)
-                                   (to-real sh)
-                                   (void))]
-      [(list 'get-image-data sx sy sw sh settings)
-       (js-canvas2d-get-image-data ctx
-                                   (to-real sx)
-                                   (to-real sy)
-                                   (to-real sw)
-                                   (to-real sh)
-                                   (maybe-extern settings))]
-      [(list 'get-transform)
-       (js-canvas2d-get-transform ctx)]
-      [(list 'is-point-in-path x y)
-       (js-canvas2d-is-point-in-path ctx (void) (to-real x) (to-real y) (void))]
-      [(list 'is-point-in-path path x y)
-       (js-canvas2d-is-point-in-path ctx (maybe-extern path) (to-real x) (to-real y) (void))]
-      [(list 'is-point-in-path path x y rule)
-       (js-canvas2d-is-point-in-path ctx (maybe-extern path) (to-real x) (to-real y) (maybe-string rule))]
-      [(list 'is-point-in-stroke x y)
-       (js-canvas2d-is-point-in-stroke ctx (void) (to-real x) (to-real y))]
-      [(list 'is-point-in-stroke path x y)
-       (js-canvas2d-is-point-in-stroke ctx (maybe-extern path) (to-real x) (to-real y))]
-      [(list 'line-to x y)
-       (js-canvas2d-line-to ctx (to-real x) (to-real y))]
-      [(list 'measure-text text)
-       (js-canvas2d-measure-text ctx (to-string text))]
-      [(list 'move-to x y)
-       (js-canvas2d-move-to ctx (to-real x) (to-real y))]
-      [(list 'put-image-data data dx dy)
-       (js-canvas2d-put-image-data ctx
-                                   (to-extern data 'put-image-data)
-                                   (to-real dx)
-                                   (to-real dy)
-                                   (void)
-                                   (void)
-                                   (void)
-                                   (void))]
-      [(list 'put-image-data data dx dy dirty-x dirty-y dirty-width dirty-height)
-       (js-canvas2d-put-image-data ctx
-                                   (to-extern data 'put-image-data)
-                                   (to-real dx)
-                                   (to-real dy)
-                                   (maybe-real dirty-x)
-                                   (maybe-real dirty-y)
-                                   (maybe-real dirty-width)
-                                   (maybe-real dirty-height))]
-      [(list 'quadratic-curve-to cpx cpy x y)
-       (js-canvas2d-quadratic-curve-to ctx
-                                       (to-real cpx)
-                                       (to-real cpy)
-                                       (to-real x)
-                                       (to-real y))]
-      [(list 'rect x y w h)
-       (js-canvas2d-rect ctx
-                         (to-real x)
-                         (to-real y)
-                         (to-real w)
-                         (to-real h))]
-      [(list 'reset)
-       (js-canvas2d-reset ctx)]
-      [(list 'reset-transform)
-       (js-canvas2d-reset-transform ctx)]
-      [(list 'restore)
-       (js-canvas2d-restore ctx)]
-      [(list 'rotate angle)
-       (js-canvas2d-rotate ctx (to-real angle))]
-      [(list 'round-rect x y w h radii)
-       (js-canvas2d-round-rect ctx
-                               (to-real x)
-                               (to-real y)
-                               (to-real w)
-                               (to-real h)
-                               (maybe-radii radii))]
-      [(list 'save)
-       (js-canvas2d-save ctx)]
-      [(list 'scale x y)
-       (js-canvas2d-scale ctx (to-real x) (to-real y))]
-      [(list 'set-line-dash segments)
-       (js-canvas2d-set-line-dash ctx (to-array segments))]
-      [(list 'set-transform! a b c d e f)
-       (js-canvas2d-set-transform! ctx
-                                   (to-real a)
-                                   (to-real b)
-                                   (to-real c)
-                                   (to-real d)
-                                   (to-real e)
-                                   (to-real f))]
-      [(list 'set-transform-matrix! matrix)
-       (js-canvas2d-set-transform-matrix! ctx (to-extern matrix 'set-transform-matrix!))]
-      [(list 'stroke)
-       (js-canvas2d-stroke ctx (void))]
-      [(list 'stroke path)
-       (js-canvas2d-stroke ctx (maybe-extern path))]
-      [(list 'stroke-rect x y w h)
-       (js-canvas2d-stroke-rect ctx
-                                 (to-real x)
-                                 (to-real y)
-                                 (to-real w)
-                                 (to-real h))]
-      [(list 'stroke-text text x y)
-       (js-canvas2d-stroke-text ctx (to-string text) (to-real x) (to-real y) (void))]
-      [(list 'stroke-text text x y max-width)
-       (js-canvas2d-stroke-text ctx (to-string text) (to-real x) (to-real y) (maybe-real max-width))]
-
-      [(list 'transform)
-       (js-canvas2d-get-transform ctx)]
-      [(list 'transform extern-matrix)
-       (cond
-         [(external? extern-matrix)
-          (js-canvas2d-set-transform-matrix! ctx extern-matrix)]
-         [(vector? extern-matrix)
-          (match extern-matrix
-            [(vector a b c d e f)
-             (js-canvas2d-transform ctx
-                              (to-real a)
-                              (to-real b)
-                              (to-real c)
-                              (to-real d)
-                              (to-real e)
-                              (to-real f))])]
-         [else (error 'tranform "expected an extern (matrix) or a vector")])]
-      [(list 'transform a b c d e f)
-       (js-canvas2d-transform ctx
-                              (to-real a)
-                              (to-real b)
-                              (to-real c)
-                              (to-real d)
-                              (to-real e)
-                              (to-real f))]
-      [(list 'translate x y)
-       (js-canvas2d-translate ctx (to-real x) (to-real y))]
-      [else
-       (error 'canvas-context->dc "unknown canvas command: ~a" args)])))
+       [(letter-spacing) (js-set-canvas2d-letter-spacing! ctx (to-string arg))]
+       [(line-cap) (js-set-canvas2d-line-cap! ctx (to-string arg))]
+       [(line-dash-offset) (js-set-canvas2d-line-dash-offset! ctx (to-real arg))]
+       [(line-join) (js-set-canvas2d-line-join! ctx (to-string arg))]
+       [(line-width) (js-set-canvas2d-line-width! ctx (to-real arg))]
+       [(miter-limit) (js-set-canvas2d-miter-limit! ctx (to-real arg))]
+       [(shadow-blur) (js-set-canvas2d-shadow-blur! ctx (to-real arg))]
+       [(shadow-color) (js-set-canvas2d-shadow-color! ctx (to-string arg))]
+       [(shadow-offset-x) (js-set-canvas2d-shadow-offset-x! ctx (to-real arg))]
+       [(shadow-offset-y) (js-set-canvas2d-shadow-offset-y! ctx (to-real arg))]
+       [(stroke-style) (js-set-canvas2d-stroke-style! ctx (to-string arg))]
+       [(text-align) (js-set-canvas2d-text-align! ctx (to-string arg))]
+       [(text-baseline) (js-set-canvas2d-text-baseline! ctx (to-string arg))]
+       [(text-rendering) (js-set-canvas2d-text-rendering! ctx (to-string arg))]
+       [(word-spacing) (js-set-canvas2d-word-spacing! ctx (to-string arg))]
+       [(clip)
+        (if (or (string? arg) (symbol? arg))
+            (js-canvas2d-clip ctx (void) (to-string arg))
+            (js-canvas2d-clip ctx (maybe-extern arg) (void)))]
+       [(create-image-data-from) (js-canvas2d-create-image-data-from ctx (to-extern arg 'create-image-data-from))]
+       [(fill)
+        (if (or (string? arg) (symbol? arg))
+            (js-canvas2d-fill ctx (void) (to-string arg))
+            (js-canvas2d-fill ctx (maybe-extern arg) (void)))]
+       [(measure-text) (js-canvas2d-measure-text ctx (to-string arg))]
+       [(rotate) (js-canvas2d-rotate ctx (to-real arg))]
+       [(set-line-dash) (js-canvas2d-set-line-dash ctx (to-array arg))]
+       [(set-transform-matrix!) (js-canvas2d-set-transform-matrix! ctx (to-extern arg 'set-transform-matrix!))]
+       [(stroke) (js-canvas2d-stroke ctx (maybe-extern arg))]
+       [(transform)
+        (cond
+          [(external? arg)
+           (js-canvas2d-set-transform-matrix! ctx arg)]
+          [(and (vector? arg) (= (vector-length arg) 6))
+           (js-canvas2d-transform ctx
+                                  (to-real (vector-ref arg 0))
+                                  (to-real (vector-ref arg 1))
+                                  (to-real (vector-ref arg 2))
+                                  (to-real (vector-ref arg 3))
+                                  (to-real (vector-ref arg 4))
+                                  (to-real (vector-ref arg 5)))]
+          [else
+           (error 'tranform "expected an extern (matrix) or a vector")])]
+       [else
+        (error 'canvas-context->dc "unknown canvas command: ~a" (list cmd arg))])]
+    [(cmd a b)
+     (case cmd
+       [(clip)
+        (if (or (string? a) (symbol? a))
+            (js-canvas2d-clip ctx (void) (maybe-string b))
+            (js-canvas2d-clip ctx (maybe-extern a) (maybe-string b)))]
+       [(create-image-data) (js-canvas2d-create-image-data ctx (to-real a) (to-real b))]
+       [(create-pattern) (js-canvas2d-create-pattern ctx (to-extern a 'create-pattern) (to-string b))]
+       [(fill)
+        (if (or (string? a) (symbol? a))
+            (js-canvas2d-fill ctx (void) (maybe-string b))
+            (js-canvas2d-fill ctx (maybe-extern a) (maybe-string b)))]
+       [(is-point-in-path) (js-canvas2d-is-point-in-path ctx (void) (to-real a) (to-real b) (void))]
+       [(is-point-in-stroke) (js-canvas2d-is-point-in-stroke ctx (void) (to-real a) (to-real b))]
+       [(line-to) (js-canvas2d-line-to ctx (to-real a) (to-real b))]
+       [(move-to) (js-canvas2d-move-to ctx (to-real a) (to-real b))]
+       [(scale) (js-canvas2d-scale ctx (to-real a) (to-real b))]
+       [(translate) (js-canvas2d-translate ctx (to-real a) (to-real b))]
+       [else
+        (error 'canvas-context->dc "unknown canvas command: ~a" (list cmd a b))])]
+    [(cmd a b c)
+     (case cmd
+       [(create-conic-gradient) (js-canvas2d-create-conic-gradient ctx (to-real a) (to-real b) (to-real c))]
+       [(draw-image) (js-canvas2d-draw-image ctx (to-extern a 'draw-image) (to-real b) (to-real c))]
+       [(fill-text) (js-canvas2d-fill-text ctx (to-string a) (to-real b) (to-real c) (void))]
+       [(is-point-in-path) (js-canvas2d-is-point-in-path ctx (maybe-extern a) (to-real b) (to-real c) (void))]
+       [(is-point-in-stroke) (js-canvas2d-is-point-in-stroke ctx (maybe-extern a) (to-real b) (to-real c))]
+       [(put-image-data)
+        (js-canvas2d-put-image-data ctx
+                                    (to-extern a 'put-image-data)
+                                    (to-real b)
+                                    (to-real c)
+                                    (void) (void) (void) (void))]
+       [(stroke-text) (js-canvas2d-stroke-text ctx (to-string a) (to-real b) (to-real c) (void))]
+       [else
+        (error 'canvas-context->dc "unknown canvas command: ~a" (list cmd a b c))])]
+    [(cmd a b c d)
+     (case cmd
+       [(clear-rect) (js-canvas2d-clear-rect ctx (to-real a) (to-real b) (to-real c) (to-real d))]
+       [(create-linear-gradient) (js-canvas2d-create-linear-gradient ctx (to-real a) (to-real b) (to-real c) (to-real d))]
+       [(fill-rect) (js-canvas2d-fill-rect ctx (to-real a) (to-real b) (to-real c) (to-real d))]
+       [(fill-text) (js-canvas2d-fill-text ctx (to-string a) (to-real b) (to-real c) (maybe-real d))]
+       [(get-image-data) (js-canvas2d-get-image-data ctx (to-real a) (to-real b) (to-real c) (to-real d) (void))]
+       [(is-point-in-path) (js-canvas2d-is-point-in-path ctx (maybe-extern a) (to-real b) (to-real c) (maybe-string d))]
+       [(quadratic-curve-to) (js-canvas2d-quadratic-curve-to ctx (to-real a) (to-real b) (to-real c) (to-real d))]
+       [(rect) (js-canvas2d-rect ctx (to-real a) (to-real b) (to-real c) (to-real d))]
+       [(stroke-rect) (js-canvas2d-stroke-rect ctx (to-real a) (to-real b) (to-real c) (to-real d))]
+       [(stroke-text) (js-canvas2d-stroke-text ctx (to-string a) (to-real b) (to-real c) (maybe-real d))]
+       [else
+        (error 'canvas-context->dc "unknown canvas command: ~a" (list cmd a b c d))])]
+    [(cmd a b c d e)
+     (case cmd
+       [(arc) (js-canvas2d-arc ctx (to-real a) (to-real b) (to-real c) (to-real d) (to-real e) (to-boolean #f))]
+       [(arc-to) (js-canvas2d-arc-to ctx (to-real a) (to-real b) (to-real c) (to-real d) (to-real e))]
+       [(draw-image) (js-canvas2d-draw-image-5 ctx (to-extern a 'draw-image) (to-real b) (to-real c) (to-real d) (to-real e))]
+       [(get-image-data) (js-canvas2d-get-image-data ctx (to-real a) (to-real b) (to-real c) (to-real d) (maybe-extern e))]
+       [(round-rect) (js-canvas2d-round-rect ctx (to-real a) (to-real b) (to-real c) (to-real d) (maybe-radii e))]
+       [else
+        (error 'canvas-context->dc "unknown canvas command: ~a" (list cmd a b c d e))])]
+    [(cmd a b c d e f)
+     (case cmd
+       [(arc) (js-canvas2d-arc ctx (to-real a) (to-real b) (to-real c) (to-real d) (to-real e) (to-boolean f))]
+       [(bezier-curve-to) (js-canvas2d-bezier-curve-to ctx (to-real a) (to-real b) (to-real c) (to-real d) (to-real e) (to-real f))]
+       [(create-radial-gradient)
+        (js-canvas2d-create-radial-gradient ctx
+                                            (to-real a)
+                                            (to-real b)
+                                            (to-real c)
+                                            (to-real d)
+                                            (to-real e)
+                                            (to-real f))]
+       [(set-transform!) (js-canvas2d-set-transform! ctx (to-real a) (to-real b) (to-real c) (to-real d) (to-real e) (to-real f))]
+       [(transform) (js-canvas2d-transform ctx (to-real a) (to-real b) (to-real c) (to-real d) (to-real e) (to-real f))]
+       [else
+        (error 'canvas-context->dc "unknown canvas command: ~a" (list cmd a b c d e f))])]
+    [(cmd a b c d e f g)
+     (case cmd
+       [(ellipse)
+        (js-canvas2d-ellipse ctx
+                             (to-real a)
+                             (to-real b)
+                             (to-real c)
+                             (to-real d)
+                             (to-real e)
+                             (to-real f)
+                             (to-real g)
+                             (to-boolean #f))]
+       [(put-image-data)
+        (js-canvas2d-put-image-data ctx
+                                    (to-extern a 'put-image-data)
+                                    (to-real b)
+                                    (to-real c)
+                                    (maybe-real d)
+                                    (maybe-real e)
+                                    (maybe-real f)
+                                    (maybe-real g))]
+       [else
+        (error 'canvas-context->dc "unknown canvas command: ~a" (list cmd a b c d e f g))])]
+    [(cmd a b c d e f g h)
+     (case cmd
+       [(ellipse)
+        (js-canvas2d-ellipse ctx
+                             (to-real a)
+                             (to-real b)
+                             (to-real c)
+                             (to-real d)
+                             (to-real e)
+                             (to-real f)
+                             (to-real g)
+                             (to-boolean h))]
+       [else
+        (error 'canvas-context->dc "unknown canvas command: ~a" (list cmd a b c d e f g h))])]
+    [(cmd a b c d e f g h i)
+     (case cmd
+       [(draw-image)
+        (js-canvas2d-draw-image-9 ctx
+                                  (to-extern a 'draw-image)
+                                  (to-real b)
+                                  (to-real c)
+                                  (to-real d)
+                                  (to-real e)
+                                  (to-real f)
+                                  (to-real g)
+                                  (to-real h)
+                                  (to-real i))]
+       [else
+        (error 'canvas-context->dc "unknown canvas command: ~a" (list cmd a b c d e f g h i))])]))
