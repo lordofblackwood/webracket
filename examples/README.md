@@ -48,11 +48,9 @@ Support Files And Non-Entry Sources
 - `raco/raco.rkt`: text-mode engine/demo source, not the main browser entry.
 - `snake/snake3.rkt`: experimental commented-out Snake variant, not currently runnable.
 
-Planned Conversion Order
-------------------------
+Remaining Example Work
+----------------------
 
-1. `pict`
-2. `minischeme`
-3. `minischeme2` if it is still meant to be user-facing
-4. `matrix-rain`
-5. `raco` if it remains part of the user-facing examples set
+- `minischeme2/minischeme-page.rkt`: duplicate/pending copy of MiniScheme; only port it if it regains a distinct purpose.
+- `snake/snake3.rkt`: debug/internal commented-out variant, not a runnable tutorial entry.
+- `raco/raco.rkt`: text-mode engine/demo source, not a browser tutorial entry.
