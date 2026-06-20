@@ -230,7 +230,8 @@
 
 ;; run-web-pict-no-erased-contract-support-smoke : path? path? -> void?
 ;;   Assert that a tiny `web-pict` root does not seed erased-contract support
-;;   providers when no composed module actually depends on them.
+;;   providers or broad string helpers when no composed module actually depends
+;;   on them.
 (define (run-web-pict-no-erased-contract-support-smoke repo-root racket-exe)
   (define base (make-temporary-file "webracket-web-pict-no-contract-support-~a" 'directory))
   (define script-path (build-path base "web-pict-no-contract-support.rkt"))
@@ -276,7 +277,9 @@
           (display "    racket/contract/private/blame\n" out)
           (display "    racket/contract/private/guts\n" out)
           (display "    racket/contract/private/object\n" out)
-          (display "    racket/contract/private/object-c-wrapper))\n" out)
+          (display "    racket/contract/private/object-c-wrapper\n" out)
+          (display "    racket/string\n" out)
+          (display "    racket/private/string))\n" out)
           (display "(for ([name (in-list forbidden)])\n" out)
           (display "  (when (member name registry-names)\n" out)
           (display "    (error 'web-pict-no-contract-support\n" out)

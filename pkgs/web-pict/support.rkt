@@ -76,6 +76,24 @@
 
 (define color->string
   (let ()
+    ;; Keep color parsing self-contained instead of pulling in `racket/string`
+    ;; for trimming alone.
+    (define (string-trim-local s)
+      (define len (string-length s))
+      (define start
+        (let loop ([i 0])
+          (cond
+            [(= i len) len]
+            [(char-whitespace? (string-ref s i)) (loop (add1 i))]
+            [else i])))
+      (define end
+        (let loop ([i (sub1 len)])
+          (cond
+            [(< i start) start]
+            [(char-whitespace? (string-ref s i)) (loop (sub1 i))]
+            [else (add1 i)])))
+      (substring s start end))
+
     (define (string-prefix-ci? s prefix)
       (let ([len (string-length s)]
             [plen (string-length prefix)])
@@ -108,12 +126,12 @@
       (let ([len (string-length s)])
         (let loop ([i 0] [start 0] [parts null])
           (if (= i len)
-              (reverse (cons (string-trim (substring s start len)) parts))
+              (reverse (cons (string-trim-local (substring s start len)) parts))
               (let ([ch (string-ref s i)])
                 (if (char=? ch #\,)
                     (loop (add1 i)
                           (add1 i)
-                          (cons (string-trim (substring s start i)) parts))
+                          (cons (string-trim-local (substring s start i)) parts))
                     (loop (add1 i) start parts)))))))
 
     (define (split-by-spaces s)
@@ -187,7 +205,7 @@
            (and n (<= 0 n) (<= n 1)))]))
 
     (define (parse-angle-component s)
-      (let ([trimmed (string-trim s)])
+      (let ([trimmed (string-trim-local s)])
         (let ([len (string-length trimmed)])
           (cond
             [(zero? len) #f]
@@ -199,7 +217,7 @@
                  [(string-suffix-ci? trimmed (car units))
                   (let* ([unit (car units)]
                          [u-len (string-length unit)]
-                         [num (string-trim (substring trimmed 0 (- len u-len)))])
+                         [num (string-trim-local (substring trimmed 0 (- len u-len)))])
                     (and (not (string=? num "")) (parse-real-number num)))]
                  [else (loop (cdr units))]))]))))
 
@@ -222,12 +240,12 @@
                     [else #f]))]))))
 
     (define (rgb-body-valid-space? body require-alpha?)
-      (let* ([trimmed (string-trim body)]
+      (let* ([trimmed (string-trim-local body)]
              [len (string-length trimmed)]
              [slash (string-index-of trimmed #\/)])
         (if slash
-            (let ([color-part (string-trim (substring trimmed 0 slash))]
-                  [alpha-part (string-trim (substring trimmed (add1 slash) len))])
+            (let ([color-part (string-trim-local (substring trimmed 0 slash))]
+                  [alpha-part (string-trim-local (substring trimmed (add1 slash) len))])
               (and (not (string=? color-part ""))
                    (not (string=? alpha-part ""))
                    (parse-alpha-component alpha-part)
@@ -246,7 +264,7 @@
                 [else #f])))))
 
     (define (rgb-body-valid? body require-alpha?)
-      (let ([trimmed (string-trim body)])
+      (let ([trimmed (string-trim-local body)])
         (and (not (string=? trimmed ""))
              (or (rgb-body-valid-comma? trimmed require-alpha?)
                  (rgb-body-valid-space? trimmed require-alpha?)))))
@@ -266,12 +284,12 @@
                     [else #f]))]))))
 
     (define (hsl-body-valid-space? body require-alpha?)
-      (let* ([trimmed (string-trim body)]
+      (let* ([trimmed (string-trim-local body)]
              [len (string-length trimmed)]
              [slash (string-index-of trimmed #\/)])
         (if slash
-            (let ([color-part (string-trim (substring trimmed 0 slash))]
-                  [alpha-part (string-trim (substring trimmed (add1 slash) len))])
+            (let ([color-part (string-trim-local (substring trimmed 0 slash))]
+                  [alpha-part (string-trim-local (substring trimmed (add1 slash) len))])
               (and (not (string=? color-part ""))
                    (not (string=? alpha-part ""))
                    (parse-alpha-component alpha-part)
@@ -295,7 +313,7 @@
                 [else #f])))))
 
     (define (hsl-body-valid? body require-alpha?)
-      (let ([trimmed (string-trim body)])
+      (let ([trimmed (string-trim-local body)])
         (and (not (string=? trimmed ""))
              (or (hsl-body-valid-comma? trimmed require-alpha?)
                  (hsl-body-valid-space? trimmed require-alpha?)))))
@@ -336,11 +354,11 @@
           [else
            (let ([body (function-body s (car lst))])
              (if body
-                 (not (string=? (string-trim body) ""))
+                 (not (string=? (string-trim-local body) ""))
                  (loop (cdr lst))))])))
 
     (define (css-color-string? s)
-      (let ([trimmed (string-trim s)])
+      (let ([trimmed (string-trim-local s)])
         (and (not (string=? trimmed ""))
              (or (css-color-keyword? trimmed)
                  (css-hex-color-string? trimmed)
@@ -395,7 +413,7 @@
          (let ([val (color-value c)])
            (cond
              [(string? val)
-              (let ([trimmed (string-trim val)])
+              (let ([trimmed (string-trim-local val)])
                 (unless (css-color-string? trimmed)
                   (error 'color->string "expected a CSS color string, got: ~a" val))
                 trimmed)]
