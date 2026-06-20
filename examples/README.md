@@ -31,7 +31,7 @@ are listed separately and are not intended to compile directly as tutorials.
 | MiniScheme | `minischeme/minischeme-page.rkt` | `module-based` | Browser REPL page backed by a module-based MiniScheme interpreter; uses staged reader support and an opt-in slow browser smoke. |
 | MiniScheme 2 | `minischeme2/minischeme-page.rkt` | `duplicate/pending` | Duplicate MiniScheme copy; do not port separately unless it regains a distinct purpose. |
 | MathJax 4 | `mathjax4/mathjax.rkt` | `module-based` | Module-based browser example with CDN-loaded MathJax preview. |
-| Matrix Rain | `matrix-rain/matrix-rain.rkt` | `legacy-script` | Browser/xterm example with old top-level script shape. |
+| Matrix Rain | `matrix-rain/matrix-rain.rkt` | `module-based` | Browser/xterm example with local `generated/` output and a simple ready/error status marker. |
 | Snake | `snake/snake.rkt` | `module-based` | Browser game with `generated/` output. |
 | Snake 2 | `snake2/snake2.rkt` | `module-based` | Alternate Snake implementation with separate example layout. |
 | Snake 3 | `snake/snake3.rkt` | `debug/internal` | Experimental commented-out variant, not a runnable tutorial entry. |

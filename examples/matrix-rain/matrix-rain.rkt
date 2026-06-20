@@ -1,19 +1,23 @@
+#lang webracket/base
+
+(require racket/port
+         browser/dom
+         xterm
+         (only-in webracket/primitives
+                  procedure->external))
+
 ;;;
 ;;; MATRIX RAIN
 ;;;
 
 ;; An attempt to recreate the famous screen saver from the Matrix movies.
-;; This doubles as an example of how to use xtermjs.
-
-;; Compile this demo with:
-
-;;    racket -t ../../webracket.rkt -- --ffi xtermjs --ffi dom --ffi standard -b matrix-rain.rkt
+;; This doubles as an example of how to use xterm.js.
 
 ;;;
 ;;; Utilities
 ;;;
 
-; Ensure inexactness
+;; Ensure inexactness.
 (define (inexact x)
   (if (exact? x) (exact->inexact x) x))
 
@@ -30,38 +34,74 @@
 ;;; Glyphs
 ;;;
 
-(define glyphs (string-append "0123456789"
-                              "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-                              "abcdefghijklmnopqrstuvwxyz"
-                              "ｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄﾅﾆﾇﾈﾉﾊﾋﾌﾍﾎﾏﾐﾑﾒﾓﾔﾕﾖﾗﾘﾙﾚﾛ"))  
+(define glyphs
+  (string-append "0123456789"
+                 "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+                 "abcdefghijklmnopqrstuvwxyz"
+                 "ｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄﾅﾆﾇﾈﾉﾊﾋﾌﾍﾎﾏﾐﾑﾒﾓﾔﾕﾖﾗﾘﾙﾚﾛ"))
 (define glyph-count (string-length glyphs))
 
-(define (random-glyph) (string-ref glyphs (random glyph-count)))
+(define (random-glyph)
+  (string-ref glyphs (random glyph-count)))
 
+;;;
+;;; Status
+;;;
 
-;; We need to load external scripts first (here xterm from cdn).
+(define status-banner (js-create-element "div"))
+
+;; mark-status! : string? string? -> void?
+;;   Update the browser status marker for smoke tests and manual checks.
+(define (mark-status! state message)
+  (js-set-attribute! status-banner "data-state" state)
+  (js-set! status-banner "textContent" message))
+
+;;;
+;;; Script Loading
+;;;
+
+(define xtermjs-url
+  "https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.min.js")
+(define xtermjs-css-url
+  "https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.min.css")
+
+;; We need to load external scripts first (here xterm from CDN).
 ;; Then we can begin the actual program.
-;; Using the `load` event listener, we get alerted when the external
-;; scripts are loaded.
 
 (define (load-and-start)
-  ; - load the style sheet in parallel to the script
-  ; - don't wait for the style sheet to load
-
   (define head (js-document-head))
-  
-  ;; Use the xtermjs stylesheet
+  (define body (js-document-body))
+
+  (js-set-attribute! status-banner "id" "status")
+  (js-set-attribute! status-banner "data-state" "loading")
+  (js-set-attribute! status-banner
+                     "style"
+                     (string-append
+                      "position: fixed; top: 18px; right: 18px; z-index: 10; "
+                      "padding: 8px 12px; border-radius: 999px; "
+                      "background: rgba(10, 18, 10, 0.88); color: #9ff7b1; "
+                      "font: 700 12px/1.2 'Fira Code', monospace; "
+                      "letter-spacing: 0.08em; text-transform: uppercase;"))
+  (js-set! status-banner "textContent" "loading")
+  (js-append-child! body status-banner)
+
+  ;; Load the stylesheet in parallel to the script.
   (define link (js-create-element "link"))
   (js-set-attribute! link "rel" "stylesheet")
-  (js-set-attribute! link "href" "https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.min.css")
+  (js-set-attribute! link "href" xtermjs-css-url)
   (js-append-child! head link)
 
-  ;; Load xtermjs from cdn
+  ;; Load xterm.js from CDN.
   (define script (js-create-element "script"))
-  (js-set-attribute!      script "src" "https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js")
+  (js-set-attribute! script "src" xtermjs-url)
   (js-add-event-listener! script "load" (procedure->external init-terminal))
-  (js-append-child! head  script))
-
+  (js-add-event-listener!
+   script
+   "error"
+   (procedure->external
+    (lambda _
+      (mark-status! "error" "failed to load xterm.js"))))
+  (js-append-child! head script))
 
 (define (init-terminal . _)
   (define body (js-document-body))
@@ -79,23 +119,24 @@
                       "align-items: center; justify-content: center; "
                       "background: radial-gradient(circle at center, #050 0%, #000 60%);"))
   (js-append-child! body container)
-  
+
   ;;;
-  ;;; SETUP TERMINAL
+  ;;; Setup Terminal
   ;;;
+
   (define terminal (xterm-terminal-new (void)))
-  (xterm-terminal-open  terminal container)
+  (xterm-terminal-open terminal container)
   (xterm-terminal-focus terminal)
-  ; erase display and hide cursor
+  ;; Erase display and hide cursor.
   (xterm-terminal-write terminal "\u001b[2J\u001b[?25l" (void))
 
   (define columns (exact (xterm-terminal-cols terminal)))
   (define rows    (exact (xterm-terminal-rows terminal)))
 
   ;;;
-  ;;; CONFIGURATION
+  ;;; Configuration
   ;;;
-  
+
   (define fade-rate        2.6)
   (define base-spawn-rate  0.32)
   (define min-speed       14.)
@@ -106,15 +147,12 @@
   (define burst-speed-max 48.)
   (define burst-trail-min 14.)
   (define burst-trail-max 26.)
-  
+
   ;;;
-  ;;; SCREEN
+  ;;; Screen
   ;;;
 
-  ;; The screen is modelled as an 2d array of characters
-  ;; and intensities.
-
-  ;; Clear screen
+  ;; The screen is modeled as a 2d array of characters and intensities.
   (define intensities (make-vector rows #f))
   (define characters  (make-vector rows #f))
   (for ([row (in-range rows)])
@@ -122,15 +160,13 @@
     (vector-set! characters  row (make-vector columns #\space)))
 
   ;;;
-  ;;; TRAILS
+  ;;; Trails
   ;;;
 
-  ; A `drop` represents the leading, falling character in a trail.
-  
-  (struct drop (position speed trail last-row) #:mutable)  
+  ;; A `drop` represents the leading, falling character in a trail.
+  (struct drop (position speed trail last-row) #:mutable)
   (define column-drops (make-vector columns #f))
 
-  
   (define (boost-intensity! row col target)
     (when (and (>= row 0) (< row rows))
       (define row-int (vector-ref intensities row))
@@ -233,7 +269,7 @@
   (define (render!)
     (define payload
       (call-with-output-string
-       (λ (out)
+       (lambda (out)
          (display "\u001b[H" out)
          (for ([row (in-range rows)])
            (display "\u001b[0m" out)
@@ -269,7 +305,7 @@
 
   (define on-data-external
     (procedure->external
-     (λ (data)
+     (lambda (data)
        (when (string? data)
          (disturb! data))
        (void))))
@@ -283,8 +319,8 @@
   (render!)
   (set! tick-external (procedure->external tick))
   (js-window-request-animation-frame tick-external)
+  (mark-status! "ready" "ready")
   (void))
-
 
 ;;;
 ;;; Run
