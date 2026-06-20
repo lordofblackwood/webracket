@@ -38,6 +38,24 @@ are listed separately and are not intended to compile directly as tutorials.
 | Space Invaders | `space-invaders/space-invaders.rkt` | `already-module` | Module-based browser game with `generated/` output. |
 | Raco | `raco/tiles.rkt` | `module-based` | Canvas tile-sheet browser example; `raco.rkt` remains a separate text-mode engine/demo source. |
 
+Opt-In Batch Smoke
+------------------
+
+For a slow browser/compile pass across the module-based root examples, run:
+
+```sh
+./check-root-examples.sh
+```
+
+Useful knobs:
+
+- `RACKET=/path/to/racket ./check-root-examples.sh`
+- `ROOT_EXAMPLES_FILTER=hello-world-2,pict ./check-root-examples.sh`
+- `ROOT_EXAMPLES_SKIP_COMPILE=1 ./check-root-examples.sh`
+
+The batch is intentionally opt-in because `minischeme` and staged reader setup
+are slower than the fast test suite.
+
 Support Files And Non-Entry Sources
 -----------------------------------
 

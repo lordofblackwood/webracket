@@ -5,7 +5,7 @@
 From this folder:
 
 ```sh
-racket ../../webracket.rkt --ffi xtermjs --ffi dom --ffi standard -b xtermjs-demo.rkt
+./compile.sh
 ```
 
 Or from `examples/`:
@@ -19,11 +19,11 @@ Or from `examples/`:
 From this folder:
 
 ```sh
-raco static-web
+python3 -m http.server
 ```
 
 ## Open
 
 Open:
 
-- `http://localhost:8000/xtermjs-demo.html`
+- `http://localhost:8000/generated/xtermjs-demo.html`
