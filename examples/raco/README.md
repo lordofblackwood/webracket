@@ -5,7 +5,13 @@
 From this folder:
 
 ```sh
-racket ../../webracket.rkt --ffi dom --ffi standard -b tiles.rkt
+./compile.sh
+```
+
+With an explicit local Racket checkout:
+
+```sh
+RACKET=/Users/soegaard/Dropbox/GitHub/racket/racket/bin/racket ./compile.sh
 ```
 
 ## Serve
@@ -13,11 +19,16 @@ racket ../../webracket.rkt --ffi dom --ffi standard -b tiles.rkt
 From this folder:
 
 ```sh
-raco static-web
+python3 -m http.server
 ```
 
 ## Open
 
 Open:
 
-- `http://localhost:8000/tiles.html`
+- `http://localhost:8000/generated/tiles.html`
+
+The page exposes a small browser smoke marker:
+
+- `#status[data-state="loading"]` while the page is being prepared
+- `#status[data-state="ready"]` once the tile sheet is fully drawn

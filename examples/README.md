@@ -36,7 +36,7 @@ are listed separately and are not intended to compile directly as tutorials.
 | Snake 2 | `snake2/snake2.rkt` | `module-based` | Alternate Snake implementation with separate example layout. |
 | Snake 3 | `snake/snake3.rkt` | `debug/internal` | Experimental commented-out variant, not a runnable tutorial entry. |
 | Space Invaders | `space-invaders/space-invaders.rkt` | `already-module` | Module-based browser game with `generated/` output. |
-| Raco | `raco/raco.rkt` | `legacy-script` | Advanced/example-stress candidate; confirm user-facing status before conversion. |
+| Raco | `raco/tiles.rkt` | `module-based` | Canvas tile-sheet browser example; `raco.rkt` remains a separate text-mode engine/demo source. |
 
 Support Files And Non-Entry Sources
 -----------------------------------
@@ -45,7 +45,7 @@ Support Files And Non-Entry Sources
 - `minischeme/build-id.rkt`, `minischeme/interpreter.rkt`, `minischeme/minischeme.rkt`, `minischeme/repl-in-urlang.rkt`: MiniScheme support files.
 - `minischeme2/build-id.rkt`, `minischeme2/minischeme.rkt`: MiniScheme 2 support files.
 - `pict/pict-removed.rkt`: old/removed pict experiment.
-- `raco/tiles.rkt`: support generator/demo source, not the main raco entry.
+- `raco/raco.rkt`: text-mode engine/demo source, not the main browser entry.
 - `snake/snake3.rkt`: experimental commented-out Snake variant, not currently runnable.
 
 Planned Conversion Order

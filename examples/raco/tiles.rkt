@@ -1,3 +1,9 @@
+#lang webracket/base
+
+(require browser/canvas
+         browser/document
+         browser/element)
+
 ;;;
 ;;; Helpers
 ;;;
@@ -107,27 +113,46 @@
 ;;; DOM
 ;;;
 
-(define canvas (js-create-element "canvas"))
-(js-set-canvas-width!  canvas canvas-width)
-(js-set-canvas-height! canvas canvas-height)
-(js-set-attribute! canvas "style"
-                   (string-append
-                    "background: #202124; image-rendering: pixelated; "
-                    "display: block; margin: 32px auto; border: 2px solid #333; "
-                    "box-shadow: 0 12px 36px rgba(0, 0, 0, 0.35);"))
-(js-set-attribute! (js-document-body) "style"
-                   "margin: 0; background: #111; font-family: 'Fira Code', monospace; color: #fafafa;")
-(js-append-child! (js-document-body) canvas)
+(define body (document-body))
+(define status-banner (document-create-element "div"))
+(define canvas (document-create-element "canvas"))
+(define canvas-raw (element-unwrap canvas))
 
-(define ctx (js-canvas-get-context canvas "2d" (js-undefined)))
+(set-attribute! status-banner "id" "status")
+(set-attribute! status-banner
+                "style"
+                (string-append
+                 "position: fixed; top: 18px; right: 18px; z-index: 10; "
+                 "padding: 8px 12px; border-radius: 999px; "
+                 "background: rgba(15, 16, 18, 0.92); color: #ffe082; "
+                 "font: 700 12px/1.2 'Fira Code', monospace; "
+                 "letter-spacing: 0.08em; text-transform: uppercase;"))
+(set-attribute! status-banner "data-state" "loading")
+(element-set-text-content! status-banner "loading")
+
+(canvas-set-width! canvas-raw canvas-width)
+(canvas-set-height! canvas-raw canvas-height)
+(set-attribute! canvas
+                "style"
+                (string-append
+                 "background: #202124; image-rendering: pixelated; "
+                 "display: block; margin: 32px auto; border: 2px solid #333; "
+                 "box-shadow: 0 12px 36px rgba(0, 0, 0, 0.35);"))
+(set-attribute! body
+                "style"
+                "margin: 0; background: #111; font-family: 'Fira Code', monospace; color: #fafafa;")
+(append-child! body status-banner)
+(append-child! body canvas)
+
+(define ctx (canvas-get-context canvas-raw "2d"))
 
 ;;;
 ;;; Graphics
 ;;;
 
 (define (fill color x y w h)
-  (js-set-canvas2d-fill-style! ctx color)
-  (js-canvas2d-fill-rect ctx (->f x) (->f y) (->f w) (->f h)))
+  (canvas-2d-set-fill-style! ctx color)
+  (canvas-2d-fill-rect ctx (->f x) (->f y) (->f w) (->f h)))
 
 (define (tile-patch x y color dx dy w h)
   (fill color (+ x (* dx px)) (+ y (* dy px)) (* w px) (* h px)))
@@ -886,6 +911,9 @@
     (define tile-y (+ tile-margin (* row (+ tile-size tile-margin))))
     ((car ts) tile-x tile-y)
     (loop (cdr ts) (add1 index))))
+
+(set-attribute! status-banner "data-state" "ready")
+(element-set-text-content! status-banner "ready")
 
 
 #;(draw-hero-raccoon 0 0)
