@@ -4454,7 +4454,6 @@
              (append
               eager-base-support-report-names
               lazy-base-support-report-names
-              erased-contract-support-report-names
               (if needs-class-support?
                   class-support-report-names
                   '())

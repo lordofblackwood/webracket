@@ -228,6 +228,82 @@
       (with-handlers ([exn:fail:filesystem? void])
         (delete-directory/files base)))))
 
+;; run-web-pict-no-erased-contract-support-smoke : path? path? -> void?
+;;   Assert that a tiny `web-pict` root does not seed erased-contract support
+;;   providers when no composed module actually depends on them.
+(define (run-web-pict-no-erased-contract-support-smoke repo-root racket-exe)
+  (define base (make-temporary-file "webracket-web-pict-no-contract-support-~a" 'directory))
+  (define script-path (build-path base "web-pict-no-contract-support.rkt"))
+  (define compiled-root (build-path base "compiled"))
+  (define source-path (build-path base "repro-web-pict-require-42.rkt"))
+  (dynamic-wind
+    void
+    (lambda ()
+      (make-directory* compiled-root)
+      (call-with-output-file source-path
+        (lambda (out)
+          (display "#lang webracket/base\n" out)
+          (display "(require web-pict)\n" out)
+          (display "42\n" out))
+        #:exists 'truncate/replace)
+      (call-with-output-file script-path
+        (lambda (out)
+          (display "#lang racket/base\n" out)
+          (display "(require racket/list\n" out)
+          (display "         (file \"" out)
+          (display (path->string (build-path repo-root "pkgs" "webracket-lib" "compiler" "driver.rkt")) out)
+          (display "\")\n" out)
+          (display "         (file \"" out)
+          (display (path->string (build-path repo-root "pkgs" "webracket-lib" "compiler" "webify" "module-registry.rkt")) out)
+          (display "\"))\n" out)
+          (display "(define graph\n" out)
+          (display "  (webracket/base-file->local-module-graph\n" out)
+          (display "   \"" out)
+          (display (path->string source-path) out)
+          (display "\"))\n" out)
+          (display "(define registry-names\n" out)
+          (display "  (sort (webify-module-registry-names\n" out)
+          (display "         (webracket/base-local-module-graph-registry graph))\n" out)
+          (display "        symbol<?))\n" out)
+          (display "(define forbidden\n" out)
+          (display "  '(webracket/contract\n" out)
+          (display "    racket/contract/base\n" out)
+          (display "    racket/contract/combinator\n" out)
+          (display "    racket/contract/region\n" out)
+          (display "    racket/in-out\n" out)
+          (display "    racket/module-boundary-ctc\n" out)
+          (display "    racket/contract/private/base\n" out)
+          (display "    racket/contract/private/blame\n" out)
+          (display "    racket/contract/private/guts\n" out)
+          (display "    racket/contract/private/object\n" out)
+          (display "    racket/contract/private/object-c-wrapper))\n" out)
+          (display "(for ([name (in-list forbidden)])\n" out)
+          (display "  (when (member name registry-names)\n" out)
+          (display "    (error 'web-pict-no-contract-support\n" out)
+          (display "           \"unexpected erased-contract support provider\"\n" out)
+          (display "           name)))\n" out)
+          (display "(write (webracket/base-local-module-graph-root graph))\n" out)
+          (display "(newline)\n" out))
+        #:exists 'truncate/replace)
+      (define stdout (open-output-string))
+      (define stderr (open-output-string))
+      (define status
+        (parameterize ([current-directory repo-root]
+                       [current-output-port stdout]
+                       [current-error-port stderr]
+                       [current-environment-variables (env-with-collections repo-root compiled-root)])
+          (system*/exit-code racket-exe (path->string script-path))))
+      (define output
+        (string-append (get-output-string stdout)
+                       (get-output-string stderr)))
+      (unless (zero? status)
+        (error 'test-module-bridge-extraction
+               (format "web-pict extraction seeded erased-contract support (~a): ~a"
+                       status output))))
+    (lambda ()
+      (with-handlers ([exn:fail:filesystem? void])
+        (delete-directory/files base)))))
+
 ;; run-staged-read-list-extraction-smoke : path? path? -> void?
 ;;   Assert that user-facing staged `read` ownership does not leak into support
 ;;   provider extraction and create a registry cycle through list/for helpers.
@@ -297,4 +373,5 @@
   (run-bridge-extraction-smoke repo-root racket-exe)
   (run-imported-binding-extraction-smoke repo-root racket-exe)
   (run-browser-dom-no-io-format-support-smoke repo-root racket-exe)
+  (run-web-pict-no-erased-contract-support-smoke repo-root racket-exe)
   (run-staged-read-list-extraction-smoke repo-root racket-exe))
