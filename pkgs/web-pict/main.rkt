@@ -4,7 +4,6 @@
          racket/include
          racket/list
          racket/match
-         racket/math
          webracket/define-key
          (only-in webracket/primitives
                   external?

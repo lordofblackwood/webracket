@@ -73,6 +73,8 @@
 ;; The pict `blank` draws nothing when rendered, but takes up space
 ;; when combined with other picts.
 
+(define pi-local (atan 0 -1))
+
 (define blank 
   (case-lambda
    [()        (blank 0 0 0)]
@@ -1487,7 +1489,7 @@
           (dc 'line-width border-width))
        
         (dc 'begin-path)
-        (dc 'arc cx cy r 0 (* 2. pi))
+        (dc 'arc cx cy r 0 (* 2. pi-local))
         (dc 'stroke)
         
         (when border-color
@@ -1512,7 +1514,7 @@
         (when border-width
           (dc 'line-width border-width))
         (dc 'begin-path)
-        (dc 'ellipse cx cy rx ry rotation 0. (* 2. pi))
+        (dc 'ellipse cx cy rx ry rotation 0. (* 2. pi-local))
         (dc 'stroke)
         (when border-color
           (dc 'stroke-style old-stroke))
@@ -1540,12 +1542,12 @@
           (dc 'line-width border-width))
 
         (dc 'begin-path)
-        (dc 'ellipse cx cy rx ry rotation 0. (* 2. pi))
+        (dc 'ellipse cx cy rx ry rotation 0. (* 2. pi-local))
         (dc 'fill)
         
         (when draw-border?
           (dc 'begin-path)
-          (dc 'ellipse cx cy rx ry rotation 0. (* 2. pi))
+          (dc 'ellipse cx cy rx ry rotation 0. (* 2. pi-local))
           (dc 'stroke))
         
         (when border-color
@@ -2332,7 +2334,7 @@
       (+ 0.5 (fast-middle (- n 0.5)))))
 
 (define (fast-middle n)
-  (- 0.5 (/ (cos (* n pi)) 2)))
+  (- 0.5 (/ (cos (* n pi-local)) 2)))
 
 (define (split-phase opt-n)
   (values (* 2 (min opt-n 0.5))
@@ -2386,7 +2388,7 @@
       (if top? (- h) (* 2 h))
       (/ body-width 2)
       (/ body-height 2)
-      0 0 (* 2. pi))
+      0 0 (* 2. pi-local))
   (dc 'fill))
 
 (define (standard-fish-draw-middle-fin-step dc direction w h delta color-str)
@@ -2569,7 +2571,7 @@
                      (* 2/3 h)
                      (* 1/20 w)
                      (* 1/10 h)
-                     0 0 (* 2. pi))
+                     0 0 (* 2. pi-local))
                  (dc 'fill))))
 
          (dc 'restore))
