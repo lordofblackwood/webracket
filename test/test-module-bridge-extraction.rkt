@@ -145,6 +145,89 @@
       (with-handlers ([exn:fail:filesystem? void])
         (delete-directory/files base)))))
 
+;; run-browser-dom-no-io-format-support-smoke : path? path? -> void?
+;;   Assert that a module-language `browser/dom` root does not seed staged
+;;   `io/format` support providers unless the bridge explicitly asked for them.
+(define (run-browser-dom-no-io-format-support-smoke repo-root racket-exe)
+  (define base (make-temporary-file "webracket-browser-dom-no-io-format-~a" 'directory))
+  (define script-path (build-path base "browser-dom-no-io-format.rkt"))
+  (define compiled-root (build-path base "compiled"))
+  (define source-path (build-path base "repro-browser-dom-42.rkt"))
+  (dynamic-wind
+    void
+    (lambda ()
+      (make-directory* compiled-root)
+      (call-with-output-file source-path
+        (lambda (out)
+          (display "#lang webracket/base\n" out)
+          (display "(require browser/dom)\n" out)
+          (display "42\n" out))
+        #:exists 'truncate/replace)
+      (call-with-output-file script-path
+        (lambda (out)
+          (display "#lang racket/base\n" out)
+          (display "(require racket/list\n" out)
+          (display "         (file \"" out)
+          (display (path->string (build-path repo-root "pkgs" "webracket-lib" "compiler" "driver.rkt")) out)
+          (display "\")\n" out)
+          (display "         (file \"" out)
+          (display (path->string (build-path repo-root "pkgs" "webracket-lib" "compiler" "webify" "module-registry.rkt")) out)
+          (display "\"))\n" out)
+          (display "(define graph\n" out)
+          (display "  (webracket/base-file->local-module-graph\n" out)
+          (display "   \"" out)
+          (display (path->string source-path) out)
+          (display "\"))\n" out)
+          (display "(define registry-names\n" out)
+          (display "  (sort (webify-module-registry-names\n" out)
+          (display "         (webracket/base-local-module-graph-registry graph))\n" out)
+          (display "        symbol<?))\n" out)
+          (display "(define forbidden\n" out)
+          (display "  '(map-shim\n" out)
+          (display "    racket-src/io/format/main-web\n" out)
+          (display "    racket-src/io/format/main-web.rkt\n" out)
+          (display "    racket-src/io/format/printf-adapter.rkt\n" out)
+          (display "    racket-src/io/format/printf-web.rkt\n" out)
+          (display "    racket-src/racket/format-web\n" out)
+          (display "    racket/format\n" out)
+          (display "    webracket/contract\n" out)
+          (display "    racket/contract/base\n" out)
+          (display "    racket/contract/combinator\n" out)
+          (display "    racket/contract/region\n" out)
+          (display "    racket/in-out\n" out)
+          (display "    racket/module-boundary-ctc\n" out)
+          (display "    racket/contract/private/base\n" out)
+          (display "    racket/contract/private/blame\n" out)
+          (display "    racket/contract/private/guts\n" out)
+          (display "    racket/contract/private/object\n" out)
+          (display "    racket/contract/private/object-c-wrapper))\n" out)
+          (display "(for ([name (in-list forbidden)])\n" out)
+          (display "  (when (member name registry-names)\n" out)
+          (display "    (error 'browser-dom-no-io-format\n" out)
+          (display "           \"unexpected staged io/format support provider\"\n" out)
+          (display "           name)))\n" out)
+          (display "(write (webracket/base-local-module-graph-root graph))\n" out)
+          (display "(newline)\n" out))
+        #:exists 'truncate/replace)
+      (define stdout (open-output-string))
+      (define stderr (open-output-string))
+      (define status
+        (parameterize ([current-directory repo-root]
+                       [current-output-port stdout]
+                       [current-error-port stderr]
+                       [current-environment-variables (env-with-collections repo-root compiled-root)])
+          (system*/exit-code racket-exe (path->string script-path))))
+      (define output
+        (string-append (get-output-string stdout)
+                       (get-output-string stderr)))
+      (unless (zero? status)
+        (error 'test-module-bridge-extraction
+               (format "browser/dom extraction seeded staged io/format support (~a): ~a"
+                       status output))))
+    (lambda ()
+      (with-handlers ([exn:fail:filesystem? void])
+        (delete-directory/files base)))))
+
 ;; run-staged-read-list-extraction-smoke : path? path? -> void?
 ;;   Assert that user-facing staged `read` ownership does not leak into support
 ;;   provider extraction and create a registry cycle through list/for helpers.
@@ -213,4 +296,5 @@
   (define racket-exe (repo-racket-executable repo-root))
   (run-bridge-extraction-smoke repo-root racket-exe)
   (run-imported-binding-extraction-smoke repo-root racket-exe)
+  (run-browser-dom-no-io-format-support-smoke repo-root racket-exe)
   (run-staged-read-list-extraction-smoke repo-root racket-exe))

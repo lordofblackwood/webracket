@@ -62,6 +62,7 @@
                   runtime)
          (only-in racket/list       append* append-map remove-duplicates second take)
          (only-in racket/match      match)
+         (only-in racket/set list->seteq)
          setup/dirs
          (only-in "private/parameters.rkt"  current-ffi-foreigns
                                     current-ffi-imports-wat
@@ -74,6 +75,8 @@
                                     current-enable-simplify?
                                     current-module-bridge-elide-public-cells?
                                     current-module-bridge-elidable-module-names
+                                    current-module-bridge-local-report-names
+                                    current-module-bridge-support-provider-names
                                     current-module-bridge-module-kinds
                                     current-provider-owned-primitive-aliases
                                     current-webify-knowns-mode
@@ -4206,6 +4209,9 @@
   (define needs-expander-read-support?
     (for/or ([name (in-list webify-read-public-alias-symbols)])
       (set-member? (current-provider-owned-primitive-aliases) name)))
+  (define needs-io-format-support?
+    (for/or ([name (in-list webify-io-format-export-symbols)])
+      (set-member? (current-provider-owned-primitive-aliases) name)))
   (define registry
     (cond
      [(or (webracket/base-reports-demand-external-providers? bridge-reports)
@@ -4374,6 +4380,17 @@
            (util . racket/private/unit/util)))
        (define erased-contract-support-report-names
          (cons 'webracket/contract erased-contract-support-names))
+       (define eager-base-support-report-names
+         (list webify-module-protocol-name))
+       (define lazy-base-support-report-names
+         '(webracket/contract
+           webracket/private/sort-public
+           webracket/private/kw
+           racket/private/pre-base
+           webracket/private/sort
+           racket/private/sort
+           webracket/unsafe/undefined
+           racket/unsafe/undefined))
        (define class-support-report-names
          (append
           '(racket/private/for
@@ -4425,23 +4442,18 @@
               '(racket/prefab))
              '()))
        (define io-format-support-report-names
-         (list webify-io-format-adapter-name
-               webify-io-format-printf-name
-               webify-io-format-root-name
-               webify-io-format-map-shim-name
-               'racket-src/racket/format-web
-               'racket/format))
+         (if needs-io-format-support?
+             (list webify-io-format-adapter-name
+                   webify-io-format-printf-name
+                   webify-io-format-root-name
+                   webify-io-format-map-shim-name
+                   'racket-src/racket/format-web
+                   'racket/format)
+             '()))
        (set! support-report-names
              (append
-              (list webify-module-protocol-name
-                    'webracket/contract
-                    'webracket/private/sort-public
-                    'webracket/private/kw
-                    'racket/private/pre-base
-                    'webracket/private/sort
-                    'racket/private/sort
-                    'webracket/unsafe/undefined
-                    'racket/unsafe/undefined)
+              eager-base-support-report-names
+              lazy-base-support-report-names
               erased-contract-support-report-names
               (if needs-class-support?
                   class-support-report-names
@@ -4484,7 +4496,11 @@
             (webify-module-path->report '(submod syntax/parse/private/rep-patterns simple))
             'syntax/parse/private/rep-patterns/simple))))
        (define registry
-         (cached-discovered-provider-registry
+         (parameterize ([current-module-bridge-local-report-names
+                         (list->seteq local-report-names)]
+                        [current-module-bridge-support-provider-names
+                         (list->seteq support-report-names)])
+           (cached-discovered-provider-registry
             root
             local-source-paths
             support-report-names
@@ -4498,26 +4514,15 @@
                 (append
                  (list webify-module-protocol-report
                        (webify-module-provider-cache-ref provider-cache
-                                                         'webracket/contract)
-                       (webify-module-provider-cache-ref provider-cache
-                                                         'webracket/private/sort-public)
-                       (webify-module-provider-cache-ref provider-cache
-                                                         'webracket/private/kw)
-                       (webify-module-provider-cache-ref provider-cache
-                                                         'racket/private/pre-base)
-                       (webify-module-provider-cache-ref provider-cache
-                                                         'webracket/private/sort)
-                       (webify-module-report/rename
-                        (webify-module-provider-cache-ref provider-cache
-                                                          'webracket/private/sort)
-                        'racket/private/sort)
-                       (webify-module-provider-cache-ref provider-cache
-                                                         'webracket/unsafe/undefined)
-                       (webify-module-report/rename
-                        (webify-module-provider-cache-ref provider-cache
-                                                          'webracket/unsafe/undefined)
-                        'racket/unsafe/undefined))
-                 (erased-contract-support-reports)
+                                                         'webracket/private/sort-public))
+                 (if needs-expander-read-support?
+                     (list (webify-module-provider-cache-ref provider-cache
+                                                             'webracket/unsafe/undefined)
+                           (webify-module-report/rename
+                            (webify-module-provider-cache-ref provider-cache
+                                                              'webracket/unsafe/undefined)
+                            'racket/unsafe/undefined))
+                     '())
                  (if needs-class-support?
                      (append
                       (list (webify-module-provider-cache-ref provider-cache
@@ -4566,7 +4571,9 @@
                       (list (webify-module-provider-cache-ref provider-cache
                                                               'racket/prefab)))
                      '())
-                 (io-format-provider-reports)))
+                 (if needs-io-format-support?
+                     (io-format-provider-reports)
+                     '())))
               (with-module-bridge-timing
                'discover-provider-graph
                (lambda ()
@@ -4583,7 +4590,7 @@
                                      (webify-module-provider-cache-ref provider-cache name))
                   #:skip-provider? webracket/base-language-provider-name?
                   #:module-protocol-dependency webify-module-protocol-dependency
-                  #:demand-slice? #t))))))
+                  #:demand-slice? #t)))))))
        (provider-cache-log "#lang webracket/base provider cache: ~a hit(s), ~a miss(es)"
                            (webify-module-provider-cache-hit-count provider-cache)
                            (webify-module-provider-cache-miss-count provider-cache))
@@ -4597,7 +4604,7 @@
            (cons webify-module-protocol-input
                  (webify-module-reports->resolved-linklet-inputs
                   bridge-reports
-                 #:module-protocol-dependency webify-module-protocol-dependency)))))]))
+                  #:module-protocol-dependency webify-module-protocol-dependency)))))]))
   (define module-kinds
     (for/hasheq ([name (in-list (webify-module-registry-names registry))])
       (values name

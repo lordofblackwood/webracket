@@ -1,4 +1,6 @@
 #lang racket/base
+(require racket/set)
+
 (provide current-ffi-foreigns
          current-ffi-imports-wat
          current-ffi-funcs-wat
@@ -10,10 +12,13 @@
          current-enable-simplify?
          current-module-bridge-elide-public-cells?
          current-module-bridge-elidable-module-names
+         current-module-bridge-local-report-names
+         current-module-bridge-support-provider-names
          current-module-bridge-module-kinds
          current-webify-knowns-mode
          current-letrec-strategy
          current-tree-shake?
+         current-provider-owned-primitive-aliases
          current-runtime-cache-dir
          current-runtime-primitive-report-path
          current-runtime-timing-rows
@@ -38,12 +43,26 @@
   (make-parameter #f))                                 ; boolean? expose safe module-bridge exports as plain values
 (define current-module-bridge-elidable-module-names
   (make-parameter #f))                                 ; (or/c #f (listof symbol?)) modules allowed to elide public cells
+(define current-module-bridge-local-report-names
+  (make-parameter #f))                                 ; (or/c #f set?) local user-report names allowed to consume user-boundary alias facades
+(define current-module-bridge-support-provider-names
+  (make-parameter #f))                                 ; (or/c #f set?) support-provider names that should not consume user-boundary alias facades
 (define current-module-bridge-module-kinds
   (make-parameter #f))                                 ; (or/c #f hasheq?) module-name -> local/support/installed kind
 (define current-webify-knowns-mode
   (make-parameter 'normal))                            ; 'normal or 'abi-only knowns usage during webify
 (define current-letrec-strategy (make-parameter 'scc)) ; 'basic, 'waddell, or 'scc
 (define current-tree-shake?     (make-parameter #t))  ; boolean? tree shake runtime primitives
+(define current-provider-owned-primitive-aliases
+  (make-parameter (seteq)
+    (lambda (aliases)
+      (cond
+        [(set? aliases) aliases]
+        [(list? aliases) (list->seteq aliases)]
+        [else
+         (raise-argument-error 'current-provider-owned-primitive-aliases
+                               "(or/c set? (listof symbol?))"
+                               aliases)]))))          ; provider-owned public names that must resolve through staged providers
 (define current-runtime-cache-dir
   (make-parameter #f))                                 ; path-string? or #f
 (define current-runtime-primitive-report-path
