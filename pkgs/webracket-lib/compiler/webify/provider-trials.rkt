@@ -708,6 +708,10 @@
     racket/require-transform
     racket/runtime-path
     racket/splicing
+    racket-src/io/format/main-web
+    racket-src/io/format/main-web.rkt
+    racket-src/io/format/printf-adapter.rkt
+    racket-src/io/format/printf-web.rkt
     racket-src/racket/format-web
     racket/struct-info
     racket/stxparam
@@ -918,6 +922,10 @@
     racket/unsafe/undefined
     racket/require-transform
     racket/splicing
+    racket-src/io/format/main-web
+    racket-src/io/format/main-web.rkt
+    racket-src/io/format/printf-adapter.rkt
+    racket-src/io/format/printf-web.rkt
     racket-src/racket/format-web
     racket/struct-info
     racket/stxparam

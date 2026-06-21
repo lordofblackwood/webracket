@@ -2,6 +2,9 @@
 
 (require (except-in racket/base
                     read-bytes-line
+                    fprintf
+                    printf
+                    eprintf
                     make-keyword-procedure
                     sort
                     andmap
@@ -57,6 +60,9 @@
          "../contract.rkt"
          (only-in "../private/format.rkt"
                   [format wr-format]
+                  [fprintf wr-fprintf]
+                  [printf wr-printf]
+                  [eprintf wr-eprintf]
                   ~a
                   ~s
                   ~v
@@ -213,9 +219,15 @@
         (vector-sort!/range+keywords vec less-than? maybe-range key cache-keys?)]))))
 
 (provide (except-out (all-from-out racket/base)
-                     format)
+                     format
+                     fprintf
+                     printf
+                     eprintf)
          read-bytes-line
-         (rename-out [wr-format format])
+         (rename-out [wr-format format]
+                     [wr-fprintf fprintf]
+                     [wr-printf printf]
+                     [wr-eprintf eprintf])
          sort
          (all-from-out racket/bool)
          (all-from-out racket/bytes)

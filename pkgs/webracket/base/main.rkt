@@ -2,6 +2,9 @@
 
 (require (except-in racket/base
                     format
+                    fprintf
+                    printf
+                    eprintf
                     make-keyword-procedure
                     keyword-apply
                     procedure-keywords
@@ -18,7 +21,10 @@
                   print-as-expression
                   [sort/expanded-keywords primitive-sort/expanded-keywords])
          (only-in "../private/format.rkt"
-                  [format wr-format])
+                  [format wr-format]
+                  [fprintf wr-fprintf]
+                  [printf wr-printf]
+                  [eprintf wr-eprintf])
          (for-syntax racket/base)
          (for-syntax racket/splicing)
          (for-syntax webracket-lib/compiler/private/browser-options))
@@ -26,8 +32,14 @@
 ;; `webracket/base` is the small foundation, mirroring Racket's distinction
 ;; between `racket/base` and the broader `racket` language.
 (provide (except-out (all-from-out racket/base)
-                     format)
-         (rename-out [wr-format format])
+                     format
+                     fprintf
+                     printf
+                     eprintf)
+         (rename-out [wr-format format]
+                     [wr-fprintf fprintf]
+                     [wr-printf printf]
+                     [wr-eprintf eprintf])
          read-bytes-line
          sort
          prop:gen-sequence

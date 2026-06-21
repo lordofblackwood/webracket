@@ -212,7 +212,7 @@ async function runPageProbe(page, testPage, consoleMessages) {
       state: document.body?.getAttribute("data-state") ?? null,
       bodyText: document.body?.innerText ?? "",
     }));
-    if (probe.state !== "loaded" || probe.bodyText.trim() !== "42") {
+    if (probe.state !== "loaded" || probe.bodyText.trim() !== "42|value=42") {
       throw new Error(`webracket/base format smoke failed: ${JSON.stringify(probe)}`);
     }
     return;

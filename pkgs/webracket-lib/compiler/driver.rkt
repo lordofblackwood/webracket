@@ -4433,6 +4433,14 @@
          (for/list ([name (in-list external-names)]
                     #:when (webracket-owned-ffi-provider-name? name))
            name))
+       (define needs-io-format-closure?
+         (or needs-io-format-support?
+             (member 'webracket/private/format external-names)
+             (member 'racket/format external-names)
+             (member webify-io-format-root-name external-names)
+             (member webify-io-format-printf-name external-names)
+             (member webify-io-format-adapter-name external-names)
+             (member 'racket-src/racket/format-web external-names)))
        (define expander-read-support-report-names
          (if needs-expander-read-support?
              (append
@@ -4442,7 +4450,7 @@
               '(racket/prefab))
              '()))
        (define io-format-support-report-names
-         (if needs-io-format-support?
+         (if needs-io-format-closure?
              (list webify-io-format-adapter-name
                    webify-io-format-printf-name
                    webify-io-format-root-name
@@ -4568,7 +4576,7 @@
                       (list (webify-module-provider-cache-ref provider-cache
                                                               'racket/prefab)))
                      '())
-                 (if needs-io-format-support?
+                 (if needs-io-format-closure?
                      (io-format-provider-reports)
                      '())))
               (with-module-bridge-timing
