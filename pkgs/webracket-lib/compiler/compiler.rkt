@@ -466,19 +466,62 @@
   (ids->id-set xs))
 
 (define (set-union s1 s2)
-  (for/fold ([s s1]) ([x (in-list (id-set-ids s2))]) (set-add s x)))
+  (cond
+    [(null? (id-set-ids s1)) s2]
+    [(null? (id-set-ids s2)) s1]
+    [else
+     (define entries1 (id-set-entries s1))
+     (define entries2 (id-set-entries s2))
+     (define union-entries
+       (free-id-set-union entries1 entries2))
+     (cond
+       [(equal? union-entries entries1) s1]
+       [(equal? union-entries entries2) s2]
+       [else
+        (define new-ids
+          (for/list ([x (in-list (id-set-ids s2))]
+                     #:unless (free-id-set-member? entries1 (variable-id x)))
+            x))
+        (id-set (append (reverse new-ids) (id-set-ids s1))
+                union-entries)])]))
 
 (define (set-union* ss)
-  (for/fold ([u empty-set]) ([s ss]) (set-union u s)))
+  (for/fold ([u empty-set]) ([s ss] #:unless (null? (id-set-ids s)))
+    (if (null? (id-set-ids u))
+        s
+        (set-union u s))))
 
 (define (set-remove s x)
-  (if (set-in? x s)
-      (id-set (remove x (id-set-ids s) variable=?)
-              (free-id-set-remove (id-set-entries s) (variable-id x)))
-      s))
+  (cond
+    [(not (set-in? x s)) s]
+    [else
+     (define kept-ids
+       (for/list ([y (in-list (id-set-ids s))]
+                  #:unless (variable=? y x))
+         y))
+     (define entries
+       (for/fold ([entries (immutable-free-id-set)])
+                 ([y (in-list kept-ids)])
+         (free-id-set-add entries (variable-id y))))
+     (id-set kept-ids entries)]))
 
 (define (set-difference s1 s2)
-  (for/fold ([s s1]) ([x (in-list (id-set-ids s2))]) (set-remove s x)))
+  (cond
+    [(or (null? (id-set-ids s1))
+         (null? (id-set-ids s2)))
+     s1]
+    [else
+     (define kept-ids
+       (for/list ([x (in-list (id-set-ids s1))]
+                  #:unless (set-in? x s2))
+         x))
+     (if (= (length kept-ids) (length (id-set-ids s1)))
+         s1
+         (let ([entries
+                (for/fold ([entries (immutable-free-id-set)])
+                          ([x (in-list kept-ids)])
+                  (free-id-set-add entries (variable-id x)))])
+           (id-set kept-ids entries)))]))
 
 (define (set-intersection s1 s2)
   (for/fold ([s empty-set]) ([x (in-list (id-set-ids s1))] #:when (set-in? x s2))
