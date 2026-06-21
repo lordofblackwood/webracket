@@ -218,6 +218,22 @@ async function runPageProbe(page, testPage, consoleMessages) {
     return;
   }
 
+  if (testPage === "test-web-pict-text-binding.html") {
+    await page.waitForFunction(() =>
+      ["loaded", "error"].includes(document.querySelector("#status")?.getAttribute("data-state")));
+    const probe = await page.evaluate(() => {
+      const status = document.querySelector("#status");
+      return {
+        state: status?.getAttribute("data-state") ?? null,
+        text: status?.textContent ?? "",
+      };
+    });
+    if (probe.state !== "loaded" || probe.text.trim() !== "web-pict-text-binding-ok") {
+      throw new Error(`web-pict text binding smoke failed: ${JSON.stringify(probe)}`);
+    }
+    return;
+  }
+
   if (testPage === "test-racket-port-call-with-output-string.html") {
     await page.waitForFunction(() =>
       ["loaded", "error"].includes(document.body?.getAttribute("data-state")));

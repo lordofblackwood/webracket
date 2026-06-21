@@ -37829,9 +37829,11 @@
                             (br_on_cast $ok (ref eq) (ref $Boxed) (local.get $b))
                             (unreachable)))
 	               (local.set $v (struct.get $Boxed $v (local.get $B)))
-	               ;; Safe code must not observe letrec's internal placeholder.
-	               (if (ref.eq (local.get $v) (global.get $unsafe-undefined))
-	                   (then (call $raise-letrec-placeholder-access)))
+	               ;; Compiler boxes use `unsafe-undefined` as an ordinary
+	               ;; sentinel value. The compiler inserts explicit
+	               ;; `check-not-unsafe-undefined` guards where early reads must
+	               ;; fail, so internal box reads must expose the sentinel rather
+	               ;; than raising here.
 	               (local.get $v))
 
          (func $set-boxed! (type $Prim2)
