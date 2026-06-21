@@ -3289,7 +3289,11 @@
 
 (define (candidate-module-symbol->relative-rkt-path candidate)
   (and (symbol? candidate)
-       (string->path (string-append (symbol->string candidate) ".rkt"))))
+       (let ([name (symbol->string candidate)])
+         (string->path
+          (if (regexp-match? #rx"[.]rkt$" name)
+              name
+              (string-append name ".rkt"))))))
 
 ;; local-require-spec-paths : any/c path? -> (listof path?)
 ;;   Discover source-visible local files before expanded metadata is available.
@@ -3340,7 +3344,10 @@
                       (candidate-module-symbol->relative-rkt-path module-name))
                     (define path
                       (and relative-path
-                           (simplify-path (build-path source-dir relative-path))))]
+                           (simplify-path
+                            (if (absolute-path? relative-path)
+                                relative-path
+                                (build-path source-dir relative-path)))))]
               #:when (and path
                           (not (eq? module-name self-name))
                           (file-exists? path)))

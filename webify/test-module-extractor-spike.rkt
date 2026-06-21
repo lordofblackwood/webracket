@@ -1961,6 +1961,38 @@
     (lambda ()
       (delete-directory/files tmp-dir))))
 
+(test-case "import map collects file-module require candidates"
+  (define tmp-dir (make-temporary-file "webify-module-file-import-~a" 'directory))
+  (dynamic-wind
+    void
+    (lambda ()
+      (define provider-path (build-path tmp-dir "provider.rkt"))
+      (define consumer-path (build-path tmp-dir "consumer.rkt"))
+      (call-with-output-file provider-path
+        (lambda (out)
+          (display "#lang racket/base\n(provide public-x)\n(define public-x 41)\n" out))
+        #:exists 'truncate/replace)
+      (call-with-output-file consumer-path
+        (lambda (out)
+          (display "#lang racket/base\n(require \"provider.rkt\")\n(provide y)\n(define y public-x)\n" out))
+        #:exists 'truncate/replace)
+      (define provider-key (string->symbol (path->string provider-path)))
+      (define provider-report (webify-module-path->extractor-spike provider-path))
+      (define consumer-report (webify-module-path->extractor-spike consumer-path))
+      (define import-map (webify-module-extractor-spike-import-map consumer-report))
+      (check-not-false
+       (member (list 0 provider-key)
+               (webify-module-import-map-required-module-candidates import-map)))
+      (define input
+        (webify-module-extractor-spike->resolved-linklet-input/providers
+         consumer-report
+         (list provider-report)
+         #:module-protocol-dependency 'module-protocol))
+      (check-equal? (drop (webify-module-linklet-input-imports input) 2)
+                    `((public-x ,provider-key public-x))))
+    (lambda ()
+      (delete-directory/files tmp-dir))))
+
 (test-case "resolved extractor inputs use re-provide backing provider hints"
   (define provider-report
     (webify-module-extractor-spike

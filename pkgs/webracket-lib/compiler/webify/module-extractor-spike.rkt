@@ -1008,6 +1008,17 @@
     [(path? module-path)
      (string->symbol (path->string module-path))]
     [(and (list? module-path)
+          (eq? (car module-path) 'file)
+          (= (length module-path) 2)
+          (or (string? (cadr module-path))
+              (path? (cadr module-path))))
+     (define raw-path (cadr module-path))
+     (string->symbol
+      (path->string
+       (if (path? raw-path)
+           raw-path
+           (string->path raw-path))))]
+    [(and (list? module-path)
           (eq? (car module-path) 'submod)
           (pair? (cdr module-path))
           (andmap symbol? (cddr module-path)))
@@ -1097,13 +1108,18 @@
       [(and (box? mpi) (symbol? (unbox mpi))) self-name]
       [(and (vector? mpi)
             (= (vector-length mpi) 2)
-            (string? (vector-ref mpi 0))
             (exact-nonnegative-integer? (vector-ref mpi 1)))
-       (define parent-idx (vector-ref mpi 1))
-       (define parent-name
-         (and (not (eqv? parent-idx idx))
-              (resolve-index parent-idx)))
-       (relative-module-name (or parent-name self-name) (vector-ref mpi 0))]
+       (define path-spec (vector-ref mpi 0))
+       (cond
+         [(string? path-spec)
+          (define parent-idx (vector-ref mpi 1))
+          (define parent-name
+            (and (not (eqv? parent-idx idx))
+                 (resolve-index parent-idx)))
+          (relative-module-name (or parent-name self-name) path-spec)]
+         [else
+          (with-handlers ([exn:fail? (lambda (_exn) #f)])
+            (module-path->dependency-name path-spec))])]
       [(symbol? mpi) mpi]
       [else (module-path-index->dependency-name mpi)]))
   (and (vector? mpi-vector)
