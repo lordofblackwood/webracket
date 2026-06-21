@@ -444,10 +444,11 @@
 
 (struct id-set
   (ids                    ; insertion-order list of variables
-   entries)               ; free-id-set for fast membership
+   entries                ; free-id-set for fast membership
+   size)                  ; cached cardinality
   #:transparent)
 
-(define empty-set (id-set '() (immutable-free-id-set)))
+(define empty-set (id-set '() (immutable-free-id-set) 0))
 (define (id-set->list s) (id-set-ids s))
 
 (define (set-in? x s)
@@ -457,7 +458,8 @@
   (if (set-in? x s)
       s
       (id-set (cons x (id-set-ids s))
-              (free-id-set-add (id-set-entries s) (variable-id x)))))
+              (free-id-set-add (id-set-entries s) (variable-id x))
+              (add1 (id-set-size s)))))
 
 (define (ids->id-set xs)
   (for/fold ([s empty-set]) ([x xs]) (set-add s x)))
@@ -470,20 +472,22 @@
     [(null? (id-set-ids s1)) s2]
     [(null? (id-set-ids s2)) s1]
     [else
-     (define entries1 (id-set-entries s1))
-     (define entries2 (id-set-entries s2))
-     (define union-entries
-       (free-id-set-union entries1 entries2))
-     (cond
-       [(equal? union-entries entries1) s1]
-       [(equal? union-entries entries2) s2]
-       [else
-        (define new-ids
-          (for/list ([x (in-list (id-set-ids s2))]
-                     #:unless (free-id-set-member? entries1 (variable-id x)))
-            x))
-        (id-set (append (reverse new-ids) (id-set-ids s1))
-                union-entries)])]))
+     (define (extend base extra)
+       (define union-entries (id-set-entries base))
+       (define missing-ids '())
+       (for ([x (in-list (id-set-ids extra))])
+         (define id (variable-id x))
+         (unless (free-id-set-member? union-entries id)
+           (set! missing-ids (cons x missing-ids))
+           (set! union-entries (free-id-set-add union-entries id))))
+       (if (null? missing-ids)
+           base
+           (id-set (append (reverse missing-ids) (id-set-ids base))
+                   union-entries
+                   (+ (id-set-size base) (length missing-ids)))))
+     (if (>= (id-set-size s1) (id-set-size s2))
+         (extend s1 s2)
+         (extend s2 s1))]))
 
 (define (set-union* ss)
   (for/fold ([u empty-set]) ([s ss] #:unless (null? (id-set-ids s)))
@@ -503,7 +507,7 @@
        (for/fold ([entries (immutable-free-id-set)])
                  ([y (in-list kept-ids)])
          (free-id-set-add entries (variable-id y))))
-     (id-set kept-ids entries)]))
+     (id-set kept-ids entries (sub1 (id-set-size s)))]))
 
 (define (set-difference s1 s2)
   (cond
@@ -521,7 +525,7 @@
                 (for/fold ([entries (immutable-free-id-set)])
                           ([x (in-list kept-ids)])
                   (free-id-set-add entries (variable-id x)))])
-           (id-set kept-ids entries)))]))
+           (id-set kept-ids entries (length kept-ids))))]))
 
 (define (set-intersection s1 s2)
   (for/fold ([s empty-set]) ([x (in-list (id-set-ids s1))] #:when (set-in? x s2))
@@ -633,6 +637,10 @@
     (ρ-set ρ x x)))
 
 #;(module+ test
+  (void))
+
+(module+ test-id-set
+  (require rackunit)
   (let ()
     ;; mkvar : symbol? -> variable?
     ;;   Construct a fresh variable wrapper for symbol s.
@@ -642,7 +650,7 @@
     ;; set-size : id-set? -> exact-nonnegative-integer?
     ;;   Number of variables stored in id-set s.
     (define (set-size s)
-      (length (id-set->list s)))
+      (id-set-size s))
     ;; set-has-name-string? : id-set? string? -> boolean?
     ;;   Check whether some variable in s has printed symbol name name.
     (define (set-has-name-string? s name)
@@ -672,6 +680,17 @@
     (check-true (set-in? x2 sx))
     (check-equal? (set-size sx) 1)
     (check-equal? (set-size sxx) 1)
+
+    ;; Distinct generated identifiers stay distinct even with identifier-set dedupe.
+    (define generated-x*
+      (map variable (generate-temporaries '(x x))))
+    (define fresh-x1 (car generated-x*))
+    (define fresh-x2 (cadr generated-x*))
+    (check-false (free-identifier=? (variable-id fresh-x1) (variable-id fresh-x2)))
+    (define s/fresh (make-id-set fresh-x1 fresh-x2))
+    (check-equal? (set-size s/fresh) 2)
+    (check-true (set-in? fresh-x1 s/fresh))
+    (check-true (set-in? fresh-x2 s/fresh))
 
     ;; Basic add/remove operations.
     (define sxy (set-add sx y))
