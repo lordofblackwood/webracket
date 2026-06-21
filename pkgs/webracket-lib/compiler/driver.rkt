@@ -3821,6 +3821,25 @@
                  #:unless (memq sym before))
         sym))))
 
+;; shared-webify-contract-erasing-namespace/ref : -> namespace?
+;;   Reuse one erased-contract extraction namespace per driver process.
+(define shared-webify-contract-erasing-namespace/cache (box #f))
+(define (shared-webify-contract-erasing-namespace/ref)
+  (or (unbox shared-webify-contract-erasing-namespace/cache)
+      (let ([ns (make-webify-contract-erasing-namespace)])
+        (set-box! shared-webify-contract-erasing-namespace/cache ns)
+        ns)))
+
+;; shared-webify-contract-erasing-module-name-resolver/ref : -> procedure?
+;;   Reuse the matching erased-contract resolver alongside the shared namespace.
+(define shared-webify-contract-erasing-module-name-resolver/cache (box #f))
+(define (shared-webify-contract-erasing-module-name-resolver/ref)
+  (or (unbox shared-webify-contract-erasing-module-name-resolver/cache)
+      (let ([resolver (make-webify-contract-erasing-module-name-resolver)])
+        (set-box! shared-webify-contract-erasing-module-name-resolver/cache
+                  resolver)
+        resolver)))
+
 ;; lib-module-path->symbol : any/c -> (or/c symbol? #f)
 ;;   Convert simple `(lib "x.rkt" "collection" ...)` paths to shorthand names.
 (define (lib-module-path->symbol module-path)
@@ -3910,10 +3929,11 @@
 ;;   Extract local module reports plus the visited source files for the bridge path.
 (define (webracket/base-file->local-module-reports filename)
   (define extraction-namespace (make-base-namespace))
-  (define provider-namespace (make-webify-contract-erasing-namespace))
-  (define provider-module-name-resolver
-    (make-webify-contract-erasing-module-name-resolver))
   (define base-module-name-resolver (current-module-name-resolver))
+  (define (provider-namespace/ref)
+    (shared-webify-contract-erasing-namespace/ref))
+  (define (provider-module-name-resolver/ref)
+    (shared-webify-contract-erasing-module-name-resolver/ref))
   (define compile-stub-names '())
   (define (module-name-resolver module-path source syntax load?)
     (define stub-name (module-path-compile-stub-name module-path))
@@ -3947,10 +3967,11 @@
              (not (webracket-owned-ffi-provider-name? substitute-name)))
            (define report
              (if use-erased-provider-namespace?
-                 (parameterize ([current-namespace provider-namespace]
-                                [current-module-name-resolver provider-module-name-resolver])
+                 (parameterize ([current-namespace (provider-namespace/ref)]
+                                [current-module-name-resolver
+                                 (provider-module-name-resolver/ref)])
                    (webify-module-path->report substitute-name
-                                               #:namespace provider-namespace))
+                                               #:namespace (provider-namespace/ref)))
                  (webify-module-path->report substitute-name)))
            (define public-exports
              (provider-public-export-symbols
@@ -3959,7 +3980,7 @@
                   (make-webify-contract-erasing-namespace)
                   (make-base-namespace))
               (if use-erased-provider-namespace?
-                  provider-module-name-resolver
+                  (provider-module-name-resolver/ref)
                   base-module-name-resolver)))
            (declare-provider-compile-stub!
             extraction-namespace
@@ -4225,9 +4246,9 @@
           needs-expander-read-support?)
        (webracket/base-check-external-provider-allowlist! bridge-reports)
        (define external-names (webracket/base-external-provider-names bridge-reports))
-       (define provider-namespace (make-webify-contract-erasing-namespace))
+       (define provider-namespace (shared-webify-contract-erasing-namespace/ref))
        (define provider-module-name-resolver
-         (make-webify-contract-erasing-module-name-resolver))
+         (shared-webify-contract-erasing-module-name-resolver/ref))
        (define (fetch-provider/erased-contracts name)
          (define staged-io-format-report
            (io-format-provider-report/ref name))
