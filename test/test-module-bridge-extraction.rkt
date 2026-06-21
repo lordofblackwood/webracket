@@ -309,6 +309,59 @@
       (with-handlers ([exn:fail:filesystem? void])
         (delete-directory/files base)))))
 
+;; run-browser-canvas-unsafe-undefined-smoke : path? path? -> void?
+;;   Assert that browser/canvas roots can resolve the lazy unsafe-undefined
+;;   support provider during module-bridge extraction.
+(define (run-browser-canvas-unsafe-undefined-smoke repo-root racket-exe)
+  (define base (make-temporary-file "webracket-browser-canvas-unsafe-undefined-~a" 'directory))
+  (define script-path (build-path base "browser-canvas-unsafe-undefined.rkt"))
+  (define compiled-root (build-path base "compiled"))
+  (define source-path (build-path base "repro-browser-canvas-42.rkt"))
+  (dynamic-wind
+    void
+    (lambda ()
+      (make-directory* compiled-root)
+      (call-with-output-file source-path
+        (lambda (out)
+          (display "#lang webracket/base\n" out)
+          (display "(require browser/canvas)\n" out)
+          (display "42\n" out))
+        #:exists 'truncate/replace)
+      (call-with-output-file script-path
+        (lambda (out)
+          (display "#lang racket/base\n" out)
+          (display "(require (file \"" out)
+          (display (path->string (build-path repo-root "pkgs" "webracket-lib" "compiler" "driver.rkt")) out)
+          (display "\"))\n" out)
+          (display "(define graph\n" out)
+          (display "  (webracket/base-file->local-module-graph\n" out)
+          (display "   \"" out)
+          (display (path->string source-path) out)
+          (display "\"))\n" out)
+          (display "(unless (pair? (webracket/base-local-module-graph-reports graph))\n" out)
+          (display "  (error 'browser-canvas-unsafe-undefined \"expected local reports\"))\n" out)
+          (display "(write (webracket/base-local-module-graph-root graph))\n" out)
+          (display "(newline)\n" out))
+        #:exists 'truncate/replace)
+      (define stdout (open-output-string))
+      (define stderr (open-output-string))
+      (define status
+        (parameterize ([current-directory repo-root]
+                       [current-output-port stdout]
+                       [current-error-port stderr]
+                       [current-environment-variables (env-with-collections repo-root compiled-root)])
+          (system*/exit-code racket-exe (path->string script-path))))
+      (define output
+        (string-append (get-output-string stdout)
+                       (get-output-string stderr)))
+      (unless (zero? status)
+        (error 'test-module-bridge-extraction
+               (format "browser/canvas extraction could not resolve unsafe-undefined (~a): ~a"
+                       status output))))
+    (lambda ()
+      (with-handlers ([exn:fail:filesystem? void])
+        (delete-directory/files base)))))
+
 ;; run-staged-read-list-extraction-smoke : path? path? -> void?
 ;;   Assert that user-facing staged `read` ownership does not leak into support
 ;;   provider extraction and create a registry cycle through list/for helpers.
@@ -378,5 +431,6 @@
   (run-bridge-extraction-smoke repo-root racket-exe)
   (run-imported-binding-extraction-smoke repo-root racket-exe)
   (run-browser-dom-no-io-format-support-smoke repo-root racket-exe)
+  (run-browser-canvas-unsafe-undefined-smoke repo-root racket-exe)
   (run-web-pict-no-erased-contract-support-smoke repo-root racket-exe)
   (run-staged-read-list-extraction-smoke repo-root racket-exe))

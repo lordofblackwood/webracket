@@ -4513,15 +4513,13 @@
                 (append
                  (list webify-module-protocol-report
                        (webify-module-provider-cache-ref provider-cache
-                                                         'webracket/private/sort-public))
-                 (if needs-expander-read-support?
-                     (list (webify-module-provider-cache-ref provider-cache
-                                                             'webracket/unsafe/undefined)
-                           (webify-module-report/rename
-                            (webify-module-provider-cache-ref provider-cache
-                                                              'webracket/unsafe/undefined)
-                            'racket/unsafe/undefined))
-                     '())
+                                                         'webracket/private/sort-public)
+                       (webify-module-provider-cache-ref provider-cache
+                                                         'webracket/unsafe/undefined)
+                       (webify-module-report/rename
+                        (webify-module-provider-cache-ref provider-cache
+                                                          'webracket/unsafe/undefined)
+                        'racket/unsafe/undefined))
                  (if needs-class-support?
                      (append
                       (list (webify-module-provider-cache-ref provider-cache
