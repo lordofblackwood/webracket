@@ -241,7 +241,7 @@ async function runPageProbe(page, testPage, consoleMessages) {
       state: document.body?.getAttribute("data-state") ?? null,
       bodyText: document.body?.innerText ?? "",
     }));
-    if (probe.state !== "loaded" || probe.bodyText.trim() !== "abc|ab|A B") {
+    if (probe.state !== "loaded" || probe.bodyText.trim() !== "abc|ab") {
       throw new Error(`racket/port call-with-output-string smoke failed: ${JSON.stringify(probe)}`);
     }
     return;

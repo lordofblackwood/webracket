@@ -68932,11 +68932,13 @@
                (call $growable-array-of-strings->string (local.get $out)))
 
          
+         ; Note: This uses the write conventions instead of display.
          (func $format/display:char
                (param $v (ref eq))
                (result   (ref $String))
 
                (local $cp i32)                 ;; codepoint
+               (local $s  (ref $String))       ;; temporary string
 
                ;; Check if input is a character immediate
                (if (i32.or (i32.eqz (ref.test (ref i31) (local.get $v)))
@@ -68947,8 +68949,63 @@
                ;; Decode character
                (local.set $cp (i32.shr_u (i31.get_u (ref.cast (ref i31) (local.get $v)))
                                          (i32.const ,char-shift)))
-               ;; Display prints the character itself, not its `write` spelling.
-               (call $make-string/checked (i32.const 1) (local.get $cp)))
+               ;; Special character names
+               (if (i32.eq (local.get $cp) (i32.const 10))  ;; newline
+                   (then (return
+                          (call $string-append/2
+                                (ref.cast (ref $String) (global.get $string:hash-backslash))
+                                (ref.cast (ref $String) (global.get $string:word-newline))))))
+               (if (i32.eq (local.get $cp) (i32.const 13))  ;; return
+                   (then (return
+                          (call $string-append/2
+                                (ref.cast (ref $String) (global.get $string:hash-backslash))
+                                (ref.cast (ref $String) (global.get $string:word-return))))))
+               (if (i32.eq (local.get $cp) (i32.const 9))   ;; tab
+                   (then (return
+                          (call $string-append/2
+                                (ref.cast (ref $String) (global.get $string:hash-backslash))
+                                (ref.cast (ref $String) (global.get $string:word-tab))))))
+               (if (i32.eq (local.get $cp) (i32.const 8))   ;; backspace
+                   (then (return
+                          (call $string-append/2
+                                (ref.cast (ref $String) (global.get $string:hash-backslash))
+                                (ref.cast (ref $String) (global.get $string:word-backspace))))))
+               (if (i32.eq (local.get $cp) (i32.const 127)) ;; rubout
+                   (then (return
+                          (call $string-append/2
+                                (ref.cast (ref $String) (global.get $string:hash-backslash))
+                                (ref.cast (ref $String) (global.get $string:word-rubout))))))
+               (if (i32.eq (local.get $cp) (i32.const 32))  ;; space
+                   (then (return
+                          (call $string-append/2
+                                (ref.cast (ref $String) (global.get $string:hash-backslash))
+                                (ref.cast (ref $String) (global.get $string:word-space))))))
+               (if (i32.eq (local.get $cp) (i32.const 0))  ;; nul
+                   (then (return
+                          (call $string-append/2
+                                (ref.cast (ref $String) (global.get $string:hash-backslash))
+                                (ref.cast (ref $String) (global.get $string:word-nul))))))
+               ;; Printable graphic character
+               (if (call $is-graphic (local.get $cp))
+                   (then
+                    (local.set $s (call $make-string/checked (i32.const 1) (local.get $cp)))
+                    (return (call $string-append/2
+                                  (ref.cast (ref $String) (global.get $string:hash-backslash))
+                                  (local.get $s)))))
+
+               ;; Fallback for non-printable or out-of-range characters
+               ;; Fallback: #\uXXXX and #\UXXXXXX
+               (if (i32.le_u (local.get $cp) (i32.const 65535))  ;; ≤ 0xFFFF
+                   (then (return
+                          (call $string-append/2
+                                (ref.cast (ref $String) (global.get $string:hash-backslash-u))
+                                (call $make-hex-string (local.get $cp) (i32.const 4)))))
+                   ;; Else use #\UXXXXXX
+                   (else (return
+                          (call $string-append/2
+                                (ref.cast (ref $String) (global.get $string:hash-backslash-U))
+                                (call $make-hex-string (local.get $cp) (i32.const 6))))))
+               (unreachable))
 
         (func $make-oct-string
               (param $n i32)
