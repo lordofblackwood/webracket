@@ -5,7 +5,7 @@
 ;; Minimal smoke test for `(include-lib simple-pretty)`.
 ;;
 ;; Build:
-;;   racket -l errortrace -t ../webracket.rkt -- --ffi ../ffi/standard.ffi -r simple-test.rkt
+;;   racket -l errortrace -t ../webracket.rkt -- --ffi ../ffi/standard.ffi -r test-simple-pretty.rkt
 
 (include-lib simple-pretty)
 
