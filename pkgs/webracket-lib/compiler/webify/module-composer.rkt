@@ -77,6 +77,14 @@
                    (symbol->string name)
                    "")))
 
+;; compiled-kernel-primitive-export-name : symbol? -> symbol?
+;;   Strip the host expander's `kernel:` prefix from primitive export names.
+(define (compiled-kernel-primitive-export-name name)
+  (string->symbol
+   (regexp-replace #rx"^kernel:"
+                   (symbol->string name)
+                   "")))
+
 ;; compiled-keyword-primitive-alias : symbol? symbol? -> (or/c symbol? #f)
 ;;   Recover canonical primitive names for keyword-capable primitive aliases.
 (define (compiled-keyword-primitive-alias import-name export-name)
@@ -93,7 +101,8 @@
     [(compiled-directory-list-build-first-import? import-name)
      'webracket-directory-list-build-first]
     [(compiled-keyword-primitive-alias import-name export-name)]
-    [else export-name]))
+    [else
+     (compiled-kernel-primitive-export-name export-name)]))
 
 ;; symbolic-import-name=? : symbol? symbol? -> boolean?
 ;;   Compare generated import names after stripping decompiler index prefixes.
@@ -580,20 +589,24 @@
                            (hash-set exports export #t))
                          (hasheq)))))))
 
-;; import-sources->envs : hash? (listof (listof source?)) (listof (listof any/c)) -> (listof hash?)
+;; import-sources->envs : hash? (listof (listof source?)) [(listof (listof any/c))] -> (listof hash?)
 ;;   Resolve grouped import source triples to grouped explicit-import environments.
-(define (import-sources->envs who instances import-sources imports-abis)
+(define (import-sources->envs who instances import-sources [imports-abis #f])
+  (define imports-abis*
+    (or imports-abis
+        (for/list ([group (in-list import-sources)])
+          (make-list (length group) #f))))
   (unless (list? import-sources)
     (raise-argument-error who "list?" import-sources))
-  (unless (valid-imports-abis? imports-abis)
+  (unless (valid-imports-abis? imports-abis*)
     (raise-argument-error who "(listof (listof (or/c #f #t 'proc exact-nonnegative-integer?)))" imports-abis))
-  (unless (= (length import-sources) (length imports-abis))
+  (unless (= (length import-sources) (length imports-abis*))
     (raise-arguments-error who
                            "import ABI group count does not match import sources"
                            "import source groups" (length import-sources)
-                           "import ABI groups" (length imports-abis)))
+                           "import ABI groups" (length imports-abis*)))
   (for/list ([group     (in-list import-sources)]
-             [abi-group (in-list imports-abis)])
+             [abi-group (in-list imports-abis*)])
     (unless (list? group)
       (raise-argument-error who "(listof list?)" import-sources))
     (unless (= (length group) (length abi-group))
