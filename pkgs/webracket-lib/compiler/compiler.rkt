@@ -65,6 +65,7 @@
                   current-console-bridge-root-source-path
                   current-enable-simplify?
                   current-letrec-strategy
+                  current-provider-owned-primitive-aliases
                   current-tree-shake?
                   current-runtime-primitive-report-path
                   current-runtime-timing-rows
@@ -374,16 +375,6 @@
 (define current-internal-treelist-debug-shape? (make-parameter #f))
 ;; Same idea for immutable hash HAMT shape probes.
 (define current-internal-immutable-hash-debug-shape? (make-parameter #f))
-(define current-provider-owned-primitive-aliases
-  (make-parameter (seteq)
-    (lambda (aliases)
-      (cond
-        [(set? aliases) aliases]
-        [(list? aliases) (list->seteq aliases)]
-        [else
-         (raise-argument-error 'current-provider-owned-primitive-aliases
-                               "(or/c set? (listof symbol?))"
-                               aliases)]))))
 (define current-closure-conversion-progress? (make-parameter #f))
 (define current-closure-conversion-progress-interval (make-parameter 1000))
 (define current-closure-conversion-progress-port (make-parameter #f))
