@@ -564,6 +564,14 @@ The following arithmetic rewrites are currently implemented.
 - `(* C1 ... X ... C2 ...) => (* C X ...)`
   Exact-integer constants in `*` are combined conservatively.
 
+- `(- C1 ... X ... C2 ...) => (- C X ... C)`
+  Exact-integer runs in `-` are folded conservatively from
+  left to right.
+
+- `(/ C1 ... X ... C2 ...) => (/ C X ... C)`
+  Exact-integer runs in `/` are folded conservatively from
+  left to right.
+
 - `(* E0 ... 0 ... En) => (begin E0 ... En 0)`
   This is only used when the surviving expressions are obviously
   numeric and obviously single-valued, so the primitive’s type checks
@@ -607,6 +615,8 @@ The following small sequence/list rewrites are currently implemented.
 
 - `(values X) => X`
 
+- `(list* X) => X`
+
 - `(member X '()) => (begin X '() #f)`
 
 - `(memq X '()) => (begin X '() #f)`
@@ -639,6 +649,130 @@ The following small sequence/list rewrites are currently implemented.
 
 - `(ormap P '()) => (begin P '() #f)`
 
+### Equality Family
+
+The equality family currently includes small local rewrites such as:
+
+- `(eq? X X) => #t`
+
+- `(eqv? X X) => #t`
+
+- `(equal? X X) => #t`
+
+- `(equal-always? X X) => #t`
+
+- `(eq? X #f) => (if X #f #t)`
+
+- `(eqv? X #f) => (if X #f #t)`
+
+- `(equal? X #f) => (if X #f #t)`
+
+- `(equal-always? X #f) => (if X #f #t)`
+
+- `(boolean=? X ... X) => #t`
+
+- `(char=? X ... X) => #t`
+
+- `(string=? X ... X) => #t`
+
+- `(symbol=? X ... X) => #t`
+
+These rules preserve evaluation explicitly with `let-values` where
+needed, instead of erasing operand evaluation.
+
+### Accessor and Selector Families
+
+The partial-folding layer also includes a broad local accessor family.
+
+- `car`, `cdr`
+
+- `caar`, `cdar`
+
+- `cadr`, `caddr`, `cddr`
+
+- `cadddr`, `cdddr`
+
+- `first`, `second`, `third`, `fourth`, `fifth`
+
+- `sixth`, `seventh`, `eighth`, `ninth`, `tenth`
+
+- `rest`
+
+- `list-ref`
+
+- `vector-length`, `vector-empty?`, `vector-ref`
+
+- `string-length`, `string-ref`
+
+- `bytes-length`, `bytes-ref`
+
+These folds work on a mix of:
+
+- quoted data
+
+- constructor applications such as `cons`, `list`, `list*`,
+  `vector`, `box`, `box-immutable`
+
+- and a few immutable-constructor wrappers such as
+  `string->immutable-string` and `vector->immutable-vector`
+
+When a fold uses constructor arguments, evaluation order and
+single-value checks are preserved through nested `let-values`
+scaffolding instead of by simply dropping the constructor.
+
+### Predicate and Mutability Families
+
+The following predicate families are now partially folded as well.
+
+- shape predicates:
+  - `procedure?`
+  - `pair?`
+  - `null?`
+  - `empty?`
+  - `list?`
+  - `box?`
+  - `vector?`
+  - `bytes?`
+
+- mutability predicates:
+  - `immutable-vector?`
+  - `mutable-vector?`
+  - `immutable-bytes?`
+  - `mutable-bytes?`
+  - `immutable-string?`
+  - `mutable-string?`
+  - `immutable-box?`
+  - `mutable-box?`
+
+- generic immutability:
+  - `immutable?`
+
+`immutable?` currently recognizes a conservative subset of the runtime
+cases that are easy to prove locally, including:
+
+- quoted immutable heap literals such as strings, bytes, vectors, and
+  boxes
+
+- immutable constructors and coercions such as:
+  - `box-immutable`
+  - `vector-immutable`
+  - `vector->immutable-vector`
+  - `bytes->immutable-bytes`
+  - `string->immutable-string`
+  - `string-append-immutable`
+  - `symbol->immutable-string`
+  - `keyword->immutable-string`
+
+- known mutable constructors such as:
+  - `box`
+  - `vector`
+  - `make-vector`
+  - `bytes`
+  - `make-bytes`
+  - `string`
+  - `make-string`
+  - `string-copy`
+
 ### Guardrails
 
 The partial-folding layer is intentionally constrained by a few rules.
@@ -652,6 +786,10 @@ The partial-folding layer is intentionally constrained by a few rules.
   - `obviously-number-valued-expression?`
   - `obviously-exact-integer-valued-expression?`
   - `obviously-single-valued-expression?`
+  - `obviously-boolean-valued-expression?`
+  - `obviously-char-valued-expression?`
+  - `obviously-string-valued-expression?`
+  - `obviously-symbol-valued-expression?`
 
 - `obviously-single-valued-expression?` is intentionally shallow.
   It is useful as a cheap local guard, but it is not meant to grow into

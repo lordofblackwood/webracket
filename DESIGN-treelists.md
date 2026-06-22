@@ -190,8 +190,9 @@ Important operations:
   unchanged.
 - `treelist-add` tries to append into the rightmost branch; if the tree is full,
   it grows a new root.
-- `treelist-cons` has a fast path only when the leftmost leaf has room;
-  otherwise it falls back to prepending a singleton via append.
+- `treelist-cons` uses a structural left-spine fast path when the existing left
+  spine can absorb the prepend; otherwise it falls back to prepending via
+  append.
 - `treelist-take` and `treelist-drop` trim one spine and then squash single-child
   roots.
 - `treelist-insert` is built from `take`, `add`, `drop`, and `append`.
@@ -349,20 +350,19 @@ full RRB-tree sophistication.
 - `treelist-set` and `treelist-add` use persistent path-copying.
 - `treelist-add` has a specialized right-spine fast path.
 - `treelist-cons` has a specialized left-spine fast path.
-- `treelist-append` now uses structural same-height boundary packing.
-- When `left-height >= right-height`, append descends the right spine of the
-  left tree to the meeting height, packs same-height siblings there, and then
-  rebuilds upward with exact child sizes.
-- When `right-height > left-height`, append descends the left spine of the
-  right tree to the meeting height, packs same-height siblings there, and then
-  rebuilds upward with exact child sizes.
-- Packing preserves element order, uses exact child sizes, and lets
+- `treelist-append` now uses a closer Racket-style `concat-subtree` /
+  `rebalance` append protocol.
+- Append descends recursively to the true boundary subtree, merges boundary
+  slots from left/center/right, computes a concat plan, flattens exactly one
+  child level there, and rebuilds packed nodes upward with exact child sizes.
+- Boundary rebuilding preserves element order and lets
   `treelist-node-build/checked` decide whether rebuilt nodes stay dense
   (`sizes = null`) or become relaxed (cumulative `sizes` table).
-- This conservative append packing materially improves repeated append of
-  medium chunks compared to the earlier root-only approach.
+- This one-level boundary rebalance materially improves repeated append of
+  medium chunks compared to the earlier simpler boundary packers while remaining
+  smaller than a full RRB normalization pass.
 - `treelist-take`, `treelist-drop`, and `treelist-split-at` now use structural
-  split helpers instead of flatten/copy/rebuild.
+  split helpers instead of the earlier flatten/copy/rebuild path.
 - `treelist-take-right`, `treelist-drop-right`, `treelist-sublist`,
   `treelist-insert`, `treelist-delete`, `treelist-rest`, and
   `treelist-reverse` are also structural and preserve dense metadata when valid
