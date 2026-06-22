@@ -20,20 +20,21 @@ This folder contains runnable WebRacket examples intended for local use after cl
 
 ## Artifact Policy
 
-- Keep runnable build artifacts needed by users in `examples/`:
-  - browser examples: `.html`, `.js` (if generated), `.wasm`
-  - node examples: `.js`, `.wasm`
-- Do not rely on website build scripts for these artifacts.
+- Keep example sources, README files, scripts, and hand-authored assets in `examples/`.
+- Do not track generated build artifacts:
+  - browser outputs under `generated/`
+  - generated `.html`, `.js`, `.wasm`, `.wat`, `.wasm.map.sexp`
+  - provider caches and compiled roots
 - `examples/` is independent of `web-site/` and `web-site-new/`.
 
 ## Commit Policy
 
 - Use `../commit-examples.sh` from repo root to stage/commit example changes.
 - The commit helper:
-  - includes relevant example sources/docs/assets and runnable artifacts,
+  - includes relevant example sources/docs/assets,
   - excludes temporary/editor junk,
   - excludes `examples/raco/`,
-  - excludes `.wat` and `.wasm.map.sexp`.
+  - excludes generated artifacts and caches.
 
 ## Scope Boundaries
 

@@ -9,8 +9,8 @@ Usage:
 What it does:
   1. Stages tracked updates/deletions under examples/
   2. Stages new "relevant" files under examples/ (including new example folders)
-  3. Includes generated outputs used for local runs (e.g. *.html, *.js, *.wasm)
-  4. Excludes only temp/editor junk
+  3. Excludes generated outputs and caches
+  4. Excludes temp/editor junk
   5. Commits only examples/** changes
 EOF
 }
@@ -57,7 +57,16 @@ is_relevant() {
   case "$path" in
     examples/raco|examples/raco/*) return 1 ;;
     examples/tmp/*|examples/*/tmp/*) return 1 ;;
-    *.wat|*.wasm.map.sexp) return 1 ;;
+    examples/*/generated|examples/*/generated/*) return 1 ;;
+    examples/*/generated-*|examples/*/generated-*/*) return 1 ;;
+    examples/*/.compiled|examples/*/.compiled/*) return 1 ;;
+    examples/*/.provider-cache|examples/*/.provider-cache/*) return 1 ;;
+    *.wat|*.wasm.map.sexp|*.wasm) return 1 ;;
+    examples/*/*.html) return 1 ;;
+    examples/hello-world-1/hello-world-1.js) return 1 ;;
+    examples/pict/pict.js) return 1 ;;
+    examples/snake/snake.js) return 1 ;;
+    examples/space-invaders/space-invaders.js) return 1 ;;
     *~|\#*#|.#*|*.DS_Store) return 1 ;;
   esac
   return 0
