@@ -104,6 +104,23 @@
    (member '("define" "skip" ("module-variable-ref" "webify-export-cell1$0"))
            normalized)))
 
+(test-case "closure-captured exports stay out of late materialization candidates"
+  (define plan
+    (build-first-slice-export-plan
+     '(lambda (instance-variable-reference helper1 wrapper2)
+        (define helper
+          (lambda (x) x))
+        (module-variable-define! helper1 helper 'constant)
+        (define wrapper
+          (lambda (x) (helper x)))
+        (module-variable-define! wrapper2 wrapper 'constant))
+     '(helper wrapper)))
+  (define candidate-exports
+    (for/list ([spec (in-list (first-slice-export-plan-candidate-specs plan))])
+      (vector-ref spec 0)))
+  (check-false (member 'helper candidate-exports))
+  (check-not-false (member 'wrapper candidate-exports)))
+
 (test-case "first-slice adapter handles import-free linklet with no exports"
   (define-values (stx exports exports-info)
     (run-first-slice-top-level '(linklet () ()

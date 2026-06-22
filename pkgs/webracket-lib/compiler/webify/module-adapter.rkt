@@ -259,69 +259,69 @@
     (for/fold ([set bound-set])
               ([id (in-list ids)])
       (hash-set set id #t)))
-  (define (read-occurs? v target bound-set)
+  (define (collect-read-exports! v bound-set acc)
     (cond
       [(symbol? v)
-       (and (eq? v target)
-            (not (shadowed? target bound-set)))]
+       (when (and (hash-ref export-set v #f)
+                  (not (shadowed? v bound-set)))
+         (hash-set! acc v #t))]
       [(pair? v)
-       (and (not (quote-like-form? v))
-            (match v
-              [`(lambda ,args ,body ...)
-               (define body-bound (extend-bound bound-set (id-list args)))
-               (for/or ([form (in-list body)])
-                 (read-occurs? form target body-bound))]
-              [`(case-lambda ,clauses ...)
-               (for/or ([clause (in-list clauses)])
-                 (match clause
-                   [`(,args ,body ...)
-                    (define body-bound (extend-bound bound-set (id-list args)))
-                    (for/or ([form (in-list body)])
-                      (read-occurs? form target body-bound))]
-                   [_ #f]))]
-              [`(let-values ,bindings ,body ...)
-               (or (for/or ([binding (in-list bindings)])
-                     (match binding
-                       [(list _ids rhs) (read-occurs? rhs target bound-set)]
-                       [_ #f]))
-                   (let ([body-bound (extend-bound bound-set
-                                                   (apply append (map binding-ids bindings)))])
-                     (for/or ([form (in-list body)])
-                       (read-occurs? form target body-bound))))]
-              [`(letrec-values ,bindings ,body ...)
-               (define body-bound
-                 (extend-bound bound-set (apply append (map binding-ids bindings))))
-               (or (for/or ([binding (in-list bindings)])
-                     (match binding
-                       [(list _ids rhs) (read-occurs? rhs target body-bound)]
-                       [_ #f]))
-                   (for/or ([form (in-list body)])
-                     (read-occurs? form target body-bound)))]
-              [`(letrec-syntaxes+values ,syntax-bindings ,value-bindings ,body ...)
-               (define body-bound
-                 (extend-bound bound-set (apply append (map binding-ids value-bindings))))
-               (or (for/or ([binding (in-list value-bindings)])
-                     (match binding
-                       [(list _ids rhs) (read-occurs? rhs target body-bound)]
-                       [_ #f]))
-                   (for/or ([form (in-list body)])
-                     (read-occurs? form target body-bound)))]
-              [`(define ,id ,rhs)
-               (read-occurs? rhs target bound-set)]
-              [`(define-values ,ids ,rhs)
-               (read-occurs? rhs target bound-set)]
-              [`(,(or 'module-variable-define! 'variable-set!/define) ,cell ,rhs ,_constance)
-               (read-occurs? rhs target bound-set)]
-              [`(set-boxed! ,cell ,rhs)
-               (read-occurs? rhs target bound-set)]
-              [`(,head . ,rest)
-               (or (read-occurs? head target bound-set)
-                   (read-occurs? rest target bound-set))]
-              [_ #f]))]
+       (unless (quote-like-form? v)
+         (match v
+           [`(lambda ,args ,body ...)
+            ;; Creating a closure does not read its free variables yet.
+            ;; Only reads in the surrounding initialization path should
+            ;; force an export to stay cell-backed.
+            (void)]
+           [`(case-lambda ,clauses ...)
+            (void)]
+           [`(let-values ,bindings ,body ...)
+            (for ([binding (in-list bindings)])
+              (match binding
+                [(list _ids rhs) (collect-read-exports! rhs bound-set acc)]
+                [_ (void)]))
+            (define body-bound
+              (extend-bound bound-set (apply append (map binding-ids bindings))))
+            (for ([form (in-list body)])
+              (collect-read-exports! form body-bound acc))]
+           [`(letrec-values ,bindings ,body ...)
+            (define body-bound
+              (extend-bound bound-set (apply append (map binding-ids bindings))))
+            (for ([binding (in-list bindings)])
+              (match binding
+                [(list _ids rhs) (collect-read-exports! rhs body-bound acc)]
+                [_ (void)]))
+            (for ([form (in-list body)])
+              (collect-read-exports! form body-bound acc))]
+           [`(letrec-syntaxes+values ,_syntax-bindings ,value-bindings ,body ...)
+            (define body-bound
+              (extend-bound bound-set (apply append (map binding-ids value-bindings))))
+            (for ([binding (in-list value-bindings)])
+              (match binding
+                [(list _ids rhs) (collect-read-exports! rhs body-bound acc)]
+                [_ (void)]))
+            (for ([form (in-list body)])
+              (collect-read-exports! form body-bound acc))]
+           [`(define ,_id ,rhs)
+            (collect-read-exports! rhs bound-set acc)]
+           [`(define-values ,_ids ,rhs)
+            (collect-read-exports! rhs bound-set acc)]
+           [`(,(or 'module-variable-define! 'variable-set!/define) ,_cell ,rhs ,_constance)
+            (collect-read-exports! rhs bound-set acc)]
+           [`(set-boxed! ,_cell ,rhs)
+            (collect-read-exports! rhs bound-set acc)]
+           [`(,head . ,rest)
+            (collect-read-exports! head bound-set acc)
+            (collect-read-exports! rest bound-set acc)]
+           [_ (void)]))]
       [(vector? v)
-       (for/or ([entry (in-vector v)])
-         (read-occurs? entry target bound-set))]
-      [else #f]))
+       (for ([entry (in-vector v)])
+         (collect-read-exports! entry bound-set acc))]
+      [else (void)]))
+  (define (read-exports-in-form form bound-set)
+    (define acc (make-hasheq))
+    (collect-read-exports! form bound-set acc)
+    (hash-keys acc))
   (define (definition-form-target form)
     (match form
       [`(,(or 'module-variable-define! 'variable-set!/define) ,cell ,_rhs ,_constance)
@@ -334,19 +334,220 @@
             (void)))
        (and (hash-ref export-set cell #f) cell)]
       [_ #f]))
+  (define (materialized-export-targets form)
+    (define targets (make-hasheq))
+    (define (record! cell)
+      (when (hash-ref export-set cell #f)
+        (hash-set! targets cell #t)))
+    (define (walk v)
+      (cond
+        [(pair? v)
+         (unless (quote-like-form? v)
+           (match v
+             [`(,(or 'module-variable-define! 'variable-set!/define) ,cell ,rhs ,_constance)
+              (record! cell)
+              (walk rhs)]
+             [`(define ,_id
+                 (begin
+                   (module-variable-define! ,cell ,rhs ,_constance)
+                   (void)))
+              (record! cell)
+              (walk rhs)]
+             [`(define ,_id ,rhs)
+              (walk rhs)]
+             [`(define-values ,_ids ,rhs)
+              (walk rhs)]
+             [`(lambda ,_args ,body ...)
+              (for ([entry (in-list body)])
+                (walk entry))]
+             [`(case-lambda ,clauses ...)
+              (for ([clause (in-list clauses)])
+                (match clause
+                  [`(,_args ,body ...)
+                   (for ([entry (in-list body)])
+                     (walk entry))]
+                  [_ (void)]))]
+             [`(let-values ,bindings ,body ...)
+              (for ([binding (in-list bindings)])
+                (match binding
+                  [(list _ids rhs) (walk rhs)]
+                  [_ (void)]))
+              (for ([entry (in-list body)])
+                (walk entry))]
+             [`(letrec-values ,bindings ,body ...)
+              (for ([binding (in-list bindings)])
+                (match binding
+                  [(list _ids rhs) (walk rhs)]
+                  [_ (void)]))
+              (for ([entry (in-list body)])
+                (walk entry))]
+             [`(letrec-syntaxes+values ,_syntax-bindings ,value-bindings ,body ...)
+              (for ([binding (in-list value-bindings)])
+                (match binding
+                  [(list _ids rhs) (walk rhs)]
+                  [_ (void)]))
+              (for ([entry (in-list body)])
+                (walk entry))]
+             [`(begin ,forms ...)
+              (for ([entry (in-list forms)])
+                (walk entry))]
+             [`(,head . ,rest)
+              (walk head)
+              (walk rest)]
+             [_ (void)]))]
+        [(vector? v)
+         (for ([entry (in-vector v)])
+           (walk entry))]
+        [else
+         (void)]))
+    (walk form)
+    (hash-keys targets))
   (match expr
     [`(lambda ,_args ,body ...)
      (define defined (make-hasheq))
      (for ([form (in-list body)])
-       (for ([arg (in-list export-args)]
+       (for ([arg (in-list (read-exports-in-form form (hasheq)))]
              #:unless (hash-ref defined arg #f))
-         (when (read-occurs? form arg (hasheq))
-           (record! arg)))
+         (record! arg))
        (define target (definition-form-target form))
        (when target
+         (hash-set! defined target #t))
+       (for ([target (in-list (materialized-export-targets form))])
          (hash-set! defined target #t)))]
     [_ (void)])
   read-before-definition)
+
+;; lowered-export-closure-capture-summary : any/c (listof symbol?) -> hasheq?
+;;   Find export arguments referenced from inside closure bodies.
+(define (lowered-export-closure-capture-summary expr export-args)
+  (define export-set
+    (for/hasheq ([arg (in-list export-args)])
+      (values arg #t)))
+  (define captured (make-hasheq))
+  (define (record! id)
+    (when (hash-ref export-set id #f)
+      (hash-set! captured id #t)))
+  (define (shadowed? id bound-set)
+    (hash-ref bound-set id #f))
+  (define (extend-bound bound-set ids)
+    (for/fold ([set bound-set])
+              ([id (in-list ids)])
+      (hash-set set id #t)))
+  (define (resolve-export-id id alias-env bound-set)
+    (cond
+      [(shadowed? id bound-set) #f]
+      [(hash-ref export-set id #f) id]
+      [else (hash-ref alias-env id #f)]))
+  (define (resolve-export-alias rhs alias-env bound-set)
+    (cond
+      [(symbol? rhs)
+       (resolve-export-id rhs alias-env bound-set)]
+      [(pair? rhs)
+       (match rhs
+         [`(,(or 'module-variable-ref 'module-variable-ref/no-check) ,cell)
+          (and (symbol? cell)
+               (resolve-export-id cell alias-env bound-set))]
+         [_ #f])]
+      [else #f]))
+  (define (update-alias-env alias-env form bound-set)
+    (match form
+      [`(define ,id ,rhs)
+       (if (symbol? id)
+           (let ([src (resolve-export-alias rhs alias-env bound-set)])
+             (if src
+                 (hash-set alias-env id src)
+                 (hash-remove alias-env id)))
+           alias-env)]
+      [`(define-values ,ids ,rhs)
+       (define bound-ids (id-list ids))
+       (if (= (length bound-ids) 1)
+           (let* ([id (car bound-ids)]
+                  [src (resolve-export-alias rhs alias-env bound-set)])
+             (if src
+                 (hash-set alias-env id src)
+                 (hash-remove alias-env id)))
+           alias-env)]
+      [_ alias-env]))
+  (define (walk v bound-set closure-depth alias-env)
+    (cond
+      [(symbol? v)
+       (when (positive? closure-depth)
+         (define src
+           (resolve-export-id v alias-env bound-set))
+         (when src
+           (record! src)))]
+      [(pair? v)
+       (unless (quote-like-form? v)
+         (match v
+           [`(lambda ,args ,body ...)
+            (define body-bound
+              (extend-bound bound-set (id-list args)))
+            (for ([form (in-list body)])
+              (walk form body-bound (add1 closure-depth) alias-env))]
+           [`(case-lambda ,clauses ...)
+            (for ([clause (in-list clauses)])
+              (match clause
+                [`(,args ,body ...)
+                 (define body-bound
+                   (extend-bound bound-set (id-list args)))
+                 (for ([form (in-list body)])
+                   (walk form body-bound (add1 closure-depth) alias-env))]
+                [_ (void)]))]
+           [`(let-values ,bindings ,body ...)
+            (for ([binding (in-list bindings)])
+              (match binding
+                [(list _ids rhs) (walk rhs bound-set closure-depth alias-env)]
+                [_ (void)]))
+            (define body-bound
+              (extend-bound bound-set (apply append (map binding-ids bindings))))
+            (for ([form (in-list body)])
+              (walk form body-bound closure-depth alias-env))]
+           [`(letrec-values ,bindings ,body ...)
+            (define body-bound
+              (extend-bound bound-set (apply append (map binding-ids bindings))))
+            (for ([binding (in-list bindings)])
+              (match binding
+                [(list _ids rhs) (walk rhs body-bound closure-depth alias-env)]
+                [_ (void)]))
+            (for ([form (in-list body)])
+              (walk form body-bound closure-depth alias-env))]
+           [`(letrec-syntaxes+values ,_syntax-bindings ,value-bindings ,body ...)
+            (define body-bound
+              (extend-bound bound-set (apply append (map binding-ids value-bindings))))
+            (for ([binding (in-list value-bindings)])
+              (match binding
+                [(list _ids rhs) (walk rhs body-bound closure-depth alias-env)]
+                [_ (void)]))
+            (for ([form (in-list body)])
+              (walk form body-bound closure-depth alias-env))]
+           [`(define ,_id ,rhs)
+            (walk rhs bound-set closure-depth alias-env)]
+           [`(define-values ,_ids ,rhs)
+            (walk rhs bound-set closure-depth alias-env)]
+           [`(,(or 'module-variable-define! 'variable-set!/define) ,_cell ,rhs ,_constance)
+            (walk rhs bound-set closure-depth alias-env)]
+           [`(set-boxed! ,_cell ,rhs)
+            (walk rhs bound-set closure-depth alias-env)]
+           [`(,head . ,rest)
+            (walk head bound-set closure-depth alias-env)
+            (walk rest bound-set closure-depth alias-env)]
+           [_ (void)]))]
+      [(vector? v)
+       (for ([entry (in-vector v)])
+         (walk entry bound-set closure-depth alias-env))]
+      [else
+       (void)]))
+  (match expr
+    [`(lambda ,_args ,body ...)
+     (let loop ([forms body]
+                [alias-env (hasheq)])
+       (unless (null? forms)
+         (define form (car forms))
+         (walk form (hasheq) 0 alias-env)
+         (loop (cdr forms)
+               (update-alias-env alias-env form (hasheq)))))]
+    [_ (walk expr (hasheq) 0 (hasheq))])
+  captured)
 
 ;; lowered-export-placeholder-definition-summary : any/c (listof symbol?) -> hasheq?
 ;;   Find export cells that are initialized with a placeholder void value.
@@ -503,6 +704,8 @@
   (define define-constances (hash-ref usage 'define-constances))
   (define read-before-definition
     (lowered-export-read-before-definition-summary expr export-args))
+  (define closure-captured
+    (lowered-export-closure-capture-summary expr export-args))
   (define placeholder-definition
     (lowered-export-placeholder-definition-summary expr export-args))
   (define materialization-before-definition
@@ -520,6 +723,7 @@
                  #:unless (or (hash-ref mutated export-arg #f)
                               (hash-ref undefined-sensitive export-arg #f)
                               (hash-ref reflection-visible export-arg #f)
+                              (hash-ref closure-captured export-arg #f)
                               (hash-ref read-before-definition export-arg #f)
                               (hash-ref materialization-before-definition export-arg #f)
                               (not (hash-has-key? define-constances export-arg))))
