@@ -53,6 +53,7 @@ while IFS= read -r compile_sh; do
   echo "Publishing $example_name"
   mkdir -p "$target_dir"
   cp -R "$generated_dir/." "$target_dir/"
+  find "$target_dir" -type f \( -name '*.map.sexp' -o -name '*.wasm.map.sexp' \) -delete
   cp "$main_html" "$target_dir/index.html"
   cp "$main_html" "$target_dir/$example_name.html"
 done < <(find "$EXAMPLES_DIR" -mindepth 2 -maxdepth 2 -name compile.sh | sort)
