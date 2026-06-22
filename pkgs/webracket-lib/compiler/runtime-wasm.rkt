@@ -53810,6 +53810,17 @@
                                                           (global.get ,(Var x)))))
                                (i32.const 1)))
                              (else ,(loop rest)))]
+                       [(list 'module-cell _ const-name x _ _ _)
+                        `(if (ref.eq (local.get $sym)
+                                     (global.get ,(console-bridge-symbol-global const-name)))
+                             (then
+                              (return
+                               (call $module-variable-ref/no-check
+                                     (struct.get $Boxed $v
+                                                 (ref.cast (ref $Boxed)
+                                                           (global.get ,(Var x)))))
+                               (i32.const 1)))
+                             (else ,(loop rest)))]
                        [(list 'primitive pr const-name _)
                         `(if (ref.eq (local.get $sym)
                                      (global.get ,(console-bridge-symbol-global const-name)))
@@ -53832,6 +53843,9 @@
                                                   [(list 'top _ const-name _ _ _ _)
                                                    `(call $symbol->string
                                                           (global.get ,(console-bridge-symbol-global const-name)))]
+                                                  [(list 'module-cell _ const-name _ _ _ _)
+                                                   `(call $symbol->string
+                                                          (global.get ,(console-bridge-symbol-global const-name)))]
                                                   [(list 'primitive _ const-name _)
                                                    `(call $symbol->string
                                                           (global.get ,(console-bridge-symbol-global const-name)))])))))
@@ -53847,6 +53861,21 @@
                                             ,@(for/list ([binding (in-list console-bridge-bindings)])
                                                 (match binding
                                                   [(list 'top _ const-name _ mutable? origin-kind-const-name source-path-const-name)
+                                                   `(struct.new $Vector
+                                                                (i32.const 0)
+                                                                (i32.const 1)
+                                                                (array.new_fixed $Array 5
+                                                                                 (call $symbol->string
+                                                                                       (global.get ,(console-bridge-symbol-global const-name)))
+                                                                                 (global.get ,($ (string->symbol (~a "string:" origin-kind-const-name))))
+                                                                                 ,(if mutable?
+                                                                                      `(global.get $true)
+                                                                                      `(global.get $false))
+                                                                                 (global.get $string:wr-console-bridge-kind)
+                                                                                 ,(if source-path-const-name
+                                                                                      `(global.get ,($ (string->symbol (~a "string:" source-path-const-name))))
+                                                                                      `(global.get $false))))]
+                                                  [(list 'module-cell _ const-name _ mutable? origin-kind-const-name source-path-const-name)
                                                    `(struct.new $Vector
                                                                 (i32.const 0)
                                                                 (i32.const 1)
