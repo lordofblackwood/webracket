@@ -111,6 +111,7 @@
             'reexport? (and reexport? #t)
             'mutated? (and (hash-ref mutated export-arg #f) #t)
             'undefined-sensitive? (and (hash-ref undefined-sensitive export-arg #f) #t)
+            'read-before-definition? (and (hash-ref read-before-definition export-arg #f) #t)
             'reflection-visible? (and (hash-ref reflection-visible export-arg #f) #t)
             'phase0-value-space-only? #t
             'dynamic-require-sensitive? #f)))
@@ -126,6 +127,7 @@
        (not (hash-ref meta 'reexport? #f))
        (not (hash-ref meta 'mutated? #f))
        (not (hash-ref meta 'undefined-sensitive? #f))
+       (not (hash-ref meta 'read-before-definition? #f))
        (not (hash-ref meta 'reflection-visible? #f))
        (not (hash-ref meta 'dynamic-require-sensitive? #f))
        (hash-ref meta 'phase0-value-space-only? #f)))
@@ -783,11 +785,19 @@
             ([id (in-list ids)])
     (hash-set set (normalize-rewritten-id id candidate-map) #t)))
 
-;; rewrite-late-materialized-export : any/c hasheq? [hasheq?] -> any/c
-;;   Replace candidate export-arg references with lexical value bindings.
-(define (rewrite-late-materialized-export v candidate-map [bound-set (hasheq)])
+;; rewrite-late-materialized-export : any/c hasheq? [hasheq?] keyword-args -> any/c
+;;   Replace active candidate export-arg references with lexical value
+;;   bindings while still recognizing the full candidate set for nested
+;;   materialization writes.
+(define (rewrite-late-materialized-export v
+                                          candidate-map
+                                          [bound-set (hasheq)]
+                                          #:all-candidate-map [all-candidate-map candidate-map])
   (define (rewrite entry [bound bound-set])
-    (rewrite-late-materialized-export entry candidate-map bound))
+    (rewrite-late-materialized-export entry
+                                      candidate-map
+                                      bound
+                                      #:all-candidate-map all-candidate-map))
   (define (rewrite-list xs [bound bound-set])
     (map (lambda (entry) (rewrite entry bound)) xs))
   (cond
@@ -827,23 +837,30 @@
                 v)]
            [`(lambda ,args ,body ...)
             (define body-bound
-              (extend-bound-set bound-set (id-list args) candidate-map))
+              (extend-bound-set bound-set (id-list args) all-candidate-map))
             `(lambda ,args
-               ,@(late-materialized-body-forms body candidate-map body-bound))]
+               ,@(late-materialized-body-forms body
+                                               all-candidate-map
+                                               body-bound
+                                               #:active-candidate-map candidate-map))]
            [`(case-lambda ,clauses ...)
             `(case-lambda
                ,@(for/list ([clause (in-list clauses)])
                    (match clause
                      [`(,args ,body ...)
                       (define body-bound
-                        (extend-bound-set bound-set (id-list args) candidate-map))
-                      `(,args ,@(late-materialized-body-forms body candidate-map body-bound))]
+                        (extend-bound-set bound-set (id-list args) all-candidate-map))
+                      `(,args
+                        ,@(late-materialized-body-forms body
+                                                        all-candidate-map
+                                                        body-bound
+                                                        #:active-candidate-map candidate-map))]
                      [_ clause])))]
            [`(let-values ,bindings ,body ...)
             (define body-bound
               (extend-bound-set bound-set
                                 (apply append (map binding-ids bindings))
-                                candidate-map))
+                                all-candidate-map))
            `(let-values
                ,(for/list ([binding (in-list bindings)])
                   (match binding
@@ -851,12 +868,15 @@
                      `(,ids
                        ,(rewrite rhs bound-set))]
                     [_ binding]))
-               ,@(late-materialized-body-forms body candidate-map body-bound))]
+               ,@(late-materialized-body-forms body
+                                               all-candidate-map
+                                               body-bound
+                                               #:active-candidate-map candidate-map))]
            [`(letrec-values ,bindings ,body ...)
             (define body-bound
               (extend-bound-set bound-set
                                 (apply append (map binding-ids bindings))
-                                candidate-map))
+                                all-candidate-map))
            `(letrec-values
                ,(for/list ([binding (in-list bindings)])
                   (match binding
@@ -864,12 +884,15 @@
                      `(,ids
                        ,(rewrite rhs body-bound))]
                     [_ binding]))
-               ,@(late-materialized-body-forms body candidate-map body-bound))]
+               ,@(late-materialized-body-forms body
+                                               all-candidate-map
+                                               body-bound
+                                               #:active-candidate-map candidate-map))]
            [`(letrec-syntaxes+values ,syntax-bindings ,value-bindings ,body ...)
             (define body-bound
               (extend-bound-set bound-set
                                 (apply append (map binding-ids value-bindings))
-                                candidate-map))
+                                all-candidate-map))
            `(letrec-syntaxes+values
                ,syntax-bindings
                ,(for/list ([binding (in-list value-bindings)])
@@ -878,12 +901,22 @@
                      `(,ids
                        ,(rewrite rhs body-bound))]
                     [_ binding]))
-               ,@(late-materialized-body-forms body candidate-map body-bound))]
+               ,@(late-materialized-body-forms body
+                                               all-candidate-map
+                                               body-bound
+                                               #:active-candidate-map candidate-map))]
            [`(begin ,forms ...)
-            `(begin ,@(late-materialized-body-forms forms candidate-map bound-set))]
+            `(begin
+               ,@(late-materialized-body-forms forms
+                                               all-candidate-map
+                                               bound-set
+                                               #:active-candidate-map candidate-map))]
            [`(begin0 ,head ,rest ...)
             `(begin0 ,(rewrite head bound-set)
-                     ,@(late-materialized-body-forms rest candidate-map bound-set))]
+                     ,@(late-materialized-body-forms rest
+                                                     all-candidate-map
+                                                     bound-set
+                                                     #:active-candidate-map candidate-map))]
            [`(if ,test ,then ,else)
             `(if ,(rewrite test bound-set)
                  ,(rewrite then bound-set)
@@ -899,24 +932,42 @@
            [`(module-variable-set!/check-undefined! ,cell ,rhs)
             `(module-variable-set!/check-undefined! ,cell ,(rewrite rhs bound-set))]
            [`(module-variable-define! ,cell ,rhs ,constance)
-            `(module-variable-define! ,cell ,(rewrite rhs bound-set) ,constance)]
+            (define normalized-cell
+              (normalize-rewritten-id cell all-candidate-map))
+            (define candidate
+              (and (not (hash-ref bound-set normalized-cell #f))
+                   (hash-ref all-candidate-map normalized-cell #f)))
+            (if candidate
+                `(begin
+                   (set! ,candidate ,(rewrite rhs bound-set))
+                   (void))
+                `(module-variable-define! ,cell ,(rewrite rhs bound-set) ,constance))]
            [`(variable-set!/define ,cell ,rhs ,constance)
-            `(variable-set!/define ,cell ,(rewrite rhs bound-set) ,constance)]
+            (define normalized-cell
+              (normalize-rewritten-id cell all-candidate-map))
+            (define candidate
+              (and (not (hash-ref bound-set normalized-cell #f))
+                   (hash-ref all-candidate-map normalized-cell #f)))
+            (if candidate
+                `(begin
+                   (set! ,candidate ,(rewrite rhs bound-set))
+                   (void))
+                `(variable-set!/define ,cell ,(rewrite rhs bound-set) ,constance))]
            [`(define ,id ,rhs)
             (define define-bound
-              (extend-bound-set bound-set (if (symbol? id) (list id) '()) candidate-map))
+              (extend-bound-set bound-set (if (symbol? id) (list id) '()) all-candidate-map))
             `(define ,id ,(rewrite rhs define-bound))]
            [`(define-values ,ids ,rhs)
             (define bound-ids (id-list ids))
             (define normalized-id
               (and (= (length bound-ids) 1)
-                   (normalize-rewritten-id (car bound-ids) candidate-map)))
+                   (normalize-rewritten-id (car bound-ids) all-candidate-map)))
             (define candidate
               (and normalized-id
                    (not (hash-ref bound-set normalized-id #f))
                    (hash-ref candidate-map normalized-id #f)))
             (define define-bound
-              (extend-bound-set bound-set bound-ids candidate-map))
+              (extend-bound-set bound-set bound-ids all-candidate-map))
             (if candidate
                 `(begin
                    (set! ,candidate ,(rewrite rhs bound-set))
@@ -965,13 +1016,19 @@
                 (cons (if candidate
                           `(begin
                              (set! ,candidate
-                                   ,(rewrite-late-materialized-export rhs active-map body-bound-set))
+                                   ,(rewrite-late-materialized-export rhs
+                                                                      active-map
+                                                                      body-bound-set
+                                                                      #:all-candidate-map candidate-map))
                              (void))
                           `(define ,id
                              (begin
                                (module-variable-define!
                                 ,cell
-                                ,(rewrite-late-materialized-export rhs active-map body-bound-set)
+                                ,(rewrite-late-materialized-export rhs
+                                                                   active-map
+                                                                   body-bound-set
+                                                                   #:all-candidate-map candidate-map)
                                 ,_constance)
                                (void))))
                       acc))]
@@ -989,11 +1046,17 @@
                 (cons (if candidate
                           `(begin
                              (set! ,candidate
-                                   ,(rewrite-late-materialized-export rhs active-map body-bound-set))
+                                   ,(rewrite-late-materialized-export rhs
+                                                                      active-map
+                                                                      body-bound-set
+                                                                      #:all-candidate-map candidate-map))
                              (void))
                           `(module-variable-define!
                             ,cell
-                            ,(rewrite-late-materialized-export rhs active-map body-bound-set)
+                            ,(rewrite-late-materialized-export rhs
+                                                               active-map
+                                                               body-bound-set
+                                                               #:all-candidate-map candidate-map)
                             ,_constance))
                       acc))]
          [`(variable-set!/define ,cell ,rhs ,_constance)
@@ -1010,11 +1073,17 @@
                 (cons (if candidate
                           `(begin
                              (set! ,candidate
-                                   ,(rewrite-late-materialized-export rhs active-map body-bound-set))
+                                   ,(rewrite-late-materialized-export rhs
+                                                                      active-map
+                                                                      body-bound-set
+                                                                      #:all-candidate-map candidate-map))
                              (void))
                           `(variable-set!/define
                             ,cell
-                            ,(rewrite-late-materialized-export rhs active-map body-bound-set)
+                            ,(rewrite-late-materialized-export rhs
+                                                               active-map
+                                                               body-bound-set
+                                                               #:all-candidate-map candidate-map)
                             ,_constance))
                       acc))]
          [`(begin ,forms ...)
@@ -1042,7 +1111,8 @@
                              ,(rewrite-late-materialized-export
                                `(,op ,cell)
                                active-map
-                               body-bound-set)))
+                               body-bound-set
+                               #:all-candidate-map candidate-map)))
                       acc))]
          [`(define ,id ,rhs)
           (define normalized-id
@@ -1060,10 +1130,16 @@
                 (cons (if candidate
                           `(begin
                              (set! ,candidate
-                                   ,(rewrite-late-materialized-export rhs active-map body-bound-set))
+                                   ,(rewrite-late-materialized-export rhs
+                                                                      active-map
+                                                                      body-bound-set
+                                                                      #:all-candidate-map candidate-map))
                              (void))
                           `(define ,id
-                             ,(rewrite-late-materialized-export rhs active-map define-bound)))
+                             ,(rewrite-late-materialized-export rhs
+                                                                active-map
+                                                                define-bound
+                                                                #:all-candidate-map candidate-map)))
                       acc))]
          [`(define-values ,ids ,rhs)
           (define bound-ids
@@ -1085,16 +1161,25 @@
                 (cons (if candidate
                           `(begin
                              (set! ,candidate
-                                   ,(rewrite-late-materialized-export rhs active-map body-bound-set))
+                                   ,(rewrite-late-materialized-export rhs
+                                                                      active-map
+                                                                      body-bound-set
+                                                                      #:all-candidate-map candidate-map))
                              (void))
                           `(define-values ,ids
-                             ,(rewrite-late-materialized-export rhs active-map define-bound)))
+                             ,(rewrite-late-materialized-export rhs
+                                                                active-map
+                                                                define-bound
+                                                                #:all-candidate-map candidate-map)))
                       acc))]
          [_
           (loop (cdr remaining)
                 body-bound-set
                 active-map
-                (cons (rewrite-late-materialized-export form active-map body-bound-set)
+                (cons (rewrite-late-materialized-export form
+                                                       active-map
+                                                       body-bound-set
+                                                       #:all-candidate-map candidate-map)
                       acc))])])))
 
 ;; late-materialize-exports : any/c (listof vector?) -> any/c
@@ -1296,20 +1381,38 @@
 
 ;; datum-symbols : any/c -> (listof symbol?)
 ;;   Collect symbols already present in one lowered slice datum.
+;;   Shared or cyclic pair/vector structure is traversed at most once.
 (define (datum-symbols datum)
-  (let walk ([v datum] [acc '()])
+  (define seen-composites (make-hasheq))
+  (define seen-symbols (make-hasheq))
+  (define (seen-composite!? v)
+    (cond
+      [(or (pair? v) (vector? v))
+       (cond
+         [(hash-ref seen-composites v #f) #t]
+         [else
+          (hash-set! seen-composites v #t)
+          #f])]
+      [else #f]))
+  (define (walk v)
     (cond
       [(symbol? v)
-       (if (memq v acc)
-           acc
-           (cons v acc))]
+       (hash-set! seen-symbols v #t)]
       [(pair? v)
-       (walk (cdr v) (walk (car v) acc))]
+       (if (seen-composite!? v)
+           (void)
+           (begin
+             (walk (car v))
+             (walk (cdr v))))]
       [(vector? v)
-       (for/fold ([acc* acc]) ([entry (in-vector v)])
-         (walk entry acc*))]
+       (if (seen-composite!? v)
+           (void)
+           (for ([entry (in-vector v)])
+             (walk entry)))]
       [else
-       acc])))
+       (void)]))
+  (walk datum)
+  (hash-keys seen-symbols))
 
 ;; generated-linklet-proc-id : (listof symbol?) -> symbol?
 ;;   Build an internal binding name for the lowered linklet procedure.
@@ -1449,6 +1552,8 @@
   (define value-ids
     (for/list ([export (in-list exports)])
       (hash-ref value-id-map export)))
+  (define adapted-expr-symbols
+    (datum-symbols adapted-expr))
   (define candidate-local-ids
     (for/list ([export (in-list exports)]
                [index (in-naturals)])
@@ -1458,7 +1563,7 @@
                exports
                helper-ids
                value-ids
-               (datum-symbols adapted-expr)
+               adapted-expr-symbols
                (list export)))))
   (define export-args
     (match adapted-expr
@@ -1623,10 +1728,12 @@
           [(or (not (hash-ref meta 'immutable? #f))
                (hash-ref meta 'mutated? #f))
            (webify-bridge-stats-inc! 'bridge-public-cell-kept-mutation-count)]
-          [(hash-ref meta 'undefined-sensitive? #f)
+         [(hash-ref meta 'undefined-sensitive? #f)
            (webify-bridge-stats-inc! 'bridge-public-cell-kept-undefined-count)]
-          [(hash-ref meta 'reexport? #f)
-           (webify-bridge-stats-inc! 'bridge-public-cell-kept-reexport-count)]
+         [(hash-ref meta 'read-before-definition? #f)
+          (webify-bridge-stats-inc! 'bridge-public-cell-kept-undefined-count)]
+         [(hash-ref meta 'reexport? #f)
+          (webify-bridge-stats-inc! 'bridge-public-cell-kept-reexport-count)]
           [(not (hash-ref meta 'phase0-value-space-only? #f))
            (webify-bridge-stats-inc! 'bridge-public-cell-kept-phase-space-count)]
           [(plain-value-export-candidate? meta)
