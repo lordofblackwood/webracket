@@ -6,6 +6,7 @@
 (provide make-keyword-procedure
          keyword-apply
          new-keyword-apply
+         subsets?
          make-optional-keyword-procedure
          make-optional-keyword-method
          make-required-keyword-method/arity-error
@@ -198,6 +199,23 @@
   (and (sorted-keyword-subset? required kws)
        (or (not allowed)
            (sorted-keyword-subset? kws allowed))))
+
+;; subsets? : (listof any/c) (listof any/c) (listof any/c) -> boolean?
+;;   Check whether l1 and l2 are subsets of l3, assuming sorted inputs and l1 subset of l3.
+(define (subsets? l1 l2 l3)
+  (cond
+    [(null? l1) (sorted-keyword-subset? l2 l3)]
+    [(null? l2) #f]
+    [(null? l3) #f]
+    [else
+     (define v2 (car l2))
+     (cond
+       [(eq? (car l1) v2)
+        (subsets? (cdr l1) (cdr l2) (cdr l3))]
+       [(eq? v2 (car l3))
+        (subsets? l1 (cdr l2) (cdr l3))]
+       [else
+        (subsets? l1 l2 (cdr l3))])]))
 
 ;; make-keyword-checker : (listof keyword?) (or/c (listof keyword?) #f) exact-integer? -> procedure?
 ;;   Build a checker for reduced keyword procedure metadata.

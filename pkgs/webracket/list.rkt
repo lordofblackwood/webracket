@@ -1,5 +1,8 @@
 #lang racket/base
 
+(require (only-in webracket/primitives
+                  [sort primitive-sort]))
+
 (provide first
          rest
          second
@@ -92,6 +95,7 @@
          permutations
          in-permutations
          shuffle
+         sort
          range
          inclusive-range)
 
@@ -101,6 +105,11 @@
 ;;
 ;; Prefer source definitions here instead of re-exporting WebRacket primitives:
 ;; primitive aliases introduce extra provider candidates during reflection.
+;; `sort` is the one intentional exception for now: routing `racket/list`'s
+;; public sort through this Goal 1 replacement avoids the installed-provider
+;; keyword-procedure path, which currently mis-materializes imported `sort`.
+;; Keep the exported wrapper plain 2-arity, because `web-pict` and the current
+;; Goal 1 examples only need the common positional form.
 
 ;; check-list : symbol? any/c -> void?
 ;;   Raise a Racket-style argument error when v is not a proper list.
@@ -124,6 +133,9 @@
 (define rest cdr)
 (define empty null)
 (define empty? null?)
+(define (sort xs less-than?)
+  (primitive-sort xs less-than?))
+
 (define (second xs) (list-ref xs 1))
 (define (third xs) (list-ref xs 2))
 (define (fourth xs) (list-ref xs 3))
