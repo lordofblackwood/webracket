@@ -1882,27 +1882,33 @@
          (hash-set! runtime-symbols-ht symbol #t) ; avoid duplicates
          (set! runtime-symbol-constants
                (cons (list name symbol) runtime-symbol-constants))]))
-    (define (dedupe-runtime-symbol-constants constants)
-      ;; Keep the same leftmost entry semantics as `remove-duplicates`, but
-      ;; avoid quadratic scans when large examples generate many symbol rows.
+    (define (remove-duplicates/string xs key)
+      ;; Like `remove-duplicates` with `string=?` and `#:key`, but linear.
+      ;;
+      ;; Note: `racket/list`'s `remove-duplicates` only switches to a hash-table
+      ;; implementation for long lists when the equality predicate is exactly
+      ;; `eq?`, `equal?`, or `equal-always?`.  Using `string=?` therefore falls
+      ;; back to the quadratic list-scan path, even on large inputs.
       (define seen (make-hash))
-      (let loop ([rest constants] [acc '()])
+      (let loop ([rest xs] [acc '()])
         (cond
           [(null? rest) (reverse acc)]
           [else
            (define ns (car rest))
-           (define key (symbol->string (car ns)))
+           (define k (key ns))
            (cond
-             [(hash-ref seen key #f)
+             [(hash-ref seen k #f)
               (loop (cdr rest) acc)]
              [else
-              (hash-set! seen key #t)
+              (hash-set! seen k #t)
               (loop (cdr rest) (cons ns acc))])])))
     (define (declare-runtime-symbol-constants)
       ; This file adds more symbols to `runtime-symbol-constants` so
       ; we need to wait removing duplicates until here.
       (set! runtime-symbol-constants
-            (dedupe-runtime-symbol-constants runtime-symbol-constants))
+            (remove-duplicates/string runtime-symbol-constants
+                                      (lambda (ns)
+                                        (symbol->string (car ns)))))
       (append*
        (for/list ([ns (reverse runtime-symbol-constants)])
          (define name                (first ns))
@@ -1915,7 +1921,9 @@
     
     (define (initialize-runtime-symbol-constants)
       (set! runtime-symbol-constants
-            (dedupe-runtime-symbol-constants runtime-symbol-constants))
+            (remove-duplicates/string runtime-symbol-constants
+                                      (lambda (ns)
+                                        (symbol->string (car ns)))))
       (for/list ([ns (reverse runtime-symbol-constants)])
         (define name         (first ns))
         (define symbol       (second ns))
