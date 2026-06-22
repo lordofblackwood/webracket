@@ -254,7 +254,6 @@
                   real-racket-function-diagnostic
                   real-racket-function-coverage-diagnostic
                   real-racket-list-diagnostic
-                  real-racket-string-diagnostic
                   real-racket-private-for-diagnostic
                   real-racket-private-kw-diagnostic
                   real-racket-class-diagnostic
@@ -367,6 +366,7 @@
   (define coverage-aliases
     '((racket/contract . webracket/contract)
       (webracket/pretty . racket/pretty)
+      (webracket/js . js/console)
       (racket/stream . webracket/stream)))
   (define (covered-name name)
     (cond
@@ -594,7 +594,7 @@
                            "real-racket-dict-diagnostic"
                            "real-racket-function-diagnostic"
                            "real-racket-list-diagnostic"
-                           "real-racket-string-diagnostic"
+                           "real-racket-string-coverage"
                            "real-racket-sequence-coverage"
                            "real-racket-private-for-diagnostic"
                            "real-racket-private-kw-diagnostic"

@@ -53,7 +53,7 @@ choosing the next milestone from evidence instead of memory.
 | `racket/contract` | `webracket/contract` | substituted/postponed | `full-contract-erased`, contract diagnostic row | Contracts are erased; enforcement, blame, chaperones, and impersonators are not Goal 1. |
 | `syntax/contract` | `webracket/syntax/contract` | substituted/postponed | contract erasure tests | Expansion/provider-time contract erasure support. |
 | `racket/file` | `webracket/file` | owned | `full-file-coverage`, VFS rows | Browser VFS behavior is not host filesystem behavior. |
-| `racket/format` | staged `io/format` adapter | owned | format coverage rows | Uses staged original Racket IO/format slices instead of textual stdlib. |
+| `racket/format` | staged `io/format` adapter | owned | format coverage rows | Uses the default io/format provider built from staged original Racket IO/format slices instead of textual stdlib. |
 | `racket/hash` | `webracket/hash` | owned | hash coverage rows | Must track WebRacket HAMT/hash representation. |
 | `racket/mpair` | `webracket/mpair` | owned | mpair sequence rows | Runtime representation work. |
 | `racket/promise` | `webracket/promise` | owned | `full-promise-coverage` | Ordinary promises are small browser-local semantics. |
