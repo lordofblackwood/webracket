@@ -22,6 +22,16 @@
 ;; lower-module-variable-ops : any/c -> any/c
 ;;   Lower schemify-shaped module variable operations to WebRacket helper forms.
 (define (lower-module-variable-ops v)
+  ;; lower-module-variable-constance-check : any/c -> any/c
+  ;;   Guard constant checks so value-backed imports stay plain values.
+  (define (lower-module-variable-constance-check cell)
+    (define lowered-cell (lower cell))
+    `(if (if (module-variable? ,lowered-cell)
+             (module-variable-constance ,lowered-cell)
+             #f)
+         #t
+         #f))
+
   (define (lower v)
     (reannotate
      v
@@ -42,10 +52,10 @@
         `(module-variables-define-consistent! ,(lower cells) ,(lower rhss))]
        [`(variable-reference-constant?
           (make-instance-variable-reference ,_instance ,cell))
-        `(if (module-variable-constance ,(lower cell)) #t #f)]
+        (lower-module-variable-constance-check cell)]
        [`(variable-reference-constant?
           (module-variable-reference ,_instance ,cell))
-        `(if (module-variable-constance ,(lower cell)) #t #f)]
+        (lower-module-variable-constance-check cell)]
        [`(variable-reference-from-unsafe?
           (make-instance-variable-reference ,_instance ,_cell))
         #f]
