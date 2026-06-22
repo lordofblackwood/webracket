@@ -3922,5 +3922,11 @@ current-parameterization    ; poor-man dynamic parameterization overlay
 (define (raise-definition-result-arity-error expected args)
   (raise-result-arity-error/internal 'raise-definition-result-arity-error expected args))
 
+;; current-date : -> date*?
+;;   Host-side wrapper that avoids depending on racket/date's generated
+;;   contract helper bindings during no-stdlib expansion.
+(define (current-date)
+  (seconds->date (* 0.001 (current-inexact-milliseconds))))
+
 (define (~r/precision x prec)
   (~r x #:precision prec))
