@@ -56,6 +56,13 @@ Useful knobs:
 The batch is intentionally opt-in because `minischeme` and staged reader setup
 are slower than the fast test suite.
 
+For asset-backed examples such as `pict`, browser smoke should serve the
+example directory itself, not an arbitrary `/private/tmp` output directory,
+because the generated page loads assets via relative paths such as
+`../assets/...`. After provider-routing changes, clear any example-local
+`generated/.provider-cache` before treating a browser failure as a live source
+or runtime bug.
+
 Support Files And Non-Entry Sources
 -----------------------------------
 

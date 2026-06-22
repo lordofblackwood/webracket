@@ -7,23 +7,20 @@ This example targets Node.js and runs in the terminal.
 From this folder:
 
 ```sh
-racket ../../webracket.rkt -r hello-world-1.rkt
+./compile.sh && node --experimental-wasm-exnref --expose-gc hello-world-1.js
 ```
 
-The switch -r causes webracket to compile and run the program in one go.
-Node is used to run the program.
+The compile helper builds the module-based program for Node, then Node runs the generated launcher.
 
 ## Build then run
 
 From this folder:
 
 ```sh
-racket ../../webracket.rkt --node hello-world-1.rkt
+./compile.sh
 ```
 
-The switch --node causes webracket to compile the program for Node.
-That is, it generates WebAssembly bytecode and a small JavaScript
-program for Node, that loads and runs the bytecode.
+This compiles the `#lang webracket/base` module for Node and writes the generated launcher next to the source file.
 
 ## Run
 

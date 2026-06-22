@@ -1,3 +1,5 @@
+#lang webracket/base
+
 ;;; Node hello world example
 ;;;
 ;;; Quick start (build + run in one command):

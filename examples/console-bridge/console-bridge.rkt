@@ -1,3 +1,5 @@
+#lang webracket/base
+
 (define counter 0)
 
 (define (increment! amount)

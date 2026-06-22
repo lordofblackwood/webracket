@@ -1,3 +1,7 @@
+#lang webracket/base
+
+(require browser/dom)
+
 ;;;
 ;;; Hello World
 ;;;

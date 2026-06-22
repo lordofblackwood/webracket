@@ -7,7 +7,7 @@ This browser example uses SXML via `sxml->dom` to build the page without direct 
 From this folder:
 
 ```sh
-racket ../../webracket.rkt --ffi dom --ffi standard -b hello-world-3.rkt
+./compile.sh
 ```
 
 ## Serve
@@ -15,13 +15,13 @@ racket ../../webracket.rkt --ffi dom --ffi standard -b hello-world-3.rkt
 From this folder:
 
 ```sh
-raco static-web
+python3 -m http.server
 ```
 
 ## Open
 
 Open:
 
-- `http://localhost:8000/hello-world-3.html`
+- `http://localhost:8000/generated/hello-world-3.html`
 
 This example also calls `(js-log "Hello!")`, which prints `Hello!` in the browser's JavaScript console.

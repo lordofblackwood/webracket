@@ -34,6 +34,11 @@ The generated page loads bitmap assets from:
 so the server root should be `examples/pict/`, not the `generated/` folder by
 itself.
 
+After provider-routing changes, clear `generated/.provider-cache` before using
+an old browser failure as evidence. The example has previously picked up stale
+provider-cache state that survived after the underlying compiler/runtime bug was
+already fixed.
+
 ## Current Status
 
 The example now:

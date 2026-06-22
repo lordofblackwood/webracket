@@ -5,7 +5,7 @@
 From this folder:
 
 ```sh
-racket ../../webracket.rkt --ffi dom --ffi standard -b hello-world.rkt
+./compile.sh
 ```
 
 ## Serve
@@ -13,13 +13,13 @@ racket ../../webracket.rkt --ffi dom --ffi standard -b hello-world.rkt
 From this folder:
 
 ```sh
-raco static-web
+python3 -m http.server
 ```
 
 ## Open
 
 Open:
 
-- `http://localhost:8000/hello-world.html`
+- `http://localhost:8000/generated/hello-world.html`
 
 This example also calls `(js-log "Hello!")`, which prints `Hello!` in the browser's JavaScript console.

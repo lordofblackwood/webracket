@@ -1,3 +1,8 @@
+#lang webracket/base
+
+(require browser/dom
+         browser/sxml)
+
 ;;;
 ;;; Hello World 3
 ;;;

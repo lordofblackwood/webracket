@@ -1,3 +1,11 @@
+#lang webracket/base
+
+(require browser/dom
+         xterm
+         (only-in webracket/primitives
+                  procedure->external
+                  string-join))
+
 ;;;
 ;;; Xterm.js
 ;;;
@@ -29,13 +37,13 @@
 
 ;; Compile this demo with:
 ;;
-;;     racket ../../webracket.rkt --ffi xtermjs --ffi dom.ffi --ffi standard.ffi -b xtermjs-demo.rkt
+;;     ./compile.sh
 ;;
 ;; Use a local web-server to serve the files in this folder.
 ;;
 ;;     raco static-web
 ;;
-;; Open "http://localhost:8000" and click on `xtermjs-demo.html`.
+;; Open "http://localhost:8000/generated/xtermjs-demo.html".
 
 
 ;;;
@@ -75,6 +83,29 @@
   (if (>= len width)
       text
       (string-append text (make-string (- width len) #\space))))
+
+(define (trim-left-spaces s)
+  (let loop ([i 0])
+    (if (and (< i (string-length s))
+             (char=? (string-ref s i) #\space))
+        (loop (add1 i))
+        (substring s i))))
+
+(define (trim-spaces s)
+  (define len (string-length s))
+  (define start
+    (let loop ([i 0])
+      (if (and (< i len)
+               (char=? (string-ref s i) #\space))
+          (loop (add1 i))
+          i)))
+  (define end
+    (let loop ([i (sub1 len)])
+      (if (and (>= i start)
+               (char=? (string-ref s i) #\space))
+          (loop (sub1 i))
+          (add1 i))))
+  (substring s start end))
 
   (define (printable-string? s)
     (for/and ([ch (in-string s)])
@@ -252,7 +283,7 @@
   (define (wrap-text text max-length)
     (let loop ([remaining text]
                [acc       '()])
-      (define trimmed (string-trim-left remaining #\space))
+      (define trimmed (trim-left-spaces remaining))
       (define len     (string-length trimmed))
       (cond
         [(zero? len)         (reverse acc)]
@@ -600,7 +631,7 @@
     (assoc name commands))
   
   (define (run-command text)
-    (define trimmed (string-trim text))
+    (define trimmed (trim-spaces text))
     (define name
       (if (zero? (string-length trimmed))
           ""
