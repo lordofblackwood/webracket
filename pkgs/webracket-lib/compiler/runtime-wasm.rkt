@@ -57953,6 +57953,8 @@
               (ref.func $default-port-write-handler)
               (ref.func $default-port-display-handler)
               (ref.func $default-port-print-handler)
+              (ref.func $syntax-introducer)
+              (ref.func $syntax-delta-introducer)
 
               ;; Primitive invokers for the different shapes
               ,@(for/list ([shape (in-list primitive-shapes)])
@@ -63540,7 +63542,8 @@
         (func $make-rename-transformer (type $Prim1)
               (param $id (ref eq)) ;; identifier?
               (result    (ref eq))
-              (if (ref.eq (call $identifier? (local.get $id)) (global.get $true))
+              (if (result (ref eq))
+                  (ref.eq (call $identifier? (local.get $id)) (global.get $true))
                   (then (local.get $id))
                   (else
                    (call $raise-argument-error1
@@ -70742,7 +70745,8 @@
                          (then (local.set $phase (call $syntax-local-phase-level))))
                      (if (ref.eq (local.get $phase) (global.get $false))
                          (then (return (global.get $false))))
-                     (if (ref.eq (call $exact-integer? (local.get $phase)) (global.get $true))
+                     (if (result (ref eq))
+                         (ref.eq (call $exact-integer? (local.get $phase)) (global.get $true))
                          (then (global.get $false))
                          (else
                           (call $raise-argument-error1
@@ -70778,7 +70782,8 @@
                      (param $use-local? (ref eq)) ;; optional any/c, default = #t; ignored
                      (result            (ref eq))
 
-                     (if (ref.eq (call $syntax? (local.get $stx)) (global.get $true))
+                     (if (result (ref eq))
+                         (ref.eq (call $syntax? (local.get $stx)) (global.get $true))
                          (then (global.get $false))
                          (else
                           (call $raise-argument-error:syntax-expected
@@ -70795,7 +70800,8 @@
                      (param $stx (ref eq)) ;; syntax?
                      (result     (ref eq))
 
-                     (if (ref.eq (call $syntax? (local.get $stx)) (global.get $true))
+                     (if (result (ref eq))
+                         (ref.eq (call $syntax? (local.get $stx)) (global.get $true))
                          (then (local.get $stx))
                          (else
                           (call $raise-argument-error:syntax-expected
@@ -70917,7 +70923,8 @@
                                              (local.get $b)
                                              (global.get $false)
                                              (global.get $false)))))
-                     (if (ref.eq (call $exact-integer? (local.get $phase)) (global.get $true))
+                     (if (result (ref eq))
+                         (ref.eq (call $exact-integer? (local.get $phase)) (global.get $true))
                          (then
                           (call $free-identifier=?
                                 (local.get $a)
@@ -70951,25 +70958,26 @@
                        (loop $validate-loop
                          (br_if $validated (ref.eq (local.get $scan) (global.get $null)))
                          (if (ref.test (ref $Pair) (local.get $scan))
-                             (then (local.set $scan-pair
-                                              (ref.cast (ref $Pair) (local.get $scan))))
+                             (then
+                              (local.set $scan-pair
+                                         (ref.cast (ref $Pair) (local.get $scan)))
+                              (local.set $id (struct.get $Pair $a (local.get $scan-pair)))
+                              (if (ref.eq (call $identifier? (local.get $id)) (global.get $true))
+                                  (then (nop))
+                                  (else
+                                   (call $raise-argument-error1
+                                         (global.get $symbol:check-duplicate-identifier)
+                                         (global.get $string:listof-identifier?)
+                                         (local.get $ids))
+                                   (unreachable)))
+                              (local.set $scan (struct.get $Pair $d (local.get $scan-pair)))
+                              (br $validate-loop))
                              (else
                               (call $raise-argument-error1
                                     (global.get $symbol:check-duplicate-identifier)
                                     (global.get $string:listof-identifier?)
                                     (local.get $ids))
-                              (unreachable)))
-                         (local.set $id (struct.get $Pair $a (local.get $scan-pair)))
-                         (if (ref.eq (call $identifier? (local.get $id)) (global.get $true))
-                             (then (nop))
-                             (else
-                              (call $raise-argument-error1
-                                    (global.get $symbol:check-duplicate-identifier)
-                                    (global.get $string:listof-identifier?)
-                                    (local.get $ids))
-                              (unreachable)))
-                         (local.set $scan (struct.get $Pair $d (local.get $scan-pair)))
-                         (br $validate-loop)))
+                              (unreachable)))))
 
                      (local.set $outer (local.get $ids))
                      (block $outer-done
@@ -71011,48 +71019,51 @@
                      (local $acc     (ref eq))
                      (local $sym     (ref eq))
                      (local $id      (ref eq))
+                     (local $stx-list (ref eq))
 
                      (local.set $acc (global.get $null))
+                     (local.set $current (local.get $v))
                      (if (ref.eq (call $syntax? (local.get $v)) (global.get $true))
                          (then
-                          (local.set $current (call $syntax->list (local.get $v)))
-                          (if (ref.eq (local.get $current) (global.get $false))
+                          (local.set $stx-list (call $syntax->list (local.get $v)))
+                          (if (ref.eq (local.get $stx-list) (global.get $false))
                               (then
                                (call $raise-argument-error1
                                      (global.get $symbol:generate-temporaries)
                                      (global.get $string:stx-list?)
                                      (local.get $v))
                                (unreachable))
-                              (else (nop))))
-                         (else
-                          (local.set $current (local.get $v))))
+                              (else
+                               (local.set $current (local.get $stx-list)))))
+                         (else (nop)))
 
                      (block $done
                        (loop $loop
                          (br_if $done (ref.eq (local.get $current) (global.get $null)))
                          (if (ref.test (ref $Pair) (local.get $current))
-                             (then (local.set $pair
-                                              (ref.cast (ref $Pair) (local.get $current))))
+                             (then
+                              (local.set $pair
+                                         (ref.cast (ref $Pair) (local.get $current)))
+                              (local.set $sym (call $gensym (global.get $missing)))
+                              (local.set $id
+                                         (call $datum->syntax
+                                               (global.get $false)
+                                               (local.get $sym)
+                                               (global.get $missing)
+                                               (global.get $missing)
+                                               (global.get $missing)))
+                              (local.set $acc (struct.new $Pair
+                                                          (i32.const 0)
+                                                          (local.get $id)
+                                                          (local.get $acc)))
+                              (local.set $current (struct.get $Pair $d (local.get $pair)))
+                              (br $loop))
                              (else
                               (call $raise-argument-error1
                                     (global.get $symbol:generate-temporaries)
                                     (global.get $string:stx-list?)
                                     (local.get $v))
-                              (unreachable)))
-                         (local.set $sym (call $gensym (global.get $missing)))
-                         (local.set $id
-                                    (call $datum->syntax
-                                          (global.get $false)
-                                          (local.get $sym)
-                                          (global.get $missing)
-                                          (global.get $missing)
-                                          (global.get $missing)))
-                         (local.set $acc (struct.new $Pair
-                                                     (i32.const 0)
-                                                     (local.get $id)
-                                                     (local.get $acc)))
-                         (local.set $current (struct.get $Pair $d (local.get $pair)))
-                         (br $loop)))
+                              (unreachable)))))
                      (call $reverse (local.get $acc)))
 
                ;; syntax-introducer : syntax? [(or/c 'add 'remove 'flip)] -> syntax?
