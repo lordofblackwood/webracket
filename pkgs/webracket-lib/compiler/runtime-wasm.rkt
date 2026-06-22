@@ -62861,7 +62861,6 @@
                      (struct.get $Keyword $str (local.get $kw))
                      (local.get $out)))
 
-
          (func $fasl:write-f64
                (param $v f64)
                (param $out (ref eq))
@@ -64005,7 +64004,9 @@
 	              (result (ref eq))
 	              (drop (call $raise
 	                          (call $exn:fail:contract:variable
-	                                (global.get $string:undefined)
+	                                (call $symbol->string
+	                                      (ref.cast (ref $Symbol)
+	                                                (local.get $name)))
 	                                (call $current-continuation-marks
 	                                      (global.get $missing))
 	                                (local.get $name))
@@ -65418,11 +65419,19 @@
 	         (func $module-variable-ref/no-check (type $Prim1)
 	               (param $cell (ref eq)) ;; module-variable?
 	               (result (ref eq))
-
-	               (struct.get $ModuleVariable $value
-	                           (call $module-variable-cast
-	                                 (global.get $symbol:module-variable-ref/no-check)
-	                                 (local.get $cell))))
+	               (local $mv (ref $ModuleVariable))
+	               (local $val (ref eq))
+	               (local.set $mv
+	                          (call $module-variable-cast
+	                                (global.get $symbol:module-variable-ref/no-check)
+	                                (local.get $cell)))
+	               (local.set $val (struct.get $ModuleVariable $value (local.get $mv)))
+	               (if (ref.eq (local.get $val) (global.get $undefined))
+	                   (then
+	                    (drop (call $raise-unbound-variable-reference
+	                                  (struct.get $ModuleVariable $name (local.get $mv))))
+	                    (unreachable)))
+	               (local.get $val))
 
 	         (func $module-variable-set! (type $Prim2)
 	               (param $cell (ref eq)) ;; module-variable?
