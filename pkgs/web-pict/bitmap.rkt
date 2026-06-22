@@ -50,13 +50,15 @@
       (raise-argument-error 'load-bitmap "(or/c #f procedure?)" on-error)))
   (define image (js-create-element "img"))
   (define ready-callback
+    ;; DOM event listeners receive one event argument from the callback bridge.
     (procedure->external
-     (lambda _
+     (lambda (_event)
        (register-bitmap! url image)
        (call-bitmap-ready on-ready url image))))
   (define error-callback
+    ;; DOM event listeners receive one event argument from the callback bridge.
     (procedure->external
-     (lambda _
+     (lambda (_event)
        (call-bitmap-error on-error url))))
   (js-set-attribute! image "crossorigin" "anonymous")
   (js-set-attribute! image "style" "display:none")
