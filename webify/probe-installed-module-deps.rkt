@@ -3,6 +3,7 @@
 (provide known-module-cases
          goal1-module-cases
          module-case-data
+         extract-case-extra-reports
          extract-case-inputs
          input-names
          set-diff
@@ -27,6 +28,23 @@
 (define-runtime-path self-path "probe-installed-module-deps.rkt")
 
 (define goal1-output-semaphore (make-semaphore 1))
+
+;; rename-report : webify-module-report? symbol? -> webify-module-report?
+;;   Register report under an alternate dependency name for probe-time support injection.
+(define (rename-report report name)
+  (if (eq? name (webify-module-report-name report))
+      report
+      (webify-module-report
+       name
+       (webify-module-report-directory-keys report)
+       (webify-module-report-bundle-keys report)
+       (webify-module-report-bundle-entries report)
+       (webify-module-report-phase0-imports report)
+       (webify-module-report-phase0-exports report)
+       (webify-module-report-phase0-linklet-datum report)
+       (webify-module-report-manifest-ready? report)
+       (cons (format "probe support provider registered as ~a" name)
+             (webify-module-report-notes report)))))
 
 ;; call-with-goal1-output-lock : (-> any/c) -> any/c
 ;;   Serialize parent-side dashboard output from parallel bounded workers.
@@ -1947,10 +1965,22 @@
 
 ;; extract-case-inputs : symbol? -> (listof webify-module-linklet-input?)
 ;;   Extract the demand-sliced installed provider graph for one case.
+(define (extract-case-extra-reports name)
+  (if (regexp-match? #rx"^class-" (symbol->string name))
+      (list webify-module-protocol-report
+            (webify-module-path->report 'webracket/contract)
+            (webify-module-path->report 'webracket/unsafe/undefined)
+            (rename-report
+             (webify-module-path->report 'webracket/unsafe/undefined)
+             'racket/unsafe/undefined))
+      (list webify-module-protocol-report)))
+
+;; extract-case-inputs : symbol? -> (listof webify-module-linklet-input?)
+;;   Extract the demand-sliced installed provider graph for one case.
 (define (extract-case-inputs name)
   (webify-source-modules->discovered-resolved-linklet-inputs
    (module-case-data name)
-   #:extra-reports (list webify-module-protocol-report)
+   #:extra-reports (extract-case-extra-reports name)
    #:module-protocol-dependency webify-module-protocol-dependency
    #:demand-slice? #t))
 
