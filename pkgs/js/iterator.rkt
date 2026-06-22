@@ -17,7 +17,42 @@
                   js-Iterator
                   js-Object))
 
-(provide (all-defined-out))
+(provide (struct-out iterator)
+         (struct-out iterator-zip-options)
+         Iterator
+         iterable?
+         iterator->vector
+         iterator-call/callback
+         iterator-collect-list
+         iterator-concat
+         iterator-dispose!
+         iterator-drop
+         iterator-entry-key
+         iterator-entry-value
+         iterator-every
+         iterator-filter
+         iterator-find
+         iterator-flat-map
+         iterator-for-each
+         iterator-from
+         iterator-make
+         iterator-map
+         iterator-next
+         iterator-prefix
+         iterator-prototype
+         iterator-prototype-constructor
+         iterator-prototype-to-string-tag
+         iterator-reduce
+         iterator-resolve-optional
+         iterator-resolve-this-arg
+         iterator-result
+         iterator-return
+         iterator-some
+         iterator-symbol-iterator
+         iterator-take
+         iterator-unwrap
+         iterator-zip
+         iterator-zip-keyed)
 
 ;; This is the canonical module version of the old `include-lib iterator` safe
 ;; wrapper. Raw bindings remain in `webracket/unsafe/array`.
