@@ -7370,6 +7370,14 @@
                            (equal? c 3)
                            (eof-object? d))))
 
+              (list "peek-bytes-avail!/tail-position"
+                    (let ([peek-count
+                           (lambda ()
+                             (let* ([buffer (make-bytes 4 0)]
+                                    [port   (open-input-bytes (bytes 1 2 3))])
+                               (peek-bytes-avail! buffer 0 #f port 0 3)))])
+                      (equal? (peek-count) 3)))
+
               (list "peek-bytes-avail!/skip"
                     (let* ([buffer (make-bytes 2 0)]
                            [port   (open-input-bytes (bytes 9 8 7))]
@@ -7614,7 +7622,12 @@
                          (lambda (p)
                            (proc value p #t))))
                       (and (equal? display-result "[data]")
-                           (equal? write-result "<data>"))))))
+                           (equal? write-result "<data>")
+                           (equal? (custom-write-accessor 'plain 'fallback)
+                                   'fallback)
+                           (with-handlers ([exn:fail:contract? (lambda (_exn) #t)])
+                             (custom-write-accessor 'plain)
+                             #f))))))
 
        (list "13.7 String Ports"
              (list
@@ -8223,6 +8236,9 @@
                           (procedure? (hash-ref paramz 'cache-configuration #f))
                           (equal? ((hash-ref paramz 'reparameterize) 'paramz)
                                   'paramz)
+                          (let ([installed (make-hasheq)])
+                            (primitive-table 'demo installed)
+                            (eq? (primitive-table 'demo) installed))
                           (let ([n 0]
                                 [cache (hash-ref paramz 'cache-configuration)])
                             (and (equal? (cache 0 (lambda ()
@@ -8257,14 +8273,22 @@
                          [b  (datum->syntax #f 'banana)])
                      (and (equal? (bound-identifier=? a1 a2) #t)
                           (equal? (bound-identifier=? a1 b) #f)
-                          (equal? (bound-identifier=? a1 a2 #f) #t))))
+                          (equal? (bound-identifier=? a1 a2 #f) #t)
+                          (equal? (bound-identifier=? a1 a2 1) #t)
+                          (with-handlers ([exn:fail:contract? (lambda (_exn) #t)])
+                            (bound-identifier=? a1 a2 'bad-phase)
+                            #f))))
 
              (list "identifier-binding/bootstrap"
                    (let ([id (datum->syntax #f 'apple)])
                      (and (equal? (identifier-binding id) #f)
                           (equal? (identifier-binding id 0) #f)
+                          (equal? (identifier-binding id 1 #t #t) #f)
                           (equal? (identifier-binding id #f #t) #f)
-                          (equal? (identifier-binding id #f #t #t) #f))))
+                          (equal? (identifier-binding id #f #t #t) #f)
+                          (with-handlers ([exn:fail:contract? (lambda (_exn) #t)])
+                            (identifier-binding id 'bad-phase)
+                            #f))))
 
              (list "syntax-local-phase-level/bootstrap"
                    (equal? (syntax-local-phase-level) 0))
@@ -8277,13 +8301,21 @@
                          [a2 (datum->syntax #f 'apple)]
                          [b  (datum->syntax #f 'banana)])
                      (and (equal? (check-duplicate-identifier (list a1 b)) #f)
-                          (equal? (check-duplicate-identifier (list a1 b a2)) a2))))
+                          (equal? (check-duplicate-identifier (list a1 b a2)) a2)
+                          (with-handlers ([exn:fail:contract? (lambda (_exn) #t)])
+                            (check-duplicate-identifier (list a1 'banana))
+                            #f))))
 
              (list "generate-temporaries/bootstrap"
-                   (let ([ids (generate-temporaries (datum->syntax #f '(a b c)))])
+                   (let ([empty (generate-temporaries '())]
+                         [ids   (generate-temporaries (datum->syntax #f '(a b c)))])
                      (and (equal? (length ids) 3)
+                          (equal? empty '())
                           (andmap identifier? ids)
-                          (equal? (check-duplicate-identifier ids) #f))))
+                          (equal? (check-duplicate-identifier ids) #f)
+                          (with-handlers ([exn:fail:contract? (lambda (_exn) #t)])
+                            (generate-temporaries '(a . b))
+                            #f))))
 
              (list "make-syntax-introducer/bootstrap"
                    (let* ([stx (datum->syntax #f 'x)]
@@ -8312,6 +8344,25 @@
                           (equal? (intro stx 'flip) stx)
                           (equal? (intro stx 'remove) stx))))
 
+             (list "make-rename-transformer/bootstrap"
+                   (let ([stx (datum->syntax #f 'apple)])
+                     (and (equal? (make-rename-transformer stx) stx)
+                          (equal? (rename-transformer? stx) #f)
+                          (with-handlers ([exn:fail:contract? (lambda (_exn) #t)])
+                            (make-rename-transformer 'apple)
+                            #f))))
+
+             (list "module-name/module-path-fixup/bootstrap"
+                   (and (equal? (module-name-fixup #f '()) 'top-level)
+                        (equal? (module-name-fixup 'demo '()) 'demo)
+                        (equal? (module-name-fixup '(demo inner) '(leaf))
+                                '(demo inner leaf))
+                        (equal? (module-path-fixup #f '()) 'top-level)
+                        (equal? (module-path-fixup 'demo '())
+                                '(quote demo))
+                        (equal? (module-path-fixup '(demo inner) '(leaf))
+                                '(submod (quote demo) inner leaf))))
+
              (list "syntax-local-value/failure-thunk-bootstrap"
                    (let ([id (datum->syntax #f 'missing-transformer)])
                      (equal? (syntax-local-value id (lambda () 'fallback)) 'fallback)))
@@ -8331,6 +8382,17 @@
                      (and (namespace? (current-namespace))
                           (parameterize ([current-namespace ns])
                             (equal? (current-namespace) ns)))))
+
+             (list "dynamic-require/bootstrap-fallback"
+                   (and (equal? (dynamic-require 'racket/base 'car
+                                                (lambda () 'fallback))
+                                'fallback)
+                        (with-handlers ([exn:fail:contract? (lambda (_exn) #t)])
+                          (dynamic-require 'racket/base 'car)
+                          #f)
+                        (with-handlers ([exn:fail:contract? (lambda (_exn) #t)])
+                          (dynamic-require 'racket/base 'car 42)
+                          #f)))
 
              (list "set!-transformer-procedure/bootstrap-contract"
                    (and (equal? (set!-transformer? (lambda (stx) stx)) #f)
@@ -8383,6 +8445,7 @@
                            (equal? (variable-reference->instance vr) #f)
                            (equal? (variable-reference->instance vr #t) #f)
                            (equal? (variable-reference->module-path-index vr) #f)
+                           (equal? (variable-reference->module-source/submod vr) #f)
                            (equal? (variable-reference-constant? vr) #f)
                            (equal? (variable-reference-from-unsafe? vr) #f))))
               (list "bootstrap reflection predicates"
