@@ -45,6 +45,7 @@ ROUTE_ALIASES=(
   documentation-ffi-jsxgraph
   documentation-ffi-xtermjs
   documentation-ffi-websocket
+  documentation-ffi-audio
   documentation-extended-example-jsxgraph-board-points
   documentation-extended-example-jsxgraph-geometry-constructors
   examples

@@ -607,6 +607,16 @@
     [(string-suffix? path "documentation-ffi-jsxgraph.html")      'doc-ffi-jsxgraph]
     [(string-suffix? path "documentation-ffi-xtermjs.html")       'doc-ffi-xtermjs]
     [(string-suffix? path "documentation-ffi-websocket.html")     'doc-ffi-websocket]
+    [(string-suffix? path "documentation-ffi-audio.html")         'doc-ffi-audio]
+    [(string-suffix? path "documentation-ffi-window.html")        'doc-ffi-window]
+    [(string-suffix? path "documentation-ffi-performance.html")   'doc-ffi-performance]
+    [(string-suffix? path "documentation-ffi-document.html")      'doc-ffi-document]
+    [(string-suffix? path "documentation-ffi-event.html")         'doc-ffi-event]
+    [(string-suffix? path "documentation-ffi-domrect.html")       'doc-ffi-domrect]
+    [(string-suffix? path "documentation-ffi-element.html")       'doc-ffi-element]
+    [(string-suffix? path "documentation-ffi-canvas.html")        'doc-ffi-canvas]
+    [(string-suffix? path "documentation-ffi-media.html")         'doc-ffi-media]
+    [(string-suffix? path "documentation-ffi-image.html")         'doc-ffi-image]
     [(string-suffix? path "documentation-extended-example-jsxgraph-board-points.html")
                                                               'doc-extended-example-jsxgraph-board-points]
     [(string-suffix? path "documentation-extended-example-jsxgraph-geometry-constructors.html")
@@ -643,6 +653,17 @@
                    doc-ffi-jsxgraph
                    doc-ffi-xtermjs
                    doc-ffi-websocket
+                   doc-ffi-audio
+                   doc-ffi-console
+                   doc-ffi-window
+                   doc-ffi-performance
+                   doc-ffi-document
+                   doc-ffi-event
+                   doc-ffi-domrect
+                   doc-ffi-element
+                   doc-ffi-canvas
+                   doc-ffi-media
+                   doc-ffi-image
                    doc-extended-example-jsxgraph-board-points
                    doc-extended-example-jsxgraph-geometry-constructors))
       'documentation
@@ -4722,6 +4743,17 @@ CSS
          [(doc-ffi-jsxgraph)      (doc-ffi-jsxgraph-page)]
          [(doc-ffi-xtermjs)       (doc-ffi-xtermjs-page)]
          [(doc-ffi-websocket)     (doc-ffi-websocket-page)]
+         [(doc-ffi-audio)         (doc-ffi-audio-page)]
+         [(doc-ffi-console)       (doc-ffi-console-page)]
+         [(doc-ffi-window)        (doc-ffi-window-page)]
+         [(doc-ffi-performance)   (doc-ffi-performance-page)]
+         [(doc-ffi-document)      (doc-ffi-document-page)]
+         [(doc-ffi-event)         (doc-ffi-event-page)]
+         [(doc-ffi-domrect)       (doc-ffi-domrect-page)]
+         [(doc-ffi-element)       (doc-ffi-element-page)]
+         [(doc-ffi-canvas)        (doc-ffi-canvas-page)]
+         [(doc-ffi-media)         (doc-ffi-media-page)]
+         [(doc-ffi-image)         (doc-ffi-image-page)]
          [(doc-extended-example-jsxgraph-board-points)
                                   (doc-extended-example-jsxgraph-board-points-page)]
          [(doc-extended-example-jsxgraph-geometry-constructors)
@@ -4785,7 +4817,10 @@ CSS
               '(doc-js-ffi
                 doc-ffi-standard doc-ffi-dom doc-ffi-js
                 doc-ffi-math doc-ffi-jsxgraph doc-ffi-xtermjs
-                doc-ffi-websocket))
+                doc-ffi-websocket doc-ffi-audio doc-ffi-window
+                doc-ffi-performance doc-ffi-document doc-ffi-event
+                doc-ffi-domrect doc-ffi-element doc-ffi-canvas
+                doc-ffi-media doc-ffi-image))
     (init-doc-js-ffi-page!))
 
   (when (eq? (current-page) 'doc-extended-example-jsxgraph-board-points)

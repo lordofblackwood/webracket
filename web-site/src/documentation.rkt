@@ -447,6 +447,15 @@
 (define (doc-ffi-websocket-page) (doc-ffi-page "ffi-websocket"))
 (define (doc-ffi-audio-page) (doc-ffi-page "ffi-audio"))
 (define (doc-ffi-console-page) (doc-ffi-page "ffi-console"))
+(define (doc-ffi-window-page) (doc-ffi-page "ffi-window"))
+(define (doc-ffi-performance-page) (doc-ffi-page "ffi-performance"))
+(define (doc-ffi-document-page) (doc-ffi-page "ffi-document"))
+(define (doc-ffi-event-page) (doc-ffi-page "ffi-event"))
+(define (doc-ffi-domrect-page) (doc-ffi-page "ffi-domrect"))
+(define (doc-ffi-element-page) (doc-ffi-page "ffi-element"))
+(define (doc-ffi-canvas-page) (doc-ffi-page "ffi-canvas"))
+(define (doc-ffi-media-page) (doc-ffi-page "ffi-media"))
+(define (doc-ffi-image-page) (doc-ffi-page "ffi-image"))
 
 ;;;
 ;;; Extended Example: JSXGraph Board + Points
