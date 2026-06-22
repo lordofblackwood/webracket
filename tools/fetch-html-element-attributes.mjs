@@ -13,6 +13,16 @@ import vm from "node:vm";
 const DEFAULT_VERSION = "3.1.0";
 const DEFAULT_OUT_JSON = "lib/web-easy/generated/html-element-attributes.json";
 const DEFAULT_OUT_SEXP = "lib/web-easy/spec/html-element-attributes.sexp";
+const DEPRECATED_TAGS = new Set([
+  "applet",
+  "basefont",
+  "dir",
+  "font",
+  "frame",
+  "frameset",
+  "isindex",
+  "param",
+]);
 
 function usage() {
   console.log(`Usage:
@@ -85,7 +95,9 @@ function extractTable(moduleSource) {
 }
 
 function normalizeTable(raw) {
-  const keys = Object.keys(raw).sort((a, b) => a.localeCompare(b));
+  const keys = Object.keys(raw)
+    .filter((k) => !DEPRECATED_TAGS.has(k))
+    .sort((a, b) => a.localeCompare(b));
   const out = {};
   for (const key of keys) {
     const attrs = raw[key];

@@ -4746,7 +4746,7 @@ Reads the JSXGraph board id.
 
 @defproc[(jsx-board-container [board jsx-board?])
          external/raw]{
-Reads the board container element.
+Reads the board container.
 }
 
 @defproc[(jsx-board-renderer [board jsx-board?])
