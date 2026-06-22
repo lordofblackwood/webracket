@@ -27,6 +27,8 @@
          (check-true (procedure? window-name) "window wrapper available")
          (check-true (procedure? Iterator) "iterator wrapper available")
          (check-true (procedure? performance-now) "performance wrapper available")
+         (check-true (procedure? Document) "Document accessor available")
+         (check-true (procedure? document?) "document struct available")
          (check-true (procedure? document-body) "document wrapper available")
          (check-true (procedure? canvas-width) "canvas wrapper available")
          (check-true (procedure? image-alt) "image wrapper available")

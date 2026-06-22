@@ -35,6 +35,33 @@
         (with-handlers ([exn:fail:filesystem? void])
           (delete-directory/files dir))))))
 
+;; check-webracket-output/files : (listof (cons/c string? string?)) string regexp? -> void?
+;;   Run a temporary multi-file WebRacket program and match its observable output.
+(define (check-webracket-output/files files entry-file expected-output)
+  (define source-dir (make-temporary-file "webracket-keyword-proc-files-src-~a" 'directory))
+  (define dest-dir   (make-temporary-file "webracket-keyword-proc-files-dest-~a" 'directory))
+  (dynamic-wind
+    void
+    (lambda ()
+      (for ([entry (in-list files)])
+        (define rel-path (car entry))
+        (define text     (cdr entry))
+        (define full-path (build-path source-dir rel-path))
+        (make-directory* (path-only full-path))
+        (write-program! full-path text))
+      (define-values (status output)
+        (run-webracket (list "--no-stdlib"
+                             "-r"
+                             "--dest" (path->string dest-dir)
+                             (path->string (build-path source-dir entry-file)))
+                       source-dir))
+      (check-equal? status 0 output)
+      (check-regexp-match expected-output output))
+    (lambda ()
+      (for ([dir (in-list (list source-dir dest-dir))])
+        (with-handlers ([exn:fail:filesystem? void])
+          (delete-directory/files dir))))))
+
 (test-case "struct proc-spec field makes instances callable"
   (check-webracket-output
    (string-append
@@ -105,6 +132,75 @@
     "(js-log (and (equal? required '(#:y)) (equal? allowed '(#:y))))\n"
     "(js-log (keyword-apply reduced '(#:y) '(20) '(21)))\n")
    #rx"(?m:^43\nundefined\ntrue\nundefined\n42\nundefined\n#<void>$)"))
+
+(test-case "webracket/private/kw direct keyword calls reach reduced procedures"
+  (check-webracket-output
+   (string-append
+    "#lang webracket/base\n"
+    "(require webracket/private/kw)\n"
+    "(define base\n"
+    "  (make-keyword-procedure\n"
+    "   (lambda (kws kw-args . rest)\n"
+    "     (list 'keyword kws kw-args rest))\n"
+    "   (lambda rest\n"
+    "     (list 'plain rest))))\n"
+    "(define proc\n"
+    "  (procedure-reduce-keyword-arity\n"
+    "   base\n"
+    "   (arity-at-least 0)\n"
+    "   '()\n"
+    "   '(#:attrs)\n"
+    "   'local-proc))\n"
+    "(js-log (proc #:attrs '((id . \"x\")) \"hi\"))\n")
+   #rx"(?m:^\\(keyword \\(#:attrs\\) \\(\\(\\(id \\. \"x\"\\)\\)\\) \\(\"hi\"\\)\\)\n#<void>$)"))
+
+(test-case "webracket/private/kw imported reduced keyword procedures accept direct keyword calls"
+  (check-webracket-output/files
+   (list
+    (cons "helper.rkt"
+          (string-append
+           "#lang webracket/base\n"
+           "(require webracket/private/kw)\n"
+           "(define base\n"
+           "  (make-keyword-procedure\n"
+           "   (lambda (kws kw-args . rest)\n"
+           "     (list 'keyword kws kw-args rest))\n"
+           "   (lambda rest\n"
+           "     (list 'plain rest))))\n"
+           "(define proc\n"
+           "  (procedure-reduce-keyword-arity\n"
+           "   base\n"
+           "   (arity-at-least 0)\n"
+           "   '()\n"
+           "   '(#:attrs)\n"
+           "   'helper-proc))\n"
+           "(provide proc)\n"))
+    (cons "main.rkt"
+          (string-append
+           "#lang webracket/base\n"
+           "(require \"helper.rkt\")\n"
+           "(js-log (proc #:attrs '((id . \"x\")) \"hi\"))\n")))
+   "main.rkt"
+   #rx"(?m:^\\(keyword \\(#:attrs\\) \\(\\(\\(id \\. \"x\"\\)\\)\\) \\(\"hi\"\\)\\)\n#<void>$)"))
+
+(test-case "webracket/private/sort exports a callable positional sort"
+  (check-webracket-output
+   (string-append
+    "#lang webracket/base\n"
+    "(require webracket/private/sort)\n"
+    "(define sorted\n"
+    "  (sort (list (list 'a 10 20)\n"
+    "              (list 'b 12 20)\n"
+    "              (list 'c 5 18))\n"
+    "        (lambda (a b)\n"
+    "          (let ([ay (caddr a)]\n"
+    "                [by (caddr b)])\n"
+    "            (cond\n"
+    "              [(> ay by) #t]\n"
+    "              [(= ay by) (> (cadr a) (cadr b))]\n"
+    "              [else #f])))))\n"
+    "(displayln sorted)\n")
+   #rx"(?m:^\\(\\(b 12 20\\) \\(a 10 20\\) \\(c 5 18\\)\\)\n#<void>$)"))
 
 (module+ main
   (void))

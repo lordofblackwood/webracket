@@ -7,6 +7,7 @@
          "../pkgs/webracket-lib/compiler/webify/bridge-stats.rkt"
          "../pkgs/webracket-lib/compiler/webify/first-slice.rkt"
          "../pkgs/webracket-lib/compiler/webify/known.rkt"
+         "../pkgs/webracket-lib/compiler/webify/lower.rkt"
          "../pkgs/webracket-lib/compiler/webify/module-adapter.rkt"
          "../pkgs/webracket-lib/compiler/webify/module-composer.rkt"
          "../pkgs/webracket-lib/compiler/webify/module-instance.rkt")
@@ -56,6 +57,17 @@
   (check-false
    (datum-contains? datum
                     '(define imported (module-variable-ref import-arg)))))
+
+(test-case "value-backed constant checks guard plain imports"
+  (check-equal?
+   (lower-module-variable-ops
+    '(variable-reference-constant?
+      (module-variable-reference instance imported)))
+   '(if (if (module-variable? imported)
+          (module-variable-constance imported)
+          #f)
+      #t
+      #f)))
 
 (test-case "top-level export aliases reuse internal cached values"
   (define exports '(out))
@@ -332,6 +344,31 @@
    (for/or ([(key value) (in-hash stats)])
      (and (equal? key '(bridge-export-cell-name out))
           (= value 1)))))
+
+(test-case "read-before-definition keeps public export cells"
+  (define stats (make-hash))
+  (define datum
+    (parameterize ([current-webify-bridge-stats stats])
+      (first-slice->top-level-datum/imports
+       '(lambda (instance out-cell)
+          (module-variable-ref/no-check out-cell)
+          (module-variable-define! out-cell 42 'constant)
+          (module-variable-ref/no-check out-cell))
+       '()
+       '(out)
+       #:module-name 'demo/read-before-definition)))
+  (define meta
+    (for/or ([(key value) (in-hash stats)])
+      (and (equal? key '(bridge-export-cell-meta demo/read-before-definition out))
+           value)))
+  (check-true (hash-ref meta 'immutable? #f))
+  (check-true (hash-ref meta 'read-before-definition? #f))
+  (check-false (hash-ref meta 'undefined-sensitive? #t))
+  (check-false (hash-ref meta 'plain-value-base-candidate? #t))
+  (check-equal? (hash-ref meta 'selected-export-kind 'missing) 'cell)
+  (check-true
+   (datum-contains? datum
+                    '(define out (module-variable-ref out-cell)))))
 
 (test-case "late-materialization candidates allow refs after define"
   (define stats (make-hash))
@@ -614,6 +651,79 @@
    (datum-contains? datum
                     '(define nested-app
                        (list out-cell)))))
+
+(test-case "delayed closure captures do not count as read-before-definition"
+  (define exports '(out))
+  (define stats (make-hash))
+  (define value-id
+    (hash-ref (first-slice-top-level-export-value-ids exports) 'out))
+  (define cell-id
+    (hash-ref (first-slice-top-level-export-cell-ids exports) 'out))
+  (define datum
+    (parameterize ([current-module-bridge-elide-public-cells? #t]
+                   [current-module-bridge-module-kinds
+                    (hasheq 'demo-delayed-capture 'local-user)]
+                   [current-webify-bridge-stats stats])
+      (first-slice->top-level-datum
+       '(lambda (instance out-cell)
+          (module-variable-define! out-cell 41 'constant)
+          (define thunk
+            (lambda ()
+              out-cell))
+          (module-variable-ref/no-check out-cell))
+       exports
+       #:module-name 'demo-delayed-capture)))
+  (define meta
+    (for/or ([(key value) (in-hash stats)])
+      (and (equal? key '(bridge-export-cell-meta demo-delayed-capture out))
+           value)))
+  (check-false (hash-ref meta 'read-before-definition? #f))
+  (check-equal? (hash-ref meta 'selected-export-kind 'missing) 'value)
+  (check-true
+   (datum-contains? datum
+                    `(define-values (,value-id)
+                       (webify-linklet-proc$0 (#%variable-reference) (void)))))
+  (check-false
+   (datum-contains? datum
+                    `(define ,cell-id (module-variable-make 'out)))))
+
+(test-case "top-level init helper materializations mark exports defined"
+  (define exports '(out))
+  (define stats (make-hash))
+  (define value-id
+    (hash-ref (first-slice-top-level-export-value-ids exports) 'out))
+  (define cell-id
+    (hash-ref (first-slice-top-level-export-cell-ids exports) 'out))
+  (define datum
+    (parameterize ([current-module-bridge-elide-public-cells? #t]
+                   [current-module-bridge-module-kinds
+                    (hasheq 'demo-init-helper 'local-user)]
+                   [current-webify-bridge-stats stats])
+      (first-slice->top-level-datum
+       '(lambda (instance out-cell)
+          (define effect
+            (begin
+              (let-values (((out)
+                            (call-with-values (lambda () 41) values)))
+                (module-variable-define! out-cell out 'constant))
+              (void)))
+          (define out (module-variable-ref/no-check out-cell))
+          out)
+       exports
+       #:module-name 'demo-init-helper)))
+  (define meta
+    (for/or ([(key value) (in-hash stats)])
+      (and (equal? key '(bridge-export-cell-meta demo-init-helper out))
+           value)))
+  (check-false (hash-ref meta 'read-before-definition? #f))
+  (check-equal? (hash-ref meta 'selected-export-kind 'missing) 'value)
+  (check-true
+   (datum-contains? datum
+                    `(define-values (,value-id)
+                       (webify-linklet-proc$0 (#%variable-reference) (void)))))
+  (check-false
+   (datum-contains? datum
+                    `(define ,cell-id (module-variable-make 'out)))))
 
 (test-case "late-materialized export rewriting covers lowered #%top refs"
   (define exports '(out))
