@@ -249,6 +249,24 @@
     (check-equal? (map webify-module-resolution-outcome-status outcomes)
                   '(resolved-by-compiled-primitive-alias))))
 
+(test-case "module linklet import resolver preserves staged read private root dependencies"
+  (define read-linklet
+    '(linklet (((raw:read read))) (y)
+       (define-values (y) raw:read)))
+  (parameterize ([current-provider-owned-primitive-aliases
+                  '(read string->number)])
+    (define-values (imports outcomes)
+      (webify-resolve-module-linklet-imports/outcomes
+       read-linklet
+       '((expander/read (read))
+         (racket-src/expander/read/main (read)))
+       #:module-name 'racket-src/expander/read-provider-root.rkt
+       #:dependencies '((raw:read racket-src/expander/read/main))))
+    (check-equal? imports
+                  '((raw:read racket-src/expander/read/main read)))
+    (check-equal? (map webify-module-resolution-outcome-status outcomes)
+                  '(resolved-by-explicit-dependency))))
+
 (test-case "composer canonicalizes kernel-prefixed primitive import cells"
   (define base-dir
     (or (current-load-relative-directory)
@@ -745,6 +763,20 @@
     (check-equal? (map webify-module-resolution-outcome-status
                        staged-list-check-outcomes)
                   '(resolved-by-compiled-primitive-alias)))
+  (define-values (read-string-check-list-imports read-string-check-list-outcomes)
+    (webify-resolve-module-linklet-imports/outcomes
+     '(linklet (([check-list7 check-list])) (y)
+        (define-values (y) check-list7))
+     '((racket/private/for (check-list))
+       (racket/private/list (check-list))
+       (#%kernel (check-list)))
+     #:module-name 'racket-src/expander/read/string
+     #:dependencies '((check-list7 #%kernel))))
+  (check-equal? read-string-check-list-imports
+                '((check-list7 #%kernel check-list)))
+  (check-equal? (map webify-module-resolution-outcome-status
+                     read-string-check-list-outcomes)
+                '(resolved-by-compiled-primitive-alias))
   (define-values (exact-contract-export-imports exact-contract-export-outcomes)
     (webify-resolve-module-linklet-imports/outcomes
      '(linklet (([id-partially-applied42.1 id-partially-applied42.1])) (y)

@@ -1257,6 +1257,42 @@
          (match-define (list local external) binding)
          (list local 'webracket/private/kw external))))
 
+;; import-group->staged-read-aliases : symbol? import-group -> (or/c aliases #f)
+;;   Supply hand-authored provider aliases for staged expander/read helpers
+;;   whose compiled metadata keeps only generated local names.
+(define (import-group->staged-read-aliases module-name group)
+  (define (single-binding-names group)
+    (and (pair? group)
+         (null? (cdr group))
+         (let ([binding (car group)])
+           (and (pair? binding)
+                (pair? (cdr binding))
+                (null? (cddr binding))
+                (let ([local (car binding)]
+                      [external (cadr binding)])
+                  (and (symbol? local)
+                       (symbol? external)
+                       (list local external)))))))
+  (define names (single-binding-names group))
+  (define (symbol-string=? a b)
+    (and (symbol? a)
+         (symbol? b)
+         (string=? (symbol->string a) (symbol->string b))))
+  (cond
+    [(and (memq module-name '(racket-src/expander/read/vector
+                              racket-src/expander/read/vector.rkt))
+          names
+          (symbol-string=? (car names) 'not-an-fX.1)
+          (symbol-string=? (cadr names) 'not-an-fX.1))
+     (list (list (car names) 'racket/fixnum (cadr names)))]
+    [(and (memq module-name '(racket-src/expander/read/vector
+                              racket-src/expander/read/vector.rkt))
+          names
+          (symbol-string=? (car names) '1/not-an-fX.1)
+          (symbol-string=? (cadr names) 'not-an-fX.1))
+     (list (list (car names) 'racket/flonum (cadr names)))]
+    [else #f]))
+
 ;; import-group->aliases : import-group candidates -> (or/c aliases #f)
 ;;   Infer aliases only for one clear phase-0 dependency and non-generated export names.
 (define (import-group->aliases group required-module-candidates)
@@ -1573,8 +1609,11 @@
                 require-order-aliases))
       (cons group
             (and (null? require-aliases)
-                 (or (and (pair? require-order-group-aliases)
+                     (or (and (pair? require-order-group-aliases)
                           require-order-group-aliases)
+                     (import-group->staged-read-aliases
+                      (webify-module-extractor-spike-name report)
+                      group)
                      (import-group->keyword-runtime-aliases group)
                      (import-group->aliases group required-module-candidates))))))
   (define import-aliases
@@ -2772,6 +2811,11 @@
             ;; This helper uses `for/list`; the compiled form can expose list
             ;; checks from both list internals and the for implementation.
             (list local 'racket/private/for)]
+           [(and (eq? module-name 'racket-src/expander/read/string)
+                 (symbolic-name=? external 'check-list))
+            ;; The staged reader string helper only needs the primitive list
+            ;; check, and routing through `for` can create registry cycles.
+            (list local '#%kernel)]
            [(and (eq? module-name 'webracket/stream)
                  (symbolic-name=? external 'check-list))
             ;; The staged stream provider uses `for` internally for checks.
@@ -2818,6 +2862,10 @@
                                   syntax-source
                                   syntax?)))
             (list local 'webracket/primitives)]
+           [(and (eq? module-name 'racket-src/expander/read-provider-root.rkt)
+                 (eq? local '1/string->number)
+                 (eq? external 'string->number))
+            (list local 'racket-src/expander/host/string-to-number)]
            [(and (memq module-name '(racket/private/for
                                      racket/private/list
                                      racket/private/class-struct
@@ -2988,6 +3036,7 @@
                               '(keyword-apply
                                 make-keyword-procedure
                                 new-keyword-apply
+                                subsets?
                                 make-optional-keyword-procedure
                                 make-optional-keyword-method
                                 make-required-keyword-method/arity-error
