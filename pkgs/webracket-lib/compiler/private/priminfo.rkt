@@ -203,6 +203,7 @@
     exn:fail:filesystem:exists
     exn:fail:filesystem:version
     exn:fail:filesystem:errno
+    exn:fail:filesystem:missing-module
     exn:fail:network
     exn:fail:network:errno
     exn:fail:out-of-memory

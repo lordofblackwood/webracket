@@ -1168,6 +1168,8 @@
  identifier-binding
  bound-identifier=?
  free-identifier=?
+ module-name-fixup
+ module-path-fixup
  check-duplicate-identifier
  generate-temporaries
  syntax-local-infer-name
@@ -1378,6 +1380,7 @@ current-parameterization    ; poor-man dynamic parameterization overlay
  variable-reference->module-path-index
  variable-reference->resolved-module-path
  variable-reference->module-source
+ variable-reference->module-source/submod
  variable-reference-from-unsafe?
  variable-reference-constant?
  internal-definition-context?
@@ -2230,6 +2233,49 @@ current-parameterization    ; poor-man dynamic parameterization overlay
 (define (dynamic-require/false mod sym)
   (with-handlers ([exn:fail? (lambda (_) #f)])
     (dynamic-require mod sym)))
+
+;; module-fixup/do : any/c list? boolean? -> any/c
+;;   Host mirror of `syntax/location`'s runtime module-name/path helpers.
+(define (module-fixup/do src path as-modpath?)
+  (define (last-pass src)
+    (cond
+      [(path? src) src]
+      [(symbol? src)
+       (if as-modpath?
+           `(quote ,src)
+           src)]
+      [(list? src)
+       (define base (last-pass (car src)))
+       (define sm   (cdr src))
+       (if as-modpath?
+           `(submod ,base ,@sm)
+           (cons base sm))]
+      [else 'top-level]))
+  (last-pass
+   (cond
+     [(null? path) src]
+     [(pair? src) (append src path)]
+     [else (cons src path)])))
+
+;; module-name-fixup : any/c list? -> any/c
+;;   Host mirror used by `quote-module-name` bootstrap expansions.
+(define (module-name-fixup src path)
+  (module-fixup/do src path #f))
+
+;; module-path-fixup : any/c list? -> any/c
+;;   Host mirror used by `quote-module-path` bootstrap expansions.
+(define (module-path-fixup src path)
+  (module-fixup/do src path #t))
+
+;; variable-reference->module-source/submod : variable-reference? -> any/c
+;;   Host mirror of `syntax/location`'s helper for `module-source`.
+(define (variable-reference->module-source/submod vr)
+  (define src   (variable-reference->module-source vr))
+  (define rname (variable-reference->resolved-module-path vr))
+  (define name  (and rname (resolved-module-path-name rname)))
+  (if (pair? name)
+      (cons src (cdr name))
+      src))
 
 (define has-racket-treelist?
   (and (dynamic-require/false 'racket/treelist 'treelist?) #t))

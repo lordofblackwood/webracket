@@ -2213,6 +2213,10 @@
           exn:fail:filesystem:errno?
           make-exn:fail:filesystem:errno
           exn:fail:filesystem:errno-errno
+          exn:fail:filesystem:missing-module
+          exn:fail:filesystem:missing-module?
+          make-exn:fail:filesystem:missing-module
+          exn:fail:filesystem:missing-module-path
           exn:fail:network
           exn:fail:network?
           make-exn:fail:network
@@ -2549,6 +2553,10 @@
     (add-runtime-symbol-constant 'exn:fail:filesystem:errno?)
     (add-runtime-symbol-constant 'make-exn:fail:filesystem:errno)
     (add-runtime-symbol-constant 'exn:fail:filesystem:errno-errno)
+    (add-runtime-symbol-constant 'exn:fail:filesystem:missing-module)
+    (add-runtime-symbol-constant 'exn:fail:filesystem:missing-module?)
+    (add-runtime-symbol-constant 'make-exn:fail:filesystem:missing-module)
+    (add-runtime-symbol-constant 'exn:fail:filesystem:missing-module-path)
     (add-runtime-symbol-constant 'exn:fail:network)
     (add-runtime-symbol-constant 'exn:fail:network?)
     (add-runtime-symbol-constant 'make-exn:fail:network)
@@ -2617,6 +2625,7 @@
     (add-runtime-symbol-constant 'current-compile-realm)
     (add-runtime-symbol-constant 'installation-name)
     (add-runtime-symbol-constant 'submod)
+    (add-runtime-symbol-constant 'top-level)
     (add-runtime-symbol-constant 'linklet)
     (add-runtime-symbol-constant '#%app)
     (add-runtime-symbol-constant '+)
@@ -4517,6 +4526,7 @@
          (global $exn:fail:filesystem:exists-type       (mut (ref null $StructType)) (ref.null $StructType))
          (global $exn:fail:filesystem:version-type      (mut (ref null $StructType)) (ref.null $StructType))
          (global $exn:fail:filesystem:errno-type        (mut (ref null $StructType)) (ref.null $StructType))
+         (global $exn:fail:filesystem:missing-module-type (mut (ref null $StructType)) (ref.null $StructType))
          (global $exn:fail:network-type                 (mut (ref null $StructType)) (ref.null $StructType))
          (global $exn:fail:network:errno-type           (mut (ref null $StructType)) (ref.null $StructType))
          (global $exn:fail:out-of-memory-type           (mut (ref null $StructType)) (ref.null $StructType))
@@ -10067,6 +10077,164 @@
                (local.set $struct
                           (call $exn:fail:filesystem:errno-ensure
                                 (global.get $symbol:exn:fail:filesystem:errno-errno)
+                                (local.get $v)))
+               (local.set $fields (struct.get $Struct $fields (local.get $struct)))
+               (array.get $Array (local.get $fields) (i32.const 2)))
+
+         ;; Kernel exception fail:filesystem:missing-module struct type descriptor cache
+         (func $ensure-exn:fail:filesystem:missing-module-type
+               (result (ref $StructType))
+
+               (local $existing     (ref null $StructType))
+               (local $std          (ref $StructType))
+               (local $super        (ref $StructType))
+               (local $immut        (ref eq))
+               (local $super-count  i32)
+               (local $new-immut    (ref eq))
+
+               (local.set $existing (global.get $exn:fail:filesystem:missing-module-type))
+               (if (ref.is_null (local.get $existing))
+                   (then
+                    (local.set $super (call $ensure-exn:fail:filesystem-type))
+                    (local.set $immut (struct.get $StructType $immutables (local.get $super)))
+                    (local.set $super-count (struct.get $StructType $field-count (local.get $super)))
+                    (local.set $new-immut
+                               (call $append/2
+                                     (local.get $immut)
+                                     (call $list-from-range/checked
+                                           (local.get $super-count)
+                                           (i32.add (local.get $super-count) (i32.const 1)))))
+                    (local.set $std
+                               (call $make-struct-type-descriptor/checked
+                                     (ref.cast (ref $Symbol) (global.get $symbol:exn:fail:filesystem:missing-module))
+                                     (ref.cast (ref eq) (local.get $super))
+                                     (i32.const 1)
+                                     (i32.const 0)
+                                     (global.get $false)
+                                     (global.get $null)
+                                     (global.get $false)
+                                     (global.get $false)
+                                     (local.get $new-immut)
+                                     (global.get $false)
+                                     (ref.cast (ref $Symbol) (global.get $symbol:exn:fail:filesystem:missing-module))))
+                    (global.set $exn:fail:filesystem:missing-module-type (local.get $std))
+                    (local.set $existing (local.get $std))))
+               (ref.as_non_null (local.get $existing)))
+
+         ;; Validate that a value is a kernel exception:fail:filesystem:missing-module
+         (func $exn:fail:filesystem:missing-module-ensure
+               (param $who (ref eq)) ; symbol
+               (param $v   (ref eq)) ; any/c
+               (result (ref $Struct))
+
+               (local $std    (ref $StructType))
+               (local $struct (ref $Struct))
+               (local $ok     i32)
+
+               (local.set $std (call $ensure-exn:fail:filesystem:missing-module-type))
+               (if (i32.eqz (ref.test (ref $Struct) (local.get $v)))
+                   (then (call $raise-argument-error1
+                               (local.get $who)
+                               (global.get $string:struct?)
+                               (local.get $v))
+                         (unreachable)))
+               (local.set $struct (ref.cast (ref $Struct) (local.get $v)))
+               (local.set $ok (call $struct-type-is-a?/i32
+                                        (struct.get $Struct $type (local.get $struct))
+                                        (local.get $std)))
+               (if (i32.eqz (local.get $ok))
+                   (then (call $raise-argument-error1
+                               (local.get $who)
+                               (global.get $string:struct?)
+                               (local.get $v))
+                         (unreachable)))
+               (local.get $struct))
+
+         ;; Construct a kernel exception:fail:filesystem:missing-module instance
+         (func $exn:fail:filesystem:missing-module/make
+               (param $message (ref eq)) ; string
+               (param $marks   (ref eq)) ; continuation-mark-set?
+               (param $path    (ref eq)) ; module-path?
+               (result (ref $Struct))
+
+               (local $std    (ref $StructType))
+               (local $fields (ref $Array))
+
+               (local.set $std (call $ensure-exn:fail:filesystem:missing-module-type))
+               (local.set $fields
+                          (array.new_fixed $Array 3
+                                           (local.get $message)
+                                           (local.get $marks)
+                                           (local.get $path)))
+               (struct.new $Struct
+                           (i32.const 0)
+                           (global.get $false)
+                           (ref.i31 (i32.const 0))
+                           (global.get $false)
+                           (ref.func $invoke-struct)
+                           (local.get $std)
+                           (local.get $fields)))
+
+         ;; exn:fail:filesystem:missing-module : string? continuation-mark-set? module-path? -> exn:fail:filesystem:missing-module
+         (func $exn:fail:filesystem:missing-module (type $Prim3)
+               (param $message (ref eq)) ; string
+               (param $marks   (ref eq)) ; continuation-mark-set?
+               (param $path    (ref eq)) ; module-path?
+               (result (ref eq))
+
+               (ref.cast (ref eq)
+                         (call $exn:fail:filesystem:missing-module/make
+                               (call $exn-ensure-message (global.get $symbol:exn:fail:filesystem:missing-module) (local.get $message))
+                               (local.get $marks)
+                               (local.get $path))))
+
+         ;; make-exn:fail:filesystem:missing-module : string? continuation-mark-set? module-path? -> exn:fail:filesystem:missing-module
+         (func $make-exn:fail:filesystem:missing-module (type $Prim3)
+               (param $message (ref eq)) ; string
+               (param $marks   (ref eq)) ; continuation-mark-set?
+               (param $path    (ref eq)) ; module-path?
+               (result (ref eq))
+
+               (ref.cast (ref eq)
+                         (call $exn:fail:filesystem:missing-module/make
+                               (call $exn-ensure-message (global.get $symbol:make-exn:fail:filesystem:missing-module) (local.get $message))
+                               (local.get $marks)
+                               (local.get $path))))
+
+         ;; exn:fail:filesystem:missing-module? : any/c -> boolean?
+         (func $exn:fail:filesystem:missing-module? (type $Prim1)
+               (param $v (ref eq)) ; any/c
+               (result (ref eq))
+
+               (local $std    (ref $StructType))
+               (local $struct (ref $Struct))
+               (local $ok     i32)
+
+               (local.set $std (call $ensure-exn:fail:filesystem:missing-module-type))
+               (if (result (ref eq))
+                   (ref.test (ref $Struct) (local.get $v))
+                   (then
+                    (local.set $struct (ref.cast (ref $Struct) (local.get $v)))
+                    (local.set $ok (call $struct-type-is-a?/i32
+                                             (struct.get $Struct $type (local.get $struct))
+                                             (local.get $std)))
+                    (if (result (ref eq))
+                        (local.get $ok)
+                        (then (global.get $true))
+                        (else (global.get $false))))
+                   (else (global.get $false))))
+
+         ;; exn:fail:filesystem:missing-module-path : exn:fail:filesystem:missing-module -> module-path?
+         (func $exn:fail:filesystem:missing-module-path (type $Prim1)
+               (param $v (ref eq)) ; any/c
+               (result (ref eq))
+
+               (local $struct (ref $Struct))
+               (local $fields (ref $Array))
+
+               (local.set $struct
+                          (call $exn:fail:filesystem:missing-module-ensure
+                                (global.get $symbol:exn:fail:filesystem:missing-module-path)
                                 (local.get $v)))
                (local.set $fields (struct.get $Struct $fields (local.get $struct)))
                (array.get $Array (local.get $fields) (i32.const 2)))
@@ -63725,6 +63893,35 @@
                         (unreachable)))
               (global.get $false))
 
+        ;; variable-reference->module-source/submod : variable-reference? -> any/c
+        ;;   Mirror the `syntax/location` helper that combines a variable
+        ;;   reference's source module with any resolved submodule suffix.
+        (func $variable-reference->module-source/submod (type $Prim1)
+              (param $varref (ref eq)) ;; variable-reference?
+              (result        (ref eq))
+              (local $src   (ref eq))
+              (local $rname (ref eq))
+              (local $name  (ref eq))
+              (local.set $src
+                         (call $variable-reference->module-source
+                               (local.get $varref)))
+              (local.set $rname
+                         (call $variable-reference->resolved-module-path
+                               (local.get $varref)))
+              (local.set $name
+                         (if (result (ref eq))
+                             (ref.eq (local.get $rname) (global.get $false))
+                             (then (global.get $false))
+                             (else (call $resolved-module-path-name
+                                         (local.get $rname)))))
+              (if (result (ref eq))
+                  (ref.eq (call $pair? (local.get $name)) (global.get $true))
+                  (then
+                   (call $cons
+                         (local.get $src)
+                         (call $cdr (local.get $name))))
+                  (else (local.get $src))))
+
         ;; variable-reference->resolved-module-path : variable-reference? -> (or/c resolved-module-path? #f)
         ;;   WebRacket variable references do not yet retain module path identity.
         ;;   Returning #f matches Racket's top-level-reference result and is enough
@@ -70325,6 +70522,99 @@
                                  (global.get $symbol:syntax-source-module)
                                  (local.get $stx)))
                      (global.get $false))
+
+               ;; module-fixup/last-pass : any/c i32 -> any/c
+               ;;   Shared helper for `module-name-fixup` and
+               ;;   `module-path-fixup`. When `as-modpath` is non-zero, symbols
+               ;;   are quoted and list forms become `(submod ...)`.
+               (func $module-fixup/last-pass
+                     (param $src        (ref eq)) ;; source/module shape
+                     (param $as-modpath i32)      ;; 0 = module name, 1 = module path
+                     (result            (ref eq))
+                     (local $base (ref eq))
+                     (local $sm   (ref eq))
+                     (if (ref.eq (call $path? (local.get $src)) (global.get $true))
+                         (then (return (local.get $src))))
+                     (if (ref.eq (call $symbol? (local.get $src)) (global.get $true))
+                         (then
+                          (if (local.get $as-modpath)
+                              (then
+                               (return
+                                (call $cons
+                                      (global.get $symbol:quote)
+                                      (call $cons
+                                            (local.get $src)
+                                            (global.get $null)))))
+                              (else
+                               (return (local.get $src))))))
+                     (if (ref.eq (call $list? (local.get $src)) (global.get $true))
+                         (then
+                          (local.set $base
+                                     (call $module-fixup/last-pass
+                                           (call $car (local.get $src))
+                                           (local.get $as-modpath)))
+                          (local.set $sm (call $cdr (local.get $src)))
+                          (if (local.get $as-modpath)
+                              (then
+                               (return
+                                (call $cons
+                                      (global.get $symbol:submod)
+                                      (call $cons
+                                            (local.get $base)
+                                            (local.get $sm)))))
+                              (else
+                               (return (call $cons
+                                             (local.get $base)
+                                             (local.get $sm)))))))
+                     (global.get $symbol:top-level))
+
+               ;; module-fixup : any/c list? i32 -> any/c
+               ;;   Apply the shared `syntax/location` runtime fixup algorithm
+               ;;   after appending any requested submodule path elements.
+               (func $module-fixup
+                     (param $src        (ref eq)) ;; original module source
+                     (param $path       (ref eq)) ;; list of submodule path elements
+                     (param $as-modpath i32)      ;; 0 = module name, 1 = module path
+                     (result            (ref eq))
+                     (call $module-fixup/last-pass
+                           (if (result (ref eq))
+                               (ref.eq (local.get $path) (global.get $null))
+                               (then (local.get $src))
+                               (else
+                                (if (result (ref eq))
+                                    (ref.eq (call $pair? (local.get $src))
+                                            (global.get $true))
+                                    (then (call $append/2
+                                                (local.get $src)
+                                                (local.get $path)))
+                                    (else (call $cons
+                                                (local.get $src)
+                                                (local.get $path))))))
+                           (local.get $as-modpath)))
+
+               ;; module-name-fixup : any/c list? -> any/c
+               ;;   Mirror `syntax/location`'s runtime helper used by
+               ;;   `quote-module-name` expansions.
+               (func $module-name-fixup (type $Prim2)
+                     (param $src  (ref eq)) ;; source/module value
+                     (param $path (ref eq)) ;; list of submodule path elements
+                     (result      (ref eq))
+                     (call $module-fixup
+                           (local.get $src)
+                           (local.get $path)
+                           (i32.const 0)))
+
+               ;; module-path-fixup : any/c list? -> any/c
+               ;;   Mirror the internal `syntax/location` helper used by
+               ;;   `quote-module-path` expansions.
+               (func $module-path-fixup (type $Prim2)
+                     (param $src  (ref eq)) ;; source/module value
+                     (param $path (ref eq)) ;; list of submodule path elements
+                     (result      (ref eq))
+                     (call $module-fixup
+                           (local.get $src)
+                           (local.get $path)
+                           (i32.const 1)))
 
                (func $syntax-line (type $Prim1)
                      (param $stx (ref eq))

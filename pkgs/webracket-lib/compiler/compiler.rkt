@@ -2057,6 +2057,7 @@
   exn:fail:filesystem:errno?
   make-exn:fail:filesystem:errno
   exn:fail:filesystem:errno-errno
+  exn:fail:filesystem:missing-module
   exn:fail:network
   exn:fail:network?
   make-exn:fail:network
@@ -3839,6 +3840,8 @@
                          kern-exn:fail:filesystem:version kern-exn:fail:filesystem:version?
                          kern-exn:fail:filesystem:errno kern-exn:fail:filesystem:errno?
                          kern-exn:fail:filesystem:errno-errno
+                         kern-exn:fail:filesystem:missing-module kern-exn:fail:filesystem:missing-module?
+                         kern-exn:fail:filesystem:missing-module-path
                          kern-exn:fail:network kern-exn:fail:network?
                          kern-exn:fail:network:errno kern-exn:fail:network:errno?
                          kern-exn:fail:network:errno-errno
@@ -3903,6 +3906,9 @@
     [kern-exn:fail:filesystem:errno         #'exn:fail:filesystem:errno]
     [kern-exn:fail:filesystem:errno?        #'exn:fail:filesystem:errno?]
     [kern-exn:fail:filesystem:errno-errno   #'exn:fail:filesystem:errno-errno]
+    [kern-exn:fail:filesystem:missing-module #'exn:fail:filesystem:missing-module]
+    [kern-exn:fail:filesystem:missing-module? #'exn:fail:filesystem:missing-module?]
+    [kern-exn:fail:filesystem:missing-module-path #'exn:fail:filesystem:missing-module-path]
     [kern-exn:fail:network                  #'exn:fail:network]
     [kern-exn:fail:network?                 #'exn:fail:network?]
     [kern-exn:fail:network:errno            #'exn:fail:network:errno]
