@@ -79,11 +79,28 @@
 ;; does not match WebRacket's documented behavior.
 ;; Example: vector-member gained an optional comparator in Racket 8.15.0.1,
 ;; but older Rackets report arity 2 while docs show (2 3).
+;; Temporary runtime-compatibility overrides:
+;; Full Racket reports `current-inspector` and `current-code-inspector`
+;; with arity `(0 1)`, but the current WebRacket runtime implements only
+;; the getter shape as `Prim0`. Keep the compiler's reflected arity aligned
+;; with the runtime for now. Future work should implement setter/parameter
+;; behavior instead of relying on these overrides.
+;;
+;; Full Racket also reports `dynamic-require` as arity `(2 3 4)`, while the
+;; current WebRacket runtime implements only the 2/3-argument subset.
+;;
+;; Full Racket reports `make-impersonator-property` as arity `(1 2 3 4)`, but
+;; WebRacket currently implements only the documented one-argument constructor.
+;; The optional fallback behavior lives on the returned accessor procedure.
 (define arity-overrides
   (hash 'date (arity-at-least 0)
         'date* (arity-at-least 0)
         'make-date (arity-at-least 0)
         'make-date* (arity-at-least 0)
+        'current-code-inspector 0
+        'current-inspector 0
+        'dynamic-require '(2 3)
+        'make-impersonator-property 1
         'make-treelist '(1 2)
         'vector-member '(2 3)))
 

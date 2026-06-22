@@ -43284,22 +43284,29 @@
                      (global.get $symbol:parameterization-key))
                (local.get $table))
 
-         ;; primitive-table : symbol? -> (or/c hash? #f)
+         ;; primitive-table : symbol? [hash?] -> (or/c hash? void? #f)
          ;;   Bridge the Racket CS expander's primitive-module lookup to
-         ;;   WebRacket's existing primitive procedure globals. The result is a
-         ;;   mutable table so the expander can iterate it during namespace
-         ;;   initialization. Racket CS also has an installer arity, but the
-         ;;   current WebRacket compiler does not yet lower optional direct
-         ;;   primitive calls consistently enough for that form.
-         (func $primitive-table (type $Prim1)
-               (param $key (ref eq)) ;; primitive table name
-               (result     (ref eq))
+         ;;   WebRacket's existing primitive procedure globals. With one
+         ;;   argument, return the current table for `key`. With two arguments,
+         ;;   install `table` for `key`, matching the host-side bootstrap shim.
+         (func $primitive-table (type $Prim12)
+               (param $key   (ref eq)) ;; primitive table name
+               (param $table (ref eq)) ;; optional installed table, default = lookup
+               (result       (ref eq))
 
                (if (i32.eqz (ref.test (ref $Symbol) (local.get $key)))
                    (then (call $raise-check-symbol (local.get $key))
                          (unreachable)))
 
                (call $initialize-primitive-table-user-installed)
+
+               (if (i32.eqz (ref.eq (local.get $table) (global.get $missing)))
+                   (then
+                    (call $hasheq-set!/mutable/checked
+                          (ref.as_non_null (global.get $primitive-table-user-installed))
+                          (local.get $key)
+                          (local.get $table))
+                    (return (global.get $void))))
 
                (if (ref.eq (local.get $key) (global.get $symbol:#%bootstrap-linklet))
                    (then (return (global.get $false))))
@@ -61679,8 +61686,10 @@
                           (global.get $string:dynamic-require-unsupported)
                           (local.get $mod-path))
                     (unreachable)))
-               (if (ref.eq (call $procedure? (local.get $failure-thunk)) (global.get $true))
-                   (then (return_call $call-thunk (local.get $failure-thunk)))
+               (if (result (ref eq))
+                   (ref.eq (call $procedure? (local.get $failure-thunk)) (global.get $true))
+                   (then
+                    (call $call-thunk (local.get $failure-thunk)))
                    (else
                     (call $raise-argument-error1
                           (global.get $symbol:dynamic-require)
@@ -62372,9 +62381,10 @@
                    (then (global.get $false))
                    (else (global.get $true))))
 
-         (func $custom-write-accessor (type $Prim1)
-               (param $v (ref eq))
-               (result   (ref eq))
+         (func $custom-write-accessor (type $Prim12)
+               (param $v        (ref eq))
+               (param $fallback (ref eq)) ;; optional fallback result, default = contract error
+               (result          (ref eq))
 
                (local $type      (ref null $StructType))
                (local $struct    (ref $Struct))
@@ -62382,26 +62392,31 @@
                (local $prop-name (ref $Symbol))
                (local $prop-val  (ref eq))
 
+               (local.set $sentinel (call $cons (global.get $false)
+                                                (global.get $false)))
+
                (if (ref.test (ref $Struct) (local.get $v))
                    (then (local.set $struct (ref.cast (ref $Struct)
                                                       (local.get $v)))
                          (local.set $type (struct.get $Struct $type
                                                       (local.get $struct))))
-                   (else (if (ref.test (ref $StructType) (local.get $v))
-                             (then (local.set $type (ref.cast (ref $StructType)
-                                                              (local.get $v))))
-                             (else (call $raise-argument-error1
+                   (else
+                    (if (ref.test (ref $StructType) (local.get $v))
+                        (then (local.set $type (ref.cast (ref $StructType)
+                                                         (local.get $v))))
+                        (else
+                         (if (ref.eq (local.get $fallback) (global.get $missing))
+                             (then (call $raise-argument-error1
                                          (global.get
                                           $symbol:custom-write-accessor)
                                          (global.get $string:custom-write?)
                                          (local.get $v))
-                                   (unreachable)))))
+                                   (unreachable))
+                             (else (return (local.get $fallback))))))))
 
                (local.set $prop-name
                           (ref.cast (ref $Symbol)
                                     (global.get $symbol:prop:custom-write)))
-               (local.set $sentinel (call $cons (global.get $false)
-                                          (global.get $false)))
                (local.set $prop-val
                           (call $struct-type-property-lookup-by-name
                                 (ref.as_non_null (local.get $type))
@@ -62409,11 +62424,14 @@
                                 (local.get $sentinel)))
 
                (if (ref.eq (local.get $prop-val) (local.get $sentinel))
-                   (then (call $raise-argument-error1
-                               (global.get $symbol:custom-write-accessor)
-                               (global.get $string:custom-write?)
-                               (local.get $v))
-                         (unreachable)))
+                   (then
+                    (if (ref.eq (local.get $fallback) (global.get $missing))
+                        (then (call $raise-argument-error1
+                                    (global.get $symbol:custom-write-accessor)
+                                    (global.get $string:custom-write?)
+                                    (local.get $v))
+                              (unreachable))
+                        (else (return (local.get $fallback))))))
 
                (local.get $prop-val))
 

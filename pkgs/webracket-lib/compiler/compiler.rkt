@@ -19713,10 +19713,12 @@
      (define spec (primitive-inline-spec-ref sym))
      (define work
        (cond
-         [(eq? sym 'void)
+        [(eq? sym 'void)
           ;; `void` evaluates its arguments for effects only, so each argument
-          ;; should already leave no stack value in `<effect>` mode.
-          (define (AE ae)   (AExpr3 ae <effect>))
+          ;; must be lowered as a full effect-position expression.
+          ;; `AExpr3` ignores destination mode for atomics like locals, which
+          ;; can accidentally leave their values on the stack here.
+          (define (AE ae)   (Expr ae <effect> <stat>))
           (define (AE* aes) (map AE aes))
           `(block (result (ref eq))
                   ,@(AE* ae1)
