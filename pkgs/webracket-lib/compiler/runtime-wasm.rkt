@@ -1882,13 +1882,27 @@
          (hash-set! runtime-symbols-ht symbol #t) ; avoid duplicates
          (set! runtime-symbol-constants
                (cons (list name symbol) runtime-symbol-constants))]))
+    (define (dedupe-runtime-symbol-constants constants)
+      ;; Keep the same leftmost entry semantics as `remove-duplicates`, but
+      ;; avoid quadratic scans when large examples generate many symbol rows.
+      (define seen (make-hash))
+      (let loop ([rest constants] [acc '()])
+        (cond
+          [(null? rest) (reverse acc)]
+          [else
+           (define ns (car rest))
+           (define key (symbol->string (car ns)))
+           (cond
+             [(hash-ref seen key #f)
+              (loop (cdr rest) acc)]
+             [else
+              (hash-set! seen key #t)
+              (loop (cdr rest) (cons ns acc))])])))
     (define (declare-runtime-symbol-constants)
       ; This file adds more symbols to `runtime-symbol-constants` so
       ; we need to wait removing duplicates until here.
       (set! runtime-symbol-constants
-            (remove-duplicates runtime-symbol-constants
-                               string=?
-                               #:key (lambda (ns) (symbol->string (car ns)))))
+            (dedupe-runtime-symbol-constants runtime-symbol-constants))
       (append*
        (for/list ([ns (reverse runtime-symbol-constants)])
          (define name                (first ns))
@@ -1901,9 +1915,7 @@
     
     (define (initialize-runtime-symbol-constants)
       (set! runtime-symbol-constants
-            (remove-duplicates runtime-symbol-constants
-                               string=?
-                               #:key (lambda (ns) (symbol->string (car ns)))))
+            (dedupe-runtime-symbol-constants runtime-symbol-constants))
       (for/list ([ns (reverse runtime-symbol-constants)])
         (define name         (first ns))
         (define symbol       (second ns))
