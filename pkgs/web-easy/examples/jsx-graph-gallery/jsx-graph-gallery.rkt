@@ -2,7 +2,6 @@
 
 (require browser/document
          browser/element
-         browser/event
          browser/window
          js/console
          jsxgraph
@@ -141,6 +140,11 @@
 
 (define @status (@ "Loading JSXGraph assets..."))
 (define @summary (@ "Waiting for the boards to initialize."))
+
+;; js-window-window : -> external/raw
+;;   Preserve the old include-lib helper name for the current window object.
+(define (js-window-window)
+  (js-global-this))
 
 ;; js-number-literal : number? -> string?
 ;;   Convert a Racket number to a JavaScript numeric literal.
@@ -7391,7 +7395,7 @@
     [(init-boards!) (void)]
     [else
      (void
-      (js-window-set-timeout/delay
+      (window-set-timeout/delay
        (procedure->external pump-init!)
        100.))]))
 
