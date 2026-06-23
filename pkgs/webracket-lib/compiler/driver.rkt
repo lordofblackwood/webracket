@@ -2118,7 +2118,9 @@
 ;; provider-slice-forms : symbol? #:public-aliases? boolean? -> (listof datum?)
 ;;   Compose a provider slice and expose export cells, optionally publishing
 ;;   public top-level aliases.
-(define (provider-slice-forms name #:public-aliases? [public-aliases? #f])
+(define (provider-slice-forms name
+                              #:public-aliases? [public-aliases? #f]
+                              #:owner [owner 'top-level-stdlib])
   (case name
     [(io/format)
      (io-format-provider-forms #:public-aliases? public-aliases?)]
@@ -2278,33 +2280,42 @@
 ;; read-provider-reports : -> (listof webify-module-report?)
 ;;   Expose the staged expander/read private implementation closure plus the
 ;;   public facade used for user-module alias ownership.
+(define read-provider-reports/cache (box #f))
+
 (define (read-provider-reports)
-  (parameterize ([current-directory webracket-root])
-    (parameterize ([current-provider-owned-primitive-aliases (seteq)])
-      (define visited (make-hasheq))
-      (define ordered-reports '())
-      (define (visit! name)
-        (unless (hash-ref visited name #f)
-          (hash-set! visited name #t)
-          (define report
-            (let ([report
-                   (webify-module-path->report
-                    (expander-read-private-provider-path name))])
-              (if (eq? name (webify-module-report-name report))
-                  report
-                  (webify-module-report/rename report name))))
-          (set! ordered-reports (append ordered-reports (list report)))
-          (for ([required (in-list (webify-module-report-required-provider-names report))]
-                #:when (and (expander-read-private-provider-name? required)
-                            (expander-read-private-provider-file-backed? required)))
-            (visit! required))))
-      (visit! 'racket-src/expander/read-provider-root.rkt)
-      (append
-       ordered-reports
-       (list
-        (webify-module-report/rename
-         (webify-compile-module-report read-provider-wrapper-module)
-         'expander/read))))))
+  (cond
+    [(unbox read-provider-reports/cache)
+     => values]
+    [else
+     (define built
+       (parameterize ([current-directory webracket-root])
+         (parameterize ([current-provider-owned-primitive-aliases (seteq)])
+           (define visited (make-hasheq))
+           (define ordered-reports '())
+           (define (visit! name)
+             (unless (hash-ref visited name #f)
+               (hash-set! visited name #t)
+               (define report
+                 (let ([report
+                        (webify-module-path->report
+                         (expander-read-private-provider-path name))])
+                   (if (eq? name (webify-module-report-name report))
+                       report
+                       (webify-module-report/rename report name))))
+               (set! ordered-reports (append ordered-reports (list report)))
+               (for ([required (in-list (webify-module-report-required-provider-names report))]
+                     #:when (and (expander-read-private-provider-name? required)
+                                 (expander-read-private-provider-file-backed? required)))
+                 (visit! required))))
+           (visit! 'racket-src/expander/read-provider-root.rkt)
+           (append
+            ordered-reports
+            (list
+             (webify-module-report/rename
+              (webify-compile-module-report read-provider-wrapper-module)
+              'expander/read))))))
+     (set-box! read-provider-reports/cache built)
+     built]))
 
 ;; read-provider-report/ref : symbol? -> (or/c webify-module-report? #f)
 ;;   Resolve staged expander/read support aliases without generic extraction.
@@ -2369,7 +2380,8 @@
 ;;   Compose the cached original-Racket expander/read provider and optionally
 ;;   publish its Webify-owned `webify-expander-*` names plus public reader
 ;;   aliases owned by the provider.
-(define (read-provider-forms #:public-aliases? [public-aliases? #f])
+(define (read-provider-forms #:public-aliases? [public-aliases? #f]
+                             #:owner [owner 'top-level-stdlib])
   (define cache-path
     (webify-read-lowered-provider-cache-path (current-provider-cache-dir)))
   (define fingerprint
@@ -2425,7 +2437,8 @@
 ;;   Compose the cached original-Racket regexp provider and expose export cells,
 ;;   optionally publishing public top-level aliases.
 (define (regexp-provider-forms #:public-aliases? [public-aliases? #f]
-                               #:cache-context [cache-context 'default])
+                               #:cache-context [cache-context 'default]
+                               #:owner [owner 'top-level-stdlib])
   (define cache-path
     (if (eq? cache-context 'default)
         (webify-regexp-lowered-provider-cache-path public-aliases?
