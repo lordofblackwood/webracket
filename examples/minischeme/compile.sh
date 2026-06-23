@@ -8,11 +8,20 @@ BASENAME="minischeme-page"
 CACHE_TAG="expander-read-provider"
 PROVIDER_CACHE_DIR="${PROVIDER_CACHE_DIR:-$SCRIPT_DIR/generated/.provider-cache-$CACHE_TAG}"
 COMPILED_ROOTS_DIR="${PLTCOMPILEDROOTS:-$SCRIPT_DIR/generated/.compiled-$CACHE_TAG}"
+PREWARM_STAGED_READ="${MINISCHEME_PREWARM_STAGED_READ:-0}"
 
 cd "$SCRIPT_DIR"
 mkdir -p generated
 mkdir -p "$PROVIDER_CACHE_DIR"
 mkdir -p "$COMPILED_ROOTS_DIR"
+
+if [ "$PREWARM_STAGED_READ" = "1" ]; then
+  PLTCOLLECTS="$ROOT_DIR/pkgs${PLTCOLLECTS:+:$PLTCOLLECTS}:" \
+  PLTCOMPILEDROOTS="$COMPILED_ROOTS_DIR" \
+    "$RACKET" "$ROOT_DIR/tools/prewarm-staged-providers.rkt" \
+    --provider-cache-dir "$PROVIDER_CACHE_DIR" \
+    --mode read
+fi
 
 PLTCOLLECTS="$ROOT_DIR/pkgs${PLTCOLLECTS:+:$PLTCOLLECTS}:" \
 PLTCOMPILEDROOTS="$COMPILED_ROOTS_DIR" \
