@@ -2876,14 +2876,18 @@
                            (if effective-expander-read-syntax-provider?
                                "enabled"
                                "disabled"))
-     (stdlib-decision-note "regexp-provider-mode"
+     (stdlib-decision-note "regexp-provider-top-level-mode"
                            (cond
                              [module-input?
                               (if (current-module-bridge-needs-regexp-provider?)
                                   "enabled-module-demand"
                                   "skipped-module-no-demand")]
                              [else
-                              "enabled"]))))
+                              "enabled"]))
+     (stdlib-decision-note "regexp-provider-read-dependency-mode"
+                           (if effective-expander-read-provider?
+                               "enabled-via-expander-read"
+                               "disabled"))))
 
   ; 2. Handle ffi-files.
   (define t-ffi-setup-start  (now-ms))
