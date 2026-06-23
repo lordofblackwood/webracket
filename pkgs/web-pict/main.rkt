@@ -2,7 +2,7 @@
 
 (require browser/dom
          racket/include
-         racket/list
+         webracket/list
          racket/unsafe/undefined
          webracket/define-key
          (only-in webracket/primitives

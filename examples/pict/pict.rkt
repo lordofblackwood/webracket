@@ -52,8 +52,23 @@
 ;; draw-demo : any/c any/c any/c -> void?
 ;;   Render a compact `web-pict` showcase onto dc.
 (define (draw-demo dc nemo-image tropical-image)
-  (draw-pict (scale (bitmap tropical-image) 0.35) dc 720 80)
-  (draw-pict (flip-x (scale (bitmap tropical-image) 0.35)) dc 720 360)
+  (draw-pict (scale (bitmap tropical-image) 0.5) dc 800 100)
+  (draw-pict (flip-x (scale (bitmap tropical-image) 0.5)) dc 800 475)
+  (draw-pict (flip-x (flip-x (scale (bitmap tropical-image) 0.5))) dc 800 700)
+  (draw-pict (flip-y (scale (bitmap tropical-image) 0.2)) dc 100 900)
+  (draw-pict (flip-y (flip-y (scale (bitmap tropical-image) 0.2))) dc 200 900)
+  (draw-pict (shear (scale (bitmap tropical-image) 0.2) -0.5 0.3) dc 300 900)
+  (draw-pict (rotate (frame (scale (bitmap tropical-image) 0.2)) (/ 3.1415 4))
+             dc 525 800)
+  (draw-pict (frame (scale (inset (text (string #\U1F41F)) 0 -4) 4))
+             dc 500 200)
+  (draw-pict (frame (text "Hello World" '() 24 (/ 3.14 4))) dc 200 200)
+  (draw-pict (hc-append (frame (blank 30))
+                        (frame (blank 60)))
+             dc 300 300)
+  (draw-pict (cc-superimpose (frame (blank 30))
+                             (frame (blank 60)))
+             dc 400 200)
   (draw-pict (frame (text "web-pict" '() 28 (/ pi 16))) dc 120 140)
   (draw-pict (scale (frame (text "Hello World" '() 16)) 2) dc 120 250)
   (draw-pict (colorize (filled-rounded-rectangle 140 80 16) "lightblue") dc 120 420)
@@ -72,6 +87,8 @@
                     10
                     10)
              dc 510 690)
+  (draw-pict (standard-fish 80 40)
+             dc 100 300)
   (draw-pict (let ()
                (define txt (colorize (text "Freeze!" null 18) "deepskyblue"))
                (vl-append (scale (frame txt) 2)
@@ -102,7 +119,6 @@
 
   (define ctx (js-canvas-get-context canvas "2d" (js-undefined)))
   (define dc  (canvas-context->dc ctx))
-
   (define nemo-image (bitmap-ref (first image-urls)))
   (define tropical-image (bitmap-ref (second image-urls)))
 

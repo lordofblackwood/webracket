@@ -33,6 +33,21 @@
 (define (draw-pict p dc dx dy)
   ((make-pict-drawer p) dc dx dy))
 
+;; max-by : (listof any/c) (any/c any/c -> boolean?) -> any/c
+;;   Return the best element in xs according to prefer?.
+(define (max-by xs prefer?)
+  (cond
+    [(null? xs)
+     (raise-arguments-error 'max-by "non-empty list" "xs" xs)]
+    [else
+     (let loop ([best (car xs)] [rest (cdr xs)])
+       (cond
+         [(null? rest) best]
+         [(prefer? (car rest) best)
+          (loop (car rest) (cdr rest))]
+         [else
+          (loop best (cdr rest))]))]))
+
 (define (make-pict-drawer p)
   (let ([cmds (pict->command-list p)]
         [h    (pict-height p)])
@@ -1067,14 +1082,14 @@
                                                  boxes)])
                                   (if (null? subs)
                                       #f
-                                      (caar (sort subs
-                                                  (lambda (a b)
-                                                    (let ([ay (caddr a)]
-                                                          [by (caddr b)])
-                                                      (cond
-                                                       [(ay . > . by) #t]
-                                                       [(= ay by) ((cadr a) . > . (cadr b))]
-                                                       [else #f]))))))))))))))]
+                                      (car (max-by subs
+                                                   (lambda (a b)
+                                                     (let ([ay (caddr a)]
+                                                           [by (caddr b)])
+                                                       (cond
+                                                        [(ay . > . by) #t]
+                                                        [(= ay by) ((cadr a) . > . (cadr b))]
+                                                        [else #f]))))))))))))))]
         [norm  (lambda (h a d ac dc)    h)]
         [tbase (lambda (h a d ac dc)    (+ a ac))] 
         [bbase (lambda (h a d ac dc)    (+ d dc))] 
