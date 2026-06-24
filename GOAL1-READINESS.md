@@ -27,6 +27,23 @@ browser-side `eval`.
 - Multi-module provider/reexport smokes for installed-library dependencies.
 - `racket/stream`: first/rest coverage through installed module composition.
 
+## Example And Library Migration Checkpoint
+
+- Root user-facing examples are module-based and use local compile scripts:
+  `console-bridge`, `hello-world-2`, `hello-world-3`, `pict`,
+  `space-invaders`, `snake`, `snake2`, `mathjax4`, `minischeme`,
+  `matrix-rain`, `raco/tiles`, and `xtermjs-demo`.
+- The opt-in root example harness lives in `examples/check-root-examples.sh`.
+  Its browser preflight rejects known bad translated/Rosetta launch shapes
+  before starting Chrome.
+- Browser-only root example smoke currently passes with the native pinned
+  Racket toolchain and current generated outputs.
+- The current `lib/libs/*.rkt` inventory has module-world counterparts.
+  `lib/libs/` remains the legacy `include-lib` compatibility layer while new
+  code should require the module providers directly.
+- `simple-pretty.rkt` is intentionally not a pending module port. It is
+  obsolete legacy surface, superseded by `webracket/pretty`.
+
 ## Semantic Approximations
 
 - Continuation marks are erased; `call-with-immediate-continuation-mark` calls
@@ -46,3 +63,9 @@ browser-side `eval`.
 - Full continuation mark stacks are still missing.
 - The Goal 1 compact dependency dashboard is clean, but larger library programs
   can still expose provider-graph or primitive coverage gaps.
+- Full cold compile runs for staged-read examples, especially MiniScheme, are
+  still expensive. Use warmed caches and the staged-provider prewarm tool for
+  routine example verification; treat cold timings as performance diagnostics.
+- `web-site/`, `web-site-new/`, and generated runtime artifacts are reference
+  or publish-output trees. Do not normalize them as part of Goal 1 closeout
+  unless doing a deliberate publish/update pass.
