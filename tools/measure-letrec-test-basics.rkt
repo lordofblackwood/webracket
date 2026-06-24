@@ -1,5 +1,27 @@
 #lang racket/base
 
+;;; Measure Letrec Test Basics
+;;;
+
+;; This benchmark compares WebRacket's letrec lowering strategies on focused
+;; test suites. It fits into compiler work when we need timing, output-size, and
+;; smoke correctness data for `--letrec-basic`, `--letrec-waddell`, and
+;; `--letrec-scc`.
+;;
+;; Invoke it from the repository root:
+;;
+;;   racket tools/measure-letrec-test-basics.rkt
+;;
+;; The tool compiles each configured input under every strategy, runs the
+;; generated JavaScript with Node, prints timing/size deltas, and exits non-zero
+;; when a compile/run fails or output contains `#f`.
+
+
+;;; Imports
+
+;; The benchmark uses subprocess capture for compiler runs, filesystem helpers
+;; for temporary outputs, and formatting helpers for readable timing tables.
+
 (require racket/file
          racket/format
          racket/list
@@ -9,10 +31,22 @@
          racket/string
          racket/system)
 
+
+;;; Result Records
+
+;; The strategy result carries the compile/run transcript and output artifact
+;; information for one letrec strategy.
+
 ;; strategy-result : symbol? boolean? real? exact-nonnegative-integer? boolean? string? string? path-string? -> strategy-result?
 ;;   Summary of compile/run results for one letrec strategy.
 (struct strategy-result (name compile-ok? compile-ms wat-size run-ok? saw-#f? stdout stderr dest-dir)
   #:transparent)
+
+
+;;; Repository Paths
+
+;; Runtime paths keep test-suite locations stable no matter where the benchmark
+;; is launched from.
 
 ;; repo-dir : path?
 ;;   Absolute path to the repository root.
@@ -24,6 +58,12 @@
 ;;   Construct the absolute path to a test suite in `test/`.
 (define (make-suite-path name)
   (build-path repo-root "test" name))
+
+
+;;; Subprocess Helpers
+
+;; These helpers resolve external tools and run compiler/Node commands while
+;; capturing transcripts and elapsed wall time.
 
 ;; ensure-executable : string? -> path?
 ;;   Resolve an executable from PATH or fail with a helpful error.
@@ -49,6 +89,12 @@
           (get-output-string out)
           (get-output-string err)
           (- t1 t0)))
+
+
+;;; Compilation
+
+;; This section compiles and runs one source file under a selected letrec
+;; strategy in a fresh destination directory.
 
 ;; compile-strategy : path? symbol? path? path? path? -> strategy-result?
 ;;   Compile and run one suite for one letrec strategy in `dest-dir`.
@@ -103,6 +149,12 @@
                       compile-stderr
                       dest-dir)]))
 
+
+;;; Parallel Measurement
+
+;; Each strategy is measured in its own thread so the configured strategies can
+;; be compared from the same run.
+
 ;; run-strategy-in-thread : path? symbol? path? path? path? box? -> thread?
 ;;   Start one strategy measurement in a thread and store the result in `result-box`.
 (define (run-strategy-in-thread source-file strategy racket-exe node-exe dest-dir result-box)
@@ -110,6 +162,12 @@
    (lambda ()
      (set-box! result-box
                (compile-strategy source-file strategy racket-exe node-exe dest-dir)))))
+
+
+;;; Reporting
+
+;; Reporting helpers produce compact human-readable status, duration, size, and
+;; delta summaries for each measured input.
 
 ;; result-status : strategy-result? -> string?
 ;;   Short textual status for a strategy result.
@@ -210,6 +268,12 @@
 (define (strategy-dest-dir suite-stem strategy)
   (build-path repo-root "tmp" (format "measure-~a-~a" suite-stem strategy)))
 
+
+;;; Suite Measurement
+
+;; A suite measurement runs all strategies, reports their results, compares each
+;; strategy against the baseline, and returns whether every strategy succeeded.
+
 ;; measure-suite : path? string? -> boolean?
 ;;   Measure one suite under all configured strategies; return #t when all succeed.
 (define (measure-suite source-file suite-name)
@@ -276,6 +340,12 @@
   (unless ok?
     (printf "Stopped after ~a failed.\n" suite-name))
   ok?)
+
+
+;;; Command-Line Entry Point
+
+;; The main body runs the focused letrec gate first and only proceeds to broader
+;; tests when the gate passes.
 
 ;; main : -> void?
 ;;   Run the focused letrec gate first, then measure `test-basics.rkt` if it passes.

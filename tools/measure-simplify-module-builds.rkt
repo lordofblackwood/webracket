@@ -1,5 +1,27 @@
 #lang racket/base
 
+;;; Measure Simplify Module Builds
+;;;
+
+;; This benchmark measures module-example builds with and without the compiler
+;; simplify pass. It is aimed at module-mode performance work, where we need to
+;; compare driver totals, compiler pass timings, node counts, and simplify
+;; profile counters on browser-style module inputs.
+;;
+;; Invoke it from the repository root:
+;;
+;;   racket tools/measure-simplify-module-builds.rkt [--tsv] [example ...]
+;;
+;; The tool precompiles `webracket.rkt` in an isolated compiled root, warms each
+;; mode once, reruns the measured compile, then prints a compact table and
+;; optional TSV rows.
+
+
+;;; Imports
+
+;; The benchmark uses subprocess capture, isolated toolchain environments,
+;; transcript parsing, and table/TSV formatting.
+
 (require racket/file
          racket/format
          racket/list
@@ -9,6 +31,12 @@
          racket/runtime-path
          racket/string
          racket/system)
+
+
+;;; Result Records
+
+;; These structs carry parsed timing/profile metrics and the source example
+;; configuration used for each measured run.
 
 ;; mode-result : string? hash? string? string? -> mode-result?
 ;;   Collected timing/profile summary for one example and simplify mode.
@@ -20,11 +48,23 @@
 (struct example-config (name source)
   #:transparent)
 
+
+;;; Repository And Defaults
+
+;; Runtime paths and default examples keep the benchmark usable without
+;; command-line arguments.
+
 (define-runtime-path repo-root "..")
 
 (define default-example-paths
   (list (build-path repo-root "pkgs" "web-easy" "examples" "hello-world" "hello-world.rkt")
         (build-path repo-root "pkgs" "web-easy" "examples" "single-counter" "single-counter.rkt")))
+
+
+;;; Toolchain Selection
+
+;; These helpers prefer the sibling local Racket checkout when present, so the
+;; benchmark can match the pinned toolchain used by larger WebRacket probes.
 
 ;; maybe-local-racket-path : -> (or/c path? #f)
 ;;   Prefer the sibling local Racket checkout when present.
@@ -75,6 +115,12 @@
 (unless raco-path
   (fail! "could not find a raco executable"))
 
+
+;;; Temporary Environment
+
+;; This section creates isolated temporary directories and subprocess
+;; environments so benchmark results are not polluted by stale compiled files.
+
 ;; make-temp-dir : string? -> path?
 ;;   Create a fresh temporary directory for one measurement run.
 (define (make-temp-dir template)
@@ -96,6 +142,12 @@
    #"PLTCOMPILEDROOTS"
    (string->bytes/utf-8 (path->string compiled-root)))
   env)
+
+
+;;; Subprocess Helpers
+
+;; Subprocess helpers capture combined stdout/stderr, enforce timeouts, and
+;; precompile the WebRacket driver before benchmarked runs.
 
 ;; run/collect : path? (listof string?) path? environment-variables? exact-positive-integer? -> values
 ;;   Run one subprocess and capture stdout/stderr together.
@@ -138,6 +190,12 @@
                  300))
   (unless (zero? status)
     (fail! (format "precompile failed\n~a" output))))
+
+
+;;; Transcript Parsing
+
+;; These helpers extract numeric timing, node-count, and simplify-profile data
+;; from the compiler transcript.
 
 ;; safe-string->number : string? -> (or/c number? #f)
 ;;   Convert s to a number after trimming it.
@@ -217,6 +275,12 @@
         'free-var-summary-root-ms (profile-number output "free-var-summary-root-ms")
         'result                   (if (eq? mode 'simplify) "ok" "ok")))
 
+
+;;; Compile Runs
+
+;; Compile-run helpers construct WebRacket command lines, warm a mode, and then
+;; collect the measured transcript for that same mode.
+
 ;; compile-args : path? path? path? boolean? -> (listof string?)
 ;;   Construct one webracket compile command.
 (define (compile-args source dest provider-cache-dir simplify?)
@@ -272,6 +336,12 @@
                "ok"
                output))
 
+
+;;; Example Selection
+
+;; Example selection accepts explicit paths or the built-in short names derived
+;; from the default example paths.
+
 ;; metric-ref : mode-result? symbol? -> any/c
 ;;   Look up one parsed metric from a mode result.
 (define (metric-ref result key)
@@ -304,6 +374,12 @@
        [p
         (example-config (example-name-from-path p)
                         p)])]))
+
+
+;;; Reporting
+
+;; Reporting can emit human-readable comparison tables and machine-readable TSV
+;; rows for longer benchmark tracking.
 
 ;; maybe-number->string : any/c -> string?
 ;;   Render numeric metrics consistently for tables and TSV.
@@ -401,6 +477,12 @@
   (printf "  free-var-summary-root-ms: ~a\n"
           (maybe-number->string (metric-ref simplify 'free-var-summary-root-ms)))
   (newline))
+
+
+;;; Command-Line Entry Point
+
+;; The main body parses flags, prepares the isolated environment, runs each
+;; selected example in baseline and simplify modes, and prints the results.
 
 ;; parse-args : (listof string?) -> values
 ;;   Parse optional tool flags and example-path arguments.

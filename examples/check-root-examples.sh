@@ -8,6 +8,9 @@ LOCAL_NODE_MODULES="${ROOT_EXAMPLES_NODE_MODULES:-$ROOT_DIR/.local-tools/node_mo
 CHROME_EXECUTABLE="${ROOT_EXAMPLES_EXECUTABLE:-/Applications/Google Chrome.app/Contents/MacOS/Google Chrome}"
 FILTER="${ROOT_EXAMPLES_FILTER:-}"
 SKIP_COMPILE="${ROOT_EXAMPLES_SKIP_COMPILE:-0}"
+SKIP_BROWSER_PREFLIGHT="${ROOT_EXAMPLES_SKIP_BROWSER_PREFLIGHT:-0}"
+PREFLIGHT_TIMEOUT_MS="${ROOT_EXAMPLES_BROWSER_PREFLIGHT_TIMEOUT_MS:-30000}"
+RACKET_CMD="${RACKET:-racket}"
 SERVER_LOG="${TMPDIR:-/tmp}/webracket-root-examples-server.log"
 
 examples=(
@@ -40,6 +43,14 @@ matches_filter() {
   done
   return 1
 }
+
+if [[ "$SKIP_BROWSER_PREFLIGHT" != "1" ]]; then
+  "$RACKET_CMD" "$ROOT_DIR/tools/check-browser-harness.rkt" \
+    --node "${ROOT_EXAMPLES_NODE:-node}" \
+    --node-modules "$LOCAL_NODE_MODULES" \
+    --chrome-executable "$CHROME_EXECUTABLE" \
+    --timeout-ms "$PREFLIGHT_TIMEOUT_MS"
+fi
 
 compile_example() {
   local dir="$1"

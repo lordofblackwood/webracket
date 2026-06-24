@@ -1,8 +1,26 @@
 #lang racket/base
 
+;;; Find Callback Source
 ;;;
-;;; find-callback-source
-;;;
+
+;; This tool looks up a generated Wasm label in a `.wasm.map.sexp` file and
+;; reports the original source location recorded by WebRacket. It fits into
+;; browser/runtime debugging when an exception stack names a generated label and
+;; we need to jump back to the Racket form that produced it.
+;;
+;; Invoke it with a label-map file and a label:
+;;
+;;   racket tools/find-callback-source.rkt path/to/file.wasm.map.sexp label
+;;
+;; Add `--show-form` to print the recorded source form when the map includes
+;; one. The tool prints a compact location block and exits non-zero when the
+;; label is not present.
+
+
+;;; Imports
+
+;; The parser reads label-map s-expressions, normalizes path tokens emitted by
+;; the compiler, and renders a small command-line report.
 
 (require racket/cmdline
          racket/file
@@ -11,6 +29,12 @@
          racket/path
          racket/port
          racket/string)
+
+
+;;; Label Map Records
+
+;; These helpers build and decode the small hash records used internally while
+;; scanning a `.wasm.map.sexp` file.
 
 ;; map-entry : string? path-string? exact-nonnegative-integer? exact-nonnegative-integer?
 ;;             exact-nonnegative-integer? (or/c string? #f) (or/c string? #f) -> hash?
@@ -40,6 +64,12 @@
     [(string? token) token]
     [(symbol? token) (symbol->string token)]
     [else            (~a token)]))
+
+
+;;; Label Map Parsing
+
+;; The map parser accepts the compiler's printed label-map format and builds a
+;; table keyed by generated Wasm label.
 
 ;; sexp->entry : any/c -> (or/c hash? #f)
 ;;   Parse one `(label ...)` s-expression from a `.wasm.map.sexp` file.
@@ -82,6 +112,12 @@
     [_ (error 'parse-label-map "unexpected label map format in ~a" map-path)])
   table)
 
+
+;;; Reporting
+
+;; These functions convert parsed entries into the human-readable block used by
+;; debugging sessions and shell scripts.
+
 ;; format-location : hash? -> string?
 ;;   Render one parsed entry as `path:line:col`.
 (define (format-location entry)
@@ -103,6 +139,12 @@
     (define form (hash-ref entry 'form))
     (when form
       (printf "form: ~a\n" form))))
+
+
+;;; Command-Line Entry Point
+
+;; The main body parses options, reads the label map, prints the matching entry,
+;; and exits non-zero when the requested label cannot be found.
 
 (define show-form? #f)
 

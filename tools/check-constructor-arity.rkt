@@ -1,12 +1,28 @@
 #lang racket/base
 
-;;;
-;;; check-constructor-arity
+;;; Check Constructor Arity
 ;;;
 
-;; Scan Racket source files and report legacy decorator call forms with wrong arity.
-;; Intended to catch mistakes like:
+;; This tool scans Racket source files and reports legacy decorator call forms
+;; with the wrong arity. It is a quick source audit used while migrating older
+;; helper APIs, especially to catch paren drift around wrapper/decorator calls.
+;;
+;; Invoke it with one or more files or directories:
+;;
+;;   racket tools/check-constructor-arity.rkt path ...
+;;
+;; It prints per-file diagnostics for malformed constructor calls and exits
+;; non-zero when it finds arity errors or unreadable source files. Intended
+;; examples include mistakes like:
+;;
 ;;   with-class / with-id / with-attrs swallowing extra forms due to paren drift.
+
+
+;;; Imports
+
+;; The scanner uses Racket's reader and syntax objects rather than plain text
+;; matching. That keeps locations and nested forms accurate enough for useful
+;; diagnostics.
 
 (require racket/file
          racket/format
@@ -15,6 +31,12 @@
          racket/port
          racket/string
          racket/vector)
+
+
+;;; Scanner Configuration
+
+;; These definitions describe the small family of wrapper constructors this
+;; migration checker knows how to validate.
 
 ;; tracked-arity : (hash/c symbol? exact-positive-integer?)
 ;;   Constructor/decorator name to expected argument count.
@@ -27,10 +49,22 @@
 ;;   Print a compact preview of malformed calls.
 (define cfg-show-preview? #t)
 
+
+;;; Counters
+
+;; The scanner keeps process-wide counts so the command-line entry point can
+;; report a compact summary and choose a final exit status.
+
 ;; result counters
 (define arity-errors 0)
 (define read-errors 0)
 (define scanned-files 0)
+
+
+;;; Source Discovery
+
+;; These helpers expand command-line paths into `.rkt` files and classify
+;; reader errors consistently across file and directory inputs.
 
 ;; parse-error? : exn? -> boolean?
 ;;   Check whether e is a reader error.
@@ -56,6 +90,12 @@
      (eprintf "check-constructor-arity: path not found: ~a\n" p)
      '()]))
 
+
+;;; Form Inspection
+
+;; These helpers turn syntax objects into compact diagnostics and identify the
+;; wrapper call heads that have fixed arity expectations.
+
 ;; form-preview : any/c -> string?
 ;;   Generate short one-line preview for diagnostics.
 (define (form-preview v)
@@ -74,6 +114,12 @@
          (cond
            [(identifier? head) (syntax-e head)]
            [else #f]))))
+
+
+;;; Scanner
+
+;; The recursive scanner walks syntax forms, records malformed wrapper calls,
+;; and keeps scanning so one run can report all visible issues.
 
 ;; scan-form! : syntax? string? -> void?
 ;;   Recursively scan one syntax form.
@@ -124,6 +170,12 @@
         (unless (eof-object? stx)
           (scan-form! stx file)
           (loop))))))
+
+
+;;; Command-Line Entry Point
+
+;; The main body parses file/directory inputs, runs the scanner, prints the
+;; summary, and exits non-zero for CI-friendly failure reporting.
 
 ;; usage : -> void?
 ;;   Print usage.

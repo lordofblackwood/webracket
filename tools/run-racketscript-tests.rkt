@@ -1,8 +1,26 @@
 #lang racket
 
+;;; Run RacketScript Tests
+;;;
+
 ;; Experimental runner for trying RacketScript's integration tests with
 ;; WebRacket. It creates a reference copy runnable by Racket and a WebRacket
 ;; copy with the language line stripped, then compares stdout.
+;;
+;; Invoke it with a RacketScript test root or explicit files:
+;;
+;;   racket tools/run-racketscript-tests.rkt --root /tmp/racketscript-src/tests
+;;   racket tools/run-racketscript-tests.rkt path/to/test.rkt
+;;
+;; It rewrites tests into a work directory, runs both the host Racket reference
+;; and the WebRacket copy, prints per-test status lines, and exits non-zero when
+;; rewritten output diverges or either side crashes.
+
+
+;;; Imports
+
+;; The runner needs filesystem/glob support for collecting tests, string
+;; rewriting for fixture adaptation, subprocess capture, and parallel workers.
 
 (require file/glob
          racket/cmdline
@@ -12,6 +30,13 @@
          racket/path
          racket/port
          racket/string)
+
+
+;;; Parameters
+
+;; These parameters hold command-line configuration for source discovery,
+;; rewrite behavior, WebRacket invocation, optional instrumentation, and
+;; parallelism.
 
 (define root-dir
   (make-parameter
@@ -30,9 +55,21 @@
 (define list-only-marker (make-parameter #f))
 (define webracket-file (make-parameter "webracket.rkt"))
 
+
+;;; Result Records
+
+;; Result structs carry both subprocess transcripts and the rewritten file
+;; paths so failures can be inspected after the run.
+
 (struct run-result (status stdout stderr) #:transparent)
 (struct test-result (source reference rewritten status detail racket-result webracket-result)
   #:transparent)
+
+
+;;; Path And Output Helpers
+
+;; These helpers normalize paths and stdout so host Racket and WebRacket output
+;; can be compared with the least distracting platform noise.
 
 (define (path-basename-string p)
   (path->string (file-name-from-path p)))
@@ -81,6 +118,12 @@
   (run-result (run-result-status result)
               (normalize-webracket-stdout (run-result-stdout result))
               (run-result-stderr result)))
+
+
+;;; Source Rewriting
+
+;; This section materializes paired reference/WebRacket copies of each
+;; RacketScript test, adapting language lines and unsupported helper imports.
 
 (define (relative-test-path source)
   (define root
@@ -210,6 +253,12 @@
        "    (js-log rs-output)))\n")
       with-inlined-test-utils))
 
+
+;;; List Test Slicing
+
+;; The list tests are large enough that targeted marker instrumentation is
+;; useful. These helpers insert markers or slice to one named section.
+
 (define list-sort-tests-rx
   #px";; ---------- sort ----------[\\s\\S]*?(?=;; ---------- make-list ----------)")
 
@@ -273,6 +322,12 @@
       (slice-list-test-to-marker content (list-only-marker))
       content))
 
+
+;;; Unsupported Test Filtering
+
+;; These rewrites keep the experimental runner focused on supported WebRacket
+;; behavior rather than known unsupported RacketScript cases.
+
 (define (skip-known-unsupported-tests rel content)
   (cond
     [(equal? (path->string rel) "racket-core/list.rkt")
@@ -287,6 +342,12 @@
                        ";; ---------- sort ----------\n;; Skipped by WebRacket RacketScript runner.\n")
        ";; ---------- take/drop/splt-at[-right] ----------\n;; Skipped by WebRacket RacketScript runner.\n"))]
     [else content]))
+
+
+;;; Test Materialization
+
+;; Materialization copies supporting files, rewrites each selected test, and
+;; collects runnable test paths from files, directories, or glob specs.
 
 (define (copy-reference-support-files!)
   (define root (root-dir))
@@ -313,6 +374,12 @@
     [(directory-exists? p) (sort (glob (build-path p "*.rkt")) path<?)]
     [else                 (sort (glob p) path<?)]))
 
+
+;;; Test Selection
+
+;; Test selection applies skip rules and optional limits after command-line file
+;; specs have been resolved.
+
 (define (collect-tests specs)
   (define files
     (remove-duplicates
@@ -324,6 +391,12 @@
   (match (limit)
     [(? exact-nonnegative-integer? n) (take runnable (min n (length runnable)))]
     [_ runnable]))
+
+
+;;; Test Execution
+
+;; The runner compares host Racket and WebRacket transcripts for each rewritten
+;; file and records whether the result passed, failed, or crashed.
 
 (define (run-one source)
   (define-values (reference rewritten) (materialize-source source))
@@ -343,6 +416,12 @@
       [(racket-crash) "original test crashed under Racket"]
       [(webracket-crash) "rewritten test crashed under WebRacket"]))
   (test-result source reference rewritten status detail racket-result webracket-result))
+
+
+;;; Reporting
+
+;; Reporting keeps each test status visible and prints richer transcripts for
+;; failures or when verbose mode is requested.
 
 (define (print-diff-ish expected actual)
   (displayln "  expected stdout:")
@@ -380,6 +459,12 @@
     (for/sum ([status '(fail racket-crash webracket-crash)])
       (hash-ref counts status 0)))
   (zero? bad-count))
+
+
+;;; Scheduling
+
+;; Scheduling can run sequentially for stop-on-fail debugging or in parallel for
+;; broader exploratory sweeps.
 
 (define (run-tests/sequential test-files)
   (define results '())
@@ -425,6 +510,12 @@
   (for ([result (in-list ordered-results)])
     (print-result result))
   ordered-results)
+
+
+;;; Command-Line Entry Point
+
+;; The main body parses options, gathers tests, creates the work directory, runs
+;; the selected scheduler, and exits with the summary status.
 
 (define specs
   (command-line

@@ -1,9 +1,31 @@
 #lang racket/base
 
+;;; Measure Closure-Conversion Analysis Test Basics
+;;;
+
+;; This benchmark compares WebRacket output with and without the
+;; closure-conversion analysis mode. It fits into compiler optimization work
+;; when we need timing, output-size, and smoke correctness data for
+;; `--enable-cc-analysis`.
+;;
 ;; Tip:
 ;;   Prebuild the command-line driver before running this benchmark:
 ;;     raco make webracket.rkt
 ;;   This keeps the reported compile times focused on the benchmarked runs.
+;;
+;; Invoke it from the repository root:
+;;
+;;   racket tools/measure-cc-analysis-test-basics.rkt
+;;
+;; The tool compiles each configured input in baseline and analysis modes,
+;; optionally runs Node output, prints per-mode timings and WAT sizes, and exits
+;; non-zero when a compile/run fails or output contains `#f`.
+
+
+;;; Imports
+
+;; The benchmark uses subprocess capture for compiler runs, filesystem helpers
+;; for temporary outputs, and formatting helpers for readable timing tables.
 
 (require racket/file
          racket/format
@@ -14,6 +36,12 @@
          racket/string
          racket/system)
 
+
+;;; Result Records
+
+;; These structs carry the per-mode compile/run transcript and the static suite
+;; configuration used to produce it.
+
 ;; mode-result : symbol? boolean? real? exact-nonnegative-integer? boolean? boolean? string? string? path-string? -> mode-result?
 ;;   Summary of compile/run results for one closure-conversion analysis mode.
 (struct mode-result (name compile-ok? compile-ms wat-size run-ok? saw-#f? stdout stderr dest-dir)
@@ -23,6 +51,12 @@
 ;;   Benchmark configuration for one source program.
 (struct suite-config (name source-file cwd compile-args run-under-node?)
   #:transparent)
+
+
+;;; Repository Paths
+
+;; Runtime paths keep the configured suites and example source files stable no
+;; matter where the benchmark is launched from.
 
 ;; repo-dir : path?
 ;;   Absolute path to the repository root.
@@ -39,6 +73,12 @@
 ;;   Construct the absolute path to an example source file.
 (define (make-example-path dir name)
   (build-path repo-root "examples" dir name))
+
+
+;;; Subprocess Helpers
+
+;; These helpers resolve external tools and run compiler/Node commands while
+;; capturing transcripts and elapsed wall time.
 
 ;; ensure-executable : string? -> path?
 ;;   Resolve an executable from PATH or fail with a helpful error.
@@ -65,6 +105,12 @@
           (get-output-string err)
           (- t1 t0)))
 
+
+;;; Mode Configuration
+
+;; Mode configuration maps the benchmark's logical modes to WebRacket command
+;; flags and destination directories.
+
 ;; mode-flag : symbol? -> (listof string?)
 ;;   Command-line flags for one closure-conversion analysis mode.
 (define (mode-flag mode)
@@ -75,6 +121,12 @@
      (error 'mode-flag
             "unknown closure-conversion analysis mode: ~a"
             mode)]))
+
+
+;;; Compilation
+
+;; This section compiles one input under a selected mode and, when requested,
+;; runs the generated JavaScript output under Node.
 
 ;; compile-mode : suite-config? symbol? path? path? path? -> mode-result?
 ;;   Compile and optionally run one benchmark under one analysis mode in `dest-dir`.
@@ -133,6 +185,12 @@
                   compile-stderr
                   dest-dir)]))
 
+
+;;; Parallel Measurement
+
+;; Each mode is measured in its own thread so baseline and analysis runs can
+;; proceed concurrently.
+
 ;; run-mode-in-thread : suite-config? symbol? path? path? path? box? -> thread?
 ;;   Start one analysis mode measurement in a thread and store the result in `result-box`.
 (define (run-mode-in-thread suite mode racket-exe node-exe dest-dir result-box)
@@ -140,6 +198,12 @@
    (lambda ()
      (set-box! result-box
                (compile-mode suite mode racket-exe node-exe dest-dir)))))
+
+
+;;; Reporting
+
+;; Reporting helpers produce compact human-readable status, duration, size, and
+;; delta summaries for each measured input.
 
 ;; result-status : mode-result? -> string?
 ;;   Short textual status for a mode result.
@@ -228,6 +292,12 @@
 (define (mode-dest-dir suite-stem mode)
   (build-path repo-root "tmp" (format "measure-~a-~a" suite-stem mode)))
 
+
+;;; Suite Measurement
+
+;; A suite measurement runs all modes, reports their results, compares analysis
+;; mode against baseline, and returns whether every mode succeeded.
+
 ;; measure-suite : suite-config? -> boolean?
 ;;   Measure one suite under all configured analysis modes; return #t when all succeed.
 (define (measure-suite suite)
@@ -285,6 +355,12 @@
   (unless ok?
     (printf "Stopped after ~a failed.\n" suite-name))
   ok?)
+
+
+;;; Command-Line Entry Point
+
+;; The main body runs the narrow gate first and only proceeds to broader suites
+;; when the earlier measurement passes.
 
 ;; main : -> void?
 ;;   Run the focused suite first, then measure `test-basics.rkt` if it passes.

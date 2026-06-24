@@ -1,13 +1,46 @@
 #lang racket
 
+;;; Measure Helper Payoff Frontier
+;;;
+
+;; This exploratory tool reports the potential payoff of direct-helper
+;; closure-conversion optimizations. It summarizes where helper specialization
+;; can delete closure allocation, delete ordinary closure code, or still hits
+;; blocker classes.
+;;
+;; Invoke it with optional source files:
+;;
+;;   racket tools/measure-helper-payoff-frontier.rkt [source ...]
+;;
+;; With no arguments it analyzes a compact default set. The output is a textual
+;; payoff summary for each source.
+
+
+;;; Imports
+
+;; The tool imports the compiler namespace dynamically so it can call private
+;; summary functions on parsed source programs.
+
 (require racket/list
          racket/match
          racket/path
          racket/pretty
          racket/runtime-path)
 
+
+;;; Repository Paths
+
+;; Runtime paths locate the repository and compiler module from any launch
+;; directory.
+
 (define-runtime-path repo-root "..")
 (define-runtime-path compiler-path "../pkgs/webracket-lib/compiler/compiler.rkt")
+
+
+;;; Target Selection
+
+;; Target selection accepts explicit source files or falls back to a compact set
+;; that exercises tests and a browser example.
 
 (define default-targets
   (list (build-path repo-root "test" "test-letrec.rkt")
@@ -30,6 +63,13 @@
   (unless (file-exists? p)
     (eprintf "missing source file: ~a\n" p)
     (usage)))
+
+
+;;; Compiler Pipeline Probe
+
+;; The probe runs each source through the early compiler passes needed by the
+;; closure-conversion analysis summary, then calls the selected summary
+;; function inside the compiler namespace.
 
 (dynamic-require compiler-path #f)
 (define compiler-ns (module->namespace `(file ,(path->string compiler-path))))
@@ -66,6 +106,12 @@
           (,summarize-sym an)))
      compiler-ns)))
 
+
+;;; Generic Reporting Helpers
+
+;; These utilities build histograms and averages from the summary rows returned
+;; by the compiler.
+
 (define (histogram key xs)
   (define ht (make-hash))
   (for ([x (in-list xs)])
@@ -84,6 +130,12 @@
       0.0
       (/ (apply + xs) (exact->inexact (length xs)))))
 
+
+;;; Summary Row Accessors
+
+;; The compiler summary returns list rows. These accessors name the positions
+;; used by the payoff report.
+
 (define (entry-binder e)   (list-ref e 1))
 (define (entry-kind e)     (list-ref e 2))
 (define (entry-origin e)   (list-ref e 3))
@@ -98,6 +150,12 @@
 (define (entry-in e)       (list-ref e 13))
 (define (entry-out e)      (list-ref e 14))
 (define (entry-blockers e) (list-ref e 15))
+
+
+;;; Summary Reporting
+
+;; Summary reporting combines payoff counts, environment-size histograms, call
+;; graph degree statistics, and blocker histograms for one source file.
 
 (define (print-section title rows)
   (printf "~a\n" title)
@@ -147,6 +205,12 @@
   (unless (null? blocker-rows)
     (print-section "Blockers:" blocker-rows))
   (newline))
+
+
+;;; Command-Line Entry Point
+
+;; The main loop analyzes each selected source and prints the helper payoff
+;; frontier report.
 
 (for ([source-path (in-list source-paths)])
   (define summary

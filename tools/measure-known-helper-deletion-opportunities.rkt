@@ -1,12 +1,46 @@
 #lang racket
 
+;;; Measure Known Helper Deletion Opportunities
+;;;
+
+;; This exploratory tool runs compiler-internal closure-conversion summaries on
+;; selected sources and reports where known-helper optimizations can delete
+;; closure allocation/code. It fits into closure-conversion analysis work when
+;; we need to understand which helpers still pay transition costs and why.
+;;
+;; Invoke it with optional source files:
+;;
+;;   racket tools/measure-known-helper-deletion-opportunities.rkt [source ...]
+;;
+;; With no arguments it analyzes a small default set. The output is a textual
+;; summary of known-family entries, deletion-producing entries, blocker slices,
+;; and representative drilldowns.
+
+
+;;; Imports
+
+;; The tool imports the compiler namespace dynamically so it can call private
+;; summary functions on parsed source programs.
+
 (require racket/list
          racket/match
          racket/path
          racket/runtime-path)
 
+
+;;; Repository Paths
+
+;; Runtime paths locate the repository and compiler module from any launch
+;; directory.
+
 (define-runtime-path repo-root "..")
 (define-runtime-path compiler-path "../pkgs/webracket-lib/compiler/compiler.rkt")
+
+
+;;; Target Selection
+
+;; Target selection accepts explicit source files or falls back to a compact set
+;; that exercises tests and a browser example.
 
 (define default-targets
   (list (build-path repo-root "test" "test-letrec.rkt")
@@ -29,6 +63,13 @@
   (unless (file-exists? p)
     (eprintf "missing source file: ~a\n" p)
     (usage)))
+
+
+;;; Compiler Pipeline Probe
+
+;; The probe runs each source through the same early compiler passes needed by
+;; the closure-conversion analysis summaries, then calls one selected summary
+;; function inside the compiler namespace.
 
 (dynamic-require compiler-path #f)
 (define compiler-ns (module->namespace `(file ,(path->string compiler-path))))
@@ -65,6 +106,12 @@
           (,summarize-sym an)))
      compiler-ns)))
 
+
+;;; Generic Reporting Helpers
+
+;; These utilities build small histograms and titled report sections from the
+;; summary rows returned by the compiler.
+
 (define (histogram xs)
   (define ht (make-hash))
   (for ([x (in-list xs)])
@@ -83,6 +130,12 @@
     (match row
       [(cons k v)
        (printf "  ~a: ~a\n" k v)])))
+
+
+;;; Summary Row Accessors
+
+;; The compiler summaries return list rows. These accessors name the positions
+;; used by this report so the later drilldowns are readable.
 
 ;; Entry shape:
 ;; (list label binder origin known-abi known-only
@@ -124,6 +177,12 @@
 (define (availability-entry-missing e)       (list-ref e 7))
 (define (availability-entry-ok? e)           (list-ref e 8))
 
+
+;;; Blocker Classification
+
+;; These predicates classify remaining transition-tax entries by the blocker
+;; patterns this measurement is trying to explain.
+
 (define blocker-drilldown-order
   '(unavailable-env nested-lift-sensitive nested-capture letrec recursive value-use))
 
@@ -146,6 +205,12 @@
 
 (define (entry-has-blocker? blocker e)
   (member blocker (entry-blockers e)))
+
+
+;;; Drilldown Printing
+
+;; Drilldown reports print representative rows and, for the pure
+;; unavailable-env case, explain the caller/callee environment relationship.
 
 (define (take-up-to xs n)
   (take xs (min n (length xs))))
@@ -202,6 +267,12 @@
      (printf "      closure-payload-growth?: ~a\n" closure-payload-growth?)
      (printf "      call-chain: ~a\n" call-chain)
      (printf "      classifications: ~a\n" classifications)]))
+
+
+;;; Explanation Building
+
+;; These helpers build maps from compiler summary rows and derive the short
+;; call-chain/environment explanations used for pure unavailable-env residue.
 
 (define (build-binder-map entries binder-of)
   (for/hash ([e (in-list entries)]
@@ -304,8 +375,14 @@
              only-body-layout-growth?
              closure-payload-growth?
              call-chain
-             classifications))))
+            classifications))))
    equal?))
+
+
+;;; Summary Reporting
+
+;; Summary reporting combines high-level counts, blocker histograms, and
+;; representative drilldowns for one source file.
 
 (define (print-blocker-drilldown summary)
   (define remaining
@@ -354,6 +431,12 @@
     (print-section "Blockers:" (histogram (append* (map entry-blockers summary)))))
   (print-blocker-drilldown summary)
   (newline))
+
+
+;;; Command-Line Entry Point
+
+;; The main loop analyzes each selected source with the needed compiler
+;; summaries and prints one combined report per source.
 
 (for ([source-path (in-list source-paths)])
   (define summary

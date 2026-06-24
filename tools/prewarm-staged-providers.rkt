@@ -1,11 +1,43 @@
 #lang racket/base
 
+;;; Prewarm Staged Providers
+;;;
+
+;; This tool builds staged provider artifacts into a WebRacket provider cache
+;; before an example compile needs them. It is mainly used for expensive staged
+;; providers such as regexp support and `expander/read`, where prewarming moves
+;; the cold demodularization cost out of the normal compile path.
+;;
+;; Invoke it with the Racket toolchain and cache directory you plan to use for
+;; the later compile:
+;;
+;;   racket tools/prewarm-staged-providers.rkt \
+;;     --provider-cache-dir path/to/provider-cache \
+;;     --mode read
+;;
+;; It prints the prewarmed mode and cache path. The selected provider artifacts
+;; are written into the cache, and repeated runs reuse the existing artifacts
+;; unless `--force` is supplied.
+
+
+;;; Imports
+
+;; The tool reuses the compiler driver's staged-provider entry points so the
+;; prewarmed artifacts exactly match what normal WebRacket compilation expects.
+
 (require racket/cmdline
          racket/file
          racket/format
          racket/match
          racket/path
          "../pkgs/webracket-lib/compiler/driver.rkt")
+
+
+;;; Provider Prewarming
+
+;; This section drives the staged provider builders under the requested cache
+;; settings. The modes mirror the practical compile needs: regexp alone, read
+;; plus its regexp dependency, or all currently known staged providers.
 
 ;; prewarm-staged-providers! : path-string? symbol? boolean? boolean? -> void?
 ;;   Build staged provider artifacts into provider-cache-dir.
@@ -43,6 +75,12 @@
           mode
           cache-dir))
 
+
+;;; Command-Line Validation
+
+;; Command-line validation keeps mode errors friendly before the tool starts
+;; building staged providers.
+
 ;; parse-mode : string? -> symbol?
 ;;   Parse a command-line prewarm mode.
 (define (parse-mode s)
@@ -53,6 +91,12 @@
      'prewarm-staged-providers
      (format "expected mode regexp, read, or all; got ~a" s)))
   mode)
+
+
+;;; Command-Line Entry Point
+
+;; The main body collects cache and mode options, then runs the selected
+;; prewarm operation with optional cache refresh and verbose cache logging.
 
 (module+ main
   (define provider-cache-dir

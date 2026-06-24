@@ -1,10 +1,37 @@
 #lang racket
 
+;;; Check Treelist Shape Smoke
+;;;
+
+;; This tool runs a private WebRacket treelist shape smoke and validates the
+;; emitted internal shape payload. It fits into runtime-layout debugging: the
+;; companion smoke program runs under WebRacket, raises a structured payload,
+;; and this host-side checker verifies that key treelist shapes look valid.
+;;
+;; Invoke it from the repository root:
+;;
+;;   racket tools/check-treelist-shape-smoke.rkt
+;;
+;; It prints nothing on success. If the payload is missing or a shape invariant
+;; fails, it reports the captured compiler/runtime output and exits non-zero.
+
+
+;;; Imports
+
+;; The checker launches WebRacket as a subprocess, parses the raised payload,
+;; and validates it with simple match/list helpers.
+
 (require racket/list
          racket/file
          racket/match
          racket/port
          racket/string)
+
+
+;;; Smoke Runner
+
+;; This section locates the repository, materializes a temporary copy of the
+;; internal smoke source, and runs it through the WebRacket command-line driver.
 
 ;; check-treelist-shape-smoke.rkt : -> void
 ;;   Run the compiler-private treelist shape smoke and fail on invalid shapes.
@@ -47,6 +74,12 @@
 
 (define combined-text (string-append stdout-text stderr-text))
 
+
+;;; Payload Parsing
+
+;; The internal smoke raises its result so this checker can extract and parse a
+;; single shape payload without relying on normal program output.
+
 (define smoke-rx #px"treelist-shape-smoke: (\\(.*\\))")
 (define smoke-match (regexp-match smoke-rx combined-text))
 (unless smoke-match
@@ -58,6 +91,13 @@
 (define payload-text (second smoke-match))
 (define payload
   (with-input-from-string payload-text read))
+
+
+;;; Shape Checks
+
+;; These checks validate a mix of small, large, append-heavy, and nested
+;; treelists. The exact set is intentionally narrow but covers the layout
+;; invariants most likely to regress.
 
 (define (shape-ref name)
   (define hit (assoc name payload))

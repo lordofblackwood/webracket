@@ -1,5 +1,27 @@
 #lang racket/base
 
+;;; Find Simplify Suite Failure
+;;;
+
+;; This tool bisects a serialized test-suite result tree to find the first leaf
+;; whose isolated result changes when the compiler simplify mode is enabled. It
+;; fits into compiler-pass debugging when a broad suite reports a simplify
+;; regression but the failing expression is not yet known.
+;;
+;; Invoke it with a suite file and optional 1-based start index:
+;;
+;;   racket tools/find-simplify-suite-failure.rkt path/to/suite.rktd [start]
+;;
+;; It prints one line per checked leaf and exits once it finds a mismatch. If no
+;; mismatch is found after the start point, it reports that the scanned entries
+;; all matched.
+
+
+;;; Imports
+
+;; The tool imports the compiler directly so each suite expression can be run
+;; through `run-expr` with simplify mode toggled.
+
 (require (file "../pkgs/webracket-lib/compiler/compiler.rkt")
          (file "../pkgs/webracket-lib/compiler/private/parameters.rkt")
          racket/list
@@ -8,15 +30,33 @@
          racket/runtime-path
          racket/string)
 
+
+;;; Suite Entries
+
+;; A suite result tree is flattened into leaf entries while preserving the
+;; nested section path for diagnostics.
+
 ;; named-entry : (listof string?) any/c -> named-entry?
 ;;   One leaf test together with its section path.
 (struct named-entry (path expr) #:transparent)
+
+
+;;; Repository Paths
+
+;; Runtime paths make the tool robust when invoked from outside the repository
+;; root.
 
 ;; repo-dir : path?
 ;;   Absolute path to the repository root.
 (define-runtime-path repo-dir "..")
 (define repo-root
   (simplify-path repo-dir))
+
+
+;;; Suite Parsing
+
+;; These helpers read and flatten a suite tree into ordered entries suitable for
+;; indexed scanning.
 
 ;; result-tree->entries : any/c -> (listof named-entry?)
 ;;   Flatten a result-tree test structure into ordered leaf entries.
@@ -41,6 +81,12 @@
     (call-with-input-file suite-path read))
   (result-tree->entries tree))
 
+
+;;; Result Comparison
+
+;; The comparison treats any embedded `#f` as failure and checks each leaf with
+;; simplify disabled and enabled.
+
 ;; suite-result-has-#f? : any/c -> boolean?
 ;;   Detect whether a suite leaf result contains a `#f` anywhere.
 (define (suite-result-has-#f? v)
@@ -61,6 +107,12 @@
 (define (check-entry entry simplify?)
   (parameterize ([current-enable-simplify? simplify?])
     (run-expr (datum->syntax #f (named-entry-expr entry)))))
+
+
+;;; Command-Line Entry Point
+
+;; The main body parses the suite path/start index, scans forward, and reports
+;; the first isolated simplify mismatch.
 
 ;; main : -> void?
 ;;   Find the first leaf in a suite whose isolated result changes under simplify mode.

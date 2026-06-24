@@ -1,9 +1,37 @@
 #!/usr/bin/env racket
 #lang racket
 
+;;; Pretty
+;;;
+
+;; This tool pretty-prints one or more s-expression files, with a small amount
+;; of `#lang` handling so compiler dumps and temporary Racket snippets remain
+;; readable. It is a lightweight command-line formatter for inspection, not a
+;; source rewriter with semantic awareness.
+;;
+;; Invoke it on stdin or with file paths:
+;;
+;;   racket tools/pretty.rkt < input.sexp
+;;   racket tools/pretty.rkt --columns 100 file.sexp
+;;
+;; It writes formatted s-expressions to stdout. Reader or printer failures are
+;; reported to stderr and cause a non-zero exit.
+
+
+;;; Imports
+
+;; The formatter uses Racket's pretty printer, command-line parser, and a small
+;; string check for `#lang` preservation.
+
 (require racket/pretty
          racket/cmdline
          racket/string)
+
+
+;;; Hash-Lang Handling
+
+;; These helpers preserve an initial `#lang` line when present, then let the
+;; rest of the file be read and pretty-printed as s-expressions.
 
 ;; Reads s-expressions from an input port and pretty-prints to an output port.
 (define (maybe-output-hash-lang in out)
@@ -16,6 +44,12 @@
      (when (string? line) (displayln line out))
      #t]
     [else #f]))
+
+
+;;; Pretty Printer
+
+;; The main pretty-printer loops over all readable s-expressions, preserving
+;; useful reader locations in diagnostics when malformed input is encountered.
 
 (define (pretty-from-port in [out (current-output-port)])
   (port-count-lines! in)
@@ -56,6 +90,12 @@
                          (exit 1))])
         (pretty-write v out))
       (loop))))
+
+
+;;; Command-Line Entry Point
+
+;; The command-line entry point configures the pretty width and chooses between
+;; stdin mode and file mode.
 
 (module+ main
   (define columns-arg #f)

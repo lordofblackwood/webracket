@@ -1,3 +1,24 @@
+;;; Treelist Shape Internal Smoke
+;;;
+
+;; This source is not a standalone host Racket tool. It is copied to a temporary
+;; file and run through WebRacket by `tools/check-treelist-shape-smoke.rkt`.
+;; The program builds representative treelists, queries the private debug shape
+;; primitive, and raises the collected payload for the host-side checker.
+;;
+;; Invoke the companion checker instead:
+;;
+;;   racket tools/check-treelist-shape-smoke.rkt
+;;
+;; This file produces an exception containing the shape payload; the companion
+;; checker parses that exception and reports success or failure.
+
+
+;;; Treelist Builders
+
+;; These helpers construct dense, incrementally grown, and append-heavy
+;; treelists that stress different shape paths in the runtime.
+
 (define (range-list n)
   (let loop ([i (- n 1)] [acc '()])
     (if (< i 0)
@@ -34,6 +55,12 @@
         (loop (cdr sizes)
               (treelist-append tl (make-tl (car sizes)))))))
 
+
+;;; Shape Fixtures
+
+;; The fixtures below keep named treelists around so the checker can validate a
+;; stable payload shape across common runtime operations.
+
 (define medium (append-medium))
 (define taller-left  (treelist-append (make-tl 1) medium))
 (define taller-right (treelist-append medium (make-tl 1)))
@@ -46,6 +73,12 @@
   (treelist (treelist #f 0 '())
             (treelist (vector 1 2) (cons 'a 'b))
             empty-treelist))
+
+
+;;; Payload Emission
+
+;; The result payload is raised as an exception so the host checker can find it
+;; without depending on public output behavior inside the WebRacket program.
 
 (define results
   (list

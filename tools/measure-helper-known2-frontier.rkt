@@ -1,12 +1,45 @@
 #lang racket
 
+;;; Measure Helper Known2 Frontier
+;;;
+
+;; This exploratory tool reports where direct helper calls could be lowered to a
+;; sibling-only known2-style path, and which blockers still prevent that. It
+;; fits into closure-conversion analysis work when we need to inspect caller
+;; environment availability and layout compatibility.
+;;
+;; Invoke it with optional source files:
+;;
+;;   racket tools/measure-helper-known2-frontier.rkt [source ...]
+;;
+;; With no arguments it analyzes a compact default set. The output is a textual
+;; frontier summary plus representative blocker drilldowns.
+
+
+;;; Imports
+
+;; The tool imports the compiler namespace dynamically so it can call private
+;; summary functions on parsed source programs.
+
 (require racket/list
          racket/match
          racket/path
          racket/runtime-path)
 
+
+;;; Repository Paths
+
+;; Runtime paths locate the repository and compiler module from any launch
+;; directory.
+
 (define-runtime-path repo-root "..")
 (define-runtime-path compiler-path "../pkgs/webracket-lib/compiler/compiler.rkt")
+
+
+;;; Target Selection
+
+;; Target selection accepts explicit source files or falls back to a compact set
+;; that exercises tests and a browser example.
 
 (define default-targets
   (list (build-path repo-root "test" "test-letrec.rkt")
@@ -29,6 +62,13 @@
   (unless (file-exists? p)
     (eprintf "missing source file: ~a\n" p)
     (usage)))
+
+
+;;; Compiler Pipeline Probe
+
+;; The probe runs each source through the early compiler passes needed by the
+;; closure-conversion analysis summary, then calls the selected summary
+;; function inside the compiler namespace.
 
 (dynamic-require compiler-path #f)
 (define compiler-ns (module->namespace `(file ,(path->string compiler-path))))
@@ -65,6 +105,12 @@
           (,summarize-sym an)))
      compiler-ns)))
 
+
+;;; Generic Reporting Helpers
+
+;; These utilities build small histograms and titled report sections from the
+;; summary rows returned by the compiler.
+
 (define (histogram xs)
   (define ht (make-hash))
   (for ([x (in-list xs)])
@@ -86,6 +132,12 @@
 
 (define (take-up-to xs n)
   (take xs (min n (length xs))))
+
+
+;;; Summary Row Accessors
+
+;; The compiler summary returns list rows. These accessors name the positions
+;; used by the frontier report and blocker drilldowns.
 
 ;; Entry shape:
 ;; (list label binder origin fixed-arity? direct? value-use? self-recursive?
@@ -118,6 +170,12 @@
 
 (define (entry-has-blocker? blocker e)
   (member blocker (entry-blockers e)))
+
+
+;;; Drilldown Reporting
+
+;; Drilldowns print representative entries for each blocker class so the next
+;; compiler change can target a concrete frontier.
 
 (define (print-entry-drilldown blocker e)
   (printf "  binder: ~a\n" (entry-binder e))
@@ -163,6 +221,12 @@
         (print-entry-drilldown blocker e))
       (newline))))
 
+
+;;; Summary Reporting
+
+;; Summary reporting combines aggregate counts, histograms, and blocker
+;; drilldowns for one source file.
+
 (define (print-summary source-path summary)
   (define total (length summary))
   (define safe-count (count entry-safe? summary))
@@ -186,6 +250,12 @@
     (print-section "Blockers:" blocker-rows))
   (print-blocker-drilldown summary)
   (newline))
+
+
+;;; Command-Line Entry Point
+
+;; The main loop analyzes each selected source and prints the known2 frontier
+;; report.
 
 (for ([source-path (in-list source-paths)])
   (define summary
