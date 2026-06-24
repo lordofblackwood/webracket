@@ -41,6 +41,7 @@
          racket/format
          racket/path
          racket/runtime-path
+         racket/string
          racket/system)
 
 
@@ -62,6 +63,55 @@
 ;;   Match the local Playwright install convention used by example smokes.
 (define (default-node-modules root-dir)
   (path->string (build-path root-dir ".local-tools" "node_modules")))
+
+
+;;; Architecture Checks
+
+;; Browser launch failures on macOS can be caused by running the preflight under
+;; a translated x86_64 Racket while the browser harness is otherwise native
+;; arm64. In that shape Chrome may abort inside macOS application registration
+;; before Playwright gets a usable page. These helpers classify that case before
+;; attempting a browser launch.
+
+;; command-output/status : path-string? string? ... -> (values exact-integer? string?)
+;;   Run a small diagnostic command and capture combined stdout/stderr.
+(define (command-output/status exe . args)
+  (define out (open-output-string))
+  (define err (open-output-string))
+  (define status
+    (parameterize ([current-output-port out]
+                   [current-error-port err])
+      (apply system*/exit-code exe args)))
+  (values status
+          (string-append (get-output-string out)
+                         (get-output-string err))))
+
+;; host-machine-architecture : -> (or/c string? #f)
+;;   Return the host machine architecture from `uname -m` when available.
+(define (host-machine-architecture)
+  (define uname-path
+    (find-executable-path "uname"))
+  (and uname-path
+       (let-values ([(status output)
+                     (command-output/status uname-path "-m")])
+         (and (zero? status)
+              (string-trim output)))))
+
+;; node-architecture : path-string? -> (or/c string? #f)
+;;   Ask Node what architecture it is actually running as.
+(define (node-architecture node-path)
+  (let-values ([(status output)
+                (command-output/status node-path "-p" "process.arch")])
+    (and (zero? status)
+         (string-trim output))))
+
+;; translated-racket-browser-risk? : string? string? symbol? -> boolean?
+;;   Detect the known bad launcher shape for local Chrome/Playwright smokes.
+(define (translated-racket-browser-risk? host-arch node-arch racket-arch)
+  (and (eq? (system-type 'os) 'macosx)
+       (eq? racket-arch 'x86_64)
+       (or (equal? host-arch "arm64")
+           (equal? node-arch "arm64"))))
 
 
 ;;; Embedded Node/Playwright Preflight
@@ -274,6 +324,7 @@ JS
                 "ROOT_EXAMPLES_EXECUTABLE")
               "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"))
   (define timeout-ms 30000)
+  (define allow-arch-mismatch? #f)
 
   (command-line
    #:program "check-browser-harness.rkt"
@@ -293,7 +344,10 @@ JS
       (raise-user-error 'check-browser-harness
                         "expected positive integer timeout, got ~a"
                         ms))
-    (set! timeout-ms (string->number ms))])
+    (set! timeout-ms (string->number ms))]
+   [("--allow-arch-mismatch")
+    "Continue even when the launcher architecture is known to be suspicious."
+    (set! allow-arch-mismatch? #t)])
 
   (define node-path
     (find-executable-path node-command))
@@ -301,11 +355,29 @@ JS
     (eprintf "FAIL node-missing: could not find Node executable: ~a\n" node-command)
     (exit 2))
 
+  (define racket-arch
+    (system-type 'arch))
+  (define host-arch
+    (host-machine-architecture))
+  (define node-arch
+    (node-architecture node-path))
   (printf "INFO node-command: ~a\n" node-path)
   (printf "INFO node-modules: ~a\n" node-modules)
   (printf "INFO chrome-executable: ~a\n" chrome-executable)
+  (printf "INFO racket-arch: ~a\n" racket-arch)
+  (printf "INFO host-arch: ~a\n" (or host-arch "unknown"))
+  (printf "INFO node-arch: ~a\n" (or node-arch "unknown"))
   (flush-output)
   (flush-output (current-error-port))
+
+  (when (and (not allow-arch-mismatch?)
+             (translated-racket-browser-risk? host-arch node-arch racket-arch))
+    (eprintf "FAIL architecture-mismatch: browser preflight is running under translated x86_64 Racket on arm64 macOS\n")
+    (eprintf "  racket-arch: ~a\n" racket-arch)
+    (eprintf "  host-arch: ~a\n" (or host-arch "unknown"))
+    (eprintf "  node-arch: ~a\n" (or node-arch "unknown"))
+    (eprintf "  fix: run with a native arm64 Racket and an isolated PLTCOMPILEDROOTS\n")
+    (exit 2))
 
   (define node-script (write-node-script!))
   (define config
