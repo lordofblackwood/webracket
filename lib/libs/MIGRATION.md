@@ -30,7 +30,7 @@ and keep `include-lib` only as a compatibility path while old examples migrate.
 | `performance.rkt` | safe wrapper | `js/performance` | Migrated; module wraps Performance API helpers and depends on `js/iterator`. |
 | `rquery-chain.rkt` | syntax/helper | `browser/rquery/chain` or private helper | Chain macro used by `rquery`; likely not a standalone public API. |
 | `rquery.rkt` | safe wrapper | `rquery` | Migrated to native module source; DOM selection/query helper library depends on document/element/event. |
-| `simple-pretty.rkt` | safe utility | `webracket/simple-pretty` | WebRacket-owned pretty printer; not JS/browser-specific. |
+| `simple-pretty.rkt` | obsolete utility | `webracket/pretty` | Superseded by the module-world pretty printer; do not port as `webracket/simple-pretty`. |
 | `storage.rkt` | safe wrapper | `storage` | Migrated to native module source; exposes localStorage/sessionStorage helpers. |
 | `sxml.rkt` | safe utility | `webracket/sxml` | Migrated to native module source; no longer includes legacy source. |
 | `temp.rkt` | test/demo wrapper | `js/temp` | Tiny demo/test wrapper around `temp.ffi`; keep mostly for coverage. |
@@ -80,7 +80,6 @@ Public surface:
 | `browser/window` | `window.rkt` |
 | `jsxgraph` | `jsx-graph.rkt` |
 | `webracket/define-key` | `define.rkt` |
-| `webracket/simple-pretty` | `simple-pretty.rkt` |
 | `webracket/sxml` | `sxml.rkt` |
 | `webracket/threading` | `threading.rkt` |
 
@@ -95,5 +94,8 @@ Decisions:
   and public module layout.
 - Keep `rquery-chain` private unless user-facing chain macros become a
   standalone API.
-- Keep `simple-pretty`, `sxml`, and `threading` under `webracket/*` for now
-  because they are WebRacket-owned support utilities.
+- Keep `sxml` and `threading` under `webracket/*` for now because they are
+  WebRacket-owned support utilities.
+- Treat `simple-pretty.rkt` as obsolete legacy surface. The module-world
+  replacement is `webracket/pretty`, backed by the real pretty-printing API
+  shape rather than the old `simple-pretty-*` names.
