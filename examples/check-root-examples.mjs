@@ -105,7 +105,10 @@ const EXAMPLES = [
     id: "minischeme",
     page: "examples/minischeme/generated/minischeme-page.html",
     probe: async (page) => {
-      await expectStatus(page, "ready");
+      await page.waitForFunction(() =>
+        document.body?.textContent.includes("Status: ready") &&
+        Array.from(document.querySelectorAll("textarea")).some((el) =>
+          el.hasAttribute("readonly") && (el.value || "").includes("MiniScheme ready.")));
       const inputs = page.locator("textarea");
       if (await inputs.count() < 2) {
         throw new Error("minischeme page did not render expected textareas");
@@ -117,10 +120,31 @@ const EXAMPLES = [
       }
       await runButton.click();
       await page.waitForFunction(() =>
-        document.querySelector("#status")?.getAttribute("data-state") === "ready" &&
         Array.from(document.querySelectorAll("textarea")).some((el) =>
           (el.getAttribute("readonly") !== null) && (el.value || "").includes("=> 3")));
     },
+    diagnose: async (page) => await page.evaluate(() => ({
+      status: document.querySelector("#status")
+        ? {
+            state: document.querySelector("#status").getAttribute("data-state"),
+            text: document.querySelector("#status").textContent,
+            outerHTML: document.querySelector("#status").outerHTML,
+          }
+        : null,
+      textareas: Array.from(document.querySelectorAll("textarea")).map((el, index) => ({
+        index,
+        readonly: el.hasAttribute("readonly"),
+        value: el.value,
+        placeholder: el.getAttribute("placeholder"),
+      })),
+      buttons: Array.from(document.querySelectorAll("button")).map((el, index) => ({
+        index,
+        text: el.textContent,
+        disabled: el.disabled,
+      })),
+      bodyText: document.body ? document.body.textContent.slice(0, 1200) : null,
+      location: window.location.href,
+    })),
   },
   {
     id: "matrix-rain",
@@ -226,6 +250,14 @@ async function reportFailure({ page, spec, err, consoleEntries, pageErrors, requ
     console.error("REQUESTFAIL");
     for (const line of recentRequestFailures) {
       console.error(`  ${line}`);
+    }
+  }
+  if (spec.diagnose) {
+    try {
+      console.error("DIAGNOSTIC");
+      console.error(JSON.stringify(await spec.diagnose(page), null, 2));
+    } catch (diagnosticErr) {
+      console.error(`DIAGNOSTIC failed: ${diagnosticErr && diagnosticErr.message ? diagnosticErr.message : String(diagnosticErr)}`);
     }
   }
   console.error(err && err.stack ? err.stack : String(err));
