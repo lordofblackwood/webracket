@@ -1,0 +1,13 @@
+#lang scribble/manual
+
+@(require "browser-api-docs.rkt"
+          (lib "scribblings/ffi-element-labels.rkt" "webracket-doc")
+          (for-label (lib "scribblings/ffi-element-labels.rkt" "webracket-doc")))
+
+@title{Element}
+@declare-exporting[(lib "scribblings/ffi-element-labels.rkt" "webracket-doc")]
+
+This page documents the low-level @racket[js-*] bindings for generic DOM
+elements from @tt{ffi/element.ffi}.
+
+@(render-ffi-docs "ffi/element.ffi" "element.ffi")

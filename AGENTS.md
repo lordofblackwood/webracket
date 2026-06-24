@@ -30,7 +30,7 @@ Racket primitives** faithfully.
 - Do not write to `public/` from build scripts.
 - `publish.sh` is the only script that copies from `local/` to `public/`.
 - When rendering Scribble documentation locally, use
-  `raco scribble --htmls --dest html scribblings/webracket.scrbl`
+  `raco scribble --htmls --dest html pkgs/webracket-doc/scribblings/webracket.scrbl`
   so generated docs go into `html/`, which is ignored by git.
 
 ---

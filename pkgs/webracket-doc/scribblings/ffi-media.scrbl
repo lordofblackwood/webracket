@@ -1,0 +1,13 @@
+#lang scribble/manual
+
+@(require "browser-api-docs.rkt"
+          (lib "scribblings/ffi-media-labels.rkt" "webracket-doc")
+          (for-label (lib "scribblings/ffi-media-labels.rkt" "webracket-doc")))
+
+@title{Media}
+@declare-exporting[(lib "scribblings/ffi-media-labels.rkt" "webracket-doc")]
+
+This page documents the low-level @racket[js-media-*] bindings from
+@tt{ffi/media.ffi}.
+
+@(render-ffi-docs "ffi/media.ffi" "media.ffi")
