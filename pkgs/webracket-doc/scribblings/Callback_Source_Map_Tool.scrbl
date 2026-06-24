@@ -1,6 +1,7 @@
 #lang scribble/manual
 
-@(require scribble-tools)
+@(require scribble-tools
+          "webracket-scribble-utils.rkt")
 
 @title{Callback Source-Map Tool}
 
@@ -77,7 +78,7 @@ span: 3482
 When the label map was generated with form payloads enabled, the tool can also
 print the recorded source form.
 
-Use @tt{--show-form}:
+Use @(flag "--show-form"):
 
 @shellblock{
 racket tools/find-callback-source.rkt --show-form web-site-new/src/test-toc.wasm.map.sexp label.4054
@@ -124,7 +125,7 @@ WebRacket compiler flow:
 
 The source-form output depends on the label map including form payloads. Maps
 omit those heavyweight payloads by default. If the map was generated without
-@tt{--label-map-forms}, source locations still work, but @tt{--show-form} may
+@(flag "--label-map-forms"), source locations still work, but @(flag "--show-form") may
 print nothing for the form.
 
 @section{Notes}

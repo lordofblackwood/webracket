@@ -1,6 +1,7 @@
 #lang scribble/manual
 
-@(require scribble-tools)
+@(require scribble-tools
+          "webracket-scribble-utils.rkt")
 
 @title{Installation}
 
@@ -12,7 +13,7 @@ You need:
 
 @itemlist[
   @item{@tt{wasm-tools} (Bytecode Alliance) v1.243.0 or newer}
-  @item{@tt{node} with support for @tt{--experimental-wasm-exnref}}
+  @item{@tt{node} with WebAssembly @tt{exnref} exception handling}
   @item{Racket 9.0 or newer}
   @item{@tt{raco-static-web}}
   @item{A local clone of the WebRacket repository}
@@ -44,12 +45,18 @@ sudo xattr -d com.apple.quarantine /usr/local/bin/wasm-tools
 Download:
 @url{https://nodejs.org/en/download}
 
-Verify Node and required flags:
+Use Node.js 24.15.0 or newer. Current Node 24 LTS and Node 26 enable
+WebAssembly @tt{exnref} by default and need no extra flags.
+
+Verify Node:
 
 @shellblock{
-node
-node --experimental-wasm-exnref --expose-gc
+node --version
+node -e "console.log('Node OK')"
 }
+
+If you use Node 22.x, or Node 24 before 24.15.0, run generated Node
+output with @(flag "--experimental-wasm-exnref"), or upgrade Node.
 
 @bold{3. Install Racket}
 

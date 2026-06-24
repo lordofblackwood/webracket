@@ -79,7 +79,7 @@ source contents
 For example, this command preloads an inline text file:
 
 @shellblock{
-racket webracket.rkt --node --vfs-text /app/message.txt=hello program.rkt
+racket webracket.rkt --node --dest generated --vfs-text /app/message.txt=hello program.rkt
 }
 
 Then @tt{program.rkt} can read the file by its VFS path and print its
@@ -160,7 +160,7 @@ Use @long-option["vfs-file"] in Node mode to read one host file and preload its
 contents into one VFS file:
 
 @shellblock{
-racket webracket.rkt --node --vfs-file /app/config.txt=config.txt program.rkt
+racket webracket.rkt --node --dest generated --vfs-file /app/config.txt=config.txt program.rkt
 }
 
 Inside the program:
@@ -186,7 +186,7 @@ Use @long-option["vfs-url"] to fetch a URL into one VFS file. This is primarily 
 in browser mode:
 
 @shellblock{
-racket webracket.rkt --browser --vfs-url /app/config.txt=./config.txt program.rkt
+racket webracket.rkt --browser --dest generated --vfs-url /app/config.txt=./config.txt program.rkt
 }
 
 The argument has two paths with different meanings. The left side,
@@ -198,12 +198,15 @@ The source URL can be absolute, such as @tt{https://example.com/config.txt},
 or relative, such as @tt{./config.txt}. A relative URL is not relative to the
 Racket source file. It is resolved when the generated host code runs. In
 browser mode, @tt{./config.txt} is fetched relative to the generated
-@tt{.html} file, so the asset should be served beside that page:
+@tt{.html} file, so the asset should be served beside that page. If you use
+@long-option["dest"] @tt{generated}, the relative URL is resolved next to the
+page inside @tt{generated/}, not next to the Racket source file:
 
 @verbatim|{
-  out.html
-  out.wasm
-  config.txt
+  generated/
+    out.html
+    out.wasm
+    config.txt
 }|
 
 With those files in the same served directory, @tt{./config.txt} names the
@@ -219,7 +222,7 @@ should normally be loaded with @long-option["vfs-file"] instead.
 Use @long-option["vfs-text"] for small text fixtures and configuration strings:
 
 @shellblock{
-racket webracket.rkt --node --vfs-text /app/mode.txt=test program.rkt
+racket webracket.rkt --node --dest generated --vfs-text /app/mode.txt=test program.rkt
 }
 
 The text is embedded directly in the generated host support file.
@@ -240,7 +243,7 @@ test
 Use @long-option["vfs-base64"] for small binary values:
 
 @shellblock{
-racket webracket.rkt --node --vfs-base64 /app/blob.dat=aGVsbG8= program.rkt
+racket webracket.rkt --node --dest generated --vfs-base64 /app/blob.dat=aGVsbG8= program.rkt
 }
 
 This option is intended for small data. Large binary assets should normally be
@@ -263,7 +266,7 @@ hello
 Use @long-option["vfs-mkdir"] to create an empty VFS directory before the program runs:
 
 @shellblock{
-racket webracket.rkt --node --vfs-mkdir /app/cache program.rkt
+racket webracket.rkt --node --dest generated --vfs-mkdir /app/cache program.rkt
 }
 
 Inside the program:
@@ -283,7 +286,7 @@ prints:
 Use @long-option["vfs-dir"] to copy a host directory tree into the VFS:
 
 @shellblock{
-racket webracket.rkt --node --vfs-dir /assets=assets program.rkt
+racket webracket.rkt --node --dest generated --vfs-dir /assets=assets program.rkt
 }
 
 The program can then list and read files under @tt{/assets}:
@@ -314,13 +317,13 @@ as a read-only subtree in the VFS.
 Use @long-option["vfs-tar-file"] for a host tar file in Node mode:
 
 @shellblock{
-racket webracket.rkt --node --vfs-tar-file /assets=assets.tar program.rkt
+racket webracket.rkt --node --dest generated --vfs-tar-file /assets=assets.tar program.rkt
 }
 
 Use @long-option["vfs-tar-url"] for a tar archive fetched by URL:
 
 @shellblock{
-racket webracket.rkt --browser --vfs-tar-url /assets=./assets.tar program.rkt
+racket webracket.rkt --browser --dest generated --vfs-tar-url /assets=./assets.tar program.rkt
 }
 
 Inside the program, files in the archive appear under the mount path:
@@ -365,6 +368,11 @@ To modify data from a tar archive, copy it to a mutable path first:
 (displayln (file->string "/app/template.txt"))
 }
 
+This example copies the read-only template into mutable memory, deletes that
+mutable copy, and then writes a replacement at the same path. In a real
+program you can skip the delete step if you only need to copy and read the
+template.
+
 prints:
 
 @verbatim|{
@@ -380,11 +388,11 @@ The same tar options also support gzip-compressed archives. Sources ending in
 @tt{.tar.gz} or @tt{.tgz} are decompressed automatically:
 
 @shellblock{
-racket webracket.rkt --node --vfs-tar-file /assets=assets.tgz program.rkt
+racket webracket.rkt --node --dest generated --vfs-tar-file /assets=assets.tgz program.rkt
 }
 
 @shellblock{
-racket webracket.rkt --browser --vfs-tar-url /assets=./assets.tar.gz program.rkt
+racket webracket.rkt --browser --dest generated --vfs-tar-url /assets=./assets.tar.gz program.rkt
 }
 
 WebRacket also recognizes gzip data by its magic bytes after loading. This
@@ -661,7 +669,7 @@ WebRacket, but it is not a promise of full operating-system filesystem access.
 Compile and run:
 
 @shellblock{
-racket webracket.rkt --node --run --vfs-file /app/config.txt=config.txt read-config.rkt
+racket webracket.rkt --node --run --dest generated --vfs-file /app/config.txt=config.txt read-config.rkt
 }
 
 If @tt{config.txt} contains @tt{debug=true}, the program prints:
@@ -680,7 +688,7 @@ debug=true
 Compile for the browser:
 
 @shellblock{
-racket webracket.rkt --browser --vfs-url /app/message.txt=./message.txt read-message.rkt
+racket webracket.rkt --browser --dest generated --vfs-url /app/message.txt=./message.txt read-message.rkt
 }
 
 Serve the generated @tt{.html}, @tt{.wasm}, and @tt{message.txt} from the
@@ -701,7 +709,7 @@ hello browser
 Compile for the browser:
 
 @shellblock{
-racket webracket.rkt --browser --vfs-tar-url /assets=./assets.tgz read-assets.rkt
+racket webracket.rkt --browser --dest generated --vfs-tar-url /assets=./assets.tgz read-assets.rkt
 }
 
 The archive @tt{assets.tgz} should contain a file named @tt{hello.txt}. The

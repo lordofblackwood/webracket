@@ -1,6 +1,7 @@
 #lang scribble/manual
 
-@(require scribble-tools)
+@(require scribble-tools
+          "webracket-scribble-utils.rkt")
 
 @title{Command-Line Tool}
 
@@ -12,13 +13,13 @@ The entry point is @tt{webracket.rkt}. It accepts either:
 
 @itemlist[
   @item{One source file plus optional flags (compile mode).}
-  @item{No source file together with @tt{--list-primitives} (listing mode).}
+  @item{No source file together with @(flag "--list-primitives") (listing mode).}
 ]
 
 @section{Overview}
 
-The overall goal is to compile a @tt{#lang webracket} source file to a
-WebAssembly module.
+The overall goal is to compile a WebRacket source file, such as a
+@tt{#lang webracket/base} module, to a WebAssembly module.
 
 The generated @tt{.wasm} file is not used alone. It is paired with a generated
 host support file:
@@ -33,6 +34,13 @@ host support file:
 So the normal output is a small set of files that work together: compile
 artifact(s), metadata, and host-side runtime support.
 
+To keep source directories tidy, prefer writing generated files to a
+separate directory:
+
+@shellblock{
+racket webracket.rkt --browser --dest generated program.rkt
+}
+
 @section{Canonical Invocation}
 
 @shellblock{
@@ -42,7 +50,7 @@ racket webracket.rkt [option ...] <filename>
 Primitive listing mode:
 
 @shellblock{
-racket webracket.rkt --list-primitives [--ffi <file> ...]
+racket webracket.rkt --list-primitives
 }
 
 @section{Quick Start (CLI)}
@@ -88,16 +96,13 @@ Target browser host generation:
 racket webracket.rkt --browser program.rkt
 }
 
+Browser output must be served over HTTP. Do not open the generated
+@tt{.html} file directly as a @tt{file://} page.
+
 Target browser host generation with the browser console bridge enabled:
 
 @shellblock{
 racket webracket.rkt --browser --console-bridge program.rkt
-}
-
-Compile without the standard library:
-
-@shellblock{
-racket webracket.rkt --node --no-stdlib program.rkt
 }
 
 Dump compiler passes (limit to 25 dumps):
@@ -118,36 +123,28 @@ Write pretty-formatted WAT (default is non-pretty):
 racket webracket.rkt --node --pretty-wat program.rkt
 }
 
-Include one or more @tt{.ffi} files:
-
-@shellblock{
-racket webracket.rkt --node --ffi dom --ffi standard program.rkt
-}
-
 Print all known primitives:
 
 @shellblock{
 racket webracket.rkt --list-primitives
 }
 
-Print primitives including names from selected @tt{.ffi} files:
-
-@shellblock{
-racket webracket.rkt --list-primitives --ffi dom --ffi standard
-}
-
 @section{Operational Constraints}
 
 @itemlist[
-  @item{@tt{--run} cannot be used together with @tt{--browser}.}
+  @item{@(flag "--run") cannot be used together with @(flag "--browser").}
   @item{Compile mode requires exactly one source filename.}
-  @item{Listing mode (@tt{--list-primitives}) requires no source filename.}
-  @item{When using @tt{--run} in Node mode, a working @tt{node} executable is required.}
+  @item{Listing mode (@(flag "--list-primitives")) requires no source filename.}
+  @item{When using @(flag "--run") in Node mode, a working @tt{node} executable with WebAssembly @tt{exnref} support is required.}
   @item{A working @tt{wasm-tools} installation is required for WAT-to-WASM assembly.}
   @item{Output paths must be distinct (WAT, WASM, map sidecar, and host output cannot collide).}
   @item{Output locations must be writable.}
-  @item{@tt{--dump-passes-limit <n>} requires an exact nonnegative integer.}
+  @item{@(flag "--dump-passes-limit <n>") requires an exact nonnegative integer.}
 ]
+
+See @secref["Installation"] for Node version guidance. Current Node 24 LTS
+and Node 26 enable WebAssembly @tt{exnref} by default; older supported Node
+lines may require @(flag "--experimental-wasm-exnref").
 
 @section{Output Files And Defaults}
 
@@ -173,86 +170,160 @@ For input @tt{program.rkt}, default outputs are:
 Run behavior:
 
 @itemlist[
-  @item{@tt{-r} / @tt{--run}: Run the compiled program after generation (Node mode only).}
+  @item{@(flag "-r") / @(flag "--run"): Run the compiled program after generation (Node mode only).}
 ]
 
 Target selection (mutually exclusive):
 
 @itemlist[
-  @item{@tt{-n} / @tt{--node}: Generate Node host output (default).}
-  @item{@tt{-b} / @tt{--browser}: Generate browser host output.}
+  @item{@(flag "-n") / @(flag "--node"): Generate Node host output (default).}
+  @item{@(flag "-b") / @(flag "--browser"): Generate browser host output.}
 ]
 
 Output path options:
 
 @itemlist[
-  @item{@tt{--wat-file <path>}: Explicit WAT output path.}
-  @item{@tt{--wasm-file <path>}: Explicit WASM output path.}
-  @item{@tt{--host-file <path>}: Explicit host output path.}
-  @item{@tt{--dest <dir>}: Write the default outputs under @tt{<dir>}.}
+  @item{@(flag "--wat-file <path>"): Explicit WAT output path.}
+  @item{@(flag "--wasm-file <path>"): Explicit WASM output path.}
+  @item{@(flag "--host-file <path>"): Explicit host output path.}
+  @item{@(flag "--dest <dir>"): Write the default outputs under @tt{<dir>}.}
 ]
 
 Debug and inspection options:
 
 @itemlist[
-  @item{@tt{-v} / @tt{--verbose}: Verbose compiler messages.}
-  @item{@tt{--list-primitives}: Print sorted primitive names and exit.}
-  @item{@tt{--console-bridge}: In browser mode, install @tt{globalThis.WR} so the browser console can inspect and call exposed WebRacket bindings.}
-  @item{@tt{--no-console-bridge}: Disable the browser console bridge (default).}
-  @item{@tt{--label-map-forms}: Include heavyweight source form payloads in @tt{.wasm.map.sexp}.}
-  @item{@tt{--no-label-map-forms}: Omit source form payloads in @tt{.wasm.map.sexp} (default).}
-  @item{@tt{--dump-passes <dir>}: Write per-pass dumps to @tt{<dir>}.}
-  @item{@tt{--dump-passes-limit <n>}: Limit pass dumps; @tt{0} means no dumps.}
-  @item{@tt{--timings}: Print timing breakdown for compilation stages.}
-  @item{@tt{--no-pretty-wat}: Write @tt{.wat} without pretty formatting (default).}
-  @item{@tt{--pretty-wat}: Write @tt{.wat} with pretty formatting.}
-]
-
-Standard library inclusion:
-
-@itemlist[
-  @item{@tt{--stdlib}: Include standard library code (default).}
-  @item{@tt{--no-stdlib}: Do not include standard library code.}
-]
-
-FFI and linker flags:
-
-@itemlist[
-  @item{@tt{--ffi <file>}: Add an @tt{.ffi} input file; may be repeated.}
-  @item{@tt{-l} / @tt{--link-flags <flag>}: Accepted but currently ignored by the driver.}
+  @item{@(flag "-v") / @(flag "--verbose"): Verbose compiler messages.}
+  @item{@(flag "--list-primitives"): Print sorted primitive names and exit.}
+  @item{@(flag "--console-bridge"): In browser mode, install @tt{globalThis.WR} so the browser console can inspect and call exposed WebRacket bindings.}
+  @item{@(flag "--no-console-bridge"): Disable the browser console bridge (default).}
+  @item{@(flag "--label-map-forms"): Include heavyweight source form payloads in @tt{.wasm.map.sexp}.}
+  @item{@(flag "--no-label-map-forms"): Omit source form payloads in @tt{.wasm.map.sexp} (default).}
+  @item{@(flag "--dump-passes <dir>"): Write per-pass dumps to @tt{<dir>}.}
+  @item{@(flag "--dump-passes-limit <n>"): Limit pass dumps; @tt{0} means no dumps.}
+  @item{@(flag "--timings"): Print timing breakdown for compilation stages.}
+  @item{@(flag "--no-pretty-wat"): Write @tt{.wat} without pretty formatting (default).}
+  @item{@(flag "--pretty-wat"): Write @tt{.wat} with pretty formatting.}
 ]
 
 Virtual filesystem options:
 
 @itemlist[
-  @item{@tt{--vfs-file VFS=PATH}: Preload a Node host file into a VFS file.}
-  @item{@tt{--vfs-url VFS=URL}: Fetch a URL into a VFS file.}
-  @item{@tt{--vfs-text VFS=TEXT}: Embed inline text as a VFS file.}
-  @item{@tt{--vfs-base64 VFS=BASE64}: Embed small inline base64 bytes as a VFS file.}
-  @item{@tt{--vfs-mkdir VFS}: Create an empty VFS directory.}
-  @item{@tt{--vfs-dir VFS=PATH}: Preload a Node host directory into a VFS directory.}
-  @item{@tt{--vfs-tar-file VFS=PATH}: Mount a Node host tar archive as a read-only VFS subtree.}
-  @item{@tt{--vfs-tar-url VFS=URL}: Mount a tar archive fetched by URL as a read-only VFS subtree.}
+  @item{@(flag "--vfs-file VFS=PATH"): Preload a Node host file into a VFS file.}
+  @item{@(flag "--vfs-url VFS=URL"): Fetch a URL into a VFS file.}
+  @item{@(flag "--vfs-text VFS=TEXT"): Embed inline text as a VFS file.}
+  @item{@(flag "--vfs-base64 VFS=BASE64"): Embed small inline base64 bytes as a VFS file.}
+  @item{@(flag "--vfs-mkdir VFS"): Create an empty VFS directory.}
+  @item{@(flag "--vfs-dir VFS=PATH"): Preload a Node host directory into a VFS directory.}
+  @item{@(flag "--vfs-tar-file VFS=PATH"): Mount a Node host tar archive as a read-only VFS subtree.}
+  @item{@(flag "--vfs-tar-url VFS=URL"): Mount a tar archive fetched by URL as a read-only VFS subtree.}
 ]
 
 Sources ending in @tt{.tar.gz} or @tt{.tgz} are treated as gzip-compressed tar
 archives. For a tutorial and compatibility notes, see @secref["files-and-vfs"].
+
+@section{Legacy Standard Library And Manual FFI}
+
+Most module-based programs should use @racket[require] forms in the source
+module instead of manual standard-library or @tt{.ffi} command-line flags.
+The following options remain available for legacy inputs and diagnostics.
+
+Legacy standard library inclusion:
+
+@itemlist[
+  @item{@(flag "--stdlib"): Include the legacy standard library.}
+  @item{@(flag "--no-stdlib"): Do not include the legacy standard library (default).}
+]
+
+Manual FFI and linker flags:
+
+@itemlist[
+  @item{@(flag "--ffi <file>"): Add an @tt{.ffi} input file; may be repeated.}
+  @item{@(flag "-l") / @(flag "--link-flags <flag>"): Accepted but currently ignored by the driver.}
+]
+
+Legacy examples:
+
+@itemlist[
+  @item{@shell-code{racket webracket.rkt --node --stdlib program.rkt}}
+  @item{@shell-code{racket webracket.rkt --node --ffi dom --ffi standard program.rkt}}
+  @item{@shell-code{racket webracket.rkt --list-primitives --ffi dom --ffi standard}}
+]
+
+@section{Internal And Advanced Options}
+
+These options are mainly for compiler development, module-bridge debugging,
+performance investigation, and staged-provider experiments. They are useful
+when reducing WebRacket bugs, but ordinary programs usually should not need
+them.
+
+Module and provider options:
+
+@itemlist[
+  @item{@(flag "--webracket-module-bridge"): Force @tt{#lang webracket/base} or @tt{#lang webracket/full} through the module bridge.}
+  @item{@(flag "--provider-substitutions"): Enable Goal 1 provider substitutions (default).}
+  @item{@(flag "--no-provider-substitutions"): Disable Goal 1 provider substitutions for diagnostics.}
+  @item{@(flag "--provider-cache-dir <dir>"): Use @tt{<dir>} for provider-slice caches.}
+  @item{@(flag "--provider-cache-report"): Print provider-cache entries and exit.}
+  @item{@(flag "--clear-provider-cache"): Delete the provider cache directory before compiling.}
+  @item{@(flag "--force-provider-cache-refresh"): Regenerate provider cache artifacts even when fingerprints match.}
+]
+
+Staged provider options:
+
+@itemlist[
+  @item{@(flag "--io-format-provider"): Compose the staged original-Racket @tt{io/format} provider.}
+  @item{@(flag "--no-io-format-provider"): Disable the staged @tt{io/format} provider for debugging.}
+  @item{@(flag "--expander-read-provider"): Compose the staged original-Racket @tt{expander/read} provider. This is needed by programs that use datum @racket[read].}
+  @item{@(flag "--no-expander-read-provider"): Disable the staged @tt{expander/read} provider (default).}
+  @item{@(flag "--expander-read-syntax-provider"): Compose the private staged original-Racket @tt{read-syntax} provider.}
+  @item{@(flag "--no-expander-read-syntax-provider"): Disable the private staged @tt{read-syntax} provider (default).}
+]
+
+Experimental compiler options:
+
+@itemlist[
+  @item{@(flag "--alpha-rename-profile"): Print alpha-rename/pass1 counters and helper timings.}
+  @item{@(flag "--simplify-profile"): Print simplify-LFE rule and shape diagnostics.}
+  @item{@(flag "--enable-cc-analysis"): Enable the new closure-conversion analysis.}
+  @item{@(flag "--enable-simplify"): Run the early simplify-LFE pass.}
+  @item{@(flag "--module-bridge-elide-public-cells"): Expose safe module-bridge public exports as plain values.}
+  @item{@(flag "--tree-shake"): Tree-shake runtime primitives (default).}
+  @item{@(flag "--no-tree-shake"): Do not tree-shake runtime primitives.}
+  @item{@(flag "--tree-shake-report <file>"): Write the runtime primitive report to @tt{<file>}.}
+  @item{@(flag "--letrec-basic"): Use the basic letrec lowering strategy.}
+  @item{@(flag "--letrec-waddell"): Use the Waddell letrec lowering strategy.}
+  @item{@(flag "--letrec-scc"): Use the SCC letrec lowering strategy (default).}
+  @item{@(flag "--print-top-level-results"): Print each top-level expression result with @racket[print].}
+  @item{@(flag "--list-provider-slices"): Print original-Racket provider slices and exit.}
+]
+
+Local server options:
+
+The local compile server was an experiment in reducing compiler startup
+costs by keeping one Racket process warm across repeated compiles.  In
+practice the measured savings are small enough that this is not a
+recommended performance lever for normal use; provider-cache reuse and
+staged-provider prewarming matter much more.
+
+@itemlist[
+  @item{@(flag "--server-start"): Run the local compile server in the foreground.}
+  @item{@(flag "--server-status"): Print local compile server status and exit.}
+  @item{@(flag "--server-stop"): Stop the local compile server and exit.}
+]
 
 @section{Command-Line Examples}
 
 @itemlist[
   @item{@shell-code{racket webracket.rkt --node program.rkt}}
   @item{@shell-code{racket webracket.rkt --list-primitives}}
-  @item{@shell-code{racket webracket.rkt --list-primitives --ffi dom --ffi standard}}
   @item{@shell-code{racket webracket.rkt --node --run program.rkt}}
   @item{@shell-code{racket webracket.rkt --browser program.rkt}}
   @item{@shell-code{racket webracket.rkt --node --wat-file out/program.wat --wasm-file out/program.wasm --host-file out/program.js program.rkt}}
   @item{@shell-code{racket webracket.rkt --node --dest out program.rkt}}
-  @item{@shell-code{racket webracket.rkt --node --no-stdlib program.rkt}}
   @item{@shell-code{racket webracket.rkt --node --dump-passes tmp/passes --dump-passes-limit 25 program.rkt}}
   @item{@shell-code{racket webracket.rkt --node --timings program.rkt}}
   @item{@shell-code{racket webracket.rkt --node --pretty-wat program.rkt}}
-  @item{@shell-code{racket webracket.rkt --node --ffi dom --ffi standard program.rkt}}
   @item{@shell-code{racket webracket.rkt --node --vfs-text /app/message.txt=hello program.rkt}}
   @item{@shell-code{racket webracket.rkt --browser --vfs-tar-url /assets=./assets.tgz program.rkt}}
+  @item{@shell-code{racket webracket.rkt --browser --expander-read-provider program.rkt}}
 ]

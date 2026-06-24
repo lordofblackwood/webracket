@@ -69,7 +69,9 @@ Create a file named @tt{hello.rkt} with the following contents:
 
 @filebox["hello.rkt"
 @verbatim|{
-(include-lib web-easy)
+#lang webracket/base
+
+(require web-easy)
 
 (define hello-world-app
   (window
@@ -84,11 +86,10 @@ Create a file named @tt{hello.rkt} with the following contents:
 
 @subsection{Step 2: Compile the program}
 
-Compile the program for the browser with the FFI libraries needed by
-@tt{web-easy}:
+Compile the program for the browser:
 
 @shellblock{
-webracket --browser hello.rkt
+racket webracket.rkt --browser hello.rkt
 }
 
 This generates the files needed to run the program in a browser.

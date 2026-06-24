@@ -1,6 +1,7 @@
 #lang scribble/manual
 
-@(require scribble-tools)
+@(require scribble-tools
+          "webracket-scribble-utils.rkt")
 
 @title[#:tag "console-bridge"]{The Browser Console Bridge}
 
@@ -85,7 +86,7 @@ evaluate.
 The bridge is off by default.
 
 To enable it, compile your browser program with
-@tt{--console-bridge}:
+@(flag "--console-bridge"):
 
 @shellblock{
 racket webracket.rkt --browser --console-bridge counter.rkt
@@ -160,7 +161,7 @@ In Chrome and other Chromium-based browsers, common shortcuts are:
   @item{@tt{Cmd+Option+I} on macOS}]
 
 If the page is open but @tt{WR} is missing, the usual cause is that the
-program was compiled without @tt{--console-bridge}.
+program was compiled without @(flag "--console-bridge").
 
 @section{Console Session}
 
@@ -513,7 +514,7 @@ Because of that last point, the bridge is opt-in and disabled by default.
 If @tt{WR} is missing in the browser console, check these common causes:
 
 @itemlist[
-  @item{The page was compiled without @tt{--console-bridge}.}
+  @item{The page was compiled without @(flag "--console-bridge").}
   @item{The page has not finished loading yet. Wait for the page to start, then try again.}
   @item{You are serving an older generated @tt{.html} or @tt{.wasm} file than the one you just built.}
   @item{The browser page failed to load the generated @tt{.wasm} file, so the runtime never finished installing the bridge.}]

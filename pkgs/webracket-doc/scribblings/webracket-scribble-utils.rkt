@@ -6,6 +6,8 @@
 (provide wiki
           margin-wiki
           em
+          literal-tt
+          flag
           how-to-require
           compile-option-bar
           mdn-bar
@@ -27,6 +29,9 @@
 
 (define (literal-tt s)
   (apply tt (map string (string->list s))))
+
+(define (flag s)
+  (literal-tt s))
 
 (define-syntax-rule (how-to-require req-form name mod-path)
   @defmodule[#:require-form (lambda (modname)
