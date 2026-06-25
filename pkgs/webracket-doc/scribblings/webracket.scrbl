@@ -1,6 +1,12 @@
 #lang scribble/manual
 
-@title{WebRacket Manual}
+@(require racket/runtime-path
+          scribble/core
+          scribble/html-properties)
+
+@(define-runtime-path webracket-layout-css "webracket-layout.css")
+
+@title[#:style (style #f (list (make-css-style-addition webracket-layout-css)))]{WebRacket Manual}
 @table-of-contents[]
 
 
@@ -16,7 +22,11 @@
 
 @include-section["webracket-for-racket-programmers.scrbl"]
 
+@include-section["webracket-for-racket-programmers-revised.scrbl"]
+
 @include-section["console-bridge.scrbl"]
+
+@include-section["console-bridge-revised.scrbl"]
 
 @include-section["Callback_Source_Map_Tool.scrbl"]
 

@@ -1,0 +1,57 @@
+/* WebRacket documentation layout overrides. */
+
+:root {
+  --webracket-logo-red: #9d1f24;
+  --webracket-sidebar-link: #ffffff;
+  --webracket-sidebar-link-hover: #ffe1e3;
+}
+
+@media all and (min-width:721px) {
+  .tocset {
+    background-color: var(--webracket-logo-red) !important;
+    border-top-color: var(--webracket-logo-red) !important;
+    color: var(--webracket-sidebar-link) !important;
+    width: 18rem !important;
+  }
+
+  .navsettop,
+  .navsetbottom {
+    background-color: var(--webracket-logo-red) !important;
+    color: var(--webracket-sidebar-link) !important;
+    width: 19rem !important;
+  }
+
+  .tocset td,
+  .tocset td a,
+  .tocset td a.tocviewselflink,
+  .tocset .RktValLink,
+  .tocset .RktStxLink,
+  .tocset .RktModLink,
+  .tocset .RktSym,
+  .navsettop a,
+  .navsetbottom a,
+  .navright span {
+    color: var(--webracket-sidebar-link) !important;
+  }
+
+  .tocset td a:hover,
+  .tocset td a:focus-visible,
+  .navsettop a:hover,
+  .navsettop a:focus-visible,
+  .navsetbottom a:hover,
+  .navsetbottom a:focus-visible {
+    color: var(--webracket-sidebar-link-hover) !important;
+  }
+
+  .maincolumn {
+    margin-left: 21rem !important;
+  }
+
+  .versionbox {
+    left: 21rem !important;
+  }
+
+  #contextindicator {
+    left: 21rem !important;
+  }
+}
