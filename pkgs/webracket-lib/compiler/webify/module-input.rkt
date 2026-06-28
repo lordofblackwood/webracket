@@ -44,6 +44,7 @@
 (struct webify-module-resolution-outcome
   (local dependency provider-export status)
   #:transparent)
+(struct dependency-export-index (rows by-dependency candidate-cache) #:transparent)
 
 ;; module-path-available? : module-path? -> boolean?
 ;;   Check whether the current host can resolve a module path to an existing source.
@@ -303,7 +304,17 @@
 ;; dependency-exports-ref : symbol? (listof dependency-exports?) symbol? -> (listof symbol?)
 ;;   Look up the exports declared for one dependency module.
 (define (dependency-exports-ref who dependency-exports name)
-  (define found (assoc name dependency-exports))
+  (define rows
+    (if (dependency-export-index? dependency-exports)
+        (dependency-export-index-rows dependency-exports)
+        dependency-exports))
+  (define found
+    (if (dependency-export-index? dependency-exports)
+        (let ([exports (hash-ref (dependency-export-index-by-dependency dependency-exports)
+                                 name
+                                 #f)])
+          (and exports (list name exports)))
+        (assoc name dependency-exports)))
   (cond
     [found (cadr found)]
     [(primitive-module-name? name)
@@ -314,7 +325,45 @@
                             "import dependency has no export table entry"
                             "dependency" name
                             "available dependencies"
-                            (map car dependency-exports))]))
+                            (map car rows))]))
+
+;; make-dependency-export-index : dependency-exports -> dependency-export-index?
+;;   Build per-resolution lookup state for dependency export rows.
+(define (make-dependency-export-index dependency-exports)
+  (dependency-export-index
+   dependency-exports
+   (for/hasheq ([entry (in-list dependency-exports)])
+     (match-define (list dependency exports) entry)
+     (values dependency exports))
+   (make-hasheq)))
+
+;; dependency-exports-has-dependency? : dependency-exports symbol? -> boolean?
+;;   Check whether dependency has an explicit export row.
+(define (dependency-exports-has-dependency? dependency-exports dependency)
+  (if (dependency-export-index? dependency-exports)
+      (hash-has-key? (dependency-export-index-by-dependency dependency-exports)
+                     dependency)
+      (and (assoc dependency dependency-exports) #t)))
+
+;; dependency-export-candidates : dependency-exports symbol? -> (listof symbol?)
+;;   Find provider rows with an export symbolically matching external.
+(define (dependency-export-candidates dependency-exports external)
+  (define (scan rows)
+    (remove-duplicates
+     (for/list ([entry (in-list rows)]
+                #:do [(match-define (list dependency exports) entry)]
+                #:when (for/or ([export (in-list exports)])
+                         (symbolic-name=? export external)))
+       dependency)
+     eq?))
+  (cond
+    [(dependency-export-index? dependency-exports)
+     (hash-ref! (dependency-export-index-candidate-cache dependency-exports)
+                external
+                (lambda ()
+                  (scan (dependency-export-index-rows dependency-exports))))]
+    [else
+     (scan dependency-exports)]))
 
 ;; kernel-dependency? : symbol? -> boolean?
 ;;   Recognize reflected origins for Racket's primitive kernel module.
@@ -807,13 +856,7 @@
            'resolved-by-reflection-hint)]
     [else
      (define candidates
-       (remove-duplicates
-        (for/list ([entry (in-list dependency-exports)]
-                   #:do [(match-define (list dependency exports) entry)]
-                   #:when (for/or ([export (in-list exports)])
-                            (symbolic-name=? export external)))
-          dependency)
-        eq?))
+       (dependency-export-candidates dependency-exports external))
      (define ranked-candidates
        (prefer-list-member-candidates
         external
@@ -1174,21 +1217,30 @@
   (validate-import-aliases! who import-aliases)
   (unless (or (not module-name) (symbol? module-name))
     (raise-argument-error who "(or/c symbol? #f)" module-name))
+  (define dependency-export-index
+    (make-dependency-export-index dependency-exports*))
   (define imports (map car bindings))
+  (define import-table
+    (for/hasheq ([import (in-list imports)])
+      (values import #t)))
+  (define canonical-import-cache (make-hasheq))
   (define (canonical-import import kind)
     (cond
-      [(memq import imports) import]
+      [(hash-ref import-table import #f) import]
       [else
-       (match (filter (lambda (candidate)
-                        (symbolic-name=? candidate import))
-                      imports)
-         [(list candidate) candidate]
-         [matches
-          (raise-arguments-error who
-                                 (format "~a references a name not imported by the linklet" kind)
-                                 "import" import
-                                 "matches" matches
-                                 "linklet imports" imports)])]))
+       (or (hash-ref canonical-import-cache import #f)
+           (match (filter (lambda (candidate)
+                            (symbolic-name=? candidate import))
+                          imports)
+             [(list candidate)
+              (hash-set! canonical-import-cache import candidate)
+              candidate]
+             [matches
+              (raise-arguments-error who
+                                     (format "~a references a name not imported by the linklet" kind)
+                                     "import" import
+                                     "matches" matches
+                                     "linklet imports" imports)]))]))
   (for ([dependency (in-list dependencies)])
     (match-define (list import _module) dependency)
     (canonical-import import "import dependency"))
@@ -1229,7 +1281,7 @@
       (define primitive-alias-hint
         (match candidate-primitive-alias-hint
           [(list dependency _provider-export)
-           #:when (assoc dependency dependency-exports*)
+           #:when (dependency-exports-has-dependency? dependency-export-index dependency)
            candidate-primitive-alias-hint]
           [_ #f]))
       (match-define (list dependency provider-export status)
@@ -1238,11 +1290,11 @@
               [(list dependency provider-export)
                (list dependency
                      (validate-provider-export! who
-                                                dependency-exports*
+                                                dependency-export-index
                                                 dependency
                                                 provider-export)
                      'resolved-by-compiled-primitive-alias)])
-            (resolve-import-source who dependency-exports* dependency-map alias-map hint-map local external module-name)))
+            (resolve-import-source who dependency-export-index dependency-map alias-map hint-map local external module-name)))
       (list (list local dependency provider-export)
             (webify-module-resolution-outcome local dependency provider-export status))))
   (values (map car resolved)

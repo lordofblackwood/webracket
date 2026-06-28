@@ -22,7 +22,11 @@
          racket/list
          racket/path
          racket/runtime-path
-         racket/system)
+         racket/system
+         (only-in "provider-cache.rkt"
+                  cached-fingerprint-valid?
+                  call-with-provider-cache-lock
+                  write-cache-fingerprint!))
 
 (define-runtime-path repo-root "../../../..")
 (define simplified-repo-root (simplify-path repo-root))
@@ -120,35 +124,6 @@
               (file-size path)
               (file-or-directory-modify-seconds path)))))
 
-;; cached-fingerprint-valid? : path? any/c -> boolean?
-;;   Check whether a cache fingerprint file matches the current source.
-(define (cached-fingerprint-valid? path fingerprint)
-  (and (file-exists? path)
-       (with-handlers ([exn:fail? (lambda (_exn) #f)])
-         (equal? (call-with-input-file path read) fingerprint))))
-
-;; write-cache-fingerprint! : path? any/c -> void?
-;;   Write the source fingerprint next to a generated artifact.
-(define (write-cache-fingerprint! path fingerprint)
-  (call-with-output-file path
-    (lambda (out) (write fingerprint out) (newline out))
-    #:exists 'truncate/replace))
-
-;; call-with-regexp-demod-lock : path? (-> any/c) -> any/c
-;;   Serialize regexp demod cache regeneration across dashboard worker processes.
-(define (call-with-regexp-demod-lock out-rktl thunk)
-  (define lock-path (make-lock-file-name out-rktl))
-  (call-with-file-lock/timeout
-   out-rktl
-   'exclusive
-   thunk
-   (lambda ()
-     (error 'webify-regexp-demod!
-            "timed out waiting for regexp demod cache lock: ~a"
-            lock-path))
-   #:lock-file lock-path
-   #:max-delay 300))
-
 ;; webify-regexp-demod-command : [path-string?] -> (listof string?)
 ;;   Build the Racket CS demodularizer command for the staged regexp source.
 (define (webify-regexp-demod-command [cache-root webify-regexp-default-cache-root])
@@ -186,7 +161,7 @@
                 out-rktl))
      (values 0 "using cached regexp demod linklet\n" out-rktl)]
     [else
-     (call-with-regexp-demod-lock
+     (call-with-provider-cache-lock
       out-rktl
       (lambda ()
         (cond

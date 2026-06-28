@@ -21,7 +21,11 @@
          racket/list
          racket/path
          racket/runtime-path
-         racket/system)
+         racket/system
+         (only-in "provider-cache.rkt"
+                  cached-fingerprint-valid?
+                  call-with-provider-cache-lock
+                  write-cache-fingerprint!))
 
 (define-runtime-path repo-root "../../../..")
 (define simplified-repo-root (simplify-path repo-root))
@@ -145,20 +149,6 @@
               (file-size path)
               (file-or-directory-modify-seconds path)))))
 
-;; cached-fingerprint-valid? : path? any/c -> boolean?
-;;   Check whether a cache fingerprint file matches the current source.
-(define (cached-fingerprint-valid? path fingerprint)
-  (and (file-exists? path)
-       (with-handlers ([exn:fail? (lambda (_exn) #f)])
-         (equal? (call-with-input-file path read) fingerprint))))
-
-;; write-cache-fingerprint! : path? any/c -> void?
-;;   Write the source fingerprint next to a generated artifact.
-(define (write-cache-fingerprint! path fingerprint)
-  (call-with-output-file path
-    (lambda (out) (write fingerprint out) (newline out))
-    #:exists 'truncate/replace))
-
 ;; webify-read-demod-command : [path-string?] -> (listof string?)
 ;;   Build the Racket CS demodularizer command for the staged expander/read root.
 (define (webify-read-demod-command [cache-root webify-read-default-cache-root])
@@ -196,23 +186,36 @@
                 out-rktl))
      (values 0 "using cached expander/read demod linklet\n" out-rktl)]
     [else
-     (when verbose?
-       (fprintf (current-error-port)
-                "provider-cache: expander/read demod miss; regenerating: ~a\n"
-                out-rktl))
-     (define stdout (open-output-string))
-     (define stderr (open-output-string))
-     (define command (webify-read-demod-command cache-root))
-     (define status
-       (parameterize ([current-output-port stdout]
-                      [current-error-port stderr])
-         (apply system*/exit-code command)))
-     (when (zero? status)
-       (write-cache-fingerprint! fingerprint-path fingerprint))
-     (values status
-             (string-append (get-output-string stdout)
-                            (get-output-string stderr))
-             out-rktl)]))
+     (call-with-provider-cache-lock
+      out-rktl
+      (lambda ()
+        (cond
+          [(and (not force?)
+                (file-exists? out-rktl)
+                (cached-fingerprint-valid? fingerprint-path fingerprint))
+           (when verbose?
+             (fprintf (current-error-port)
+                      "provider-cache: expander/read demod hit: ~a\n"
+                      out-rktl))
+           (values 0 "using cached expander/read demod linklet\n" out-rktl)]
+          [else
+           (when verbose?
+             (fprintf (current-error-port)
+                      "provider-cache: expander/read demod miss; regenerating: ~a\n"
+                      out-rktl))
+           (define stdout (open-output-string))
+           (define stderr (open-output-string))
+           (define command (webify-read-demod-command cache-root))
+           (define status
+             (parameterize ([current-output-port stdout]
+                            [current-error-port stderr])
+               (apply system*/exit-code command)))
+           (when (zero? status)
+             (write-cache-fingerprint! fingerprint-path fingerprint))
+           (values status
+                   (string-append (get-output-string stdout)
+                                  (get-output-string stderr))
+                   out-rktl)])))]))
 
 ;; webify-read-linklet : [#:cache-root path-string?] [#:force? boolean?] -> any/c
 ;;   Return the cached flattened expander/read linklet, generating it if needed.

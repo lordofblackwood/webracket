@@ -135,15 +135,35 @@
            (for/list ([group (in-list importss)])
              (map car group))))
   (define declared-imports (map car imports))
+  (define declared-import-table
+    (for/hasheq ([import (in-list declared-imports)])
+      (values import #t)))
+  (define linklet-import-table
+    (for/hasheq ([import (in-list linklet-imports)])
+      (values import #t)))
+  (define declared-symbolic-cache (make-hasheq))
+  (define linklet-symbolic-cache (make-hasheq))
+  (define (declared-import? import)
+    (or (hash-ref declared-import-table import #f)
+        (hash-ref! declared-symbolic-cache
+                   import
+                   (lambda ()
+                     (for/or ([declared (in-list declared-imports)])
+                       (symbolic-import-name=? import declared))))))
+  (define (linklet-import? import)
+    (or (hash-ref linklet-import-table import #f)
+        (hash-ref! linklet-symbolic-cache
+                   import
+                   (lambda ()
+                     (for/or ([linklet-import (in-list linklet-imports)])
+                       (symbolic-import-name=? import linklet-import))))))
   (define missing-imports
     (filter (lambda (import)
-              (not (for/or ([declared (in-list declared-imports)])
-                     (symbolic-import-name=? import declared))))
+              (not (declared-import? import)))
             linklet-imports))
   (define extra-imports
     (filter (lambda (import)
-              (not (for/or ([linklet-import (in-list linklet-imports)])
-                     (symbolic-import-name=? import linklet-import))))
+              (not (linklet-import? import)))
             declared-imports))
   (unless (null? missing-imports)
     (raise-arguments-error who

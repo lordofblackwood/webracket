@@ -1918,14 +1918,17 @@
 ;; filter-importss : importss (listof symbol?) -> importss
 ;;   Keep only raw import bindings whose normalized local name is demanded.
 (define (filter-importss importss demanded-imports)
+  (define demanded-table
+    (for/hasheq ([name (in-list demanded-imports)])
+      (values name #t)))
   (filter
    pair?
    (for/list ([group (in-list importss)])
      (filter (lambda (binding)
                (match-define (list local external)
                  (normalize-linklet-import-binding 'filter-importss binding))
-               (or (memq local demanded-imports)
-                   (memq external demanded-imports)))
+               (or (hash-ref demanded-table local #f)
+                   (hash-ref demanded-table external #f)))
              group))))
 
 (define unsafe-undefined-import-names
@@ -1973,6 +1976,12 @@
   (define linklet (webify-normalize-linklet-imports raw-linklet))
   (match-define `(linklet ,raw-importss ,raw-exports . ,_raw-body) raw-linklet)
   (match-define `(linklet ,importss ,_exports . ,body) linklet)
+  (define free-var-cache (make-hasheq))
+  (define (free-vars expr)
+    (hash-ref! free-var-cache
+               expr
+               (lambda ()
+                 (linklet-expr-free-vars expr))))
   (define export-descriptors (linklet-export-descriptors who raw-exports))
   (define (demanded-export-descriptor demanded-export)
     (or
@@ -2013,7 +2022,7 @@
     (remove-duplicates
      (append*
       (for/list ([form (in-list initializer-forms)])
-        (linklet-expr-free-vars form)))))
+        (free-vars form)))))
   (define definition-table (make-hasheq))
   (for ([form (in-list body)])
     (define-values (ids rhs) (linklet-definition form))
@@ -2035,21 +2044,35 @@
                                (generated-effect-definition-name? id))))
         (car ids))
       initializer-needed)))
-  (let loop ([queue needed])
+  (define needed-table
+    (for/hasheq ([id (in-list needed)])
+      (values id #t)))
+  (define needed-reverse (reverse needed))
+  (let loop ([queue needed]
+             [pending-reverse '()])
     (cond
-      [(null? queue) (void)]
+      [(null? queue)
+       (unless (null? pending-reverse)
+         (loop (reverse pending-reverse) '()))]
       [else
        (define id (car queue))
+       (define next-pending-reverse pending-reverse)
        (define definition (hash-ref definition-table id #f))
        (cond
-         [(not definition) (loop (cdr queue))]
+         [(not definition) (loop (cdr queue) next-pending-reverse)]
          [else
           (match-define (list ids rhs _form) definition)
           (define discovered
-            (filter (lambda (free-id) (not (memq free-id needed)))
-                    (linklet-expr-free-vars rhs)))
-          (set! needed (remove-duplicates (append needed ids discovered)))
-          (loop (append (cdr queue) discovered))])]))
+            (filter (lambda (free-id) (not (hash-ref needed-table free-id #f)))
+                    (free-vars rhs)))
+          (for ([new-id (in-list (append ids discovered))])
+            (unless (hash-ref needed-table new-id #f)
+              (hash-set! needed-table new-id #t)
+              (set! needed-reverse (cons new-id needed-reverse))))
+          (for ([free-id (in-list discovered)])
+            (set! next-pending-reverse (cons free-id next-pending-reverse)))
+          (loop (cdr queue) next-pending-reverse)])]))
+  (set! needed (reverse needed-reverse))
   (define kept-body
     (for/list ([form (in-list body)]
                #:do [(define-values (ids _rhs) (linklet-definition form))]
@@ -2065,7 +2088,7 @@
     (remove-duplicates
      (append*
       (for/list ([form (in-list kept-body)])
-        (linklet-expr-free-vars form)))))
+        (free-vars form)))))
   (define demanded-imports
     (remove-duplicates
      (append demanded-imports/raw
@@ -2120,6 +2143,12 @@
   (define linklet/readable (readable-linklet-datum linklet))
   (match linklet/readable
     [`(linklet ,importss ,exports . ,body)
+     (define free-var-cache (make-hasheq))
+     (define (free-vars expr)
+       (hash-ref! free-var-cache
+                  expr
+                  (lambda ()
+                    (linklet-expr-free-vars expr))))
      (define defined
        (append*
         (for/list ([form (in-list body)])
@@ -2129,7 +2158,7 @@
        (remove-bound
         (remove-duplicates
          (append* (for/list ([form (in-list body)])
-                    (linklet-expr-free-vars form))))
+                    (free-vars form))))
         defined))
      (define needs-repair?
        (or (memq 'unsafe-undefined free)
@@ -2174,15 +2203,24 @@
   (define depths-by-name (make-hasheq))
   (define unresolved-candidate-reports-cache (make-hasheq))
   (define unresolved-candidate-cache (make-hash))
-  (define ordered '())
+  (define ordered-reverse '())
+  (define trace-base (and trace-box (unbox trace-box)))
+  (define trace-events-reverse '())
+  (define trace-flushed? #f)
+  (define (ordered-reports)
+    (reverse ordered-reverse))
+  (define (flush-trace!)
+    (when (and trace-box (not trace-flushed?))
+      (set-box! trace-box
+                (append trace-base
+                        (reverse trace-events-reverse)))
+      (set! trace-flushed? #t)))
   (define (trace! provider demander depth cached? reason elapsed-ms status)
     (when trace-box
-      (set-box!
-       trace-box
-       (append
-        (unbox trace-box)
-        (list (webify-module-provider-discovery-trace-event
-               provider demander depth cached? reason elapsed-ms status))))))
+      (set! trace-events-reverse
+            (cons (webify-module-provider-discovery-trace-event
+                   provider demander depth cached? reason elapsed-ms status)
+                  trace-events-reverse))))
   (define (check-frontier! reason)
     (when (and frontier-limit (> (hash-count reports-by-name) frontier-limit))
       (raise-arguments-error
@@ -2190,14 +2228,14 @@
        "provider discovery frontier limit reached"
        "limit" frontier-limit
        "reason" reason
-       "frontier" (map webify-module-extractor-spike-name ordered))))
+       "frontier" (map webify-module-extractor-spike-name (ordered-reports)))))
   (define (record! report)
     (define name (webify-module-extractor-spike-name report))
     (cond
       [(hash-has-key? reports-by-name name) #f]
       [else
        (hash-set! reports-by-name name report)
-       (set! ordered (append ordered (list report)))
+       (set! ordered-reverse (cons report ordered-reverse))
        (check-frontier! name)
        #t]))
   (for ([report (in-list reports)])
@@ -2205,133 +2243,146 @@
       (hash-set! depths-by-name
                  (webify-module-extractor-spike-name report)
                  0)))
-  (let loop ([queue reports])
-    (cond
-      [(null? queue) ordered]
-      [else
-       (define report (car queue))
-       (define demander (webify-module-extractor-spike-name report))
-       (define demander-depth (hash-ref depths-by-name demander 0))
-       (define import-map (webify-module-extractor-spike-import-map report))
-       (define new-reports '())
-       (define (fetch-report name reason)
-         (define cached-report (hash-ref reports-by-name name #f))
+  (with-handlers ([exn:fail?
+                   (lambda (exn)
+                     (flush-trace!)
+                     (raise exn))])
+    (let loop ([queue reports]
+               [pending-reverse '()])
+      (cond
+        [(null? queue)
          (cond
-           [cached-report
-            (trace! name demander (hash-ref depths-by-name name demander-depth) #t reason 0 'cached)
-            cached-report]
-           [(skip-provider? name)
-            (trace! name demander (add1 demander-depth) #f reason 0 'cut)
-            #f]
+           [(null? pending-reverse)
+            (define result (ordered-reports))
+            (flush-trace!)
+            result]
            [else
-            (define start-ms (current-inexact-milliseconds))
-            (define provider-report
-              (with-handlers ([exn:fail?
-                               (lambda (exn)
-                                 (trace! name demander (add1 demander-depth) #f reason
-                                         (- (current-inexact-milliseconds) start-ms)
-                                         'failed)
-                                 (if skip-unfetchable? #f (raise exn)))])
-                (fetch-provider name)))
-            (cond
-              [(not provider-report)
-               (trace! name demander (add1 demander-depth) #f reason
-                       (- (current-inexact-milliseconds) start-ms)
-                       'skipped)
-               #f]
-              [else
-               (unless (webify-module-extractor-spike? provider-report)
-                 (raise-arguments-error who
-                                        "provider fetcher did not return an extractor report"
-                                        "module" name
-                                        "result" provider-report))
-               (unless (eq? name (webify-module-extractor-spike-name provider-report))
-                 (raise-arguments-error who
-                                        "provider report name does not match requested module"
-                                        "module" name
-                                        "report name" (webify-module-extractor-spike-name provider-report)))
-               (hash-set! depths-by-name name (add1 demander-depth))
-               (trace! name demander (add1 demander-depth) #f reason
-                       (- (current-inexact-milliseconds) start-ms)
-                       'fetched)
-               (when (record! provider-report)
-                 (set! new-reports (append new-reports (list provider-report))))
-               provider-report])]))
-       (for ([name (in-list (webify-module-extractor-spike-required-provider-names report))])
-         (fetch-report name 'required-provider))
-       (define (unresolved-candidate-reports)
-         (hash-ref!
-          unresolved-candidate-reports-cache
-          demander
-          (lambda ()
-            (filter
-             values
-             (for/list ([candidate (in-list (webify-module-import-map-required-module-candidates import-map))]
-                        #:when (= 0 (car candidate)))
-               (fetch-report (cadr candidate) 'unresolved-import-candidate))))))
-      (define (process-unresolved-binding! local external)
-        (define key (list demander local external))
-        (unless (hash-ref unresolved-candidate-cache key #f)
-          (hash-set! unresolved-candidate-cache key #t)
-          (match (compiled-primitive-alias-hint demander local external)
-            [(list dependency _provider-export)
-             (fetch-report dependency 'compiled-alias-hint-provider)]
+            (loop (reverse pending-reverse) '())])]
+        [else
+         (define report (car queue))
+         (define next-pending-reverse pending-reverse)
+         (define demander (webify-module-extractor-spike-name report))
+         (define demander-depth (hash-ref depths-by-name demander 0))
+         (define import-map (webify-module-extractor-spike-import-map report))
+         (define (fetch-report name reason)
+           (define cached-report (hash-ref reports-by-name name #f))
+           (cond
+             [cached-report
+              (trace! name demander (hash-ref depths-by-name name demander-depth) #t reason 0 'cached)
+              cached-report]
+             [(skip-provider? name)
+              (trace! name demander (add1 demander-depth) #f reason 0 'cut)
+              #f]
+             [else
+              (define start-ms (current-inexact-milliseconds))
+              (define provider-report
+                (with-handlers ([exn:fail?
+                                 (lambda (exn)
+                                   (trace! name demander (add1 demander-depth) #f reason
+                                           (- (current-inexact-milliseconds) start-ms)
+                                           'failed)
+                                   (if skip-unfetchable? #f (raise exn)))])
+                  (fetch-provider name)))
+              (cond
+                [(not provider-report)
+                 (trace! name demander (add1 demander-depth) #f reason
+                         (- (current-inexact-milliseconds) start-ms)
+                         'skipped)
+                 #f]
+                [else
+                 (unless (webify-module-extractor-spike? provider-report)
+                   (raise-arguments-error who
+                                          "provider fetcher did not return an extractor report"
+                                          "module" name
+                                          "result" provider-report))
+                 (unless (eq? name (webify-module-extractor-spike-name provider-report))
+                   (raise-arguments-error who
+                                          "provider report name does not match requested module"
+                                          "module" name
+                                          "report name" (webify-module-extractor-spike-name provider-report)))
+                 (hash-set! depths-by-name name (add1 demander-depth))
+                 (trace! name demander (add1 demander-depth) #f reason
+                         (- (current-inexact-milliseconds) start-ms)
+                         'fetched)
+                 (when (record! provider-report)
+                   (set! next-pending-reverse
+                         (cons provider-report next-pending-reverse)))
+                 provider-report])]))
+         (for ([name (in-list (webify-module-extractor-spike-required-provider-names report))])
+           (fetch-report name 'required-provider))
+         (define (unresolved-candidate-reports)
+           (hash-ref!
+            unresolved-candidate-reports-cache
+            demander
+            (lambda ()
+              (filter
+               values
+               (for/list ([candidate (in-list (webify-module-import-map-required-module-candidates import-map))]
+                          #:when (= 0 (car candidate)))
+                 (fetch-report (cadr candidate) 'unresolved-import-candidate))))))
+        (define (process-unresolved-binding! local external)
+          (define key (list demander local external))
+          (unless (hash-ref unresolved-candidate-cache key #f)
+            (hash-set! unresolved-candidate-cache key #t)
+            (match (compiled-primitive-alias-hint demander local external)
+              [(list dependency _provider-export)
+               (fetch-report dependency 'compiled-alias-hint-provider)]
             [_ (void)])
-          (when (syntax-srcloc-export-name? external)
-            (fetch-report 'syntax/srcloc 'compiled-source-location-helper))
-           (when (symbolic-member? external
-                                   '(do-make-object
-                                     extract-arg
-                                     compose-class
-                                     is-a?
-                                     object?
-                                     object%))
-             (fetch-report 'racket/private/class-internal
-                           'compiled-class-runtime-helper))
-           (when (symbolic-name=? external 'find-method/who)
-             (fetch-report 'racket/private/class-struct
-                           'compiled-class-struct-helper))
-           (when (symbolic-member? external
-                                   '(check-inspector
-                                     check-struct-type))
-             (fetch-report 'racket/private/define-struct
-                           'compiled-define-struct-helper))
-           (when (symbolic-member? external
-                                   '(make-serialize-info
-                                     make-deserialize-info))
-             (fetch-report 'racket/private/serialize-structs
-                           'compiled-serialize-structs-helper))
-           (when (symbolic-name=? external 'remove-duplicates)
-             (fetch-report 'webracket/list 'compiled-list-helper))
-           (when (symbolic-member? external
-                                   '(andmap2
-                                     ormap2))
-             (fetch-report 'racket/private/map 'compiled-map-helper))
-           (when (symbolic-name=? external 'normalise-inputs)
-             (fetch-report 'racket/private/for 'compiled-for-helper))
-           (define candidate-reports (unresolved-candidate-reports))
-           (define directly-exported?
-             (for/or ([candidate-report (in-list candidate-reports)])
-               (for/or ([export (in-list (webify-module-extractor-spike-phase0-exports
-                                          candidate-report))])
-                 (symbolic-name=? export external))))
-           (unless directly-exported?
-             (for ([candidate-report (in-list candidate-reports)])
-               (for ([alias (in-list
-                             (compiled-provides-provider-aliases
-                              (webify-module-import-map-decl-provides-expression
-                               (webify-module-extractor-spike-import-map candidate-report))
-                              (webify-module-import-map-data-module-path-indexes
-                               (webify-module-extractor-spike-import-map candidate-report))
-                              (webify-module-extractor-spike-name candidate-report)
-                              external))])
-                 (match-define (list dependency _provider-export) alias)
-                 (fetch-report dependency 'compiled-provide-alias))))))
-       (for* ([group (in-list (webify-module-import-map-unresolved-import-groups import-map))]
-              [binding (in-list group)])
-         (match-define (list _local external) binding)
-         (process-unresolved-binding! _local external))
-       (loop (append (cdr queue) new-reports))])))
+            (when (syntax-srcloc-export-name? external)
+              (fetch-report 'syntax/srcloc 'compiled-source-location-helper))
+            (when (symbolic-member? external
+                                    '(do-make-object
+                                      extract-arg
+                                      compose-class
+                                      is-a?
+                                      object?
+                                      object%))
+              (fetch-report 'racket/private/class-internal
+                            'compiled-class-runtime-helper))
+            (when (symbolic-name=? external 'find-method/who)
+              (fetch-report 'racket/private/class-struct
+                            'compiled-class-struct-helper))
+            (when (symbolic-member? external
+                                    '(check-inspector
+                                      check-struct-type))
+              (fetch-report 'racket/private/define-struct
+                            'compiled-define-struct-helper))
+            (when (symbolic-member? external
+                                    '(make-serialize-info
+                                      make-deserialize-info))
+              (fetch-report 'racket/private/serialize-structs
+                            'compiled-serialize-structs-helper))
+            (when (symbolic-name=? external 'remove-duplicates)
+              (fetch-report 'webracket/list 'compiled-list-helper))
+            (when (symbolic-member? external
+                                    '(andmap2
+                                      ormap2))
+              (fetch-report 'racket/private/map 'compiled-map-helper))
+            (when (symbolic-name=? external 'normalise-inputs)
+              (fetch-report 'racket/private/for 'compiled-for-helper))
+            (define candidate-reports (unresolved-candidate-reports))
+            (define directly-exported?
+              (for/or ([candidate-report (in-list candidate-reports)])
+                (for/or ([export (in-list (webify-module-extractor-spike-phase0-exports
+                                           candidate-report))])
+                  (symbolic-name=? export external))))
+            (unless directly-exported?
+              (for ([candidate-report (in-list candidate-reports)])
+                (for ([alias (in-list
+                              (compiled-provides-provider-aliases
+                               (webify-module-import-map-decl-provides-expression
+                                (webify-module-extractor-spike-import-map candidate-report))
+                               (webify-module-import-map-data-module-path-indexes
+                                (webify-module-extractor-spike-import-map candidate-report))
+                               (webify-module-extractor-spike-name candidate-report)
+                               external))])
+                  (match-define (list dependency _provider-export) alias)
+                  (fetch-report dependency 'compiled-provide-alias))))))
+         (for* ([group (in-list (webify-module-import-map-unresolved-import-groups import-map))]
+                [binding (in-list group)])
+           (match-define (list _local external) binding)
+           (process-unresolved-binding! _local external))
+         (loop (cdr queue) next-pending-reverse)]))))
 
 ;; webify-module-extractor-spikes->discovered-resolved-linklet-inputs : reports ... -> inputs
 ;;   Discover provider closure, then resolve the resulting graph into bridge inputs.
@@ -2347,14 +2398,25 @@
     (for/hasheq ([report (in-list discovered-reports)])
       (values (webify-module-extractor-spike-name report) report)))
   (define final-by-name (make-hasheq))
+  (define final-reports-cache #f)
+  (define runtime-required-modules-cache (make-hasheq))
+  (define (invalidate-final-reports!)
+    (set! final-reports-cache #f))
+  (define (set-final-report! module report)
+    (hash-set! final-by-name module report)
+    (invalidate-final-reports!))
   (for ([report (in-list (append extra-reports root-reports))])
-    (hash-set! final-by-name (webify-module-extractor-spike-name report) report))
+    (set-final-report! (webify-module-extractor-spike-name report) report))
   (define (final-reports)
-    (filter values
-            (for/list ([report (in-list discovered-reports)])
-              (hash-ref final-by-name
-                        (webify-module-extractor-spike-name report)
-                        #f))))
+    (or final-reports-cache
+        (let ([reports
+               (filter values
+                       (for/list ([report (in-list discovered-reports)])
+                         (hash-ref final-by-name
+                                   (webify-module-extractor-spike-name report)
+                                   #f)))])
+          (set! final-reports-cache reports)
+          reports)))
   (define (ordered-final-reports)
     (define final-table
       (for/hasheq ([report (in-list (final-reports))])
@@ -2383,29 +2445,33 @@
       (visit report))
     (reverse planned))
   (define (runtime-required-modules report)
-    (define self-name (webify-module-extractor-spike-name report))
-    (define imported-externals
-      (remove-duplicates
-       (for/list ([binding (in-list (webify-linklet-import-bindings
-                                     (webify-module-extractor-spike-phase0-linklet-datum
-                                      report)))])
-         (cadr binding))
-       eq?))
-    (define (provider-exports-imported-name? provider-name)
-      (define provider-report (hash-ref reports-by-name provider-name #f))
-      (and provider-report
-           (for/or ([export (in-list (webify-module-extractor-spike-phase0-exports
-                                      provider-report))])
-             (for/or ([imported (in-list imported-externals)])
-               (symbolic-name=? export imported)))))
-    (remove-duplicates
-     (for/list ([candidate (in-list (webify-module-import-map-required-module-candidates
-                                     (webify-module-extractor-spike-import-map report)))]
-                #:when (and (= 0 (car candidate))
-                            (not (eq? (cadr candidate) self-name))
-                            (provider-exports-imported-name? (cadr candidate))))
-       (cadr candidate))
-     eq?))
+    (hash-ref!
+     runtime-required-modules-cache
+     report
+     (lambda ()
+       (define self-name (webify-module-extractor-spike-name report))
+       (define imported-externals
+         (remove-duplicates
+          (for/list ([binding (in-list (webify-linklet-import-bindings
+                                        (webify-module-extractor-spike-phase0-linklet-datum
+                                         report)))])
+            (cadr binding))
+          eq?))
+       (define (provider-exports-imported-name? provider-name)
+         (define provider-report (hash-ref reports-by-name provider-name #f))
+         (and provider-report
+              (for/or ([export (in-list (webify-module-extractor-spike-phase0-exports
+                                         provider-report))])
+                (for/or ([imported (in-list imported-externals)])
+                  (symbolic-name=? export imported)))))
+       (remove-duplicates
+        (for/list ([candidate (in-list (webify-module-import-map-required-module-candidates
+                                        (webify-module-extractor-spike-import-map report)))]
+                   #:when (and (= 0 (car candidate))
+                               (not (eq? (cadr candidate) self-name))
+                               (provider-exports-imported-name? (cadr candidate))))
+          (cadr candidate))
+        eq?))))
   (define demanded (make-hasheq))
   (define (new-exports module exports)
     (define old (hash-ref demanded module '()))
@@ -2428,26 +2494,33 @@
         #:dependencies dependencies
         #:module-protocol-dependency module-protocol-dependency))))
   (define (process-export-demands! demands)
-    (let loop ([queue (filter values (map record-demand! demands))])
-      (unless (null? queue)
-        (define demand (car queue))
-        (define module (webify-module-export-demand-module demand))
-        (define report (hash-ref reports-by-name module #f))
-        (define next-demands '())
-        (when (and report (not (hash-ref root/extra-names module #f)))
-          (define sliced
-            (webify-module-extractor-spike/slice-exports
-             report
-             (hash-ref demanded module)))
-          (hash-set! final-by-name module sliced)
-          (set! next-demands
-                (webify-module-extractor-spike-import-export-demands
-                 sliced
-                 discovered-reports
-                 #:dependencies dependencies
-                 #:module-protocol-dependency module-protocol-dependency)))
-        (loop (append (cdr queue)
-                      (filter values (map record-demand! next-demands)))))))
+    (let loop ([queue (filter values (map record-demand! demands))]
+               [pending-reverse '()])
+      (cond
+        [(null? queue)
+         (unless (null? pending-reverse)
+           (loop (reverse pending-reverse) '()))]
+        [else
+         (define demand (car queue))
+         (define next-pending-reverse pending-reverse)
+         (define module (webify-module-export-demand-module demand))
+         (define report (hash-ref reports-by-name module #f))
+         (when (and report (not (hash-ref root/extra-names module #f)))
+           (define sliced
+             (webify-module-extractor-spike/slice-exports
+              report
+              (hash-ref demanded module)))
+           (set-final-report! module sliced)
+           (for ([next-demand (in-list (webify-module-extractor-spike-import-export-demands
+                                        sliced
+                                        discovered-reports
+                                        #:dependencies dependencies
+                                        #:module-protocol-dependency module-protocol-dependency))])
+             (define recorded (record-demand! next-demand))
+             (when recorded
+               (set! next-pending-reverse
+                     (cons recorded next-pending-reverse)))))
+         (loop (cdr queue) next-pending-reverse)])))
   (define (process-init-closure!)
     (let loop ()
       (define changed? #f)
@@ -2459,18 +2532,16 @@
             (when provider-report
               (define sliced
                 (webify-module-extractor-spike/slice-exports provider-report '()))
-              (hash-set! final-by-name module sliced)
+              (set-final-report! module sliced)
               (set! changed? #t)
-              (set! next-demands
-                    (append
-                     (webify-module-extractor-spike-import-export-demands
-                      sliced
-                      discovered-reports
-                      #:dependencies dependencies
-                      #:module-protocol-dependency module-protocol-dependency)
-                     next-demands))))))
+              (for ([next-demand (in-list (webify-module-extractor-spike-import-export-demands
+                                           sliced
+                                           discovered-reports
+                                           #:dependencies dependencies
+                                           #:module-protocol-dependency module-protocol-dependency))])
+                (set! next-demands (cons next-demand next-demands)))))))
       (when (pair? next-demands)
-        (process-export-demands! next-demands))
+        (process-export-demands! (reverse next-demands)))
       (when (or changed? (pair? next-demands))
         (loop))))
   (process-export-demands! initial-demands)
@@ -2527,14 +2598,14 @@
          #:dependencies [dependencies '()]
          #:module-protocol-dependency [module-protocol-dependency #f]
          #:demand-slice? [demand-slice? #f])
-  (define timings '())
+  (define timings-reverse '())
   (define (timed label thunk)
     (define start-ms (current-inexact-milliseconds))
     (define result (thunk))
-    (set! timings
-          (append timings
-                  (list (cons label
-                              (- (current-inexact-milliseconds) start-ms)))))
+    (set! timings-reverse
+          (cons (cons label
+                      (- (current-inexact-milliseconds) start-ms))
+                timings-reverse))
     result)
   (define discovered-reports
     (timed
@@ -2570,7 +2641,7 @@
    discovered-reports
    resolved-reports
    inputs
-   timings))
+   (reverse timings-reverse)))
 
 ;; resolve-extracted-linklet-imports : symbol? linklet-datum ... -> imports
 ;;   Classify extracted imports and turn supported ones into flat bridge triples.
@@ -4035,12 +4106,27 @@
 (define (validate-extractor-reports! who reports)
   (unless (list? reports)
     (raise-argument-error who "(listof webify-module-extractor-spike?)" reports))
+  (define names
+    (for/list ([report (in-list reports)])
+      (unless (webify-module-extractor-spike? report)
+        (raise-argument-error who "webify-module-extractor-spike?" report))
+      (webify-module-extractor-spike-name report)))
+  (define duplicate-name (check-duplicates names eq?))
+  (when duplicate-name
+    (raise-arguments-error who
+                           "duplicate module extractor reports are not supported"
+                           "name" duplicate-name))
+  (void))
+
+;; validate-extractor-reports-with-exports! : symbol? any/c -> dependency-exports
+;;   Reject malformed report lists and return their dependency export table.
+(define (validate-extractor-reports-with-exports! who reports)
+  (unless (list? reports)
+    (raise-argument-error who "(listof webify-module-extractor-spike?)" reports))
   (for ([report (in-list reports)])
     (unless (webify-module-extractor-spike? report)
       (raise-argument-error who "webify-module-extractor-spike?" report)))
-  ;; Reuse export-table construction to reject duplicate module names.
-  (webify-module-extractor-spikes-dependency-exports reports)
-  (void))
+  (webify-module-extractor-spikes-dependency-exports reports))
 
 ;; webify-source-module->linklet-input : module-datum [#:imports imports] -> webify-module-linklet-input?
 ;;   Extract the phase-0 linklet datum from a source module into the manifest input shape.
@@ -4099,6 +4185,7 @@
 ;;   Resolve an importer report using compiled export rows from provider reports.
 (define (webify-module-extractor-spike->resolved-linklet-input/providers report
                                                                          provider-reports
+                                                                         #:provider-dependency-exports [precomputed-provider-dependency-exports #f]
                                                                          #:dependency-exports [dependency-exports #f]
                                                                          #:dependencies [dependencies '()]
                                                                          #:reflection-hints [reflection-hints '()]
@@ -4119,7 +4206,8 @@
      (webify-module-extractor-spike-name report)
      (webify-normalize-linklet-imports raw-linklet)))
   (define provider-dependency-exports
-    (webify-module-extractor-spikes-dependency-exports provider-reports))
+    (or precomputed-provider-dependency-exports
+        (webify-module-extractor-spikes-dependency-exports provider-reports)))
   (define provider+self-dependency-exports
     (dependency-exports/include-self report provider-dependency-exports))
   (define resolved-dependency-exports
@@ -4153,18 +4241,16 @@
                                                                   #:reflection-hints [reflection-hints '()]
                                                                   #:module-protocol-dependency [module-protocol-dependency #f])
   (define who 'webify-module-extractor-spikes->resolved-linklet-inputs)
-  (validate-extractor-reports! who reports)
+  (define graph-dependency-exports
+    (validate-extractor-reports-with-exports! who reports))
   (append*
    (for/list ([report (in-list reports)])
-     (define provider-reports
-       (filter (lambda (provider-report)
-                 (not (eq? provider-report report)))
-               reports))
      (define stx-input (webify-module-syntax-literal-input report))
      (define main-input
        (webify-module-extractor-spike->resolved-linklet-input/providers
         report
-        provider-reports
+        '()
+        #:provider-dependency-exports graph-dependency-exports
         #:dependency-exports dependency-exports
         #:dependencies dependencies
         #:reflection-hints reflection-hints

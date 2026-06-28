@@ -452,16 +452,32 @@
   (define source-table
     (for/hasheq ([entry (in-list entries)])
       (values (car entry) (cdr entry))))
+  (define import-table
+    (for/hasheq ([import (in-list imports)])
+      (values import #t)))
+  (define symbolic-source-cache (make-hasheq))
+  (define import-membership-cache (make-hasheq))
+  (define (symbolic-sources import)
+    (hash-ref! symbolic-source-cache
+               import
+               (lambda ()
+                 (for/list ([entry (in-list entries)]
+                            #:when (symbolic-import-name=? import (car entry)))
+                   (cdr entry)))))
+  (define (linklet-import? import)
+    (or (hash-ref import-table import #f)
+        (hash-ref! import-membership-cache
+                   import
+                   (lambda ()
+                     (for/or ([linklet-import (in-list imports)])
+                       (symbolic-import-name=? import linklet-import))))))
   (define (lookup-source import)
     (define exact-source (hash-ref source-table import #f))
     (cond
       [exact-source exact-source]
       [else
-       (define symbolic-sources
-         (for/list ([entry (in-list entries)]
-                    #:when (symbolic-import-name=? import (car entry)))
-           (cdr entry)))
-       (match symbolic-sources
+       (define matches (symbolic-sources import))
+       (match matches
          [(list (list _import instance export))
           (list import instance export)]
          ['()
@@ -476,15 +492,14 @@
                                  "ambiguous symbolic import source"
                                  "name" name
                                  "import" import
-                                 "imports" symbolic-sources)])]))
+                                 "imports" matches)])]))
   (define grouped
     (for/list ([group (in-list importss)])
       (for/list ([import (in-list group)])
         (lookup-source import))))
   (define extra-imports
     (filter (lambda (import)
-              (not (for/or ([linklet-import (in-list imports)])
-                     (symbolic-import-name=? import linklet-import))))
+              (not (linklet-import? import)))
             (hash-keys source-table)))
   (unless (null? extra-imports)
     (raise-arguments-error who

@@ -27,6 +27,7 @@
          (struct-out compilation-output-paths)
          (struct-out compilation-timings)
          resolve-compilation-output-paths
+         (all-from-out "webify/provider-cache.rkt")
          (all-defined-out))
 
 
@@ -41,9 +42,7 @@
                                     path-get-extension)
          (only-in racket/file       delete-directory/files
                                     find-files
-                                    call-with-file-lock/timeout
                                     make-directory*
-                                    make-lock-file-name
                                     make-temporary-file)
          (only-in racket/port       open-output-nowhere with-output-to-string)
          (only-in racket/pretty     pretty-write)
@@ -96,6 +95,7 @@
                   stdlib-module-alias-symbols
                   stdlib-module-private-forms+bindings
                   stdlib-definition-form-symbols)
+         "webify/provider-cache.rkt"
          (only-in "webify/io-format-bridge.rkt"
                   webify-io-format-root-name
                   webify-io-format-printf-name
@@ -442,15 +442,6 @@
 (define (stdlib-cell-symbol i)
   (string->symbol (format "webify-stdlib-export-cell$~a" i)))
 
-(define current-provider-cache-dir
-  (make-parameter webify-regexp-default-cache-root))
-
-(define current-provider-cache-force?
-  (make-parameter #f))
-
-(define current-provider-cache-verbose?
-  (make-parameter #f))
-
 (define current-webracket/base-provider-substitutions?
   (make-parameter #t))
 
@@ -494,22 +485,42 @@
 
 ;; module-bridge-datum-operator-count : any/c symbol? -> exact-nonnegative-integer?
 ;;   Count bridge operator calls while skipping quoted/template data.
+(define (module-bridge-datum-operator-counts datum targets)
+  (define target-table
+    (for/hasheq ([target (in-list targets)])
+      (values target #t)))
+  (define counts (make-hasheq))
+  (for ([target (in-list targets)])
+    (hash-set! counts target 0))
+  (define (record! head)
+    (when (and (symbol? head)
+               (hash-ref target-table head #f))
+      (hash-update! counts head add1 0)))
+  (define (walk v)
+    (cond
+      [(pair? v)
+       (match v
+         [`(,(or 'quote 'quote-syntax 'syntax 'quasiquote) . ,_)
+          (void)]
+         [`(,head . ,rest)
+          (record! head)
+          (walk head)
+          (walk rest)]
+         [_ (void)])]
+      [(vector? v)
+       (for ([entry (in-vector v)])
+         (walk entry))]
+      [else
+       (void)]))
+  (walk datum)
+  counts)
+
+;; module-bridge-datum-operator-count : any/c symbol? -> exact-nonnegative-integer?
+;;   Count one bridge operator call while skipping quoted/template data.
 (define (module-bridge-datum-operator-count datum target)
-  (cond
-    [(pair? datum)
-     (match datum
-       [`(,(or 'quote 'quote-syntax 'syntax 'quasiquote) . ,_)
-        0]
-       [`(,head . ,rest)
-        (+ (if (eq? head target) 1 0)
-           (module-bridge-datum-operator-count head target)
-           (module-bridge-datum-operator-count rest target))]
-       [_ 0])]
-    [(vector? datum)
-     (for/sum ([entry (in-vector datum)])
-       (module-bridge-datum-operator-count entry target))]
-    [else
-     0]))
+  (hash-ref (module-bridge-datum-operator-counts datum (list target))
+            target
+            0))
 
 ;; module-bridge-report-reexport-count : webify-module-report? -> exact-nonnegative-integer?
 ;;   Approximate phase-0 reexports as names that are both imported and exported.
@@ -1185,6 +1196,21 @@
 (define (module-bridge-graph-metric-rows graph composition)
   (define reports (webracket/base-local-module-graph-reports graph))
   (define datum   (webify-module-composition-datum composition))
+  (define operator-counts
+    (module-bridge-datum-operator-counts
+     datum
+     '(module-variable-make
+       module-variable-define!
+       module-variable-ref
+       module-variable-ref/no-check
+       module-variable-set!
+       module-variable-set!/check-undefined!
+       unsafe-struct-ref
+       unsafe-struct*-ref
+       unsafe-struct?
+       unsafe-struct*?)))
+  (define (operator-count name)
+    (hash-ref operator-counts name 0))
   (define stats   (or (current-webify-bridge-stats) (make-hash)))
   (define elision-enabled?
     (current-module-bridge-elide-public-cells?))
@@ -1217,16 +1243,16 @@
     (hash-ref stats key default))
   (list
    (list "bridge-module-variable-make-count"
-         (module-bridge-datum-operator-count datum 'module-variable-make))
+         (operator-count 'module-variable-make))
    (list "bridge-module-variable-define-count"
-         (module-bridge-datum-operator-count datum 'module-variable-define!))
+         (operator-count 'module-variable-define!))
    (list "bridge-module-variable-ref-count"
-         (module-bridge-datum-operator-count datum 'module-variable-ref))
+         (operator-count 'module-variable-ref))
    (list "bridge-module-variable-ref-no-check-count"
-         (module-bridge-datum-operator-count datum 'module-variable-ref/no-check))
+         (operator-count 'module-variable-ref/no-check))
    (list "bridge-module-variable-set-count"
-         (+ (module-bridge-datum-operator-count datum 'module-variable-set!)
-            (module-bridge-datum-operator-count datum 'module-variable-set!/check-undefined!)))
+         (+ (operator-count 'module-variable-set!)
+            (operator-count 'module-variable-set!/check-undefined!)))
    (list "bridge-export-cell-count" (stat 'bridge-export-cell-count))
    (list "bridge-export-cell-local-user-count" (hash-ref role-counts 'local-user 0))
    (list "bridge-export-cell-support-provider-count" (hash-ref role-counts 'support-provider 0))
@@ -1509,11 +1535,11 @@
    (list "bridge-import-from-cell-provider-value-count"
          (stat 'bridge-import-from-cell-provider-value-count))
    (list "bridge-unsafe-struct-ref-count"
-         (+ (module-bridge-datum-operator-count datum 'unsafe-struct-ref)
-            (module-bridge-datum-operator-count datum 'unsafe-struct*-ref)))
+         (+ (operator-count 'unsafe-struct-ref)
+            (operator-count 'unsafe-struct*-ref)))
    (list "bridge-unsafe-struct-predicate-count"
-         (+ (module-bridge-datum-operator-count datum 'unsafe-struct?)
-            (module-bridge-datum-operator-count datum 'unsafe-struct*?)))
+         (+ (operator-count 'unsafe-struct?)
+            (operator-count 'unsafe-struct*?)))
    (list "provider-count" (length direct-provider-names))
    (list "local-module-count" local-module-count)
    (list "graph-module-count" graph-module-count)
@@ -1527,11 +1553,6 @@
 
 (define current-source-module-provider-names
   (make-parameter #f))
-
-;; provider-cache-path : path-string? ... -> path?
-;;   Build a cache path under the active provider cache directory.
-(define (provider-cache-path . elems)
-  (apply build-path (current-provider-cache-dir) elems))
 
 ;; provider-report-cache-directory : -> path?
 ;;   Return the directory used for installed provider report cache entries.
@@ -1557,8 +1578,8 @@
 ;;   Record fine-grained source-reading timing rows for `--timings`.
 (define (driver-timing-add! name elapsed-ms)
   (current-read-source-timing-rows
-   (append (current-read-source-timing-rows)
-           (list (list (symbol->string name) elapsed-ms)))))
+   (cons (list (symbol->string name) elapsed-ms)
+         (current-read-source-timing-rows))))
 
 ;; with-driver-timing : symbol? (-> any/c) -> any/c
 ;;   Time a small driver phase and append it to the source-reading rows.
@@ -1572,8 +1593,8 @@
 ;;   Record fine-grained module-bridge extraction rows for `--timings`.
 (define (module-bridge-timing-add! name elapsed-ms)
   (current-module-bridge-detail-rows
-   (append (current-module-bridge-detail-rows)
-           (list (list (symbol->string name) elapsed-ms)))))
+   (cons (list (symbol->string name) elapsed-ms)
+         (current-module-bridge-detail-rows))))
 
 ;; with-module-bridge-timing : symbol? (-> any/c) -> any/c
 ;;   Time one module-bridge extraction phase and append it to the detail rows.
@@ -1582,77 +1603,6 @@
   (begin0
     (thunk)
     (module-bridge-timing-add! name (- (now-ms) start-ms))))
-
-;; path-fingerprint : symbol? exact-integer? (listof path?) -> any/c
-;;   Fingerprint files using path, size, and mtime.
-(define (path-fingerprint tag version paths)
-  `(,tag
-    ,version
-    ,@(for/list ([path (in-list (sort (map simplify-path paths)
-                                      string<?
-                                      #:key path->string))])
-        (list (path->string path)
-              (file-size path)
-              (file-or-directory-modify-seconds path)))))
-
-;; read-provider-cache : path? any/c -> (or/c any/c #f)
-;;   Read a provider cache payload when its fingerprint matches.
-(define (read-provider-cache cache-path fingerprint)
-  (and (not (current-provider-cache-force?))
-       (file-exists? cache-path)
-       (with-handlers ([exn:fail? (lambda (_exn) #f)])
-         (match (call-with-input-file cache-path read)
-           [`(,cached-fingerprint ,payload)
-            (and (equal? cached-fingerprint fingerprint) payload)]
-           [_ #f]))))
-
-;; write-provider-cache! : path? any/c any/c -> void?
-;;   Write one fingerprinted provider cache payload.
-(define (write-provider-cache! cache-path fingerprint payload)
-  (make-directory* (path-only cache-path))
-  (call-with-output-file cache-path
-    (lambda (out)
-      (write (list fingerprint payload) out)
-      (newline out))
-    #:exists 'truncate/replace))
-
-;; call-with-provider-cache-lock : path? (-> any/c) -> any/c
-;;   Serialize expensive provider cache materialization across dashboard workers.
-(define (call-with-provider-cache-lock cache-path thunk)
-  (make-directory* (path-only cache-path))
-  (define lock-path (make-lock-file-name cache-path))
-  (call-with-file-lock/timeout
-   cache-path
-   'exclusive
-   thunk
-   (lambda ()
-     (error 'provider-cache
-            "timed out waiting for provider cache lock: ~a"
-            lock-path))
-   #:lock-file lock-path
-   #:max-delay 300))
-
-;; provider-cache-log : string? any/c ... -> void?
-;;   Print provider cache diagnostics in verbose mode.
-(define (provider-cache-log fmt . args)
-  (when (current-provider-cache-verbose?)
-    (apply fprintf (current-error-port)
-           (string-append "provider-cache: " fmt "\n")
-           args)))
-
-;; provider-cache-symbol-segment : symbol? -> string?
-;;   Make a conservative filename segment for provider report cache rows.
-(define (provider-cache-symbol-segment name)
-  (regexp-replace* #px"[^A-Za-z0-9_.-]"
-                   (symbol->string name)
-                   "_"))
-
-;; provider-cache-string-segment : string? -> string?
-;;   Make a conservative filename segment for path-keyed cache rows.
-(define (provider-cache-string-segment str)
-  (regexp-replace* #px"[^A-Za-z0-9_.-]"
-                   str
-                   "_"))
 
 ;; provider-module-source-fingerprint : symbol? -> any/c
 ;;   Include provider source metadata in the disk cache key when available.
@@ -3183,8 +3133,8 @@
                                compile-total-ms
                                t-run-ms
                                driver-total-ms))
-    (define read-detail-rows (current-read-source-timing-rows))
-    (define module-bridge-detail-rows (current-module-bridge-detail-rows))
+    (define read-detail-rows (reverse (current-read-source-timing-rows)))
+    (define module-bridge-detail-rows (reverse (current-module-bridge-detail-rows)))
     (define driver-rows
       (append
        (list (list "ffi-setup"        ffi-setup-ms)
