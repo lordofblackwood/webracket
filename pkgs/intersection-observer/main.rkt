@@ -1,0 +1,258 @@
+#lang webracket/base
+
+(require browser/element
+         (only-in webracket/unsafe/dom
+                  js-index
+                  js-instanceof
+                  js-new
+                  js-object
+                  js-nullish?
+                  js-ref
+                  js-ref/extern
+                  js-send/extern/nullish
+                  js-typeof
+                  js-var)
+         (only-in webracket/primitives
+                  external?
+                  procedure->external))
+
+(provide (all-defined-out))
+
+;;;
+;;; IntersectionObserver wrappers
+;;;
+
+;; intersection-observer-info : external/raw -> intersection-observer-info?
+;;   Wrap a browser IntersectionObserver object.
+(struct intersection-observer-info (raw) #:transparent)
+
+;; intersection-observer-entry : external/raw -> intersection-observer-entry?
+;;   Wrap a browser IntersectionObserverEntry object.
+(struct intersection-observer-entry (raw) #:transparent)
+
+;; intersection-observer-options : any/c any/c any/c -> intersection-observer-options?
+;;   Wrap constructor options for IntersectionObserver.
+(struct intersection-observer-options (root root-margin threshold)
+  #:transparent
+  #:constructor-name make-intersection-observer-options
+  #:guard
+  (lambda (root root-margin threshold name)
+    (unless (or (eq? root #f) (dom-element? root) (external? root))
+      (raise-argument-error name "(or/c #f dom-element? external?)" root))
+    (unless (or (eq? root-margin #f) (string? root-margin) (symbol? root-margin))
+      (raise-argument-error name "(or/c #f string? symbol?)" root-margin))
+    (unless (or (eq? threshold #f)
+                (real? threshold)
+                (and (vector? threshold)
+                     (let loop ([i 0])
+                       (if (= i (vector-length threshold))
+                           #t
+                           (and (real? (vector-ref threshold i))
+                                (loop (add1 i)))))))
+      (raise-argument-error name "(or/c #f real? (vectorof real?))" threshold))
+    (values root root-margin threshold)))
+
+;; intersection-observer-supported? : -> boolean?
+;;   Report whether the browser exposes IntersectionObserver.
+(define (intersection-observer-supported?)
+  (string=? (js-typeof (js-var "IntersectionObserver")) "function"))
+
+;; intersection-observer : external/raw -> intersection-observer-info?
+;;   Wrap a browser IntersectionObserver object.
+(define (intersection-observer raw)
+  (intersection-observer-info raw))
+
+;; intersection-observer-raw : intersection-observer-info? -> external/raw
+;;   Extract the raw browser IntersectionObserver object.
+(define (intersection-observer-raw value)
+  (intersection-observer-info-raw value))
+
+;; intersection-observer? : any/c -> boolean?
+;;   Report whether v is a wrapped IntersectionObserver value.
+(define (intersection-observer? v)
+  (and (intersection-observer-info? v)
+       (intersection-observer-supported?)
+       (external? (intersection-observer-raw v))
+       (js-instanceof (intersection-observer-raw v) (js-var "IntersectionObserver"))))
+
+;; observer-threshold->raw : any/c -> any/c
+;;   Convert a threshold value to a browser-friendly representation.
+(define (observer-threshold->raw threshold)
+  (cond
+    [(eq? threshold #f) (void)]
+    [(real? threshold) threshold]
+    [else threshold]))
+
+;; intersection-observer-options->raw : intersection-observer-options? -> external/raw
+;;   Convert a Rackety options struct into a browser dictionary.
+(define (intersection-observer-options->raw options)
+  (define root (intersection-observer-options-root options))
+  (define root-margin (intersection-observer-options-root-margin options))
+  (define threshold (intersection-observer-options-threshold options))
+  (define fields
+    (append
+     (if (eq? root #f)
+         '()
+         (list (vector "root" (if (dom-element? root) (dom-element-raw root) root))))
+     (if (eq? root-margin #f)
+         '()
+         (list (vector "rootMargin"
+                       (if (symbol? root-margin)
+                           (symbol->string root-margin)
+                           root-margin))))
+     (if (eq? threshold #f)
+         '()
+         (list (vector "threshold" (observer-threshold->raw threshold))))))
+  (js-object (list->vector fields)))
+
+;; observer-target->raw : symbol? any/c -> external/raw
+;;   Normalize an observed target to a raw browser Element object.
+(define (observer-target->raw who target)
+  (cond
+    [(dom-element? target) (dom-element-raw target)]
+    [(external? target) target]
+    [else
+     (raise-argument-error who "(or/c dom-element? external?)" target)]))
+
+;; observer-entries->vector : external/raw -> vector?
+;;   Convert a browser entries array to a vector of wrapped entries.
+(define (observer-entries->vector entries)
+  (define len (js-ref entries "length"))
+  (list->vector
+   (let loop ([i 0])
+     (if (= i len)
+         '()
+         (cons (intersection-observer-entry (js-index entries i))
+               (loop (add1 i)))))))
+
+;; intersection-observer-callback-cache : hash?
+;;   Reuse stable external callbacks for observer handlers.
+(define intersection-observer-callback-cache (make-hasheq))
+
+;; intersection-observer-callback->external : symbol? (or/c procedure? external?) -> external?
+;;   Convert an observer callback to a stable external callback.
+(define (intersection-observer-callback->external who callback)
+  (cond
+    [(external? callback) callback]
+    [(procedure? callback)
+     (define cached (hash-ref intersection-observer-callback-cache callback #f))
+     (cond
+       [cached cached]
+       [else
+        (define external
+          (procedure->external
+           (lambda (entries raw-observer)
+             (callback (observer-entries->vector entries)
+                       (intersection-observer raw-observer))
+             (void))))
+        (hash-set! intersection-observer-callback-cache callback external)
+        external])]
+    [else
+     (raise-argument-error who "(or/c procedure? external?)" callback)]))
+
+;; make-intersection-observer : (or/c procedure? external?) [(or/c #f intersection-observer-options?)] -> intersection-observer-info?
+;;   Create a new browser IntersectionObserver.
+(define (make-intersection-observer callback [options #f])
+  (unless (intersection-observer-supported?)
+    (error 'make-intersection-observer "IntersectionObserver is not available"))
+  (unless (or (eq? options #f) (intersection-observer-options? options))
+    (raise-argument-error 'make-intersection-observer
+                          "(or/c #f intersection-observer-options?)"
+                          options))
+  (intersection-observer
+   (if (eq? options #f)
+       (js-new (js-var "IntersectionObserver")
+               (vector (intersection-observer-callback->external
+                        'make-intersection-observer
+                        callback)))
+       (js-new (js-var "IntersectionObserver")
+               (vector (intersection-observer-callback->external
+                        'make-intersection-observer
+                        callback)
+                       (intersection-observer-options->raw options))))))
+
+;; intersection-observer-observe! : intersection-observer-info? (or/c dom-element? external?) -> void?
+;;   Start observing a target element.
+(define (intersection-observer-observe! observer target)
+  (unless (intersection-observer? observer)
+    (raise-argument-error 'intersection-observer-observe! "intersection-observer-info?" observer))
+  (js-send/extern/nullish (intersection-observer-raw observer)
+                          "observe"
+                          (vector (observer-target->raw 'intersection-observer-observe! target)))
+  (void))
+
+;; intersection-observer-unobserve! : intersection-observer-info? (or/c dom-element? external?) -> void?
+;;   Stop observing a target element.
+(define (intersection-observer-unobserve! observer target)
+  (unless (intersection-observer? observer)
+    (raise-argument-error 'intersection-observer-unobserve! "intersection-observer-info?" observer))
+  (js-send/extern/nullish (intersection-observer-raw observer)
+                          "unobserve"
+                          (vector (observer-target->raw 'intersection-observer-unobserve! target)))
+  (void))
+
+;; intersection-observer-disconnect! : intersection-observer-info? -> void?
+;;   Disconnect the observer from all targets.
+(define (intersection-observer-disconnect! observer)
+  (unless (intersection-observer? observer)
+    (raise-argument-error 'intersection-observer-disconnect! "intersection-observer-info?" observer))
+  (js-send/extern/nullish (intersection-observer-raw observer) "disconnect" (vector))
+  (void))
+
+;; intersection-observer-entry-target : intersection-observer-entry? -> dom-element?
+;;   Read the observed target element.
+(define (intersection-observer-entry-target entry)
+  (unless (and (intersection-observer-entry? entry)
+               (external? (intersection-observer-entry-raw entry)))
+    (raise-argument-error 'intersection-observer-entry-target "intersection-observer-entry?" entry))
+  (element-wrap (js-ref/extern (intersection-observer-entry-raw entry) "target")))
+
+;; intersection-observer-entry-is-intersecting? : intersection-observer-entry? -> boolean?
+;;   Report whether the target currently intersects the root.
+(define (intersection-observer-entry-is-intersecting? entry)
+  (unless (and (intersection-observer-entry? entry)
+               (external? (intersection-observer-entry-raw entry)))
+    (raise-argument-error 'intersection-observer-entry-is-intersecting? "intersection-observer-entry?" entry))
+  (js-ref (intersection-observer-entry-raw entry) "isIntersecting"))
+
+;; intersection-observer-entry-intersection-ratio : intersection-observer-entry? -> real?
+;;   Read the current intersection ratio.
+(define (intersection-observer-entry-intersection-ratio entry)
+  (unless (and (intersection-observer-entry? entry)
+               (external? (intersection-observer-entry-raw entry)))
+    (raise-argument-error 'intersection-observer-entry-intersection-ratio "intersection-observer-entry?" entry))
+  (js-ref (intersection-observer-entry-raw entry) "intersectionRatio"))
+
+;; intersection-observer-entry-bounding-client-rect : intersection-observer-entry? -> dom-rect?
+;;   Read the target bounding rectangle.
+(define (intersection-observer-entry-bounding-client-rect entry)
+  (unless (and (intersection-observer-entry? entry)
+               (external? (intersection-observer-entry-raw entry)))
+    (raise-argument-error 'intersection-observer-entry-bounding-client-rect "intersection-observer-entry?" entry))
+  (dom-rect-wrap (js-ref/extern (intersection-observer-entry-raw entry) "boundingClientRect")))
+
+;; intersection-observer-entry-intersection-rect : intersection-observer-entry? -> dom-rect?
+;;   Read the current intersection rectangle.
+(define (intersection-observer-entry-intersection-rect entry)
+  (unless (and (intersection-observer-entry? entry)
+               (external? (intersection-observer-entry-raw entry)))
+    (raise-argument-error 'intersection-observer-entry-intersection-rect "intersection-observer-entry?" entry))
+  (dom-rect-wrap (js-ref/extern (intersection-observer-entry-raw entry) "intersectionRect")))
+
+;; intersection-observer-entry-root-bounds : intersection-observer-entry? -> (or/c #f dom-rect?)
+;;   Read the root bounds, if present.
+(define (intersection-observer-entry-root-bounds entry)
+  (unless (and (intersection-observer-entry? entry)
+               (external? (intersection-observer-entry-raw entry)))
+    (raise-argument-error 'intersection-observer-entry-root-bounds "intersection-observer-entry?" entry))
+  (define raw (js-ref/extern (intersection-observer-entry-raw entry) "rootBounds"))
+  (and (not (js-nullish? raw))
+       (dom-rect-wrap raw)))
+
+;; intersection-observer-entry-time : intersection-observer-entry? -> real?
+;;   Read the high-resolution timestamp for the observation.
+(define (intersection-observer-entry-time entry)
+  (unless (and (intersection-observer-entry? entry)
+               (external? (intersection-observer-entry-raw entry)))
+    (raise-argument-error 'intersection-observer-entry-time "intersection-observer-entry?" entry))
+  (js-ref (intersection-observer-entry-raw entry) "time"))

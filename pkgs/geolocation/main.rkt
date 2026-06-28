@@ -1,0 +1,243 @@
+#lang webracket/base
+
+(require (only-in webracket/unsafe/dom
+                  js-nullish?
+                  js-object
+                  js-ref
+                  js-ref/extern
+                  js-send/extern/nullish
+                  js-send/value
+                  js-typeof
+                  js-window-navigator)
+         (only-in webracket/primitives
+                  external?
+                  procedure->external))
+
+(provide (all-defined-out))
+
+;;;
+;;; Geolocation wrappers
+;;;
+
+(struct geolocation-info (raw) #:transparent)
+(struct geolocation-position (raw) #:transparent)
+(struct geolocation-coordinates (raw) #:transparent)
+(struct geolocation-position-error (raw) #:transparent)
+
+(struct geolocation-options (enable-high-accuracy timeout maximum-age)
+  #:transparent
+  #:constructor-name make-geolocation-options
+  #:guard
+  (lambda (enable-high-accuracy timeout maximum-age name)
+    (unless (or (eq? enable-high-accuracy #f) (boolean? enable-high-accuracy))
+      (raise-argument-error name "(or/c #f boolean?)" enable-high-accuracy))
+    (unless (or (eq? timeout #f) (exact-nonnegative-integer? timeout))
+      (raise-argument-error name "(or/c #f exact-nonnegative-integer?)" timeout))
+    (unless (or (eq? maximum-age #f) (exact-nonnegative-integer? maximum-age))
+      (raise-argument-error name "(or/c #f exact-nonnegative-integer?)" maximum-age))
+    (values enable-high-accuracy timeout maximum-age)))
+
+(define (geolocation-supported?)
+  (define nav (js-window-navigator))
+  (define raw (js-ref/extern nav "geolocation"))
+  (and (not (js-nullish? raw))
+       (string=? (js-typeof (js-ref/extern raw "getCurrentPosition")) "function")
+       (string=? (js-typeof (js-ref/extern raw "watchPosition")) "function")
+       (string=? (js-typeof (js-ref/extern raw "clearWatch")) "function")))
+
+(define (geolocation)
+  (define raw (js-ref/extern (js-window-navigator) "geolocation"))
+  (and (not (js-nullish? raw))
+       (geolocation-info raw)))
+
+(define (geolocation-raw value)
+  (geolocation-info-raw value))
+
+(define (geolocation? v)
+  (and (geolocation-info? v)
+       (external? (geolocation-raw v))))
+
+(define (geolocation-options->raw options)
+  (define enable-high-accuracy (geolocation-options-enable-high-accuracy options))
+  (define timeout (geolocation-options-timeout options))
+  (define maximum-age (geolocation-options-maximum-age options))
+  (define fields
+    (append
+     (if (eq? enable-high-accuracy #f)
+         '()
+         (list (vector "enableHighAccuracy" enable-high-accuracy)))
+     (if (eq? timeout #f)
+         '()
+         (list (vector "timeout" timeout)))
+     (if (eq? maximum-age #f)
+         '()
+         (list (vector "maximumAge" maximum-age)))))
+  (js-object (list->vector fields)))
+
+(define geolocation-success-callback-cache (make-hasheq))
+(define geolocation-error-callback-cache (make-hasheq))
+
+(define (geolocation-success-callback->external who callback)
+  (cond
+    [(external? callback) callback]
+    [(procedure? callback)
+     (define cached (hash-ref geolocation-success-callback-cache callback #f))
+     (cond
+       [cached cached]
+       [else
+        (define external
+          (procedure->external
+           (lambda (raw-position)
+             (callback (geolocation-position raw-position))
+             (void))))
+        (hash-set! geolocation-success-callback-cache callback external)
+        external])]
+    [else
+     (raise-argument-error who "(or/c procedure? external?)" callback)]))
+
+(define (geolocation-error-callback->external who callback)
+  (cond
+    [(external? callback) callback]
+    [(procedure? callback)
+     (define cached (hash-ref geolocation-error-callback-cache callback #f))
+     (cond
+       [cached cached]
+       [else
+        (define external
+          (procedure->external
+           (lambda (raw-error)
+             (callback (geolocation-position-error raw-error))
+             (void))))
+        (hash-set! geolocation-error-callback-cache callback external)
+        external])]
+    [else
+     (raise-argument-error who "(or/c procedure? external?)" callback)]))
+
+(define (geolocation-optional-number raw field)
+  (define value (js-ref/extern raw field))
+  (if (js-nullish? value) #f value))
+
+(define (geolocation-get-current-position geo on-success [on-error #f] [options #f])
+  (unless (geolocation? geo)
+    (raise-argument-error 'geolocation-get-current-position "geolocation-info?" geo))
+  (unless (or (eq? on-error #f) (external? on-error) (procedure? on-error))
+    (raise-argument-error 'geolocation-get-current-position "(or/c #f procedure? external?)" on-error))
+  (unless (or (eq? options #f) (geolocation-options? options))
+    (raise-argument-error 'geolocation-get-current-position "(or/c #f geolocation-options?)" options))
+  (define success* (geolocation-success-callback->external 'geolocation-get-current-position on-success))
+  (define args
+    (cond
+      [(and (eq? on-error #f) (eq? options #f))
+       (vector success*)]
+      [(eq? options #f)
+       (vector success*
+               (geolocation-error-callback->external 'geolocation-get-current-position on-error))]
+      [(eq? on-error #f)
+       (vector success*
+               (void)
+               (geolocation-options->raw options))]
+      [else
+       (vector success*
+               (geolocation-error-callback->external 'geolocation-get-current-position on-error)
+               (geolocation-options->raw options))]))
+  (js-send/extern/nullish (geolocation-raw geo) "getCurrentPosition" args)
+  (void))
+
+(define (geolocation-watch-position geo on-success [on-error #f] [options #f])
+  (unless (geolocation? geo)
+    (raise-argument-error 'geolocation-watch-position "geolocation-info?" geo))
+  (unless (or (eq? on-error #f) (external? on-error) (procedure? on-error))
+    (raise-argument-error 'geolocation-watch-position "(or/c #f procedure? external?)" on-error))
+  (unless (or (eq? options #f) (geolocation-options? options))
+    (raise-argument-error 'geolocation-watch-position "(or/c #f geolocation-options?)" options))
+  (define success* (geolocation-success-callback->external 'geolocation-watch-position on-success))
+  (define args
+    (cond
+      [(and (eq? on-error #f) (eq? options #f))
+       (vector success*)]
+      [(eq? options #f)
+       (vector success*
+               (geolocation-error-callback->external 'geolocation-watch-position on-error))]
+      [(eq? on-error #f)
+       (vector success*
+               (void)
+               (geolocation-options->raw options))]
+      [else
+       (vector success*
+               (geolocation-error-callback->external 'geolocation-watch-position on-error)
+               (geolocation-options->raw options))]))
+  (js-send/value (geolocation-raw geo) "watchPosition" args))
+
+(define (geolocation-clear-watch! geo watch-id)
+  (unless (geolocation? geo)
+    (raise-argument-error 'geolocation-clear-watch! "geolocation-info?" geo))
+  (unless (exact-nonnegative-integer? watch-id)
+    (raise-argument-error 'geolocation-clear-watch! "exact-nonnegative-integer?" watch-id))
+  (js-send/extern/nullish (geolocation-raw geo) "clearWatch" (vector watch-id))
+  (void))
+
+(define (geolocation-position-coordinates position)
+  (unless (and (geolocation-position? position)
+               (external? (geolocation-position-raw position)))
+    (raise-argument-error 'geolocation-position-coordinates "geolocation-position?" position))
+  (geolocation-coordinates (js-ref/extern (geolocation-position-raw position) "coords")))
+
+(define (geolocation-position-timestamp position)
+  (unless (and (geolocation-position? position)
+               (external? (geolocation-position-raw position)))
+    (raise-argument-error 'geolocation-position-timestamp "geolocation-position?" position))
+  (js-ref (geolocation-position-raw position) "timestamp"))
+
+(define (geolocation-coordinates-latitude coords)
+  (unless (and (geolocation-coordinates? coords)
+               (external? (geolocation-coordinates-raw coords)))
+    (raise-argument-error 'geolocation-coordinates-latitude "geolocation-coordinates?" coords))
+  (js-ref (geolocation-coordinates-raw coords) "latitude"))
+
+(define (geolocation-coordinates-longitude coords)
+  (unless (and (geolocation-coordinates? coords)
+               (external? (geolocation-coordinates-raw coords)))
+    (raise-argument-error 'geolocation-coordinates-longitude "geolocation-coordinates?" coords))
+  (js-ref (geolocation-coordinates-raw coords) "longitude"))
+
+(define (geolocation-coordinates-accuracy coords)
+  (unless (and (geolocation-coordinates? coords)
+               (external? (geolocation-coordinates-raw coords)))
+    (raise-argument-error 'geolocation-coordinates-accuracy "geolocation-coordinates?" coords))
+  (js-ref (geolocation-coordinates-raw coords) "accuracy"))
+
+(define (geolocation-coordinates-altitude coords)
+  (unless (and (geolocation-coordinates? coords)
+               (external? (geolocation-coordinates-raw coords)))
+    (raise-argument-error 'geolocation-coordinates-altitude "geolocation-coordinates?" coords))
+  (geolocation-optional-number (geolocation-coordinates-raw coords) "altitude"))
+
+(define (geolocation-coordinates-altitude-accuracy coords)
+  (unless (and (geolocation-coordinates? coords)
+               (external? (geolocation-coordinates-raw coords)))
+    (raise-argument-error 'geolocation-coordinates-altitude-accuracy "geolocation-coordinates?" coords))
+  (geolocation-optional-number (geolocation-coordinates-raw coords) "altitudeAccuracy"))
+
+(define (geolocation-coordinates-heading coords)
+  (unless (and (geolocation-coordinates? coords)
+               (external? (geolocation-coordinates-raw coords)))
+    (raise-argument-error 'geolocation-coordinates-heading "geolocation-coordinates?" coords))
+  (geolocation-optional-number (geolocation-coordinates-raw coords) "heading"))
+
+(define (geolocation-coordinates-speed coords)
+  (unless (and (geolocation-coordinates? coords)
+               (external? (geolocation-coordinates-raw coords)))
+    (raise-argument-error 'geolocation-coordinates-speed "geolocation-coordinates?" coords))
+  (geolocation-optional-number (geolocation-coordinates-raw coords) "speed"))
+
+(define (geolocation-position-error-code err)
+  (unless (and (geolocation-position-error? err)
+               (external? (geolocation-position-error-raw err)))
+    (raise-argument-error 'geolocation-position-error-code "geolocation-position-error?" err))
+  (js-ref (geolocation-position-error-raw err) "code"))
+
+(define (geolocation-position-error-message err)
+  (unless (and (geolocation-position-error? err)
+               (external? (geolocation-position-error-raw err)))
+    (raise-argument-error 'geolocation-position-error-message "geolocation-position-error?" err))
+  (js-ref (geolocation-position-error-raw err) "message"))

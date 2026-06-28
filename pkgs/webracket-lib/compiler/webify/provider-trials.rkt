@@ -578,6 +578,7 @@
     js/iterator
     js/math
     js/performance
+    js/promise
     js/standard
     js/temp
     browser/audio
@@ -595,8 +596,13 @@
     web-easy
     web-easy/private/dom-like
     audio
+    clipboard
     fetch
+    geolocation
     indexed-db
+    intersection-observer
+    notifications
+    resize-observer
     storage
     websocket
     web-pict
@@ -804,6 +810,7 @@
     js/iterator
     js/math
     js/performance
+    js/promise
     js/standard
     js/temp
     browser/audio
@@ -839,8 +846,13 @@
     web-easy
     web-easy/private/dom-like
     audio
+    clipboard
     fetch
+    geolocation
     indexed-db
+    intersection-observer
+    notifications
+    resize-observer
     storage
     websocket
     web-pict

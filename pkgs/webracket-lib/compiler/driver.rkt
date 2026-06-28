@@ -374,12 +374,16 @@
     (event      . "event.ffi")
     (audio      . "audio.ffi")
     (fetch      . "dom.ffi")          ; is window enough?
+    (geolocation . "dom.ffi")
     (image      . "image.ffi")
+    (intersection-observer . "dom.ffi")
     (iterator   . "iterator.ffi")
     (jsx-graph  . "jsxgraph.ffi")
     (media      . "media.ffi")
+    (notifications . "dom.ffi")
     (rquery     . "dom.ffi")
     (performance . "performance.ffi")
+    (resize-observer . "dom.ffi")
     (storage    . "dom.ffi")          ; smaller dep?
     (indexed-db . "dom.ffi")          ; smaller dep?
     (websocket  . "websocket.ffi")
@@ -4208,9 +4212,14 @@
 (define webracket-owned-ffi-provider-exacts
   '(web-easy
     audio
+    clipboard
     fetch
+    geolocation
     indexed-db
+    intersection-observer
     jsxgraph
+    notifications
+    resize-observer
     storage
     websocket
     web-pict

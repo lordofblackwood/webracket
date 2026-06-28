@@ -30,6 +30,8 @@
 
 @include-section["Callback_Source_Map_Tool.scrbl"]
 
+@include-section["Callback_Source_Map_Tool-revised.scrbl"]
+
 
 @;-------------------------------------------------------------------
 
@@ -75,6 +77,7 @@ These libraries are not Web APIs, but they are still useful building blocks.
 @itemlist[
   @item{@racket[(include-lib array)]}
   @item{@racket[(include-lib iterator)]}
+  @item{@racket[(require js/promise)]}
   @item{@racket[(include-lib jsx-graph)]}
   @item{@racket[(include-lib rquery)]}
   @item{@racket[(include-lib sxml)]}
@@ -82,6 +85,10 @@ These libraries are not Web APIs, but they are still useful building blocks.
 ]
 
 @include-section["lib-array.scrbl"]
+
+@;-------------------------------------------------------------------
+
+@include-section["lib-js-promise.scrbl"]
 
 @;-------------------------------------------------------------------
 
@@ -113,16 +120,21 @@ These are the MDN-style browser APIs that WebRacket wraps.
   @item{@racket[(include-lib audio)]}
   @item{@racket[(include-lib canvas)]}
   @item{@racket[(include-lib console)]}
+  @item{@racket[(require clipboard)]}
   @item{@racket[(include-lib document)]}
   @item{@racket[(include-lib dom)]}
   @item{@racket[(include-lib domrect)]}
   @item{@racket[(include-lib element)]}
   @item{@racket[(include-lib event)]}
   @item{@racket[(include-lib fetch)]}
+  @item{@racket[(require geolocation)]}
   @item{@racket[(include-lib image)]}
   @item{@racket[(include-lib indexed-db)]}
+  @item{@racket[(require intersection-observer)]}
   @item{@racket[(include-lib media)]}
+  @item{@racket[(require notifications)]}
   @item{@racket[(include-lib performance)]}
+  @item{@racket[(require resize-observer)]}
   @item{@racket[(include-lib storage)]}
   @item{@racket[(include-lib websocket)]}
   @item{@racket[(include-lib window)]}
@@ -139,6 +151,10 @@ See their respective documentation pages.
 @;-------------------------------------------------------------------
 
 @include-section["lib-console.scrbl"]
+
+@;-------------------------------------------------------------------
+
+@include-section["lib-clipboard.scrbl"]
 
 @;-------------------------------------------------------------------
 
@@ -166,6 +182,10 @@ See their respective documentation pages.
 
 @;-------------------------------------------------------------------
 
+@include-section["lib-geolocation.scrbl"]
+
+@;-------------------------------------------------------------------
+
 @include-section["lib-image.scrbl"]
 
 @;-------------------------------------------------------------------
@@ -174,11 +194,23 @@ See their respective documentation pages.
 
 @;-------------------------------------------------------------------
 
+@include-section["lib-intersection-observer.scrbl"]
+
+@;-------------------------------------------------------------------
+
 @include-section["lib-media.scrbl"]
 
 @;-------------------------------------------------------------------
 
+@include-section["lib-notifications.scrbl"]
+
+@;-------------------------------------------------------------------
+
 @include-section["lib-performance.scrbl"]
+
+@;-------------------------------------------------------------------
+
+@include-section["lib-resize-observer.scrbl"]
 
 @;-------------------------------------------------------------------
 
