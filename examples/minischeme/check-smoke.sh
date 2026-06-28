@@ -8,10 +8,22 @@ HOST="${MINISCHEME_SMOKE_HOST:-127.0.0.1}"
 PORT="${MINISCHEME_SMOKE_PORT:-9986}"
 BASE_URL="http://${HOST}:${PORT}"
 LOCAL_TOOLS_DIR="${MINISCHEME_SMOKE_LOCAL_TOOLS_DIR:-$ROOT_DIR/.local-tools}"
-CHROME_EXECUTABLE="${MINISCHEME_SMOKE_EXECUTABLE:-/Applications/Google Chrome.app/Contents/MacOS/Google Chrome}"
+CHROME_EXECUTABLE="${MINISCHEME_SMOKE_EXECUTABLE:-}"
 SERVER_LOG="${MINISCHEME_SMOKE_SERVER_LOG:-/tmp/webracket-minischeme-smoke.log}"
 TIMEOUT_SEC="${MINISCHEME_SMOKE_TIMEOUT_SEC:-420}"
 RSS_LIMIT_MB="${MINISCHEME_SMOKE_RSS_LIMIT_MB:-4096}"
+PLAYWRIGHT_CACHE_ROOT="${PLAYWRIGHT_BROWSERS_PATH:-$HOME/Library/Caches/ms-playwright}"
+
+if [[ -z "$CHROME_EXECUTABLE" && -d "$PLAYWRIGHT_CACHE_ROOT" ]]; then
+  CHROME_EXECUTABLE="$(
+    find "$PLAYWRIGHT_CACHE_ROOT" \
+      -type f \
+      -path '*/chrome-headless-shell' \
+      2>/dev/null \
+      | sort -V \
+      | tail -n 1
+  )"
+fi
 
 if [ "${MINISCHEME_SMOKE_SKIP_COMPILE:-0}" != "1" ]; then
   echo "START compile minischeme"

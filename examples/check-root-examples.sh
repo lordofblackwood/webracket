@@ -5,13 +5,25 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 PORT="${ROOT_EXAMPLES_PORT:-9987}"
 LOCAL_NODE_MODULES="${ROOT_EXAMPLES_NODE_MODULES:-$ROOT_DIR/.local-tools/node_modules}"
-CHROME_EXECUTABLE="${ROOT_EXAMPLES_EXECUTABLE:-/Applications/Google Chrome.app/Contents/MacOS/Google Chrome}"
+CHROME_EXECUTABLE="${ROOT_EXAMPLES_EXECUTABLE:-}"
 FILTER="${ROOT_EXAMPLES_FILTER:-}"
 SKIP_COMPILE="${ROOT_EXAMPLES_SKIP_COMPILE:-0}"
 SKIP_BROWSER_PREFLIGHT="${ROOT_EXAMPLES_SKIP_BROWSER_PREFLIGHT:-0}"
 PREFLIGHT_TIMEOUT_MS="${ROOT_EXAMPLES_BROWSER_PREFLIGHT_TIMEOUT_MS:-30000}"
 RACKET_CMD="${RACKET:-racket}"
 SERVER_LOG="${TMPDIR:-/tmp}/webracket-root-examples-server.log"
+PLAYWRIGHT_CACHE_ROOT="${PLAYWRIGHT_BROWSERS_PATH:-$HOME/Library/Caches/ms-playwright}"
+
+if [[ -z "$CHROME_EXECUTABLE" && -d "$PLAYWRIGHT_CACHE_ROOT" ]]; then
+  CHROME_EXECUTABLE="$(
+    find "$PLAYWRIGHT_CACHE_ROOT" \
+      -type f \
+      -path '*/chrome-headless-shell' \
+      2>/dev/null \
+      | sort -V \
+      | tail -n 1
+  )"
+fi
 
 examples=(
   "hello-world-2"

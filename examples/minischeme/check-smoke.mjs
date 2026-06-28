@@ -2,10 +2,11 @@
 
 import { createRequire } from "node:module";
 import process from "node:process";
+import { findCachedPlaywrightHeadlessShell } from "../../tools/find-playwright-headless-shell.mjs";
 
 const baseUrl = process.env.MINISCHEME_SMOKE_BASE_URL;
 const nodeModules = process.env.MINISCHEME_SMOKE_NODE_MODULES;
-const executablePath = process.env.MINISCHEME_SMOKE_EXECUTABLE;
+const executablePath = process.env.MINISCHEME_SMOKE_EXECUTABLE || findCachedPlaywrightHeadlessShell();
 const timeoutMs = Number.parseInt(process.env.MINISCHEME_SMOKE_TIMEOUT_MS ?? "30000", 10);
 
 if (!baseUrl) {
@@ -16,14 +17,12 @@ if (!nodeModules) {
   throw new Error("MINISCHEME_SMOKE_NODE_MODULES is required");
 }
 
-if (!executablePath) {
-  throw new Error("MINISCHEME_SMOKE_EXECUTABLE is required");
-}
-
 const require = createRequire(new URL("./__smoke__.cjs", import.meta.url));
 const { chromium } = require(`${nodeModules}/playwright`);
-
-const browser = await chromium.launch({ executablePath, headless: true });
+const browser = await chromium.launch({
+  executablePath: executablePath || undefined,
+  headless: true,
+});
 
 try {
   const page = await browser.newPage();

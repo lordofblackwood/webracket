@@ -2,6 +2,7 @@
 
 import { createRequire } from "node:module";
 import process from "node:process";
+import { findCachedPlaywrightHeadlessShell } from "../tools/find-playwright-headless-shell.mjs";
 
 function parseTimeoutMs(value, fallback) {
   const parsed = Number.parseInt(value ?? "", 10);
@@ -25,6 +26,13 @@ async function withTimeout(label, timeoutMs, thunk) {
       clearTimeout(timeoutId);
     }
   }
+}
+
+function resolveBrowserExecutablePath(explicitPath) {
+  if (explicitPath) {
+    return explicitPath;
+  }
+  return findCachedPlaywrightHeadlessShell() || "";
 }
 
 function formatConsoleEntry(entry) {
@@ -408,11 +416,12 @@ async function main() {
 
   const { chromium } = playwrightPkg;
   let browser = null;
+  const browserExecutablePath = resolveBrowserExecutablePath(chromeExecutable);
 
   try {
     browser = await chromium.launch({
       headless: true,
-      executablePath: chromeExecutable || undefined,
+      executablePath: browserExecutablePath || undefined,
     });
 
     for (const testPage of tests) {

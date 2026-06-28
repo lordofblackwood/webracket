@@ -6,7 +6,19 @@ ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 PORT="${DOM_HEADLESS_PORT:-9991}"
 BASE_URL=""
 LOCAL_NODE_MODULES="${DOM_HEADLESS_NODE_MODULES:-$ROOT_DIR/.local-tools/node_modules}"
-CHROME_EXECUTABLE="${DOM_HEADLESS_EXECUTABLE:-/Applications/Google Chrome.app/Contents/MacOS/Google Chrome}"
+CHROME_EXECUTABLE="${DOM_HEADLESS_EXECUTABLE:-}"
+PLAYWRIGHT_CACHE_ROOT="${PLAYWRIGHT_BROWSERS_PATH:-$HOME/Library/Caches/ms-playwright}"
+
+if [[ -z "$CHROME_EXECUTABLE" && -d "$PLAYWRIGHT_CACHE_ROOT" ]]; then
+  CHROME_EXECUTABLE="$(
+    find "$PLAYWRIGHT_CACHE_ROOT" \
+      -type f \
+      -path '*/chrome-headless-shell' \
+      2>/dev/null \
+      | sort -V \
+      | tail -n 1
+  )"
+fi
 
 compile_test() {
   local file="$1"
