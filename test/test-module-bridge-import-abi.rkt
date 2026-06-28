@@ -346,6 +346,8 @@
           (= value 1)))))
 
 (test-case "read-before-definition keeps public export cells"
+  (define cell-id
+    (hash-ref (first-slice-top-level-export-cell-ids '(out)) 'out))
   (define stats (make-hash))
   (define datum
     (parameterize ([current-webify-bridge-stats stats])
@@ -368,7 +370,7 @@
   (check-equal? (hash-ref meta 'selected-export-kind 'missing) 'cell)
   (check-true
    (datum-contains? datum
-                    '(define out (module-variable-ref out-cell)))))
+                    `(module-variable-ref/no-check ,cell-id))))
 
 (test-case "late-materialization candidates allow refs after define"
   (define stats (make-hash))
