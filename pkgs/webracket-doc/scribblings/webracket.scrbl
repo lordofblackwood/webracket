@@ -121,13 +121,17 @@ These are the MDN-style browser APIs that WebRacket wraps.
   @item{@racket[(include-lib canvas)]}
   @item{@racket[(include-lib console)]}
   @item{@racket[(require clipboard)]}
+  @item{@racket[(require compression-streams)]}
   @item{@racket[(include-lib document)]}
   @item{@racket[(include-lib dom)]}
   @item{@racket[(include-lib domrect)]}
   @item{@racket[(include-lib element)]}
   @item{@racket[(include-lib event)]}
   @item{@racket[(include-lib fetch)]}
+  @item{@racket[(require fullscreen)]}
+  @item{@racket[(require gamepad)]}
   @item{@racket[(require geolocation)]}
+  @item{@racket[(require history)]}
   @item{@racket[(include-lib image)]}
   @item{@racket[(include-lib indexed-db)]}
   @item{@racket[(require intersection-observer)]}
@@ -135,7 +139,10 @@ These are the MDN-style browser APIs that WebRacket wraps.
   @item{@racket[(require notifications)]}
   @item{@racket[(include-lib performance)]}
   @item{@racket[(require resize-observer)]}
+  @item{@racket[(require screen-orientation)]}
   @item{@racket[(include-lib storage)]}
+  @item{@racket[(require web-speech)]}
+  @item{@racket[(require web-workers)]}
   @item{@racket[(include-lib websocket)]}
   @item{@racket[(include-lib window)]}
 ]
@@ -155,6 +162,10 @@ See their respective documentation pages.
 @;-------------------------------------------------------------------
 
 @include-section["lib-clipboard.scrbl"]
+
+@;-------------------------------------------------------------------
+
+@include-section["lib-compression-streams.scrbl"]
 
 @;-------------------------------------------------------------------
 
@@ -182,7 +193,19 @@ See their respective documentation pages.
 
 @;-------------------------------------------------------------------
 
+@include-section["lib-fullscreen.scrbl"]
+
+@;-------------------------------------------------------------------
+
+@include-section["lib-gamepad.scrbl"]
+
+@;-------------------------------------------------------------------
+
 @include-section["lib-geolocation.scrbl"]
+
+@;-------------------------------------------------------------------
+
+@include-section["lib-history.scrbl"]
 
 @;-------------------------------------------------------------------
 
@@ -214,7 +237,19 @@ See their respective documentation pages.
 
 @;-------------------------------------------------------------------
 
+@include-section["lib-screen-orientation.scrbl"]
+
+@;-------------------------------------------------------------------
+
 @include-section["lib-storage.scrbl"]
+
+@;-------------------------------------------------------------------
+
+@include-section["lib-web-speech.scrbl"]
+
+@;-------------------------------------------------------------------
+
+@include-section["lib-web-workers.scrbl"]
 
 @;-------------------------------------------------------------------
 

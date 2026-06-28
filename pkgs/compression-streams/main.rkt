@@ -1,0 +1,148 @@
+#lang webracket/base
+
+(require (only-in webracket/unsafe/dom
+                  js-new
+                  js-nullish?
+                  js-ref/extern
+                  js-send/extern
+                  js-typeof
+                  js-var)
+         (only-in webracket/primitives
+                  external?))
+
+(provide (all-defined-out))
+
+;;;
+;;; Compression Streams wrappers
+;;;
+
+;; compression-stream-info : external/raw -> compression-stream-info?
+;;   Wrap a browser CompressionStream object.
+(struct compression-stream-info (raw) #:transparent)
+
+;; decompression-stream-info : external/raw -> decompression-stream-info?
+;;   Wrap a browser DecompressionStream object.
+(struct decompression-stream-info (raw) #:transparent)
+
+;; compression-stream-raw : compression-stream-info? -> external/raw
+;;   Extract the raw CompressionStream object.
+(define (compression-stream-raw value)
+  (compression-stream-info-raw value))
+
+;; decompression-stream-raw : decompression-stream-info? -> external/raw
+;;   Extract the raw DecompressionStream object.
+(define (decompression-stream-raw value)
+  (decompression-stream-info-raw value))
+
+;; compression-stream-constructor-present? : string? -> boolean?
+;;   Report whether a stream constructor exists.
+(define (compression-stream-constructor-present? name)
+  (define ctor (js-var name))
+  (and (not (js-nullish? ctor))
+       (string=? (js-typeof ctor) "function")))
+
+;; compression-stream-supported? : -> boolean?
+;;   Report whether CompressionStream is available.
+(define (compression-stream-supported?)
+  (compression-stream-constructor-present? "CompressionStream"))
+
+;; decompression-stream-supported? : -> boolean?
+;;   Report whether DecompressionStream is available.
+(define (decompression-stream-supported?)
+  (compression-stream-constructor-present? "DecompressionStream"))
+
+;; compression-stream? : any/c -> boolean?
+;;   Report whether v is a wrapped CompressionStream object.
+(define (compression-stream? v)
+  (and (compression-stream-info? v)
+       (external? (compression-stream-raw v))))
+
+;; decompression-stream? : any/c -> boolean?
+;;   Report whether v is a wrapped DecompressionStream object.
+(define (decompression-stream? v)
+  (and (decompression-stream-info? v)
+       (external? (decompression-stream-raw v))))
+
+;; compression-format? : any/c -> boolean?
+;;   Recognize CompressionStream format names.
+(define (compression-format? value)
+  (and (or (string? value) (symbol? value))
+       (let ([s (if (symbol? value) (symbol->string value) value)])
+         (or (string=? s "gzip")
+             (string=? s "deflate")
+             (string=? s "deflate-raw")
+             (string=? s "brotli")
+             (string=? s "zstd")))))
+
+;; compression-format->string : symbol? any/c -> string?
+;;   Normalize a compression format to a JavaScript string.
+(define (compression-format->string who value)
+  (unless (compression-format? value)
+    (raise-argument-error who "compression-format?" value))
+  (if (symbol? value) (symbol->string value) value))
+
+;; make-compression-stream : (or/c string? symbol?) -> compression-stream?
+;;   Create a browser CompressionStream for format.
+(define (make-compression-stream format)
+  (unless (compression-stream-supported?)
+    (raise-arguments-error 'make-compression-stream
+                           "CompressionStream is not available"))
+  (compression-stream-info
+   (js-new (js-var "CompressionStream")
+           (vector (compression-format->string 'make-compression-stream format)))))
+
+;; make-decompression-stream : (or/c string? symbol?) -> decompression-stream?
+;;   Create a browser DecompressionStream for format.
+(define (make-decompression-stream format)
+  (unless (decompression-stream-supported?)
+    (raise-arguments-error 'make-decompression-stream
+                           "DecompressionStream is not available"))
+  (decompression-stream-info
+   (js-new (js-var "DecompressionStream")
+           (vector (compression-format->string 'make-decompression-stream format)))))
+
+;; compression-stream-readable : compression-stream? -> external/raw
+;;   Return the readable side of a CompressionStream.
+(define (compression-stream-readable value)
+  (unless (compression-stream? value)
+    (raise-argument-error 'compression-stream-readable "compression-stream?" value))
+  (js-ref/extern (compression-stream-raw value) "readable"))
+
+;; compression-stream-writable : compression-stream? -> external/raw
+;;   Return the writable side of a CompressionStream.
+(define (compression-stream-writable value)
+  (unless (compression-stream? value)
+    (raise-argument-error 'compression-stream-writable "compression-stream?" value))
+  (js-ref/extern (compression-stream-raw value) "writable"))
+
+;; decompression-stream-readable : decompression-stream? -> external/raw
+;;   Return the readable side of a DecompressionStream.
+(define (decompression-stream-readable value)
+  (unless (decompression-stream? value)
+    (raise-argument-error 'decompression-stream-readable "decompression-stream?" value))
+  (js-ref/extern (decompression-stream-raw value) "readable"))
+
+;; decompression-stream-writable : decompression-stream? -> external/raw
+;;   Return the writable side of a DecompressionStream.
+(define (decompression-stream-writable value)
+  (unless (decompression-stream? value)
+    (raise-argument-error 'decompression-stream-writable "decompression-stream?" value))
+  (js-ref/extern (decompression-stream-raw value) "writable"))
+
+;; readable-stream-pipe-through-compression : external/raw compression-stream? -> external/raw
+;;   Pipe a ReadableStream through a CompressionStream and return the resulting ReadableStream.
+(define (readable-stream-pipe-through-compression readable value)
+  (unless (external? readable)
+    (raise-argument-error 'readable-stream-pipe-through-compression "external?" readable))
+  (unless (compression-stream? value)
+    (raise-argument-error 'readable-stream-pipe-through-compression "compression-stream?" value))
+  (js-send/extern readable "pipeThrough" (vector (compression-stream-raw value))))
+
+;; readable-stream-pipe-through-decompression : external/raw decompression-stream? -> external/raw
+;;   Pipe a ReadableStream through a DecompressionStream and return the resulting ReadableStream.
+(define (readable-stream-pipe-through-decompression readable value)
+  (unless (external? readable)
+    (raise-argument-error 'readable-stream-pipe-through-decompression "external?" readable))
+  (unless (decompression-stream? value)
+    (raise-argument-error 'readable-stream-pipe-through-decompression "decompression-stream?" value))
+  (js-send/extern readable "pipeThrough" (vector (decompression-stream-raw value))))

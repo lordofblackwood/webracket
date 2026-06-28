@@ -597,13 +597,20 @@
     web-easy/private/dom-like
     audio
     clipboard
+    compression-streams
     fetch
+    fullscreen
+    gamepad
     geolocation
+    history
     indexed-db
     intersection-observer
     notifications
     resize-observer
+    screen-orientation
     storage
+    web-speech
+    web-workers
     websocket
     web-pict
     web-pict/private/entry
@@ -847,13 +854,20 @@
     web-easy/private/dom-like
     audio
     clipboard
+    compression-streams
     fetch
+    fullscreen
+    gamepad
     geolocation
+    history
     indexed-db
     intersection-observer
     notifications
     resize-observer
+    screen-orientation
     storage
+    web-speech
+    web-workers
     websocket
     web-pict
     web-pict/private/entry

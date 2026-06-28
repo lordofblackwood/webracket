@@ -366,6 +366,7 @@
   '((array      . "array.ffi")
     (audio      . "audio.ffi")
     (canvas     . "canvas.ffi")
+    (compression-streams . "dom.ffi")
     (console    . "console.ffi")
     (document   . "document.ffi")
     (dom        . "dom.ffi")
@@ -374,7 +375,10 @@
     (event      . "event.ffi")
     (audio      . "audio.ffi")
     (fetch      . "dom.ffi")          ; is window enough?
+    (fullscreen . "dom.ffi")
+    (gamepad . "dom.ffi")
     (geolocation . "dom.ffi")
+    (history . "dom.ffi")
     (image      . "image.ffi")
     (intersection-observer . "dom.ffi")
     (iterator   . "iterator.ffi")
@@ -384,7 +388,10 @@
     (rquery     . "dom.ffi")
     (performance . "performance.ffi")
     (resize-observer . "dom.ffi")
+    (screen-orientation . "dom.ffi")
     (storage    . "dom.ffi")          ; smaller dep?
+    (web-speech . "dom.ffi")
+    (web-workers . "dom.ffi")
     (indexed-db . "dom.ffi")          ; smaller dep?
     (websocket  . "websocket.ffi")
     (window     . "window.ffi")
@@ -4213,14 +4220,21 @@
   '(web-easy
     audio
     clipboard
+    compression-streams
     fetch
+    fullscreen
+    gamepad
     geolocation
+    history
     indexed-db
     intersection-observer
     jsxgraph
     notifications
     resize-observer
+    screen-orientation
     storage
+    web-speech
+    web-workers
     websocket
     web-pict
     rquery

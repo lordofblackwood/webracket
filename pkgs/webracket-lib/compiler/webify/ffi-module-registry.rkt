@@ -122,6 +122,23 @@
     "websocket.ffi"
     "window.ffi"))
 
+(define dom-backed-public-modules
+  '(clipboard
+    compression-streams
+    fetch
+    fullscreen
+    gamepad
+    geolocation
+    history
+    indexed-db
+    intersection-observer
+    notifications
+    resize-observer
+    screen-orientation
+    storage
+    web-speech
+    web-workers))
+
 (define ffi-public-alias-rows
   (let ()
     (define (row module filename)
@@ -132,6 +149,8 @@
      values
      (append
       (list (row 'js/iterator "array.ffi"))
+      (for/list ([module (in-list dom-backed-public-modules)])
+        (row module "dom.ffi"))
       ;; Aggregate facades used by migrated libraries such as `web-easy` and
       ;; `web-pict` imply the full browser binding family, not only `dom.ffi`.
       (for*/list ([module (in-list browser-aggregate-ffi-modules)]
