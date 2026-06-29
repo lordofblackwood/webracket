@@ -8,11 +8,12 @@
 ;; providers such as regexp support and `expander/read`, where prewarming moves
 ;; the cold demodularization cost out of the normal compile path.
 ;;
-;; Invoke it with the Racket toolchain and cache directory you plan to use for
+;; Invoke it with the Racket toolchain and cache directories you plan to use for
 ;; the later compile:
 ;;
 ;;   racket tools/prewarm-staged-providers.rkt \
 ;;     --provider-cache-dir path/to/provider-cache \
+;;     --runtime-provider-cache-dir path/to/runtime-provider-cache \
 ;;     --mode read
 ;;
 ;; It prints the prewarmed mode and cache path. The selected provider artifacts
@@ -30,7 +31,9 @@
          racket/format
          racket/match
          racket/path
-         "../pkgs/webracket-lib/compiler/driver.rkt")
+         "../pkgs/webracket-lib/compiler/driver.rkt"
+         (only-in "../pkgs/webracket-lib/compiler/private/parameters.rkt"
+                  current-runtime-cache-dir))
 
 
 ;;; Provider Prewarming
@@ -39,18 +42,28 @@
 ;; settings. The modes mirror the practical compile needs: regexp alone, read
 ;; plus its regexp dependency, or all currently known staged providers.
 
-;; prewarm-staged-providers! : path-string? symbol? boolean? boolean? -> void?
-;;   Build staged provider artifacts into provider-cache-dir.
-(define (prewarm-staged-providers! provider-cache-dir mode force? verbose?)
+;; cache-dir->complete-path : path-string? -> path?
+;;   Normalize a cache root argument to an absolute path.
+(define (cache-dir->complete-path dir)
+  (define p
+    (if (path? dir)
+        dir
+        (string->path dir)))
+  (path->complete-path p))
+
+;; prewarm-staged-providers! : path-string? path-string? symbol? boolean? boolean? -> void?
+;;   Build staged provider artifacts into the selected provider-cache roots.
+(define (prewarm-staged-providers! provider-cache-dir runtime-provider-cache-dir mode force? verbose?)
   (define cache-dir
-    (let ([p (if (path? provider-cache-dir)
-                 provider-cache-dir
-                 (string->path provider-cache-dir))])
-      (path->complete-path p)))
+    (cache-dir->complete-path provider-cache-dir))
+  (define runtime-cache-dir
+    (cache-dir->complete-path runtime-provider-cache-dir))
   (make-directory* cache-dir)
+  (make-directory* runtime-cache-dir)
   (parameterize ([current-provider-cache-dir cache-dir]
                  [current-provider-cache-force? force?]
-                 [current-provider-cache-verbose? verbose?])
+                 [current-provider-cache-verbose? verbose?]
+                 [current-runtime-cache-dir runtime-cache-dir])
     (match mode
       ['regexp
        (regexp-provider-forms #:public-aliases? #t
@@ -71,9 +84,10 @@
        (error 'prewarm-staged-providers!
               "unsupported mode: ~a"
               mode)]))
-  (printf "prewarmed staged providers: mode=~a cache=~a\n"
+  (printf "prewarmed staged providers: mode=~a cache=~a runtime-cache=~a\n"
           mode
-          cache-dir))
+          cache-dir
+          runtime-cache-dir))
 
 
 ;;; Command-Line Validation
@@ -101,6 +115,7 @@
 (module+ main
   (define provider-cache-dir
     (build-path (find-system-path 'temp-dir) "webracket-provider-cache"))
+  (define runtime-provider-cache-dir #f)
   (define mode 'all)
   (define force? #f)
   (define verbose? #f)
@@ -110,6 +125,9 @@
    [("--provider-cache-dir") dir
     "Write staged provider artifacts to <dir>."
     (set! provider-cache-dir dir)]
+   [("--runtime-provider-cache-dir") dir
+    "Write stable runtime-provider artifacts to <dir>."
+    (set! runtime-provider-cache-dir dir)]
    [("--mode") which
     "Prewarm one of: regexp, read, all."
     (set! mode (parse-mode which))]
@@ -119,4 +137,8 @@
    [("--verbose")
     "Print provider-cache hit/miss messages."
     (set! verbose? #t)])
-  (prewarm-staged-providers! provider-cache-dir mode force? verbose?))
+  (prewarm-staged-providers! provider-cache-dir
+                              (or runtime-provider-cache-dir provider-cache-dir)
+                              mode
+                              force?
+                              verbose?))
