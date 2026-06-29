@@ -1604,6 +1604,21 @@
     (thunk)
     (module-bridge-timing-add! name (- (now-ms) start-ms))))
 
+;; default-provider-cache-project-root : path?
+;;   Keep project/extraction caches separate from stable staged-runtime caches.
+(define default-provider-cache-project-root
+  (build-path webify-regexp-default-cache-root "project"))
+
+;; default-runtime-provider-cache-root : path?
+;;   Reuse stable runtime-provider artifacts across private project caches.
+(define default-runtime-provider-cache-root
+  webify-regexp-default-cache-root)
+
+;; runtime-provider-cache-path : path-string? ... -> path?
+;;   Build a path below the stable runtime-provider cache root.
+(define (runtime-provider-cache-path . elems)
+  (apply build-path (current-runtime-cache-dir) elems))
+
 ;; provider-module-source-fingerprint : symbol? -> any/c
 ;;   Include provider source metadata in the disk cache key when available.
 (define (provider-module-source-fingerprint name)
@@ -1809,6 +1824,76 @@
    cache-path
    (local-module-graph-fingerprint local-source-paths)
    (local-module-graph->cache-datum root reports local-source-paths)))
+
+;; local-module-report-cache-path : path-string? -> path?
+;;   Cache one extracted local module report per source file.
+(define (local-module-report-cache-path filename)
+  (define resolved (simplify-path (path->complete-path filename)))
+  (provider-cache-path
+   "local-module-reports"
+   (string-append
+    (provider-cache-string-segment (path->string resolved))
+    ".rktd")))
+
+;; local-module-report-fingerprint : path-string? -> any/c
+;;   Fingerprint one local module report by source and bridge/extractor code.
+(define (local-module-report-fingerprint filename)
+  (define resolved (simplify-path (path->complete-path filename)))
+  `(local-module-report-cache
+    1
+    ,(version)
+    ,(current-webracket/base-provider-substitutions?)
+    ,(path-fingerprint 'local-module-report-source 1 (list resolved))
+    ,(local-module-graph-extractor-fingerprint)))
+
+;; local-module-report->cache-datum : webify-module-report? (listof path?) -> datum?
+;;   Serialize one local report with the dependency paths needed for traversal.
+(define (local-module-report->cache-datum report dependency-paths)
+  `(local-module-report
+    ,(provider-report->cache-datum report)
+    (dependency-paths
+     ,@(for/list ([path (in-list dependency-paths)])
+         (cache-readable-datum path)))))
+
+;; cache-datum->local-module-report-payload : any/c -> (or/c vector? #f)
+;;   Rehydrate one cached local report and its dependency path list.
+(define (cache-datum->local-module-report-payload datum)
+  (match datum
+    [`(local-module-report ,report-datum (dependency-paths ,path-data ...))
+     (define report (cache-datum->provider-report report-datum))
+     (define dependency-paths
+       (for/list ([path-datum (in-list path-data)])
+         (cache-readable->datum path-datum)))
+     (and (webify-module-report? report)
+          (andmap path? dependency-paths)
+          (vector report
+                  (map simplify-path dependency-paths)))]
+    [_ #f]))
+
+;; read-local-module-report-cache : path-string? -> (or/c vector? #f)
+;;   Read one cached local module report when its source fingerprint matches.
+(define (read-local-module-report-cache filename)
+  (define cache-path (local-module-report-cache-path filename))
+  (define fingerprint (local-module-report-fingerprint filename))
+  (and (not (current-provider-cache-force?))
+       (file-exists? cache-path)
+       (with-handlers ([exn:fail? (lambda (_exn) #f)])
+         (match (call-with-input-file cache-path read)
+           [`(,cached-fingerprint ,payload)
+            (define decoded (cache-datum->local-module-report-payload payload))
+            (and decoded
+                 (equal? cached-fingerprint fingerprint)
+                 decoded)]
+           [_ #f]))))
+
+;; write-local-module-report-cache! : path-string? webify-module-report? (listof path?) -> void?
+;;   Persist one local module report under its dynamic source fingerprint.
+(define (write-local-module-report-cache! filename report dependency-paths)
+  (define cache-path (local-module-report-cache-path filename))
+  (write-provider-cache!
+   cache-path
+   (local-module-report-fingerprint filename)
+   (local-module-report->cache-datum report dependency-paths)))
 
 ;; cached-installed-provider-report : symbol? (symbol? -> report?) -> report?
 ;;   Reuse extracted installed-provider reports across driver runs.
@@ -2101,7 +2186,7 @@
 ;;   cells, optionally publishing public top-level aliases.
 (define (io-format-provider-forms #:public-aliases? [public-aliases? #f])
   (define cache-path
-    (provider-cache-path
+    (runtime-provider-cache-path
      (if public-aliases?
          "io-format-provider-public.rktd"
          "io-format-provider-private.rktd")))
@@ -2150,7 +2235,7 @@
     (error 'io-print-provider-forms
            "io/print public aliases are not ready; use private export cells"))
   (define cache-path
-    (provider-cache-path "io-print-provider-private.rktd"))
+    (runtime-provider-cache-path "io-print-provider-private.rktd"))
   (define fingerprint
     `(io-print-lowered-provider-cache 1 ,(io-print-source-fingerprint)))
   (define cached (read-provider-cache cache-path fingerprint))
@@ -2289,8 +2374,9 @@
 ;;   Compose the private staged original-Racket read-syntax provider and publish
 ;;   only Webify-owned aliases. Public `read-syntax` ownership is still pending.
 (define (read-syntax-provider-forms)
+  (define runtime-cache-root (current-runtime-cache-dir))
   (define cache-path
-    (webify-read-syntax-lowered-provider-cache-path (current-provider-cache-dir)))
+    (webify-read-syntax-lowered-provider-cache-path runtime-cache-root))
   (define fingerprint
     `(expander-read-syntax-lowered-provider-cache 1
                                                   ,(webify-read-syntax-source-fingerprint)))
@@ -2303,7 +2389,7 @@
      (provider-cache-log "expander/read-syntax lowered forms miss; rebuilding: ~a"
                          cache-path)
      (define lk
-       (webify-read-syntax-linklet #:cache-root (current-provider-cache-dir)
+       (webify-read-syntax-linklet #:cache-root runtime-cache-root
                                    #:force? (current-provider-cache-force?)
                                    #:verbose? (current-provider-cache-verbose?)))
      (define-values (provider-stx exports _exports-info)
@@ -2343,8 +2429,9 @@
 ;;   aliases owned by the provider.
 (define (read-provider-forms #:public-aliases? [public-aliases? #f]
                              #:owner [owner 'top-level-stdlib])
+  (define runtime-cache-root (current-runtime-cache-dir))
   (define cache-path
-    (webify-read-lowered-provider-cache-path (current-provider-cache-dir)))
+    (webify-read-lowered-provider-cache-path runtime-cache-root))
   (define fingerprint
     `(expander-read-lowered-provider-cache 2
                                            ,public-aliases?
@@ -2358,7 +2445,7 @@
     [else
      (provider-cache-log "expander/read lowered forms miss; rebuilding: ~a" cache-path)
      (define lk
-       (webify-read-linklet #:cache-root (current-provider-cache-dir)
+       (webify-read-linklet #:cache-root runtime-cache-root
                             #:force? (current-provider-cache-force?)
                             #:verbose? (current-provider-cache-verbose?)))
      (define-values (provider-stx exports _exports-info)
@@ -2400,11 +2487,12 @@
 (define (regexp-provider-forms #:public-aliases? [public-aliases? #f]
                                #:cache-context [cache-context 'default]
                                #:owner [owner 'top-level-stdlib])
+  (define runtime-cache-root (current-runtime-cache-dir))
   (define cache-path
     (if (eq? cache-context 'default)
         (webify-regexp-lowered-provider-cache-path public-aliases?
-                                                  (current-provider-cache-dir))
-        (provider-cache-path
+                                                  runtime-cache-root)
+        (runtime-provider-cache-path
          (format "regexp-provider-~a-~a.rktd"
                  (if public-aliases? "public" "private")
                  cache-context))))
@@ -2430,7 +2518,7 @@
           [else
            (provider-cache-log "regexp lowered forms miss; rebuilding: ~a" cache-path)
            (define lk
-             (webify-regexp-linklet #:cache-root (current-provider-cache-dir)
+             (webify-regexp-linklet #:cache-root runtime-cache-root
                                     #:force? (current-provider-cache-force?)
                                     #:verbose? (current-provider-cache-verbose?)))
            (define-values (provider-stx exports _exports-info)
@@ -2728,8 +2816,10 @@
          #:webracket-module-bridge? [webracket-module-bridge? #f]
          #:provider-substitutions? [provider-substitutions? #t]
          ;; Provider Cache
-         #:provider-cache-dir [provider-cache-dir webify-regexp-default-cache-root]
+         #:provider-cache-dir [provider-cache-dir default-provider-cache-project-root]
+         #:runtime-provider-cache-dir [runtime-provider-cache-dir default-runtime-provider-cache-root]
          #:clear-provider-cache? [clear-provider-cache? #f]
+         #:clear-runtime-provider-cache? [clear-runtime-provider-cache? #f]
          #:force-provider-cache-refresh? [force-provider-cache-refresh? #f])
 
   (define exit-code       0)
@@ -2751,24 +2841,33 @@
   (current-console-bridge? console-bridge?)
   (current-tree-shake? tree-shake?)
   (current-module-bridge-elide-public-cells? module-bridge-elide-public-cells?)
-  (define provider-cache-path
-    (let ([p (if (path? provider-cache-dir)
-                 provider-cache-dir
-                 (string->path provider-cache-dir))])
+  (define (cache-dir->complete-path cache-dir)
+    (let ([p (if (path? cache-dir)
+                 cache-dir
+                 (string->path cache-dir))])
       (path->complete-path p)))
-  (current-runtime-cache-dir provider-cache-path)
+  (define provider-cache-root-path
+    (cache-dir->complete-path provider-cache-dir))
+  (define runtime-provider-cache-root-path
+    (cache-dir->complete-path runtime-provider-cache-dir))
+  (current-runtime-cache-dir runtime-provider-cache-root-path)
   (current-runtime-primitive-report-path tree-shake-report)
   (set-browser-mode! browser?)
-  (current-provider-cache-dir provider-cache-path)
+  (current-provider-cache-dir provider-cache-root-path)
   (current-provider-cache-force? force-provider-cache-refresh?)
   (current-provider-cache-verbose? verbose?)
   (current-webracket/base-provider-substitutions? provider-substitutions?)
   (when clear-provider-cache?
-    (provider-cache-log "clearing cache directory: ~a" provider-cache-path)
+    (provider-cache-log "clearing provider cache directory: ~a" provider-cache-root-path)
     (with-handlers ([exn:fail:filesystem? void])
-      (delete-directory/files provider-cache-path)))
+      (delete-directory/files provider-cache-root-path)))
+  (when clear-runtime-provider-cache?
+    (provider-cache-log "clearing runtime provider cache directory: ~a" runtime-provider-cache-root-path)
+    (with-handlers ([exn:fail:filesystem? void])
+      (delete-directory/files runtime-provider-cache-root-path)))
   (when verbose?
-    (provider-cache-log "cache directory: ~a" provider-cache-path)
+    (provider-cache-log "provider cache directory: ~a" provider-cache-root-path)
+    (provider-cache-log "runtime provider cache directory: ~a" runtime-provider-cache-root-path)
     (when force-provider-cache-refresh?
       (provider-cache-log "force refresh enabled")))
   (define provider-owned-primitive-aliases/pre-read
@@ -3772,6 +3871,95 @@
      (remove-duplicates (append* (map form->symbols body)) eq?)]
     [_ '()]))
 
+;; provider-compile-stub-exports : struct
+;;   Cache the export table needed to install one compile-time provider stub.
+(struct provider-compile-stub-exports
+  (safe? public-exports phase0-exports)
+  #:transparent)
+
+;; symbol-list? : any/c -> boolean?
+;;   Check whether v is a list of symbols.
+(define (symbol-list? v)
+  (and (list? v) (andmap symbol? v)))
+
+;; provider-stub-exports-cache-path : symbol? -> path?
+;;   Cache one provider compile-stub export table by requested provider name.
+(define (provider-stub-exports-cache-path name)
+  (provider-cache-path
+   "provider-stub-exports"
+   (string-append (provider-cache-symbol-segment name) ".rktd")))
+
+;; provider-stub-exports-fingerprint : symbol? symbol? -> any/c
+;;   Fingerprint provider compile-stub exports using source and extractor code.
+(define (provider-stub-exports-fingerprint name substitute-name)
+  `(provider-stub-exports-cache
+    1
+    ,name
+    ,substitute-name
+    ,(version)
+    ,(current-webracket/base-provider-substitutions?)
+    ,(provider-module-source-fingerprint substitute-name)
+    ,(provider-report-extractor-fingerprint)))
+
+;; provider-stub-exports->cache-datum : provider-compile-stub-exports? -> datum?
+;;   Serialize the compile-stub export table.
+(define (provider-stub-exports->cache-datum exports)
+  `(provider-stub-exports
+    ,(provider-compile-stub-exports-safe? exports)
+    ,(provider-compile-stub-exports-public-exports exports)
+    ,(provider-compile-stub-exports-phase0-exports exports)))
+
+;; cache-datum->provider-stub-exports : any/c -> (or/c provider-compile-stub-exports? #f)
+;;   Rehydrate a cached compile-stub export table.
+(define (cache-datum->provider-stub-exports datum)
+  (match datum
+    [`(provider-stub-exports ,safe? ,public-exports ,phase0-exports)
+     (and (boolean? safe?)
+          (symbol-list? public-exports)
+          (symbol-list? phase0-exports)
+          (provider-compile-stub-exports safe? public-exports phase0-exports))]
+    [_ #f]))
+
+;; cached-provider-stub-exports : symbol? symbol? (-> provider-compile-stub-exports?) -> provider-compile-stub-exports?
+;;   Reuse compile-stub export tables across local module extraction runs.
+(define (cached-provider-stub-exports name substitute-name build-exports)
+  (define cache-path (provider-stub-exports-cache-path name))
+  (define fingerprint (provider-stub-exports-fingerprint name substitute-name))
+  (define (read-cache)
+    (define cached
+      (with-module-bridge-timing
+       'provider-stub-cache-lookup
+       (lambda ()
+         (read-provider-cache cache-path fingerprint))))
+    (and cached
+         (let ([decoded (cache-datum->provider-stub-exports cached)])
+           (cond
+             [decoded
+              (provider-cache-log "#lang webracket/base provider stub hit: ~a via ~a"
+                                  name
+                                  substitute-name)
+              (with-module-bridge-timing
+               'provider-stub-cache-hit
+               (lambda () decoded))]
+             [else
+              (provider-cache-log "#lang webracket/base provider stub cache unreadable: ~a via ~a"
+                                  name
+                                  substitute-name)
+              #f]))))
+  (or (read-cache)
+      (call-with-provider-cache-lock
+       cache-path
+       (lambda ()
+         (or (read-cache)
+             (let ([exports
+                    (with-module-bridge-timing
+                     'provider-stub-cache-miss
+                     build-exports)])
+               (write-provider-cache! cache-path
+                                      fingerprint
+                                      (provider-stub-exports->cache-datum exports))
+               exports))))))
+
 ;; declare-provider-compile-stub! : namespace? symbol? (listof symbol?) -> void?
 ;;   Declare a compile-time-only provider stub for local module extraction.
 (define (declare-provider-compile-stub! namespace name exports)
@@ -3934,41 +4122,54 @@
              #:unless (webracket/base-language-provider-name? name)
              #:unless (and (webracket-owned-module-name? name)
                            (not (webracket-owned-provider-compile-stub-name? name)))
-             #:when (provider-compile-stub-safe? name)
              #:when (webify-provider-trial-module-allowed? name))
          (define substitute-name (webracket/base-provider-substitute name))
          (unless (memq name compile-stub-names)
            (provider-cache-log "#lang webracket/base compile stub install: ~a via ~a"
                                name
                                substitute-name)
-           (define use-erased-provider-namespace?
-             (not (webracket-owned-ffi-provider-name? substitute-name)))
-           (define report
-             (if use-erased-provider-namespace?
-                 (parameterize ([current-namespace (provider-namespace/ref)]
-                                [current-module-name-resolver
-                                 (provider-module-name-resolver/ref)])
-                   (webify-module-path->report substitute-name
-                                               #:namespace (provider-namespace/ref)))
-                 (webify-module-path->report substitute-name)))
-           (define public-exports
-             (provider-public-export-symbols
+           (define stub-exports
+             (cached-provider-stub-exports
+              name
               substitute-name
-              (if use-erased-provider-namespace?
-                  (make-webify-contract-erasing-namespace)
-                  (make-base-namespace))
-              (if use-erased-provider-namespace?
-                  (provider-module-name-resolver/ref)
-                  base-module-name-resolver)))
-           (declare-provider-compile-stub!
-            extraction-namespace
-            name
-            (append public-exports
-                    (webify-module-report-phase0-exports report)))
-           (set! compile-stub-names (cons name compile-stub-names)))))))
+              (lambda ()
+                (cond
+                  [(provider-compile-stub-safe? name)
+                   (define use-erased-provider-namespace?
+                     (not (webracket-owned-ffi-provider-name? substitute-name)))
+                   (define report
+                     (if use-erased-provider-namespace?
+                         (parameterize ([current-namespace (provider-namespace/ref)]
+                                        [current-module-name-resolver
+                                         (provider-module-name-resolver/ref)])
+                           (webify-module-path->report substitute-name
+                                                       #:namespace (provider-namespace/ref)))
+                         (webify-module-path->report substitute-name)))
+                   (define public-exports
+                     (provider-public-export-symbols
+                      substitute-name
+                      (if use-erased-provider-namespace?
+                          (make-webify-contract-erasing-namespace)
+                          (make-base-namespace))
+                      (if use-erased-provider-namespace?
+                          (provider-module-name-resolver/ref)
+                          base-module-name-resolver)))
+                   (provider-compile-stub-exports
+                    #t
+                    public-exports
+                    (webify-module-report-phase0-exports report))]
+                  [else
+                   (provider-compile-stub-exports #f '() '())]))))
+           (when (provider-compile-stub-exports-safe? stub-exports)
+             (declare-provider-compile-stub!
+              extraction-namespace
+              name
+              (append (provider-compile-stub-exports-public-exports stub-exports)
+                      (provider-compile-stub-exports-phase0-exports stub-exports)))
+             (set! compile-stub-names (cons name compile-stub-names))))))))
   (define visiting (make-hash))
   (define permanent (make-hash))
-  (define reports '())
+  (define reports-reverse '())
   (define (visit path)
     (define resolved (simplify-path (path->complete-path path)))
     (cond
@@ -3981,33 +4182,57 @@
         "path" resolved)]
       [else
        (hash-set! visiting resolved #t)
-       (define source-dir (or (path-only resolved) (current-directory)))
-       (define module-stx (read-webracket/base-module resolved))
-       (define module-datum (syntax->datum module-stx))
-       (install-compile-stubs! module-datum)
-       (define report
-         (compile-webracket/base-module-file-report
-          resolved
-          #:namespace extraction-namespace
-          #:module-name-resolver module-name-resolver*))
+       (define cached
+         (with-module-bridge-timing
+          'local-module-report-cache-lookup
+          (lambda ()
+            (read-local-module-report-cache resolved))))
+       (define-values (report dependency-paths)
+         (cond
+           [cached
+            (provider-cache-log "#lang webracket/base local module report hit: ~a"
+                                resolved)
+            (with-module-bridge-timing
+             'local-module-report-cache-hit
+             (lambda ()
+               (values (vector-ref cached 0)
+                       (vector-ref cached 1))))]
+           [else
+            (provider-cache-log "#lang webracket/base local module report miss: ~a"
+                                resolved)
+            (with-module-bridge-timing
+             'local-module-report-cache-miss
+             (lambda ()
+               (define source-dir (or (path-only resolved) (current-directory)))
+               (define module-stx (read-webracket/base-module resolved))
+               (define module-datum (syntax->datum module-stx))
+               (install-compile-stubs! module-datum)
+               (define report
+                 (compile-webracket/base-module-file-report
+                  resolved
+                  #:namespace extraction-namespace
+                  #:module-name-resolver module-name-resolver*))
+               (define source-dependency-paths
+                 (remove-duplicates
+                  (append-map (lambda (form)
+                                (local-require-form-paths form source-dir))
+                              (match module-datum
+                                [`(module ,_name ,_language (#%module-begin ,forms ...)) forms]
+                                [`(module ,_name ,_language ,forms ...) forms]
+                                [_ '()]))
+                  equal?))
+               (define report-dependency-paths
+                 (webracket/base-report-local-dependency-paths report source-dir))
+               (define dependency-paths
+                 (remove-duplicates
+                  (append report-dependency-paths source-dependency-paths)
+                  equal?))
+               (write-local-module-report-cache! resolved report dependency-paths)
+               (values report dependency-paths)))]))
        (define module-name (webify-module-report-name report))
-       (define source-dependency-paths
-         (remove-duplicates
-          (append-map (lambda (form)
-                        (local-require-form-paths form source-dir))
-                      (match module-datum
-                        [`(module ,_name ,_language (#%module-begin ,forms ...)) forms]
-                        [`(module ,_name ,_language ,forms ...) forms]
-                        [_ '()]))
-          equal?))
-       (define report-dependency-paths
-         (webracket/base-report-local-dependency-paths report source-dir))
-       (for ([dep-path (in-list (remove-duplicates
-                                 (append report-dependency-paths
-                                         source-dependency-paths)
-                                 equal?))])
+       (for ([dep-path (in-list dependency-paths)])
          (visit dep-path))
-       (set! reports (append reports (list report)))
+       (set! reports-reverse (cons report reports-reverse))
        (hash-remove! visiting resolved)
        (hash-set! permanent resolved module-name)
        module-name]))
@@ -4016,7 +4241,7 @@
     (sort (hash-keys permanent)
           string<?
           #:key path->string))
-  (values root reports local-source-paths))
+  (values root (reverse reports-reverse) local-source-paths))
 
 ;; webracket/base-language-provider-name? : symbol? -> boolean?
 ;;   Recognize providers that are part of the #lang webracket/base language root.

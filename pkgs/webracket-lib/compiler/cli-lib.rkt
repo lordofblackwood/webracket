@@ -10,9 +10,7 @@
          racket/match
          "driver.rkt"
          (only-in "webify/provider-slices.rkt"
-                  provider-slice-report-lines)
-         (only-in "webify/regexp-provider.rkt"
-                  webify-regexp-default-cache-root))
+                  provider-slice-report-lines))
 
 (provide (struct-out webracket-cli-command)
          (struct-out webracket-compile-config)
@@ -66,7 +64,9 @@
    webracket-module-bridge?               ; force #lang webracket/* through the module bridge
    provider-substitutions?                ; route selected racket/* imports to WebRacket shims
    provider-cache-dir                     ; provider-cache root override, or #f for default
+   runtime-provider-cache-dir             ; stable runtime-provider cache root override, or #f
    clear-provider-cache?                  ; clear the provider cache before compiling
+   clear-runtime-provider-cache?          ; clear the runtime provider cache before compiling
    force-provider-cache-refresh?          ; rebuild provider-cache entries even on fingerprint hits
    )
   #:transparent)
@@ -111,7 +111,9 @@
     (webracket-module-bridge? . ,(webracket-compile-config-webracket-module-bridge? cfg))
     (provider-substitutions? . ,(webracket-compile-config-provider-substitutions? cfg))
     (provider-cache-dir . ,(webracket-compile-config-provider-cache-dir cfg))
+    (runtime-provider-cache-dir . ,(webracket-compile-config-runtime-provider-cache-dir cfg))
     (clear-provider-cache? . ,(webracket-compile-config-clear-provider-cache? cfg))
+    (clear-runtime-provider-cache? . ,(webracket-compile-config-clear-runtime-provider-cache? cfg))
     (force-provider-cache-refresh? . ,(webracket-compile-config-force-provider-cache-refresh? cfg))))
 
 ;; datum->compile-config : datum? -> webracket-compile-config?
@@ -122,6 +124,9 @@
     (unless a
       (error 'datum->compile-config "missing key: ~a" key))
     (cdr a))
+  (define (ref/default key default-value)
+    (define a (assq key datum))
+    (if a (cdr a) default-value))
   (webracket-compile-config
    (ref 'run-after)
    (ref 'verbose-mode)
@@ -160,7 +165,9 @@
    (ref 'webracket-module-bridge?)
    (ref 'provider-substitutions?)
    (ref 'provider-cache-dir)
+   (ref/default 'runtime-provider-cache-dir #f)
    (ref 'clear-provider-cache?)
+   (ref/default 'clear-runtime-provider-cache? #f)
    (ref 'force-provider-cache-refresh?)))
 
 ;; parse-webracket-cli : [vector?] -> webracket-cli-command?
@@ -205,7 +212,9 @@
   (define webracket-module-bridge? #f)
   (define provider-substitutions? #t)
   (define provider-cache-dir #f)
+  (define runtime-provider-cache-dir #f)
   (define clear-provider-cache? #f)
+  (define clear-runtime-provider-cache? #f)
   (define force-provider-cache-refresh? #f)
   (define provider-cache-report? #f)
   (define server-command #f)
@@ -412,13 +421,19 @@
       "Enable Goal 1 provider substitutions (default)"
       (set! provider-substitutions? #t)]
      [("--provider-cache-dir") dirname
-                               "Use <dirname> for provider-slice caches"
+                               "Use <dirname> for project provider/extraction caches"
                                (set! provider-cache-dir dirname)]
+     [("--runtime-provider-cache-dir") dirname
+                                       "Use <dirname> for stable runtime provider caches"
+                                       (set! runtime-provider-cache-dir dirname)]
      [("--provider-cache-report")
       "Print installed-provider report cache entries and exit"
       (set! provider-cache-report? #t)]
-     [("--clear-provider-cache") "Delete the provider cache directory before compiling"
+     [("--clear-provider-cache") "Delete the project provider cache directory before compiling"
                                  (set! clear-provider-cache? #t)]
+     [("--clear-runtime-provider-cache")
+      "Delete the stable runtime provider cache directory before compiling"
+      (set! clear-runtime-provider-cache? #t)]
      [("--force-provider-cache-refresh")
       "Regenerate provider cache artifacts even when fingerprints match"
       (set! force-provider-cache-refresh? #t)]
@@ -529,7 +544,9 @@
        webracket-module-bridge?
        provider-substitutions?
        provider-cache-dir
+       runtime-provider-cache-dir
        clear-provider-cache?
+       clear-runtime-provider-cache?
        force-provider-cache-refresh?))]))
 
 ;; run-webracket-compile : webracket-compile-config? -> (values exact-integer? any/c compilation-output-paths?)
@@ -587,9 +604,14 @@
                        (webracket-compile-config-provider-substitutions? cfg)
                        #:provider-cache-dir
                        (or (webracket-compile-config-provider-cache-dir cfg)
-                           webify-regexp-default-cache-root)
+                           default-provider-cache-project-root)
+                       #:runtime-provider-cache-dir
+                       (or (webracket-compile-config-runtime-provider-cache-dir cfg)
+                           default-runtime-provider-cache-root)
                        #:clear-provider-cache?
                        (webracket-compile-config-clear-provider-cache? cfg)
+                       #:clear-runtime-provider-cache?
+                       (webracket-compile-config-clear-runtime-provider-cache? cfg)
                        #:force-provider-cache-refresh?
                        (webracket-compile-config-force-provider-cache-refresh? cfg)))
   (values exit-code compile-timings output-paths))
@@ -612,7 +634,7 @@
       (path->complete-path
        (if (webracket-cli-command-payload command)
            (string->path (webracket-cli-command-payload command))
-           webify-regexp-default-cache-root)))
+           default-provider-cache-project-root)))
      (for ([entry (in-list (provider-report-cache-entries))])
        (match-define (list path size mtime) entry)
        (printf "~a\t~a\t~a\n" path size mtime))
