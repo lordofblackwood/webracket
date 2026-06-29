@@ -689,7 +689,7 @@
    (datum-contains? datum
                     `(define ,cell-id (module-variable-make 'out)))))
 
-(test-case "top-level init helper materializations mark exports defined"
+(test-case "top-level init helper materializations keep public export cells"
   (define exports '(out))
   (define stats (make-hash))
   (define value-id
@@ -718,12 +718,42 @@
       (and (equal? key '(bridge-export-cell-meta demo-init-helper out))
            value)))
   (check-false (hash-ref meta 'read-before-definition? #f))
-  (check-equal? (hash-ref meta 'selected-export-kind 'missing) 'value)
+  (check-true (hash-ref meta 'definition-materialization-before-definition? #f))
+  (check-equal? (hash-ref meta 'selected-export-kind 'missing) 'cell)
   (check-true
    (datum-contains? datum
-                    `(define-values (,value-id)
-                       (webify-linklet-proc$0 (#%variable-reference) (void)))))
-  (check-false
+                    `(define ,cell-id (module-variable-make 'out))))
+  (check-true
+   (datum-contains? datum
+                    `(define ,value-id (module-variable-ref ,cell-id)))))
+
+(test-case "boxed init helper materializations keep public export cells"
+  (define exports '(out))
+  (define stats (make-hash))
+  (define cell-id
+    (hash-ref (first-slice-top-level-export-cell-ids exports) 'out))
+  (define datum
+    (parameterize ([current-module-bridge-elide-public-cells? #t]
+                   [current-module-bridge-module-kinds
+                    (hasheq 'demo-boxed-init-helper 'local-user)]
+                   [current-webify-bridge-stats stats])
+      (first-slice->top-level-datum
+       '(lambda (instance out-cell)
+          (define effect
+            (begin
+              (set-boxed! out-cell 41)
+              (void)))
+          (define after-effect (void))
+          after-effect)
+       exports
+       #:module-name 'demo-boxed-init-helper)))
+  (define meta
+    (for/or ([(key value) (in-hash stats)])
+      (and (equal? key '(bridge-export-cell-meta demo-boxed-init-helper out))
+           value)))
+  (check-true (hash-ref meta 'definition-materialization-before-definition? #f))
+  (check-equal? (hash-ref meta 'selected-export-kind 'missing) 'cell)
+  (check-true
    (datum-contains? datum
                     `(define ,cell-id (module-variable-make 'out)))))
 

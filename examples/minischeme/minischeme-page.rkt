@@ -80,7 +80,7 @@
                    "style"
                    "margin:0 0 18px;padding:8px 12px;border-radius:999px;display:inline-flex;align-items:center;gap:8px;background:#e0e7ff;color:#3730a3;font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;")
 (js-set! status-banner "textContent" "loading")
-(js-append-child! (js-document-body) status-banner)
 
 (mount-renderer! app-renderer)
+(js-append-child! (js-document-body) status-banner)
 (mark-status! "ready" "ready")

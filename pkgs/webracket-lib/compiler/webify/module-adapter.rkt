@@ -92,6 +92,10 @@
   (define define-constances (hash-ref usage 'define-constances))
   (define read-before-definition
     (lowered-export-read-before-definition-summary expr export-args))
+  (define definition-materialization-before-definition
+    (lowered-export-materialization-before-definition-summary expr
+                                                              export-args
+                                                              #:definitions-only? #t))
   (define imported-names
     (if importss
         (flatten-groups importss)
@@ -112,6 +116,8 @@
             'mutated? (and (hash-ref mutated export-arg #f) #t)
             'undefined-sensitive? (and (hash-ref undefined-sensitive export-arg #f) #t)
             'read-before-definition? (and (hash-ref read-before-definition export-arg #f) #t)
+            'definition-materialization-before-definition?
+            (and (hash-ref definition-materialization-before-definition export-arg #f) #t)
             'reflection-visible? (and (hash-ref reflection-visible export-arg #f) #t)
             'phase0-value-space-only? #t
             'dynamic-require-sensitive? #f)))
@@ -128,6 +134,7 @@
        (not (hash-ref meta 'mutated? #f))
        (not (hash-ref meta 'undefined-sensitive? #f))
        (not (hash-ref meta 'read-before-definition? #f))
+       (not (hash-ref meta 'definition-materialization-before-definition? #f))
        (not (hash-ref meta 'reflection-visible? #f))
        (not (hash-ref meta 'dynamic-require-sensitive? #f))
        (hash-ref meta 'phase0-value-space-only? #f)))
@@ -564,9 +571,11 @@
   (walk expr)
   placeholder-definitions)
 
-;; lowered-export-materialization-before-definition-summary : any/c (listof symbol?) -> hasheq?
+;; lowered-export-materialization-before-definition-summary : any/c (listof symbol?) [#:definitions-only? boolean?] -> hasheq?
 ;;   Find export writes whose late materialization would be reordered after definitions.
-(define (lowered-export-materialization-before-definition-summary expr export-args)
+(define (lowered-export-materialization-before-definition-summary expr
+                                                                  export-args
+                                                                  #:definitions-only? [definitions-only? #f])
   (define export-set
     (for/hasheq ([arg (in-list export-args)])
       (values arg #t)))
@@ -574,16 +583,69 @@
   (define (record! id)
     (when (hash-ref export-set id #f)
       (hash-set! unsafe id #t)))
-  (define (materialization-target form)
-    (match form
-      [`(,(or 'module-variable-define! 'variable-set!/define) ,cell ,_rhs ,_constance)
-       (and (hash-ref export-set cell #f) cell)]
-      [`(define ,_id
-          (begin
-            (module-variable-define! ,cell ,_rhs ,_constance)
-            (void)))
-       (and (hash-ref export-set cell #f) cell)]
-      [_ #f]))
+  (define (materialization-targets form)
+    (define targets '())
+    (define (record-target! cell)
+      (when (hash-ref export-set cell #f)
+        (set! targets (cons cell targets))))
+    (define (walk v)
+      (cond
+        [(pair? v)
+         (unless (quote-like-form? v)
+           (match v
+             [`(lambda . ,_)
+              (void)]
+             [`(case-lambda . ,_)
+              (void)]
+             [`(,(or 'module-variable-define! 'variable-set!/define) ,cell ,rhs ,_constance)
+              (record-target! cell)
+              (walk rhs)]
+             [`(set-boxed! ,cell ,rhs)
+              (record-target! cell)
+              (walk rhs)]
+             [`(let-values ,bindings ,body ...)
+              (for ([binding (in-list bindings)])
+                (match binding
+                  [(list _ids rhs) (walk rhs)]
+                  [_ (void)]))
+              (for ([body-form (in-list body)])
+                (walk body-form))]
+             [`(letrec-values ,bindings ,body ...)
+              (for ([binding (in-list bindings)])
+                (match binding
+                  [(list _ids rhs) (walk rhs)]
+                  [_ (void)]))
+              (for ([body-form (in-list body)])
+                (walk body-form))]
+             [`(letrec-syntaxes+values ,_syntax-bindings ,value-bindings ,body ...)
+              (for ([binding (in-list value-bindings)])
+                (match binding
+                  [(list _ids rhs) (walk rhs)]
+                  [_ (void)]))
+              (for ([body-form (in-list body)])
+                (walk body-form))]
+             [`(define ,_id ,rhs)
+              (walk rhs)]
+             [`(define-values ,_ids ,rhs)
+              (walk rhs)]
+             [`(begin ,forms ...)
+              (for ([body-form (in-list forms)])
+                (walk body-form))]
+             [`(begin0 ,head ,rest ...)
+              (walk head)
+              (for ([body-form (in-list rest)])
+                (walk body-form))]
+             [`(,head . ,rest)
+              (walk head)
+              (walk rest)]
+             [_ (void)]))]
+        [(vector? v)
+         (for ([entry (in-vector v)])
+           (walk entry))]
+        [else
+         (void)]))
+    (walk form)
+    (remove-duplicates (reverse targets) eq?))
   (define (definition-form? form)
     (match form
       [`(define . ,_) #t]
@@ -595,9 +657,15 @@
                 [definition-after? #f])
        (unless (null? forms)
          (define form (car forms))
-         (define target (materialization-target form))
-         (when (and target definition-after?)
-           (record! target))
+         (define targets
+           (if (or (not definitions-only?)
+                   (definition-form? form))
+               (materialization-targets form)
+               '()))
+         (when (and (not (null? targets))
+                    definition-after?)
+           (for ([target (in-list targets)])
+             (record! target)))
          (loop (cdr forms)
                (or definition-after?
                    (definition-form? form)))))]
@@ -659,6 +727,10 @@
     (lowered-export-placeholder-definition-summary expr export-args))
   (define materialization-before-definition
     (lowered-export-materialization-before-definition-summary expr export-args))
+  (define definition-materialization-before-definition
+    (lowered-export-materialization-before-definition-summary expr
+                                                              export-args
+                                                              #:definitions-only? #t))
   (define imported-names
     (if importss
         (flatten-groups importss)
@@ -676,6 +748,7 @@
                               (hash-ref read-before-definition export-arg #f)
                               (and (not (current-module-bridge-elide-public-cells?))
                                    (hash-ref materialization-before-definition export-arg #f))
+                              (hash-ref definition-materialization-before-definition export-arg #f)
                               (not (hash-has-key? define-constances export-arg))))
         (vector export
                 export-arg
