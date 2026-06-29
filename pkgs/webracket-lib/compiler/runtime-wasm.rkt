@@ -1,5 +1,7 @@
 #lang racket
-(provide generate-runtime)
+(provide generate-runtime
+         generate-core-runtime
+         generate-shared-types)
 
 (require "private/wasm-data.rkt"
          "private/wasm-utils.rkt"
@@ -8,6 +10,8 @@
          "private/parameters.rkt"
          "private/timings.rkt"
          "private/structs.rkt"
+         "runtime-wasm/core-helper.rkt"
+         "runtime-wasm/core/fixnums.rkt"
          file/sha1
          racket/fasl
          racket/file
@@ -21,6 +25,1425 @@
 (define-runtime-path wasm-utils-path "private/wasm-utils.rkt")
 (define-runtime-path immediates-path "private/immediates.rkt")
 
+;; core-runtime-helpers : (listof core-runtime-helper?)
+;;   Enumerate the functions currently shared between monolithic and core runtime trees.
+(define core-runtime-helpers
+  (append
+   fixnum-core-runtime-helpers))
+
+;; core-runtime-helper-index : hasheq?
+;;   Index core runtime helpers by Wasm function name.
+(define core-runtime-helper-index
+  (make-core-runtime-helper-index core-runtime-helpers))
+
+;; generate-shared-types : -> (listof datum?)
+;;   Build type declarations shared by the core and program runtime modules.
+(define (generate-shared-types)
+  `(
+         ;;;
+         ;;; Internal Types
+         ;;;
+
+         ; The following internal types are used to implement the various Racket data types.
+         (type $Array    (array (mut (ref eq))))
+         (type $I32Array (array (mut i32)))
+         (type $I8Array  (array (mut i8)))
+
+         (type $GrowableArray
+               (struct
+                 (field $arr (mut (ref $Array)))  ;; underlying array
+                 (field $cap (mut i32))           ;; capacity (the size of the array)
+                 (field $i   (mut i32))))         ;; the index of the next free slot in $arr
+
+         (type $GrowableBytes
+               (struct
+                 (field $arr (mut (ref $I8Array))) ;; underlying byte array
+                 (field $cap (mut i32))            ;; capacity of the array
+                 (field $i   (mut i32))))          ;; next free index
+
+         (type $I32GrowableArray
+               (struct
+                 (field $arr (mut (ref $I32Array))) ;; underlying array
+                 (field $cap (mut i32))             ;; capacity
+                 (field $i   (mut i32))))           ;; current size
+
+
+         ; The type $Boxed is used for assignable variables.
+         ; They are not exposed, so they do not need to carry a hash code.
+         (type $Boxed (struct (field $v (mut (ref eq)))))
+
+         ;;;
+         ;;; Support
+         ;;;
+
+         (type $Values    (array (mut (ref eq))))  ; for multiple values return
+         (type $Args      (array (mut (ref eq))))  ; holds arguments passed to a closure
+         (type $Free      (array (mut (ref eq))))  ; holds captured free variables
+
+       ;;;
+       ;;; Types: Heap allocated objects
+       ;;;
+
+       ; All heap allocated values carry a hash code.
+       ; If the hash code is 0 it hash hasn't been computed yet.
+         (rec
+          (type $Heap (sub (struct (field $hash (mut i32)))))
+          (type $Pair (sub $Heap
+                           (struct
+                             (field $hash (mut i32))
+                             (field $a    (mut (ref eq)))
+                             (field $d    (mut (ref eq))))))
+          (type $MPair (sub $Heap
+                            (struct
+                              (field $hash (mut i32))
+                              (field $a    (mut (ref eq)))
+                              (field $d    (mut (ref eq))))))
+          (type $Box  (sub $Heap
+                           (struct
+                             (field $hash      (mut i32))
+                             (field $immutable i32)
+                             (field $v         (mut (ref eq))))))
+          ;; Weak boxes normally allow their contents to disappear after GC.
+          ;; WebRacket does not expose GC weakness yet, so this first slice
+          ;; keeps a strong reference. That is enough for expander caches, where
+          ;; retaining cached values is semantically conservative.
+          (type $WeakBox (sub $Heap
+                              (struct
+                                (field $hash (mut i32))
+                                (field $v    (mut (ref eq))))))
+          ;; Thread cells are per-thread in Racket. WebRacket is currently
+          ;; single-threaded, so the current value is stored directly here.
+          (type $ThreadCell (sub $Heap
+                                 (struct
+                                   (field $hash      (mut i32))
+                                   (field $default   (mut (ref eq)))
+                                   (field $current   (mut (ref eq)))
+                                   (field $preserved i32))))
+          ;; WebRacket is single-threaded for now, but the expander's
+          ;; namespace registry expects stable thread identity and simple
+          ;; synchronizable semaphores/events.
+          (type $Thread (sub $Heap
+                             (struct
+                               (field $hash (mut i32)))))
+          ;; Minimal thread groups for single-threaded WebRacket. They retain
+          ;; parent links for API compatibility, but scheduling is unaffected.
+          (type $ThreadGroup (sub $Heap
+                                  (struct
+                                    (field $hash   (mut i32))
+                                    (field $parent (ref eq)))))
+          ;; Minimal logger objects. They are enough for racket/base modules
+          ;; that test logging levels before emitting; receivers/events can be
+          ;; layered on later if browser logging becomes a goal.
+          (type $Logger (sub $Heap
+                             (struct
+                               (field $hash (mut i32))
+                               (field $name (ref eq)))))
+          (type $LogReceiver (sub $Heap
+                                  (struct
+                                    (field $hash   (mut i32))
+                                    (field $logger (ref $Logger))
+                                    (field $level  (ref eq))
+                                    (field $topics (ref eq)))))
+          ;; Minimal byte converters. For now they represent the guaranteed
+          ;; UTF-8/locale-as-UTF-8 identity conversions used while booting
+          ;; module libraries; full transcoding belongs with richer I/O/rktio.
+          (type $BytesConverter (sub $Heap
+                                     (struct
+                                       (field $hash   (mut i32))
+                                       (field $closed (mut i32)))))
+          (type $Channel (sub $Heap
+                              (struct
+                                (field $hash  (mut i32))
+                                (field $ready (mut i32))
+                                (field $value (mut (ref eq))))))
+          (type $ChannelPutEvt (sub $Heap
+                                    (struct
+                                      (field $hash (mut i32))
+                                      (field $ch   (ref $Channel))
+                                      (field $v    (ref eq)))))
+          (type $HandleEvt (sub $Heap
+                                (struct
+                                  (field $hash (mut i32))
+                                  (field $evt  (ref eq))
+                                  (field $proc (ref $Procedure)))))
+          ;; Minimal will executors. WebRacket does not expose GC-driven
+          ;; finalization yet, so registrations are retained to preserve
+          ;; references, but no wills become ready for execution.
+          (type $WillExecutor (sub $Heap
+                                   (struct
+                                     (field $hash          (mut i32))
+                                     (field $registrations (mut (ref eq))))))
+          ;; Opaque continuation-mark keys. Full continuation marks are still
+          ;; stubbed, but libraries use fresh key allocation as opaque identity
+          ;; tokens during startup.
+          (type $ContinuationMarkKey (sub $Heap
+                                          (struct
+                                            (field $hash (mut i32))
+                                            (field $name (ref eq)))))
+          (type $ContinuationMarkSet (sub $Heap
+                                          (struct
+                                            (field $hash (mut i32)))))
+          ;; Minimal custodians for browser/module bootstrap. They track a
+          ;; shutdown bit so custodian boxes can report #f after shutdown, but
+          ;; WebRacket does not yet manage ports, threads, or memory by
+          ;; custodian.
+          (type $Custodian (sub $Heap
+                                (struct
+                                  (field $hash      (mut i32))
+                                  (field $shutdown? (mut i32)))))
+          ;; Minimal security guards. They preserve the value graph and
+          ;; current-security-guard parameter protocol used by racket/base
+          ;; modules. The access-checking hooks are not consulted yet; they
+          ;; belong with the VFS/network layer.
+          (type $SecurityGuard (sub $Heap
+                                    (struct
+                                      (field $hash          (mut i32))
+                                      (field $parent        (ref eq))
+                                      (field $file-guard    (ref $Procedure))
+                                      (field $network-guard (ref $Procedure))
+                                      (field $link-guard    (ref $Procedure)))))
+          (type $CustodianBox (sub $Heap
+                                   (struct
+                                     (field $hash (mut i32))
+                                     (field $cust (ref $Custodian))
+                                     (field $v    (mut (ref eq))))))
+          (type $Date (sub $Heap
+                           (struct
+                             (field $hash             (mut i32))
+                             (field $second           (ref eq))
+                             (field $minute           (ref eq))
+                             (field $hour             (ref eq))
+                             (field $day              (ref eq))
+                             (field $month            (ref eq))
+                             (field $year             (ref eq))
+                             (field $week-day         (ref eq))
+                             (field $year-day         (ref eq))
+                             (field $dst?             (ref eq))
+                             (field $time-zone-offset (ref eq)))))
+          (type $DateStar (sub $Date
+                               (struct
+                                 (field $hash             (mut i32))
+                                 (field $second           (ref eq))
+                                 (field $minute           (ref eq))
+                                 (field $hour             (ref eq))
+                                 (field $day              (ref eq))
+                                 (field $month            (ref eq))
+                                 (field $year             (ref eq))
+                                 (field $week-day         (ref eq))
+                                 (field $year-day         (ref eq))
+                                 (field $dst?             (ref eq))
+                                 (field $time-zone-offset (ref eq))
+                                 (field $nanosecond       (ref eq))
+                                 (field $time-zone-name   (ref $String)))))
+          (type $Semaphore (sub $Heap
+                                (struct
+                                  (field $hash  (mut i32))
+                                  (field $count (mut i32)))))
+          (type $SemaphorePeekEvt (sub $Heap
+                                       (struct
+                                         (field $hash (mut i32))
+                                         (field $sema (ref $Semaphore)))))
+          (type $AlwaysEvt (sub $Heap
+                                (struct
+                                  (field $hash (mut i32)))))
+          (type $NeverEvt (sub $Heap
+                               (struct
+                                 (field $hash (mut i32)))))
+          ;; Racket CS uses uninterruptible locks around mutable runtime
+          ;; tables. WebRacket is currently single-threaded, so the lock value
+          ;; is opaque and acquire/release are no-ops. If WebRacket grows
+          ;; threads/places later, this is where real lock state belongs.
+          (type $UninterruptibleLock (sub $Heap
+                                          (struct
+                                            (field $hash (mut i32)))))
+          ;; Environment variables are currently modeled as an empty set. This
+          ;; is enough for expander probes that merely ask whether flags exist.
+          (type $EnvironmentVariables (sub $Heap
+                                           (struct
+                                             (field $hash (mut i32)))))
+          ;; Lightweight pseudo-random generators. Racket specifies MRG32k3a;
+          ;; WebRacket currently uses SplitMix32 state while preserving the
+          ;; generator object/parameter protocol needed by racket/base modules.
+          (type $PseudoRandomGenerator (sub $Heap
+                                            (struct
+                                              (field $hash  (mut i32))
+                                              (field $state (mut i32)))))
+          ;; Private payload thrown by WebRacket's bootstrap
+          ;; call-with-escape-continuation implementation.
+          (type $EscapeContinuationJump (sub $Heap
+                                             (struct
+                                               (field $hash  (mut i32))
+                                               (field $value (ref eq)))))
+
+          ;; Poor-man parameterizations. This is an overlay chain over a base
+          ;; parameterization plus a list of parameter/value pairs. It is not a
+          ;; full continuation-mark model, but it preserves dynamic parameter
+          ;; lookup for the bootstrap parameters that WebRacket implements as
+          ;; primitives.
+          (type $Parameterization (sub $Heap
+                                       (struct
+                                         (field $hash     (mut i32))
+                                         (field $base     (ref eq))
+                                         (field $bindings (ref eq)))))
+
+          ;; WebRacket does not implement impersonators yet, but Racket
+          ;; libraries allocate impersonator-property descriptors at module
+          ;; initialization time. Keep a first-class descriptor so the public
+          ;; predicates work without pretending that impersonation is active.
+          (type $ImpersonatorProperty (sub $Heap
+                                           (struct
+                                             (field $hash (mut i32))
+                                             (field $name (ref eq)))))
+
+          (type $Procedure
+                (sub $Heap
+                     (struct
+                       (field $hash   (mut i32))
+                       (field $name   (ref eq))   ;; $false or a $Symbol
+                       (field $arity  (ref eq))   ;; fixnum (i31 with lsb=0)
+                       ;                              +n means precisely n
+                       ;                               0 means precisely 0
+                       ;                              -1 means at least  0
+                       ;                              -2 means at least  1
+                       ;                              -n means at least n-1
+                       (field $realm  (ref eq))   ;; $false or $Symbol
+                       (field $invoke (ref $ProcedureInvoker)))))
+
+          (type $ProcedureInvoker
+                (func (param $proc (ref $Procedure))
+                      (param $args (ref $Args))      ; an array of (ref eq)
+                      (result (ref eq))))
+
+          ;; Raw primitive function types
+          (type $Prim0    (func                                   (result (ref eq))))
+          (type $Prim1    (func (param (ref eq))                  (result (ref eq))))
+          (type $Prim2    (func (param (ref eq)) (param (ref eq)) (result (ref eq))))
+          (type $Prim3    (func (param (ref eq)) (param (ref eq)) (param (ref eq))
+                                (result (ref eq))))
+          (type $Prim4    (func (param (ref eq)) (param (ref eq)) (param (ref eq)) (param (ref eq))
+                                (result (ref eq))))
+          (type $Prim5    (func (param (ref eq)) (param (ref eq)) (param (ref eq)) (param (ref eq)) (param (ref eq))
+                                (result (ref eq))))
+
+          (type $Prim>=0  (func (param (ref eq))      ;; list of args
+                                (result (ref eq))))
+          (type $Prim>=1  (func (param (ref eq))      ;; first arg
+                                (param (ref eq))      ;; rest list
+                                (result (ref eq))))
+          (type $Prim>=2  (func (param (ref eq)) (param (ref eq))
+                                (param (ref eq))      ;; rest list
+                                (result (ref eq))))
+          (type $Prim>=3  (func (param (ref eq)) (param (ref eq)) (param (ref eq))
+                                (param (ref eq))      ;; rest list
+                                (result (ref eq))))
+          (type $Prim>=4  (func (param (ref eq)) (param (ref eq)) (param (ref eq)) (param (ref eq))
+                                (param (ref eq))      ;; rest list
+                                (result (ref eq))))
+
+          (type $Prim01   (func (param (ref eq)) (result (ref eq))))
+          (type $Prim02   (func (param (ref eq)) (param (ref eq)) (result (ref eq))))
+          (type $Prim03   (func (param (ref eq)) (param (ref eq)) (param (ref eq))
+                                (result (ref eq))))
+
+          (type $Prim12   (func (param (ref eq)) (param (ref eq)) (result (ref eq))))
+          (type $Prim13   (func (param (ref eq)) (param (ref eq)) (param (ref eq))
+                                (result (ref eq))))
+          (type $Prim14   (func (param (ref eq)) (param (ref eq)) (param (ref eq)) (param (ref eq))
+                                (result (ref eq))))
+          (type $Prim15   (func (param (ref eq)) (param (ref eq)) (param (ref eq)) (param (ref eq)) (param (ref eq))
+                                (result (ref eq))))
+          ; Instead of introducing an $Prim16 use $Prim>=1 to reduce the number of shapes.
+          (type $Prim23   (func (param (ref eq)) (param (ref eq)) (param (ref eq))
+                                (result (ref eq))))
+          (type $Prim24   (func (param (ref eq)) (param (ref eq)) (param (ref eq)) (param (ref eq))
+                                (result (ref eq))))
+          (type $Prim25   (func (param (ref eq)) (param (ref eq)) (param (ref eq)) (param (ref eq)) (param (ref eq))
+                                (result (ref eq))))
+
+          (type $Prim34   (func (param (ref eq)) (param (ref eq)) (param (ref eq)) (param (ref eq))
+                                (result (ref eq))))
+          (type $Prim35   (func (param (ref eq)) (param (ref eq)) (param (ref eq)) (param (ref eq)) (param (ref eq))
+                                (result (ref eq))))
+          (type $Prim67   (func (param (ref eq)) (param (ref eq)) (param (ref eq)) (param (ref eq))
+                                 (param (ref eq)) (param (ref eq)) (param (ref eq))
+                                 (result (ref eq))))
+          (type $Prim6    (func (param (ref eq)) (param (ref eq)) (param (ref eq)) (param (ref eq)) (param (ref eq))
+                                (param (ref eq))
+                                (result (ref eq))))
+
+          (type $ClosureCode  (func (param $clos (ref $Closure))
+                                    (param $args (ref $Args))
+                                    (result (ref eq))))
+          (type $KnownCode0   (func (param $args (ref $Args))
+                                    (result (ref eq))))
+          (type $KnownCode1   (func (param $env0 (ref eq))
+                                    (param $args (ref $Args))
+                                    (result (ref eq))))
+          (type $Closure
+                (sub $Procedure
+                     (struct
+                       ; from $Procedure
+                       (field $hash   (mut i32))
+                       (field $name   (ref eq))   ;; $false or a $Symbol
+                       (field $arity  (ref eq))   ;; fixnum (i31 with lsb=0) or (arity-at-least n)
+                       (field $realm  (ref eq))   ;; $false or $Symbol
+                       (field $invoke (ref $ProcedureInvoker))
+                       ; from $Closure
+                       (field $debug-id (ref eq)) ;; $false or a $Symbol used for debug lookup
+                       (field $code   (ref $ClosureCode))
+                       (field $free   (ref $Free)))))
+
+          (type $Closure1
+                (sub $Closure
+                     (struct
+                       ;; inherited $Procedure fields
+                       (field $hash   (mut i32))
+                       (field $name   (ref eq))
+                       (field $arity  (ref eq))
+                       (field $realm  (ref eq))
+                       (field $invoke (ref $ProcedureInvoker))
+                       ;; inherited $Closure fields
+                       (field $debug-id (ref eq))
+                       (field $code   (ref $ClosureCode))
+                       (field $free   (ref $Free))
+                       ;; inline payload for the single captured value
+                       (field $free0  (mut (ref eq))))))
+
+          (type $Closure2
+                (sub $Closure
+                     (struct
+                       ;; inherited $Procedure fields
+                       (field $hash   (mut i32))
+                       (field $name   (ref eq))
+                       (field $arity  (ref eq))
+                       (field $realm  (ref eq))
+                       (field $invoke (ref $ProcedureInvoker))
+                       ;; inherited $Closure fields
+                       (field $debug-id (ref eq))
+                       (field $code   (ref $ClosureCode))
+                       (field $free   (ref $Free))
+                       ;; inline payload for the two captured values
+                       (field $free0  (mut (ref eq)))
+                       (field $free1  (mut (ref eq))))))
+
+          (type $Closure3
+                (sub $Closure
+                     (struct
+                       ;; inherited $Procedure fields
+                       (field $hash   (mut i32))
+                       (field $name   (ref eq))
+                       (field $arity  (ref eq))
+                       (field $realm  (ref eq))
+                       (field $invoke (ref $ProcedureInvoker))
+                       ;; inherited $Closure fields
+                       (field $debug-id (ref eq))
+                       (field $code   (ref $ClosureCode))
+                       (field $free   (ref $Free))
+                       ;; inline payload for the three captured values
+                       (field $free0  (mut (ref eq)))
+                       (field $free1  (mut (ref eq)))
+                       (field $free2  (mut (ref eq))))))
+
+          (type $CaseClosure  ; for case-lambda
+                (sub $Closure
+                     (struct
+                       ;; inherited $Procedure fields
+                       (field $hash   (mut i32))
+                       (field $name   (ref eq))
+                       (field $arity  (ref eq))        ;; store (ref $I32Array) here for Racket-style arity
+                       (field $realm  (ref eq))
+                       (field $invoke (ref $ProcedureInvoker))
+                       ;; inherited $Closure fields
+                       (field $debug-id (ref eq))
+                       (field $code   (ref $ClosureCode))  ;; dispatcher
+                       (field $free   (ref $Free))         ;; can be an empty array
+                       ;; new, typed payload
+                       (field $arities (ref $I32Array))    ;; markers: m>=0 exact m; m<0 at least (-m-1)
+                       (field $arms    (ref $Array)))))    ;; (ref eq) array of arm closures
+
+
+          (type $PrimitiveProcedure
+                (sub $Procedure
+                     (struct
+                       ; From $Procedure
+                       (field $hash   (mut i32))
+                       (field $name   (ref eq))
+                       (field $arity  (ref eq))
+                       (field $realm  (ref eq))
+                       (field $invoke (ref $ProcedureInvoker))
+                       ; Function pointer for primitive implementation
+                       (field $code (ref null func))
+                       ; other fields
+                       (field $result-arity (ref eq))))) ;; fixnum like 1 for most
+
+          (type $PrimitiveClosure
+                (sub $PrimitiveProcedure
+                     (struct
+                       ;; Inherits all fields from $PrimitiveProcedure:
+                       (field $hash         (mut i32))
+                       (field $name         (ref eq))
+                       (field $arity        (ref eq))
+                       (field $realm        (ref eq))
+                       (field $invoke       (ref $ProcedureInvoker))
+                       (field $code         (ref null func))
+                       (field $result-arity (ref eq))  ; fixnum
+                       ;; Own fields
+                       ; ...
+                       )))
+
+
+          ; Some structs are applicable.
+          ; In order to make function calls fast, we make structs a subtype of $Procedure.
+          ; Non-applicable structs gets an $invoke function that signals an error.
+          ; The down side is that we add 4 (four!) extra fields.
+          (type $Struct
+                (sub $Procedure
+                     (struct
+                       ; from the procedure super-type
+                       (field $hash   (mut i32))  ;; Computed lazily, starts at 0
+                       (field $name   (ref eq))   ;; $false or a $Symbol
+                       (field $arity  (ref eq))   ;; fixnum (i31 with lsb=0) or (arity-at-least n)
+                       (field $realm  (ref eq))   ;; $false or $Symbol
+                       (field $invoke (ref $ProcedureInvoker))
+                       ; fields for structs
+                       (field $type   (ref $StructType))      ;; Pointer to struct type descriptor
+                       (field $fields (ref $Array)))))        ;; Array of (ref eq), holds field values
+
+          (type $StructType
+                (sub $Heap
+                     (struct
+                       (field $hash             (mut i32))            ;; Computed lazily, starts at 0
+                       (field $name             (ref $Symbol))        ;; Struct name
+                       (field $super            (ref eq))             ;; Supertype or #f (use global $false)
+                       (field $field-count      i32)                  ;; Total number of fields
+                       (field $init-indices     (ref eq))             ;; List of init field indices ($Pair or $null)
+                       (field $auto-indices     (ref eq))             ;; List of auto field indices
+                       (field $auto-values      (ref eq))             ;; List of values for auto fields
+                       (field $properties       (ref eq))             ;; Property table: hash table
+                       (field $inspector        (ref eq))             ;; Inspector object or #f
+                       (field $immutables       (ref eq))             ;; Immutables descriptor or #f
+                       (field $guard            (ref eq))             ;; Guard procedure or #f
+                       (field $constructor-name (ref eq)))))          ;; For error reporting / printing ($Symbol or #f)
+
+          (type $StructConstructorProcedure
+                ; current representation is a plain closure
+                (sub $Closure
+                     (struct
+                       (field $hash   (mut i32))
+                       (field $name   (ref eq))   ;; $false or a $Symbol
+                       (field $arity  (ref eq))   ;; fixnum (i31 with lsb=0) or (arity-at-least n)
+                       (field $realm  (ref eq))   ;; $false or $Symbol
+                       (field $invoke (ref $ProcedureInvoker))
+                       (field $debug-id (ref eq))
+                       (field $code   (ref $ClosureCode))
+                       (field $free   (ref $Free)))))
+
+
+          (type $StructPredicateProcedure
+                ; current representation is a plain closure
+                (sub $Closure
+                     (struct
+                       (field $hash   (mut i32))
+                       (field $name   (ref eq))   ;; $false or a $Symbol
+                       (field $arity  (ref eq))   ;; fixnum (i31 with lsb=0) or (arity-at-least n)
+                       (field $realm  (ref eq))   ;; $false or $Symbol
+                       (field $invoke (ref $ProcedureInvoker))
+                       (field $debug-id (ref eq))
+                       (field $code   (ref $ClosureCode))
+                       (field $free   (ref $Free)))))
+
+          (type $StructAccessorProcedure
+                ; current representation is a plain closure
+                (sub $Closure
+                     (struct
+                       (field $hash   (mut i32))
+                       (field $name   (ref eq))   ;; $false or a $Symbol
+                       (field $arity  (ref eq))   ;; fixnum (i31 with lsb=0) or (arity-at-least n)
+                       (field $realm  (ref eq))   ;; $false or $Symbol
+                       (field $invoke (ref $ProcedureInvoker))
+                       (field $debug-id (ref eq))
+                       (field $code   (ref $ClosureCode))
+                       (field $free   (ref $Free)))))
+
+          (type $StructMutatorProcedure
+                ; current representation is a plain closure
+                (sub $Closure
+                     (struct
+                       (field $hash   (mut i32))
+                       (field $name   (ref eq))   ;; $false or a $Symbol
+                       (field $arity  (ref eq))   ;; fixnum (i31 with lsb=0) or (arity-at-least n)
+                       (field $realm  (ref eq))   ;; $false or $Symbol
+                       (field $invoke (ref $ProcedureInvoker))
+                       (field $debug-id (ref eq))
+                       (field $code   (ref $ClosureCode))
+                       (field $free   (ref $Free)))))
+
+          (type $StructTypeProperty
+                (sub $Heap
+                     (struct
+                       (field $hash               (mut i32))          ;; Cached hash, lazily computed
+                       (field $name               (ref $Symbol))      ;; Property name
+                       (field $guard-info         (ref eq))           ;; Guard metadata or #f
+                       (field $supers             (ref eq))           ;; List of super property descriptors
+                       (field $can-impersonate    (ref eq))           ;; Boolean indicating impersonation support
+                       (field $accessor-name-info (ref eq))           ;; Accessor naming hints or #f
+                       (field $predicate-cache    (mut (ref eq)))     ;; Cached predicate procedure or #f
+                       (field $accessor-cache     (mut (ref eq))))))  ;; Cached accessor procedure or #f
+
+          (type $Number (sub $Heap    ; abstract super type for boxed numbers
+                             (struct
+                               (field $hash (mut i32)))))
+	          (type $Flonum (sub $Number  ; double precision
+	                             (struct
+	                               (field $hash (mut i32))  ; sigh
+	                               (field $v f64))))
+	          (type $Complex (sub $Number
+	                              (struct
+	                                (field $hash (mut i32))
+	                                (field $real (ref eq))
+	                                (field $imag (ref eq)))))
+
+	          (type $Vector    (sub $Heap
+                                (struct
+                                  (field $hash      (mut i32))
+                                  (field $immutable i32)                        ;; 0 or 1
+                                  (field $arr       (ref $Array)))))
+          (type $TreelistNode (sub $Heap
+                                   (struct
+                                     (field $hash     (mut i32))
+                                     (field $children (ref $Array))
+                                     (field $sizes    (ref null $I32Array)))))
+          (type $Treelist (sub $Heap
+                               (struct
+                                 (field $hash   (mut i32))
+                                 (field $root   (ref $TreelistNode))
+                                 (field $size   i32)
+                                 (field $height i32))))
+          (type $String    (sub $Heap
+                                (struct
+                                  (field $hash      (mut i32))
+                                  (field $immutable i32)                        ;; 0 or 1
+                                  (field $codepoints (mut (ref $I32Array))))))  ;; An array of Unicode code points
+          (type $Bytes      (sub $Heap
+                                 (struct
+                                   (field $hash      (mut i32))
+                                   (field $immutable i32)                      ;; 0 or 1
+                                   (field $bs        (mut (ref $I8Array)))))) ;; An array of bytes
+          (type $Regexp     (sub $Heap
+                                 (struct
+                                   (field $hash   (mut i32))
+                                   (field $kind   i32)       ;; 0 rx, 1 px, 2 byte-rx, 3 byte-px
+                                   (field $source (ref eq))))) ;; string or bytes object-name
+          (type $Symbol (sub $Heap
+                             (struct
+                               (field $hash          (mut i32))          ;; cached hash
+                               (field $name          (ref $String))      ;; symbol name (string)
+                               (field $unreadable?   i32)                ;; non-zero for unreadable symbols
+                               (field $property-list (mut (ref eq))))))  ;; user-defined properties
+          (type $Ephemeron (sub $Heap
+                                (struct
+                                  (field $hash  (mut i32))
+                                  (field $key   (ref eq))
+                                  (field $value (mut (ref eq))))))
+          (type $Keyword (sub $Heap
+                              (struct
+                                (field $hash  (mut i32))
+                                (field $str   (ref $String)))))  ; string without #:
+
+          (type $Location   (sub $Heap
+                                 ; If line counting is not enabled, the first two are #f
+                                 (struct
+                                   (field $hash  (mut i32))
+                                   (field $line  (mut (ref eq)))    ; #f or line number (fixnum)
+                                   (field $col   (mut (ref eq)))    ; #f or column number
+                                   (field $pos   (mut (ref eq)))))) ; #f or position
+
+          (type $Path      (sub $Heap
+                                (struct
+                                  (field $hash       (mut i32))          ;; cached hash
+                                  (field $bytes      (ref $Bytes))       ;; raw byte representation (bytes)
+                                  (field $convention (ref eq)))))        ;; 'unix or 'windows symbol
+
+
+          (type $Port
+                (sub $Heap
+                     (struct
+                       (field $hash  (mut i32))
+                       (field $name  (mut (ref eq))) ; the port name (string) [the object-name]
+                       (field $closed (mut i32))      ; 0 = open, 1 = closed
+                       ; buffer (if used):
+                       (field $bytes (mut (ref $Bytes)))        ; the byte string (bytes)
+                       (field $len   (mut i32))                 ; the length of the string
+                       (field $idx   (mut i32))                 ; the current index into the byte string
+                       ; location
+                       (field $loc   (mut (ref $Location))))))  ; the current location
+
+          (type $InputPort
+                (sub $Port
+                     (struct
+                       (field $hash  (mut i32))
+                       (field $name  (mut (ref eq)))            ; the port name (string) [the object-name]
+                       (field $closed (mut i32))                 ; 0 = open, 1 = closed
+                       (field $bytes (mut (ref $Bytes)))        ; the byte string (bytes)
+                       (field $len   (mut i32))                 ; the length of the string
+                       (field $idx   (mut i32))                 ; the current index into the byte string
+                       (field $loc   (mut (ref $Location)))     ; the current location
+                       (field $read-handler (mut (ref eq))))))  ; #f means use the default reader
+
+          (type $OutputPort
+                (sub $Port
+                     (struct
+                       (field $hash  (mut i32))
+                       (field $name  (mut (ref eq)))            ; the port name (string) [the object-name]
+                       (field $closed (mut i32))                 ; 0 = open, 1 = closed
+                       (field $bytes (mut (ref $Bytes)))        ; the byte string (bytes)
+                       (field $len   (mut i32))                 ; the length of the string
+                       (field $idx   (mut i32))                 ; the current index into the byte string
+                       (field $loc   (mut (ref $Location))))))  ; the current location
+
+          (type $InputStringPort
+                (sub $InputPort
+                     (struct
+                       (field $hash  (mut i32))
+                       (field $name  (mut (ref eq)))            ; the port name   (string)
+                       (field $closed (mut i32))                 ; 0 = open, 1 = closed
+                       (field $bytes (mut (ref $Bytes)))        ; the byte string (bytes)
+                       (field $len   (mut i32))                 ; the length of the string
+                       (field $idx   (mut i32))                 ; the current index into the byte string
+                       (field $loc   (mut (ref $Location)))     ; the current location
+                       (field $read-handler (mut (ref eq)))      ; port-read-handler override or #f
+                       ;; UTF-8 decoder state:
+                       (field $utf8-len    (mut i32))     ;; 0 = idle, 1-4 = number of bytes expected
+                       (field $utf8-left   (mut i32))     ;; number of continuation bytes still needed
+                       (field $utf8-bytes  (mut i32)))))  ;; current byte count seen (for column fix)
+
+          (type $OutputStringPort
+                (sub $OutputPort
+                     (struct
+                       (field $hash  (mut i32))
+                       (field $name  (mut (ref eq)))         ; the port name   (string)
+                       (field $closed (mut i32))              ; 0 = open, 1 = closed
+                       (field $bytes (mut (ref $Bytes)))     ; the byte string (bytes)
+                       (field $len   (mut i32))              ; the length of the string
+                       (field $idx   (mut i32))              ; the current index into the string
+                       (field $loc   (mut (ref $Location)))  ; the current location
+                       ;; UTF-8 decoder state:
+                       (field $utf8-len    (mut i32))     ;; 0 = idle, 1-4 = number of bytes expected
+                       (field $utf8-left   (mut i32))     ;; number of continuation bytes still needed
+                       (field $utf8-bytes  (mut i32)))))  ;; current byte count seen (for column fix)
+
+          (type $OutputFilePort
+                (sub $OutputStringPort
+                     (struct
+                       (field $hash  (mut i32))
+                       (field $name  (mut (ref eq)))
+                       (field $closed (mut i32))
+                       (field $bytes (mut (ref $Bytes)))
+                       (field $len   (mut i32))
+                       (field $idx   (mut i32))
+                       (field $loc   (mut (ref $Location)))
+                       (field $utf8-len    (mut i32))
+                       (field $utf8-left   (mut i32))
+                       (field $utf8-bytes  (mut i32))
+                       (field $path        (ref $Path)))))
+
+          (type $CustomInputPort
+                (sub $InputPort
+                     (struct
+                       (field $hash  (mut i32))
+                       (field $name  (mut (ref eq)))                 ; the port name   (any/c)
+                       (field $closed (mut i32))                      ; 0 = open, 1 = closed
+                       (field $bytes (mut (ref $Bytes)))             ; scratch buffer  (bytes)
+                       (field $len   (mut i32))                      ; unused length placeholder
+                       (field $idx   (mut i32))                      ; unused index placeholder
+                       (field $loc   (mut (ref $Location)))          ; the current location
+                       (field $read-handler (mut (ref eq)))           ; port-read-handler override or #f
+                       (field $read-proc          (mut (ref eq)))    ; required read-in argument
+                       (field $peek-proc          (mut (ref eq)))    ; required peek argument
+                       (field $close-proc         (mut (ref eq)))    ; required close argument
+                       (field $get-progress-evt   (mut (ref eq)))    ; optional, default = #f
+                       (field $commit-proc        (mut (ref eq)))    ; optional, default = #f
+                       (field $get-location-proc  (mut (ref eq)))    ; optional, default = #f
+                       (field $count-lines-proc   (mut (ref eq)))    ; optional, default = void
+                       (field $init-position-arg  (mut (ref eq)))    ; optional, default = 1
+                       (field $buffer-mode-arg    (mut (ref eq)))))) ; optional, default = #f
+
+          (type $CustomOutputPort
+                (sub $OutputPort
+                     (struct
+                       (field $hash  (mut i32))
+                       (field $name  (mut (ref eq)))                 ; the port name   (any/c)
+                       (field $closed (mut i32))                      ; 0 = open, 1 = closed
+                       (field $bytes (mut (ref $Bytes)))             ; unused scratch bytes
+                       (field $len   (mut i32))                      ; unused length placeholder
+                       (field $idx   (mut i32))                      ; known byte position
+                       (field $loc   (mut (ref $Location)))          ; current location
+                       (field $write-proc             (mut (ref eq))) ; output-port? or procedure?
+                       (field $close-proc             (mut (ref eq))) ; procedure?
+                       (field $write-special-proc     (mut (ref eq))) ; optional
+                       (field $get-write-evt-proc     (mut (ref eq))) ; optional
+                       (field $get-write-special-proc (mut (ref eq))) ; optional
+                       (field $get-location-proc      (mut (ref eq))) ; optional
+                       (field $count-lines-proc       (mut (ref eq))) ; optional, default = void
+                       (field $init-position-arg      (mut (ref eq))) ; optional, default = 1
+                       (field $buffer-mode-arg        (mut (ref eq)))))) ; optional, default = #f
+
+
+          (type $Hash   ; abstract super type for hashtables
+                (sub $Heap
+                     (struct
+                       (field $hash     (mut i32))
+                       (field $mutable? (ref eq)))))  ; boolean (immediate, i31 tagged)
+
+          (type $HashEq
+                (sub $Hash
+                     (struct
+                       (field $hash     (mut i32))
+                       (field $mutable? (ref eq)))))
+
+          (type $HashEqv
+                (sub $Hash
+                     (struct
+                       (field $hash     (mut i32))
+                       (field $mutable? (ref eq)))))
+
+          (type $HashEqual
+                (sub $Hash
+                     (struct
+                       (field $hash     (mut i32))
+                       (field $mutable? (ref eq)))))
+
+          (type $HashEqualAlways
+                (sub $Hash
+                     (struct
+                       (field $hash     (mut i32))
+                       (field $mutable? (ref eq)))))
+
+          ;; Stencil vectors are Chez/Racket CS's compact masked vectors. The
+          ;; system variant is used as the node representation for immutable
+          ;; hash HAMTs in `rumble/hamt-stencil.ss`.
+          (type $StencilVector
+                (sub $Heap
+                     (struct
+                       (field $hash    (mut i32))
+                       (field $system? i32)
+                       (field $mask    (mut i32))
+                       (field $slots   (ref $Array)))))
+
+
+          (type $HashEqMutable
+                ; Mutable hash tables are implemented as an open-addressing hash table
+                ; with linear probing.
+                (sub $HashEq
+                     (struct
+                       (field $hash     (mut i32))
+                       (field $mutable? (ref eq))
+                       (field $entries  (mut (ref $Array)))  ;; flat array: key0, val0, key1, val1, ...
+                       (field $count    (mut i32)))))        ;; number of key/value pairs currently stored
+
+          (type $HashEqvMutable
+                ; Mutable hash tables are implemented as an open-addressing hash table
+                ; with linear probing.
+                (sub $HashEqv
+                     (struct
+                       (field $hash     (mut i32))
+                       (field $mutable? (ref eq))
+                       (field $entries  (mut (ref $Array)))  ;; flat array: key0, val0, key1, val1, ...
+                       (field $count    (mut i32)))))        ;; number of key/value pairs currently stored
+
+          (type $HashEqualMutable
+                ; Mutable hash tables are implemented as an open-addressing hash table
+                ; with linear probing.
+                (sub $HashEqual
+                     (struct
+                       (field $hash     (mut i32))
+                       (field $mutable? (ref eq))
+                       (field $entries  (mut (ref $Array)))  ;; flat array: key0, val0, key1, val1, ...
+                       (field $count    (mut i32)))))        ;; number of key/value pairs currently stored
+
+          (type $HashEqualAlwaysMutable
+                ; Mutable hash tables are implemented as an open-addressing hash table
+                ; with linear probing.
+                (sub $HashEqualAlways
+                     (struct
+                       (field $hash     (mut i32))
+                       (field $mutable? (ref eq))
+                       (field $entries  (mut (ref $Array)))  ;; flat array: key0, val0, key1, val1, ...
+                       (field $count    (mut i32)))))        ;; number of key/value pairs currently stored
+
+          ;; Private immutable hash support. Racket CS represents immutable
+          ;; hashes as HAMTs over system stencil vectors. WebRacket mirrors
+          ;; the same split at the runtime boundary: stencil vectors are
+          ;; bnodes, while terminal full-hash collisions use explicit cnodes.
+          (type $ImmutableHashEntry
+                (sub $Heap
+                     (struct
+                       (field $hash      (mut i32))
+                       (field $key-hash  i32)
+                       (field $key       (ref eq))
+                       (field $value     (ref eq)))))
+
+          ;; Private packed-inline key wrapper. Equal?/equal-always? HAMTs use
+          ;; this only in physical bnode key slots so promotion can reuse the
+          ;; cached hash while public APIs still expose the original key.
+          (type $ImmutableHashWrappedKey
+                (sub $Heap
+                     (struct
+                       (field $hash     (mut i32))
+                       (field $kind     i32)
+                       (field $key-hash i32)
+                       (field $key      (ref eq)))))
+
+          (type $ImmutableHashCNode
+                (sub $Heap
+                     (struct
+                       (field $hash     (mut i32))
+                       (field $key-hash i32)
+                       (field $content  (ref eq)))))
+
+          (type $HashEqImmutable
+                (sub $HashEq
+                     (struct
+                       (field $hash     (mut i32))
+                       (field $mutable? (ref eq))
+                       (field $root     (ref eq))
+                       (field $count    i32))))
+
+          (type $HashEqvImmutable
+                (sub $HashEqv
+                     (struct
+                       (field $hash     (mut i32))
+                       (field $mutable? (ref eq))
+                       (field $root     (ref eq))
+                       (field $count    i32))))
+
+          (type $HashEqualImmutable
+                (sub $HashEqual
+                     (struct
+                       (field $hash     (mut i32))
+                       (field $mutable? (ref eq))
+                       (field $root     (ref eq))
+                       (field $count    i32))))
+
+          (type $HashEqualAlwaysImmutable
+                (sub $HashEqualAlways
+                     (struct
+                       (field $hash     (mut i32))
+                       (field $mutable? (ref eq))
+                       (field $root     (ref eq))
+                       (field $count    i32))))
+
+          ;; Reader-graph hash placeholders. Full graph resolution belongs with
+          ;; make-reader-graph/read; for now retain the association list and
+          ;; comparison kind so installed libraries can recognize placeholders.
+          (type $HashPlaceholder
+                (sub $Heap
+                     (struct
+                       (field $hash   (mut i32))
+                       (field $kind   i32)      ;; 0 equal?, 1 eq?, 2 eqv?, 3 equal-always?
+                       (field $assocs (ref eq)))))
+
+          ;; Reader-graph placeholders created by make-placeholder.
+          (type $Placeholder
+                (sub $Heap
+                     (struct
+                       (field $hash  (mut i32))
+                       (field $value (mut (ref eq))))))
+
+	          (type $VariableReference ; opaque value returned by #%variable-reference
+	                ; Minimal payload needed by variable-reference predicates.
+	                (sub $Heap
+	                     (struct
+	                       (field $hash (mut i32))
+	                       (field $constant?   (ref eq))
+	                       (field $from-unsafe? (ref eq))
+	                       )))
+          (type $ResolvedModulePath
+                (sub $Heap
+                     (struct
+                       (field $hash (mut i32))
+                       (field $name (ref eq)))))
+          (type $ModulePathIndex
+                (sub $Heap
+                     (struct
+                       (field $hash     (mut i32))
+                       (field $path     (ref eq))
+                       (field $base     (ref eq))
+                       (field $submod   (ref eq))
+                       (field $resolved (mut (ref eq))))))
+	          (type $ModuleVariable ; lowered module/linklet variable cell
+	                (sub $Heap
+	                     (struct
+	                       (field $hash (mut i32))
+	                       (field $name      (ref eq))
+	                       (field $value     (mut (ref eq)))
+	                       (field $constance (mut (ref eq))))))
+	          (type $ModuleVariableReference
+	                (sub $Heap
+	                     (struct
+	                       (field $hash (mut i32))
+	                       (field $instance (ref eq))
+	                       (field $variable (ref eq)))))
+	          (type $External
+	            (sub $Heap
+	              (struct
+                (field $hash (mut i32))
+                (field $v    (ref null extern)))))
+
+          ;; (Placeholder) module registry
+          (type $ModuleRegistry
+                (sub $Heap
+                     (struct
+                       (field $hash  (mut i32))
+                       (field $table (mut (ref $Array))))))
+
+          ; A namespace has a module registry.
+          ; The registry maps a module names to module declarations.
+          ; The registry is shared by all phases.
+          ; The namespace holds a distinct set of top-level variables for each phase.
+          ; Module instances are (can be) distinct for each phase.
+          ; Each namespace has a base phase.
+          ; The base phase is used by `eval` and `dynamic-require`.
+
+
+          ; The first step in evaluating any compiled expression is to
+          ; link its top-level variable and module-level variable references to
+          ; specific variables in the namespace.
+
+          ; At all times during evaluation, some namespace is designated as the current namespace.
+
+          ; How does provide and require work?
+
+          ; A module body is executed only when the module is
+          ; explicitly instantiated via require or dynamic-require.
+
+          ; On invocation, imported modules are instantiated in the order in which
+          ; they are required into the module (although earlier instantiations or
+          ; transitive requires can trigger the instantiation of a module before
+          ; its order within a given module).
+
+          ; Then, expressions and definitions
+          ; are evaluated in order as they appear within the module.
+
+          ; - for each module we need an $module:<module-name>:instantiate
+          ;    - allocate a $ModuleInstance
+          ;    - require modules
+          ;    - setup module level variables
+          ;    - evaluate expressions and definitions
+
+
+          ;; Namespace now maps Symbol -> Boxed via a single hasheq/mutable table
+          (type $Namespace
+                (sub $Heap
+                     (struct
+                       (field $hash       (mut i32))
+                       (field $name       (ref eq))                   ;; #f or $String
+                       (field $base-phase i32)
+                       (field $table      (mut (ref $HashEqMutable))) ;; hasheq: Symbol → Boxed
+                       (field $modules    (mut (ref $ModuleRegistry)))
+                       (field $protect    (mut i32)))))
+
+          ;; A builder that accumulates arguments to be serialized for the host.
+          (type $FaslBuilder
+                (sub $Heap
+                     (struct
+                       (field $hash     (mut i32))               ;; lazy, start at 0
+                       (field $strings  (ref $GrowableArray))    ;; growable of (ref $String)
+                       (field $values   (ref $GrowableArray))))) ;; growable of (ref eq)
+
+          ;; Linklet instance structure
+          (type $Instance
+                (sub $Heap
+                     (struct
+                       (field $hash      (mut i32))
+                       (field $name      (ref eq))                      ;; any value for debugging
+                       (field $data      (ref eq))                      ;; any value (e.g., namespace)
+                       (field $variables (mut (ref $HashEqMutable)))    ;; hasheq: Symbol → Box
+                       (field $constants (mut (ref $HashEqMutable)))))) ;; hasheq: Symbol → #t
+
+          (type $Linklet
+                (sub $Heap
+                     (struct
+                       (field $hash        (mut i32))
+                       (field $name        (ref eq))    ; #f or a symbol
+                       (field $importss    (ref eq))    ; (listof (listof symbol?))
+                       (field $exports     (ref eq))    ; (listof symbol?)
+                       )))
+
+          ; A compiled linklet is a procedure `proc` that as arguments
+          ; take an self-instance and the import instances.
+          ; The arity is the same as the length of `importss` plus one (due to the self-instance).
+          ; Each sublist of `importss` is a list of symbols imported from that instance.
+          ; The field `exports` is a list of symbols to be exported.
+          ; Calling `proc` will run the body of the linklet.
+          (type $CompiledLinklet
+                (sub $Linklet
+                     (struct
+                       (field $hash        (mut i32))
+                       (field $name        (ref eq))    ; #f or a symbol
+                       (field $importss    (ref eq))    ; (listof (listof symbol?))
+                       (field $exports     (ref eq))    ; (listof symbol?)
+                       (field $proc        (ref eq))    ; takes self instance plus instance arguments
+                       )))
+
+          ;; WebRacket currently stores mutable hasheq tables directly in
+          ;; linklet bundle/directory wrappers.
+          (type $LinkletBundle
+                (sub $Heap
+                     (struct
+                       (field $hash    (mut i32))
+                       (field $content (ref $HashEqMutable)))))
+
+          (type $LinkletDirectory
+                (sub $Heap
+                     (struct
+                       (field $hash    (mut i32))
+                       (field $content (ref $HashEqMutable)))))
+
+          (type $UnquotedPrintingString
+                (sub $Heap
+                     (struct
+                       (field $hash  (mut i32))
+                       (field $value (ref eq)))))
+
+          ) ; rec
+    ))
+
+;; generate-core-runtime : -> datum?
+;;   Build the standalone core runtime module tree used by split-runtime experiments.
+(define (generate-core-runtime)
+  `(module
+     ,@(generate-shared-types)
+     ,@(core-runtime-helper-forms core-runtime-helpers #:export? #t)))
+
+(module+ test
+  (require rackunit
+           racket/system
+           (only-in "assembler.rkt" wat->wasm))
+
+  ;; module-body : datum? -> (or/c (listof datum?) #f)
+  ;;   Return the body forms from a generated WAT module tree.
+  (define (module-body module)
+    (match module
+      [`(module ,forms ...) forms]
+      [_ #f]))
+
+  ;; type-form-named? : symbol? datum? -> boolean?
+  ;;   Check whether form is a type declaration with the given name.
+  (define (type-form-named? name form)
+    (match form
+      [`(type ,type-name . ,_) (eq? type-name name)]
+      [_ #f]))
+
+  ;; function-form-named? : symbol? datum? -> boolean?
+  ;;   Check whether form is a function declaration with the given name.
+  (define (function-form-named? name form)
+    (match form
+      [`(func ,func-name . ,_) (eq? func-name name)]
+      [_ #f]))
+
+  ;; function-export-names : datum? -> (listof string?)
+  ;;   Return all export names attached directly to a function form.
+  (define (function-export-names form)
+    (match form
+      [`(func ,_ ,body ...)
+       (for/list ([part (in-list body)]
+                  #:when (match part
+                           [`(export ,(? string?)) #t]
+                           [_ #f]))
+         (second part))]
+      [_ '()]))
+
+  ;; A helper dependency problem explains why a core helper is not standalone
+  ;; with respect to the shared type declarations.
+  (struct helper-dependency-problem (kind detail) #:transparent)
+
+  ;; wasm-dollar-symbol? : any/c -> boolean?
+  ;;   Check whether v is a Wasm identifier symbol such as `$Pair`.
+  (define (wasm-dollar-symbol? v)
+    (and (symbol? v)
+         (regexp-match? #rx"^\\$" (symbol->string v))))
+
+  ;; collect-shared-type-names : datum? -> (listof symbol?)
+  ;;   Collect named type declarations from the shared type tree.
+  (define (collect-shared-type-names form)
+    (match form
+      [`(type ,(? wasm-dollar-symbol? type-name) . ,body)
+       (cons type-name (append-map collect-shared-type-names body))]
+      [(? list?)
+       (append-map collect-shared-type-names form)]
+      [_ '()]))
+
+  ;; shared-type-name-set : -> hasheq?
+  ;;   Return the set of named types available to standalone core helpers.
+  (define (shared-type-name-set)
+    (for*/hasheq ([form (in-list (generate-shared-types))]
+                  [name (in-list (collect-shared-type-names form))])
+      (values name #t)))
+
+  ;; direct-type-reference-heads : (listof symbol?)
+  ;;   Operators whose first operand is a named type reference.
+  (define direct-type-reference-heads
+    '(array.get
+      array.get_s
+      array.get_u
+      array.new
+      array.new_default
+      array.new_fixed
+      array.set
+      struct.get
+      struct.new
+      struct.new_default
+      struct.set))
+
+  ;; named-type-reference-names : datum? -> (listof symbol?)
+  ;;   Collect references to named types from a WAT form.
+  (define (named-type-reference-names form)
+    (match form
+      [`(ref ,(? wasm-dollar-symbol? type-name))
+       (list type-name)]
+      [`(ref null ,(? wasm-dollar-symbol? type-name))
+       (list type-name)]
+      [`(,(? (lambda (head) (memq head direct-type-reference-heads)))
+         ,(? wasm-dollar-symbol? type-name)
+         ,body ...)
+       (cons type-name (append-map named-type-reference-names body))]
+      [(? list?)
+       (append-map named-type-reference-names form)]
+      [_ '()]))
+
+  ;; disallowed-core-helper-heads : (listof symbol?)
+  ;;   Forms that mean a helper depends on monolithic runtime definitions.
+  (define disallowed-core-helper-heads
+    '(call_indirect
+      call_ref
+      data
+      elem
+      global.get
+      global.set
+      import
+      memory
+      table))
+
+  ;; runtime-dependency-problems : datum? hasheq? -> (listof helper-dependency-problem?)
+  ;;   Report runtime dependencies that standalone helpers must not have.
+  (define (runtime-dependency-problems form core-helper-names)
+    (match form
+      [`(call ,(? symbol? target) ,body ...)
+       (append
+        (if (hash-has-key? core-helper-names target)
+            '()
+            (list (helper-dependency-problem 'runtime-call target)))
+        (append-map (lambda (body-form)
+                      (runtime-dependency-problems body-form core-helper-names))
+                    body))]
+      [`(,(? (lambda (head) (memq head disallowed-core-helper-heads)) head)
+         ,body ...)
+       (cons (helper-dependency-problem 'runtime-dependency head)
+             (append-map (lambda (body-form)
+                           (runtime-dependency-problems body-form core-helper-names))
+                         body))]
+      [(? list?)
+       (append-map (lambda (body-form)
+                     (runtime-dependency-problems body-form core-helper-names))
+                   form)]
+      [_ '()]))
+
+  ;; type-dependency-problems : datum? hasheq? -> (listof helper-dependency-problem?)
+  ;;   Report references to named types not supplied by generate-shared-types.
+  (define (type-dependency-problems form shared-types)
+    (for/list ([type-name (in-list (remove-duplicates
+                                    (named-type-reference-names form)
+                                    eq?))]
+               #:unless (hash-has-key? shared-types type-name))
+      (helper-dependency-problem 'unshared-type type-name)))
+
+  ;; core-runtime-helper-dependency-problems : datum? [hasheq?] -> (listof helper-dependency-problem?)
+  ;;   Report dependencies that prevent a helper from living in core runtime.
+  (define (core-runtime-helper-dependency-problems
+           form
+           [shared-types (shared-type-name-set)]
+           [core-helper-names core-runtime-helper-index])
+    (append (runtime-dependency-problems form core-helper-names)
+            (type-dependency-problems form shared-types)))
+
+  (define shared-types (generate-shared-types))
+  (define shared-type-names (shared-type-name-set))
+  (define core-helper-names core-runtime-helper-index)
+  (check-pred list? shared-types)
+  (check-true (hash-has-key? shared-type-names '$Array))
+  (check-true (hash-has-key? shared-type-names '$Pair))
+  (check-true (for/or ([form (in-list shared-types)])
+                (type-form-named? '$Array form)))
+  (check-true (for/or ([form (in-list shared-types)])
+                (match form
+                  [`(rec . ,_) #t]
+                  [_ #f])))
+
+  (for ([helper (in-list core-runtime-helpers)])
+    (define name (core-runtime-helper-name helper))
+    (define export-name (core-runtime-helper-export-name helper))
+    (check-equal? (core-runtime-helper-ref core-runtime-helper-index name)
+                  helper)
+    (check-equal? (function-export-names
+                   (core-runtime-helper-form core-runtime-helper-index name))
+                  '())
+    (check-equal? (function-export-names
+                   (core-runtime-helper-form core-runtime-helper-index name #:export? #t))
+                  (list export-name)))
+  (check-exn exn:fail?
+             (lambda ()
+               (core-runtime-helper-ref core-runtime-helper-index '$not-a-helper)))
+  (check-exn exn:fail?
+             (lambda ()
+               (make-core-runtime-helper-index
+                (list (first core-runtime-helpers)
+                      (first core-runtime-helpers)))))
+
+  (for ([helper (in-list core-runtime-helpers)])
+    (define name (core-runtime-helper-name helper))
+    (check-equal? (core-runtime-helper-dependency-problems
+                   (core-runtime-helper-form core-runtime-helper-index name)
+                   shared-type-names
+                   core-helper-names)
+                  '()))
+  (check-equal? (core-runtime-helper-dependency-problems
+                 '(func $ok (param (ref eq)) (result i32)
+                        (call $fx?/i32 (local.get $v)))
+                 shared-type-names
+                 core-helper-names)
+                '())
+  (check-equal? (core-runtime-helper-dependency-problems
+                 '(func $bad (result i32)
+                        (global.get $false))
+                 shared-type-names
+                 core-helper-names)
+                (list (helper-dependency-problem
+                       'runtime-dependency
+                       'global.get)))
+  (check-equal? (core-runtime-helper-dependency-problems
+                 '(func $bad (param (ref eq)) (result i32)
+                        (call $other (local.get $v)))
+                 shared-type-names
+                 core-helper-names)
+                (list (helper-dependency-problem
+                       'runtime-call
+                       '$other)))
+  (check-equal? (core-runtime-helper-dependency-problems
+                 '(func $bad (param (ref $NotShared)) (result i32)
+                        (i32.const 0))
+                 shared-type-names
+                 core-helper-names)
+                (list (helper-dependency-problem
+                       'unshared-type
+                       '$NotShared)))
+
+  (define core-module (generate-core-runtime))
+  (define core-forms (module-body core-module))
+  (check-pred list? core-forms)
+  (check-true (for/or ([form (in-list core-forms)])
+                (type-form-named? '$Array form)))
+  (for ([helper (in-list core-runtime-helpers)])
+    (define name (core-runtime-helper-name helper))
+    (define export-name (core-runtime-helper-export-name helper))
+    (define matching-functions
+      (for/list ([form (in-list core-forms)]
+                 #:when (function-form-named? name form))
+        form))
+    (check-equal? (length matching-functions) 1)
+    (check-equal? (function-export-names (first matching-functions))
+                  (list export-name)))
+
+  (when (find-executable-path "wasm-tools")
+    (define core-wat-path
+      (make-temporary-file "webracket-core-runtime-test-~a.wat"))
+    (define core-wasm-path
+      (path-replace-extension core-wat-path ".wasm"))
+    (check-true (wat->wasm core-module
+                           #:wat core-wat-path
+                           #:wasm core-wasm-path))
+    (check-true (file-exists? core-wasm-path))
+
+    (define split-consumer-module
+      `(module
+         ,@(generate-shared-types)
+
+         (func $fx?/i32
+               (import "core" "$fx?/i32")
+               (param (ref eq))
+               (result i32))
+         (func $fixnum?/i32
+               (import "core" "$fixnum?/i32")
+               (param (ref eq))
+               (result i32))
+
+         (func (export "fx_fixnum_true") (result i32)
+               (call $fx?/i32 (ref.i31 (i32.const 84))))
+         (func (export "fx_immediate_false") (result i32)
+               (call $fx?/i32 (ref.i31 (i32.const 85))))
+         (func (export "fx_heap_false") (result i32)
+               (call $fx?/i32
+                     (struct.new $Pair
+                                 (i32.const 0)
+                                 (ref.i31 (i32.const 0))
+                                 (ref.i31 (i32.const 0)))))
+         (func (export "fixnum_fixnum_true") (result i32)
+               (call $fixnum?/i32 (ref.i31 (i32.const 84))))
+         (func (export "fixnum_immediate_false") (result i32)
+               (call $fixnum?/i32 (ref.i31 (i32.const 85))))))
+
+    (define consumer-wat-path
+      (make-temporary-file "webracket-core-runtime-consumer-test-~a.wat"))
+    (define consumer-wasm-path
+      (path-replace-extension consumer-wat-path ".wasm"))
+    (check-true (wat->wasm split-consumer-module
+                           #:wat consumer-wat-path
+                           #:wasm consumer-wasm-path))
+    (check-true (file-exists? consumer-wasm-path))
+
+    (define node-path (find-executable-path "node"))
+    (when node-path
+      (define node-script-path
+        (make-temporary-file "webracket-core-runtime-link-test-~a.mjs"))
+      (with-output-to-file node-script-path
+        (lambda ()
+          (display
+           #<<JS
+import fs from "node:fs/promises";
+
+const [corePath, consumerPath] = process.argv.slice(2);
+const coreBytes = await fs.readFile(corePath);
+const consumerBytes = await fs.readFile(consumerPath);
+const core = await WebAssembly.instantiate(coreBytes, {});
+const consumer = await WebAssembly.instantiate(
+  consumerBytes,
+  { core: core.instance.exports },
+);
+
+const expected = new Map([
+  ["fx_fixnum_true", 1],
+  ["fx_immediate_false", 0],
+  ["fx_heap_false", 0],
+  ["fixnum_fixnum_true", 1],
+  ["fixnum_immediate_false", 0],
+]);
+
+for (const [name, value] of expected) {
+  const actual = consumer.instance.exports[name]();
+  if (actual !== value) {
+    throw new Error(`${name}: expected ${value}, got ${actual}`);
+  }
+}
+JS
+           ))
+        #:exists 'replace)
+      (check-equal?
+       (system*/exit-code node-path
+                          (path->string node-script-path)
+                          (path->string core-wasm-path)
+                          (path->string consumer-wasm-path))
+       0))))
+
 ; See the end of `generate-code` in `compiler.rkt` for an
 ; explanation of the arguments.
 (define (generate-runtime
@@ -29,7 +1452,7 @@
            top-vars
            console-bridge-bindings
            top-level-variable-declarations
-           entry-locals           
+           entry-locals
            ; general information
            primitives       ; list of symbols
            used-primitives  ; list of symbols referenced by generated program code
@@ -39,10 +1462,10 @@
            )
 
   #;(pretty-print entry-body (current-error-port))
-  
-  (let* () 
+
+  (let* ()
     (let* ()
-    
+
     ;; Variable definitions on the top-level ought to go in a namespace,
     ;; but for now we use a global WebAssembly variable.
 
@@ -60,7 +1483,7 @@
       ; type is one of:
       ;   'i32           cast to signed i32
       ;   '(ref <type>)  cast to (ref <type>)
-      
+
       ; x evaluates to an (ref eq), cast x to type
       (match type
         ['i32 `(i31.get_s (ref.cast i31ref ,x))]
@@ -103,7 +1526,7 @@
         (struct:exn:fail:syntax                     ensure-exn:fail:syntax-type)
         (struct:exn:fail:syntax:missing-module      ensure-exn:fail:syntax:missing-module-type)
         (struct:exn:fail:syntax:unbound             ensure-exn:fail:syntax:unbound-type)))
-    
+
     ;;;
     ;;; Primitives
     ;;;
@@ -885,7 +2308,7 @@
                    (cons 'primitive-graph
                          (primitive-graph-ref analysis 'primitive-graph)))))
           #:exists 'replace)))
-    
+
     (define (declare-primitives-as-globals)
       (for/list ([pr (in-list (active-described-primitives-sorted))])
         `(global ,($ (prim: pr)) (mut (ref eq)) ,(Imm (undefined)))))
@@ -906,7 +2329,7 @@
              (and (= (length uniq) (+ 1 (- max-arity min-arity)))
                   (for/and ([n (in-range min-arity (add1 max-arity))])
                     (memq n uniq))))))
-    
+
     (define (arity-2-3? a)
       (and (list? a)
            (let ([uniq (remove-duplicates a)])
@@ -920,7 +2343,7 @@
              (and (= (length uniq) 2)
                   (memq 3 uniq)
                   (memq 4 uniq)))))
-    
+
     (define (arity->internal-representation a)
       (match a
         [(arity-at-least n) (- (- n) 1)]
@@ -995,7 +2418,7 @@
                                          `(i32.const ,m))))]))
 
     ;; See $primitive-invoke for an explanation of shapes.
-    
+
     (define (arity->shape a)
       (match a
         [(arity-at-least n) (if (>= n 4) 30 (+ 6 n))]
@@ -1720,19 +3143,19 @@
              (local $a2 (ref eq))
              (local $a3 (ref eq)) ; ? needed - see primitive-invoker-tail above
              (local $a4 (ref eq)) ; ? needed
-             (local $a5 (ref eq)) ; ? needed 
+             (local $a5 (ref eq)) ; ? needed
              (local $a6 (ref eq)) ; ? needed
              (local $rest (ref eq)) ; todo: we should limit this to fewer locals
-             
+
              (local.set $a0   (global.get $null))
              (local.set $a1   (global.get $null))
              (local.set $a2   (global.get $null))
              (local.set $a3   (global.get $null))
-             (local.set $a4   (global.get $null)) ; todo remove these 
+             (local.set $a4   (global.get $null)) ; todo remove these
              (local.set $a5   (global.get $null)) ; todo remove these
              (local.set $a6   (global.get $null)) ; todo remove these
              (local.set $rest (global.get $null))
-             
+
              (local.set $pproc
                         (ref.cast (ref $PrimitiveProcedure) (local.get $proc)))
 
@@ -1761,7 +3184,7 @@
 
              ,@(primitive-invoker-tail shape)))
 
-    
+
     (define (min-arity a)
       (match a
         [(arity-at-least n) n]
@@ -1867,7 +3290,7 @@
                      (call $i8array->immutable-bytes
                            (array.new_data $I8Array ,$bytes-data:name
                                            (i32.const 0) (i32.const ,n))))))
-    
+
     ;; Symbol constants used in the runtime
     ;;  `runtime-symbol-constants` holds the constants passed by `generate-code`
     ;; in `compiler.rkt`
@@ -1918,7 +3341,7 @@
          (define $symbol:name        (string->symbol (~a "$" "symbol:"        name)))
          (list `(data   ,$symbol-data:name                  ,string)
                `(global ,$symbol:name (mut (ref eq))        ,(Imm #f))))))
-    
+
     (define (initialize-runtime-symbol-constants)
       (set! runtime-symbol-constants
             (remove-duplicates/string runtime-symbol-constants
@@ -1938,7 +3361,7 @@
                                                  (i32.const 0) (i32.const ,n)))))))
 
     ;; String and symbol constants used in the runtime
-    
+
     ; Names of each primitive
     (for ([pr (in-list (active-described-primitives-sorted))])
       (add-runtime-symbol-constant pr))
@@ -1980,10 +3403,10 @@
       (define symbols
         '(racket
           racket/primitive
-          
+
           Other
           CR
-          LF          
+          LF
           Control
           Extend
           ZWJ
@@ -2002,7 +3425,7 @@
           in-range
           in-naturals
           in-string
-          
+
           can-impersonate
 
           prop:sealed
@@ -2157,7 +3580,7 @@
           linklet-directory?
           hash->linklet-directory
           linklet-directory->hash
-          
+
           syntax
           make-syntax
           syntax?
@@ -2279,21 +3702,21 @@
 
           fixnum
           fx/
-          
+
           match
           error
           return-false
           skip
-          ...))    
+          ...))
       (for-each add-runtime-symbol-constant symbols))
-    
+
     (for ([sym '(lu ll lt lm lo mn mc me nd nl no ps pe pi pf pd pc po sc sm sk so zs zp zl cc cf cs co cn)])
       (add-runtime-symbol-constant sym))
 
     ; struct:exn, struct:exn:fail, etc.
     (for-each (λ (binding) (add-runtime-symbol-constant (car binding)))
               exception-struct-type-bindings)
-    
+
     (add-runtime-string-constant 'dash                       "-")
     (add-runtime-string-constant 'bang                       "!")
     (add-runtime-string-constant 'hash-variable-reference    "#<variable-reference>")
@@ -2357,7 +3780,7 @@
     (add-runtime-string-constant 'custom-print-quotable?     "custom-print-quotable?")
     (add-runtime-string-constant 'struct->list:on-opaque     "one of 'error, 'return-false, or 'skip")
     (add-runtime-string-constant 'struct:prefix              "struct:")
-    
+
     (add-runtime-string-constant 'hash-colon                 "#:")
     (add-runtime-string-constant 'hash-backslash             "#\\")
     (add-runtime-string-constant 'hash-backslash-u           "#\\u")
@@ -2718,7 +4141,7 @@
     (add-runtime-symbol-constant 'exception-handler-key)
     (add-runtime-symbol-constant 'parameterization-key)
     (add-runtime-symbol-constant 'namespace)
-    
+
     (add-runtime-string-constant 'srcloc?                    "srcloc?")
     (add-runtime-string-constant 'srcloc-positive-or-false   "(or/c exact-positive-integer? #f)")
     (add-runtime-string-constant 'srcloc-nonnegative-or-false "(or/c exact-nonnegative-integer? #f)")
@@ -2730,7 +4153,7 @@
 
     (add-runtime-string-constant 'syntax-or-false            "(or/c syntax? #f)")
     (add-runtime-string-constant 'datum->syntax-srcloc       "(or/c #f syntax? srcloc?)")
-    
+
     (add-runtime-string-constant 'hash?                      "hash?")
 
     (add-runtime-string-constant 'syntax?                    "syntax?")
@@ -2803,7 +4226,7 @@
     (add-runtime-symbol-constant 'root-continuation-prompt-tag)
     (add-runtime-string-constant 'instantiate-linklet:import-count
                                  "the number of import instances does not match the expected number of imports")
-    
+
     (add-runtime-string-constant 'datum->correlated-srcloc
                                  (string-append "(or/c correlated? #f (list/c any/c (or/c exact-positive-integer? #f) "
                                                 "(or/c exact-nonnegative-integer? #f) (or/c exact-positive-integer? #f) "
@@ -2839,7 +4262,7 @@
     (add-runtime-string-constant  'path-element?             "path-element?")
     (add-runtime-string-constant  'listof-path?              "(listof path?)")
 
-    ;; Byte Strings    
+    ;; Byte Strings
     (add-runtime-bytes-constant  'empty                     #"")
     (add-runtime-bytes-constant  'non-empty                 #"_")
     (add-runtime-bytes-constant  'slash                     #"/")
@@ -2877,9 +4300,9 @@
 
     ; Note: We could generate
     ;          (func $predicate-name? (type $Prim1) ...)
-    ;;      too, but it is convenient to grep for function definitions 
+    ;;      too, but it is convenient to grep for function definitions
     ;       using "func $name".
-    
+
     (define (make-predicate-body ref-type)
       `((param $v (ref eq))
         (result   (ref eq))
@@ -2893,1074 +4316,7 @@
     ;;;
     (define (build-runtime-module)
       `(module
-         ;;;
-         ;;; Internal Types
-         ;;;
-
-         ; The following internal types are used to implement the various Racket data types.
-         (type $Array    (array (mut (ref eq))))
-         (type $I32Array (array (mut i32)))
-         (type $I8Array  (array (mut i8)))
-
-         (type $GrowableArray 
-               (struct
-                 (field $arr (mut (ref $Array)))  ;; underlying array
-                 (field $cap (mut i32))           ;; capacity (the size of the array)
-                 (field $i   (mut i32))))         ;; the index of the next free slot in $arr
-
-         (type $GrowableBytes 
-               (struct
-                 (field $arr (mut (ref $I8Array))) ;; underlying byte array
-                 (field $cap (mut i32))            ;; capacity of the array
-                 (field $i   (mut i32))))          ;; next free index
-         
-         (type $I32GrowableArray
-               (struct
-                 (field $arr (mut (ref $I32Array))) ;; underlying array
-                 (field $cap (mut i32))             ;; capacity
-                 (field $i   (mut i32))))           ;; current size
-
-         
-         ; The type $Boxed is used for assignable variables.
-         ; They are not exposed, so they do not need to carry a hash code.
-         (type $Boxed (struct (field $v (mut (ref eq)))))
-
-         ;;;
-         ;;; Support 
-         ;;;
-
-         (type $Values    (array (mut (ref eq))))  ; for multiple values return
-         (type $Args      (array (mut (ref eq))))  ; holds arguments passed to a closure
-         (type $Free      (array (mut (ref eq))))  ; holds captured free variables
-         
-       ;;;
-       ;;; Types: Heap allocated objects
-       ;;;
-       
-       ; All heap allocated values carry a hash code.
-       ; If the hash code is 0 it hash hasn't been computed yet.
-         (rec
-          (type $Heap (sub (struct (field $hash (mut i32)))))
-          (type $Pair (sub $Heap
-                           (struct
-                             (field $hash (mut i32))
-                             (field $a    (mut (ref eq)))
-                             (field $d    (mut (ref eq))))))
-          (type $MPair (sub $Heap
-                            (struct
-                              (field $hash (mut i32))
-                              (field $a    (mut (ref eq)))
-                              (field $d    (mut (ref eq))))))
-          (type $Box  (sub $Heap
-                           (struct
-                             (field $hash      (mut i32))
-                             (field $immutable i32)
-                             (field $v         (mut (ref eq))))))
-          ;; Weak boxes normally allow their contents to disappear after GC.
-          ;; WebRacket does not expose GC weakness yet, so this first slice
-          ;; keeps a strong reference. That is enough for expander caches, where
-          ;; retaining cached values is semantically conservative.
-          (type $WeakBox (sub $Heap
-                              (struct
-                                (field $hash (mut i32))
-                                (field $v    (mut (ref eq))))))
-          ;; Thread cells are per-thread in Racket. WebRacket is currently
-          ;; single-threaded, so the current value is stored directly here.
-          (type $ThreadCell (sub $Heap
-                                 (struct
-                                   (field $hash      (mut i32))
-                                   (field $default   (mut (ref eq)))
-                                   (field $current   (mut (ref eq)))
-                                   (field $preserved i32))))
-          ;; WebRacket is single-threaded for now, but the expander's
-          ;; namespace registry expects stable thread identity and simple
-          ;; synchronizable semaphores/events.
-          (type $Thread (sub $Heap
-                             (struct
-                               (field $hash (mut i32)))))
-          ;; Minimal thread groups for single-threaded WebRacket. They retain
-          ;; parent links for API compatibility, but scheduling is unaffected.
-          (type $ThreadGroup (sub $Heap
-                                  (struct
-                                    (field $hash   (mut i32))
-                                    (field $parent (ref eq)))))
-          ;; Minimal logger objects. They are enough for racket/base modules
-          ;; that test logging levels before emitting; receivers/events can be
-          ;; layered on later if browser logging becomes a goal.
-          (type $Logger (sub $Heap
-                             (struct
-                               (field $hash (mut i32))
-                               (field $name (ref eq)))))
-          (type $LogReceiver (sub $Heap
-                                  (struct
-                                    (field $hash   (mut i32))
-                                    (field $logger (ref $Logger))
-                                    (field $level  (ref eq))
-                                    (field $topics (ref eq)))))
-          ;; Minimal byte converters. For now they represent the guaranteed
-          ;; UTF-8/locale-as-UTF-8 identity conversions used while booting
-          ;; module libraries; full transcoding belongs with richer I/O/rktio.
-          (type $BytesConverter (sub $Heap
-                                     (struct
-                                       (field $hash   (mut i32))
-                                       (field $closed (mut i32)))))
-          (type $Channel (sub $Heap
-                              (struct
-                                (field $hash  (mut i32))
-                                (field $ready (mut i32))
-                                (field $value (mut (ref eq))))))
-          (type $ChannelPutEvt (sub $Heap
-                                    (struct
-                                      (field $hash (mut i32))
-                                      (field $ch   (ref $Channel))
-                                      (field $v    (ref eq)))))
-          (type $HandleEvt (sub $Heap
-                                (struct
-                                  (field $hash (mut i32))
-                                  (field $evt  (ref eq))
-                                  (field $proc (ref $Procedure)))))
-          ;; Minimal will executors. WebRacket does not expose GC-driven
-          ;; finalization yet, so registrations are retained to preserve
-          ;; references, but no wills become ready for execution.
-          (type $WillExecutor (sub $Heap
-                                   (struct
-                                     (field $hash          (mut i32))
-                                     (field $registrations (mut (ref eq))))))
-          ;; Opaque continuation-mark keys. Full continuation marks are still
-          ;; stubbed, but libraries use fresh key allocation as opaque identity
-          ;; tokens during startup.
-          (type $ContinuationMarkKey (sub $Heap
-                                          (struct
-                                            (field $hash (mut i32))
-                                            (field $name (ref eq)))))
-          (type $ContinuationMarkSet (sub $Heap
-                                          (struct
-                                            (field $hash (mut i32)))))
-          ;; Minimal custodians for browser/module bootstrap. They track a
-          ;; shutdown bit so custodian boxes can report #f after shutdown, but
-          ;; WebRacket does not yet manage ports, threads, or memory by
-          ;; custodian.
-          (type $Custodian (sub $Heap
-                                (struct
-                                  (field $hash      (mut i32))
-                                  (field $shutdown? (mut i32)))))
-          ;; Minimal security guards. They preserve the value graph and
-          ;; current-security-guard parameter protocol used by racket/base
-          ;; modules. The access-checking hooks are not consulted yet; they
-          ;; belong with the VFS/network layer.
-          (type $SecurityGuard (sub $Heap
-                                    (struct
-                                      (field $hash          (mut i32))
-                                      (field $parent        (ref eq))
-                                      (field $file-guard    (ref $Procedure))
-                                      (field $network-guard (ref $Procedure))
-                                      (field $link-guard    (ref $Procedure)))))
-          (type $CustodianBox (sub $Heap
-                                   (struct
-                                     (field $hash (mut i32))
-                                     (field $cust (ref $Custodian))
-                                     (field $v    (mut (ref eq))))))
-          (type $Date (sub $Heap
-                           (struct
-                             (field $hash             (mut i32))
-                             (field $second           (ref eq))
-                             (field $minute           (ref eq))
-                             (field $hour             (ref eq))
-                             (field $day              (ref eq))
-                             (field $month            (ref eq))
-                             (field $year             (ref eq))
-                             (field $week-day         (ref eq))
-                             (field $year-day         (ref eq))
-                             (field $dst?             (ref eq))
-                             (field $time-zone-offset (ref eq)))))
-          (type $DateStar (sub $Date
-                               (struct
-                                 (field $hash             (mut i32))
-                                 (field $second           (ref eq))
-                                 (field $minute           (ref eq))
-                                 (field $hour             (ref eq))
-                                 (field $day              (ref eq))
-                                 (field $month            (ref eq))
-                                 (field $year             (ref eq))
-                                 (field $week-day         (ref eq))
-                                 (field $year-day         (ref eq))
-                                 (field $dst?             (ref eq))
-                                 (field $time-zone-offset (ref eq))
-                                 (field $nanosecond       (ref eq))
-                                 (field $time-zone-name   (ref $String)))))
-          (type $Semaphore (sub $Heap
-                                (struct
-                                  (field $hash  (mut i32))
-                                  (field $count (mut i32)))))
-          (type $SemaphorePeekEvt (sub $Heap
-                                       (struct
-                                         (field $hash (mut i32))
-                                         (field $sema (ref $Semaphore)))))
-          (type $AlwaysEvt (sub $Heap
-                                (struct
-                                  (field $hash (mut i32)))))
-          (type $NeverEvt (sub $Heap
-                               (struct
-                                 (field $hash (mut i32)))))
-          ;; Racket CS uses uninterruptible locks around mutable runtime
-          ;; tables. WebRacket is currently single-threaded, so the lock value
-          ;; is opaque and acquire/release are no-ops. If WebRacket grows
-          ;; threads/places later, this is where real lock state belongs.
-          (type $UninterruptibleLock (sub $Heap
-                                          (struct
-                                            (field $hash (mut i32)))))
-          ;; Environment variables are currently modeled as an empty set. This
-          ;; is enough for expander probes that merely ask whether flags exist.
-          (type $EnvironmentVariables (sub $Heap
-                                           (struct
-                                             (field $hash (mut i32)))))
-          ;; Lightweight pseudo-random generators. Racket specifies MRG32k3a;
-          ;; WebRacket currently uses SplitMix32 state while preserving the
-          ;; generator object/parameter protocol needed by racket/base modules.
-          (type $PseudoRandomGenerator (sub $Heap
-                                            (struct
-                                              (field $hash  (mut i32))
-                                              (field $state (mut i32)))))
-          ;; Private payload thrown by WebRacket's bootstrap
-          ;; call-with-escape-continuation implementation.
-          (type $EscapeContinuationJump (sub $Heap
-                                             (struct
-                                               (field $hash  (mut i32))
-                                               (field $value (ref eq)))))
-
-          ;; Poor-man parameterizations. This is an overlay chain over a base
-          ;; parameterization plus a list of parameter/value pairs. It is not a
-          ;; full continuation-mark model, but it preserves dynamic parameter
-          ;; lookup for the bootstrap parameters that WebRacket implements as
-          ;; primitives.
-          (type $Parameterization (sub $Heap
-                                       (struct
-                                         (field $hash     (mut i32))
-                                         (field $base     (ref eq))
-                                         (field $bindings (ref eq)))))
-
-          ;; WebRacket does not implement impersonators yet, but Racket
-          ;; libraries allocate impersonator-property descriptors at module
-          ;; initialization time. Keep a first-class descriptor so the public
-          ;; predicates work without pretending that impersonation is active.
-          (type $ImpersonatorProperty (sub $Heap
-                                           (struct
-                                             (field $hash (mut i32))
-                                             (field $name (ref eq)))))
-
-          (type $Procedure
-                (sub $Heap
-                     (struct
-                       (field $hash   (mut i32))
-                       (field $name   (ref eq))   ;; $false or a $Symbol
-                       (field $arity  (ref eq))   ;; fixnum (i31 with lsb=0)
-                       ;                              +n means precisely n  
-                       ;                               0 means precisely 0  
-                       ;                              -1 means at least  0  
-                       ;                              -2 means at least  1  
-                       ;                              -n means at least n-1 
-                       (field $realm  (ref eq))   ;; $false or $Symbol      
-                       (field $invoke (ref $ProcedureInvoker)))))
-
-          (type $ProcedureInvoker
-                (func (param $proc (ref $Procedure))
-                      (param $args (ref $Args))      ; an array of (ref eq)
-                      (result (ref eq))))
-
-          ;; Raw primitive function types
-          (type $Prim0    (func                                   (result (ref eq))))
-          (type $Prim1    (func (param (ref eq))                  (result (ref eq))))
-          (type $Prim2    (func (param (ref eq)) (param (ref eq)) (result (ref eq))))
-          (type $Prim3    (func (param (ref eq)) (param (ref eq)) (param (ref eq))
-                                (result (ref eq))))
-          (type $Prim4    (func (param (ref eq)) (param (ref eq)) (param (ref eq)) (param (ref eq))
-                                (result (ref eq))))
-          (type $Prim5    (func (param (ref eq)) (param (ref eq)) (param (ref eq)) (param (ref eq)) (param (ref eq))
-                                (result (ref eq))))          
-
-          (type $Prim>=0  (func (param (ref eq))      ;; list of args
-                                (result (ref eq))))
-          (type $Prim>=1  (func (param (ref eq))      ;; first arg
-                                (param (ref eq))      ;; rest list
-                                (result (ref eq))))
-          (type $Prim>=2  (func (param (ref eq)) (param (ref eq))
-                                (param (ref eq))      ;; rest list
-                                (result (ref eq))))
-          (type $Prim>=3  (func (param (ref eq)) (param (ref eq)) (param (ref eq))
-                                (param (ref eq))      ;; rest list
-                                (result (ref eq))))
-          (type $Prim>=4  (func (param (ref eq)) (param (ref eq)) (param (ref eq)) (param (ref eq))
-                                (param (ref eq))      ;; rest list
-                                (result (ref eq))))          
-
-          (type $Prim01   (func (param (ref eq)) (result (ref eq))))
-          (type $Prim02   (func (param (ref eq)) (param (ref eq)) (result (ref eq))))
-          (type $Prim03   (func (param (ref eq)) (param (ref eq)) (param (ref eq))
-                                (result (ref eq))))
-
-          (type $Prim12   (func (param (ref eq)) (param (ref eq)) (result (ref eq))))
-          (type $Prim13   (func (param (ref eq)) (param (ref eq)) (param (ref eq))
-                                (result (ref eq))))
-          (type $Prim14   (func (param (ref eq)) (param (ref eq)) (param (ref eq)) (param (ref eq))
-                                (result (ref eq))))
-          (type $Prim15   (func (param (ref eq)) (param (ref eq)) (param (ref eq)) (param (ref eq)) (param (ref eq))
-                                (result (ref eq))))
-          ; Instead of introducing an $Prim16 use $Prim>=1 to reduce the number of shapes.
-          (type $Prim23   (func (param (ref eq)) (param (ref eq)) (param (ref eq))
-                                (result (ref eq))))
-          (type $Prim24   (func (param (ref eq)) (param (ref eq)) (param (ref eq)) (param (ref eq))
-                                (result (ref eq))))
-          (type $Prim25   (func (param (ref eq)) (param (ref eq)) (param (ref eq)) (param (ref eq)) (param (ref eq))
-                                (result (ref eq))))
-          
-          (type $Prim34   (func (param (ref eq)) (param (ref eq)) (param (ref eq)) (param (ref eq))
-                                (result (ref eq))))
-          (type $Prim35   (func (param (ref eq)) (param (ref eq)) (param (ref eq)) (param (ref eq)) (param (ref eq))
-                                (result (ref eq))))
-          (type $Prim67   (func (param (ref eq)) (param (ref eq)) (param (ref eq)) (param (ref eq))
-                                 (param (ref eq)) (param (ref eq)) (param (ref eq))
-                                 (result (ref eq))))
-          (type $Prim6    (func (param (ref eq)) (param (ref eq)) (param (ref eq)) (param (ref eq)) (param (ref eq))
-                                (param (ref eq))
-                                (result (ref eq))))
-          
-          (type $ClosureCode  (func (param $clos (ref $Closure))
-                                    (param $args (ref $Args))
-                                    (result (ref eq))))
-          (type $KnownCode0   (func (param $args (ref $Args))
-                                    (result (ref eq))))
-          (type $KnownCode1   (func (param $env0 (ref eq))
-                                    (param $args (ref $Args))
-                                    (result (ref eq))))
-          (type $Closure   
-                (sub $Procedure
-                     (struct
-                       ; from $Procedure
-                       (field $hash   (mut i32))
-                       (field $name   (ref eq))   ;; $false or a $Symbol
-                       (field $arity  (ref eq))   ;; fixnum (i31 with lsb=0) or (arity-at-least n)
-                       (field $realm  (ref eq))   ;; $false or $Symbol
-                       (field $invoke (ref $ProcedureInvoker))
-                       ; from $Closure
-                       (field $debug-id (ref eq)) ;; $false or a $Symbol used for debug lookup
-                       (field $code   (ref $ClosureCode))
-                       (field $free   (ref $Free)))))
-
-          (type $Closure1
-                (sub $Closure
-                     (struct
-                       ;; inherited $Procedure fields
-                       (field $hash   (mut i32))
-                       (field $name   (ref eq))
-                       (field $arity  (ref eq))
-                       (field $realm  (ref eq))
-                       (field $invoke (ref $ProcedureInvoker))
-                       ;; inherited $Closure fields
-                       (field $debug-id (ref eq))
-                       (field $code   (ref $ClosureCode))
-                       (field $free   (ref $Free))
-                       ;; inline payload for the single captured value
-                       (field $free0  (mut (ref eq))))))
-
-          (type $Closure2
-                (sub $Closure
-                     (struct
-                       ;; inherited $Procedure fields
-                       (field $hash   (mut i32))
-                       (field $name   (ref eq))
-                       (field $arity  (ref eq))
-                       (field $realm  (ref eq))
-                       (field $invoke (ref $ProcedureInvoker))
-                       ;; inherited $Closure fields
-                       (field $debug-id (ref eq))
-                       (field $code   (ref $ClosureCode))
-                       (field $free   (ref $Free))
-                       ;; inline payload for the two captured values
-                       (field $free0  (mut (ref eq)))
-                       (field $free1  (mut (ref eq))))))
-
-          (type $Closure3
-                (sub $Closure
-                     (struct
-                       ;; inherited $Procedure fields
-                       (field $hash   (mut i32))
-                       (field $name   (ref eq))
-                       (field $arity  (ref eq))
-                       (field $realm  (ref eq))
-                       (field $invoke (ref $ProcedureInvoker))
-                       ;; inherited $Closure fields
-                       (field $debug-id (ref eq))
-                       (field $code   (ref $ClosureCode))
-                       (field $free   (ref $Free))
-                       ;; inline payload for the three captured values
-                       (field $free0  (mut (ref eq)))
-                       (field $free1  (mut (ref eq)))
-                       (field $free2  (mut (ref eq))))))
-
-          (type $CaseClosure  ; for case-lambda
-                (sub $Closure
-                     (struct
-                       ;; inherited $Procedure fields
-                       (field $hash   (mut i32))
-                       (field $name   (ref eq))
-                       (field $arity  (ref eq))        ;; store (ref $I32Array) here for Racket-style arity
-                       (field $realm  (ref eq))
-                       (field $invoke (ref $ProcedureInvoker))
-                       ;; inherited $Closure fields
-                       (field $debug-id (ref eq))
-                       (field $code   (ref $ClosureCode))  ;; dispatcher
-                       (field $free   (ref $Free))         ;; can be an empty array
-                       ;; new, typed payload
-                       (field $arities (ref $I32Array))    ;; markers: m>=0 exact m; m<0 at least (-m-1)
-                       (field $arms    (ref $Array)))))    ;; (ref eq) array of arm closures
-          
-
-          (type $PrimitiveProcedure
-                (sub $Procedure
-                     (struct
-                       ; From $Procedure
-                       (field $hash   (mut i32))
-                       (field $name   (ref eq))
-                       (field $arity  (ref eq))
-                       (field $realm  (ref eq))
-                       (field $invoke (ref $ProcedureInvoker))
-                       ; Function pointer for primitive implementation
-                       (field $code (ref null func))
-                       ; other fields
-                       (field $result-arity (ref eq))))) ;; fixnum like 1 for most
-
-          (type $PrimitiveClosure
-                (sub $PrimitiveProcedure
-                     (struct
-                       ;; Inherits all fields from $PrimitiveProcedure:
-                       (field $hash         (mut i32))
-                       (field $name         (ref eq))
-                       (field $arity        (ref eq))
-                       (field $realm        (ref eq))
-                       (field $invoke       (ref $ProcedureInvoker))
-                       (field $code         (ref null func))
-                       (field $result-arity (ref eq))  ; fixnum
-                       ;; Own fields
-                       ; ...
-                       )))
-
-
-          ; Some structs are applicable.
-          ; In order to make function calls fast, we make structs a subtype of $Procedure.
-          ; Non-applicable structs gets an $invoke function that signals an error.
-          ; The down side is that we add 4 (four!) extra fields.
-          (type $Struct
-                (sub $Procedure
-                     (struct
-                       ; from the procedure super-type
-                       (field $hash   (mut i32))  ;; Computed lazily, starts at 0
-                       (field $name   (ref eq))   ;; $false or a $Symbol
-                       (field $arity  (ref eq))   ;; fixnum (i31 with lsb=0) or (arity-at-least n)
-                       (field $realm  (ref eq))   ;; $false or $Symbol
-                       (field $invoke (ref $ProcedureInvoker))
-                       ; fields for structs
-                       (field $type   (ref $StructType))      ;; Pointer to struct type descriptor
-                       (field $fields (ref $Array)))))        ;; Array of (ref eq), holds field values
-
-          (type $StructType
-                (sub $Heap
-                     (struct
-                       (field $hash             (mut i32))            ;; Computed lazily, starts at 0
-                       (field $name             (ref $Symbol))        ;; Struct name
-                       (field $super            (ref eq))             ;; Supertype or #f (use global $false)
-                       (field $field-count      i32)                  ;; Total number of fields
-                       (field $init-indices     (ref eq))             ;; List of init field indices ($Pair or $null)
-                       (field $auto-indices     (ref eq))             ;; List of auto field indices
-                       (field $auto-values      (ref eq))             ;; List of values for auto fields
-                       (field $properties       (ref eq))             ;; Property table: hash table
-                       (field $inspector        (ref eq))             ;; Inspector object or #f
-                       (field $immutables       (ref eq))             ;; Immutables descriptor or #f
-                       (field $guard            (ref eq))             ;; Guard procedure or #f
-                       (field $constructor-name (ref eq)))))          ;; For error reporting / printing ($Symbol or #f)
-
-          (type $StructConstructorProcedure
-                ; current representation is a plain closure
-                (sub $Closure
-                     (struct
-                       (field $hash   (mut i32))
-                       (field $name   (ref eq))   ;; $false or a $Symbol
-                       (field $arity  (ref eq))   ;; fixnum (i31 with lsb=0) or (arity-at-least n)
-                       (field $realm  (ref eq))   ;; $false or $Symbol
-                       (field $invoke (ref $ProcedureInvoker))
-                       (field $debug-id (ref eq))
-                       (field $code   (ref $ClosureCode))
-                       (field $free   (ref $Free)))))
-          
-
-          (type $StructPredicateProcedure
-                ; current representation is a plain closure
-                (sub $Closure
-                     (struct
-                       (field $hash   (mut i32))
-                       (field $name   (ref eq))   ;; $false or a $Symbol
-                       (field $arity  (ref eq))   ;; fixnum (i31 with lsb=0) or (arity-at-least n)
-                       (field $realm  (ref eq))   ;; $false or $Symbol
-                       (field $invoke (ref $ProcedureInvoker))
-                       (field $debug-id (ref eq))
-                       (field $code   (ref $ClosureCode))
-                       (field $free   (ref $Free)))))
-
-          (type $StructAccessorProcedure
-                ; current representation is a plain closure
-                (sub $Closure
-                     (struct
-                       (field $hash   (mut i32))
-                       (field $name   (ref eq))   ;; $false or a $Symbol
-                       (field $arity  (ref eq))   ;; fixnum (i31 with lsb=0) or (arity-at-least n)
-                       (field $realm  (ref eq))   ;; $false or $Symbol
-                       (field $invoke (ref $ProcedureInvoker))
-                       (field $debug-id (ref eq))
-                       (field $code   (ref $ClosureCode))
-                       (field $free   (ref $Free)))))
-
-          (type $StructMutatorProcedure
-                ; current representation is a plain closure
-                (sub $Closure
-                     (struct
-                       (field $hash   (mut i32))
-                       (field $name   (ref eq))   ;; $false or a $Symbol
-                       (field $arity  (ref eq))   ;; fixnum (i31 with lsb=0) or (arity-at-least n)
-                       (field $realm  (ref eq))   ;; $false or $Symbol
-                       (field $invoke (ref $ProcedureInvoker))
-                       (field $debug-id (ref eq))
-                       (field $code   (ref $ClosureCode))
-                       (field $free   (ref $Free)))))
-
-          (type $StructTypeProperty
-                (sub $Heap
-                     (struct
-                       (field $hash               (mut i32))          ;; Cached hash, lazily computed
-                       (field $name               (ref $Symbol))      ;; Property name
-                       (field $guard-info         (ref eq))           ;; Guard metadata or #f
-                       (field $supers             (ref eq))           ;; List of super property descriptors
-                       (field $can-impersonate    (ref eq))           ;; Boolean indicating impersonation support
-                       (field $accessor-name-info (ref eq))           ;; Accessor naming hints or #f
-                       (field $predicate-cache    (mut (ref eq)))     ;; Cached predicate procedure or #f
-                       (field $accessor-cache     (mut (ref eq))))))  ;; Cached accessor procedure or #f
-
-          (type $Number (sub $Heap    ; abstract super type for boxed numbers
-                             (struct
-                               (field $hash (mut i32)))))
-	          (type $Flonum (sub $Number  ; double precision
-	                             (struct
-	                               (field $hash (mut i32))  ; sigh
-	                               (field $v f64))))
-	          (type $Complex (sub $Number
-	                              (struct
-	                                (field $hash (mut i32))
-	                                (field $real (ref eq))
-	                                (field $imag (ref eq)))))
-	          
-	          (type $Vector    (sub $Heap
-                                (struct
-                                  (field $hash      (mut i32))
-                                  (field $immutable i32)                        ;; 0 or 1
-                                  (field $arr       (ref $Array)))))
-          (type $TreelistNode (sub $Heap
-                                   (struct
-                                     (field $hash     (mut i32))
-                                     (field $children (ref $Array))
-                                     (field $sizes    (ref null $I32Array)))))
-          (type $Treelist (sub $Heap
-                               (struct
-                                 (field $hash   (mut i32))
-                                 (field $root   (ref $TreelistNode))
-                                 (field $size   i32)
-                                 (field $height i32))))
-          (type $String    (sub $Heap
-                                (struct
-                                  (field $hash      (mut i32))
-                                  (field $immutable i32)                        ;; 0 or 1
-                                  (field $codepoints (mut (ref $I32Array))))))  ;; An array of Unicode code points
-          (type $Bytes      (sub $Heap
-                                 (struct
-                                   (field $hash      (mut i32))
-                                   (field $immutable i32)                      ;; 0 or 1
-                                   (field $bs        (mut (ref $I8Array)))))) ;; An array of bytes
-          (type $Regexp     (sub $Heap
-                                 (struct
-                                   (field $hash   (mut i32))
-                                   (field $kind   i32)       ;; 0 rx, 1 px, 2 byte-rx, 3 byte-px
-                                   (field $source (ref eq))))) ;; string or bytes object-name
-          (type $Symbol (sub $Heap
-                             (struct
-                               (field $hash          (mut i32))          ;; cached hash
-                               (field $name          (ref $String))      ;; symbol name (string)
-                               (field $unreadable?   i32)                ;; non-zero for unreadable symbols
-                               (field $property-list (mut (ref eq))))))  ;; user-defined properties
-          (type $Ephemeron (sub $Heap
-                                (struct
-                                  (field $hash  (mut i32))
-                                  (field $key   (ref eq))
-                                  (field $value (mut (ref eq))))))
-          (type $Keyword (sub $Heap
-                              (struct
-                                (field $hash  (mut i32))
-                                (field $str   (ref $String)))))  ; string without #:
-          
-          (type $Location   (sub $Heap
-                                 ; If line counting is not enabled, the first two are #f
-                                 (struct
-                                   (field $hash  (mut i32))
-                                   (field $line  (mut (ref eq)))    ; #f or line number (fixnum)
-                                   (field $col   (mut (ref eq)))    ; #f or column number
-                                   (field $pos   (mut (ref eq)))))) ; #f or position
-
-          (type $Path      (sub $Heap
-                                (struct
-                                  (field $hash       (mut i32))          ;; cached hash
-                                  (field $bytes      (ref $Bytes))       ;; raw byte representation (bytes)
-                                  (field $convention (ref eq)))))        ;; 'unix or 'windows symbol
-
-
-          (type $Port
-                (sub $Heap
-                     (struct
-                       (field $hash  (mut i32))
-                       (field $name  (mut (ref eq))) ; the port name (string) [the object-name]
-                       (field $closed (mut i32))      ; 0 = open, 1 = closed
-                       ; buffer (if used):
-                       (field $bytes (mut (ref $Bytes)))        ; the byte string (bytes)
-                       (field $len   (mut i32))                 ; the length of the string
-                       (field $idx   (mut i32))                 ; the current index into the byte string
-                       ; location
-                       (field $loc   (mut (ref $Location))))))  ; the current location
-
-          (type $InputPort
-                (sub $Port
-                     (struct
-                       (field $hash  (mut i32))
-                       (field $name  (mut (ref eq)))            ; the port name (string) [the object-name]
-                       (field $closed (mut i32))                 ; 0 = open, 1 = closed
-                       (field $bytes (mut (ref $Bytes)))        ; the byte string (bytes)
-                       (field $len   (mut i32))                 ; the length of the string
-                       (field $idx   (mut i32))                 ; the current index into the byte string
-                       (field $loc   (mut (ref $Location)))     ; the current location
-                       (field $read-handler (mut (ref eq))))))  ; #f means use the default reader
-
-          (type $OutputPort
-                (sub $Port
-                     (struct
-                       (field $hash  (mut i32))
-                       (field $name  (mut (ref eq)))            ; the port name (string) [the object-name]
-                       (field $closed (mut i32))                 ; 0 = open, 1 = closed
-                       (field $bytes (mut (ref $Bytes)))        ; the byte string (bytes)
-                       (field $len   (mut i32))                 ; the length of the string
-                       (field $idx   (mut i32))                 ; the current index into the byte string
-                       (field $loc   (mut (ref $Location))))))  ; the current location
-
-          (type $InputStringPort
-                (sub $InputPort
-                     (struct
-                       (field $hash  (mut i32))
-                       (field $name  (mut (ref eq)))            ; the port name   (string)
-                       (field $closed (mut i32))                 ; 0 = open, 1 = closed
-                       (field $bytes (mut (ref $Bytes)))        ; the byte string (bytes)
-                       (field $len   (mut i32))                 ; the length of the string
-                       (field $idx   (mut i32))                 ; the current index into the byte string
-                       (field $loc   (mut (ref $Location)))     ; the current location
-                       (field $read-handler (mut (ref eq)))      ; port-read-handler override or #f
-                       ;; UTF-8 decoder state:
-                       (field $utf8-len    (mut i32))     ;; 0 = idle, 1-4 = number of bytes expected
-                       (field $utf8-left   (mut i32))     ;; number of continuation bytes still needed
-                       (field $utf8-bytes  (mut i32)))))  ;; current byte count seen (for column fix)
-          
-          (type $OutputStringPort
-                (sub $OutputPort
-                     (struct
-                       (field $hash  (mut i32))
-                       (field $name  (mut (ref eq)))         ; the port name   (string)
-                       (field $closed (mut i32))              ; 0 = open, 1 = closed
-                       (field $bytes (mut (ref $Bytes)))     ; the byte string (bytes)
-                       (field $len   (mut i32))              ; the length of the string
-                       (field $idx   (mut i32))              ; the current index into the string
-                       (field $loc   (mut (ref $Location)))  ; the current location
-                       ;; UTF-8 decoder state:
-                       (field $utf8-len    (mut i32))     ;; 0 = idle, 1-4 = number of bytes expected
-                       (field $utf8-left   (mut i32))     ;; number of continuation bytes still needed
-                       (field $utf8-bytes  (mut i32)))))  ;; current byte count seen (for column fix)
-
-          (type $OutputFilePort
-                (sub $OutputStringPort
-                     (struct
-                       (field $hash  (mut i32))
-                       (field $name  (mut (ref eq)))
-                       (field $closed (mut i32))
-                       (field $bytes (mut (ref $Bytes)))
-                       (field $len   (mut i32))
-                       (field $idx   (mut i32))
-                       (field $loc   (mut (ref $Location)))
-                       (field $utf8-len    (mut i32))
-                       (field $utf8-left   (mut i32))
-                       (field $utf8-bytes  (mut i32))
-                       (field $path        (ref $Path)))))
-
-          (type $CustomInputPort
-                (sub $InputPort
-                     (struct
-                       (field $hash  (mut i32))
-                       (field $name  (mut (ref eq)))                 ; the port name   (any/c)
-                       (field $closed (mut i32))                      ; 0 = open, 1 = closed
-                       (field $bytes (mut (ref $Bytes)))             ; scratch buffer  (bytes)
-                       (field $len   (mut i32))                      ; unused length placeholder
-                       (field $idx   (mut i32))                      ; unused index placeholder
-                       (field $loc   (mut (ref $Location)))          ; the current location
-                       (field $read-handler (mut (ref eq)))           ; port-read-handler override or #f
-                       (field $read-proc          (mut (ref eq)))    ; required read-in argument
-                       (field $peek-proc          (mut (ref eq)))    ; required peek argument
-                       (field $close-proc         (mut (ref eq)))    ; required close argument
-                       (field $get-progress-evt   (mut (ref eq)))    ; optional, default = #f
-                       (field $commit-proc        (mut (ref eq)))    ; optional, default = #f
-                       (field $get-location-proc  (mut (ref eq)))    ; optional, default = #f
-                       (field $count-lines-proc   (mut (ref eq)))    ; optional, default = void
-                       (field $init-position-arg  (mut (ref eq)))    ; optional, default = 1
-                       (field $buffer-mode-arg    (mut (ref eq)))))) ; optional, default = #f
-
-          (type $CustomOutputPort
-                (sub $OutputPort
-                     (struct
-                       (field $hash  (mut i32))
-                       (field $name  (mut (ref eq)))                 ; the port name   (any/c)
-                       (field $closed (mut i32))                      ; 0 = open, 1 = closed
-                       (field $bytes (mut (ref $Bytes)))             ; unused scratch bytes
-                       (field $len   (mut i32))                      ; unused length placeholder
-                       (field $idx   (mut i32))                      ; known byte position
-                       (field $loc   (mut (ref $Location)))          ; current location
-                       (field $write-proc             (mut (ref eq))) ; output-port? or procedure?
-                       (field $close-proc             (mut (ref eq))) ; procedure?
-                       (field $write-special-proc     (mut (ref eq))) ; optional
-                       (field $get-write-evt-proc     (mut (ref eq))) ; optional
-                       (field $get-write-special-proc (mut (ref eq))) ; optional
-                       (field $get-location-proc      (mut (ref eq))) ; optional
-                       (field $count-lines-proc       (mut (ref eq))) ; optional, default = void
-                       (field $init-position-arg      (mut (ref eq))) ; optional, default = 1
-                       (field $buffer-mode-arg        (mut (ref eq)))))) ; optional, default = #f
-
-          
-          (type $Hash   ; abstract super type for hashtables
-                (sub $Heap
-                     (struct
-                       (field $hash     (mut i32))
-                       (field $mutable? (ref eq)))))  ; boolean (immediate, i31 tagged)
-
-          (type $HashEq
-                (sub $Hash
-                     (struct
-                       (field $hash     (mut i32))
-                       (field $mutable? (ref eq)))))
-
-          (type $HashEqv
-                (sub $Hash
-                     (struct
-                       (field $hash     (mut i32))
-                       (field $mutable? (ref eq)))))
-
-          (type $HashEqual
-                (sub $Hash
-                     (struct
-                       (field $hash     (mut i32))
-                       (field $mutable? (ref eq)))))
-
-          (type $HashEqualAlways
-                (sub $Hash
-                     (struct
-                       (field $hash     (mut i32))
-                       (field $mutable? (ref eq)))))
-
-          ;; Stencil vectors are Chez/Racket CS's compact masked vectors. The
-          ;; system variant is used as the node representation for immutable
-          ;; hash HAMTs in `rumble/hamt-stencil.ss`.
-          (type $StencilVector
-                (sub $Heap
-                     (struct
-                       (field $hash    (mut i32))
-                       (field $system? i32)
-                       (field $mask    (mut i32))
-                       (field $slots   (ref $Array)))))
-
-          
-          (type $HashEqMutable
-                ; Mutable hash tables are implemented as an open-addressing hash table
-                ; with linear probing.
-                (sub $HashEq
-                     (struct
-                       (field $hash     (mut i32))
-                       (field $mutable? (ref eq))
-                       (field $entries  (mut (ref $Array)))  ;; flat array: key0, val0, key1, val1, ...
-                       (field $count    (mut i32)))))        ;; number of key/value pairs currently stored
-
-          (type $HashEqvMutable
-                ; Mutable hash tables are implemented as an open-addressing hash table
-                ; with linear probing.
-                (sub $HashEqv
-                     (struct
-                       (field $hash     (mut i32))
-                       (field $mutable? (ref eq))
-                       (field $entries  (mut (ref $Array)))  ;; flat array: key0, val0, key1, val1, ...
-                       (field $count    (mut i32)))))        ;; number of key/value pairs currently stored
-
-          (type $HashEqualMutable
-                ; Mutable hash tables are implemented as an open-addressing hash table
-                ; with linear probing.
-                (sub $HashEqual
-                     (struct
-                       (field $hash     (mut i32))
-                       (field $mutable? (ref eq))
-                       (field $entries  (mut (ref $Array)))  ;; flat array: key0, val0, key1, val1, ...
-                       (field $count    (mut i32)))))        ;; number of key/value pairs currently stored
-
-          (type $HashEqualAlwaysMutable
-                ; Mutable hash tables are implemented as an open-addressing hash table
-                ; with linear probing.
-                (sub $HashEqualAlways
-                     (struct
-                       (field $hash     (mut i32))
-                       (field $mutable? (ref eq))
-                       (field $entries  (mut (ref $Array)))  ;; flat array: key0, val0, key1, val1, ...
-                       (field $count    (mut i32)))))        ;; number of key/value pairs currently stored
-
-          ;; Private immutable hash support. Racket CS represents immutable
-          ;; hashes as HAMTs over system stencil vectors. WebRacket mirrors
-          ;; the same split at the runtime boundary: stencil vectors are
-          ;; bnodes, while terminal full-hash collisions use explicit cnodes.
-          (type $ImmutableHashEntry
-                (sub $Heap
-                     (struct
-                       (field $hash      (mut i32))
-                       (field $key-hash  i32)
-                       (field $key       (ref eq))
-                       (field $value     (ref eq)))))
-
-          ;; Private packed-inline key wrapper. Equal?/equal-always? HAMTs use
-          ;; this only in physical bnode key slots so promotion can reuse the
-          ;; cached hash while public APIs still expose the original key.
-          (type $ImmutableHashWrappedKey
-                (sub $Heap
-                     (struct
-                       (field $hash     (mut i32))
-                       (field $kind     i32)
-                       (field $key-hash i32)
-                       (field $key      (ref eq)))))
-
-          (type $ImmutableHashCNode
-                (sub $Heap
-                     (struct
-                       (field $hash     (mut i32))
-                       (field $key-hash i32)
-                       (field $content  (ref eq)))))
-
-          (type $HashEqImmutable
-                (sub $HashEq
-                     (struct
-                       (field $hash     (mut i32))
-                       (field $mutable? (ref eq))
-                       (field $root     (ref eq))
-                       (field $count    i32))))
-
-          (type $HashEqvImmutable
-                (sub $HashEqv
-                     (struct
-                       (field $hash     (mut i32))
-                       (field $mutable? (ref eq))
-                       (field $root     (ref eq))
-                       (field $count    i32))))
-
-          (type $HashEqualImmutable
-                (sub $HashEqual
-                     (struct
-                       (field $hash     (mut i32))
-                       (field $mutable? (ref eq))
-                       (field $root     (ref eq))
-                       (field $count    i32))))
-
-          (type $HashEqualAlwaysImmutable
-                (sub $HashEqualAlways
-                     (struct
-                       (field $hash     (mut i32))
-                       (field $mutable? (ref eq))
-                       (field $root     (ref eq))
-                       (field $count    i32))))
-
-          ;; Reader-graph hash placeholders. Full graph resolution belongs with
-          ;; make-reader-graph/read; for now retain the association list and
-          ;; comparison kind so installed libraries can recognize placeholders.
-          (type $HashPlaceholder
-                (sub $Heap
-                     (struct
-                       (field $hash   (mut i32))
-                       (field $kind   i32)      ;; 0 equal?, 1 eq?, 2 eqv?, 3 equal-always?
-                       (field $assocs (ref eq)))))
-
-          ;; Reader-graph placeholders created by make-placeholder.
-          (type $Placeholder
-                (sub $Heap
-                     (struct
-                       (field $hash  (mut i32))
-                       (field $value (mut (ref eq))))))
-
-	          (type $VariableReference ; opaque value returned by #%variable-reference
-	                ; Minimal payload needed by variable-reference predicates.
-	                (sub $Heap
-	                     (struct
-	                       (field $hash (mut i32))
-	                       (field $constant?   (ref eq))
-	                       (field $from-unsafe? (ref eq))
-	                       )))
-          (type $ResolvedModulePath
-                (sub $Heap
-                     (struct
-                       (field $hash (mut i32))
-                       (field $name (ref eq)))))
-          (type $ModulePathIndex
-                (sub $Heap
-                     (struct
-                       (field $hash     (mut i32))
-                       (field $path     (ref eq))
-                       (field $base     (ref eq))
-                       (field $submod   (ref eq))
-                       (field $resolved (mut (ref eq))))))
-	          (type $ModuleVariable ; lowered module/linklet variable cell
-	                (sub $Heap
-	                     (struct
-	                       (field $hash (mut i32))
-	                       (field $name      (ref eq))
-	                       (field $value     (mut (ref eq)))
-	                       (field $constance (mut (ref eq))))))
-	          (type $ModuleVariableReference
-	                (sub $Heap
-	                     (struct
-	                       (field $hash (mut i32))
-	                       (field $instance (ref eq))
-	                       (field $variable (ref eq)))))
-	          (type $External 
-	            (sub $Heap
-	              (struct
-                (field $hash (mut i32))
-                (field $v    (ref null extern)))))
-
-          ;; (Placeholder) module registry          
-          (type $ModuleRegistry
-                (sub $Heap
-                     (struct
-                       (field $hash  (mut i32))
-                       (field $table (mut (ref $Array))))))
-
-          ; A namespace has a module registry.
-          ; The registry maps a module names to module declarations.
-          ; The registry is shared by all phases.
-          ; The namespace holds a distinct set of top-level variables for each phase.
-          ; Module instances are (can be) distinct for each phase.
-          ; Each namespace has a base phase.
-          ; The base phase is used by `eval` and `dynamic-require`.
-
-          
-          ; The first step in evaluating any compiled expression is to
-          ; link its top-level variable and module-level variable references to
-          ; specific variables in the namespace.
-
-          ; At all times during evaluation, some namespace is designated as the current namespace.
-
-          ; How does provide and require work?
-
-          ; A module body is executed only when the module is
-          ; explicitly instantiated via require or dynamic-require.
-          
-          ; On invocation, imported modules are instantiated in the order in which
-          ; they are required into the module (although earlier instantiations or
-          ; transitive requires can trigger the instantiation of a module before
-          ; its order within a given module).
-
-          ; Then, expressions and definitions
-          ; are evaluated in order as they appear within the module.
-
-          ; - for each module we need an $module:<module-name>:instantiate
-          ;    - allocate a $ModuleInstance
-          ;    - require modules
-          ;    - setup module level variables
-          ;    - evaluate expressions and definitions
-          
-
-          ;; Namespace now maps Symbol -> Boxed via a single hasheq/mutable table
-          (type $Namespace
-                (sub $Heap
-                     (struct
-                       (field $hash       (mut i32))
-                       (field $name       (ref eq))                   ;; #f or $String
-                       (field $base-phase i32)
-                       (field $table      (mut (ref $HashEqMutable))) ;; hasheq: Symbol → Boxed
-                       (field $modules    (mut (ref $ModuleRegistry)))
-                       (field $protect    (mut i32)))))
-
-          ;; A builder that accumulates arguments to be serialized for the host.
-          (type $FaslBuilder
-                (sub $Heap
-                     (struct
-                       (field $hash     (mut i32))               ;; lazy, start at 0
-                       (field $strings  (ref $GrowableArray))    ;; growable of (ref $String)
-                       (field $values   (ref $GrowableArray))))) ;; growable of (ref eq)
-
-          ;; Linklet instance structure
-          (type $Instance
-                (sub $Heap
-                     (struct
-                       (field $hash      (mut i32))
-                       (field $name      (ref eq))                      ;; any value for debugging
-                       (field $data      (ref eq))                      ;; any value (e.g., namespace)
-                       (field $variables (mut (ref $HashEqMutable)))    ;; hasheq: Symbol → Box
-                       (field $constants (mut (ref $HashEqMutable)))))) ;; hasheq: Symbol → #t
-
-          (type $Linklet
-                (sub $Heap
-                     (struct
-                       (field $hash        (mut i32))
-                       (field $name        (ref eq))    ; #f or a symbol
-                       (field $importss    (ref eq))    ; (listof (listof symbol?))
-                       (field $exports     (ref eq))    ; (listof symbol?)
-                       )))
-
-          ; A compiled linklet is a procedure `proc` that as arguments
-          ; take an self-instance and the import instances.
-          ; The arity is the same as the length of `importss` plus one (due to the self-instance).
-          ; Each sublist of `importss` is a list of symbols imported from that instance.
-          ; The field `exports` is a list of symbols to be exported.
-          ; Calling `proc` will run the body of the linklet.
-          (type $CompiledLinklet
-                (sub $Linklet
-                     (struct
-                       (field $hash        (mut i32))
-                       (field $name        (ref eq))    ; #f or a symbol
-                       (field $importss    (ref eq))    ; (listof (listof symbol?))
-                       (field $exports     (ref eq))    ; (listof symbol?)
-                       (field $proc        (ref eq))    ; takes self instance plus instance arguments
-                       )))
-
-          ;; WebRacket currently stores mutable hasheq tables directly in
-          ;; linklet bundle/directory wrappers.
-          (type $LinkletBundle
-                (sub $Heap
-                     (struct
-                       (field $hash    (mut i32))
-                       (field $content (ref $HashEqMutable)))))
-
-          (type $LinkletDirectory
-                (sub $Heap
-                     (struct
-                       (field $hash    (mut i32))
-                       (field $content (ref $HashEqMutable)))))
-
-          (type $UnquotedPrintingString
-                (sub $Heap
-                     (struct
-                       (field $hash  (mut i32))
-                       (field $value (ref eq)))))
-          
-          ) ; rec
-       
+         ,@(generate-shared-types)
 
          ;;;
          ;;; MEMORY
@@ -3970,11 +4326,11 @@
 
          ;;;
          ;;; IMPORTS
-         ;;; 
+         ;;;
 
          ;  Imported functions from the host (JavaScript).
          ;  Note all imports must appear before other function definitions.
-         
+
          (func $js_output
                (import "primitives" "js_output")
                (param i32))
@@ -4266,10 +4622,10 @@
 
         ;; FFI related imports
         ,@active-ffi-imports-wat ; generated from "driver.rkt" in "define-foreign.rkt"
-         
+
 
          ,@active-ffi-funcs-wat   ; generated from "driver.rkt" in "define-foreign.rkt"
-         
+
          ;; unsafe-ffi-primitive : symbol? -> procedure?
          ;;   Resolve generated unsafe FFI module aliases to active `.ffi` primitive closures.
          (func $unsafe-ffi-primitive (type $Prim1)
@@ -4467,7 +4823,7 @@
                           (local.get $str)))
 
         (func $raise-argument-error:unquoted-printing-string-expected (unreachable))
-        
+
         (func $unquoted-printing-string-value (type $Prim1)
               (param $ups (ref eq))  ;; unquoted-printing-string?
               (result     (ref eq))  ;; string?
@@ -4480,11 +4836,11 @@
 
               (local.set $wrapped (ref.cast (ref $UnquotedPrintingString) (local.get $ups)))
               (struct.get $UnquotedPrintingString $value (local.get $wrapped)))
-        
+
         ;;;
         ;;; Singletons
         ;;;
-        
+
          (global $null              (ref eq) ,(Imm '()))
          (global $undefined         (ref eq) ,(Imm (undefined)))         ;  79
          (global $unsafe-undefined  (ref eq) ,(Imm (unsafe-undefined)))  ; 335
@@ -4556,7 +4912,7 @@
          (global $exn:fail:syntax-type                  (mut (ref null $StructType)) (ref.null $StructType))
          (global $exn:fail:syntax:missing-module-type   (mut (ref null $StructType)) (ref.null $StructType))
          (global $exn:fail:syntax:unbound-type          (mut (ref null $StructType)) (ref.null $StructType))
-         
+
          ;; Cached srcloc struct type descriptor
          (global $srcloc-type (mut (ref null $StructType)) (ref.null $StructType))
 
@@ -4567,7 +4923,7 @@
          (global $correlated-type (mut (ref null $StructType)) (ref.null $StructType))
          ;; Shared empty correlated properties table
          (global $correlated-empty-props (mut (ref eq)) ,(Undefined))
-         
+
          ;; Cached syntax struct type descriptor
          (global $syntax-type (mut (ref null $StructType)) (ref.null $StructType))
          ;; Shared empty syntax properties table
@@ -4599,8 +4955,8 @@
          ; Closures with no free variables can share an empty array
          (global $empty-free (ref $Free)
                  (array.new $Free (global.get $null) (i32.const 0)))
-                                            
-         ;; Closure invocation - invoke 
+
+         ;; Closure invocation - invoke
          #;(type $ProcedureInvoker
                  (func (param $proc (ref $Procedure))
                        (param $args (ref $Args))      ; an array of (ref eq)
@@ -5171,7 +5527,7 @@
         (func $raise-code-type-mismatch
               (param $pproc (ref $PrimitiveProcedure))
               (result (ref eq))
-              (call $js-log (call $format/display (local.get $pproc)))              
+              (call $js-log (call $format/display (local.get $pproc)))
               (unreachable))
 
         (func $primitive-invoke:raise-arity-error
@@ -5208,7 +5564,7 @@
                           (call $current-continuation-marks (global.get $missing)))
                     (global.get $true))
               (unreachable))
-        
+
         ;; Shape codes:
         ;;   0: exact 0
         ;;   1: exact 1
@@ -5235,7 +5591,7 @@
         ;;  25: between 6 and 7 arguments
 
         (func $raise-primitive-invoke:unhandled-shape (unreachable))
-        
+
         (func $primitive-invoke (type $ProcedureInvoker)
               (param $proc (ref $Procedure))
               (param $args (ref $Args))
@@ -5265,7 +5621,7 @@
               ; (local.set $a3 (global.get $null))
               ; (local.set $a4 (global.get $null))
               (local.set $rest (global.get $null))
-              
+
               ;; Proc -> PrimitiveProcedure
               (local.set $pproc
                          (ref.cast (ref $PrimitiveProcedure) (local.get $proc)))
@@ -5280,7 +5636,7 @@
 
               ;; argc
               (local.set $argc (array.len (local.get $args)))
-              
+
               ;; Decode arity fixnum: i31 -> i32, then >> 1
               (local.set $arity/tag
                          (i31.get_s  ; signed due to negative arities
@@ -5470,7 +5826,7 @@
                                                                  (local.get $rest)
                                                                  (ref.cast (ref $Prim>=1) (local.get $code))))))
                                 (else (return (call $primitive-invoke:raise-arity-error
-                                                    (local.get $pproc) (local.get $argc)))) 
+                                                    (local.get $pproc) (local.get $argc))))
                           )) ;; end $L8
                           ;; shape 8: at least 2 (rest list)
                           (if (i32.ge_u (local.get $argc) (i32.const 2))
@@ -5580,11 +5936,11 @@
 
         ,@(for/list ([shape (in-list primitive-shapes)])
             (primitive-invoker shape))
-        
+
         (func $repack-arguments
               ; Returns new $Args suitable for calling both fixed and variadic procedures.
               ; I.e. function converts the rest arguments to a list and stores them in the last slot.
-               
+
                (param $args  (ref $Args))   ;; full argument list
                (param $arity i32)           ;; decoded arity (from fixnum)
                (result       (ref $Args))
@@ -5624,14 +5980,14 @@
                                (local.get $rest))
                     ;; Step 8: Return modified array
                     (return (local.get $args+rest)))
-                   (else 
+                   (else
                     ;; Step 9: Arity is non-negative — return original
                     (return (local.get $args))))
                (unreachable))
 
 
-         
-         
+
+
          ;; Dispatcher for (case-lambda ...) using arities:
          ;;   m >= 0  ⇒ exactly m args
          ;;   m <  0  ⇒ at least (-m - 1) args
@@ -5710,7 +6066,7 @@
                (local $out      (ref $Args))
                (local $code     (ref $ClosureCode))
 
-               ; Get arities and arms (closures)               
+               ; Get arities and arms (closures)
                (local.set $cclos   (ref.cast (ref $CaseClosure) (local.get $clos)))
                (local.set $arities (struct.get $CaseClosure $arities (local.get $cclos)))
                (local.set $arms    (struct.get $CaseClosure $arms    (local.get $cclos)))
@@ -5749,7 +6105,7 @@
                (unreachable))
 
 
-         
+
          (func $invoke-struct (type $ProcedureInvoker)
                (param $proc (ref $Procedure)) ; type check: an $Struct is expected
                (param $args (ref $Args))      ; an array of (ref eq)
@@ -5855,7 +6211,7 @@
          ;; Unused stubs kept for now; safe to remove later.
          (func $raise-arity-error:exactly  (unreachable))
          (func $raise-arity-error:at-least (unreachable))
-         
+
          (func $rest-arguments->list
                (param $args (ref $Args))
                (param $n    i32)
@@ -6487,17 +6843,17 @@
                              (array.new_fixed $Free 0)))
          (global $closedapp-clos (mut (ref $Closure)) (global.get $dummy-closure))
 
-         
+
          ;; Predefined exception struct type descriptors (as boxed top-level bindings)
          ;;   struct:exn, struct:exn:fail, etc.
          ,@(for/list ([binding exception-struct-type-bindings])
              (define name  (car binding))
              (define $name (string->symbol (~a "$" (symbol->string name))))
              `(global ,$name (mut (ref eq)) (global.get $undefined)))
-         
+
          ;; Return value (for a module)
          (global ,result (mut (ref eq)) (global.get $void))
-        
+
          ;; Variables defined at the top-level
          ,@top-level-variable-declarations
 
@@ -6545,7 +6901,7 @@
                                (global.get ,($ (string->symbol (~a "symbol:" pr))))
                                (global.get ,($ (prim: pr))))))))
 
-         
+
          ;;;
          ;;; Arrays
          ;;;
@@ -6557,7 +6913,7 @@
          ; (type $Array (array (mut (ref eq))))
 
          ;;  make-array : i32 (ref eq) -> $Array
-         ;; (make-array size v) -> $Array         
+         ;; (make-array size v) -> $Array
          (func $make-array (param $size i32) (param $v (ref eq)) (result (ref $Array))
                (local $arr (ref $Array))
                (array.new $Array (local.get $v) (local.get $size)))
@@ -6578,13 +6934,13 @@
                (result (ref eq))
                (array.get $Array (local.get $arr) (local.get $pos)))
 
-         ;;  array-set! : $Array i32 (ref eq) -> 
+         ;;  array-set! : $Array i32 (ref eq) ->
          ;; (array-set! arr pos v) -> void
          (func $array-set! (export "array-set!")
                (param $arr (ref $Array)) (param $pos i32) (param $v (ref eq))
                (array.set $Array (local.get $arr) (local.get $pos) (local.get $v)))
 
-         ;; array-fill! : $Array (ref eq) -> 
+         ;; array-fill! : $Array (ref eq) ->
          ;; (array-fill! arr v) -> void
          (func $array-fill! (export "array-fill!")
                (param $arr (ref $Array)) (param $v (ref eq))
@@ -6597,8 +6953,8 @@
                             (local.set $i (i32.add (local.get $i) (i32.const 1)))
                             (br $fill))))
 
-         ;;  array-copy! : $Array i32        $Array i32       i32      -> 
-         ;; (array-copy!   dest   dest-start src    src-start src-end) -> 
+         ;;  array-copy! : $Array i32        $Array i32       i32      ->
+         ;; (array-copy!   dest   dest-start src    src-start src-end) ->
         ;;   Traps on error
         (func $array-copy! (export "array-copy!")
               (param $dest (ref $Array))
@@ -6624,7 +6980,7 @@
                           (local.get $dest) (local.get $dest-start)
                           (local.get $src)  (local.get $src-start)
                           (local.get $len)))
-         
+
          ;;  array-copy!/error : $Array i32        $Array i32       i32      -> i32
          ;; (array-copy!/error   dest   dest-start src    src-start src-end) -> i32
          ;;   Returns 1 on success, 0 on error.
@@ -6710,19 +7066,19 @@
          (func $array-take (param $arr (ref $Array)) (param $pos i32) (result (ref $Array))
                (call $array-copy (local.get $arr) (i32.const 0) (local.get $pos)))
 
-         ; array-take-right : $Array i32 -> $Array         
+         ; array-take-right : $Array i32 -> $Array
          (func $array-take-right (param $arr (ref $Array)) (param $pos i32) (result (ref $Array))
                (local $len i32)
                (local.set $len (array.len (local.get $arr)))
                (call $array-copy (local.get $arr) (i32.sub (local.get $len) (local.get $pos)) (local.get $len)))
 
-         ; array-drop : $Array i32 -> $Array         
+         ; array-drop : $Array i32 -> $Array
          (func $array-drop (param $arr (ref $Array)) (param $pos i32) (result (ref $Array))
                (local $len i32)
                (local.set $len (array.len (local.get $arr)))
                (call $array-copy (local.get $arr) (local.get $pos) (local.get $len)))
 
-         ; array-drop-right : $Array i32 -> $Array         
+         ; array-drop-right : $Array i32 -> $Array
          (func $array-drop-right (param $arr (ref $Array)) (param $pos i32) (result (ref $Array))
                (local $len i32)
                (local.set $len (array.len (local.get $arr)))
@@ -6733,7 +7089,7 @@
                (local $b   (ref $Array))
                (local $res (ref $Array))
                (local.set $a     (call $array-take (local.get $arr) (local.get $pos)))
-               (local.set $b     (call $array-drop (local.get $arr) (local.get $pos)))               
+               (local.set $b     (call $array-drop (local.get $arr) (local.get $pos)))
                (local.set $res   (call $make-array (i32.const 2) (global.get $false)))
                (call $array-set! (local.get $res) (i32.const 0) (local.get $a))
                (call $array-set! (local.get $res) (i32.const 1) (local.get $b))
@@ -6750,7 +7106,7 @@
          (func $array-set/copy (param $arr (ref $Array)) (param $pos i32) (param $val (ref eq)) (result (ref $Array))
                (local $len i32)
                (local $res (ref $Array))
-               (local.set $len (array.len (local.get $arr)))               
+               (local.set $len (array.len (local.get $arr)))
                (local.set $res (call $make-array (local.get $len) (global.get $false)))
                (call $array-copy! (local.get $res) (i32.const 0) (local.get $arr) (i32.const 0) (local.get $len))
                (call $array-set! (local.get $res) (local.get $pos) (local.get $val))
@@ -6759,7 +7115,7 @@
          (func $array-extend (param $arr (ref $Array)) (param $new-size i32) (param $val (ref eq)) (result (ref $Array))
                (local $old-size i32)
                (local $res (ref $Array))
-               (local.set $old-size (array.len (local.get $arr)))               
+               (local.set $old-size (array.len (local.get $arr)))
                (local.set $res (call $make-array (local.get $new-size) (local.get $val)))
                (call $array-copy! (local.get $res) (i32.const 0) (local.get $arr) (i32.const 0) (local.get $old-size))
                (local.get $res))
@@ -6803,7 +7159,7 @@
          ;;;
          ;;; Growable Arrays
          ;;;
-         
+
          ;; A growable array is like an array, but the length can change over time.
          ;; They are modelled over "growable vectors" from `racket/data`.
 
@@ -6854,7 +7210,7 @@
                (local.set $cap (struct.get $GrowableArray $cap (local.get $g)))
                (local.set $arr (struct.get $GrowableArray $arr (local.get $g)))
                (if (i32.eq (local.get $i) (local.get $cap))
-                   (then                    
+                   (then
                     (local.set $new-cap (i32.shl (local.get $cap) (i32.const 1))) ;; new-cap = cap * 2
                     (local.set $new-arr (call $array-extend (local.get $arr) (local.get $new-cap) (global.get $false)))
                     (struct.set $GrowableArray $arr (local.get $g) (local.get $new-arr))
@@ -6973,7 +7329,7 @@
          ;;;
          ;;; Growable Arrays of I32
          ;;;
-         
+
          #;(type $I32Array (array (mut i32)))
 
          #;(type $I32GrowableArray
@@ -6995,10 +7351,10 @@
         (func $i32growable-array-add! (param $g (ref $I32GrowableArray)) (param $v i32)
                (local $i       i32)
                (local $cap     i32)
-               (local $arr     (ref $I32Array))               
+               (local $arr     (ref $I32Array))
                (local $new-cap i32)
                (local $new-arr (ref $I32Array))
-               
+
                (local.set $i   (struct.get $I32GrowableArray $i   (local.get $g)))
                (local.set $cap (struct.get $I32GrowableArray $cap (local.get $g)))
                (local.set $arr (struct.get $I32GrowableArray $arr (local.get $g)))
@@ -7053,7 +7409,7 @@
                (local.set $n (array.len (local.get $a)))
                (struct.new $I32GrowableArray (local.get $a) (local.get $n) (local.get $n)))
 
-         
+
          ;;;
          ;;; I32Array - Arrays of i32
          ;;;
@@ -7250,7 +7606,7 @@
          ; (type $I8Array (array (mut i8)))
 
          (func $raise-bad-byte (param $x (ref eq)) (unreachable))
-         
+
          (func $i8make-array (param $size i32) (param $v i32) (result (ref $I8Array))
                (array.new $I8Array (local.get $v) (local.get $size)))
 
@@ -7356,7 +7712,7 @@
                (param $a0  (ref $I8Array))
                (param $a1  (ref $I8Array))
                (result     (ref $I8Array))
-               
+
                (local $n0  i32)
                (local $n1  i32)
                (local $res (ref $I8Array))
@@ -7444,7 +7800,7 @@
          ;;;
 
          (tag $exn (param (ref eq)))  ; an exception that that carries an value
-         
+
          ; Note:
          ;  The WebRacket version of `raise` ignores the `barrier?` argument.
          (func $raise (type $Prim12)
@@ -7455,7 +7811,7 @@
                ; Handle optional barrier? with default $t
                #;(if (ref.eq (local.get $barrier?) (global.get $missing))
                    (then (local.set $barrier? (global.get $true))))
-               
+
                #;(call $js-log (global.get $string:uncaught-exception))
                #;(call $js-log (local.get  $v))
                (throw $exn (local.get $v)))
@@ -7464,7 +7820,7 @@
                (unreachable))
          (func $call-with-exception-handler:procedure-expected-as-thunk
                (unreachable))
-         
+
          (func $call-with-exception-handler (type $Prim2)
                (param $handler (ref eq)) ;; procedure?
                (param $thunk   (ref eq)) ;; (-> any)
@@ -7530,7 +7886,7 @@
          (func $catch:procedure-expected-for-predicate (unreachable))
          (func $catch:procedure-expected-for-handler   (unreachable))
          (func $catch:procedure-expected-for-thunk     (unreachable))
-         
+
          (func $catch (type $Prim3)
                (param $pred    (ref eq))
                (param $handler (ref eq))
@@ -7678,7 +8034,7 @@
                             (local.set $handler-pair (ref.cast (ref $Pair) (local.get $handler-node)))
                             (local.set $pred-val (struct.get $Pair $a (local.get $pred-pair)))
                             (local.set $handler-val (struct.get $Pair $a (local.get $handler-pair)))
-                            
+
                             (if (i32.eqz (ref.test (ref $Procedure) (local.get $pred-val)))
                                 (then (call $catch*:procedure-expected-for-predicate #;(local.get $pred-val))
                                       (unreachable)))
@@ -8365,7 +8721,7 @@
                    (else (global.get $false))))
 
          ;; ---
-         
+
          ;; exn:fail : string? continuation-mark-set? -> exn:fail
          (func $exn:fail (type $Prim2)
                (param $message (ref eq)) ; string
@@ -11290,7 +11646,7 @@
                         (else (global.get $false))))
                    (else (global.get $false))))
 
-         
+
          ;; raise-read-error : string? any/c (or/c exact-positive-integer? #f)
          ;;                    (or/c exact-nonnegative-integer? #f)
          ;;                    (or/c exact-positive-integer? #f)
@@ -11394,7 +11750,7 @@
                                           (local.get $who)
                                           (local.get $extra)))))
                (local.set $srclocs
-                          (call $cons 
+                          (call $cons
                                 (call $srcloc
                                       (local.get $source)
                                       (local.get $line-checked)
@@ -11409,12 +11765,12 @@
                            (local.get $srclocs))
                      (global.get $true))
                (unreachable))
-         
-         
+
+
          ;;;
          ;;; RUNTIME SUPPORT FOR MATCH
          ;;;
-         
+
          (func $match:error (type $Prim3)
                (param $val       (ref eq))
                (param $srclocs   (ref eq))
@@ -11587,14 +11943,14 @@
                                (global.get $string:exact-nonnegative-integer?)
                                (local.get $n))
                          (unreachable))))
-         
+
          ;;;
          ;;; DATATYPES
          ;;;
 
          ;; https://docs.racket-lang.org/reference/data.html
 
-         ;;; 
+         ;;;
          ;;;  4.1 Equality
          ;;;
 
@@ -11611,7 +11967,7 @@
                (param $v1 (ref eq))
                (param $v2 (ref eq))
                (result    (ref eq))
-               
+
                (local $i1 i32)
 	               (local $i2 i32)
 	               (local $f1 (ref $Flonum))
@@ -11753,7 +12109,7 @@
                (param $p1 (ref $Pair))
                (param $p2 (ref $Pair))
                (result    (ref eq))
-               
+
                (if (ref.eq (call $equal? (struct.get $Pair $a (local.get $p1))
                                          (struct.get $Pair $a (local.get $p2)))
                            (global.get $true))
@@ -11778,14 +12134,14 @@
                (param $v1 (ref $Vector))
                (param $v2 (ref $Vector))
                (result    (ref eq))
-               
+
                (local $a1  (ref $Array))
                (local $a2  (ref $Array))
                (local $len i32)
                (local $i   i32)
                (local $x1  (ref eq))
                (local $x2  (ref eq))
-               
+
                (local.set $a1  (struct.get $Vector $arr (local.get $v1)))
                (local.set $a2  (struct.get $Vector $arr (local.get $v2)))
                (local.set $len (array.len (local.get $a1)))
@@ -11802,7 +12158,7 @@
                             (local.set $i (i32.add (local.get $i) (i32.const 1)))
                             (br $loop)))
                (return (global.get $true)))
-         
+
          ;; equal?/hash : hash? hash? -> boolean?
          ;;   Compare hash tables by mutability, key mode, count, and entries.
          (func $equal?/hash
@@ -11915,7 +12271,7 @@
                                    (ref.cast (ref eq) (local.get $s2))
                                    (ref.cast (ref eq) (local.get $s1))
                                    (i32.const 1)))))
-               
+
                (if (ref.eq (local.get $t1) (local.get $t2))
                    (then
                     (local.set $a1  (struct.get $Struct $fields (local.get $s1)))
@@ -12018,7 +12374,7 @@
                (local $recur     (ref eq))
                (local $mode-val  (ref eq))
 
-               ;; Initialize non-defaultable locals 
+               ;; Initialize non-defaultable locals
                (local.set $recur    (global.get $equal+hash-recur/equal))
                (local.set $mode-val (global.get $false))
 
@@ -12494,7 +12850,7 @@
                    (call $immutable-hash-leaf?/i32 (local.get $v))
                    (then (global.get $true))
                    (else (global.get $false))))
-         
+
          ; todo: Benchmark the two implementations of $boolean? below
 
          (func $boolean? (type $Prim1) (param $v (ref eq)) (result (ref eq))
@@ -12594,7 +12950,7 @@
                         (then (return (global.get $true)))
                         (else (return (global.get $false))))))
                (global.get $false))
-         
+
          ;;;
          ;;; 4.3 Numbers
          ;;;
@@ -12778,7 +13134,7 @@
               (result   (ref eq))
 
                (local $bits i32)
-               
+
                (if (result (ref eq))
                    (ref.test (ref i31) (local.get $v))
                    (then (local.set $bits (i31.get_u (ref.cast (ref i31) (local.get $v))))
@@ -12928,7 +13284,7 @@
 
                (local $x/fx i32)
                (local $x/fl (ref $Flonum))
-               
+
                ;; If x is a fixnum, check if it's 0
                (if (ref.test (ref i31) (local.get $x))
                    (then
@@ -13072,7 +13428,7 @@
                   (then (return (f64.const 1.0))))
 
               (call $js-raw-math-pow (local.get $base) (local.get $exp)))
-        
+
         (func $expt (type $Prim2)
               (param $z (ref eq))
               (param $w (ref eq))
@@ -13117,7 +13473,7 @@
                         (local.set $wf64 (struct.get $Flonum $v (ref.cast (ref $Flonum) (local.get $w))))
                         (local.set $exactw (i32.const 0)))
                        (else (call $raise-expected-number (local.get $w)) (unreachable)))))
-              
+
               ;; Special cases for exact results
               (if (i32.and (local.get $exactw)
                            (i32.eqz (i32.shr_s (local.get $wbits) (i32.const 1))))
@@ -13130,7 +13486,7 @@
               ;; produces +nan.0 when w is +nan.0, while Racket (IEEE 704) specifies 1.0.
               (if (f64.eq (local.get $zf64) (f64.const 1.0))
                   (then (return (struct.new $Flonum (i32.const 0) (f64.const 1.0)))))
-              
+
               ;; Compute using JS pow
               (local.set $res (call $pow-special (local.get $zf64) (local.get $wf64)))
 
@@ -13810,7 +14166,7 @@
                (return (array.new_fixed $Values 2
                                         (struct.new $Flonum (i32.const 0) (local.get $qf))
                                         (struct.new $Flonum (i32.const 0) (local.get $rf)))))
-         
+
 
          (func $add1 (type $Prim1)
                (param $v (ref eq))
@@ -14015,7 +14371,7 @@
                                            (else (return (struct.new $Flonum (i32.const 0)
                                                                      (f64.div (f64.const 0.0)
                                                                               (f64.const 0.0))))))))))))
-                  
+
               ;; Not a number
               (call $raise-expected-number (local.get $x))
               (unreachable))
@@ -14085,8 +14441,8 @@
                        (atanh $js-raw-math-atanh 0      0))]) ; atanh(0) = 0
             ;; inbits and outbits are raw i31 fixnum encodings.
             ;; They mark trivial exact identities of trig functions
-            ;; (e.g. sin 0 = 0, cos 0 = 1, acos 1 = 0).  
-            ;; This avoids JS calls and flonum allocation in those cases.  
+            ;; (e.g. sin 0 = 0, cos 0 = 1, acos 1 = 0).
+            ;; This avoids JS calls and flonum allocation in those cases.
             (for/list ([p ops])
               (define name    (car p))
               (define js      (cadr p))
@@ -14320,7 +14676,7 @@
               (call $js-log (local.get $x))
               (unreachable))
         (func $raise-expected-number3
-              (param $x (ref eq))              
+              (param $x (ref eq))
               (call $js-log (local.get $x))
               (call $js-log (call $fixnum? (local.get $x)))
               (call $js-log (call $flonum? (local.get $x)))
@@ -14414,7 +14770,7 @@
                                               (else (call $raise-expected-number1 (local.get $y))
                                                     (unreachable))))))
                           ; x not fixnum
-                          (else (if (result (ref eq))                                    
+                          (else (if (result (ref eq))
                                     (call $fl?/i32 (local.get $x))
                                     ; x flonum
                                     (then (if (result (ref eq))
@@ -14638,7 +14994,7 @@
                             (local.set $xs   (struct.get $Pair $d (local.get $node)))
                             (br $loop)))
                (local.get $r))
-         
+
          (func $lcm/2 (type $Prim2)
                (param $n (ref eq))
                (param $m (ref eq))
@@ -14844,7 +15200,7 @@
                       (param $x (ref eq))
                       (param $y (ref eq))
                       (result   (ref eq))
-                      
+
                       (local $x/is-fx i32)
                       (local $x/is-fl i32)
                       (local $x-fx    i32)
@@ -14856,7 +15212,7 @@
                       (local $y-fl    (ref $Flonum))
 
                       ; Initialize non-defaultable locals
-                      (local.set $x-fl (ref.cast (ref $Flonum) (global.get $flzero))) 
+                      (local.set $x-fl (ref.cast (ref $Flonum) (global.get $flzero)))
                       (local.set $y-fl (ref.cast (ref $Flonum) (global.get $flzero)))
 
                       ;; Type check $x
@@ -14897,7 +15253,7 @@
                       (param $x0  (ref eq))
                       (param $xs0 (ref eq))
                       (result     (ref eq))
-                      
+
                       (local $xs   (ref eq))
                       (local $node (ref $Pair))
                       (local $v    (ref eq))
@@ -15023,7 +15379,7 @@
         (func $bitwise-first-bit-set (type $Prim1)
               (param $n (ref eq))
               (result   (ref eq))
-              
+
               (local $n/fx i32)
               (local $n/i  i32)
 
@@ -15552,16 +15908,9 @@
                (result (ref eq))
                (global.get $false))
 
-         (func $fx?/i32 (param $v (ref eq)) (result i32)
-               (local $v/tag i32)
-               (if (ref.test (ref i31) (local.get $v))
-                   (then (local.set $v/tag (i31.get_u (ref.cast (ref i31) (local.get $v))))
-                         (return (i32.eqz (i32.and (local.get $v/tag)
-                                                   (i32.const 1)))))
-                   (else (return (i32.const 0))))
-               (unreachable))
+         ,(core-runtime-helper-form core-runtime-helper-index '$fx?/i32)
 
-         
+
          (func $fxzero? (type $Prim1) (param $x (ref eq)) (result (ref eq))
                (if (result (ref eq))
                    (ref.test i31ref (local.get $x))
@@ -15629,8 +15978,8 @@
                    (else))
 
                (ref.i31 (i32.wrap_i64 (local.get $sum))))
-         
-         
+
+
          #;(func $fx- (type $Prim2) (param $x (ref eq)) (param $y (ref eq)) (result (ref eq))
                (ref.i31 (i32.sub (i31.get_s (ref.cast i31ref (local.get $x)))
                                  (i31.get_s (ref.cast i31ref (local.get $y))))))
@@ -15792,17 +16141,7 @@
                      (global.get $true))
                (unreachable))
 
-         (func $fixnum?/i32
-               (param $v (ref eq))
-               (result   i32)
-
-               (if (result i32)
-                   (ref.test (ref i31) (local.get $v))
-                   (then (i32.eqz
-                          (i32.and
-                           (i31.get_u (ref.cast (ref i31) (local.get $v)))
-                           (i32.const 1))))
-                   (else (i32.const 0))))
+         ,(core-runtime-helper-form core-runtime-helper-index '$fixnum?/i32)
 
          (func $ensure-fixnum-argument
                (param $who (ref eq))
@@ -15832,7 +16171,7 @@
                     (call $raise (ref.cast (ref eq) (local.get $exn)) (global.get $true))
                     (unreachable))))
 
-         
+
          (func $fx* (type $Prim2)
                (param $x (ref eq))
                (param $y (ref eq))
@@ -15865,7 +16204,7 @@
                     (call $ensure-fixnum-argument (global.get $symbol:fx*) (local.get $y)))
                    (else))
 
-               
+
                ;; Fixnums are tagged as 2n.
                ;; If x = 2a and y = 2b, then:
                ;;   (x * y) >> 1 = (2a * 2b) >> 1 = 2ab
@@ -15892,18 +16231,18 @@
                (ref.i31 (i32.wrap_i64 (local.get $pt))))
 
 
-         
+
 
          (func $raise-division-by-zero (unreachable))
 
          (func $unsafe-fxquotient (type $Prim2)
                (param $x (ref eq))
                (param $y (ref eq))
-               (result   (ref eq))               
+               (result   (ref eq))
 
                (ref.i31 ,(Double `(i32.div_s ,(Half `(i31.get_s (ref.cast i31ref (local.get $x))))
                                              ,(Half `(i31.get_s (ref.cast i31ref (local.get $y))))))))
-         
+
          (func $fxquotient (type $Prim2)
                (param $x (ref eq))
                (param $y (ref eq))
@@ -16186,7 +16525,7 @@
                (param $x (ref eq)) (param $y (ref eq)) (result (ref eq))
                (ref.i31
                 ,(Double
-                  `(i32.shr_u 
+                  `(i32.shr_u
                     ,(Half `(i31.get_u (ref.cast (ref i31) (local.get $x))))
                     ,(Half `(i31.get_u (ref.cast (ref i31) (local.get $y))))))))
 
@@ -16321,7 +16660,7 @@
                (struct.new $Flonum
                            (i32.const 0)  ;; initial hash = 0
                            (f64.convert_i32_s (local.get $n))))
-         
+
          ;; fl?/i32 : (ref eq) -> i32
          ;;   Returns 1 if the value is a flonum, 0 otherwise
          (func $fl?/i32 (param $a (ref eq)) (result i32)
@@ -16353,7 +16692,7 @@
               ;; Convert fixnum to flonum
               (struct.new $Flonum
                           (i32.const 0)                             ;; hash = 0
-                          (f64.convert_i32_s (i32.shr_s (local.get $v/i32) (i32.const 1)))))        
+                          (f64.convert_i32_s (i32.shr_s (local.get $v/i32) (i32.const 1)))))
 
         (func $fx->fl (type $Prim1)
               (param $v (ref eq))
@@ -16460,7 +16799,7 @@
                                         (ref.cast (ref $Flonum) (local.get $y))))))
 
          (func $raise-argument-error:flonum-expected (unreachable))
-         
+
          ,@(let ()
              (define (flbinop name flbinop)
                `(func ,name
@@ -16477,9 +16816,9 @@
                       (struct.new $Flonum
                                   (i32.const 0)
                                   (,flbinop
-                                   (struct.get $Flonum $v                                               
+                                   (struct.get $Flonum $v
                                                (ref.cast (ref $Flonum) (local.get $x)))
-                                   (struct.get $Flonum $v                                               
+                                   (struct.get $Flonum $v
                                                (ref.cast (ref $Flonum) (local.get $y)))))))
              (map flbinop
                   '($fl+    $fl-    $fl*)
@@ -16505,12 +16844,12 @@
                            (i32.const 0)  ;; hash = 0
                            (f64.div (local.get $x/f64) (local.get $y/f64))))
 
-         
+
          (func $fl//checked
                (param $x (ref $Flonum))
                (param $y (ref $Flonum))
                (result   (ref $Flonum))
-               
+
                (struct.new $Flonum
                            (i32.const 0) ;; hash = 0
                            (f64.div
@@ -16519,12 +16858,12 @@
 
 
          (func $raise-check-flonum (unreachable))
-         
+
          (func $fl/ (type $Prim2)
                (param $x (ref eq))
                (param $y (ref eq))
                (result   (ref eq)) ; An (ref $Flonum)
-               
+
                (local $x/fl  (ref $Flonum))
                (local $y/fl  (ref $Flonum))
                (local $x/f64 f64)
@@ -16701,9 +17040,9 @@
                       ;; Compute and box result
                       (if (result (ref eq))
                           (,flcmp
-                           (struct.get $Flonum $v                                               
+                           (struct.get $Flonum $v
                                        (ref.cast (ref $Flonum) (local.get $x)))
-                           (struct.get $Flonum $v                                               
+                           (struct.get $Flonum $v
                                        (ref.cast (ref $Flonum) (local.get $y))))
                           (then (global.get $true))
                           (else (global.get $false)))))
@@ -16720,7 +17059,7 @@
               (result    (ref eq))
 
               (local $r i32)
-              
+
               (local.set $r (call $random-u32))
               (struct.new $Flonum
                           (i32.const 0)
@@ -16825,8 +17164,8 @@
               (local.set $result/i32 (i32.wrap_i64 (local.get $result64)))
               (ref.i31 (i32.shl (local.get $result/i32) (i32.const 1))))
 
-        
-        
+
+
          ;;;
          ;;; Number / String conversions
          ;;;
@@ -16835,7 +17174,7 @@
 
          (func $raise-number->string-bad-input (unreachable))
          (func $raise-number->string-bad-radix (unreachable))
-         
+
          (func $number->string:check-radix (param $radix i32) (result i32)
                ; number->string accepts 2, 8, 10, or 16 as radix
                (if (result i32) (i32.or (i32.eq (local.get $radix) (i32.const 2))
@@ -16861,7 +17200,7 @@
                                   (then (i32.const 9)) ;; hex: 8 digits + sign
                                   (else (i32.const 0)) ;; invalid radix, caller should check
                                   ))))))))
-         
+
          (func $number->string:convert
                (param $n       i32)
                (param $radix   i32)
@@ -16917,7 +17256,7 @@
                            (i32.const 0)        ;; hash = 0
                            (i32.const 1)        ;; immutable = true
                            (local.get $out)))
-                  
+
          (func $number->string (type $Prim12)
                (param $z         (ref eq))
                (param $radix-raw (ref eq)) ;; optional: 10 or #f
@@ -17329,7 +17668,7 @@
               (struct.new $Flonum
                           (i32.const 0)
                           (local.get $res)))
-        
+
          (func $floating-point-bytes->real (type $Prim4)
                (param $bstr  (ref eq)) ; bytes?
                (param $big?  (ref eq)) ; any, default to (system-big-endian?) which is #f
@@ -17434,7 +17773,7 @@
 
 
 
-         
+
          ;; This is a very naive implementation.
          ;; It is used as a place holder for now.
          (func $f64->string
@@ -17525,7 +17864,7 @@
                    (local.get $neg)
                    (then (call $string-append/2 (local.get $minus) (local.get $s-int)))
                    (else (local.get $s-int))))
-         
+
          (func $i32->string/pad6
                ; Converts a non-negative integer to a decimal string padded with
                ; leading zeros to exactly 6 digits.
@@ -17536,9 +17875,9 @@
                (local $digits (ref $I32GrowableArray))
                (local $digit  i32)
                (local $count  i32)
-               
+
                ;; Make a growable array to collect digits
-               (local.set $digits (call $make-i32growable-array (i32.const 6)))               
+               (local.set $digits (call $make-i32growable-array (i32.const 6)))
                ;; Extract digits in reverse order (least significant first)
                (block $done
                       (loop $loop
@@ -17571,10 +17910,10 @@
                ;; Return as string
                (call $i32growable-array->string (local.get $g)))
 
-         
+
          (func $f64->string/scientific ; TODO: This is a naive version.
                ; This function converts a 64-bit floating-point number (f64) into a
-               ; human-readable scientific notation string like "1.234567e+02".               
+               ; human-readable scientific notation string like "1.234567e+02".
                ; It handles special cases (NaN, +inf.0, -inf.0), computes the normalized
                ; mantissa and exponent, formats the number to 6  decimal places,
                ; and constructs the result as a Racket-style string.
@@ -17602,7 +17941,7 @@
                            (array.new_fixed $I32Array 5  ;; "nan.0"
                                             (i32.const 110) (i32.const 97) (i32.const 110)
                                             (i32.const 46) (i32.const 48))))))
-               
+
                (if (f64.eq (local.get $x) (f64.const inf))  ;; +inf.0
                    (then
                     (return
@@ -17611,7 +17950,7 @@
                                             (i32.const 43) (i32.const 105) (i32.const 110)
                                             (i32.const 102) (i32.const 46) (i32.const 48))))))
 
-               (if (f64.eq (local.get $x) (f64.const -inf)) 
+               (if (f64.eq (local.get $x) (f64.const -inf))
                    (then
                     (return
                      (call $i32array->string
@@ -17750,7 +18089,7 @@
                           (global.get $string:arity-error:at-least)
                           (call $i32->string (local.get $n)))))
                )
-         
+
          (func $i32->codepoints
                (param $n   i32)
                (result     (ref $I32Array))
@@ -17807,7 +18146,7 @@
                    (then
                     (array.set $I32Array (local.get $arr) (i32.const 0) (i32.const 45)))) ;; '-'
                (local.get $arr))
-         
+
 	         (func $format/display:flonum
 	               (param $val (ref $Flonum))
 	               (result     (ref $String))
@@ -17849,7 +18188,7 @@
 	                                                 (local.get $plus))
 	                           (local.get $imag-str))
 	                     (local.get $suffix)))
-         
+
 
 
         ;;;
@@ -17871,7 +18210,7 @@
         (func $external-number->flonum (type $Prim1)
               (param $v (ref eq))
               (result   (ref eq))
-              
+
               (local $e   (ref $External))
               (local $raw externref)
               (local $f   f64)
@@ -17942,7 +18281,7 @@
                      (global.get $symbol:subbytes)
                      (global.get $string:exact-nonnegative-integer?)
                      (ref.i31 (i32.shl (local.get $from) (i32.const 1)))))
-         
+
          (func $make-bytes (type $Prim12)
                (param $k-raw (ref eq))     ;; fixnum
                (param $b-raw (ref eq))     ;; optional byte
@@ -17979,12 +18318,12 @@
                            (i32.const 0)  ;; hash
                            (i32.const 0)  ;; immutable = false
                            (call $i8make-array (local.get $len) (local.get $val))))
-         
+
 
          (func $bytes (type $Prim>=0) ; handles both $Args and list rest arguments
                (param $args (ref eq))
                (result      (ref eq))
-               
+
                (local $as        (ref $Args))
                (local $len       i32)
                (local $arr       (ref $I8Array))
@@ -17998,7 +18337,7 @@
 
                ;; Initialize non-defaultable locals
                (local.set $as (array.new $Args (global.get $null) (i32.const 0)))
-               (local.set $x  (global.get $false))               
+               (local.set $x  (global.get $false))
 
                ;; Determine whether we received an $Args array or a list of rest arguments.
                (local.set $use-args? (ref.test (ref $Args) (local.get $args)))
@@ -18074,7 +18413,7 @@
                            (i32.const 0)
                            (i32.const 0)
                            (local.get $arr)))
-                  
+
 
          (func $bytes->immutable-bytes (type $Prim1) (param $b (ref eq)) (result (ref eq))
               (local $bs (ref $Bytes))
@@ -18172,13 +18511,13 @@
               (if (struct.get $Bytes $immutable (local.get $dest))
                   (then (call $raise-expected-mutable-bytes (local.get $dest-raw)) (unreachable)))
 
-              
+
               (local.set $arr (struct.get $Bytes $bs (local.get $dest)))
-                  
+
               (if (i32.lt_u (call $i8array-length (local.get $arr))
                             (i32.add (local.get $start) (local.get $size)))
                   (then (call $raise-argument-error/internal (local.get $dest-raw)) (unreachable)))
-              
+
 
               ;; --- Decode big-endian? flag, defaulting to (system-big-endian?) ---
               (local.set $big (i32.const 0))
@@ -18310,7 +18649,7 @@
                    (else (global.get $false))))
 
          (func $raise-expected-bytes (unreachable))
-         
+
          ,@(append*
             (for/list ([spec (in-list '( ($bytes=? i32.eq   eq   #t)
                                          ($bytes<? i32.lt_u ord  #f)
@@ -18458,23 +18797,23 @@
                            (then (return_call ,name/2/checked (local.get $b1) (local.get $b2)))
                            (else (return_call ,name/checked (local.get $b1) (local.get $b2) (local.get $bs))))
                        (unreachable)))))
-         
 
-        
+
+
          (func $byte? (type $Prim1) (param $v (ref eq)) (result (ref eq))
                (local $i i32)
                (if (result (ref eq)) (ref.test (ref i31) (local.get $v))
                    (then (local.set $i (i31.get_u (ref.cast (ref i31) (local.get $v))))
-                         (if (result (ref eq)) 
+                         (if (result (ref eq))
                              ;; Check: is even (fixnum) and in range 0–255
-                             (i32.and 
+                             (i32.and
                               (i32.eqz (i32.and (local.get $i) (i32.const 1)))       ;; even tag bit = 0
                               (i32.le_u (i32.shr_u (local.get $i) (i32.const 1))     ;; untagged value
                                         (i32.const 255)))
                              (then (global.get $true))
                              (else (global.get $false))))
                    (else (global.get $false))))
-         
+
          (func $bytes-ref (type $Prim2) (param $a (ref eq)) (param $i (ref eq)) (result (ref eq))
                (local $b   (ref null $Bytes))
                (local $arr (ref $I8Array))
@@ -18551,7 +18890,7 @@
                (param $a (ref $Bytes))
                (param $i i32)
                (param $b i32)
-               ; unsafe 
+               ; unsafe
                (local $arr (ref $I8Array))
                (local.set $arr (struct.get $Bytes $bs (local.get $a)))
                (call $i8array-set! (local.get $arr) (local.get $i) (local.get $b)))
@@ -18561,7 +18900,7 @@
                (param $start (ref eq))   ;; start index
                (param $end   (ref eq))   ;; optional end index, default = (bytes-length $b)
                (result       (ref eq))
-               
+
                (local $bs   (ref null $Bytes))
                (local $arr  (ref $I8Array))
                (local $from i32)
@@ -18602,7 +18941,7 @@
                            (i32.const 0)
                            (i32.const 0)
                            (call $i8array-copy (local.get $arr) (local.get $from) (local.get $to))))
-         
+
          (func $bytes-copy!
                (param $dest       (ref eq))
                (param $dest-start (ref eq))
@@ -18615,7 +18954,7 @@
                (local $s          (ref $Bytes))
                (local $darr       (ref $I8Array))
                (local $sarr       (ref $I8Array))
-               
+
                (local $di         i32)
                (local $si         i32)
                (local $ei         i32)
@@ -18697,7 +19036,7 @@
                      (local.get $sarr) (local.get $si) (local.get $ei))
                (global.get $void))
 
-         
+
          (func $bytes-copy (type $Prim1)
                (param $src (ref eq))
                (result (ref eq))
@@ -18879,7 +19218,7 @@
                                 (global.get $symbol:complete)))
 
          (func $raise-expected-mutable-bytes (unreachable))
-         
+
          (func $bytes-fill! (type $Prim2)
                (param $dest (ref eq))
                (param $b    (ref eq))
@@ -18898,7 +19237,7 @@
                ;; reject immutable byte strings
                (if (i32.eq (struct.get $Bytes $immutable (local.get $bs)) (i32.const 1))
                    (then (call $raise-expected-mutable-bytes (local.get $dest)) (unreachable)))
-               
+
                ;; b must be a fixnum byte (i31 with lsb=0), then 0..255
                (if (ref.test (ref i31) (local.get $b))
                    (then
@@ -19003,9 +19342,9 @@
                            (i32.const 0)
                            (i32.const 0)
                            (local.get $arr)))
-         
 
-         (func $bytes-append/2 
+
+         (func $bytes-append/2
                (param $b1 (ref eq))
                (param $b2 (ref eq))
                (result (ref eq))
@@ -19032,7 +19371,7 @@
                            (i32.const 0) ;; hash
                            (i32.const 0) ;; mutable
                            (local.get $new)))
-         
+
 
          (func $bytes-append* (type $Prim>=1)
                (param $str  (ref eq))  ;; bytes? or list of bytes
@@ -19177,7 +19516,7 @@
                           (i32.const 0)
                           (i32.const 0)
                           (local.get $arr)))
-         
+
          (func $bytes->list (type $Prim1)
                (param $bstr (ref eq))
                (result (ref eq))
@@ -19477,10 +19816,10 @@
 
                (call $i32array->immutable-string (local.get $codepoints)))
 
-         
+
          (func $raise-bytes->string/utf-8                  (unreachable))
          (func $raise-bytes->string/utf-8:invalid-err-char (unreachable))
-         
+
          (func $bytes->string/utf-8 (type $Prim14)
                (param $bstr         (ref eq))
                (param $err-char     (ref eq)) ; optional character?, defaults to #f
@@ -19660,19 +19999,19 @@
                (if (i32.and (i32.ge_u (local.get $lead) (i32.const 0xC0))
                             (i32.lt_u (local.get $lead) (i32.const 0xE0)))
                    (then (return (i32.const 1) (i32.and (local.get $lead) (i32.const 0x1F)))))
-               
+
                (if (i32.and (i32.ge_u (local.get $lead) (i32.const 0xE0))
                             (i32.lt_u (local.get $lead) (i32.const 0xF0)))
                    (then (return (i32.const 2) (i32.and (local.get $lead) (i32.const 0x0F)))))
-               
+
                (if (i32.and (i32.ge_u (local.get $lead) (i32.const 0xF0))
                             (i32.lt_u (local.get $lead) (i32.const 0xF8)))
                    (then (return (i32.const 3) (i32.and (local.get $lead) (i32.const 0x07)))))
-               
+
                ;; Not a valid lead byte
                (return (i32.const -1) (i32.const -1)))
 
-         
+
         ;;;
         ;;; 4.4 Strings
         ;;;
@@ -19683,7 +20022,7 @@
          (func $raise-bad-string-index     (param $x (ref eq)) (param $i (ref eq))  (unreachable))
          (func $raise-bad-string-index/i32 (param $x (ref eq)) (param $i i32)       (unreachable))
          (func $raise-string-length:bad-argument (unreachable))
-         
+
          (func $raise-string-index-out-of-bounds/i32 (param $x (ref eq)) (param $i i32) (param $n i32)
                (unreachable))
 
@@ -19715,7 +20054,7 @@
                ;; Assumes the string is mutable and un-hashed (hash = 0).
                (struct.new $String
                            (i32.const 0)            ;; hash = 0
-                           (i32.const 0)            ;; mutable 
+                           (i32.const 0)            ;; mutable
                            (local.get $arr)))       ;; codepoints
 
          (func $i32array->immutable-string (param $arr (ref $I32Array)) (result (ref $String))
@@ -19740,9 +20079,9 @@
                            (i32.const 0)  ;; mutable
                            (call $i32array-make (i32.const 0) (i32.const 0))))
 
-         
+
          ;; 4.4.1 String Constructors, Selectors, and Mutators
-         
+
          (func $string? (type $Prim1) (param $s (ref eq)) (result (ref eq))
                (if (result (ref eq))
                    (ref.test (ref $String) (local.get $s))
@@ -19752,7 +20091,7 @@
          (func $non-empty-string? (type $Prim1)
                (param $s (ref eq))
                (result   (ref eq))
-               
+
                (local $str (ref $String))
                (local $len i32)
                (if (result (ref eq))
@@ -19840,12 +20179,12 @@
                            (i32.const 0)  ;; hash
                            (i32.const 0)  ;; mutable
                            (local.get $arr)))
-         
+
 
          (func $raise-make-string:bad-length       (unreachable))
          (func $raise-make-string:bad-char         (unreachable))
          (func $raise-argument-error:char-expected (unreachable))
-                  
+
          (func $make-string (type $Prim12)
                (param $n-raw  (ref eq))    ;; fixnum
                (param $ch-raw (ref eq))    ;; optional immediate character
@@ -19902,11 +20241,11 @@
                            (i32.const 0)     ;; hash = 0
                            (i32.const 1)     ;; immutable
                            (local.get $arr)))
-         
+
          (func $string->immutable-string (type $Prim1)
                (param $s (ref eq))
                (result   (ref eq))
-               
+
                (local $str (ref $String))
 
                (local.set $str (call $make-dummy-string))
@@ -19929,7 +20268,7 @@
                                       (struct.get $String $codepoints (local.get $str))
                                       (i32.const 0)
                                       (call $i32array-length (struct.get $String $codepoints (local.get $str))))))))
-         
+
          (func $raise-build-string:bad-length    (unreachable))
          (func $raise-build-string:char-expected
                (param $v (ref eq)) (call $js-log (local.get $v)) (unreachable))
@@ -19999,12 +20338,12 @@
                                       (i32.const 0)
                                       (local.get $arr)))
                (local.get $str))
-         
+
 
          (func $string-length (type $Prim1)
                (param $s-raw (ref eq))
                (result (ref eq))
-               
+
                (local $s   (ref $String))
                (local $len i32)
                ;; --- Type check ---
@@ -20024,7 +20363,7 @@
                (result i32)
                ;; Fetch the length of the codepoints array
                (call $i32array-length (struct.get $String $codepoints (local.get $s))))
-         
+
 
          (func $string-ref (type $Prim2)
                (param $s (ref eq))
@@ -20038,7 +20377,7 @@
                ;; --- All tests ---
                (if (i32.eqz (ref.test (ref $String) (local.get $s)))
                    (then (call $raise-check-string (local.get $s))))
-               
+
                (if (i32.eqz (ref.test (ref i31) (local.get $i)))
                    (then (call $raise-check-fixnum (local.get $i))))
 
@@ -20057,7 +20396,7 @@
                              (call $string-length/checked/i32 (local.get $str)))
                    (then (call $string-ref/checked (local.get $str) (local.get $idx)))
                    (else (call $raise-bad-string-index/i32 (local.get $s) (local.get $idx))
-                         (unreachable))))         
+                         (unreachable))))
 
          (func $string-ref/checked   ; unsafe: no bounds check
                (param $str (ref $String))
@@ -20090,7 +20429,7 @@
          (func $raise-string-set!:fixnum-expected  (param $x (ref eq)) (unreachable))
          (func $raise-string-set!:char-expected    (param $x (ref eq)) (unreachable))
          (func $raise-string-set!:string-immutable (param $x (ref eq)) (unreachable))
-         
+
          (func $string-set!
                (param $s   (ref eq))
                (param $i   (ref eq))
@@ -20203,7 +20542,7 @@
                            (local.get $copy))) ;; $codepoints
 
          (func $raise-immutable-string (param $x (ref eq)) (unreachable))
-         
+
          (func $string-fill! (type $Prim2)
                (param $s   (ref eq))
                (param $ch  (ref eq))
@@ -20229,7 +20568,7 @@
                (local.set $cp (i32.shr_u (local.get $cp) (i32.const ,char-shift)))
                ;; --- 4. Fill (keep eq-hash-code) ---
                (local.set $arr (struct.get $String $codepoints (local.get $str)))
-               (call $i32array-fill! (local.get $arr) (local.get $cp))               
+               (call $i32array-fill! (local.get $arr) (local.get $cp))
                ;; --- 5. Return void ---
                (global.get $void))
 
@@ -20264,10 +20603,10 @@
                (local $len   i32)
                (local $arr   (ref $I32Array))
                (local $pos   i32)
-               
+
                ;; === initialize non-defaultable refs ===
                (local.set $s (ref.cast (ref $String) (global.get $string:empty)))
-               
+
                ;; Preserve original list
                (local.set $orig (local.get $xs))
                ;; Determine number of arguments
@@ -20688,7 +21027,7 @@
                             (br $split)))
 
                (call $reverse (local.get $acc)))
-         
+
          (func $string-split:matches?
                (param $arr-str (ref $I32Array))
                (param $arr-sep (ref $I32Array))
@@ -20845,13 +21184,13 @@
 
                (local.get $scan))
 
-        
 
-         
+
+
          ;; 4.4.3 String Conversions
          ,@(for/list ([name+imp
                        (in-list '(($string-upcase    $char-upcase/ucs)
-                                  ($string-downcase  $char-downcase/ucs)                                  
+                                  ($string-downcase  $char-downcase/ucs)
                                   ($string-foldcase  $char-foldcase/ucs)))])
              (define name (car  name+imp))
              (define imp  (cadr name+imp))
@@ -20972,7 +21311,7 @@
                                       (br_if $done (i32.lt_s (local.get $i) (i32.const 0)))
                                       (local.set $cp (call $i32array-ref (local.get $arr) (local.get $i)))
                                       ;; tag cp as char
-                                      (local.set $res 
+                                      (local.set $res
                                                  (struct.new $Pair (i32.const 0)
                                                              (ref.i31 (i32.or (i32.shl (local.get $cp) (i32.const 8)) (i32.const ,char-tag)))
                                                              (local.get $res)))
@@ -21026,12 +21365,12 @@
                                  (unreachable)))
                             (br $fill)))
                ;; 5. Return string
-               (local.get $str))         
+               (local.get $str))
 
-                  
-         
+
+
          ;; 4.4.2 String Comparisons
-         
+
          (func $string=?/2
                (param $a (ref eq)) (param $b (ref eq))
                (result (ref eq))
@@ -21096,7 +21435,7 @@
                (local.set $a (ref.cast (ref $String) (local.get $a-raw)))
                (local.set $b (ref.cast (ref $String) (local.get $b-raw)))
                (return_call $string=?/i32/checked (local.get $a) (local.get $b)))
-         
+
          (func $string=?/i32/checked
                (param $a (ref $String)) (param $b (ref $String))
                (result i32)
@@ -21356,8 +21695,8 @@
                             (br $loop)))
                ;; If one is a prefix of the other
                (return (i32.lt_u (local.get $len-a) (local.get $len-b))))
-        
-         
+
+
          (func $string-ci-compare/checked
                (param $a (ref $String)) (param $b (ref $String))
                (result i32)
@@ -21503,8 +21842,8 @@
             form)
 
 
-         
-         ;;; 
+
+         ;;;
 
          (func $raise-invalid-utf8-input (param $bad (ref eq)) (result (ref eq)) (unreachable))
 
@@ -21518,7 +21857,7 @@
          (func $raise-string->bytes/utf8                 (unreachable))
          (func $raise-string->bytes/utf8:expected-string (unreachable))
          (func $raise-string->bytes/utf8:range-error     (unreachable))
-         
+
          (func $string->bytes/utf-8 (export "string->bytes/utf-8")
                (param $str       (ref eq))
                (param $err-byte  (ref eq)) ;; Ignored
@@ -21539,7 +21878,7 @@
 
                (local $raw-start i32)
                (local $raw-end   i32)
-               
+
                ;; Check and cast $str
                (if (ref.test (ref $String) (local.get $str))
                    (then (local.set $s (ref.cast (ref $String) (local.get $str))))
@@ -21553,7 +21892,7 @@
                          (if (i32.eq (local.get $raw-start) (i32.const ,(immediate-rep #f)))
                              (then (local.set $start (i32.const 0)))  ;; #f => use 0
                              (else (local.set $start (i32.shr_u (local.get $raw-start) (i32.const 1))))))
-                   (else (call $raise-string->bytes/utf8)))  ;; not a fixnum               
+                   (else (call $raise-string->bytes/utf8)))  ;; not a fixnum
                ;; Decode end
                (if (ref.test (ref i31) (local.get $end-raw))
                    (then  (local.set $raw-end (i31.get_u (ref.cast (ref i31) (local.get $end-raw))))
@@ -21749,7 +22088,7 @@
 
 
          (func $raise-string-copy!/checked:out-of-bounds (unreachable))
-         
+
          (func $string-copy!/checked
                (param $dst        (ref $String)) ;; Destination string
                (param $dst-start  i32)           ;; Start index in destination
@@ -21782,8 +22121,8 @@
                ;; --- Invalidate destination hash ---
                (struct.set $String $hash (local.get $dst) (i32.const 0)))
 
-         
-         
+
+
          (func $array-of-strings->string
                (param $arr (ref $Array))
                (result (ref $String))
@@ -21832,7 +22171,7 @@
                (call $array-of-strings->string
                      (call $growable-array->array (local.get $g))))
 
-         
+
          (func $string-take (type $Prim2)
                (param $s (ref eq))
                (param $n (ref eq))
@@ -21842,7 +22181,7 @@
                (local $n/tag i32)
                (local $n/i32 i32)
                (local $len   i32)
-               
+
                (if (i32.eqz (ref.test (ref $String) (local.get $s)))
                    (then (call $raise-check-string (local.get $s))))
                (if (i32.eqz (ref.test (ref i31) (local.get $n)))
@@ -21982,17 +22321,17 @@
                            (local.get $n))))
 
 
-         
 
-         
+
+
          (func $raise-argument-error:string-expected (unreachable))
 
          (func $bomb (unreachable))
 
 
-         
-         
-         
+
+
+
          (func $string-trim-right (type $Prim2)
                (param $s       (ref eq))   ;; any value, must be a string
                (param $sep     (ref eq))   ;; a character (tagged i31) or #f
@@ -22064,7 +22403,7 @@
                    (else (return (call $string-take/checked (local.get $str) (local.get $new-len)))))
 
                (unreachable))
-         
+
          (func $string-trim-left (type $Prim2)
                (param $s   (ref eq))   ;; any value, must be a string
                (param $sep (ref eq))   ;; a character (i31) or #f
@@ -22161,7 +22500,7 @@
                (local.set $str     (ref.cast (ref $String) (global.get $string:empty)))
                (local.set $sep-str (ref.cast (ref $String) (global.get $string:empty)))
                ; (local.set $str (ref.cast (ref $String) (global.get $string:empty)))
-               
+
                ;; --- Check and decode required string argument ---
                (if (i32.eqz (ref.test (ref $String) (local.get $s)))
                    (then (call $raise-check-string (local.get $s))))
@@ -22254,9 +22593,9 @@
                (local.get $result))
 
 
-         
+
          ;; 4.4.6 Additional String Functions  (racket/string)
-         
+
          (func $string-suffix? (type $Prim2)
                (param $s (ref eq)) (param $suffix (ref eq))
                (result (ref eq))
@@ -22382,7 +22721,7 @@
                            (global.get $false))
                    (then (global.get $false))
                    (else (global.get $true))))
-         
+
          (func $string-find (type $Prim2)
                (param $s (ref eq))
                (param $contained (ref eq))
@@ -22602,24 +22941,24 @@
                           (i32.const 0)
                           (i32.const 0)
                           (local.get $res)))
-         
+
 
          ;;;
          ;;; 4.6 Characters
          ;;;
 
          ;; https://docs.racket-lang.org/reference/characters.html
-         
+
          (func $raise-check-char (param $x (ref eq)) (unreachable))
          (func $raise-invalid-codepoint (unreachable))
 
          ;; 4.6.1 Characters and Scalar Values
-         
+
          (func $char? (type $Prim1) (param $v (ref eq)) (result (ref eq))
                (local $i31 (ref i31))
                ; Is $v an immediate?
                (if (i32.eqz (ref.test (ref i31) (local.get $v)))
-                   (then (return (global.get $false))))               
+                   (then (return (global.get $false))))
                (local.set $i31 (ref.cast (ref i31) (local.get $v)))
                ; Is it a character?
                (if (result (ref eq))
@@ -22667,7 +23006,7 @@
          (func $integer->char (type $Prim1)
                (param $k (ref eq))
                (result   (ref eq))
-               
+
                (local $k/i32 i32)
                ;; Fail early if not a fixnum
                (if (i32.eqz (ref.test (ref i31) (local.get $k)))
@@ -22686,7 +23025,7 @@
                ;; TODO: Shared character object for 0 <= k < 256
                ;; (if needed, insert lookup here)
                ;; Pack as character: (k << (char-shift - 1)) | char-tag
-               (ref.i31 (i32.or (i32.shl (local.get $k/i32) 
+               (ref.i31 (i32.or (i32.shl (local.get $k/i32)
                                          (i32.const ,char-shift))
                                (i32.const ,char-tag))))
 
@@ -22998,7 +23337,7 @@
         (func $char-grapheme-break-property (type $Prim1)
               (param $c     (ref eq))
               (result       (ref eq))
-              
+
               (local $i31   (ref i31))
               (local $c/tag i32)
               (local $cp    i32)
@@ -23353,7 +23692,7 @@
                                    (then (global.get $true))
                                    (else (global.get $false)))
                                (ref.i31 (i32.shl (local.get $new-state) (i32.const 1)))))
-        
+
 
          ;;;
          ;;; 4.7 SYMBOLS
@@ -23364,17 +23703,17 @@
          ;; (type $Symbol
          ;;       (sub $Heap
          ;;            (struct
-         ;;              (field $hash          (mut i32))         ;; cached hash                 
-         ;;              (field $name          (ref $String))     ;; symbol name (string)        
+         ;;              (field $hash          (mut i32))         ;; cached hash
+         ;;              (field $name          (ref $String))     ;; symbol name (string)
          ;;              (field $unreadable?   i32)                ;; unreadable symbol marker
-         ;;              (field $property-list (mut (ref eq))))))  ;; user-defined properties    
+         ;;              (field $property-list (mut (ref eq))))))  ;; user-defined properties
 
 
          (func $symbol? (type $Prim1) (param $x (ref eq)) (result (ref eq))
                (if (result (ref eq)) (ref.test (ref $Symbol) (local.get $x))
                    (then (global.get $true))
                    (else (global.get $false))))
-         
+
          (func $symbol=? (type $Prim2)
                (param $a (ref eq)) (param $b (ref eq))
                (result (ref eq))
@@ -23390,14 +23729,14 @@
          (func $raise-symbol->string:bad-argument (param $v (ref eq))
                (call $js-log (local.get $v))
                (unreachable))
-         
+
          (func $symbol->string (type $Prim1)
                (param $v (ref eq))
                (result   (ref eq))
 
                (local $sym (ref $Symbol))
                (local $name (ref $String))
-               
+
                ;; Check that input is a symbol
                (if (ref.test (ref $Symbol) (local.get $v))
                    (then
@@ -23411,7 +23750,7 @@
                     ;; Not a symbol, raise error
                     (call $raise-symbol->string:bad-argument (local.get $v))))
                (unreachable))
-         
+
 
          (func $symbol->immutable-string (type $Prim1)
                (param  $v (ref eq))
@@ -23445,12 +23784,12 @@
                (unreachable))
 
 
-         (func $raise-string->symbol:bad-argument (param $v (ref eq)) (unreachable))                  
+         (func $raise-string->symbol:bad-argument (param $v (ref eq)) (unreachable))
 
          (func $string->symbol (type $Prim1)
                (param $v (ref eq))
                (result   (ref eq))  ; An (ref $Symbol)
-               
+
                (if (ref.test (ref $String) (local.get $v))
                    (then (return
                           (call $string->symbol/checked
@@ -23460,7 +23799,7 @@
 
          (func $string->symbol/checked
                (param $str (ref $String))
-               (result     (ref $Symbol)) 
+               (result     (ref $Symbol))
 
                (local $existing (ref eq))
                (local $sym      (ref $Symbol))
@@ -23554,7 +23893,7 @@
                    (else (global.get $false))))
 
          (func $raise-check-symbol (param $x (ref eq)) (unreachable))
-         
+
          (func $symbol<? (type $Prim>=1)
                (param $a    (ref eq))
                (param $rest (ref eq))
@@ -23568,8 +23907,8 @@
 
                ;; Type check: the first argument must be a symbol
                (if (i32.eqz (ref.test (ref $Symbol) (local.get $a)))
-                   (then (call $raise-check-symbol (local.get $a))))               
-               
+                   (then (call $raise-check-symbol (local.get $a))))
+
                ;; Extract the name of the first symbol and prepare to iterate over the rest
                (local.set $prev-str (struct.get $Symbol $name (ref.cast (ref $Symbol) (local.get $a))))
                (local.set $rest-list (local.get $rest))
@@ -23599,13 +23938,13 @@
                      (local.set $rest-list (struct.get $Pair $d (local.get $pair)))
                      (br $loop))
                (unreachable))
-         
+
          (global $gensym-counter (mut i32) (i32.const 0))
 
          (func $make-gensym-name
                (param $prefix (ref $String))
                (result        (ref $String))
-               
+
                (local $n     i32)
                (local $n-str (ref $String))
                ;; Get current counter
@@ -23638,7 +23977,7 @@
                (call $gensym:1 (ref.cast (ref $String) (global.get $string:g))))
 
          (func $raise-gensym:bad-base (param $x (ref eq)) (unreachable))
-         
+
          (func $gensym:1 (param $base (ref eq)) (result (ref $Symbol))
                (local $prefix (ref null $String))
                (local $name   (ref $String))
@@ -23663,7 +24002,7 @@
                            (local.get $name)    ;; name
                            (i32.const 0)        ;; gensyms are uninterned, not unreadable
                            (global.get $null))) ;; empty property list
-         
+
          ;;;
          ;;; 4.8 REGULAR EXPRESSIONS
          ;;;
@@ -24247,7 +24586,7 @@
          ;;;
 
          ;; https://docs.racket-lang.org/reference/keywords.html
-         
+
          ;; Keywords are interned using `the-keywords-table` which maps strings (without #:)
          ;; to keywords.
 
@@ -24258,7 +24597,7 @@
 
          (func $keyword? (type $Prim1)
                ,@(make-predicate-body '$Keyword))
-         
+
          (func $string->keyword (type $Prim1)
                (param $str (ref eq))
                (result (ref eq)) ; an (ref $Keyword)
@@ -24268,8 +24607,8 @@
                          (unreachable)))
                ;; Cast and delegate
                (call $string->keyword/checked (ref.cast (ref $String) (local.get $str))))
-                       
-               
+
+
          (func $string->keyword/checked
                (param $str (ref $String))
                (result     (ref $Keyword))
@@ -24277,7 +24616,7 @@
                (local $existing (ref eq))
                (local $kw       (ref $Keyword))
                ;; Look up in table
-               (local.set $existing (call $symbol-table-find 
+               (local.set $existing (call $symbol-table-find
                                           (ref.as_non_null (global.get $the-keyword-table))
                                           (local.get $str)))
                (if (result (ref $Keyword))
@@ -24297,7 +24636,7 @@
                               (local.get $existing)))))
 
          (func $raise-argument-error:keyword-expected (unreachable))
-         
+
          (func $keyword->string (type $Prim1) ; the result does not contain #:
                (param $kw (ref eq))
                (result    (ref eq)) ; an (ref $String)
@@ -24307,7 +24646,7 @@
                          (unreachable)))
                ;; Cast and delegate
                (call $keyword->string/checked (ref.cast (ref $Keyword) (local.get $kw))))
-         
+
          (func $keyword->string/checked
                (param $kw       (ref $Keyword))
                (result          (ref $String))
@@ -24349,7 +24688,7 @@
                     (struct.new $String (i32.const 0) (i32.const 1) (local.get $dst)))))
 
         (func $raise-keyword-expected (unreachable))
-         
+
          ;; keyword<? : (ref eq) (ref eq) ... -> (ref eq)  ;; returns #t/#f
          (func $keyword<? (type $Prim>=1)
                (param $a    (ref eq))
@@ -24366,7 +24705,7 @@
                (if (i32.eqz (ref.test (ref $Keyword) (local.get $a)))
                    (then (call $raise-expected-keyword (global.get $symbol:keyword<?) (local.get $a))
                          (unreachable)))
-               
+
                ;; Extract underlying string (without "#:") and prepare to iterate over the rest
                (local.set $prev-str (struct.get $Keyword $str (ref.cast (ref $Keyword) (local.get $a))))
                (local.set $rest-list (local.get $rest))
@@ -24398,19 +24737,19 @@
                      (br $loop))
                (unreachable))
 
-         
+
          ;;;
          ;;; 4.10 Pairs and lists
          ;;;
 
          ;; https://docs.racket-lang.org/reference/pairs.html
-         
+
          (global $dummy-pair (ref $Pair)
                  (struct.new $Pair
                              (i32.const 0)            ;; hash = 0
                              (global.get $false)      ;; a = null
                              (global.get $false)))    ;; d = null
-         
+
         ;; Pair related exceptions
          (func $raise-pair-expected
                (param $x (ref eq))
@@ -24525,7 +24864,7 @@
                      (param $v (ref eq))
                      (result (ref eq))
                      ,body)))
-         
+
          (func $list? (type $Prim1) (param $v (ref eq)) (result (ref eq))
                (block $exit (result (ref eq))
                       (loop $loop
@@ -24587,7 +24926,7 @@
                             (br $count)))
                (ref.i31 (i32.shl (local.get $i) (i32.const 1))))
 
-         
+
          ;; list-ref/checked: takes a Pair and an unboxed i32 index.
          ;; Works for improper lists as long as the index doesn't step past the last Pair.
          (func $list-ref/checked (param $xs (ref $Pair)) (param $i i32) (result (ref eq))
@@ -24652,7 +24991,7 @@
                        (then (call $js-log (call $format/display (local.get $xs)))
                              (call $raise-argument-error/internal (local.get $xs))
                              (unreachable)))
-                   (if (ref.eq (call $list? (local.get $xs)) (global.get $false))                       
+                   (if (ref.eq (call $list? (local.get $xs)) (global.get $false))
                        (then (call $js-log (call $format/display (local.get $xs)))
                              (call $raise-argument-error/internal (local.get $xs))
                              (unreachable)))
@@ -24674,7 +25013,7 @@
         (func $last-pair/checked
               (param $p (ref $Pair))
               (result   (ref $Pair))
-              
+
               (local $node (ref $Pair))
               (local $next (ref eq))
 
@@ -24735,7 +25074,7 @@
                          (else
                           (call $raise-pair-expected (local.get $next)))))
                (unreachable))
-         
+
          (func $list-tail (type $Prim2) (param $xs (ref eq)) (param $i (ref eq)) (result (ref eq))
                (local $pair (ref $Pair))
                (local $idx  i32)
@@ -24768,7 +25107,7 @@
               (param $i  i32)
               (param $v  (ref eq))
               (result    (ref eq))
-              
+
               (local $p      (ref $Pair))
               (local $k      i32)
               (local $next   (ref eq))
@@ -24829,7 +25168,7 @@
               (param $i  (ref eq))
               (param $v  (ref eq))
               (result    (ref eq))
-              
+
               (local $idx  i32)
               (local $pair (ref $Pair))
 
@@ -25186,7 +25525,7 @@
               (local.set $acc     (global.get $null))
               (local.set $current (global.get $null))
               (local.set $pair    (global.get $dummy-pair))
-              
+
               (local.set $suffix (call $take-right (local.get $lst) (local.get $pos)))
               (local.set $current (local.get $lst))
               (block $done
@@ -25364,8 +25703,8 @@
               (array.new_fixed $Values 2
                                (local.get $prefix)
                                (local.get $suffix)))
-        
-        
+
+
          (func $append (type $Prim>=0)
                (param $xs (ref eq))        ;; list of arguments
                (result    (ref eq))
@@ -25558,7 +25897,7 @@
                                 (else (call $raise-pair-expected (local.get $xs))))
                             (br $rev)))
                (unreachable))
-         
+
          #;(func $memq (type $Prim2) (param $needle (ref eq)) (param $xs (ref eq)) (result (ref eq))
                (loop $search
                      ;; 1) end-of-list? => not found
@@ -25597,7 +25936,7 @@
                           '()
                           '((param $same? (ref eq)))) ;; optional comparator, defaults to equal?
                     (result (ref eq))
-                    
+
                     (local $pair (ref $Pair))
                     (local $elem (ref eq))
                     ,@(if (zero? needs-proc) '() '((local $args     (ref $Args))
@@ -25687,7 +26026,7 @@
                      (return (local.get $cur)))
                (unreachable))
 
-        
+
          ,@(for/list ([name       '($assoc  $assw  $assv  $assq)]
                       [type       '($Prim23 $Prim2 $Prim2 $Prim2)]
                       [needs-proc '(1       0       0       0)]
@@ -25844,7 +26183,7 @@
                                (br $search)))
                      (return (local.get $elem)))
                (unreachable))
-         
+
          (func $index-of (type $Prim23)
                (param $xs     (ref eq))  ;; list
                (param $v      (ref eq))  ;; value to find
@@ -25859,7 +26198,7 @@
                (local $use-proc i32)
                (local $i        i32)
 
-               ;; Handle optional comparator 
+               ;; Handle optional comparator
                (if (ref.eq (local.get $same?) (global.get $missing))
                    (then (local.set $use-proc (i32.const 0)))
                    (else
@@ -25978,7 +26317,7 @@
               (local $i        i32)
               (local $acc      (ref eq))
 
-              ;; Handle optional comparator 
+              ;; Handle optional comparator
               (if (ref.eq (local.get $same?) (global.get $missing))
                   (then (local.set $use-proc (i32.const 0)))
                   (else
@@ -26116,9 +26455,9 @@
               (local $same-inv (ref $ProcedureInvoker))
 
               ; safe defaults for non-defaultable locals
-              (local.set $same-f   (ref.cast (ref $Procedure) (global.get $prim:equal?)))  
+              (local.set $same-f   (ref.cast (ref $Procedure) (global.get $prim:equal?)))
               (local.set $same-inv (ref.cast (ref $ProcedureInvoker)
-                                             (struct.get $Procedure $invoke (local.get $same-f)))) 
+                                             (struct.get $Procedure $invoke (local.get $same-f))))
 
               ;; Ensure proc is a procedure and fetch invoker
               (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
@@ -26175,9 +26514,9 @@
               (unreachable))
 
         ;; Fixes order of groups and their elements produced in reverse.
-        ;;   (define (group-by:fix-order groups) 
+        ;;   (define (group-by:fix-order groups)
         ;;     (reverse (map (λ (xs) (reverse xs)) groups)))
-        (func $group-by:fix-order       
+        (func $group-by:fix-order
               (param $groups (ref eq))  ;;  list of lists
               (result        (ref eq))
 
@@ -26211,7 +26550,7 @@
 
               (unreachable))
 
-        
+
         (func $group-by:update-groups/equal?
               (param $k      (ref eq)) ;; key
               (param $x      (ref eq)) ;; element
@@ -26253,7 +26592,7 @@
               (param $same     (ref $Procedure)) ;; comparator
               (param $same-inv (ref $ProcedureInvoker))
               (result          (ref eq))
-              
+
               (local $gs    (ref eq))
               (local $pair  (ref $Pair))
               (local $bucket (ref $Pair))
@@ -26261,7 +26600,7 @@
               (local $box   (ref eq))
               (local $args  (ref $Args))
               (local $res   (ref eq))
-              
+
               (local.set $gs   (local.get $groups))
               (local.set $args (array.new $Args (global.get $null) (i32.const 2)))
               (loop $loop
@@ -26301,10 +26640,10 @@
               (local $bucket (ref $Pair))
               (local $box    (ref eq))
               (local $acc    (ref eq))
-              
+
               (local.set $cur (local.get $groups))
               (local.set $acc (global.get $null))
-              
+
               (loop $loop
                     (if (ref.eq (local.get $cur) (global.get $null))
                         (then (return (call $reverse (local.get $acc)))))
@@ -26315,7 +26654,7 @@
                     (local.set $cur (struct.get $Pair $d (local.get $pair)))
                     (br $loop))
               (unreachable))
-        
+
 
 
         (func $cartesian-product (type $Prim>=0)
@@ -26474,7 +26813,7 @@
 
                (local $i i32)
                (local $acc (ref eq))
-               
+
                (local.set $i   (i32.const 0))
                (local.set $acc (global.get $null))
                (block $done
@@ -27156,7 +27495,7 @@
                (unreachable))
 
          (func $raise-expected-fixnum (param $x (ref eq)) (unreachable))
-         
+
          (func $list-from-range
                (param $start-raw (ref eq))   ;; inclusive, fixnum
                (param $end-raw   (ref eq))   ;; exclusive, fixnum
@@ -27210,30 +27549,30 @@
                (param $xs0    (ref eq))   ;; list?
                (param $rest   (ref eq))   ;; list of lists
                (result        (ref eq))
-               
+
                (local $f      (ref $Procedure))
                (local $finv   (ref $ProcedureInvoker))
                (local $pair   (ref $Pair))
                (local $nlists i32)
                (local $xss    (ref eq))
-               
+
                (local $lists  (ref $Args))  ;; cursors for each list
                (local $call   (ref $Args))  ;; args for f (length = nlists)
                (local $i      i32)
                (local $cur    (ref eq))
                (local $stop   i32)
-               
+
                (local $acc    (ref eq))     ;; reversed accumulator
                (local $res    (ref eq))     ;; final result
                (local $r      (ref eq))
-               
+
                ;; 1) Check that $proc is a procedure and fetch its invoker
                (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
                    (then (call $raise-argument-error:procedure-expected (local.get $proc))
                          (unreachable)))
                (local.set $f    (ref.cast (ref $Procedure) (local.get $proc)))
                (local.set $finv (struct.get $Procedure $invoke (local.get $f)))
-               
+
                ;; 2) Build list-of-lists from first list and rest
                (local.set $xss (struct.new $Pair
                                            (i32.const 0)
@@ -27805,7 +28144,7 @@
 
                      (br $loop))
                (unreachable))
-        
+
 
          (func $count (type $Prim>=2)
                (param $proc (ref eq))   ;; procedure
@@ -28063,12 +28402,12 @@
                (param $xs   (ref eq))   ;; first list
                (param $rest (ref eq))   ;; remaining lists
                (result      (ref eq))
-               
+
                (local $xss   (ref eq))
                (local $nlists i32)
                (local $ys    (ref eq))
                (local $outer (ref null $Pair))
-               
+
                ;; Combine first list with remaining lists.
                ;; Use cons here: $rest is already the list of remaining list-arguments.
                ;; Calling list* here would treat the last list argument as final tail.
@@ -28107,7 +28446,7 @@
                                        (local.get $ys)))))
 
                (call $foldl/n (local.get $proc) (local.get $init) (local.get $xss)))
-         
+
          ;; foldl/1 : (X Acc -> Acc) Acc (Listof X) -> Acc
          (func $foldl/1 (type $Prim3)
                (param $proc (ref eq))   ;; procedure
@@ -28350,7 +28689,7 @@
 
               ;; N-ary case
               (call $foldr/n (local.get $proc) (local.get $init) (local.get $xss)))
-         
+
 
          (func $foldr/1-loop
                (param $f    (ref $Procedure))
@@ -28383,7 +28722,7 @@
                          (local.get $finv)))
 
 
-         
+
          (func $foldr/1
                (param $proc (ref eq))   ;; procedure
                (param $init (ref eq))   ;; initial value
@@ -28583,10 +28922,10 @@
                      (local.get $lists) (local.get $nlists)
                      (local.get $init)))
 
-        
 
-         
-               
+
+
+
          (func $filter (type $Prim2)
                (param $proc (ref eq))  ;; predicate
                (param $xs   (ref eq))  ;; list
@@ -29077,7 +29416,7 @@
               (result      (ref eq))
 
               (return_call $remf/impl (local.get $proc) (local.get $lst) (i32.const 1)))
-        
+
         ;; Remove list elements using predicate
         (func $remf/impl
               (param $proc (ref eq)) ;; predicate
@@ -29150,10 +29489,10 @@
                     (br $rev))
               (unreachable))
 
-        
 
-        
-        
+
+
+
         ;; $remq, $remv, and $remw implemented via remove
         ,@(let ([ops '(($remq $prim:eq?)
                        ($remv $prim:eqv?)
@@ -29161,12 +29500,12 @@
             (for/list ([p ops])
               (define name (car p))
               (define cmp  (cadr p))
-              
+
               `(func ,name (type $Prim2)
                      (param $v   (ref eq))
                      (param $lst (ref eq))
                      (result     (ref eq))
-                     
+
                      (return_call $remove
                                   (local.get $v)
                                   (local.get $lst)
@@ -29231,7 +29570,7 @@
               (param $lst  (ref eq))
               (param $proc (ref eq))
               (result      (ref eq))
-              
+
               (local $cur      (ref eq))
               (local $pair     (ref $Pair))
               (local $elem     (ref eq))
@@ -29518,7 +29857,7 @@
                     (local.set $cur (struct.get $Pair $d (local.get $pair)))
                     (br $loop))
               (unreachable))
-        
+
 
         (func $list-prefix? (type $Prim23)
               (param $l     (ref eq)) ; list
@@ -29934,7 +30273,7 @@
               (local.set $f    (ref.cast (ref $Procedure) (local.get $proc)))
               (local.set $finv (struct.get $Procedure $invoke (local.get $f)))
               (local.set $call (array.new $Args (global.get $null) (i32.const 2)))
-              
+
               (return_call $sort:merge-sort
                            (local.get $xs)
                            (local.get $f)
@@ -30227,7 +30566,7 @@
               (param $f    (ref $Procedure))
               (param $finv (ref $ProcedureInvoker))
               (param $call (ref $Args))
-              
+
               (result      (ref eq))
 
               (local $pair (ref $Pair))
@@ -30246,7 +30585,7 @@
               (local.set $pair (ref.cast (ref $Pair) (local.get $lst)))
               (local.set $rest (struct.get $Pair $d (local.get $pair)))
               (if (ref.eq (local.get $rest) (global.get $null))
-                  (then (return (local.get $lst))))              
+                  (then (return (local.get $lst))))
 
               (local.set $vals  (call $sort:split (local.get $lst)))
               (local.set $a     (array.get $Values (local.get $vals) (i32.const 0)))
@@ -30493,7 +30832,7 @@
                            (local.get $f)
                            (local.get $finv)
                            (local.get $less-call)))
-        
+
 
          ;;;
          ;;; 4.11 Mutable Pairs and lists
@@ -30557,13 +30896,13 @@
                         (global.get $void))
                   (else (call $raise-mpair-expected (local.get $p))
                         (unreachable))))
-        
+
          ;;;
          ;;; 4.12 Vectors
          ;;;
 
          ;; https://docs.racket-lang.org/reference/vectors.html
-         
+
          ;; (type $Vector (sub $Heap
          ;;                      (struct
          ;;                        (field $hash (mut i32))
@@ -35472,7 +35811,7 @@
          (func $vector (type $Prim>=0)
                (param $args (ref eq))
                (result      (ref eq))
-               
+
                (local $as        (ref $Args))
                (local $len       i32)
                (local $arr       (ref $Array))
@@ -35547,7 +35886,7 @@
          (func $vector-immutable (type $Prim>=0)
                (param $args (ref eq))
                (result      (ref eq))
-               
+
                (local $as        (ref $Args))
                (local $len       i32)
                (local $arr       (ref $Array))
@@ -35729,8 +36068,8 @@
                               (local.get $vec) (local.get $idx) (local.get $len))
                         (unreachable)))
               (unreachable))
-        
-        
+
+
         (func $vector-length (type $Prim1) (param $v (ref eq)) (result (ref eq))
                (local $vec (ref $Vector))
                (if (result (ref eq))
@@ -35766,7 +36105,7 @@
                    (then (global.get $true))
                    (else (global.get $false))))
 
-         
+
          (func $vector-ref/checked
                (param $a (ref $Vector)) (param $i i32)
                (result (ref eq))
@@ -35879,7 +36218,7 @@
          (func $vector*-length (type $Prim1)
                (param $v (ref eq)) ;; vector?
                (result   (ref eq))
-               
+
                (local $vec (ref $Vector))
                (local.set $vec (global.get $dummy-vector))
                (if (ref.test (ref $Vector) (local.get $v))
@@ -36356,7 +36695,7 @@
                          (unreachable)))
                (struct.set $StencilVector $mask (local.get $sv) (local.get $new-mask))
                (global.get $void))
-         
+
          (func $vector-copy!
                (param $dest       (ref eq))
                (param $dest-start (ref eq))   ;; fixnum
@@ -36364,7 +36703,7 @@
                (param $src-start  (ref eq))   ;; fixnum or $missing, default: 0)
                (param $src-end    (ref eq))   ;; fixnum or $missing, default: (vector-length src)
                (result            (ref eq))
-               
+
                (local $d       (ref $Vector))
                (local $s       (ref $Vector))
                (local $ds      i32)
@@ -36405,7 +36744,7 @@
                    (then (call $raise-immutable-vector (local.get $dest))))
                (local.set $ds (i32.shr_u (i31.get_u (ref.cast (ref i31) (local.get $dest-start)))
                                          (i32.const 1)))
-               
+
                (local.set $src-len (array.len (struct.get $Vector $arr (local.get $s))))
 
                (if (ref.eq (local.get $src-start) (global.get $missing))
@@ -36413,7 +36752,7 @@
                    (else (local.set $ss (i32.shr_u (i31.get_u (ref.cast (ref i31)
                                                                         (local.get $src-start)))
                                                    (i32.const 1)))))
-               
+
                (if (ref.eq (local.get $src-end) (global.get $missing))
                    (then (local.set $se (local.get $src-len)))
                    (else (local.set $se (i32.shr_u (i31.get_u (ref.cast (ref i31)
@@ -36426,9 +36765,9 @@
 
          (func $vector-copy!/checked
                (param $dest (ref $Vector)) (param $ds i32)
-               (param $src  (ref $Vector)) (param $ss i32) (param $se i32)               
+               (param $src  (ref $Vector)) (param $ss i32) (param $se i32)
                (result (ref eq))
-               
+
                (local $src-len i32)
                (local $dest-len i32)
                (if (i32.ne (struct.get $Vector $immutable (local.get $dest)) (i32.const 0))
@@ -36523,7 +36862,7 @@
                                       (struct.get $Vector $arr (local.get $vec))
                                       (i32.const 0)
                                       (array.len (struct.get $Vector $arr (local.get $vec))))))))
-         
+
          (func $vector->values (type $Prim13)
                (param $v     (ref eq))
                (param $start (ref eq))   ;; fixnum or $missing, default: 0
@@ -36594,7 +36933,7 @@
          ;     vector-extend: new length is shorter than existing length
          ;       new length: 3
          ;       existing length: 7
-         
+
          (func $vector-extend (type $Prim23)
                (param $v        (ref eq))  ;; vector
                (param $new-size (ref eq))  ;; fixnum
@@ -36637,7 +36976,7 @@
                                  (struct.get $Vector $arr (local.get $vec))
                                  (local.get $ns)
                                  (local.get $fill))))
-         
+
          (func $vector-empty? (type $Prim1) (param $v (ref eq)) (result (ref eq))
                (local $vec (ref $Vector))
                (local $len i32)
@@ -36750,7 +37089,7 @@
                            (call $array-append
                                  (struct.get $Vector $arr (local.get $va))
                                  (struct.get $Vector $arr (local.get $vb)))))
-        
+
 
          (func $vector-take (type $Prim2) (param $v (ref eq)) (param $i (ref eq)) (result (ref eq))
                (local $vec (ref $Vector))
@@ -36795,7 +37134,7 @@
                (struct.new $Vector (i32.const 0)
                            (i32.const 0)
                            (call $array-drop (struct.get $Vector $arr (local.get $vec)) (local.get $ix))))
-         
+
          (func $vector-drop-right (type $Prim2) (param $v (ref eq)) (param $i (ref eq)) (result (ref eq))
                (local $vec (ref $Vector))
                (local $ix i32)
@@ -36821,10 +37160,10 @@
          (func $vector-take-right (type $Prim2)
                (param $v (ref eq))
                (param $i (ref eq))
-               (result   (ref eq))               
+               (result   (ref eq))
                (local $vec (ref $Vector))
                (local $ix i32)
-               (local $len i32)              
+               (local $len i32)
                (local.set $vec (global.get $dummy-vector))
                (if (ref.test (ref $Vector) (local.get $v))
                    (then (local.set $vec (ref.cast (ref $Vector) (local.get $v))))
@@ -36843,13 +37182,13 @@
                            (i32.const 0)
                            (call $array-take-right (struct.get $Vector $arr (local.get $vec)) (local.get $ix))))
 
-         
+
 
          (func $vector-split-at (type $Prim2)
                (param $v (ref eq))
                (param $i (ref eq))
                (result   (ref eq))  ; returns two values
-               
+
                (local $vec (ref $Vector))
                (local $ix  i32)
                (local $len i32)
@@ -36860,7 +37199,7 @@
                (if (ref.test (ref $Vector) (local.get $v))
                    (then (local.set $vec (ref.cast (ref $Vector) (local.get $v))))
                    (else (call $raise-check-vector (local.get $v))))
-               ; 2. Check $i is a fixnum 
+               ; 2. Check $i is a fixnum
                (if (ref.test (ref i31) (local.get $i))
                    (then (local.set $ix (i31.get_u (ref.cast (ref i31) (local.get $i))))
                          (if (i32.eqz (i32.and (local.get $ix) (i32.const 1)))
@@ -36868,7 +37207,7 @@
                              (else (call $raise-check-fixnum (local.get $i)))))
                    (else (call $raise-check-fixnum (local.get $i))))
                ; 3. Range check
-               (local.set $len (array.len (struct.get $Vector $arr (local.get $vec))))              
+               (local.set $len (array.len (struct.get $Vector $arr (local.get $vec))))
                (if (i32.gt_u (local.get $ix) (local.get $len))
                    (then (call $raise-bad-vector-take-index (local.get $vec) (local.get $ix) (local.get $len))
                          (unreachable)))
@@ -36926,7 +37265,7 @@
                                             (i32.const 0) ; hash
                                             (i32.const 0) ; mutable
                                             (local.get $drop))))
-         
+
 
          (func $raise-expected-vector (unreachable))
 
@@ -36941,7 +37280,7 @@
                            (i32.const 0)     ; hash
                            (i32.const 0)     ; immutable
                            (local.get $arr)))
-         
+
          (func $vector->list (type $Prim1)
                (param $v (ref eq))
                (result (ref eq))
@@ -37360,7 +37699,7 @@
               (local.set $arr (call $growable-array->array (local.get $ga)))
               (struct.new $Vector (i32.const 0) (i32.const 0) (local.get $arr)))
 
-            
+
 
             (func $vector-filter (type $Prim2)
                   (param $proc (ref eq))  ;; predicate
@@ -37468,7 +37807,7 @@
                   (local.set $args (array.new $Args (global.get $null) (i32.const 2)))
                   (local.set $len  (array.len (struct.get $Vector $arr (local.get $vecv))))
                   (local.set $i    (i32.const 0))
-                  
+
                   (loop $loop
                         (if (i32.ge_u (local.get $i) (local.get $len))
                             (then (return (global.get $false))))
@@ -37489,12 +37828,12 @@
                         (br $loop))
                   (unreachable))
 
-            
+
             ;;; Vector Sorting
 
             ;; Quicksort with median-of-three pivot and insertion sort cutoff.
             ;; #:key and #:cache-keys? arguments are not supported.
-            
+
             (func $vector-sort!:swap!
                   (param $vec (ref $Vector)) ;; vector
                   (param $i   i32)           ;; index
@@ -37575,7 +37914,7 @@
               (param $lo   i32)                      ;; start index
               (param $hi   i32)                      ;; end index (exclusive)
               (result      i32)
-              
+
               (local $arr   (ref $Array))
               (local $pivot (ref eq))
               (local $i     i32)
@@ -37622,7 +37961,7 @@
               (local $key  (ref eq))
               (local $elem (ref eq))
               (local $r    (ref eq))
-              
+
               (local.set $arr (struct.get $Vector $arr (local.get $vec)))
               (local.set $i   (i32.add (local.get $lo) (i32.const 1)))
               (block $outer-done
@@ -37665,7 +38004,7 @@
               (local $p     i32)
               (local $left  i32)
               (local $right i32)
-              
+
               (block $done
                      (loop $loop
                            ; If the range to sort is shorted than 16, then use insertion sort.
@@ -37986,8 +38325,8 @@
                            (local.get $key-proc)
                            (global.get $missing)
                            (local.get $cache-keys?)))
-            
-            
+
+
         ;;;
         ;;; Boxed (for assignable variables)
         ;;;
@@ -37995,7 +38334,7 @@
 	        ;; We use `boxed`, `set-boxed!` and `unboxed` for assignable variables.
 	        ;; These "boxes" are not the same as the Racket datatype `box`.
 	        ;; See next section.
-	        
+
 	         (func $raise-letrec-placeholder-access
 	               (drop (call $raise
 	                           (call $exn:fail:contract:variable
@@ -38005,8 +38344,8 @@
 	                                 (global.get $symbol:exn:fail:contract:variable))
 	                           (global.get $true)))
 	               (unreachable))
-	         
-	         (func $boxed (type $Prim1) (param $v (ref eq))  (result (ref eq)) 
+
+	         (func $boxed (type $Prim1) (param $v (ref eq))  (result (ref eq))
 	               (struct.new $Boxed (local.get $v)))
 
          (func $unboxed (type $Prim1) (param $b (ref eq))  (result (ref eq))
@@ -38035,7 +38374,7 @@
                (param $b (ref eq)) (param $v (ref eq))
                (result (ref eq))
                ; 1. Cast $b into a (ref $Box)
-               (local $B (ref $Boxed))                
+               (local $B (ref $Boxed))
                (local.set $B
                           (block $ok (result (ref $Boxed))
                                  (br_on_cast $ok (ref eq) (ref $Boxed) (local.get $b))
@@ -38094,9 +38433,9 @@
                (param $b (ref eq)) ;; non-impersonator box
                (result (ref eq))
                (call $unbox (local.get $b)))
-         
+
          (func $raise-immutable-box (param $x (ref eq)) (unreachable))
-         
+
          (func $set-box! (type $Prim2) ; todo: should this invalidate the hash code?
                (param $b (ref eq)) (param $v (ref eq))
                (result (ref eq))
@@ -39062,8 +39401,8 @@
                    (then (unreachable)))
                (global.get $void))
 
-         
-         
+
+
 
          ;;;
          ;;; Memory Map
@@ -39073,7 +39412,7 @@
          ;; by Safari (WebKit). Therefore, we are forced to using a single memory only.
 
          ;; The following memory map is used to segment the linear memory.
-         
+
          ;; Static host bridge scratch map:
          ;;   0..1MiB        VFS file transfer buffer
          ;;   +4KiB          VFS path buffer
@@ -39086,7 +39425,7 @@
          (global $memory-map:callback-buffer-length (mut i32) (i32.const 65536))
          (global $memory-map:string-buffer-base     (mut i32) (i32.const 1052672))
          (global $memory-map:string-buffer-length   (mut i32) (i32.const 4096))
-         
+
 
          ;;;
          ;;; Data segment strings
@@ -39095,18 +39434,18 @@
          ;; The current (June 2005) support for strings in WebAssembly is *very* limited.
          ;; The data segment can be used to embed byte sequences in the source.
          ;; However in order to access the data, one must copy them to the linear memory first.
-         
+
          (func $raise-string-buffer-overflow (unreachable))
 
          ; Turns out that the `memory.init` instruction requires a fixed
          ; segment number. So since we can't pass the segment number as an argument,
          ; we can't use these functions. Sigh.
-         
+
          #;(func $data:codepoints->string
                (param $segment   i32)  ;; index of the passive data segment
                (param $count     i32)  ;; number of UTF-32 codepoints
                (result           (ref $String))
-               
+
                (local $base      i32)
                (local $i         i32)
                (local $arr       (ref $I32Array))
@@ -39195,12 +39534,12 @@
          ;;   eq?/eqv?/equal?/equal-always?    mutable/immutable    strong/weak/ephemerons
          ;;
          ;; Currently `webracket` supports mutable, strong hash tables only.
-         
-         
+
+
          (func $hash? (type $Prim1)
                (param $v (ref eq))
                (result   (ref eq))
-               
+
                (if (result (ref eq))
                    (call $hash-leaf?/i32 (local.get $v))
                    (then (global.get $true))
@@ -39228,7 +39567,7 @@
                         (then (global.get $true))
                         (else (global.get $false)))))
 
-         
+
          ;;;
          ;;; MUTABLE HASHEQ
          ;;;
@@ -39248,7 +39587,7 @@
                                 $HashEqualAlwaysMutable)])
              `(func ,name (type $Prim0)
                     (result (ref eq))  ; an (ref $HashEqMutable)
-                    
+
                     (local $entries (ref $Array))
                     ;; Step 1: Allocate an array with 2 × capacity (key/value pairs)
                     ;; Capacity = 16 entries → 32 elements
@@ -39273,7 +39612,7 @@
                       [make-empty    '($make-empty-hasheq
                                        $make-empty-hasheqv
                                        $make-empty-hash
-                                       $make-empty-hashalw)]                      
+                                       $make-empty-hashalw)]
                       [type          '($HashEqMutable
                                        $HashEqvMutable
                                        $HashEqualMutable
@@ -42978,7 +43317,7 @@
          ; NOTE - TODO - These "weak" hash tables are dummies.
          ;             - They simply call the constructors of
          ;               the non-weak hash table constructors.
-         
+
          (func $make-weak-hash (type $Prim01) ; one optional argument
                (param $assocs (ref eq))
                (result        (ref eq))
@@ -43047,7 +43386,7 @@
                (result        (ref eq))
 
                (if (ref.eq (local.get $assocs) (global.get $missing))
-                   (then (local.set $assocs (global.get $null))))               
+                   (then (local.set $assocs (global.get $null))))
                (call $make-hasheqv (local.get $assocs)))
 
          (func $make-weak-hashalw (type $Prim01) ; one optional argument
@@ -43343,7 +43682,7 @@
                      (ref.as_non_null (global.get $primitive-table-user-installed))
                      (local.get $key)
                      (global.get $false)))
-               
+
          (func $initialize-prefab-struct-type-registry
                (if (ref.is_null (global.get $prefab-struct-type-registry))
                    (then
@@ -43396,7 +43735,7 @@
                    (then (return (call $hashalw-ref
                                        (local.get $ht) (local.get $key) (local.get $failure)))))
                (unreachable))
-         
+
          ,@(for/list ([hash-ref       '($hasheq-ref
                                         $hasheqv-ref
                                         $hashequal-ref
@@ -43650,7 +43989,7 @@
                                         $raise-argument-error:hash-expected
                                         $raise-argument-error:hashalw-expected)])
              `(func ,raise-expected (unreachable)))
-         
+
          ,@(for/list ([hash-ref/plain         '($hasheq-ref/plain
                                                 $hasheqv-ref/plain
                                                 $hashequal-ref/plain
@@ -43870,7 +44209,7 @@
                             (br $walk)))
                (local.get $dst))
 
-         
+
          ,@(for/list ([hash-set         '($hasheq-set!
                                           $hasheqv-set!
                                           $hashequal-set!
@@ -43892,7 +44231,7 @@
                     (param $key (ref eq))   ;; key
                     (param $val (ref eq))   ;; value
                     (result     (ref eq))   ;; return void
-                    
+
                     (local $table (ref ,type))
 
                     ;; Check that ht is expected table type
@@ -43908,8 +44247,8 @@
                           (local.get $val))
                     ; return void
                     (global.get $void)))
-         
-         
+
+
          ,@(for/list ([raise-expected '($raise-argument-error:mutable-hasheq-expected
                                         $raise-argument-error:mutable-hasheqv-expected
                                         $raise-argument-error:mutable-hash-expected
@@ -44011,7 +44350,7 @@
                                           $maybe-resize-hashequal
                                           $maybe-resize-hashalw)]
                       [kind             '(0 1 2 3)])
-             
+
              `(func ,set!/checked
                     (param $table (ref ,type))
                     (param $key   (ref eq))
@@ -44099,7 +44438,7 @@
                                             (i32.add (struct.get ,type $count (local.get $table))
                                                      (i32.const 1)))
                                 (br $done)))
-                           
+
                            (call $raise-hash-insert:table-full)))
              )
 
@@ -44290,7 +44629,7 @@
                     ;; Insert computed value and return it
                     (call ,set!/checked (local.get $table) (local.get $key) (local.get $value))
                     (local.get $value)))
-         
+
          ;; hash-update : immutable-hash? any/c (any/c -> any/c) [any/c or (-> any/c)] -> immutable-hash?
          ;;   Functionally update an immutable hash. The optional failure
          ;;   argument defaults to $missing, which makes hash-ref raise when
@@ -44569,24 +44908,24 @@
 
                     (global.get $void)))
 
-         
+
 
          (func $raise-argument-error:hasheq-mutable-expected (unreachable))
-         
+
          ;; (func $hash-remove! (type $Prim2)
          ;;       (param $ht  (ref eq))
          ;;       (param $key (ref eq))
          ;;       (result     (ref eq))
          ;;       (call $hash-remove!/mutable
          ;;             (local.get $ht) (local.get $key)))
-         
+
          ;; (func $hash-remove!/mutable
          ;;       (param $ht  (ref eq))
          ;;       (param $key (ref eq))
          ;;       (result     (ref eq))
 
          ;;       (local $table (ref $HashEqMutable))
-               
+
          ;;       ;; --- Type checks ---
          ;;       (if (i32.eqz (ref.test (ref $HashEqMutable) (local.get $ht)))
          ;;           (then
@@ -44777,7 +45116,7 @@
                                  (br $probe)))))
 
 
-         
+
          ,@(for/list ([type             '($HashEqMutable
                                           $HashEqvMutable
                                           $HashEqualMutable
@@ -44785,7 +45124,7 @@
                       [resize           '($hasheq-resize
                                           $hasheqv-resize
                                           $hashequal-resize
-                                          $hashalw-resize)]                      
+                                          $hashalw-resize)]
                       [set!/checked     '($hasheq-set!/mutable/checked
                                           $hasheqv-set!/mutable/checked
                                           $hash-set!/mutable/checked
@@ -44796,7 +45135,7 @@
                     (local $old-entries (ref $Array))
                     (local $old-cap     i32)
                     (local $new-cap     i32)
-                    (local $new-array   (ref $Array))                    
+                    (local $new-array   (ref $Array))
                     (local $i           i32)
                     (local $len         i32)
                     (local $key         (ref eq))
@@ -44968,7 +45307,7 @@
                                  (local.get $ht)
                                  (local.get $key))))
 
-         
+
          ,@(for/list ([hash-has-key/plain '($hasheq-has-key?/plain
                                             $hasheqv-has-key?/plain
                                             $hashequal-has-key?/plain
@@ -45070,8 +45409,8 @@
 
                     ;; Not found: return #f
                     (global.get $false)))
-         
-         
+
+
 
 
          (func $hash-clear! (type $Prim1)
@@ -45097,7 +45436,7 @@
                                        (local.get $ht)))))
                (unreachable))
 
-         
+
          ,@(for/list ([hash-clear     '($hasheq-clear!
                                         $hasheqv-clear!
                                         $hashequal-clear!
@@ -45117,7 +45456,7 @@
              `(func ,hash-clear
                     (param $ht (ref eq))   ;; table
                     (result    (ref eq))   ;; return void
-                    
+
                     (local $table (ref ,type))
 
                     ;; Check that ht is expected table type
@@ -45174,7 +45513,7 @@
                (unreachable))
 
 
-         
+
          ;; hash-empty?
 
          (func $hash-empty? (type $Prim1)
@@ -45255,7 +45594,7 @@
                     (local.set $table (ref.cast (ref ,type) (local.get $ht)))
                     ;; Delegate
                     (call ,empty?/checked (local.get $table))))
-         
+
         ,@(for/list ([empty?/checked '($hasheq-empty?/mutable/checked
                                        $hasheqv-empty?/mutable/checked
                                        $hash-empty?/mutable/checked
@@ -45815,7 +46154,7 @@
                             (local.set $table   (ref.cast (ref ,type) (local.get $ht)))
                             (local.set $entries (struct.get ,type $entries (local.get $table)))
                             (local.set $capacity (i32.div_u (array.len (local.get $entries)) (i32.const 2)))
-                            
+
                             (if (i32.ge_u (local.get $index) (local.get $capacity))
                                 (then (br $bad-index)))
 
@@ -45834,7 +46173,7 @@
                          (then (call $raise-mutable-hash-iterate-bad-index (local.get $pos))
                                (unreachable)))
                      (return (local.get $bad-index)))
-               
+
                (func ,iter-value
                      (type $Prim13)
                      (param $ht        (ref eq))  ;; mutable hash table
@@ -45853,7 +46192,7 @@
                             (if (i32.eqz (ref.test (ref ,type) (local.get $ht)))
                                 (then (call ,raise-expected (local.get $ht))
                                       (unreachable)))
-                            
+
                             ;; Decode and validate position
                             (if (i32.eqz (ref.test (ref i31) (local.get $pos)))
                                 (then (call $raise-check-fixnum (local.get $pos))
@@ -45863,11 +46202,11 @@
                                 (then (call $raise-check-fixnum (local.get $pos))
                                       (unreachable)))
                             (local.set $index (i32.shr_u (local.get $index) (i32.const 1)))
-                            
+
                             (local.set $table   (ref.cast (ref ,type) (local.get $ht)))
                             (local.set $entries (struct.get ,type $entries (local.get $table)))
                             (local.set $capacity (i32.div_u (array.len (local.get $entries)) (i32.const 2)))
-                            
+
                             (if (i32.ge_u (local.get $index) (local.get $capacity))
                                 (then (br $bad-index)))
 
@@ -45889,7 +46228,7 @@
                          (then (call $raise-mutable-hash-iterate-bad-index (local.get $pos))
                                (unreachable)))
                      (return (local.get $bad-index)))
-               
+
                (func ,iter-pair
                      (type $Prim13)
                      (param $ht        (ref eq))  ;; mutable hash table
@@ -45918,7 +46257,7 @@
                             (if (i32.and (local.get $index) (i32.const 1))
                                 (then (call $raise-check-fixnum (local.get $pos))
                                       (unreachable)))
-                            
+
                             (local.set $index (i32.shr_u (local.get $index) (i32.const 1)))
 
                             (local.set $table   (ref.cast (ref ,type) (local.get $ht)))
@@ -45948,7 +46287,7 @@
                          (then (call $raise-mutable-hash-iterate-bad-index (local.get $pos))
                                (unreachable)))
                      (return (call $cons (local.get $bad-index) (local.get $bad-index))))
-               
+
                (func ,iter-key+value
                      (type $Prim13)
                      (param $ht        (ref eq))  ;; mutable hash table
@@ -47056,7 +47395,7 @@
               (array.new_fixed $Values 2
                                (struct.get $ImmutableHashEntry $key (local.get $entry))
                                (struct.get $ImmutableHashEntry $value (local.get $entry))))
-        
+
         ; General hash-count
         (func $hash-count (type $Prim1)
               (param $ht (ref eq))
@@ -47142,9 +47481,9 @@
                    (ref.i31
                     (i32.shl (struct.get ,type $count (local.get $table))
                              (i32.const 1)))))
-        
+
         ;; General hash->list
-        
+
         (func $hash->list (type $Prim2)
               (param $ht  (ref eq))   ;; hash table
               (param $try (ref eq))   ;; optional try-order? (default #f)
@@ -47186,7 +47525,7 @@
                            (br $walk)))
               (local.get $acc))
 
-        
+
         ,@(for/list ([hash->list       '($hasheq->list
                                          $hasheqv->list
                                          $hashequal->list
@@ -47294,7 +47633,7 @@
 
                     (local.get $acc)))
 
-        
+
          ;; hash-for-each : apply proc to each key/value in a hash table.
          ;; The try-order? argument is accepted but ignored.
          (func $hash-for-each (type $Prim23)
@@ -47549,7 +47888,7 @@
                                       (local.get $proc)))))
               (unreachable))
 
-        
+
         ,@(for/list ([hash-map       '($hasheq-map
                                        $hasheqv-map
                                        $hashequal-map
@@ -47734,7 +48073,7 @@
                                             (local.get $pos)))
                            (br $walk)))
               (local.get $acc))
-        
+
 
         ;; -------------------------------------------------------------------
         ;; hash-map/copy
@@ -48156,7 +48495,7 @@
 
                    (local.get $dst)))
 
-        
+
         ;; General hash-keys and hash-values
 
         ;; The try-order? argument is accepted but ignored.
@@ -48356,7 +48695,7 @@
          ;;;
 
          (global $next-hash-state (mut i32) (i32.const 0x9e3779b9)) ;; initial seed, can be randomized or fixed
-         
+
          (func $splitmix32 (result i32)
                (local $z i32)
                ;; z = state += 0x9E3779B9
@@ -48382,7 +48721,7 @@
                 (i32.shl (call $eq-hash/i32
                                (local.get $v))
                  (i32.const 1))))
-         
+
          (func $eq-hash/i32
                (param $v (ref eq))
                (result   i32)
@@ -48429,7 +48768,7 @@
                    ;;         (i32.mul (local.get $x) (i32.const 0xcc9e2d51))
                    ;;         (i32.const 15))
                    ;;        (i32.const 0x1b873593)))
-                   
+
                    (else
                     ;; --- Heap object: return or assign hash without mixing for now ---
                     (local.set $heap (ref.cast (ref $Heap) (local.get $v)))
@@ -48458,7 +48797,7 @@
                (i32.shl (call $eqv-hash/i32
                               (local.get $v))
                 (i32.const 1))))
-         
+
          (func $eqv-hash/i32
                (param $v (ref eq))
                (result   i32)
@@ -49110,8 +49449,8 @@
                             (local.set $i (i32.add (local.get $i) (i32.const 1)))
                             (br $loop)))
                (local.get $hash))
-         
-         
+
+
          ;;;
          ;;; SYMBOL TABLE
          ;;;
@@ -49123,7 +49462,7 @@
 
          ; We do not support deleting symbols from the symbol table, so we do not
          ; need to handle tombstones.
-         
+
          (type $SymbolTable
                (struct
                  (field $entries (mut (ref $Array))) ;; flat array: key0, val0, key1, val1, ...
@@ -49195,7 +49534,7 @@
                (global.get $missing))
 
          (func $raise-symbol-table-insert:table-full (unreachable))
-         
+
          (func $symbol-table-insert
                (param $table (ref $SymbolTable))
                (param $key   (ref $String))  ;; must be interned or immutable
@@ -49214,10 +49553,10 @@
                (local.set $entries  (struct.get $SymbolTable $entries (local.get $table)))
                (local.set $capacity (i32.div_u (array.len (local.get $entries)) (i32.const 2)))
                ;; Compute hash and initial index
-               (local.set $hash     (call $string-hash/i32 (local.get $key))) ; 
+               (local.set $hash     (call $string-hash/i32 (local.get $key))) ;
                (local.set $index    (i32.rem_u (local.get $hash) (local.get $capacity)))
                (local.set $step     (i32.const 0))
-               
+
                (block $done
                       (block $full
                              (loop $probe
@@ -49299,11 +49638,11 @@
                (struct.set $SymbolTable $count   (local.get $table) (struct.get $SymbolTable $count
                                                                                 (local.get $new-table)))
                (local.get $table))
-         
+
          (func $maybe-resize-symbol-table
                (param $table    (ref $SymbolTable))
                (result          (ref $SymbolTable))
-               
+
                (local $entries  (ref $Array))
                (local $capacity i32)
                (local $count    i32)
@@ -49360,25 +49699,25 @@
                     (struct.set $String $hash (local.get $s) (local.get $hash))
                     (local.get $hash))))
 
-         
+
          ;;;
          ;;; LOCATION
          ;;;
 
          ;; When counting lines, Racket treats linefeed, return, and
          ;; return-linefeed combinations as a line terminator and as a single
-         ;; position (on all platforms). 
+         ;; position (on all platforms).
          ;; Each tab advances the column count to one before the next multiple
-         ;; of 8. 
+         ;; of 8.
          ;; When a sequence of bytes in the range 128 to 253 forms a
          ;; UTF-8 encoding of a character, the position/column is incremented
-         ;; once for each byte, and then decremented appropriately 
-         ;; when a complete encoding sequence is discovered. 
-         
+         ;; once for each byte, and then decremented appropriately
+         ;; when a complete encoding sequence is discovered.
+
          ;; (array line column pos)
          ;;   pos and line counts from 1
          ;;   column       counts from 0
-    
+
          (func $make-initial-location (result (ref eq))
                ;; (location 1 0 1)
                (struct.new $Location
@@ -49413,10 +49752,10 @@
          ;; [x] get-output-string
 
          ;; [ ] write-byte
-         
+
         (func $raise-check-string-port (param $x (ref eq)) (unreachable))
         (func $raise-check-port-or-false (param $x (ref eq)) (unreachable))
-         
+
         (func $string-port? (type $Prim1)
               (param $v (ref eq))
               (result (ref eq))
@@ -49911,18 +50250,18 @@
                                    (local.get $finv)))))
               (struct.set $OutputPort $closed (local.get $port) (i32.const 1))
               (global.get $void))
-        
+
         ;; Note:
         ;;   WebRacket's current string ports always track line and column
         ;;   information, so enabling line counting is a no-op.
-        ;; 
+        ;;
         ;;   For now the primitives port-count-lines! and port-counts-lines?
         ;;   exists to preserve compatibility with Racket
         ;;   programs that explicitly request line counting.
         ;;
         ;;   When support for file ports is added, these functions needs
         ;;   to be revised.
-        
+
         (func $port-count-lines! (type $Prim1)
               (param $p (ref eq))
               (result   (ref eq))
@@ -49932,7 +50271,7 @@
         ;;   See previous note.
         (func $port-counts-lines? (type $Prim1)
               (param $p (ref eq))
-              (result   (ref eq))              
+              (result   (ref eq))
               (global.get $true))
 
          ;; file-position* : port? -> (or/c exact-nonnegative-integer? #f)
@@ -50108,7 +50447,7 @@
                            (i32.const 0)          ;; $utf8-left
                            (i32.const 0)))        ;; $utf8-bytes
 
-         
+
          (func $open-output-bytes (type $Prim01)
                (param $name (ref eq)) ;; optional any/c, default = 'string
                (result (ref eq))
@@ -50170,7 +50509,7 @@
                (param $start  (ref eq)) ;; optional exact-nonnegative-integer?, default = 0
                (param $end    (ref eq)) ;; optional exact-nonnegative-integer?, default = current output length
                (result        (ref eq))
-               
+
                (local $sp   (ref null $OutputStringPort))
                (local $bs   (ref $Bytes))
                (local $idx  i32)
@@ -50331,7 +50670,7 @@
                                     (ref.test (ref $Procedure) (local.get $read))))
                    ; TODO: raise exception
                    (then (return (global.get $false))))
-               
+
                ;; --- Ensure peek-in is #f, an input port, or a procedure ---
                (if (i32.eqz (ref.eq (local.get $peek) (global.get $false)))
                    (then
@@ -50339,7 +50678,7 @@
                                          (ref.test (ref $Procedure) (local.get $peek))))
                         ; TODO: raise exception
                         (then (return (global.get $false))))))
-               
+
                (local.set $bytes (ref.cast (ref $Bytes)    (global.get $bytes:empty)))
                (local.set $loc   (ref.cast (ref $Location) (call $make-initial-location)))
 
@@ -50516,7 +50855,7 @@
                (param $v  (ref eq)) ;; any/c
                (param $in (ref eq)) ;; input-port? (optional, default = (current-input-port))
                (result    (ref eq))
-               
+
                (global.get $false))
 
          ;; port-provides-progress-evts? : input-port? -> boolean?
@@ -50565,7 +50904,7 @@
                                (local.get $out))
                          (unreachable)))
                (global.get $false))
-         
+
          (func $read-byte/custom  ; read byte from custom input port
                (param $port (ref $CustomInputPort))
                (result      (ref eq))
@@ -50583,7 +50922,7 @@
                (local $count-raw i32)
                (local $count     i32)
                (local $byte      i32)
-         
+
                (if (struct.get $CustomInputPort $closed (local.get $port))
                    (then (call $raise-input-port-closed
                                (global.get $string:read-byte:input-port-closed))
@@ -50673,7 +51012,7 @@
                            (i32.add (local.get $idx) (i32.const 1)))
 
                (ref.i31 (i32.shl (local.get $byte) (i32.const 1))))
-    
+
          (func $peek-byte/custom  ;; peek byte from custom input port
                (param $port (ref $CustomInputPort))
                (param $skip (ref eq))        ;; exact-nonnegative-integer?, default = 0
@@ -50711,7 +51050,7 @@
                          (if (i32.and (local.get $skip-raw) (i32.const 1))
                              (then (return (global.get $false))))
                          (local.set $skip-count (i32.shr_u (local.get $skip-raw) (i32.const 1)))))
-               
+
                ;; Look up delegate
                (local.set $delegate (struct.get $CustomInputPort $peek-proc (local.get $port)))
 
@@ -50793,7 +51132,7 @@
                (if (i32.gt_u (local.get $count) (local.get $buf-len))
                    (then (struct.set $CustomInputPort $len (local.get $port) (i32.const 0))
                          (struct.set $CustomInputPort $idx (local.get $port) (i32.const 0))
-                         (return (global.get $false))))               
+                         (return (global.get $false))))
 
                (if (i32.eqz (local.get $count))
                    (then (return (global.get $false))))
@@ -50802,7 +51141,7 @@
                (local.set $arr    (struct.get $Bytes $bs (local.get $buffer)))
                (local.set $byte   (array.get_u $I8Array (local.get $arr) (i32.const 0)))
                (ref.i31 (i32.shl (local.get $byte) (i32.const 1))))
-         
+
          (func $read-byte (type $Prim01)
               (param $in (ref eq)) ;; optional input-port?, default = (current-input-port)
               (result    (ref eq))
@@ -50842,7 +51181,7 @@
                   (then (call $raise-input-port-closed
                               (global.get $string:read-byte:input-port-closed))
                         (unreachable)))
-              
+
               (local.set $idx   (struct.get $InputStringPort $idx (local.get $sp)))
               (local.set $limit (struct.get $InputStringPort $len (local.get $sp)))
               ;; Return the EOF object when no more bytes remain.
@@ -51329,7 +51668,7 @@
                #;(struct.set $Bytes $immutable (local.get $buf) (i32.const 1))
 
                (local.get $buf))
-                  
+
 
          ;; Like Racket's read-string, but currently only string ports are supported
          (func $read-string (type $Prim12)
@@ -51562,7 +51901,7 @@
                             (if (i32.ne (i32.and (local.get $tagged) (i32.const ,char-mask))
                                         (i32.const ,char-tag))
                                 (then (return (global.get $false))))
-                            
+
                             (local.set $cp      (i32.shr_u (local.get $tagged) (i32.const ,char-shift)))
                             (local.set $append  (i32.const 1))
                             (local.set $stop    (i32.const 0))
@@ -51758,7 +52097,7 @@
                                                   (i32.eq (local.get $cp) (i32.const 13)))
                                           (then (local.set $append (i32.const 0)))
                                           (else (local.set $break (i32.const 1))))))
-                            
+
                             (if (i32.eq (local.get $append) (i32.const 1))
                                 (then (call $i32growable-array-add! (local.get $buf) (local.get $cp))
                                       (local.set $count (i32.add (local.get $count) (i32.const 1)))))
@@ -52000,12 +52339,12 @@
          (func $peek-bytes-avail!* (type $Prim>=1)
                (param $bstr (ref eq))
                (param $rest (ref eq))
-               (result      (ref eq))               
+               (result      (ref eq))
 
                (call $peek-bytes-avail!
                      (local.get $bstr)
                      (local.get $rest)))
-         
+
          (func $peek-string! (type $Prim25)
                (param $str   (ref eq)) ;; string?
                (param $skip  (ref eq)) ;; exact-nonnegative-integer?
@@ -52106,7 +52445,7 @@
                             (if (i32.ge_u (local.get $peek-start) (local.get $limit))
                                 (then (return (global.get $eof))))
                             (local.set $byte (array.get_u $I8Array (local.get $src) (local.get $peek-start)))
-                            (local.set $peek-start (i32.add (local.get $peek-start) (i32.const 1)))                            
+                            (local.set $peek-start (i32.add (local.get $peek-start) (i32.const 1)))
                             (if (i32.lt_u (local.get $byte) (i32.const 128))
                                 (then
                                  (local.set $skipped (i32.add (local.get $skipped) (i32.const 1))))
@@ -52116,7 +52455,7 @@
                                  (local.set $need)
                                  (local.set $initial-need (local.get $need))
                                  (if (i32.lt_s (local.get $need) (i32.const 0))
-                                     (then (return (global.get $false))))                                 
+                                     (then (return (global.get $false))))
                                  (local.set $cp (local.get $acc))
                                  (block $skip-cont-done
                                         (loop $skip-cont
@@ -52211,7 +52550,7 @@
 
                ;; --- Report number of characters peeked ---
                (ref.i31 (i32.shl (local.get $written) (i32.const 1))))
-         
+
 
          (func $peek-byte (type $Prim02)
                (param $in   (ref eq)) ;; input-port?                (optional, default = (current-input-port))
@@ -52528,7 +52867,7 @@
                ;; When no characters were peeked, signal EOF
                (if (i32.eqz (local.get $peeked))
                    (then (return (global.get $eof))))
-               
+
                ;; Shrink buffer on partial peek
                (if (i32.lt_u (local.get $peeked) (local.get $count))
                    (then (local.set $arr (struct.get $Bytes $bs (local.get $buf)))
@@ -52558,7 +52897,7 @@
                (local $peeked    i32)
                (local $arr       (ref $I32Array))
                (local $new-arr   (ref $I32Array))
-               
+
                ;; --- Decode amount ---
                (if (i32.eqz (ref.test (ref i31) (local.get $amt)))
                    (then (call $raise-check-fixnum (local.get $amt)) (unreachable)))
@@ -52621,9 +52960,9 @@
                ;; Return EOF when no characters were peeked.
                (if (i32.eqz (local.get $peeked))
                    (then (return (global.get $eof))))
-               
+
                (local.set $arr (struct.get $String $codepoints (local.get $buf)))
-               
+
 
                ;; Shrink buffer on partial peek
                (if (i32.lt_u (local.get $peeked) (local.get $count))
@@ -52637,7 +52976,7 @@
                (struct.set $String $hash (local.get $buf) (i32.const 0))
 
                (local.get $buf))
-         
+
          ;;;
          ;;;  13.3  Byte and String Output
          ;;;
@@ -52650,12 +52989,12 @@
          ;;         (field $len   i32)          ; the length of the string
          ;;         (field $idx   i32)          ; the current index into the string
          ;;         (field $loc   (ref $Location)))) ; the current location
-         
+
          (func $write-byte (type $Prim12)
                (param $byte (ref eq))
                (param $out  (ref eq)) ;; optional output-port?, default = current-output-port
                (result      (ref eq))
-               
+
                (local $b         i32)
                (local $sp        (ref null $OutputStringPort))
                (local $bs        (ref eq))
@@ -52946,7 +53285,7 @@
                (if (ref.eq (local.get $out) (global.get $missing))
                    (then (local.set $out (call $current-output-port
                                                (global.get $missing)))))
-               
+
                ;; Delegate to write-char with the newline character.
                (call $write-char ,(Imm #\newline) (local.get $out)))
 
@@ -53141,7 +53480,7 @@
 
 
          (func $raise-bad-string-range (param $x (ref eq)) (param i32) (param i32) (unreachable))
-         
+
          ;; Like Racket's write-string, but currently only string ports are supported
          ;; as output destinations. The port argument must be provided explicitly.
          (func $write-string (type $Prim14)
@@ -53217,7 +53556,7 @@
                ;; --- Report number of characters written ---
                (ref.i31 (i32.shl (local.get $count) (i32.const 1))))
 
-         
+
          ;;;
          ;;; FFI Helpers
          ;;;
@@ -53504,7 +53843,7 @@
                                            (global.get $null))))
                          (drop (call $js-log (call $webracket-debug-allocation-counters)))
                          (unreachable))))))
-         
+
          (func $copy-bytes-to-memory
                ;; Copy a Racket $Bytes object into linear memory at $ptr.
                (param $bs-any (ref eq))  ;; source: expected (ref $Bytes)
@@ -53606,7 +53945,7 @@
                (call $copy-bytes-to-memory
                      (local.get $bs)
                      (global.get $memory-map:callback-buffer-base)))
-         
+
          #;(func $copy_bytes_to_memory
                (export "copy_bytes_to_memory")
                (param $ptr i32)   ;; destination address in linear memory
@@ -54151,7 +54490,7 @@
 
                (local $g (ref $GrowableArray))
                (local $i i32)
-               
+
                (local.set $g (global.get $callback-registry))
                (local.set $i (call $growable-array-count (local.get $g)))
                (call $growable-array-add! (local.get $g) (local.get $p))
@@ -54161,7 +54500,7 @@
                (param $id   i32)
                (param $fasl i32) ; index into linear memory
                (result      i32)
-               
+
                (local $proc  (ref $Procedure))
                (local $vec   (ref $Vector))
                (local $args  (ref $Args))
@@ -54414,7 +54753,7 @@
          ;; 5.6.1 Additional Structure Utilities
          ;; [ ] make-constructor-style-printer
          ;; [x] struct->list
-         
+
          (func $struct?/i32 (param $v (ref eq)) (result i32)
                (ref.test (ref $Struct) (local.get $v)))
 
@@ -54428,7 +54767,7 @@
                ,@(make-predicate-body '$StructType))
 
          (func $raise-check-struct-type (unreachable))
-         
+
          (func $check-struct-type
                (param $name (ref $String))
                (param $v    (ref eq))
@@ -54503,7 +54842,7 @@
                    (then (global.get $true))
                    (else (global.get $false))))
 
-         
+
 
          ;; Note: The #:on-opaque keyword is accepted as a positional optional argument.
          ;;       Keyword arguments are not yet supported, so callers must pass the
@@ -54639,9 +54978,9 @@
                            (i32.const 0)
                            (i32.const 0)
                            (local.get $arr)))
-         
+
          (func $raise-format/display:struct:expected-struct (unreachable))
-         
+
          (func $format/display:struct
                (param $v (ref eq))
                (result (ref $String))
@@ -54757,7 +55096,7 @@
                      (local.get $immutables)
                      (local.get $opt-guard)
                      (local.get $constructor-name)))
-         
+
 
          (func $make-struct-type-descriptor/checked
                (param $name             (ref $Symbol))    ;; Struct name
@@ -54833,7 +55172,7 @@
                                                     (local.get $has-super)
                                                     (local.get $super-typed)
                                                     (local.get $props))))))
-               
+
                ;; Compute total field count
                (local.set $total-fields
                           (i32.add (local.get $stfc)
@@ -54871,7 +55210,7 @@
                (param $constructor-name (ref eq))       ;; Name symbol or #f
 
                (result (ref $StructType))
-               
+
                (local $has-super    i32)
                (local $super-typed  (ref null $StructType))
                (local $stfc         i32)
@@ -54884,7 +55223,7 @@
                (local.set $init-indices (global.get $false))
                (local.set $auto-indices (global.get $false))
                (local.set $auto-values  (global.get $false))
-               
+
                ;; Determine if super is present
                (local.set $has-super (i32.eqz (ref.eq (local.get $super) (global.get $false))))
 
@@ -54956,7 +55295,7 @@
          ;;                   'foo))) ; constructor-name
 
 
-         ;; $make-struct-type              
+         ;; $make-struct-type
          ;;   returns 5 values:
          ;;     struct-type?
          ;;     struct-constructor-procedure?
@@ -57486,7 +57825,7 @@
                            (ref.func $invoke-struct)
                            (local.get $std)
                            (local.get $arr)))
-         
+
          (func $make-struct-type
                ;; Parameters
                (param $name             (ref eq))  ;; (ref $Symbol)
@@ -57501,7 +57840,7 @@
                (param $immutables       (ref eq))  ;; immutable mask or #f
                (param $guard            (ref eq))  ;; closure or #f
                (param $constructor-name (ref eq))  ;; symbol or #f
-               
+
                (result (ref eq))  ;; returns 5-values packed as a pair
                ;                  ;; values: (struct-type, constructor, predicate, accessor, mutator)
 
@@ -57550,7 +57889,7 @@
                ;; --- Type checks ---
                (if (i32.eqz (ref.test (ref $Symbol) (local.get $name)))
                    (then (call $raise-argument-error/internal (local.get $name))))
-               
+
                (if (i32.and
                     (i32.eqz (ref.eq (local.get $super) (global.get $false)))
                     (i32.eqz (ref.test (ref $StructType) (local.get $super))))
@@ -57592,7 +57931,7 @@
                (if (local.get $has-super)
                    (then (local.set $super-typed (ref.cast (ref $StructType) (local.get $super))))
                    (else (local.set $super-typed (ref.null $StructType))))
-               
+
                (local.set $super-count
                           (if (result i32)
                               (local.get $has-super)
@@ -57877,7 +58216,7 @@
                      (local.get $std-typed)
                      (local.get $super-count)
                      (local.get $struct-name)))
-         
+
          (func $make-struct-accessor/checked
                (param $std         (ref $StructType))
                (param $super-count (ref eq))
@@ -57902,34 +58241,34 @@
                            (ref.func $struct-accessor)
                            (local.get $free)))
 
-         
+
          (func $struct-accessor
                (type $ClosureCode)
                (param $clos (ref $Closure))
                (param $args (ref $Args))
                (result      (ref eq))
-               
+
                (local $free           (ref $Free))
                (local $std            (ref $StructType))  ; free[0]
                (local $super-count-fx (ref eq))           ; free[1]
                (local $super-count    i32)
                (local $target         (ref eq))           ; args[0]
-               (local $struct         (ref $Struct))                     
+               (local $struct         (ref $Struct))
                (local $index-fx       (ref eq))           ; args[1]
-               (local $index          i32)               
+               (local $index          i32)
                (local $skip           i32)
                (local $fields         (ref $Array))
-               
+
                ;; Unpack free vars
                (local.set $free            (struct.get $Closure $free (local.get $clos)))
                (local.set $std             (ref.cast (ref $StructType)
-                                                     (array.get $Free (local.get $free) (i32.const 0))))               
+                                                     (array.get $Free (local.get $free) (i32.const 0))))
 
                (local.set $super-count-fx  (array.get $Free (local.get $free) (i32.const 1)))
                (local.set $super-count     (i32.shr_u (i31.get_u (ref.cast (ref i31) (local.get $super-count-fx)))
-                                                      (i32.const 1)))               
+                                                      (i32.const 1)))
                (local.set $skip            (local.get $super-count))
-               
+
                ;; Get struct
                (local.set $target (array.get $Args (local.get $args) (i32.const 0)))
                (if (i32.eqz (ref.test (ref $Struct) (local.get $target)))
@@ -57942,7 +58281,7 @@
                            (i32.ne (i32.and (i31.get_u (ref.cast (ref i31) (local.get $index-fx))) (i32.const 1)) (i32.const 0)))
                    (then (call $raise-argument-error/internal (local.get $index-fx))))
                (local.set $index (i32.shr_u (i31.get_u (ref.cast (ref i31) (local.get $index-fx))) (i32.const 1)))
-               
+
                ;; Type match - is $struct a subtype of $std
                (if (i32.eqz (call $struct-type-is-a?/i32
                                   (struct.get $Struct $type (local.get $struct))
@@ -57953,7 +58292,7 @@
                (local.set $fields (struct.get $Struct $fields (local.get $struct)))
                (array.get $Array (local.get $fields)
                           (i32.add (local.get $skip) (local.get $index))))
-         
+
          (func $make-struct-constructor
                ;; Parameters
                (param $v (ref eq)) ;; Expected: (ref $StructType)
@@ -58015,7 +58354,7 @@
               ,@(for/list ([pr (in-list (active-ffi-primitive-names))])
                   `(ref.func ,($ pr))))
 
-         
+
         (func $struct-constructor/no-guard
                (type $ClosureCode)
                (param $clos (ref $Closure))
@@ -58145,15 +58484,15 @@
                (local $free           (ref $Free))
                (local $std            (ref $StructType)) ; free[0]
                (local $super-count-fx (ref eq))          ; free[1]
-               (local $super-count    i32)           
+               (local $super-count    i32)
 
-               
+
                (local $target    (ref eq))      ; args[0]
                (local $struct    (ref $Struct)) ;  = (cast $Struct $target)
                (local $index-fx  (ref eq))      ; args[1]
                (local $index     i32)           ;  = decoded $index-fx
                (local $val       (ref eq))      ; args[2]
-               
+
                (local $fields    (ref $Array))  ; fields of the received struct
                (local $skip      i32)
 
@@ -58205,12 +58544,12 @@
                ;; --- Return #<void> ---
                (global.get $void))
 
-         
-         
+
+
          (func $make-struct-mutator/specialized/checked ; helper
                ; The specialized version saves a fixed index to mutate
                ; in the free variables.
-               
+
                (param $std            (ref $StructType))
                (param $super-count-fx (ref eq)) ;; fixnum
                (param $index-fx       (ref eq)) ;; fixnum
@@ -58315,7 +58654,7 @@
                (call $string->symbol/checked
                      (ref.cast (ref $String)
                                (call $string-append (local.get $parts)))))
-         
+
 
          (func $make-struct-field-mutator  ; Racket primitive
                ; Note: This functions uses the internal representation of
@@ -58337,7 +58676,7 @@
                (local $struct-name-str  (ref $String))
                (local $field-name       (ref eq))
                (local $field-name-sym   (ref $Symbol))
-               (local $field-name-str   (ref $String))               
+               (local $field-name-str   (ref $String))
                (local $name             (ref eq))
                (local $realm-checked    (ref eq))
                (local $arg-contract     (ref eq))
@@ -58420,7 +58759,7 @@
                                               (call $build-structure-field-mutator-name
                                                     (local.get $struct-name-str)
                                                     (local.get $field-name-str))))))
-                             (else                              
+                             (else
                               (local.set $name (local.get $field-name)))))
                         (else
                          (if (i32.eqz (ref.test (ref $String) (local.get $field-name)))
@@ -58439,7 +58778,7 @@
                      (local.get $name)
                      (local.get $realm-checked)))
 
-         
+
          (func $make-struct-predicate
                (param $v (ref eq)) ;; expected: (ref $StructType)
                (result (ref eq))   ;; returns: closure
@@ -58490,7 +58829,7 @@
                                     (ref.test (ref $Struct) (local.get $v))
                                     (then ;; Is $struct a subtype of $std
                                      (call $struct-type-is-a?/i32
-                                               (struct.get $Struct $type 
+                                               (struct.get $Struct $type
                                                            (ref.cast (ref $Struct) (local.get $v)))
                                                (local.get $std)))
                                     (else (i32.const 0))))
@@ -58504,7 +58843,7 @@
                ;; Parameters
                (param $accessor-proc  (ref eq))   ;; closure produced by make-struct-accessor
                (param $field-index-fx (ref eq))   ;; fixnum
-               (param $name           (ref eq))   ;; symbol or #f 
+               (param $name           (ref eq))   ;; symbol or #f
                (param $contract-str   (ref eq))   ;; string/symbol/#f (ignored)
                (param $realm          (ref eq))   ;; symbol
 
@@ -58551,7 +58890,7 @@
                                                       (call $codepoint->string (i32.const 45)))
                                                 (call $symbol->string
                                                       (ref.cast (ref $Symbol)
-                                                                (local.get $name))))))))               
+                                                                (local.get $name))))))))
                ;; --- Build Free vector ---
                (local.set $free (array.new_fixed $Free 2
                                                  (local.get $accessor-proc)
@@ -58575,12 +58914,12 @@
                (param $args (ref $Args))
                (result      (ref eq))
 
-               (local $free      (ref $Free))    
+               (local $free      (ref $Free))
                (local $accessor  (ref $Closure)) ;; free[0] generic accessor
                (local $field-idx (ref eq))       ;; free[1] field-pos as fixnum
 
                (local $struct    (ref eq))       ;; args[0]
-               
+
                (local $args2     (ref $Args))    ;; new arguments used to call the generic accessor
 
                ;; Unpack free vars
@@ -58607,7 +58946,7 @@
 
          (func $struct-predicate-procedure? (type $Prim1)
                ,@(make-predicate-body '$StructPredicateProcedure))
-         
+
          (func $struct-accessor-procedure? (type $Prim1)
                ,@(make-predicate-body '$StructAccessorProcedure))
 
@@ -58839,7 +59178,7 @@
                             (local.set $cursor (struct.get $Pair $d (local.get $cell)))
                             (br $walk)))
                (local.get $sentinel))
-         
+
          (func $struct-type-property-predicate (type $ClosureCode)
                (param $clos           (ref $Closure))
                (param $args           (ref $Args))
@@ -59168,7 +59507,7 @@
                         (ref.eq (local.get $prop) (local.get $expected))
                         (then (global.get $true))
                         (else (global.get $false))))))
-         
+
          (func $make-struct-type-property-descriptor
                (param $name               (ref eq))
                (param $guard-info         (ref eq))
@@ -59341,7 +59680,7 @@
                                 (local.get $prop)
                                 (local.get $value)
                                 (local.get $sti)))
-               
+
                ;; --- prop:equal+hash
                (if (call $symbol=?/i32
                          (struct.get $StructTypeProperty $name (local.get $prop))
@@ -59403,7 +59742,7 @@
                              (then (call $raise-argument-error/internal (local.get $value))
                                    (unreachable)))))))
 
-               ;; --- prop:authentic                   
+               ;; --- prop:authentic
                (if (i32.eq (call $symbol=?/i32
                                        (struct.get $StructTypeProperty $name (local.get $prop))
                                        (global.get $symbol:prop:authentic))
@@ -59570,7 +59909,7 @@
                ;; Initialize non-defaultable locals
                (local.set $table (ref.cast (ref $HashEqMutable) (call $make-empty-hasheq)))
 
-               
+
                (if (local.get $has-super)
                    (then
                     (local.set $table
@@ -59602,7 +59941,7 @@
                            (local.get $spec)))
 
                (ref.cast (ref eq) (local.get $table)))
-         
+
          (func $make-struct-type-property
                (param $name               (ref eq))  ;; symbol
                ;; optional parameters (defaults in parentheses):
@@ -59878,7 +60217,7 @@
                      (local.get $contract-info)
                      (local.get $realm-info)))
 
-         
+
          ;;;
          ;;; PROCEDURES
          ;;;
@@ -60342,7 +60681,7 @@
                (local $invoke     (ref $ProcedureInvoker))
                (local $realm*     (ref eq))
                (local $case-proc  (ref $CaseClosure))
-               
+
                ;; Step 1: If realm is #f, replace with 'racket
                (local.set $realm*
                           (if (result (ref eq))
@@ -60431,8 +60770,8 @@
                    (ref.eq (local.get $realm) (global.get $false))
                    (then (global.get $symbol:racket))
                    (else (local.get $realm))))
-         
-         
+
+
          (func $raise-argument-error:procedure-expected
                (param $got (ref eq))
 
@@ -60441,7 +60780,7 @@
                      (global.get $string:procedure?)
                      (local.get $got)))
 
-         
+
          ;; Support for the arity-at-least structure used by procedure-arity.
          (func $ensure-arity-at-least-type
                (result (ref $StructType))
@@ -61103,7 +61442,7 @@
                            (local.get $new-name)
                            (ref.func $dummy-code)
                            (local.get $free)))
-         
+
          (func $procedure-arity (type $Prim1)
                ; Wrapper: accepts any value, checks that it’s a procedure, then delegates
                ; to the checked version that expects (ref $Procedure).
@@ -61330,7 +61669,7 @@
 
 
 
-         
+
          (func $procedure-arity-mask (type $Prim1)
                ; TODO: Only tested with closures.
                ;       Also test with primitives and case-lambda
@@ -61480,7 +61819,7 @@
 
 
          ;;;
-         ;;; PRIMITIVES 
+         ;;; PRIMITIVES
          ;;;
 
          ; https://docs.racket-lang.org/reference/procedures.html
@@ -61488,7 +61827,7 @@
          ; 4.20.2 Reflecting on Primitives
 
          (func $raise-argument-error:primitive-procedure-expected (unreachable))
-         
+
          (func $primitive? (type $Prim1)
                ,@(make-predicate-body '$PrimitiveProcedure))
 
@@ -61514,7 +61853,7 @@
          ;;;
 
          ;; https://docs.racket-lang.org/reference/void.html
-         
+
          (func $void? (type $Prim1)
                (param $v (ref eq))
                (result   (ref eq))
@@ -61523,7 +61862,7 @@
                    (ref.eq (local.get $v) (global.get $void))
                    (then (global.get $true))
                    (else (global.get $false))))
-         
+
          (func $void (type $Prim>=0)
                (param $xs (ref eq))
                (result    (ref eq))
@@ -61591,9 +61930,9 @@
                                 (local.get $vals) (i32.const 0)
                                 (local.get $arr) (i32.const 0)
                                 (local.get $len))))
-               
+
                (local.get $vals))
-         
+
 
          (func $call-with-values (type $Prim2)
                (param $gen (ref eq))
@@ -61649,9 +61988,9 @@
                                 (local.get $r)
                                 (local.get $args)
                                 (local.get $rinv)))
-         
 
-         
+
+
          ;; 10.2 Exceptions
 
          ;; 10.3 Delayed Evaluation
@@ -62389,11 +62728,11 @@
                                     (local.get $invoke)))
                (array.set $Array (local.get $cache) (local.get $index) (local.get $cached))
                (local.get $cached))
-         
+
          ;; 10.6 Breaks
          ;; 10.7 Exiting
          ;; 10.8 Unreachable Expressions
-         
+
 
          ;;;
          ;;; 13. INPUT AND OUTPUT
@@ -62587,7 +62926,7 @@
                                (local.get $inv)))
                (ref.cast (ref $String)
                          (call $get-output-string (local.get $port))))
-         
+
 
          ;; 13.10 Fast-Load Serialization
 
@@ -62605,11 +62944,11 @@
          (global $fasl-eof        (ref i31) ,(Imm 11))
          (global $fasl-external   (ref i31) ,(Imm 12))
          (global $fasl-keyword    (ref i31) ,(Imm 13))
-         
+
          (func $s-exp->fasl (type $Prim2)
                (param $v   (ref eq))
                ; optionals:
-               (param $out (ref eq)) ;; a StringPort or #f (or $missing)              
+               (param $out (ref eq)) ;; a StringPort or #f (or $missing)
                (result     (ref eq))
 
                (local $port (ref eq))
@@ -62618,7 +62957,7 @@
                ; Handle optional arguments
                (if (ref.eq (local.get $out) (global.get $missing))
                    (then (local.set $out (global.get $false))))
-               
+
                (if (result (ref eq))
                    (ref.eq (local.get $out) (global.get $false))
                    (then
@@ -62652,7 +62991,7 @@
                                        (global.get $missing)))
                            (global.get $true)))
                (unreachable))
-                              
+
          (func $fasl:s-exp->fasl
                (param $v   (ref eq))
                (param $out (ref eq)) ;; a StringPort
@@ -62773,7 +63112,7 @@
                                                                  (call $raise-s-exp->fasl:unsupported-value
                                                                        (local.get $v))
                                                                  (unreachable))))))))))))))))))))))
-         
+
          (func $s-exp->fasl/immediate
                (param $i   i32)
                (param $v   (ref eq))
@@ -62807,7 +63146,7 @@
                                    (if (i32.eq (local.get $i) (i32.const ,eof-value))
                                        (then (drop (call $write-byte (global.get $fasl-eof) (local.get $out))))
                                        (else (unreachable))))))))))))
-         
+
          (func $fasl:write-u32
               (param $v i32)
               (param $out (ref eq))
@@ -62894,9 +63233,9 @@
                (local.set $lo   (i32.wrap_i64 (local.get $bits)))
                (call $fasl:write-u32 (local.get $hi) (local.get $out))
                (call $fasl:write-u32 (local.get $lo) (local.get $out)))
-         
+
          ;;; Fasl decoding (from byte string)
-                  
+
          (func $fasl->s-exp (type $Prim1)
               ;; entry point: decode byte string
               (param $bs (ref eq))
@@ -62919,13 +63258,13 @@
               ;; ; the call returns two values: the decoded value and the index
               (call $fasl:read-s-exp (local.get $arr) (local.get $len) (local.get $i))
               (local.set $i) (local.set $val) ; note: reversed compared to $fasl:read-s-exp
-              
+
               (local.get $val))
 
 
         (func $fasl:read-u32
               ;; read 4 bytes as big-endian u32
-              ;; returns value and new index 
+              ;; returns value and new index
               (param $arr (ref $I8Array))
               (param $i   i32)
               (result i32 i32)
@@ -62939,7 +63278,7 @@
               (local.set $b1 (array.get_u $I8Array (local.get $arr) (i32.add (local.get $i) (i32.const 1))))
               (local.set $b2 (array.get_u $I8Array (local.get $arr) (i32.add (local.get $i) (i32.const 2))))
               (local.set $b3 (array.get_u $I8Array (local.get $arr) (i32.add (local.get $i) (i32.const 3))))
-              
+
               (return (i32.or   (i32.shl (local.get $b0) (i32.const 24))
                                 (i32.or  (i32.shl (local.get $b1) (i32.const 16))
                                          (i32.or (i32.shl (local.get $b2) (i32.const  8))
@@ -62965,7 +63304,7 @@
                                       (i32.add (local.get $next) (local.get $len))))
                (return
                 (struct.new $Bytes
-                            (i32.const 0)      ; hash 
+                            (i32.const 0)      ; hash
                             (i32.const 1)      ; immutable
                             (local.get $data)) ; I8Array
                 (i32.add (local.get $next) (local.get $len))))
@@ -62981,7 +63320,7 @@
 
               (call $fasl:read-bytes (local.get $arr) (local.get $i))
               (local.set $next) (local.set $bs) ; note: reversed
-              
+
               (return (call $bytes->string/utf-8/checked (local.get $bs))
                       (local.get $next)))
 
@@ -62996,7 +63335,7 @@
 
               (call $fasl:read-string (local.get $arr) (local.get $i))
               (local.set $next) (local.set $str) ; note: reversed
-              
+
               (return (ref.cast (ref $Symbol)
                                 (call $string->symbol (local.get $str)))
                       (local.get $next)))
@@ -63015,10 +63354,10 @@
 
               (call $fasl:read-u32 (local.get $arr) (local.get $i))
               (local.set $idx) (local.set $hi) ; reversed
-              
+
               (call $fasl:read-u32 (local.get $arr) (local.get $idx))
               (local.set $next) (local.set $lo) ; reversed
-              
+
               (local.set $bits
                          (i64.or (i64.shl (i64.extend_i32_u (local.get $hi)) (i64.const 32))
                                  (i64.extend_i32_u (local.get $lo))))
@@ -63503,7 +63842,7 @@
               ; Why are we copying linear memory?
 
               ; memory.size returns number of pages. The page size is 64 KiB = 65536.
-              (local.set $mem-bytes (i32.mul (memory.size) (i32.const 65536))) 
+              (local.set $mem-bytes (i32.mul (memory.size) (i32.const 65536)))
               (local.set $len       (i32.sub (local.get $mem-bytes) (local.get $start)))
               (local.set $arr       (array.new_default $I8Array (local.get $len)))
               (local.set $i         (i32.const 0))
@@ -63856,7 +64195,7 @@
                    (unreachable)))
               (struct.get $ResolvedModulePath $name
                           (ref.cast (ref $ResolvedModulePath) (local.get $module-path))))
-        
+
         ;; expander-namespace-struct?/i32 : any/c -> i32
         ;;   Recognize the expander's own authentic `namespace` struct. This is
         ;;   a bootstrap compatibility bridge: WebRacket also has a runtime
@@ -63882,7 +64221,7 @@
                           (call $expander-namespace-struct?/i32 (local.get $v)))
                   (then (global.get $true))
                   (else (global.get $false))))
-        
+
         ; The form `#%variable-reference` can occur in fully expanded syntax,
         ; so the compiler builds $VariableReference instances directly.
 
@@ -64032,7 +64371,7 @@
 	                                (local.get $name))
 	                          (global.get $true)))
 	              (unreachable))
-         
+
          ;; 14.2 Evaluation and compilation
          ;; 14.3 The racket/load language
          ;; 14.4 Module names and loading
@@ -64813,19 +65152,19 @@
 
                ;; Unnamed objects fall back to #f.
                (global.get $false))
-         
+
          ;; 14.10 Code Inspectors
          ;; 14.11 Plumbers
          ;; 14.12 Sandboxed Evaluation
          ;; 14.13 The racket/repl library
-         
+
          ;;;
          ;;; 14.14 Linklets and the compiler
          ;;;
 
 
          ;; Instances
-         
+
          (func $raise-argument-error:instance-expected
                (param $got (ref eq))   ;; value that was not an instance
 
@@ -64859,7 +65198,7 @@
                (call $js-log (global.get $string:missing-binding))
                (call $js-log (local.get $sym))
                (unreachable))
-         
+
          (func $raise-instance-variable-not-found
                (param $sym (ref eq))   ;; missing symbol
 
@@ -65062,12 +65401,12 @@
                (block $done
                       (loop $loop
                             ; done?
-                            (br_if $done (ref.eq (local.get $keys) (global.get $null)))                            
-                            ; get next variable 
+                            (br_if $done (ref.eq (local.get $keys) (global.get $null)))
+                            ; get next variable
                             (local.set $pair (ref.cast (ref $Pair) (local.get $keys)))
                             (local.set $key  (struct.get $Pair $a (local.get $pair)))
                             (local.set $keys (struct.get $Pair $d (local.get $pair)))
-                            
+
                             (local.set $got (call $hasheq-ref
                                                   (ref.cast (ref eq) (local.get $vars))
                                                   (local.get $key)
@@ -65083,9 +65422,9 @@
                                                  (call $cons
                                                        (local.get $key)
                                                        (local.get $acc)))))))
-                            (br $loop)))               
+                            (br $loop)))
                (local.get $acc))
-               
+
 
          (func $instance-variable-box (type $Prim3)
                (param $inst        (ref eq)) ;; instance
@@ -65608,7 +65947,7 @@
 	               (unreachable))
 
 	         ;; Linklets
-         
+
          (func $linklet? (type $Prim1)
                (param $v (ref eq))  ;; value to check
                (result   (ref eq))
@@ -65918,7 +66257,7 @@
                                (global.get $string:linklet?)
                                (local.get $linklet))
                          (unreachable)))
-               
+
                (local.set $plain (ref.cast (ref $Linklet) (local.get $linklet)))
                (struct.get $Linklet $name (local.get $plain)))
 
@@ -65996,14 +66335,14 @@
                                (global.get $string:linklet?)
                                (local.get $linklet))
                          (unreachable)))
-               
+
                (if (i32.eqz (ref.test (ref $CompiledLinklet) (local.get $linklet)))
                    (then (call $raise-argument-error1
                                (global.get $symbol:instantiate-linklet)
                                (global.get $string:compiled-linklet?)
                                (local.get $linklet))
                          (unreachable)))
-               
+
                (local.set $compiled (ref.cast (ref $CompiledLinklet) (local.get $linklet)))
 
                ;; Validate import-instances list and count elements.
@@ -66355,7 +66694,7 @@
                    (then (drop (local.get $result))
                          (local.get $target-instance))
                    (else (local.get $result))))
-         
+
          ;; Correlated Syntax
 
          (func $ensure-correlated-type
@@ -66391,14 +66730,14 @@
                (result (ref eq))
 
                (local $props (ref eq))
-               
+
                (local.set $props (global.get $correlated-empty-props))
                (if (ref.eq (local.get $props) (global.get $undefined))
                    (then
                     (local.set  $props (call $make-hash (global.get $missing)))
                     (global.set $correlated-empty-props (local.get $props))))
                 (local.get $props))
-         
+
          (func $correlated/make
                (param $source   (ref eq))
                (param $line     (ref eq))
@@ -66705,7 +67044,7 @@
                (param $srcloc       (ref eq)) ; optional, default = #f
                (param $prop         (ref eq)) ; optional, default = #f
                (result              (ref eq))
-               
+
                (local $who          (ref eq))
                (local $source       (ref eq))
                (local $line         (ref eq))
@@ -66819,7 +67158,7 @@
                (local.set $prop-val (local.get $prop))
                (if (ref.eq (local.get $prop-val) (global.get $missing))
                    (then (local.set $prop-val (global.get $false))))
-               
+
                (if (ref.eq (local.get $prop-val) (global.get $false))
                    (then (local.set $props (global.get $missing)))
                    (else
@@ -66957,14 +67296,14 @@
                                                         (local.get $acc)))))
                             (br $loop)))
                (call $reverse (local.get $acc)))
-         
+
          ;;;
          ;;; 17. UNSAFE OPERATIONS
          ;;;
 
          ;; 17.1 Unsafe Numeric Operations
 
-         (func $unsafe-fx+/2 
+         (func $unsafe-fx+/2
                (param $x (ref eq))   ;; x must be a fixnum (i31 with lsb = 0)
                (param $y (ref eq))   ;; y must be a fixnum (i31 with lsb = 0)
                (result   (ref eq))   ;; result is a fixnum (i31)
@@ -67058,7 +67397,7 @@
                             (local.set $xs   (struct.get $Pair $d (local.get $node)))
                             (br $loop)))
                (ref.i31 (local.get $prod)))
-         
+
          (func $unsafe-fx= (type $Prim2)
                (param $x (ref eq))
                (param $y (ref eq))
@@ -67069,7 +67408,7 @@
                            (i31.get_s (ref.cast (ref i31) (local.get $y))))
                    (then (global.get $true))
                    (else (global.get $false))))
-         
+
          (func $unsafe-fx< (type $Prim2)
                (param $x (ref eq)) ;; x must be a fixnum (i31 with lsb = 0)
                (param $y (ref eq)) ;; y must be a fixnum (i31 with lsb = 0)
@@ -67341,7 +67680,7 @@
                                        (i32.const 1)))
                  (i32.const 1))))
 
-         
+
          ;; 17.2 Unsafe Character Operations
          ;; 17.3 Unsafe Compound-Data Operations
 
@@ -67433,7 +67772,7 @@
         (func $unsafe-vector-length (type $Prim1)
               (param $v (ref eq))
               (result   (ref eq))
-              
+
               (local $vec (ref $Vector))
               (local.set $vec (ref.cast (ref $Vector) (local.get $v)))
                (ref.i31 (i32.shl
@@ -67441,13 +67780,13 @@
                           (struct.get $Vector $arr (local.get $vec)))
                          (i32.const 1))))
 
-        
+
         ;; Note the `unsafe-vector*-...` variants do not work on impersonators.
         ;; (the `unsafe-vector-...` variants do)
         (func $unsafe-vector*-length (type $Prim1)
               (param $v (ref eq))
               (result   (ref eq))
-              
+
               (local $vec (ref $Vector))
               (local.set $vec (ref.cast (ref $Vector) (local.get $v)))
                (ref.i31 (i32.shl
@@ -67596,9 +67935,9 @@
         (func $unsafe-string-length (type $Prim1)
               (param $s   (ref eq))
               (result     (ref eq))
-              
+
               (local $str (ref $String))
-              
+
               (local.set $str (ref.cast (ref $String) (local.get $s)))
               (ref.i31 (i32.shl
                         (array.len
@@ -67654,16 +67993,16 @@
 
               (call $i8array-set! (local.get $arr) (local.get $idx) (local.get $bv))
               (global.get $void))
-        
+
 
         ;; 17.4 Unsafe Extflonum Operations
         ;; 17.5 Unsafe Impersonators and Chaperones
         ;; 17.6 Unsafe Assertions
         ;; 17.7 Unsafe Undefined
-         
-         
-         
-         
+
+
+
+
          ;;;
          ;;; FORMATTING - DISPLAY MODE
          ;;;
@@ -67920,7 +68259,7 @@
                ;; --- Case: bytes ---
                 (if (ref.test (ref $Bytes) (local.get $v))
                     (then (return (call $format/display:bytes
-                                        (ref.cast (ref $Bytes) (local.get $v))))))                
+                                        (ref.cast (ref $Bytes) (local.get $v))))))
                ;; --- Case: pair ---
                (if (ref.test (ref $Pair) (local.get $v))
                    (then (return (call $format/display:pair
@@ -68322,7 +68661,7 @@
                      (ref.cast (ref $String) (global.get $string:->)))
                (call $array-of-strings->string
                      (call $growable-array->array (local.get $ga))))
-         
+
          (func $format/display:external
                (param $v (ref $External))
                (result (ref $String))
@@ -68397,7 +68736,7 @@
                (local $mask       i32)
                (local $mask-str   (ref $String))
                (local $ga         (ref $GrowableArray))
-               
+
                ;; Step 1: type check and cast
                (if (i32.eqz (ref.test (ref $PrimitiveProcedure) (local.get $v)))
                    (then (call $raise-argument-error:primitive-procedure-expected)))
@@ -68546,7 +68885,7 @@
                      (global.get $string:double-quote))
                (call $growable-array-of-strings->string (local.get $out)))
 
-         
+
          (func $raise-format/display:pair:expected-pair       (unreachable))
 
          (func $format/display:pair (param $v (ref eq)) (result (ref $String))
@@ -68747,7 +69086,7 @@
                                (global.get $string:->)))
                ;; Combine and return
                (call $growable-array-of-strings->string (local.get $out)))
-         
+
          (func $format/display:box
                (param $b (ref $Box))
                (result   (ref $String))
@@ -68818,7 +69157,7 @@
                (local $bytes  (ref $Bytes))
                (local $prefix (ref $String))
                (local $out    (ref $GrowableArray))
-               
+
                ;; Extract path convention and byte representation.
                (local.set $conv  (struct.get $Path $convention (local.get $p)))
                (local.set $bytes (struct.get $Path $bytes      (local.get $p)))
@@ -68931,7 +69270,7 @@
                      (ref.cast (ref $String) (global.get $string:syntax-close)))
                (call $growable-array-of-strings->string (local.get $out)))
 
-         
+
          ; Note: This uses the write conventions instead of display.
          (func $format/display:char
                (param $v (ref eq))
@@ -69046,9 +69385,9 @@
                       (local.get $raw))))
 
                ;;;
-               ;;; Formatting 
+               ;;; Formatting
                ;;;
-                              
+
                (func $str-number (param $n (ref eq)) (result (ref $Bytes))
                      ;; Converts a fixnum (with LSB = 0) to a UTF-8 encoded byte string.
 
@@ -69115,7 +69454,7 @@
                                  (i32.const 1)          ;; immutable
                                  (local.get $out)))
 
-               
+
                ;; ----------------------------------------------------------------------------
                ;; Racket-style (str-bytes v opt-mode) in Wasm GC
                ;;
@@ -69232,7 +69571,7 @@
                           (return (i32.add (local.get $idx) (i32.const 4)))))
                      ;; Invalid input — return unchanged index
                      (local.get $idx)) ;; Should not happen for valid Unicode
-               
+
 
                ;;; (func $write-hex buf idx val digits)
                ;;; Writes the lower `digits` of `val` as hexadecimal characters into the buffer.
@@ -69337,7 +69676,7 @@
 
                      (local.get $out-buf))
 
-               
+
                ;;; Converts a string to its 'write'/'print' representation (quoted, escaped).
                #;(func $string->bytes:write (param $str (ref $String)) (result (ref $Bytes))
                        (local $out-buf    (ref $Bytes))
@@ -69479,7 +69818,7 @@
                #;(func $str-list
                        (param $v        (ref eq))
                        (param $opt-mode (ref eq))
-                       
+
                        (result (ref $Bytes))
 
                        (local $result (ref $SegmentVec))
@@ -69527,7 +69866,7 @@
                ;;;
                ;;; Support for the for-family: for, for/list, for/vector
                ;;;
-               
+
                #;(func $grow-vector
                      (param $vec (ref $Vector))
                      (result     (ref $Vector))
@@ -69553,7 +69892,7 @@
                            (ref.i31 (local.get $len)))
                      (return (local.get $new-vec)))
 
-               
+
                #;(func $shrink-vector
                      (param $vec (ref $Vector))
                      (param $i   (ref eq))   ;; fixnum
@@ -69589,13 +69928,13 @@
 
                (func $make-empty-namespace (type $Prim0)
                      (result (ref eq)) ;; and (ref $Namespace)
-                     
+
                      (struct.new $Namespace
                                  (i32.const 0)                         ;; $hash
                                  (global.get $false)                   ;; $name
                                  (i32.const 0)                         ;; $base-phase
                                  (ref.cast (ref $HashEqMutable)        ;; $table
-                                           (call $make-empty-hasheq))             
+                                           (call $make-empty-hasheq))
                                  (global.get $empty-module-registry)   ;; $modules
                                  (i32.const 0)))                       ;; $protect
 
@@ -69626,7 +69965,7 @@
                      (call $namespace-variable-value/checked
                            (ref.cast (ref $Namespace) (local.get $ns))
                            (ref.cast (ref $Symbol)    (local.get $sym))))
-               
+
                (func $namespace-variable-value/checked
                      (param $ns  (ref $Namespace))
                      (param $sym (ref $Symbol))
@@ -69689,7 +70028,7 @@
                            (ref.cast (ref $Namespace) (local.get $ns))
                            (ref.cast (ref $Symbol)    (local.get $sym))
                            (local.get $val)))
-               
+
                (func $namespace-set-variable-value!/checked
                      ;; Racket semantics: set OR define
                      ;; If `sym` is bound   => mutate the existing $Boxed.
@@ -69749,7 +70088,7 @@
                      (result     (ref eq))
 
                      (local $tab (ref $HashEqMutable))
-                     
+
                      (local.set $tab (struct.get $Namespace $table (local.get $ns)))
                       ; returns void
                      (call $hasheq-remove!/mutable/checked (local.get $tab) (local.get $sym))
@@ -69772,7 +70111,7 @@
                      (call $namespace-has-key?/checked
                            (ref.cast (ref $Namespace) (local.get $ns))
                            (ref.cast (ref $Symbol)    (local.get $sym))))
-               
+
                (func $namespace-has-key?/checked
                      (param $ns  (ref $Namespace))
                      (param $sym (ref $Symbol))
@@ -69961,7 +70300,7 @@
                               (then (global.get $true))
                               (else (global.get $false))))
                          (else (global.get $false))))
-               
+
                (func $raise-argument-error:srcloc-expected
                      (param $who (ref eq))
                      (param $got (ref eq))
@@ -69975,7 +70314,7 @@
                      (param $who (ref eq))
                      (param $v   (ref eq))
                      (result     (ref $Array))
-                     
+
                      (local $struct (ref $Struct))
                      (local $type   (ref eq))
                      (local $std    (ref $StructType))
@@ -70084,7 +70423,7 @@
                      ;; Extract fields
                      (local.set $fields (call $srcloc-unwrap
                                               (global.get $symbol:srcloc->string)
-                                              (local.get $loc)))                     
+                                              (local.get $loc)))
                      (local.set $source   (array.get $Array (local.get $fields) (i32.const 0)))
                      (local.set $line     (array.get $Array (local.get $fields) (i32.const 1)))
                      (local.set $column   (array.get $Array (local.get $fields) (i32.const 2)))
@@ -70245,7 +70584,7 @@
                      ;; Initialize non-defaultable locals
                      (local.set $srcloc-checked (global.get $false))
                      (local.set $props-checked  (global.get $false))
-                     
+
                      (if (ref.eq (local.get $srcloc) (global.get $false))
                          (then (local.set $srcloc-checked (local.get $srcloc)))
                          (else
@@ -70402,7 +70741,7 @@
                                          (br $fail))))
                      (local.get $result))
 
-               (func $syntax-scopes 
+               (func $syntax-scopes
                      (param $stx (ref eq))
                      (result (ref eq))
 
@@ -70413,7 +70752,7 @@
                                               (local.get $stx)))
                      (array.get $Array (local.get $fields) (i32.const 1)))
 
-               (func $syntax-shifted-multi-scopes 
+               (func $syntax-shifted-multi-scopes
                      (param $stx (ref eq))
                      (result (ref eq))
 
@@ -70436,10 +70775,10 @@
                      (array.get $Array (local.get $fields) (i32.const 3)))
 
                (func $syntax-srclocs (type $Prim1)
-                     (param $stx (ref eq)) 
+                     (param $stx (ref eq))
                      (result     (ref eq))
 
-                     (local $srcloc   (ref eq))                     
+                     (local $srcloc   (ref eq))
                      (struct.new $Pair
                                  (i32.const 0)
                                  (call $srcloc
@@ -70569,7 +70908,7 @@
                                   (br $loop)))
                      (call $reverse (local.get $acc)))
 
-               (func $empty-props 
+               (func $empty-props
                      (result (ref eq))
 
                      (call $ensure-syntax-empty-props))
@@ -71522,7 +71861,7 @@
                      (local $default-props  (ref eq))
                      (local $srcloc-checked (ref eq))
                      (local $props-checked  (ref eq))
-                     
+
                      ;; Initialize defaults.
                      (local.set $scopes         (global.get $null))
                      (local.set $shifted        (global.get $null))
@@ -71827,7 +72166,7 @@
                      (local.set $e (array.get $Array (local.get $fields) (i32.const 0)))
                      (call $syntax->datum/convert (global.get $symbol:syntax->datum) (local.get $e)))
 
-               
+
                ;;;
                ;;; 15. OPERATING SYSTEM
                ;;;
@@ -71847,7 +72186,7 @@
 
                      (if (i32.eqz (ref.test (ref $Path) (local.get $v)))
                          (then (return (global.get $false))))
-                     
+
                      (local.set $path (ref.cast (ref $Path) (local.get $v)))
                      (local.set $conv (struct.get $Path $convention (local.get $path)))
                      (if (result (ref eq))
@@ -71886,7 +72225,7 @@
                          (then (if (i32.eq (local.get $cp) (i32.const 92)) ; #\\
                                    (then (return (global.get $true))))))
                      (global.get $false))
-               
+
                (func $non-empty-bytes-without-nuls
                      (param $bs (ref $Bytes)) ;; bytes?
                      (result (ref eq))        ;; boolean?
@@ -71913,7 +72252,7 @@
                                   (local.set $i (i32.add (local.get $i) (i32.const 1)))
                                   (br $loop)))
                      (global.get $true))
-               
+
                (func $non-empty-string-without-nuls
                      (param $str (ref $String)) ;; string?
                      (result     (ref eq))      ;; boolean?
@@ -71952,7 +72291,7 @@
                          (then (return (global.get $false))))
                      (local.set $str (ref.cast (ref $String) (local.get $v)))
                      (call $non-empty-string-without-nuls (local.get $str)))
-               
+
 
                (func $path->bytes (type $Prim1)
                      (param $path-raw (ref eq)) ;; path-for-some-system?
@@ -72120,7 +72459,7 @@
                          (then (nop)) ; the default is system path convention
                          (else (if (i32.eqz (ref.test (ref $Symbol) (local.get $type-raw)))
                                    (then (call $raise-check-symbol (local.get $type-raw)) (unreachable)))
-                               
+
                                (local.set $type (ref.cast (ref $Symbol) (local.get $type-raw)))
                                (if (i32.eqz (ref.eq (call $unix-or-windows (local.get $type))
                                                     (global.get $true)))
@@ -77796,12 +78135,12 @@
                                        (unreachable)))
                      (drop (call $close-output-port (local.get $port)))
                      (local.get $res))
-               
+
                ;;;
                ;;; FFI
                ;;;
 
-               #;(type $External 
+               #;(type $External
                        (sub $Heap
                             (struct
                               (field $hash (mut i32))
@@ -77811,7 +78150,7 @@
                #;(func $js_document_body
                        (import "ffi" "js_document_body")
                        (result externref))
-               
+
                #;(func $js-document-body
                      (result (ref eq))
                      (struct.new $External
@@ -77823,13 +78162,13 @@
                      (struct.new $External
                                  (i32.const 0)
                                  (call $js_make_text_node)))
-               
 
 
-               
+
+
                ;; Top level `(define-label ...)
-               ,@dls 
-               
+               ,@dls
+
                ;; $entry
                ;;  - called by the host (Node or Browser) to start computation
                ;;  - the host expects `entry` to return an integer as result
@@ -77949,7 +78288,7 @@
                (global $debug-label102683-count        (mut i32)      (i32.const 0))
                (global $debug-current-procedure        (mut (ref eq)) (global.get $false))
                (global $debug-current-procedure-name   (mut (ref eq)) (global.get $false))
-               
+
                (func $get-bytes (export "get_bytes")
                      (result (ref $Bytes))
                      (ref.cast (ref $Bytes) (global.get $result-bytes)))
@@ -77978,7 +78317,7 @@
                          (else
                           (call $entry-uncaught-exception2 (local.get $e))))
                      (throw $exn (local.get $e)))
-               
+
                (func $entry (export "entry") (result i32)
                      ; Declare local variables (bound by let-values and letrec-values)
                      (local $entry-exn (ref eq))
@@ -78242,7 +78581,7 @@
                                              (global.get $false)
                                              (ref.func $equal+hash-recur/hash-always)
                                              (array.new_fixed $Free 0)))
-                     
+
 
                      ;; Default to the host platform's path convention (currently Unix)
                      (global.set $system-path-convention (global.get $symbol:unix))
@@ -78291,7 +78630,7 @@
                                                   (global.get $symbol:cs)
                                                   (global.get $symbol:co)
                                                   (global.get $symbol:cn)))
-                     
+
                      ;; ;; Initialize realm symbols
                      ;; (global.set $the-racket-realm
                      ;;             (call $string->symbol
@@ -78304,7 +78643,7 @@
                      ;;                    (global.get $string:racket/primitive))))
                      (global.set $the-racket-realm           (global.get $symbol:racket))
                      (global.set $the-racket/primitive-realm (global.get $symbol:racket/primitive))
-                     
+
                     ;; Initialize variables holding primitives
                     ,@(initialize-primitives-as-globals)
                     ,@(initialize-ffi-primitives-as-globals)
@@ -78397,14 +78736,14 @@
                                             (ref.func $primitive-invoke:shape-2)
                                             (ref.func $default-error-module-path->string-handler)
                                             (global.get $false)))
-                     
+
                      ;; Initialize top-level variables.
                      ;; These are all "boxed".
                      ,@(let ()
                          (for/list ([v top-vars])
-                           `(global.set ,(TopVar v) 
+                           `(global.set ,(TopVar v)
                                         (struct.new $Boxed
-                                                    (global.get $undefined)))                           
+                                                    (global.get $undefined)))
                            #;`(global.set ,(TopVar v)
                                         (struct.new $Boxed
                                                     (global.get ,(TopVar v))))))
@@ -78417,14 +78756,14 @@
                          (define $name   (string->symbol (~a "$" (symbol->string name))))
                          (define $ensure ($ ensure))
                          `(global.set ,$name (call ,$ensure)))
-                     
+
                      ;; Initialize the top-level namespace
-                     (global.set $top-level-namespace 
+                     (global.set $top-level-namespace
                                  (ref.cast (ref $Namespace) (call $make-empty-namespace)))
                      (global.set $current-namespace-value
                                  (ref.cast (ref eq) (global.get $top-level-namespace)))
-                     
-                     
+
+
                      ; Initialize local variables
                      ,@(let ()
                          (define (Init  x)
@@ -78451,18 +78790,18 @@
                                                          (br $entry-done))))
                             (call $entry-uncaught-exception (local.get $entry-exn))
                             (unreachable))
-                     
+
                      ; Return the result
                      (global.set $result-bytes
                                  (call $string->bytes/utf-8
                                        (call $format/display (global.get ,result))
                                        (global.get $false)   ; ignored
                                        (global.get $zero)    ; start = 0
-                                       (global.get $false))) ; end                        
+                                       (global.get $false))) ; end
 
                      (call $copy-bytes-to-memory ; copy and return length as i32
                            (global.get $result-bytes) (i32.const 0)))
-               
+
                ))
 
     (time-runtime-step
