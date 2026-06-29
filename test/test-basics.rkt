@@ -1247,7 +1247,9 @@
                           (equal? (fxlshift 1 2) 4))
                     (list "fxrshift"
                           (and (equal? (fxrshift 4 1) 2)
-                               (equal? (fxrshift -4 1) -2)))
+                               (equal? (fxrshift -4 1) -2)
+                               (equal? (fxrshift 42 2) 10)
+                               (equal? (fxrshift -42 2) -11)))
                     (list "fxpopcount"
                           (equal? (fxpopcount 7) 3))
                     (list "fxpopcount32"
@@ -1266,6 +1268,19 @@
                     (list "fxrshift/logical"
                           (and (equal? (fxrshift/logical 4 1) 2)
                                (equal? (fxrshift/logical -1 1) (most-positive-fixnum))))
+
+                    (list "unsafe fixnum bit operations"
+                          (and (equal? (unsafe-fxnot 0) -1)
+                               (equal? (unsafe-fxlshift 42 2) 168)
+                               (equal? (unsafe-fxrshift 42 2) 10)
+                               (equal? (unsafe-fxrshift -42 2) -11)
+                               (equal? (unsafe-fxrshift/logical 42 2) 10)
+                               (equal? (unsafe-fxpopcount 7) 3)
+                               (equal? (unsafe-fxpopcount32 7) 3)
+                               (equal? (unsafe-fxpopcount16 7) 3)
+                               (equal? (unsafe-fx+/wraparound 1 2) 3)
+                               (equal? (unsafe-fx*/wraparound 2 3) 6)
+                               (equal? (unsafe-fxlshift/wraparound 42 2) 168)))
 
                     (list "fxmin"
                           (and (equal? (fxmin 3 1 2) 1)

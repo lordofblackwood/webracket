@@ -15013,42 +15013,19 @@
                             (br $loop)))
                (local.get $r))
 
-         (func $fxnot (type $Prim1)
-               (param $x (ref eq)) (result (ref eq))
-               (ref.i31 (i32.shl (i32.xor ,(Half `(i31.get_s (ref.cast i31ref (local.get $x))))
-                                          (i32.const -1))
-                                 (i32.const 1))))
+         ,(core-runtime-helper-form core-runtime-helper-index '$fxnot)
 
-         (func $fxlshift (type $Prim2)
-               (param $x (ref eq)) (param $y (ref eq)) (result (ref eq))
-               (ref.i31 (i32.shl (i31.get_s (ref.cast i31ref (local.get $x)))
-                                 ,(Half `(i31.get_s (ref.cast i31ref (local.get $y)))))))
+         ,(core-runtime-helper-form core-runtime-helper-index '$fxlshift)
 
-         (func $fxrshift (type $Prim2)
-               (param $x (ref eq)) (param $y (ref eq)) (result (ref eq))
-               (ref.i31 (i32.shr_s (i31.get_s (ref.cast i31ref (local.get $x)))
-                                   ,(Half `(i31.get_s (ref.cast i31ref (local.get $y)))))))
+         ,(core-runtime-helper-form core-runtime-helper-index '$fxrshift)
 
-         (func $fxpopcount (type $Prim1)
-               (param $x (ref eq)) (result (ref eq))
-               (ref.i31 (i32.shl (i32.popcnt ,(Half `(i31.get_u (ref.cast i31ref (local.get $x)))))
-                                 (i32.const 1))))
+         ,(core-runtime-helper-form core-runtime-helper-index '$fxpopcount)
 
-         (func $fxpopcount32 (type $Prim1)
-               (param $x (ref eq)) (result (ref eq))
-               (ref.i31 (i32.shl (i32.popcnt ,(Half `(i31.get_u (ref.cast i31ref (local.get $x)))))
-                                 (i32.const 1))))
+         ,(core-runtime-helper-form core-runtime-helper-index '$fxpopcount32)
 
-         (func $fxpopcount16 (type $Prim1)
-               (param $x (ref eq)) (result (ref eq))
-               (ref.i31 (i32.shl (i32.popcnt (i32.and ,(Half `(i31.get_u (ref.cast i31ref (local.get $x))))
-                                                     (i32.const 65535)))
-                                 (i32.const 1))))
+         ,(core-runtime-helper-form core-runtime-helper-index '$fxpopcount16)
 
-         (func $fx+/wraparound (type $Prim2)
-               (param $x (ref eq)) (param $y (ref eq)) (result (ref eq))
-               (ref.i31 (i32.add (i31.get_s (ref.cast i31ref (local.get $x)))
-                                 (i31.get_s (ref.cast i31ref (local.get $y))))))
+         ,(core-runtime-helper-form core-runtime-helper-index '$fx+/wraparound)
 
          (func $fx-/wraparound (type $Prim>=1)
                (param $a1   (ref eq))
@@ -15087,23 +15064,11 @@
 
 
 
-         (func $fx*/wraparound (type $Prim2)
-               (param $x (ref eq)) (param $y (ref eq)) (result (ref eq))
-               (ref.i31 (i32.mul (i31.get_s (ref.cast i31ref (local.get $x)))
-                                 ,(Half `(i31.get_s (ref.cast i31ref (local.get $y)))))))
+         ,(core-runtime-helper-form core-runtime-helper-index '$fx*/wraparound)
 
-         (func $fxlshift/wraparound (type $Prim2)
-               (param $x (ref eq)) (param $y (ref eq)) (result (ref eq))
-               (ref.i31 (i32.shl (i31.get_s (ref.cast i31ref (local.get $x)))
-                                 ,(Half `(i31.get_s (ref.cast i31ref (local.get $y)))))))
+         ,(core-runtime-helper-form core-runtime-helper-index '$fxlshift/wraparound)
 
-         (func $fxrshift/logical (type $Prim2)
-               (param $x (ref eq)) (param $y (ref eq)) (result (ref eq))
-               (ref.i31
-                ,(Double
-                  `(i32.shr_u
-                    ,(Half `(i31.get_u (ref.cast (ref i31) (local.get $x))))
-                    ,(Half `(i31.get_u (ref.cast (ref i31) (local.get $y))))))))
+         ,(core-runtime-helper-form core-runtime-helper-index '$fxrshift/logical)
 
          (func $most-positive-fixnum (type $Prim0) (result (ref eq))
                ,(Imm most-positive-fixnum))
@@ -66153,47 +66118,17 @@
                             (br $loop)))
                (ref.i31 (local.get $acc)))
 
-         (func $unsafe-fxnot (type $Prim1)
-               (param $x (ref eq)) ;; x must be a fixnum (i31 with lsb = 0)
-               (result   (ref eq)) ;; result is a fixnum (i31)
-               (ref.i31 (i32.shl (i32.xor (i32.shr_s (i31.get_s (ref.cast (ref i31) (local.get $x)))
-                                                (i32.const 1))
-                                            (i32.const -1))
-                                 (i32.const 1))))
+         ,(core-runtime-helper-form core-runtime-helper-index '$unsafe-fxnot)
 
-         (func $unsafe-fxpopcount (type $Prim1)
-               (param $x (ref eq)) ;; x must be a fixnum (i31 with lsb = 0)
-               (result   (ref eq)) ;; result is a fixnum (i31)
-               (ref.i31 (i32.shl (i32.popcnt (i31.get_u (ref.cast (ref i31) (local.get $x))))
-                                 (i32.const 1))))
+         ,(core-runtime-helper-form core-runtime-helper-index '$unsafe-fxpopcount)
 
-         (func $unsafe-fxpopcount32 (type $Prim1)
-               (param $x (ref eq)) ;; x must be a fixnum (i31 with lsb = 0)
-               (result   (ref eq)) ;; result is a fixnum (i31)
-               (ref.i31 (i32.shl (i32.popcnt (i31.get_u (ref.cast (ref i31) (local.get $x))))
-                                 (i32.const 1))))
+         ,(core-runtime-helper-form core-runtime-helper-index '$unsafe-fxpopcount32)
 
-         (func $unsafe-fxpopcount16 (type $Prim1)
-               (param $x (ref eq)) ;; x must be a fixnum (i31 with lsb = 0)
-               (result   (ref eq)) ;; result is a fixnum (i31)
-               (ref.i31 (i32.shl (i32.popcnt (i32.and (i31.get_u (ref.cast (ref i31) (local.get $x)))
-                                                      (i32.const 65535)))
-                                 (i32.const 1))))
+         ,(core-runtime-helper-form core-runtime-helper-index '$unsafe-fxpopcount16)
 
-         (func $unsafe-fxlshift (type $Prim2)
-               (param $x (ref eq)) ;; x must be a fixnum (i31 with lsb = 0)
-               (param $k (ref eq)) ;; k must be a fixnum (i31 with lsb = 0)
-               (result   (ref eq)) ;; result is a fixnum (i31)
-               (ref.i31 (i32.shl (i31.get_s (ref.cast (ref i31) (local.get $x)))
-                                 (i32.shr_s (i31.get_s (ref.cast (ref i31) (local.get $k)))
-                                            (i32.const 1)))))
+         ,(core-runtime-helper-form core-runtime-helper-index '$unsafe-fxlshift)
 
-         (func $unsafe-fx+/wraparound (type $Prim2)
-               (param $x (ref eq)) ;; x must be a fixnum (i31 with lsb = 0)
-               (param $y (ref eq)) ;; y must be a fixnum (i31 with lsb = 0)
-               (result   (ref eq)) ;; result is a fixnum (i31)
-               (ref.i31 (i32.add (i31.get_s (ref.cast (ref i31) (local.get $x)))
-                                 (i31.get_s (ref.cast (ref i31) (local.get $y))))))
+         ,(core-runtime-helper-form core-runtime-helper-index '$unsafe-fx+/wraparound)
 
          (func $unsafe-fx-/wraparound (type $Prim>=1)
                (param $a1   (ref eq)) ;; first argument (fixnum)
@@ -66220,41 +66155,13 @@
                  (i31.get_s (ref.cast (ref i31) (local.get $a)))
                  (i31.get_s (ref.cast (ref i31) (local.get $b))))))
 
-         (func $unsafe-fx*/wraparound (type $Prim2)
-               (param $x (ref eq)) ;; x must be a fixnum (i31 with lsb = 0)
-               (param $y (ref eq)) ;; y must be a fixnum (i31 with lsb = 0)
-               (result   (ref eq)) ;; result is a fixnum (i31)
-               (ref.i31 (i32.mul (i31.get_s (ref.cast (ref i31) (local.get $x)))
-                                 (i32.shr_s (i31.get_s (ref.cast (ref i31) (local.get $y)))
-                                            (i32.const 1)))))
+         ,(core-runtime-helper-form core-runtime-helper-index '$unsafe-fx*/wraparound)
 
-         (func $unsafe-fxlshift/wraparound (type $Prim2)
-               (param $x (ref eq)) ;; x must be a fixnum (i31 with lsb = 0)
-               (param $k (ref eq)) ;; k must be a fixnum (i31 with lsb = 0)
-               (result   (ref eq)) ;; result is a fixnum (i31)
-               (ref.i31 (i32.shl (i31.get_s (ref.cast (ref i31) (local.get $x)))
-                                 (i32.shr_s (i31.get_s (ref.cast (ref i31) (local.get $k)))
-                                            (i32.const 1)))))
+         ,(core-runtime-helper-form core-runtime-helper-index '$unsafe-fxlshift/wraparound)
 
-         (func $unsafe-fxrshift (type $Prim2)
-               (param $x (ref eq)) ;; x must be a fixnum (i31 with lsb = 0)
-               (param $k (ref eq)) ;; k must be a fixnum (i31 with lsb = 0)
-               (result   (ref eq)) ;; result is a fixnum (i31)
-               (ref.i31 (i32.shr_s (i31.get_s (ref.cast (ref i31) (local.get $x)))
-                                   (i32.shr_s (i31.get_s (ref.cast (ref i31) (local.get $k)))
-                                              (i32.const 1)))))
+         ,(core-runtime-helper-form core-runtime-helper-index '$unsafe-fxrshift)
 
-         (func $unsafe-fxrshift/logical (type $Prim2)
-               (param $x (ref eq)) ;; x must be a fixnum (i31 with lsb = 0)
-               (param $k (ref eq)) ;; k must be a fixnum (i31 with lsb = 0)
-               (result   (ref eq)) ;; result is a fixnum (i31)
-               (ref.i31
-                (i32.shl
-                 (i32.shr_u (i32.shr_s (i31.get_u (ref.cast (ref i31) (local.get $x)))
-                                      (i32.const 1))
-                            (i32.shr_s (i31.get_u (ref.cast (ref i31) (local.get $k)))
-                                       (i32.const 1)))
-                 (i32.const 1))))
+         ,(core-runtime-helper-form core-runtime-helper-index '$unsafe-fxrshift/logical)
 
 
          ;; 17.2 Unsafe Character Operations

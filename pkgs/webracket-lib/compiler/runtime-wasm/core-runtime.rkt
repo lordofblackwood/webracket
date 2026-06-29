@@ -65,6 +65,59 @@
          (second part))]
       [_ '()]))
 
+  ;; core-helper-import : symbol? symbol? -> datum?
+  ;;   Build an imported core helper declaration with a shared function type.
+  (define (core-helper-import name type-name)
+    `(func ,name
+           (import "core" ,(symbol->string name))
+           (type ,type-name)))
+
+  ;; tagged-call1-export : string? symbol? integer? -> datum?
+  ;;   Build an exported test function that returns a raw tagged unary result.
+  (define (tagged-call1-export export-name helper-name arg)
+    `(func (export ,export-name) (result i32)
+           (i31.get_s
+            (ref.cast (ref i31)
+                      (call ,helper-name
+                            (ref.i31 (i32.const ,arg)))))))
+
+  ;; tagged-call2-export : string? symbol? integer? integer? -> datum?
+  ;;   Build an exported test function that returns a raw tagged binary result.
+  (define (tagged-call2-export export-name helper-name arg1 arg2)
+    `(func (export ,export-name) (result i32)
+           (i31.get_s
+            (ref.cast (ref i31)
+                      (call ,helper-name
+                            (ref.i31 (i32.const ,arg1))
+                            (ref.i31 (i32.const ,arg2)))))))
+
+  (define core-prim1-test-imports
+    '($fxnot
+      $fxpopcount
+      $fxpopcount32
+      $fxpopcount16
+      $unsafe-fxnot
+      $unsafe-fxpopcount
+      $unsafe-fxpopcount32
+      $unsafe-fxpopcount16))
+
+  (define core-prim2-test-imports
+    '($fxand/2
+      $fxior/2
+      $fxxor/2
+      $fxlshift
+      $fxrshift
+      $fx+/wraparound
+      $fx*/wraparound
+      $fxlshift/wraparound
+      $fxrshift/logical
+      $unsafe-fxlshift
+      $unsafe-fx+/wraparound
+      $unsafe-fx*/wraparound
+      $unsafe-fxlshift/wraparound
+      $unsafe-fxrshift
+      $unsafe-fxrshift/logical))
+
   (define shared-types (generate-shared-types))
   (define shared-type-names (shared-type-name-set shared-types))
   (define core-helper-names core-runtime-helper-index)
@@ -182,15 +235,10 @@
                (import "core" "$fixnum?/i32")
                (param (ref eq))
                (result i32))
-         (func $fxand/2
-               (import "core" "$fxand/2")
-               (type $Prim2))
-         (func $fxior/2
-               (import "core" "$fxior/2")
-               (type $Prim2))
-         (func $fxxor/2
-               (import "core" "$fxxor/2")
-               (type $Prim2))
+         ,@(for/list ([name (in-list core-prim1-test-imports)])
+             (core-helper-import name '$Prim1))
+         ,@(for/list ([name (in-list core-prim2-test-imports)])
+             (core-helper-import name '$Prim2))
 
          (func (export "fx_fixnum_true") (result i32)
                (call $fx?/i32 (ref.i31 (i32.const 84))))
@@ -206,24 +254,31 @@
                (call $fixnum?/i32 (ref.i31 (i32.const 84))))
          (func (export "fixnum_immediate_false") (result i32)
                (call $fixnum?/i32 (ref.i31 (i32.const 85))))
-         (func (export "fxand_tagged") (result i32)
-               (i31.get_s
-                (ref.cast (ref i31)
-                          (call $fxand/2
-                                (ref.i31 (i32.const 84))
-                                (ref.i31 (i32.const 20))))))
-         (func (export "fxior_tagged") (result i32)
-               (i31.get_s
-                (ref.cast (ref i31)
-                          (call $fxior/2
-                                (ref.i31 (i32.const 84))
-                                (ref.i31 (i32.const 20))))))
-         (func (export "fxxor_tagged") (result i32)
-               (i31.get_s
-                (ref.cast (ref i31)
-                          (call $fxxor/2
-                                (ref.i31 (i32.const 84))
-                                (ref.i31 (i32.const 20))))))))
+         ,(tagged-call2-export "fxand_tagged" '$fxand/2 84 20)
+         ,(tagged-call2-export "fxior_tagged" '$fxior/2 84 20)
+         ,(tagged-call2-export "fxxor_tagged" '$fxxor/2 84 20)
+         ,(tagged-call1-export "fxnot_tagged" '$fxnot 84)
+         ,(tagged-call2-export "fxlshift_tagged" '$fxlshift 84 4)
+         ,(tagged-call2-export "fxrshift_tagged" '$fxrshift 84 4)
+         ,(tagged-call2-export "fxrshift_negative_tagged" '$fxrshift -84 4)
+         ,(tagged-call1-export "fxpopcount_tagged" '$fxpopcount 14)
+         ,(tagged-call1-export "fxpopcount32_tagged" '$fxpopcount32 14)
+         ,(tagged-call1-export "fxpopcount16_tagged" '$fxpopcount16 14)
+         ,(tagged-call2-export "fx_plus_wraparound_tagged" '$fx+/wraparound 84 20)
+         ,(tagged-call2-export "fx_times_wraparound_tagged" '$fx*/wraparound 84 20)
+         ,(tagged-call2-export "fxlshift_wraparound_tagged" '$fxlshift/wraparound 84 4)
+         ,(tagged-call2-export "fxrshift_logical_tagged" '$fxrshift/logical 84 4)
+         ,(tagged-call1-export "unsafe_fxnot_tagged" '$unsafe-fxnot 84)
+         ,(tagged-call1-export "unsafe_fxpopcount_tagged" '$unsafe-fxpopcount 14)
+         ,(tagged-call1-export "unsafe_fxpopcount32_tagged" '$unsafe-fxpopcount32 14)
+         ,(tagged-call1-export "unsafe_fxpopcount16_tagged" '$unsafe-fxpopcount16 14)
+         ,(tagged-call2-export "unsafe_fxlshift_tagged" '$unsafe-fxlshift 84 4)
+         ,(tagged-call2-export "unsafe_fx_plus_wraparound_tagged" '$unsafe-fx+/wraparound 84 20)
+         ,(tagged-call2-export "unsafe_fx_times_wraparound_tagged" '$unsafe-fx*/wraparound 84 20)
+         ,(tagged-call2-export "unsafe_fxlshift_wraparound_tagged" '$unsafe-fxlshift/wraparound 84 4)
+         ,(tagged-call2-export "unsafe_fxrshift_tagged" '$unsafe-fxrshift 84 4)
+         ,(tagged-call2-export "unsafe_fxrshift_negative_tagged" '$unsafe-fxrshift -84 4)
+         ,(tagged-call2-export "unsafe_fxrshift_logical_tagged" '$unsafe-fxrshift/logical 84 4)))
 
     (define consumer-wat-path
       (make-temporary-file "webracket-core-runtime-consumer-test-~a.wat"))
@@ -262,6 +317,28 @@ const expected = new Map([
   ["fxand_tagged", 20],
   ["fxior_tagged", 84],
   ["fxxor_tagged", 64],
+  ["fxnot_tagged", -86],
+  ["fxlshift_tagged", 336],
+  ["fxrshift_tagged", 20],
+  ["fxrshift_negative_tagged", -22],
+  ["fxpopcount_tagged", 6],
+  ["fxpopcount32_tagged", 6],
+  ["fxpopcount16_tagged", 6],
+  ["fx_plus_wraparound_tagged", 104],
+  ["fx_times_wraparound_tagged", 840],
+  ["fxlshift_wraparound_tagged", 336],
+  ["fxrshift_logical_tagged", 20],
+  ["unsafe_fxnot_tagged", -86],
+  ["unsafe_fxpopcount_tagged", 6],
+  ["unsafe_fxpopcount32_tagged", 6],
+  ["unsafe_fxpopcount16_tagged", 6],
+  ["unsafe_fxlshift_tagged", 336],
+  ["unsafe_fx_plus_wraparound_tagged", 104],
+  ["unsafe_fx_times_wraparound_tagged", 840],
+  ["unsafe_fxlshift_wraparound_tagged", 336],
+  ["unsafe_fxrshift_tagged", 20],
+  ["unsafe_fxrshift_negative_tagged", -22],
+  ["unsafe_fxrshift_logical_tagged", 20],
 ]);
 
 for (const [name, value] of expected) {
