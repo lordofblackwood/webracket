@@ -2044,9 +2044,9 @@
                                (generated-effect-definition-name? id))))
         (car ids))
       initializer-needed)))
-  (define needed-table
-    (for/hasheq ([id (in-list needed)])
-      (values id #t)))
+  (define needed-table (make-hasheq))
+  (for ([id (in-list needed)])
+    (hash-set! needed-table id #t))
   (define needed-reverse (reverse needed))
   (let loop ([queue needed]
              [pending-reverse '()])
