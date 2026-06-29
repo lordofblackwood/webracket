@@ -608,7 +608,7 @@
   (provider demander depth cached? reason elapsed-ms status)
   #:transparent)
 (struct dependency-export-cache
-  (rows by-dependency candidates-by-external external-by-dependency exact-by-dependency)
+  (rows by-dependency dependency-rank by-export candidates-by-external external-by-dependency exact-by-dependency)
   #:transparent)
 
 ;; maybe-decompile-linklet : (or/c procedure? #f)
@@ -1201,6 +1201,15 @@
       (string=? (generated-base-name a) (symbol->string b))
       (string=? (symbol->string a) (generated-base-name b))))
 
+;; dependency-export-key-symbols : symbol? -> (listof symbol?)
+;;   Return exact and generated-base lookup keys for dependency export matching.
+(define (dependency-export-key-symbols name)
+  (remove-duplicates
+   (list name
+         (string->symbol (symbol->string name))
+         (string->symbol (generated-base-name name)))
+   eq?))
+
 ;; phase0-import-groups : webify-module-extractor-spike? -> import-groups
 ;;   Return normalized phase-0 import groups from metadata.
 (define (phase0-import-groups report)
@@ -1455,14 +1464,40 @@
 ;; make-dependency-export-cache : dependency-exports -> dependency-export-cache?
 ;;   Build reusable lookup state for repeated provider export scans.
 (define (make-dependency-export-cache dependency-exports)
+  (define by-dependency
+    (for/hasheq ([entry (in-list dependency-exports)])
+      (match-define (list dependency exports) entry)
+      (values dependency exports)))
+  (define dependency-rank
+    (for/hasheq ([entry (in-list dependency-exports)]
+                 [rank (in-naturals)])
+      (match-define (list dependency _exports) entry)
+      (values dependency rank)))
   (dependency-export-cache
    dependency-exports
-   (for/hasheq ([entry (in-list dependency-exports)])
-     (match-define (list dependency exports) entry)
-     (values dependency exports))
+   by-dependency
+   dependency-rank
+   (make-dependency-export-reverse-cache dependency-exports)
    (make-hasheq)
    (make-hash)
    (make-hash)))
+
+;; make-dependency-export-reverse-cache : dependency-exports -> hasheq?
+;;   Index export-name variants to dependency modules in original row order.
+(define (make-dependency-export-reverse-cache dependency-exports)
+  (define by-export (make-hasheq))
+  (for ([entry (in-list dependency-exports)])
+    (match-define (list dependency exports) entry)
+    (define seen-keys (make-hasheq))
+    (for* ([export (in-list exports)]
+           [key (in-list (dependency-export-key-symbols export))]
+           #:unless (hash-has-key? seen-keys key))
+      (hash-set! seen-keys key #t)
+      (hash-update! by-export key (lambda (dependencies)
+                                    (cons dependency dependencies))
+                    '())))
+  (for/hasheq ([(key dependencies) (in-hash by-export)])
+    (values key (reverse dependencies))))
 
 ;; dependency-export-cache-exports : dependency-export-cache? symbol? -> (or/c list? #f)
 ;;   Look up the export list for one dependency.
@@ -1498,10 +1533,26 @@
    (dependency-export-cache-candidates-by-external cache)
    external
    (lambda ()
-     (for/list ([entry (in-list (dependency-export-cache-rows cache))]
-                #:do [(match-define (list dependency _exports) entry)]
-                #:when (dependency-export-cache-has-external? cache dependency external))
-       dependency))))
+     (define seen (make-hasheq))
+     (define rough-candidates
+       (for*/fold ([candidates '()])
+                  ([key (in-list (dependency-export-key-symbols external))]
+                   [dependency (in-list
+                                (hash-ref (dependency-export-cache-by-export cache)
+                                          key
+                                          '()))]
+                   #:unless (hash-has-key? seen dependency))
+         (hash-set! seen dependency #t)
+         (cons dependency candidates)))
+     (sort
+      (filter (lambda (dependency)
+                (dependency-export-cache-has-external? cache dependency external))
+              rough-candidates)
+      <
+      #:key (lambda (dependency)
+              (hash-ref (dependency-export-cache-dependency-rank cache)
+                        dependency
+                        +inf.0))))))
 
 ;; resolve-compiled-rename-aliases : aliases dependency-export-cache? -> aliases
 ;;   Fill provider modules for compiled rename aliases using cached provider export rows.

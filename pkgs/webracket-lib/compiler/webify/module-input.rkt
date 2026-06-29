@@ -44,7 +44,9 @@
 (struct webify-module-resolution-outcome
   (local dependency provider-export status)
   #:transparent)
-(struct dependency-export-index (rows by-dependency candidate-cache) #:transparent)
+(struct dependency-export-index
+  (rows by-dependency dependency-rank by-export candidate-cache)
+  #:transparent)
 
 ;; module-path-available? : module-path? -> boolean?
 ;;   Check whether the current host can resolve a module path to an existing source.
@@ -330,12 +332,38 @@
 ;; make-dependency-export-index : dependency-exports -> dependency-export-index?
 ;;   Build per-resolution lookup state for dependency export rows.
 (define (make-dependency-export-index dependency-exports)
+  (define by-dependency
+    (for/hasheq ([entry (in-list dependency-exports)])
+      (match-define (list dependency exports) entry)
+      (values dependency exports)))
+  (define dependency-rank
+    (for/hasheq ([entry (in-list dependency-exports)]
+                 [rank (in-naturals)])
+      (match-define (list dependency _exports) entry)
+      (values dependency rank)))
   (dependency-export-index
    dependency-exports
-   (for/hasheq ([entry (in-list dependency-exports)])
-     (match-define (list dependency exports) entry)
-     (values dependency exports))
+   by-dependency
+   dependency-rank
+   (make-dependency-export-reverse-index dependency-exports)
    (make-hasheq)))
+
+;; make-dependency-export-reverse-index : dependency-exports -> hasheq?
+;;   Index export-name variants to dependency modules in original row order.
+(define (make-dependency-export-reverse-index dependency-exports)
+  (define by-export (make-hasheq))
+  (for ([entry (in-list dependency-exports)])
+    (match-define (list dependency exports) entry)
+    (define seen-keys (make-hasheq))
+    (for* ([export (in-list exports)]
+           [key (in-list (dependency-export-key-symbols export))]
+           #:unless (hash-has-key? seen-keys key))
+      (hash-set! seen-keys key #t)
+      (hash-update! by-export key (lambda (dependencies)
+                                    (cons dependency dependencies))
+                    '())))
+  (for/hasheq ([(key dependencies) (in-hash by-export)])
+    (values key (reverse dependencies))))
 
 ;; dependency-exports-has-dependency? : dependency-exports symbol? -> boolean?
 ;;   Check whether dependency has an explicit export row.
@@ -361,9 +389,37 @@
      (hash-ref! (dependency-export-index-candidate-cache dependency-exports)
                 external
                 (lambda ()
-                  (scan (dependency-export-index-rows dependency-exports))))]
+                  (dependency-export-index-candidates dependency-exports
+                                                      external)))]
     [else
      (scan dependency-exports)]))
+
+;; dependency-export-index-candidates : dependency-export-index? symbol? -> (listof symbol?)
+;;   Find reverse-index candidates while preserving dependency row order.
+(define (dependency-export-index-candidates dependency-exports external)
+  (define seen (make-hasheq))
+  (define rough-candidates
+    (for*/fold ([candidates '()])
+               ([key (in-list (dependency-export-key-symbols external))]
+                [dependency (in-list
+                             (hash-ref (dependency-export-index-by-export dependency-exports)
+                                       key
+                                       '()))]
+                #:unless (hash-has-key? seen dependency))
+      (hash-set! seen dependency #t)
+      (cons dependency candidates)))
+  (define by-dependency
+    (dependency-export-index-by-dependency dependency-exports))
+  (define dependency-rank
+    (dependency-export-index-dependency-rank dependency-exports))
+  (sort
+   (filter (lambda (dependency)
+             (for/or ([export (in-list (hash-ref by-dependency dependency '()))])
+               (symbolic-name=? export external)))
+           rough-candidates)
+   <
+   #:key (lambda (dependency)
+           (hash-ref dependency-rank dependency +inf.0))))
 
 ;; kernel-dependency? : symbol? -> boolean?
 ;;   Recognize reflected origins for Racket's primitive kernel module.
@@ -383,6 +439,15 @@
 (define (generated-name? name)
   (not (string=? (symbol->string name)
                  (generated-base-name name))))
+
+;; dependency-export-key-symbols : symbol? -> (listof symbol?)
+;;   Return exact and generated-base lookup keys for dependency export matching.
+(define (dependency-export-key-symbols name)
+  (remove-duplicates
+   (list name
+         (string->symbol (symbol->string name))
+         (string->symbol (generated-base-name name)))
+   eq?))
 
 ;; symbolic-name=? : symbol? symbol? -> boolean?
 ;;   Compare generated linklet names by printed identity when eq? is too strict.
