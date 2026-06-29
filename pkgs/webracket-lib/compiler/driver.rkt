@@ -123,6 +123,7 @@
                   webify-read-export-symbols
                   webify-read-linklet
                   webify-read-lowered-provider-cache-path
+                  webify-read-provider-source
                   webify-read-public-alias-pairs
                   webify-read-public-alias-forms
                   webify-read-public-alias-symbols
@@ -2108,11 +2109,14 @@
      "discovered-provider-graphs"
      (string-append (provider-cache-symbol-segment root) ".rktd")))
   (define fingerprint
-    (discovered-provider-graph-fingerprint root
-                                           local-source-paths
-                                           support-provider-names
-                                           demand-slice?
-                                           module-protocol-dependency))
+    (with-module-bridge-timing
+     'discover-provider-graph-fingerprint
+     (lambda ()
+       (discovered-provider-graph-fingerprint root
+                                              local-source-paths
+                                              support-provider-names
+                                              demand-slice?
+                                              module-protocol-dependency))))
   (define cached
     (with-module-bridge-timing
      'discover-provider-graph-cache-lookup
@@ -2122,8 +2126,11 @@
     [cached
      (provider-cache-log "#lang webracket/base discovered provider graph hit: ~a" root)
      (define manifest
-       (datum->webify-module-linklet-manifest
-        (fasl->s-exp cached)))
+       (with-module-bridge-timing
+        'discover-provider-graph-cache-hit-decode
+        (lambda ()
+          (datum->webify-module-linklet-manifest
+           (fasl->s-exp cached)))))
      (with-module-bridge-timing
       'discover-provider-graph-cache-hit
       (lambda ()
@@ -2322,6 +2329,72 @@
 (define (expander-read-private-provider-file-backed? name)
   (file-exists? (build-path webracket-root
                             (expander-read-private-provider-path name))))
+
+;; expander-read-private-provider-path->name : path-string? -> symbol?
+;;   Convert one staged expander/read source path to its provider report name.
+(define (expander-read-private-provider-path->name path)
+  (define resolved (simplify-path (path->complete-path path)))
+  (define relative
+    (path->string (find-relative-path (simplify-path webracket-root) resolved)))
+  (string->symbol
+   (if (equal? resolved (simplify-path webify-read-provider-source))
+       relative
+       (regexp-replace #rx"[.]rkt$" relative ""))))
+
+;; expander-read-private-provider-source-path? : path-string? -> boolean?
+;;   Check whether a source path belongs to the staged expander/read closure.
+(define (expander-read-private-provider-source-path? path)
+  (and (file-exists? path)
+       (expander-read-private-provider-name?
+        (expander-read-private-provider-path->name path))))
+
+;; expander-read-private-provider-dependency-paths : path-string? -> (listof path?)
+;;   Read local string requires from one staged expander/read source file.
+(define (expander-read-private-provider-dependency-paths path)
+  (define resolved (simplify-path (path->complete-path path)))
+  (define source-dir (or (path-only resolved) (current-directory)))
+  (define module-datum
+    (parameterize ([read-accept-reader #t])
+      (call-with-input-file resolved
+        (lambda (in)
+          (syntax->datum (read-syntax resolved in))))))
+  (define forms
+    (match module-datum
+      [`(module ,_name ,_language (#%module-begin ,body ...)) body]
+      [`(module ,_name ,_language ,body ...) body]
+      [_ '()]))
+  (filter expander-read-private-provider-source-path?
+          (append-map (lambda (form)
+                        (local-require-form-paths form source-dir))
+                      forms)))
+
+;; read-provider-report-names : -> (listof symbol?)
+;;   Collect staged expander/read report names without compiling the reports.
+(define read-provider-report-names/cache (box #f))
+
+(define (read-provider-report-names)
+  (cond
+    [(unbox read-provider-report-names/cache)
+     => values]
+    [else
+     (define visited (make-hasheq))
+     (define ordered-reverse '())
+     (define (visit! path)
+       (define resolved (simplify-path (path->complete-path path)))
+       (define name (expander-read-private-provider-path->name resolved))
+       (unless (hash-ref visited name #f)
+         (hash-set! visited name #t)
+         (set! ordered-reverse (cons name ordered-reverse))
+         (for ([dependency (in-list
+                            (expander-read-private-provider-dependency-paths
+                             resolved))])
+           (visit! dependency))))
+     (visit! webify-read-provider-source)
+     (define names
+       (append (reverse ordered-reverse)
+               (list 'expander/read)))
+     (set-box! read-provider-report-names/cache names)
+     names]))
 
 ;; read-provider-reports : -> (listof webify-module-report?)
 ;;   Expose the staged expander/read private implementation closure plus the
@@ -3390,7 +3463,9 @@
      (append* (map (lambda (inner-spec)
                      (local-require-spec-paths inner-spec source-dir))
                    inner))]
-    [`(,(or 'only-in 'except-in 'rename-in 'prefix-in 'only-meta-in)
+    [`(prefix-in ,_prefix ,inner)
+     (local-require-spec-paths inner source-dir)]
+    [`(,(or 'only-in 'except-in 'rename-in 'only-meta-in)
        ,inner . ,_rest)
      (local-require-spec-paths inner source-dir)]
     [`(for-meta 0 ,inner ...)
@@ -3850,7 +3925,9 @@
   (define (spec->symbols spec)
     (match spec
       [(? symbol?) (list spec)]
-      [`(,(or 'only-in 'except-in 'rename-in 'prefix-in) ,inner . ,_rest)
+      [`(prefix-in ,_prefix ,inner)
+       (spec->symbols inner)]
+      [`(,(or 'only-in 'except-in 'rename-in) ,inner . ,_rest)
        (spec->symbols inner)]
       [`(,(or 'combine-in) ,inner ...)
        (append* (map spec->symbols inner))]
@@ -4445,32 +4522,68 @@
                                              #:fetch-provider
                                              [fetch-provider webify-module-path->report])
   (define-values (bridge-root bridge-reports)
-    (webracket/base-rename-self-colliding-local-reports root reports))
+    (with-module-bridge-timing
+     'module-graph-rename-local-reports
+     (lambda ()
+       (webracket/base-rename-self-colliding-local-reports root reports))))
   (define local-report-names
-    (map webify-module-report-name bridge-reports))
+    (with-module-bridge-timing
+     'module-graph-local-report-names
+     (lambda ()
+       (map webify-module-report-name bridge-reports))))
   (define support-report-names '())
   (define needs-expander-read-support?
-    (for/or ([name (in-list webify-read-public-alias-symbols)])
-      (set-member? (current-provider-owned-primitive-aliases) name)))
+    (with-module-bridge-timing
+     'module-graph-read-support-demand
+     (lambda ()
+       (for/or ([name (in-list webify-read-public-alias-symbols)])
+         (set-member? (current-provider-owned-primitive-aliases) name)))))
   (define needs-io-format-support?
-    (for/or ([name (in-list webify-io-format-export-symbols)])
-      (set-member? (current-provider-owned-primitive-aliases) name)))
+    (with-module-bridge-timing
+     'module-graph-io-format-support-demand
+     (lambda ()
+       (for/or ([name (in-list webify-io-format-export-symbols)])
+         (set-member? (current-provider-owned-primitive-aliases) name)))))
   (define registry
     (cond
      [(or (webracket/base-reports-demand-external-providers? bridge-reports)
           needs-expander-read-support?)
-       (webracket/base-check-external-provider-allowlist! bridge-reports)
-       (define external-names (webracket/base-external-provider-names bridge-reports))
-       (define provider-namespace (shared-webify-contract-erasing-namespace/ref))
-       (define provider-module-name-resolver
-         (shared-webify-contract-erasing-module-name-resolver/ref))
+       (with-module-bridge-timing
+        'module-graph-check-provider-allowlist
+        (lambda ()
+          (webracket/base-check-external-provider-allowlist! bridge-reports)))
+       (define external-names
+         (with-module-bridge-timing
+          'module-graph-external-provider-names
+          (lambda ()
+            (webracket/base-external-provider-names bridge-reports))))
+       (define provider-namespace-box (box #f))
+       (define provider-module-name-resolver-box (box #f))
+       (define (provider-namespace/ref)
+         (or (unbox provider-namespace-box)
+             (let ([namespace
+                    (with-module-bridge-timing
+                     'module-graph-provider-namespace
+                     (lambda ()
+                       (shared-webify-contract-erasing-namespace/ref)))])
+               (set-box! provider-namespace-box namespace)
+               namespace)))
+       (define (provider-module-name-resolver/ref)
+         (or (unbox provider-module-name-resolver-box)
+             (let ([module-name-resolver
+                    (with-module-bridge-timing
+                     'module-graph-provider-resolver
+                     (lambda ()
+                       (shared-webify-contract-erasing-module-name-resolver/ref)))])
+               (set-box! provider-module-name-resolver-box module-name-resolver)
+               module-name-resolver)))
        (define (fetch-provider/erased-contracts name)
          (define staged-io-format-report
            (io-format-provider-report/ref name))
          (define staged-read-report
            (read-provider-report/ref name))
-       (define substitute-name (webracket/base-provider-substitute name))
-        (define extraction-name
+         (define substitute-name (webracket/base-provider-substitute name))
+         (define extraction-name
            (cond
              [(eq? name 'racket/in-out)
               'webracket/private/in-out]
@@ -4548,20 +4661,21 @@
               ;; routing rule. Keep installed/support provider extraction in its
               ;; ordinary world so private support modules do not grow spurious
               ;; facade dependencies like `expander/read`.
-              (parameterize ([current-provider-owned-primitive-aliases (seteq)])
-                (webify-module-report/rename
-                 (if (eq? fetch-provider webify-module-path->report)
-                     (if (or normal-export-shape?
-                             webracket-owned-provider?)
-                         (webify-module-path->report extraction-name)
-                         (webify-module-path->report extraction-name #:namespace provider-namespace))
+             (parameterize ([current-provider-owned-primitive-aliases (seteq)])
+               (webify-module-report/rename
+                (if (eq? fetch-provider webify-module-path->report)
+                    (if (or normal-export-shape?
+                            webracket-owned-provider?)
+                        (webify-module-path->report extraction-name)
+                        (webify-module-path->report extraction-name
+                                                    #:namespace (provider-namespace/ref)))
                      (fetch-provider extraction-name))
-                 name)))
+                name)))
             (if (or normal-export-shape?
                     webracket-owned-provider?)
                 (extract)
-                (parameterize ([current-namespace provider-namespace]
-                               [current-module-name-resolver provider-module-name-resolver])
+                (parameterize ([current-namespace (provider-namespace/ref)]
+                               [current-module-name-resolver (provider-module-name-resolver/ref)])
                   (extract)))]) )
        (define provider-cache
          (make-webify-module-provider-cache
@@ -4588,25 +4702,37 @@
          ;; explicit `(require racket/class)` program. The same support bundle
          ;; also carries the private struct helpers that expanded local modules
          ;; can surface as phase-0 provider candidates.
-         (ormap (lambda (name)
-                  (memq name '(racket/class
-                               racket/private/kernstruct
-                               webracket/full
-                               webracket/full/main)))
-                external-names))
+         (with-module-bridge-timing
+          'module-graph-class-support-demand
+          (lambda ()
+            (ormap (lambda (name)
+                     (memq name '(racket/class
+                                  racket/private/kernstruct
+                                  webracket/full
+                                  webracket/full/main)))
+                   external-names))))
        (define have-racket/private/pico?
-         (module-path-available? 'racket/private/pico))
+         (with-module-bridge-timing
+          'module-graph-pico-support-probe
+          (lambda ()
+            (module-path-available? 'racket/private/pico))))
        (define have-racket/private/reverse?
-         (module-path-available? 'racket/private/reverse))
+         (with-module-bridge-timing
+          'module-graph-reverse-support-probe
+          (lambda ()
+            (module-path-available? 'racket/private/reverse))))
        (define needs-unit-support?
-         (ormap (lambda (name)
-                  (memq name '(racket/unit
-                               racket/private/unit/contract
-                               racket/private/unit/runtime
-                               racket/private/unit/signature
-                               racket/private/unit/unit-core
-                               racket/private/unit/unit-infer)))
-                external-names))
+         (with-module-bridge-timing
+          'module-graph-unit-support-demand
+          (lambda ()
+            (ormap (lambda (name)
+                     (memq name '(racket/unit
+                                  racket/private/unit/contract
+                                  racket/private/unit/runtime
+                                  racket/private/unit/signature
+                                  racket/private/unit/unit-core
+                                  racket/private/unit/unit-infer)))
+                   external-names))))
        (define unit-relative-provider-aliases
          '((contract . racket/private/unit/contract)
            (contract-syntax . racket/private/unit/contract-syntax)
@@ -4677,43 +4803,55 @@
                     #:when (webracket-owned-ffi-provider-name? name))
            name))
        (define needs-io-format-closure?
-         (or needs-io-format-support?
-             (member 'webracket/private/format external-names)
-             (member 'racket/format external-names)
-             (member webify-io-format-root-name external-names)
-             (member webify-io-format-printf-name external-names)
-             (member webify-io-format-adapter-name external-names)
-             (member 'racket-src/racket/format-web external-names)))
+         (with-module-bridge-timing
+          'module-graph-io-format-closure-demand
+          (lambda ()
+            (or needs-io-format-support?
+                (member 'webracket/private/format external-names)
+                (member 'racket/format external-names)
+                (member webify-io-format-root-name external-names)
+                (member webify-io-format-printf-name external-names)
+                (member webify-io-format-adapter-name external-names)
+                (member 'racket-src/racket/format-web external-names)))))
        (define expander-read-support-report-names
-         (if needs-expander-read-support?
-             (append
-              (map webify-module-report-name (read-provider-reports))
-              ;; The private staged reader closure reaches racket/prefab through
-              ;; racket-src/expander/common/prefab.
-              '(racket/prefab))
-             '()))
+         (with-module-bridge-timing
+          'module-graph-expander-read-support-report-names
+          (lambda ()
+            (if needs-expander-read-support?
+                (append
+                 (read-provider-report-names)
+                 ;; The private staged reader closure reaches racket/prefab through
+                 ;; racket-src/expander/common/prefab.
+                 '(racket/prefab))
+                '()))))
        (define io-format-support-report-names
-         (if needs-io-format-closure?
-             (list webify-io-format-adapter-name
-                   webify-io-format-printf-name
-                   webify-io-format-root-name
-                   webify-io-format-map-shim-name
-                   'racket-src/racket/format-web
-                   'racket/format)
-             '()))
+         (with-module-bridge-timing
+          'module-graph-io-format-support-report-names
+          (lambda ()
+            (if needs-io-format-closure?
+                (list webify-io-format-adapter-name
+                      webify-io-format-printf-name
+                      webify-io-format-root-name
+                      webify-io-format-map-shim-name
+                      'racket-src/racket/format-web
+                      'racket/format)
+                '()))))
        (set! support-report-names
-             (append
-              eager-base-support-report-names
-              lazy-base-support-report-names
-              (if needs-class-support?
-                  class-support-report-names
-                  '())
-              (if needs-unit-support?
-                  unit-support-report-names
-                  '())
-              ffi-support-report-names
-              expander-read-support-report-names
-              io-format-support-report-names))
+             (with-module-bridge-timing
+              'module-graph-support-report-name-assembly
+              (lambda ()
+                (append
+                 eager-base-support-report-names
+                 lazy-base-support-report-names
+                 (if needs-class-support?
+                     class-support-report-names
+                     '())
+                 (if needs-unit-support?
+                     unit-support-report-names
+                     '())
+                 ffi-support-report-names
+                 expander-read-support-report-names
+                 io-format-support-report-names))))
        (define (unit-support-reports)
          (append
           (for/list ([name (in-list '(racket/private/unit/contract
@@ -4854,12 +4992,15 @@
                   bridge-reports
                   #:module-protocol-dependency webify-module-protocol-dependency)))))]))
   (define module-kinds
-    (for/hasheq ([name (in-list (webify-module-registry-names registry))])
-      (values name
-              (cond
-                [(memq name local-report-names) 'local-user]
-                [(memq name support-report-names) 'support-provider]
-                [else 'installed-provider]))))
+    (with-module-bridge-timing
+     'module-graph-module-kinds
+     (lambda ()
+       (for/hasheq ([name (in-list (webify-module-registry-names registry))])
+         (values name
+                 (cond
+                   [(memq name local-report-names) 'local-user]
+                   [(memq name support-report-names) 'support-provider]
+                   [else 'installed-provider]))))))
   (webracket/base-local-module-graph bridge-root bridge-reports registry module-kinds))
 
 ;; webracket/base-file->local-module-graph : path-string? -> webracket/base-local-module-graph?
@@ -4912,10 +5053,13 @@
                                               reports
                                               local-source-paths)
              (values root reports local-source-paths)])))]))
-  (webracket/base-reports->module-graph
-   root
-   reports
-   #:local-source-paths local-source-paths))
+  (with-module-bridge-timing
+   'local-module-graph-reports->graph
+   (lambda ()
+     (webracket/base-reports->module-graph
+      root
+      reports
+      #:local-source-paths local-source-paths))))
 
 ;; module-bridge-root-export-bindings : webracket/base-local-module-graph? webify-module-composition? -> (listof hash?)
 ;;   Collect authoritative public export bindings for the root user module.
