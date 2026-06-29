@@ -52,6 +52,8 @@
 ;;   Collect references to named types from a WAT form.
 (define (named-type-reference-names form)
   (match form
+    [`(type ,(? wasm-dollar-symbol? type-name))
+     (list type-name)]
     [`(ref ,(? wasm-dollar-symbol? type-name))
      (list type-name)]
     [`(ref null ,(? wasm-dollar-symbol? type-name))

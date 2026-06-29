@@ -14935,10 +14935,7 @@
                             (then (i32.sub (i32.const 0) (local.get $xi)))
                             (else (local.get $xi)))))
 
-         (func $fxand/2 (type $Prim2)
-               (param $x (ref eq)) (param $y (ref eq)) (result (ref eq))
-               (ref.i31 (i32.and (i31.get_s (ref.cast i31ref (local.get $x)))
-                                 (i31.get_s (ref.cast i31ref (local.get $y))))))
+         ,(core-runtime-helper-form core-runtime-helper-index '$fxand/2)
 
          (func $fxand (type $Prim>=0)
                (param $xs0 (ref eq)) (result (ref eq))
@@ -14964,10 +14961,7 @@
                             (br $loop)))
                (local.get $r))
 
-         (func $fxior/2 (type $Prim2)
-               (param $x (ref eq)) (param $y (ref eq)) (result (ref eq))
-               (ref.i31 (i32.or (i31.get_s (ref.cast i31ref (local.get $x)))
-                                (i31.get_s (ref.cast i31ref (local.get $y))))))
+         ,(core-runtime-helper-form core-runtime-helper-index '$fxior/2)
 
          (func $fxior (type $Prim>=0)
                (param $xs0 (ref eq)) (result (ref eq))
@@ -14993,10 +14987,7 @@
                             (br $loop)))
                (local.get $r))
 
-         (func $fxxor/2 (type $Prim2)
-               (param $x (ref eq)) (param $y (ref eq)) (result (ref eq))
-               (ref.i31 (i32.xor (i31.get_s (ref.cast i31ref (local.get $x)))
-                                 (i31.get_s (ref.cast i31ref (local.get $y))))))
+         ,(core-runtime-helper-form core-runtime-helper-index '$fxxor/2)
 
          (func $fxxor (type $Prim>=0)
                (param $xs0 (ref eq)) (result (ref eq))

@@ -135,6 +135,14 @@
                 (list (helper-dependency-problem
                        'unshared-type
                        '$NotShared)))
+  (check-equal? (core-runtime-helper-dependency-problems
+                 '(func $bad (type $NotShared)
+                        (i32.const 0))
+                 core-helper-names
+                 shared-type-names)
+                (list (helper-dependency-problem
+                       'unshared-type
+                       '$NotShared)))
 
   (define core-module (generate-core-runtime))
   (define core-forms (module-body core-module))
@@ -174,6 +182,15 @@
                (import "core" "$fixnum?/i32")
                (param (ref eq))
                (result i32))
+         (func $fxand/2
+               (import "core" "$fxand/2")
+               (type $Prim2))
+         (func $fxior/2
+               (import "core" "$fxior/2")
+               (type $Prim2))
+         (func $fxxor/2
+               (import "core" "$fxxor/2")
+               (type $Prim2))
 
          (func (export "fx_fixnum_true") (result i32)
                (call $fx?/i32 (ref.i31 (i32.const 84))))
@@ -188,7 +205,25 @@
          (func (export "fixnum_fixnum_true") (result i32)
                (call $fixnum?/i32 (ref.i31 (i32.const 84))))
          (func (export "fixnum_immediate_false") (result i32)
-               (call $fixnum?/i32 (ref.i31 (i32.const 85))))))
+               (call $fixnum?/i32 (ref.i31 (i32.const 85))))
+         (func (export "fxand_tagged") (result i32)
+               (i31.get_s
+                (ref.cast (ref i31)
+                          (call $fxand/2
+                                (ref.i31 (i32.const 84))
+                                (ref.i31 (i32.const 20))))))
+         (func (export "fxior_tagged") (result i32)
+               (i31.get_s
+                (ref.cast (ref i31)
+                          (call $fxior/2
+                                (ref.i31 (i32.const 84))
+                                (ref.i31 (i32.const 20))))))
+         (func (export "fxxor_tagged") (result i32)
+               (i31.get_s
+                (ref.cast (ref i31)
+                          (call $fxxor/2
+                                (ref.i31 (i32.const 84))
+                                (ref.i31 (i32.const 20))))))))
 
     (define consumer-wat-path
       (make-temporary-file "webracket-core-runtime-consumer-test-~a.wat"))
@@ -224,6 +259,9 @@ const expected = new Map([
   ["fx_heap_false", 0],
   ["fixnum_fixnum_true", 1],
   ["fixnum_immediate_false", 0],
+  ["fxand_tagged", 20],
+  ["fxior_tagged", 84],
+  ["fxxor_tagged", 64],
 ]);
 
 for (const [name, value] of expected) {

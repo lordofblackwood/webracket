@@ -42,4 +42,34 @@
                         (i32.and
                          (i31.get_u (ref.cast (ref i31) (local.get $v)))
                          (i32.const 1))))
-                 (else (i32.const 0))))))))
+                 (else (i32.const 0))))))
+   ;; $fxand/2 : fixnum? fixnum? -> fixnum?
+   ;;   Compute the bitwise-and of two already validated fixnums.
+   (core-runtime-helper
+    '$fxand/2
+    "$fxand/2"
+    (lambda ()
+      `(func $fxand/2 (type $Prim2)
+             (param $x (ref eq)) (param $y (ref eq)) (result (ref eq))
+             (ref.i31 (i32.and (i31.get_s (ref.cast i31ref (local.get $x)))
+                               (i31.get_s (ref.cast i31ref (local.get $y))))))))
+   ;; $fxior/2 : fixnum? fixnum? -> fixnum?
+   ;;   Compute the bitwise-ior of two already validated fixnums.
+   (core-runtime-helper
+    '$fxior/2
+    "$fxior/2"
+    (lambda ()
+      `(func $fxior/2 (type $Prim2)
+             (param $x (ref eq)) (param $y (ref eq)) (result (ref eq))
+             (ref.i31 (i32.or (i31.get_s (ref.cast i31ref (local.get $x)))
+                              (i31.get_s (ref.cast i31ref (local.get $y))))))))
+   ;; $fxxor/2 : fixnum? fixnum? -> fixnum?
+   ;;   Compute the bitwise-xor of two already validated fixnums.
+   (core-runtime-helper
+    '$fxxor/2
+    "$fxxor/2"
+    (lambda ()
+      `(func $fxxor/2 (type $Prim2)
+             (param $x (ref eq)) (param $y (ref eq)) (result (ref eq))
+             (ref.i31 (i32.xor (i31.get_s (ref.cast i31ref (local.get $x)))
+                               (i31.get_s (ref.cast i31ref (local.get $y))))))))))
