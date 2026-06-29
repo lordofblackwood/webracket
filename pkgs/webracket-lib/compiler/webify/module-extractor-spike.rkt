@@ -607,6 +607,9 @@
 (struct webify-module-provider-discovery-trace-event
   (provider demander depth cached? reason elapsed-ms status)
   #:transparent)
+(struct dependency-export-cache
+  (rows by-dependency candidates-by-external external-by-dependency exact-by-dependency)
+  #:transparent)
 
 ;; maybe-decompile-linklet : (or/c procedure? #f)
 ;;   Use the newer decompiler API when the host Racket provides it.
@@ -1449,9 +1452,60 @@
        (loop rest (if alias (cons alias aliases) aliases))]
       [(cons _ more) (loop more aliases)])))
 
-;; resolve-compiled-rename-aliases : aliases dependency-exports -> aliases
-;;   Fill provider modules for compiled rename aliases using provider export rows.
-(define (resolve-compiled-rename-aliases aliases dependency-exports)
+;; make-dependency-export-cache : dependency-exports -> dependency-export-cache?
+;;   Build reusable lookup state for repeated provider export scans.
+(define (make-dependency-export-cache dependency-exports)
+  (dependency-export-cache
+   dependency-exports
+   (for/hasheq ([entry (in-list dependency-exports)])
+     (match-define (list dependency exports) entry)
+     (values dependency exports))
+   (make-hasheq)
+   (make-hash)
+   (make-hash)))
+
+;; dependency-export-cache-exports : dependency-export-cache? symbol? -> (or/c list? #f)
+;;   Look up the export list for one dependency.
+(define (dependency-export-cache-exports cache dependency)
+  (hash-ref (dependency-export-cache-by-dependency cache) dependency #f))
+
+;; dependency-export-cache-has-external? : dependency-export-cache? symbol? symbol? -> boolean?
+;;   Check symbolic export membership and memoize the dependency/external pair.
+(define (dependency-export-cache-has-external? cache dependency external)
+  (hash-ref!
+   (dependency-export-cache-external-by-dependency cache)
+   (list dependency external)
+   (lambda ()
+     (define exports (dependency-export-cache-exports cache dependency))
+     (and exports
+          (for/or ([export (in-list exports)])
+            (symbolic-name=? export external))))))
+
+;; dependency-export-cache-has-exact-external? : dependency-export-cache? symbol? symbol? -> boolean?
+;;   Check exact export membership and memoize the dependency/external pair.
+(define (dependency-export-cache-has-exact-external? cache dependency external)
+  (hash-ref!
+   (dependency-export-cache-exact-by-dependency cache)
+   (list dependency external)
+   (lambda ()
+     (define exports (dependency-export-cache-exports cache dependency))
+     (and exports (memq external exports) #t))))
+
+;; dependency-export-cache-candidates : dependency-export-cache? symbol? -> (listof symbol?)
+;;   Find provider rows with an export symbolically matching external.
+(define (dependency-export-cache-candidates cache external)
+  (hash-ref!
+   (dependency-export-cache-candidates-by-external cache)
+   external
+   (lambda ()
+     (for/list ([entry (in-list (dependency-export-cache-rows cache))]
+                #:do [(match-define (list dependency _exports) entry)]
+                #:when (dependency-export-cache-has-external? cache dependency external))
+       dependency))))
+
+;; resolve-compiled-rename-aliases : aliases dependency-export-cache? -> aliases
+;;   Fill provider modules for compiled rename aliases using cached provider export rows.
+(define (resolve-compiled-rename-aliases aliases dependency-cache)
   (filter
    values
    (for/list ([alias (in-list aliases)])
@@ -1467,29 +1521,26 @@
     (define matches
       (cond
         [maybe-direct-dependency
-         (match (assoc maybe-direct-dependency dependency-exports)
-           [(list dependency exports)
-            (if (for/or ([export (in-list exports)])
-                  (symbolic-name=? export provider-export))
-                (list (list dependency provider-export))
-                '())]
-           [_ '()])]
+         (if (dependency-export-cache-has-external? dependency-cache
+                                                    maybe-direct-dependency
+                                                    provider-export)
+             (list (list maybe-direct-dependency provider-export))
+             '())]
         [else
-         (for/list ([entry (in-list dependency-exports)]
-                    #:do [(match-define (list dependency exports) entry)]
-                    #:when (for/or ([export (in-list exports)])
-                             (symbolic-name=? export provider-export)))
+         (for/list ([dependency (in-list (dependency-export-cache-candidates
+                                          dependency-cache
+                                          provider-export))])
            (list dependency provider-export))]))
     (match matches
       [(list (list dependency provider-export))
        (list local dependency provider-export)]
       [_ #f]))))
 
-;; import-groups->provider-coverage-aliases : import-groups candidates dependency-exports imports -> aliases
+;; import-groups->provider-coverage-aliases : import-groups candidates dependency-export-cache? imports -> aliases
 ;;   Resolve a whole import group when exactly one required provider exports every name in the group.
 (define (import-groups->provider-coverage-aliases groups
                                                   required-module-candidates
-                                                  dependency-exports
+                                                  dependency-cache
                                                   explicit-locals)
   (define phase0-modules
     (remove-duplicates
@@ -1497,11 +1548,6 @@
                 #:when (= 0 (car candidate)))
        (cadr candidate))
      eq?))
-  (define (dependency-exports-external? dependency external)
-    (define row (assoc dependency dependency-exports))
-    (and row
-         (for/or ([export (in-list (cadr row))])
-           (symbolic-name=? export external))))
   (append*
    (for/list ([group (in-list groups)])
      (define unresolved-bindings
@@ -1514,7 +1560,10 @@
           (for/list ([module (in-list phase0-modules)]
                      #:when (for/and ([binding (in-list unresolved-bindings)])
                               (match-define (list _local external) binding)
-                              (dependency-exports-external? module external)))
+                              (dependency-export-cache-has-external?
+                               dependency-cache
+                               module
+                               external)))
             module))
         (match covering-modules
           [(list module)
@@ -1791,6 +1840,8 @@
 ;;   Report the provider exports imported by a resolved linklet input.
 (define (webify-module-extractor-spike-import-export-demands report
                                                             provider-reports
+                                                            #:provider-dependency-exports
+                                                            [precomputed-provider-dependency-exports #f]
                                                             #:dependencies [dependencies '()]
                                                             #:reflection-hints [reflection-hints '()]
                                                             #:module-protocol-dependency [module-protocol-dependency #f])
@@ -1798,6 +1849,7 @@
     (webify-module-extractor-spike->resolved-linklet-input/providers
      report
      provider-reports
+     #:provider-dependency-exports precomputed-provider-dependency-exports
      #:dependencies dependencies
      #:reflection-hints reflection-hints
      #:module-protocol-dependency module-protocol-dependency))
@@ -2397,6 +2449,8 @@
   (define reports-by-name
     (for/hasheq ([report (in-list discovered-reports)])
       (values (webify-module-extractor-spike-name report) report)))
+  (define discovered-dependency-exports
+    (webify-module-extractor-spikes-dependency-exports discovered-reports))
   (define final-by-name (make-hasheq))
   (define final-reports-cache #f)
   (define runtime-required-modules-cache (make-hasheq))
@@ -2491,6 +2545,7 @@
        (webify-module-extractor-spike-import-export-demands
         report
         discovered-reports
+        #:provider-dependency-exports discovered-dependency-exports
         #:dependencies dependencies
         #:module-protocol-dependency module-protocol-dependency))))
   (define (process-export-demands! demands)
@@ -2514,6 +2569,7 @@
            (for ([next-demand (in-list (webify-module-extractor-spike-import-export-demands
                                         sliced
                                         discovered-reports
+                                        #:provider-dependency-exports discovered-dependency-exports
                                         #:dependencies dependencies
                                         #:module-protocol-dependency module-protocol-dependency))])
              (define recorded (record-demand! next-demand))
@@ -2537,6 +2593,7 @@
               (for ([next-demand (in-list (webify-module-extractor-spike-import-export-demands
                                            sliced
                                            discovered-reports
+                                           #:provider-dependency-exports discovered-dependency-exports
                                            #:dependencies dependencies
                                            #:module-protocol-dependency module-protocol-dependency))])
                 (set! next-demands (cons next-demand next-demands)))))))
@@ -2717,39 +2774,39 @@
                        #:when (symbolic-name=? external 'sort))
               local)]
            [else '()]))
+       (define dependency-cache
+         (make-dependency-export-cache dependency-exports))
+       (define preferred-dependency-cache
+         (make-dependency-export-cache preferred-dependency-exports))
+       (define resolved-require-rename-aliases
+         (resolve-compiled-rename-aliases require-rename-aliases dependency-cache))
        (define grouped-provider-aliases
          (import-groups->provider-coverage-aliases
           unresolved-groups
           required-module-candidates
-          dependency-exports
+          dependency-cache
           (append explicit-locals
                   racket-list-generated-sort-locals
                   reflection-hint-locals
                   (for/list ([alias (in-list (append import-aliases
-                                                      (resolve-compiled-rename-aliases
-                                                       require-rename-aliases
-                                                       dependency-exports)))])
+                                                      resolved-require-rename-aliases))])
                     (car alias)))))
        (define explicit-or-alias-locals
          (append explicit-locals
                  reflection-hint-locals
                  (map car grouped-provider-aliases)
                  (for/list ([alias (in-list (append import-aliases
-                                                     (resolve-compiled-rename-aliases
-                                                      require-rename-aliases
-                                                      dependency-exports)))]
+                                                     resolved-require-rename-aliases))]
                             #:do [(match-define (list local _dependency _export) alias)]
                             #:when (assoc local module-bindings))
                    local)))
-       (define (dependency-exports-external? exports dependency external)
-         (define candidate-exports (assoc dependency exports))
-         (and candidate-exports
-              (for/or ([export (in-list (cadr candidate-exports))])
-                (symbolic-name=? export external))))
+       (define (dependency-cache-external? cache dependency external)
+         (dependency-export-cache-has-external? cache dependency external))
        (define (dependency-exports-exact-external? dependency external)
-         (define candidate-exports (assoc dependency dependency-exports))
-         (and candidate-exports
-              (memq external (cadr candidate-exports))))
+         (dependency-export-cache-has-exact-external?
+          dependency-cache
+          dependency
+          external))
        (define (symbolic-member? external names)
          (for/or ([name (in-list names)])
            (symbolic-name=? external name)))
@@ -3152,16 +3209,16 @@
            (remove-duplicates
             (for/list ([candidate (in-list required-module-candidates)]
                        #:when (and (= 0 (car candidate))
-                                   (dependency-exports-external?
-                                    dependency-exports
+                                   (dependency-cache-external?
+                                    dependency-cache
                                     (cadr candidate)
                                     external)))
               candidate)
             equal?))
          (define preferred-candidates
            (filter (lambda (candidate)
-                     (dependency-exports-external?
-                      preferred-dependency-exports
+                     (dependency-cache-external?
+                      preferred-dependency-cache
                       (cadr candidate)
                       external))
                    candidates))
@@ -3304,7 +3361,8 @@
                  (if (memq candidate preferred-candidates)
                      'provider-local-export
                      'metadata-export-candidate)
-                 (if (assoc (cadr candidate) preferred-dependency-exports)
+                 (if (dependency-export-cache-exports preferred-dependency-cache
+                                                      (cadr candidate))
                      'reachable-provider
                      'discovered-candidate)))
          (cond
@@ -3345,7 +3403,7 @@
         #:import-aliases
         (append import-aliases
                 grouped-provider-aliases
-                (resolve-compiled-rename-aliases require-rename-aliases dependency-exports)))]))
+                resolved-require-rename-aliases))]))
   (define triples-by-import
     (for/hasheq ([triple (in-list (append module-protocol-triples module-triples))])
       (values (car triple) triple)))
