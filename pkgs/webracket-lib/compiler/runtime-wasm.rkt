@@ -5604,55 +5604,11 @@
          ;;; Growable Arrays of Bytes
          ;;;
 
-         (func $make-growable-bytes (param $capacity i32) (result (ref $GrowableBytes))
-               (struct.new $GrowableBytes
-                           (call $i8make-array (local.get $capacity) (i32.const 0))
-                           (local.get $capacity)
-                           (i32.const 0)))
+         ,(core-runtime-helper-form core-runtime-helper-index '$make-growable-bytes)
 
-         (func $growable-bytes-add! (param $g (ref $GrowableBytes)) (param $b i32)
-               (local $i i32)
-               (local $cap i32)
-               (local $arr (ref $I8Array))
+         ,(core-runtime-helper-form core-runtime-helper-index '$growable-bytes-add!)
 
-               (local.set $i   (struct.get $GrowableBytes $i   (local.get $g)))
-               (local.set $cap (struct.get $GrowableBytes $cap (local.get $g)))
-               (local.set $arr (struct.get $GrowableBytes $arr (local.get $g)))
-
-               ;; Grow if necessary
-               (if (i32.eq (local.get $i) (local.get $cap))
-                   (then
-                    (local.set $cap (i32.shl (local.get $cap) (i32.const 1))) ; double
-                    (local.set $arr (call $i8array-extend (local.get $arr) (local.get $cap) (i32.const 0)))
-                    (struct.set $GrowableBytes $arr (local.get $g) (local.get $arr))
-                    (struct.set $GrowableBytes $cap (local.get $g) (local.get $cap))))
-
-               ;; Set byte
-               (array.set  $I8Array (local.get $arr) (local.get $i) (local.get $b))
-               (struct.set $GrowableBytes $i (local.get $g) (i32.add (local.get $i) (i32.const 1))))
-
-         (func $growable-bytes->bytes (param $g (ref $GrowableBytes)) (result (ref $Bytes))
-               (local $src (ref $I8Array))
-               (local $n   i32)
-               (local $dst (ref $I8Array))
-
-               ;; Extract fields
-               (local.set $src (struct.get $GrowableBytes $arr (local.get $g)))
-               (local.set $n   (struct.get $GrowableBytes $i   (local.get $g)))
-               ;; Allocate new array of length $n
-               (local.set $dst (array.new_default $I8Array (local.get $n)))
-               ;; Copy from $src to $dst using array.copy
-               (array.copy $I8Array $I8Array
-                           (local.get $dst)  ;; dst array
-                           (i32.const 0)     ;; dst offset
-                           (local.get $src)  ;; src array
-                           (i32.const 0)     ;; src offset
-                           (local.get $n))   ;; length
-               ;; Construct and return new Bytes struct
-               (struct.new $Bytes
-                           (i32.const 0)       ;; hash = 0
-                           (local.get $n)      ;; length
-                           (local.get $dst)))  ;; copied byte array
+         ,(core-runtime-helper-form core-runtime-helper-index '$growable-bytes->bytes)
 
          ;;;
          ;;; Growable Arrays of I32
@@ -5666,76 +5622,19 @@
                  (field $cap (mut i32))             ;; capacity
                  (field $i   (mut i32))))           ;; current size
 
-         (func $make-i32growable-array (param $cap i32) (result (ref $I32GrowableArray))
-               (local $initial-cap i32)
-               (local.set $initial-cap (if (result i32) (i32.eqz (local.get $cap))
-                                           (then (i32.const 16))
-                                           (else (local.get $cap))))
-               (struct.new $I32GrowableArray
-                           (array.new_default $I32Array (local.get $initial-cap))
-                           (local.get $initial-cap)
-                           (i32.const 0)))
+         ,(core-runtime-helper-form core-runtime-helper-index '$make-i32growable-array)
 
-        (func $i32growable-array-add! (param $g (ref $I32GrowableArray)) (param $v i32)
-               (local $i       i32)
-               (local $cap     i32)
-               (local $arr     (ref $I32Array))
-               (local $new-cap i32)
-               (local $new-arr (ref $I32Array))
+         ,(core-runtime-helper-form core-runtime-helper-index '$i32growable-array-add!)
 
-               (local.set $i   (struct.get $I32GrowableArray $i   (local.get $g)))
-               (local.set $cap (struct.get $I32GrowableArray $cap (local.get $g)))
-               (local.set $arr (struct.get $I32GrowableArray $arr (local.get $g)))
+         ,(core-runtime-helper-form core-runtime-helper-index '$i32growable-array-add-string!)
 
-               (if (i32.eq (local.get $i) (local.get $cap))
-                   (then
-                    (local.set $new-cap (i32.shl (local.get $cap) (i32.const 1)))
-                    (local.set $new-arr (call $i32array-extend
-                                              (local.get $arr) (local.get $new-cap) (i32.const 0)))
-                    (struct.set $I32GrowableArray $arr (local.get $g) (local.get $new-arr))
-                    (struct.set $I32GrowableArray $cap (local.get $g) (local.get $new-cap))
-                    (local.set $arr (local.get $new-arr))))
-               (array.set $I32Array (local.get $arr) (local.get $i) (local.get $v))
-               (struct.set $I32GrowableArray $i (local.get $g) (i32.add (local.get $i) (i32.const 1))))
+         ,(core-runtime-helper-form core-runtime-helper-index '$i32growable-array-ref)
 
-         (func $i32growable-array-add-string!
-               (param $g (ref $I32GrowableArray))
-               (param $s (ref $String))
-               (local $arr (ref $I32Array))
-               (local $len i32)
-               (local $i   i32)
-               (local.set $arr (struct.get $String $codepoints (local.get $s)))
-               (local.set $len (array.len (local.get $arr)))
-               (local.set $i   (i32.const 0))
-               (block $done
-                      (loop $loop
-                            (br_if $done (i32.ge_u (local.get $i) (local.get $len)))
-                            (call $i32growable-array-add!
-                                  (local.get $g)
-                                  (array.get $I32Array (local.get $arr) (local.get $i)))
-                            (local.set $i (i32.add (local.get $i) (i32.const 1)))
-                            (br $loop))))
+         ,(core-runtime-helper-form core-runtime-helper-index '$i32growable-array-count)
 
-         (func $i32growable-array-ref (param $g (ref $I32GrowableArray)) (param $index i32) (result i32)
-               (local $i i32)
-               (local.set $i (struct.get $I32GrowableArray $i (local.get $g)))
-               (if (result i32)
-                   (i32.lt_u (local.get $index) (local.get $i))
-                   (then (array.get $I32Array (struct.get $I32GrowableArray $arr (local.get $g)) (local.get $index)))
-                   (else (i32.const 0)))) ;; You might want to raise instead
+         ,(core-runtime-helper-form core-runtime-helper-index '$i32growable-array->array)
 
-         (func $i32growable-array-count (param $g (ref $I32GrowableArray)) (result i32)
-               (struct.get $I32GrowableArray $i (local.get $g)))
-
-         (func $i32growable-array->array (param $g (ref $I32GrowableArray)) (result (ref $I32Array))
-               (local $count i32)
-               (local.set $count (struct.get $I32GrowableArray $i (local.get $g)))
-               (call $i32array-copy (struct.get $I32GrowableArray $arr (local.get $g)) (i32.const 0) (local.get $count)))
-
-         (func $i32array->growable-array (param $a (ref $I32Array)) (result (ref $I32GrowableArray))
-               (local $n i32)
-               (local.set $n (array.len (local.get $a)))
-               (struct.new $I32GrowableArray (local.get $a) (local.get $n) (local.get $n)))
+         ,(core-runtime-helper-form core-runtime-helper-index '$i32array->growable-array)
 
 
          ;;;
@@ -5744,140 +5643,37 @@
 
          ; (type $I32Array (array (mut i32)))
 
-         (func $i32array-make (param $size i32) (param $v i32) (result (ref $I32Array))
-               (array.new $I32Array (local.get $v) (local.get $size)))
+         ,(core-runtime-helper-form core-runtime-helper-index '$i32array-make)
 
-         (func $i32array-length (param $arr (ref $I32Array)) (result i32)
-               (array.len (local.get $arr)))
+         ,(core-runtime-helper-form core-runtime-helper-index '$i32array-length)
 
-         (func $i32array-ref (param $arr (ref $I32Array)) (param $pos i32) (result i32)
-               (array.get $I32Array (local.get $arr) (local.get $pos)))
+         ,(core-runtime-helper-form core-runtime-helper-index '$i32array-ref)
 
-         (func $i32array-set! (param $arr (ref $I32Array)) (param $pos i32) (param $v i32)
-               (array.set $I32Array (local.get $arr) (local.get $pos) (local.get $v)))
+         ,(core-runtime-helper-form core-runtime-helper-index '$i32array-set!)
 
-         (func $i32array-equal?
-               (param $a (ref $I32Array)) (param $b (ref $I32Array))
-               (result i32)
+         ,(core-runtime-helper-form core-runtime-helper-index '$i32array-equal?)
 
-               (local $len i32)
-               (local $i   i32)
-               ;; Compare lengths
-               (if (i32.ne (array.len (local.get $a))
-                           (array.len (local.get $b)))
-                   (then (return (i32.const 0))))
-               ;; Set up loop
-               (local.set $len (array.len (local.get $a)))
-               (local.set $i (i32.const 0))
-               (block $exit
-                      (loop $loop
-                            (br_if $exit (i32.ge_u (local.get $i) (local.get $len)))
-                            (if (i32.ne
-                                 (array.get $I32Array (local.get $a) (local.get $i))
-                                 (array.get $I32Array (local.get $b) (local.get $i)))
-                                (then (return (i32.const 0))))
-                            (local.set $i (i32.add (local.get $i) (i32.const 1)))
-                            (br $loop)))
-               (i32.const 1))
+         ,(core-runtime-helper-form core-runtime-helper-index '$i32array-fill!)
 
-         (func $i32array-fill! (param $arr (ref $I32Array)) (param $v i32)
-               (local $i i32)
-               (local.set $i (i32.const 0))
-               (block $exit
-                      (loop $fill
-                            (br_if $exit (i32.ge_u (local.get $i) (array.len (local.get $arr))))
-                            (array.set $I32Array (local.get $arr) (local.get $i) (local.get $v))
-                            (local.set $i (i32.add (local.get $i) (i32.const 1)))
-                            (br $fill))))
+         ,(core-runtime-helper-form core-runtime-helper-index '$i32array-copy!)
 
-        (func $i32array-copy!
-              (param $dest       (ref $I32Array))
-              (param $dest-start i32)
-              (param $src        (ref $I32Array))
-              (param $src-start  i32)
-              (param $src-end    i32)
-              (local $len        i32)
+         ,(core-runtime-helper-form core-runtime-helper-index '$i32array-copy!/error)
 
-              (local.set $len (i32.sub (local.get $src-end) (local.get $src-start)))
-              (array.copy $I32Array $I32Array
-                          (local.get $dest) (local.get $dest-start)
-                          (local.get $src)  (local.get $src-start)
-                          (local.get $len)))
+         ,(core-runtime-helper-form core-runtime-helper-index '$i32array-copy)
 
-        (func $i32array-copy!/error (param $dest (ref $I32Array)) (param $dest-start i32)
-              (param $src (ref $I32Array)) (param $src-start i32) (param $src-end i32)
-              (result i32)
-              (local $src-len i32)
-              (local $dest-len i32)
-              (local $len i32)
-              (local.set $src-len (array.len (local.get $src)))
-              (local.set $dest-len (array.len (local.get $dest)))
-              (if (i32.or
-                   (i32.or (i32.lt_u (local.get $src-start) (i32.const 0))
-                           (i32.gt_u (local.get $src-end) (local.get $src-len)))
-                   (i32.gt_u (i32.add (local.get $dest-start) (i32.sub (local.get $src-end) (local.get $src-start)))
-                             (local.get $dest-len)))
-                  (then (return (i32.const 0))))
-              (local.set $len (i32.sub (local.get $src-end) (local.get $src-start)))
-              (array.copy $I32Array $I32Array
-                          (local.get $dest) (local.get $dest-start)
-                          (local.get $src)  (local.get $src-start)
-                          (local.get $len))
-              (i32.const 1))
+         ,(core-runtime-helper-form core-runtime-helper-index '$i32array-append)
 
-         (func $i32array-copy (param $arr (ref $I32Array)) (param $start i32) (param $end i32) (result (ref $I32Array))
-               (local $res (ref $I32Array))
-               (local.set $res (call $i32array-make (i32.sub (local.get $end) (local.get $start)) (i32.const 0)))
-               (call $i32array-copy! (local.get $res) (i32.const 0) (local.get $arr) (local.get $start) (local.get $end))
-               (local.get $res))
+         ,(core-runtime-helper-form core-runtime-helper-index '$i32array-take)
 
-         (func $i32array-append (param $a0 (ref $I32Array)) (param $a1 (ref $I32Array)) (result (ref $I32Array))
-               (local $len0 i32)
-               (local $len1 i32)
-               (local $total i32)
-               (local $arr (ref $I32Array))
-               (local.set $len0 (array.len (local.get $a0)))
-               (local.set $len1 (array.len (local.get $a1)))
-               (local.set $total (i32.add (local.get $len0) (local.get $len1)))
-               (local.set $arr (call $i32array-make (local.get $total) (i32.const 0)))
-               (call $i32array-copy! (local.get $arr) (i32.const 0) (local.get $a0) (i32.const 0) (local.get $len0))
-               (call $i32array-copy! (local.get $arr) (local.get $len0) (local.get $a1) (i32.const 0) (local.get $len1))
-               (local.get $arr))
+         ,(core-runtime-helper-form core-runtime-helper-index '$i32array-take-right)
 
-         (func $i32array-take (param $arr (ref $I32Array)) (param $pos i32) (result (ref $I32Array))
-               (call $i32array-copy (local.get $arr) (i32.const 0) (local.get $pos)))
+         ,(core-runtime-helper-form core-runtime-helper-index '$i32array-drop)
 
-         (func $i32array-take-right (param $arr (ref $I32Array)) (param $pos i32) (result (ref $I32Array))
-               (local $len i32)
-               (local.set $len (array.len (local.get $arr)))
-               (call $i32array-copy (local.get $arr) (i32.sub (local.get $len) (local.get $pos)) (local.get $len)))
+         ,(core-runtime-helper-form core-runtime-helper-index '$i32array-drop-right)
 
-         (func $i32array-drop (param $arr (ref $I32Array)) (param $pos i32) (result (ref $I32Array))
-               (local $len i32)
-               (local.set $len (array.len (local.get $arr)))
-               (call $i32array-copy (local.get $arr) (local.get $pos) (local.get $len)))
+         ,(core-runtime-helper-form core-runtime-helper-index '$i32array-set/copy)
 
-         (func $i32array-drop-right (param $arr (ref $I32Array)) (param $pos i32) (result (ref $I32Array))
-               (local $len i32)
-               (local.set $len (array.len (local.get $arr)))
-               (call $i32array-copy (local.get $arr) (i32.const 0) (i32.sub (local.get $len) (local.get $pos))))
-
-         (func $i32array-set/copy (param $arr (ref $I32Array)) (param $pos i32) (param $val i32) (result (ref $I32Array))
-               (local $len i32)
-               (local $res (ref $I32Array))
-               (local.set $len (array.len (local.get $arr)))
-               (local.set $res (call $i32array-make (local.get $len) (i32.const 0)))
-               (call $i32array-copy! (local.get $res) (i32.const 0) (local.get $arr) (i32.const 0) (local.get $len))
-               (call $i32array-set! (local.get $res) (local.get $pos) (local.get $val))
-               (local.get $res))
-
-         (func $i32array-extend (param $arr (ref $I32Array)) (param $new-size i32) (param $val i32) (result (ref $I32Array))
-               (local $old-size i32)
-               (local $res (ref $I32Array))
-               (local.set $old-size (array.len (local.get $arr)))
-               (local.set $res (call $i32array-make (local.get $new-size) (local.get $val)))
-               (call $i32array-copy! (local.get $res) (i32.const 0) (local.get $arr) (i32.const 0) (local.get $old-size))
-               (local.get $res))
+         ,(core-runtime-helper-form core-runtime-helper-index '$i32array-extend)
 
          (func $list->i32array (param $xs (ref eq)) (result (ref $I32Array))
                (local $len i32)
@@ -5935,122 +5731,27 @@
 
          (func $raise-bad-byte (param $x (ref eq)) (unreachable))
 
-         (func $i8make-array (param $size i32) (param $v i32) (result (ref $I8Array))
-               (array.new $I8Array (local.get $v) (local.get $size)))
+         ,(core-runtime-helper-form core-runtime-helper-index '$i8make-array)
 
-         (func $i8array-length (export "i8array-length")
-               (param $arr (ref $I8Array))
-               (result i32)
-               (array.len (local.get $arr)))
+         ,(core-runtime-helper-form core-runtime-helper-index '$i8array-length #:export? #t #:export-name "i8array-length")
 
-         (func $i8array-ref (export "i8array-ref")
-               (param $arr (ref $I8Array)) (param $pos i32)
-               (result i32)
-               (array.get_u $I8Array (local.get $arr) (local.get $pos)))
+         ,(core-runtime-helper-form core-runtime-helper-index '$i8array-ref #:export? #t #:export-name "i8array-ref")
 
-         (func $i8array-set! (export "i8array-set!")
-               (param $arr (ref $I8Array)) (param $pos i32) (param $v i32)
-               (array.set $I8Array (local.get $arr) (local.get $pos) (local.get $v)))
+         ,(core-runtime-helper-form core-runtime-helper-index '$i8array-set! #:export? #t #:export-name "i8array-set!")
 
-         (func $i8array-fill! (export "i8array-fill!")
-               (param $arr (ref $I8Array)) (param $v i32)
-               (local $i i32)
-               (local.set $i (i32.const 0))
-               (block $exit
-                      (loop $fill
-                            (br_if $exit (i32.ge_u (local.get $i) (array.len (local.get $arr))))
-                            (array.set $I8Array (local.get $arr) (local.get $i) (local.get $v))
-                            (local.set $i (i32.add (local.get $i) (i32.const 1)))
-                            (br $fill))))
+         ,(core-runtime-helper-form core-runtime-helper-index '$i8array-fill! #:export? #t #:export-name "i8array-fill!")
 
-        (func $i8array-copy! (export "i8array-copy!")
-              (param $dest (ref $I8Array))
-              (param $dest-start i32)
-              (param $src (ref $I8Array))
-              (param $src-start i32)
-              (param $src-end i32)
-              (local $src-len i32)
-              (local $dest-len i32)
-              (local $len i32)
-              (local.set $src-len (array.len (local.get $src)))
-              (local.set $dest-len (array.len (local.get $dest)))
-              (if (i32.or
-                   (i32.or (i32.lt_u (local.get $src-start) (i32.const 0))
-                           (i32.gt_u (local.get $src-end) (local.get $src-len)))
-                   (i32.gt_u (i32.add (local.get $dest-start)
-                                      (i32.sub (local.get $src-end) (local.get $src-start)))
-                             (local.get $dest-len)))
-                  (then (unreachable)))
-              (local.set $len (i32.sub (local.get $src-end) (local.get $src-start)))
-              (array.copy $I8Array $I8Array
-                          (local.get $dest) (local.get $dest-start)
-                          (local.get $src)  (local.get $src-start)
-                          (local.get $len)))
+         ,(core-runtime-helper-form core-runtime-helper-index '$i8array-copy! #:export? #t #:export-name "i8array-copy!")
 
-        (func $i8array-copy!/error (export "i8array-copy!/error")
-              (param $dest (ref $I8Array))
-              (param $dest-start i32)
-              (param $src (ref $I8Array))
-              (param $src-start i32)
-              (param $src-end i32)
-              (result i32)
-              (local $src-len i32)
-              (local $dest-len i32)
-              (local $len i32)
-              (local.set $src-len (array.len (local.get $src)))
-              (local.set $dest-len (array.len (local.get $dest)))
-              (if (i32.or
-                   (i32.or (i32.lt_u (local.get $src-start) (i32.const 0))
-                           (i32.gt_u (local.get $src-end) (local.get $src-len)))
-                   (i32.gt_u (i32.add (local.get $dest-start)
-                                      (i32.sub (local.get $src-end) (local.get $src-start)))
-                             (local.get $dest-len)))
-                  (then (return (i32.const 0))))
-              (local.set $len (i32.sub (local.get $src-end) (local.get $src-start)))
-              (array.copy $I8Array $I8Array
-                          (local.get $dest) (local.get $dest-start)
-                          (local.get $src)  (local.get $src-start)
-                          (local.get $len))
-              (i32.const 1))
+         ,(core-runtime-helper-form core-runtime-helper-index '$i8array-copy!/error #:export? #t #:export-name "i8array-copy!/error")
 
-         (func $i8array-copy (param $arr (ref $I8Array)) (param $start i32) (param $end i32) (result (ref $I8Array))
-               (local $res (ref $I8Array))
-               (local.set $res (call $i8make-array (i32.sub (local.get $end) (local.get $start)) (i32.const 0)))
-               (call $i8array-copy! (local.get $res) (i32.const 0) (local.get $arr) (local.get $start) (local.get $end))
-               (local.get $res))
+         ,(core-runtime-helper-form core-runtime-helper-index '$i8array-copy)
 
-         (func $i8array-set/copy (param $arr (ref $I8Array)) (param $pos i32) (param $val i32) (result (ref $I8Array))
-               (local $len i32)
-               (local $res (ref $I8Array))
-               (local.set $len (array.len (local.get $arr)))
-               (local.set $res (call $i8make-array (local.get $len) (i32.const 0)))
-               (call $i8array-copy! (local.get $res) (i32.const 0) (local.get $arr) (i32.const 0) (local.get $len))
-               (call $i8array-set! (local.get $res) (local.get $pos) (local.get $val))
-               (local.get $res))
+         ,(core-runtime-helper-form core-runtime-helper-index '$i8array-set/copy)
 
-         (func $i8array-extend (param $arr (ref $I8Array)) (param $new-size i32) (param $val i32) (result (ref $I8Array))
-               (local $old-size i32)
-               (local $res (ref $I8Array))
-               (local.set $old-size (array.len (local.get $arr)))
-               (local.set $res (call $i8make-array (local.get $new-size) (local.get $val)))
-               (call $i8array-copy! (local.get $res) (i32.const 0) (local.get $arr) (i32.const 0) (local.get $old-size))
-               (local.get $res))
+         ,(core-runtime-helper-form core-runtime-helper-index '$i8array-extend)
 
-         (func $i8array-append
-               (param $a0  (ref $I8Array))
-               (param $a1  (ref $I8Array))
-               (result     (ref $I8Array))
-
-               (local $n0  i32)
-               (local $n1  i32)
-               (local $res (ref $I8Array))
-
-               (local.set $n0  (array.len (local.get $a0)))
-               (local.set $n1  (array.len (local.get $a1)))
-               (local.set $res (array.new $I8Array (i32.const 0) (i32.add (local.get $n0) (local.get $n1))))
-               (call $i8array-copy! (local.get $res) (i32.const 0)   (local.get $a0) (i32.const 0) (local.get $n0))
-               (call $i8array-copy! (local.get $res) (local.get $n0) (local.get $a1) (i32.const 0) (local.get $n1))
-               (local.get $res))
+         ,(core-runtime-helper-form core-runtime-helper-index '$i8array-append)
 
          (func $list->i8array (param $xs (ref eq)) (result (ref $I8Array))
                (local $len  i32)
@@ -6108,20 +5809,9 @@
                ;; Return array
                (local.get $arr))
 
-         (func $i8array->bytes (param $arr (ref $I8Array)) (result (ref $Bytes))
-               ;; Constructs a mutable $Bytes object (immutable = 0, hash = 0).
-               (struct.new $Bytes
-                           (i32.const 0)      ;; hash = 0
-                           (i32.const 0)      ;; immutable = false
-                           (local.get $arr))) ;; the backing I8Array
+         ,(core-runtime-helper-form core-runtime-helper-index '$i8array->bytes)
 
-         (func $i8array->immutable-bytes (param $arr (ref $I8Array))
-             (result (ref $Bytes))
-             ;; Constructs an immutable $Bytes object (immutable = 1, hash = 0).
-             (struct.new $Bytes
-                         (i32.const 0)      ;; hash = 0
-                         (i32.const 1)      ;; immutable = true
-                         (local.get $arr))) ;; the backing I8Array
+         ,(core-runtime-helper-form core-runtime-helper-index '$i8array->immutable-bytes)
 
          ;;;
          ;;; Exceptions
@@ -18330,29 +18020,13 @@
                            (i32.const 1)       ;; immutable
                            (local.get $cp)))
 
-         (func $i32array->string (param $arr (ref $I32Array)) (result (ref $String))
-               ;; Constructs a $String from an I32Array of codepoints.
-               ;; Assumes the string is mutable and un-hashed (hash = 0).
-               (struct.new $String
-                           (i32.const 0)            ;; hash = 0
-                           (i32.const 0)            ;; mutable
-                           (local.get $arr)))       ;; codepoints
+         ,(core-runtime-helper-form core-runtime-helper-index '$i32array->string)
 
-         (func $i32array->immutable-string (param $arr (ref $I32Array)) (result (ref $String))
-               ;; Constructs a $String from an I32Array of codepoints.
-               ;; Assumes the string is immutable and un-hashed (hash = 0).
-               (struct.new $String
-                           (i32.const 0)            ;; hash = 0
-                           (i32.const 1)            ;; immutable
-                           (local.get $arr)))       ;; codepoints
+         ,(core-runtime-helper-form core-runtime-helper-index '$i32array->immutable-string)
 
-         (func $i32growable-array->string (param $g (ref $I32GrowableArray)) (result (ref $String))
-               (call $i32array->string
-                     (call $i32growable-array->array (local.get $g))))
+         ,(core-runtime-helper-form core-runtime-helper-index '$i32growable-array->string)
 
-         (func $i32growable-array->immutable-string (param $g (ref $I32GrowableArray)) (result (ref $String))
-               (call $i32array->immutable-string
-                     (call $i32growable-array->array (local.get $g))))
+         ,(core-runtime-helper-form core-runtime-helper-index '$i32growable-array->immutable-string)
 
          (func $make-dummy-string (result (ref $String))
                (struct.new $String

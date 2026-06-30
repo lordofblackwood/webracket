@@ -6,10 +6,16 @@
 
 (require "core-helper.rkt"
          "core/arrays.rkt"
+         "core/bytes.rkt"
          "core/fixnums.rkt"
          "core/flonums.rkt"
          "core/growable-arrays.rkt"
+         "core/growable-bytes.rkt"
+         "core/growable-i32-arrays.rkt"
+         "core/i32-arrays.rkt"
+         "core/i8-arrays.rkt"
          "core/keywords.rkt"
+         "core/strings.rkt"
          "core/structs.rkt"
          "core/vectors.rkt"
          "shared-types.rkt")
@@ -19,10 +25,16 @@
 (define core-runtime-helpers
   (append
    array-core-runtime-helpers
+   bytes-core-runtime-helpers
    fixnum-core-runtime-helpers
    flonum-core-runtime-helpers
    growable-array-core-runtime-helpers
+   growable-bytes-core-runtime-helpers
+   i32-array-core-runtime-helpers
+   growable-i32-array-core-runtime-helpers
+   i8-array-core-runtime-helpers
    keyword-core-runtime-helpers
+   string-core-runtime-helpers
    struct-core-runtime-helpers
    vector-core-runtime-helpers))
 
@@ -247,6 +259,242 @@
             (param (ref $Array))
             (result (ref $GrowableArray)))))
 
+  ;; core-i32-array-imports : -> (listof datum?)
+  ;;   Build imported core helper declarations for I32 arrays.
+  (define (core-i32-array-imports)
+    `((func $i32array-make
+            (import "core" "$i32array-make")
+            (param i32)
+            (param i32)
+            (result (ref $I32Array)))
+      (func $i32array-length
+            (import "core" "$i32array-length")
+            (param (ref $I32Array))
+            (result i32))
+      (func $i32array-ref
+            (import "core" "$i32array-ref")
+            (param (ref $I32Array))
+            (param i32)
+            (result i32))
+      (func $i32array-set!
+            (import "core" "$i32array-set!")
+            (param (ref $I32Array))
+            (param i32)
+            (param i32))
+      (func $i32array-equal?
+            (import "core" "$i32array-equal?")
+            (param (ref $I32Array))
+            (param (ref $I32Array))
+            (result i32))
+      (func $i32array-fill!
+            (import "core" "$i32array-fill!")
+            (param (ref $I32Array))
+            (param i32))
+      (func $i32array-copy!
+            (import "core" "$i32array-copy!")
+            (param (ref $I32Array))
+            (param i32)
+            (param (ref $I32Array))
+            (param i32)
+            (param i32))
+      (func $i32array-copy!/error
+            (import "core" "$i32array-copy!/error")
+            (param (ref $I32Array))
+            (param i32)
+            (param (ref $I32Array))
+            (param i32)
+            (param i32)
+            (result i32))
+      (func $i32array-copy
+            (import "core" "$i32array-copy")
+            (param (ref $I32Array))
+            (param i32)
+            (param i32)
+            (result (ref $I32Array)))
+      (func $i32array-append
+            (import "core" "$i32array-append")
+            (param (ref $I32Array))
+            (param (ref $I32Array))
+            (result (ref $I32Array)))
+      (func $i32array-take
+            (import "core" "$i32array-take")
+            (param (ref $I32Array))
+            (param i32)
+            (result (ref $I32Array)))
+      (func $i32array-take-right
+            (import "core" "$i32array-take-right")
+            (param (ref $I32Array))
+            (param i32)
+            (result (ref $I32Array)))
+      (func $i32array-drop
+            (import "core" "$i32array-drop")
+            (param (ref $I32Array))
+            (param i32)
+            (result (ref $I32Array)))
+      (func $i32array-drop-right
+            (import "core" "$i32array-drop-right")
+            (param (ref $I32Array))
+            (param i32)
+            (result (ref $I32Array)))
+      (func $i32array-set/copy
+            (import "core" "$i32array-set/copy")
+            (param (ref $I32Array))
+            (param i32)
+            (param i32)
+            (result (ref $I32Array)))
+      (func $i32array-extend
+            (import "core" "$i32array-extend")
+            (param (ref $I32Array))
+            (param i32)
+            (param i32)
+            (result (ref $I32Array)))))
+
+  ;; core-i8-array-imports : -> (listof datum?)
+  ;;   Build imported core helper declarations for I8 arrays.
+  (define (core-i8-array-imports)
+    `((func $i8make-array
+            (import "core" "$i8make-array")
+            (param i32)
+            (param i32)
+            (result (ref $I8Array)))
+      (func $i8array-length
+            (import "core" "$i8array-length")
+            (param (ref $I8Array))
+            (result i32))
+      (func $i8array-ref
+            (import "core" "$i8array-ref")
+            (param (ref $I8Array))
+            (param i32)
+            (result i32))
+      (func $i8array-set!
+            (import "core" "$i8array-set!")
+            (param (ref $I8Array))
+            (param i32)
+            (param i32))
+      (func $i8array-fill!
+            (import "core" "$i8array-fill!")
+            (param (ref $I8Array))
+            (param i32))
+      (func $i8array-copy!
+            (import "core" "$i8array-copy!")
+            (param (ref $I8Array))
+            (param i32)
+            (param (ref $I8Array))
+            (param i32)
+            (param i32))
+      (func $i8array-copy!/error
+            (import "core" "$i8array-copy!/error")
+            (param (ref $I8Array))
+            (param i32)
+            (param (ref $I8Array))
+            (param i32)
+            (param i32)
+            (result i32))
+      (func $i8array-copy
+            (import "core" "$i8array-copy")
+            (param (ref $I8Array))
+            (param i32)
+            (param i32)
+            (result (ref $I8Array)))
+      (func $i8array-set/copy
+            (import "core" "$i8array-set/copy")
+            (param (ref $I8Array))
+            (param i32)
+            (param i32)
+            (result (ref $I8Array)))
+      (func $i8array-extend
+            (import "core" "$i8array-extend")
+            (param (ref $I8Array))
+            (param i32)
+            (param i32)
+            (result (ref $I8Array)))
+      (func $i8array-append
+            (import "core" "$i8array-append")
+            (param (ref $I8Array))
+            (param (ref $I8Array))
+            (result (ref $I8Array)))))
+
+  ;; core-growable-i32-array-imports : -> (listof datum?)
+  ;;   Build imported core helper declarations for I32 growable arrays.
+  (define (core-growable-i32-array-imports)
+    `((func $make-i32growable-array
+            (import "core" "$make-i32growable-array")
+            (param i32)
+            (result (ref $I32GrowableArray)))
+      (func $i32growable-array-add!
+            (import "core" "$i32growable-array-add!")
+            (param (ref $I32GrowableArray))
+            (param i32))
+      (func $i32growable-array-add-string!
+            (import "core" "$i32growable-array-add-string!")
+            (param (ref $I32GrowableArray))
+            (param (ref $String)))
+      (func $i32growable-array-ref
+            (import "core" "$i32growable-array-ref")
+            (param (ref $I32GrowableArray))
+            (param i32)
+            (result i32))
+      (func $i32growable-array-count
+            (import "core" "$i32growable-array-count")
+            (param (ref $I32GrowableArray))
+            (result i32))
+      (func $i32growable-array->array
+            (import "core" "$i32growable-array->array")
+            (param (ref $I32GrowableArray))
+            (result (ref $I32Array)))
+      (func $i32array->growable-array
+            (import "core" "$i32array->growable-array")
+            (param (ref $I32Array))
+            (result (ref $I32GrowableArray)))))
+
+  ;; core-growable-bytes-imports : -> (listof datum?)
+  ;;   Build imported core helper declarations for growable bytes.
+  (define (core-growable-bytes-imports)
+    `((func $make-growable-bytes
+            (import "core" "$make-growable-bytes")
+            (param i32)
+            (result (ref $GrowableBytes)))
+      (func $growable-bytes-add!
+            (import "core" "$growable-bytes-add!")
+            (param (ref $GrowableBytes))
+            (param i32))
+      (func $growable-bytes->bytes
+            (import "core" "$growable-bytes->bytes")
+            (param (ref $GrowableBytes))
+            (result (ref $Bytes)))))
+
+  ;; core-bytes-imports : -> (listof datum?)
+  ;;   Build imported core helper declarations for byte constructors.
+  (define (core-bytes-imports)
+    `((func $i8array->bytes
+            (import "core" "$i8array->bytes")
+            (param (ref $I8Array))
+            (result (ref $Bytes)))
+      (func $i8array->immutable-bytes
+            (import "core" "$i8array->immutable-bytes")
+            (param (ref $I8Array))
+            (result (ref $Bytes)))))
+
+  ;; core-string-imports : -> (listof datum?)
+  ;;   Build imported core helper declarations for string constructors.
+  (define (core-string-imports)
+    `((func $i32array->string
+            (import "core" "$i32array->string")
+            (param (ref $I32Array))
+            (result (ref $String)))
+      (func $i32array->immutable-string
+            (import "core" "$i32array->immutable-string")
+            (param (ref $I32Array))
+            (result (ref $String)))
+      (func $i32growable-array->string
+            (import "core" "$i32growable-array->string")
+            (param (ref $I32GrowableArray))
+            (result (ref $String)))
+      (func $i32growable-array->immutable-string
+            (import "core" "$i32growable-array->immutable-string")
+            (param (ref $I32GrowableArray))
+            (result (ref $String)))))
+
   ;; tagged-call1-export : string? symbol? integer? -> datum?
   ;;   Build an exported test function that returns a raw tagged unary result.
   (define (tagged-call1-export export-name helper-name arg)
@@ -415,12 +663,18 @@
                (result i32))
          (func $fixnum?/i32
                (import "core" "$fixnum?/i32")
-               (param (ref eq))
-               (result i32))
+         (param (ref eq))
+         (result i32))
          ,@(for/list ([name (in-list core-raw-i32-unary-test-imports)])
              (core-raw-i32-unary-import name))
          ,@(core-array-imports)
          ,@(core-growable-array-imports)
+         ,@(core-i32-array-imports)
+         ,@(core-i8-array-imports)
+         ,@(core-bytes-imports)
+         ,@(core-growable-i32-array-imports)
+         ,@(core-growable-bytes-imports)
+         ,@(core-string-imports)
          ,@(for/list ([name (in-list core-prim1-test-imports)])
              (core-helper-import name '$Prim1))
          ,@(for/list ([name (in-list core-prim2-test-imports)])
@@ -733,6 +987,354 @@
                            (array.new_fixed $Array 2
                                             (ref.i31 (i32.const 20))
                                             (ref.i31 (i32.const 40))))))
+         (func (export "i32array_length") (result i32)
+               (call $i32array-length
+                     (call $i32array-make (i32.const 3) (i32.const 7))))
+         (func (export "i32array_ref") (result i32)
+               (call $i32array-ref
+                     (array.new_fixed $I32Array 2
+                                      (i32.const 11)
+                                      (i32.const 22))
+                     (i32.const 1)))
+         (func (export "i32array_set") (result i32)
+               (local $arr (ref $I32Array))
+               (local.set $arr (call $i32array-make (i32.const 2) (i32.const 0)))
+               (call $i32array-set! (local.get $arr) (i32.const 1) (i32.const 33))
+               (call $i32array-ref (local.get $arr) (i32.const 1)))
+         (func (export "i32array_equal_true") (result i32)
+               (call $i32array-equal?
+                     (array.new_fixed $I32Array 2
+                                      (i32.const 1)
+                                      (i32.const 2))
+                     (array.new_fixed $I32Array 2
+                                      (i32.const 1)
+                                      (i32.const 2))))
+         (func (export "i32array_equal_false") (result i32)
+               (call $i32array-equal?
+                     (array.new_fixed $I32Array 2
+                                      (i32.const 1)
+                                      (i32.const 2))
+                     (array.new_fixed $I32Array 2
+                                      (i32.const 1)
+                                      (i32.const 3))))
+         (func (export "i32array_fill") (result i32)
+               (local $arr (ref $I32Array))
+               (local.set $arr (call $i32array-make (i32.const 3) (i32.const 0)))
+               (call $i32array-fill! (local.get $arr) (i32.const 44))
+               (call $i32array-ref (local.get $arr) (i32.const 2)))
+         (func (export "i32array_copy_bang") (result i32)
+               (local $dest (ref $I32Array))
+               (local.set $dest (call $i32array-make (i32.const 3) (i32.const 0)))
+               (call $i32array-copy!
+                     (local.get $dest)
+                     (i32.const 1)
+                     (array.new_fixed $I32Array 2
+                                      (i32.const 55)
+                                      (i32.const 66))
+                     (i32.const 0)
+                     (i32.const 2))
+               (call $i32array-ref (local.get $dest) (i32.const 2)))
+         (func (export "i32array_copy_error_success") (result i32)
+               (call $i32array-copy!/error
+                     (call $i32array-make (i32.const 2) (i32.const 0))
+                     (i32.const 0)
+                     (array.new_fixed $I32Array 2
+                                      (i32.const 55)
+                                      (i32.const 66))
+                     (i32.const 0)
+                     (i32.const 2)))
+         (func (export "i32array_copy_error_failure") (result i32)
+               (call $i32array-copy!/error
+                     (call $i32array-make (i32.const 1) (i32.const 0))
+                     (i32.const 1)
+                     (array.new_fixed $I32Array 2
+                                      (i32.const 55)
+                                      (i32.const 66))
+                     (i32.const 0)
+                     (i32.const 2)))
+         (func (export "i32array_append_ref") (result i32)
+               (call $i32array-ref
+                     (call $i32array-append
+                           (array.new_fixed $I32Array 1
+                                            (i32.const 11))
+                           (array.new_fixed $I32Array 2
+                                            (i32.const 22)
+                                            (i32.const 33)))
+                     (i32.const 2)))
+         (func (export "i32array_take_length") (result i32)
+               (call $i32array-length
+                     (call $i32array-take
+                           (array.new_fixed $I32Array 3
+                                            (i32.const 11)
+                                            (i32.const 22)
+                                            (i32.const 33))
+                           (i32.const 2))))
+         (func (export "i32array_take_right_ref") (result i32)
+               (call $i32array-ref
+                     (call $i32array-take-right
+                           (array.new_fixed $I32Array 3
+                                            (i32.const 11)
+                                            (i32.const 22)
+                                            (i32.const 33))
+                           (i32.const 2))
+                     (i32.const 0)))
+         (func (export "i32array_drop_ref") (result i32)
+               (call $i32array-ref
+                     (call $i32array-drop
+                           (array.new_fixed $I32Array 3
+                                            (i32.const 11)
+                                            (i32.const 22)
+                                            (i32.const 33))
+                           (i32.const 1))
+                     (i32.const 0)))
+         (func (export "i32array_drop_right_length") (result i32)
+               (call $i32array-length
+                     (call $i32array-drop-right
+                           (array.new_fixed $I32Array 3
+                                            (i32.const 11)
+                                            (i32.const 22)
+                                            (i32.const 33))
+                           (i32.const 1))))
+         (func (export "i32array_set_copy_ref") (result i32)
+               (call $i32array-ref
+                     (call $i32array-set/copy
+                           (array.new_fixed $I32Array 2
+                                            (i32.const 11)
+                                            (i32.const 22))
+                           (i32.const 1)
+                           (i32.const 99))
+                     (i32.const 1)))
+         (func (export "i32array_extend_length") (result i32)
+               (call $i32array-length
+                     (call $i32array-extend
+                           (array.new_fixed $I32Array 2
+                                            (i32.const 11)
+                                            (i32.const 22))
+                           (i32.const 5)
+                           (i32.const 0))))
+         (func (export "i8array_length") (result i32)
+               (call $i8array-length
+                     (call $i8make-array (i32.const 3) (i32.const 7))))
+         (func (export "i8array_ref_unsigned") (result i32)
+               (call $i8array-ref
+                     (array.new_fixed $I8Array 2
+                                      (i32.const 11)
+                                      (i32.const 255))
+                     (i32.const 1)))
+         (func (export "i8array_set") (result i32)
+               (local $arr (ref $I8Array))
+               (local.set $arr (call $i8make-array (i32.const 2) (i32.const 0)))
+               (call $i8array-set! (local.get $arr) (i32.const 1) (i32.const 33))
+               (call $i8array-ref (local.get $arr) (i32.const 1)))
+         (func (export "i8array_fill") (result i32)
+               (local $arr (ref $I8Array))
+               (local.set $arr (call $i8make-array (i32.const 3) (i32.const 0)))
+               (call $i8array-fill! (local.get $arr) (i32.const 44))
+               (call $i8array-ref (local.get $arr) (i32.const 2)))
+         (func (export "i8array_copy_bang") (result i32)
+               (local $dest (ref $I8Array))
+               (local.set $dest (call $i8make-array (i32.const 3) (i32.const 0)))
+               (call $i8array-copy!
+                     (local.get $dest)
+                     (i32.const 1)
+                     (array.new_fixed $I8Array 2
+                                      (i32.const 55)
+                                      (i32.const 66))
+                     (i32.const 0)
+                     (i32.const 2))
+               (call $i8array-ref (local.get $dest) (i32.const 2)))
+         (func (export "i8array_copy_error_success") (result i32)
+               (call $i8array-copy!/error
+                     (call $i8make-array (i32.const 2) (i32.const 0))
+                     (i32.const 0)
+                     (array.new_fixed $I8Array 2
+                                      (i32.const 55)
+                                      (i32.const 66))
+                     (i32.const 0)
+                     (i32.const 2)))
+         (func (export "i8array_copy_error_failure") (result i32)
+               (call $i8array-copy!/error
+                     (call $i8make-array (i32.const 1) (i32.const 0))
+                     (i32.const 1)
+                     (array.new_fixed $I8Array 2
+                                      (i32.const 55)
+                                      (i32.const 66))
+                     (i32.const 0)
+                     (i32.const 2)))
+         (func (export "i8array_copy_ref") (result i32)
+               (call $i8array-ref
+                     (call $i8array-copy
+                           (array.new_fixed $I8Array 3
+                                            (i32.const 11)
+                                            (i32.const 22)
+                                            (i32.const 33))
+                           (i32.const 1)
+                           (i32.const 3))
+                     (i32.const 0)))
+         (func (export "i8array_set_copy_ref") (result i32)
+               (call $i8array-ref
+                     (call $i8array-set/copy
+                           (array.new_fixed $I8Array 2
+                                            (i32.const 11)
+                                            (i32.const 22))
+                           (i32.const 1)
+                           (i32.const 99))
+                     (i32.const 1)))
+         (func (export "i8array_extend_length") (result i32)
+               (call $i8array-length
+                     (call $i8array-extend
+                           (array.new_fixed $I8Array 2
+                                            (i32.const 11)
+                                            (i32.const 22))
+                           (i32.const 5)
+                           (i32.const 0))))
+         (func (export "i8array_append_ref") (result i32)
+               (call $i8array-ref
+                     (call $i8array-append
+                           (array.new_fixed $I8Array 1
+                                            (i32.const 11))
+                           (array.new_fixed $I8Array 2
+                                            (i32.const 22)
+                                            (i32.const 33)))
+                     (i32.const 2)))
+         (func (export "i8array_to_bytes_immutable_field") (result i32)
+               (struct.get $Bytes $immutable
+                           (call $i8array->bytes
+                                 (array.new_fixed $I8Array 2
+                                                  (i32.const 11)
+                                                  (i32.const 22)))))
+         (func (export "i8array_to_immutable_bytes_field") (result i32)
+               (struct.get $Bytes $immutable
+                           (call $i8array->immutable-bytes
+                                 (array.new_fixed $I8Array 2
+                                                  (i32.const 11)
+                                                  (i32.const 22)))))
+         (func (export "i8array_to_bytes_ref") (result i32)
+               (local $b (ref $Bytes))
+               (local.set $b
+                          (call $i8array->bytes
+                                (array.new_fixed $I8Array 2
+                                                 (i32.const 11)
+                                                 (i32.const 22))))
+               (array.get_u $I8Array
+                            (struct.get $Bytes $bs (local.get $b))
+                            (i32.const 1)))
+         (func (export "i32growable_count_after_growth") (result i32)
+               (local $g (ref $I32GrowableArray))
+               (local.set $g (call $make-i32growable-array (i32.const 1)))
+               (call $i32growable-array-add! (local.get $g) (i32.const 11))
+               (call $i32growable-array-add! (local.get $g) (i32.const 22))
+               (call $i32growable-array-add! (local.get $g) (i32.const 33))
+               (call $i32growable-array-count (local.get $g)))
+         (func (export "i32growable_ref_after_growth") (result i32)
+               (local $g (ref $I32GrowableArray))
+               (local.set $g (call $make-i32growable-array (i32.const 1)))
+               (call $i32growable-array-add! (local.get $g) (i32.const 11))
+               (call $i32growable-array-add! (local.get $g) (i32.const 22))
+               (call $i32growable-array-add! (local.get $g) (i32.const 33))
+               (call $i32growable-array-ref (local.get $g) (i32.const 2)))
+         (func (export "i32growable_copy_ref") (result i32)
+               (local $g (ref $I32GrowableArray))
+               (local $arr (ref $I32Array))
+               (local.set $g (call $make-i32growable-array (i32.const 1)))
+               (call $i32growable-array-add! (local.get $g) (i32.const 11))
+               (call $i32growable-array-add! (local.get $g) (i32.const 22))
+               (local.set $arr (call $i32growable-array->array (local.get $g)))
+               (call $i32array-ref (local.get $arr) (i32.const 1)))
+         (func (export "i32array_to_growable_count") (result i32)
+               (call $i32growable-array-count
+                     (call $i32array->growable-array
+                           (array.new_fixed $I32Array 2
+                                            (i32.const 11)
+                                            (i32.const 22)))))
+         (func (export "i32growable_add_string_ref") (result i32)
+               (local $g (ref $I32GrowableArray))
+               (local.set $g (call $make-i32growable-array (i32.const 1)))
+               (call $i32growable-array-add! (local.get $g) (i32.const 65))
+               (call $i32growable-array-add-string!
+                     (local.get $g)
+                     (struct.new $String
+                                 (i32.const 0)
+                                 (i32.const 1)
+                                 (array.new_fixed $I32Array 2
+                                                  (i32.const 66)
+                                                  (i32.const 67))))
+               (call $i32growable-array-ref (local.get $g) (i32.const 2)))
+         (func (export "growable_bytes_count_after_growth") (result i32)
+               (local $g (ref $GrowableBytes))
+               (local.set $g (call $make-growable-bytes (i32.const 1)))
+               (call $growable-bytes-add! (local.get $g) (i32.const 11))
+               (call $growable-bytes-add! (local.get $g) (i32.const 22))
+               (call $growable-bytes-add! (local.get $g) (i32.const 33))
+               (struct.get $GrowableBytes $i (local.get $g)))
+         (func (export "growable_bytes_to_bytes_length") (result i32)
+               (local $g (ref $GrowableBytes))
+               (local $b (ref $Bytes))
+               (local.set $g (call $make-growable-bytes (i32.const 1)))
+               (call $growable-bytes-add! (local.get $g) (i32.const 11))
+               (call $growable-bytes-add! (local.get $g) (i32.const 22))
+               (call $growable-bytes-add! (local.get $g) (i32.const 33))
+               (local.set $b (call $growable-bytes->bytes (local.get $g)))
+               (array.len (struct.get $Bytes $bs (local.get $b))))
+         (func (export "growable_bytes_to_bytes_ref") (result i32)
+               (local $g (ref $GrowableBytes))
+               (local $b (ref $Bytes))
+               (local.set $g (call $make-growable-bytes (i32.const 1)))
+               (call $growable-bytes-add! (local.get $g) (i32.const 11))
+               (call $growable-bytes-add! (local.get $g) (i32.const 22))
+               (call $growable-bytes-add! (local.get $g) (i32.const 33))
+               (local.set $b (call $growable-bytes->bytes (local.get $g)))
+               (array.get_u $I8Array
+                            (struct.get $Bytes $bs (local.get $b))
+                            (i32.const 2)))
+         (func (export "growable_bytes_to_bytes_immutable_field") (result i32)
+               (local $g (ref $GrowableBytes))
+               (local.set $g (call $make-growable-bytes (i32.const 1)))
+               (call $growable-bytes-add! (local.get $g) (i32.const 11))
+               (call $growable-bytes-add! (local.get $g) (i32.const 22))
+               (call $growable-bytes-add! (local.get $g) (i32.const 33))
+               (struct.get $Bytes $immutable
+                           (call $growable-bytes->bytes (local.get $g))))
+         (func (export "i32array_to_string_immutable_field") (result i32)
+               (struct.get $String $immutable
+                           (call $i32array->string
+                                 (array.new_fixed $I32Array 2
+                                                  (i32.const 65)
+                                                  (i32.const 66)))))
+         (func (export "i32array_to_immutable_string_field") (result i32)
+               (struct.get $String $immutable
+                           (call $i32array->immutable-string
+                                 (array.new_fixed $I32Array 2
+                                                  (i32.const 65)
+                                                  (i32.const 66)))))
+         (func (export "i32array_to_string_ref") (result i32)
+               (local $s (ref $String))
+               (local.set $s
+                          (call $i32array->string
+                                (array.new_fixed $I32Array 2
+                                                 (i32.const 65)
+                                                 (i32.const 66))))
+               (array.get $I32Array
+                          (struct.get $String $codepoints (local.get $s))
+                          (i32.const 1)))
+         (func (export "i32growable_to_string_ref") (result i32)
+               (local $g (ref $I32GrowableArray))
+               (local $s (ref $String))
+               (local.set $g (call $make-i32growable-array (i32.const 1)))
+               (call $i32growable-array-add! (local.get $g) (i32.const 65))
+               (call $i32growable-array-add! (local.get $g) (i32.const 66))
+               (local.set $s (call $i32growable-array->string (local.get $g)))
+               (array.get $I32Array
+                          (struct.get $String $codepoints (local.get $s))
+                          (i32.const 1)))
+         (func (export "i32growable_to_immutable_string_field") (result i32)
+               (local $g (ref $I32GrowableArray))
+               (local.set $g (call $make-i32growable-array (i32.const 1)))
+               (call $i32growable-array-add! (local.get $g) (i32.const 65))
+               (call $i32growable-array-add! (local.get $g) (i32.const 66))
+               (struct.get $String $immutable
+                           (call $i32growable-array->immutable-string
+                                 (local.get $g))))
          ,(tagged-call2-export "fxand_tagged" '$fxand/2 84 20)
          ,(tagged-call2-export "fxior_tagged" '$fxior/2 84 20)
          ,(tagged-call2-export "fxxor_tagged" '$fxxor/2 84 20)
@@ -828,6 +1430,50 @@ const expected = new Map([
   ["growable_array_ref_after_ops_tagged", 30],
   ["growable_array_copy_tagged", 40],
   ["array_to_growable_count", 2],
+  ["i32array_length", 3],
+  ["i32array_ref", 22],
+  ["i32array_set", 33],
+  ["i32array_equal_true", 1],
+  ["i32array_equal_false", 0],
+  ["i32array_fill", 44],
+  ["i32array_copy_bang", 66],
+  ["i32array_copy_error_success", 1],
+  ["i32array_copy_error_failure", 0],
+  ["i32array_append_ref", 33],
+  ["i32array_take_length", 2],
+  ["i32array_take_right_ref", 22],
+  ["i32array_drop_ref", 22],
+  ["i32array_drop_right_length", 2],
+  ["i32array_set_copy_ref", 99],
+  ["i32array_extend_length", 5],
+  ["i8array_length", 3],
+  ["i8array_ref_unsigned", 255],
+  ["i8array_set", 33],
+  ["i8array_fill", 44],
+  ["i8array_copy_bang", 66],
+  ["i8array_copy_error_success", 1],
+  ["i8array_copy_error_failure", 0],
+  ["i8array_copy_ref", 22],
+  ["i8array_set_copy_ref", 99],
+  ["i8array_extend_length", 5],
+  ["i8array_append_ref", 33],
+  ["i8array_to_bytes_immutable_field", 0],
+  ["i8array_to_immutable_bytes_field", 1],
+  ["i8array_to_bytes_ref", 22],
+  ["i32growable_count_after_growth", 3],
+  ["i32growable_ref_after_growth", 33],
+  ["i32growable_copy_ref", 22],
+  ["i32array_to_growable_count", 2],
+  ["i32growable_add_string_ref", 67],
+  ["growable_bytes_count_after_growth", 3],
+  ["growable_bytes_to_bytes_length", 3],
+  ["growable_bytes_to_bytes_ref", 33],
+  ["growable_bytes_to_bytes_immutable_field", 3],
+  ["i32array_to_string_immutable_field", 0],
+  ["i32array_to_immutable_string_field", 1],
+  ["i32array_to_string_ref", 66],
+  ["i32growable_to_string_ref", 66],
+  ["i32growable_to_immutable_string_field", 1],
   ["fxand_tagged", 20],
   ["fxior_tagged", 84],
   ["fxxor_tagged", 64],
