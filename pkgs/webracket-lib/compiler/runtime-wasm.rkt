@@ -25079,7 +25079,9 @@
 
                ;; Check procedure and fetch invoker
                (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
-                   (then (call $raise-argument-error:procedure-expected (local.get $proc))
+                   (then (call $raise-argument-error:procedure-expected/who
+                               (global.get $symbol:build-list)
+                               (local.get $proc))
                          (unreachable)))
                (local.set $f    (ref.cast (ref $Procedure) (local.get $proc)))
                (local.set $finv (struct.get $Procedure $invoke (local.get $f)))
@@ -25563,7 +25565,9 @@
                         (unreachable)))
 
               (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
-                  (then (call $raise-argument-error:procedure-expected (local.get $proc))
+                  (then (call $raise-argument-error:procedure-expected/who
+                              (global.get $symbol:list-update)
+                              (local.get $proc))
                         (unreachable)))
               (local.set $f    (ref.cast (ref $Procedure) (local.get $proc)))
               (local.set $finv (struct.get $Procedure $invoke (local.get $f)))

@@ -2346,6 +2346,10 @@
                                                 (lambda () (sort '(a) 42)))
                            (catch-contract/who? "sort"
                                                 (lambda () (sort '(a) < #:key 42)))
+                           (catch-contract/who? "build-list"
+                                                (lambda () (build-list 2 42)))
+                           (catch-contract/who? "list-update"
+                                                (lambda () (list-update '(a) 0 42)))
                            (catch-contract/who? "count"
                                                 (lambda () (count 42 '(a))))
                            (catch-contract/who? "count"
