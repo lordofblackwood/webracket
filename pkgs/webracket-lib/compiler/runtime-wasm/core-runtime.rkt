@@ -5,6 +5,7 @@
          generate-core-runtime)
 
 (require "core-helper.rkt"
+         "core/arrays.rkt"
          "core/fixnums.rkt"
          "core/flonums.rkt"
          "core/growable-arrays.rkt"
@@ -17,6 +18,7 @@
 ;;   Enumerate the functions currently shared between monolithic and core runtime trees.
 (define core-runtime-helpers
   (append
+   array-core-runtime-helpers
    fixnum-core-runtime-helpers
    flonum-core-runtime-helpers
    growable-array-core-runtime-helpers
@@ -89,6 +91,100 @@
            (import "core" ,(symbol->string name))
            (param (ref eq))
            (result i32)))
+
+  ;; core-array-imports : -> (listof datum?)
+  ;;   Build imported core helper declarations for generic arrays.
+  (define (core-array-imports)
+    `((func $make-array
+            (import "core" "$make-array")
+            (param i32)
+            (param (ref eq))
+            (result (ref $Array)))
+      (func $array-length
+            (import "core" "$array-length")
+            (param (ref $Array))
+            (result i32))
+      (func $array-ref
+            (import "core" "$array-ref")
+            (param (ref $Array))
+            (param i32)
+            (result (ref eq)))
+      (func $array-set!
+            (import "core" "$array-set!")
+            (param (ref $Array))
+            (param i32)
+            (param (ref eq)))
+      (func $array-fill!
+            (import "core" "$array-fill!")
+            (param (ref $Array))
+            (param (ref eq)))
+      (func $array-copy!
+            (import "core" "$array-copy!")
+            (param (ref $Array))
+            (param i32)
+            (param (ref $Array))
+            (param i32)
+            (param i32))
+      (func $array-copy!/error
+            (import "core" "$array-copy!/error")
+            (param (ref $Array))
+            (param i32)
+            (param (ref $Array))
+            (param i32)
+            (param i32)
+            (result i32))
+      (func $array-append
+            (import "core" "$array-append")
+            (param (ref $Array))
+            (param (ref $Array))
+            (result (ref $Array)))
+      (func $array-append-all
+            (import "core" "$array-append-all")
+            (param (ref $Array))
+            (result (ref $Array)))
+      (func $array-take
+            (import "core" "$array-take")
+            (param (ref $Array))
+            (param i32)
+            (result (ref $Array)))
+      (func $array-take-right
+            (import "core" "$array-take-right")
+            (param (ref $Array))
+            (param i32)
+            (result (ref $Array)))
+      (func $array-drop
+            (import "core" "$array-drop")
+            (param (ref $Array))
+            (param i32)
+            (result (ref $Array)))
+      (func $array-drop-right
+            (import "core" "$array-drop-right")
+            (param (ref $Array))
+            (param i32)
+            (result (ref $Array)))
+      (func $array-split-at
+            (import "core" "$array-split-at")
+            (param (ref $Array))
+            (param i32)
+            (result (ref $Array)))
+      (func $array-copy
+            (import "core" "$array-copy")
+            (param (ref $Array))
+            (param i32)
+            (param i32)
+            (result (ref $Array)))
+      (func $array-set/copy
+            (import "core" "$array-set/copy")
+            (param (ref $Array))
+            (param i32)
+            (param (ref eq))
+            (result (ref $Array)))
+      (func $array-extend
+            (import "core" "$array-extend")
+            (param (ref $Array))
+            (param i32)
+            (param (ref eq))
+            (result (ref $Array)))))
 
   ;; core-growable-array-imports : -> (listof datum?)
   ;;   Build imported core helper declarations for generic growable arrays.
@@ -323,6 +419,7 @@
                (result i32))
          ,@(for/list ([name (in-list core-raw-i32-unary-test-imports)])
              (core-raw-i32-unary-import name))
+         ,@(core-array-imports)
          ,@(core-growable-array-imports)
          ,@(for/list ([name (in-list core-prim1-test-imports)])
              (core-helper-import name '$Prim1))
@@ -424,6 +521,166 @@
                                  (ref.i31 (i32.const 0)))))
          (func (export "struct_fixnum_false") (result i32)
                (call $struct?/i32 (ref.i31 (i32.const 84))))
+         (func (export "array_length") (result i32)
+               (call $array-length
+                     (call $make-array (i32.const 3) (ref.i31 (i32.const 20)))))
+         (func (export "array_ref_tagged") (result i32)
+               (i31.get_s
+                (ref.cast (ref i31)
+                          (call $array-ref
+                                (array.new_fixed $Array 2
+                                                 (ref.i31 (i32.const 20))
+                                                 (ref.i31 (i32.const 40)))
+                                (i32.const 1)))))
+         (func (export "array_set_ref_tagged") (result i32)
+               (local $arr (ref $Array))
+               (local.set $arr (call $make-array (i32.const 2) (ref.i31 (i32.const 20))))
+               (call $array-set! (local.get $arr) (i32.const 1) (ref.i31 (i32.const 60)))
+               (i31.get_s
+                (ref.cast (ref i31)
+                          (call $array-ref (local.get $arr) (i32.const 1)))))
+         (func (export "array_fill_ref_tagged") (result i32)
+               (local $arr (ref $Array))
+               (local.set $arr (call $make-array (i32.const 3) (ref.i31 (i32.const 20))))
+               (call $array-fill! (local.get $arr) (ref.i31 (i32.const 80)))
+               (i31.get_s
+                (ref.cast (ref i31)
+                          (call $array-ref (local.get $arr) (i32.const 2)))))
+         (func (export "array_copy_bang_tagged") (result i32)
+               (local $dest (ref $Array))
+               (local $src (ref $Array))
+               (local.set $dest (call $make-array (i32.const 3) (ref.i31 (i32.const 0))))
+               (local.set $src (array.new_fixed $Array 2
+                                                 (ref.i31 (i32.const 20))
+                                                 (ref.i31 (i32.const 40))))
+               (call $array-copy! (local.get $dest) (i32.const 1) (local.get $src) (i32.const 0) (i32.const 2))
+               (i31.get_s
+                (ref.cast (ref i31)
+                          (call $array-ref (local.get $dest) (i32.const 2)))))
+         (func (export "array_copy_error_success") (result i32)
+               (call $array-copy!/error
+                     (call $make-array (i32.const 2) (ref.i31 (i32.const 0)))
+                     (i32.const 0)
+                     (array.new_fixed $Array 2
+                                      (ref.i31 (i32.const 20))
+                                      (ref.i31 (i32.const 40)))
+                     (i32.const 0)
+                     (i32.const 2)))
+         (func (export "array_copy_error_failure") (result i32)
+               (call $array-copy!/error
+                     (call $make-array (i32.const 1) (ref.i31 (i32.const 0)))
+                     (i32.const 1)
+                     (array.new_fixed $Array 2
+                                      (ref.i31 (i32.const 20))
+                                      (ref.i31 (i32.const 40)))
+                     (i32.const 0)
+                     (i32.const 2)))
+         (func (export "array_append_ref_tagged") (result i32)
+               (local $arr (ref $Array))
+               (local.set $arr
+                          (call $array-append
+                                (array.new_fixed $Array 1
+                                                 (ref.i31 (i32.const 20)))
+                                (array.new_fixed $Array 2
+                                                 (ref.i31 (i32.const 40))
+                                                 (ref.i31 (i32.const 60)))))
+               (i31.get_s
+                (ref.cast (ref i31)
+                          (call $array-ref (local.get $arr) (i32.const 2)))))
+         (func (export "array_append_all_ref_tagged") (result i32)
+               (local $arr (ref $Array))
+               (local.set $arr
+                          (call $array-append-all
+                                (array.new_fixed $Array 2
+                                                 (array.new_fixed $Array 1
+                                                                  (ref.i31 (i32.const 20)))
+                                                 (array.new_fixed $Array 2
+                                                                  (ref.i31 (i32.const 40))
+                                                                  (ref.i31 (i32.const 60))))))
+               (i31.get_s
+                (ref.cast (ref i31)
+                          (call $array-ref (local.get $arr) (i32.const 2)))))
+         (func (export "array_take_length") (result i32)
+               (call $array-length
+                     (call $array-take
+                           (array.new_fixed $Array 3
+                                            (ref.i31 (i32.const 20))
+                                            (ref.i31 (i32.const 40))
+                                            (ref.i31 (i32.const 60)))
+                           (i32.const 2))))
+         (func (export "array_take_right_ref_tagged") (result i32)
+               (i31.get_s
+                (ref.cast (ref i31)
+                          (call $array-ref
+                                (call $array-take-right
+                                      (array.new_fixed $Array 3
+                                                       (ref.i31 (i32.const 20))
+                                                       (ref.i31 (i32.const 40))
+                                                       (ref.i31 (i32.const 60)))
+                                      (i32.const 2))
+                                (i32.const 0)))))
+         (func (export "array_drop_ref_tagged") (result i32)
+               (i31.get_s
+                (ref.cast (ref i31)
+                          (call $array-ref
+                                (call $array-drop
+                                      (array.new_fixed $Array 3
+                                                       (ref.i31 (i32.const 20))
+                                                       (ref.i31 (i32.const 40))
+                                                       (ref.i31 (i32.const 60)))
+                                      (i32.const 1))
+                                (i32.const 0)))))
+         (func (export "array_drop_right_length") (result i32)
+               (call $array-length
+                     (call $array-drop-right
+                           (array.new_fixed $Array 3
+                                            (ref.i31 (i32.const 20))
+                                            (ref.i31 (i32.const 40))
+                                            (ref.i31 (i32.const 60)))
+                           (i32.const 1))))
+         (func (export "array_split_at_second_length") (result i32)
+               (local $split (ref $Array))
+               (local.set $split
+                          (call $array-split-at
+                                (array.new_fixed $Array 3
+                                                 (ref.i31 (i32.const 20))
+                                                 (ref.i31 (i32.const 40))
+                                                 (ref.i31 (i32.const 60)))
+                                (i32.const 1)))
+               (call $array-length
+                     (ref.cast (ref $Array)
+                               (call $array-ref (local.get $split) (i32.const 1)))))
+         (func (export "array_copy_ref_tagged") (result i32)
+               (i31.get_s
+                (ref.cast (ref i31)
+                          (call $array-ref
+                                (call $array-copy
+                                      (array.new_fixed $Array 3
+                                                       (ref.i31 (i32.const 20))
+                                                       (ref.i31 (i32.const 40))
+                                                       (ref.i31 (i32.const 60)))
+                                      (i32.const 1)
+                                      (i32.const 3))
+                                (i32.const 0)))))
+         (func (export "array_set_copy_ref_tagged") (result i32)
+               (i31.get_s
+                (ref.cast (ref i31)
+                          (call $array-ref
+                                (call $array-set/copy
+                                      (array.new_fixed $Array 2
+                                                       (ref.i31 (i32.const 20))
+                                                       (ref.i31 (i32.const 40)))
+                                      (i32.const 1)
+                                      (ref.i31 (i32.const 80)))
+                                (i32.const 1)))))
+         (func (export "array_extend_length") (result i32)
+               (call $array-length
+                     (call $array-extend
+                           (array.new_fixed $Array 2
+                                            (ref.i31 (i32.const 20))
+                                            (ref.i31 (i32.const 40)))
+                           (i32.const 5)
+                           (ref.i31 (i32.const 0)))))
          (func (export "growable_array_predicate_true") (result i32)
                (call $growable-array??
                      (call $make-growable-array (i32.const 1))))
@@ -546,6 +803,23 @@ const expected = new Map([
   ["struct_type_fixnum_false", 0],
   ["struct_struct_type_false", 0],
   ["struct_fixnum_false", 0],
+  ["array_length", 3],
+  ["array_ref_tagged", 40],
+  ["array_set_ref_tagged", 60],
+  ["array_fill_ref_tagged", 80],
+  ["array_copy_bang_tagged", 40],
+  ["array_copy_error_success", 1],
+  ["array_copy_error_failure", 0],
+  ["array_append_ref_tagged", 60],
+  ["array_append_all_ref_tagged", 60],
+  ["array_take_length", 2],
+  ["array_take_right_ref_tagged", 40],
+  ["array_drop_ref_tagged", 40],
+  ["array_drop_right_length", 2],
+  ["array_split_at_second_length", 2],
+  ["array_copy_ref_tagged", 40],
+  ["array_set_copy_ref_tagged", 80],
+  ["array_extend_length", 5],
   ["growable_array_predicate_true", 1],
   ["growable_array_predicate_false", 0],
   ["growable_array_boolean_true_tagged", 159],

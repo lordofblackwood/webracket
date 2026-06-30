@@ -45,19 +45,26 @@
             "expected a function form, got: ~s"
             form)]))
 
-;; core-runtime-helper->form : core-runtime-helper? [#:export? boolean?] -> datum?
+;; core-runtime-helper->form : core-runtime-helper? [#:export? boolean?] [#:export-name (or/c string? #f)] -> datum?
 ;;   Render a registered helper as a WAT function form.
-(define (core-runtime-helper->form helper #:export? [export? #f])
+(define (core-runtime-helper->form helper
+                                   #:export? [export? #f]
+                                   #:export-name [export-name #f])
   (define form ((core-runtime-helper-make-form helper)))
   (if export?
-      (export-function-form form (core-runtime-helper-export-name helper))
+      (export-function-form form (or export-name
+                                     (core-runtime-helper-export-name helper)))
       form))
 
-;; core-runtime-helper-form : hasheq? symbol? [#:export? boolean?] -> datum?
+;; core-runtime-helper-form : hasheq? symbol? [#:export? boolean?] [#:export-name (or/c string? #f)] -> datum?
 ;;   Render a named registered helper as a WAT function form.
-(define (core-runtime-helper-form helper-index name #:export? [export? #f])
+(define (core-runtime-helper-form helper-index
+                                  name
+                                  #:export? [export? #f]
+                                  #:export-name [export-name #f])
   (core-runtime-helper->form (core-runtime-helper-ref helper-index name)
-                             #:export? export?))
+                             #:export? export?
+                             #:export-name export-name))
 
 ;; core-runtime-helper-forms : (listof core-runtime-helper?) [#:export? boolean?] -> (listof datum?)
 ;;   Render all registered core helper function forms.
