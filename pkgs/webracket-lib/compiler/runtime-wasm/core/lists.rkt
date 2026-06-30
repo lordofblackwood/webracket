@@ -6282,4 +6282,776 @@
 
              (call $foldr/n-loop (local.get $f) (local.get $finv)
                    (local.get $lists) (local.get $nlists)
-                   (local.get $init))))))))
+                   (local.get $init)))))
+
+    ;; raise-take:bad-length : list? i32 -> none
+    ;;   Report that take asked for too many elements.
+    (core-runtime-helper
+     '$raise-take:bad-length
+     "$raise-take:bad-length"
+     (lambda ()
+       `(func $raise-take:bad-length
+             (param $xs  (ref eq))
+             (param $n   i32)
+             (param $len i32)
+             (call $raise-take:bad-length/who
+                   (global.get $symbol:take)
+                   (local.get $xs)
+                   (local.get $n)
+                   (local.get $len)))))
+
+    ;; raise-take:bad-length/who : symbol? list? i32 -> none
+    ;;   Report a take-style length error with who.
+    (core-runtime-helper
+     '$raise-take:bad-length/who
+     "$raise-take:bad-length/who"
+     (lambda ()
+       `(func $raise-take:bad-length/who
+             (param $who (ref eq))
+             (param $xs  (ref eq))
+             (param $n   i32)
+             (param $len i32)
+             (call $raise-argument-error1
+                   (local.get $who)
+                   (global.get $string:list?)
+                   (local.get $xs)))))
+
+    ;; raise-take-right:bad-length : list? i32 -> none
+    ;;   Report that take-right asked for too many elements.
+    (core-runtime-helper
+     '$raise-take-right:bad-length
+     "$raise-take-right:bad-length"
+     (lambda ()
+       `(func $raise-take-right:bad-length
+             (param $xs  (ref eq))
+             (param $n   i32)
+             (param $len i32)
+             (call $raise-take-right:bad-length/who
+                   (global.get $symbol:take-right)
+                   (local.get $xs)
+                   (local.get $n)
+                   (local.get $len)))))
+
+    ;; raise-take-right:bad-length/who : symbol? list? i32 -> none
+    ;;   Report a take-right-style length error with who.
+    (core-runtime-helper
+     '$raise-take-right:bad-length/who
+     "$raise-take-right:bad-length/who"
+     (lambda ()
+       `(func $raise-take-right:bad-length/who
+             (param $who (ref eq))
+             (param $xs  (ref eq))
+             (param $n   i32)
+             (param $len i32)
+             (call $raise-argument-error1
+                   (local.get $who)
+                   (global.get $string:list?)
+                   (local.get $xs)))))
+
+    ;; take/who : symbol? list? exact-nonnegative-integer? -> list?
+    ;;   Return the first n elements of a list, reporting errors with who.
+    (core-runtime-helper
+     '$take/who
+     "$take/who"
+     (lambda ()
+       `(func $take/who
+             (param $who   (ref eq))
+             (param $xs    (ref eq))
+             (param $n/fx  (ref eq))
+             (result       (ref eq))
+
+             (local $count      i32)
+             (local $orig-count i32)
+             (local $taken      i32)
+             (local $cur        (ref eq))
+             (local $pair       (ref $Pair))
+             (local $elem       (ref eq))
+             (local $acc        (ref eq))
+
+             (if (ref.test (ref i31) (local.get $n/fx))
+                 (then (local.set $count (i31.get_s (ref.cast (ref i31) (local.get $n/fx))))
+                       (if (i32.ne (i32.and (local.get $count) (i32.const 1)) (i32.const 0))
+                           (then (call $raise-exact-nonnegative-integer-expected/who
+                                       (local.get $who)
+                                       (local.get $n/fx))
+                                 (unreachable)))
+                       (local.set $count (i32.shr_s (local.get $count) (i32.const 1))))
+                 (else (call $raise-exact-nonnegative-integer-expected/who
+                             (local.get $who)
+                             (local.get $n/fx))
+                       (unreachable)))
+             (if (i32.lt_s (local.get $count) (i32.const 0))
+                 (then (call $raise-exact-nonnegative-integer-expected/who
+                             (local.get $who)
+                             (local.get $n/fx))
+                       (unreachable)))
+
+             (local.set $orig-count (local.get $count))
+
+             (if (i32.eqz (local.get $count))
+                 (then (return (global.get $null))))
+
+             (local.set $cur  (local.get $xs))
+             (local.set $pair (global.get $dummy-pair))
+             (local.set $acc  (global.get $null))
+             (local.set $taken (i32.const 0))
+
+             (loop $loop
+                   (if (i32.eqz (local.get $count))
+                       (then (return (call $reverse (local.get $acc)))))
+                   (if (i32.eqz (ref.test (ref $Pair) (local.get $cur)))
+                       (then (call $raise-take:bad-length/who
+                                   (local.get $who)
+                                   (local.get $xs)
+                                   (local.get $orig-count)
+                                   (local.get $taken))
+                             (unreachable)))
+                   (local.set $pair (ref.cast (ref $Pair) (local.get $cur)))
+                   (local.set $elem (struct.get $Pair $a (local.get $pair)))
+                   (local.set $acc  (call $cons (local.get $elem) (local.get $acc)))
+                   (local.set $cur  (struct.get $Pair $d (local.get $pair)))
+                   (local.set $count (i32.sub (local.get $count) (i32.const 1)))
+                   (local.set $taken (i32.add (local.get $taken) (i32.const 1)))
+                   (br $loop))
+             (unreachable))))
+
+    ;; take : list? exact-nonnegative-integer? -> list?
+    ;;   Return the first n elements of a list.
+    (core-runtime-helper
+     '$take
+     "$take"
+     (lambda ()
+       `(func $take (type $Prim2)
+             (param $xs   (ref eq))
+             (param $n/fx (ref eq))
+             (result      (ref eq))
+             (call $take/who
+                   (global.get $symbol:take)
+                   (local.get $xs)
+                   (local.get $n/fx)))))
+
+    ;; take-right/who : symbol? list? exact-nonnegative-integer? -> list?
+    ;;   Return the last n elements of a list, reporting errors with who.
+    (core-runtime-helper
+     '$take-right/who
+     "$take-right/who"
+     (lambda ()
+       `(func $take-right/who
+             (param $who   (ref eq))
+             (param $xs    (ref eq))
+             (param $n/fx  (ref eq))
+             (result       (ref eq))
+
+             (local $count      i32)
+             (local $orig-count i32)
+             (local $remaining  i32)
+             (local $available  i32)
+             (local $lead       (ref eq))
+             (local $lag        (ref eq))
+             (local $pair       (ref $Pair))
+             (local $lag-pair   (ref $Pair))
+
+             (if (ref.test (ref i31) (local.get $n/fx))
+                 (then (local.set $count (i31.get_s (ref.cast (ref i31) (local.get $n/fx))))
+                       (if (i32.ne (i32.and (local.get $count) (i32.const 1)) (i32.const 0))
+                           (then (call $raise-exact-nonnegative-integer-expected/who
+                                       (local.get $who)
+                                       (local.get $n/fx))
+                                 (unreachable)))
+                       (local.set $count (i32.shr_s (local.get $count) (i32.const 1))))
+                 (else (call $raise-exact-nonnegative-integer-expected/who
+                             (local.get $who)
+                             (local.get $n/fx))
+                       (unreachable)))
+             (if (i32.lt_s (local.get $count) (i32.const 0))
+                 (then (call $raise-exact-nonnegative-integer-expected/who
+                             (local.get $who)
+                             (local.get $n/fx))
+                       (unreachable)))
+
+             (local.set $orig-count (local.get $count))
+
+             (if (i32.eqz (local.get $count))
+                 (then (return (local.get $xs))))
+
+             (local.set $lead      (local.get $xs))
+             (local.set $remaining (local.get $count))
+             (local.set $available (i32.const 0))
+             (local.set $pair      (global.get $dummy-pair))
+             (local.set $lag-pair  (global.get $dummy-pair))
+
+             (block $advance-done
+                    (loop $advance
+                          (if (i32.eqz (local.get $remaining))
+                              (then (br $advance-done)))
+                          (if (i32.eqz (ref.test (ref $Pair) (local.get $lead)))
+                              (then (call $raise-take-right:bad-length/who
+                                          (local.get $who)
+                                          (local.get $xs)
+                                          (local.get $orig-count)
+                                          (local.get $available))
+                                    (unreachable)))
+                          (local.set $pair (ref.cast (ref $Pair) (local.get $lead)))
+                          (local.set $lead (struct.get $Pair $d (local.get $pair)))
+                          (local.set $remaining (i32.sub (local.get $remaining) (i32.const 1)))
+                          (local.set $available (i32.add (local.get $available) (i32.const 1)))
+                          (br $advance)))
+
+             (local.set $lag (local.get $xs))
+
+             (loop $slide
+                   (if (i32.eqz (ref.test (ref $Pair) (local.get $lead)))
+                       (then (return (local.get $lag))))
+                   (local.set $pair (ref.cast (ref $Pair) (local.get $lead)))
+                   (local.set $lag-pair (ref.cast (ref $Pair) (local.get $lag)))
+                   (local.set $lead (struct.get $Pair $d (local.get $pair)))
+                   (local.set $lag  (struct.get $Pair $d (local.get $lag-pair)))
+                   (br $slide))
+             (unreachable))))
+
+    ;; take-right : list? exact-nonnegative-integer? -> list?
+    ;;   Return the last n elements of a list.
+    (core-runtime-helper
+     '$take-right
+     "$take-right"
+     (lambda ()
+       `(func $take-right (type $Prim2)
+             (param $xs   (ref eq))
+             (param $n/fx (ref eq))
+             (result      (ref eq))
+             (call $take-right/who
+                   (global.get $symbol:take-right)
+                   (local.get $xs)
+                   (local.get $n/fx)))))
+
+    ;; takef : list? procedure? -> list?
+    ;;   Return the longest prefix accepted by a predicate.
+    (core-runtime-helper
+     '$takef
+     "$takef"
+     (lambda ()
+       `(func $takef (type $Prim2)
+             (param $xs   (ref eq))
+             (param $proc (ref eq))
+             (result      (ref eq))
+
+             (local $f    (ref $Procedure))
+             (local $inv  (ref $ProcedureInvoker))
+             (local $args (ref $Args))
+             (local $res  (ref eq))
+             (local $cur  (ref eq))
+             (local $pair (ref $Pair))
+             (local $elem (ref eq))
+             (local $acc  (ref eq))
+
+            (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
+                 (then (call $raise-argument-error:procedure-expected/who
+                             (global.get $symbol:takef)
+                             (local.get $proc))
+                       (unreachable)))
+
+             (local.set $f   (ref.cast (ref $Procedure) (local.get $proc)))
+             (local.set $inv (struct.get $Procedure $invoke (local.get $f)))
+             (local.set $args (array.new $Args (global.get $null) (i32.const 1)))
+
+             (local.set $cur  (local.get $xs))
+             (local.set $pair (global.get $dummy-pair))
+             (local.set $acc  (global.get $null))
+
+             (loop $loop
+                   (if (i32.eqz (ref.test (ref $Pair) (local.get $cur)))
+                       (then (return (call $reverse (local.get $acc)))))
+                   (local.set $pair (ref.cast (ref $Pair) (local.get $cur)))
+                   (local.set $elem (struct.get $Pair $a (local.get $pair)))
+                   (array.set $Args (local.get $args) (i32.const 0) (local.get $elem))
+                   (local.set $res
+                              (call_ref $ProcedureInvoker
+                                        (local.get $f)
+                                        (local.get $args)
+                                        (local.get $inv)))
+                   (if (ref.eq (local.get $res) (global.get $false))
+                       (then (return (call $reverse (local.get $acc)))))
+                   (local.set $acc (call $cons (local.get $elem) (local.get $acc)))
+                   (local.set $cur (struct.get $Pair $d (local.get $pair)))
+                   (br $loop))
+             (unreachable))))
+
+    ;; takef-right : list? procedure? -> list?
+    ;;   Return the longest suffix accepted by a predicate.
+    (core-runtime-helper
+     '$takef-right
+     "$takef-right"
+     (lambda ()
+       `(func $takef-right (type $Prim2)
+             (param $xs   (ref eq))
+             (param $proc (ref eq))
+             (result      (ref eq))
+
+             (local $f      (ref $Procedure))
+             (local $inv    (ref $ProcedureInvoker))
+             (local $args   (ref $Args))
+             (local $res    (ref eq))
+             (local $cur    (ref eq))
+             (local $pair   (ref $Pair))
+             (local $elem   (ref eq))
+             (local $suffix (ref eq))
+
+            (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
+                 (then (call $raise-argument-error:procedure-expected/who
+                             (global.get $symbol:takef-right)
+                             (local.get $proc))
+                       (unreachable)))
+
+             (local.set $f    (ref.cast (ref $Procedure) (local.get $proc)))
+             (local.set $inv  (struct.get $Procedure $invoke (local.get $f)))
+             (local.set $args (array.new $Args (global.get $null) (i32.const 1)))
+
+             (local.set $cur    (local.get $xs))
+             (local.set $pair   (global.get $dummy-pair))
+             (local.set $suffix (local.get $xs))
+
+             (loop $loop
+                   (if (i32.eqz (ref.test (ref $Pair) (local.get $cur)))
+                       (then (return (local.get $suffix))))
+                   (local.set $pair (ref.cast (ref $Pair) (local.get $cur)))
+                   (local.set $elem (struct.get $Pair $a (local.get $pair)))
+                   (array.set $Args (local.get $args) (i32.const 0) (local.get $elem))
+                   (local.set $res
+                              (call_ref $ProcedureInvoker
+                                        (local.get $f)
+                                        (local.get $args)
+                                        (local.get $inv)))
+                   (if (ref.eq (local.get $res) (global.get $false))
+                       (then (local.set $suffix (struct.get $Pair $d (local.get $pair)))))
+                   (local.set $cur (struct.get $Pair $d (local.get $pair)))
+                   (br $loop))
+             (unreachable))))
+
+    ;; list-prefix? : list? list? procedure? -> boolean?
+    ;;   Check whether one list is a prefix of another.
+    (core-runtime-helper
+     '$list-prefix?
+     "$list-prefix?"
+     (lambda ()
+       `(func $list-prefix? (type $Prim23)
+             (param $l     (ref eq)) ; list
+             (param $r     (ref eq)) ; list
+             (param $same? (ref eq)) ; optional, defaults to equal?
+             (result       (ref eq))
+
+             (local $lcur   (ref eq))
+             (local $rcur   (ref eq))
+             (local $lpair  (ref $Pair))
+             (local $rpair  (ref $Pair))
+             (local $lelem  (ref eq))
+             (local $relem  (ref eq))
+             (local $args   (ref $Args))
+             (local $res    (ref eq))
+             (local $use-proc i32)
+
+             ;; Handle optional comparator
+             (if (ref.eq (local.get $same?) (global.get $missing))
+                 (then (local.set $use-proc (i32.const 0)))
+                 (else
+                  (if (i32.eqz (ref.test (ref $Procedure) (local.get $same?)))
+                      (then (call $raise-argument-error:procedure-expected/who
+                                  (global.get $symbol:list-prefix?)
+                                  (local.get $same?))
+                            (unreachable))
+                      (else))
+                  (local.set $use-proc (i32.const 1))))
+
+             (if (ref.eq (call $list? (local.get $l)) (global.get $false))
+                 (then (call $raise-argument-error1
+                             (global.get $symbol:list-prefix?)
+                             (global.get $string:list?)
+                             (local.get $l))
+                       (unreachable)))
+             (if (ref.eq (call $list? (local.get $r)) (global.get $false))
+                 (then (call $raise-argument-error1
+                             (global.get $symbol:list-prefix?)
+                             (global.get $string:list?)
+                             (local.get $r))
+                       (unreachable)))
+
+             ;; Iterate through lists
+             (local.set $lcur (local.get $l))
+             (local.set $rcur (local.get $r))
+             (loop $loop
+                   (if (ref.eq (local.get $lcur) (global.get $null))
+                       (then (return (global.get $true))))
+                   (if (ref.eq (local.get $rcur) (global.get $null))
+                       (then (return (global.get $false))))
+
+                   (if (i32.eqz (ref.test (ref $Pair) (local.get $lcur)))
+                       (then (call $raise-pair-expected (local.get $lcur))
+                             (unreachable)))
+                   (if (i32.eqz (ref.test (ref $Pair) (local.get $rcur)))
+                       (then (call $raise-pair-expected (local.get $rcur))
+                             (unreachable)))
+
+                   (local.set $lpair (ref.cast (ref $Pair) (local.get $lcur)))
+                   (local.set $rpair (ref.cast (ref $Pair) (local.get $rcur)))
+                   (local.set $lelem (struct.get $Pair $a (local.get $lpair)))
+                   (local.set $relem (struct.get $Pair $a (local.get $rpair)))
+
+                   (block $same
+                          (if (i32.eqz (local.get $use-proc))
+                              (then
+                               (if (ref.eq (call $equal? (local.get $lelem) (local.get $relem))
+                                           (global.get $false))
+                                   (then (return (global.get $false)))
+                                   (else (br $same))))
+                              (else
+                               (local.set $res
+                                          (call_ref $ProcedureInvoker
+                                                    (ref.cast (ref $Procedure) (local.get $same?))
+                                                    (block (result (ref $Args))
+                                                           (local.set $args (array.new $Args (global.get $null) (i32.const 2)))
+                                                           (array.set $Args (local.get $args) (i32.const 0) (local.get $lelem))
+                                                           (array.set $Args (local.get $args) (i32.const 1) (local.get $relem))
+                                                           (local.get $args))
+                                                    (struct.get $Procedure $invoke
+                                                               (ref.cast (ref $Procedure) (local.get $same?)))))
+                               (if (ref.eq (local.get $res) (global.get $false))
+                                   (then (return (global.get $false)))
+                                   (else (br $same))))))
+
+                   (local.set $lcur (struct.get $Pair $d (local.get $lpair)))
+                   (local.set $rcur (struct.get $Pair $d (local.get $rpair)))
+                   (br $loop))
+             (unreachable))))
+
+    ;; take-common-prefix : list? list? procedure? -> list?
+    ;;   Return the common prefix of two lists.
+    (core-runtime-helper
+     '$take-common-prefix
+     "$take-common-prefix"
+     (lambda ()
+       `(func $take-common-prefix (type $Prim23)
+             (param $l     (ref eq)) ; list
+             (param $r     (ref eq)) ; list
+             (param $same? (ref eq)) ; optional, defaults to equal?
+             (result       (ref eq))
+
+             (local $lcur   (ref eq))
+             (local $rcur   (ref eq))
+             (local $lpair  (ref $Pair))
+             (local $rpair  (ref $Pair))
+             (local $lelem  (ref eq))
+             (local $relem  (ref eq))
+             (local $acc    (ref eq))
+             (local $args   (ref $Args))
+             (local $res    (ref eq))
+             (local $use-proc i32)
+
+             ;; Handle optional comparator
+             (if (ref.eq (local.get $same?) (global.get $missing))
+                 (then (local.set $use-proc (i32.const 0)))
+                 (else
+                  (if (i32.eqz (ref.test (ref $Procedure) (local.get $same?)))
+                      (then (call $raise-argument-error:procedure-expected/who
+                                  (global.get $symbol:take-common-prefix)
+                                  (local.get $same?))
+                            (unreachable))
+                      (else))
+                  (local.set $use-proc (i32.const 1))))
+
+             (if (ref.eq (call $list? (local.get $l)) (global.get $false))
+                 (then (call $raise-argument-error1
+                             (global.get $symbol:take-common-prefix)
+                             (global.get $string:list?)
+                             (local.get $l))
+                       (unreachable)))
+             (if (ref.eq (call $list? (local.get $r)) (global.get $false))
+                 (then (call $raise-argument-error1
+                             (global.get $symbol:take-common-prefix)
+                             (global.get $string:list?)
+                             (local.get $r))
+                       (unreachable)))
+
+             ;; Iterate through lists, building accumulator
+             (local.set $lcur (local.get $l))
+             (local.set $rcur (local.get $r))
+             (local.set $acc (global.get $null))
+             (loop $loop
+                   (if (ref.eq (local.get $lcur) (global.get $null))
+                       (then (return (call $reverse (local.get $acc)))))
+                   (if (ref.eq (local.get $rcur) (global.get $null))
+                       (then (return (call $reverse (local.get $acc)))))
+
+                   (if (i32.eqz (ref.test (ref $Pair) (local.get $lcur)))
+                       (then (call $raise-pair-expected (local.get $lcur))
+                             (unreachable)))
+                   (if (i32.eqz (ref.test (ref $Pair) (local.get $rcur)))
+                       (then (call $raise-pair-expected (local.get $rcur))
+                             (unreachable)))
+
+                   (local.set $lpair (ref.cast (ref $Pair) (local.get $lcur)))
+                   (local.set $rpair (ref.cast (ref $Pair) (local.get $rcur)))
+                   (local.set $lelem (struct.get $Pair $a (local.get $lpair)))
+                   (local.set $relem (struct.get $Pair $a (local.get $rpair)))
+
+                   (block $same
+                          (if (i32.eqz (local.get $use-proc))
+                              (then
+                               (if (ref.eq (call $equal? (local.get $lelem) (local.get $relem))
+                                           (global.get $false))
+                                   (then (return (call $reverse (local.get $acc))))
+                                   (else (br $same))))
+                              (else
+                               (local.set $res
+                                          (call_ref $ProcedureInvoker
+                                                    (ref.cast (ref $Procedure) (local.get $same?))
+                                                    (block (result (ref $Args))
+                                                           (local.set $args (array.new $Args (global.get $null) (i32.const 2)))
+                                                           (array.set $Args (local.get $args) (i32.const 0) (local.get $lelem))
+                                                           (array.set $Args (local.get $args) (i32.const 1) (local.get $relem))
+                                                           (local.get $args))
+                                                    (struct.get $Procedure $invoke
+                                                               (ref.cast (ref $Procedure) (local.get $same?)))))
+                               (if (ref.eq (local.get $res) (global.get $false))
+                                   (then (return (call $reverse (local.get $acc))))
+                                   (else (br $same))))))
+
+                   (local.set $acc (call $cons (local.get $lelem) (local.get $acc)))
+                   (local.set $lcur (struct.get $Pair $d (local.get $lpair)))
+                   (local.set $rcur (struct.get $Pair $d (local.get $rpair)))
+                   (br $loop))
+             (unreachable))))
+
+    ;; drop-common-prefix : list? list? procedure? -> values?
+    ;;   Return the remaining tails after dropping a common prefix.
+    (core-runtime-helper
+     '$drop-common-prefix
+     "$drop-common-prefix"
+     (lambda ()
+       `(func $drop-common-prefix (type $Prim23)
+             (param $l     (ref eq)) ; list
+             (param $r     (ref eq)) ; list
+             (param $same? (ref eq)) ; optional, defaults to equal?
+             (result       (ref eq))
+
+             (local $lcur   (ref eq))
+             (local $rcur   (ref eq))
+             (local $lpair  (ref $Pair))
+             (local $rpair  (ref $Pair))
+             (local $lelem  (ref eq))
+             (local $relem  (ref eq))
+             (local $args   (ref $Args))
+             (local $res    (ref eq))
+             (local $use-proc i32)
+
+             ;; Handle optional comparator
+             (if (ref.eq (local.get $same?) (global.get $missing))
+                 (then (local.set $use-proc (i32.const 0)))
+                 (else
+                  (if (i32.eqz (ref.test (ref $Procedure) (local.get $same?)))
+                      (then (call $raise-argument-error:procedure-expected/who
+                                  (global.get $symbol:drop-common-prefix)
+                                  (local.get $same?))
+                            (unreachable))
+                      (else))
+                  (local.set $use-proc (i32.const 1))))
+
+             (if (ref.eq (call $list? (local.get $l)) (global.get $false))
+                 (then (call $raise-argument-error1
+                             (global.get $symbol:drop-common-prefix)
+                             (global.get $string:list?)
+                             (local.get $l))
+                       (unreachable)))
+             (if (ref.eq (call $list? (local.get $r)) (global.get $false))
+                 (then (call $raise-argument-error1
+                             (global.get $symbol:drop-common-prefix)
+                             (global.get $string:list?)
+                             (local.get $r))
+                       (unreachable)))
+
+             ;; Iterate through lists, dropping common prefix
+             (local.set $lcur (local.get $l))
+             (local.set $rcur (local.get $r))
+             (loop $loop
+                   (if (ref.eq (local.get $lcur) (global.get $null))
+                       (then (return (array.new_fixed $Values 2 (local.get $lcur) (local.get $rcur)))))
+                   (if (ref.eq (local.get $rcur) (global.get $null))
+                       (then (return (array.new_fixed $Values 2 (local.get $lcur) (local.get $rcur)))))
+
+                   (if (i32.eqz (ref.test (ref $Pair) (local.get $lcur)))
+                       (then (call $raise-pair-expected (local.get $lcur))
+                             (unreachable)))
+                   (if (i32.eqz (ref.test (ref $Pair) (local.get $rcur)))
+                       (then (call $raise-pair-expected (local.get $rcur))
+                             (unreachable)))
+
+                   (local.set $lpair (ref.cast (ref $Pair) (local.get $lcur)))
+                   (local.set $rpair (ref.cast (ref $Pair) (local.get $rcur)))
+                   (local.set $lelem (struct.get $Pair $a (local.get $lpair)))
+                   (local.set $relem (struct.get $Pair $a (local.get $rpair)))
+
+                   (block $same
+                          (if (i32.eqz (local.get $use-proc))
+                              (then
+                               (if (ref.eq (call $equal? (local.get $lelem) (local.get $relem))
+                                           (global.get $false))
+                                   (then (return (array.new_fixed $Values 2 (local.get $lcur) (local.get $rcur))))
+                                   (else (br $same))))
+                              (else
+                               (local.set $res
+                                          (call_ref $ProcedureInvoker
+                                                    (ref.cast (ref $Procedure) (local.get $same?))
+                                                    (block (result (ref $Args))
+                                                           (local.set $args (array.new $Args (global.get $null) (i32.const 2)))
+                                                           (array.set $Args (local.get $args) (i32.const 0) (local.get $lelem))
+                                                           (array.set $Args (local.get $args) (i32.const 1) (local.get $relem))
+                                                           (local.get $args))
+                                                    (struct.get $Procedure $invoke
+                                                               (ref.cast (ref $Procedure) (local.get $same?)))))
+                               (if (ref.eq (local.get $res) (global.get $false))
+                                   (then (return (array.new_fixed $Values 2 (local.get $lcur) (local.get $rcur))))
+                                   (else (br $same))))))
+
+                   (local.set $lcur (struct.get $Pair $d (local.get $lpair)))
+                   (local.set $rcur (struct.get $Pair $d (local.get $rpair)))
+                   (br $loop))
+             (unreachable))))
+
+    ;; split-common-prefix : list? list? procedure? -> values?
+    ;;   Return the common prefix and remaining tails.
+    (core-runtime-helper
+     '$split-common-prefix
+     "$split-common-prefix"
+     (lambda ()
+       `(func $split-common-prefix (type $Prim23)
+             (param $l     (ref eq)) ; list
+             (param $r     (ref eq)) ; list
+             (param $same? (ref eq)) ; optional, defaults to equal?
+             (result       (ref eq))
+
+             (local $lcur   (ref eq))
+             (local $rcur   (ref eq))
+             (local $lpair  (ref $Pair))
+             (local $rpair  (ref $Pair))
+             (local $lelem  (ref eq))
+             (local $relem  (ref eq))
+             (local $acc    (ref eq))
+             (local $args   (ref $Args))
+             (local $res    (ref eq))
+             (local $use-proc i32)
+
+             ;; Handle optional comparator
+             (if (ref.eq (local.get $same?) (global.get $missing))
+                 (then (local.set $use-proc (i32.const 0)))
+                 (else
+                  (if (i32.eqz (ref.test (ref $Procedure) (local.get $same?)))
+                      (then (call $raise-argument-error:procedure-expected/who
+                                  (global.get $symbol:split-common-prefix)
+                                  (local.get $same?))
+                            (unreachable))
+                      (else))
+                  (local.set $use-proc (i32.const 1))))
+
+             (if (ref.eq (call $list? (local.get $l)) (global.get $false))
+                 (then (call $raise-argument-error1
+                             (global.get $symbol:split-common-prefix)
+                             (global.get $string:list?)
+                             (local.get $l))
+                       (unreachable)))
+             (if (ref.eq (call $list? (local.get $r)) (global.get $false))
+                 (then (call $raise-argument-error1
+                             (global.get $symbol:split-common-prefix)
+                             (global.get $string:list?)
+                             (local.get $r))
+                       (unreachable)))
+
+             ;; Iterate through lists, building accumulator and returning tails
+             (local.set $lcur (local.get $l))
+             (local.set $rcur (local.get $r))
+             (local.set $acc (global.get $null))
+             (loop $loop
+                   (if (ref.eq (local.get $lcur) (global.get $null))
+                       (then (return (array.new_fixed $Values 3 (call $reverse (local.get $acc))
+                                                         (local.get $lcur) (local.get $rcur)))))
+                   (if (ref.eq (local.get $rcur) (global.get $null))
+                       (then (return (array.new_fixed $Values 3 (call $reverse (local.get $acc))
+                                                         (local.get $lcur) (local.get $rcur)))))
+
+                   (if (i32.eqz (ref.test (ref $Pair) (local.get $lcur)))
+                       (then (call $raise-pair-expected (local.get $lcur))
+                             (unreachable)))
+                   (if (i32.eqz (ref.test (ref $Pair) (local.get $rcur)))
+                       (then (call $raise-pair-expected (local.get $rcur))
+                             (unreachable)))
+
+                   (local.set $lpair (ref.cast (ref $Pair) (local.get $lcur)))
+                   (local.set $rpair (ref.cast (ref $Pair) (local.get $rcur)))
+                   (local.set $lelem (struct.get $Pair $a (local.get $lpair)))
+                   (local.set $relem (struct.get $Pair $a (local.get $rpair)))
+
+                   (block $same
+                          (if (i32.eqz (local.get $use-proc))
+                              (then
+                               (if (ref.eq (call $equal? (local.get $lelem) (local.get $relem))
+                                           (global.get $false))
+                                   (then (return (array.new_fixed $Values 3 (call $reverse (local.get $acc))
+                                                              (local.get $lcur) (local.get $rcur))))
+                                   (else (br $same))))
+                              (else
+                               (local.set $res
+                                          (call_ref $ProcedureInvoker
+                                                    (ref.cast (ref $Procedure) (local.get $same?))
+                                                    (block (result (ref $Args))
+                                                           (local.set $args (array.new $Args (global.get $null) (i32.const 2)))
+                                                           (array.set $Args (local.get $args) (i32.const 0) (local.get $lelem))
+                                                           (array.set $Args (local.get $args) (i32.const 1) (local.get $relem))
+                                                           (local.get $args))
+                                                    (struct.get $Procedure $invoke
+                                                               (ref.cast (ref $Procedure) (local.get $same?)))))
+                               (if (ref.eq (local.get $res) (global.get $false))
+                                   (then (return (array.new_fixed $Values 3 (call $reverse (local.get $acc))
+                                                              (local.get $lcur) (local.get $rcur))))
+                                   (else (br $same))))))
+
+                   (local.set $acc (call $cons (local.get $lelem) (local.get $acc)))
+                   (local.set $lcur (struct.get $Pair $d (local.get $lpair)))
+                   (local.set $rcur (struct.get $Pair $d (local.get $rpair)))
+                   (br $loop))
+             (unreachable))))
+
+    ;; Note: Only implements the two-argument form of Racket's add-between.
+    ;;       Keyword arguments such as #:before-first are not supported.
+    ;; add-between : list? any/c -> list?
+    ;;   Insert a separator between list elements.
+    (core-runtime-helper
+     '$add-between
+     "$add-between"
+     (lambda ()
+       `(func $add-between (type $Prim2)
+             (param $xs  (ref eq)) ; list
+             (param $v   (ref eq)) ; separator value
+             (result     (ref eq))
+             (local $acc (ref eq))
+             (local $p   (ref $Pair))
+
+             (local.set $acc (global.get $null))
+
+             (block $done
+                    (loop $loop
+                          (if (ref.eq (local.get $xs) (global.get $null))
+                              (then (br $done)))
+                          (if (ref.test (ref $Pair) (local.get $xs))
+                              (then
+                               (local.set $p (ref.cast (ref $Pair) (local.get $xs)))
+                               (local.set $acc
+                                          (call $cons
+                                                (struct.get $Pair $a (local.get $p))
+                                                (local.get $acc)))
+                               (local.set $xs (struct.get $Pair $d (local.get $p)))
+                               (if (ref.eq (local.get $xs) (global.get $null))
+                                   (then (br $loop))
+                                   (else
+                                    (local.set $acc (call $cons (local.get $v) (local.get $acc)))
+                                    (br $loop))))
+                              (else (call $raise-pair-expected (local.get $xs))
+                                    (unreachable)))))
+
+             (call $reverse (local.get $acc))))))))
