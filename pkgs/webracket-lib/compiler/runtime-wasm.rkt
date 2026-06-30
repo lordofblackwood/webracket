@@ -26570,7 +26570,7 @@
 
          ,(core-runtime-helper-form runtime-helper-index '$immutable-hasheqv-set)
 
-         (func $raise-hasheqv-odd-arguments (unreachable))
+         ,(core-runtime-helper-form runtime-helper-index '$raise-hasheqv-odd-arguments)
 
          ,(core-runtime-helper-form runtime-helper-index '$immutable-hasheq-set)
 
@@ -26586,143 +26586,13 @@
 
          ,(core-runtime-helper-form runtime-helper-index '$immutable-hashalw-remove)
 
-         ;; hash : any/c any/c ... -> immutable-hash?
-         ;;   Build an immutable hash from alternating keys and values.
-         (func $hash (type $Prim>=0)
-               (param $args (ref eq)) ;; rest arguments as a list
-               (result      (ref eq))
-               (local $args* (ref eq))
-               (local $pair  (ref $Pair))
-               (local $key   (ref eq))
-               (local $val   (ref eq))
-               (local $ht    (ref eq))
-               (local.set $args* (local.get $args))
-               (local.set $ht (call $make-empty-immutable-hash))
-               (block $done
-                      (loop $loop
-                            (br_if $done (ref.eq (local.get $args*) (global.get $null)))
-                            (if (i32.eqz (ref.test (ref $Pair) (local.get $args*)))
-                                (then (call $raise-hasheqv-odd-arguments) (unreachable)))
-                            (local.set $pair (ref.cast (ref $Pair) (local.get $args*)))
-                            (local.set $key (struct.get $Pair $a (local.get $pair)))
-                            (local.set $args* (struct.get $Pair $d (local.get $pair)))
-                            (if (i32.eqz (ref.test (ref $Pair) (local.get $args*)))
-                                (then (call $raise-hasheqv-odd-arguments) (unreachable)))
-                            (local.set $pair (ref.cast (ref $Pair) (local.get $args*)))
-                            (local.set $val (struct.get $Pair $a (local.get $pair)))
-                            (local.set $args* (struct.get $Pair $d (local.get $pair)))
-                            (local.set $ht
-                                       (call $immutable-hash-set
-                                             (local.get $ht)
-                                             (local.get $key)
-                                             (local.get $val)))
-                            (br $loop)))
-               (local.get $ht))
+         ,(core-runtime-helper-form runtime-helper-index '$hash)
 
-         ;; hasheq : any/c any/c ... -> immutable-hasheq?
-         ;;   Build an immutable eq?-based hash from alternating keys and
-         ;;   values using the system-stencil HAMT root.
-         (func $hasheq (type $Prim>=0)
-               (param $args (ref eq)) ;; rest arguments as a list
-               (result      (ref eq))
-               (local $ht   (ref eq))
-               (local $node (ref eq))
-               (local $pair (ref $Pair))
-               (local $key  (ref eq))
-               (local $val  (ref eq))
-               (local.set $ht   (call $make-empty-immutable-hasheq))
-               (local.set $node (local.get $args))
-               (block $done
-                      (loop $walk
-                            (br_if $done (ref.eq (local.get $node) (global.get $null)))
-                            (if (i32.eqz (ref.test (ref $Pair) (local.get $node)))
-                                (then (call $raise-hasheqv-odd-arguments)
-                                      (unreachable)))
-                            (local.set $pair (ref.cast (ref $Pair) (local.get $node)))
-                            (local.set $key (struct.get $Pair $a (local.get $pair)))
-                            (local.set $node (struct.get $Pair $d (local.get $pair)))
-                            (if (i32.eqz (ref.test (ref $Pair) (local.get $node)))
-                                (then (call $raise-hasheqv-odd-arguments)
-                                      (unreachable)))
-                            (local.set $pair (ref.cast (ref $Pair) (local.get $node)))
-                            (local.set $val (struct.get $Pair $a (local.get $pair)))
-                            (local.set $node (struct.get $Pair $d (local.get $pair)))
-                            (local.set $ht (call $immutable-hasheq-set
-                                                 (local.get $ht)
-                                                 (local.get $key)
-                                                 (local.get $val)))
-                            (br $walk)))
-               (local.get $ht))
+         ,(core-runtime-helper-form runtime-helper-index '$hasheq)
 
-         ;; hashalw : any/c any/c ... -> immutable-hashalw?
-         ;;   Build an immutable equal-always?-based hash from alternating keys
-         ;;   and values. It uses equal-always-hash/i32 for bucket selection,
-         ;;   so mutable subvalues hash by identity.
-         (func $hashalw (type $Prim>=0)
-               (param $args (ref eq)) ;; rest arguments as a list
-               (result      (ref eq))
-               (local $ht   (ref eq))
-               (local $node (ref eq))
-               (local $pair (ref $Pair))
-               (local $key  (ref eq))
-               (local $val  (ref eq))
-               (local.set $ht   (call $make-empty-immutable-hashalw))
-               (local.set $node (local.get $args))
-               (block $done
-                      (loop $walk
-                            (br_if $done (ref.eq (local.get $node) (global.get $null)))
-                            (if (i32.eqz (ref.test (ref $Pair) (local.get $node)))
-                                (then (call $raise-hasheqv-odd-arguments)
-                                      (unreachable)))
-                            (local.set $pair (ref.cast (ref $Pair) (local.get $node)))
-                            (local.set $key (struct.get $Pair $a (local.get $pair)))
-                            (local.set $node (struct.get $Pair $d (local.get $pair)))
-                            (if (i32.eqz (ref.test (ref $Pair) (local.get $node)))
-                                (then (call $raise-hasheqv-odd-arguments)
-                                      (unreachable)))
-                            (local.set $pair (ref.cast (ref $Pair) (local.get $node)))
-                            (local.set $val (struct.get $Pair $a (local.get $pair)))
-                            (local.set $node (struct.get $Pair $d (local.get $pair)))
-                            (local.set $ht (call $immutable-hashalw-set
-                                                 (local.get $ht)
-                                                 (local.get $key)
-                                                 (local.get $val)))
-                            (br $walk)))
-               (local.get $ht))
+         ,(core-runtime-helper-form runtime-helper-index '$hashalw)
 
-         ;; hasheqv : any/c any/c ... -> immutable-hasheqv?
-         ;;   Build an immutable eqv?-based hash from alternating keys and values.
-         (func $hasheqv (type $Prim>=0)
-               (param $args (ref eq)) ;; rest arguments as a list
-               (result      (ref eq))
-               (local $ht   (ref eq))
-               (local $node (ref eq))
-               (local $pair (ref $Pair))
-               (local $key  (ref eq))
-               (local $val  (ref eq))
-               (local.set $ht   (call $make-empty-immutable-hasheqv))
-               (local.set $node (local.get $args))
-               (block $done
-                      (loop $walk
-                            (br_if $done (ref.eq (local.get $node) (global.get $null)))
-                            (if (i32.eqz (ref.test (ref $Pair) (local.get $node)))
-                                (then (call $raise-hasheqv-odd-arguments)
-                                      (unreachable)))
-                            (local.set $pair (ref.cast (ref $Pair) (local.get $node)))
-                            (local.set $key (struct.get $Pair $a (local.get $pair)))
-                            (local.set $node (struct.get $Pair $d (local.get $pair)))
-                            (if (i32.eqz (ref.test (ref $Pair) (local.get $node)))
-                                (then (call $raise-hasheqv-odd-arguments)
-                                      (unreachable)))
-                            (local.set $pair (ref.cast (ref $Pair) (local.get $node)))
-                            (local.set $val (struct.get $Pair $a (local.get $pair)))
-                            (local.set $node (struct.get $Pair $d (local.get $pair)))
-                            (local.set $ht (call $immutable-hasheqv-set
-                                                 (local.get $ht)
-                                                 (local.get $key)
-                                                 (local.get $val)))
-                            (br $walk)))
-               (local.get $ht))
+         ,(core-runtime-helper-form runtime-helper-index '$hasheqv)
 
          ;; make-immutable-hash : [(listof pair?) = null] -> immutable-hash?
          ;;   Build an immutable equal?-hash from an association list. This
