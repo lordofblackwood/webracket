@@ -5745,114 +5745,31 @@
          ;;; Growable Arrays
          ;;;
 
-         ;; A growable array is like an array, but the length can change over time.
-         ;; They are modelled over "growable vectors" from `racket/data`.
+         ,(core-runtime-helper-form core-runtime-helper-index '$make-growable-array)
 
-         (func $make-growable-array (param $cap i32) (result (ref $GrowableArray))
-               (local $initial-cap i32)
-               (local.set $initial-cap
-                          (if (result i32)
-                              (i32.eqz (local.get $cap))
-                              (then (i32.const 16))
-                              (else (local.get $cap))))
-               (struct.new $GrowableArray
-                           (call $make-array (local.get $initial-cap) (global.get $false))
-                           (local.get $initial-cap)
-                           (i32.const 0)))
+         ,(core-runtime-helper-form core-runtime-helper-index '$growable-array??)
 
-         (func $growable-array?? (param $x (ref eq)) (result i32)
-               ; 0 = false, 1 = true
-               (ref.test (ref $GrowableArray) (local.get $x)))
+         ,(core-runtime-helper-form core-runtime-helper-index '$growable-array?)
 
-         (func $growable-array? (param $x (ref eq)) (result (ref eq))
-               (if (result (ref eq)) (ref.test (ref $GrowableArray) (local.get $x))
-                   (then (global.get $true))
-                   (else (global.get $false))))
+         ,(core-runtime-helper-form core-runtime-helper-index '$growable-array-ref)
 
-         (func $growable-array-ref (param $g (ref $GrowableArray)) (param $index i32) (result (ref eq))
-               (local $i i32)
-               (local.set $i (struct.get $GrowableArray $i (local.get $g)))
-               (if (result (ref eq))
-                   (i32.lt_u (local.get $index) (local.get $i))
-                   (then (array.get $Array (struct.get $GrowableArray $arr (local.get $g)) (local.get $index)))
-                   (else (global.get $false))))
+         ,(core-runtime-helper-form core-runtime-helper-index '$growable-array-ref/default)
 
-         (func $growable-array-ref/default (param $g (ref $GrowableArray)) (param $index i32) (param $default (ref eq)) (result (ref eq))
-               (local $i i32)
-               (local.set $i (struct.get $GrowableArray $i (local.get $g)))
-               (if (result (ref eq))
-                   (i32.lt_u (local.get $index) (local.get $i))
-                   (then (array.get $Array (struct.get $GrowableArray $arr (local.get $g)) (local.get $index)))
-                   (else (local.get $default))))
+         ,(core-runtime-helper-form core-runtime-helper-index '$growable-array-add!)
 
-         (func $growable-array-add! (param $g (ref $GrowableArray)) (param $v (ref eq))
-               (local $i i32)
-               (local $cap i32)
-               (local $arr (ref $Array))
-               (local $new-cap i32)
-               (local $new-arr (ref $Array))
-               (local.set $i   (struct.get $GrowableArray $i   (local.get $g)))
-               (local.set $cap (struct.get $GrowableArray $cap (local.get $g)))
-               (local.set $arr (struct.get $GrowableArray $arr (local.get $g)))
-               (if (i32.eq (local.get $i) (local.get $cap))
-                   (then
-                    (local.set $new-cap (i32.shl (local.get $cap) (i32.const 1))) ;; new-cap = cap * 2
-                    (local.set $new-arr (call $array-extend (local.get $arr) (local.get $new-cap) (global.get $false)))
-                    (struct.set $GrowableArray $arr (local.get $g) (local.get $new-arr))
-                    (struct.set $GrowableArray $cap (local.get $g) (local.get $new-cap))
-                    (local.set $arr (local.get $new-arr))))
-               (array.set $Array (local.get $arr) (local.get $i) (local.get $v))
-               (struct.set $GrowableArray $i (local.get $g) (i32.add (local.get $i) (i32.const 1))))
+         ,(core-runtime-helper-form core-runtime-helper-index '$growable-array-insert!)
 
-         (func $growable-array-insert! (param $g (ref $GrowableArray)) (param $index i32) (param $value (ref eq))
-               (local $i i32)
-               (local $arr (ref $Array))
-               (local.set $i (struct.get $GrowableArray $i (local.get $g)))
-               (if (i32.eq (local.get $index) (local.get $i))
-                   (then (call $growable-array-add! (local.get $g) (local.get $value)))
-                   (else
-                    (local.set $arr (struct.get $GrowableArray $arr (local.get $g)))
-                    (call $growable-array-add! (local.get $g) (global.get $false))
-                    (call $array-copy! ; dest dest-start src src-start src-end
-                          (local.get $arr) (i32.add (local.get $index) (i32.const 1))
-                          (local.get $arr) (local.get $index) (local.get $i))
-                    (array.set $Array (local.get $arr) (local.get $index) (local.get $value)))))
+         ,(core-runtime-helper-form core-runtime-helper-index '$growable-array-set!)
 
-         (func $growable-array-set! (param $g (ref $GrowableArray)) (param $index i32) (param $value (ref eq))
-               (local $i i32)
-               (local.set $i (struct.get $GrowableArray $i (local.get $g)))
-               (if (i32.eq (local.get $index) (local.get $i))
-                   (then (call $growable-array-add! (local.get $g) (local.get $value)))
-                   (else
-                    (array.set $Array (struct.get $GrowableArray $arr (local.get $g)) (local.get $index) (local.get $value)))))
+         ,(core-runtime-helper-form core-runtime-helper-index '$growable-array-remove!)
 
-         (func $growable-array-remove! (param $g (ref $GrowableArray)) (param $index i32)
-               (local $i i32)
-               (local.set $i (struct.get $GrowableArray $i (local.get $g)))
-               (call $array-copy!
-                     (struct.get $GrowableArray $arr (local.get $g)) (local.get $index)
-                     (struct.get $GrowableArray $arr (local.get $g)) (i32.add (local.get $index) (i32.const 1)) (local.get $i))
-               (struct.set $GrowableArray $i (local.get $g) (i32.sub (local.get $i) (i32.const 1))))
+         ,(core-runtime-helper-form core-runtime-helper-index '$growable-array-remove-last!)
 
-         (func $growable-array-remove-last! (param $g (ref $GrowableArray)) (result (ref eq))
-               (local $i i32)
-               (local.set $i (struct.get $GrowableArray $i (local.get $g)))
-               (struct.set $GrowableArray $i (local.get $g) (i32.sub (local.get $i) (i32.const 1)))
-               (array.get $Array (struct.get $GrowableArray $arr (local.get $g)) (i32.sub (local.get $i) (i32.const 1))))
+         ,(core-runtime-helper-form core-runtime-helper-index '$growable-array-count)
 
-         (func $growable-array-count (param $g (ref $GrowableArray)) (result i32)
-               (struct.get $GrowableArray $i (local.get $g)))
+         ,(core-runtime-helper-form core-runtime-helper-index '$growable-array->array)
 
-         (func $growable-array->array (param $g (ref $GrowableArray)) (result (ref $Array))
-               (local $count i32)
-               (local.set $count (struct.get $GrowableArray $i (local.get $g)))
-               (call $array-copy (struct.get $GrowableArray $arr (local.get $g)) (i32.const 0) (local.get $count)))
-
-         (func $array->growable-array (param $a (ref $Array)) (result (ref $GrowableArray))
-               ; Note: This wraps the array in a growable array. It does not make a copy.
-               (local $n i32)
-               (local.set $n (array.len (local.get $a)))
-               (struct.new $GrowableArray (local.get $a) (local.get $n) (local.get $n)))
+         ,(core-runtime-helper-form core-runtime-helper-index '$array->growable-array)
 
 
 

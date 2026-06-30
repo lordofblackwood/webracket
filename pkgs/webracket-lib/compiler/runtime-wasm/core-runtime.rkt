@@ -7,6 +7,7 @@
 (require "core-helper.rkt"
          "core/fixnums.rkt"
          "core/flonums.rkt"
+         "core/growable-arrays.rkt"
          "core/keywords.rkt"
          "core/structs.rkt"
          "core/vectors.rkt"
@@ -18,6 +19,7 @@
   (append
    fixnum-core-runtime-helpers
    flonum-core-runtime-helpers
+   growable-array-core-runtime-helpers
    keyword-core-runtime-helpers
    struct-core-runtime-helpers
    vector-core-runtime-helpers))
@@ -87,6 +89,67 @@
            (import "core" ,(symbol->string name))
            (param (ref eq))
            (result i32)))
+
+  ;; core-growable-array-imports : -> (listof datum?)
+  ;;   Build imported core helper declarations for generic growable arrays.
+  (define (core-growable-array-imports)
+    `((func $make-growable-array
+            (import "core" "$make-growable-array")
+            (param i32)
+            (result (ref $GrowableArray)))
+      (func $growable-array??
+            (import "core" "$growable-array??")
+            (param (ref eq))
+            (result i32))
+      (func $growable-array?
+            (import "core" "$growable-array?")
+            (param (ref eq))
+            (result (ref eq)))
+      (func $growable-array-ref
+            (import "core" "$growable-array-ref")
+            (param (ref $GrowableArray))
+            (param i32)
+            (result (ref eq)))
+      (func $growable-array-ref/default
+            (import "core" "$growable-array-ref/default")
+            (param (ref $GrowableArray))
+            (param i32)
+            (param (ref eq))
+            (result (ref eq)))
+      (func $growable-array-add!
+            (import "core" "$growable-array-add!")
+            (param (ref $GrowableArray))
+            (param (ref eq)))
+      (func $growable-array-insert!
+            (import "core" "$growable-array-insert!")
+            (param (ref $GrowableArray))
+            (param i32)
+            (param (ref eq)))
+      (func $growable-array-set!
+            (import "core" "$growable-array-set!")
+            (param (ref $GrowableArray))
+            (param i32)
+            (param (ref eq)))
+      (func $growable-array-remove!
+            (import "core" "$growable-array-remove!")
+            (param (ref $GrowableArray))
+            (param i32))
+      (func $growable-array-remove-last!
+            (import "core" "$growable-array-remove-last!")
+            (param (ref $GrowableArray))
+            (result (ref eq)))
+      (func $growable-array-count
+            (import "core" "$growable-array-count")
+            (param (ref $GrowableArray))
+            (result i32))
+      (func $growable-array->array
+            (import "core" "$growable-array->array")
+            (param (ref $GrowableArray))
+            (result (ref $Array)))
+      (func $array->growable-array
+            (import "core" "$array->growable-array")
+            (param (ref $Array))
+            (result (ref $GrowableArray)))))
 
   ;; tagged-call1-export : string? symbol? integer? -> datum?
   ;;   Build an exported test function that returns a raw tagged unary result.
@@ -260,6 +323,7 @@
                (result i32))
          ,@(for/list ([name (in-list core-raw-i32-unary-test-imports)])
              (core-raw-i32-unary-import name))
+         ,@(core-growable-array-imports)
          ,@(for/list ([name (in-list core-prim1-test-imports)])
              (core-helper-import name '$Prim1))
          ,@(for/list ([name (in-list core-prim2-test-imports)])
@@ -360,6 +424,58 @@
                                  (ref.i31 (i32.const 0)))))
          (func (export "struct_fixnum_false") (result i32)
                (call $struct?/i32 (ref.i31 (i32.const 84))))
+         (func (export "growable_array_predicate_true") (result i32)
+               (call $growable-array??
+                     (call $make-growable-array (i32.const 1))))
+         (func (export "growable_array_predicate_false") (result i32)
+               (call $growable-array?? (ref.i31 (i32.const 84))))
+         (func (export "growable_array_boolean_true_tagged") (result i32)
+               (i31.get_s
+                (ref.cast (ref i31)
+                          (call $growable-array?
+                                (call $make-growable-array (i32.const 1))))))
+         (func (export "growable_array_ref_default_tagged") (result i32)
+               (i31.get_s
+                (ref.cast (ref i31)
+                          (call $growable-array-ref/default
+                                (call $make-growable-array (i32.const 1))
+                                (i32.const 4)
+                                (ref.i31 (i32.const 222))))))
+         (func (export "growable_array_count_after_ops") (result i32)
+               (local $g (ref $GrowableArray))
+               (local.set $g (call $make-growable-array (i32.const 1)))
+               (call $growable-array-add! (local.get $g) (ref.i31 (i32.const 20)))
+               (call $growable-array-add! (local.get $g) (ref.i31 (i32.const 40)))
+               (call $growable-array-insert! (local.get $g) (i32.const 1) (ref.i31 (i32.const 30)))
+               (call $growable-array-set! (local.get $g) (i32.const 3) (ref.i31 (i32.const 50)))
+               (call $growable-array-remove! (local.get $g) (i32.const 2))
+               (drop (call $growable-array-remove-last! (local.get $g)))
+               (call $growable-array-count (local.get $g)))
+         (func (export "growable_array_ref_after_ops_tagged") (result i32)
+               (local $g (ref $GrowableArray))
+               (local.set $g (call $make-growable-array (i32.const 1)))
+               (call $growable-array-add! (local.get $g) (ref.i31 (i32.const 20)))
+               (call $growable-array-add! (local.get $g) (ref.i31 (i32.const 40)))
+               (call $growable-array-insert! (local.get $g) (i32.const 1) (ref.i31 (i32.const 30)))
+               (i31.get_s
+                (ref.cast (ref i31)
+                          (call $growable-array-ref (local.get $g) (i32.const 1)))))
+         (func (export "growable_array_copy_tagged") (result i32)
+               (local $g (ref $GrowableArray))
+               (local $arr (ref $Array))
+               (local.set $g (call $make-growable-array (i32.const 1)))
+               (call $growable-array-add! (local.get $g) (ref.i31 (i32.const 20)))
+               (call $growable-array-add! (local.get $g) (ref.i31 (i32.const 40)))
+               (local.set $arr (call $growable-array->array (local.get $g)))
+               (i31.get_s
+                (ref.cast (ref i31)
+                          (array.get $Array (local.get $arr) (i32.const 1)))))
+         (func (export "array_to_growable_count") (result i32)
+               (call $growable-array-count
+                     (call $array->growable-array
+                           (array.new_fixed $Array 2
+                                            (ref.i31 (i32.const 20))
+                                            (ref.i31 (i32.const 40))))))
          ,(tagged-call2-export "fxand_tagged" '$fxand/2 84 20)
          ,(tagged-call2-export "fxior_tagged" '$fxior/2 84 20)
          ,(tagged-call2-export "fxxor_tagged" '$fxxor/2 84 20)
@@ -430,6 +546,14 @@ const expected = new Map([
   ["struct_type_fixnum_false", 0],
   ["struct_struct_type_false", 0],
   ["struct_fixnum_false", 0],
+  ["growable_array_predicate_true", 1],
+  ["growable_array_predicate_false", 0],
+  ["growable_array_boolean_true_tagged", 159],
+  ["growable_array_ref_default_tagged", 222],
+  ["growable_array_count_after_ops", 2],
+  ["growable_array_ref_after_ops_tagged", 30],
+  ["growable_array_copy_tagged", 40],
+  ["array_to_growable_count", 2],
   ["fxand_tagged", 20],
   ["fxior_tagged", 84],
   ["fxxor_tagged", 64],
