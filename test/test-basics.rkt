@@ -2287,7 +2287,15 @@
                            (catch-contract/who? "split-at"
                                                 (lambda () (split-at '(a) 2)))
                            (catch-contract/who? "split-at-right"
-                                                (lambda () (split-at-right '(a) 2))))))
+                                                (lambda () (split-at-right '(a) 2)))
+                           (catch-contract/who? "list-prefix?"
+                                                (lambda () (list-prefix? '(a . b) '(a))))
+                           (catch-contract/who? "take-common-prefix"
+                                                (lambda () (take-common-prefix '(a . b) '(a))))
+                           (catch-contract/who? "drop-common-prefix"
+                                                (lambda () (drop-common-prefix '(a . b) '(a))))
+                           (catch-contract/who? "split-common-prefix"
+                                                (lambda () (split-common-prefix '(a . b) '(a)))))))
 
               (list "list higher-order argument errors are catchable with who"
                     (let ([catch-contract/who?
@@ -2389,7 +2397,15 @@
                            (catch-contract/who? "splitf-at"
                                                 (lambda () (splitf-at '(a) 42)))
                            (catch-contract/who? "splitf-at-right"
-                                                (lambda () (splitf-at-right '(a) 42))))))
+                                                (lambda () (splitf-at-right '(a) 42)))
+                           (catch-contract/who? "list-prefix?"
+                                                (lambda () (list-prefix? '(a) '(a) 42)))
+                           (catch-contract/who? "take-common-prefix"
+                                                (lambda () (take-common-prefix '(a) '(a) 42)))
+                           (catch-contract/who? "drop-common-prefix"
+                                                (lambda () (drop-common-prefix '(a) '(a) 42)))
+                           (catch-contract/who? "split-common-prefix"
+                                                (lambda () (split-common-prefix '(a) '(a) 42))))))
 
               (list "first"
                     (and (equal? (first '(1 2 3 4 5 6 7 8 9 10 11 12 13 14 15)) 1)

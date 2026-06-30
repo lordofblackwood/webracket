@@ -28328,7 +28328,9 @@
                   (then (local.set $use-proc (i32.const 0)))
                   (else
                    (if (i32.eqz (ref.test (ref $Procedure) (local.get $same?)))
-                       (then (call $raise-argument-error:procedure-expected (local.get $same?))
+                       (then (call $raise-argument-error:procedure-expected/who
+                                   (global.get $symbol:list-prefix?)
+                                   (local.get $same?))
                              (unreachable))
                        (else))
                    (local.set $use-proc (i32.const 1))))
@@ -28417,7 +28419,9 @@
                   (then (local.set $use-proc (i32.const 0)))
                   (else
                    (if (i32.eqz (ref.test (ref $Procedure) (local.get $same?)))
-                       (then (call $raise-argument-error:procedure-expected (local.get $same?))
+                       (then (call $raise-argument-error:procedure-expected/who
+                                   (global.get $symbol:take-common-prefix)
+                                   (local.get $same?))
                              (unreachable))
                        (else))
                    (local.set $use-proc (i32.const 1))))
@@ -28507,7 +28511,9 @@
                   (then (local.set $use-proc (i32.const 0)))
                   (else
                    (if (i32.eqz (ref.test (ref $Procedure) (local.get $same?)))
-                       (then (call $raise-argument-error:procedure-expected (local.get $same?))
+                       (then (call $raise-argument-error:procedure-expected/who
+                                   (global.get $symbol:drop-common-prefix)
+                                   (local.get $same?))
                              (unreachable))
                        (else))
                    (local.set $use-proc (i32.const 1))))
@@ -28595,7 +28601,9 @@
                   (then (local.set $use-proc (i32.const 0)))
                   (else
                    (if (i32.eqz (ref.test (ref $Procedure) (local.get $same?)))
-                       (then (call $raise-argument-error:procedure-expected (local.get $same?))
+                       (then (call $raise-argument-error:procedure-expected/who
+                                   (global.get $symbol:split-common-prefix)
+                                   (local.get $same?))
                              (unreachable))
                        (else))
                    (local.set $use-proc (i32.const 1))))
