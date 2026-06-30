@@ -2258,6 +2258,14 @@
                                                 (lambda () (cdr 42)))
                            (catch-contract/who? "length"
                                                 (lambda () (length '(a . b))))
+                           (catch-contract/who? "make-list"
+                                                (lambda () (make-list -1 'x)))
+                           (catch-contract/who? "make-list"
+                                                (lambda () (make-list #\a 'x)))
+                           (catch-contract/who? "build-list"
+                                                (lambda () (build-list -1 values)))
+                           (catch-contract/who? "build-list"
+                                                (lambda () (build-list #\a values)))
                            (catch-contract/who? "list-ref"
                                                 (lambda () (list-ref 42 0)))
                            (catch-contract/who? "list-ref"

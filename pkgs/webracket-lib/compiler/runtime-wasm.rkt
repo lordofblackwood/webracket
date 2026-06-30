@@ -25028,12 +25028,20 @@
                     (i32.eqz (ref.test (ref i31) (local.get $n-raw)))
                     (i32.ne (i32.and (i31.get_u (ref.cast (ref i31) (local.get $n-raw))) (i32.const 1))
                             (i32.const 0)))
-                   (then (call $raise-argument-error/internal (local.get $n-raw)))) ;; customize this if needed
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:make-list)
+                               (global.get $string:exact-nonnegative-integer?)
+                               (local.get $n-raw))
+                         (unreachable)))
                (local.set $n (i32.shr_s (i31.get_s (ref.cast (ref i31) (local.get $n-raw))) (i32.const 1)))
                ;; Negative counts must fail before allocation; unsigned decoding
                ;; would otherwise turn them into huge positive counts.
                (if (i32.lt_s (local.get $n) (i32.const 0))
-                   (then (call $raise-argument-error/internal (local.get $n-raw))))
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:make-list)
+                               (global.get $string:exact-nonnegative-integer?)
+                               (local.get $n-raw))
+                         (unreachable)))
                (call $make-list/checked (local.get $n) (local.get $v)))
 
          (func $make-list/checked
@@ -25069,14 +25077,25 @@
                (local $finv (ref $ProcedureInvoker))
 
                ;; Check and unwrap n
-               (if (i32.eqz (ref.test (ref i31) (local.get $n-raw)))
-                   (then (call $raise-expected-fixnum (local.get $n-raw))))
+               (if (i32.or
+                    (i32.eqz (ref.test (ref i31) (local.get $n-raw)))
+                    (i32.ne (i32.and (i31.get_u (ref.cast (ref i31) (local.get $n-raw))) (i32.const 1))
+                            (i32.const 0)))
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:build-list)
+                               (global.get $string:exact-nonnegative-integer?)
+                               (local.get $n-raw))
+                         (unreachable)))
                (local.set $n
                           (i32.shr_s
                            (i31.get_s (ref.cast (ref i31) (local.get $n-raw)))
                            (i32.const 1)))
                (if (i32.lt_s (local.get $n) (i32.const 0))
-                   (then (call $raise-argument-error/internal (local.get $n-raw))))
+                   (then (call $raise-argument-error1
+                               (global.get $symbol:build-list)
+                               (global.get $string:exact-nonnegative-integer?)
+                               (local.get $n-raw))
+                         (unreachable)))
 
                ;; Check procedure and fetch invoker
                (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
