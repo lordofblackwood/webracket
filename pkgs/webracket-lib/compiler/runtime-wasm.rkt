@@ -13,6 +13,8 @@
          "runtime-wasm/core-helper.rkt"
          (only-in "runtime-wasm/core/lists.rkt"
                   list-runtime-only-helpers)
+         (only-in "runtime-wasm/core/treelists.rkt"
+                  treelist-runtime-only-helpers)
          "runtime-wasm/core-runtime.rkt"
          "runtime-wasm/constants.rkt"
          "runtime-wasm/shared-types.rkt"
@@ -32,13 +34,15 @@
 (define-runtime-path core-lists-path "runtime-wasm/core/lists.rkt")
 (define-runtime-path core-mlists-path "runtime-wasm/core/mlists.rkt")
 (define-runtime-path core-procedures-path "runtime-wasm/core/procedures.rkt")
+(define-runtime-path core-treelists-path "runtime-wasm/core/treelists.rkt")
 
 ;; runtime-helper-index : hasheq?
 ;;   Index helpers available to the monolithic runtime generator.
 (define runtime-helper-index
   (make-core-runtime-helper-index
    (append core-runtime-helpers
-           list-runtime-only-helpers)))
+           list-runtime-only-helpers
+           treelist-runtime-only-helpers)))
 
 (module+ test
   (require (submod "runtime-wasm/core-runtime.rkt" test)))
@@ -379,7 +383,8 @@
                                           constants-path
                                           core-lists-path
                                           core-mlists-path
-                                          core-procedures-path))])
+                                          core-procedures-path
+                                          core-treelists-path))])
             (list (path->string path)
                   (file-size path)
                   (file-or-directory-modify-seconds path)))))
@@ -23304,117 +23309,19 @@
                      (global.get $string:exact-nonnegative-integer?)
                      (local.get $x)))
 
-         (func $treelist-node-children
-               (param $node (ref $TreelistNode))
-               (result (ref $Array))
-               (struct.get $TreelistNode $children (local.get $node)))
+         ,(core-runtime-helper-form runtime-helper-index '$treelist-node-children)
 
-         (func $treelist-node-sizes
-               (param $node (ref $TreelistNode))
-               (result (ref null $I32Array))
-               (struct.get $TreelistNode $sizes (local.get $node)))
+         ,(core-runtime-helper-form runtime-helper-index '$treelist-node-sizes)
 
-         (func $treelist-node-leftwise-dense?/i32
-               (param $node (ref $TreelistNode))
-               (result i32)
-               (ref.is_null
-                (call $treelist-node-sizes (local.get $node))))
+         ,(core-runtime-helper-form runtime-helper-index '$treelist-node-leftwise-dense?/i32)
 
-         (func $treelist-node-child-count
-               (param $node (ref $TreelistNode))
-               (result i32)
-               (array.len
-                (call $treelist-node-children (local.get $node))))
+         ,(core-runtime-helper-form runtime-helper-index '$treelist-node-child-count)
 
-         ;; treelist-node-find-child-index/relaxed : (ref $I32Array) i32 -> i32
-         ;;   Find the child whose cumulative size first exceeds index.
-         (func $treelist-node-find-child-index/relaxed
-               (param $sizes (ref $I32Array))
-               (param $index i32)
-               (result i32)
-               (local $len i32)
-               (local $i i32)
-               (local.set $len (array.len (local.get $sizes)))
-               (local.set $i   (i32.const 0))
-               (block $done
-                      (loop $loop
-                            (br_if $done (i32.ge_u (local.get $i) (local.get $len)))
-                            (if (i32.lt_u (local.get $index)
-                                          (array.get $I32Array
-                                                     (local.get $sizes)
-                                                     (local.get $i)))
-                                (then (return (local.get $i))))
-                            (local.set $i (i32.add (local.get $i) (i32.const 1)))
-                            (br $loop)))
-               (i32.sub (local.get $len) (i32.const 1)))
+         ,(core-runtime-helper-form runtime-helper-index '$treelist-node-find-child-index/relaxed)
 
-         ;; treelist-node-child-start : (ref $TreelistNode) i32 i32 i32 -> i32
-         ;;   Return the starting logical offset of child-index within node.
-         (func $treelist-node-child-start
-               (param $node       (ref $TreelistNode))
-               (param $node-size  i32)
-               (param $height     i32)
-               (param $child-index i32)
-               (result i32)
-               (local $sizes (ref null $I32Array))
-               (local $child-cap i32)
-               (if (i32.eqz (local.get $child-index))
-                   (then (return (i32.const 0))))
-               (local.set $sizes (call $treelist-node-sizes (local.get $node)))
-               (if (ref.is_null (local.get $sizes))
-                   (then
-                    (if (i32.eqz (local.get $height))
-                        (then (return (local.get $child-index))))
-                    (local.set $child-cap
-                               (call $treelist-node-capacity
-                                     (i32.sub (local.get $height) (i32.const 1))))
-                    (return (i32.mul (local.get $child-index) (local.get $child-cap)))))
-               (array.get $I32Array
-                          (ref.cast (ref $I32Array) (local.get $sizes))
-                          (i32.sub (local.get $child-index) (i32.const 1))))
+         ,(core-runtime-helper-form runtime-helper-index '$treelist-node-child-start)
 
-         ;; treelist-node-child-size : (ref $TreelistNode) i32 i32 i32 -> i32
-         ;;   Return the subtree size contributed by child-index.
-         (func $treelist-node-child-size
-               (param $node        (ref $TreelistNode))
-               (param $node-size   i32)
-               (param $height      i32)
-               (param $child-index i32)
-               (result i32)
-               (local $sizes (ref null $I32Array))
-               (local $child-count i32)
-               (local $child-cap i32)
-               (if (i32.eqz (local.get $height))
-                   (then (return (i32.const 1))))
-               (local.set $sizes (call $treelist-node-sizes (local.get $node)))
-               (if (ref.is_null (local.get $sizes))
-                   (then
-                    (local.set $child-count
-                               (call $treelist-node-child-count (local.get $node)))
-                    (local.set $child-cap
-                               (call $treelist-node-capacity
-                                     (i32.sub (local.get $height) (i32.const 1))))
-                    (if (i32.lt_u (local.get $child-index)
-                                  (i32.sub (local.get $child-count) (i32.const 1)))
-                        (then (return (local.get $child-cap))))
-                    (return
-                     (i32.sub (local.get $node-size)
-                              (i32.mul
-                               (i32.sub (local.get $child-count) (i32.const 1))
-                               (local.get $child-cap))))))
-               (if (i32.eqz (local.get $child-index))
-                   (then
-                    (return
-                     (array.get $I32Array
-                                (ref.cast (ref $I32Array) (local.get $sizes))
-                                (i32.const 0)))))
-               (i32.sub
-                (array.get $I32Array
-                           (ref.cast (ref $I32Array) (local.get $sizes))
-                           (local.get $child-index))
-                (array.get $I32Array
-                           (ref.cast (ref $I32Array) (local.get $sizes))
-                           (i32.sub (local.get $child-index) (i32.const 1)))))
+         ,(core-runtime-helper-form runtime-helper-index '$treelist-node-child-size)
 
          ;; treelist-make-parent-root/checked : (ref $TreelistNode) i32 (ref $TreelistNode) i32 i32 -> (ref $TreelistNode)
          ;;   Make a parent node over two same-height subtrees.
@@ -24716,39 +24623,11 @@
                            (array.new_fixed $Array 1 (local.get $v))
                            (ref.null $I32Array)))
 
-         (func $treelist-radix
-               (param $index i32)
-               (param $height i32)
-               (result i32)
-               (i32.and
-                (i32.shr_u
-                 (local.get $index)
-                 (i32.mul (global.get $treelist:BITS) (local.get $height)))
-                (global.get $treelist:MASK)))
+         ,(core-runtime-helper-form runtime-helper-index '$treelist-radix)
 
-         ;; treelist-node-capacity : i32 -> i32
-         ;;   Compute the dense capacity of a node at height.
-         (func $treelist-node-capacity
-               (param $height i32)
-               (result i32)
-               (i32.shl (i32.const 1)
-                        (i32.mul (global.get $treelist:BITS)
-                                 (i32.add (local.get $height) (i32.const 1)))))
+         ,(core-runtime-helper-form runtime-helper-index '$treelist-node-capacity)
 
-         (func $treelist-height-for-size
-               (param $size i32)
-               (result i32)
-               (local $height i32)
-               (local $cap i32)
-               (local.set $height (i32.const 0))
-               (local.set $cap (global.get $treelist:MAX_WIDTH))
-               (block $done
-                      (loop $loop
-                            (br_if $done (i32.le_u (local.get $size) (local.get $cap)))
-                            (local.set $height (i32.add (local.get $height) (i32.const 1)))
-                            (local.set $cap (i32.mul (local.get $cap) (global.get $treelist:MAX_WIDTH)))
-                            (br $loop)))
-               (local.get $height))
+         ,(core-runtime-helper-form runtime-helper-index '$treelist-height-for-size)
 
          (func $treelist-build-dense-node
                (param $src    (ref $Array))
