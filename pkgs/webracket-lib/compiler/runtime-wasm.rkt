@@ -28,6 +28,7 @@
 (define-runtime-path immediates-path "private/immediates.rkt")
 (define-runtime-path constants-path "runtime-wasm/constants.rkt")
 (define-runtime-path core-lists-path "runtime-wasm/core/lists.rkt")
+(define-runtime-path core-procedures-path "runtime-wasm/core/procedures.rkt")
 
 (module+ test
   (require (submod "runtime-wasm/core-runtime.rkt" test)))
@@ -366,7 +367,8 @@
                                           wasm-utils-path
                                           immediates-path
                                           constants-path
-                                          core-lists-path))])
+                                          core-lists-path
+                                          core-procedures-path))])
             (list (path->string path)
                   (file-size path)
                   (file-or-directory-modify-seconds path)))))
@@ -4764,62 +4766,9 @@
          (func $raise-arity-error:exactly  (unreachable))
          (func $raise-arity-error:at-least (unreachable))
 
-         (func $rest-arguments->list
-               (param $args (ref $Args))
-               (param $n    i32)
-               (result      (ref eq))
+         ,(core-runtime-helper-form core-runtime-helper-index '$rest-arguments->list)
 
-               (local $len  i32)
-               (local $i    i32)
-               (local $x    (ref eq))
-               (local $xs   (ref eq))
-               ;; Compute length of args
-               (local.set $len (array.len (local.get $args)))
-               ;; Return empty list if n >= len
-               (if (i32.ge_u (local.get $n) (local.get $len))
-                   (then (return (global.get $null))))
-               ;; Start with empty list
-               (local.set $xs (global.get $null))
-               ;; Start loop from len - 1 down to n (inclusive)
-               (local.set $i (i32.sub (local.get $len) (i32.const 1)))
-               (block $done
-                      (loop $rev
-                            ;; x = args[i]
-                            (local.set $x (array.get $Args (local.get $args) (local.get $i)))
-                            ;; xs = (cons x xs)
-                            (local.set $xs
-                                       (struct.new $Pair
-                                                   (i32.const 0)        ;; dummy hash
-                                                   (local.get $x)       ;; car
-                                                   (local.get $xs)))    ;; cdr
-                            ;; Stop when i == n
-                            (br_if $done (i32.eq (local.get $i) (local.get $n)))
-                            ;; i--
-                            (local.set $i (i32.sub (local.get $i) (i32.const 1)))
-                            (br $rev)))
-               (local.get $xs))
-
-         (func $rest-arguments->args
-               (param $args (ref $Args))
-               (param $n    i32)
-               (result      (ref $Args))
-
-               (local $len   i32)
-               (local $count i32)
-               (local $res   (ref $Args))
-
-               (local.set $len (array.len (local.get $args)))
-               (if (i32.ge_u (local.get $n) (local.get $len))
-                   (then (return (array.new $Args (global.get $null) (i32.const 0)))))
-               (local.set $count (i32.sub (local.get $len) (local.get $n)))
-               (local.set $res (array.new $Args (global.get $null) (local.get $count)))
-               (array.copy $Args $Args
-                           (local.get $res)
-                           (i32.const 0)
-                           (local.get $args)
-                           (local.get $n)
-                           (local.get $count))
-               (local.get $res))
+         ,(core-runtime-helper-form core-runtime-helper-index '$rest-arguments->args)
 
          ;; Variable used by `closedapp` to hold the closure during construction.
          (func $dummy-code (type $ClosureCode) (param $clos (ref $Closure))
@@ -22747,62 +22696,19 @@
                      (local.get $i)
                      (local.get $len)))
 
-         (func $pair? (type $Prim1)
-               ,@(make-predicate-body '$Pair))
+         ,(core-runtime-helper-form core-runtime-helper-index '$pair?)
 
-         (func $cons? (type $Prim1)
-               ,@(make-predicate-body '$Pair))
+         ,(core-runtime-helper-form core-runtime-helper-index '$cons?)
 
-         (func $null? (type $Prim1)
-               (param $v (ref eq))
-               (result (ref eq))
-               (if (result (ref eq))
-                   (ref.eq (local.get $v) (global.get $null))
-                   (then (global.get $true))
-                   (else (global.get $false))))
+         ,(core-runtime-helper-form core-runtime-helper-index '$null?)
 
-         (func $empty? (type $Prim1)
-               (param $v (ref eq))
-               (result   (ref eq))
-               (call $null? (local.get $v)))
+         ,(core-runtime-helper-form core-runtime-helper-index '$empty?)
 
          (func $cons (type $Prim2) (param $a (ref eq)) (param $d (ref eq)) (result (ref eq))
                (call $debug-allocation-tick (i32.const 0))
                (struct.new $Pair (i32.const 0) (local.get $a) (local.get $d)))
 
-         (func $list* (type $Prim>=1) (param $a (ref eq)) (param $tail (ref eq)) (result (ref eq))
-               (local $head (ref $Pair))
-               (local $prev (ref $Pair))
-               (local $next (ref eq))
-               (local $rest (ref eq))
-               (local $node (ref $Pair))
-               (local $newp (ref $Pair))
-               ;; (list* x) => x
-               (if (ref.eq (local.get $tail) (global.get $null))
-                   (then (return (local.get $a))))
-               ;; Build prefix pairs, and use the last argument as final tail.
-               (local.set $head (struct.new $Pair (i32.const 0) (local.get $a) (global.get $null)))
-               (local.set $prev (local.get $head))
-               (local.set $rest (local.get $tail))
-               (block $done
-                      (loop $loop
-                            (local.set $node (ref.cast (ref $Pair) (local.get $rest)))
-                            (local.set $next (struct.get $Pair $d (local.get $node)))
-                            (if (ref.eq (local.get $next) (global.get $null))
-                                (then
-                                 (struct.set $Pair $d (local.get $prev)
-                                             (struct.get $Pair $a (local.get $node)))
-                                 (return (local.get $head))))
-                            (local.set $newp
-                                       (struct.new $Pair
-                                                   (i32.const 0)
-                                                   (struct.get $Pair $a (local.get $node))
-                                                   (global.get $null)))
-                            (struct.set $Pair $d (local.get $prev) (local.get $newp))
-                            (local.set $prev (local.get $newp))
-                            (local.set $rest (local.get $next))
-                            (br $loop)))
-               (local.get $head))
+         ,(core-runtime-helper-form core-runtime-helper-index '$list*)
 
          (func $car (type $Prim1) (param $v (ref eq)) (result (ref eq))
                (if (result (ref eq)) (ref.test (ref $Pair) (local.get $v))
@@ -22845,29 +22751,9 @@
                      (result (ref eq))
                      ,body)))
 
-         (func $list? (type $Prim1) (param $v (ref eq)) (result (ref eq))
-               (block $exit (result (ref eq))
-                      (loop $loop
-                            (if (ref.eq (local.get $v) (global.get $null))
-                                (then (return (global.get $true))))
-                            (if (ref.test (ref $Pair) (local.get $v))
-                                (then
-                                 (local.set $v
-                                            (struct.get $Pair $d
-                                                        (ref.cast (ref $Pair) (local.get $v))))
-                                 (br $loop))
-                                (else (return (global.get $false)))))
-                      ;; fallthrough: not a proper list
-                      (global.get $false)))
+         ,(core-runtime-helper-form core-runtime-helper-index '$list?)
 
-         (func $list (type $Prim>=0)
-               (param $args (ref eq))
-               (result      (ref eq))
-
-               (local.get $args))
-               ;; #;(call $rest-arguments->list
-               ;;       (ref.cast (ref $Args) (local.get $args))
-               ;;       (i32.const 0)))
+         ,(core-runtime-helper-form core-runtime-helper-index '$list)
 
          (func $length/i32 (param $xs (ref eq)) (result i32)
                (local $i i32)
@@ -23010,22 +22896,7 @@
               ;; Return tail
               (struct.get $Pair $d (ref.cast (ref $Pair) (local.get $xs))))
 
-        ;; last-pair/checked: takes a Pair and returns the last Pair in the chain
-        (func $last-pair/checked
-              (param $p (ref $Pair))
-              (result   (ref $Pair))
-
-              (local $node (ref $Pair))
-              (local $next (ref eq))
-
-              (local.set $node (local.get $p))
-              (loop $loop
-                    (local.set $next (struct.get $Pair $d (local.get $node)))
-                    (if (ref.test (ref $Pair) (local.get $next))
-                        (then (local.set $node (ref.cast (ref $Pair) (local.get $next)))
-                              (br $loop))
-                        (else (return (local.get $node)))))
-              (unreachable))
+        ,(core-runtime-helper-form core-runtime-helper-index '$last-pair/checked)
 
         (func $last (type $Prim1) (param $xs (ref eq)) (result (ref eq))
               (local $p (ref $Pair))
