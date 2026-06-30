@@ -1244,10 +1244,192 @@
                                    (local.get $lookup-key))
                              (global.get $true))))))))
 
+;; immutable-hash-packed-node-read-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate physical packed-node lookup helpers.
+(define immutable-hash-packed-node-read-runtime-only-helpers
+  (list
+   ;; immutable-hamt-packed-node-ref/kind : kind bnode key hash shift fail -> any/c
+   ;;   Lookup through a physical packed bnode.
+   (core-runtime-helper
+    '$immutable-hamt-packed-node-ref/kind
+    "$immutable-hamt-packed-node-ref/kind"
+    (lambda ()
+      `(func $immutable-hamt-packed-node-ref/kind
+             (param $kind  i32)
+             (param $sv    (ref $StencilVector))
+             (param $key   (ref eq))
+             (param $hash  i32)
+             (param $shift i32)
+             (param $fail  (ref eq))
+             (result       (ref eq))
+             (local $metadata  i32)
+             (local $child-bit i32)
+             (local $key-bit   i32)
+             (local $slot      (ref eq))
+             (local.set $metadata (call $immutable-hamt-bnode-metadata (local.get $sv)))
+             (local.set $child-bit
+                        (call $immutable-hamt-packed-child-bit
+                              (local.get $hash)
+                              (local.get $shift)))
+             (if (i32.ne (i32.and (local.get $metadata) (local.get $child-bit))
+                         (i32.const 0))
+                 (then
+                  (return_call $immutable-hamt-node-ref/kind
+                               (local.get $kind)
+                               (call $immutable-hamt-packed-child-slot
+                                     (local.get $sv)
+                                     (local.get $hash)
+                                     (local.get $shift))
+                               (local.get $key)
+                               (local.get $hash)
+                               (i32.add (local.get $shift) (i32.const 3))
+                               (local.get $fail))))
+             (local.set $key-bit
+                        (call $immutable-hamt-packed-key-bit
+                              (local.get $hash)
+                              (local.get $shift)))
+             (if (i32.eqz (i32.and (local.get $metadata) (local.get $key-bit)))
+                 (then (return_call $immutable-hamt-bucket-ref/kind
+                                    (local.get $kind)
+                                    (global.get $null)
+                                    (local.get $key)
+                                    (local.get $fail))))
+             (local.set $slot
+                        (call $immutable-hamt-packed-key-slot
+                              (local.get $sv)
+                              (local.get $hash)
+                              (local.get $shift)))
+             (if (call $immutable-hamt-key-matches?/kind
+                       (local.get $kind)
+                       (local.get $slot)
+                       (local.get $key))
+                 (then
+                  (return_call $immutable-hamt-packed-value-slot
+                               (local.get $sv)
+                               (local.get $hash)
+                               (local.get $shift))))
+             (return_call $immutable-hamt-bucket-ref/kind
+                          (local.get $kind)
+                          (global.get $null)
+                          (local.get $key)
+                          (local.get $fail)))))
+
+   ;; immutable-hamt-packed-node-ref-key/kind : kind bnode key hash shift fail -> any/c
+   ;;   Find the stored key through a physical packed bnode.
+   (core-runtime-helper
+    '$immutable-hamt-packed-node-ref-key/kind
+    "$immutable-hamt-packed-node-ref-key/kind"
+    (lambda ()
+      `(func $immutable-hamt-packed-node-ref-key/kind
+             (param $kind  i32)
+             (param $sv    (ref $StencilVector))
+             (param $key   (ref eq))
+             (param $hash  i32)
+             (param $shift i32)
+             (param $fail  (ref eq))
+             (result       (ref eq))
+             (local $metadata  i32)
+             (local $child-bit i32)
+             (local $key-bit   i32)
+             (local $slot      (ref eq))
+             (local.set $metadata (call $immutable-hamt-bnode-metadata (local.get $sv)))
+             (local.set $child-bit
+                        (call $immutable-hamt-packed-child-bit
+                              (local.get $hash)
+                              (local.get $shift)))
+             (if (i32.ne (i32.and (local.get $metadata) (local.get $child-bit))
+                         (i32.const 0))
+                 (then
+                  (return_call $immutable-hamt-node-ref-key/kind
+                               (local.get $kind)
+                               (call $immutable-hamt-packed-child-slot
+                                     (local.get $sv)
+                                     (local.get $hash)
+                                     (local.get $shift))
+                               (local.get $key)
+                               (local.get $hash)
+                               (i32.add (local.get $shift) (i32.const 3))
+                               (local.get $fail))))
+             (local.set $key-bit
+                        (call $immutable-hamt-packed-key-bit
+                              (local.get $hash)
+                              (local.get $shift)))
+             (if (i32.eqz (i32.and (local.get $metadata) (local.get $key-bit)))
+                 (then (return_call $immutable-hamt-bucket-ref-key/kind
+                                    (local.get $kind)
+                                    (global.get $null)
+                                    (local.get $key)
+                                    (local.get $fail))))
+             (local.set $slot
+                        (call $immutable-hamt-packed-key-slot
+                              (local.get $sv)
+                              (local.get $hash)
+                              (local.get $shift)))
+             (if (call $immutable-hamt-key-matches?/kind
+                       (local.get $kind)
+                       (local.get $slot)
+                       (local.get $key))
+                 (then
+                  (return_call $immutable-hamt-inline-key-unwrap
+                               (local.get $slot))))
+             (return_call $immutable-hamt-bucket-ref-key/kind
+                          (local.get $kind)
+                          (global.get $null)
+                          (local.get $key)
+                          (local.get $fail)))))
+
+   ;; immutable-hamt-packed-node-has-key?/kind : kind bnode key hash shift -> boolean?
+   ;;   Check a physical packed bnode for a key.
+   (core-runtime-helper
+    '$immutable-hamt-packed-node-has-key?/kind
+    "$immutable-hamt-packed-node-has-key?/kind"
+    (lambda ()
+      `(func $immutable-hamt-packed-node-has-key?/kind
+             (param $kind  i32)
+             (param $sv    (ref $StencilVector))
+             (param $key   (ref eq))
+             (param $hash  i32)
+             (param $shift i32)
+             (result       i32)
+             (local $metadata  i32)
+             (local $child-bit i32)
+             (local $key-bit   i32)
+             (local.set $metadata (call $immutable-hamt-bnode-metadata (local.get $sv)))
+             (local.set $child-bit
+                        (call $immutable-hamt-packed-child-bit
+                              (local.get $hash)
+                              (local.get $shift)))
+             (if (i32.ne (i32.and (local.get $metadata) (local.get $child-bit))
+                         (i32.const 0))
+                 (then
+                  (return_call $immutable-hamt-node-has-key?/kind
+                               (local.get $kind)
+                               (call $immutable-hamt-packed-child-slot
+                                     (local.get $sv)
+                                     (local.get $hash)
+                                     (local.get $shift))
+                               (local.get $key)
+                               (local.get $hash)
+                               (i32.add (local.get $shift) (i32.const 3)))))
+             (local.set $key-bit
+                        (call $immutable-hamt-packed-key-bit
+                              (local.get $hash)
+                              (local.get $shift)))
+             (if (i32.eqz (i32.and (local.get $metadata) (local.get $key-bit)))
+                 (then (return (i32.const 0))))
+             (return_call $immutable-hamt-key-matches?/kind
+                          (local.get $kind)
+                          (call $immutable-hamt-packed-key-slot
+                                (local.get $sv)
+                                (local.get $hash)
+                                (local.get $shift))
+                          (local.get $key)))))))
+
 ;; immutable-hash-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate immutable hash helpers that still depend on monolithic runtime globals.
 (define immutable-hash-runtime-only-helpers
   (append immutable-hash-prelude-runtime-only-helpers
           immutable-hash-hamt-bit-runtime-only-helpers
           immutable-hash-hamt-metadata-runtime-only-helpers
-          immutable-hash-eq-bucket-runtime-only-helpers))
+          immutable-hash-eq-bucket-runtime-only-helpers
+          immutable-hash-packed-node-read-runtime-only-helpers))
