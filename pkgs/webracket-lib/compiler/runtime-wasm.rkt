@@ -11,6 +11,8 @@
          "private/timings.rkt"
          "private/structs.rkt"
          "runtime-wasm/core-helper.rkt"
+         (only-in "runtime-wasm/core/boxes.rkt"
+                  box-runtime-only-helpers)
          (only-in "runtime-wasm/core/lists.rkt"
                   list-runtime-only-helpers)
          (only-in "runtime-wasm/core/stencil-vectors.rkt"
@@ -33,6 +35,7 @@
 (define-runtime-path wasm-utils-path "private/wasm-utils.rkt")
 (define-runtime-path immediates-path "private/immediates.rkt")
 (define-runtime-path constants-path "runtime-wasm/constants.rkt")
+(define-runtime-path core-boxes-path "runtime-wasm/core/boxes.rkt")
 (define-runtime-path core-lists-path "runtime-wasm/core/lists.rkt")
 (define-runtime-path core-mlists-path "runtime-wasm/core/mlists.rkt")
 (define-runtime-path core-procedures-path "runtime-wasm/core/procedures.rkt")
@@ -44,6 +47,7 @@
 (define runtime-helper-index
   (make-core-runtime-helper-index
    (append core-runtime-helpers
+           box-runtime-only-helpers
            list-runtime-only-helpers
            stencil-vector-runtime-only-helpers
            treelist-runtime-only-helpers)))
@@ -385,6 +389,7 @@
                                           wasm-utils-path
                                           immediates-path
                                           constants-path
+                                          core-boxes-path
                                           core-lists-path
                                           core-mlists-path
                                           core-procedures-path
@@ -25979,178 +25984,49 @@
 	                           (global.get $true)))
 	               (unreachable))
 
-	         (func $boxed (type $Prim1) (param $v (ref eq))  (result (ref eq))
-	               (struct.new $Boxed (local.get $v)))
+         ;;;
+         ;;; Internal Compiler Boxes
+         ;;;
 
-         (func $unboxed (type $Prim1) (param $b (ref eq))  (result (ref eq))
-               (local $B (ref $Boxed))
-               (local $v (ref eq))
-               (local.set $B
-                          (block $ok (result (ref $Boxed))
-                            (br_on_cast $ok (ref eq) (ref $Boxed) (local.get $b))
-                            (unreachable)))
-	               (local.set $v (struct.get $Boxed $v (local.get $B)))
-	               ;; Compiler boxes use `unsafe-undefined` as an ordinary
-	               ;; sentinel value. The compiler inserts explicit
-	               ;; `check-not-unsafe-undefined` guards where early reads must
-	               ;; fail, so internal box reads must expose the sentinel rather
-	               ;; than raising here.
-	               (local.get $v))
+         ,(core-runtime-helper-form runtime-helper-index '$boxed)
 
-         (func $set-boxed! (type $Prim2)
-               ; todo: make this return no values
-               ;       problem: set-boxed! is currently wrapped by drop in
-               ;                the code generator. Add an rule that avoids
-               ;                the drop for set-boxed!.
-               ;; Internal compiler boxes use unsafe-undefined as a placeholder.
-               ;; Reads through $unboxed are guarded above; writes must be able
-               ;; to fill the placeholder for Schemify/Webify lowered modules.
-               (param $b (ref eq)) (param $v (ref eq))
-               (result (ref eq))
-               ; 1. Cast $b into a (ref $Box)
-               (local $B (ref $Boxed))
-               (local.set $B
-                          (block $ok (result (ref $Boxed))
-                                 (br_on_cast $ok (ref eq) (ref $Boxed) (local.get $b))
-                                 (return (global.get $error))))
-               ; 2. Set the contents
-               (struct.set $Boxed $v (local.get $B) (local.get $v))
-               ; 3. Return `void`
-               (global.get $void))
+         ,(core-runtime-helper-form runtime-helper-index '$unboxed)
 
-         (func $initialize-boxed! (type $Prim2)
-               (param $b (ref eq)) (param $v (ref eq))
-               (result (ref eq))
-               (local $B (ref $Boxed))
-               (local.set $B
-                          (block $ok (result (ref $Boxed))
-                                 (br_on_cast $ok (ref eq) (ref $Boxed) (local.get $b))
-                                 (return (global.get $error))))
-               (struct.set $Boxed $v (local.get $B) (local.get $v))
-               (global.get $void))
+         ,(core-runtime-helper-form runtime-helper-index '$set-boxed!)
 
+         ,(core-runtime-helper-form runtime-helper-index '$initialize-boxed!)
 
-         (func $boxed? (type $Prim1)
-               ,@(make-predicate-body '$Boxed))
+         ,(core-runtime-helper-form runtime-helper-index '$boxed?)
 
          ;;;
          ;;; 4.14 Boxes
          ;;;
 
-         ;; https://docs.racket-lang.org/reference/boxes.html
+         ,(core-runtime-helper-form runtime-helper-index '$box?)
 
-         (func $box? (type $Prim1)
-               ,@(make-predicate-body '$Box))
+         ,(core-runtime-helper-form runtime-helper-index '$box)
 
-         (func $box (type $Prim1) (param $v (ref eq))  (result (ref eq))
-               (struct.new $Box
-                           (i32.const 0)       ;; $hash
-                           (i32.const 0)       ;; $immutable (mutable = not immmutable)
-                           (local.get $v)))
+         ,(core-runtime-helper-form runtime-helper-index '$box-immutable)
 
-         (func $box-immutable (type $Prim1) (param $v (ref eq))  (result (ref eq))
-               (struct.new $Box
-                           (i32.const 0)       ;; $hash
-                           (i32.const 1)       ;; $immutable
-                           (local.get $v)))
+         ,(core-runtime-helper-form runtime-helper-index '$unbox)
 
-         (func $unbox (type $Prim1) (param $b (ref eq))  (result (ref eq))
-               (struct.get $Box $v
-                           (block $ok (result (ref $Box))
-                             (br_on_cast $ok (ref eq) (ref $Box) (local.get $b))
-                             (return (global.get $error)))))
+         ,(core-runtime-helper-form runtime-helper-index '$unbox*)
 
-         ;; unbox* : (and/c box? (not/c impersonator?)) -> any/c
-         ;;   WebRacket has no box impersonators yet, so this is equivalent
-         ;;   to unbox after the same box representation check.
-         (func $unbox* (type $Prim1)
-               (param $b (ref eq)) ;; non-impersonator box
-               (result (ref eq))
-               (call $unbox (local.get $b)))
+         ,(core-runtime-helper-form runtime-helper-index '$raise-immutable-box)
 
-         (func $raise-immutable-box (param $x (ref eq)) (unreachable))
+         ,(core-runtime-helper-form runtime-helper-index '$set-box!)
 
-         (func $set-box! (type $Prim2) ; todo: should this invalidate the hash code?
-               (param $b (ref eq)) (param $v (ref eq))
-               (result (ref eq))
-               ; 1. Cast $b into a (ref $Box)
-               (local $B (ref $Box))
-               (local.set $B
-                          (block $ok (result (ref $Box))
-                                 (br_on_cast $ok (ref eq) (ref $Box) (local.get $b))
-                                 (return (global.get $error))))
-               ; 2. Check mutability
-               (if (i32.ne (struct.get $Box $immutable (local.get $B)) (i32.const 0))
-                   (then (call $raise-immutable-box (local.get $B)) (unreachable)))
-               ; 3. Set the contents
-               (struct.set $Box $v (local.get $B) (local.get $v))
-               ; 4. Return `void`
-               (global.get $void))
+         ,(core-runtime-helper-form runtime-helper-index '$set-box*!)
 
-         ;; set-box*! : (and/c box? (not/c immutable?) (not/c impersonator?)) any/c -> void?
-         ;;   WebRacket has no box impersonators yet, so this follows set-box!.
-         (func $set-box*! (type $Prim2)
-               (param $b (ref eq)) ;; mutable non-impersonator box
-               (param $v (ref eq)) ;; replacement value
-               (result (ref eq))
-               (call $set-box! (local.get $b) (local.get $v)))
+         ,(core-runtime-helper-form runtime-helper-index '$box-cas!)
 
-         ;; box-cas! : (and/c box? mutable?) any/c any/c -> boolean?
-         ;;   Single-threaded compare-and-set using Racket's eq? comparison.
-         (func $box-cas! (type $Prim3)
-               (param $b   (ref eq)) ;; box
-               (param $old (ref eq)) ;; expected value
-               (param $new (ref eq)) ;; replacement value
-               (result     (ref eq))
-               (local $B (ref $Box))
-               (local.set $B
-                          (block $ok (result (ref $Box))
-                                 (br_on_cast $ok (ref eq) (ref $Box) (local.get $b))
-                                 (return (global.get $error))))
-               (if (i32.ne (struct.get $Box $immutable (local.get $B)) (i32.const 0))
-                   (then (call $raise-immutable-box (local.get $B)) (unreachable)))
-               (if (result (ref eq))
-                   (ref.eq (call $eq? (struct.get $Box $v (local.get $B)) (local.get $old))
-                           (global.get $true))
-                   (then
-                    (struct.set $Box $v (local.get $B) (local.get $new))
-                    (global.get $true))
-                   (else (global.get $false))))
+         ,(core-runtime-helper-form runtime-helper-index '$unsafe-box*-cas!)
 
-         ;; unsafe-box*-cas! : box? any/c any/c -> boolean?
-         ;;   Conservative first slice for expander caches; WebRacket is single-threaded
-         ;;   and currently reuses the checked box-cas! path.
-         (func $unsafe-box*-cas! (type $Prim3)
-               (param $b   (ref eq)) ;; box
-               (param $old (ref eq)) ;; expected value
-               (param $new (ref eq)) ;; replacement value
-               (result     (ref eq))
-               (return_call $box-cas! (local.get $b) (local.get $old) (local.get $new)))
+         ,(core-runtime-helper-form runtime-helper-index '$make-weak-box)
 
-         ;; make-weak-box : any/c -> weak-box?
-         ;;   Create a weak-box-shaped value. This is currently strong because
-         ;;   Wasm-GC does not give WebRacket weak-reference hooks yet.
-         (func $make-weak-box (type $Prim1)
-               (param $v (ref eq)) ;; value
-               (result   (ref eq))
-               (struct.new $WeakBox (i32.const 0) (local.get $v)))
+         ,(core-runtime-helper-form runtime-helper-index '$weak-box?)
 
-         ;; weak-box? : any/c -> boolean?
-         ;;   Check whether a value is a WebRacket weak box.
-         (func $weak-box? (type $Prim1)
-               ,@(make-predicate-body '$WeakBox))
-
-         ;; weak-box-value : weak-box? [any/c = #f] -> any/c
-         ;;   Return the value. Since this first slice is strong, the optional
-         ;;   failure value is accepted but never selected.
-         (func $weak-box-value (type $Prim12)
-               (param $wb      (ref eq)) ;; weak box
-               (param $failure (ref eq)) ;; optional default, unused for strong fallback
-               (result         (ref eq))
-               (struct.get $WeakBox $v
-                           (block $ok (result (ref $WeakBox))
-                             (br_on_cast $ok (ref eq) (ref $WeakBox) (local.get $wb))
-                             (return (global.get $error)))))
+         ,(core-runtime-helper-form runtime-helper-index '$weak-box-value)
 
          ;;;
          ;;; 4.15 Thread Cells
