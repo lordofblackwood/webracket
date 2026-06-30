@@ -26602,88 +26602,21 @@
 
          ,(core-runtime-helper-form runtime-helper-index '$make-immutable-hasheqv)
 
-         ; NOTE - TODO - These "weak" hash tables are dummies.
-         ;             - They simply call the constructors of
-         ;               the non-weak hash table constructors.
+         ,(core-runtime-helper-form runtime-helper-index '$make-weak-hash)
 
-         (func $make-weak-hash (type $Prim01) ; one optional argument
-               (param $assocs (ref eq))
-               (result        (ref eq))
+         ,(core-runtime-helper-form runtime-helper-index '$make-weak-hasheq)
 
-               (if (ref.eq (local.get $assocs) (global.get $missing))
-                   (then (local.set $assocs (global.get $null))))
-               (call $make-hash (local.get $assocs)))
+         ,(core-runtime-helper-form runtime-helper-index '$make-ephemeron-hasheq)
 
-         (func $make-weak-hasheq (type $Prim01) ; one optional argument
-               (param $assocs (ref eq))
-               (result        (ref eq))
+         ,(core-runtime-helper-form runtime-helper-index '$make-ephemeron)
 
-               (if (ref.eq (local.get $assocs) (global.get $missing))
-                   (then (local.set $assocs (global.get $null))))
-               (call $make-hasheq (local.get $assocs)))
+         ,(core-runtime-helper-form runtime-helper-index '$ephemeron?)
 
-         ;; make-ephemeron-hasheq : [(listof pair?) = null] -> mutable-hasheq?
-         ;;   Strong fallback. WebRacket does not have ephemeron/weak GC hooks
-         ;;   yet, so expander intern tables use an ordinary mutable hasheq.
-         (func $make-ephemeron-hasheq (type $Prim01)
-               (param $assocs (ref eq)) ;; optional association list, default null
-               (result        (ref eq))
+         ,(core-runtime-helper-form runtime-helper-index '$ephemeron-value)
 
-               (if (ref.eq (local.get $assocs) (global.get $missing))
-                   (then (local.set $assocs (global.get $null))))
-               (call $make-hasheq (local.get $assocs)))
+         ,(core-runtime-helper-form runtime-helper-index '$make-weak-hasheqv)
 
-         ;; make-ephemeron : any/c any/c -> ephemeron?
-         ;;   Strong fallback. WebRacket keeps the key/value strongly because
-         ;;   Wasm GC does not expose Racket-style weak/ephemeron hooks yet.
-         (func $make-ephemeron (type $Prim2)
-               (param $key (ref eq)) ;; ephemeron key
-               (param $val (ref eq)) ;; ephemeron value
-               (result     (ref eq))
-               (struct.new $Ephemeron
-                           (i32.const 0)
-                           (local.get $key)
-                           (local.get $val)))
-
-         ;; ephemeron? : any/c -> boolean?
-         ;;   Predicate for WebRacket's strong ephemeron fallback values.
-         (func $ephemeron? (type $Prim1)
-               (param $v (ref eq)) ;; candidate value
-               (result   (ref eq))
-               (if (result (ref eq)) (ref.test (ref $Ephemeron) (local.get $v))
-                   (then (global.get $true))
-                   (else (global.get $false))))
-
-         ;; ephemeron-value : ephemeron? [any/c = #f] [any/c = #f] -> any/c
-         ;;   Return the strongly retained value; gced-v and retain-v are ignored.
-         (func $ephemeron-value (type $Prim13)
-               (param $e        (ref eq)) ;; ephemeron
-               (param $gced-v   (ref eq)) ;; optional fallback, ignored
-               (param $retain-v (ref eq)) ;; optional retain value, ignored
-               (result          (ref eq))
-               (if (i32.eqz (ref.test (ref $Ephemeron) (local.get $e)))
-                   (then (call $raise-argument-error1
-                               (ref.cast (ref $Symbol) (global.get $symbol:ephemeron-value))
-                               (ref.cast (ref $String) (global.get $string:ephemeron?))
-                               (local.get $e))))
-               (struct.get $Ephemeron $value
-                           (ref.cast (ref $Ephemeron) (local.get $e))))
-
-         (func $make-weak-hasheqv (type $Prim01) ; one optional argument
-               (param $assocs (ref eq))
-               (result        (ref eq))
-
-               (if (ref.eq (local.get $assocs) (global.get $missing))
-                   (then (local.set $assocs (global.get $null))))
-               (call $make-hasheqv (local.get $assocs)))
-
-         (func $make-weak-hashalw (type $Prim01) ; one optional argument
-               (param $assocs (ref eq))
-               (result        (ref eq))
-
-               (if (ref.eq (local.get $assocs) (global.get $missing))
-                   (then (local.set $assocs (global.get $null))))
-               (call $make-hashalw (local.get $assocs)))
+         ,(core-runtime-helper-form runtime-helper-index '$make-weak-hashalw)
 
          ;; primitive->compiled-position : any/c -> #f
          ;;   WebRacket has no bytecode primitive-position table yet. This

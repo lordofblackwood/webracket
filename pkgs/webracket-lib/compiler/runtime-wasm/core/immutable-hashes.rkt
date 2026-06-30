@@ -4179,6 +4179,124 @@
                           (br $walk)))
              (local.get $ht))))))
 
+;; weak-ephemeron-hash-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate weak-hash and ephemeron fallbacks backed by strong tables.
+(define weak-ephemeron-hash-runtime-only-helpers
+  (list
+   ; NOTE - TODO - These "weak" hash tables are dummies.
+   ;             - They simply call the constructors of
+   ;               the non-weak hash table constructors.
+   (core-runtime-helper
+    '$make-weak-hash
+    "$make-weak-hash"
+    (lambda ()
+      `(func $make-weak-hash (type $Prim01) ; one optional argument
+             (param $assocs (ref eq))
+             (result        (ref eq))
+
+             (if (ref.eq (local.get $assocs) (global.get $missing))
+                 (then (local.set $assocs (global.get $null))))
+             (call $make-hash (local.get $assocs)))))
+
+   (core-runtime-helper
+    '$make-weak-hasheq
+    "$make-weak-hasheq"
+    (lambda ()
+      `(func $make-weak-hasheq (type $Prim01) ; one optional argument
+             (param $assocs (ref eq))
+             (result        (ref eq))
+
+             (if (ref.eq (local.get $assocs) (global.get $missing))
+                 (then (local.set $assocs (global.get $null))))
+             (call $make-hasheq (local.get $assocs)))))
+
+   ;; make-ephemeron-hasheq : [(listof pair?) = null] -> mutable-hasheq?
+   ;;   Strong fallback. WebRacket does not have ephemeron/weak GC hooks
+   ;;   yet, so expander intern tables use an ordinary mutable hasheq.
+   (core-runtime-helper
+    '$make-ephemeron-hasheq
+    "$make-ephemeron-hasheq"
+    (lambda ()
+      `(func $make-ephemeron-hasheq (type $Prim01)
+             (param $assocs (ref eq)) ;; optional association list, default null
+             (result        (ref eq))
+
+             (if (ref.eq (local.get $assocs) (global.get $missing))
+                 (then (local.set $assocs (global.get $null))))
+             (call $make-hasheq (local.get $assocs)))))
+
+   ;; make-ephemeron : any/c any/c -> ephemeron?
+   ;;   Strong fallback. WebRacket keeps the key/value strongly because
+   ;;   Wasm GC does not expose Racket-style weak/ephemeron hooks yet.
+   (core-runtime-helper
+    '$make-ephemeron
+    "$make-ephemeron"
+    (lambda ()
+      `(func $make-ephemeron (type $Prim2)
+             (param $key (ref eq)) ;; ephemeron key
+             (param $val (ref eq)) ;; ephemeron value
+             (result     (ref eq))
+             (struct.new $Ephemeron
+                         (i32.const 0)
+                         (local.get $key)
+                         (local.get $val)))))
+
+   ;; ephemeron? : any/c -> boolean?
+   ;;   Predicate for WebRacket's strong ephemeron fallback values.
+   (core-runtime-helper
+    '$ephemeron?
+    "$ephemeron?"
+    (lambda ()
+      `(func $ephemeron? (type $Prim1)
+             (param $v (ref eq)) ;; candidate value
+             (result   (ref eq))
+             (if (result (ref eq)) (ref.test (ref $Ephemeron) (local.get $v))
+                 (then (global.get $true))
+                 (else (global.get $false))))))
+
+   ;; ephemeron-value : ephemeron? [any/c = #f] [any/c = #f] -> any/c
+   ;;   Return the strongly retained value; gced-v and retain-v are ignored.
+   (core-runtime-helper
+    '$ephemeron-value
+    "$ephemeron-value"
+    (lambda ()
+      `(func $ephemeron-value (type $Prim13)
+             (param $e        (ref eq)) ;; ephemeron
+             (param $gced-v   (ref eq)) ;; optional fallback, ignored
+             (param $retain-v (ref eq)) ;; optional retain value, ignored
+             (result          (ref eq))
+             (if (i32.eqz (ref.test (ref $Ephemeron) (local.get $e)))
+                 (then (call $raise-argument-error1
+                             (ref.cast (ref $Symbol) (global.get $symbol:ephemeron-value))
+                             (ref.cast (ref $String) (global.get $string:ephemeron?))
+                             (local.get $e))))
+             (struct.get $Ephemeron $value
+                         (ref.cast (ref $Ephemeron) (local.get $e))))))
+
+   (core-runtime-helper
+    '$make-weak-hasheqv
+    "$make-weak-hasheqv"
+    (lambda ()
+      `(func $make-weak-hasheqv (type $Prim01) ; one optional argument
+             (param $assocs (ref eq))
+             (result        (ref eq))
+
+             (if (ref.eq (local.get $assocs) (global.get $missing))
+                 (then (local.set $assocs (global.get $null))))
+             (call $make-hasheqv (local.get $assocs)))))
+
+   (core-runtime-helper
+    '$make-weak-hashalw
+    "$make-weak-hashalw"
+    (lambda ()
+      `(func $make-weak-hashalw (type $Prim01) ; one optional argument
+             (param $assocs (ref eq))
+             (result        (ref eq))
+
+             (if (ref.eq (local.get $assocs) (global.get $missing))
+                 (then (local.set $assocs (global.get $null))))
+             (call $make-hashalw (local.get $assocs)))))))
+
 ;; immutable-hash-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate immutable hash helpers that still depend on monolithic runtime globals.
 (define immutable-hash-runtime-only-helpers
@@ -4199,4 +4317,5 @@
           immutable-hash-set-runtime-only-helpers
           immutable-hash-remove-runtime-only-helpers
           immutable-hash-varargs-constructor-runtime-only-helpers
-          immutable-hash-alist-constructor-runtime-only-helpers))
+          immutable-hash-alist-constructor-runtime-only-helpers
+          weak-ephemeron-hash-runtime-only-helpers))
