@@ -822,9 +822,432 @@
                              (local.get $hash)
                              (local.get $shift)))))))))
 
+;; immutable-hash-eq-bucket-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate eq?/eqv? immutable hash bucket helpers and shared kind dispatch.
+(define immutable-hash-eq-bucket-runtime-only-helpers
+  (list
+   (core-runtime-helper
+    '$immutable-hasheqv-bucket-has-key?
+    "$immutable-hasheqv-bucket-has-key?"
+    (lambda ()
+      `(func $immutable-hasheqv-bucket-has-key?
+             (param $bucket (ref eq)) ;; list of immutable hash entries
+             (param $key    (ref eq)) ;; lookup key
+             (result i32)
+             (local $node  (ref eq))
+             (local $pair  (ref $Pair))
+             (local $entry (ref $ImmutableHashEntry))
+             (local.set $node (local.get $bucket))
+             (block $done
+                    (loop $scan
+                          (br_if $done (ref.eq (local.get $node) (global.get $null)))
+                          (if (i32.eqz (ref.test (ref $Pair) (local.get $node)))
+                              (then (return (i32.const 0))))
+                          (local.set $pair (ref.cast (ref $Pair) (local.get $node)))
+                          (local.set $entry
+                                     (ref.cast (ref $ImmutableHashEntry)
+                                               (struct.get $Pair $a (local.get $pair))))
+                          (if (ref.eq (call $eqv?
+                                            (struct.get $ImmutableHashEntry $key (local.get $entry))
+                                            (local.get $key))
+                                      (global.get $true))
+                              (then (return (i32.const 1))))
+                          (local.set $node (struct.get $Pair $d (local.get $pair)))
+                          (br $scan)))
+             (i32.const 0))))
+
+   (core-runtime-helper
+    '$immutable-hasheqv-bucket-ref
+    "$immutable-hasheqv-bucket-ref"
+    (lambda ()
+      `(func $immutable-hasheqv-bucket-ref
+             (param $bucket (ref eq)) ;; list of immutable hash entries
+             (param $key    (ref eq)) ;; lookup key
+             (param $fail   (ref eq)) ;; failure result/procedure/missing
+             (result        (ref eq))
+             (local $node   (ref eq))
+             (local $pair   (ref $Pair))
+             (local $entry  (ref $ImmutableHashEntry))
+             (local $proc   (ref $Procedure))
+             (local $inv    (ref $ProcedureInvoker))
+             (local $noargs (ref $Args))
+             (local.set $node (local.get $bucket))
+             (block $not-found
+                    (loop $scan
+                          (br_if $not-found (ref.eq (local.get $node) (global.get $null)))
+                          (if (i32.eqz (ref.test (ref $Pair) (local.get $node)))
+                              (then (br $not-found)))
+                          (local.set $pair (ref.cast (ref $Pair) (local.get $node)))
+                          (local.set $entry
+                                     (ref.cast (ref $ImmutableHashEntry)
+                                               (struct.get $Pair $a (local.get $pair))))
+                          (if (ref.eq (call $eqv?
+                                            (struct.get $ImmutableHashEntry $key (local.get $entry))
+                                            (local.get $key))
+                                      (global.get $true))
+                              (then (return (struct.get $ImmutableHashEntry $value
+                                                        (local.get $entry)))))
+                          (local.set $node (struct.get $Pair $d (local.get $pair)))
+                          (br $scan)))
+             (if (result (ref eq))
+                 (ref.eq (local.get $fail) (global.get $missing))
+                 (then (call $raise-hash-ref-key-not-found (local.get $key))
+                       (unreachable))
+                 (else
+                  (if (result (ref eq))
+                      (ref.test (ref $Procedure) (local.get $fail))
+                      (then
+                       (local.set $proc   (ref.cast (ref $Procedure) (local.get $fail)))
+                       (local.set $inv    (struct.get $Procedure $invoke (local.get $proc)))
+                       (local.set $noargs (array.new $Args (global.get $null) (i32.const 0)))
+                       (return_call_ref $ProcedureInvoker
+                                        (local.get $proc)
+                                        (local.get $noargs)
+                                        (local.get $inv)))
+                      (else (local.get $fail))))))))
+
+   (core-runtime-helper
+    '$immutable-hasheqv-bucket-ref-key
+    "$immutable-hasheqv-bucket-ref-key"
+    (lambda ()
+      `(func $immutable-hasheqv-bucket-ref-key
+             (param $bucket (ref eq)) ;; list of immutable hash entries
+             (param $key    (ref eq)) ;; lookup key
+             (param $fail   (ref eq)) ;; failure result/procedure/missing
+             (result        (ref eq))
+             (local $node   (ref eq))
+             (local $pair   (ref $Pair))
+             (local $entry  (ref $ImmutableHashEntry))
+             (local $proc   (ref $Procedure))
+             (local $inv    (ref $ProcedureInvoker))
+             (local $noargs (ref $Args))
+             (local.set $node (local.get $bucket))
+             (block $not-found
+                    (loop $scan
+                          (br_if $not-found (ref.eq (local.get $node) (global.get $null)))
+                          (if (i32.eqz (ref.test (ref $Pair) (local.get $node)))
+                              (then (br $not-found)))
+                          (local.set $pair (ref.cast (ref $Pair) (local.get $node)))
+                          (local.set $entry
+                                     (ref.cast (ref $ImmutableHashEntry)
+                                               (struct.get $Pair $a (local.get $pair))))
+                          (if (ref.eq (call $eqv?
+                                            (struct.get $ImmutableHashEntry $key (local.get $entry))
+                                            (local.get $key))
+                                      (global.get $true))
+                              (then (return (struct.get $ImmutableHashEntry $key
+                                                        (local.get $entry)))))
+                          (local.set $node (struct.get $Pair $d (local.get $pair)))
+                          (br $scan)))
+             (if (result (ref eq))
+                 (ref.eq (local.get $fail) (global.get $missing))
+                 (then (call $raise-hash-ref-key-not-found (local.get $key))
+                       (unreachable))
+                 (else
+                  (if (result (ref eq))
+                      (ref.test (ref $Procedure) (local.get $fail))
+                      (then
+                       (local.set $proc   (ref.cast (ref $Procedure) (local.get $fail)))
+                       (local.set $inv    (struct.get $Procedure $invoke (local.get $proc)))
+                       (local.set $noargs (array.new $Args (global.get $null) (i32.const 0)))
+                       (return_call_ref $ProcedureInvoker
+                                        (local.get $proc)
+                                        (local.get $noargs)
+                                        (local.get $inv)))
+                      (else (local.get $fail))))))))
+
+   (core-runtime-helper
+    '$immutable-hasheq-bucket-has-key?
+    "$immutable-hasheq-bucket-has-key?"
+    (lambda ()
+      `(func $immutable-hasheq-bucket-has-key?
+             (param $bucket (ref eq)) ;; list of immutable hash entries
+             (param $key    (ref eq)) ;; lookup key
+             (result i32)
+             (local $node  (ref eq))
+             (local $pair  (ref $Pair))
+             (local $entry (ref $ImmutableHashEntry))
+             (local.set $node (local.get $bucket))
+             (block $done
+                    (loop $scan
+                          (br_if $done (ref.eq (local.get $node) (global.get $null)))
+                          (if (i32.eqz (ref.test (ref $Pair) (local.get $node)))
+                              (then (return (i32.const 0))))
+                          (local.set $pair (ref.cast (ref $Pair) (local.get $node)))
+                          (local.set $entry
+                                     (ref.cast (ref $ImmutableHashEntry)
+                                               (struct.get $Pair $a (local.get $pair))))
+                          (if (ref.eq (struct.get $ImmutableHashEntry $key (local.get $entry))
+                                      (local.get $key))
+                              (then (return (i32.const 1))))
+                          (local.set $node (struct.get $Pair $d (local.get $pair)))
+                          (br $scan)))
+             (i32.const 0))))
+
+   (core-runtime-helper
+    '$immutable-hasheq-bucket-ref
+    "$immutable-hasheq-bucket-ref"
+    (lambda ()
+      `(func $immutable-hasheq-bucket-ref
+             (param $bucket (ref eq)) ;; list of immutable hash entries
+             (param $key    (ref eq)) ;; lookup key
+             (param $fail   (ref eq)) ;; failure result/procedure/missing
+             (result        (ref eq))
+             (local $node   (ref eq))
+             (local $pair   (ref $Pair))
+             (local $entry  (ref $ImmutableHashEntry))
+             (local $proc   (ref $Procedure))
+             (local $inv    (ref $ProcedureInvoker))
+             (local $noargs (ref $Args))
+             (local.set $node (local.get $bucket))
+             (block $not-found
+                    (loop $scan
+                          (br_if $not-found (ref.eq (local.get $node) (global.get $null)))
+                          (if (i32.eqz (ref.test (ref $Pair) (local.get $node)))
+                              (then (br $not-found)))
+                          (local.set $pair (ref.cast (ref $Pair) (local.get $node)))
+                          (local.set $entry
+                                     (ref.cast (ref $ImmutableHashEntry)
+                                               (struct.get $Pair $a (local.get $pair))))
+                          (if (ref.eq (struct.get $ImmutableHashEntry $key (local.get $entry))
+                                      (local.get $key))
+                              (then (return (struct.get $ImmutableHashEntry $value
+                                                        (local.get $entry)))))
+                          (local.set $node (struct.get $Pair $d (local.get $pair)))
+                          (br $scan)))
+             (if (result (ref eq))
+                 (ref.eq (local.get $fail) (global.get $missing))
+                 (then (call $raise-hash-ref-key-not-found (local.get $key))
+                       (unreachable))
+                 (else
+                  (if (result (ref eq))
+                      (ref.test (ref $Procedure) (local.get $fail))
+                      (then
+                       (local.set $proc   (ref.cast (ref $Procedure) (local.get $fail)))
+                       (local.set $inv    (struct.get $Procedure $invoke (local.get $proc)))
+                       (local.set $noargs (array.new $Args (global.get $null) (i32.const 0)))
+                       (return_call_ref $ProcedureInvoker
+                                        (local.get $proc)
+                                        (local.get $noargs)
+                                        (local.get $inv)))
+                      (else (local.get $fail))))))))
+
+   (core-runtime-helper
+    '$immutable-hasheq-bucket-ref-key
+    "$immutable-hasheq-bucket-ref-key"
+    (lambda ()
+      `(func $immutable-hasheq-bucket-ref-key
+             (param $bucket (ref eq)) ;; list of immutable hash entries
+             (param $key    (ref eq)) ;; lookup key
+             (param $fail   (ref eq)) ;; failure result/procedure/missing
+             (result        (ref eq))
+             (local $node   (ref eq))
+             (local $pair   (ref $Pair))
+             (local $entry  (ref $ImmutableHashEntry))
+             (local $proc   (ref $Procedure))
+             (local $inv    (ref $ProcedureInvoker))
+             (local $noargs (ref $Args))
+             (local.set $node (local.get $bucket))
+             (block $not-found
+                    (loop $scan
+                          (br_if $not-found (ref.eq (local.get $node) (global.get $null)))
+                          (if (i32.eqz (ref.test (ref $Pair) (local.get $node)))
+                              (then (br $not-found)))
+                          (local.set $pair (ref.cast (ref $Pair) (local.get $node)))
+                          (local.set $entry
+                                     (ref.cast (ref $ImmutableHashEntry)
+                                               (struct.get $Pair $a (local.get $pair))))
+                          (if (ref.eq (struct.get $ImmutableHashEntry $key (local.get $entry))
+                                      (local.get $key))
+                              (then (return (struct.get $ImmutableHashEntry $key
+                                                        (local.get $entry)))))
+                          (local.set $node (struct.get $Pair $d (local.get $pair)))
+                          (br $scan)))
+             (if (result (ref eq))
+                 (ref.eq (local.get $fail) (global.get $missing))
+                 (then (call $raise-hash-ref-key-not-found (local.get $key))
+                       (unreachable))
+                 (else
+                  (if (result (ref eq))
+                      (ref.test (ref $Procedure) (local.get $fail))
+                      (then
+                       (local.set $proc   (ref.cast (ref $Procedure) (local.get $fail)))
+                       (local.set $inv    (struct.get $Procedure $invoke (local.get $proc)))
+                       (local.set $noargs (array.new $Args (global.get $null) (i32.const 0)))
+                       (return_call_ref $ProcedureInvoker
+                                        (local.get $proc)
+                                        (local.get $noargs)
+                                        (local.get $inv)))
+                      (else (local.get $fail))))))))
+
+   (core-runtime-helper
+    '$immutable-hamt-bit
+    "$immutable-hamt-bit"
+    (lambda ()
+      `(func $immutable-hamt-bit
+             (param $hash  i32) ;; key hash
+             (param $shift i32) ;; HAMT shift in multiples of 3
+             (result       i32)
+             (i32.shl (i32.const 1)
+                      (call $immutable-hamt-packed-group-index
+                            (local.get $hash)
+                            (local.get $shift))))))
+
+   (core-runtime-helper
+    '$immutable-hamt-bucket-ref/kind
+    "$immutable-hamt-bucket-ref/kind"
+    (lambda ()
+      `(func $immutable-hamt-bucket-ref/kind
+             (param $kind   i32)      ;; 0 eq?, 1 eqv?, 2 equal?, 3 equal-always?
+             (param $bucket (ref eq)) ;; list of immutable hash entries
+             (param $key    (ref eq)) ;; lookup key
+             (param $fail   (ref eq)) ;; failure result/procedure/missing
+             (result        (ref eq))
+             (if (ref.test (ref $ImmutableHashEntry) (local.get $bucket))
+                 (then
+                  (if (call $immutable-hamt-entry-matches?/kind
+                            (local.get $kind)
+                            (ref.cast (ref $ImmutableHashEntry)
+                                      (local.get $bucket))
+                            (local.get $key))
+                      (then
+                       (return
+                        (struct.get $ImmutableHashEntry $value
+                                    (ref.cast (ref $ImmutableHashEntry)
+                                              (local.get $bucket))))))))
+             (if (i32.eq (local.get $kind) (i32.const 0))
+                 (then (return_call $immutable-hasheq-bucket-ref
+                                    (local.get $bucket)
+                                    (local.get $key)
+                                    (local.get $fail))))
+             (if (i32.eq (local.get $kind) (i32.const 1))
+                 (then (return_call $immutable-hasheqv-bucket-ref
+                                    (local.get $bucket)
+                                    (local.get $key)
+                                    (local.get $fail))))
+             (if (i32.eq (local.get $kind) (i32.const 2))
+                 (then (return_call $immutable-hash-bucket-ref
+                                    (local.get $bucket)
+                                    (local.get $key)
+                                    (local.get $fail))))
+             (return_call $immutable-hashalw-bucket-ref
+                          (local.get $bucket)
+                          (local.get $key)
+                          (local.get $fail)))))
+
+   (core-runtime-helper
+    '$immutable-hamt-bucket-ref-key/kind
+    "$immutable-hamt-bucket-ref-key/kind"
+    (lambda ()
+      `(func $immutable-hamt-bucket-ref-key/kind
+             (param $kind   i32)      ;; 0 eq?, 1 eqv?, 2 equal?, 3 equal-always?
+             (param $bucket (ref eq)) ;; list of immutable hash entries
+             (param $key    (ref eq)) ;; lookup key
+             (param $fail   (ref eq)) ;; failure result/procedure/missing
+             (result        (ref eq))
+             (if (ref.test (ref $ImmutableHashEntry) (local.get $bucket))
+                 (then
+                  (if (call $immutable-hamt-entry-matches?/kind
+                            (local.get $kind)
+                            (ref.cast (ref $ImmutableHashEntry)
+                                      (local.get $bucket))
+                            (local.get $key))
+                      (then
+                       (return
+                        (struct.get $ImmutableHashEntry $key
+                                    (ref.cast (ref $ImmutableHashEntry)
+                                              (local.get $bucket))))))))
+             (if (i32.eq (local.get $kind) (i32.const 0))
+                 (then (return_call $immutable-hasheq-bucket-ref-key
+                                    (local.get $bucket)
+                                    (local.get $key)
+                                    (local.get $fail))))
+             (if (i32.eq (local.get $kind) (i32.const 1))
+                 (then (return_call $immutable-hasheqv-bucket-ref-key
+                                    (local.get $bucket)
+                                    (local.get $key)
+                                    (local.get $fail))))
+             (if (i32.eq (local.get $kind) (i32.const 2))
+                 (then (return_call $immutable-hash-bucket-ref-key
+                                    (local.get $bucket)
+                                    (local.get $key)
+                                    (local.get $fail))))
+             (return_call $immutable-hashalw-bucket-ref-key
+                          (local.get $bucket)
+                          (local.get $key)
+                          (local.get $fail)))))
+
+   (core-runtime-helper
+    '$immutable-hamt-bucket-has-key?/kind
+    "$immutable-hamt-bucket-has-key?/kind"
+    (lambda ()
+      `(func $immutable-hamt-bucket-has-key?/kind
+             (param $kind   i32)      ;; 0 eq?, 1 eqv?, 2 equal?, 3 equal-always?
+             (param $bucket (ref eq)) ;; list of immutable hash entries
+             (param $key    (ref eq)) ;; lookup key
+             (result        i32)
+             (if (ref.test (ref $ImmutableHashEntry) (local.get $bucket))
+                 (then
+                  (return_call $immutable-hamt-entry-matches?/kind
+                               (local.get $kind)
+                               (ref.cast (ref $ImmutableHashEntry)
+                                         (local.get $bucket))
+                               (local.get $key))))
+             (if (i32.eq (local.get $kind) (i32.const 0))
+                 (then (return_call $immutable-hasheq-bucket-has-key?
+                                    (local.get $bucket)
+                                    (local.get $key))))
+             (if (i32.eq (local.get $kind) (i32.const 1))
+                 (then (return_call $immutable-hasheqv-bucket-has-key?
+                                    (local.get $bucket)
+                                    (local.get $key))))
+             (if (i32.eq (local.get $kind) (i32.const 2))
+                 (then (return_call $immutable-hash-bucket-has-key?
+                                    (local.get $bucket)
+                                    (local.get $key))))
+             (return_call $immutable-hashalw-bucket-has-key?
+                          (local.get $bucket)
+                          (local.get $key)))))
+
+   ;; immutable-hamt-key-matches?/kind : kind stored-key lookup-key -> boolean?
+   ;;   Compare keys using the immutable hash table's key mode.
+   (core-runtime-helper
+    '$immutable-hamt-key-matches?/kind
+    "$immutable-hamt-key-matches?/kind"
+    (lambda ()
+      `(func $immutable-hamt-key-matches?/kind
+             (param $kind       i32)
+             (param $stored-key (ref eq))
+             (param $lookup-key (ref eq))
+             (result            i32)
+             (if (i32.eq (local.get $kind) (i32.const 0))
+                 (then (return (ref.eq (call $immutable-hamt-inline-key-unwrap
+                                             (local.get $stored-key))
+                                       (local.get $lookup-key)))))
+             (if (i32.eq (local.get $kind) (i32.const 1))
+                 (then
+                  (return (ref.eq (call $eqv?
+                                        (call $immutable-hamt-inline-key-unwrap
+                                              (local.get $stored-key))
+                                        (local.get $lookup-key))
+                                  (global.get $true)))))
+             (if (i32.eq (local.get $kind) (i32.const 2))
+                 (then
+                  (return (ref.eq (call $equal?
+                                        (call $immutable-hamt-inline-key-unwrap
+                                              (local.get $stored-key))
+                                        (local.get $lookup-key))
+                                  (global.get $true)))))
+             (return (ref.eq (call $equal-always?
+                                   (call $immutable-hamt-inline-key-unwrap
+                                         (local.get $stored-key))
+                                   (local.get $lookup-key))
+                             (global.get $true))))))))
+
 ;; immutable-hash-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate immutable hash helpers that still depend on monolithic runtime globals.
 (define immutable-hash-runtime-only-helpers
   (append immutable-hash-prelude-runtime-only-helpers
           immutable-hash-hamt-bit-runtime-only-helpers
-          immutable-hash-hamt-metadata-runtime-only-helpers))
+          immutable-hash-hamt-metadata-runtime-only-helpers
+          immutable-hash-eq-bucket-runtime-only-helpers))
