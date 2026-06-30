@@ -27300,214 +27300,35 @@
          ,(core-runtime-helper-form runtime-helper-index '$maybe-resize-hashalw)
 
 
-         ; General hash-has-key?
-         (func $hash-has-key? (type $Prim2)
-               (param $ht  (ref eq))
-               (param $key (ref eq))
-               (result     (ref eq))
+         ,(core-runtime-helper-form runtime-helper-index '$hash-has-key?)
 
-               ;; Check type: must be (ref $Hash)
-               (if (i32.eqz (ref.test (ref $Hash) (local.get $ht)))
-                   (then (call $raise-argument-error:hash-expected)
-                         (unreachable)))
-               ;; Dispatch on table type
-               (if (ref.test (ref $HashEqMutable) (local.get $ht))
-                   (then (return (call $hasheq-has-key?
-                                       (local.get $ht)
-                                       (local.get $key)))))
-               (if (ref.test (ref $HashEqvMutable) (local.get $ht))
-                   (then (return (call $hasheqv-has-key?
-                                       (local.get $ht)
-                                       (local.get $key)))))
-               (if (ref.test (ref $HashEqImmutable) (local.get $ht))
-                   (then (return (call $immutable-hasheq-has-key?
-                                       (local.get $ht)
-                                       (local.get $key)))))
-               (if (ref.test (ref $HashEqvImmutable) (local.get $ht))
-                   (then (return (call $immutable-hasheqv-has-key?
-                                       (local.get $ht)
-                                       (local.get $key)))))
-               (if (ref.test (ref $HashEqualMutable) (local.get $ht))
-                   (then (return (call $hashequal-has-key?
-                                       (local.get $ht)
-                                       (local.get $key)))))
-               (if (ref.test (ref $HashEqualImmutable) (local.get $ht))
-                   (then
-                    (return (call $immutable-hash-has-key?
-                                  (local.get $ht)
-                                  (local.get $key)))))
-               (if (ref.test (ref $HashEqualAlwaysImmutable) (local.get $ht))
-                   (then
-                    (return (call $immutable-hashalw-has-key?
-                                  (local.get $ht)
-                                  (local.get $key)))))
-               (if (ref.test (ref $HashEqualAlwaysMutable) (local.get $ht))
-                   (then (return (call $hashalw-has-key?
-                                       (local.get $ht)
-                                       (local.get $key)))))
-               (unreachable))
-
-         ;; hash-keys-subset? : hash? hash? -> boolean?
-         ;;   Check whether every key in ht1 is present in ht2. The expander's
-         ;;   lightweight set layer uses this directly, and the generic
-         ;;   iteration helpers below cover both mutable and immutable hashes.
-         (func $hash-keys-subset? (type $Prim2)
-               (param $ht1 (ref eq)) ;; hash table whose keys are tested
-               (param $ht2 (ref eq)) ;; hash table that must contain them
-               (result     (ref eq))
-
-               (local $pos (ref eq))
-               (local $key (ref eq))
-
-               (if (i32.eqz (ref.test (ref $Hash) (local.get $ht1)))
-                   (then (call $raise-argument-error:hash-expected)
-                         (unreachable)))
-               (if (i32.eqz (ref.test (ref $Hash) (local.get $ht2)))
-                   (then (call $raise-argument-error:hash-expected)
-                         (unreachable)))
-
-               (local.set $pos (call $mutable-hash-iterate-first (local.get $ht1)))
-               (block $done
-                      (loop $walk
-                            (br_if $done (ref.eq (local.get $pos) (global.get $false)))
-                            (local.set $key
-                                       (call $mutable-hash-iterate-key
-                                             (local.get $ht1)
-                                             (local.get $pos)
-                                             (global.get $missing)))
-                            (if (ref.eq (call $hash-has-key?
-                                              (local.get $ht2)
-                                              (local.get $key))
-                                        (global.get $false))
-                                (then (return (global.get $false))))
-                            (local.set $pos
-                                       (call $mutable-hash-iterate-next
-                                             (local.get $ht1)
-                                             (local.get $pos)))
-                            (br $walk)))
-               (global.get $true))
+         ,(core-runtime-helper-form runtime-helper-index '$hash-keys-subset?)
 
 
-         ; Specialized hash-has-key?
-         ,@(for/list ([hash-has-key       '($hasheq-has-key?
-                                            $hasheqv-has-key?
-                                            $hashequal-has-key?
-                                            $hashalw-has-key?)]
-                      [hash-has-key/plain '($hasheq-has-key?/plain
-                                            $hasheqv-has-key?/plain
-                                            $hashequal-has-key?/plain
-                                            $hashalw-has-key?/plain)])
-             `(func ,hash-has-key
-                    (param $ht  (ref eq))   ;; hash table
-                    (param $key (ref eq))   ;; key
-                    (result     (ref eq))   ;; boolean result
+         ,(core-runtime-helper-form runtime-helper-index '$hasheq-has-key?)
 
-                    (return_call ,hash-has-key/plain
-                                 (local.get $ht)
-                                 (local.get $key))))
+         ,(core-runtime-helper-form runtime-helper-index '$hasheqv-has-key?)
+
+         ,(core-runtime-helper-form runtime-helper-index '$hashequal-has-key?)
+
+         ,(core-runtime-helper-form runtime-helper-index '$hashalw-has-key?)
 
 
-         ,@(for/list ([hash-has-key/plain '($hasheq-has-key?/plain
-                                            $hasheqv-has-key?/plain
-                                            $hashequal-has-key?/plain
-                                            $hashalw-has-key?/plain)]
-                      [hash-has-key/plain/checked '($hasheq-has-key?/plain/checked
-                                                    $hasheqv-has-key?/plain/checked
-                                                    $hashequal-has-key?/plain/checked
-                                                    $hashalw-has-key?/plain/checked)]
-                      [type                   '($HashEqMutable
-                                                $HashEqvMutable
-                                                $HashEqualMutable
-                                                $HashEqualAlwaysMutable)]
-                      [raise-expected         '($raise-argument-error:hasheq-expected
-                                                $raise-argument-error:hasheqv-expected
-                                                $raise-argument-error:hash-expected
-                                                $raise-argument-error:hashalw-expected)])
-             `(func ,hash-has-key/plain
-                    (param $ht  (ref eq))
-                    (param $key (ref eq))
-                    (result     (ref eq))
+         ,(core-runtime-helper-form runtime-helper-index '$hasheq-has-key?/plain)
 
-                    (local $table (ref ,type))
+         ,(core-runtime-helper-form runtime-helper-index '$hasheqv-has-key?/plain)
 
-                    ;; Check that ht is expected table type
-                    (if (i32.eqz (ref.test (ref ,type) (local.get $ht)))
-                        (then (call ,raise-expected (local.get $ht))
-                              (unreachable)))
+         ,(core-runtime-helper-form runtime-helper-index '$hashequal-has-key?/plain)
 
-                    ;; Decode
-                    (local.set $table (ref.cast (ref ,type) (local.get $ht)))
+         ,(core-runtime-helper-form runtime-helper-index '$hashalw-has-key?/plain)
 
-                    ;; Delegate to checked implementation
-                    (call ,hash-has-key/plain/checked
-                          (local.get $table)
-                          (local.get $key))))
+         ,(core-runtime-helper-form runtime-helper-index '$hasheq-has-key?/plain/checked)
 
-         ,@(for/list ([hash-has-key/plain/checked '($hasheq-has-key?/plain/checked
-                                                   $hasheqv-has-key?/plain/checked
-                                                   $hashequal-has-key?/plain/checked
-                                                   $hashalw-has-key?/plain/checked)]
-                      [type                   '($HashEqMutable
-                                                $HashEqvMutable
-                                                $HashEqualMutable
-                                                $HashEqualAlwaysMutable)]
-                      [kind                   '(0 1 2 3)])
-             `(func ,hash-has-key/plain/checked
-                    (param $table (ref ,type))
-                    (param $key   (ref eq))
-                    (result       (ref eq))
+         ,(core-runtime-helper-form runtime-helper-index '$hasheqv-has-key?/plain/checked)
 
-                    (local $entries  (ref $Array))
-                    (local $capacity i32)
-                    (local $index    i32)
-                    (local $step     i32)
-                    (local $hash     i32)
-                    (local $k        (ref eq))
-                    (local $slot     i32)
+         ,(core-runtime-helper-form runtime-helper-index '$hashequal-has-key?/plain/checked)
 
-                    ;; Get entries and capacity
-                    (local.set $entries  (struct.get ,type $entries (local.get $table)))
-                    (local.set $capacity (i32.div_u (array.len (local.get $entries)) (i32.const 2)))
-
-                    ;; Hash key and compute initial index
-                    (local.set $hash  (call $hash-key-hash/kind
-                                            (i32.const ,kind)
-                                            (local.get $key)))
-                    (local.set $index (i32.rem_u (local.get $hash) (local.get $capacity)))
-                    (local.set $step  (i32.const 0))
-
-                    (block $not-found
-                           (loop $probe
-                                 ;; Stop if we've probed the full table
-                                 (br_if $not-found (i32.ge_u (local.get $step) (local.get $capacity)))
-                                 ;; slot = 2 * ((index + step) % capacity)
-                                 (local.set $slot
-                                            (i32.shl
-                                             (i32.rem_u
-                                              (i32.add (local.get $index) (local.get $step))
-                                              (local.get $capacity))
-                                             (i32.const 1)))
-                                 ;; Load key from slot
-                                 (local.set $k (array.get $Array (local.get $entries) (local.get $slot)))
-                                 ;; Empty slot: key is not in the table
-                                 (br_if $not-found (ref.eq (local.get $k) (global.get $missing)))
-                                 ;; Tombstone: skip
-                                 (if (ref.eq (local.get $k) (global.get $tombstone))
-                                     (then
-                                      (local.set $step (i32.add (local.get $step) (i32.const 1)))
-                                      (br $probe)))
-                                 ;; Match: return #t
-                                 (if (call $hash-key-matches?/kind
-                                           (i32.const ,kind)
-                                           (local.get $k)
-                                           (local.get $key))
-                                     (then (return (global.get $true))))
-                                 ;; Otherwise try next slot
-                                 (local.set $step (i32.add (local.get $step) (i32.const 1)))
-                                 (br $probe)))
-
-                    ;; Not found: return #f
-                    (global.get $false)))
+         ,(core-runtime-helper-form runtime-helper-index '$hashalw-has-key?/plain/checked)
 
 
 

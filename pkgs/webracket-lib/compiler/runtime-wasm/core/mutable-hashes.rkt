@@ -1607,6 +1607,238 @@
                              (i32.shr_u (local.get $capacity) (i32.const 1)))
                    (then (call ,resize (local.get $table))))))))))
 
+;; mutable-hash-membership-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate mutable hash membership helpers.
+(define mutable-hash-membership-runtime-only-helpers
+  (append
+   (list
+    (core-runtime-helper
+     '$hash-has-key?
+     "$hash-has-key?"
+     (lambda ()
+       `; General hash-has-key?
+        (func $hash-has-key? (type $Prim2)
+              (param $ht  (ref eq))
+              (param $key (ref eq))
+              (result     (ref eq))
+
+              ;; Check type: must be (ref $Hash)
+              (if (i32.eqz (ref.test (ref $Hash) (local.get $ht)))
+                  (then (call $raise-argument-error:hash-expected)
+                        (unreachable)))
+              ;; Dispatch on table type
+              (if (ref.test (ref $HashEqMutable) (local.get $ht))
+                  (then (return (call $hasheq-has-key?
+                                      (local.get $ht)
+                                      (local.get $key)))))
+              (if (ref.test (ref $HashEqvMutable) (local.get $ht))
+                  (then (return (call $hasheqv-has-key?
+                                      (local.get $ht)
+                                      (local.get $key)))))
+              (if (ref.test (ref $HashEqImmutable) (local.get $ht))
+                  (then (return (call $immutable-hasheq-has-key?
+                                      (local.get $ht)
+                                      (local.get $key)))))
+              (if (ref.test (ref $HashEqvImmutable) (local.get $ht))
+                  (then (return (call $immutable-hasheqv-has-key?
+                                      (local.get $ht)
+                                      (local.get $key)))))
+              (if (ref.test (ref $HashEqualMutable) (local.get $ht))
+                  (then (return (call $hashequal-has-key?
+                                      (local.get $ht)
+                                      (local.get $key)))))
+              (if (ref.test (ref $HashEqualImmutable) (local.get $ht))
+                  (then
+                   (return (call $immutable-hash-has-key?
+                                 (local.get $ht)
+                                 (local.get $key)))))
+              (if (ref.test (ref $HashEqualAlwaysImmutable) (local.get $ht))
+                  (then
+                   (return (call $immutable-hashalw-has-key?
+                                 (local.get $ht)
+                                 (local.get $key)))))
+              (if (ref.test (ref $HashEqualAlwaysMutable) (local.get $ht))
+                  (then (return (call $hashalw-has-key?
+                                      (local.get $ht)
+                                      (local.get $key)))))
+              (unreachable))))
+
+    (core-runtime-helper
+     '$hash-keys-subset?
+     "$hash-keys-subset?"
+     (lambda ()
+       `;; hash-keys-subset? : hash? hash? -> boolean?
+        ;;   Check whether every key in ht1 is present in ht2. The expander's
+        ;;   lightweight set layer uses this directly, and the generic
+        ;;   iteration helpers below cover both mutable and immutable hashes.
+        (func $hash-keys-subset? (type $Prim2)
+              (param $ht1 (ref eq)) ;; hash table whose keys are tested
+              (param $ht2 (ref eq)) ;; hash table that must contain them
+              (result     (ref eq))
+
+              (local $pos (ref eq))
+              (local $key (ref eq))
+
+              (if (i32.eqz (ref.test (ref $Hash) (local.get $ht1)))
+                  (then (call $raise-argument-error:hash-expected)
+                        (unreachable)))
+              (if (i32.eqz (ref.test (ref $Hash) (local.get $ht2)))
+                  (then (call $raise-argument-error:hash-expected)
+                        (unreachable)))
+
+              (local.set $pos (call $mutable-hash-iterate-first (local.get $ht1)))
+              (block $done
+                     (loop $walk
+                           (br_if $done (ref.eq (local.get $pos) (global.get $false)))
+                           (local.set $key
+                                      (call $mutable-hash-iterate-key
+                                            (local.get $ht1)
+                                            (local.get $pos)
+                                            (global.get $missing)))
+                           (if (ref.eq (call $hash-has-key?
+                                             (local.get $ht2)
+                                             (local.get $key))
+                                       (global.get $false))
+                               (then (return (global.get $false))))
+                           (local.set $pos
+                                      (call $mutable-hash-iterate-next
+                                            (local.get $ht1)
+                                            (local.get $pos)))
+                           (br $walk)))
+              (global.get $true)))))
+
+   ;; Specialized hash-has-key?
+   (for/list ([hash-has-key       '($hasheq-has-key?
+                                    $hasheqv-has-key?
+                                    $hashequal-has-key?
+                                    $hashalw-has-key?)]
+              [hash-has-key/plain '($hasheq-has-key?/plain
+                                    $hasheqv-has-key?/plain
+                                    $hashequal-has-key?/plain
+                                    $hashalw-has-key?/plain)])
+     (core-runtime-helper
+      hash-has-key
+      (symbol->string hash-has-key)
+      (lambda ()
+        `(func ,hash-has-key
+               (param $ht  (ref eq))   ;; hash table
+               (param $key (ref eq))   ;; key
+               (result     (ref eq))   ;; boolean result
+
+               (return_call ,hash-has-key/plain
+                            (local.get $ht)
+                            (local.get $key))))))
+
+   (for/list ([hash-has-key/plain         '($hasheq-has-key?/plain
+                                            $hasheqv-has-key?/plain
+                                            $hashequal-has-key?/plain
+                                            $hashalw-has-key?/plain)]
+              [hash-has-key/plain/checked '($hasheq-has-key?/plain/checked
+                                            $hasheqv-has-key?/plain/checked
+                                            $hashequal-has-key?/plain/checked
+                                            $hashalw-has-key?/plain/checked)]
+              [type                        '($HashEqMutable
+                                             $HashEqvMutable
+                                             $HashEqualMutable
+                                             $HashEqualAlwaysMutable)]
+              [raise-expected              '($raise-argument-error:hasheq-expected
+                                             $raise-argument-error:hasheqv-expected
+                                             $raise-argument-error:hash-expected
+                                             $raise-argument-error:hashalw-expected)])
+     (core-runtime-helper
+      hash-has-key/plain
+      (symbol->string hash-has-key/plain)
+      (lambda ()
+        `(func ,hash-has-key/plain
+               (param $ht  (ref eq))
+               (param $key (ref eq))
+               (result     (ref eq))
+
+               (local $table (ref ,type))
+
+               ;; Check that ht is expected table type
+               (if (i32.eqz (ref.test (ref ,type) (local.get $ht)))
+                   (then (call ,raise-expected (local.get $ht))
+                         (unreachable)))
+
+               ;; Decode
+               (local.set $table (ref.cast (ref ,type) (local.get $ht)))
+
+               ;; Delegate to checked implementation
+               (call ,hash-has-key/plain/checked
+                     (local.get $table)
+                     (local.get $key))))))
+
+   (for/list ([hash-has-key/plain/checked '($hasheq-has-key?/plain/checked
+                                            $hasheqv-has-key?/plain/checked
+                                            $hashequal-has-key?/plain/checked
+                                            $hashalw-has-key?/plain/checked)]
+              [type                        '($HashEqMutable
+                                             $HashEqvMutable
+                                             $HashEqualMutable
+                                             $HashEqualAlwaysMutable)]
+              [kind                        '(0 1 2 3)])
+     (core-runtime-helper
+      hash-has-key/plain/checked
+      (symbol->string hash-has-key/plain/checked)
+      (lambda ()
+        `(func ,hash-has-key/plain/checked
+               (param $table (ref ,type))
+               (param $key   (ref eq))
+               (result       (ref eq))
+
+               (local $entries  (ref $Array))
+               (local $capacity i32)
+               (local $index    i32)
+               (local $step     i32)
+               (local $hash     i32)
+               (local $k        (ref eq))
+               (local $slot     i32)
+
+               ;; Get entries and capacity
+               (local.set $entries  (struct.get ,type $entries (local.get $table)))
+               (local.set $capacity (i32.div_u (array.len (local.get $entries)) (i32.const 2)))
+
+               ;; Hash key and compute initial index
+               (local.set $hash  (call $hash-key-hash/kind
+                                       (i32.const ,kind)
+                                       (local.get $key)))
+               (local.set $index (i32.rem_u (local.get $hash) (local.get $capacity)))
+               (local.set $step  (i32.const 0))
+
+               (block $not-found
+                      (loop $probe
+                            ;; Stop if we've probed the full table
+                            (br_if $not-found (i32.ge_u (local.get $step) (local.get $capacity)))
+                            ;; slot = 2 * ((index + step) % capacity)
+                            (local.set $slot
+                                       (i32.shl
+                                        (i32.rem_u
+                                         (i32.add (local.get $index) (local.get $step))
+                                         (local.get $capacity))
+                                        (i32.const 1)))
+                            ;; Load key from slot
+                            (local.set $k (array.get $Array (local.get $entries) (local.get $slot)))
+                            ;; Empty slot: key is not in the table
+                            (br_if $not-found (ref.eq (local.get $k) (global.get $missing)))
+                            ;; Tombstone: skip
+                            (if (ref.eq (local.get $k) (global.get $tombstone))
+                                (then
+                                 (local.set $step (i32.add (local.get $step) (i32.const 1)))
+                                 (br $probe)))
+                            ;; Match: return #t
+                            (if (call $hash-key-matches?/kind
+                                      (i32.const ,kind)
+                                      (local.get $k)
+                                      (local.get $key))
+                                (then (return (global.get $true))))
+                            ;; Otherwise try next slot
+                            (local.set $step (i32.add (local.get $step) (i32.const 1)))
+                            (br $probe)))
+
+               ;; Not found: return #f
+               (global.get $false)))))))
+
 ;; mutable-hash-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate mutable hash helpers that still depend on monolithic runtime globals.
 (define mutable-hash-runtime-only-helpers
@@ -1617,4 +1849,5 @@
           mutable-hash-ref-bang-runtime-only-helpers
           mutable-hash-update-bang-runtime-only-helpers
           mutable-hash-remove-bang-runtime-only-helpers
-          mutable-hash-resize-runtime-only-helpers))
+          mutable-hash-resize-runtime-only-helpers
+          mutable-hash-membership-runtime-only-helpers))
