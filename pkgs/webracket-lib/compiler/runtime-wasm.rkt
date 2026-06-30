@@ -22886,82 +22886,9 @@
 
          ,(core-runtime-helper-form runtime-helper-index '$list-update)
 
-         ,@(let ()
-             (define (gen-argminmax name cmp)
-               (define $name (string->symbol (~a "$" name)))
-               (define $who  (string->symbol (~a "$symbol:" name)))
-               `((func ,$name (type $Prim2)
-                       (param $proc (ref eq))
-                       (param $lst  (ref eq))
-                       (result (ref eq))
+         ,(core-runtime-helper-form runtime-helper-index '$argmax)
 
-                       (local $f     (ref $Procedure))
-                       (local $finv  (ref $ProcedureInvoker))
-                       (local $args  (ref $Args))
-                       (local $pair  (ref $Pair))
-                       (local $best  (ref eq))
-                       (local $bestv (ref eq))
-                       (local $elem  (ref eq))
-                       (local $val   (ref eq))
-                       (local $cur   (ref eq))
-
-                       ;; Check that proc is a procedure and fetch its invoker
-                       (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
-                           (then (call $raise-argument-error:procedure-expected/who
-                                       (global.get ,$who)
-                                       (local.get $proc))
-                                 (unreachable)))
-                       ;; Ensure lst is a non-empty proper list
-                       (if (ref.eq (local.get $lst) (global.get $null))
-                           (then (call $raise-argument-error1
-                                       (global.get ,$who)
-                                       (global.get $string:non-empty-list?)
-                                       (local.get $lst))
-                                 (unreachable)))
-                       (if (ref.eq (call $list? (local.get $lst)) (global.get $false))
-                           (then (call $raise-argument-error1
-                                       (global.get ,$who)
-                                       (global.get $string:non-empty-list?)
-                                       (local.get $lst))
-                                 (unreachable)))
-                       (local.set $f    (ref.cast (ref $Procedure) (local.get $proc)))
-                       (local.set $finv (struct.get $Procedure $invoke (local.get $f)))
-
-                       ;; Prepare argument array
-                       (local.set $args (array.new $Args (global.get $null) (i32.const 1)))
-
-                       (local.set $pair (ref.cast (ref $Pair) (local.get $lst)))
-                       (local.set $elem (struct.get $Pair $a (local.get $pair)))
-                       (array.set $Args (local.get $args) (i32.const 0) (local.get $elem))
-                       (local.set $best  (local.get $elem))
-                       (local.set $bestv (call_ref $ProcedureInvoker
-                                                   (local.get $f)
-                                                   (local.get $args)
-                                                   (local.get $finv)))
-                       (local.set $cur (struct.get $Pair $d (local.get $pair)))
-
-                       (block $done
-                              (loop $loop
-                                    (if (ref.eq (local.get $cur) (global.get $null))
-                                        (then (br $done)))
-                                    (if (i32.eqz (ref.test (ref $Pair) (local.get $cur)))
-                                        (then (call $raise-pair-expected (local.get $cur)) (unreachable)))
-                                    (local.set $pair (ref.cast (ref $Pair) (local.get $cur)))
-                                    (local.set $elem (struct.get $Pair $a (local.get $pair)))
-                                    (array.set $Args (local.get $args) (i32.const 0) (local.get $elem))
-                                    (local.set $val
-                                               (call_ref $ProcedureInvoker
-                                                         (local.get $f)
-                                                         (local.get $args)
-                                                         (local.get $finv)))
-                                    (if (ref.eq (call ,cmp (local.get $bestv) (local.get $val)) (global.get $true))
-                                        (then (local.set $best  (local.get $elem))
-                                              (local.set $bestv (local.get $val))))
-                                    (local.set $cur (struct.get $Pair $d (local.get $pair)))
-                                    (br $loop)))
-                       (local.get $best))))
-             (append (gen-argminmax 'argmax '$</2)
-                     (gen-argminmax 'argmin '$>/2)))
+         ,(core-runtime-helper-form runtime-helper-index '$argmin)
 
          (func $raise-argument-error/internal
                (param $x (ref eq))
