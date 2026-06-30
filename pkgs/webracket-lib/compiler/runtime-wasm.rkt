@@ -28722,9 +28722,16 @@
               (local $finv (ref $ProcedureInvoker))
               (local $call (ref $Args))
 
-              ;; 1) Check that $proc is a procedure and fetch its invoker
+              (if (ref.eq (call $list? (local.get $xs)) (global.get $false))
+                  (then (call $raise-argument-error1
+                              (global.get $symbol:sort)
+                              (global.get $string:list?)
+                              (local.get $xs))
+                        (unreachable)))
               (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
-                  (then (call $raise-argument-error:procedure-expected (local.get $proc))
+                  (then (call $raise-argument-error:procedure-expected/who
+                              (global.get $symbol:sort)
+                              (local.get $proc))
                         (unreachable)))
               (local.set $f    (ref.cast (ref $Procedure) (local.get $proc)))
               (local.set $finv (struct.get $Procedure $invoke (local.get $f)))
@@ -28754,11 +28761,21 @@
 
               (if (ref.eq (local.get $key-proc) (global.get $false))
                   (then (return_call $sort (local.get $xs) (local.get $proc))))
+              (if (ref.eq (call $list? (local.get $xs)) (global.get $false))
+                  (then (call $raise-argument-error1
+                              (global.get $symbol:sort)
+                              (global.get $string:list?)
+                              (local.get $xs))
+                        (unreachable)))
               (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
-                  (then (call $raise-argument-error:procedure-expected (local.get $proc))
+                  (then (call $raise-argument-error:procedure-expected/who
+                              (global.get $symbol:sort)
+                              (local.get $proc))
                         (unreachable)))
               (if (i32.eqz (ref.test (ref $Procedure) (local.get $key-proc)))
-                  (then (call $raise-argument-error:procedure-expected (local.get $key-proc))
+                  (then (call $raise-argument-error:procedure-expected/who
+                              (global.get $symbol:sort)
+                              (local.get $key-proc))
                         (unreachable)))
               (local.set $f        (ref.cast (ref $Procedure) (local.get $proc)))
               (local.set $finv     (struct.get $Procedure $invoke (local.get $f)))

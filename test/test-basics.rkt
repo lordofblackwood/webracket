@@ -2340,6 +2340,12 @@
                                                 (lambda () (append-map 42 '(a))))
                            (catch-contract/who? "append-map"
                                                 (lambda () (append-map list '(a . b))))
+                           (catch-contract/who? "sort"
+                                                (lambda () (sort '(a . b) <)))
+                           (catch-contract/who? "sort"
+                                                (lambda () (sort '(a) 42)))
+                           (catch-contract/who? "sort"
+                                                (lambda () (sort '(a) < #:key 42)))
                            (catch-contract/who? "count"
                                                 (lambda () (count 42 '(a))))
                            (catch-contract/who? "count"
