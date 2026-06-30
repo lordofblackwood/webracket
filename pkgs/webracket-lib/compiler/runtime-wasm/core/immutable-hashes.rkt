@@ -2966,10 +2966,10 @@
    (core-runtime-helper
     '$immutable-hashalw-bucket-ref-key
     "$immutable-hashalw-bucket-ref-key"
-    (lambda ()
-      `(func $immutable-hashalw-bucket-ref-key
-             (param $bucket (ref eq)) ;; list of immutable hash entries
-             (param $key    (ref eq)) ;; lookup key
+     (lambda ()
+       `(func $immutable-hashalw-bucket-ref-key
+              (param $bucket (ref eq)) ;; list of immutable hash entries
+              (param $key    (ref eq)) ;; lookup key
              (param $fail   (ref eq)) ;; failure result/procedure/missing
              (result        (ref eq))
              (local $node   (ref eq))
@@ -3011,7 +3011,407 @@
                                         (local.get $proc)
                                         (local.get $noargs)
                                         (local.get $inv)))
-                      (else (local.get $fail))))))))))
+                       (else (local.get $fail))))))))))
+
+;; immutable-hash-lookup-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate public immutable hash lookup wrappers over the shared HAMT.
+(define immutable-hash-lookup-runtime-only-helpers
+  (list
+   ;; immutable-hasheqv-ref : immutable-hasheqv? any/c any/c -> any/c
+   ;;   Look up a key in an immutable eqv?-based hash.
+   (core-runtime-helper
+    '$immutable-hasheqv-ref
+    "$immutable-hasheqv-ref"
+    (lambda ()
+      `(func $immutable-hasheqv-ref
+             (type $Prim23)
+             (param $ht      (ref eq)) ;; immutable hasheqv
+             (param $key     (ref eq)) ;; lookup key
+             (param $failure (ref eq)) ;; optional failure, default raises
+             (result         (ref eq))
+             (local $table (ref $HashEqvImmutable))
+             (local $hash  i32)
+             (if (i32.eqz (ref.test (ref $HashEqvImmutable) (local.get $ht)))
+                 (then (call $raise-argument-error:hasheqv-expected (local.get $ht))
+                       (unreachable)))
+             (local.set $table (ref.cast (ref $HashEqvImmutable) (local.get $ht)))
+             (local.set $hash (call $eqv-hash/i32 (local.get $key)))
+             (if (ref.eq (struct.get $HashEqvImmutable $root (local.get $table))
+                         (global.get $missing))
+                 (then (return_call $immutable-hamt-bucket-ref/kind
+                                    (i32.const 1)
+                                    (global.get $null)
+                                    (local.get $key)
+                                    (local.get $failure))))
+             (return_call $immutable-hamt-node-ref/kind
+                          (i32.const 1)
+                          (struct.get $HashEqvImmutable $root (local.get $table))
+                          (local.get $key)
+                          (local.get $hash)
+                          (i32.const 0)
+                          (local.get $failure)))))
+
+   ;; immutable-hasheq-ref : immutable-hasheq? any/c any/c -> any/c
+   ;;   Look up a key in an immutable eq?-based hash.
+   (core-runtime-helper
+    '$immutable-hasheq-ref
+    "$immutable-hasheq-ref"
+    (lambda ()
+      `(func $immutable-hasheq-ref
+             (type $Prim23)
+             (param $ht      (ref eq)) ;; immutable hasheq
+             (param $key     (ref eq)) ;; lookup key
+             (param $failure (ref eq)) ;; optional failure, default raises
+             (result         (ref eq))
+             (local $table (ref $HashEqImmutable))
+             (local $hash  i32)
+             (if (i32.eqz (ref.test (ref $HashEqImmutable) (local.get $ht)))
+                 (then (call $raise-argument-error:hasheq-expected (local.get $ht))
+                       (unreachable)))
+             (local.set $table (ref.cast (ref $HashEqImmutable) (local.get $ht)))
+             (local.set $hash (call $eq-hash/i32 (local.get $key)))
+             (if (ref.eq (struct.get $HashEqImmutable $root (local.get $table))
+                         (global.get $missing))
+                 (then (return_call $immutable-hamt-bucket-ref/kind
+                                    (i32.const 0)
+                                    (global.get $null)
+                                    (local.get $key)
+                                    (local.get $failure))))
+             (return_call $immutable-hamt-node-ref/kind
+                          (i32.const 0)
+                          (struct.get $HashEqImmutable $root (local.get $table))
+                          (local.get $key)
+                          (local.get $hash)
+                          (i32.const 0)
+                          (local.get $failure)))))
+
+   ;; immutable-hasheqv-ref-key : immutable-hasheqv? any/c any/c -> any/c
+   ;;   Return the stored key matching a lookup key in an immutable eqv?-based hash.
+   (core-runtime-helper
+    '$immutable-hasheqv-ref-key
+    "$immutable-hasheqv-ref-key"
+    (lambda ()
+      `(func $immutable-hasheqv-ref-key
+             (type $Prim23)
+             (param $ht      (ref eq)) ;; immutable hasheqv
+             (param $key     (ref eq)) ;; lookup key
+             (param $failure (ref eq)) ;; optional failure, default raises
+             (result         (ref eq))
+             (local $table (ref $HashEqvImmutable))
+             (local $hash  i32)
+             (if (i32.eqz (ref.test (ref $HashEqvImmutable) (local.get $ht)))
+                 (then (call $raise-argument-error:hasheqv-expected (local.get $ht))
+                       (unreachable)))
+             (local.set $table (ref.cast (ref $HashEqvImmutable) (local.get $ht)))
+             (local.set $hash (call $eqv-hash/i32 (local.get $key)))
+             (if (ref.eq (struct.get $HashEqvImmutable $root (local.get $table))
+                         (global.get $missing))
+                 (then (return_call $immutable-hamt-bucket-ref-key/kind
+                                    (i32.const 1)
+                                    (global.get $null)
+                                    (local.get $key)
+                                    (local.get $failure))))
+             (return_call $immutable-hamt-node-ref-key/kind
+                          (i32.const 1)
+                          (struct.get $HashEqvImmutable $root (local.get $table))
+                          (local.get $key)
+                          (local.get $hash)
+                          (i32.const 0)
+                          (local.get $failure)))))
+
+   ;; immutable-hasheq-ref-key : immutable-hasheq? any/c any/c -> any/c
+   ;;   Return the stored key matching a lookup key in an immutable eq?-based hash.
+   (core-runtime-helper
+    '$immutable-hasheq-ref-key
+    "$immutable-hasheq-ref-key"
+    (lambda ()
+      `(func $immutable-hasheq-ref-key
+             (type $Prim23)
+             (param $ht      (ref eq)) ;; immutable hasheq
+             (param $key     (ref eq)) ;; lookup key
+             (param $failure (ref eq)) ;; optional failure, default raises
+             (result         (ref eq))
+             (local $table (ref $HashEqImmutable))
+             (local $hash  i32)
+             (if (i32.eqz (ref.test (ref $HashEqImmutable) (local.get $ht)))
+                 (then (call $raise-argument-error:hasheq-expected (local.get $ht))
+                       (unreachable)))
+             (local.set $table (ref.cast (ref $HashEqImmutable) (local.get $ht)))
+             (local.set $hash (call $eq-hash/i32 (local.get $key)))
+             (if (ref.eq (struct.get $HashEqImmutable $root (local.get $table))
+                         (global.get $missing))
+                 (then (return_call $immutable-hamt-bucket-ref-key/kind
+                                    (i32.const 0)
+                                    (global.get $null)
+                                    (local.get $key)
+                                    (local.get $failure))))
+             (return_call $immutable-hamt-node-ref-key/kind
+                          (i32.const 0)
+                          (struct.get $HashEqImmutable $root (local.get $table))
+                          (local.get $key)
+                          (local.get $hash)
+                          (i32.const 0)
+                          (local.get $failure)))))
+
+   ;; immutable-hasheqv-has-key? : immutable-hasheqv? any/c -> boolean?
+   ;;   Check whether an immutable eqv?-based hash contains a key.
+   (core-runtime-helper
+    '$immutable-hasheqv-has-key?
+    "$immutable-hasheqv-has-key?"
+    (lambda ()
+      `(func $immutable-hasheqv-has-key?
+             (type $Prim2)
+             (param $ht  (ref eq)) ;; immutable hasheqv
+             (param $key (ref eq)) ;; lookup key
+             (result     (ref eq))
+             (local $table (ref $HashEqvImmutable))
+             (local $hash  i32)
+             (if (i32.eqz (ref.test (ref $HashEqvImmutable) (local.get $ht)))
+                 (then (call $raise-argument-error:hasheqv-expected (local.get $ht))
+                       (unreachable)))
+             (local.set $table (ref.cast (ref $HashEqvImmutable) (local.get $ht)))
+             (if (ref.eq (struct.get $HashEqvImmutable $root (local.get $table))
+                         (global.get $missing))
+                 (then (return (global.get $false))))
+             (local.set $hash (call $eqv-hash/i32 (local.get $key)))
+             (if (result (ref eq))
+                 (call $immutable-hamt-node-has-key?/kind
+                       (i32.const 1)
+                       (struct.get $HashEqvImmutable $root (local.get $table))
+                       (local.get $key)
+                       (local.get $hash)
+                       (i32.const 0))
+                 (then (global.get $true))
+                 (else (global.get $false))))))
+
+   ;; immutable-hasheq-has-key? : immutable-hasheq? any/c -> boolean?
+   ;;   Check whether an immutable eq?-based hash contains a key.
+   (core-runtime-helper
+    '$immutable-hasheq-has-key?
+    "$immutable-hasheq-has-key?"
+    (lambda ()
+      `(func $immutable-hasheq-has-key?
+             (type $Prim2)
+             (param $ht  (ref eq)) ;; immutable hasheq
+             (param $key (ref eq)) ;; lookup key
+             (result     (ref eq))
+             (local $table (ref $HashEqImmutable))
+             (local $hash  i32)
+             (if (i32.eqz (ref.test (ref $HashEqImmutable) (local.get $ht)))
+                 (then (call $raise-argument-error:hasheq-expected (local.get $ht))
+                       (unreachable)))
+             (local.set $table (ref.cast (ref $HashEqImmutable) (local.get $ht)))
+             (if (ref.eq (struct.get $HashEqImmutable $root (local.get $table))
+                         (global.get $missing))
+                 (then (return (global.get $false))))
+             (local.set $hash (call $eq-hash/i32 (local.get $key)))
+             (if (result (ref eq))
+                 (call $immutable-hamt-node-has-key?/kind
+                       (i32.const 0)
+                       (struct.get $HashEqImmutable $root (local.get $table))
+                       (local.get $key)
+                       (local.get $hash)
+                       (i32.const 0))
+                 (then (global.get $true))
+                 (else (global.get $false))))))
+
+   ;; immutable-hash-ref : immutable-hash? any/c any/c -> any/c
+   ;;   Look up a key in an immutable equal?-based hash.
+   (core-runtime-helper
+    '$immutable-hash-ref
+    "$immutable-hash-ref"
+    (lambda ()
+      `(func $immutable-hash-ref
+             (type $Prim23)
+             (param $ht      (ref eq)) ;; immutable hash
+             (param $key     (ref eq)) ;; lookup key
+             (param $failure (ref eq)) ;; optional failure, default raises
+             (result         (ref eq))
+             (local $table (ref $HashEqualImmutable))
+             (local $hash  i32)
+             (if (i32.eqz (ref.test (ref $HashEqualImmutable) (local.get $ht)))
+                 (then (call $raise-argument-error:hash-expected (local.get $ht))
+                       (unreachable)))
+             (local.set $table (ref.cast (ref $HashEqualImmutable) (local.get $ht)))
+             (local.set $hash (call $equal-hash/i32 (local.get $key)))
+             (if (ref.eq (struct.get $HashEqualImmutable $root (local.get $table))
+                         (global.get $missing))
+                 (then (return_call $immutable-hamt-bucket-ref/kind
+                                    (i32.const 2)
+                                    (global.get $null)
+                                    (local.get $key)
+                                    (local.get $failure))))
+             (return_call $immutable-hamt-node-ref/kind
+                          (i32.const 2)
+                          (struct.get $HashEqualImmutable $root (local.get $table))
+                          (local.get $key)
+                          (local.get $hash)
+                          (i32.const 0)
+                          (local.get $failure)))))
+
+   ;; immutable-hash-ref-key : immutable-hash? any/c any/c -> any/c
+   ;;   Return the stored key matching a lookup key in an immutable equal?-based hash.
+   (core-runtime-helper
+    '$immutable-hash-ref-key
+    "$immutable-hash-ref-key"
+    (lambda ()
+      `(func $immutable-hash-ref-key
+             (type $Prim23)
+             (param $ht      (ref eq)) ;; immutable hash
+             (param $key     (ref eq)) ;; lookup key
+             (param $failure (ref eq)) ;; optional failure, default raises
+             (result         (ref eq))
+             (local $table (ref $HashEqualImmutable))
+             (local $hash  i32)
+             (if (i32.eqz (ref.test (ref $HashEqualImmutable) (local.get $ht)))
+                 (then (call $raise-argument-error:hash-expected (local.get $ht))
+                       (unreachable)))
+             (local.set $table (ref.cast (ref $HashEqualImmutable) (local.get $ht)))
+             (local.set $hash (call $equal-hash/i32 (local.get $key)))
+             (if (ref.eq (struct.get $HashEqualImmutable $root (local.get $table))
+                         (global.get $missing))
+                 (then (return_call $immutable-hamt-bucket-ref-key/kind
+                                    (i32.const 2)
+                                    (global.get $null)
+                                    (local.get $key)
+                                    (local.get $failure))))
+             (return_call $immutable-hamt-node-ref-key/kind
+                          (i32.const 2)
+                          (struct.get $HashEqualImmutable $root (local.get $table))
+                          (local.get $key)
+                          (local.get $hash)
+                          (i32.const 0)
+                          (local.get $failure)))))
+
+   ;; immutable-hash-has-key? : immutable-hash? any/c -> boolean?
+   ;;   Check whether an immutable equal?-based hash contains a key.
+   (core-runtime-helper
+    '$immutable-hash-has-key?
+    "$immutable-hash-has-key?"
+    (lambda ()
+      `(func $immutable-hash-has-key?
+             (type $Prim2)
+             (param $ht  (ref eq)) ;; immutable hash
+             (param $key (ref eq)) ;; lookup key
+             (result     (ref eq))
+             (local $table (ref $HashEqualImmutable))
+             (local $hash  i32)
+             (if (i32.eqz (ref.test (ref $HashEqualImmutable) (local.get $ht)))
+                 (then (call $raise-argument-error:hash-expected (local.get $ht))
+                       (unreachable)))
+             (local.set $table (ref.cast (ref $HashEqualImmutable) (local.get $ht)))
+             (if (ref.eq (struct.get $HashEqualImmutable $root (local.get $table))
+                         (global.get $missing))
+                 (then (return (global.get $false))))
+             (local.set $hash (call $equal-hash/i32 (local.get $key)))
+             (if (result (ref eq))
+                 (call $immutable-hamt-node-has-key?/kind
+                       (i32.const 2)
+                       (struct.get $HashEqualImmutable $root (local.get $table))
+                       (local.get $key)
+                       (local.get $hash)
+                       (i32.const 0))
+                 (then (global.get $true))
+                 (else (global.get $false))))))
+
+   ;; immutable-hashalw-ref : immutable-hashalw? any/c any/c -> any/c
+   ;;   Look up a key in an immutable equal-always?-based hash.
+   (core-runtime-helper
+    '$immutable-hashalw-ref
+    "$immutable-hashalw-ref"
+    (lambda ()
+      `(func $immutable-hashalw-ref
+             (type $Prim23)
+             (param $ht      (ref eq)) ;; immutable hashalw
+             (param $key     (ref eq)) ;; lookup key
+             (param $failure (ref eq)) ;; optional failure, default raises
+             (result         (ref eq))
+             (local $table (ref $HashEqualAlwaysImmutable))
+             (local $hash  i32)
+             (if (i32.eqz (ref.test (ref $HashEqualAlwaysImmutable) (local.get $ht)))
+                 (then (call $raise-argument-error:hashalw-expected (local.get $ht))
+                       (unreachable)))
+             (local.set $table (ref.cast (ref $HashEqualAlwaysImmutable) (local.get $ht)))
+             (local.set $hash (call $equal-always-hash/i32 (local.get $key)))
+             (if (ref.eq (struct.get $HashEqualAlwaysImmutable $root (local.get $table))
+                         (global.get $missing))
+                 (then (return_call $immutable-hamt-bucket-ref/kind
+                                    (i32.const 3)
+                                    (global.get $null)
+                                    (local.get $key)
+                                    (local.get $failure))))
+             (return_call $immutable-hamt-node-ref/kind
+                          (i32.const 3)
+                          (struct.get $HashEqualAlwaysImmutable $root (local.get $table))
+                          (local.get $key)
+                          (local.get $hash)
+                          (i32.const 0)
+                          (local.get $failure)))))
+
+   ;; immutable-hashalw-ref-key : immutable-hashalw? any/c any/c -> any/c
+   ;;   Return the stored key matching a lookup key in an immutable equal-always?-based hash.
+   (core-runtime-helper
+    '$immutable-hashalw-ref-key
+    "$immutable-hashalw-ref-key"
+    (lambda ()
+      `(func $immutable-hashalw-ref-key
+             (type $Prim23)
+             (param $ht      (ref eq)) ;; immutable hashalw
+             (param $key     (ref eq)) ;; lookup key
+             (param $failure (ref eq)) ;; optional failure, default raises
+             (result         (ref eq))
+             (local $table (ref $HashEqualAlwaysImmutable))
+             (local $hash  i32)
+             (if (i32.eqz (ref.test (ref $HashEqualAlwaysImmutable) (local.get $ht)))
+                 (then (call $raise-argument-error:hashalw-expected (local.get $ht))
+                       (unreachable)))
+             (local.set $table (ref.cast (ref $HashEqualAlwaysImmutable) (local.get $ht)))
+             (local.set $hash (call $equal-always-hash/i32 (local.get $key)))
+             (if (ref.eq (struct.get $HashEqualAlwaysImmutable $root (local.get $table))
+                         (global.get $missing))
+                 (then (return_call $immutable-hamt-bucket-ref-key/kind
+                                    (i32.const 3)
+                                    (global.get $null)
+                                    (local.get $key)
+                                    (local.get $failure))))
+             (return_call $immutable-hamt-node-ref-key/kind
+                          (i32.const 3)
+                          (struct.get $HashEqualAlwaysImmutable $root (local.get $table))
+                          (local.get $key)
+                          (local.get $hash)
+                          (i32.const 0)
+                          (local.get $failure)))))
+
+   ;; immutable-hashalw-has-key? : immutable-hashalw? any/c -> boolean?
+   ;;   Check whether an immutable equal-always?-based hash contains a key.
+   (core-runtime-helper
+    '$immutable-hashalw-has-key?
+    "$immutable-hashalw-has-key?"
+    (lambda ()
+      `(func $immutable-hashalw-has-key?
+             (type $Prim2)
+             (param $ht  (ref eq)) ;; immutable hashalw
+             (param $key (ref eq)) ;; lookup key
+             (result     (ref eq))
+             (local $table (ref $HashEqualAlwaysImmutable))
+             (local $hash  i32)
+             (if (i32.eqz (ref.test (ref $HashEqualAlwaysImmutable) (local.get $ht)))
+                 (then (call $raise-argument-error:hashalw-expected (local.get $ht))
+                       (unreachable)))
+             (local.set $table (ref.cast (ref $HashEqualAlwaysImmutable) (local.get $ht)))
+             (if (ref.eq (struct.get $HashEqualAlwaysImmutable $root (local.get $table))
+                         (global.get $missing))
+                 (then (return (global.get $false))))
+             (local.set $hash (call $equal-always-hash/i32 (local.get $key)))
+             (if (result (ref eq))
+                 (call $immutable-hamt-node-has-key?/kind
+                       (i32.const 3)
+                       (struct.get $HashEqualAlwaysImmutable $root (local.get $table))
+                       (local.get $key)
+                       (local.get $hash)
+                       (i32.const 0))
+                 (then (global.get $true))
+                 (else (global.get $false))))))))
 
 ;; immutable-hash-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate immutable hash helpers that still depend on monolithic runtime globals.
@@ -3028,4 +3428,5 @@
           immutable-hash-cnode-runtime-only-helpers
           immutable-hash-node-set-runtime-only-helpers
           immutable-hash-node-remove-runtime-only-helpers
-          immutable-hash-equal-bucket-runtime-only-helpers))
+          immutable-hash-equal-bucket-runtime-only-helpers
+          immutable-hash-lookup-runtime-only-helpers))
