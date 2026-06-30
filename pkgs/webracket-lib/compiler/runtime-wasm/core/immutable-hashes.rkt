@@ -3413,6 +3413,246 @@
                  (then (global.get $true))
                  (else (global.get $false))))))))
 
+;; immutable-hash-set-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate public immutable hash functional update wrappers.
+(define immutable-hash-set-runtime-only-helpers
+  (list
+   ;; immutable-hasheqv-set : immutable-hasheqv? any/c any/c -> immutable-hasheqv?
+   ;;   Functionally associate a key with a value in an immutable eqv?-based hash.
+   (core-runtime-helper
+    '$immutable-hasheqv-set
+    "$immutable-hasheqv-set"
+    (lambda ()
+      `(func $immutable-hasheqv-set (type $Prim3)
+             (param $ht  (ref eq)) ;; immutable hasheqv
+             (param $key (ref eq)) ;; key
+             (param $val (ref eq)) ;; value
+             (result     (ref eq))
+             (local $table     (ref $HashEqvImmutable))
+             (local $root-any  (ref eq))
+             (local $entry     (ref $ImmutableHashEntry))
+             (local $hash      i32)
+             (local $exists?   i32)
+             (local $new-count i32)
+             (if (i32.eqz (ref.test (ref $HashEqvImmutable) (local.get $ht)))
+                 (then (call $raise-argument-error:hasheqv-expected (local.get $ht))
+                       (unreachable)))
+             (local.set $table (ref.cast (ref $HashEqvImmutable) (local.get $ht)))
+             (local.set $hash (call $eqv-hash/i32 (local.get $key)))
+             (local.set $entry
+                        (struct.new $ImmutableHashEntry
+                                    (i32.const 0)
+                                    (local.get $hash)
+                                    (local.get $key)
+                                    (local.get $val)))
+             (local.set $root-any (struct.get $HashEqvImmutable $root (local.get $table)))
+             (if (ref.eq (local.get $root-any) (global.get $missing))
+                 (then
+                  (local.set $root-any (call $immutable-hamt-empty-node)))
+                 (else
+                  (local.set $exists?
+                             (call $immutable-hamt-node-has-key?/kind
+                                   (i32.const 1)
+                                   (local.get $root-any)
+                                   (local.get $key)
+                                   (local.get $hash)
+                                   (i32.const 0)))))
+             (local.set $root-any
+                        (call $immutable-hamt-node-set/kind
+                              (i32.const 1)
+                              (local.get $root-any)
+                              (local.get $entry)
+                              (local.get $key)
+                              (local.get $hash)
+                              (i32.const 0)))
+             (local.set $new-count
+                        (i32.add (struct.get $HashEqvImmutable $count (local.get $table))
+                                 (if (result i32) (local.get $exists?)
+                                     (then (i32.const 0))
+                                     (else (i32.const 1)))))
+             (struct.new $HashEqvImmutable
+                         (i32.const 0)
+                         (global.get $false)
+                         (local.get $root-any)
+                         (local.get $new-count)))))
+
+   ;; immutable-hasheq-set : immutable-hasheq? any/c any/c -> immutable-hasheq?
+   ;;   Functionally associate a key with a value in an immutable eq?-based hash.
+   (core-runtime-helper
+    '$immutable-hasheq-set
+    "$immutable-hasheq-set"
+    (lambda ()
+      `(func $immutable-hasheq-set (type $Prim3)
+             (param $ht  (ref eq)) ;; immutable hasheq
+             (param $key (ref eq)) ;; key
+             (param $val (ref eq)) ;; value
+             (result     (ref eq))
+             (local $table     (ref $HashEqImmutable))
+             (local $root-any  (ref eq))
+             (local $entry     (ref $ImmutableHashEntry))
+             (local $hash      i32)
+             (local $exists?   i32)
+             (local $new-count i32)
+             (if (i32.eqz (ref.test (ref $HashEqImmutable) (local.get $ht)))
+                 (then (call $raise-argument-error:hasheq-expected (local.get $ht))
+                       (unreachable)))
+             (local.set $table (ref.cast (ref $HashEqImmutable) (local.get $ht)))
+             (local.set $hash (call $eq-hash/i32 (local.get $key)))
+             (local.set $entry
+                        (struct.new $ImmutableHashEntry
+                                    (i32.const 0)
+                                    (local.get $hash)
+                                    (local.get $key)
+                                    (local.get $val)))
+             (local.set $root-any (struct.get $HashEqImmutable $root (local.get $table)))
+             (if (ref.eq (local.get $root-any) (global.get $missing))
+                 (then
+                  (local.set $root-any (call $immutable-hamt-empty-node)))
+                 (else
+                  (local.set $exists?
+                             (call $immutable-hamt-node-has-key?/kind
+                                   (i32.const 0)
+                                   (local.get $root-any)
+                                   (local.get $key)
+                                   (local.get $hash)
+                                   (i32.const 0)))))
+             (local.set $root-any
+                        (call $immutable-hamt-node-set/kind
+                              (i32.const 0)
+                              (local.get $root-any)
+                              (local.get $entry)
+                              (local.get $key)
+                              (local.get $hash)
+                              (i32.const 0)))
+             (local.set $new-count
+                        (i32.add (struct.get $HashEqImmutable $count (local.get $table))
+                                 (if (result i32) (local.get $exists?)
+                                     (then (i32.const 0))
+                                     (else (i32.const 1)))))
+             (struct.new $HashEqImmutable
+                         (i32.const 0)
+                         (global.get $false)
+                         (local.get $root-any)
+                         (local.get $new-count)))))
+
+   ;; immutable-hash-set : immutable-hash? any/c any/c -> immutable-hash?
+   ;;   Functionally associate a key with a value in an immutable equal?-based hash.
+   (core-runtime-helper
+    '$immutable-hash-set
+    "$immutable-hash-set"
+    (lambda ()
+      `(func $immutable-hash-set (type $Prim3)
+             (param $ht  (ref eq)) ;; immutable hash
+             (param $key (ref eq)) ;; key
+             (param $val (ref eq)) ;; value
+             (result     (ref eq))
+             (local $table     (ref $HashEqualImmutable))
+             (local $root-any  (ref eq))
+             (local $entry     (ref $ImmutableHashEntry))
+             (local $hash      i32)
+             (local $exists?   i32)
+             (local $new-count i32)
+             (if (i32.eqz (ref.test (ref $HashEqualImmutable) (local.get $ht)))
+                 (then (call $raise-argument-error:hash-expected (local.get $ht))
+                       (unreachable)))
+             (local.set $table (ref.cast (ref $HashEqualImmutable) (local.get $ht)))
+             (local.set $hash (call $equal-hash/i32 (local.get $key)))
+             (local.set $entry
+                        (struct.new $ImmutableHashEntry
+                                    (i32.const 0)
+                                    (local.get $hash)
+                                    (local.get $key)
+                                    (local.get $val)))
+             (local.set $root-any (struct.get $HashEqualImmutable $root (local.get $table)))
+             (if (ref.eq (local.get $root-any) (global.get $missing))
+                 (then
+                  (local.set $root-any (call $immutable-hamt-empty-node)))
+                 (else
+                  (local.set $exists?
+                             (call $immutable-hamt-node-has-key?/kind
+                                   (i32.const 2)
+                                   (local.get $root-any)
+                                   (local.get $key)
+                                   (local.get $hash)
+                                   (i32.const 0)))))
+             (local.set $root-any
+                        (call $immutable-hamt-node-set/kind
+                              (i32.const 2)
+                              (local.get $root-any)
+                              (local.get $entry)
+                              (local.get $key)
+                              (local.get $hash)
+                              (i32.const 0)))
+             (local.set $new-count
+                        (i32.add (struct.get $HashEqualImmutable $count (local.get $table))
+                                 (if (result i32) (local.get $exists?)
+                                     (then (i32.const 0))
+                                     (else (i32.const 1)))))
+             (struct.new $HashEqualImmutable
+                         (i32.const 0)
+                         (global.get $false)
+                         (local.get $root-any)
+                         (local.get $new-count)))))
+
+   ;; immutable-hashalw-set : immutable-hashalw? any/c any/c -> immutable-hashalw?
+   ;;   Functionally associate a key with a value in an immutable equal-always?-based hash.
+   (core-runtime-helper
+    '$immutable-hashalw-set
+    "$immutable-hashalw-set"
+    (lambda ()
+      `(func $immutable-hashalw-set (type $Prim3)
+             (param $ht  (ref eq)) ;; immutable hashalw
+             (param $key (ref eq)) ;; key
+             (param $val (ref eq)) ;; value
+             (result     (ref eq))
+             (local $table     (ref $HashEqualAlwaysImmutable))
+             (local $root-any  (ref eq))
+             (local $entry     (ref $ImmutableHashEntry))
+             (local $hash      i32)
+             (local $exists?   i32)
+             (local $new-count i32)
+             (if (i32.eqz (ref.test (ref $HashEqualAlwaysImmutable) (local.get $ht)))
+                 (then (call $raise-argument-error:hashalw-expected (local.get $ht))
+                       (unreachable)))
+             (local.set $table (ref.cast (ref $HashEqualAlwaysImmutable) (local.get $ht)))
+             (local.set $hash (call $equal-always-hash/i32 (local.get $key)))
+             (local.set $entry
+                        (struct.new $ImmutableHashEntry
+                                    (i32.const 0)
+                                    (local.get $hash)
+                                    (local.get $key)
+                                    (local.get $val)))
+             (local.set $root-any (struct.get $HashEqualAlwaysImmutable $root (local.get $table)))
+             (if (ref.eq (local.get $root-any) (global.get $missing))
+                 (then
+                  (local.set $root-any (call $immutable-hamt-empty-node)))
+                 (else
+                  (local.set $exists?
+                             (call $immutable-hamt-node-has-key?/kind
+                                   (i32.const 3)
+                                   (local.get $root-any)
+                                   (local.get $key)
+                                   (local.get $hash)
+                                   (i32.const 0)))))
+             (local.set $root-any
+                        (call $immutable-hamt-node-set/kind
+                              (i32.const 3)
+                              (local.get $root-any)
+                              (local.get $entry)
+                              (local.get $key)
+                              (local.get $hash)
+                              (i32.const 0)))
+             (local.set $new-count
+                        (i32.add (struct.get $HashEqualAlwaysImmutable $count (local.get $table))
+                                 (if (result i32) (local.get $exists?)
+                                     (then (i32.const 0))
+                                     (else (i32.const 1)))))
+             (struct.new $HashEqualAlwaysImmutable
+                         (i32.const 0)
+                         (global.get $false)
+                         (local.get $root-any)
+                         (local.get $new-count)))))))
+
 ;; immutable-hash-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate immutable hash helpers that still depend on monolithic runtime globals.
 (define immutable-hash-runtime-only-helpers
@@ -3429,4 +3669,5 @@
           immutable-hash-node-set-runtime-only-helpers
           immutable-hash-node-remove-runtime-only-helpers
           immutable-hash-equal-bucket-runtime-only-helpers
-          immutable-hash-lookup-runtime-only-helpers))
+          immutable-hash-lookup-runtime-only-helpers
+          immutable-hash-set-runtime-only-helpers))
