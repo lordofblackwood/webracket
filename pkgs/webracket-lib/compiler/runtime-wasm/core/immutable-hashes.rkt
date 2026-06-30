@@ -4,9 +4,9 @@
 
 (require "../core-helper.rkt")
 
-;; immutable-hash-runtime-only-helpers : (listof core-runtime-helper?)
-;;   Enumerate immutable hash helpers that still depend on monolithic runtime globals.
-(define immutable-hash-runtime-only-helpers
+;; immutable-hash-prelude-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate immutable hash and reader-placeholder prelude helpers.
+(define immutable-hash-prelude-runtime-only-helpers
   (append
    (for/list ([name '($make-empty-immutable-hasheq
                       $make-empty-immutable-hasheqv
@@ -331,3 +331,144 @@
                     (global.get $symbol:make-hashalw-placeholder)
                     (local.get $assocs)
                     (i32.const 3))))))))
+
+;; immutable-hash-hamt-bit-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate HAMT bit/packing helpers that still depend on monolithic runtime globals.
+(define immutable-hash-hamt-bit-runtime-only-helpers
+  (list
+   (core-runtime-helper
+    '$immutable-hasheqv-bucket-index
+    "$immutable-hasheqv-bucket-index"
+    (lambda ()
+      `(func $immutable-hasheqv-bucket-index
+             (param $mask i32)
+             (param $bit  i32)
+             (result i32)
+             (i32.popcnt
+              (i32.and (local.get $mask)
+                       (i32.sub (local.get $bit) (i32.const 1)))))))
+
+   ;; immutable-hamt-packed-group-index : i32 i32 -> i32
+   ;;   Extract the 3-bit HAMT group used by the current 8-way layout.
+   (core-runtime-helper
+    '$immutable-hamt-packed-group-index
+    "$immutable-hamt-packed-group-index"
+    (lambda ()
+      `(func $immutable-hamt-packed-group-index
+             (param $hash  i32) ;; key hash
+             (param $shift i32) ;; HAMT shift in multiples of 3
+             (result       i32)
+             (i32.and (i32.shr_u (local.get $hash)
+                                  (local.get $shift))
+                      (i32.const 7)))))
+
+   ;; immutable-hamt-packed-child-bit : i32 i32 -> i32
+   ;;   Prototype Racket CS-style child-region bit: static field + group.
+   (core-runtime-helper
+    '$immutable-hamt-packed-child-bit
+    "$immutable-hamt-packed-child-bit"
+    (lambda ()
+      `(func $immutable-hamt-packed-child-bit
+             (param $hash  i32) ;; key hash
+             (param $shift i32) ;; HAMT shift in multiples of 3
+             (result       i32)
+             (i32.shl (i32.const 1)
+                      (i32.add (i32.const 1)
+                               (call $immutable-hamt-packed-group-index
+                                     (local.get $hash)
+                                     (local.get $shift)))))))
+
+   ;; immutable-hamt-packed-key-bit : i32 i32 -> i32
+   ;;   Prototype Racket CS-style key-region bit.
+   (core-runtime-helper
+    '$immutable-hamt-packed-key-bit
+    "$immutable-hamt-packed-key-bit"
+    (lambda ()
+      `(func $immutable-hamt-packed-key-bit
+             (param $hash  i32) ;; key hash
+             (param $shift i32) ;; HAMT shift in multiples of 3
+             (result       i32)
+             (i32.shl (i32.const 1)
+                      (i32.add (i32.const 9)
+                               (call $immutable-hamt-packed-group-index
+                                     (local.get $hash)
+                                     (local.get $shift)))))))
+
+   ;; immutable-hamt-packed-value-bit : i32 i32 -> i32
+   ;;   Prototype Racket CS-style value-region bit.
+   (core-runtime-helper
+    '$immutable-hamt-packed-value-bit
+    "$immutable-hamt-packed-value-bit"
+    (lambda ()
+      `(func $immutable-hamt-packed-value-bit
+             (param $hash  i32) ;; key hash
+             (param $shift i32) ;; HAMT shift in multiples of 3
+             (result       i32)
+             (i32.shl (i32.const 1)
+                      (i32.add (i32.const 17)
+                               (call $immutable-hamt-packed-group-index
+                                     (local.get $hash)
+                                     (local.get $shift)))))))
+
+   ;; immutable-hamt-packed-bits : exact-integer? exact-integer? -> list?
+   ;;   Internal probe: (group child-bit key-bit value-bit current-bit).
+   (core-runtime-helper
+    '$immutable-hamt-packed-bits
+    "$immutable-hamt-packed-bits"
+    (lambda ()
+      `(func $immutable-hamt-packed-bits (type $Prim2)
+             (param $hash/raw  (ref eq)) ;; fixnum hash sample
+             (param $shift/raw (ref eq)) ;; fixnum HAMT shift
+             (result           (ref eq))
+             (local $hash  i32)
+             (local $shift i32)
+             (local.set $hash
+                        (i32.shr_s (i31.get_s (ref.cast (ref i31)
+                                                        (local.get $hash/raw)))
+                                   (i32.const 1)))
+             (local.set $shift
+                        (i32.shr_s (i31.get_s (ref.cast (ref i31)
+                                                        (local.get $shift/raw)))
+                                   (i32.const 1)))
+             (call $cons
+                   (ref.i31
+                    (i32.shl
+                     (call $immutable-hamt-packed-group-index
+                           (local.get $hash)
+                           (local.get $shift))
+                     (i32.const 1)))
+                   (call $cons
+                         (ref.i31
+                          (i32.shl
+                           (call $immutable-hamt-packed-child-bit
+                                 (local.get $hash)
+                                 (local.get $shift))
+                           (i32.const 1)))
+                         (call $cons
+                               (ref.i31
+                                (i32.shl
+                                 (call $immutable-hamt-packed-key-bit
+                                       (local.get $hash)
+                                       (local.get $shift))
+                                 (i32.const 1)))
+                               (call $cons
+                                     (ref.i31
+                                      (i32.shl
+                                       (call $immutable-hamt-packed-value-bit
+                                             (local.get $hash)
+                                             (local.get $shift))
+                                       (i32.const 1)))
+                                     (call $cons
+                                           (ref.i31
+                                            (i32.shl
+                                             (call $immutable-hamt-bit
+                                                   (local.get $hash)
+                                                   (local.get $shift))
+                                             (i32.const 1)))
+                                           (global.get $null)))))))))))
+
+;; immutable-hash-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate immutable hash helpers that still depend on monolithic runtime globals.
+(define immutable-hash-runtime-only-helpers
+  (append immutable-hash-prelude-runtime-only-helpers
+          immutable-hash-hamt-bit-runtime-only-helpers))

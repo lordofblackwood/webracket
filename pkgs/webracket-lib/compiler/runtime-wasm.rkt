@@ -26412,112 +26412,17 @@
 
          ,(core-runtime-helper-form runtime-helper-index '$make-hashalw-placeholder)
 
-         (func $immutable-hasheqv-bucket-index
-               (param $mask i32)
-               (param $bit  i32)
-               (result i32)
-               (i32.popcnt
-                (i32.and (local.get $mask)
-                         (i32.sub (local.get $bit) (i32.const 1)))))
+         ,(core-runtime-helper-form runtime-helper-index '$immutable-hasheqv-bucket-index)
 
-         ;; immutable-hamt-packed-group-index : i32 i32 -> i32
-         ;;   Extract the 3-bit HAMT group used by the current 8-way layout.
-         (func $immutable-hamt-packed-group-index
-               (param $hash  i32) ;; key hash
-               (param $shift i32) ;; HAMT shift in multiples of 3
-               (result       i32)
-               (i32.and (i32.shr_u (local.get $hash)
-                                    (local.get $shift))
-                        (i32.const 7)))
+         ,(core-runtime-helper-form runtime-helper-index '$immutable-hamt-packed-group-index)
 
-         ;; immutable-hamt-packed-child-bit : i32 i32 -> i32
-         ;;   Prototype Racket CS-style child-region bit: static field + group.
-         (func $immutable-hamt-packed-child-bit
-               (param $hash  i32) ;; key hash
-               (param $shift i32) ;; HAMT shift in multiples of 3
-               (result       i32)
-               (i32.shl (i32.const 1)
-                        (i32.add (i32.const 1)
-                                 (call $immutable-hamt-packed-group-index
-                                       (local.get $hash)
-                                       (local.get $shift)))))
+         ,(core-runtime-helper-form runtime-helper-index '$immutable-hamt-packed-child-bit)
 
-         ;; immutable-hamt-packed-key-bit : i32 i32 -> i32
-         ;;   Prototype Racket CS-style key-region bit.
-         (func $immutable-hamt-packed-key-bit
-               (param $hash  i32) ;; key hash
-               (param $shift i32) ;; HAMT shift in multiples of 3
-               (result       i32)
-               (i32.shl (i32.const 1)
-                        (i32.add (i32.const 9)
-                                 (call $immutable-hamt-packed-group-index
-                                       (local.get $hash)
-                                       (local.get $shift)))))
+         ,(core-runtime-helper-form runtime-helper-index '$immutable-hamt-packed-key-bit)
 
-         ;; immutable-hamt-packed-value-bit : i32 i32 -> i32
-         ;;   Prototype Racket CS-style value-region bit.
-         (func $immutable-hamt-packed-value-bit
-               (param $hash  i32) ;; key hash
-               (param $shift i32) ;; HAMT shift in multiples of 3
-               (result       i32)
-               (i32.shl (i32.const 1)
-                        (i32.add (i32.const 17)
-                                 (call $immutable-hamt-packed-group-index
-                                       (local.get $hash)
-                                       (local.get $shift)))))
+         ,(core-runtime-helper-form runtime-helper-index '$immutable-hamt-packed-value-bit)
 
-         ;; immutable-hamt-packed-bits : exact-integer? exact-integer? -> list?
-         ;;   Internal probe: (group child-bit key-bit value-bit current-bit).
-         (func $immutable-hamt-packed-bits (type $Prim2)
-               (param $hash/raw  (ref eq)) ;; fixnum hash sample
-               (param $shift/raw (ref eq)) ;; fixnum HAMT shift
-               (result           (ref eq))
-               (local $hash  i32)
-               (local $shift i32)
-               (local.set $hash
-                          (i32.shr_s (i31.get_s (ref.cast (ref i31)
-                                                          (local.get $hash/raw)))
-                                     (i32.const 1)))
-               (local.set $shift
-                          (i32.shr_s (i31.get_s (ref.cast (ref i31)
-                                                          (local.get $shift/raw)))
-                                     (i32.const 1)))
-               (call $cons
-                     (ref.i31
-                      (i32.shl
-                       (call $immutable-hamt-packed-group-index
-                             (local.get $hash)
-                             (local.get $shift))
-                       (i32.const 1)))
-                     (call $cons
-                           (ref.i31
-                            (i32.shl
-                             (call $immutable-hamt-packed-child-bit
-                                   (local.get $hash)
-                                   (local.get $shift))
-                             (i32.const 1)))
-                           (call $cons
-                                 (ref.i31
-                                  (i32.shl
-                                   (call $immutable-hamt-packed-key-bit
-                                         (local.get $hash)
-                                         (local.get $shift))
-                                   (i32.const 1)))
-                                 (call $cons
-                                       (ref.i31
-                                        (i32.shl
-                                         (call $immutable-hamt-packed-value-bit
-                                               (local.get $hash)
-                                               (local.get $shift))
-                                         (i32.const 1)))
-                                       (call $cons
-                                             (ref.i31
-                                              (i32.shl
-                                               (call $immutable-hamt-bit
-                                                     (local.get $hash)
-                                                     (local.get $shift))
-                                               (i32.const 1)))
-                                             (global.get $null)))))))
+         ,(core-runtime-helper-form runtime-helper-index '$immutable-hamt-packed-bits)
 
          ;; immutable-hamt-slot-kind : any/c -> exact-integer?
          ;;   Classify a WebRacket HAMT slot: 1=bnode, 2=cnode, 3=inline entry, 4=bucket.
