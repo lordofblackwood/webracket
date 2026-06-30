@@ -2408,6 +2408,7 @@
     (add-runtime-string-constant 'pair?                      "pair?")
     (add-runtime-string-constant 'placeholder?               "placeholder?")
     (add-runtime-string-constant 'list?                      "list?")
+    (add-runtime-string-constant 'non-empty-list?            "(and/c list? (not/c empty?))")
     (add-runtime-string-constant 'fixnum?                    "fixnum?")
     (add-runtime-string-constant 'byte?                      "byte?")
     (add-runtime-string-constant 'bytes?                     "bytes?")
@@ -25592,6 +25593,7 @@
          ,@(let ()
              (define (gen-argminmax name cmp)
                (define $name (string->symbol (~a "$" name)))
+               (define $who  (string->symbol (~a "$symbol:" name)))
                `((func ,$name (type $Prim2)
                        (param $proc (ref eq))
                        (param $lst  (ref eq))
@@ -25609,7 +25611,22 @@
 
                        ;; Check that proc is a procedure and fetch its invoker
                        (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
-                           (then (call $raise-argument-error:procedure-expected (local.get $proc))
+                           (then (call $raise-argument-error:procedure-expected/who
+                                       (global.get ,$who)
+                                       (local.get $proc))
+                                 (unreachable)))
+                       ;; Ensure lst is a non-empty proper list
+                       (if (ref.eq (local.get $lst) (global.get $null))
+                           (then (call $raise-argument-error1
+                                       (global.get ,$who)
+                                       (global.get $string:non-empty-list?)
+                                       (local.get $lst))
+                                 (unreachable)))
+                       (if (ref.eq (call $list? (local.get $lst)) (global.get $false))
+                           (then (call $raise-argument-error1
+                                       (global.get ,$who)
+                                       (global.get $string:non-empty-list?)
+                                       (local.get $lst))
                                  (unreachable)))
                        (local.set $f    (ref.cast (ref $Procedure) (local.get $proc)))
                        (local.set $finv (struct.get $Procedure $invoke (local.get $f)))
@@ -25617,11 +25634,6 @@
                        ;; Prepare argument array
                        (local.set $args (array.new $Args (global.get $null) (i32.const 1)))
 
-                       ;; Ensure lst is a non-empty proper list
-                       (if (ref.eq (local.get $lst) (global.get $null))
-                           (then (call $raise-argument-error/internal (local.get $lst)) (unreachable)))
-                       (if (i32.eqz (ref.test (ref $Pair) (local.get $lst)))
-                           (then (call $raise-pair-expected (local.get $lst)) (unreachable)))
                        (local.set $pair (ref.cast (ref $Pair) (local.get $lst)))
                        (local.set $elem (struct.get $Pair $a (local.get $pair)))
                        (array.set $Args (local.get $args) (i32.const 0) (local.get $elem))

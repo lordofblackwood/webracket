@@ -2350,6 +2350,16 @@
                                                 (lambda () (build-list 2 42)))
                            (catch-contract/who? "list-update"
                                                 (lambda () (list-update '(a) 0 42)))
+                           (catch-contract/who? "argmax"
+                                                (lambda () (argmax 42 '(1))))
+                           (catch-contract/who? "argmax"
+                                                (lambda () (argmax values '())))
+                           (catch-contract/who? "argmax"
+                                                (lambda () (argmax values '(1 . 2))))
+                           (catch-contract/who? "argmin"
+                                                (lambda () (argmin 42 '(1))))
+                           (catch-contract/who? "argmin"
+                                                (lambda () (argmin values '())))
                            (catch-contract/who? "count"
                                                 (lambda () (count 42 '(a))))
                            (catch-contract/who? "count"
