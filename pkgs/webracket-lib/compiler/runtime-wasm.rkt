@@ -23903,58 +23903,7 @@
                      (i32.const 1)
                      (local.get $len)))
 
-         ;; treelist-node-append*-collect-into! : (ref $TreelistNode) i32 (ref $Array) i32 -> i32
-         ;;   Traverse outer node left-to-right, validating treelist elements and storing them into dst.
-         (func $treelist-node-append*-collect-into!
-               (param $node   (ref $TreelistNode))
-               (param $height i32)
-               (param $dst    (ref $Array))
-               (param $start  i32)
-               (result i32)
-               (local $children (ref $Array))
-               (local $count    i32)
-               (local $i        i32)
-               (local $pos      i32)
-               (local $elem     (ref eq))
-               (local $child    (ref $TreelistNode))
-               (local.set $children (call $treelist-node-children (local.get $node)))
-               (local.set $count    (array.len (local.get $children)))
-               (if (i32.eqz (local.get $height))
-                   (then
-                    (local.set $i   (i32.const 0))
-                    (local.set $pos (local.get $start))
-                    (block $done-leaf
-                           (loop $leaf
-                                 (br_if $done-leaf (i32.ge_u (local.get $i) (local.get $count)))
-                                 (local.set $elem
-                                            (array.get $Array (local.get $children) (local.get $i)))
-                                 (if (i32.eqz (ref.test (ref $Treelist) (local.get $elem)))
-                                     (then (call $raise-check-treelist/who
-                                                 (global.get $symbol:treelist-append*)
-                                                 (local.get $elem))
-                                           (unreachable)))
-                                 (array.set $Array (local.get $dst) (local.get $pos) (local.get $elem))
-                                 (local.set $pos (i32.add (local.get $pos) (i32.const 1)))
-                                 (local.set $i   (i32.add (local.get $i) (i32.const 1)))
-                                 (br $leaf)))
-                    (return (local.get $pos))))
-               (local.set $i   (i32.const 0))
-               (local.set $pos (local.get $start))
-               (block $done
-                      (loop $loop
-                            (br_if $done (i32.ge_u (local.get $i) (local.get $count)))
-                            (local.set $child
-                                       (ref.cast (ref $TreelistNode)
-                                                 (array.get $Array (local.get $children) (local.get $i))))
-                            (local.set $pos
-                                       (call $treelist-node-append*-collect-into!
-                                             (local.get $child)
-                                             (i32.sub (local.get $height) (i32.const 1))
-                                             (local.get $dst)
-                                             (local.get $pos)))
-                            (local.set $i (i32.add (local.get $i) (i32.const 1)))
-                            (br $loop)))
-               (local.get $pos))
+         ,(core-runtime-helper-form runtime-helper-index '$treelist-node-append*-collect-into!)
 
          (func $treelist-append* (type $Prim1)
                (param $v0 (ref eq))
@@ -23980,108 +23929,15 @@
                       (i32.const 0)))
                (call $treelist-append/checked (local.get $tls)))
 
-         ;; treelist-flatten-into! : (ref eq) (ref $GrowableArray) -> void
-         ;;   Recursively flatten nested treelists into ga, treating other values as singletons.
-         (func $treelist-node-flatten-into!
-               (param $node   (ref $TreelistNode))
-               (param $height i32)
-               (param $ga     (ref $GrowableArray))
-               (local $children (ref $Array))
-               (local $count    i32)
-               (local $i        i32)
-               (local $elem     (ref eq))
-               (local $child    (ref $TreelistNode))
-               (local.set $children (call $treelist-node-children (local.get $node)))
-               (local.set $count    (array.len (local.get $children)))
-               (if (i32.eqz (local.get $height))
-                   (then
-                    (local.set $i (i32.const 0))
-                    (block $done-leaf
-                           (loop $leaf
-                                 (br_if $done-leaf (i32.ge_u (local.get $i) (local.get $count)))
-                                 (local.set $elem
-                                            (array.get $Array (local.get $children) (local.get $i)))
-                                 (call $treelist-flatten-into!
-                                       (local.get $elem)
-                                       (local.get $ga))
-                                 (local.set $i (i32.add (local.get $i) (i32.const 1)))
-                                 (br $leaf)))
-                    (return)))
-               (local.set $i (i32.const 0))
-               (block $done
-                      (loop $loop
-                            (br_if $done (i32.ge_u (local.get $i) (local.get $count)))
-                            (local.set $child
-                                       (ref.cast (ref $TreelistNode)
-                                                 (array.get $Array (local.get $children) (local.get $i))))
-                            (call $treelist-node-flatten-into!
-                                  (local.get $child)
-                                  (i32.sub (local.get $height) (i32.const 1))
-                                  (local.get $ga))
-                            (local.set $i (i32.add (local.get $i) (i32.const 1)))
-                            (br $loop))))
+         ,(core-runtime-helper-form runtime-helper-index '$treelist-node-flatten-into!)
 
-         (func $treelist-flatten-into!
-               (param $v  (ref eq))
-               (param $ga (ref $GrowableArray))
-               (local $tl   (ref $Treelist))
-               (local.set $tl   (global.get $empty-treelist))
-               (if (ref.test (ref $Treelist) (local.get $v))
-                   (then
-                    (local.set $tl  (ref.cast (ref $Treelist) (local.get $v)))
-                    (call $treelist-node-flatten-into!
-                          (struct.get $Treelist $root (local.get $tl))
-                          (struct.get $Treelist $height (local.get $tl))
-                          (local.get $ga)))
-                   (else
-                    (call $growable-array-add! (local.get $ga) (local.get $v)))))
+         ,(core-runtime-helper-form runtime-helper-index '$treelist-flatten-into!)
 
-         ;; treelist-flatten : any/c -> treelist?
-         ;;   Flatten nested treelists, treating non-treelist input as a singleton treelist.
-         (func $treelist-flatten (type $Prim1)
-               (param $v0 (ref eq))
-               (result (ref eq))
-               (local $ga (ref $GrowableArray))
-               (local.set $ga (call $make-growable-array (i32.const 8)))
-               (call $treelist-flatten-into! (local.get $v0) (local.get $ga))
-               (call $array->treelist/checked
-                     (call $growable-array->array (local.get $ga))))
+         ,(core-runtime-helper-form runtime-helper-index '$treelist-flatten)
 
-         ;; treelist-sort/checked : (ref $Treelist) (ref eq) -> (ref $Treelist)
-         ;;   Sort a treelist using the existing two-argument list sort and rebuild densely.
-         (func $treelist-sort/checked
-               (param $tl   (ref $Treelist))
-               (param $proc (ref eq))
-               (result (ref $Treelist))
-               (local $xs (ref eq))
-               (local $ys (ref eq))
-               (local.set $xs
-                          (call $vector->list/checked
-                                (call $treelist->vector/checked (local.get $tl))))
-               (local.set $ys (call $sort (local.get $xs) (local.get $proc)))
-               (call $array->treelist/checked
-                     (call $list->array (local.get $ys))))
+         ,(core-runtime-helper-form runtime-helper-index '$treelist-sort/checked)
 
-         ;; treelist-sort : treelist? procedure? -> treelist?
-         ;;   Sort a treelist with less-than?; only the positional two-argument form is supported.
-         (func $treelist-sort (type $Prim2)
-               (param $v0 (ref eq))
-               (param $v1 (ref eq))
-               (result (ref eq))
-               (local $tl (ref $Treelist))
-               (local.set $tl (global.get $empty-treelist))
-               (if (ref.test (ref $Treelist) (local.get $v0))
-                   (then (local.set $tl (ref.cast (ref $Treelist) (local.get $v0))))
-                   (else (call $raise-check-treelist/who
-                               (global.get $symbol:treelist-sort)
-                               (local.get $v0))
-                         (unreachable)))
-               (if (i32.eqz (ref.test (ref $Procedure) (local.get $v1)))
-                   (then (call $raise-argument-error:procedure-expected (local.get $v1))
-                         (unreachable)))
-               (call $treelist-sort/checked
-                     (local.get $tl)
-                     (local.get $v1)))
+         ,(core-runtime-helper-form runtime-helper-index '$treelist-sort)
 
          ;; treelist-node-map-into! : (ref $TreelistNode) i32 (ref $Array) i32 (ref $Procedure) (ref $ProcedureInvoker) (ref $Args) -> i32
          ;;   Traverse node left-to-right, mapping into dst and returning the next write index.
