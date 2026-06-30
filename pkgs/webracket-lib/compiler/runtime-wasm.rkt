@@ -27,6 +27,8 @@
                   thread-runtime-only-helpers)
          (only-in "runtime-wasm/core/treelists.rkt"
                   treelist-runtime-only-helpers)
+         (only-in "runtime-wasm/core/wills.rkt"
+                  will-runtime-only-helpers)
          "runtime-wasm/core-runtime.rkt"
          "runtime-wasm/constants.rkt"
          "runtime-wasm/shared-types.rkt"
@@ -53,6 +55,7 @@
 (define-runtime-path core-stencil-vectors-path "runtime-wasm/core/stencil-vectors.rkt")
 (define-runtime-path core-threads-path "runtime-wasm/core/threads.rkt")
 (define-runtime-path core-treelists-path "runtime-wasm/core/treelists.rkt")
+(define-runtime-path core-wills-path "runtime-wasm/core/wills.rkt")
 
 ;; runtime-helper-index : hasheq?
 ;;   Index helpers available to the monolithic runtime generator.
@@ -66,7 +69,8 @@
            semaphore-runtime-only-helpers
            stencil-vector-runtime-only-helpers
            thread-runtime-only-helpers
-           treelist-runtime-only-helpers)))
+           treelist-runtime-only-helpers
+           will-runtime-only-helpers)))
 
 (module+ test
   (require (submod "runtime-wasm/core-runtime.rkt" test)))
@@ -414,7 +418,8 @@
                                           core-semaphores-path
                                           core-stencil-vectors-path
                                           core-threads-path
-                                          core-treelists-path))])
+                                          core-treelists-path
+                                          core-wills-path))])
             (list (path->string path)
                   (file-size path)
                   (file-or-directory-modify-seconds path)))))
@@ -26138,90 +26143,19 @@
 
          ,(core-runtime-helper-form runtime-helper-index '$semaphore-peek-evt)
 
-         ;; make-will-executor : -> will-executor?
-         ;;   Create an inert will executor. Registrations are retained, but
-         ;;   WebRacket has no GC finalization hook to make wills ready.
-         (func $make-will-executor (type $Prim0)
-               (result (ref eq))
-               (struct.new $WillExecutor
-                           (i32.const 0)
-                           (global.get $null)))
+         ;;;
+         ;;; Will Executors
+         ;;;
 
-         ;; will-executor? : any/c -> boolean?
-         ;;   Recognize WebRacket's minimal will executor records.
-         (func $will-executor? (type $Prim1)
-               ,@(make-predicate-body '$WillExecutor))
+         ,(core-runtime-helper-form runtime-helper-index '$make-will-executor)
 
-         ;; will-register : will-executor? any/c procedure? -> void?
-         ;;   Retain the registration so the will procedure remains strongly
-         ;;   referenced. No registration becomes ready until finalization is
-         ;;   implemented.
-         (func $will-register (type $Prim3)
-               (param $executor-raw (ref eq)) ;; will-executor?
-               (param $v            (ref eq)) ;; registered value
-               (param $proc-raw     (ref eq)) ;; procedure accepting 1 arg
-               (result              (ref eq))
-               (local $executor (ref $WillExecutor))
-               (local $proc     (ref $Procedure))
+         ,(core-runtime-helper-form runtime-helper-index '$will-executor?)
 
-               (if (i32.eqz (ref.test (ref $WillExecutor) (local.get $executor-raw)))
-                   (then (call $raise-argument-error1
-                               (global.get $symbol:will-register)
-                               (global.get $string:will-executor?)
-                               (local.get $executor-raw))
-                         (unreachable)))
-               (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc-raw)))
-                   (then (call $raise-argument-error1
-                               (global.get $symbol:will-register)
-                               (global.get $string:procedure?)
-                               (local.get $proc-raw))
-                         (unreachable)))
-               (local.set $proc (ref.cast (ref $Procedure) (local.get $proc-raw)))
-               (if (i32.eqz (call $procedure-arity-includes?/checked/i32
-                                  (local.get $proc)
-                                  (i32.const 1)))
-                   (then (call $raise-argument-error1
-                               (global.get $symbol:will-register)
-                               (global.get $string:procedure?)
-                               (local.get $proc-raw))
-                         (unreachable)))
-               (local.set $executor
-                          (ref.cast (ref $WillExecutor) (local.get $executor-raw)))
-               (struct.set $WillExecutor $registrations
-                           (local.get $executor)
-                           (call $cons
-                                 (call $cons (local.get $v) (local.get $proc-raw))
-                                 (struct.get $WillExecutor $registrations
-                                             (local.get $executor))))
-               (global.get $void))
+         ,(core-runtime-helper-form runtime-helper-index '$will-register)
 
-         ;; will-try-execute : will-executor? [any/c = #f] -> any/c
-         ;;   Return the default because no GC-discovered wills are ready in
-         ;;   the current runtime.
-         (func $will-try-execute (type $Prim12)
-               (param $executor-raw (ref eq)) ;; will-executor?
-               (param $default      (ref eq)) ;; optional default, default = #f
-               (result              (ref eq))
-               (if (i32.eqz (ref.test (ref $WillExecutor) (local.get $executor-raw)))
-                   (then (call $raise-argument-error1
-                               (global.get $symbol:will-try-execute)
-                               (global.get $string:will-executor?)
-                               (local.get $executor-raw))
-                         (unreachable)))
-               (if (result (ref eq))
-                   (ref.eq (local.get $default) (global.get $missing))
-                   (then (global.get $false))
-                   (else (local.get $default))))
+         ,(core-runtime-helper-form runtime-helper-index '$will-try-execute)
 
-         ;; will-execute : will-executor? -> any/c
-         ;;   Blocking is unavailable without a scheduler/finalizer queue, so
-         ;;   this behaves like an immediate unsuccessful poll.
-         (func $will-execute (type $Prim1)
-               (param $executor-raw (ref eq)) ;; will-executor?
-               (result              (ref eq))
-               (call $will-try-execute
-                     (local.get $executor-raw)
-                     (global.get $false)))
+         ,(core-runtime-helper-form runtime-helper-index '$will-execute)
 
          ;;;
          ;;; Event Synchronization
