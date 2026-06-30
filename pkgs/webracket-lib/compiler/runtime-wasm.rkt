@@ -2673,6 +2673,19 @@
     (add-runtime-symbol-constant 'cons)
     (add-runtime-symbol-constant 'car)
     (add-runtime-symbol-constant 'cdr)
+    (add-runtime-symbol-constant 'pair?)
+    (add-runtime-symbol-constant 'length)
+    (add-runtime-symbol-constant 'list-ref)
+    (add-runtime-symbol-constant 'list-tail)
+    (add-runtime-symbol-constant 'list-set)
+    (add-runtime-symbol-constant 'list-update)
+    (add-runtime-symbol-constant 'rest)
+    (add-runtime-symbol-constant 'take)
+    (add-runtime-symbol-constant 'take-right)
+    (add-runtime-symbol-constant 'drop)
+    (add-runtime-symbol-constant 'drop-right)
+    (add-runtime-symbol-constant 'split-at)
+    (add-runtime-symbol-constant 'split-at-right)
     (add-runtime-symbol-constant 'fixnum?)
     (add-runtime-symbol-constant 'byte?)
     (add-runtime-symbol-constant 'vector?)
@@ -22750,26 +22763,65 @@
                              (global.get $false)      ;; a = null
                              (global.get $false)))    ;; d = null
 
-        ;; Pair related exceptions
-         (func $raise-pair-expected
-               (param $x (ref eq))
-
+        ;; Pair/list related exceptions
+         (func $raise-pair-expected/who
+               (param $who (ref eq))
+               (param $x   (ref eq))
                (call $raise-argument-error1
-                     (global.get $symbol:pair)
+                     (local.get $who)
                      (global.get $string:pair?)
                      (local.get $x)))
-         (func $raise-bad-list-ref-index
-               (param $xs  (ref $Pair)) (param $i   i32) (param $len i32)
+         (func $raise-pair-expected
+               (param $x (ref eq))
+               (call $raise-pair-expected/who
+                     (global.get $symbol:pair?)
+                     (local.get $x)))
+         (func $raise-list-expected/who
+               (param $who (ref eq))
+               (param $x   (ref eq))
                (call $raise-argument-error1
+                     (local.get $who)
+                     (global.get $string:list?)
+                     (local.get $x)))
+         (func $raise-exact-nonnegative-integer-expected/who
+               (param $who (ref eq))
+               (param $x   (ref eq))
+               (call $raise-argument-error1
+                     (local.get $who)
+                     (global.get $string:exact-nonnegative-integer?)
+                     (local.get $x)))
+         (func $raise-bad-list-ref-index/who
+               (param $who (ref eq))
+               (param $xs  (ref eq))
+               (param $i   i32)
+               (param $len i32)
+               (call $raise-argument-error1
+                     (local.get $who)
+                     (global.get $string:exact-nonnegative-integer?)
+                     (ref.i31 (i32.shl (local.get $i) (i32.const 1)))))
+         (func $raise-bad-list-ref-index
+               (param $xs (ref eq)) (param $i i32) (param $len i32)
+               (call $raise-bad-list-ref-index/who
                      (global.get $symbol:list-ref)
+                     (local.get $xs)
+                     (local.get $i)
+                     (local.get $len)))
+         (func $raise-bad-list-set-index/who
+               (param $who (ref eq))
+               (param $xs  (ref eq))
+               (param $i   i32)
+               (param $len i32)
+               (call $raise-argument-error1
+                     (local.get $who)
                      (global.get $string:exact-nonnegative-integer?)
                      (ref.i31 (i32.shl (local.get $i) (i32.const 1)))))
          (func $raise-bad-list-set-index
                (param $xs (ref eq)) (param $i i32) (param $len i32)
-               (call $raise-argument-error1
+               (call $raise-bad-list-set-index/who
                      (global.get $symbol:list-set)
-                     (global.get $string:exact-nonnegative-integer?)
-                     (ref.i31 (i32.shl (local.get $i) (i32.const 1)))))
+                     (local.get $xs)
+                     (local.get $i)
+                     (local.get $len)))
 
          (func $pair? (type $Prim1)
                ,@(make-predicate-body '$Pair))
@@ -22831,13 +22883,17 @@
          (func $car (type $Prim1) (param $v (ref eq)) (result (ref eq))
                (if (result (ref eq)) (ref.test (ref $Pair) (local.get $v))
                    (then (struct.get $Pair $a (ref.cast (ref $Pair) (local.get $v))))
-                   (else (call $raise-pair-expected (local.get $v))
+                   (else (call $raise-pair-expected/who
+                               (global.get $symbol:car)
+                               (local.get $v))
                          (unreachable))))
 
          (func $cdr (type $Prim1) (param $v (ref eq)) (result (ref eq))
                (if (result (ref eq)) (ref.test (ref $Pair) (local.get $v))
                    (then (struct.get $Pair $d (ref.cast (ref $Pair) (local.get $v))))
-                   (else (call $raise-pair-expected (local.get $v))
+                   (else (call $raise-pair-expected/who
+                               (global.get $symbol:cdr)
+                               (local.get $v))
                          (unreachable))))
 
 
@@ -22921,7 +22977,9 @@
                                 (then (local.set $xs
                                                  (struct.get $Pair $d
                                                              (ref.cast (ref $Pair) (local.get $xs)))))
-                                (else (call $raise-pair-expected (local.get $xs))))
+                                (else (call $raise-list-expected/who
+                                            (global.get $symbol:length)
+                                            (local.get $xs))))
                             (local.set $i (i32.add (local.get $i) (i32.const 1)))
                             (br $count)))
                (ref.i31 (i32.shl (local.get $i) (i32.const 1))))
@@ -22963,21 +23021,34 @@
 
          (func $list-ref (type $Prim2) (param $xs (ref eq)) (param $i (ref eq)) (result (ref eq))
                (local $idx i32)
-               ;; Decode & check fixnum index
+               ;; Decode & check exact-nonnegative-integer index
                (if (ref.test (ref i31) (local.get $i))
                    (then (local.set $idx
-                                    (i31.get_u (ref.cast (ref i31) (local.get $i))))
+                                    (i31.get_s (ref.cast (ref i31) (local.get $i))))
                          (if (i32.ne (i32.and (local.get $idx) (i32.const 1)) (i32.const 0))
-                             (then (call $raise-check-fixnum (local.get $i))))
-                         (local.set $idx (i32.shr_u (local.get $idx) (i32.const 1))))
-                   (else (call $raise-check-fixnum (local.get $i))))
+                             (then (call $raise-exact-nonnegative-integer-expected/who
+                                         (global.get $symbol:list-ref)
+                                         (local.get $i))
+                                   (unreachable)))
+                         (local.set $idx (i32.shr_s (local.get $idx) (i32.const 1))))
+                   (else (call $raise-exact-nonnegative-integer-expected/who
+                               (global.get $symbol:list-ref)
+                               (local.get $i))
+                         (unreachable)))
+               (if (i32.lt_s (local.get $idx) (i32.const 0))
+                   (then (call $raise-exact-nonnegative-integer-expected/who
+                               (global.get $symbol:list-ref)
+                               (local.get $i))
+                         (unreachable)))
                ;; Check & dispatch on Pair
                (if (result (ref eq))
                    (ref.test (ref $Pair) (local.get $xs))
                    (then (call $list-ref/checked
                                (ref.cast (ref $Pair) (local.get $xs))
                                (local.get $idx)))
-                   (else (call $raise-pair-expected (local.get $xs))
+                   (else (call $raise-pair-expected/who
+                               (global.get $symbol:list-ref)
+                               (local.get $xs))
                          (unreachable))))
 
          ,@(for/list ([name '($first $second $third $fourth $fifth $sixth $seventh $eighth
@@ -23003,9 +23074,15 @@
         (func $rest (type $Prim1) (param $xs (ref eq)) (result (ref eq))
               ;; Type check: non-empty proper list
               (if (ref.eq (local.get $xs) (global.get $null))
-                  (then (call $raise-argument-error/internal (local.get $xs)) (unreachable)))
+                  (then (call $raise-pair-expected/who
+                              (global.get $symbol:rest)
+                              (local.get $xs))
+                        (unreachable)))
               (if (ref.eq (call $list? (local.get $xs)) (global.get $false))
-                  (then (call $raise-argument-error/internal (local.get $xs)) (unreachable)))
+                  (then (call $raise-list-expected/who
+                              (global.get $symbol:rest)
+                              (local.get $xs))
+                        (unreachable)))
               ;; Return tail
               (struct.get $Pair $d (ref.cast (ref $Pair) (local.get $xs))))
 
@@ -23043,11 +23120,15 @@
                   (then (call $raise-pair-expected (local.get $xs)) (unreachable)))
               (call $last-pair/checked (ref.cast (ref $Pair) (local.get $xs))))
 
-        ;; list-tail/checked: xs is known to be a Pair and i > 0.
+        ;; list-tail/checked/who: xs is known to be a Pair and i > 0.
          ;; Returns the result of cdr^i(xs). Works with improper lists:
          ;; if the i-th cdr is a non-pair, it is returned. If we need to
          ;; cdr again past a non-pair, raise pair-expected.
-         (func $list-tail/checked (param $xs (ref $Pair)) (param $i i32) (result (ref eq))
+         (func $list-tail/checked/who
+               (param $who (ref eq))
+               (param $xs  (ref $Pair))
+               (param $i   i32)
+               (result (ref eq))
                (local $v    (ref $Pair))
                (local $k    i32)
                (local $next (ref eq))
@@ -23069,25 +23150,47 @@
                      ;; Otherwise, we must continue stepping. Ensure next is a Pair.
                      (if (ref.test (ref $Pair) (local.get $next))
                          (then
-                          (local.set $v (ref.cast (ref $Pair) (local.get $next)))
+                         (local.set $v (ref.cast (ref $Pair) (local.get $next)))
                           (br $loop))
                          (else
-                          (call $raise-pair-expected (local.get $next)))))
+                          (call $raise-pair-expected/who
+                                (local.get $who)
+                                (local.get $next)))))
                (unreachable))
+
+         (func $list-tail/checked
+               (param $xs (ref $Pair))
+               (param $i  i32)
+               (result (ref eq))
+               (call $list-tail/checked/who
+                     (global.get $symbol:list-tail)
+                     (local.get $xs)
+                     (local.get $i)))
 
          (func $list-tail (type $Prim2) (param $xs (ref eq)) (param $i (ref eq)) (result (ref eq))
                (local $pair (ref $Pair))
                (local $idx  i32)
                ;; Initialize non-defaultable local to a safe value.
                (local.set $pair (global.get $dummy-pair))
-               ;; Decode and check fixnum index (i31 with lsb=0).
+               ;; Decode and check exact-nonnegative-integer index.
                (if (ref.test (ref i31) (local.get $i))
                    (then
-                    (local.set $idx (i31.get_u (ref.cast (ref i31) (local.get $i))))
+                    (local.set $idx (i31.get_s (ref.cast (ref i31) (local.get $i))))
                     (if (i32.ne (i32.and (local.get $idx) (i32.const 1)) (i32.const 0))
-                        (then (call $raise-check-fixnum (local.get $i))))
-                    (local.set $idx (i32.shr_u (local.get $idx) (i32.const 1))))
-                   (else (call $raise-check-fixnum (local.get $i))))
+                        (then (call $raise-exact-nonnegative-integer-expected/who
+                                    (global.get $symbol:list-tail)
+                                    (local.get $i))
+                              (unreachable)))
+                    (local.set $idx (i32.shr_s (local.get $idx) (i32.const 1))))
+                   (else (call $raise-exact-nonnegative-integer-expected/who
+                               (global.get $symbol:list-tail)
+                               (local.get $i))
+                         (unreachable)))
+               (if (i32.lt_s (local.get $idx) (i32.const 0))
+                   (then (call $raise-exact-nonnegative-integer-expected/who
+                               (global.get $symbol:list-tail)
+                               (local.get $i))
+                         (unreachable)))
                ;; (list-tail xs 0) => xs
                (if (i32.eqz (local.get $idx))
                    (then (return (local.get $xs))))
@@ -23095,10 +23198,15 @@
                (if (ref.test (ref $Pair) (local.get $xs))
                    (then (local.set $pair (ref.cast (ref $Pair) (local.get $xs))))
                    (else
-                    (call $raise-pair-expected (local.get $xs))
+                    (call $raise-pair-expected/who
+                          (global.get $symbol:list-tail)
+                          (local.get $xs))
                     (unreachable)))
 
-               (call $list-tail/checked (local.get $pair) (local.get $idx)))
+               (call $list-tail/checked/who
+                     (global.get $symbol:list-tail)
+                     (local.get $pair)
+                     (local.get $idx)))
 
         ;; list-set/checked: xs is a Pair and i >= 0 within bounds.
         ;; Returns a new list with the element at index i replaced by v.
@@ -23172,7 +23280,7 @@
               (local $idx  i32)
               (local $pair (ref $Pair))
 
-              ;; Decode & check fixnum index
+              ;; Decode & check exact-nonnegative-integer index
               (if (ref.test (ref i31) (local.get $i))
                   (then (local.set $idx (i31.get_s (ref.cast (ref i31) (local.get $i))))
                         (if (i32.ne (i32.and (local.get $idx) (i32.const 1)) (i32.const 0))
@@ -23200,13 +23308,17 @@
                               (local.get $xs) (local.get $idx) (i32.const 0))
                         (unreachable)))
               (if (ref.eq (call $list? (local.get $xs)) (global.get $false))
-                  (then (call $raise-argument-error/internal (local.get $xs)) (unreachable)))
+                  (then (call $raise-list-expected/who
+                              (global.get $symbol:list-set)
+                              (local.get $xs))
+                        (unreachable)))
 
               (local.set $pair (ref.cast (ref $Pair) (local.get $xs)))
               (call $list-set/checked (local.get $pair) (local.get $idx) (local.get $v)))
 
 
-        (func $drop (type $Prim2)
+        (func $drop/who
+              (param $who (ref eq))
               (param $lst (ref eq))  ; list
               (param $pos (ref eq))  ; exact-nonnegative-integer?
               (result (ref eq))
@@ -23231,9 +23343,13 @@
                                (i31.get_s (ref.cast (ref i31) (local.get $pos)))
                                (i32.const 1)))
                    (if (i32.lt_s (local.get $n) (i32.const 0))
-                       (then (call $raise-argument-error/internal (local.get $pos))
+                       (then (call $raise-exact-nonnegative-integer-expected/who
+                                   (local.get $who)
+                                   (local.get $pos))
                              (unreachable))))
-                  (else (call $raise-check-fixnum (local.get $pos))
+                  (else (call $raise-exact-nonnegative-integer-expected/who
+                              (local.get $who)
+                              (local.get $pos))
                         (unreachable)))
 
               ;; Dropping zero elements returns the list unchanged
@@ -23242,10 +23358,16 @@
 
               ;; Non-empty list required when dropping more than zero
               (if (ref.eq (local.get $lst) (global.get $null))
-                  (then (call $raise-argument-error/internal (local.get $lst))
+                  (then (call $raise-bad-list-ref-index/who
+                              (local.get $who)
+                              (local.get $lst)
+                              (local.get $n)
+                              (i32.const 0))
                         (unreachable)))
               (if (i32.eqz (ref.test (ref $Pair) (local.get $lst)))
-                  (then (call $raise-pair-expected (local.get $lst))
+                  (then (call $raise-pair-expected/who
+                              (local.get $who)
+                              (local.get $lst))
                         (unreachable)))
 
               (local.set $orig (ref.cast (ref $Pair) (local.get $lst)))
@@ -23263,14 +23385,25 @@
                         (else
                          (local.set $len
                                     (i32.sub (local.get $n) (local.get $remaining)))
-                         (call $raise-bad-list-ref-index
+                         (call $raise-bad-list-ref-index/who
+                               (local.get $who)
                                (local.get $orig)
                                (local.get $n)
                                (local.get $len))
                          (unreachable))))
               (unreachable))
 
-        (func $drop-right (type $Prim2)
+        (func $drop (type $Prim2)
+              (param $lst (ref eq))
+              (param $pos (ref eq))
+              (result (ref eq))
+              (call $drop/who
+                    (global.get $symbol:drop)
+                    (local.get $lst)
+                    (local.get $pos)))
+
+        (func $drop-right/who
+              (param $who (ref eq))
               (param $lst (ref eq))  ; list
               (param $pos (ref eq))  ; exact-nonnegative-integer?
               (result (ref eq))
@@ -23305,19 +23438,29 @@
                                (i31.get_s (ref.cast (ref i31) (local.get $pos)))
                                (i32.const 1)))
                    (if (i32.lt_s (local.get $n) (i32.const 0))
-                       (then (call $raise-argument-error/internal (local.get $pos))
+                       (then (call $raise-exact-nonnegative-integer-expected/who
+                                   (local.get $who)
+                                   (local.get $pos))
                              (unreachable))))
-                  (else (call $raise-check-fixnum (local.get $pos))
+                  (else (call $raise-exact-nonnegative-integer-expected/who
+                              (local.get $who)
+                              (local.get $pos))
                         (unreachable)))
 
               (if (i32.eqz (local.get $n))
                   (then (return (local.get $lst))))
 
               (if (ref.eq (local.get $lst) (global.get $null))
-                  (then (call $raise-argument-error/internal (local.get $lst))
+                  (then (call $raise-bad-list-ref-index/who
+                              (local.get $who)
+                              (local.get $lst)
+                              (local.get $n)
+                              (i32.const 0))
                         (unreachable)))
               (if (i32.eqz (ref.test (ref $Pair) (local.get $lst)))
-                  (then (call $raise-pair-expected (local.get $lst))
+                  (then (call $raise-pair-expected/who
+                              (local.get $who)
+                              (local.get $lst))
                         (unreachable)))
 
               (local.set $first (ref.cast (ref $Pair) (local.get $lst)))
@@ -23339,12 +23482,15 @@
                                     (then
                                      (local.set $len
                                                 (i32.sub (local.get $n) (local.get $remaining)))
-                                     (call $raise-bad-list-ref-index
+                                     (call $raise-bad-list-ref-index/who
+                                           (local.get $who)
                                            (local.get $first)
                                            (local.get $n)
                                            (local.get $len))
                                      (unreachable))
-                                    (else (call $raise-pair-expected (local.get $lead))
+                                    (else (call $raise-pair-expected/who
+                                                (local.get $who)
+                                                (local.get $lead))
                                           (unreachable)))))))
 
               (local.set $lag (local.get $lst))
@@ -23369,6 +23515,15 @@
               (if (ref.eq (local.get $tail) (global.get $null))
                   (then (return (local.get $rev))))
               (return (call $append/2 (local.get $rev) (local.get $tail))))
+
+        (func $drop-right (type $Prim2)
+              (param $lst (ref eq))
+              (param $pos (ref eq))
+              (result (ref eq))
+              (call $drop-right/who
+                    (global.get $symbol:drop-right)
+                    (local.get $lst)
+                    (local.get $pos)))
 
         (func $dropf (type $Prim2)
               (param $lst  (ref eq))  ; list
@@ -23502,8 +23657,16 @@
               (local.set $prefix (global.get $null))
               (local.set $suffix (global.get $null))
 
-              (local.set $prefix (call $take (local.get $lst) (local.get $pos)))
-              (local.set $suffix (call $drop (local.get $lst) (local.get $pos)))
+              (local.set $prefix
+                         (call $take/who
+                               (global.get $symbol:split-at)
+                               (local.get $lst)
+                               (local.get $pos)))
+              (local.set $suffix
+                         (call $drop/who
+                               (global.get $symbol:split-at)
+                               (local.get $lst)
+                               (local.get $pos)))
 
               (array.new_fixed $Values 2
                                (local.get $prefix)
@@ -23526,14 +23689,20 @@
               (local.set $current (global.get $null))
               (local.set $pair    (global.get $dummy-pair))
 
-              (local.set $suffix (call $take-right (local.get $lst) (local.get $pos)))
+              (local.set $suffix
+                         (call $take-right/who
+                               (global.get $symbol:split-at-right)
+                               (local.get $lst)
+                               (local.get $pos)))
               (local.set $current (local.get $lst))
               (block $done
                      (loop $build
                            (if (ref.eq (local.get $current) (local.get $suffix))
                                (then (br $done)))
                            (if (i32.eqz (ref.test (ref $Pair) (local.get $current)))
-                               (then (call $raise-pair-expected (local.get $current))
+                               (then (call $raise-pair-expected/who
+                                           (global.get $symbol:split-at-right)
+                                           (local.get $current))
                                      (unreachable)))
                            (local.set $pair (ref.cast (ref $Pair) (local.get $current)))
                            (local.set $acc
@@ -25220,10 +25389,11 @@
                            (br $loop)))
               (call $reverse (local.get $lst)))
 
-        ;; list-update/checked: takes a Pair, an index, and an updater procedure.
+        ;; list-update/checked/who: takes a Pair, an index, and an updater procedure.
         ;; Returns a list like the input except that the element at index
         ;; is replaced by the result of applying the updater.
-        (func $list-update/checked
+        (func $list-update/checked/who
+              (param $who  (ref eq))
               (param $xs   (ref $Pair))
               (param $i    i32)
               (param $f    (ref $Procedure))
@@ -25276,12 +25446,28 @@
                                     (i32.add
                                      (i32.sub (local.get $i) (local.get $k))
                                      (i32.const 1)))
-                         (call $raise-bad-list-ref-index
+                         (call $raise-bad-list-ref-index/who
+                               (local.get $who)
                                (local.get $orig)
                                (local.get $i)
                                (local.get $len))
                          (unreachable))))
               (unreachable))
+
+        (func $list-update/checked
+              (param $xs   (ref $Pair))
+              (param $i    i32)
+              (param $f    (ref $Procedure))
+              (param $finv (ref $ProcedureInvoker))
+              (param $args (ref $Args))
+              (result (ref eq))
+              (call $list-update/checked/who
+                    (global.get $symbol:list-update)
+                    (local.get $xs)
+                    (local.get $i)
+                    (local.get $f)
+                    (local.get $finv)
+                    (local.get $args)))
 
         (func $list-update (type $Prim3)
               (param $xs   (ref eq))
@@ -25326,14 +25512,17 @@
               (if (result (ref eq))
                   (ref.test (ref $Pair) (local.get $xs))
                   (then
-                   (call $list-update/checked
+                   (call $list-update/checked/who
+                         (global.get $symbol:list-update)
                          (ref.cast (ref $Pair) (local.get $xs))
                          (local.get $idx)
                          (local.get $f)
                          (local.get $finv)
                          (local.get $args)))
                   (else
-                   (call $raise-pair-expected (local.get $xs))
+                   (call $raise-pair-expected/who
+                         (global.get $symbol:list-update)
+                         (local.get $xs))
                    (unreachable))))
 
          ,@(let ()
@@ -27655,15 +27844,44 @@
               (param $xs  (ref eq))
               (param $n   i32)
               (param $len i32)
-              (unreachable))
+              (call $raise-take:bad-length/who
+                    (global.get $symbol:take)
+                    (local.get $xs)
+                    (local.get $n)
+                    (local.get $len)))
+
+        (func $raise-take:bad-length/who
+              (param $who (ref eq))
+              (param $xs  (ref eq))
+              (param $n   i32)
+              (param $len i32)
+              (call $raise-argument-error1
+                    (local.get $who)
+                    (global.get $string:list?)
+                    (local.get $xs)))
 
         (func $raise-take-right:bad-length
               (param $xs  (ref eq))
               (param $n   i32)
               (param $len i32)
-              (unreachable))
+              (call $raise-take-right:bad-length/who
+                    (global.get $symbol:take-right)
+                    (local.get $xs)
+                    (local.get $n)
+                    (local.get $len)))
 
-        (func $take (type $Prim2)
+        (func $raise-take-right:bad-length/who
+              (param $who (ref eq))
+              (param $xs  (ref eq))
+              (param $n   i32)
+              (param $len i32)
+              (call $raise-argument-error1
+                    (local.get $who)
+                    (global.get $string:list?)
+                    (local.get $xs)))
+
+        (func $take/who
+              (param $who   (ref eq))
               (param $xs    (ref eq))
               (param $n/fx  (ref eq))
               (result       (ref eq))
@@ -27677,11 +27895,22 @@
               (local $acc        (ref eq))
 
               (if (ref.test (ref i31) (local.get $n/fx))
-                  (then (local.set $count (i31.get_u (ref.cast (ref i31) (local.get $n/fx))))
+                  (then (local.set $count (i31.get_s (ref.cast (ref i31) (local.get $n/fx))))
                         (if (i32.ne (i32.and (local.get $count) (i32.const 1)) (i32.const 0))
-                            (then (call $raise-check-fixnum (local.get $n/fx))))
-                        (local.set $count (i32.shr_u (local.get $count) (i32.const 1))))
-                  (else (call $raise-check-fixnum (local.get $n/fx))))
+                            (then (call $raise-exact-nonnegative-integer-expected/who
+                                        (local.get $who)
+                                        (local.get $n/fx))
+                                  (unreachable)))
+                        (local.set $count (i32.shr_s (local.get $count) (i32.const 1))))
+                  (else (call $raise-exact-nonnegative-integer-expected/who
+                              (local.get $who)
+                              (local.get $n/fx))
+                        (unreachable)))
+              (if (i32.lt_s (local.get $count) (i32.const 0))
+                  (then (call $raise-exact-nonnegative-integer-expected/who
+                              (local.get $who)
+                              (local.get $n/fx))
+                        (unreachable)))
 
               (local.set $orig-count (local.get $count))
 
@@ -27697,7 +27926,8 @@
                     (if (i32.eqz (local.get $count))
                         (then (return (call $reverse (local.get $acc)))))
                     (if (i32.eqz (ref.test (ref $Pair) (local.get $cur)))
-                        (then (call $raise-take:bad-length
+                        (then (call $raise-take:bad-length/who
+                                    (local.get $who)
                                     (local.get $xs)
                                     (local.get $orig-count)
                                     (local.get $taken))
@@ -27711,7 +27941,17 @@
                     (br $loop))
               (unreachable))
 
-        (func $take-right (type $Prim2)
+        (func $take (type $Prim2)
+              (param $xs   (ref eq))
+              (param $n/fx (ref eq))
+              (result      (ref eq))
+              (call $take/who
+                    (global.get $symbol:take)
+                    (local.get $xs)
+                    (local.get $n/fx)))
+
+        (func $take-right/who
+              (param $who   (ref eq))
               (param $xs    (ref eq))
               (param $n/fx  (ref eq))
               (result       (ref eq))
@@ -27726,11 +27966,22 @@
               (local $lag-pair   (ref $Pair))
 
               (if (ref.test (ref i31) (local.get $n/fx))
-                  (then (local.set $count (i31.get_u (ref.cast (ref i31) (local.get $n/fx))))
+                  (then (local.set $count (i31.get_s (ref.cast (ref i31) (local.get $n/fx))))
                         (if (i32.ne (i32.and (local.get $count) (i32.const 1)) (i32.const 0))
-                            (then (call $raise-check-fixnum (local.get $n/fx))))
-                        (local.set $count (i32.shr_u (local.get $count) (i32.const 1))))
-                  (else (call $raise-check-fixnum (local.get $n/fx))))
+                            (then (call $raise-exact-nonnegative-integer-expected/who
+                                        (local.get $who)
+                                        (local.get $n/fx))
+                                  (unreachable)))
+                        (local.set $count (i32.shr_s (local.get $count) (i32.const 1))))
+                  (else (call $raise-exact-nonnegative-integer-expected/who
+                              (local.get $who)
+                              (local.get $n/fx))
+                        (unreachable)))
+              (if (i32.lt_s (local.get $count) (i32.const 0))
+                  (then (call $raise-exact-nonnegative-integer-expected/who
+                              (local.get $who)
+                              (local.get $n/fx))
+                        (unreachable)))
 
               (local.set $orig-count (local.get $count))
 
@@ -27748,7 +27999,8 @@
                            (if (i32.eqz (local.get $remaining))
                                (then (br $advance-done)))
                            (if (i32.eqz (ref.test (ref $Pair) (local.get $lead)))
-                               (then (call $raise-take-right:bad-length
+                               (then (call $raise-take-right:bad-length/who
+                                           (local.get $who)
                                            (local.get $xs)
                                            (local.get $orig-count)
                                            (local.get $available))
@@ -27770,6 +28022,15 @@
                     (local.set $lag  (struct.get $Pair $d (local.get $lag-pair)))
                     (br $slide))
               (unreachable))
+
+        (func $take-right (type $Prim2)
+              (param $xs   (ref eq))
+              (param $n/fx (ref eq))
+              (result      (ref eq))
+              (call $take-right/who
+                    (global.get $symbol:take-right)
+                    (local.get $xs)
+                    (local.get $n/fx)))
 
         (func $takef (type $Prim2)
               (param $xs   (ref eq))

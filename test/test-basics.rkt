@@ -2240,6 +2240,55 @@
               (list "list-set"
                     (and (equal? (list-set '(a b c d) 2 'x) '(a b x d))
                          (equal? (procedure-arity list-set) 3)))
+
+              (list "list and pair argument errors are catchable with who"
+                    (let ([catch-contract/who?
+                           (lambda (who thunk)
+                             (let ([message
+                                    (with-handlers ([exn:fail:contract?
+                                                     (lambda (exn)
+                                                       (exn-message exn))])
+                                      (thunk)
+                                      #f)])
+                               (and (string? message)
+                                    (string-contains? message who))))])
+                      (and (catch-contract/who? "car"
+                                                (lambda () (car 42)))
+                           (catch-contract/who? "cdr"
+                                                (lambda () (cdr 42)))
+                           (catch-contract/who? "length"
+                                                (lambda () (length '(a . b))))
+                           (catch-contract/who? "list-ref"
+                                                (lambda () (list-ref 42 0)))
+                           (catch-contract/who? "list-ref"
+                                                (lambda () (list-ref '(a) -1)))
+                           (catch-contract/who? "list-ref"
+                                                (lambda () (list-ref '(a) 1)))
+                           (catch-contract/who? "list-tail"
+                                                (lambda () (list-tail 42 1)))
+                           (catch-contract/who? "list-tail"
+                                                (lambda () (list-tail '(a . b) 2)))
+                           (catch-contract/who? "list-set"
+                                                (lambda () (list-set '(a . b) 0 'x)))
+                           (catch-contract/who? "list-update"
+                                                (lambda () (list-update 42 0 values)))
+                           (catch-contract/who? "list-update"
+                                                (lambda () (list-update '(a) 1 values)))
+                           (catch-contract/who? "rest"
+                                                (lambda () (rest '())))
+                           (catch-contract/who? "take"
+                                                (lambda () (take '(a) 2)))
+                           (catch-contract/who? "take-right"
+                                                (lambda () (take-right '(a) 2)))
+                           (catch-contract/who? "drop"
+                                                (lambda () (drop '(a) 2)))
+                           (catch-contract/who? "drop-right"
+                                                (lambda () (drop-right '(a) 2)))
+                           (catch-contract/who? "split-at"
+                                                (lambda () (split-at '(a) 2)))
+                           (catch-contract/who? "split-at-right"
+                                                (lambda () (split-at-right '(a) 2))))))
+
               (list "first"
                     (and (equal? (first '(1 2 3 4 5 6 7 8 9 10 11 12 13 14 15)) 1)
                          (equal? (procedure-arity first) 1)))
