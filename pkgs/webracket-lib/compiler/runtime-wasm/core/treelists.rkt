@@ -4541,4 +4541,702 @@
              (call $treelist-append2/checked
                    (local.get $left)
                    (local.get $right)))))
+
+
+   ;; treelist : any/c ... -> treelist?
+   ;;   Build a treelist from positional or list-backed rest arguments.
+   (core-runtime-helper
+    '$treelist
+    "$treelist"
+    (lambda ()
+      `(func $treelist (type $Prim>=0)
+             (param $args (ref eq))
+             (result      (ref eq))
+
+             (local $as        (ref $Args))
+             (local $len       i32)
+             (local $arr       (ref $Array))
+             (local $use-args? i32)
+             (local $list      (ref eq))
+             (local $node      (ref eq))
+             (local $pair      (ref $Pair))
+             (local $i         i32)
+             (local $x         (ref eq))
+
+             (local.set $as   (array.new $Args (global.get $null) (i32.const 0)))
+             (local.set $x    (global.get $false))
+             (local.set $list (global.get $null))
+             (local.set $node (global.get $null))
+
+             (local.set $use-args? (ref.test (ref $Args) (local.get $args)))
+             (if (local.get $use-args?)
+                 (then
+                  (local.set $as (ref.cast (ref $Args) (local.get $args)))
+                  (local.set $len (array.len (local.get $as))))
+                 (else
+                  (local.set $list (local.get $args))
+                  (local.set $node (local.get $list))
+                  (local.set $len (call $length/i32 (local.get $list)))))
+
+             (if (i32.eqz (local.get $len))
+                 (then (return (global.get $empty-treelist))))
+
+             (local.set $arr (call $make-array (local.get $len) (global.get $false)))
+             (local.set $i   (i32.const 0))
+
+             (if (local.get $use-args?)
+                 (then
+                  (block $done-args
+                         (loop $loop-args
+                               (br_if $done-args
+                                      (i32.ge_u (local.get $i) (local.get $len)))
+                               (local.set $x (array.get $Args (local.get $as) (local.get $i)))
+                               (array.set $Array (local.get $arr) (local.get $i) (local.get $x))
+                               (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                               (br $loop-args))))
+                 (else
+                  (local.set $node (local.get $list))
+                  (block $done-list
+                         (loop $loop-list
+                               (br_if $done-list
+                                      (i32.ge_u (local.get $i) (local.get $len)))
+                               (if (ref.test (ref $Pair) (local.get $node))
+                                   (then
+                                    (local.set $pair (ref.cast (ref $Pair) (local.get $node)))
+                                    (local.set $x (struct.get $Pair $a (local.get $pair)))
+                                    (local.set $node (struct.get $Pair $d (local.get $pair))))
+                                   (else
+                                    (call $raise-pair-expected (local.get $node))
+                                    (unreachable)))
+                               (array.set $Array (local.get $arr) (local.get $i) (local.get $x))
+                               (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                               (br $loop-list)))))
+
+             (call $array->treelist/checked (local.get $arr)))))
+
+
+   ;; treelist-empty? : any/c -> boolean?
+   ;;   Return whether a checked treelist is empty.
+   (core-runtime-helper
+    '$treelist-empty?
+    "$treelist-empty?"
+    (lambda ()
+      `(func $treelist-empty? (type $Prim1)
+             (param $v (ref eq))
+             (result   (ref eq))
+             (local $tl (ref $Treelist))
+             (if (result (ref eq))
+                 (ref.test (ref $Treelist) (local.get $v))
+                 (then
+                  (local.set $tl (ref.cast (ref $Treelist) (local.get $v)))
+                  (if (result (ref eq))
+                      (i32.eqz (struct.get $Treelist $size (local.get $tl)))
+                      (then (global.get $true))
+                      (else (global.get $false))))
+                 (else
+                  (call $raise-check-treelist/who
+                        (global.get $symbol:treelist-empty?)
+                        (local.get $v))
+                  (unreachable))))))
+
+
+   ;; treelist-length : treelist? -> exact-nonnegative-integer?
+   ;;   Return the number of elements in a treelist.
+   (core-runtime-helper
+    '$treelist-length
+    "$treelist-length"
+    (lambda ()
+      `(func $treelist-length (type $Prim1)
+             (param $v (ref eq))
+             (result (ref eq))
+             (local $tl (ref $Treelist))
+             (if (result (ref eq))
+                 (ref.test (ref $Treelist) (local.get $v))
+                 (then
+                  (local.set $tl (ref.cast (ref $Treelist) (local.get $v)))
+                  (ref.i31
+                   (i32.shl
+                    (struct.get $Treelist $size (local.get $tl))
+                    (i32.const 1))))
+                 (else
+                  (call $raise-check-treelist/who
+                        (global.get $symbol:treelist-length)
+                        (local.get $v))
+                  (unreachable))))))
+
+
+   ;; treelist-ref : treelist? exact-nonnegative-integer? -> any/c
+   ;;   Return the indexed treelist value.
+   (core-runtime-helper
+    '$treelist-ref
+    "$treelist-ref"
+    (lambda ()
+      `(func $treelist-ref (type $Prim2)
+             (param $v (ref eq))
+             (param $i (ref eq))
+             (result (ref eq))
+             (local $tl (ref $Treelist))
+             (local $idx i32)
+             (local.set $tl (global.get $empty-treelist))
+             (if (ref.test (ref $Treelist) (local.get $v))
+                 (then (local.set $tl (ref.cast (ref $Treelist) (local.get $v))))
+                 (else (call $raise-check-treelist/who
+                             (global.get $symbol:treelist-ref)
+                             (local.get $v))))
+             (if (ref.test (ref i31) (local.get $i))
+                 (then
+                  (local.set $idx (i31.get_u (ref.cast (ref i31) (local.get $i))))
+                  (if (i32.eqz (i32.and (local.get $idx) (i32.const 1)))
+                      (then (local.set $idx (i32.shr_u (local.get $idx) (i32.const 1))))
+                      (else (call $raise-check-fixnum (local.get $i)))))
+                 (else (call $raise-check-fixnum (local.get $i))))
+             (call $treelist-ref/checked (local.get $tl) (local.get $idx)))))
+
+
+   ;; treelist-first : treelist? -> any/c
+   ;;   Return the first element of a non-empty treelist.
+   (core-runtime-helper
+    '$treelist-first
+    "$treelist-first"
+    (lambda ()
+      `(func $treelist-first (type $Prim1)
+             (param $v (ref eq))
+             (result (ref eq))
+             (local $tl (ref $Treelist))
+             (local.set $tl (global.get $empty-treelist))
+             (if (ref.test (ref $Treelist) (local.get $v))
+                 (then (local.set $tl (ref.cast (ref $Treelist) (local.get $v))))
+                 (else (call $raise-check-treelist/who
+                             (global.get $symbol:treelist-first)
+                             (local.get $v))))
+             (if (i32.eqz (struct.get $Treelist $size (local.get $tl)))
+                 (then (call $raise-treelist-empty (global.get $symbol:treelist-first))
+                       (unreachable)))
+             (call $treelist-ref-node/checked
+                   (struct.get $Treelist $root (local.get $tl))
+                   (i32.const 0)
+                   (struct.get $Treelist $height (local.get $tl))))))
+
+
+   ;; treelist-last : treelist? -> any/c
+   ;;   Return the last element of a non-empty treelist.
+   (core-runtime-helper
+    '$treelist-last
+    "$treelist-last"
+    (lambda ()
+      `(func $treelist-last (type $Prim1)
+             (param $v (ref eq))
+             (result (ref eq))
+             (local $tl (ref $Treelist))
+             (local $last-index i32)
+             (local.set $tl (global.get $empty-treelist))
+             (if (ref.test (ref $Treelist) (local.get $v))
+                 (then (local.set $tl (ref.cast (ref $Treelist) (local.get $v))))
+                 (else (call $raise-check-treelist/who
+                             (global.get $symbol:treelist-last)
+                             (local.get $v))))
+             (if (i32.eqz (struct.get $Treelist $size (local.get $tl)))
+                 (then (call $raise-treelist-empty (global.get $symbol:treelist-last))
+                       (unreachable)))
+             (local.set $last-index
+                        (i32.sub (struct.get $Treelist $size (local.get $tl))
+                                 (i32.const 1)))
+             (call $treelist-ref-node/checked
+                   (struct.get $Treelist $root (local.get $tl))
+                   (local.get $last-index)
+                   (struct.get $Treelist $height (local.get $tl))))))
+
+
+   ;; treelist-add : treelist? any/c -> treelist?
+   ;;   Append one value to a treelist.
+   (core-runtime-helper
+    '$treelist-add
+    "$treelist-add"
+    (lambda ()
+      `(func $treelist-add (type $Prim2)
+             (param $v0 (ref eq))
+             (param $v1 (ref eq))
+             (result (ref eq))
+             (local $tl (ref $Treelist))
+             (local.set $tl (global.get $empty-treelist))
+             (if (ref.test (ref $Treelist) (local.get $v0))
+                 (then (local.set $tl (ref.cast (ref $Treelist) (local.get $v0))))
+                 (else (call $raise-check-treelist/who
+                             (global.get $symbol:treelist-add)
+                             (local.get $v0))))
+             (call $treelist-add/checked (local.get $tl) (local.get $v1)))))
+
+
+   ;; treelist-set : treelist? exact-nonnegative-integer? any/c -> treelist?
+   ;;   Return a treelist with the indexed value replaced.
+   (core-runtime-helper
+    '$treelist-set
+    "$treelist-set"
+    (lambda ()
+      `(func $treelist-set (type $Prim3)
+             (param $v0 (ref eq))
+             (param $v1 (ref eq))
+             (param $v2 (ref eq))
+             (result (ref eq))
+             (local $tl (ref $Treelist))
+             (local $idx i32)
+             (local.set $tl (global.get $empty-treelist))
+             (if (ref.test (ref $Treelist) (local.get $v0))
+                 (then (local.set $tl (ref.cast (ref $Treelist) (local.get $v0))))
+                 (else (call $raise-check-treelist/who
+                             (global.get $symbol:treelist-set)
+                             (local.get $v0))))
+             (if (ref.test (ref i31) (local.get $v1))
+                 (then
+                  (local.set $idx (i31.get_u (ref.cast (ref i31) (local.get $v1))))
+                  (if (i32.eqz (i32.and (local.get $idx) (i32.const 1)))
+                      (then (local.set $idx (i32.shr_u (local.get $idx) (i32.const 1))))
+                      (else (call $raise-check-fixnum (local.get $v1)))))
+                 (else (call $raise-check-fixnum (local.get $v1))))
+             (call $treelist-set/checked
+                   (local.get $tl)
+                   (local.get $idx)
+                   (local.get $v2)))))
+
+
+   (core-runtime-helper
+    '$treelist-take
+    "$treelist-take"
+    (lambda ()
+      `(func $treelist-take (type $Prim2)
+             (param $v0 (ref eq))
+             (param $v1 (ref eq))
+             (result (ref eq))
+             (local $tl (ref $Treelist))
+             (local $idx i32)
+             (local $len i32)
+             (local.set $tl (global.get $empty-treelist))
+             (if (ref.test (ref $Treelist) (local.get $v0))
+                 (then (local.set $tl (ref.cast (ref $Treelist) (local.get $v0))))
+                 (else (call $raise-check-treelist/who
+                             (global.get $symbol:treelist-take)
+                             (local.get $v0))))
+             (if (ref.test (ref i31) (local.get $v1))
+                 (then
+                  (local.set $idx (i31.get_u (ref.cast (ref i31) (local.get $v1))))
+                  (if (i32.eqz (i32.and (local.get $idx) (i32.const 1)))
+                      (then (local.set $idx (i32.shr_u (local.get $idx) (i32.const 1))))
+                      (else (call $raise-check-fixnum (local.get $v1)))))
+                 (else (call $raise-check-fixnum (local.get $v1))))
+             (local.set $len (struct.get $Treelist $size (local.get $tl)))
+             (if (i32.gt_u (local.get $idx) (local.get $len))
+                 (then
+                  (call $raise-bad-treelist-split-index
+                        (global.get $symbol:treelist-take)
+                        (local.get $tl) (local.get $idx) (local.get $len))
+                  (unreachable)))
+             (call $treelist-slice/checked
+                   (local.get $tl)
+                   (i32.const 0)
+                   (local.get $idx)))))
+
+
+   (core-runtime-helper
+    '$treelist-drop
+    "$treelist-drop"
+    (lambda ()
+      `(func $treelist-drop (type $Prim2)
+             (param $v0 (ref eq))
+             (param $v1 (ref eq))
+             (result (ref eq))
+             (local $tl (ref $Treelist))
+             (local $idx i32)
+             (local $len i32)
+             (local.set $tl (global.get $empty-treelist))
+             (if (ref.test (ref $Treelist) (local.get $v0))
+                 (then (local.set $tl (ref.cast (ref $Treelist) (local.get $v0))))
+                 (else (call $raise-check-treelist/who
+                             (global.get $symbol:treelist-drop)
+                             (local.get $v0))))
+             (if (ref.test (ref i31) (local.get $v1))
+                 (then
+                  (local.set $idx (i31.get_u (ref.cast (ref i31) (local.get $v1))))
+                  (if (i32.eqz (i32.and (local.get $idx) (i32.const 1)))
+                      (then (local.set $idx (i32.shr_u (local.get $idx) (i32.const 1))))
+                      (else (call $raise-check-fixnum (local.get $v1)))))
+                 (else (call $raise-check-fixnum (local.get $v1))))
+             (local.set $len (struct.get $Treelist $size (local.get $tl)))
+             (if (i32.gt_u (local.get $idx) (local.get $len))
+                 (then
+                  (call $raise-bad-treelist-split-index
+                        (global.get $symbol:treelist-drop)
+                        (local.get $tl) (local.get $idx) (local.get $len))
+                  (unreachable)))
+             (call $treelist-slice/checked
+                   (local.get $tl)
+                   (local.get $idx)
+                   (local.get $len)))))
+
+
+   (core-runtime-helper
+    '$treelist-split-at
+    "$treelist-split-at"
+    (lambda ()
+      `(func $treelist-split-at (type $Prim2)
+             (param $v0 (ref eq))
+             (param $v1 (ref eq))
+             (result (ref eq))
+             (local $tl (ref $Treelist))
+             (local $idx i32)
+             (local.set $tl (global.get $empty-treelist))
+             (if (ref.test (ref $Treelist) (local.get $v0))
+                 (then (local.set $tl (ref.cast (ref $Treelist) (local.get $v0))))
+                 (else (call $raise-check-treelist/who
+                             (global.get $symbol:treelist-split-at)
+                             (local.get $v0))))
+             (if (ref.test (ref i31) (local.get $v1))
+                 (then
+                  (local.set $idx (i31.get_u (ref.cast (ref i31) (local.get $v1))))
+                  (if (i32.eqz (i32.and (local.get $idx) (i32.const 1)))
+                      (then (local.set $idx (i32.shr_u (local.get $idx) (i32.const 1))))
+                      (else (call $raise-check-fixnum (local.get $v1)))))
+                 (else (call $raise-check-fixnum (local.get $v1))))
+             (call $treelist-split-at/checked (local.get $tl) (local.get $idx)))))
+
+
+   (core-runtime-helper
+    '$treelist-take-right
+    "$treelist-take-right"
+    (lambda ()
+      `(func $treelist-take-right (type $Prim2)
+             (param $v0 (ref eq))
+             (param $v1 (ref eq))
+             (result (ref eq))
+             (local $tl (ref $Treelist))
+             (local $n i32)
+             (local $len i32)
+             (local.set $tl (global.get $empty-treelist))
+             (if (ref.test (ref $Treelist) (local.get $v0))
+                 (then (local.set $tl (ref.cast (ref $Treelist) (local.get $v0))))
+                 (else (call $raise-check-treelist/who
+                             (global.get $symbol:treelist-take-right)
+                             (local.get $v0))))
+             (if (ref.test (ref i31) (local.get $v1))
+                 (then
+                  (local.set $n (i31.get_u (ref.cast (ref i31) (local.get $v1))))
+                  (if (i32.eqz (i32.and (local.get $n) (i32.const 1)))
+                      (then (local.set $n (i32.shr_u (local.get $n) (i32.const 1))))
+                      (else (call $raise-check-fixnum (local.get $v1)))))
+                 (else (call $raise-check-fixnum (local.get $v1))))
+             (local.set $len (struct.get $Treelist $size (local.get $tl)))
+             (if (i32.gt_u (local.get $n) (local.get $len))
+                 (then
+                  (call $raise-bad-treelist-split-index
+                        (global.get $symbol:treelist-take-right)
+                        (local.get $tl) (local.get $n) (local.get $len))
+                  (unreachable)))
+             (call $treelist-slice/checked
+                   (local.get $tl)
+                   (i32.sub (local.get $len) (local.get $n))
+                   (local.get $len)))))
+
+
+   (core-runtime-helper
+    '$treelist-drop-right
+    "$treelist-drop-right"
+    (lambda ()
+      `(func $treelist-drop-right (type $Prim2)
+             (param $v0 (ref eq))
+             (param $v1 (ref eq))
+             (result (ref eq))
+             (local $tl (ref $Treelist))
+             (local $n i32)
+             (local $len i32)
+             (local.set $tl (global.get $empty-treelist))
+             (if (ref.test (ref $Treelist) (local.get $v0))
+                 (then (local.set $tl (ref.cast (ref $Treelist) (local.get $v0))))
+                 (else (call $raise-check-treelist/who
+                             (global.get $symbol:treelist-drop-right)
+                             (local.get $v0))))
+             (if (ref.test (ref i31) (local.get $v1))
+                 (then
+                  (local.set $n (i31.get_u (ref.cast (ref i31) (local.get $v1))))
+                  (if (i32.eqz (i32.and (local.get $n) (i32.const 1)))
+                      (then (local.set $n (i32.shr_u (local.get $n) (i32.const 1))))
+                      (else (call $raise-check-fixnum (local.get $v1)))))
+                 (else (call $raise-check-fixnum (local.get $v1))))
+             (local.set $len (struct.get $Treelist $size (local.get $tl)))
+             (if (i32.gt_u (local.get $n) (local.get $len))
+                 (then
+                  (call $raise-bad-treelist-split-index
+                        (global.get $symbol:treelist-drop-right)
+                        (local.get $tl) (local.get $n) (local.get $len))
+                  (unreachable)))
+             (call $treelist-slice/checked
+                   (local.get $tl)
+                   (i32.const 0)
+                   (i32.sub (local.get $len) (local.get $n))))))
+
+
+   (core-runtime-helper
+    '$treelist-sublist
+    "$treelist-sublist"
+    (lambda ()
+      `(func $treelist-sublist (type $Prim3)
+             (param $v0 (ref eq))
+             (param $v1 (ref eq))
+             (param $v2 (ref eq))
+             (result (ref eq))
+             (local $tl (ref $Treelist))
+             (local $start i32)
+             (local $end i32)
+             (local.set $tl (global.get $empty-treelist))
+             (if (ref.test (ref $Treelist) (local.get $v0))
+                 (then (local.set $tl (ref.cast (ref $Treelist) (local.get $v0))))
+                 (else (call $raise-check-treelist/who
+                             (global.get $symbol:treelist-sublist)
+                             (local.get $v0))))
+             (if (ref.test (ref i31) (local.get $v1))
+                 (then
+                  (local.set $start (i31.get_u (ref.cast (ref i31) (local.get $v1))))
+                  (if (i32.eqz (i32.and (local.get $start) (i32.const 1)))
+                      (then (local.set $start (i32.shr_u (local.get $start) (i32.const 1))))
+                      (else (call $raise-check-fixnum (local.get $v1)))))
+                 (else (call $raise-check-fixnum (local.get $v1))))
+             (if (ref.test (ref i31) (local.get $v2))
+                 (then
+                  (local.set $end (i31.get_u (ref.cast (ref i31) (local.get $v2))))
+                  (if (i32.eqz (i32.and (local.get $end) (i32.const 1)))
+                      (then (local.set $end (i32.shr_u (local.get $end) (i32.const 1))))
+                      (else (call $raise-check-fixnum (local.get $v2)))))
+                 (else (call $raise-check-fixnum (local.get $v2))))
+             (call $treelist-sublist/checked
+                   (local.get $tl)
+                   (local.get $start)
+                   (local.get $end)))))
+
+
+   (core-runtime-helper
+    '$treelist-reverse
+    "$treelist-reverse"
+    (lambda ()
+      `(func $treelist-reverse (type $Prim1)
+             (param $v0 (ref eq))
+             (result (ref eq))
+             (if (i32.eqz (ref.test (ref $Treelist) (local.get $v0)))
+                 (then (call $raise-check-treelist/who
+                             (global.get $symbol:treelist-reverse)
+                             (local.get $v0))
+                       (unreachable)))
+             (call $treelist-reverse/checked
+                   (ref.cast (ref $Treelist) (local.get $v0))))))
+
+
+   (core-runtime-helper
+    '$treelist-rest
+    "$treelist-rest"
+    (lambda ()
+      `(func $treelist-rest (type $Prim1)
+             (param $v0 (ref eq))
+             (result (ref eq))
+             (local $tl (ref $Treelist))
+             (local $len i32)
+             (local.set $tl (global.get $empty-treelist))
+             (if (ref.test (ref $Treelist) (local.get $v0))
+                 (then (local.set $tl (ref.cast (ref $Treelist) (local.get $v0))))
+                 (else (call $raise-check-treelist/who
+                             (global.get $symbol:treelist-rest)
+                             (local.get $v0))))
+             (local.set $len (struct.get $Treelist $size (local.get $tl)))
+             (if (i32.eqz (local.get $len))
+                 (then (call $raise-treelist-empty (global.get $symbol:treelist-rest))
+                       (unreachable)))
+             (call $treelist-slice/checked
+                   (local.get $tl)
+                   (i32.const 1)
+                   (local.get $len)))))
+
+
+   ;; treelist-append* : treelist? -> treelist?
+   ;;   Append the treelists contained in an outer treelist.
+   (core-runtime-helper
+    '$treelist-append*
+    "$treelist-append*"
+    (lambda ()
+      `(func $treelist-append* (type $Prim1)
+             (param $v0 (ref eq))
+             (result (ref eq))
+             (local $outer (ref $Treelist))
+             (local $n i32)
+             (local $tls (ref $Array))
+             (if (i32.eqz (ref.test (ref $Treelist) (local.get $v0)))
+                 (then (call $raise-check-treelist/who
+                             (global.get $symbol:treelist-append*)
+                             (local.get $v0))
+                       (unreachable)))
+             (local.set $outer (ref.cast (ref $Treelist) (local.get $v0)))
+             (local.set $n (struct.get $Treelist $size (local.get $outer)))
+             (if (i32.eqz (local.get $n))
+                 (then (return (global.get $empty-treelist))))
+             (local.set $tls (call $make-array (local.get $n) (global.get $false)))
+             (drop
+              (call $treelist-node-append*-collect-into!
+                    (struct.get $Treelist $root (local.get $outer))
+                    (struct.get $Treelist $height (local.get $outer))
+                    (local.get $tls)
+                    (i32.const 0)))
+             (call $treelist-append/checked (local.get $tls)))))
+
+
+   ;; treelist-append : treelist? ... -> treelist?
+   ;;   Append a sequence of treelists.
+   (core-runtime-helper
+    '$treelist-append
+    "$treelist-append"
+    (lambda ()
+      `(func $treelist-append (type $Prim>=0)
+             (param $args (ref eq))
+             (result (ref eq))
+             (local $as        (ref $Args))
+             (local $use-args? i32)
+             (local $list      (ref eq))
+             (local $node      (ref eq))
+             (local $pair      (ref $Pair))
+             (local $len       i32)
+             (local $i         i32)
+             (local $x         (ref eq))
+             (local $tls       (ref $Array))
+             (local.set $as   (array.new $Args (global.get $null) (i32.const 0)))
+             (local.set $list (global.get $null))
+             (local.set $node (global.get $null))
+             (local.set $x    (global.get $false))
+             (local.set $tls  (global.get $dummy-array))
+             (local.set $use-args? (ref.test (ref $Args) (local.get $args)))
+             (if (local.get $use-args?)
+                 (then
+                  (local.set $as (ref.cast (ref $Args) (local.get $args)))
+                  (local.set $len (array.len (local.get $as))))
+                 (else
+                  (local.set $list (local.get $args))
+                  (local.set $node (local.get $list))
+                  (local.set $len (call $length/i32 (local.get $list)))))
+             (if (i32.eqz (local.get $len))
+                 (then (return (global.get $empty-treelist))))
+             (local.set $tls (call $make-array (local.get $len) (global.get $false)))
+             (local.set $i (i32.const 0))
+             (if (local.get $use-args?)
+                 (then
+                  (block $done-args
+                         (loop $loop-args
+                               (br_if $done-args
+                                      (i32.ge_u (local.get $i) (local.get $len)))
+                               (local.set $x (array.get $Args (local.get $as) (local.get $i)))
+                               (if (i32.eqz (ref.test (ref $Treelist) (local.get $x)))
+                                   (then (call $raise-check-treelist/who
+                                               (global.get $symbol:treelist-append)
+                                               (local.get $x))
+                                         (unreachable)))
+                               (array.set $Array (local.get $tls) (local.get $i) (local.get $x))
+                               (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                               (br $loop-args))))
+                 (else
+                  (local.set $node (local.get $list))
+                  (block $done-list
+                         (loop $loop-list
+                               (br_if $done-list
+                                      (i32.ge_u (local.get $i) (local.get $len)))
+                               (if (ref.test (ref $Pair) (local.get $node))
+                                   (then
+                                    (local.set $pair (ref.cast (ref $Pair) (local.get $node)))
+                                    (local.set $x (struct.get $Pair $a (local.get $pair)))
+                                    (local.set $node (struct.get $Pair $d (local.get $pair))))
+                                   (else
+                                    (call $raise-pair-expected (local.get $node))
+                                    (unreachable)))
+                               (if (i32.eqz (ref.test (ref $Treelist) (local.get $x)))
+                                   (then (call $raise-check-treelist/who
+                                               (global.get $symbol:treelist-append)
+                                               (local.get $x))
+                                         (unreachable)))
+                               (array.set $Array (local.get $tls) (local.get $i) (local.get $x))
+                               (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                               (br $loop-list)))))
+             (call $treelist-append/checked (local.get $tls)))))
+
+
+   ;; treelist-cons : treelist? any/c -> treelist?
+   ;;   Prepend one value to a treelist.
+   (core-runtime-helper
+    '$treelist-cons
+    "$treelist-cons"
+    (lambda ()
+      `(func $treelist-cons (type $Prim2)
+             (param $v0 (ref eq))
+             (param $v1 (ref eq))
+             (result (ref eq))
+             (local $tl (ref $Treelist))
+             (local.set $tl (global.get $empty-treelist))
+             (if (ref.test (ref $Treelist) (local.get $v0))
+                 (then (local.set $tl (ref.cast (ref $Treelist) (local.get $v0))))
+                 (else (call $raise-check-treelist/who
+                             (global.get $symbol:treelist-cons)
+                             (local.get $v0))))
+             (call $treelist-cons/checked (local.get $tl) (local.get $v1)))))
+
+
+   ;; treelist-insert : treelist? exact-nonnegative-integer? any/c -> treelist?
+   ;;   Insert one value into a treelist.
+   (core-runtime-helper
+    '$treelist-insert
+    "$treelist-insert"
+    (lambda ()
+      `(func $treelist-insert (type $Prim3)
+             (param $v0 (ref eq))
+             (param $v1 (ref eq))
+             (param $v2 (ref eq))
+             (result (ref eq))
+             (local $tl (ref $Treelist))
+             (local $idx i32)
+             (local.set $tl (global.get $empty-treelist))
+             (if (ref.test (ref $Treelist) (local.get $v0))
+                 (then (local.set $tl (ref.cast (ref $Treelist) (local.get $v0))))
+                 (else (call $raise-check-treelist/who
+                             (global.get $symbol:treelist-insert)
+                             (local.get $v0))))
+             (if (ref.test (ref i31) (local.get $v1))
+                 (then
+                  (local.set $idx (i31.get_u (ref.cast (ref i31) (local.get $v1))))
+                  (if (i32.eqz (i32.and (local.get $idx) (i32.const 1)))
+                      (then (local.set $idx (i32.shr_u (local.get $idx) (i32.const 1))))
+                      (else (call $raise-check-fixnum (local.get $v1)))))
+                 (else (call $raise-check-fixnum (local.get $v1))))
+             (call $treelist-insert/checked
+                   (local.get $tl)
+                   (local.get $idx)
+                   (local.get $v2)))))
+
+
+   ;; treelist-delete : treelist? exact-nonnegative-integer? -> treelist?
+   ;;   Delete one indexed value from a treelist.
+   (core-runtime-helper
+    '$treelist-delete
+    "$treelist-delete"
+    (lambda ()
+      `(func $treelist-delete (type $Prim2)
+             (param $v0 (ref eq))
+             (param $v1 (ref eq))
+             (result (ref eq))
+             (local $tl (ref $Treelist))
+             (local $idx i32)
+             (local.set $tl (global.get $empty-treelist))
+             (if (ref.test (ref $Treelist) (local.get $v0))
+                 (then (local.set $tl (ref.cast (ref $Treelist) (local.get $v0))))
+                 (else (call $raise-check-treelist/who
+                             (global.get $symbol:treelist-delete)
+                             (local.get $v0))))
+             (if (ref.test (ref i31) (local.get $v1))
+                 (then
+                  (local.set $idx (i31.get_u (ref.cast (ref i31) (local.get $v1))))
+                  (if (i32.eqz (i32.and (local.get $idx) (i32.const 1)))
+                      (then (local.set $idx (i32.shr_u (local.get $idx) (i32.const 1))))
+                      (else (call $raise-check-fixnum (local.get $v1)))))
+                 (else (call $raise-check-fixnum (local.get $v1))))
+             (call $treelist-delete/checked
+                   (local.get $tl)
+                   (local.get $idx)))))
 ))
