@@ -535,9 +535,377 @@
                         (else
                          (local.get $fail)))))))))))
 
+;; mutable-hash-write-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate mutable hash mutation and insertion helpers.
+(define mutable-hash-write-runtime-only-helpers
+  (append
+   (list
+    (core-runtime-helper
+     '$hash-set!
+     "$hash-set!"
+     (lambda ()
+       `(func $hash-set! (type $Prim3)
+              (param $ht  (ref eq))   ;; hash table
+              (param $key (ref eq))   ;; key
+              (param $val (ref eq))   ;; value
+              (result     (ref eq))   ;; return void (an immediate)
+              (call $debug-allocation-tick (i32.const 3))
+
+              ;; Check type: must be (ref $Hash)
+              (if (i32.eqz (ref.test (ref $Hash) (local.get $ht)))
+                  (then (call $raise-argument-error:hash-expected)
+                        (unreachable)))
+              ;; Dispatch on table type
+              (if (ref.test (ref $HashEqMutable) (local.get $ht))
+                  (then (return (call $hasheq-set!
+                                      (local.get $ht)
+                                      (local.get $key)
+                                      (local.get $val)))))
+              (if (ref.test (ref $HashEqvMutable) (local.get $ht))
+                  (then (return (call $hasheqv-set!
+                                      (local.get $ht)
+                                      (local.get $key)
+                                      (local.get $val)))))
+              (if (ref.test (ref $HashEqualMutable) (local.get $ht))
+                  (then (return (call $hashequal-set!
+                                      (local.get $ht)
+                                      (local.get $key)
+                                      (local.get $val)))))
+              (if (ref.test (ref $HashEqualAlwaysMutable) (local.get $ht))
+                  (then (return (call $hashalw-set!
+                                      (local.get $ht)
+                                      (local.get $key)
+                                      (local.get $val)))))
+              (unreachable))))
+
+    (core-runtime-helper
+     '$hash-copy
+     "$hash-copy"
+     (lambda ()
+       `;; hash-copy : hash? -> (and/c hash? (not/c immutable?))
+        ;;   Return a mutable hash with the same mappings and comparison mode.
+        ;;   WebRacket currently models weak/ephemeron tables as strong tables,
+        ;;   so key-holding strength is preserved only up to that existing
+        ;;   approximation.
+        (func $hash-copy (type $Prim1)
+              (param $ht (ref eq)) ;; source hash table
+              (result    (ref eq))
+
+              (local $dst (ref eq))
+              (local $pos (ref eq))
+              (local $key (ref eq))
+              (local $val (ref eq))
+
+              (local.set $dst (call $make-empty-hash))
+              (if (i32.eqz (ref.test (ref $Hash) (local.get $ht)))
+                  (then (call $raise-argument-error:hash-expected)
+                        (unreachable)))
+
+              (if (i32.or
+                   (ref.test (ref $HashEqMutable) (local.get $ht))
+                   (ref.test (ref $HashEqImmutable) (local.get $ht)))
+                  (then (local.set $dst (call $make-empty-hasheq)))
+                  (else
+                   (if (i32.or
+                        (ref.test (ref $HashEqvMutable) (local.get $ht))
+                        (ref.test (ref $HashEqvImmutable) (local.get $ht)))
+                       (then (local.set $dst (call $make-empty-hasheqv)))
+                       (else
+                        (if (i32.or
+                             (ref.test (ref $HashEqualAlwaysMutable) (local.get $ht))
+                             (ref.test (ref $HashEqualAlwaysImmutable) (local.get $ht)))
+                            (then (local.set $dst (call $make-empty-hashalw)))
+                            (else (local.set $dst (call $make-empty-hash))))))))
+
+              (local.set $pos (call $mutable-hash-iterate-first (local.get $ht)))
+              (block $done
+                     (loop $walk
+                           (br_if $done (ref.eq (local.get $pos) (global.get $false)))
+                           (local.set $key
+                                      (call $mutable-hash-iterate-key
+                                            (local.get $ht)
+                                            (local.get $pos)
+                                            (global.get $missing)))
+                           (local.set $val
+                                      (call $mutable-hash-iterate-value
+                                            (local.get $ht)
+                                            (local.get $pos)
+                                            (global.get $missing)))
+                           (drop (call $hash-set!
+                                       (local.get $dst)
+                                       (local.get $key)
+                                       (local.get $val)))
+                           (local.set $pos
+                                      (call $mutable-hash-iterate-next
+                                            (local.get $ht)
+                                            (local.get $pos)))
+                           (br $walk)))
+              (local.get $dst)))))
+
+   (for/list ([hash-set       '($hasheq-set!
+                                $hasheqv-set!
+                                $hashequal-set!
+                                $hashalw-set!)]
+              [set!/checked   '($hasheq-set!/mutable/checked
+                                $hasheqv-set!/mutable/checked
+                                $hash-set!/mutable/checked
+                                $hashalw-set!/mutable/checked)]
+              [type           '($HashEqMutable
+                                $HashEqvMutable
+                                $HashEqualMutable
+                                $HashEqualAlwaysMutable)]
+              [raise-expected '($raise-argument-error:mutable-hasheq-expected
+                                $raise-argument-error:mutable-hasheqv-expected
+                                $raise-argument-error:mutable-hash-expected
+                                $raise-argument-error:mutable-hashalw-expected)])
+     (core-runtime-helper
+      hash-set
+      (symbol->string hash-set)
+      (lambda ()
+        `(func ,hash-set (type $Prim3)
+               (param $ht  (ref eq))   ;; table
+               (param $key (ref eq))   ;; key
+               (param $val (ref eq))   ;; value
+               (result     (ref eq))   ;; return void
+
+               (local $table (ref ,type))
+
+               ;; Check that ht is expected table type
+               (if (i32.eqz (ref.test (ref ,type) (local.get $ht)))
+                   (then (call ,raise-expected (local.get $ht))
+                         (unreachable)))
+               ;; Decode
+               (local.set $table (ref.cast (ref ,type) (local.get $ht)))
+               ;; Delegate
+               (call ,set!/checked
+                     (local.get $table)
+                     (local.get $key)
+                     (local.get $val))
+               ; return void
+               (global.get $void)))))
+
+   (for/list ([raise-expected '($raise-argument-error:mutable-hasheq-expected
+                                $raise-argument-error:mutable-hasheqv-expected
+                                $raise-argument-error:mutable-hash-expected
+                                $raise-argument-error:mutable-hashalw-expected)])
+     (core-runtime-helper
+      raise-expected
+      (symbol->string raise-expected)
+      (lambda ()
+        `(func ,raise-expected (unreachable)))))
+
+   (list
+    (core-runtime-helper
+     '$raise-hash-insert:table-full
+     "$raise-hash-insert:table-full"
+     (lambda ()
+       `(func $raise-hash-insert:table-full (unreachable))))
+
+    (core-runtime-helper
+     '$hash-kind/i32
+     "$hash-kind/i32"
+     (lambda ()
+       `;; hash-kind/i32 : hash? -> i32
+        ;;   Return 0 eq?, 1 eqv?, 2 equal?, or 3 equal-always?.
+        (func $hash-kind/i32
+              (param $ht (ref eq))
+              (result i32)
+
+              (if (i32.or (ref.test (ref $HashEqMutable) (local.get $ht))
+                          (ref.test (ref $HashEqImmutable) (local.get $ht)))
+                  (then (return (i32.const 0))))
+              (if (i32.or (ref.test (ref $HashEqvMutable) (local.get $ht))
+                          (ref.test (ref $HashEqvImmutable) (local.get $ht)))
+                  (then (return (i32.const 1))))
+              (if (i32.or (ref.test (ref $HashEqualMutable) (local.get $ht))
+                          (ref.test (ref $HashEqualImmutable) (local.get $ht)))
+                  (then (return (i32.const 2))))
+              (if (i32.or (ref.test (ref $HashEqualAlwaysMutable) (local.get $ht))
+                          (ref.test (ref $HashEqualAlwaysImmutable) (local.get $ht)))
+                  (then (return (i32.const 3))))
+              (unreachable))))
+
+    (core-runtime-helper
+     '$hash-mutable?/i32
+     "$hash-mutable?/i32"
+     (lambda ()
+       `;; hash-mutable?/i32 : hash? -> i32
+        ;;   Check whether the concrete hash table is mutable.
+        (func $hash-mutable?/i32
+              (param $ht (ref eq))
+              (result i32)
+
+              (i32.or
+               (i32.or (ref.test (ref $HashEqMutable) (local.get $ht))
+                       (ref.test (ref $HashEqvMutable) (local.get $ht)))
+               (i32.or (ref.test (ref $HashEqualMutable) (local.get $ht))
+                       (ref.test (ref $HashEqualAlwaysMutable) (local.get $ht)))))))
+
+    (core-runtime-helper
+     '$hash-key-hash/kind
+     "$hash-key-hash/kind"
+     (lambda ()
+       `;; hash-key-hash/kind : i32 any/c -> i32
+        ;;   Compute the mutable hash-table probe hash for kind:
+        ;;   0 eq?, 1 eqv?, 2 equal?, 3 equal-always?.
+        (func $hash-key-hash/kind
+              (param $kind i32)
+              (param $key  (ref eq))
+              (result i32)
+
+              (if (i32.eq (local.get $kind) (i32.const 0))
+                  (then (return (call $eq-hash/i32 (local.get $key)))))
+              (if (i32.eq (local.get $kind) (i32.const 1))
+                  (then (return (call $eqv-hash/i32 (local.get $key)))))
+              (if (i32.eq (local.get $kind) (i32.const 2))
+                  (then (return (call $equal-hash/i32 (local.get $key)))))
+              (call $equal-always-hash/i32 (local.get $key)))))
+
+    (core-runtime-helper
+     '$hash-key-matches?/kind
+     "$hash-key-matches?/kind"
+     (lambda ()
+       `;; hash-key-matches?/kind : i32 any/c any/c -> i32
+        ;;   Check mutable hash-table key equality for the same kind mapping
+        ;;   used by hash-key-hash/kind.
+        (func $hash-key-matches?/kind
+              (param $kind i32)
+              (param $a    (ref eq))
+              (param $b    (ref eq))
+              (result i32)
+
+              (if (i32.eq (local.get $kind) (i32.const 0))
+                  (then (return (ref.eq (local.get $a) (local.get $b)))))
+              (if (i32.eq (local.get $kind) (i32.const 1))
+                  (then (return (ref.eq (call $eqv?
+                                              (local.get $a)
+                                              (local.get $b))
+                                        (global.get $true)))))
+              (if (i32.eq (local.get $kind) (i32.const 2))
+                  (then (return (ref.eq (call $equal?
+                                              (local.get $a)
+                                              (local.get $b))
+                                        (global.get $true)))))
+              (ref.eq (call $equal-always?
+                            (local.get $a)
+                            (local.get $b))
+                      (global.get $true))))))
+
+   (for/list ([set!/checked '($hasheq-set!/mutable/checked
+                              $hasheqv-set!/mutable/checked
+                              $hash-set!/mutable/checked
+                              $hashalw-set!/mutable/checked)]
+              [make-empty   '($make-empty-hasheq
+                              $make-empty-hasheqv
+                              $make-empty-hash
+                              $make-empty-hashalw)]
+              [type         '($HashEqMutable
+                              $HashEqvMutable
+                              $HashEqualMutable
+                              $HashEqualAlwaysMutable)]
+              [maybe-resize '($maybe-resize-hasheq
+                              $maybe-resize-hasheqv
+                              $maybe-resize-hashequal
+                              $maybe-resize-hashalw)]
+              [kind         '(0 1 2 3)])
+     (core-runtime-helper
+      set!/checked
+      (symbol->string set!/checked)
+      (lambda ()
+        `(func ,set!/checked
+               (param $table (ref ,type))
+               (param $key   (ref eq))
+               (param $val   (ref eq))
+
+               (local $entries         (ref $Array))
+               (local $capacity        i32)
+               (local $hash            i32)
+               (local $index           i32)
+               (local $step            i32)
+               (local $slot            i32)
+               (local $k               (ref eq))
+               (local $first-tombstone i32)
+
+               ;; Maybe resize
+               (call ,maybe-resize (local.get $table))
+               ;; Get entries and capacity
+               (local.set $entries  (struct.get ,type $entries (local.get $table)))
+               (local.set $capacity (i32.div_u (array.len (local.get $entries)) (i32.const 2)))
+               ;; Compute initial hash/index
+               (local.set $hash  (call $hash-key-hash/kind
+                                       (i32.const ,kind)
+                                       (local.get $key)))
+               (local.set $index (i32.rem_u (local.get $hash) (local.get $capacity)))
+               (local.set $step  (i32.const 0))
+               ;; No tombstone seen yet
+               (local.set $first-tombstone (i32.const -1))
+               (block $done
+                      (block $full
+                             (loop $probe
+                                   (br_if $full (i32.ge_u (local.get $step) (local.get $capacity)))
+                                   ;; Compute probe slot = 2 * ((index + step) % capacity)
+                                   (local.set $slot (i32.shl
+                                                     (i32.rem_u (i32.add (local.get $index) (local.get $step))
+                                                                (local.get $capacity))
+                                                     (i32.const 1)))
+                                   ;; Load key at slot
+                                   (local.set $k (array.get $Array (local.get $entries) (local.get $slot)))
+                                   ;; First tombstone — record slot
+                                   (if (ref.eq (local.get $k) (global.get $tombstone))
+                                       (then (if (i32.eq (local.get $first-tombstone) (i32.const -1))
+                                                 (then (local.set $first-tombstone (local.get $slot))))))
+                                   ;; Empty — insert into tombstone if available, else here
+                                   (if (ref.eq (local.get $k) (global.get $missing))
+                                       (then
+                                        (local.set $slot
+                                                   (select
+                                                    (local.get $slot)
+                                                    (local.get $first-tombstone)
+                                                    (i32.eq (local.get $first-tombstone) (i32.const -1))))
+
+                                        (array.set $Array (local.get $entries) (local.get $slot) (local.get $key))
+                                        (array.set $Array
+                                                   (local.get $entries)
+                                                   (i32.add (local.get $slot) (i32.const 1))
+                                                   (local.get $val))
+                                        (struct.set ,type $count
+                                                    (local.get $table)
+                                                    (i32.add (struct.get ,type $count (local.get $table)) (i32.const 1)))
+                                        (br $done)))
+                                   ;; Key match — overwrite value
+                                   (if (call $hash-key-matches?/kind
+                                             (i32.const ,kind)
+                                             (local.get $k)
+                                             (local.get $key))
+                                       (then
+                                        (array.set $Array
+                                                   (local.get $entries)
+                                                   (i32.add (local.get $slot) (i32.const 1))
+                                                   (local.get $val))
+                                        (br $done)))
+                                   ;; Next probe
+                                   (local.set $step (i32.add (local.get $step) (i32.const 1)))
+                                   (br $probe)))
+                      ;; Table full — but insert into tombstone if one was found
+                      (if (i32.ne (local.get $first-tombstone) (i32.const -1))
+                          (then
+                           (local.set $slot  (local.get $first-tombstone))
+                           (array.set $Array (local.get $entries) (local.get $slot) (local.get $key))
+                           (array.set $Array (local.get $entries)
+                                      (i32.add (local.get $slot) (i32.const 1))
+                                      (local.get $val))
+                           (struct.set ,type $count
+                                       (local.get $table)
+                                       (i32.add (struct.get ,type $count (local.get $table))
+                                                (i32.const 1)))
+                           (br $done)))
+
+                      (call $raise-hash-insert:table-full))))))))
+
 ;; mutable-hash-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate mutable hash helpers that still depend on monolithic runtime globals.
 (define mutable-hash-runtime-only-helpers
   (append mutable-hash-constructor-runtime-only-helpers
           mutable-hash-read-runtime-only-helpers
-          mutable-hash-ref-key-runtime-only-helpers))
+          mutable-hash-ref-key-runtime-only-helpers
+          mutable-hash-write-runtime-only-helpers))
