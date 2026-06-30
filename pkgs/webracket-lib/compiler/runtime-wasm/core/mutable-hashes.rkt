@@ -351,8 +351,193 @@
                         (else
                          (local.get $fail)))))))))))
 
+;; mutable-hash-ref-key-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate generic and mutable hash stored-key lookup helpers.
+(define mutable-hash-ref-key-runtime-only-helpers
+  (append
+   (list
+    (core-runtime-helper
+     '$hash-ref-key
+     "$hash-ref-key"
+     (lambda ()
+       `;; hash-ref-key : hash? any/c [any/c or (-> any/c)] -> any/c
+        ;;   Return the actual stored key that matches a lookup key.
+        (func $hash-ref-key (type $Prim23)
+              (param $ht      (ref eq)) ;; hash table
+              (param $key     (ref eq)) ;; lookup key
+              (param $failure (ref eq)) ;; optional failure, default raises
+              (result         (ref eq))
+              (if (i32.eqz (ref.test (ref $Hash) (local.get $ht)))
+                  (then (call $raise-argument-error:hash-expected)
+                        (unreachable)))
+              (if (ref.test (ref $HashEqMutable) (local.get $ht))
+                  (then (return (call $hasheq-ref-key
+                                      (local.get $ht) (local.get $key) (local.get $failure)))))
+              (if (ref.test (ref $HashEqvMutable) (local.get $ht))
+                  (then (return (call $hasheqv-ref-key
+                                      (local.get $ht) (local.get $key) (local.get $failure)))))
+              (if (ref.test (ref $HashEqImmutable) (local.get $ht))
+                  (then (return (call $immutable-hasheq-ref-key
+                                      (local.get $ht) (local.get $key) (local.get $failure)))))
+              (if (ref.test (ref $HashEqvImmutable) (local.get $ht))
+                  (then (return (call $immutable-hasheqv-ref-key
+                                      (local.get $ht) (local.get $key) (local.get $failure)))))
+              (if (ref.test (ref $HashEqualMutable) (local.get $ht))
+                  (then (return (call $hashequal-ref-key
+                                      (local.get $ht) (local.get $key) (local.get $failure)))))
+              (if (ref.test (ref $HashEqualImmutable) (local.get $ht))
+                  (then (return (call $immutable-hash-ref-key
+                                      (local.get $ht) (local.get $key) (local.get $failure)))))
+              (if (ref.test (ref $HashEqualAlwaysImmutable) (local.get $ht))
+                  (then
+                   (return (call $immutable-hashalw-ref-key
+                                 (local.get $ht)
+                                 (local.get $key)
+                                 (local.get $failure)))))
+              (if (ref.test (ref $HashEqualAlwaysMutable) (local.get $ht))
+                  (then (return (call $hashalw-ref-key
+                                      (local.get $ht) (local.get $key) (local.get $failure)))))
+              (unreachable)))))
+
+   (for/list ([hash-ref-key       '($hasheq-ref-key
+                                    $hasheqv-ref-key
+                                    $hashequal-ref-key
+                                    $hashalw-ref-key)]
+              [hash-ref-key/plain '($hasheq-ref-key/plain
+                                    $hasheqv-ref-key/plain
+                                    $hashequal-ref-key/plain
+                                    $hashalw-ref-key/plain)])
+     (core-runtime-helper
+      hash-ref-key
+      (symbol->string hash-ref-key)
+      (lambda ()
+        `(func ,hash-ref-key (type $Prim23)
+               (param $ht      (ref eq))     ;; hash table
+               (param $key     (ref eq))     ;; lookup key
+               (param $failure (ref eq))     ;; value/procedure if not found
+               (result         (ref eq))
+
+               (return_call ,hash-ref-key/plain
+                            (local.get $ht) (local.get $key) (local.get $failure))))))
+
+   (for/list ([hash-ref-key/plain         '($hasheq-ref-key/plain
+                                            $hasheqv-ref-key/plain
+                                            $hashequal-ref-key/plain
+                                            $hashalw-ref-key/plain)]
+              [hash-ref-key/plain/checked '($hasheq-ref-key/plain/checked
+                                            $hasheqv-ref-key/plain/checked
+                                            $hashequal-ref-key/plain/checked
+                                            $hashalw-ref-key/plain/checked)]
+              [type                       '($HashEqMutable
+                                            $HashEqvMutable
+                                            $HashEqualMutable
+                                            $HashEqualAlwaysMutable)]
+              [raise-expected             '($raise-argument-error:hasheq-expected
+                                            $raise-argument-error:hasheqv-expected
+                                            $raise-argument-error:hash-expected
+                                            $raise-argument-error:hashalw-expected)])
+     (core-runtime-helper
+      hash-ref-key/plain
+      (symbol->string hash-ref-key/plain)
+      (lambda ()
+        `(func ,hash-ref-key/plain
+               (param $ht      (ref eq))     ;; hash table
+               (param $key     (ref eq))     ;; lookup key
+               (param $failure (ref eq))     ;; value/procedure if not found
+               (result         (ref eq))
+
+               (local $table (ref ,type))
+
+               (if (i32.eqz (ref.test (ref ,type) (local.get $ht)))
+                   (then (call ,raise-expected (local.get $ht))
+                         (unreachable)))
+
+               (local.set $table (ref.cast (ref ,type) (local.get $ht)))
+               (call ,hash-ref-key/plain/checked
+                     (local.get $table)
+                     (local.get $key)
+                     (local.get $failure))))))
+
+   (for/list ([hash-ref-key/plain/checked '($hasheq-ref-key/plain/checked
+                                            $hasheqv-ref-key/plain/checked
+                                            $hashequal-ref-key/plain/checked
+                                            $hashalw-ref-key/plain/checked)]
+              [type                       '($HashEqMutable
+                                            $HashEqvMutable
+                                            $HashEqualMutable
+                                            $HashEqualAlwaysMutable)]
+              [kind                       '(0 1 2 3)])
+     (core-runtime-helper
+      hash-ref-key/plain/checked
+      (symbol->string hash-ref-key/plain/checked)
+      (lambda ()
+        `(func ,hash-ref-key/plain/checked
+               (param $table (ref ,type))
+               (param $key   (ref eq))
+               (param $fail  (ref eq))
+               (result       (ref eq))
+
+               (local $entries  (ref $Array))
+               (local $capacity i32)
+               (local $index    i32)
+               (local $step     i32)
+               (local $hash     i32)
+               (local $k        (ref eq))
+               (local $slot     i32)
+               (local $proc     (ref $Procedure))
+               (local $inv      (ref $ProcedureInvoker))
+               (local $noargs   (ref $Args))
+
+               (local.set $entries  (struct.get ,type $entries (local.get $table)))
+               (local.set $capacity (i32.div_u (array.len (local.get $entries)) (i32.const 2)))
+               (local.set $hash     (call $hash-key-hash/kind
+                                          (i32.const ,kind)
+                                          (local.get $key)))
+               (local.set $index    (i32.rem_u (local.get $hash) (local.get $capacity)))
+               (local.set $step     (i32.const 0))
+               (block $not-found
+                      (loop $probe
+                            (br_if $not-found (i32.ge_u (local.get $step) (local.get $capacity)))
+                            (local.set $slot
+                                       (i32.shl
+                                        (i32.rem_u
+                                         (i32.add (local.get $index) (local.get $step))
+                                         (local.get $capacity))
+                                        (i32.const 1)))
+                            (local.set $k (array.get $Array (local.get $entries) (local.get $slot)))
+                            (br_if $not-found (ref.eq (local.get $k) (global.get $missing)))
+                            (if (ref.eq (local.get $k) (global.get $tombstone))
+                                (then
+                                 (local.set $step (i32.add (local.get $step) (i32.const 1)))
+                                 (br $probe)))
+                            (if (call $hash-key-matches?/kind
+                                      (i32.const ,kind)
+                                      (local.get $k)
+                                      (local.get $key))
+                                (then (return (local.get $k))))
+                            (local.set $step (i32.add (local.get $step) (i32.const 1)))
+                            (br $probe)))
+               (if (result (ref eq))
+                   (ref.eq (local.get $fail) (global.get $missing))
+                   (then (call $raise-hash-ref-key-not-found (local.get $key))
+                         (unreachable))
+                   (else
+                    (if (result (ref eq))
+                        (ref.test (ref $Procedure) (local.get $fail))
+                        (then
+                         (local.set $proc   (ref.cast (ref $Procedure) (local.get $fail)))
+                         (local.set $inv    (struct.get $Procedure $invoke (local.get $proc)))
+                         (local.set $noargs (array.new $Args (global.get $null) (i32.const 0)))
+                         (return_call_ref $ProcedureInvoker
+                                          (local.get $proc)
+                                          (local.get $noargs)
+                                          (local.get $inv)))
+                        (else
+                         (local.get $fail)))))))))))
+
 ;; mutable-hash-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate mutable hash helpers that still depend on monolithic runtime globals.
 (define mutable-hash-runtime-only-helpers
   (append mutable-hash-constructor-runtime-only-helpers
-          mutable-hash-read-runtime-only-helpers))
+          mutable-hash-read-runtime-only-helpers
+          mutable-hash-ref-key-runtime-only-helpers))
