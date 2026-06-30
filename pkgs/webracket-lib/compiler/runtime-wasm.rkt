@@ -27333,83 +27333,23 @@
 
 
 
-         (func $hash-clear! (type $Prim1)
-               (param $ht (ref eq))
-               (result    (ref eq))
-               ;; Check type: must be (ref $Hash)
-               (if (i32.eqz (ref.test (ref $Hash) (local.get $ht)))
-                   (then (call $raise-argument-error:hash-expected)
-                         (unreachable)))
+         ,(core-runtime-helper-form runtime-helper-index '$hash-clear!)
 
-               ;; Dispatch on table type
-               (if (ref.test (ref $HashEqMutable) (local.get $ht))
-                   (then (return (call $hasheq-clear!
-                                       (local.get $ht)))))
-               (if (ref.test (ref $HashEqvMutable) (local.get $ht))
-                   (then (return (call $hasheqv-clear!
-                                       (local.get $ht)))))
-               (if (ref.test (ref $HashEqualMutable) (local.get $ht))
-                   (then (return (call $hashequal-clear!
-                                       (local.get $ht)))))
-               (if (ref.test (ref $HashEqualAlwaysMutable) (local.get $ht))
-                   (then (return (call $hashalw-clear!
-                                       (local.get $ht)))))
-               (unreachable))
+         ,(core-runtime-helper-form runtime-helper-index '$hasheq-clear!)
 
+         ,(core-runtime-helper-form runtime-helper-index '$hasheqv-clear!)
 
-         ,@(for/list ([hash-clear     '($hasheq-clear!
-                                        $hasheqv-clear!
-                                        $hashequal-clear!
-                                        $hashalw-clear!)]
-                      [clear!/checked '($hasheq-clear!/mutable/checked
-                                        $hasheqv-clear!/mutable/checked
-                                        $hash-clear!/mutable/checked
-                                        $hashalw-clear!/mutable/checked)]
-                      [type           '($HashEqMutable
-                                        $HashEqvMutable
-                                        $HashEqualMutable
-                                        $HashEqualAlwaysMutable)]
-                      [raise-expected '($raise-argument-error:mutable-hasheq-expected
-                                        $raise-argument-error:mutable-hasheqv-expected
-                                        $raise-argument-error:mutable-hash-expected
-                                        $raise-argument-error:mutable-hashalw-expected)])
-             `(func ,hash-clear
-                    (param $ht (ref eq))   ;; table
-                    (result    (ref eq))   ;; return void
+         ,(core-runtime-helper-form runtime-helper-index '$hashequal-clear!)
 
-                    (local $table (ref ,type))
+         ,(core-runtime-helper-form runtime-helper-index '$hashalw-clear!)
 
-                    ;; Check that ht is expected table type
-                    (if (i32.eqz (ref.test (ref ,type) (local.get $ht)))
-                        (then (call ,raise-expected (local.get $ht))
-                              (unreachable)))
-                    ;; Decode
-                    (local.set $table (ref.cast (ref ,type) (local.get $ht)))
-                    ;; Delegate
-                    (call ,clear!/checked (local.get $table))
-                    ;; Return void
-                    (global.get $void)))
+         ,(core-runtime-helper-form runtime-helper-index '$hasheq-clear!/mutable/checked)
 
+         ,(core-runtime-helper-form runtime-helper-index '$hasheqv-clear!/mutable/checked)
 
-         ,@(for/list ([clear!/checked '($hasheq-clear!/mutable/checked
-                                        $hasheqv-clear!/mutable/checked
-                                        $hash-clear!/mutable/checked
-                                        $hashalw-clear!/mutable/checked)]
-                      [type           '($HashEqMutable
-                                        $HashEqvMutable
-                                        $HashEqualMutable
-                                        $HashEqualAlwaysMutable)])
-             `(func ,clear!/checked
-                    (param $ht (ref ,type))
+         ,(core-runtime-helper-form runtime-helper-index '$hash-clear!/mutable/checked)
 
-                    (local $new-entries (ref $Array))
-
-                    ;; Allocate fresh array of default size (16 entries = 32 slots)
-                    (local.set $new-entries (array.new $Array (global.get $missing) (i32.const 32)))
-                    ;; Replace entries array
-                    (struct.set ,type $entries (local.get $ht) (local.get $new-entries))
-                    ;; Reset count to 0
-                    (struct.set ,type $count (local.get $ht) (i32.const 0))))
+         ,(core-runtime-helper-form runtime-helper-index '$hashalw-clear!/mutable/checked)
 
          ;; hash-clear : immutable-hash? -> immutable-hash?
          ;;   Functionally clear immutable hashes. Chaperone/impersonator

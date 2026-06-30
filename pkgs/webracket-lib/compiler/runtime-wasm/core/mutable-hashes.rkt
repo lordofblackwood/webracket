@@ -1839,6 +1839,99 @@
                ;; Not found: return #f
                (global.get $false)))))))
 
+;; mutable-hash-clear-bang-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate mutable hash destructive clear helpers.
+(define mutable-hash-clear-bang-runtime-only-helpers
+  (append
+   (list
+    (core-runtime-helper
+     '$hash-clear!
+     "$hash-clear!"
+     (lambda ()
+       `(func $hash-clear! (type $Prim1)
+              (param $ht (ref eq))
+              (result    (ref eq))
+              ;; Check type: must be (ref $Hash)
+              (if (i32.eqz (ref.test (ref $Hash) (local.get $ht)))
+                  (then (call $raise-argument-error:hash-expected)
+                        (unreachable)))
+
+              ;; Dispatch on table type
+              (if (ref.test (ref $HashEqMutable) (local.get $ht))
+                  (then (return (call $hasheq-clear!
+                                      (local.get $ht)))))
+              (if (ref.test (ref $HashEqvMutable) (local.get $ht))
+                  (then (return (call $hasheqv-clear!
+                                      (local.get $ht)))))
+              (if (ref.test (ref $HashEqualMutable) (local.get $ht))
+                  (then (return (call $hashequal-clear!
+                                      (local.get $ht)))))
+              (if (ref.test (ref $HashEqualAlwaysMutable) (local.get $ht))
+                  (then (return (call $hashalw-clear!
+                                      (local.get $ht)))))
+              (unreachable)))))
+
+   (for/list ([hash-clear     '($hasheq-clear!
+                                $hasheqv-clear!
+                                $hashequal-clear!
+                                $hashalw-clear!)]
+              [clear!/checked '($hasheq-clear!/mutable/checked
+                                $hasheqv-clear!/mutable/checked
+                                $hash-clear!/mutable/checked
+                                $hashalw-clear!/mutable/checked)]
+              [type           '($HashEqMutable
+                                $HashEqvMutable
+                                $HashEqualMutable
+                                $HashEqualAlwaysMutable)]
+              [raise-expected '($raise-argument-error:mutable-hasheq-expected
+                                $raise-argument-error:mutable-hasheqv-expected
+                                $raise-argument-error:mutable-hash-expected
+                                $raise-argument-error:mutable-hashalw-expected)])
+     (core-runtime-helper
+      hash-clear
+      (symbol->string hash-clear)
+      (lambda ()
+        `(func ,hash-clear
+               (param $ht (ref eq))   ;; table
+               (result    (ref eq))   ;; return void
+
+               (local $table (ref ,type))
+
+               ;; Check that ht is expected table type
+               (if (i32.eqz (ref.test (ref ,type) (local.get $ht)))
+                   (then (call ,raise-expected (local.get $ht))
+                         (unreachable)))
+               ;; Decode
+               (local.set $table (ref.cast (ref ,type) (local.get $ht)))
+               ;; Delegate
+               (call ,clear!/checked (local.get $table))
+               ;; Return void
+               (global.get $void)))))
+
+   (for/list ([clear!/checked '($hasheq-clear!/mutable/checked
+                                $hasheqv-clear!/mutable/checked
+                                $hash-clear!/mutable/checked
+                                $hashalw-clear!/mutable/checked)]
+              [type           '($HashEqMutable
+                                $HashEqvMutable
+                                $HashEqualMutable
+                                $HashEqualAlwaysMutable)])
+     (core-runtime-helper
+      clear!/checked
+      (symbol->string clear!/checked)
+      (lambda ()
+        `(func ,clear!/checked
+               (param $ht (ref ,type))
+
+               (local $new-entries (ref $Array))
+
+               ;; Allocate fresh array of default size (16 entries = 32 slots)
+               (local.set $new-entries (array.new $Array (global.get $missing) (i32.const 32)))
+               ;; Replace entries array
+               (struct.set ,type $entries (local.get $ht) (local.get $new-entries))
+               ;; Reset count to 0
+               (struct.set ,type $count (local.get $ht) (i32.const 0))))))))
+
 ;; mutable-hash-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate mutable hash helpers that still depend on monolithic runtime globals.
 (define mutable-hash-runtime-only-helpers
@@ -1850,4 +1943,5 @@
           mutable-hash-update-bang-runtime-only-helpers
           mutable-hash-remove-bang-runtime-only-helpers
           mutable-hash-resize-runtime-only-helpers
-          mutable-hash-membership-runtime-only-helpers))
+          mutable-hash-membership-runtime-only-helpers
+          mutable-hash-clear-bang-runtime-only-helpers))
