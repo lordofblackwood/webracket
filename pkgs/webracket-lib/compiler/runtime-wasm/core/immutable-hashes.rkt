@@ -2024,6 +2024,208 @@
                           (local.get $node)
                           (local.get $key)))))))
 
+;; immutable-hash-hamt-support-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate shared HAMT support helpers for immutable hash updates.
+(define immutable-hash-hamt-support-runtime-only-helpers
+  (list
+   (core-runtime-helper
+    '$immutable-hamt-empty-node
+    "$immutable-hamt-empty-node"
+    (lambda ()
+      `(func $immutable-hamt-empty-node
+             (result (ref $StencilVector))
+             (call $immutable-hamt-empty-packed-node))))
+
+   ;; immutable-hamt-bnode-collapse-if-single : any/c -> any/c
+   ;;   Collapse a one-slot bnode when the slot can stand directly in its parent.
+   (core-runtime-helper
+    '$immutable-hamt-bnode-collapse-if-single
+    "$immutable-hamt-bnode-collapse-if-single"
+    (lambda ()
+      `(func $immutable-hamt-bnode-collapse-if-single
+             (param $node (ref eq))
+             (result      (ref eq))
+             (local $sv        (ref $StencilVector))
+             (local $slot      (ref eq))
+             (local $collapsed (ref eq))
+             (if (i32.eqz (ref.test (ref $StencilVector) (local.get $node)))
+                 (then (return (local.get $node))))
+             (local.set $sv (ref.cast (ref $StencilVector) (local.get $node)))
+             (if (i32.ne (call $$stencil-vector-popcount/i32
+                                (struct.get $StencilVector $mask (local.get $sv)))
+                          (i32.const 1))
+                 (then (return (local.get $node))))
+             (local.set $slot
+                        (array.get $Array
+                                   (struct.get $StencilVector $slots (local.get $sv))
+                                   (i32.const 0)))
+             (if (ref.test (ref $ImmutableHashEntry) (local.get $slot))
+                 (then (return (local.get $slot))))
+             (if (ref.test (ref $Pair) (local.get $slot))
+                 (then
+                  (local.set $collapsed
+                             (call $immutable-hamt-collapse-small-bucket
+                                   (local.get $slot)))
+                  (if (ref.test (ref $ImmutableHashEntry) (local.get $collapsed))
+                      (then (return (local.get $collapsed))))
+                  (return (local.get $node))))
+             (if (ref.test (ref $StencilVector) (local.get $slot))
+                 (then
+                  (local.set $collapsed
+                             (call $immutable-hamt-bnode-collapse-if-single
+                                   (local.get $slot)))
+                  (if (ref.eq (local.get $collapsed) (local.get $slot))
+                      (then (return (local.get $node))))
+                  (return (local.get $collapsed))))
+             (local.get $node))))
+
+   (core-runtime-helper
+    '$immutable-hamt-bucket-length
+    "$immutable-hamt-bucket-length"
+    (lambda ()
+      `(func $immutable-hamt-bucket-length
+             (param $bucket (ref eq)) ;; list of immutable hash entries
+             (result        i32)
+             (local $node (ref eq))
+             (local $n    i32)
+             (if (ref.test (ref $ImmutableHashEntry) (local.get $bucket))
+                 (then (return (i32.const 1))))
+             (local.set $node (local.get $bucket))
+             (block $done
+                    (loop $scan
+                          (br_if $done
+                                 (ref.eq (local.get $node) (global.get $null)))
+                          (if (i32.eqz (ref.test (ref $Pair) (local.get $node)))
+                              (then (br $done)))
+                          (local.set $n (i32.add (local.get $n) (i32.const 1)))
+                          (local.set $node
+                                     (struct.get $Pair $d
+                                                 (ref.cast (ref $Pair)
+                                                           (local.get $node))))
+                          (br $scan)))
+             (local.get $n))))
+
+   ;; immutable-hamt-bucket-first-entry : bucket -> entry/null
+   ;;   Return the first entry in a one-entry bucket list.
+   (core-runtime-helper
+    '$immutable-hamt-bucket-first-entry
+    "$immutable-hamt-bucket-first-entry"
+    (lambda ()
+      `(func $immutable-hamt-bucket-first-entry
+             (param $bucket (ref eq))
+             (result        (ref eq))
+             (local $pair (ref $Pair))
+             (if (ref.test (ref $ImmutableHashEntry) (local.get $bucket))
+                 (then (return (local.get $bucket))))
+             (if (i32.eqz (ref.test (ref $Pair) (local.get $bucket)))
+                 (then (return (global.get $null))))
+             (local.set $pair (ref.cast (ref $Pair) (local.get $bucket)))
+             (if (ref.test (ref $ImmutableHashEntry)
+                           (struct.get $Pair $a (local.get $pair)))
+                 (then (return (struct.get $Pair $a (local.get $pair)))))
+             (global.get $null))))
+
+   ;; immutable-hamt-collapse-small-bucket : bucket -> bucket/entry/null
+   ;;   Collapse a one-entry bucket back to a direct inline entry.
+   (core-runtime-helper
+    '$immutable-hamt-collapse-small-bucket
+    "$immutable-hamt-collapse-small-bucket"
+    (lambda ()
+      `(func $immutable-hamt-collapse-small-bucket
+             (param $bucket (ref eq))
+             (result        (ref eq))
+             (if (i32.eq (call $immutable-hamt-bucket-length
+                                (local.get $bucket))
+                          (i32.const 1))
+                 (then
+                  (return_call $immutable-hamt-bucket-first-entry
+                               (local.get $bucket))))
+             (local.get $bucket))))
+
+   (core-runtime-helper
+    '$immutable-hamt-entry-matches?/kind
+    "$immutable-hamt-entry-matches?/kind"
+    (lambda ()
+      `(func $immutable-hamt-entry-matches?/kind
+             (param $kind  i32)
+             (param $entry (ref $ImmutableHashEntry))
+             (param $key   (ref eq))
+             (result       i32)
+             (if (i32.eq (local.get $kind) (i32.const 0))
+                 (then (return (ref.eq
+                                (struct.get $ImmutableHashEntry $key
+                                            (local.get $entry))
+                                (local.get $key)))))
+             (if (i32.eq (local.get $kind) (i32.const 1))
+                 (then (return (ref.eq
+                                (call $eqv?
+                                      (struct.get $ImmutableHashEntry $key
+                                                  (local.get $entry))
+                                      (local.get $key))
+                                (global.get $true)))))
+             (if (i32.eq (local.get $kind) (i32.const 2))
+                 (then (return (ref.eq
+                                (call $equal?
+                                      (struct.get $ImmutableHashEntry $key
+                                                  (local.get $entry))
+                                      (local.get $key))
+                                (global.get $true)))))
+             (return (ref.eq
+                      (call $equal-always?
+                            (struct.get $ImmutableHashEntry $key
+                                        (local.get $entry))
+                            (local.get $key))
+                      (global.get $true))))))
+
+   (core-runtime-helper
+    '$immutable-hamt-bucket-remove/kind
+    "$immutable-hamt-bucket-remove/kind"
+    (lambda ()
+      `(func $immutable-hamt-bucket-remove/kind
+             (param $kind   i32)
+             (param $bucket (ref eq))
+             (param $key    (ref eq))
+             (result        (ref eq))
+             (local $node   (ref eq))
+             (local $pair   (ref $Pair))
+             (local $entry  (ref $ImmutableHashEntry))
+             (local $result (ref eq))
+             (if (ref.test (ref $ImmutableHashEntry) (local.get $bucket))
+                 (then
+                  (if (call $immutable-hamt-entry-matches?/kind
+                            (local.get $kind)
+                            (ref.cast (ref $ImmutableHashEntry)
+                                      (local.get $bucket))
+                            (local.get $key))
+                      (then (return (global.get $null)))
+                      (else (return (local.get $bucket))))))
+             (local.set $node   (local.get $bucket))
+             (local.set $result (global.get $null))
+             (block $done
+                    (loop $scan
+                          (br_if $done
+                                 (ref.eq (local.get $node) (global.get $null)))
+                          (if (i32.eqz (ref.test (ref $Pair) (local.get $node)))
+                              (then (br $done)))
+                          (local.set $pair (ref.cast (ref $Pair) (local.get $node)))
+                          (local.set $entry
+                                     (ref.cast (ref $ImmutableHashEntry)
+                                               (struct.get $Pair $a (local.get $pair))))
+                          (if (i32.eqz
+                               (call $immutable-hamt-entry-matches?/kind
+                                     (local.get $kind)
+                                     (local.get $entry)
+                                     (local.get $key)))
+                              (then
+                               (local.set $result
+                                          (call $cons
+                                                (local.get $entry)
+                                                (local.get $result)))))
+                          (local.set $node (struct.get $Pair $d (local.get $pair)))
+                          (br $scan)))
+             (return_call $immutable-hamt-collapse-small-bucket
+                          (local.get $result)))))))
+
 ;; immutable-hash-cnode-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate terminal full-hash collision-node helpers.
 (define immutable-hash-cnode-runtime-only-helpers
@@ -2206,4 +2408,5 @@
           immutable-hash-packed-node-set-runtime-only-helpers
           immutable-hash-packed-node-remove-runtime-only-helpers
           immutable-hash-node-lookup-runtime-only-helpers
+          immutable-hash-hamt-support-runtime-only-helpers
           immutable-hash-cnode-runtime-only-helpers))
