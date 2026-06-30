@@ -23438,8 +23438,7 @@
                      (global.get $string:exact-nonnegative-integer?)
                      (local.get $n)))
 
-         (func $treelist? (type $Prim1)
-               ,@(make-predicate-body '$Treelist))
+         ,(core-runtime-helper-form runtime-helper-index '$treelist?)
 
          ,(core-runtime-helper-form runtime-helper-index '$treelist)
 

@@ -5373,4 +5373,19 @@
                        (unreachable)))
              (call $vector->list/checked
                    (call $treelist->vector/checked (ref.cast (ref $Treelist) (local.get $v)))))))
+
+
+   ;; treelist? : any/c -> boolean?
+   ;;   Return #t if the value is a treelist, #f otherwise.
+   (core-runtime-helper
+    '$treelist?
+    "$treelist?"
+    (lambda ()
+      `(func $treelist? (type $Prim1)
+             (param $v (ref eq))
+             (result   (ref eq))
+             (if (result (ref eq))
+                 (ref.test (ref $Treelist) (local.get $v))
+                 (then (global.get $true))
+                 (else (global.get $false))))))
 ))
