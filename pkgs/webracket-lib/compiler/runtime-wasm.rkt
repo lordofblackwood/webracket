@@ -15,6 +15,8 @@
                   box-runtime-only-helpers)
          (only-in "runtime-wasm/core/events.rkt"
                   event-runtime-only-helpers)
+         (only-in "runtime-wasm/core/immutable-hashes.rkt"
+                  immutable-hash-runtime-only-helpers)
          (only-in "runtime-wasm/core/lists.rkt"
                   list-runtime-only-helpers)
          (only-in "runtime-wasm/core/locks.rkt"
@@ -51,6 +53,7 @@
 (define-runtime-path constants-path "runtime-wasm/constants.rkt")
 (define-runtime-path core-boxes-path "runtime-wasm/core/boxes.rkt")
 (define-runtime-path core-events-path "runtime-wasm/core/events.rkt")
+(define-runtime-path core-immutable-hashes-path "runtime-wasm/core/immutable-hashes.rkt")
 (define-runtime-path core-lists-path "runtime-wasm/core/lists.rkt")
 (define-runtime-path core-locks-path "runtime-wasm/core/locks.rkt")
 (define-runtime-path core-loggers-path "runtime-wasm/core/loggers.rkt")
@@ -70,6 +73,7 @@
    (append core-runtime-helpers
            box-runtime-only-helpers
            event-runtime-only-helpers
+           immutable-hash-runtime-only-helpers
            list-runtime-only-helpers
            lock-runtime-only-helpers
            logger-runtime-only-helpers
@@ -419,6 +423,7 @@
                                           constants-path
                                           core-boxes-path
                                           core-events-path
+                                          core-immutable-hashes-path
                                           core-lists-path
                                           core-locks-path
                                           core-loggers-path
@@ -26375,288 +26380,37 @@
          ;;; IMMUTABLE HASHEQV
          ;;;
 
-         (func $make-empty-immutable-hasheq (type $Prim0)
-               (result (ref eq))
-               (struct.new $HashEqImmutable
-                           (i32.const 0)
-                           (global.get $false)
-                           (global.get $missing)
-                           (i32.const 0)))
+         ,@(for/list ([name '($make-empty-immutable-hasheq
+                              $make-empty-immutable-hasheqv
+                              $make-empty-immutable-hash
+                              $make-empty-immutable-hashalw)])
+             (core-runtime-helper-form runtime-helper-index name))
 
-         (func $make-empty-immutable-hasheqv (type $Prim0)
-               (result (ref eq))
-               (struct.new $HashEqvImmutable
-                           (i32.const 0)      ;; hash
-                           (global.get $false) ;; mutable? = #f
-                           (global.get $missing)
-                           (i32.const 0)))
+         ,(core-runtime-helper-form runtime-helper-index '$hash-placeholder?)
 
-         (func $make-empty-immutable-hash (type $Prim0)
-               (result (ref eq))
-               (struct.new $HashEqualImmutable
-                           (i32.const 0)
-                           (global.get $false)
-                           (global.get $missing)
-                           (i32.const 0)))
+         ,(core-runtime-helper-form runtime-helper-index '$placeholder?)
 
-         (func $make-empty-immutable-hashalw (type $Prim0)
-               (result (ref eq))
-               (struct.new $HashEqualAlwaysImmutable
-                           (i32.const 0)
-                           (global.get $false)
-                           (global.get $missing)
-                           (i32.const 0)))
+         ,(core-runtime-helper-form runtime-helper-index '$make-placeholder)
 
-         ;; hash-placeholder? : any/c -> boolean?
-         ;;   Recognize hash placeholders produced by make-hash-placeholder
-         ;;   and its comparison-kind variants.
-         (func $hash-placeholder? (type $Prim1)
-               (param $v (ref eq)) ;; any value
-               (result   (ref eq))
-               (if (result (ref eq))
-                   (ref.test (ref $HashPlaceholder) (local.get $v))
-                   (then (global.get $true))
-                   (else (global.get $false))))
+         ,(core-runtime-helper-form runtime-helper-index '$placeholder-set!)
 
-         ;; placeholder? : any/c -> boolean?
-         ;;   Recognize reader-graph placeholders created by make-placeholder.
-         (func $placeholder? (type $Prim1)
-               (param $v (ref eq)) ;; any value
-               (result   (ref eq))
-               (if (result (ref eq))
-                   (ref.test (ref $Placeholder) (local.get $v))
-                   (then (global.get $true))
-                   (else (global.get $false))))
+         ,(core-runtime-helper-form runtime-helper-index '$placeholder-get)
 
-         ;; make-placeholder : any/c -> placeholder?
-         ;;   Create a mutable reader-graph placeholder cell.
-         (func $make-placeholder (type $Prim1)
-               (param $v (ref eq)) ;; initial value
-               (result   (ref eq))
-               (struct.new $Placeholder
-                           (i32.const 0)
-                           (local.get $v)))
+         ,(core-runtime-helper-form runtime-helper-index '$reader-graph-resolve)
 
-         ;; placeholder-set! : placeholder? any/c -> void?
-         ;;   Replace the value stored in a reader-graph placeholder.
-         (func $placeholder-set! (type $Prim2)
-               (param $ph-raw (ref eq)) ;; placeholder?
-               (param $v      (ref eq)) ;; new value
-               (result        (ref eq))
+         ,(core-runtime-helper-form runtime-helper-index '$make-reader-graph)
 
-               (if (i32.eqz (ref.test (ref $Placeholder) (local.get $ph-raw)))
-                   (then (call $raise-argument-error1
-                               (global.get $symbol:placeholder-set!)
-                               (global.get $string:placeholder?)
-                               (local.get $ph-raw))
-                         (unreachable)))
-               (struct.set $Placeholder $value
-                           (ref.cast (ref $Placeholder) (local.get $ph-raw))
-                           (local.get $v))
-               (global.get $void))
+         ,(core-runtime-helper-form runtime-helper-index '$hash-weak?)
 
-         ;; placeholder-get : placeholder? -> any/c
-         ;;   Return the current value stored in a reader-graph placeholder.
-         (func $placeholder-get (type $Prim1)
-               (param $ph-raw (ref eq)) ;; placeholder?
-               (result        (ref eq))
+         ,(core-runtime-helper-form runtime-helper-index '$make-hash-placeholder/kind)
 
-               (if (i32.eqz (ref.test (ref $Placeholder) (local.get $ph-raw)))
-                   (then (call $raise-argument-error1
-                               (global.get $symbol:placeholder-get)
-                               (global.get $string:placeholder?)
-                               (local.get $ph-raw))
-                         (unreachable)))
-               (struct.get $Placeholder $value
-                           (ref.cast (ref $Placeholder) (local.get $ph-raw))))
+         ,(core-runtime-helper-form runtime-helper-index '$make-hash-placeholder)
 
-         ;; $reader-graph-resolve : any/c exact-nonnegative-integer? -> any/c
-         ;;   Resolve the acyclic placeholder/pair subset used by simple
-         ;;   `shared` expansions. Full reader graph support needs sharing
-         ;;   preservation plus hash-placeholder reconstruction.
-         (func $reader-graph-resolve
-               (param $v    (ref eq)) ;; graph fragment
-               (param $fuel i32)      ;; recursion budget
-               (result     (ref eq))
+         ,(core-runtime-helper-form runtime-helper-index '$make-hasheq-placeholder)
 
-               (local $ph     (ref $Placeholder))
-               (local $pair   (ref $Pair))
-               (local $vec    (ref $Vector))
-               (local $box    (ref $Box))
-               (local $arr    (ref $Array))
-               (local $out    (ref $Array))
-               (local $len    i32)
-               (local $i      i32)
-               (local $fuel-1 i32)
+         ,(core-runtime-helper-form runtime-helper-index '$make-hasheqv-placeholder)
 
-               (if (i32.le_s (local.get $fuel) (i32.const 0))
-                   (then
-                    (call $raise-arguments-error
-                          (global.get $symbol:make-reader-graph)
-                          (global.get $string:reader-graph-unsupported)
-                          (array.new_fixed $Args 0))
-                    (unreachable)))
-               (if (ref.test (ref $HashPlaceholder) (local.get $v))
-                   (then
-                    (call $raise-arguments-error
-                          (global.get $symbol:make-reader-graph)
-                          (global.get $string:reader-graph-unsupported)
-                          (array.new_fixed $Args 0))
-                    (unreachable)))
-               (local.set $fuel-1 (i32.sub (local.get $fuel) (i32.const 1)))
-               (if (ref.test (ref $Placeholder) (local.get $v))
-                   (then
-                    (local.set $ph (ref.cast (ref $Placeholder) (local.get $v)))
-                    (return
-                     (call $reader-graph-resolve
-                           (struct.get $Placeholder $value (local.get $ph))
-                           (local.get $fuel-1)))))
-               (if (ref.test (ref $Pair) (local.get $v))
-                   (then
-                    (local.set $pair (ref.cast (ref $Pair) (local.get $v)))
-                    (return
-                     (struct.new $Pair
-                                 (i32.const 0)
-                                 (call $reader-graph-resolve
-                                       (struct.get $Pair $a (local.get $pair))
-                                       (local.get $fuel-1))
-                                 (call $reader-graph-resolve
-                                       (struct.get $Pair $d (local.get $pair))
-                                       (local.get $fuel-1))))))
-               (if (ref.test (ref $Vector) (local.get $v))
-                   (then
-                    (local.set $vec (ref.cast (ref $Vector) (local.get $v)))
-                    (local.set $arr (struct.get $Vector $arr (local.get $vec)))
-                    (local.set $len (array.len (local.get $arr)))
-                    (local.set $out (array.new $Array (global.get $void) (local.get $len)))
-                    (local.set $i (i32.const 0))
-                    (block $done
-                           (loop $loop
-                                 (br_if $done (i32.ge_u (local.get $i) (local.get $len)))
-                                 (array.set $Array
-                                            (local.get $out)
-                                            (local.get $i)
-                                            (call $reader-graph-resolve
-                                                  (array.get $Array (local.get $arr) (local.get $i))
-                                                  (local.get $fuel-1)))
-                                 (local.set $i (i32.add (local.get $i) (i32.const 1)))
-                                 (br $loop)))
-                    (return
-                     (struct.new $Vector
-                                 (i32.const 0)
-                                 (i32.const 1)
-                                 (local.get $out)))))
-               (if (ref.test (ref $Box) (local.get $v))
-                   (then
-                    (local.set $box (ref.cast (ref $Box) (local.get $v)))
-                    (return
-                     (struct.new $Box
-                                 (i32.const 0)
-                                 (i32.const 1)
-                                 (call $reader-graph-resolve
-                                       (struct.get $Box $v (local.get $box))
-                                       (local.get $fuel-1))))))
-               (local.get $v))
-
-         ;; make-reader-graph : any/c -> any/c
-         ;;   First slice for `racket/shared`: resolve acyclic placeholder/pair
-         ;;   graphs, vectors, and boxes. Cyclic graphs, prefab structs, and
-         ;;   hash placeholders need the later sharing-preserving implementation.
-         (func $make-reader-graph (type $Prim1)
-               (param $v (ref eq)) ;; graph root
-               (result   (ref eq))
-               (call $reader-graph-resolve (local.get $v) (i32.const 100000)))
-
-         ;; hash-weak? : hash? -> boolean?
-         ;;   WebRacket weak-hash constructors are currently strong fallbacks,
-         ;;   so no hash table retains keys weakly yet.
-         (func $hash-weak? (type $Prim1)
-               (param $ht (ref eq)) ;; hash?
-               (result    (ref eq))
-               (if (ref.eq (call $hash? (local.get $ht)) (global.get $false))
-                   (then (call $raise-argument-error1
-                               (global.get $symbol:hash-weak?)
-                               (global.get $string:hash?)
-                               (local.get $ht))
-                         (unreachable)))
-               (global.get $false))
-
-         ;; $make-hash-placeholder/kind : symbol? (listof pair?) i32 -> hash-placeholder?
-         ;;   Shared constructor for reader-graph hash placeholders.
-         (func $make-hash-placeholder/kind
-               (param $who    (ref eq))      ;; constructor name
-               (param $assocs (ref eq))      ;; association list
-               (param $kind   i32)           ;; comparison kind tag
-               (result        (ref eq))
-
-               (local $node  (ref eq))
-               (local $pair  (ref $Pair))
-               (local $first (ref eq))
-
-               (if (ref.eq (call $list? (local.get $assocs)) (global.get $false))
-                   (then (call $raise-argument-error1
-                               (local.get $who)
-                               (global.get $string:listof-pair?)
-                               (local.get $assocs))
-                         (unreachable)))
-               (local.set $node (local.get $assocs))
-               (block $done
-                      (loop $walk
-                            (br_if $done (ref.eq (local.get $node) (global.get $null)))
-                            (local.set $pair (ref.cast (ref $Pair) (local.get $node)))
-                            (local.set $first (struct.get $Pair $a (local.get $pair)))
-                            (if (i32.eqz (ref.test (ref $Pair) (local.get $first)))
-                                (then (call $raise-argument-error1
-                                            (local.get $who)
-                                            (global.get $string:listof-pair?)
-                                            (local.get $assocs))
-                                      (unreachable)))
-                            (local.set $node (struct.get $Pair $d (local.get $pair)))
-                            (br $walk)))
-               (struct.new $HashPlaceholder
-                           (i32.const 0)
-                           (local.get $kind)
-                           (local.get $assocs)))
-
-         ;; make-hash-placeholder : (listof pair?) -> hash-placeholder?
-         ;;   Equal?-based hash placeholder for make-reader-graph/read.
-         (func $make-hash-placeholder (type $Prim1)
-               (param $assocs (ref eq)) ;; association list
-               (result        (ref eq))
-               (call $make-hash-placeholder/kind
-                     (global.get $symbol:make-hash-placeholder)
-                     (local.get $assocs)
-                     (i32.const 0)))
-
-         ;; make-hasheq-placeholder : (listof pair?) -> hash-placeholder?
-         ;;   Eq?-based hash placeholder for make-reader-graph/read.
-         (func $make-hasheq-placeholder (type $Prim1)
-               (param $assocs (ref eq)) ;; association list
-               (result        (ref eq))
-               (call $make-hash-placeholder/kind
-                     (global.get $symbol:make-hasheq-placeholder)
-                     (local.get $assocs)
-                     (i32.const 1)))
-
-         ;; make-hasheqv-placeholder : (listof pair?) -> hash-placeholder?
-         ;;   Eqv?-based hash placeholder for make-reader-graph/read.
-         (func $make-hasheqv-placeholder (type $Prim1)
-               (param $assocs (ref eq)) ;; association list
-               (result        (ref eq))
-               (call $make-hash-placeholder/kind
-                     (global.get $symbol:make-hasheqv-placeholder)
-                     (local.get $assocs)
-                     (i32.const 2)))
-
-         ;; make-hashalw-placeholder : (listof pair?) -> hash-placeholder?
-         ;;   Equal-always?-based hash placeholder for make-reader-graph/read.
-         (func $make-hashalw-placeholder (type $Prim1)
-               (param $assocs (ref eq)) ;; association list
-               (result        (ref eq))
-               (call $make-hash-placeholder/kind
-                     (global.get $symbol:make-hashalw-placeholder)
-                     (local.get $assocs)
-                     (i32.const 3)))
+         ,(core-runtime-helper-form runtime-helper-index '$make-hashalw-placeholder)
 
          (func $immutable-hasheqv-bucket-index
                (param $mask i32)
