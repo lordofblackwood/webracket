@@ -3667,4 +3667,673 @@
                                 (local.get $ga))
                           (local.set $i (i32.add (local.get $i) (i32.const 1)))
                           (br $loop))))))
+
+
+   ;; treelist-node-map-into! : (ref $TreelistNode) i32 (ref $Array) i32 (ref $Procedure) (ref $ProcedureInvoker) (ref $Args) -> i32
+   ;;   Traverse node left-to-right, mapping into dst and returning the next write index.
+   (core-runtime-helper
+    '$treelist-node-map-into!
+    "$treelist-node-map-into!"
+    (lambda ()
+      `(func $treelist-node-map-into!
+             (param $node   (ref $TreelistNode))
+             (param $height i32)
+             (param $dst    (ref $Array))
+             (param $start  i32)
+             (param $f      (ref $Procedure))
+             (param $finv   (ref $ProcedureInvoker))
+             (param $args   (ref $Args))
+             (result i32)
+             (local $children (ref $Array))
+             (local $count    i32)
+             (local $i        i32)
+             (local $pos      i32)
+             (local $elem     (ref eq))
+             (local $res      (ref eq))
+             (local $child    (ref $TreelistNode))
+             (local.set $children (call $treelist-node-children (local.get $node)))
+             (local.set $count    (array.len (local.get $children)))
+             (if (i32.eqz (local.get $height))
+                 (then
+                  (local.set $i   (i32.const 0))
+                  (local.set $pos (local.get $start))
+                  (block $done-leaf
+                         (loop $leaf
+                               (br_if $done-leaf (i32.ge_u (local.get $i) (local.get $count)))
+                               (local.set $elem
+                                          (array.get $Array (local.get $children) (local.get $i)))
+                               (array.set $Args (local.get $args) (i32.const 0) (local.get $elem))
+                               (local.set $res
+                                          (call_ref $ProcedureInvoker
+                                                    (local.get $f)
+                                                    (local.get $args)
+                                                    (local.get $finv)))
+                               (array.set $Array (local.get $dst) (local.get $pos) (local.get $res))
+                               (local.set $pos (i32.add (local.get $pos) (i32.const 1)))
+                               (local.set $i   (i32.add (local.get $i) (i32.const 1)))
+                               (br $leaf)))
+                  (return (local.get $pos))))
+             (local.set $i   (i32.const 0))
+             (local.set $pos (local.get $start))
+             (block $done
+                    (loop $loop
+                          (br_if $done (i32.ge_u (local.get $i) (local.get $count)))
+                          (local.set $child
+                                     (ref.cast (ref $TreelistNode)
+                                               (array.get $Array (local.get $children) (local.get $i))))
+                          (local.set $pos
+                                     (call $treelist-node-map-into!
+                                           (local.get $child)
+                                           (i32.sub (local.get $height) (i32.const 1))
+                                           (local.get $dst)
+                                           (local.get $pos)
+                                           (local.get $f)
+                                           (local.get $finv)
+                                           (local.get $args)))
+                          (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                          (br $loop)))
+             (local.get $pos))))
+
+
+   ;; treelist-node-for-each : (ref $TreelistNode) i32 (ref $Procedure) (ref $ProcedureInvoker) (ref $Args) -> void
+   ;;   Traverse node left-to-right for effects.
+   (core-runtime-helper
+    '$treelist-node-for-each
+    "$treelist-node-for-each"
+    (lambda ()
+      `(func $treelist-node-for-each
+             (param $node   (ref $TreelistNode))
+             (param $height i32)
+             (param $f      (ref $Procedure))
+             (param $finv   (ref $ProcedureInvoker))
+             (param $args   (ref $Args))
+             (local $children (ref $Array))
+             (local $count    i32)
+             (local $i        i32)
+             (local $elem     (ref eq))
+             (local $child    (ref $TreelistNode))
+             (local.set $children (call $treelist-node-children (local.get $node)))
+             (local.set $count    (array.len (local.get $children)))
+             (if (i32.eqz (local.get $height))
+                 (then
+                  (local.set $i (i32.const 0))
+                  (block $done-leaf
+                         (loop $leaf
+                               (br_if $done-leaf (i32.ge_u (local.get $i) (local.get $count)))
+                               (local.set $elem
+                                          (array.get $Array (local.get $children) (local.get $i)))
+                               (array.set $Args (local.get $args) (i32.const 0) (local.get $elem))
+                               (drop
+                                (call_ref $ProcedureInvoker
+                                          (local.get $f)
+                                          (local.get $args)
+                                          (local.get $finv)))
+                               (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                               (br $leaf)))
+                  (return)))
+             (local.set $i (i32.const 0))
+             (block $done
+                    (loop $loop
+                          (br_if $done (i32.ge_u (local.get $i) (local.get $count)))
+                          (local.set $child
+                                     (ref.cast (ref $TreelistNode)
+                                               (array.get $Array (local.get $children) (local.get $i))))
+                          (call $treelist-node-for-each
+                                (local.get $child)
+                                (i32.sub (local.get $height) (i32.const 1))
+                                (local.get $f)
+                                (local.get $finv)
+                                (local.get $args))
+                          (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                          (br $loop))))))
+
+
+   ;; treelist-node-filter-into! : (ref $TreelistNode) i32 (ref $GrowableArray) (ref $Procedure) (ref $ProcedureInvoker) (ref $Args) -> void
+   ;;   Traverse node left-to-right, keeping elements whose predicate result is not #f.
+   (core-runtime-helper
+    '$treelist-node-filter-into!
+    "$treelist-node-filter-into!"
+    (lambda ()
+      `(func $treelist-node-filter-into!
+             (param $node   (ref $TreelistNode))
+             (param $height i32)
+             (param $ga     (ref $GrowableArray))
+             (param $f      (ref $Procedure))
+             (param $finv   (ref $ProcedureInvoker))
+             (param $args   (ref $Args))
+             (local $children (ref $Array))
+             (local $count    i32)
+             (local $i        i32)
+             (local $elem     (ref eq))
+             (local $res      (ref eq))
+             (local $child    (ref $TreelistNode))
+             (local.set $children (call $treelist-node-children (local.get $node)))
+             (local.set $count    (array.len (local.get $children)))
+             (if (i32.eqz (local.get $height))
+                 (then
+                  (local.set $i (i32.const 0))
+                  (block $done-leaf
+                         (loop $leaf
+                               (br_if $done-leaf (i32.ge_u (local.get $i) (local.get $count)))
+                               (local.set $elem
+                                          (array.get $Array (local.get $children) (local.get $i)))
+                               (array.set $Args (local.get $args) (i32.const 0) (local.get $elem))
+                               (local.set $res
+                                          (call_ref $ProcedureInvoker
+                                                    (local.get $f)
+                                                    (local.get $args)
+                                                    (local.get $finv)))
+                               (if (ref.eq (local.get $res) (global.get $false))
+                                   (then (nop))
+                                   (else (call $growable-array-add! (local.get $ga) (local.get $elem))))
+                               (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                               (br $leaf)))
+                  (return)))
+             (local.set $i (i32.const 0))
+             (block $done
+                    (loop $loop
+                          (br_if $done (i32.ge_u (local.get $i) (local.get $count)))
+                          (local.set $child
+                                     (ref.cast (ref $TreelistNode)
+                                               (array.get $Array (local.get $children) (local.get $i))))
+                          (call $treelist-node-filter-into!
+                                (local.get $child)
+                                (i32.sub (local.get $height) (i32.const 1))
+                                (local.get $ga)
+                                (local.get $f)
+                                (local.get $finv)
+                                (local.get $args))
+                          (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                          (br $loop))))))
+
+
+   ;; treelist-node-find/checked : (ref $TreelistNode) i32 (ref $Procedure) (ref $ProcedureInvoker) (ref $Args) -> any/c
+   ;;   Traverse node left-to-right and return the first matching element, else a private sentinel.
+   (core-runtime-helper
+    '$treelist-node-find/checked
+    "$treelist-node-find/checked"
+    (lambda ()
+      `(func $treelist-node-find/checked
+             (param $node   (ref $TreelistNode))
+             (param $height i32)
+             (param $f      (ref $Procedure))
+             (param $finv   (ref $ProcedureInvoker))
+             (param $args   (ref $Args))
+             (result (ref eq))
+             (local $children (ref $Array))
+             (local $count    i32)
+             (local $i        i32)
+             (local $elem     (ref eq))
+             (local $res      (ref eq))
+             (local $child    (ref $TreelistNode))
+             (local.set $children (call $treelist-node-children (local.get $node)))
+             (local.set $count    (array.len (local.get $children)))
+             (if (i32.eqz (local.get $height))
+                 (then
+                  (local.set $i (i32.const 0))
+                  (block $done-leaf
+                         (loop $leaf
+                               (br_if $done-leaf (i32.ge_u (local.get $i) (local.get $count)))
+                               (local.set $elem
+                                          (array.get $Array (local.get $children) (local.get $i)))
+                               (array.set $Args (local.get $args) (i32.const 0) (local.get $elem))
+                               (local.set $res
+                                          (call_ref $ProcedureInvoker
+                                                    (local.get $f)
+                                                    (local.get $args)
+                                                    (local.get $finv)))
+                               (if (ref.eq (local.get $res) (global.get $false))
+                                   (then (nop))
+                                   (else (return (local.get $elem))))
+                               (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                               (br $leaf)))
+                  (return (global.get $dummy-treelist-node))))
+             (local.set $i (i32.const 0))
+             (block $done
+                    (loop $loop
+                          (br_if $done (i32.ge_u (local.get $i) (local.get $count)))
+                          (local.set $child
+                                     (ref.cast (ref $TreelistNode)
+                                               (array.get $Array (local.get $children) (local.get $i))))
+                          (local.set $res
+                                     (call $treelist-node-find/checked
+                                           (local.get $child)
+                                           (i32.sub (local.get $height) (i32.const 1))
+                                           (local.get $f)
+                                           (local.get $finv)
+                                           (local.get $args)))
+                          (if (ref.eq (local.get $res) (global.get $dummy-treelist-node))
+                              (then (nop))
+                              (else (return (local.get $res))))
+                          (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                          (br $loop)))
+             (global.get $dummy-treelist-node))))
+
+
+   ;; treelist-same?/i32 : any/c any/c any/c i32 (ref $Args) -> i32
+   ;;   Compare needle and elem using equal? or a validated comparator procedure.
+   (core-runtime-helper
+    '$treelist-same?/i32
+    "$treelist-same?/i32"
+    (lambda ()
+      `(func $treelist-same?/i32
+             (param $needle   (ref eq))
+             (param $elem     (ref eq))
+             (param $same?    (ref eq))
+             (param $use-proc i32)
+             (param $args     (ref $Args))
+             (result i32)
+             (local $res (ref eq))
+             (if (result i32)
+                 (i32.eqz (local.get $use-proc))
+                 (then
+                  (if (result i32)
+                      (ref.eq (call $equal? (local.get $needle) (local.get $elem))
+                              (global.get $false))
+                      (then (i32.const 0))
+                      (else (i32.const 1))))
+                 (else
+                  (array.set $Args (local.get $args) (i32.const 0) (local.get $needle))
+                  (array.set $Args (local.get $args) (i32.const 1) (local.get $elem))
+                  (local.set $res
+                             (call_ref $ProcedureInvoker
+                                       (ref.cast (ref $Procedure) (local.get $same?))
+                                       (local.get $args)
+                                       (struct.get $Procedure $invoke
+                                                   (ref.cast (ref $Procedure) (local.get $same?)))))
+                  (if (result i32)
+                      (ref.eq (local.get $res) (global.get $false))
+                      (then (i32.const 0))
+                      (else (i32.const 1))))))))
+
+
+   ;; treelist-node-member?/checked : (ref $TreelistNode) i32 any/c any/c i32 (ref $Args) -> boolean?
+   ;;   Traverse node left-to-right and stop when a matching element is found.
+   (core-runtime-helper
+    '$treelist-node-member?/checked
+    "$treelist-node-member?/checked"
+    (lambda ()
+      `(func $treelist-node-member?/checked
+             (param $node     (ref $TreelistNode))
+             (param $height   i32)
+             (param $needle   (ref eq))
+             (param $same?    (ref eq))
+             (param $use-proc i32)
+             (param $args     (ref $Args))
+             (result (ref eq))
+             (local $children (ref $Array))
+             (local $count    i32)
+             (local $i        i32)
+             (local $elem     (ref eq))
+             (local $res      (ref eq))
+             (local $child    (ref $TreelistNode))
+             (local.set $children (call $treelist-node-children (local.get $node)))
+             (local.set $count    (array.len (local.get $children)))
+             (if (i32.eqz (local.get $height))
+                 (then
+                  (local.set $i (i32.const 0))
+                  (block $done-leaf
+                         (loop $leaf
+                               (br_if $done-leaf (i32.ge_u (local.get $i) (local.get $count)))
+                               (local.set $elem
+                                          (array.get $Array (local.get $children) (local.get $i)))
+                               (if (call $treelist-same?/i32
+                                         (local.get $needle)
+                                         (local.get $elem)
+                                         (local.get $same?)
+                                         (local.get $use-proc)
+                                         (local.get $args))
+                                   (then (return (global.get $true)))
+                                   (else (nop)))
+                               (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                               (br $leaf)))
+                  (return (global.get $false))))
+             (local.set $i (i32.const 0))
+             (block $done
+                    (loop $loop
+                          (br_if $done (i32.ge_u (local.get $i) (local.get $count)))
+                          (local.set $child
+                                     (ref.cast (ref $TreelistNode)
+                                               (array.get $Array (local.get $children) (local.get $i))))
+                          (local.set $res
+                                     (call $treelist-node-member?/checked
+                                           (local.get $child)
+                                           (i32.sub (local.get $height) (i32.const 1))
+                                           (local.get $needle)
+                                           (local.get $same?)
+                                           (local.get $use-proc)
+                                           (local.get $args)))
+                          (if (ref.eq (local.get $res) (global.get $false))
+                              (then (nop))
+                              (else (return (local.get $res))))
+                          (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                          (br $loop)))
+             (global.get $false))))
+
+
+   ;; treelist-node-index-of/checked : (ref $TreelistNode) i32 i32 i32 any/c any/c i32 (ref $Args) -> (or/c fixnum? #f)
+   ;;   Traverse node left-to-right and return the first matching flat index, else #f.
+   (core-runtime-helper
+    '$treelist-node-index-of/checked
+    "$treelist-node-index-of/checked"
+    (lambda ()
+      `(func $treelist-node-index-of/checked
+             (param $node      (ref $TreelistNode))
+             (param $node-size i32)
+             (param $height    i32)
+             (param $start     i32)
+             (param $needle    (ref eq))
+             (param $same?     (ref eq))
+             (param $use-proc  i32)
+             (param $args      (ref $Args))
+             (result (ref eq))
+             (local $children   (ref $Array))
+             (local $count      i32)
+             (local $i          i32)
+             (local $cur-start  i32)
+             (local $elem       (ref eq))
+             (local $res        (ref eq))
+             (local $child      (ref $TreelistNode))
+             (local $child-size i32)
+             (local.set $children  (call $treelist-node-children (local.get $node)))
+             (local.set $count     (array.len (local.get $children)))
+             (local.set $cur-start (local.get $start))
+             (if (i32.eqz (local.get $height))
+                 (then
+                  (local.set $i (i32.const 0))
+                  (block $done-leaf
+                         (loop $leaf
+                               (br_if $done-leaf (i32.ge_u (local.get $i) (local.get $count)))
+                               (local.set $elem
+                                          (array.get $Array (local.get $children) (local.get $i)))
+                               (if (call $treelist-same?/i32
+                                         (local.get $needle)
+                                         (local.get $elem)
+                                         (local.get $same?)
+                                         (local.get $use-proc)
+                                         (local.get $args))
+                                   (then
+                                    (return
+                                     (ref.i31 (i32.shl (local.get $cur-start) (i32.const 1)))))
+                                   (else (nop)))
+                               (local.set $cur-start
+                                          (i32.add (local.get $cur-start) (i32.const 1)))
+                               (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                               (br $leaf)))
+                  (return (global.get $false))))
+             (local.set $i (i32.const 0))
+             (block $done
+                    (loop $loop
+                          (br_if $done (i32.ge_u (local.get $i) (local.get $count)))
+                          (local.set $child
+                                     (ref.cast (ref $TreelistNode)
+                                               (array.get $Array (local.get $children) (local.get $i))))
+                          (local.set $child-size
+                                     (call $treelist-node-child-size
+                                           (local.get $node)
+                                           (local.get $node-size)
+                                           (local.get $height)
+                                           (local.get $i)))
+                          (local.set $res
+                                     (call $treelist-node-index-of/checked
+                                           (local.get $child)
+                                           (local.get $child-size)
+                                           (i32.sub (local.get $height) (i32.const 1))
+                                           (local.get $cur-start)
+                                           (local.get $needle)
+                                           (local.get $same?)
+                                           (local.get $use-proc)
+                                           (local.get $args)))
+                          (if (ref.eq (local.get $res) (global.get $false))
+                              (then (nop))
+                              (else (return (local.get $res))))
+                          (local.set $cur-start
+                                     (i32.add (local.get $cur-start) (local.get $child-size)))
+                          (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                          (br $loop)))
+             (global.get $false))))
+
+
+   ;; treelist-map : treelist? procedure? -> treelist?
+   ;;   Apply proc to each element and rebuild a dense treelist.
+   (core-runtime-helper
+    '$treelist-map
+    "$treelist-map"
+    (lambda ()
+      `(func $treelist-map (type $Prim2)
+             (param $v0 (ref eq))
+             (param $v1 (ref eq))
+             (result (ref eq))
+             (local $tl   (ref $Treelist))
+             (local $f    (ref $Procedure))
+             (local $finv (ref $ProcedureInvoker))
+             (local $dst  (ref $Array))
+             (local $args (ref $Args))
+             (local $len  i32)
+             (local.set $tl (global.get $empty-treelist))
+             (if (ref.test (ref $Treelist) (local.get $v0))
+                 (then (local.set $tl (ref.cast (ref $Treelist) (local.get $v0))))
+                 (else (call $raise-check-treelist/who
+                             (global.get $symbol:treelist-map)
+                             (local.get $v0))
+                       (unreachable)))
+             (if (i32.eqz (ref.test (ref $Procedure) (local.get $v1)))
+                 (then (call $raise-argument-error:procedure-expected (local.get $v1))
+                       (unreachable)))
+             (local.set $f    (ref.cast (ref $Procedure) (local.get $v1)))
+             (local.set $finv (struct.get $Procedure $invoke (local.get $f)))
+             (local.set $len  (struct.get $Treelist $size (local.get $tl)))
+             (if (i32.eqz (local.get $len))
+                 (then (return (global.get $empty-treelist))))
+             (local.set $dst  (call $make-array (local.get $len) (global.get $false)))
+             (local.set $args (array.new $Args (global.get $null) (i32.const 1)))
+             (drop
+              (call $treelist-node-map-into!
+                    (struct.get $Treelist $root (local.get $tl))
+                    (struct.get $Treelist $height (local.get $tl))
+                    (local.get $dst)
+                    (i32.const 0)
+                    (local.get $f)
+                    (local.get $finv)
+                    (local.get $args)))
+             (call $array->treelist/checked (local.get $dst)))))
+
+
+   ;; treelist-for-each : treelist? procedure? -> void?
+   ;;   Apply proc left-to-right for effects and return void.
+   (core-runtime-helper
+    '$treelist-for-each
+    "$treelist-for-each"
+    (lambda ()
+      `(func $treelist-for-each (type $Prim2)
+             (param $v0 (ref eq))
+             (param $v1 (ref eq))
+             (result (ref eq))
+             (local $tl   (ref $Treelist))
+             (local $f    (ref $Procedure))
+             (local $finv (ref $ProcedureInvoker))
+             (local $args (ref $Args))
+             (local.set $tl (global.get $empty-treelist))
+             (if (ref.test (ref $Treelist) (local.get $v0))
+                 (then (local.set $tl (ref.cast (ref $Treelist) (local.get $v0))))
+                 (else (call $raise-check-treelist/who
+                             (global.get $symbol:treelist-for-each)
+                             (local.get $v0))
+                       (unreachable)))
+             (if (i32.eqz (ref.test (ref $Procedure) (local.get $v1)))
+                 (then (call $raise-argument-error:procedure-expected (local.get $v1))
+                       (unreachable)))
+             (local.set $f    (ref.cast (ref $Procedure) (local.get $v1)))
+             (local.set $finv (struct.get $Procedure $invoke (local.get $f)))
+             (local.set $args (array.new $Args (global.get $null) (i32.const 1)))
+             (call $treelist-node-for-each
+                   (struct.get $Treelist $root (local.get $tl))
+                   (struct.get $Treelist $height (local.get $tl))
+                   (local.get $f)
+                   (local.get $finv)
+                   (local.get $args))
+             (global.get $void))))
+
+
+   ;; treelist-filter : procedure? treelist? -> treelist?
+   ;;   Keep elements whose predicate result is not #f.
+   (core-runtime-helper
+    '$treelist-filter
+    "$treelist-filter"
+    (lambda ()
+      `(func $treelist-filter (type $Prim2)
+             (param $v0 (ref eq))
+             (param $v1 (ref eq))
+             (result (ref eq))
+             (local $f    (ref $Procedure))
+             (local $finv (ref $ProcedureInvoker))
+             (local $tl   (ref $Treelist))
+             (local $ga   (ref $GrowableArray))
+             (local $args (ref $Args))
+             (local $len  i32)
+             (if (i32.eqz (ref.test (ref $Procedure) (local.get $v0)))
+                 (then (call $raise-argument-error:procedure-expected (local.get $v0))
+                       (unreachable)))
+             (local.set $f    (ref.cast (ref $Procedure) (local.get $v0)))
+             (local.set $finv (struct.get $Procedure $invoke (local.get $f)))
+             (local.set $tl (global.get $empty-treelist))
+             (if (ref.test (ref $Treelist) (local.get $v1))
+                 (then (local.set $tl (ref.cast (ref $Treelist) (local.get $v1))))
+                 (else (call $raise-check-treelist/who
+                             (global.get $symbol:treelist-filter)
+                             (local.get $v1))
+                       (unreachable)))
+             (local.set $len  (struct.get $Treelist $size (local.get $tl)))
+             (local.set $ga   (call $make-growable-array (local.get $len)))
+             (local.set $args (array.new $Args (global.get $null) (i32.const 1)))
+             (call $treelist-node-filter-into!
+                   (struct.get $Treelist $root (local.get $tl))
+                   (struct.get $Treelist $height (local.get $tl))
+                   (local.get $ga)
+                   (local.get $f)
+                   (local.get $finv)
+                   (local.get $args))
+             (call $array->treelist/checked
+                   (call $growable-array->array (local.get $ga))))))
+
+
+   ;; treelist-find : treelist? procedure? -> any/c
+   ;;   Return the first element that satisfies pred, or #f.
+   (core-runtime-helper
+    '$treelist-find
+    "$treelist-find"
+    (lambda ()
+      `(func $treelist-find (type $Prim2)
+             (param $v0 (ref eq))
+             (param $v1 (ref eq))
+             (result (ref eq))
+             (local $tl   (ref $Treelist))
+             (local $f    (ref $Procedure))
+             (local $finv (ref $ProcedureInvoker))
+             (local $args (ref $Args))
+             (local $res  (ref eq))
+             (local.set $tl (global.get $empty-treelist))
+             (if (ref.test (ref $Treelist) (local.get $v0))
+                 (then (local.set $tl (ref.cast (ref $Treelist) (local.get $v0))))
+                 (else (call $raise-check-treelist/who
+                             (global.get $symbol:treelist-find)
+                             (local.get $v0))
+                       (unreachable)))
+             (if (i32.eqz (ref.test (ref $Procedure) (local.get $v1)))
+                 (then (call $raise-argument-error:procedure-expected (local.get $v1))
+                       (unreachable)))
+             (local.set $f    (ref.cast (ref $Procedure) (local.get $v1)))
+             (local.set $finv (struct.get $Procedure $invoke (local.get $f)))
+             (local.set $args (array.new $Args (global.get $null) (i32.const 1)))
+             (local.set $res
+                        (call $treelist-node-find/checked
+                              (struct.get $Treelist $root (local.get $tl))
+                              (struct.get $Treelist $height (local.get $tl))
+                              (local.get $f)
+                              (local.get $finv)
+                              (local.get $args)))
+             (if (result (ref eq))
+                 (ref.eq (local.get $res) (global.get $dummy-treelist-node))
+                 (then (global.get $false))
+                 (else (local.get $res))))))
+
+
+   ;; treelist-member? : treelist? any/c [procedure?] -> boolean?
+   ;;   Return whether v appears in tl under eql?.
+   (core-runtime-helper
+    '$treelist-member?
+    "$treelist-member?"
+    (lambda ()
+      `(func $treelist-member? (type $Prim23)
+             (param $v0 (ref eq))
+             (param $v1 (ref eq))
+             (param $same? (ref eq))
+             (result (ref eq))
+             (local $tl       (ref $Treelist))
+             (local $args     (ref $Args))
+             (local $use-proc i32)
+             (if (ref.eq (local.get $same?) (global.get $missing))
+                 (then (local.set $use-proc (i32.const 0)))
+                 (else
+                  (if (i32.eqz (ref.test (ref $Procedure) (local.get $same?)))
+                      (then (call $raise-argument-error:procedure-expected (local.get $same?))
+                            (unreachable)))
+                  (local.set $use-proc (i32.const 1))))
+             (local.set $tl (global.get $empty-treelist))
+             (if (ref.test (ref $Treelist) (local.get $v0))
+                 (then (local.set $tl (ref.cast (ref $Treelist) (local.get $v0))))
+                 (else (call $raise-check-treelist/who
+                             (global.get $symbol:treelist-member?)
+                             (local.get $v0))
+                       (unreachable)))
+             (local.set $args (array.new $Args (global.get $null) (i32.const 2)))
+             (call $treelist-node-member?/checked
+                   (struct.get $Treelist $root (local.get $tl))
+                   (struct.get $Treelist $height (local.get $tl))
+                   (local.get $v1)
+                   (local.get $same?)
+                   (local.get $use-proc)
+                   (local.get $args)))))
+
+
+   ;; treelist-index-of : treelist? any/c [procedure?] -> (or/c fixnum? #f)
+   ;;   Return the first matching index, else #f.
+   (core-runtime-helper
+    '$treelist-index-of
+    "$treelist-index-of"
+    (lambda ()
+      `(func $treelist-index-of (type $Prim23)
+             (param $v0 (ref eq))
+             (param $v1 (ref eq))
+             (param $same? (ref eq))
+             (result (ref eq))
+             (local $tl       (ref $Treelist))
+             (local $args     (ref $Args))
+             (local $len      i32)
+             (local $use-proc i32)
+             (if (ref.eq (local.get $same?) (global.get $missing))
+                 (then (local.set $use-proc (i32.const 0)))
+                 (else
+                  (if (i32.eqz (ref.test (ref $Procedure) (local.get $same?)))
+                      (then (call $raise-argument-error:procedure-expected (local.get $same?))
+                            (unreachable)))
+                  (local.set $use-proc (i32.const 1))))
+             (local.set $tl (global.get $empty-treelist))
+             (if (ref.test (ref $Treelist) (local.get $v0))
+                 (then (local.set $tl (ref.cast (ref $Treelist) (local.get $v0))))
+                 (else (call $raise-check-treelist/who
+                             (global.get $symbol:treelist-index-of)
+                             (local.get $v0))
+                       (unreachable)))
+             (local.set $len  (struct.get $Treelist $size (local.get $tl)))
+             (local.set $args (array.new $Args (global.get $null) (i32.const 2)))
+             (call $treelist-node-index-of/checked
+                   (struct.get $Treelist $root (local.get $tl))
+                   (local.get $len)
+                   (struct.get $Treelist $height (local.get $tl))
+                   (i32.const 0)
+                   (local.get $v1)
+                   (local.get $same?)
+                   (local.get $use-proc)
+                   (local.get $args)))))
 ))
