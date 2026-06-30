@@ -430,9 +430,9 @@
                         (i32.shr_s (i31.get_s (ref.cast (ref i31)
                                                         (local.get $shift/raw)))
                                    (i32.const 1)))
-             (call $cons
-                   (ref.i31
-                    (i32.shl
+            (call $cons
+                  (ref.i31
+                   (i32.shl
                      (call $immutable-hamt-packed-group-index
                            (local.get $hash)
                            (local.get $shift))
@@ -467,8 +467,364 @@
                                              (i32.const 1)))
                                            (global.get $null)))))))))))
 
+;; immutable-hash-hamt-metadata-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate HAMT metadata, slot, and wrapped-key helpers.
+(define immutable-hash-hamt-metadata-runtime-only-helpers
+  (list
+   ;; immutable-hamt-slot-kind : any/c -> exact-integer?
+   ;;   Classify a WebRacket HAMT slot: 1=bnode, 2=cnode, 3=inline entry, 4=bucket.
+   (core-runtime-helper
+    '$immutable-hamt-slot-kind
+    "$immutable-hamt-slot-kind"
+    (lambda ()
+      `(func $immutable-hamt-slot-kind
+             (param $slot (ref eq))
+             (result      i32)
+             (if (ref.test (ref $StencilVector) (local.get $slot))
+                 (then (return (i32.const 1))))
+             (if (ref.test (ref $ImmutableHashCNode) (local.get $slot))
+                 (then (return (i32.const 2))))
+             (if (ref.test (ref $ImmutableHashEntry) (local.get $slot))
+                 (then (return (i32.const 3))))
+             (if (ref.test (ref $Pair) (local.get $slot))
+                 (then (return (i32.const 4))))
+             (i32.const 0))))
+
+   ;; immutable-hamt-bnode-packed-metadata : stencil-vector? -> i32
+   ;;   Derive a Racket CS-style packed child/key/value mask for a current bnode.
+   (core-runtime-helper
+    '$immutable-hamt-bnode-packed-metadata
+    "$immutable-hamt-bnode-packed-metadata"
+    (lambda ()
+      `(func $immutable-hamt-bnode-packed-metadata
+             (param $sv (ref $StencilVector))
+             (result    i32)
+             (local $mask     i32)
+             (local $group    i32)
+             (local $bit      i32)
+             (local $index    i32)
+             (local $slot     (ref eq))
+             (local $kind     i32)
+             (local $metadata i32)
+             (local.set $mask     (struct.get $StencilVector $mask (local.get $sv)))
+             (local.set $group    (i32.const 0))
+             (local.set $metadata (i32.const 1))
+             (block $done
+                    (loop $loop
+                          (br_if $done (i32.ge_u (local.get $group) (i32.const 8)))
+                          (local.set $bit (i32.shl (i32.const 1) (local.get $group)))
+                          (if (i32.ne (i32.and (local.get $mask) (local.get $bit))
+                                      (i32.const 0))
+                              (then
+                               (local.set $index
+                                          (call $immutable-hasheqv-bucket-index
+                                                (local.get $mask)
+                                                (local.get $bit)))
+                               (local.set $slot
+                                          (array.get $Array
+                                                     (struct.get $StencilVector $slots
+                                                                 (local.get $sv))
+                                                     (local.get $index)))
+                               (local.set $kind
+                                          (call $immutable-hamt-slot-kind
+                                                (local.get $slot)))
+                               (if (i32.or
+                                    (i32.eq (local.get $kind) (i32.const 1))
+                                    (i32.eq (local.get $kind) (i32.const 2)))
+                                   (then
+                                    (local.set $metadata
+                                               (i32.or
+                                                (local.get $metadata)
+                                                (call $immutable-hamt-packed-child-bit
+                                                      (local.get $group)
+                                                      (i32.const 0)))))
+                                   (else
+                                    (local.set $metadata
+                                               (i32.or
+                                                (local.get $metadata)
+                                                (i32.or
+                                                 (call $immutable-hamt-packed-key-bit
+                                                       (local.get $group)
+                                                       (i32.const 0))
+                                                 (call $immutable-hamt-packed-value-bit
+                                                       (local.get $group)
+                                                       (i32.const 0)))))))))
+                          (local.set $group
+                                     (i32.add (local.get $group) (i32.const 1)))
+                          (br $loop)))
+             (local.get $metadata))))
+
+   ;; immutable-hamt-store-bnode-metadata : stencil-vector? -> stencil-vector?
+   ;;   Store the packed metadata word in the private HAMT bnode cache field.
+   (core-runtime-helper
+    '$immutable-hamt-store-bnode-metadata
+    "$immutable-hamt-store-bnode-metadata"
+    (lambda ()
+      `(func $immutable-hamt-store-bnode-metadata
+             (param $sv (ref $StencilVector))
+             (result    (ref $StencilVector))
+             (struct.set $StencilVector $hash
+                         (local.get $sv)
+                         (call $immutable-hamt-bnode-packed-metadata
+                               (local.get $sv)))
+             (local.get $sv))))
+
+   ;; immutable-hamt-bnode-metadata : stencil-vector? -> i32
+   ;;   Read stored packed metadata. HAMT constructors/updates must cache it.
+   (core-runtime-helper
+    '$immutable-hamt-bnode-metadata
+    "$immutable-hamt-bnode-metadata"
+    (lambda ()
+      `(func $immutable-hamt-bnode-metadata
+             (param $sv (ref $StencilVector))
+             (result    i32)
+             (struct.get $StencilVector $hash (local.get $sv)))))
+
+   ;; immutable-hamt-packed-bnode? : stencil-vector? -> boolean?
+   ;;   Recognize the future physical packed HAMT bnode marker.
+   (core-runtime-helper
+    '$immutable-hamt-packed-bnode?
+    "$immutable-hamt-packed-bnode?"
+    (lambda ()
+      `(func $immutable-hamt-packed-bnode?
+             (param $sv (ref $StencilVector))
+             (result    i32)
+             (i32.eq (struct.get $StencilVector $system? (local.get $sv))
+                     (i32.const 2)))))
+
+   ;; immutable-hamt-packed-index : packed-metadata bit -> exact-nonnegative-integer?
+   ;;   Dense slot index for a physical packed bnode bit; slot 0 is the static marker.
+   (core-runtime-helper
+    '$immutable-hamt-packed-index
+    "$immutable-hamt-packed-index"
+    (lambda ()
+      `(func $immutable-hamt-packed-index
+             (param $metadata i32)
+             (param $bit      i32)
+             (result          i32)
+             (i32.popcnt
+              (i32.and (local.get $metadata)
+                       (i32.sub (local.get $bit) (i32.const 1)))))))
+
+   ;; immutable-hamt-packed-slot : stencil-vector? bit -> any/c
+   ;;   Fetch the physical packed bnode slot for bit.
+   (core-runtime-helper
+    '$immutable-hamt-packed-slot
+    "$immutable-hamt-packed-slot"
+    (lambda ()
+      `(func $immutable-hamt-packed-slot
+             (param $sv  (ref $StencilVector))
+             (param $bit i32)
+             (result     (ref eq))
+             (array.get $Array
+                        (struct.get $StencilVector $slots (local.get $sv))
+                        (call $immutable-hamt-packed-index
+                              (call $immutable-hamt-bnode-metadata (local.get $sv))
+                              (local.get $bit))))))
+
+   ;; immutable-hamt-packed-child-slot : stencil-vector? i32 i32 -> any/c
+   ;;   Fetch a physical child-region slot for hash/shift.
+   (core-runtime-helper
+    '$immutable-hamt-packed-child-slot
+    "$immutable-hamt-packed-child-slot"
+    (lambda ()
+      `(func $immutable-hamt-packed-child-slot
+             (param $sv    (ref $StencilVector))
+             (param $hash  i32)
+             (param $shift i32)
+             (result       (ref eq))
+             (call $immutable-hamt-packed-slot
+                   (local.get $sv)
+                   (call $immutable-hamt-packed-child-bit
+                         (local.get $hash)
+                         (local.get $shift))))))
+
+   ;; immutable-hamt-packed-key-slot : stencil-vector? i32 i32 -> any/c
+   ;;   Fetch a physical inline-key slot for hash/shift.
+   (core-runtime-helper
+    '$immutable-hamt-packed-key-slot
+    "$immutable-hamt-packed-key-slot"
+    (lambda ()
+      `(func $immutable-hamt-packed-key-slot
+             (param $sv    (ref $StencilVector))
+             (param $hash  i32)
+             (param $shift i32)
+             (result       (ref eq))
+             (call $immutable-hamt-packed-slot
+                   (local.get $sv)
+                   (call $immutable-hamt-packed-key-bit
+                         (local.get $hash)
+                         (local.get $shift))))))
+
+   ;; immutable-hamt-packed-value-slot : stencil-vector? i32 i32 -> any/c
+   ;;   Fetch a physical inline-value slot for hash/shift.
+   (core-runtime-helper
+    '$immutable-hamt-packed-value-slot
+    "$immutable-hamt-packed-value-slot"
+    (lambda ()
+      `(func $immutable-hamt-packed-value-slot
+             (param $sv    (ref $StencilVector))
+             (param $hash  i32)
+             (param $shift i32)
+             (result       (ref eq))
+             (call $immutable-hamt-packed-slot
+                   (local.get $sv)
+                   (call $immutable-hamt-packed-value-bit
+                         (local.get $hash)
+                         (local.get $shift))))))
+
+   ;; immutable-hamt-empty-packed-node : -> stencil-vector?
+   ;;   Construct an empty physical packed bnode scaffold for the HAMT migration.
+   (core-runtime-helper
+    '$immutable-hamt-empty-packed-node
+    "$immutable-hamt-empty-packed-node"
+    (lambda ()
+      `(func $immutable-hamt-empty-packed-node
+             (result (ref $StencilVector))
+             (local $sv (ref $StencilVector))
+             (local.set $sv
+                        (call $$make-stencil-vector/checked
+                              (i32.const 2)
+                              (i32.const 1)
+                              (array.new_fixed $Array 1 (global.get $missing))))
+             (struct.set $StencilVector $hash (local.get $sv) (i32.const 1))
+             (local.get $sv))))
+
+   ;; immutable-hamt-store-packed-bnode-metadata : stencil-vector? -> stencil-vector?
+   ;;   Cache the physical packed bnode mask as metadata.
+   (core-runtime-helper
+    '$immutable-hamt-store-packed-bnode-metadata
+    "$immutable-hamt-store-packed-bnode-metadata"
+    (lambda ()
+      `(func $immutable-hamt-store-packed-bnode-metadata
+             (param $sv (ref $StencilVector))
+             (result    (ref $StencilVector))
+             (struct.set $StencilVector $hash
+                         (local.get $sv)
+                         (struct.get $StencilVector $mask (local.get $sv)))
+             (local.get $sv))))
+
+   ;; immutable-hamt-key-hash/kind : kind key -> i32
+   ;;   Compute the key hash for the immutable hash table's key mode.
+   (core-runtime-helper
+    '$immutable-hamt-key-hash/kind
+    "$immutable-hamt-key-hash/kind"
+    (lambda ()
+      `(func $immutable-hamt-key-hash/kind
+             (param $kind i32)
+             (param $key  (ref eq))
+             (result      i32)
+             (if (ref.test (ref $ImmutableHashWrappedKey) (local.get $key))
+                 (then
+                  (return
+                   (struct.get $ImmutableHashWrappedKey $key-hash
+                               (ref.cast (ref $ImmutableHashWrappedKey)
+                                         (local.get $key))))))
+             (if (i32.eq (local.get $kind) (i32.const 0))
+                 (then (return_call $eq-hash/i32 (local.get $key))))
+             (if (i32.eq (local.get $kind) (i32.const 1))
+                 (then (return_call $eqv-hash/i32 (local.get $key))))
+             (if (i32.eq (local.get $kind) (i32.const 2))
+                 (then (return_call $equal-hash/i32 (local.get $key))))
+             (return_call $equal-always-hash/i32 (local.get $key)))))
+
+   ;; immutable-hamt-wrap-inline-key/kind : kind key hash -> key-or-wrapper
+   ;;   Cache equal?/equal-always? hashes in packed inline key slots.
+   (core-runtime-helper
+    '$immutable-hamt-wrap-inline-key/kind
+    "$immutable-hamt-wrap-inline-key/kind"
+    (lambda ()
+      `(func $immutable-hamt-wrap-inline-key/kind
+             (param $kind i32)
+             (param $key  (ref eq))
+             (param $hash i32)
+             (result      (ref eq))
+             (if (i32.lt_u (local.get $kind) (i32.const 2))
+                 (then (return (local.get $key))))
+             (struct.new $ImmutableHashWrappedKey
+                         (i32.const 0)
+                         (local.get $kind)
+                         (local.get $hash)
+                         (local.get $key)))))
+
+   ;; immutable-hamt-inline-key-unwrap : key-or-wrapper -> key
+   ;;   Recover the public key from a private packed inline wrapper.
+   (core-runtime-helper
+    '$immutable-hamt-inline-key-unwrap
+    "$immutable-hamt-inline-key-unwrap"
+    (lambda ()
+      `(func $immutable-hamt-inline-key-unwrap
+             (param $key (ref eq))
+             (result     (ref eq))
+             (if (ref.test (ref $ImmutableHashWrappedKey) (local.get $key))
+                 (then
+                  (return
+                   (struct.get $ImmutableHashWrappedKey $key
+                               (ref.cast (ref $ImmutableHashWrappedKey)
+                                         (local.get $key))))))
+             (local.get $key))))
+
+   ;; immutable-hamt-inline-key-cached-hash : key-or-wrapper -> i32
+   ;;   Return a packed inline wrapper's cached hash, or 0 for raw keys.
+   (core-runtime-helper
+    '$immutable-hamt-inline-key-cached-hash
+    "$immutable-hamt-inline-key-cached-hash"
+    (lambda ()
+      `(func $immutable-hamt-inline-key-cached-hash
+             (param $key (ref eq))
+             (result     i32)
+             (if (ref.test (ref $ImmutableHashWrappedKey) (local.get $key))
+                 (then
+                  (return
+                   (struct.get $ImmutableHashWrappedKey $key-hash
+                               (ref.cast (ref $ImmutableHashWrappedKey)
+                                         (local.get $key))))))
+             (i32.const 0))))
+
+   ;; immutable-hamt-entry-for-key/kind : kind key value -> immutable-hash-entry?
+   ;;   Build an entry when a physical key/value inline slot is promoted.
+   (core-runtime-helper
+    '$immutable-hamt-entry-for-key/kind
+    "$immutable-hamt-entry-for-key/kind"
+    (lambda ()
+      `(func $immutable-hamt-entry-for-key/kind
+             (param $kind  i32)
+             (param $key   (ref eq))
+             (param $value (ref eq))
+             (result       (ref $ImmutableHashEntry))
+             (struct.new $ImmutableHashEntry
+                         (i32.const 0)
+                         (call $immutable-hamt-key-hash/kind
+                               (local.get $kind)
+                               (local.get $key))
+                         (call $immutable-hamt-inline-key-unwrap
+                               (local.get $key))
+                         (local.get $value)))))
+
+   ;; immutable-hamt-packed-metadata-present?/i32 : i32 i32 i32 -> i32
+   ;;   Check a packed child/key region for the active lookup group.
+   (core-runtime-helper
+    '$immutable-hamt-packed-metadata-present?/i32
+    "$immutable-hamt-packed-metadata-present?/i32"
+    (lambda ()
+      `(func $immutable-hamt-packed-metadata-present?/i32
+             (param $metadata i32)
+             (param $hash     i32)
+             (param $shift    i32)
+             (result          i32)
+             (i32.or
+              (i32.and (local.get $metadata)
+                       (call $immutable-hamt-packed-child-bit
+                             (local.get $hash)
+                             (local.get $shift)))
+              (i32.and (local.get $metadata)
+                       (call $immutable-hamt-packed-key-bit
+                             (local.get $hash)
+                             (local.get $shift)))))))))
+
 ;; immutable-hash-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate immutable hash helpers that still depend on monolithic runtime globals.
 (define immutable-hash-runtime-only-helpers
   (append immutable-hash-prelude-runtime-only-helpers
-          immutable-hash-hamt-bit-runtime-only-helpers))
+          immutable-hash-hamt-bit-runtime-only-helpers
+          immutable-hash-hamt-metadata-runtime-only-helpers))
