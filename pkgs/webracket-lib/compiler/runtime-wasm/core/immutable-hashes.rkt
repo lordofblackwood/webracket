@@ -3653,6 +3653,210 @@
                          (local.get $root-any)
                          (local.get $new-count)))))))
 
+;; immutable-hash-remove-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate public immutable hash functional remove wrappers.
+(define immutable-hash-remove-runtime-only-helpers
+  (list
+   ;; immutable-hasheqv-remove : immutable-hasheqv? any/c -> immutable-hasheqv?
+   ;;   Functionally remove a key from the private immutable hash HAMT.
+   (core-runtime-helper
+    '$immutable-hasheqv-remove
+    "$immutable-hasheqv-remove"
+    (lambda ()
+      `(func $immutable-hasheqv-remove
+             (type $Prim2)
+             (param $ht  (ref eq)) ;; immutable hasheqv
+             (param $key (ref eq)) ;; key to remove
+             (result     (ref eq))
+             (local $table (ref $HashEqvImmutable))
+             (local $root  (ref eq))
+             (local $hash  i32)
+             (if (i32.eqz (ref.test (ref $HashEqvImmutable) (local.get $ht)))
+                 (then (call $raise-argument-error:hasheqv-expected (local.get $ht))
+                       (unreachable)))
+             (local.set $table (ref.cast (ref $HashEqvImmutable) (local.get $ht)))
+             (if (ref.eq (struct.get $HashEqvImmutable $root (local.get $table))
+                         (global.get $missing))
+                 (then (return (local.get $ht))))
+             (local.set $hash (call $eqv-hash/i32 (local.get $key)))
+             (local.set $root
+                        (struct.get $HashEqvImmutable $root (local.get $table)))
+             (if (i32.eqz
+                  (call $immutable-hamt-node-has-key?/kind
+                        (i32.const 1)
+                        (local.get $root)
+                        (local.get $key)
+                        (local.get $hash)
+                        (i32.const 0)))
+                 (then (return (local.get $ht))))
+             (if (i32.eq (struct.get $HashEqvImmutable $count (local.get $table))
+                         (i32.const 1))
+                 (then (return (call $make-empty-immutable-hasheqv))))
+             (local.set $root
+                        (call $immutable-hamt-node-remove/kind
+                              (i32.const 1)
+                              (local.get $root)
+                              (local.get $key)
+                              (local.get $hash)
+                              (i32.const 0)))
+             (struct.new $HashEqvImmutable
+                         (i32.const 0)
+                         (global.get $false)
+                         (local.get $root)
+                         (i32.sub (struct.get $HashEqvImmutable $count
+                                              (local.get $table))
+                                  (i32.const 1))))))
+
+   ;; immutable-hasheq-remove : immutable-hasheq? any/c -> immutable-hasheq?
+   ;;   Functionally remove a key from an immutable eq?-based hash.
+   (core-runtime-helper
+    '$immutable-hasheq-remove
+    "$immutable-hasheq-remove"
+    (lambda ()
+      `(func $immutable-hasheq-remove
+             (type $Prim2)
+             (param $ht  (ref eq)) ;; immutable hasheq
+             (param $key (ref eq)) ;; key to remove
+             (result     (ref eq))
+             (local $table (ref $HashEqImmutable))
+             (local $root  (ref eq))
+             (local $hash  i32)
+             (if (i32.eqz (ref.test (ref $HashEqImmutable) (local.get $ht)))
+                 (then (call $raise-argument-error:hasheq-expected (local.get $ht))
+                       (unreachable)))
+             (local.set $table (ref.cast (ref $HashEqImmutable) (local.get $ht)))
+             (if (ref.eq (struct.get $HashEqImmutable $root (local.get $table))
+                         (global.get $missing))
+                 (then (return (local.get $ht))))
+             (local.set $hash (call $eq-hash/i32 (local.get $key)))
+             (local.set $root
+                        (struct.get $HashEqImmutable $root (local.get $table)))
+             (if (i32.eqz
+                  (call $immutable-hamt-node-has-key?/kind
+                        (i32.const 0)
+                        (local.get $root)
+                        (local.get $key)
+                        (local.get $hash)
+                        (i32.const 0)))
+                 (then (return (local.get $ht))))
+             (if (i32.eq (struct.get $HashEqImmutable $count (local.get $table))
+                         (i32.const 1))
+                 (then (return (call $make-empty-immutable-hasheq))))
+             (local.set $root
+                        (call $immutable-hamt-node-remove/kind
+                              (i32.const 0)
+                              (local.get $root)
+                              (local.get $key)
+                              (local.get $hash)
+                              (i32.const 0)))
+             (struct.new $HashEqImmutable
+                         (i32.const 0)
+                         (global.get $false)
+                         (local.get $root)
+                         (i32.sub (struct.get $HashEqImmutable $count
+                                              (local.get $table))
+                                  (i32.const 1))))))
+
+   ;; immutable-hash-remove : immutable-hash? any/c -> immutable-hash?
+   ;;   Functionally remove a key from an immutable equal?-based hash.
+   (core-runtime-helper
+    '$immutable-hash-remove
+    "$immutable-hash-remove"
+    (lambda ()
+      `(func $immutable-hash-remove
+             (type $Prim2)
+             (param $ht  (ref eq)) ;; immutable hash
+             (param $key (ref eq)) ;; key to remove
+             (result     (ref eq))
+             (local $table (ref $HashEqualImmutable))
+             (local $root  (ref eq))
+             (local $hash  i32)
+             (if (i32.eqz (ref.test (ref $HashEqualImmutable) (local.get $ht)))
+                 (then (call $raise-argument-error:hash-expected (local.get $ht))
+                       (unreachable)))
+             (local.set $table (ref.cast (ref $HashEqualImmutable) (local.get $ht)))
+             (if (ref.eq (struct.get $HashEqualImmutable $root (local.get $table))
+                         (global.get $missing))
+                 (then (return (local.get $ht))))
+             (local.set $hash (call $equal-hash/i32 (local.get $key)))
+             (local.set $root
+                        (struct.get $HashEqualImmutable $root (local.get $table)))
+             (if (i32.eqz
+                  (call $immutable-hamt-node-has-key?/kind
+                        (i32.const 2)
+                        (local.get $root)
+                        (local.get $key)
+                        (local.get $hash)
+                        (i32.const 0)))
+                 (then (return (local.get $ht))))
+             (if (i32.eq (struct.get $HashEqualImmutable $count (local.get $table))
+                         (i32.const 1))
+                 (then (return (call $make-empty-immutable-hash))))
+             (local.set $root
+                        (call $immutable-hamt-node-remove/kind
+                              (i32.const 2)
+                              (local.get $root)
+                              (local.get $key)
+                              (local.get $hash)
+                              (i32.const 0)))
+             (struct.new $HashEqualImmutable
+                         (i32.const 0)
+                         (global.get $false)
+                         (local.get $root)
+                         (i32.sub (struct.get $HashEqualImmutable $count
+                                              (local.get $table))
+                                  (i32.const 1))))))
+
+   ;; immutable-hashalw-remove : immutable-hashalw? any/c -> immutable-hashalw?
+   ;;   Functionally remove a key from an immutable equal-always?-based hash.
+   (core-runtime-helper
+    '$immutable-hashalw-remove
+    "$immutable-hashalw-remove"
+    (lambda ()
+      `(func $immutable-hashalw-remove
+             (type $Prim2)
+             (param $ht  (ref eq)) ;; immutable hashalw
+             (param $key (ref eq)) ;; key to remove
+             (result     (ref eq))
+             (local $table (ref $HashEqualAlwaysImmutable))
+             (local $root  (ref eq))
+             (local $hash  i32)
+             (if (i32.eqz (ref.test (ref $HashEqualAlwaysImmutable) (local.get $ht)))
+                 (then (call $raise-argument-error:hashalw-expected (local.get $ht))
+                       (unreachable)))
+             (local.set $table (ref.cast (ref $HashEqualAlwaysImmutable) (local.get $ht)))
+             (if (ref.eq (struct.get $HashEqualAlwaysImmutable $root (local.get $table))
+                         (global.get $missing))
+                 (then (return (local.get $ht))))
+             (local.set $hash (call $equal-always-hash/i32 (local.get $key)))
+             (local.set $root
+                        (struct.get $HashEqualAlwaysImmutable $root (local.get $table)))
+             (if (i32.eqz
+                  (call $immutable-hamt-node-has-key?/kind
+                        (i32.const 3)
+                        (local.get $root)
+                        (local.get $key)
+                        (local.get $hash)
+                        (i32.const 0)))
+                 (then (return (local.get $ht))))
+             (if (i32.eq (struct.get $HashEqualAlwaysImmutable $count (local.get $table))
+                         (i32.const 1))
+                 (then (return (call $make-empty-immutable-hashalw))))
+             (local.set $root
+                        (call $immutable-hamt-node-remove/kind
+                              (i32.const 3)
+                              (local.get $root)
+                              (local.get $key)
+                              (local.get $hash)
+                              (i32.const 0)))
+             (struct.new $HashEqualAlwaysImmutable
+                         (i32.const 0)
+                         (global.get $false)
+                         (local.get $root)
+                         (i32.sub (struct.get $HashEqualAlwaysImmutable $count
+                                              (local.get $table))
+                                  (i32.const 1))))))))
+
 ;; immutable-hash-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate immutable hash helpers that still depend on monolithic runtime globals.
 (define immutable-hash-runtime-only-helpers
@@ -3670,4 +3874,5 @@
           immutable-hash-node-remove-runtime-only-helpers
           immutable-hash-equal-bucket-runtime-only-helpers
           immutable-hash-lookup-runtime-only-helpers
-          immutable-hash-set-runtime-only-helpers))
+          immutable-hash-set-runtime-only-helpers
+          immutable-hash-remove-runtime-only-helpers))
