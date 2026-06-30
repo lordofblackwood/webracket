@@ -15,6 +15,8 @@
                   box-runtime-only-helpers)
          (only-in "runtime-wasm/core/lists.rkt"
                   list-runtime-only-helpers)
+         (only-in "runtime-wasm/core/loggers.rkt"
+                  logger-runtime-only-helpers)
          (only-in "runtime-wasm/core/stencil-vectors.rkt"
                   stencil-vector-runtime-only-helpers)
          (only-in "runtime-wasm/core/threads.rkt"
@@ -39,6 +41,7 @@
 (define-runtime-path constants-path "runtime-wasm/constants.rkt")
 (define-runtime-path core-boxes-path "runtime-wasm/core/boxes.rkt")
 (define-runtime-path core-lists-path "runtime-wasm/core/lists.rkt")
+(define-runtime-path core-loggers-path "runtime-wasm/core/loggers.rkt")
 (define-runtime-path core-mlists-path "runtime-wasm/core/mlists.rkt")
 (define-runtime-path core-procedures-path "runtime-wasm/core/procedures.rkt")
 (define-runtime-path core-stencil-vectors-path "runtime-wasm/core/stencil-vectors.rkt")
@@ -52,6 +55,7 @@
    (append core-runtime-helpers
            box-runtime-only-helpers
            list-runtime-only-helpers
+           logger-runtime-only-helpers
            stencil-vector-runtime-only-helpers
            thread-runtime-only-helpers
            treelist-runtime-only-helpers)))
@@ -395,6 +399,7 @@
                                           constants-path
                                           core-boxes-path
                                           core-lists-path
+                                          core-loggers-path
                                           core-mlists-path
                                           core-procedures-path
                                           core-stencil-vectors-path
@@ -26059,141 +26064,27 @@
 
          ,(core-runtime-helper-form runtime-helper-index '$make-thread-group)
 
-         ;; logger? : any/c -> boolean?
-         ;;   Predicate for WebRacket's minimal logger objects.
-         (func $logger? (type $Prim1)
-               ,@(make-predicate-body '$Logger))
+         ;;;
+         ;;; Loggers
+         ;;;
 
-         ;; log-receiver? : any/c -> boolean?
-         ;;   Predicate for inert log receivers.
-         (func $log-receiver? (type $Prim1)
-               ,@(make-predicate-body '$LogReceiver))
+         ,(core-runtime-helper-form runtime-helper-index '$logger?)
 
-         ;; make-logger : [(or/c symbol? #f)] ... -> logger?
-         ;;   Create an inert logger. Only the optional topic/name is retained;
-         ;;   parent and filter arguments are accepted but ignored for now.
-         (func $make-logger (type $Prim>=0)
-               (param $args (ref eq)) ;; list of optional logger arguments
-               (result      (ref eq))
-               (local $name (ref eq))
-               (local.set $name (global.get $false))
-               (if (ref.test (ref $Pair) (local.get $args))
-                   (then
-                    (local.set $name
-                               (struct.get $Pair $a
-                                           (ref.cast (ref $Pair) (local.get $args))))))
-               (if (i32.eqz (i32.or (ref.eq (local.get $name) (global.get $false))
-                                     (ref.test (ref $Symbol) (local.get $name))))
-                   (then (call $raise-argument-error1
-                               (global.get $symbol:make-logger)
-                               (global.get $string:symbol-or-false)
-                               (local.get $name))
-                         (unreachable)))
-               (struct.new $Logger (i32.const 0) (local.get $name)))
+         ,(core-runtime-helper-form runtime-helper-index '$log-receiver?)
 
-         ;; make-log-receiver : logger? log-level/c [(or/c #f symbol?)] ... -> log-receiver?
-         ;;   Create a synchronizable but never-ready receiver. WebRacket's
-         ;;   logger layer is currently inert, so no queued log events exist.
-         (func $make-log-receiver (type $Prim>=2)
-               (param $logger-raw (ref eq)) ;; logger?
-               (param $level      (ref eq)) ;; log-level/c, retained but not interpreted
-               (param $topics     (ref eq)) ;; topic filters
-               (result            (ref eq))
-               (if (i32.eqz (ref.test (ref $Logger) (local.get $logger-raw)))
-                   (then (call $raise-argument-error1
-                               (global.get $symbol:make-log-receiver)
-                               (global.get $string:logger?)
-                               (local.get $logger-raw))
-                         (unreachable)))
-               (struct.new $LogReceiver
-                           (i32.const 0)
-                           (ref.cast (ref $Logger) (local.get $logger-raw))
-                           (local.get $level)
-                           (local.get $topics)))
+         ,(core-runtime-helper-form runtime-helper-index '$make-logger)
 
-         ;; logger-name : logger? -> (or/c symbol? #f)
-         ;;   Return the topic/name carried by a minimal logger.
-         (func $logger-name (type $Prim1)
-               (param $logger-raw (ref eq)) ;; logger?
-               (result            (ref eq))
-               (if (i32.eqz (ref.test (ref $Logger) (local.get $logger-raw)))
-                   (then (call $raise-argument-error1
-                               (global.get $symbol:logger-name)
-                               (global.get $string:logger?)
-                               (local.get $logger-raw))
-                         (unreachable)))
-               (struct.get $Logger $name
-                           (ref.cast (ref $Logger) (local.get $logger-raw))))
+         ,(core-runtime-helper-form runtime-helper-index '$make-log-receiver)
 
-         ;; current-logger : [logger?] -> logger? or void?
-         ;;   Parameter-like current logger. It participates in the existing
-         ;;   poor-man's parameterization table so parameterize can override it.
-         (func $current-logger (type $Prim01)
-               (param $logger-raw (ref eq)) ;; optional logger?
-               (result            (ref eq))
-               (if (ref.eq (local.get $logger-raw) (global.get $missing))
-                   (then (return (call $parameter-value-or-global
-                                       (global.get $prim:current-logger)
-                                       (global.get $current-logger-value)))))
-               (if (i32.eqz (ref.test (ref $Logger) (local.get $logger-raw)))
-                   (then (call $raise-argument-error1
-                               (global.get $symbol:current-logger)
-                               (global.get $string:logger?)
-                               (local.get $logger-raw))
-                         (unreachable)))
-               (if (i32.eqz (ref.eq (global.get $current-parameterization-value)
-                                     (global.get $false)))
-                   (then (return (call $extend-current-parameterization!
-                                       (global.get $prim:current-logger)
-                                       (local.get $logger-raw)))))
-               (global.set $current-logger-value (local.get $logger-raw))
-               (global.get $void))
+         ,(core-runtime-helper-form runtime-helper-index '$logger-name)
 
-         ;; log-level? : logger? log-level/c [(or/c symbol? #f)] -> #f
-         ;;   Logging is currently inert in WebRacket; returning #f keeps
-         ;;   library logging branches quiet without needing receivers/events.
-         (func $log-level? (type $Prim23)
-               (param $logger-raw (ref eq)) ;; logger?
-               (param $level      (ref eq)) ;; log-level/c, currently ignored
-               (param $topic      (ref eq)) ;; optional topic, currently ignored
-               (result            (ref eq))
-               (if (i32.eqz (ref.test (ref $Logger) (local.get $logger-raw)))
-                   (then (call $raise-argument-error1
-                               (global.get $symbol:log-level?)
-                               (global.get $string:logger?)
-                               (local.get $logger-raw))
-                         (unreachable)))
-               (global.get $false))
+         ,(core-runtime-helper-form runtime-helper-index '$current-logger)
 
-         ;; log-max-level : logger? [(or/c symbol? #f)] -> #f
-         ;;   Inert logger support reports no enabled levels.
-         (func $log-max-level (type $Prim12)
-               (param $logger-raw (ref eq)) ;; logger?
-               (param $topic      (ref eq)) ;; optional topic, currently ignored
-               (result            (ref eq))
-               (if (i32.eqz (ref.test (ref $Logger) (local.get $logger-raw)))
-                   (then (call $raise-argument-error1
-                               (global.get $symbol:log-max-level)
-                               (global.get $string:logger?)
-                               (local.get $logger-raw))
-                         (unreachable)))
-               (global.get $false))
+         ,(core-runtime-helper-form runtime-helper-index '$log-level?)
 
-         ;; log-message : logger? log-level/c any/c ... -> void?
-         ;;   Accept and discard log messages for the inert logger substrate.
-         (func $log-message (type $Prim>=3)
-               (param $logger-raw (ref eq)) ;; logger?
-               (param $level      (ref eq)) ;; log-level/c, currently ignored
-               (param $message    (ref eq)) ;; any/c, currently ignored
-               (param $rest       (ref eq)) ;; remaining optional args
-               (result            (ref eq))
-               (if (i32.eqz (ref.test (ref $Logger) (local.get $logger-raw)))
-                   (then (call $raise-argument-error1
-                               (global.get $symbol:log-message)
-                               (global.get $string:logger?)
-                               (local.get $logger-raw))
-                         (unreachable)))
-               (global.get $void))
+         ,(core-runtime-helper-form runtime-helper-index '$log-max-level)
+
+         ,(core-runtime-helper-form runtime-helper-index '$log-message)
 
          ;; make-channel : -> channel?
          ;;   Create a single-threaded one-slot channel. Real Racket channels
