@@ -3006,6 +3006,36 @@
                            (equal? (vector*-set! v 1 'changed) (void))
                            (equal? (vector*-ref v 1) 'changed))))
 
+              (list "vector argument errors are catchable with who"
+                    (let ([catch-contract/who?
+                           (lambda (who thunk)
+                             (let ([message
+                                    (with-handlers ([exn:fail:contract?
+                                                     (lambda (exn)
+                                                       (exn-message exn))])
+                                      (thunk)
+                                      #f)])
+                               (and (string? message)
+                                    (string-contains? message who))))])
+                      (and (catch-contract/who? "make-vector"
+                                                (lambda () (make-vector -1)))
+                           (catch-contract/who? "vector-length"
+                                                (lambda () (vector-length 42)))
+                           (catch-contract/who? "vector-ref"
+                                                (lambda () (vector-ref (vector 'a) 'zero)))
+                           (catch-contract/who? "vector-ref"
+                                                (lambda () (vector-ref (vector 'a) 1)))
+                           (catch-contract/who? "vector-set!"
+                                                (lambda () (vector-set! 42 0 'x)))
+                           (catch-contract/who? "vector-set!"
+                                                (lambda () (vector-set! (vector-immutable 'a) 0 'x)))
+                           (catch-contract/who? "vector-fill!"
+                                                (lambda () (vector-fill! (vector-immutable 'a) 'x)))
+                           (catch-contract/who? "vector*-ref"
+                                                (lambda () (vector*-ref (vector 'a) 1)))
+                           (catch-contract/who? "vector*-set!"
+                                                (lambda () (vector*-set! (vector-immutable 'a) 0 'x))))))
+
               (list "stencil-vector"
                     (let ([sv (stencil-vector #b101 'a 'b)])
                       (and (stencil-vector? sv)

@@ -2412,6 +2412,8 @@
     (add-runtime-string-constant 'byte?                      "byte?")
     (add-runtime-string-constant 'bytes?                     "bytes?")
     (add-runtime-string-constant 'vector?                    "vector?")
+    (add-runtime-string-constant 'mutable-vector?            "(and/c vector? (not/c immutable?))")
+    (add-runtime-string-constant 'valid-vector-index          "valid vector index")
     (add-runtime-string-constant 'box?                       "box?")
     (add-runtime-string-constant 'port?                      "port?")
     (add-runtime-string-constant 'input-port?                "input-port?")
@@ -2672,6 +2674,18 @@
     (add-runtime-symbol-constant 'cdr)
     (add-runtime-symbol-constant 'fixnum?)
     (add-runtime-symbol-constant 'byte?)
+    (add-runtime-symbol-constant 'vector?)
+    (add-runtime-symbol-constant 'make-vector)
+    (add-runtime-symbol-constant 'vector-length)
+    (add-runtime-symbol-constant 'vector-ref)
+    (add-runtime-symbol-constant 'vector-set!)
+    (add-runtime-symbol-constant 'vector*-length)
+    (add-runtime-symbol-constant 'vector*-ref)
+    (add-runtime-symbol-constant 'vector*-set!)
+    (add-runtime-symbol-constant 'vector-fill!)
+    (add-runtime-symbol-constant 'vector-copy)
+    (add-runtime-symbol-constant 'vector-copy!)
+    (add-runtime-symbol-constant 'vector-take)
     (add-runtime-symbol-constant 'define-values)
     (add-runtime-symbol-constant 'quote)
     (add-runtime-symbol-constant 'begin)
@@ -28906,25 +28920,102 @@
                             (global.get $dummy-array)))
 
         ;; Vector related exceptions
-        (func $raise-check-vector (param $x (ref eq)) (unreachable))
-        (func $raise-check-fixnum (param $x (ref eq))
+        (func $raise-check-vector/who
+              (param $who (ref eq))
+              (param $x   (ref eq))
               (call $raise-argument-error1
-                    (global.get $symbol:fixnum?)
+                    (local.get $who)
+                    (global.get $string:vector?)
+                    (local.get $x)))
+        (func $raise-check-vector
+              (param $x (ref eq))
+              (call $raise-check-vector/who
+                    (global.get $symbol:vector?)
+                    (local.get $x)))
+        (func $raise-check-fixnum/who
+              (param $who (ref eq))
+              (param $x   (ref eq))
+              (call $raise-argument-error1
+                    (local.get $who)
                     (global.get $string:fixnum?)
                     (local.get $x)))
-        (func $raise-immutable-vector (param $x (ref eq)) (unreachable))
+        (func $raise-check-fixnum (param $x (ref eq))
+              (call $raise-check-fixnum/who
+                    (global.get $symbol:fixnum?)
+                    (local.get $x)))
+        (func $raise-immutable-vector/who
+              (param $who (ref eq))
+              (param $x   (ref eq))
+              (call $raise-argument-error1
+                    (local.get $who)
+                    (global.get $string:mutable-vector?)
+                    (local.get $x)))
+        (func $raise-immutable-vector
+              (param $x (ref eq))
+              (call $raise-immutable-vector/who
+                    (global.get $symbol:vector-set!)
+                    (local.get $x)))
+        (func $raise-bad-vector-ref-index/who
+              (param $who (ref eq))
+              (param $v   (ref $Vector))
+              (param $i   i32)
+              (param $len i32)
+              (call $raise-argument-error1
+                    (local.get $who)
+                    (global.get $string:valid-vector-index)
+                    (ref.i31 (i32.shl (local.get $i) (i32.const 1)))))
         (func $raise-bad-vector-ref-index
               (param $v (ref $Vector)) (param $i i32) (param $len i32)
-              (unreachable))
+              (call $raise-bad-vector-ref-index/who
+                    (global.get $symbol:vector-ref)
+                    (local.get $v)
+                    (local.get $i)
+                    (local.get $len)))
+         (func $raise-bad-vector-copy-range/who
+               (param $who        (ref eq))
+               (param $dest       (ref $Vector))
+               (param $dest-start i32)
+               (param $src        (ref $Vector))
+               (param $src-start  i32)
+               (param $src-end    i32)
+               (call $raise-argument-error1
+                     (local.get $who)
+                     (global.get $string:valid-vector-index)
+                     (ref.i31 (i32.shl (local.get $src-start) (i32.const 1)))))
          (func $raise-bad-vector-copy-range
-               (param (ref $Vector)) (param i32) (param (ref $Vector)) (param i32) (param i32)
-               (unreachable))
+               (param $dest (ref $Vector)) (param $dest-start i32)
+               (param $src  (ref $Vector)) (param $src-start  i32) (param $src-end i32)
+               (call $raise-bad-vector-copy-range/who
+                     (global.get $symbol:vector-copy)
+                     (local.get $dest)
+                     (local.get $dest-start)
+                     (local.get $src)
+                     (local.get $src-start)
+                     (local.get $src-end)))
+         (func $raise-bad-vector-take-index/who
+               (param $who (ref eq))
+               (param $v   (ref $Vector))
+               (param $i   i32)
+               (param $len i32)
+               (call $raise-argument-error1
+                     (local.get $who)
+                     (global.get $string:valid-vector-index)
+                     (ref.i31 (i32.shl (local.get $i) (i32.const 1)))))
          (func $raise-bad-vector-take-index
-               (param (ref $Vector)) (param i32) (param i32)
-               (unreachable))
+               (param $v (ref $Vector)) (param $i i32) (param $len i32)
+               (call $raise-bad-vector-take-index/who
+                     (global.get $symbol:vector-take)
+                     (local.get $v)
+                     (local.get $i)
+                     (local.get $len)))
 
 
-         (func $raise-make-vector:bad-length (unreachable))
+         (func $raise-make-vector:bad-length
+               (param $x (ref eq))
+               (call $raise-argument-error1
+                     (global.get $symbol:make-vector)
+                     (global.get $string:exact-nonnegative-integer?)
+                     (local.get $x)))
 
          (func $treelist-node-children
                (param $node (ref $TreelistNode))
@@ -33753,14 +33844,22 @@
                (param $val    (ref eq))  ;; optional, defaults to 0
                (result        (ref eq))
 
-               (local $k i32)
-               (local $v (ref eq))  ;; possibly rewritten value
+               (local $k   i32)
+               (local $k/s i32)
+               (local $v   (ref eq))  ;; possibly rewritten value
                ;; --- Type check for fixnum ---
                (if (i32.eqz (ref.test (ref i31) (local.get $k-fx)))
-                   (then (call $raise-make-vector:bad-length)))
+                   (then (call $raise-make-vector:bad-length (local.get $k-fx))
+                         (unreachable)))
                ;; --- Decode fixnum to i32 ---
-               (local.set $k (i32.shr_u (i31.get_u (ref.cast (ref i31) (local.get $k-fx)))
-                                        (i32.const 1)))
+               (local.set $k/s
+                          (i32.shr_s
+                           (i31.get_s (ref.cast (ref i31) (local.get $k-fx)))
+                           (i32.const 1)))
+               (if (i32.lt_s (local.get $k/s) (i32.const 0))
+                   (then (call $raise-make-vector:bad-length (local.get $k-fx))
+                         (unreachable)))
+               (local.set $k (local.get $k/s))
                ;; --- Substitute default value if missing ---
                (local.set $v (if (result (ref eq))
                                  (ref.eq (local.get $val) (global.get $missing))
@@ -34056,7 +34155,9 @@
                            (array.len
                             (struct.get $Vector $arr (local.get $vec)))
                            (i32.const 1))))
-                   (else (call $raise-check-vector (local.get $v))
+                   (else (call $raise-check-vector/who
+                               (global.get $symbol:vector-length)
+                               (local.get $v))
                          (unreachable))))
 
 
@@ -34066,7 +34167,9 @@
                    (ref.test (ref $Vector) (local.get $v))
                    (then (local.set $vec (ref.cast (ref $Vector) (local.get $v)))
                          (array.len (struct.get $Vector $arr (local.get $vec))))
-                   (else (call $raise-check-vector (local.get $v))
+                   (else (call $raise-check-vector/who
+                               (global.get $symbol:vector-length)
+                               (local.get $v))
                          (unreachable))))
 
          (func $vector-length/checked/i32 (param $v (ref $Vector)) (result i32)
@@ -34097,7 +34200,8 @@
                                (local.get $a) (local.get $i) (local.get $len))
                          (unreachable))))
 
-         (func $vector-ref (type $Prim2)
+         (func $vector-ref/who
+               (param $who (ref eq))
                (param $v (ref eq)) (param $i (ref eq))
                (result (ref eq))
                (local $vec (ref $Vector))
@@ -34108,7 +34212,7 @@
                ;; Check that $v is a vector
                (if (ref.test (ref $Vector) (local.get $v))
                    (then (local.set $vec (ref.cast (ref $Vector) (local.get $v))))
-                   (else (call $raise-check-vector (local.get $v))))
+                   (else (call $raise-check-vector/who (local.get $who) (local.get $v))))
                ;; Check that $i is an i31 and decode fixnum
                (if (ref.test (ref i31) (local.get $i))
                    (then
@@ -34116,8 +34220,8 @@
                                (i31.get_u (ref.cast (ref i31) (local.get $i))))
                     (if (i32.eqz (i32.and (local.get $idx) (i32.const 1)))
                         (then (local.set $idx (i32.shr_u (local.get $idx) (i32.const 1))))
-                        (else (call $raise-check-fixnum (local.get $i)))))
-                   (else (call $raise-check-fixnum (local.get $i))))
+                        (else (call $raise-check-fixnum/who (local.get $who) (local.get $i)))))
+                   (else (call $raise-check-fixnum/who (local.get $who) (local.get $i))))
                ;; Get array length
                (local.set $len (array.len (struct.get $Vector $arr (local.get $vec))))
                ;; Bounds check
@@ -34127,9 +34231,18 @@
                           (array.get $Array
                                      (struct.get $Vector $arr (local.get $vec))
                                      (local.get $idx))))
-                   (else (call $raise-bad-vector-ref-index
+                   (else (call $raise-bad-vector-ref-index/who
+                               (local.get $who)
                                (local.get $vec) (local.get $idx) (local.get $len))
                          (unreachable))))
+
+         (func $vector-ref (type $Prim2)
+               (param $v (ref eq)) (param $i (ref eq))
+               (result (ref eq))
+               (call $vector-ref/who
+                     (global.get $symbol:vector-ref)
+                     (local.get $v)
+                     (local.get $i)))
 
 
          (func $vector-set!/checked
@@ -34148,7 +34261,8 @@
                                (local.get $vec) (local.get $i) (local.get $len))
                          (unreachable))))
 
-         (func $vector-set! (type $Prim3)
+         (func $vector-set!/who
+               (param $who (ref eq))
                (param $v   (ref eq))
                (param $i   (ref eq))
                (param $val (ref eq))
@@ -34162,18 +34276,18 @@
                ;; 1. Check $v is a vector
                (if (ref.test (ref $Vector) (local.get $v))
                    (then (local.set $vec (ref.cast (ref $Vector) (local.get $v))))
-                   (else (call $raise-check-vector (local.get $v))))
+                   (else (call $raise-check-vector/who (local.get $who) (local.get $v))))
                ;; 2. Check $i is a fixnum
                (if (ref.test (ref i31) (local.get $i))
                    (then (local.set $idx
                                     (i31.get_u (ref.cast (ref i31) (local.get $i))))
                          (if (i32.eqz (i32.and (local.get $idx) (i32.const 1)))
                              (then (local.set $idx (i32.shr_u (local.get $idx) (i32.const 1))))
-                             (else (call $raise-check-fixnum (local.get $i)))))
-                   (else (call $raise-check-fixnum (local.get $i))))
+                             (else (call $raise-check-fixnum/who (local.get $who) (local.get $i)))))
+                   (else (call $raise-check-fixnum/who (local.get $who) (local.get $i))))
               ;; 3. Check mutability and get length
               (if (i32.ne (struct.get $Vector $immutable (local.get $vec)) (i32.const 0))
-                  (then (call $raise-immutable-vector (local.get $v))))
+                  (then (call $raise-immutable-vector/who (local.get $who) (local.get $v))))
               (local.set $len (array.len (struct.get $Vector $arr (local.get $vec))))
                ;; 4. Bounds check and set
                (if (result (ref eq))
@@ -34183,9 +34297,21 @@
                                     (local.get $idx)
                                     (local.get $val))
                          (global.get $void))
-                   (else (call $raise-bad-vector-ref-index
+                   (else (call $raise-bad-vector-ref-index/who
+                               (local.get $who)
                                (local.get $vec) (local.get $idx) (local.get $len))
                          (unreachable))))
+
+         (func $vector-set! (type $Prim3)
+               (param $v   (ref eq))
+               (param $i   (ref eq))
+               (param $val (ref eq))
+               (result     (ref eq))
+               (call $vector-set!/who
+                     (global.get $symbol:vector-set!)
+                     (local.get $v)
+                     (local.get $i)
+                     (local.get $val)))
 
          ;; vector*-length : vector? -> exact-nonnegative-integer?
          ;;   Checked vector length. WebRacket has no vector impersonators yet,
@@ -34198,7 +34324,9 @@
                (local.set $vec (global.get $dummy-vector))
                (if (ref.test (ref $Vector) (local.get $v))
                    (then (local.set $vec (ref.cast (ref $Vector) (local.get $v))))
-                   (else (call $raise-check-vector (local.get $v))
+                   (else (call $raise-check-vector/who
+                               (global.get $symbol:vector*-length)
+                               (local.get $v))
                          (unreachable)))
                (ref.i31 (i32.shl
                          (array.len
@@ -34212,7 +34340,10 @@
                (param $v (ref eq)) ;; vector?
                (param $i (ref eq)) ;; exact-nonnegative-integer?
                (result   (ref eq))
-               (call $vector-ref (local.get $v) (local.get $i)))
+               (call $vector-ref/who
+                     (global.get $symbol:vector*-ref)
+                     (local.get $v)
+                     (local.get $i)))
 
          ;; vector*-set! : (and/c vector? (not/c immutable?)) exact-nonnegative-integer? any/c -> void?
          ;;   Checked vector set. WebRacket has no vector impersonators yet,
@@ -34222,16 +34353,24 @@
                (param $i   (ref eq)) ;; exact-nonnegative-integer?
                (param $val (ref eq)) ;; new value
                (result     (ref eq))
-               (call $vector-set! (local.get $v) (local.get $i) (local.get $val)))
+               (call $vector-set!/who
+                     (global.get $symbol:vector*-set!)
+                     (local.get $v)
+                     (local.get $i)
+                     (local.get $val)))
 
          (func $vector-fill! (type $Prim2) (param $v (ref eq)) (param $x (ref eq)) (result (ref eq))
                (local $vec (ref $Vector))
                (local.set $vec (global.get $dummy-vector))
                (if (ref.test (ref $Vector) (local.get $v))
                    (then (local.set $vec (ref.cast (ref $Vector) (local.get $v))))
-                   (else (call $raise-check-vector (local.get $v))))
+                   (else (call $raise-check-vector/who
+                               (global.get $symbol:vector-fill!)
+                               (local.get $v))))
                (if (i32.ne (struct.get $Vector $immutable (local.get $vec)) (i32.const 0))
-                   (then (call $raise-immutable-vector (local.get $v))))
+                   (then (call $raise-immutable-vector/who
+                               (global.get $symbol:vector-fill!)
+                               (local.get $v))))
                (call $array-fill! (struct.get $Vector $arr (local.get $vec)) (local.get $x))
                (global.get $void))
 
