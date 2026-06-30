@@ -23578,90 +23578,19 @@
 
          ,(core-runtime-helper-form runtime-helper-index '$treelist-delete)
 
-         (func $make-treelist (type $Prim12)
-               (param $k-fx (ref eq))  ;; fixnum
-               (param $val  (ref eq))  ;; optional, defaults to #f
-               (result (ref eq))
+         ,(core-runtime-helper-form runtime-helper-index '$make-treelist)
 
-               (local $k i32)
-               (local $k/s i32)
-               (local $fill (ref eq))
-               (if (i32.eqz (ref.test (ref i31) (local.get $k-fx)))
-                   (then (call $raise-make-treelist:bad-length (local.get $k-fx))
-                         (unreachable)))
-               (local.set $k/s
-                          (i32.shr_s
-                           (i31.get_s (ref.cast (ref i31) (local.get $k-fx)))
-                           (i32.const 1)))
-               (if (i32.lt_s (local.get $k/s) (i32.const 0))
-                   (then (call $raise-make-treelist:bad-length (local.get $k-fx))
-                         (unreachable)))
-               (local.set $k (local.get $k/s))
-               (local.set $fill
-                          (if (result (ref eq))
-                              (ref.eq (local.get $val) (global.get $missing))
-                              (then (global.get $false))
-                              (else (local.get $val))))
-               (call $make-treelist/checked (local.get $k) (local.get $fill)))
+         ,(core-runtime-helper-form runtime-helper-index '$make-treelist/checked)
 
-         (func $make-treelist/checked
-               (param $k   i32)
-               (param $val (ref eq))
-               (result (ref $Treelist))
-               (call $array->treelist/checked
-                     (call $make-array (local.get $k) (local.get $val))))
+         ,(core-runtime-helper-form runtime-helper-index '$vector->treelist)
 
-         (func $vector->treelist (type $Prim1)
-               (param $v (ref eq))
-               (result (ref eq))
-               (local $vec (ref $Vector))
-               (local $arr (ref $Array))
-               (local $len i32)
-               (if (i32.eqz (ref.test (ref $Vector) (local.get $v)))
-                   (then (call $raise-check-vector (local.get $v))
-                         (unreachable)))
-               (local.set $vec (ref.cast (ref $Vector) (local.get $v)))
-               (local.set $len (array.len (struct.get $Vector $arr (local.get $vec))))
-               (local.set $arr
-                          (call $array-copy
-                                (struct.get $Vector $arr (local.get $vec))
-                                (i32.const 0)
-                                (local.get $len)))
-               (call $array->treelist/checked (local.get $arr)))
+         ,(core-runtime-helper-form runtime-helper-index '$treelist->vector)
 
-         (func $treelist->vector (type $Prim1)
-               (param $v (ref eq))
-               (result (ref eq))
-               (if (i32.eqz (ref.test (ref $Treelist) (local.get $v)))
-                   (then (call $raise-check-treelist/who
-                               (global.get $symbol:treelist->vector)
-                               (local.get $v))
-                         (unreachable)))
-               (call $treelist->vector/checked (ref.cast (ref $Treelist) (local.get $v))))
+         ,(core-runtime-helper-form runtime-helper-index '$treelist->vector/checked)
 
-         (func $treelist->vector/checked
-               (param $tl (ref $Treelist))
-               (result (ref $Vector))
-               (struct.new $Vector
-                           (i32.const 0)
-                           (i32.const 0)
-                           (call $treelist->array/checked (local.get $tl))))
+         ,(core-runtime-helper-form runtime-helper-index '$list->treelist)
 
-         (func $list->treelist (type $Prim1)
-               (param $xs (ref eq))
-               (result (ref eq))
-               (call $array->treelist/checked (call $list->array (local.get $xs))))
-
-         (func $treelist->list (type $Prim1)
-               (param $v (ref eq))
-               (result (ref eq))
-               (if (i32.eqz (ref.test (ref $Treelist) (local.get $v)))
-                   (then (call $raise-check-treelist/who
-                               (global.get $symbol:treelist->list)
-                               (local.get $v))
-                         (unreachable)))
-               (call $vector->list/checked
-                     (call $treelist->vector/checked (ref.cast (ref $Treelist) (local.get $v)))))
+         ,(core-runtime-helper-form runtime-helper-index '$treelist->list)
 
 
          (func $make-vector (type $Prim12)
