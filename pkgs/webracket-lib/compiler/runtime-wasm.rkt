@@ -11,6 +11,8 @@
          "private/timings.rkt"
          "private/structs.rkt"
          "runtime-wasm/core-helper.rkt"
+         (only-in "runtime-wasm/core/lists.rkt"
+                  list-runtime-only-helpers)
          "runtime-wasm/core-runtime.rkt"
          "runtime-wasm/constants.rkt"
          "runtime-wasm/shared-types.rkt"
@@ -29,6 +31,13 @@
 (define-runtime-path constants-path "runtime-wasm/constants.rkt")
 (define-runtime-path core-lists-path "runtime-wasm/core/lists.rkt")
 (define-runtime-path core-procedures-path "runtime-wasm/core/procedures.rkt")
+
+;; runtime-helper-index : hasheq?
+;;   Index helpers available to the monolithic runtime generator.
+(define runtime-helper-index
+  (make-core-runtime-helper-index
+   (append core-runtime-helpers
+           list-runtime-only-helpers)))
 
 (module+ test
   (require (submod "runtime-wasm/core-runtime.rkt" test)))
@@ -22704,162 +22713,34 @@
 
          ,(core-runtime-helper-form core-runtime-helper-index '$empty?)
 
-         (func $cons (type $Prim2) (param $a (ref eq)) (param $d (ref eq)) (result (ref eq))
-               (call $debug-allocation-tick (i32.const 0))
-               (struct.new $Pair (i32.const 0) (local.get $a) (local.get $d)))
+         ,(core-runtime-helper-form core-runtime-helper-index '$cons)
 
          ,(core-runtime-helper-form core-runtime-helper-index '$list*)
 
-         (func $car (type $Prim1) (param $v (ref eq)) (result (ref eq))
-               (if (result (ref eq)) (ref.test (ref $Pair) (local.get $v))
-                   (then (struct.get $Pair $a (ref.cast (ref $Pair) (local.get $v))))
-                   (else (call $raise-pair-expected/who
-                               (global.get $symbol:car)
-                               (local.get $v))
-                         (unreachable))))
+         ,(core-runtime-helper-form runtime-helper-index '$car)
 
-         (func $cdr (type $Prim1) (param $v (ref eq)) (result (ref eq))
-               (if (result (ref eq)) (ref.test (ref $Pair) (local.get $v))
-                   (then (struct.get $Pair $d (ref.cast (ref $Pair) (local.get $v))))
-                   (else (call $raise-pair-expected/who
-                               (global.get $symbol:cdr)
-                               (local.get $v))
-                         (unreachable))))
+         ,(core-runtime-helper-form runtime-helper-index '$cdr)
 
-
-         ,@(for/list ([name '(caar cadr cdar cddr
-                             caaar caadr cadar caddr
-                             cdaar cdadr cddar cdddr
-                             caaaar caaadr caadar caaddr
-                             cadaar cadadr caddar cadddr
-                             cdaaar cdaadr cdadar cdaddr
-                             cddaar cddadr cdddar cddddr)])
-            (let* ([str      (symbol->string name)]
-                   [letters  (substring str 1 (sub1 (string-length str)))]
-                   [ops      (for/list ([ch (in-list (reverse (string->list letters)))])
-                               (case ch
-                                 [(#\a) 'car]
-                                 [(#\d) 'cdr]
-                                 [else (error 'generate-runtime
-                                              "invalid pair accessor name: ~a" name)]))]
-                   [body     (for/fold ([expr '(local.get $v)]) ([op (in-list ops)])
-                               (case op
-                                 [(car) `(call $car ,expr)]
-                                 [(cdr) `(call $cdr ,expr)]))])
-              `(func ,(string->symbol (~a "$" name)) (type $Prim1)
-                     (param $v (ref eq))
-                     (result (ref eq))
-                     ,body)))
+         ,@(for/list ([name '($caar $cadr $cdar $cddr
+                              $caaar $caadr $cadar $caddr
+                              $cdaar $cdadr $cddar $cdddr
+                              $caaaar $caaadr $caadar $caaddr
+                              $cadaar $cadadr $caddar $cadddr
+                              $cdaaar $cdaadr $cdadar $cdaddr
+                              $cddaar $cddadr $cdddar $cddddr)])
+             (core-runtime-helper-form runtime-helper-index name))
 
          ,(core-runtime-helper-form core-runtime-helper-index '$list?)
 
          ,(core-runtime-helper-form core-runtime-helper-index '$list)
 
-         (func $length/i32 (param $xs (ref eq)) (result i32)
-               (local $i i32)
-               (local.set $i (i32.const 0))
-               (block $done
-                      (loop $count
-                            ;; if we've reached null, return the count so far
-                            (if (ref.eq (local.get $xs) (global.get $null))
-                                (then (return (local.get $i))))
-                            ;; else, must be a pair: follow its cdr
-                            (if (ref.test (ref $Pair) (local.get $xs))
-                                (then (local.set $xs
-                                                 (struct.get $Pair $d
-                                                             (ref.cast (ref $Pair) (local.get $xs)))))
-                                ;; neither null nor pair: error
-                                (else (call $raise-pair-expected (local.get $xs))))
-                            ;; increment and repeat
-                            (local.set $i (i32.add (local.get $i) (i32.const 1)))
-                            (br $count)))
-               ;; fall-through just returns the current count
-               (local.get $i))
+         ,(core-runtime-helper-form runtime-helper-index '$length/i32)
 
-         (func $length (type $Prim1) (param $xs (ref eq)) (result (ref eq))
-               (local $i i32)
-               (local.set $i (i32.const 0))
-               (block $done
-                      (loop $count
-                            (if (ref.eq (local.get $xs) (global.get $null))
-                                (then (br $done)))
-                            (if (ref.test (ref $Pair) (local.get $xs))
-                                (then (local.set $xs
-                                                 (struct.get $Pair $d
-                                                             (ref.cast (ref $Pair) (local.get $xs)))))
-                                (else (call $raise-list-expected/who
-                                            (global.get $symbol:length)
-                                            (local.get $xs))))
-                            (local.set $i (i32.add (local.get $i) (i32.const 1)))
-                            (br $count)))
-               (ref.i31 (i32.shl (local.get $i) (i32.const 1))))
+         ,(core-runtime-helper-form runtime-helper-index '$length)
 
+         ,(core-runtime-helper-form runtime-helper-index '$list-ref/checked)
 
-         ;; list-ref/checked: takes a Pair and an unboxed i32 index.
-         ;; Works for improper lists as long as the index doesn't step past the last Pair.
-         (func $list-ref/checked (param $xs (ref $Pair)) (param $i i32) (result (ref eq))
-               (local $v    (ref $Pair))
-               (local $k    i32)
-               (local $next (ref eq))
-               (local $len  i32)
-
-               (local.set $v (local.get $xs))
-               (local.set $k (local.get $i))
-
-               (loop $loop
-                     ;; If we've reached the desired pair, return its car.
-                     (if (i32.eqz (local.get $k))
-                         (then (return (struct.get $Pair $a (local.get $v)))))
-                     ;; Otherwise, try to step to the next pair.
-                     (local.set $next (struct.get $Pair $d (local.get $v)))
-                     (if (ref.test (ref $Pair) (local.get $next))
-                         (then
-                          (local.set $v (ref.cast (ref $Pair) (local.get $next)))
-                          (local.set $k (i32.sub (local.get $k) (i32.const 1)))
-                          (br $loop))
-                         (else
-                          ;; Ran out of pairs before reaching index: compute length of the
-                          ;; pair-chain we've actually got and raise.
-                          ;; len = steps_so_far + 1 = i - k + 1
-                          (local.set $len
-                                     (i32.add (i32.sub (local.get $i) (local.get $k)) (i32.const 1)))
-                          (call $raise-bad-list-ref-index (local.get $xs) (local.get $i) (local.get $len))
-                          (unreachable))))
-               ;; Should not fall through.
-               (unreachable))
-
-
-         (func $list-ref (type $Prim2) (param $xs (ref eq)) (param $i (ref eq)) (result (ref eq))
-               (local $idx i32)
-               ;; Decode & check exact-nonnegative-integer index
-               (if (ref.test (ref i31) (local.get $i))
-                   (then (local.set $idx
-                                    (i31.get_s (ref.cast (ref i31) (local.get $i))))
-                         (if (i32.ne (i32.and (local.get $idx) (i32.const 1)) (i32.const 0))
-                             (then (call $raise-exact-nonnegative-integer-expected/who
-                                         (global.get $symbol:list-ref)
-                                         (local.get $i))
-                                   (unreachable)))
-                         (local.set $idx (i32.shr_s (local.get $idx) (i32.const 1))))
-                   (else (call $raise-exact-nonnegative-integer-expected/who
-                               (global.get $symbol:list-ref)
-                               (local.get $i))
-                         (unreachable)))
-               (if (i32.lt_s (local.get $idx) (i32.const 0))
-                   (then (call $raise-exact-nonnegative-integer-expected/who
-                               (global.get $symbol:list-ref)
-                               (local.get $i))
-                         (unreachable)))
-               ;; Check & dispatch on Pair
-               (if (result (ref eq))
-                   (ref.test (ref $Pair) (local.get $xs))
-                   (then (call $list-ref/checked
-                               (ref.cast (ref $Pair) (local.get $xs))
-                               (local.get $idx)))
-                   (else (call $raise-pair-expected/who
-                               (global.get $symbol:list-ref)
-                               (local.get $xs))
-                         (unreachable))))
+         ,(core-runtime-helper-form runtime-helper-index '$list-ref)
 
          ,@(for/list ([name '($first $second $third $fourth $fifth $sixth $seventh $eighth
                               $ninth $tenth $eleventh $twelfth $thirteenth $fourteenth $fifteenth)]
@@ -22881,235 +22762,23 @@
                          (local.get $xs)
                          (ref.i31 (i32.shl (i32.const ,idx) (i32.const 1))))))
 
-        (func $rest (type $Prim1) (param $xs (ref eq)) (result (ref eq))
-              ;; Type check: non-empty proper list
-              (if (ref.eq (local.get $xs) (global.get $null))
-                  (then (call $raise-pair-expected/who
-                              (global.get $symbol:rest)
-                              (local.get $xs))
-                        (unreachable)))
-              (if (ref.eq (call $list? (local.get $xs)) (global.get $false))
-                  (then (call $raise-list-expected/who
-                              (global.get $symbol:rest)
-                              (local.get $xs))
-                        (unreachable)))
-              ;; Return tail
-              (struct.get $Pair $d (ref.cast (ref $Pair) (local.get $xs))))
+        ,(core-runtime-helper-form runtime-helper-index '$rest)
 
         ,(core-runtime-helper-form core-runtime-helper-index '$last-pair/checked)
 
-        (func $last (type $Prim1) (param $xs (ref eq)) (result (ref eq))
-              (local $p (ref $Pair))
-              ;; Type check: non-empty proper list
-              (if (ref.eq (local.get $xs) (global.get $null))
-                  (then (call $raise-argument-error/internal (local.get $xs)) (unreachable)))
-              (if (ref.eq (call $list? (local.get $xs)) (global.get $false))
-                  (then (call $raise-argument-error/internal (local.get $xs)) (unreachable)))
-              ;; Retrieve last element
-              (local.set $p (call $last-pair/checked (ref.cast (ref $Pair) (local.get $xs))))
-              (struct.get $Pair $a (local.get $p)))
+        ,(core-runtime-helper-form runtime-helper-index '$last)
 
-        (func $last-pair (type $Prim1) (param $xs (ref eq)) (result (ref eq))
-              ;; Type check: pair?
-              (if (i32.eqz (ref.test (ref $Pair) (local.get $xs)))
-                  (then (call $raise-pair-expected (local.get $xs)) (unreachable)))
-              (call $last-pair/checked (ref.cast (ref $Pair) (local.get $xs))))
+        ,(core-runtime-helper-form runtime-helper-index '$last-pair)
 
-        ;; list-tail/checked/who: xs is known to be a Pair and i > 0.
-         ;; Returns the result of cdr^i(xs). Works with improper lists:
-         ;; if the i-th cdr is a non-pair, it is returned. If we need to
-         ;; cdr again past a non-pair, raise pair-expected.
-         (func $list-tail/checked/who
-               (param $who (ref eq))
-               (param $xs  (ref $Pair))
-               (param $i   i32)
-               (result (ref eq))
-               (local $v    (ref $Pair))
-               (local $k    i32)
-               (local $next (ref eq))
+        ,(core-runtime-helper-form runtime-helper-index '$list-tail/checked/who)
 
-               (local.set $v (local.get $xs))
-               (local.set $k (local.get $i))
+        ,(core-runtime-helper-form runtime-helper-index '$list-tail/checked)
 
-               (loop $loop
-                     ;; If no steps remain, return current tail (a Pair value is fine as (ref eq)).
-                     (if (i32.eqz (local.get $k))
-                         (then (return (local.get $v))))
-                     ;; Step once.
-                     (local.set $next (struct.get $Pair $d (local.get $v)))
-                     (local.set $k (i32.sub (local.get $k) (i32.const 1)))
-                     ;; If that single step completed all steps, return whatever we landed on
-                     ;; (pair or not).
-                     (if (i32.eqz (local.get $k))
-                         (then (return (local.get $next))))
-                     ;; Otherwise, we must continue stepping. Ensure next is a Pair.
-                     (if (ref.test (ref $Pair) (local.get $next))
-                         (then
-                         (local.set $v (ref.cast (ref $Pair) (local.get $next)))
-                          (br $loop))
-                         (else
-                          (call $raise-pair-expected/who
-                                (local.get $who)
-                                (local.get $next)))))
-               (unreachable))
+        ,(core-runtime-helper-form runtime-helper-index '$list-tail)
 
-         (func $list-tail/checked
-               (param $xs (ref $Pair))
-               (param $i  i32)
-               (result (ref eq))
-               (call $list-tail/checked/who
-                     (global.get $symbol:list-tail)
-                     (local.get $xs)
-                     (local.get $i)))
+        ,(core-runtime-helper-form runtime-helper-index '$list-set/checked)
 
-         (func $list-tail (type $Prim2) (param $xs (ref eq)) (param $i (ref eq)) (result (ref eq))
-               (local $pair (ref $Pair))
-               (local $idx  i32)
-               ;; Initialize non-defaultable local to a safe value.
-               (local.set $pair (global.get $dummy-pair))
-               ;; Decode and check exact-nonnegative-integer index.
-               (if (ref.test (ref i31) (local.get $i))
-                   (then
-                    (local.set $idx (i31.get_s (ref.cast (ref i31) (local.get $i))))
-                    (if (i32.ne (i32.and (local.get $idx) (i32.const 1)) (i32.const 0))
-                        (then (call $raise-exact-nonnegative-integer-expected/who
-                                    (global.get $symbol:list-tail)
-                                    (local.get $i))
-                              (unreachable)))
-                    (local.set $idx (i32.shr_s (local.get $idx) (i32.const 1))))
-                   (else (call $raise-exact-nonnegative-integer-expected/who
-                               (global.get $symbol:list-tail)
-                               (local.get $i))
-                         (unreachable)))
-               (if (i32.lt_s (local.get $idx) (i32.const 0))
-                   (then (call $raise-exact-nonnegative-integer-expected/who
-                               (global.get $symbol:list-tail)
-                               (local.get $i))
-                         (unreachable)))
-               ;; (list-tail xs 0) => xs
-               (if (i32.eqz (local.get $idx))
-                   (then (return (local.get $xs))))
-               ;; For idx > 0, xs must be a Pair. Make dominance explicit with `unreachable`.
-               (if (ref.test (ref $Pair) (local.get $xs))
-                   (then (local.set $pair (ref.cast (ref $Pair) (local.get $xs))))
-                   (else
-                    (call $raise-pair-expected/who
-                          (global.get $symbol:list-tail)
-                          (local.get $xs))
-                    (unreachable)))
-
-               (call $list-tail/checked/who
-                     (global.get $symbol:list-tail)
-                     (local.get $pair)
-                     (local.get $idx)))
-
-        ;; list-set/checked: xs is a Pair and i >= 0 within bounds.
-        ;; Returns a new list with the element at index i replaced by v.
-        (func $list-set/checked
-              (param $xs (ref $Pair))
-              (param $i  i32)
-              (param $v  (ref eq))
-              (result    (ref eq))
-
-              (local $p      (ref $Pair))
-              (local $k      i32)
-              (local $next   (ref eq))
-              (local $rev    (ref eq))
-              (local $len    i32)
-              (local $tail   (ref eq))
-              (local $res    (ref eq))
-              (local $prefix (ref eq))
-
-              (local.set $p   (local.get $xs))
-              (local.set $k   (local.get $i))
-              (local.set $rev (global.get $null))
-
-              (loop $loop
-                    (if (i32.eqz (local.get $k))
-                        (then
-                         (local.set $tail (struct.get $Pair $d (local.get $p)))
-                         (local.set $res
-                                    (struct.new $Pair (i32.const 0)
-                                                (local.get $v) (local.get $tail)))
-                         (local.set $prefix (local.get $rev))
-                         (loop $rebuild
-                               (if (ref.eq (local.get $prefix) (global.get $null))
-                                   (then (return (local.get $res))))
-                               (local.set $res
-                                          (struct.new $Pair (i32.const 0)
-                                                      (struct.get $Pair $a
-                                                                  (ref.cast (ref $Pair)
-                                                                            (local.get $prefix)))
-                                                      (local.get $res)))
-                               (local.set $prefix
-                                          (struct.get $Pair $d
-                                                      (ref.cast (ref $Pair)
-                                                                (local.get $prefix))))
-                               (br $rebuild))))
-                    (local.set $rev
-                               (struct.new $Pair (i32.const 0)
-                                           (struct.get $Pair $a (local.get $p))
-                                           (local.get $rev)))
-                    (local.set $next (struct.get $Pair $d (local.get $p)))
-                    (if (ref.test (ref $Pair) (local.get $next))
-                        (then
-                         (local.set $p (ref.cast (ref $Pair) (local.get $next)))
-                         (local.set $k (i32.sub (local.get $k) (i32.const 1)))
-                         (br $loop))
-                        (else
-                         (local.set $len
-                                    (i32.add (i32.sub (local.get $i) (local.get $k))
-                                             (i32.const 1)))
-                         (call $raise-bad-list-set-index
-                               (local.get $xs) (local.get $i) (local.get $len))
-                         (unreachable))))
-
-              (unreachable))
-
-        (func $list-set (type $Prim3)
-              (param $xs (ref eq))
-              (param $i  (ref eq))
-              (param $v  (ref eq))
-              (result    (ref eq))
-
-              (local $idx  i32)
-              (local $pair (ref $Pair))
-
-              ;; Decode & check exact-nonnegative-integer index
-              (if (ref.test (ref i31) (local.get $i))
-                  (then (local.set $idx (i31.get_s (ref.cast (ref i31) (local.get $i))))
-                        (if (i32.ne (i32.and (local.get $idx) (i32.const 1)) (i32.const 0))
-                            (then (call $raise-argument-error1
-                                        (global.get $symbol:list-set)
-                                        (global.get $string:exact-nonnegative-integer?)
-                                        (local.get $i))
-                                  (unreachable)))
-                        (local.set $idx (i32.shr_s (local.get $idx) (i32.const 1))))
-                  (else (call $raise-argument-error1
-                              (global.get $symbol:list-set)
-                              (global.get $string:exact-nonnegative-integer?)
-                              (local.get $i))
-                        (unreachable)))
-              (if (i32.lt_s (local.get $idx) (i32.const 0))
-                  (then (call $raise-argument-error1
-                              (global.get $symbol:list-set)
-                              (global.get $string:exact-nonnegative-integer?)
-                              (local.get $i))
-                        (unreachable)))
-
-              ;; Ensure non-empty proper list
-              (if (ref.eq (local.get $xs) (global.get $null))
-                  (then (call $raise-bad-list-set-index
-                              (local.get $xs) (local.get $idx) (i32.const 0))
-                        (unreachable)))
-              (if (ref.eq (call $list? (local.get $xs)) (global.get $false))
-                  (then (call $raise-list-expected/who
-                              (global.get $symbol:list-set)
-                              (local.get $xs))
-                        (unreachable)))
-
-              (local.set $pair (ref.cast (ref $Pair) (local.get $xs)))
-              (call $list-set/checked (local.get $pair) (local.get $idx) (local.get $v)))
+        ,(core-runtime-helper-form runtime-helper-index '$list-set)
 
 
         (func $drop/who
