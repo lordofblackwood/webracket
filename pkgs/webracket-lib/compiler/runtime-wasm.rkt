@@ -2408,6 +2408,8 @@
     (add-runtime-string-constant 'pair?                      "pair?")
     (add-runtime-string-constant 'placeholder?               "placeholder?")
     (add-runtime-string-constant 'list?                      "list?")
+    (add-runtime-string-constant 'fixnum?                    "fixnum?")
+    (add-runtime-string-constant 'byte?                      "byte?")
     (add-runtime-string-constant 'bytes?                     "bytes?")
     (add-runtime-string-constant 'vector?                    "vector?")
     (add-runtime-string-constant 'box?                       "box?")
@@ -2668,6 +2670,8 @@
     (add-runtime-symbol-constant 'cons)
     (add-runtime-symbol-constant 'car)
     (add-runtime-symbol-constant 'cdr)
+    (add-runtime-symbol-constant 'fixnum?)
+    (add-runtime-symbol-constant 'byte?)
     (add-runtime-symbol-constant 'define-values)
     (add-runtime-symbol-constant 'quote)
     (add-runtime-symbol-constant 'begin)
@@ -5729,7 +5733,11 @@
 
          ; (type $I8Array (array (mut i8)))
 
-         (func $raise-bad-byte (param $x (ref eq)) (unreachable))
+         (func $raise-bad-byte (param $x (ref eq))
+               (call $raise-argument-error1
+                     (global.get $symbol:byte?)
+                     (global.get $string:byte?)
+                     (local.get $x)))
 
          ,(core-runtime-helper-form core-runtime-helper-index '$i8make-array)
 
@@ -16232,9 +16240,21 @@
 
         ;; https://docs.racket-lang.org/reference/bytestrings.html
 
-         (func $raise-byte-out-of-range   (param $x (ref eq)) (unreachable))
-         (func $raise-check-bytes         (param $x (ref eq)) (unreachable))
-         (func $raise-check-byte          (param $x (ref eq)) (unreachable))
+         (func $raise-byte-out-of-range (param $x (ref eq))
+               (call $raise-argument-error1
+                     (global.get $symbol:byte?)
+                     (global.get $string:byte?)
+                     (local.get $x)))
+         (func $raise-check-bytes (param $x (ref eq))
+               (call $raise-argument-error1
+                     (global.get $symbol:bytes?)
+                     (global.get $string:bytes?)
+                     (local.get $x)))
+         (func $raise-check-byte (param $x (ref eq))
+               (call $raise-argument-error1
+                     (global.get $symbol:byte?)
+                     (global.get $string:byte?)
+                     (local.get $x)))
          ;; Out-of-range byte-string indexes must be catchable Racket errors,
          ;; not raw Wasm traps.
          (func $raise-bad-bytes-ref-index (param $x (ref eq)) (param $idx (ref eq))
@@ -28887,7 +28907,11 @@
 
         ;; Vector related exceptions
         (func $raise-check-vector (param $x (ref eq)) (unreachable))
-        (func $raise-check-fixnum (param $x (ref eq)) (unreachable))
+        (func $raise-check-fixnum (param $x (ref eq))
+              (call $raise-argument-error1
+                    (global.get $symbol:fixnum?)
+                    (global.get $string:fixnum?)
+                    (local.get $x)))
         (func $raise-immutable-vector (param $x (ref eq)) (unreachable))
         (func $raise-bad-vector-ref-index
               (param $v (ref $Vector)) (param $i i32) (param $len i32)

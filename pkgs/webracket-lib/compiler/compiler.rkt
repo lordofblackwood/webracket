@@ -19901,21 +19901,8 @@
 
          ;;; Arrays : bytes, string, vector, vector-immutable
          [(bytes)
-          #;(build-seq aes local-name local-type alloc set finish)
-          (build-seq ae1 'quoted-bytes '(ref $Bytes)
-                     ; Allocate 
-                     (λ (n) `(ref.cast (ref $Bytes)
-                                       (call $make-bytes ,(Imm n) ,(Imm 0))))
-                     ; Initialize
-                     (λ ($bs i v)
-                       `(call $bytes-set!/checked                         
-                              ,$bs                                        
-                              (i32.const ,i)                              
-                              (i32.shr_s
-                               (i31.get_s (ref.cast i31ref ,v)) 
-                               (i32.const 1))))
-                     ; Finish
-                     (λ ($bs) $bs))]
+          ;; Route through the runtime primitive so each element is validated as a byte.
+          `(call $bytes ,(build-rest-args/args (AExpr* ae1)))]
          [(string)
           (build-seq ae1 'cp-array '(ref eq)
                      (λ (n) `(array.new $I32Array (i32.const 0) (i32.const ,n)))

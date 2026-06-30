@@ -1622,6 +1622,20 @@
                     (and (equal? (bytes-ref #"abc" 0) 97)
                          (equal? (bytes-ref #"abc" 2) 99)))
 
+              (list "byte-string argument errors are catchable"
+                    (let ([catch-contract?
+                           (lambda (thunk)
+                             (with-handlers ([exn:fail:contract?
+                                              (lambda (exn)
+                                                (string? (exn-message exn)))])
+                               (thunk)
+                               #f))])
+                      (and (catch-contract? (lambda () (bytes-ref #"abc" 'zero)))
+                           (catch-contract? (lambda () (bytes 0 256)))
+                           (catch-contract? (lambda () (bytes-set! (bytes 0) 0 256)))
+                           (catch-contract? (lambda () (make-bytes 1 256)))
+                           (catch-contract? (lambda () (list->bytes '(0 256)))))))
+
               (list "subbytes"
                     (let ([b (bytes 32 97 0 98 45)])
                       (and (equal? (subbytes #"ab" 0 0) #"")
