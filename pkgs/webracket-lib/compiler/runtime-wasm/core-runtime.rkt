@@ -15,6 +15,7 @@
          "core/i32-arrays.rkt"
          "core/i8-arrays.rkt"
          "core/keywords.rkt"
+         "core/lists.rkt"
          "core/strings.rkt"
          "core/structs.rkt"
          "core/vectors.rkt"
@@ -34,6 +35,7 @@
    growable-i32-array-core-runtime-helpers
    i8-array-core-runtime-helpers
    keyword-core-runtime-helpers
+   list-core-runtime-helpers
    string-core-runtime-helpers
    struct-core-runtime-helpers
    vector-core-runtime-helpers))

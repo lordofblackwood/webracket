@@ -27,6 +27,7 @@
 (define-runtime-path wasm-utils-path "private/wasm-utils.rkt")
 (define-runtime-path immediates-path "private/immediates.rkt")
 (define-runtime-path constants-path "runtime-wasm/constants.rkt")
+(define-runtime-path core-lists-path "runtime-wasm/core/lists.rkt")
 
 (module+ test
   (require (submod "runtime-wasm/core-runtime.rkt" test)))
@@ -364,7 +365,8 @@
                                           wasm-data-path
                                           wasm-utils-path
                                           immediates-path
-                                          constants-path))])
+                                          constants-path
+                                          core-lists-path))])
             (list (path->string path)
                   (file-size path)
                   (file-or-directory-modify-seconds path)))))
@@ -24963,27 +24965,7 @@
                          (unreachable)))
                (call $make-list/checked (local.get $n) (local.get $v)))
 
-         (func $make-list/checked
-               (param $n i32)             ;; number of elements
-               (param $v (ref eq))        ;; value to repeat
-               (result (ref eq))          ;; proper list
-
-               (local $i i32)
-               (local $acc (ref eq))
-
-               (local.set $i   (i32.const 0))
-               (local.set $acc (global.get $null))
-               (block $done
-                      (loop $loop
-                            (br_if $done (i32.ge_u (local.get $i) (local.get $n)))
-                            (local.set $acc
-                                       (struct.new $Pair
-                                                   (i32.const 0)
-                                                   (local.get $v)
-                                                   (local.get $acc)))
-                            (local.set $i (i32.add (local.get $i) (i32.const 1)))
-                            (br $loop)))
-               (local.get $acc))
+         ,(core-runtime-helper-form core-runtime-helper-index '$make-list/checked)
 
 
          (func $build-list (type $Prim2)
