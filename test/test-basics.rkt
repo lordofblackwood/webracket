@@ -2289,6 +2289,108 @@
                            (catch-contract/who? "split-at-right"
                                                 (lambda () (split-at-right '(a) 2))))))
 
+              (list "list higher-order argument errors are catchable with who"
+                    (let ([catch-contract/who?
+                           (lambda (who thunk)
+                             (let ([message
+                                    (with-handlers ([exn:fail:contract?
+                                                     (lambda (exn)
+                                                       (exn-message exn))])
+                                      (thunk)
+                                      #f)])
+                               (and (string? message)
+                                    (string-contains? message who))))])
+                      (and (catch-contract/who? "map"
+                                                (lambda () (map 42 '(a))))
+                           (catch-contract/who? "map"
+                                                (lambda () (map values '(a . b))))
+                           (catch-contract/who? "andmap"
+                                                (lambda () (andmap 42 '(a))))
+                           (catch-contract/who? "ormap"
+                                                (lambda () (ormap 42 '(a))))
+                           (catch-contract/who? "foldl"
+                                                (lambda () (foldl 42 'z '(a))))
+                           (catch-contract/who? "foldl"
+                                                (lambda () (foldl cons 'z '(a . b))))
+                           (catch-contract/who? "foldr"
+                                                (lambda () (foldr 42 'z '(a))))
+                           (catch-contract/who? "foldr"
+                                                (lambda () (foldr cons 'z '(a . b))))
+                           (catch-contract/who? "filter"
+                                                (lambda () (filter 42 '(a))))
+                           (catch-contract/who? "filter"
+                                                (lambda () (filter values '(a . b))))
+                           (catch-contract/who? "filter-not"
+                                                (lambda () (filter-not 42 '(a))))
+                           (catch-contract/who? "filter-map"
+                                                (lambda () (filter-map 42 '(a))))
+                           (catch-contract/who? "filter-map"
+                                                (lambda () (filter-map list '(a . b))))
+                           (catch-contract/who? "partition"
+                                                (lambda () (partition 42 '(a))))
+                           (catch-contract/who? "append-map"
+                                                (lambda () (append-map 42 '(a))))
+                           (catch-contract/who? "append-map"
+                                                (lambda () (append-map list '(a . b))))
+                           (catch-contract/who? "count"
+                                                (lambda () (count 42 '(a))))
+                           (catch-contract/who? "count"
+                                                (lambda () (count values '(a . b))))
+                           (catch-contract/who? "for-each"
+                                                (lambda () (for-each 42 '(a))))
+                           (catch-contract/who? "for-each"
+                                                (lambda () (for-each values '(a . b))))
+                           (catch-contract/who? "member"
+                                                (lambda () (member 'a '(a) 42)))
+                           (catch-contract/who? "member"
+                                                (lambda () (member 'z '(a . b))))
+                           (catch-contract/who? "memf"
+                                                (lambda () (memf 42 '(a))))
+                           (catch-contract/who? "assoc"
+                                                (lambda () (assoc 'a '((a . 1)) 42)))
+                           (catch-contract/who? "assoc"
+                                                (lambda () (assoc 'z '((a . 1) . b))))
+                           (catch-contract/who? "assoc"
+                                                (lambda () (assoc 'a '(x))))
+                           (catch-contract/who? "assf"
+                                                (lambda () (assf 42 '((a . 1)))))
+                           (catch-contract/who? "index-of"
+                                                (lambda () (index-of '(a) 'a 42)))
+                           (catch-contract/who? "index-of"
+                                                (lambda () (index-of '(a . b) 'z)))
+                           (catch-contract/who? "index-where"
+                                                (lambda () (index-where '(a) 42)))
+                           (catch-contract/who? "indexes-of"
+                                                (lambda () (indexes-of '(a) 'a 42)))
+                           (catch-contract/who? "indexes-where"
+                                                (lambda () (indexes-where '(a) 42)))
+                           (catch-contract/who? "group-by"
+                                                (lambda () (group-by 42 '(a))))
+                           (catch-contract/who? "group-by"
+                                                (lambda () (group-by values '(a) 42)))
+                           (catch-contract/who? "remove"
+                                                (lambda () (remove 'a '(a) 42)))
+                           (catch-contract/who? "remove"
+                                                (lambda () (remove 'z '(a . b))))
+                           (catch-contract/who? "remove*"
+                                                (lambda () (remove* '(z . q) '(a))))
+                           (catch-contract/who? "remf"
+                                                (lambda () (remf 42 '(a))))
+                           (catch-contract/who? "remf*"
+                                                (lambda () (remf* 42 '(a))))
+                           (catch-contract/who? "takef"
+                                                (lambda () (takef '(a) 42)))
+                           (catch-contract/who? "takef-right"
+                                                (lambda () (takef-right '(a) 42)))
+                           (catch-contract/who? "dropf"
+                                                (lambda () (dropf '(a) 42)))
+                           (catch-contract/who? "dropf-right"
+                                                (lambda () (dropf-right '(a) 42)))
+                           (catch-contract/who? "splitf-at"
+                                                (lambda () (splitf-at '(a) 42)))
+                           (catch-contract/who? "splitf-at-right"
+                                                (lambda () (splitf-at-right '(a) 42))))))
+
               (list "first"
                     (and (equal? (first '(1 2 3 4 5 6 7 8 9 10 11 12 13 14 15)) 1)
                          (equal? (procedure-arity first) 1)))

@@ -18307,9 +18307,11 @@
                ;; --- Check arguments ---
                (if (i32.eqz (ref.test (ref i31) (local.get $n-raw)))
                    (then (call $raise-build-string:bad-length)))
-               (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
-                   (then (call $raise-argument-error:procedure-expected (local.get $proc))
-                         (unreachable)))
+	               (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
+	                   (then (call $raise-argument-error:procedure-expected/who
+	                               (global.get $symbol:build-string)
+	                               (local.get $proc))
+	                         (unreachable)))
 
                ;; --- Decode and prepare ---
                (local.set $n    (i32.shr_u (i31.get_u (ref.cast (ref i31) (local.get $n-raw)))
@@ -23539,7 +23541,9 @@
               (local $r    (ref eq))
 
               (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
-                  (then (call $raise-argument-error:procedure-expected (local.get $proc))
+                  (then (call $raise-argument-error:procedure-expected/who
+                              (global.get $symbol:dropf)
+                              (local.get $proc))
                         (unreachable)))
               (local.set $f    (ref.cast (ref $Procedure) (local.get $proc)))
               (local.set $finv (struct.get $Procedure $invoke (local.get $f)))
@@ -23592,7 +23596,9 @@
               (local.set $rev    (global.get $null))
 
               (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
-                  (then (call $raise-argument-error:procedure-expected (local.get $proc))
+                  (then (call $raise-argument-error:procedure-expected/who
+                              (global.get $symbol:dropf-right)
+                              (local.get $proc))
                         (unreachable)))
               (local.set $f    (ref.cast (ref $Procedure) (local.get $proc)))
               (local.set $finv (struct.get $Procedure $invoke (local.get $f)))
@@ -23735,7 +23741,9 @@
               (local $suffix (ref eq))
 
               (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
-                  (then (call $raise-argument-error:procedure-expected (local.get $proc))
+                  (then (call $raise-argument-error:procedure-expected/who
+                              (global.get $symbol:splitf-at)
+                              (local.get $proc))
                         (unreachable)))
 
               (local.set $f      (ref.cast (ref $Procedure) (local.get $proc)))
@@ -23807,7 +23815,9 @@
               (local.set $suffix       (global.get $null))
 
               (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
-                  (then (call $raise-argument-error:procedure-expected (local.get $proc))
+                  (then (call $raise-argument-error:procedure-expected/who
+                              (global.get $symbol:splitf-at-right)
+                              (local.get $proc))
                         (unreachable)))
 
               (local.set $f            (ref.cast (ref $Procedure) (local.get $proc)))
@@ -24098,6 +24108,8 @@
                                     (ref.eq (global.get $false) (global.get $false)) ; unused for member
                                     (ref.eq (call $equal-always? (local.get $needle) (local.get $elem))
                                             (global.get $true)))])
+             (define who (string->symbol
+                          (format "$symbol:~a" (substring (symbol->string name) 1))))
              `(func ,name (type ,type)
                     (param $needle (ref eq))          ;; value to find
                     (param $xs     (ref eq))          ;; list to search
@@ -24117,7 +24129,9 @@
                                 (then (local.set $use-proc (i32.const 0)))
                                 (else
                                  (if (i32.eqz (ref.test (ref $Procedure) (local.get $same?)))
-                                     (then (call $raise-argument-error:procedure-expected (local.get $same?))
+                                     (then (call $raise-argument-error:procedure-expected/who
+                                                 (global.get ,who)
+                                                 (local.get $same?))
                                            (unreachable)))
                                  (local.set $use-proc (i32.const 1))))
                             (local.set $args (array.new $Args (global.get $null) (i32.const 2)))))
@@ -24127,7 +24141,9 @@
                               (then (return (global.get $false))))
                           ;; 2) must be a Pair
                           (if (i32.eqz (ref.test (ref $Pair) (local.get $xs)))
-                              (then (call $raise-pair-expected (local.get $xs))
+                              (then (call $raise-pair-expected/who
+                                          (global.get ,who)
+                                          (local.get $xs))
                                     (unreachable)))
                           (local.set $pair (ref.cast (ref $Pair) (local.get $xs)))
                           (local.set $elem (struct.get $Pair $a (local.get $pair)))
@@ -24168,7 +24184,9 @@
                (local $res  (ref eq))
 
                (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
-                   (then (call $raise-argument-error:procedure-expected (local.get $proc))
+                   (then (call $raise-argument-error:procedure-expected/who
+                               (global.get $symbol:memf)
+                               (local.get $proc))
                          (unreachable)))
                (local.set $f    (ref.cast (ref $Procedure) (local.get $proc)))
                (local.set $finv (struct.get $Procedure $invoke (local.get $f)))
@@ -24179,7 +24197,9 @@
                      (if (ref.eq (local.get $cur) (global.get $null))
                          (then (return (global.get $false))))
                      (if (i32.eqz (ref.test (ref $Pair) (local.get $cur)))
-                         (then (call $raise-pair-expected (local.get $cur))
+                         (then (call $raise-pair-expected/who
+                                     (global.get $symbol:memf)
+                                     (local.get $cur))
                                (unreachable)))
                      (local.set $pair (ref.cast (ref $Pair) (local.get $cur)))
                      (local.set $elem (struct.get $Pair $a (local.get $pair)))
@@ -24206,6 +24226,8 @@
                                     (ref.eq (call $eqv? (local.get $needle) (local.get $key))
                                             (global.get $true))
                                     (ref.eq (local.get $needle) (local.get $key)))])
+             (define who (string->symbol
+                          (format "$symbol:~a" (substring (symbol->string name) 1))))
              `(func ,name (type ,type)
                     (param $needle (ref eq))  ;; key to locate
                     (param $alist  (ref eq))  ;; association list
@@ -24227,7 +24249,9 @@
                                 (then (local.set $use-proc (i32.const 0)))
                                 (else
                                  (if (i32.eqz (ref.test (ref $Procedure) (local.get $same?)))
-                                     (then (call $raise-argument-error:procedure-expected (local.get $same?))
+                                     (then (call $raise-argument-error:procedure-expected/who
+                                                 (global.get ,who)
+                                                 (local.get $same?))
                                            (unreachable)))
                                  (local.set $use-proc (i32.const 1))))
                             (local.set $args (array.new $Args (global.get $null) (i32.const 2)))))
@@ -24235,12 +24259,16 @@
                           (if (ref.eq (local.get $alist) (global.get $null))
                               (then (return (global.get $false))))
                           (if (i32.eqz (ref.test (ref $Pair) (local.get $alist)))
-                              (then (call $raise-pair-expected (local.get $alist))
+                              (then (call $raise-pair-expected/who
+                                          (global.get ,who)
+                                          (local.get $alist))
                                     (unreachable)))
                           (local.set $list-pair (ref.cast (ref $Pair) (local.get $alist)))
                           (local.set $entry (struct.get $Pair $a (local.get $list-pair)))
                           (if (i32.eqz (ref.test (ref $Pair) (local.get $entry)))
-                              (then (call $raise-pair-expected (local.get $entry))
+                              (then (call $raise-pair-expected/who
+                                          (global.get ,who)
+                                          (local.get $entry))
                                     (unreachable)))
                           (local.set $entry-pair (ref.cast (ref $Pair) (local.get $entry)))
                           (local.set $key (struct.get $Pair $a (local.get $entry-pair)))
@@ -24281,7 +24309,9 @@
                (local $res        (ref eq))
 
                (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
-                   (then (call $raise-argument-error:procedure-expected (local.get $proc))
+                   (then (call $raise-argument-error:procedure-expected/who
+                               (global.get $symbol:assf)
+                               (local.get $proc))
                          (unreachable)))
                (local.set $f    (ref.cast (ref $Procedure) (local.get $proc)))
                (local.set $finv (struct.get $Procedure $invoke (local.get $f)))
@@ -24291,12 +24321,16 @@
                      (if (ref.eq (local.get $alist) (global.get $null))
                          (then (return (global.get $false))))
                      (if (i32.eqz (ref.test (ref $Pair) (local.get $alist)))
-                         (then (call $raise-pair-expected (local.get $alist))
+                         (then (call $raise-pair-expected/who
+                                     (global.get $symbol:assf)
+                                     (local.get $alist))
                                (unreachable)))
                      (local.set $list-pair (ref.cast (ref $Pair) (local.get $alist)))
                      (local.set $entry (struct.get $Pair $a (local.get $list-pair)))
                      (if (i32.eqz (ref.test (ref $Pair) (local.get $entry)))
-                         (then (call $raise-pair-expected (local.get $entry))
+                         (then (call $raise-pair-expected/who
+                                     (global.get $symbol:assf)
+                                     (local.get $entry))
                                (unreachable)))
                      (local.set $entry-pair (ref.cast (ref $Pair) (local.get $entry)))
                      (local.set $key (struct.get $Pair $a (local.get $entry-pair)))
@@ -24326,7 +24360,9 @@
                (local $res  (ref eq))
 
                (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
-                   (then (call $raise-argument-error:procedure-expected (local.get $proc))
+                   (then (call $raise-argument-error:procedure-expected/who
+                               (global.get $symbol:findf)
+                               (local.get $proc))
                          (unreachable)))
                (local.set $f    (ref.cast (ref $Procedure) (local.get $proc)))
                (local.set $finv (struct.get $Procedure $invoke (local.get $f)))
@@ -24337,7 +24373,9 @@
                      (if (ref.eq (local.get $cur) (global.get $null))
                          (then (return (global.get $false))))
                      (if (i32.eqz (ref.test (ref $Pair) (local.get $cur)))
-                         (then (call $raise-pair-expected (local.get $cur))
+                         (then (call $raise-pair-expected/who
+                                     (global.get $symbol:findf)
+                                     (local.get $cur))
                                (unreachable)))
                      (local.set $pair (ref.cast (ref $Pair) (local.get $cur)))
                      (local.set $elem (struct.get $Pair $a (local.get $pair)))
@@ -24370,10 +24408,12 @@
                ;; Handle optional comparator
                (if (ref.eq (local.get $same?) (global.get $missing))
                    (then (local.set $use-proc (i32.const 0)))
-                   (else
+                    (else
                     (if (i32.eqz (ref.test (ref $Procedure) (local.get $same?)))
                         (then
-                         (call $raise-argument-error:procedure-expected (local.get $same?))
+                         (call $raise-argument-error:procedure-expected/who
+                               (global.get $symbol:index-of)
+                               (local.get $same?))
                          (unreachable)))
                     (local.set $use-proc (i32.const 1))))
 
@@ -24386,7 +24426,9 @@
                      (if (ref.eq (local.get $cur) (global.get $null))
                          (then (return (global.get $false))))
                      (if (i32.eqz (ref.test (ref $Pair) (local.get $cur)))
-                         (then (call $raise-pair-expected (local.get $cur))
+                         (then (call $raise-pair-expected/who
+                                     (global.get $symbol:index-of)
+                                     (local.get $cur))
                                (unreachable)))
                      (local.set $pair (ref.cast (ref $Pair) (local.get $cur)))
                      (local.set $elem (struct.get $Pair $a (local.get $pair)))
@@ -24440,7 +24482,9 @@
 
               ;; Ensure proc is a procedure
               (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
-                  (then (call $raise-argument-error:procedure-expected (local.get $proc))
+                  (then (call $raise-argument-error:procedure-expected/who
+                              (global.get $symbol:index-where)
+                              (local.get $proc))
                         (unreachable)))
               (local.set $f    (ref.cast (ref $Procedure) (local.get $proc)))
               (local.set $finv (struct.get $Procedure $invoke (local.get $f)))
@@ -24452,7 +24496,9 @@
                     (if (ref.eq (local.get $cur) (global.get $null))
                         (then (return (global.get $false))))
                     (if (i32.eqz (ref.test (ref $Pair) (local.get $cur)))
-                        (then (call $raise-pair-expected (local.get $cur))
+                        (then (call $raise-pair-expected/who
+                                    (global.get $symbol:index-where)
+                                    (local.get $cur))
                               (unreachable)))
                     (local.set $pair (ref.cast (ref $Pair) (local.get $cur)))
                     (local.set $elem (struct.get $Pair $a (local.get $pair)))
@@ -24492,7 +24538,9 @@
                   (else
                    (if (i32.eqz (ref.test (ref $Procedure) (local.get $same?)))
                        (then
-                        (call $raise-argument-error:procedure-expected (local.get $same?))
+                        (call $raise-argument-error:procedure-expected/who
+                              (global.get $symbol:indexes-of)
+                              (local.get $same?))
                         (unreachable)))
                    (local.set $use-proc (i32.const 1))))
 
@@ -24507,7 +24555,9 @@
                         (then (return (call $reverse (local.get $acc)))))
                     (if (i32.eqz (ref.test (ref $Pair) (local.get $cur)))
                         (then
-                         (call $raise-pair-expected (local.get $cur))
+                         (call $raise-pair-expected/who
+                               (global.get $symbol:indexes-of)
+                               (local.get $cur))
                          (unreachable)))
                     (local.set $pair (ref.cast (ref $Pair) (local.get $cur)))
                     (local.set $elem (struct.get $Pair $a (local.get $pair)))
@@ -24568,7 +24618,9 @@
 
               ;; Ensure proc is a procedure
               (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
-                  (then (call $raise-argument-error:procedure-expected (local.get $proc))
+                  (then (call $raise-argument-error:procedure-expected/who
+                              (global.get $symbol:indexes-where)
+                              (local.get $proc))
                         (unreachable)))
               (local.set $f    (ref.cast (ref $Procedure) (local.get $proc)))
               (local.set $finv (struct.get $Procedure $invoke (local.get $f)))
@@ -24581,7 +24633,9 @@
                     (if (ref.eq (local.get $cur) (global.get $null))
                         (then (return (call $reverse (local.get $acc)))))
                     (if (i32.eqz (ref.test (ref $Pair) (local.get $cur)))
-                        (then (call $raise-pair-expected (local.get $cur))
+                        (then (call $raise-pair-expected/who
+                                    (global.get $symbol:indexes-where)
+                                    (local.get $cur))
                               (unreachable)))
                     (local.set $pair (ref.cast (ref $Pair) (local.get $cur)))
                     (local.set $elem (struct.get $Pair $a (local.get $pair)))
@@ -24630,7 +24684,9 @@
 
               ;; Ensure proc is a procedure and fetch invoker
               (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
-                  (then (call $raise-argument-error:procedure-expected (local.get $proc))
+                  (then (call $raise-argument-error:procedure-expected/who
+                              (global.get $symbol:group-by)
+                              (local.get $proc))
                         (unreachable)))
               (local.set $f    (ref.cast (ref $Procedure) (local.get $proc)))
               (local.set $finv (struct.get $Procedure $invoke (local.get $f)))
@@ -24640,7 +24696,9 @@
                   (then (local.set $use-proc (i32.const 0)))
                   (else
                    (if (i32.eqz (ref.test (ref $Procedure) (local.get $same?)))
-                       (then (call $raise-argument-error:procedure-expected (local.get $same?))
+                       (then (call $raise-argument-error:procedure-expected/who
+                                   (global.get $symbol:group-by)
+                                   (local.get $same?))
                              (unreachable)))
                    (local.set $use-proc (i32.const 1))
                    (local.set $same-f   (ref.cast (ref $Procedure) (local.get $same?)))
@@ -24657,7 +24715,9 @@
                         (then (return (call $group-by:fix-order
                                             (call $group-by:extract-groups (local.get $groups))))))
                     (if (i32.eqz (ref.test (ref $Pair) (local.get $cur)))
-                        (then (call $raise-pair-expected (local.get $cur))
+                        (then (call $raise-pair-expected/who
+                                    (global.get $symbol:group-by)
+                                    (local.get $cur))
                               (unreachable)))
                     (local.set $pair (ref.cast (ref $Pair) (local.get $cur)))
                     (local.set $x (struct.get $Pair $a (local.get $pair)))
@@ -25757,7 +25817,9 @@
 
                ;; 1) Check that $proc is a procedure and fetch its invoker
                (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
-                   (then (call $raise-argument-error:procedure-expected (local.get $proc))
+                   (then (call $raise-argument-error:procedure-expected/who
+                               (global.get $symbol:map)
+                               (local.get $proc))
                          (unreachable)))
                (local.set $f    (ref.cast (ref $Procedure) (local.get $proc)))
                (local.set $finv (struct.get $Procedure $invoke (local.get $f)))
@@ -25802,7 +25864,10 @@
                                       (then (local.set $stop (i32.const 1)))
                                       (else
                                        (if (i32.eqz (ref.test (ref $Pair) (local.get $cur)))
-                                           (then (call $raise-pair-expected (local.get $cur)) (unreachable)))))
+                                           (then (call $raise-pair-expected/who
+                                                       (global.get $symbol:map)
+                                                       (local.get $cur))
+                                                 (unreachable)))))
                                   (local.set $i (i32.add (local.get $i) (i32.const 1)))
                                   (br $check)))
 
@@ -25888,7 +25953,9 @@
 
                ;; 1) Check that $proc is a procedure and fetch its invoker
                (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
-                   (then (call $raise-argument-error:procedure-expected (local.get $proc))
+                   (then (call $raise-argument-error:procedure-expected/who
+                               (global.get $symbol:andmap)
+                               (local.get $proc))
                          (unreachable)))
                (local.set $f    (ref.cast (ref $Procedure) (local.get $proc)))
                (local.set $finv (struct.get $Procedure $invoke (local.get $f)))
@@ -25932,7 +25999,10 @@
                                       (then (local.set $stop (i32.const 1)))
                                       (else
                                        (if (i32.eqz (ref.test (ref $Pair) (local.get $cur)))
-                                           (then (call $raise-pair-expected (local.get $cur)) (unreachable)))))
+                                           (then (call $raise-pair-expected/who
+                                                       (global.get $symbol:andmap)
+                                                       (local.get $cur))
+                                                 (unreachable)))))
                                   (local.set $i (i32.add (local.get $i) (i32.const 1)))
                                   (br $check)))
 
@@ -26002,7 +26072,9 @@
 
                ;; 1) Check that $proc is a procedure and fetch its invoker
                (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
-                   (then (call $raise-argument-error:procedure-expected (local.get $proc))
+                   (then (call $raise-argument-error:procedure-expected/who
+                               (global.get $symbol:ormap)
+                               (local.get $proc))
                          (unreachable)))
                (local.set $f    (ref.cast (ref $Procedure) (local.get $proc)))
                (local.set $finv (struct.get $Procedure $invoke (local.get $f)))
@@ -26046,7 +26118,9 @@
                                       (then (local.set $stop (i32.const 1)))
                                       (else
                                        (if (i32.eqz (ref.test (ref $Pair) (local.get $cur)))
-                                           (then (call $raise-pair-expected (local.get $cur))
+                                           (then (call $raise-pair-expected/who
+                                                       (global.get $symbol:ormap)
+                                                       (local.get $cur))
                                                  (unreachable)))))
                                   (local.set $i (i32.add (local.get $i) (i32.const 1)))
                                   (br $check)))
@@ -26196,7 +26270,9 @@
 
                ;; 1) Check that $proc is a procedure and fetch its invoker
                (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
-                   (then (call $raise-argument-error:procedure-expected (local.get $proc))
+                   (then (call $raise-argument-error:procedure-expected/who
+                               (global.get $symbol:append-map)
+                               (local.get $proc))
                          (unreachable)))
                (local.set $f    (ref.cast (ref $Procedure) (local.get $proc)))
                (local.set $finv (struct.get $Procedure $invoke (local.get $f)))
@@ -26242,7 +26318,10 @@
                                       (then (local.set $stop (i32.const 1)))
                                       (else
                                        (if (i32.eqz (ref.test (ref $Pair) (local.get $cur)))
-                                           (then (call $raise-pair-expected (local.get $cur)) (unreachable)))))
+                                           (then (call $raise-pair-expected/who
+                                                       (global.get $symbol:append-map)
+                                                       (local.get $cur))
+                                                 (unreachable)))))
                                   (local.set $i (i32.add (local.get $i) (i32.const 1)))
                                   (br $check)))
 
@@ -26308,7 +26387,9 @@
                                   (if (ref.eq (local.get $seg-cur) (global.get $null))
                                       (then (br $copy_done)))
                                   (if (i32.eqz (ref.test (ref $Pair) (local.get $seg-cur)))
-                                      (then (call $raise-pair-expected (local.get $seg-cur))
+                                      (then (call $raise-pair-expected/who
+                                                  (global.get $symbol:append-map)
+                                                  (local.get $seg-cur))
                                             (unreachable)))
                                   (local.set $seg-pair (ref.cast (ref $Pair) (local.get $seg-cur)))
                                   (local.set $new
@@ -26356,7 +26437,9 @@
 
                ;; 1) Check that $proc is a procedure and fetch its invoker
                (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
-                   (then (call $raise-argument-error:procedure-expected (local.get $proc))
+                   (then (call $raise-argument-error:procedure-expected/who
+                               (global.get $symbol:count)
+                               (local.get $proc))
                          (unreachable))
                    (else))
                (local.set $f    (ref.cast (ref $Procedure) (local.get $proc)))
@@ -26395,7 +26478,10 @@
                               (then (return (ref.i31 (i32.shl (local.get $cnt) (i32.const 1)))))
                               (else))
                           (if (i32.eqz (ref.test (ref $Pair) (local.get $cur)))
-                              (then (call $raise-pair-expected (local.get $cur)) (unreachable))
+                              (then (call $raise-pair-expected/who
+                                          (global.get $symbol:count)
+                                          (local.get $cur))
+                                    (unreachable))
                               (else))
                           (local.set $pair (ref.cast (ref $Pair) (local.get $cur)))
                           (array.set $Args (local.get $call) (i32.const 0)
@@ -26433,7 +26519,10 @@
                                            (then (return (ref.i31 (i32.shl (local.get $cnt) (i32.const 1)))))
                                            (else
                                             (if (i32.eqz (ref.test (ref $Pair) (local.get $cur)))
-                                                (then (call $raise-pair-expected (local.get $cur)) (unreachable))
+                                                (then (call $raise-pair-expected/who
+                                                            (global.get $symbol:count)
+                                                            (local.get $cur))
+                                                      (unreachable))
                                                 (else))))
                                        (local.set $i (i32.add (local.get $i) (i32.const 1)))
                                        (br $check)))
@@ -26494,7 +26583,9 @@
 
                ;; 1) Check that $proc is a procedure and fetch its invoker
                (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
-                   (then (call $raise-argument-error:procedure-expected (local.get $proc))
+                   (then (call $raise-argument-error:procedure-expected/who
+                               (global.get $symbol:for-each)
+                               (local.get $proc))
                          (unreachable)))
                (local.set $f    (ref.cast (ref $Procedure) (local.get $proc)))
                (local.set $finv (struct.get $Procedure $invoke (local.get $f)))
@@ -26537,7 +26628,10 @@
                                       (then (local.set $stop (i32.const 1)))
                                       (else
                                        (if (i32.eqz (ref.test (ref $Pair) (local.get $cur)))
-                                           (then (call $raise-pair-expected (local.get $cur)) (unreachable)))))
+                                           (then (call $raise-pair-expected/who
+                                                       (global.get $symbol:for-each)
+                                                       (local.get $cur))
+                                                 (unreachable)))))
                                   (local.set $i (i32.add (local.get $i) (i32.const 1)))
                                   (br $check)))
 
@@ -26652,7 +26746,9 @@
 
                ;; Ensure $proc is a procedure and fetch its invoker
                (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
-                   (then (call $raise-argument-error:procedure-expected (local.get $proc))
+                   (then (call $raise-argument-error:procedure-expected/who
+                               (global.get $symbol:foldl)
+                               (local.get $proc))
                          (unreachable)))
                (local.set $f    (ref.cast (ref $Procedure) (local.get $proc)))
                (local.set $finv (struct.get $Procedure $invoke (local.get $f)))
@@ -26665,7 +26761,10 @@
                      (if (ref.eq (local.get $xs) (global.get $null))
                          (then (return (local.get $acc))))
                      (if (i32.eqz (ref.test (ref $Pair) (local.get $xs)))
-                         (then (call $raise-pair-expected (local.get $xs)) (unreachable)))
+                         (then (call $raise-pair-expected/who
+                                     (global.get $symbol:foldl)
+                                     (local.get $xs))
+                               (unreachable)))
                      (local.set $pair (ref.cast (ref $Pair) (local.get $xs)))
                      (local.set $elem (struct.get $Pair $a (local.get $pair)))
                      (array.set $Args (local.get $call) (i32.const 0) (local.get $elem))
@@ -26697,7 +26796,9 @@
 
                ;; Ensure $proc is a procedure and fetch its invoker
                (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
-                   (then (call $raise-argument-error:procedure-expected (local.get $proc))
+                   (then (call $raise-argument-error:procedure-expected/who
+                               (global.get $symbol:foldl)
+                               (local.get $proc))
                          (unreachable)))
                (local.set $f    (ref.cast (ref $Procedure) (local.get $proc)))
                (local.set $finv (struct.get $Procedure $invoke (local.get $f)))
@@ -26711,9 +26812,15 @@
                                  (ref.eq (local.get $ys) (global.get $null)))
                          (then (return (local.get $acc))))
                      (if (i32.eqz (ref.test (ref $Pair) (local.get $xs)))
-                         (then (call $raise-pair-expected (local.get $xs)) (unreachable)))
+                         (then (call $raise-pair-expected/who
+                                     (global.get $symbol:foldl)
+                                     (local.get $xs))
+                               (unreachable)))
                      (if (i32.eqz (ref.test (ref $Pair) (local.get $ys)))
-                         (then (call $raise-pair-expected (local.get $ys)) (unreachable)))
+                         (then (call $raise-pair-expected/who
+                                     (global.get $symbol:foldl)
+                                     (local.get $ys))
+                               (unreachable)))
                      (local.set $pairx (ref.cast (ref $Pair) (local.get $xs)))
                      (local.set $pairy (ref.cast (ref $Pair) (local.get $ys)))
                      (array.set $Args (local.get $call) (i32.const 0)
@@ -26753,7 +26860,9 @@
 
                ;; Check that $proc is a procedure and fetch its invoker
                (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
-                   (then (call $raise-argument-error:procedure-expected (local.get $proc))
+                   (then (call $raise-argument-error:procedure-expected/who
+                               (global.get $symbol:foldl)
+                               (local.get $proc))
                          (unreachable)))
                (local.set $f    (ref.cast (ref $Procedure) (local.get $proc)))
                (local.set $finv (struct.get $Procedure $invoke (local.get $f)))
@@ -26793,7 +26902,10 @@
                                       (then (local.set $stop (i32.const 1)))
                                       (else
                                        (if (i32.eqz (ref.test (ref $Pair) (local.get $cur)))
-                                           (then (call $raise-pair-expected (local.get $cur)) (unreachable)))))
+                                           (then (call $raise-pair-expected/who
+                                                       (global.get $symbol:foldl)
+                                                       (local.get $cur))
+                                                 (unreachable)))))
                                   (local.set $i (i32.add (local.get $i) (i32.const 1)))
                                   (br $check)))
 
@@ -26867,7 +26979,10 @@
 
               ;; Two-list case
               (if (i32.eqz (ref.test (ref $Pair) (local.get $rest)))
-                  (then (call $raise-pair-expected (local.get $rest)) (unreachable)))
+                  (then (call $raise-pair-expected/who
+                              (global.get $symbol:foldr)
+                              (local.get $rest))
+                        (unreachable)))
               (local.set $pair  (ref.cast (ref $Pair) (local.get $rest)))
               (local.set $ys    (struct.get $Pair $a (local.get $pair)))
               (local.set $rest2 (struct.get $Pair $d (local.get $pair)))
@@ -26894,7 +27009,9 @@
                (if (ref.eq (local.get $xs) (global.get $null))
                    (then (return (local.get $init))))
                (if (i32.eqz (ref.test (ref $Pair) (local.get $xs)))
-                   (then (call $raise-pair-expected (local.get $xs))
+                   (then (call $raise-pair-expected/who
+                               (global.get $symbol:foldr)
+                               (local.get $xs))
                          (unreachable)))
                (local.set $pair (ref.cast (ref $Pair) (local.get $xs)))
                (local.set $rest
@@ -26922,7 +27039,9 @@
                (local $finv (ref $ProcedureInvoker))
 
                (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
-                   (then (call $raise-argument-error:procedure-expected (local.get $proc))
+                   (then (call $raise-argument-error:procedure-expected/who
+                               (global.get $symbol:foldr)
+                               (local.get $proc))
                          (unreachable)))
                (local.set $f    (ref.cast (ref $Procedure) (local.get $proc)))
                (local.set $finv (struct.get $Procedure $invoke (local.get $f)))
@@ -26946,9 +27065,15 @@
                            (ref.eq (local.get $ys) (global.get $null)))
                    (then (return (local.get $init))))
                (if (i32.eqz (ref.test (ref $Pair) (local.get $xs)))
-                   (then (call $raise-pair-expected (local.get $xs)) (unreachable)))
+                   (then (call $raise-pair-expected/who
+                               (global.get $symbol:foldr)
+                               (local.get $xs))
+                         (unreachable)))
                (if (i32.eqz (ref.test (ref $Pair) (local.get $ys)))
-                   (then (call $raise-pair-expected (local.get $ys)) (unreachable)))
+                   (then (call $raise-pair-expected/who
+                               (global.get $symbol:foldr)
+                               (local.get $ys))
+                         (unreachable)))
                (local.set $px (ref.cast (ref $Pair) (local.get $xs)))
                (local.set $py (ref.cast (ref $Pair) (local.get $ys)))
                (local.set $rest
@@ -26977,7 +27102,9 @@
                (local $finv (ref $ProcedureInvoker))
 
                (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
-                   (then (call $raise-argument-error:procedure-expected (local.get $proc))
+                   (then (call $raise-argument-error:procedure-expected/who
+                               (global.get $symbol:foldr)
+                               (local.get $proc))
                          (unreachable)))
                (local.set $f    (ref.cast (ref $Procedure) (local.get $proc)))
                (local.set $finv (struct.get $Procedure $invoke (local.get $f)))
@@ -27010,7 +27137,9 @@
                             (if (ref.eq (local.get $cur) (global.get $null))
                                 (then (return (local.get $init))))
                             (if (i32.eqz (ref.test (ref $Pair) (local.get $cur)))
-                                (then (call $raise-pair-expected (local.get $cur))
+                                (then (call $raise-pair-expected/who
+                                            (global.get $symbol:foldr)
+                                            (local.get $cur))
                                       (unreachable)))
                             (local.set $i (i32.add (local.get $i) (i32.const 1)))
                             (br $check)))
@@ -27061,7 +27190,9 @@
                (local $i      i32)
 
                (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
-                   (then (call $raise-argument-error:procedure-expected (local.get $proc))
+                   (then (call $raise-argument-error:procedure-expected/who
+                               (global.get $symbol:foldr)
+                               (local.get $proc))
                          (unreachable)))
                (local.set $f    (ref.cast (ref $Procedure) (local.get $proc)))
                (local.set $finv (struct.get $Procedure $invoke (local.get $f)))
@@ -27081,13 +27212,17 @@
                             (if (ref.eq (local.get $outer) (global.get $null))
                                 (then (br $count_done)))
                             (if (i32.eqz (ref.test (ref $Pair) (local.get $outer)))
-                                (then (call $raise-pair-expected (local.get $outer))
+                                (then (call $raise-pair-expected/who
+                                            (global.get $symbol:foldr)
+                                            (local.get $outer))
                                       (unreachable)))
                             (local.set $pair (ref.cast (ref $Pair) (local.get $outer)))
                             (local.set $elem (struct.get $Pair $a (local.get $pair)))
                             (if (i32.eqz (i32.or (ref.eq (local.get $elem) (global.get $null))
                                                  (ref.test (ref $Pair) (local.get $elem))))
-                                (then (call $raise-pair-expected (local.get $elem))
+                                (then (call $raise-pair-expected/who
+                                            (global.get $symbol:foldr)
+                                            (local.get $elem))
                                       (unreachable)))
                             (local.set $nlists (i32.add (local.get $nlists) (i32.const 1)))
                             (local.set $outer (struct.get $Pair $d (local.get $pair)))
@@ -27132,7 +27267,9 @@
 
                ;; 1) Check that $proc is a procedure and fetch its invoker
                (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
-                   (then (call $raise-argument-error:procedure-expected (local.get $proc))
+                   (then (call $raise-argument-error:procedure-expected/who
+                               (global.get $symbol:filter)
+                               (local.get $proc))
                          (unreachable)))
                (local.set $f    (ref.cast (ref $Procedure) (local.get $proc)))
                (local.set $finv (struct.get $Procedure $invoke (local.get $f)))
@@ -27160,7 +27297,9 @@
                                 (br $rev))))
 
                      (if (i32.eqz (ref.test (ref $Pair) (local.get $cur)))
-                         (then (call $raise-pair-expected (local.get $cur))
+                         (then (call $raise-pair-expected/who
+                                     (global.get $symbol:filter)
+                                     (local.get $cur))
                                (unreachable)))
                      (local.set $pair (ref.cast (ref $Pair) (local.get $cur)))
                      (local.set $elem (struct.get $Pair $a (local.get $pair)))
@@ -27202,7 +27341,9 @@
 
                ;; 1) Check that $proc is a procedure and fetch its invoker
                (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
-                   (then (call $raise-argument-error:procedure-expected (local.get $proc))
+                   (then (call $raise-argument-error:procedure-expected/who
+                               (global.get $symbol:filter-map)
+                               (local.get $proc))
                          (unreachable)))
                (local.set $f    (ref.cast (ref $Procedure) (local.get $proc)))
                (local.set $finv (struct.get $Procedure $invoke (local.get $f)))
@@ -27212,7 +27353,9 @@
                     (i32.or
                      (ref.eq (local.get $xs0) (global.get $null))
                      (ref.test (ref $Pair) (local.get $xs0))))
-                   (then (call $raise-pair-expected (local.get $xs0))
+                   (then (call $raise-pair-expected/who
+                               (global.get $symbol:filter-map)
+                               (local.get $xs0))
                          (unreachable)))
                (local.set $nlists (i32.const 1))
                (local.set $outer  (local.get $rest))
@@ -27221,14 +27364,20 @@
                             (if (ref.eq (local.get $outer) (global.get $null))
                                 (then (br $count_done)))
                             (if (i32.eqz (ref.test (ref $Pair) (local.get $outer)))
-                                (then (call $raise-pair-expected (local.get $outer)) (unreachable)))
+                                (then (call $raise-pair-expected/who
+                                            (global.get $symbol:filter-map)
+                                            (local.get $outer))
+                                      (unreachable)))
                             (local.set $pair (ref.cast (ref $Pair) (local.get $outer)))
                             (local.set $elem (struct.get $Pair $a (local.get $pair)))
                             (if (i32.eqz
                                  (i32.or
                                   (ref.eq (local.get $elem) (global.get $null))
                                   (ref.test (ref $Pair) (local.get $elem))))
-                                (then (call $raise-pair-expected (local.get $elem)) (unreachable)))
+                                (then (call $raise-pair-expected/who
+                                            (global.get $symbol:filter-map)
+                                            (local.get $elem))
+                                      (unreachable)))
                             (local.set $nlists (i32.add (local.get $nlists) (i32.const 1)))
                             (local.set $outer (struct.get $Pair $d (local.get $pair)))
                             (br $count)))
@@ -27267,7 +27416,10 @@
                                       (then (local.set $stop (i32.const 1)))
                                       (else
                                        (if (i32.eqz (ref.test (ref $Pair) (local.get $cur)))
-                                           (then (call $raise-pair-expected (local.get $cur)) (unreachable)))))
+                                           (then (call $raise-pair-expected/who
+                                                       (global.get $symbol:filter-map)
+                                                       (local.get $cur))
+                                                 (unreachable)))))
                                   (local.set $i (i32.add (local.get $i) (i32.const 1)))
                                   (br $check)))
 
@@ -27350,7 +27502,9 @@
 
                ;; 1) Check that $proc is a procedure and fetch its invoker
                (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
-                   (then (call $raise-argument-error:procedure-expected (local.get $proc))
+                   (then (call $raise-argument-error:procedure-expected/who
+                               (global.get $symbol:filter-not)
+                               (local.get $proc))
                          (unreachable)))
                (local.set $f    (ref.cast (ref $Procedure) (local.get $proc)))
                (local.set $finv (struct.get $Procedure $invoke (local.get $f)))
@@ -27378,7 +27532,9 @@
                                 (br $rev))))
 
                      (if (i32.eqz (ref.test (ref $Pair) (local.get $cur)))
-                         (then (call $raise-pair-expected (local.get $cur))
+                         (then (call $raise-pair-expected/who
+                                     (global.get $symbol:filter-not)
+                                     (local.get $cur))
                                (unreachable)))
                      (local.set $pair (ref.cast (ref $Pair) (local.get $cur)))
                      (local.set $elem (struct.get $Pair $a (local.get $pair)))
@@ -27458,7 +27614,9 @@
 
                ;; 1) Check that $proc is a procedure and fetch its invoker
                (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
-                   (then (call $raise-argument-error:procedure-expected (local.get $proc))
+                   (then (call $raise-argument-error:procedure-expected/who
+                               (global.get $symbol:partition)
+                               (local.get $proc))
                          (unreachable)))
                (local.set $f    (ref.cast (ref $Procedure) (local.get $proc)))
                (local.set $finv (struct.get $Procedure $invoke (local.get $f)))
@@ -27477,7 +27635,9 @@
                                                          (call $reverse (local.get $acc-f))))))
 
                      (if (i32.eqz (ref.test (ref $Pair) (local.get $cur)))
-                         (then (call $raise-pair-expected (local.get $cur))
+                         (then (call $raise-pair-expected/who
+                                     (global.get $symbol:partition)
+                                     (local.get $cur))
                                (unreachable)))
                      (local.set $pair (ref.cast (ref $Pair) (local.get $cur)))
                      (local.set $elem (struct.get $Pair $a (local.get $pair)))
@@ -27517,7 +27677,9 @@
                    ;; Type check $proc
                    (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
                        (then
-                        (call $raise-argument-error:procedure-expected (local.get $proc))
+                        (call $raise-argument-error:procedure-expected/who
+                              (global.get $symbol:remove)
+                              (local.get $proc))
                         (unreachable))
                        (else))
                    (local.set $use-proc (i32.const 1))))
@@ -27531,7 +27693,9 @@
                         (else))
                     (if (i32.eqz (ref.test (ref $Pair) (local.get $cur)))
                         (then
-                         (call $raise-pair-expected (local.get $cur))
+                         (call $raise-pair-expected/who
+                               (global.get $symbol:remove)
+                               (local.get $cur))
                          (unreachable))
                         (else))
                     (local.set $pair (ref.cast (ref $Pair) (local.get $cur)))
@@ -27597,17 +27761,26 @@
               (param $lst  (ref eq)) ;; list
               (result      (ref eq))
 
-              (return_call $remf/impl (local.get $proc) (local.get $lst) (i32.const 0)))
+              (return_call $remf/impl
+                           (global.get $symbol:remf)
+                           (local.get $proc)
+                           (local.get $lst)
+                           (i32.const 0)))
 
         (func $remf* (type $Prim2)   ;; removes first element that satisfies predicate
               (param $proc (ref eq)) ;; predicate
               (param $lst  (ref eq)) ;; list
               (result      (ref eq))
 
-              (return_call $remf/impl (local.get $proc) (local.get $lst) (i32.const 1)))
+              (return_call $remf/impl
+                           (global.get $symbol:remf*)
+                           (local.get $proc)
+                           (local.get $lst)
+                           (i32.const 1)))
 
         ;; Remove list elements using predicate
         (func $remf/impl
+              (param $who  (ref eq))
               (param $proc (ref eq)) ;; predicate
               (param $lst  (ref eq)) ;; list
               (param $all  i32)      ;; non-zero => remove all matches
@@ -27627,7 +27800,9 @@
 
               ;; Ensure proc is a procedure
               (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
-                  (then (call $raise-argument-error:procedure-expected (local.get $proc))
+                  (then (call $raise-argument-error:procedure-expected/who
+                              (local.get $who)
+                              (local.get $proc))
                         (unreachable)))
               (local.set $f    (ref.cast (ref $Procedure) (local.get $proc)))
               (local.set $finv (struct.get $Procedure $invoke (local.get $f)))
@@ -27642,7 +27817,9 @@
                            (if (ref.eq (local.get $cur) (global.get $null))
                                (then (br $done)))
                            (if (i32.eqz (ref.test (ref $Pair) (local.get $cur)))
-                               (then (call $raise-pair-expected (local.get $cur))
+                               (then (call $raise-pair-expected/who
+                                           (local.get $who)
+                                           (local.get $cur))
                                      (unreachable)))
                            (local.set $pair (ref.cast (ref $Pair) (local.get $cur)))
                            (local.set $elem (struct.get $Pair $a (local.get $pair)))
@@ -27711,7 +27888,9 @@
                   (then (local.set $proc (global.get $prim:equal?)))
                   (else
                    (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
-                       (then (call $raise-argument-error:procedure-expected (local.get $proc))
+                       (then (call $raise-argument-error:procedure-expected/who
+                                   (global.get $symbol:remove*)
+                                   (local.get $proc))
                              (unreachable)))))
 
               ;; If v-lst is empty, return original list
@@ -27741,7 +27920,9 @@
                     (if (ref.eq (local.get $vlcur) (global.get $null))
                         (then (return (local.get $res))))
                     (if (i32.eqz (ref.test (ref $Pair) (local.get $vlcur)))
-                        (then (call $raise-pair-expected (local.get $vlcur))
+                        (then (call $raise-pair-expected/who
+                                    (global.get $symbol:remove*)
+                                    (local.get $vlcur))
                               (unreachable)))
                     (local.set $vlpair (ref.cast (ref $Pair) (local.get $vlcur)))
                     (local.set $v      (struct.get $Pair $a (local.get $vlpair)))
@@ -27787,7 +27968,9 @@
                            (if (ref.eq (local.get $cur) (global.get $null))
                                (then (br $done)))
                            (if (i32.eqz (ref.test (ref $Pair) (local.get $cur)))
-                               (then (call $raise-pair-expected (local.get $cur))
+                               (then (call $raise-pair-expected/who
+                                           (global.get $symbol:remove*)
+                                           (local.get $cur))
                                      (unreachable)))
                            (local.set $pair (ref.cast (ref $Pair) (local.get $cur)))
                            (local.set $elem (struct.get $Pair $a (local.get $pair)))
@@ -28046,8 +28229,10 @@
               (local $elem (ref eq))
               (local $acc  (ref eq))
 
-              (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
-                  (then (call $raise-argument-error:procedure-expected (local.get $proc))
+             (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
+                  (then (call $raise-argument-error:procedure-expected/who
+                              (global.get $symbol:takef)
+                              (local.get $proc))
                         (unreachable)))
 
               (local.set $f   (ref.cast (ref $Procedure) (local.get $proc)))
@@ -28090,8 +28275,10 @@
               (local $elem   (ref eq))
               (local $suffix (ref eq))
 
-              (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
-                  (then (call $raise-argument-error:procedure-expected (local.get $proc))
+             (if (i32.eqz (ref.test (ref $Procedure) (local.get $proc)))
+                  (then (call $raise-argument-error:procedure-expected/who
+                              (global.get $symbol:takef-right)
+                              (local.get $proc))
                         (unreachable)))
 
               (local.set $f    (ref.cast (ref $Procedure) (local.get $proc)))
@@ -59311,12 +59498,20 @@
                    (else (local.get $realm))))
 
 
-         (func $raise-argument-error:procedure-expected
+         (func $raise-argument-error:procedure-expected/who
+               (param $who (ref eq))
                (param $got (ref eq))
 
                (call $raise-argument-error1
-                     (global.get $symbol:procedure)
+                     (local.get $who)
                      (global.get $string:procedure?)
+                     (local.get $got)))
+
+         (func $raise-argument-error:procedure-expected
+               (param $got (ref eq))
+
+               (call $raise-argument-error:procedure-expected/who
+                     (global.get $symbol:procedure)
                      (local.get $got)))
 
 
