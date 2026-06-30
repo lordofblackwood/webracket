@@ -17,6 +17,8 @@
                   event-runtime-only-helpers)
          (only-in "runtime-wasm/core/lists.rkt"
                   list-runtime-only-helpers)
+         (only-in "runtime-wasm/core/locks.rkt"
+                  lock-runtime-only-helpers)
          (only-in "runtime-wasm/core/loggers.rkt"
                   logger-runtime-only-helpers)
          (only-in "runtime-wasm/core/semaphores.rkt"
@@ -48,6 +50,7 @@
 (define-runtime-path core-boxes-path "runtime-wasm/core/boxes.rkt")
 (define-runtime-path core-events-path "runtime-wasm/core/events.rkt")
 (define-runtime-path core-lists-path "runtime-wasm/core/lists.rkt")
+(define-runtime-path core-locks-path "runtime-wasm/core/locks.rkt")
 (define-runtime-path core-loggers-path "runtime-wasm/core/loggers.rkt")
 (define-runtime-path core-mlists-path "runtime-wasm/core/mlists.rkt")
 (define-runtime-path core-procedures-path "runtime-wasm/core/procedures.rkt")
@@ -65,6 +68,7 @@
            box-runtime-only-helpers
            event-runtime-only-helpers
            list-runtime-only-helpers
+           lock-runtime-only-helpers
            logger-runtime-only-helpers
            semaphore-runtime-only-helpers
            stencil-vector-runtime-only-helpers
@@ -412,6 +416,7 @@
                                           core-boxes-path
                                           core-events-path
                                           core-lists-path
+                                          core-locks-path
                                           core-loggers-path
                                           core-mlists-path
                                           core-procedures-path
@@ -26167,32 +26172,15 @@
 
          ,(core-runtime-helper-form runtime-helper-index '$sync/timeout)
 
-         ;; unsafe-make-uninterruptible-lock : -> lock?
-         ;;   Create an opaque single-threaded lock token.
-         (func $unsafe-make-uninterruptible-lock (type $Prim0)
-               (result (ref eq))
-               (struct.new $UninterruptibleLock (i32.const 0)))
+         ;;;
+         ;;; Uninterruptible Locks
+         ;;;
 
-         ;; unsafe-uninterruptible-lock-acquire : lock? -> void?
-         ;;   No-op acquire for WebRacket's current single-threaded runtime.
-         (func $unsafe-uninterruptible-lock-acquire (type $Prim1)
-               (param $lock (ref eq)) ;; uninterruptible lock
-               (result      (ref eq))
-               (if (i32.eqz (ref.test (ref $UninterruptibleLock) (local.get $lock)))
-                   (then (unreachable)))
-               (global.get $void))
+         ,(core-runtime-helper-form runtime-helper-index '$unsafe-make-uninterruptible-lock)
 
-         ;; unsafe-uninterruptible-lock-release : lock? -> void?
-         ;;   No-op release for WebRacket's current single-threaded runtime.
-         (func $unsafe-uninterruptible-lock-release (type $Prim1)
-               (param $lock (ref eq)) ;; uninterruptible lock
-               (result      (ref eq))
-               (if (i32.eqz (ref.test (ref $UninterruptibleLock) (local.get $lock)))
-                   (then (unreachable)))
-               (global.get $void))
+         ,(core-runtime-helper-form runtime-helper-index '$unsafe-uninterruptible-lock-acquire)
 
-
-
+         ,(core-runtime-helper-form runtime-helper-index '$unsafe-uninterruptible-lock-release)
 
          ;;;
          ;;; Memory Map
