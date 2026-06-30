@@ -2624,6 +2624,131 @@
                                  (call $cons (local.get $newslot) (global.get $null))
                                  (i32.const 1)))))))))
 
+;; immutable-hash-node-remove-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate generic HAMT remove helpers.
+(define immutable-hash-node-remove-runtime-only-helpers
+  (list
+   (core-runtime-helper
+    '$immutable-hamt-node-remove/kind
+    "$immutable-hamt-node-remove/kind"
+    (lambda ()
+      `(func $immutable-hamt-node-remove/kind
+             (param $kind  i32)
+             (param $node  (ref eq))
+             (param $key   (ref eq))
+             (param $hash  i32)
+             (param $shift i32)
+             (result       (ref eq))
+             (local $sv      (ref $StencilVector))
+             (local $newsv   (ref $StencilVector))
+             (local $mask    i32)
+             (local $bit     i32)
+             (local $index   i32)
+             (local $slot    (ref eq))
+             (local $newslot (ref eq))
+             (local.set $newslot (global.get $null))
+             (local.set $newsv (call $immutable-hamt-empty-node))
+             (if (ref.test (ref $ImmutableHashCNode) (local.get $node))
+                 (then
+                  (return_call $immutable-hamt-cnode-remove/kind
+                               (local.get $kind)
+                               (ref.cast (ref $ImmutableHashCNode)
+                                         (local.get $node))
+                               (local.get $key)
+                               (local.get $hash))))
+             (if (i32.eqz (ref.test (ref $StencilVector) (local.get $node)))
+                 (then
+                  (return_call $immutable-hamt-bucket-remove/kind
+                               (local.get $kind)
+                               (local.get $node)
+                               (local.get $key))))
+             (local.set $sv   (ref.cast (ref $StencilVector) (local.get $node)))
+             (if (call $immutable-hamt-packed-bnode? (local.get $sv))
+                 (then
+                  (return_call $immutable-hamt-packed-node-remove/kind
+                               (local.get $kind)
+                               (local.get $sv)
+                               (local.get $key)
+                               (local.get $hash)
+                               (local.get $shift))))
+             (local.set $mask (struct.get $StencilVector $mask (local.get $sv)))
+             (local.set $bit  (call $immutable-hamt-bit
+                                    (local.get $hash)
+                                    (local.get $shift)))
+             (if (i32.eqz (i32.and (local.get $mask) (local.get $bit)))
+                 (then (return (local.get $node))))
+             (local.set $index (call $immutable-hasheqv-bucket-index
+                                     (local.get $mask)
+                                     (local.get $bit)))
+             (local.set $slot
+                        (array.get $Array
+                                   (struct.get $StencilVector $slots (local.get $sv))
+                                   (local.get $index)))
+             (if (ref.test (ref $StencilVector) (local.get $slot))
+                 (then
+                  (local.set $newslot
+                             (call $immutable-hamt-node-remove/kind
+                                   (local.get $kind)
+                                   (local.get $slot)
+                                   (local.get $key)
+                                   (local.get $hash)
+                                   (i32.add (local.get $shift) (i32.const 3)))))
+                 (else
+                  (if (ref.test (ref $ImmutableHashCNode) (local.get $slot))
+                      (then
+                       (local.set $newslot
+                                  (call $immutable-hamt-cnode-remove/kind
+                                        (local.get $kind)
+                                        (ref.cast (ref $ImmutableHashCNode)
+                                                  (local.get $slot))
+                                        (local.get $key)
+                                        (local.get $hash))))
+                      (else
+                       (local.set $newslot
+                                  (call $immutable-hamt-bucket-remove/kind
+                                        (local.get $kind)
+                                        (local.get $slot)
+                                        (local.get $key)))))))
+             (if (ref.eq (local.get $newslot) (global.get $null))
+                 (then
+                  (return_call $immutable-hamt-bnode-collapse-if-single
+                               (call $immutable-hamt-store-bnode-metadata
+                                     (ref.cast
+                                      (ref $StencilVector)
+                                      (call $$stencil-vector-update/core
+                                            (local.get $sv)
+                                            (local.get $bit)
+                                            (i32.const 0)
+                                            (global.get $null)
+                                            (i32.const 1)))))))
+             (if (ref.test (ref $StencilVector) (local.get $newslot))
+                 (then
+                  (local.set $newsv
+                             (ref.cast (ref $StencilVector)
+                                       (local.get $newslot)))
+                  (if (i32.eqz (struct.get $StencilVector $mask (local.get $newsv)))
+                      (then
+                       (return_call $immutable-hamt-bnode-collapse-if-single
+                                    (call $immutable-hamt-store-bnode-metadata
+                                          (ref.cast
+                                           (ref $StencilVector)
+                                           (call $$stencil-vector-update/core
+                                                 (local.get $sv)
+                                                 (local.get $bit)
+                                                 (i32.const 0)
+                                                 (global.get $null)
+                                                 (i32.const 1)))))))))
+             (return_call $immutable-hamt-bnode-collapse-if-single
+                          (call $immutable-hamt-store-bnode-metadata
+                                (ref.cast
+                                 (ref $StencilVector)
+                                 (call $$stencil-vector-update/core
+                                       (local.get $sv)
+                                       (local.get $bit)
+                                       (local.get $bit)
+                                       (call $cons (local.get $newslot) (global.get $null))
+                                       (i32.const 1))))))))))
+
 ;; immutable-hash-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate immutable hash helpers that still depend on monolithic runtime globals.
 (define immutable-hash-runtime-only-helpers
@@ -2637,4 +2762,5 @@
           immutable-hash-node-lookup-runtime-only-helpers
           immutable-hash-hamt-support-runtime-only-helpers
           immutable-hash-cnode-runtime-only-helpers
-          immutable-hash-node-set-runtime-only-helpers))
+          immutable-hash-node-set-runtime-only-helpers
+          immutable-hash-node-remove-runtime-only-helpers))
