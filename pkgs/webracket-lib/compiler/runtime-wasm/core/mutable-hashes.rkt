@@ -1512,6 +1512,101 @@
                             (local.set $step (i32.add (local.get $step) (i32.const 1)))
                             (br $probe)))))))))
 
+;; mutable-hash-resize-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate mutable hash resize helpers.
+(define mutable-hash-resize-runtime-only-helpers
+  (append
+   (for/list ([type         '($HashEqMutable
+                              $HashEqvMutable
+                              $HashEqualMutable
+                              $HashEqualAlwaysMutable)]
+              [resize       '($hasheq-resize
+                              $hasheqv-resize
+                              $hashequal-resize
+                              $hashalw-resize)]
+              [set!/checked '($hasheq-set!/mutable/checked
+                              $hasheqv-set!/mutable/checked
+                              $hash-set!/mutable/checked
+                              $hashalw-set!/mutable/checked)])
+     (core-runtime-helper
+      resize
+      (symbol->string resize)
+      (lambda ()
+        `(func ,resize
+               (param $table (ref ,type))
+
+               (local $old-entries (ref $Array))
+               (local $old-cap     i32)
+               (local $new-cap     i32)
+               (local $new-array   (ref $Array))
+               (local $i           i32)
+               (local $len         i32)
+               (local $key         (ref eq))
+               (local $val         (ref eq))
+
+               ;; Get old table size and entries
+               (local.set $old-entries (struct.get ,type $entries (local.get $table)))
+               (local.set $old-cap     (i32.div_u (array.len (local.get $old-entries)) (i32.const 2)))
+               (local.set $new-cap     (i32.mul (local.get $old-cap) (i32.const 2)))
+               ;; Allocate new entries array (2 * new-capacity), all set to $missing
+               (local.set $new-array (array.new $Array (global.get $missing)
+                                                (i32.mul (local.get $new-cap) (i32.const 2))))
+               ;; Replace storage in-place and reset metadata
+               (struct.set ,type $entries (local.get $table) (local.get $new-array))
+               (struct.set ,type $count   (local.get $table) (i32.const 0))
+               ;; Reinsert valid key-value pairs
+               (local.set $i   (i32.const 0))
+               (local.set $len (array.len (local.get $old-entries)))
+               (block $done
+                      (loop $loop
+                            (br_if $done (i32.ge_u (local.get $i) (local.get $len)))
+                            ;; Load key and value
+                            (local.set $key (array.get $Array (local.get $old-entries) (local.get $i)))
+                            (local.set $val (array.get $Array (local.get $old-entries)
+                                                       (i32.add (local.get $i) (i32.const 1))))
+                            ;; Reinsert only if key is not $missing or $tombstone
+                            (if (i32.eqz (ref.eq (local.get $key) (global.get $missing)))
+                                (then (if (i32.eqz (ref.eq (local.get $key) (global.get $tombstone)))
+                                          (then
+                                           (call ,set!/checked
+                                                 (local.get $table)
+                                                 (local.get $key)
+                                                 (local.get $val))))))
+                            ;; Next pair
+                            (local.set $i (i32.add (local.get $i) (i32.const 2)))
+                            (br $loop)))))))
+
+   (for/list ([type         '($HashEqMutable
+                              $HashEqvMutable
+                              $HashEqualMutable
+                              $HashEqualAlwaysMutable)]
+              [resize       '($hasheq-resize
+                              $hasheqv-resize
+                              $hashequal-resize
+                              $hashalw-resize)]
+              [maybe-resize '($maybe-resize-hasheq
+                              $maybe-resize-hasheqv
+                              $maybe-resize-hashequal
+                              $maybe-resize-hashalw)])
+     (core-runtime-helper
+      maybe-resize
+      (symbol->string maybe-resize)
+      (lambda ()
+        `(func ,maybe-resize
+               (param $table (ref ,type))
+
+               (local $entries  (ref $Array))
+               (local $capacity i32)
+               (local $count    i32)
+               ;; Get fields
+               (local.set $entries  (struct.get ,type $entries (local.get $table)))
+               (local.set $capacity (i32.div_u (array.len (local.get $entries)) (i32.const 2)))
+               (local.set $count    (struct.get ,type $count (local.get $table)))
+               ;; Resize if count ≥ capacity / 2
+               (if (i32.ge_u (local.get $count)
+                             (i32.shr_u (local.get $capacity) (i32.const 1)))
+                   (then (call ,resize (local.get $table))))))))))
+
 ;; mutable-hash-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate mutable hash helpers that still depend on monolithic runtime globals.
 (define mutable-hash-runtime-only-helpers
@@ -1521,4 +1616,5 @@
           mutable-hash-write-runtime-only-helpers
           mutable-hash-ref-bang-runtime-only-helpers
           mutable-hash-update-bang-runtime-only-helpers
-          mutable-hash-remove-bang-runtime-only-helpers))
+          mutable-hash-remove-bang-runtime-only-helpers
+          mutable-hash-resize-runtime-only-helpers))
