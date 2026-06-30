@@ -16,6 +16,7 @@
          "core/i8-arrays.rkt"
          "core/keywords.rkt"
          "core/lists.rkt"
+         "core/mlists.rkt"
          "core/procedures.rkt"
          "core/strings.rkt"
          "core/structs.rkt"
@@ -37,6 +38,7 @@
    i8-array-core-runtime-helpers
    keyword-core-runtime-helpers
    list-core-runtime-helpers
+   mlist-core-runtime-helpers
    procedure-core-runtime-helpers
    string-core-runtime-helpers
    struct-core-runtime-helpers

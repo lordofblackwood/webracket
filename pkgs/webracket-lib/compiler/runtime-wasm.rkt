@@ -30,6 +30,7 @@
 (define-runtime-path immediates-path "private/immediates.rkt")
 (define-runtime-path constants-path "runtime-wasm/constants.rkt")
 (define-runtime-path core-lists-path "runtime-wasm/core/lists.rkt")
+(define-runtime-path core-mlists-path "runtime-wasm/core/mlists.rkt")
 (define-runtime-path core-procedures-path "runtime-wasm/core/procedures.rkt")
 
 ;; runtime-helper-index : hasheq?
@@ -377,6 +378,7 @@
                                           immediates-path
                                           constants-path
                                           core-lists-path
+                                          core-mlists-path
                                           core-procedures-path))])
             (list (path->string path)
                   (file-size path)
@@ -23220,58 +23222,26 @@
         ;; to be updated. These operations parallel their immutable
         ;; counterparts above but use the `$MPair` type.
 
-        ;; mpair? : any/c -> boolean?
-        (func $raise-mpair-expected (param $x (ref eq)) (unreachable))
+        ;; Mutable pair error helper
+        ,(core-runtime-helper-form core-runtime-helper-index '$raise-mpair-expected)
 
-        (func $mpair? (type $Prim1)
-              ,@(make-predicate-body '$MPair))
+        ;; mpair? : any/c -> boolean?
+        ,(core-runtime-helper-form core-runtime-helper-index '$mpair?)
 
         ;; mcons : any/c any/c -> mpair?
-        (func $mcons (type $Prim2)
-              (param $a (ref eq))  ;; car value
-              (param $d (ref eq))  ;; cdr value
-              (result (ref eq))
-              (struct.new $MPair (i32.const 0) (local.get $a) (local.get $d)))
+        ,(core-runtime-helper-form core-runtime-helper-index '$mcons)
 
         ;; mcar : mpair? -> any/c
-        (func $mcar (type $Prim1) (param $v (ref eq)) (result (ref eq))
-              (if (result (ref eq)) (ref.test (ref $MPair) (local.get $v))
-                  (then (struct.get $MPair $a (ref.cast (ref $MPair) (local.get $v))))
-                  (else (call $raise-mpair-expected (local.get $v))
-                        (unreachable))))
+        ,(core-runtime-helper-form core-runtime-helper-index '$mcar)
 
         ;; mcdr : mpair? -> any/c
-        (func $mcdr (type $Prim1) (param $v (ref eq)) (result (ref eq))
-              (if (result (ref eq)) (ref.test (ref $MPair) (local.get $v))
-                  (then (struct.get $MPair $d (ref.cast (ref $MPair) (local.get $v))))
-                  (else (call $raise-mpair-expected (local.get $v))
-                        (unreachable))))
+        ,(core-runtime-helper-form core-runtime-helper-index '$mcdr)
 
         ;; set-mcar! : mpair? any/c -> void?
-        (func $set-mcar! (type $Prim2)
-              (param $p (ref eq))   ;; mpair to mutate
-              (param $v (ref eq))   ;; new car value
-              (result (ref eq))
-              (if (result (ref eq)) (ref.test (ref $MPair) (local.get $p))
-                  (then (struct.set $MPair $a
-                                    (ref.cast (ref $MPair) (local.get $p))
-                                    (local.get $v))
-                        (global.get $void))
-                  (else (call $raise-mpair-expected (local.get $p))
-                        (unreachable))))
+        ,(core-runtime-helper-form core-runtime-helper-index '$set-mcar!)
 
         ;; set-mcdr! : mpair? any/c -> void?
-        (func $set-mcdr! (type $Prim2)
-              (param $p (ref eq))   ;; mpair to mutate
-              (param $v (ref eq))   ;; new cdr value
-              (result (ref eq))
-              (if (result (ref eq)) (ref.test (ref $MPair) (local.get $p))
-                  (then (struct.set $MPair $d
-                                    (ref.cast (ref $MPair) (local.get $p))
-                                    (local.get $v))
-                        (global.get $void))
-                  (else (call $raise-mpair-expected (local.get $p))
-                        (unreachable))))
+        ,(core-runtime-helper-form core-runtime-helper-index '$set-mcdr!)
 
          ;;;
          ;;; 4.12 Vectors
