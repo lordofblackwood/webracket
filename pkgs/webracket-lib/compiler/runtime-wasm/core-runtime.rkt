@@ -6,13 +6,21 @@
 
 (require "core-helper.rkt"
          "core/fixnums.rkt"
+         "core/flonums.rkt"
+         "core/keywords.rkt"
+         "core/structs.rkt"
+         "core/vectors.rkt"
          "shared-types.rkt")
 
 ;; core-runtime-helpers : (listof core-runtime-helper?)
 ;;   Enumerate the functions currently shared between monolithic and core runtime trees.
 (define core-runtime-helpers
   (append
-   fixnum-core-runtime-helpers))
+   fixnum-core-runtime-helpers
+   flonum-core-runtime-helpers
+   keyword-core-runtime-helpers
+   struct-core-runtime-helpers
+   vector-core-runtime-helpers))
 
 ;; core-runtime-helper-index : hasheq?
 ;;   Index core runtime helpers by Wasm function name.
@@ -72,6 +80,14 @@
            (import "core" ,(symbol->string name))
            (type ,type-name)))
 
+  ;; core-raw-i32-unary-import : symbol? -> datum?
+  ;;   Build an imported core helper declaration for raw unary predicates.
+  (define (core-raw-i32-unary-import name)
+    `(func ,name
+           (import "core" ,(symbol->string name))
+           (param (ref eq))
+           (result i32)))
+
   ;; tagged-call1-export : string? symbol? integer? -> datum?
   ;;   Build an exported test function that returns a raw tagged unary result.
   (define (tagged-call1-export export-name helper-name arg)
@@ -117,6 +133,13 @@
       $unsafe-fxlshift/wraparound
       $unsafe-fxrshift
       $unsafe-fxrshift/logical))
+
+  (define core-raw-i32-unary-test-imports
+    '($fl?/i32
+      $keyword?/i32
+      $vector?/i32
+      $struct?/i32
+      $struct-type?/i32))
 
   (define shared-types (generate-shared-types))
   (define shared-type-names (shared-type-name-set shared-types))
@@ -235,6 +258,8 @@
                (import "core" "$fixnum?/i32")
                (param (ref eq))
                (result i32))
+         ,@(for/list ([name (in-list core-raw-i32-unary-test-imports)])
+             (core-raw-i32-unary-import name))
          ,@(for/list ([name (in-list core-prim1-test-imports)])
              (core-helper-import name '$Prim1))
          ,@(for/list ([name (in-list core-prim2-test-imports)])
@@ -254,6 +279,87 @@
                (call $fixnum?/i32 (ref.i31 (i32.const 84))))
          (func (export "fixnum_immediate_false") (result i32)
                (call $fixnum?/i32 (ref.i31 (i32.const 85))))
+         (func (export "fl_flonum_true") (result i32)
+               (call $fl?/i32
+                     (struct.new $Flonum
+                                 (i32.const 0)
+                                 (f64.const 1.5))))
+         (func (export "fl_fixnum_false") (result i32)
+               (call $fl?/i32 (ref.i31 (i32.const 84))))
+         (func (export "keyword_keyword_true") (result i32)
+               (call $keyword?/i32
+                     (struct.new $Keyword
+                                 (i32.const 0)
+                                 (struct.new $String
+                                             (i32.const 0)
+                                             (i32.const 1)
+                                             (array.new $I32Array
+                                                        (i32.const 107)
+                                                        (i32.const 1))))))
+         (func (export "keyword_fixnum_false") (result i32)
+               (call $keyword?/i32 (ref.i31 (i32.const 84))))
+         (func (export "vector_vector_true") (result i32)
+               (call $vector?/i32
+                     (struct.new $Vector
+                                 (i32.const 0)
+                                 (i32.const 0)
+                                 (array.new $Array
+                                            (ref.i31 (i32.const 0))
+                                            (i32.const 3)))))
+         (func (export "vector_fixnum_false") (result i32)
+               (call $vector?/i32 (ref.i31 (i32.const 84))))
+         (func (export "struct_type_true") (result i32)
+               (call $struct-type?/i32
+                     (struct.new $StructType
+                                 (i32.const 0)
+                                 (struct.new $Symbol
+                                             (i32.const 0)
+                                             (struct.new $String
+                                                         (i32.const 0)
+                                                         (i32.const 1)
+                                                         (array.new $I32Array
+                                                                    (i32.const 115)
+                                                                    (i32.const 1)))
+                                             (i32.const 0)
+                                             (ref.i31 (i32.const 0)))
+                                 (ref.i31 (i32.const 0))
+                                 (i32.const 0)
+                                 (ref.i31 (i32.const 0))
+                                 (ref.i31 (i32.const 0))
+                                 (ref.i31 (i32.const 0))
+                                 (ref.i31 (i32.const 0))
+                                 (ref.i31 (i32.const 0))
+                                 (ref.i31 (i32.const 0))
+                                 (ref.i31 (i32.const 0))
+                                 (ref.i31 (i32.const 0)))))
+         (func (export "struct_type_fixnum_false") (result i32)
+               (call $struct-type?/i32 (ref.i31 (i32.const 84))))
+         (func (export "struct_struct_type_false") (result i32)
+               (call $struct?/i32
+                     (struct.new $StructType
+                                 (i32.const 0)
+                                 (struct.new $Symbol
+                                             (i32.const 0)
+                                             (struct.new $String
+                                                         (i32.const 0)
+                                                         (i32.const 1)
+                                                         (array.new $I32Array
+                                                                    (i32.const 115)
+                                                                    (i32.const 1)))
+                                             (i32.const 0)
+                                             (ref.i31 (i32.const 0)))
+                                 (ref.i31 (i32.const 0))
+                                 (i32.const 0)
+                                 (ref.i31 (i32.const 0))
+                                 (ref.i31 (i32.const 0))
+                                 (ref.i31 (i32.const 0))
+                                 (ref.i31 (i32.const 0))
+                                 (ref.i31 (i32.const 0))
+                                 (ref.i31 (i32.const 0))
+                                 (ref.i31 (i32.const 0))
+                                 (ref.i31 (i32.const 0)))))
+         (func (export "struct_fixnum_false") (result i32)
+               (call $struct?/i32 (ref.i31 (i32.const 84))))
          ,(tagged-call2-export "fxand_tagged" '$fxand/2 84 20)
          ,(tagged-call2-export "fxior_tagged" '$fxior/2 84 20)
          ,(tagged-call2-export "fxxor_tagged" '$fxxor/2 84 20)
@@ -314,6 +420,16 @@ const expected = new Map([
   ["fx_heap_false", 0],
   ["fixnum_fixnum_true", 1],
   ["fixnum_immediate_false", 0],
+  ["fl_flonum_true", 1],
+  ["fl_fixnum_false", 0],
+  ["keyword_keyword_true", 1],
+  ["keyword_fixnum_false", 0],
+  ["vector_vector_true", 1],
+  ["vector_fixnum_false", 0],
+  ["struct_type_true", 1],
+  ["struct_type_fixnum_false", 0],
+  ["struct_struct_type_false", 0],
+  ["struct_fixnum_false", 0],
   ["fxand_tagged", 20],
   ["fxior_tagged", 84],
   ["fxxor_tagged", 64],

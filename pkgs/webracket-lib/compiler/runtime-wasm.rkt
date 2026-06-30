@@ -15202,10 +15202,7 @@
                            (i32.const 0)  ;; initial hash = 0
                            (f64.convert_i32_s (local.get $n))))
 
-         ;; fl?/i32 : (ref eq) -> i32
-         ;;   Returns 1 if the value is a flonum, 0 otherwise
-         (func $fl?/i32 (param $a (ref eq)) (result i32)
-               (ref.test (ref $Flonum) (local.get $a)))
+         ,(core-runtime-helper-form core-runtime-helper-index '$fl?/i32)
 
          ;; flonum? : (ref eq) -> (ref eq)
          ;;   Returns #t if the value is a flonum, #f otherwise
@@ -23131,10 +23128,7 @@
          ;; Keywords are interned using `the-keywords-table` which maps strings (without #:)
          ;; to keywords.
 
-         (func $keyword?/i32
-               (param $v (ref eq))
-               (result i32)
-               (ref.test (ref $Keyword) (local.get $v)))
+         ,(core-runtime-helper-form core-runtime-helper-index '$keyword?/i32)
 
          (func $keyword? (type $Prim1)
                ,@(make-predicate-body '$Keyword))
@@ -34637,8 +34631,7 @@
          (func $vector-length/checked/i32 (param $v (ref $Vector)) (result i32)
                (array.len (struct.get $Vector $arr (local.get $v))))
 
-         (func $vector?/i32 (param $a (ref eq)) (result i32)
-               (ref.test (ref $Vector) (local.get $a)))
+         ,(core-runtime-helper-form core-runtime-helper-index '$vector?/i32)
 
          (func $vector? (type $Prim1) (param $a (ref eq)) (result (ref eq))
                (if (result (ref eq))
@@ -53295,14 +53288,12 @@
          ;; [ ] make-constructor-style-printer
          ;; [x] struct->list
 
-         (func $struct?/i32 (param $v (ref eq)) (result i32)
-               (ref.test (ref $Struct) (local.get $v)))
+         ,(core-runtime-helper-form core-runtime-helper-index '$struct?/i32)
 
          (func $struct? (type $Prim1)
                ,@(make-predicate-body '$Struct))
 
-         (func $struct-type?/i32 (param $v (ref eq)) (result i32)
-               (ref.test (ref $StructType) (local.get $v)))
+         ,(core-runtime-helper-form core-runtime-helper-index '$struct-type?/i32)
 
          (func $struct-type? (type $Prim1)
                ,@(make-predicate-body '$StructType))
