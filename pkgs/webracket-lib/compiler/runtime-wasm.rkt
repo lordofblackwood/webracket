@@ -12,6 +12,7 @@
          "private/structs.rkt"
          "runtime-wasm/core-helper.rkt"
          "runtime-wasm/core-runtime.rkt"
+         "runtime-wasm/constants.rkt"
          "runtime-wasm/shared-types.rkt"
          file/sha1
          racket/fasl
@@ -25,6 +26,7 @@
 (define-runtime-path wasm-data-path "private/wasm-data.rkt")
 (define-runtime-path wasm-utils-path "private/wasm-utils.rkt")
 (define-runtime-path immediates-path "private/immediates.rkt")
+(define-runtime-path constants-path "runtime-wasm/constants.rkt")
 
 (module+ test
   (require (submod "runtime-wasm/core-runtime.rkt" test)))
@@ -361,7 +363,8 @@
                                           structs-path
                                           wasm-data-path
                                           wasm-utils-path
-                                          immediates-path))])
+                                          immediates-path
+                                          constants-path))])
             (list (path->string path)
                   (file-size path)
                   (file-or-directory-modify-seconds path)))))
@@ -1824,126 +1827,42 @@
 
     ;; String constants used in the runtime
     ;;  `string-constants holds the constants passed by `generate-code` in `compiler.rkt`
-    (define runtime-string-constants string-constants)
+    (define runtime-constant-registry
+      (make-runtime-constant-registry string-constants
+                                      bytes-constants
+                                      symbol-constants))
+
     (define (add-runtime-string-constant name string)
-      (set! runtime-string-constants
-            (cons (list name string) runtime-string-constants)))
+      (runtime-constant-registry-add-string! runtime-constant-registry name string))
+
     (define (declare-runtime-string-constants)
-      (append*
-       (for/list ([ns (reverse runtime-string-constants)])
-         (define name              (first ns))
-         (define string            (second ns))
-         (define $string-data:name (string->symbol (~a "$" "string-data:"  name)))
-         (define $string:name      (string->symbol (~a "$" "string:"       name)))
-         (list `(data   ,$string-data:name ,(wasm-data (string->bytes/utf-8 string)))
-               `(global ,$string:name (mut (ref eq)) ,(Imm #f))))))
+      (runtime-constant-registry-declare-strings runtime-constant-registry))
+
     (define (initialize-runtime-string-constants)
-      (for/list ([ns (reverse runtime-string-constants)])
-        (define name              (first ns))
-        (define string            (second ns))
-        (define $string-data:name (string->symbol (~a "$" "string-data:"  name)))
-        (define $string:name      (string->symbol (~a "$" "string:"       name)))
-        (define n                 (bytes-length (string->bytes/utf-8 string)))
-        `(global.set ,$string:name
-                     (call $i8array->string
-                           (array.new_data $I8Array ,$string-data:name
-                                           (i32.const 0) (i32.const ,n))))))
+      (runtime-constant-registry-initialize-strings runtime-constant-registry))
 
     ;; Bytes constants used in the runtime
     ;;  `bytes-constants holds the constants passed by `generate-code` in `compiler.rkt`
-    (define runtime-bytes-constants bytes-constants)
     (define (add-runtime-bytes-constant name bytes)
-      (set! runtime-bytes-constants
-            (cons (list name bytes) runtime-bytes-constants)))
+      (runtime-constant-registry-add-bytes! runtime-constant-registry name bytes))
+
     (define (declare-runtime-bytes-constants)
-      (append*
-       (for/list ([ns (reverse runtime-bytes-constants)])
-         (define name             (first ns))
-         (define bytes            (second ns))
-         (define $bytes-data:name (string->symbol (~a "$" "bytes-data:" name)))
-         (define $bytes:name      (string->symbol (~a "$" "bytes:"  name)))
-         (list `(data ,$bytes-data:name ,(wasm-data bytes))
-               `(global ,$bytes:name (mut (ref eq)) ,(Imm #f))))))
+      (runtime-constant-registry-declare-bytes runtime-constant-registry))
+
     (define (initialize-runtime-bytes-constants)
-      (for/list ([ns (reverse runtime-bytes-constants)])
-        (define name             (first ns))
-        (define bytes            (second ns))
-        (define $bytes-data:name (string->symbol (~a "$" "bytes-data:" name)))
-        (define $bytes:name      (string->symbol (~a "$" "bytes:"      name)))
-        (define n                (bytes-length bytes))
-        `(global.set ,$bytes:name
-                     (call $i8array->immutable-bytes
-                           (array.new_data $I8Array ,$bytes-data:name
-                                           (i32.const 0) (i32.const ,n))))))
+      (runtime-constant-registry-initialize-bytes runtime-constant-registry))
 
     ;; Symbol constants used in the runtime
     ;;  `runtime-symbol-constants` holds the constants passed by `generate-code`
     ;; in `compiler.rkt`
-    (define runtime-symbol-constants symbol-constants)
-    (define runtime-symbols-ht (make-hasheq))
     (define (add-runtime-symbol-constant symbol)
-      (cond
-        [(hash-ref runtime-symbols-ht symbol #f)
-         => values]
-        [else
-         (define name symbol)
-         (hash-set! runtime-symbols-ht symbol #t) ; avoid duplicates
-         (set! runtime-symbol-constants
-               (cons (list name symbol) runtime-symbol-constants))]))
-    (define (remove-duplicates/string xs key)
-      ;; Like `remove-duplicates` with `string=?` and `#:key`, but linear.
-      ;;
-      ;; Note: `racket/list`'s `remove-duplicates` only switches to a hash-table
-      ;; implementation for long lists when the equality predicate is exactly
-      ;; `eq?`, `equal?`, or `equal-always?`.  Using `string=?` therefore falls
-      ;; back to the quadratic list-scan path, even on large inputs.
-      (define seen (make-hash))
-      (let loop ([rest xs] [acc '()])
-        (cond
-          [(null? rest) (reverse acc)]
-          [else
-           (define ns (car rest))
-           (define k (key ns))
-           (cond
-             [(hash-ref seen k #f)
-              (loop (cdr rest) acc)]
-             [else
-              (hash-set! seen k #t)
-              (loop (cdr rest) (cons ns acc))])])))
+      (runtime-constant-registry-add-symbol! runtime-constant-registry symbol))
+
     (define (declare-runtime-symbol-constants)
-      ; This file adds more symbols to `runtime-symbol-constants` so
-      ; we need to wait removing duplicates until here.
-      (set! runtime-symbol-constants
-            (remove-duplicates/string runtime-symbol-constants
-                                      (lambda (ns)
-                                        (symbol->string (car ns)))))
-      (append*
-       (for/list ([ns (reverse runtime-symbol-constants)])
-         (define name                (first ns))
-         (define symbol              (second ns))
-         (define string              (symbol->string symbol))
-         (define $symbol-data:name   (string->symbol (~a "$" "symbol-data:"   name)))
-         (define $symbol:name        (string->symbol (~a "$" "symbol:"        name)))
-         (list `(data   ,$symbol-data:name                  ,string)
-               `(global ,$symbol:name (mut (ref eq))        ,(Imm #f))))))
+      (runtime-constant-registry-declare-symbols! runtime-constant-registry))
 
     (define (initialize-runtime-symbol-constants)
-      (set! runtime-symbol-constants
-            (remove-duplicates/string runtime-symbol-constants
-                                      (lambda (ns)
-                                        (symbol->string (car ns)))))
-      (for/list ([ns (reverse runtime-symbol-constants)])
-        (define name         (first ns))
-        (define symbol       (second ns))
-        (define string       (symbol->string symbol))
-        (define $symbol-data:name   (string->symbol (~a "$" "symbol-data:"   name)))
-        (define $symbol:name        (string->symbol (~a "$" "symbol:"        name)))
-        (define n                   (bytes-length (string->bytes/utf-8 string)))
-        `(global.set ,$symbol:name
-                     (call $string->symbol
-                           (call $i8array->string
-                                 (array.new_data $I8Array ,$symbol-data:name
-                                                 (i32.const 0) (i32.const ,n)))))))
+      (runtime-constant-registry-initialize-symbols! runtime-constant-registry))
 
     ;; String and symbol constants used in the runtime
 
