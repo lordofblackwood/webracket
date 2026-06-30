@@ -4021,6 +4021,164 @@
                           (br $walk)))
              (local.get $ht))))))
 
+;; immutable-hash-alist-constructor-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate immutable hash constructors that consume association lists.
+(define immutable-hash-alist-constructor-runtime-only-helpers
+  (list
+   ;; make-immutable-hash : [(listof pair?) = null] -> immutable-hash?
+   ;;   Build an immutable equal?-hash from an association list. This
+   ;;   currently uses the shared HAMT backing store described above.
+   (core-runtime-helper
+    '$make-immutable-hash
+    "$make-immutable-hash"
+    (lambda ()
+      `(func $make-immutable-hash (type $Prim01)
+             (param $assocs (ref eq)) ;; optional association list, default null
+             (result        (ref eq))
+             (local $ht    (ref eq))
+             (local $alist (ref eq))
+             (local $pair  (ref $Pair))
+             (local $kv    (ref eq))
+             (local $kvp   (ref $Pair))
+             (if (ref.eq (local.get $assocs) (global.get $missing))
+                 (then (local.set $assocs (global.get $null))))
+             (local.set $ht (call $make-empty-immutable-hash))
+             (local.set $alist (local.get $assocs))
+             (block $done
+                    (loop $walk
+                          (br_if $done (ref.eq (local.get $alist) (global.get $null)))
+                          (if (i32.eqz (ref.test (ref $Pair) (local.get $alist)))
+                              (then (call $raise-argument-error:pair-expected1 (local.get $alist))
+                                    (unreachable)))
+                          (local.set $pair (ref.cast (ref $Pair) (local.get $alist)))
+                          (local.set $kv (struct.get $Pair $a (local.get $pair)))
+                          (if (i32.eqz (ref.test (ref $Pair) (local.get $kv)))
+                              (then (call $raise-argument-error:pair-expected2 (local.get $kv))
+                                    (unreachable)))
+                          (local.set $kvp (ref.cast (ref $Pair) (local.get $kv)))
+                          (local.set $ht (call $immutable-hash-set
+                                               (local.get $ht)
+                                               (struct.get $Pair $a (local.get $kvp))
+                                               (struct.get $Pair $d (local.get $kvp))))
+                          (local.set $alist (struct.get $Pair $d (local.get $pair)))
+                          (br $walk)))
+             (local.get $ht))))
+
+   ;; make-immutable-hashalw : [(listof pair?) = null] -> immutable-hashalw?
+   ;;   Build an immutable equal-always?-hash from an association list.
+   (core-runtime-helper
+    '$make-immutable-hashalw
+    "$make-immutable-hashalw"
+    (lambda ()
+      `(func $make-immutable-hashalw (type $Prim01)
+             (param $assocs (ref eq)) ;; optional association list, default null
+             (result        (ref eq))
+             (local $ht    (ref eq))
+             (local $alist (ref eq))
+             (local $pair  (ref $Pair))
+             (local $kv    (ref eq))
+             (local $kvp   (ref $Pair))
+             (if (ref.eq (local.get $assocs) (global.get $missing))
+                 (then (local.set $assocs (global.get $null))))
+             (local.set $ht (call $make-empty-immutable-hashalw))
+             (local.set $alist (local.get $assocs))
+             (block $done
+                    (loop $walk
+                          (br_if $done (ref.eq (local.get $alist) (global.get $null)))
+                          (if (i32.eqz (ref.test (ref $Pair) (local.get $alist)))
+                              (then (call $raise-argument-error:pair-expected1 (local.get $alist))
+                                    (unreachable)))
+                          (local.set $pair (ref.cast (ref $Pair) (local.get $alist)))
+                          (local.set $kv (struct.get $Pair $a (local.get $pair)))
+                          (if (i32.eqz (ref.test (ref $Pair) (local.get $kv)))
+                              (then (call $raise-argument-error:pair-expected2 (local.get $kv))
+                                    (unreachable)))
+                          (local.set $kvp (ref.cast (ref $Pair) (local.get $kv)))
+                          (local.set $ht (call $immutable-hashalw-set
+                                               (local.get $ht)
+                                               (struct.get $Pair $a (local.get $kvp))
+                                               (struct.get $Pair $d (local.get $kvp))))
+                          (local.set $alist (struct.get $Pair $d (local.get $pair)))
+                          (br $walk)))
+             (local.get $ht))))
+
+   ;; make-immutable-hasheq : [(listof pair?) = null] -> immutable-hasheq?
+   ;;   Build an immutable eq?-hash from an association list.
+   (core-runtime-helper
+    '$make-immutable-hasheq
+    "$make-immutable-hasheq"
+    (lambda ()
+      `(func $make-immutable-hasheq (type $Prim01)
+             (param $assocs (ref eq)) ;; optional association list, default null
+             (result        (ref eq))
+             (local $ht    (ref eq))
+             (local $alist (ref eq))
+             (local $pair  (ref $Pair))
+             (local $kv    (ref eq))
+             (local $kvp   (ref $Pair))
+             (if (ref.eq (local.get $assocs) (global.get $missing))
+                 (then (local.set $assocs (global.get $null))))
+             (local.set $ht (call $make-empty-immutable-hasheq))
+             (local.set $alist (local.get $assocs))
+             (block $done
+                    (loop $walk
+                          (br_if $done (ref.eq (local.get $alist) (global.get $null)))
+                          (if (i32.eqz (ref.test (ref $Pair) (local.get $alist)))
+                              (then (call $raise-argument-error:pair-expected1 (local.get $alist))
+                                    (unreachable)))
+                          (local.set $pair (ref.cast (ref $Pair) (local.get $alist)))
+                          (local.set $kv (struct.get $Pair $a (local.get $pair)))
+                          (if (i32.eqz (ref.test (ref $Pair) (local.get $kv)))
+                              (then (call $raise-argument-error:pair-expected2 (local.get $kv))
+                                    (unreachable)))
+                          (local.set $kvp (ref.cast (ref $Pair) (local.get $kv)))
+                          (local.set $ht (call $immutable-hasheq-set
+                                               (local.get $ht)
+                                               (struct.get $Pair $a (local.get $kvp))
+                                               (struct.get $Pair $d (local.get $kvp))))
+                          (local.set $alist (struct.get $Pair $d (local.get $pair)))
+                          (br $walk)))
+             (local.get $ht))))
+
+   ;; make-immutable-hasheqv : [(listof pair?)] -> immutable-hasheqv?
+   ;;   Build an immutable eqv?-based hash from an association list. The
+   ;;   optional list defaults to empty.
+   (core-runtime-helper
+    '$make-immutable-hasheqv
+    "$make-immutable-hasheqv"
+    (lambda ()
+      `(func $make-immutable-hasheqv (type $Prim01)
+             (param $assocs (ref eq)) ;; optional association list, default null
+             (result        (ref eq))
+             (local $ht    (ref eq))
+             (local $alist (ref eq))
+             (local $pair  (ref $Pair))
+             (local $kv    (ref eq))
+             (local $kvp   (ref $Pair))
+             (if (ref.eq (local.get $assocs) (global.get $missing))
+                 (then (local.set $assocs (global.get $null))))
+             (local.set $ht (call $make-empty-immutable-hasheqv))
+             (local.set $alist (local.get $assocs))
+             (block $done
+                    (loop $walk
+                          (br_if $done (ref.eq (local.get $alist) (global.get $null)))
+                          (if (i32.eqz (ref.test (ref $Pair) (local.get $alist)))
+                              (then (call $raise-argument-error:pair-expected1 (local.get $alist))
+                                    (unreachable)))
+                          (local.set $pair (ref.cast (ref $Pair) (local.get $alist)))
+                          (local.set $kv (struct.get $Pair $a (local.get $pair)))
+                          (if (i32.eqz (ref.test (ref $Pair) (local.get $kv)))
+                              (then (call $raise-argument-error:pair-expected2 (local.get $kv))
+                                    (unreachable)))
+                          (local.set $kvp (ref.cast (ref $Pair) (local.get $kv)))
+                          (local.set $ht (call $immutable-hasheqv-set
+                                               (local.get $ht)
+                                               (struct.get $Pair $a (local.get $kvp))
+                                               (struct.get $Pair $d (local.get $kvp))))
+                          (local.set $alist (struct.get $Pair $d (local.get $pair)))
+                          (br $walk)))
+             (local.get $ht))))))
+
 ;; immutable-hash-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate immutable hash helpers that still depend on monolithic runtime globals.
 (define immutable-hash-runtime-only-helpers
@@ -4040,4 +4198,5 @@
           immutable-hash-lookup-runtime-only-helpers
           immutable-hash-set-runtime-only-helpers
           immutable-hash-remove-runtime-only-helpers
-          immutable-hash-varargs-constructor-runtime-only-helpers))
+          immutable-hash-varargs-constructor-runtime-only-helpers
+          immutable-hash-alist-constructor-runtime-only-helpers))
