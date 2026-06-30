@@ -2024,6 +2024,177 @@
                           (local.get $node)
                           (local.get $key)))))))
 
+;; immutable-hash-cnode-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate terminal full-hash collision-node helpers.
+(define immutable-hash-cnode-runtime-only-helpers
+  (list
+   ;; immutable-hamt-cnode-ref/kind : kind cnode key key-hash fail -> any/c
+   ;;   Lookup in a terminal full-hash collision node.
+   (core-runtime-helper
+    '$immutable-hamt-cnode-ref/kind
+    "$immutable-hamt-cnode-ref/kind"
+    (lambda ()
+      `(func $immutable-hamt-cnode-ref/kind
+             (param $kind  i32) ;; 0 eq?, 1 eqv?, 2 equal?, 3 equal-always?
+             (param $cnode (ref $ImmutableHashCNode))
+             (param $key   (ref eq))
+             (param $hash  i32)
+             (param $fail  (ref eq))
+             (result       (ref eq))
+
+             (if (i32.ne (local.get $hash)
+                         (struct.get $ImmutableHashCNode $key-hash
+                                     (local.get $cnode)))
+                 (then (return (local.get $fail))))
+             (return_call $immutable-hamt-bucket-ref/kind
+                          (local.get $kind)
+                          (struct.get $ImmutableHashCNode $content
+                                      (local.get $cnode))
+                          (local.get $key)
+                          (local.get $fail)))))
+
+   ;; immutable-hamt-cnode-ref-key/kind : kind cnode key key-hash fail -> any/c
+   ;;   Find the stored key in a terminal full-hash collision node.
+   (core-runtime-helper
+    '$immutable-hamt-cnode-ref-key/kind
+    "$immutable-hamt-cnode-ref-key/kind"
+    (lambda ()
+      `(func $immutable-hamt-cnode-ref-key/kind
+             (param $kind  i32) ;; 0 eq?, 1 eqv?, 2 equal?, 3 equal-always?
+             (param $cnode (ref $ImmutableHashCNode))
+             (param $key   (ref eq))
+             (param $hash  i32)
+             (param $fail  (ref eq))
+             (result       (ref eq))
+
+             (if (i32.ne (local.get $hash)
+                         (struct.get $ImmutableHashCNode $key-hash
+                                     (local.get $cnode)))
+                 (then (return (local.get $fail))))
+             (return_call $immutable-hamt-bucket-ref-key/kind
+                          (local.get $kind)
+                          (struct.get $ImmutableHashCNode $content
+                                      (local.get $cnode))
+                          (local.get $key)
+                          (local.get $fail)))))
+
+   ;; immutable-hamt-cnode-has-key?/kind : kind cnode key key-hash -> i32
+   ;;   Check a terminal full-hash collision node for a key.
+   (core-runtime-helper
+    '$immutable-hamt-cnode-has-key?/kind
+    "$immutable-hamt-cnode-has-key?/kind"
+    (lambda ()
+      `(func $immutable-hamt-cnode-has-key?/kind
+             (param $kind  i32) ;; 0 eq?, 1 eqv?, 2 equal?, 3 equal-always?
+             (param $cnode (ref $ImmutableHashCNode))
+             (param $key   (ref eq))
+             (param $hash  i32)
+             (result       i32)
+
+             (if (i32.ne (local.get $hash)
+                         (struct.get $ImmutableHashCNode $key-hash
+                                     (local.get $cnode)))
+                 (then (return (i32.const 0))))
+             (return_call $immutable-hamt-bucket-has-key?/kind
+                          (local.get $kind)
+                          (struct.get $ImmutableHashCNode $content
+                                      (local.get $cnode))
+                          (local.get $key)))))
+
+   ;; immutable-hamt-cnode-set/kind : kind cnode entry key key-hash -> cnode
+   ;;   Update or extend a terminal full-hash collision node.
+   (core-runtime-helper
+    '$immutable-hamt-cnode-set/kind
+    "$immutable-hamt-cnode-set/kind"
+    (lambda ()
+      `(func $immutable-hamt-cnode-set/kind
+             (param $kind  i32)
+             (param $cnode (ref $ImmutableHashCNode))
+             (param $entry (ref $ImmutableHashEntry))
+             (param $key   (ref eq))
+             (param $hash  i32)
+             (result       (ref eq))
+
+             (if (i32.ne (local.get $hash)
+                         (struct.get $ImmutableHashCNode $key-hash
+                                     (local.get $cnode)))
+                 (then
+                  ;; This should not occur for a real cnode path, but keeping
+                  ;; the new entry preserves lookup safety if a malformed tree
+                  ;; reaches this helper.
+                  (return
+                   (struct.new $ImmutableHashCNode
+                               (i32.const 0)
+                               (struct.get $ImmutableHashCNode $key-hash
+                                           (local.get $cnode))
+                               (call $cons
+                                     (local.get $entry)
+                                     (struct.get $ImmutableHashCNode $content
+                                                 (local.get $cnode)))))))
+             (struct.new $ImmutableHashCNode
+                         (i32.const 0)
+                         (local.get $hash)
+                         (call $cons
+                               (local.get $entry)
+                               (call $immutable-hamt-bucket-remove/kind
+                                     (local.get $kind)
+                                     (struct.get $ImmutableHashCNode $content
+                                                 (local.get $cnode))
+                                     (local.get $key)))))))
+
+   ;; immutable-hamt-cnode-remove/kind : kind cnode key key-hash -> bucket/cnode
+   ;;   Remove a key, collapsing an empty cnode to null.
+   (core-runtime-helper
+    '$immutable-hamt-cnode-remove/kind
+    "$immutable-hamt-cnode-remove/kind"
+    (lambda ()
+      `(func $immutable-hamt-cnode-remove/kind
+             (param $kind  i32)
+             (param $cnode (ref $ImmutableHashCNode))
+             (param $key   (ref eq))
+             (param $hash  i32)
+             (result       (ref eq))
+             (local $content (ref eq))
+
+             (if (i32.ne (local.get $hash)
+                         (struct.get $ImmutableHashCNode $key-hash
+                                     (local.get $cnode)))
+                 (then (return (local.get $cnode))))
+             (local.set $content
+                        (call $immutable-hamt-bucket-remove/kind
+                              (local.get $kind)
+                              (struct.get $ImmutableHashCNode $content
+                                          (local.get $cnode))
+                              (local.get $key)))
+             (if (ref.eq (local.get $content) (global.get $null))
+                 (then (return (global.get $null))))
+             (if (i32.le_u (call $immutable-hamt-bucket-length
+                                  (local.get $content))
+                            (i32.const 1))
+                 (then (return (local.get $content))))
+             (struct.new $ImmutableHashCNode
+                         (i32.const 0)
+                         (local.get $hash)
+                         (local.get $content)))))
+
+   ;; immutable-hamt-bucket->cnode : bucket entry -> cnode
+   ;;   Build a terminal full-hash collision node.
+   (core-runtime-helper
+    '$immutable-hamt-bucket->cnode
+    "$immutable-hamt-bucket->cnode"
+    (lambda ()
+      `(func $immutable-hamt-bucket->cnode
+             (param $bucket    (ref eq))
+             (param $new-entry (ref $ImmutableHashEntry))
+             (result           (ref $ImmutableHashCNode))
+             (struct.new $ImmutableHashCNode
+                         (i32.const 0)
+                         (struct.get $ImmutableHashEntry $key-hash
+                                     (local.get $new-entry))
+                         (call $cons
+                               (local.get $new-entry)
+                               (local.get $bucket))))))))
+
 ;; immutable-hash-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate immutable hash helpers that still depend on monolithic runtime globals.
 (define immutable-hash-runtime-only-helpers
@@ -2034,4 +2205,5 @@
           immutable-hash-packed-node-read-runtime-only-helpers
           immutable-hash-packed-node-set-runtime-only-helpers
           immutable-hash-packed-node-remove-runtime-only-helpers
-          immutable-hash-node-lookup-runtime-only-helpers))
+          immutable-hash-node-lookup-runtime-only-helpers
+          immutable-hash-cnode-runtime-only-helpers))
