@@ -1584,6 +1584,171 @@
                                              (global.get $null)))
                                  (i32.const 2)))))))))
 
+;; immutable-hash-packed-node-remove-runtime-only-helpers : (listof core-runtime-helper?)
+;;   Enumerate physical packed-node remove and collapse helpers.
+(define immutable-hash-packed-node-remove-runtime-only-helpers
+  (list
+   ;; immutable-hamt-packed-bnode-collapse-if-single/kind : kind bnode -> any/c
+   ;;   Collapse a physical bnode with one inline key/value pair to an entry.
+   (core-runtime-helper
+    '$immutable-hamt-packed-bnode-collapse-if-single/kind
+    "$immutable-hamt-packed-bnode-collapse-if-single/kind"
+    (lambda ()
+      `(func $immutable-hamt-packed-bnode-collapse-if-single/kind
+             (param $kind i32)
+             (param $sv   (ref $StencilVector))
+             (result      (ref eq))
+             (local $metadata i32)
+             (local $group    i32)
+             (local $key-bit  i32)
+             (local.set $metadata (call $immutable-hamt-bnode-metadata (local.get $sv)))
+             (if (i32.ne (i32.popcnt (local.get $metadata)) (i32.const 3))
+                 (then (return (local.get $sv))))
+             (local.set $group (i32.const 0))
+             (block $done
+                    (loop $loop
+                          (br_if $done (i32.ge_u (local.get $group) (i32.const 8)))
+                          (local.set $key-bit
+                                     (call $immutable-hamt-packed-key-bit
+                                           (local.get $group)
+                                           (i32.const 0)))
+                          (if (i32.ne (i32.and (local.get $metadata) (local.get $key-bit))
+                                      (i32.const 0))
+                              (then
+                               (return_call $immutable-hamt-entry-for-key/kind
+                                            (local.get $kind)
+                                            (call $immutable-hamt-packed-slot
+                                                  (local.get $sv)
+                                                  (local.get $key-bit))
+                                            (call $immutable-hamt-packed-slot
+                                                  (local.get $sv)
+                                                  (call $immutable-hamt-packed-value-bit
+                                                        (local.get $group)
+                                                        (i32.const 0))))))
+                          (local.set $group (i32.add (local.get $group) (i32.const 1)))
+                          (br $loop)))
+             (local.get $sv))))
+
+   ;; immutable-hamt-packed-node-remove/kind : kind bnode key hash shift -> any/c
+   ;;   Functional remove for a physical packed bnode.
+   (core-runtime-helper
+    '$immutable-hamt-packed-node-remove/kind
+    "$immutable-hamt-packed-node-remove/kind"
+    (lambda ()
+      `(func $immutable-hamt-packed-node-remove/kind
+             (param $kind  i32)
+             (param $sv    (ref $StencilVector))
+             (param $key   (ref eq))
+             (param $hash  i32)
+             (param $shift i32)
+             (result       (ref eq))
+             (local $metadata  i32)
+             (local $child-bit i32)
+             (local $key-bit   i32)
+             (local $value-bit i32)
+             (local $slot      (ref eq))
+             (local $newslot   (ref eq))
+             (local.set $slot (global.get $null))
+             (local.set $newslot (global.get $null))
+             (local.set $metadata (call $immutable-hamt-bnode-metadata (local.get $sv)))
+             (local.set $child-bit
+                        (call $immutable-hamt-packed-child-bit
+                              (local.get $hash)
+                              (local.get $shift)))
+             (local.set $key-bit
+                        (call $immutable-hamt-packed-key-bit
+                              (local.get $hash)
+                              (local.get $shift)))
+             (local.set $value-bit
+                        (call $immutable-hamt-packed-value-bit
+                              (local.get $hash)
+                              (local.get $shift)))
+             (if (i32.ne (i32.and (local.get $metadata) (local.get $child-bit))
+                         (i32.const 0))
+                 (then
+                  (local.set $newslot
+                             (call $immutable-hamt-node-remove/kind
+                                   (local.get $kind)
+                                   (call $immutable-hamt-packed-child-slot
+                                         (local.get $sv)
+                                         (local.get $hash)
+                                         (local.get $shift))
+                                   (local.get $key)
+                                   (local.get $hash)
+                                   (i32.add (local.get $shift) (i32.const 3))))
+                  (if (ref.eq (local.get $newslot) (global.get $null))
+                      (then
+                       (return_call $immutable-hamt-packed-bnode-collapse-if-single/kind
+                                    (local.get $kind)
+                                    (call $immutable-hamt-store-packed-bnode-metadata
+                                          (ref.cast
+                                           (ref $StencilVector)
+                                           (call $$stencil-vector-update/core
+                                                 (local.get $sv)
+                                                 (local.get $child-bit)
+                                                 (i32.const 0)
+                                                 (global.get $null)
+                                                 (i32.const 2)))))))
+                  (if (ref.test (ref $ImmutableHashEntry) (local.get $newslot))
+                      (then
+                       (return_call $immutable-hamt-packed-bnode-collapse-if-single/kind
+                                    (local.get $kind)
+                                    (call $immutable-hamt-store-packed-bnode-metadata
+                                          (ref.cast
+                                           (ref $StencilVector)
+                                           (call $$stencil-vector-update/core
+                                                 (local.get $sv)
+                                                 (local.get $child-bit)
+                                                 (i32.or (local.get $key-bit) (local.get $value-bit))
+                                                 (call $cons
+                                                       (call $immutable-hamt-wrap-inline-key/kind
+                                                             (local.get $kind)
+                                                             (struct.get $ImmutableHashEntry $key
+                                                                         (ref.cast (ref $ImmutableHashEntry)
+                                                                                   (local.get $newslot)))
+                                                             (struct.get $ImmutableHashEntry $key-hash
+                                                                         (ref.cast (ref $ImmutableHashEntry)
+                                                                                   (local.get $newslot))))
+                                                       (call $cons
+                                                             (struct.get $ImmutableHashEntry $value
+                                                                         (ref.cast (ref $ImmutableHashEntry)
+                                                                                   (local.get $newslot)))
+                                                             (global.get $null)))
+                                                 (i32.const 2)))))))
+                  (return_call $immutable-hamt-store-packed-bnode-metadata
+                               (ref.cast
+                                (ref $StencilVector)
+                                (call $$stencil-vector-update/core
+                                      (local.get $sv)
+                                      (local.get $child-bit)
+                                      (local.get $child-bit)
+                                      (call $cons (local.get $newslot) (global.get $null))
+                                      (i32.const 2))))))
+             (if (i32.eqz (i32.and (local.get $metadata) (local.get $key-bit)))
+                 (then (return (local.get $sv))))
+             (local.set $slot
+                        (call $immutable-hamt-packed-key-slot
+                              (local.get $sv)
+                              (local.get $hash)
+                              (local.get $shift)))
+             (if (i32.eqz
+                  (call $immutable-hamt-key-matches?/kind
+                        (local.get $kind)
+                        (local.get $slot)
+                        (local.get $key)))
+                 (then (return (local.get $sv))))
+             (return_call $immutable-hamt-packed-bnode-collapse-if-single/kind
+                          (local.get $kind)
+                          (call $immutable-hamt-store-packed-bnode-metadata
+                                (ref.cast
+                                 (ref $StencilVector)
+                                 (call $$stencil-vector-update/core
+                                       (local.get $sv)
+                                       (i32.or (local.get $key-bit) (local.get $value-bit))
+                                       (i32.const 0)
+                                       (global.get $null)
+                                       (i32.const 2))))))))))
+
 ;; immutable-hash-runtime-only-helpers : (listof core-runtime-helper?)
 ;;   Enumerate immutable hash helpers that still depend on monolithic runtime globals.
 (define immutable-hash-runtime-only-helpers
@@ -1592,4 +1757,5 @@
           immutable-hash-hamt-metadata-runtime-only-helpers
           immutable-hash-eq-bucket-runtime-only-helpers
           immutable-hash-packed-node-read-runtime-only-helpers
-          immutable-hash-packed-node-set-runtime-only-helpers))
+          immutable-hash-packed-node-set-runtime-only-helpers
+          immutable-hash-packed-node-remove-runtime-only-helpers))
