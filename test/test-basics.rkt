@@ -3036,6 +3036,50 @@
                            (catch-contract/who? "vector*-set!"
                                                 (lambda () (vector*-set! (vector-immutable 'a) 0 'x))))))
 
+              (list "vector range errors are catchable with who"
+                    (let ([catch-contract/who?
+                           (lambda (who thunk)
+                             (let ([message
+                                    (with-handlers ([exn:fail:contract?
+                                                     (lambda (exn)
+                                                       (exn-message exn))])
+                                      (thunk)
+                                      #f)])
+                               (and (string? message)
+                                    (string-contains? message who))))])
+                      (and (catch-contract/who? "vector-set/copy"
+                                                (lambda () (vector-set/copy (vector 'a) 1 'x)))
+                           (catch-contract/who? "vector-copy"
+                                                (lambda () (vector-copy (vector 'a) 1 0)))
+                           (catch-contract/who? "vector-copy!"
+                                                (lambda () (vector-copy! (vector 'x) 1 (vector 'a 'b) 0 2)))
+                           (catch-contract/who? "vector-copy!"
+                                                (lambda () (vector-copy! (vector-immutable 'x) 0 (vector 'a))))
+                           (catch-contract/who? "vector->immutable-vector"
+                                                (lambda () (vector->immutable-vector 42)))
+                           (catch-contract/who? "vector->values"
+                                                (lambda () (vector->values (vector 'a) 1 0)))
+                           (catch-contract/who? "vector-extend"
+                                                (lambda () (vector-extend (vector 'a 'b) 1)))
+                           (catch-contract/who? "vector-empty?"
+                                                (lambda () (vector-empty? 42)))
+                           (catch-contract/who? "vector-append"
+                                                (lambda () (vector-append (vector 'a) 42)))
+                           (catch-contract/who? "vector-take"
+                                                (lambda () (vector-take (vector 'a) 2)))
+                           (catch-contract/who? "vector-drop"
+                                                (lambda () (vector-drop (vector 'a) 2)))
+                           (catch-contract/who? "vector-take-right"
+                                                (lambda () (vector-take-right (vector 'a) 2)))
+                           (catch-contract/who? "vector-drop-right"
+                                                (lambda () (vector-drop-right (vector 'a) 2)))
+                           (catch-contract/who? "vector-split-at"
+                                                (lambda () (vector-split-at (vector 'a) 2)))
+                           (catch-contract/who? "vector-split-at-right"
+                                                (lambda () (vector-split-at-right (vector 'a) 2)))
+                           (catch-contract/who? "vector-sort!"
+                                                (lambda () (vector-sort! (vector 2 1) < 2 1))))))
+
               (list "stencil-vector"
                     (let ([sv (stencil-vector #b101 'a 'b)])
                       (and (stencil-vector? sv)
